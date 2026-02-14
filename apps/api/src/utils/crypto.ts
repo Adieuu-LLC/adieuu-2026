@@ -22,7 +22,7 @@
  * ```
  */
 
-import { createHash, createHmac, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, createCipheriv, createDecipheriv, timingSafeEqual } from 'crypto';
 import { config } from '../config';
 
 /**
@@ -300,4 +300,106 @@ export function hmacSign(data: string): string {
 export function hmacVerify(data: string, signature: string): boolean {
   const expected = hmacSign(data);
   return constantTimeCompare(expected, signature);
+}
+
+/**
+ * Derives a 256-bit encryption key from the session secret.
+ *
+ * Uses SHA-256 to derive a consistent key from the secret.
+ * This ensures the key is always the correct length for AES-256.
+ *
+ * @returns 32-byte key buffer
+ * @internal
+ */
+function deriveEncryptionKey(): Buffer {
+  return createHash('sha256')
+    .update(config.security.sessionSecret)
+    .digest();
+}
+
+/**
+ * Encrypts a string using AES-256-GCM.
+ *
+ * Uses authenticated encryption to provide both confidentiality and
+ * integrity. The IV is randomly generated and prepended to the output.
+ *
+ * Output format: base64url(IV || ciphertext || authTag)
+ * - IV: 12 bytes (96 bits, standard for GCM)
+ * - authTag: 16 bytes (128 bits)
+ *
+ * @param plaintext - The string to encrypt
+ * @returns Base64url-encoded encrypted data (IV + ciphertext + authTag)
+ *
+ * @example
+ * ```typescript
+ * const encrypted = encrypt('user@example.com:123456');
+ * // "X8kL9mN2o3p4Q5r6S7t8U9v0W1x2Y3z4..."
+ *
+ * const decrypted = decrypt(encrypted);
+ * // "user@example.com:123456"
+ * ```
+ */
+export function encrypt(plaintext: string): string {
+  const key = deriveEncryptionKey();
+  const iv = new Uint8Array(12); // 96-bit IV for GCM
+  crypto.getRandomValues(iv);
+
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const encrypted = Buffer.concat([
+    cipher.update(plaintext, 'utf8'),
+    cipher.final(),
+  ]);
+  const authTag = cipher.getAuthTag();
+
+  // Combine: IV || ciphertext || authTag
+  const combined = Buffer.concat([Buffer.from(iv), encrypted, authTag]);
+  return combined.toString('base64url');
+}
+
+/**
+ * Decrypts a string that was encrypted with `encrypt()`.
+ *
+ * Verifies the authentication tag to ensure the data hasn't been
+ * tampered with. Returns null if decryption fails (invalid data,
+ * wrong key, or tampered ciphertext).
+ *
+ * @param encrypted - Base64url-encoded encrypted data from `encrypt()`
+ * @returns The decrypted plaintext, or null if decryption fails
+ *
+ * @example
+ * ```typescript
+ * const decrypted = decrypt(encryptedToken);
+ * if (decrypted === null) {
+ *   return errors.badRequest('Invalid or tampered token');
+ * }
+ * const [identifier, otp] = decrypted.split(':');
+ * ```
+ */
+export function decrypt(encrypted: string): string | null {
+  try {
+    const key = deriveEncryptionKey();
+    const combined = Buffer.from(encrypted, 'base64url');
+
+    // Extract: IV (12 bytes) || ciphertext || authTag (16 bytes)
+    if (combined.length < 12 + 16) {
+      return null; // Too short to be valid
+    }
+
+    const iv = combined.subarray(0, 12);
+    const authTag = combined.subarray(combined.length - 16);
+    const ciphertext = combined.subarray(12, combined.length - 16);
+
+    const decipher = createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+
+    const decrypted = Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final(),
+    ]);
+
+    return decrypted.toString('utf8');
+  } catch {
+    // Decryption failed (invalid data, wrong key, tampered, etc.)
+    return null;
+  }
 }

@@ -3,7 +3,7 @@
  */
 
 import type { HttpMethod, Route, RouteHandler, RouteContext, Middleware, RouterOptions } from './types';
-import { errors } from '../utils/response';
+import { error, errors } from '../utils/response';
 import elog from '../utils/adieuuLogger';
 
 /**
@@ -56,13 +56,28 @@ function generateRequestId(): string {
   return crypto.randomUUID();
 }
 
+/**
+ * Default maximum request body size in bytes.
+ * Set to 1MB which is generous for JSON text content in a chat app.
+ * Individual routes can override this if needed.
+ */
+const DEFAULT_MAX_BODY_SIZE = 1024 * 1024; // 1MB
+
+/**
+ * Maximum body size for large content (e.g., message composition with attachments metadata).
+ * Use sparingly - most routes should use the default.
+ */
+export const LARGE_BODY_SIZE = 5 * 1024 * 1024; // 5MB
+
 export class Router {
   private routes: Route[] = [];
   private middlewares: Middleware[] = [];
   private prefix: string;
+  private maxBodySize: number;
 
   constructor(options: RouterOptions = {}) {
     this.prefix = options.prefix ?? '';
+    this.maxBodySize = options.maxBodySize ?? DEFAULT_MAX_BODY_SIZE;
   }
 
   /**
@@ -175,18 +190,36 @@ export class Router {
       const match = this.findRoute(method, path);
 
       if (!match) {
-        return errors.notFound(`No route found for ${method} ${path}`);
+        // Generic message to avoid leaking route structure
+        return errors.notFound('Not found');
       }
 
       // Parse body for POST/PUT/PATCH
       let body: unknown;
       if (['POST', 'PUT', 'PATCH'].includes(method)) {
+        // Check Content-Length to prevent DoS via large payloads
+        const contentLength = request.headers.get('Content-Length');
+        if (contentLength) {
+          const size = parseInt(contentLength, 10);
+          if (!isNaN(size) && size > this.maxBodySize) {
+            return error('PAYLOAD_TOO_LARGE', `Request body exceeds maximum size of ${Math.round(this.maxBodySize / 1024)}KB`, 413);
+          }
+        }
+
         const contentType = request.headers.get('Content-Type') ?? '';
         if (contentType.includes('application/json')) {
           try {
-            body = await request.json();
-          } catch {
-            return errors.badRequest('Invalid JSON body');
+            // Read body with size limit (handles chunked encoding where Content-Length may be absent)
+            const text = await request.text();
+            if (text.length > this.maxBodySize) {
+              return error('PAYLOAD_TOO_LARGE', `Request body exceeds maximum size of ${Math.round(this.maxBodySize / 1024)}KB`, 413);
+            }
+            body = JSON.parse(text);
+          } catch (e) {
+            if (e instanceof SyntaxError) {
+              return errors.badRequest('Invalid JSON body');
+            }
+            throw e;
           }
         }
       }

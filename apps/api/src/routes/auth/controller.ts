@@ -12,7 +12,7 @@ import { createOtp } from '../../services/otp.service';
 import { checkRateLimit, type RateLimitResult } from '../../services/rate-limit.service';
 import { sendEmail, sendSms } from '../../services/messaging';
 import { sanitizeString } from '../../utils/sanitize';
-import { hashIdentifier, hashIp, hmacSign } from '../../utils/crypto';
+import { hashIdentifier, hashIp, encrypt } from '../../utils/crypto';
 import { addJitter } from '../../utils/timing';
 import { config } from '../../config';
 import elog from '../../utils/adieuuLogger';
@@ -216,39 +216,29 @@ async function sendOtpSms(phone: string, otp: string): Promise<void> {
 /**
  * Builds a magic link URL for one-click email authentication.
  *
- * Creates a signed URL that encodes the user's identifier and OTP, allowing
- * them to authenticate by simply clicking the link in their email. The link
- * includes an HMAC signature to prevent tampering.
+ * Creates an encrypted URL token containing the user's identifier and OTP.
+ * The token is encrypted using AES-256-GCM, which provides both confidentiality
+ * (the OTP is not visible in the URL) and integrity (tampering is detected).
  *
  * @param identifier - The user's email address
  * @param otp - The one-time password
  * @returns A fully-qualified URL pointing to the web app's verification endpoint
  *
+ * @remarks
+ * The token format is: encrypt(identifier:otp:timestamp)
+ * - The timestamp provides additional entropy and enables expiry checks
+ * - AES-GCM authentication tag prevents tampering without a signature
+ *
  * @internal
  */
 function buildMagicLink(identifier: string, otp: string): string {
-  // Encode identifier and OTP in the token
-  const token = Buffer.from(`${identifier}:${otp}`).toString('base64url');
+  // Include timestamp for additional entropy and potential expiry checks
+  const payload = `${identifier}:${otp}:${Date.now()}`;
 
-  // Create HMAC signature
-  const signature = createSignature(token);
+  // Encrypt the payload - AES-GCM provides both confidentiality and authentication
+  const token = encrypt(payload);
 
-  return `${config.webAppUrl}/auth/verify?t=${token}&s=${signature}`;
-}
-
-/**
- * Creates a cryptographic signature for magic link integrity verification.
- *
- * Uses HMAC-SHA256 with the session secret to create a signature that
- * cannot be forged without knowledge of the secret key.
- *
- * @param data - The data to sign (typically the base64url-encoded token)
- * @returns A base64url-encoded HMAC-SHA256 signature
- *
- * @internal
- */
-function createSignature(data: string): string {
-  return hmacSign(data);
+  return `${config.webAppUrl}/auth/verify?t=${token}`;
 }
 
 /**

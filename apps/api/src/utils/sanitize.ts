@@ -44,7 +44,18 @@ import elog from "./adieuuLogger";
  * 
  * @internal
  */
-export const generateEmojiString = () => {
+/**
+ * Generates a string containing common emoji characters.
+ *
+ * Creates a string with emojis from various Unicode ranges including
+ * emoticons, dingbats, and transport symbols. Used for testing
+ * sanitization of emoji-containing strings.
+ *
+ * @returns A string containing various emoji characters
+ *
+ * @internal
+ */
+export const generateEmojiString = (): string => {
   let emojis = '';
   // Emoticons
   for (let i = 0x1F600; i <= 0x1F64F; i++) {
@@ -63,8 +74,7 @@ export const generateEmojiString = () => {
     emojis += String.fromCodePoint(i);
   }
 
-  elog.info("Emojis", emojis)
-  return emojis
+  return emojis;
 };
 
 /**
@@ -105,35 +115,42 @@ export interface SanitizationResult {
 
 /**
  * Counts the number of character differences between two strings.
- * 
- * Used to determine how many characters were modified during sanitization.
- * Case differences are normalized for email (lowercase) and IP (uppercase)
- * types since case normalization is an expected transformation.
- * 
+ *
+ * Uses proper Unicode iteration to correctly handle multi-byte characters
+ * like emojis and international text. Case differences are normalized for
+ * email (lowercase) and IP (uppercase) types since case normalization is
+ * an expected transformation.
+ *
  * @param original - The original input string
  * @param sanitized - The sanitized output string
  * @param type - The sanitization type (affects case normalization)
- * @returns Number of differing characters
- * 
+ * @returns Number of differing Unicode code points
+ *
  * @internal
  */
 function countDeltas(original: string, sanitized: string, type: SanitizationType): number {
   if (original === sanitized) return 0;
 
-  let deltas = 0;
-  const maxLen = Math.max(original.length, sanitized.length);
-
   // Normalize casing for specific sanitization types
+  let normalizedOriginal = original;
+  let normalizedSanitized = sanitized;
+
   if (type === 'ip') {
-    original = original.toUpperCase();
-    sanitized = sanitized.toUpperCase();
+    normalizedOriginal = original.toUpperCase();
+    normalizedSanitized = sanitized.toUpperCase();
   } else if (type === 'email') {
-    original = original.toLowerCase();
-    sanitized = sanitized.toLowerCase();
+    normalizedOriginal = original.toLowerCase();
+    normalizedSanitized = sanitized.toLowerCase();
   }
 
+  // Use Array.from to properly split by Unicode code points (handles surrogate pairs)
+  const originalChars = Array.from(normalizedOriginal);
+  const sanitizedChars = Array.from(normalizedSanitized);
+  const maxLen = Math.max(originalChars.length, sanitizedChars.length);
+
+  let deltas = 0;
   for (let i = 0; i < maxLen; i++) {
-    if (original[i] !== sanitized[i]) {
+    if (originalChars[i] !== sanitizedChars[i]) {
       deltas++;
     }
   }
@@ -284,13 +301,29 @@ export const sanitizeString = (target: SanitizationOptions['target'], type: Sani
           const localPart = splitEmail.join('@');
 
           // Sanitize local part (before @)
-          sanitized = localPart.replace(/[^a-zA-Z0-9._+-]/g, '');
-          sanitized += '@';
+          const sanitizedLocal = localPart.replace(/[^a-zA-Z0-9._+-]/g, '');
           // Sanitize domain part (after last @)
-          sanitized += domain.replace(/[^0-9a-zA-Z.-]/g, '');
+          const sanitizedDomain = domain.replace(/[^0-9a-zA-Z.-]/g, '');
+
+          // Validate both parts are non-empty
+          if (sanitizedLocal.length === 0 || sanitizedDomain.length === 0) {
+            elog.warn('Email sanitization resulted in empty local or domain part', {
+              hasLocal: sanitizedLocal.length > 0,
+              hasDomain: sanitizedDomain.length > 0,
+              originalLength: original.length,
+            });
+            // Return empty to indicate invalid email
+            sanitized = '';
+          } else {
+            sanitized = `${sanitizedLocal}@${sanitizedDomain}`;
+          }
         } else {
-          elog.info(`Email does not have @ - does not seem right! Value: ${sanitized}`);
-          sanitized = sanitized.replace(/[^0-9a-zA-Z]/g, '');
+          // Log without the actual value to prevent PII leak
+          elog.warn('Email sanitization received value without @ symbol', {
+            inputLength: sanitized.length,
+          });
+          // Return empty for invalid email format
+          sanitized = '';
         }
 
         sanitized = sanitized.toLowerCase().trim();

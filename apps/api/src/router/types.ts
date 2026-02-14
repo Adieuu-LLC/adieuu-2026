@@ -37,4 +37,6 @@ export interface Route {
 export interface RouterOptions {
   /** Base path prefix for all routes (e.g., '/api') */
   prefix?: string;
+  /** Maximum request body size in bytes (default: 1MB) */
+  maxBodySize?: number;
 }
