@@ -92,8 +92,19 @@ jobs:
       - name: Build shared packages
         run: pnpm build --filter @chadder/shared --filter @chadder/tsconfig
 
-      - name: Run API tests
-        run: cd apps/api && bun test
+      - name: Run API tests with coverage
+        run: cd apps/api && bun test --coverage --coverage-reporter=lcov
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./apps/api/coverage/lcov.info
+          flags: api
+          name: api-coverage
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   build-api:
     runs-on: ubuntu-latest
