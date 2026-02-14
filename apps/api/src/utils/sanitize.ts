@@ -1,5 +1,49 @@
+/**
+ * String Sanitization Module
+ * 
+ * Provides type-aware string sanitization to remove potentially dangerous
+ * characters, control characters, and invisible Unicode characters. Each
+ * sanitization type is tailored for specific use cases (emails, phones,
+ * IDs, etc.).
+ * 
+ * Security features:
+ * - Removes control characters (C0/C1)
+ * - Removes zero-width and invisible characters
+ * - Removes bidirectional override characters (prevents text direction attacks)
+ * - Removes HTML entities for invisible characters
+ * - Prevents template literal injection (${...})
+ * - Type-specific character whitelisting
+ * 
+ * @module utils/sanitize
+ * 
+ * @example
+ * ```typescript
+ * import { sanitizeString } from './sanitize';
+ * 
+ * // Sanitize an email
+ * const result = sanitizeString('User@Example.COM', 'email');
+ * console.log(result.value);  // 'user@example.com'
+ * console.log(result.deltas); // 0 (case change not counted as delta for email)
+ * 
+ * // Sanitize a phone number
+ * const phone = sanitizeString('+1 (555) 123-4567 ext 42', 'phone');
+ * console.log(phone.value); // '+1 (555) 123-4567 x 42'
+ * ```
+ */
+
 import elog from "./adieuuLogger";
 
+/**
+ * Generates a string containing common emoji characters.
+ * 
+ * Creates a string with emojis from various Unicode ranges including
+ * emoticons, dingbats, and transport symbols. Primarily used for
+ * testing sanitization of emoji-containing strings.
+ * 
+ * @returns A string containing various emoji characters
+ * 
+ * @internal
+ */
 export const generateEmojiString = () => {
   let emojis = '';
   // Emoticons
@@ -23,19 +67,55 @@ export const generateEmojiString = () => {
   return emojis
 };
 
-
-
+/**
+ * Available sanitization types.
+ * 
+ * Each type applies specific character filtering rules:
+ * 
+ * - `default` - Alias for 'general'
+ * - `general` - Allow most printable characters including international scripts
+ * - `email` - Email addresses (local@domain format, lowercased)
+ * - `phone` - Phone numbers (digits, +, -, spaces, parentheses, x, periods)
+ * - `ip` - IP addresses (IPv4/IPv6: hex digits, colons, periods, slashes)
+ * - `id` - Simple identifiers (alphanumeric and parentheses only)
+ * - `idenhanced` - Extended identifiers (alphanumeric, underscores, equals, dashes, periods)
+ * - `authcode` - Authentication codes (alphanumeric, hyphens, spaces)
+ * - `hash` - Hash strings (alphanumeric, parentheses, underscores, equals, plus, minus)
+ * - `base64` - Base64 encoded strings (A-Z, a-z, 0-9, +, /, =)
+ * - `alphanumdash` - Alphanumeric with hyphens only (good for slugs)
+ */
 export type SanitizationType = 'default' | 'phone' | 'ip' | 'id' | 'idenhanced' | 'general' | 'authcode' | 'email' | 'hash' | 'base64' | 'alphanumdash';
 
+/**
+ * Result of a sanitization operation.
+ * 
+ * Contains both the sanitized string and a count of how many characters
+ * were modified. A delta of 0 indicates the input was already clean.
+ */
 export interface SanitizationResult {
   /** The sanitized string value */
   value: string;
-  /** Number of character differences between original and sanitized string (0 = clean input) */
+  /** 
+   * Number of character differences between original and sanitized string.
+   * A value of 0 indicates the input was already clean.
+   * Note: Case normalization (email lowercase, IP uppercase) is not counted as delta.
+   */
   deltas: number;
 }
 
 /**
- * Count the number of character differences between two strings
+ * Counts the number of character differences between two strings.
+ * 
+ * Used to determine how many characters were modified during sanitization.
+ * Case differences are normalized for email (lowercase) and IP (uppercase)
+ * types since case normalization is an expected transformation.
+ * 
+ * @param original - The original input string
+ * @param sanitized - The sanitized output string
+ * @param type - The sanitization type (affects case normalization)
+ * @returns Number of differing characters
+ * 
+ * @internal
  */
 function countDeltas(original: string, sanitized: string, type: SanitizationType): number {
   if (original === sanitized) return 0;
@@ -61,16 +141,69 @@ function countDeltas(original: string, sanitized: string, type: SanitizationType
   return deltas;
 }
 
+/**
+ * Internal options interface for sanitization.
+ * @internal
+ */
 interface SanitizationOptions {
   type: SanitizationType;
   target: string,
 }
 
 /**
- * Sanitize a string based on the specified type, removing potentially dangerous characters
- * @param {string} target - The string to sanitize
- * @param {SanitizationType} type - The type of sanitizer to use (default: 'general')
- * @returns {SanitizationResult} Object containing the sanitized value and whether it was modified
+ * Sanitizes a string based on the specified type.
+ * 
+ * Removes potentially dangerous characters, control characters, and
+ * invisible Unicode characters. The specific filtering rules depend
+ * on the sanitization type.
+ * 
+ * All types remove:
+ * - Control characters (U+0000-U+001F, U+007F-U+009F)
+ * - Zero-width characters (U+200B-U+200F, U+2060, etc.)
+ * - Bidirectional override characters (prevents text direction attacks)
+ * - HTML entities for invisible characters (&nbsp;, &#8203;, etc.)
+ * - Template literal injection patterns (${...})
+ * 
+ * Type-specific rules:
+ * - `email`: Lowercased, removes protocols, allows local@domain format
+ * - `phone`: Allows digits, +, -, spaces, parentheses, x, periods
+ * - `ip`: Uppercased, allows hex digits, colons, periods, slashes
+ * - `id`: Only alphanumeric and parentheses
+ * - `idenhanced`: Alphanumeric plus underscores, equals, dashes, periods
+ * - `authcode`: Alphanumeric plus hyphens and spaces
+ * - `hash`: Alphanumeric plus parentheses, underscores, equals, plus, minus
+ * - `base64`: Standard base64 character set
+ * - `alphanumdash`: Alphanumeric and hyphens only
+ * - `general`: Most printable characters including international scripts
+ * 
+ * @param target - The string to sanitize
+ * @param type - The sanitization type (default: 'general')
+ * @returns Object containing sanitized value and delta count
+ * 
+ * @example
+ * ```typescript
+ * // Email sanitization (lowercased, protocol removed)
+ * const email = sanitizeString('https://User@Example.COM', 'email');
+ * // { value: 'user@example.com', deltas: 0 }
+ * 
+ * // Phone sanitization
+ * const phone = sanitizeString('+1 (555) ABC-1234', 'phone');
+ * // { value: '+1 (555) -1234', deltas: 3 }
+ * 
+ * // ID sanitization (alphanumeric only)
+ * const id = sanitizeString('user-123_test', 'id');
+ * // { value: 'user123test', deltas: 2 }
+ * 
+ * // General text (preserves most characters)
+ * const text = sanitizeString('Hello, World! Test', 'general');
+ * // { value: 'Hello, World! Test', deltas: 0 }
+ * 
+ * // Check if input was modified
+ * const result = sanitizeString(userInput, 'email');
+ * if (result.deltas > 0) {
+ *   logger.warn('Input was sanitized', { deltas: result.deltas });
+ * }
+ * ```
  */
 export const sanitizeString = (target: SanitizationOptions['target'], type: SanitizationOptions['type'] = 'default'): SanitizationResult => {
   let sanitized = '';
@@ -209,4 +342,13 @@ export const sanitizeString = (target: SanitizationOptions['target'], type: Sani
   }
 }
 
+/**
+ * Default export for convenient importing.
+ * 
+ * @example
+ * ```typescript
+ * import sanitize from './sanitize';
+ * const result = sanitize('user@example.com', 'email');
+ * ```
+ */
 export default sanitizeString;
