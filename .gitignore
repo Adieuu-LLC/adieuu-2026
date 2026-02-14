@@ -30,6 +30,7 @@ pnpm-debug.log*
 
 # Test coverage
 coverage/
+junit.xml
 
 # TypeScript
 *.tsbuildinfo

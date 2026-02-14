@@ -9,7 +9,7 @@
     "start": "bun run dist/index.js",
     "test": "bun test",
     "test:coverage": "bun test --coverage",
-    "test:ci": "bun test --coverage --coverage-reporter=lcov",
+    "test:ci": "bun test --coverage --coverage-reporter=lcov --reporter=junit --reporter=default > junit.xml",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist coverage"
   },
