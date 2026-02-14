@@ -12,7 +12,7 @@ import { createOtp } from '../../services/otp.service';
 import { checkRateLimit, type RateLimitResult } from '../../services/rate-limit.service';
 import { sendEmail, sendSms } from '../../services/messaging';
 import { sanitizeString } from '../../utils/sanitize';
-import { hashIdentifier, hashIp } from '../../utils/crypto';
+import { hashIdentifier, hashIp, hmacSign } from '../../utils/crypto';
 import { addJitter } from '../../utils/timing';
 import { config } from '../../config';
 import elog from '../../utils/adieuuLogger';
@@ -94,9 +94,27 @@ export async function requestOtp(
     ? sanitizeString(identifier, 'email')
     : sanitizeString(identifier, 'phone');
 
+  // Sanitize the IP address to prevent injection via proxy headers
+  const sanitizedIp = sanitizeString(clientIp, 'ip');
+
+  // Log if sanitization modified the input (potential probe/injection attempt)
+  if (sanitizedIdentifier.deltas > 0) {
+    elog.warn('Identifier sanitization modified input', {
+      type,
+      deltas: sanitizedIdentifier.deltas,
+      ipHash: hashIp(sanitizedIp.value),
+    });
+  }
+  if (sanitizedIp.deltas > 0) {
+    elog.warn('IP address sanitization modified input', {
+      deltas: sanitizedIp.deltas,
+      originalLength: clientIp.length,
+    });
+  }
+
   // Hash identifier and IP for rate limiting and logging
   const identifierHash = hashIdentifier(sanitizedIdentifier.value);
-  const ipHash = hashIp(clientIp);
+  const ipHash = hashIp(sanitizedIp.value);
 
   // Check rate limits
   const identifierLimit = await checkRateLimit('auth:request:identifier', identifierHash);
@@ -219,30 +237,18 @@ function buildMagicLink(identifier: string, otp: string): string {
 }
 
 /**
- * Creates an HMAC signature for magic link integrity verification.
+ * Creates a cryptographic signature for magic link integrity verification.
  *
- * Generates a signature using a simple hash algorithm combined with the
- * OTP secret. This prevents tampering with magic link parameters.
+ * Uses HMAC-SHA256 with the session secret to create a signature that
+ * cannot be forged without knowledge of the secret key.
  *
  * @param data - The data to sign (typically the base64url-encoded token)
- * @returns A base36-encoded signature string
- *
- * @remarks
- * This is a simplified implementation. In production environments,
- * consider using a proper HMAC implementation (e.g., crypto.createHmac).
+ * @returns A base64url-encoded HMAC-SHA256 signature
  *
  * @internal
  */
 function createSignature(data: string): string {
-  // Simple signature using OTP secret - in production, use proper HMAC
-  const combined = `${data}:${config.security.otpSecret}`;
-  let hash = 0;
-  for (let i = 0; i < combined.length; i++) {
-    const char = combined.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return Math.abs(hash).toString(36);
+  return hmacSign(data);
 }
 
 /**

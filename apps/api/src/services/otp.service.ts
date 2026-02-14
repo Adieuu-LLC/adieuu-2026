@@ -46,14 +46,19 @@ import elog from '../utils/adieuuLogger';
  * - 6 digits provides 1 million combinations (sufficient with attempt limiting)
  * - 10 minute TTL allows for email/SMS delivery delays
  * - 5 attempts prevents brute force while allowing for typos
+ * - Exponential backoff starts at 2s and doubles each attempt (max 60s)
  */
 const OTP_CONFIG = {
   /** OTP length in digits */
   length: 6,
   /** Time-to-live in seconds (10 minutes) */
   ttlSeconds: 10 * 60,
-  /** Maximum verification attempts before lockout */
+  /** Maximum verification attempts before OTP is locked */
   maxAttempts: 5,
+  /** Base backoff delay in milliseconds (doubles each attempt) */
+  backoffBaseMs: 2000,
+  /** Maximum backoff delay in milliseconds */
+  backoffMaxMs: 60000,
 } as const;
 
 /**
@@ -89,6 +94,12 @@ interface StoredOtp {
    * Used for audit logging and analytics
    */
   type: 'email' | 'sms';
+
+  /**
+   * Unix timestamp (milliseconds) until which verification is blocked
+   * Set after each failed attempt using exponential backoff
+   */
+  backoffUntil?: number;
 }
 
 /**
@@ -142,45 +153,94 @@ export async function createOtp(
 }
 
 /**
+ * Result type for OTP verification
+ */
+export interface VerifyOtpResult {
+  /** Whether the OTP was valid */
+  valid: boolean;
+  /** Error code if verification failed */
+  error?: 'not_found' | 'expired' | 'invalid' | 'max_attempts' | 'backoff' | 'redis_unavailable';
+  /** Number of failed attempts (for notification purposes) */
+  failedAttempts?: number;
+  /** Seconds until backoff expires (if in backoff state) */
+  retryAfterSeconds?: number;
+}
+
+/**
+ * Performs a dummy hash and compare operation.
+ *
+ * Used to ensure consistent timing across all code paths, preventing
+ * timing-based enumeration attacks.
+ *
+ * @param identifier - Identifier to use in dummy hash
+ * @param code - Code to use in dummy hash
+ * @internal
+ */
+function performDummyHashCompare(identifier: string, code: string): void {
+  // Use a fixed dummy hash that looks like a real OTP hash
+  const dummyStoredHash = '0'.repeat(64);
+  const providedHash = hashOtp(code, identifier);
+  // Always perform the comparison even though we know it will fail
+  constantTimeCompare(providedHash, dummyStoredHash);
+}
+
+/**
+ * Calculates exponential backoff delay in milliseconds.
+ *
+ * @param attempts - Number of failed attempts (1-indexed)
+ * @returns Backoff delay in milliseconds, capped at backoffMaxMs
+ * @internal
+ */
+function calculateBackoffMs(attempts: number): number {
+  // 2^(attempts-1) * base, capped at max
+  // attempts=1 -> 2s, attempts=2 -> 4s, attempts=3 -> 8s, etc.
+  const delay = Math.pow(2, attempts - 1) * OTP_CONFIG.backoffBaseMs;
+  return Math.min(delay, OTP_CONFIG.backoffMaxMs);
+}
+
+/**
  * Verifies an OTP code against the stored hash
  *
  * Uses constant-time comparison to prevent timing attacks.
- * Increments attempt counter before checking (prevents race conditions).
- * Deletes OTP after successful verification (single-use).
+ * All code paths perform equivalent operations to prevent timing-based enumeration.
+ * Implements exponential backoff after failed attempts.
  *
  * @param identifier - Normalized email address or phone number
  * @param code - The OTP code provided by the user
- * @returns Verification result with validity status and optional error code
+ * @returns Verification result with validity status and metadata
  *
  * @remarks
  * Error codes:
  * - `not_found`: No OTP exists for this identifier (expired or never created)
- * - `expired`: OTP has expired (same as not_found for security)
  * - `invalid`: OTP code does not match
- * - `max_attempts`: Too many failed attempts (OTP deleted)
+ * - `max_attempts`: Too many failed attempts (OTP is now locked)
+ * - `backoff`: Must wait before retrying (retryAfterSeconds indicates when)
  * - `redis_unavailable`: Redis connection is down
+ *
+ * Security: All code paths perform hash computation and constant-time
+ * comparison to prevent timing-based analysis.
  *
  * @example
  * ```typescript
  * const result = await verifyOtp('user@example.com', '123456');
  * if (result.valid) {
  *   // Authentication successful - create session
+ * } else if (result.error === 'backoff') {
+ *   // User must wait: result.retryAfterSeconds
  * } else if (result.error === 'max_attempts') {
- *   // User must request a new OTP
- * } else {
- *   // Show generic error (don't reveal specific reason to user)
+ *   // OTP locked - user must request a new one
+ *   // Notify user: result.failedAttempts attempts were made
  * }
  * ```
  */
 export async function verifyOtp(
   identifier: string,
   code: string
-): Promise<{
-  valid: boolean;
-  error?: 'not_found' | 'expired' | 'invalid' | 'max_attempts' | 'redis_unavailable';
-}> {
+): Promise<VerifyOtpResult> {
   if (!isRedisConnected()) {
     elog.warn('Redis not connected - OTP verification skipped');
+    // Perform dummy operations for consistent timing
+    performDummyHashCompare(identifier, code);
     return { valid: false, error: 'redis_unavailable' };
   }
 
@@ -190,24 +250,45 @@ export async function verifyOtp(
 
   // Get stored OTP data
   const stored = await redis.get(key);
+
   if (!stored) {
+    // OTP not found - perform dummy operations to match timing of valid path
+    performDummyHashCompare(identifier, code);
+    // Perform a dummy Redis operation to match SET timing
+    await redis.get(key);
     return { valid: false, error: 'not_found' };
   }
 
   const data: StoredOtp = JSON.parse(stored);
+  const now = Date.now();
 
-  // Check attempt limit
-  if (data.attempts >= OTP_CONFIG.maxAttempts) {
-    // Delete the OTP to prevent further attempts
-    await redis.del(key);
-    return { valid: false, error: 'max_attempts' };
+  // Check if in backoff period
+  if (data.backoffUntil && now < data.backoffUntil) {
+    // Still in backoff - perform dummy operations for consistent timing
+    performDummyHashCompare(identifier, code);
+    const retryAfterSeconds = Math.ceil((data.backoffUntil - now) / 1000);
+    return {
+      valid: false,
+      error: 'backoff',
+      retryAfterSeconds,
+      failedAttempts: data.attempts,
+    };
   }
 
-  // Increment attempts before checking (prevents race conditions)
-  data.attempts += 1;
-  await redis.set(key, JSON.stringify(data), 'KEEPTTL');
+  // Check attempt limit (OTP is locked after max attempts)
+  if (data.attempts >= OTP_CONFIG.maxAttempts) {
+    // OTP locked - perform dummy operations for consistent timing
+    performDummyHashCompare(identifier, code);
+    // Don't delete - let it expire naturally so user can't enumerate by
+    // checking if a new OTP request succeeds immediately
+    return {
+      valid: false,
+      error: 'max_attempts',
+      failedAttempts: data.attempts,
+    };
+  }
 
-  // Hash the provided code and compare
+  // Hash the provided code and compare (always performed)
   const providedHash = hashOtp(code, identifier);
   const isValid = constantTimeCompare(providedHash, data.hash);
 
@@ -217,7 +298,19 @@ export async function verifyOtp(
     return { valid: true };
   }
 
-  return { valid: false, error: 'invalid' };
+  // Invalid code - increment attempts and set backoff
+  data.attempts += 1;
+  data.backoffUntil = now + calculateBackoffMs(data.attempts);
+  await redis.set(key, JSON.stringify(data), 'KEEPTTL');
+
+  const retryAfterSeconds = Math.ceil(calculateBackoffMs(data.attempts) / 1000);
+
+  return {
+    valid: false,
+    error: 'invalid',
+    failedAttempts: data.attempts,
+    retryAfterSeconds,
+  };
 }
 
 /**

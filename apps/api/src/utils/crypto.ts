@@ -22,7 +22,7 @@
  * ```
  */
 
-import { createHash, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../config';
 
 /**
@@ -249,4 +249,55 @@ export function base64UrlToBuffer(base64Url: string): Uint8Array {
     .replace(/_/g, '/');
   const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
   return new Uint8Array(Buffer.from(padded, 'base64'));
+}
+
+/**
+ * Creates an HMAC-SHA256 signature for data integrity verification.
+ *
+ * Uses the configured session secret as the HMAC key to create a
+ * cryptographically secure signature that can verify data has not
+ * been tampered with.
+ *
+ * @param data - The data to sign
+ * @returns Base64url-encoded HMAC-SHA256 signature
+ *
+ * @example
+ * ```typescript
+ * // Sign a magic link token
+ * const token = Buffer.from('user@example.com:123456').toString('base64url');
+ * const signature = hmacSign(token);
+ *
+ * // Build the URL
+ * const url = `https://app.example.com/auth/verify?t=${token}&s=${signature}`;
+ * ```
+ */
+export function hmacSign(data: string): string {
+  return createHmac('sha256', config.security.sessionSecret)
+    .update(data)
+    .digest('base64url');
+}
+
+/**
+ * Verifies an HMAC-SHA256 signature using constant-time comparison.
+ *
+ * Prevents timing attacks by using `constantTimeCompare` internally.
+ *
+ * @param data - The original data that was signed
+ * @param signature - The signature to verify
+ * @returns true if the signature is valid, false otherwise
+ *
+ * @example
+ * ```typescript
+ * // Verify a magic link
+ * const token = url.searchParams.get('t');
+ * const signature = url.searchParams.get('s');
+ *
+ * if (!hmacVerify(token, signature)) {
+ *   return errors.badRequest('Invalid or tampered link');
+ * }
+ * ```
+ */
+export function hmacVerify(data: string, signature: string): boolean {
+  const expected = hmacSign(data);
+  return constantTimeCompare(expected, signature);
 }
