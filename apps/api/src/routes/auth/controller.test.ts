@@ -62,8 +62,8 @@ mock.module('../../db', () => ({
 }));
 
 // Now mock the services that depend on db
-const mockCreateOtp = mock(() => Promise.resolve('123456'));
-const mockCheckRateLimit = mock(() => Promise.resolve({
+const mockCreateOtp = mock((): Promise<string | null> => Promise.resolve('123456'));
+const mockCheckRateLimit = mock((_action: string, _id: string) => Promise.resolve({
   allowed: true,
   remaining: 5,
   resetAt: Date.now() + 60000,
@@ -158,9 +158,10 @@ describe('auth controller', () => {
 
         expect(mockCheckRateLimit).toHaveBeenCalledTimes(2);
         // First call for identifier
-        expect(mockCheckRateLimit.mock.calls[0]?.[0]).toBe('auth:request:identifier');
+        const calls = mockCheckRateLimit.mock.calls as [string, string][];
+        expect(calls[0]?.[0]).toBe('auth:request:identifier');
         // Second call for IP
-        expect(mockCheckRateLimit.mock.calls[1]?.[0]).toBe('auth:request:ip');
+        expect(calls[1]?.[0]).toBe('auth:request:ip');
       });
 
       test('sends email for email type', async () => {

@@ -10,14 +10,17 @@ mock.module('../../utils/adieuuLogger', () => ({
   },
 }));
 
+// Define the HealthCheck type for mocks
+type HealthCheckResult = { status: 'up'; latencyMs: number } | { status: 'down'; error: string };
+
 // Mock dependencies before importing the controller
-const mockCheckMongoHealth = mock(() => Promise.resolve({
-  status: 'up' as const,
+const mockCheckMongoHealth = mock((): Promise<HealthCheckResult> => Promise.resolve({
+  status: 'up',
   latencyMs: 5,
 }));
 
-const mockCheckRedisHealth = mock(() => Promise.resolve({
-  status: 'up' as const,
+const mockCheckRedisHealth = mock((): Promise<HealthCheckResult> => Promise.resolve({
+  status: 'up',
   latencyMs: 2,
 }));
 
