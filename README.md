@@ -29,7 +29,7 @@ packages/
 
 ## Prerequisites
 
-- Node.js 20+
+- Node.js 25+
 - pnpm 9+
 - For iOS: macOS + Xcode 15+
 - For Android: Android Studio + SDK 34+
