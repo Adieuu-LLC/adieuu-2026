@@ -1,7 +1,7 @@
 # Chadder
 [![codecov](https://codecov.io/github/Adieuu-LLC/chadder-26/graph/badge.svg?token=2MI5WRYO9K)](https://codecov.io/github/Adieuu-LLC/chadder-26)
 
-Cross-platform application with web, desktop (Electron), and mobile (Capacitor) targets.
+Cross-platform application with web, desktop (Electron), and mobile (Capacitor) targets. 
 
 ## Stack
 
