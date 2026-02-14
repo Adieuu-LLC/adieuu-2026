@@ -96,6 +96,9 @@ jobs:
         run: bun test --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=junit.xml
         working-directory: apps/api
 
+      - name: Fix coverage paths
+        run: sed -i 's|SF:src/|SF:apps/api/src/|g' apps/api/coverage/lcov.info
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -104,7 +107,6 @@ jobs:
           name: api-coverage
           report_type: coverage
           files: ./apps/api/coverage/lcov.info
-          root_dir: apps/api
           fail_ci_if_error: true
 
       - name: Upload test results to Codecov
