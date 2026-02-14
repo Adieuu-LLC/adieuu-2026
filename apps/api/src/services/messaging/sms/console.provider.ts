@@ -4,6 +4,7 @@
  */
 
 import type { ISmsProvider, SmsOptions, SmsResult } from '../types';
+import elog from '../../../utils/adieuuLogger';
 
 /**
  * Console SMS Provider
@@ -16,11 +17,18 @@ export class ConsoleSmsProvider implements ISmsProvider {
   async send(options: SmsOptions): Promise<SmsResult> {
     const messageId = `console-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    console.log('\n========== SMS (Console Provider) ==========');
-    console.log(`To: ${options.to}`);
-    console.log(`Message: ${options.message}`);
-    console.log(`Message ID: ${messageId}`);
-    console.log('=============================================\n');
+    elog.info('SMS sent (console provider)', {
+      to: options.to,
+      messageLength: options.message.length,
+      messageId,
+    });
+
+    // Also log full content at debug level for development inspection
+    elog.debug('SMS content (console provider)', {
+      to: options.to,
+      message: options.message,
+      messageId,
+    });
 
     return {
       success: true,
@@ -28,4 +36,3 @@ export class ConsoleSmsProvider implements ISmsProvider {
     };
   }
 }
-

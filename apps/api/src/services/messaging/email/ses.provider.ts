@@ -5,6 +5,7 @@
 
 import { config } from '../../../config';
 import type { IEmailProvider, EmailOptions, EmailResult } from '../types';
+import elog from '../../../utils/adieuuLogger';
 
 /**
  * AWS SES Email Provider
@@ -39,7 +40,7 @@ export class SesEmailProvider implements IEmailProvider {
    */
   async send(options: EmailOptions): Promise<EmailResult> {
     if (!this.isConfigured()) {
-      console.warn('SES not configured - email not sent');
+      elog.warn('SES not configured - email not sent');
       return {
         success: false,
         error: 'SES credentials not configured',
@@ -62,7 +63,7 @@ export class SesEmailProvider implements IEmailProvider {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('SES send failed:', errorText);
+        elog.error('SES send failed', { status: response.status, error: errorText });
         return {
           success: false,
           error: `SES error: ${response.status}`,
@@ -79,7 +80,7 @@ export class SesEmailProvider implements IEmailProvider {
         messageId,
       };
     } catch (error) {
-      console.error('SES send error:', error);
+      elog.error('SES send error', { error });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -218,4 +219,3 @@ export class SesEmailProvider implements IEmailProvider {
     return kSigning;
   }
 }
-

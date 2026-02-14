@@ -1,0 +1,367 @@
+import { describe, expect, test, mock, beforeEach, afterEach } from 'bun:test';
+
+// Mock the config module before importing crypto functions
+mock.module('../config', () => ({
+  config: {
+    security: {
+      otpSecret: 'test-otp-secret-for-testing',
+      sessionSecret: 'test-session-secret-for-testing',
+    },
+  },
+}));
+
+import {
+  generateOtp,
+  generateSessionId,
+  generateSecureToken,
+  hashOtp,
+  hashIdentifier,
+  hashIp,
+  constantTimeCompare,
+  base64UrlToBuffer,
+} from './crypto';
+
+describe('crypto utilities', () => {
+  describe('generateOtp', () => {
+    test('generates a 6-digit OTP by default', () => {
+      const otp = generateOtp();
+      expect(otp).toMatch(/^\d{6}$/);
+      expect(otp.length).toBe(6);
+    });
+
+    test('generates OTP with custom length', () => {
+      const otp4 = generateOtp(4);
+      expect(otp4).toMatch(/^\d{4}$/);
+      expect(otp4.length).toBe(4);
+
+      const otp8 = generateOtp(8);
+      expect(otp8).toMatch(/^\d{8}$/);
+      expect(otp8.length).toBe(8);
+    });
+
+    test('generates OTP with length 1', () => {
+      const otp = generateOtp(1);
+      expect(otp).toMatch(/^\d{1}$/);
+      expect(otp.length).toBe(1);
+    });
+
+    test('pads with leading zeros when needed', () => {
+      // Generate many OTPs and check they all have correct length
+      const otps = Array.from({ length: 100 }, () => generateOtp(6));
+      for (const otp of otps) {
+        expect(otp.length).toBe(6);
+      }
+    });
+
+    test('generates different OTPs on consecutive calls', () => {
+      const otps = new Set<string>();
+      for (let i = 0; i < 100; i++) {
+        otps.add(generateOtp());
+      }
+      // Should have at least 90 unique values (allowing for some collisions)
+      expect(otps.size).toBeGreaterThan(90);
+    });
+
+    test('handles length 0 gracefully', () => {
+      const otp = generateOtp(0);
+      // With length 0, max = 10^0 = 1, so value % 1 = 0, padStart(0, '0') = ''
+      // But toString() of 0 is '0', so we get '0' (single char before padStart takes effect)
+      expect(otp).toBe('0');
+    });
+  });
+
+  describe('generateSessionId', () => {
+    test('generates a base64url-encoded session ID', () => {
+      const sessionId = generateSessionId();
+      // Base64url: a-z, A-Z, 0-9, -, _
+      expect(sessionId).toMatch(/^[a-zA-Z0-9_-]+$/);
+    });
+
+    test('generates a session ID of expected length', () => {
+      const sessionId = generateSessionId();
+      // 32 bytes = 256 bits, base64 encoded without padding = ~43 chars
+      expect(sessionId.length).toBeGreaterThanOrEqual(42);
+      expect(sessionId.length).toBeLessThanOrEqual(44);
+    });
+
+    test('generates unique session IDs', () => {
+      const ids = new Set<string>();
+      for (let i = 0; i < 100; i++) {
+        ids.add(generateSessionId());
+      }
+      expect(ids.size).toBe(100);
+    });
+
+    test('does not contain standard base64 characters +, /, or =', () => {
+      for (let i = 0; i < 50; i++) {
+        const sessionId = generateSessionId();
+        expect(sessionId).not.toContain('+');
+        expect(sessionId).not.toContain('/');
+        expect(sessionId).not.toContain('=');
+      }
+    });
+  });
+
+  describe('generateSecureToken', () => {
+    test('generates a 32-byte token by default', () => {
+      const token = generateSecureToken();
+      // 32 bytes = ~43 base64url chars
+      expect(token.length).toBeGreaterThanOrEqual(42);
+      expect(token.length).toBeLessThanOrEqual(44);
+    });
+
+    test('generates token with custom byte length', () => {
+      const token16 = generateSecureToken(16);
+      // 16 bytes = ~22 base64url chars
+      expect(token16.length).toBeGreaterThanOrEqual(21);
+      expect(token16.length).toBeLessThanOrEqual(22);
+
+      const token64 = generateSecureToken(64);
+      // 64 bytes = ~86 base64url chars
+      expect(token64.length).toBeGreaterThanOrEqual(85);
+      expect(token64.length).toBeLessThanOrEqual(86);
+    });
+
+    test('generates base64url-encoded output', () => {
+      const token = generateSecureToken();
+      expect(token).toMatch(/^[a-zA-Z0-9_-]+$/);
+    });
+
+    test('generates unique tokens', () => {
+      const tokens = new Set<string>();
+      for (let i = 0; i < 100; i++) {
+        tokens.add(generateSecureToken());
+      }
+      expect(tokens.size).toBe(100);
+    });
+
+    test('handles 1 byte', () => {
+      const token = generateSecureToken(1);
+      expect(token.length).toBeGreaterThanOrEqual(1);
+      expect(token.length).toBeLessThanOrEqual(2);
+    });
+  });
+
+  describe('hashOtp', () => {
+    test('returns a 64-character hex string (SHA-256)', () => {
+      const hash = hashOtp('123456', 'user@example.com');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    test('produces consistent hashes for same input', () => {
+      const hash1 = hashOtp('123456', 'user@example.com');
+      const hash2 = hashOtp('123456', 'user@example.com');
+      expect(hash1).toBe(hash2);
+    });
+
+    test('produces different hashes for different OTPs', () => {
+      const hash1 = hashOtp('123456', 'user@example.com');
+      const hash2 = hashOtp('654321', 'user@example.com');
+      expect(hash1).not.toBe(hash2);
+    });
+
+    test('produces different hashes for different identifiers', () => {
+      const hash1 = hashOtp('123456', 'user1@example.com');
+      const hash2 = hashOtp('123456', 'user2@example.com');
+      expect(hash1).not.toBe(hash2);
+    });
+
+    test('handles empty OTP', () => {
+      const hash = hashOtp('', 'user@example.com');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    test('handles empty identifier', () => {
+      const hash = hashOtp('123456', '');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    test('handles special characters in identifier', () => {
+      const hash = hashOtp('123456', 'user+tag@example.com');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+  });
+
+  describe('hashIdentifier', () => {
+    test('returns a 64-character hex string (SHA-256)', () => {
+      const hash = hashIdentifier('user@example.com');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    test('produces consistent hashes for same input', () => {
+      const hash1 = hashIdentifier('user@example.com');
+      const hash2 = hashIdentifier('user@example.com');
+      expect(hash1).toBe(hash2);
+    });
+
+    test('produces different hashes for different identifiers', () => {
+      const hash1 = hashIdentifier('user1@example.com');
+      const hash2 = hashIdentifier('user2@example.com');
+      expect(hash1).not.toBe(hash2);
+    });
+
+    test('handles phone numbers', () => {
+      const hash = hashIdentifier('+15551234567');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    test('handles empty string', () => {
+      const hash = hashIdentifier('');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    test('handles unicode characters', () => {
+      const hash = hashIdentifier('user@example.com');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+  });
+
+  describe('hashIp', () => {
+    test('returns a 64-character hex string (SHA-256)', () => {
+      const hash = hashIp('192.168.1.1');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    test('produces consistent hashes for same IP', () => {
+      const hash1 = hashIp('192.168.1.1');
+      const hash2 = hashIp('192.168.1.1');
+      expect(hash1).toBe(hash2);
+    });
+
+    test('produces different hashes for different IPs', () => {
+      const hash1 = hashIp('192.168.1.1');
+      const hash2 = hashIp('192.168.1.2');
+      expect(hash1).not.toBe(hash2);
+    });
+
+    test('handles IPv6 addresses', () => {
+      const hash = hashIp('2001:0db8:85a3:0000:0000:8a2e:0370:7334');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    test('handles localhost', () => {
+      const hash = hashIp('127.0.0.1');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    test('handles empty string', () => {
+      const hash = hashIp('');
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+  });
+
+  describe('constantTimeCompare', () => {
+    test('returns true for equal strings', () => {
+      expect(constantTimeCompare('abc', 'abc')).toBe(true);
+      expect(constantTimeCompare('', '')).toBe(true);
+      expect(constantTimeCompare('hello world', 'hello world')).toBe(true);
+    });
+
+    test('returns false for different strings of same length', () => {
+      expect(constantTimeCompare('abc', 'abd')).toBe(false);
+      expect(constantTimeCompare('abc', 'xyz')).toBe(false);
+    });
+
+    test('returns false for strings of different lengths', () => {
+      expect(constantTimeCompare('abc', 'abcd')).toBe(false);
+      expect(constantTimeCompare('abcd', 'abc')).toBe(false);
+      expect(constantTimeCompare('', 'a')).toBe(false);
+      expect(constantTimeCompare('a', '')).toBe(false);
+    });
+
+    test('handles long strings', () => {
+      const long1 = 'a'.repeat(10000);
+      const long2 = 'a'.repeat(10000);
+      const long3 = 'a'.repeat(9999) + 'b';
+      expect(constantTimeCompare(long1, long2)).toBe(true);
+      expect(constantTimeCompare(long1, long3)).toBe(false);
+    });
+
+    test('handles special characters', () => {
+      expect(constantTimeCompare('hello\nworld', 'hello\nworld')).toBe(true);
+      expect(constantTimeCompare('hello\tworld', 'hello\tworld')).toBe(true);
+      expect(constantTimeCompare('emoji', 'emoji')).toBe(true);
+    });
+
+    test('handles hex strings (typical hash comparison)', () => {
+      const hash1 = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2';
+      const hash2 = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2';
+      const hash3 = 'b1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2';
+      expect(constantTimeCompare(hash1, hash2)).toBe(true);
+      expect(constantTimeCompare(hash1, hash3)).toBe(false);
+    });
+  });
+
+  describe('base64UrlToBuffer', () => {
+    test('converts base64url to Uint8Array', () => {
+      const buffer = base64UrlToBuffer('SGVsbG8');
+      expect(buffer).toBeInstanceOf(Uint8Array);
+      expect(Buffer.from(buffer).toString()).toBe('Hello');
+    });
+
+    test('handles URL-safe characters', () => {
+      // Standard base64 uses + and /, base64url uses - and _
+      const buffer = base64UrlToBuffer('ab-cd_ef');
+      expect(buffer).toBeInstanceOf(Uint8Array);
+    });
+
+    test('handles padding restoration', () => {
+      // Base64url typically omits padding
+      const buffer1 = base64UrlToBuffer('YQ'); // "a" without padding
+      expect(Buffer.from(buffer1).toString()).toBe('a');
+
+      const buffer2 = base64UrlToBuffer('YWI'); // "ab" without padding
+      expect(Buffer.from(buffer2).toString()).toBe('ab');
+
+      const buffer3 = base64UrlToBuffer('YWJj'); // "abc" no padding needed
+      expect(Buffer.from(buffer3).toString()).toBe('abc');
+    });
+
+    test('roundtrip with generateSessionId', () => {
+      const sessionId = generateSessionId();
+      const buffer = base64UrlToBuffer(sessionId);
+      expect(buffer.length).toBe(32); // 256 bits
+    });
+
+    test('roundtrip with generateSecureToken', () => {
+      const token = generateSecureToken(16);
+      const buffer = base64UrlToBuffer(token);
+      expect(buffer.length).toBe(16);
+    });
+
+    test('handles empty string', () => {
+      const buffer = base64UrlToBuffer('');
+      expect(buffer.length).toBe(0);
+    });
+  });
+
+  describe('cryptographic quality', () => {
+    test('OTPs have good distribution', () => {
+      const counts: Record<string, number> = {};
+      const iterations = 10000;
+
+      for (let i = 0; i < iterations; i++) {
+        const otp = generateOtp(1);
+        counts[otp] = (counts[otp] || 0) + 1;
+      }
+
+      // Each digit should appear roughly 10% of the time
+      // Allow for statistical variance (+/- 3%)
+      for (let digit = 0; digit <= 9; digit++) {
+        const count = counts[digit.toString()] || 0;
+        const percentage = count / iterations;
+        expect(percentage).toBeGreaterThan(0.07);
+        expect(percentage).toBeLessThan(0.13);
+      }
+    });
+
+    test('session IDs have sufficient entropy', () => {
+      // Generate many session IDs and check they're all unique
+      const ids = new Set<string>();
+      for (let i = 0; i < 1000; i++) {
+        ids.add(generateSessionId());
+      }
+      expect(ids.size).toBe(1000);
+    });
+  });
+});

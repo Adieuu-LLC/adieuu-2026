@@ -23,6 +23,7 @@ export {
 import { connectMongo, disconnectMongo } from './mongo';
 import { connectRedis, disconnectRedis } from './redis';
 import { config } from '../config';
+import elog from '../utils/adieuuLogger';
 
 /**
  * Initialize all database connections
@@ -36,7 +37,7 @@ export async function initializeDatabases(): Promise<void> {
     if (config.features.requireDatabase) {
       throw error;
     }
-    console.warn('MongoDB connection failed (non-fatal in dev mode):', error);
+    elog.warn('MongoDB connection failed (non-fatal in dev mode)', { error });
     errors.push(error as Error);
   }
 
@@ -46,15 +47,12 @@ export async function initializeDatabases(): Promise<void> {
     if (config.features.requireDatabase) {
       throw error;
     }
-    console.warn('Redis connection failed (non-fatal in dev mode):', error);
+    elog.warn('Redis connection failed (non-fatal in dev mode)', { error });
     errors.push(error as Error);
   }
 
   if (errors.length > 0 && !config.features.requireDatabase) {
-    console.warn(
-      `Database connections failed but REQUIRE_DATABASE is false. ` +
-      `Some features may not work correctly.`
-    );
+    elog.warn('Database connections failed but REQUIRE_DATABASE is false - some features may not work');
   }
 }
 

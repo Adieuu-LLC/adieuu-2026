@@ -5,6 +5,7 @@
 
 import Redis from 'ioredis';
 import { config } from '../config';
+import elog from '../utils/adieuuLogger';
 
 let redis: Redis | null = null;
 let connectionFailed = false;
@@ -49,7 +50,7 @@ export async function connectRedis(): Promise<Redis> {
     client.once('ready', () => {
       clearTimeout(timeout);
       redis = client;
-      console.log('Connected to Redis');
+      elog.info('Connected to Redis');
       resolve(client);
     });
 
@@ -118,7 +119,7 @@ export async function disconnectRedis(): Promise<void> {
     }
     redis = null;
     connectionFailed = false;
-    console.log('Disconnected from Redis');
+    elog.info('Disconnected from Redis');
   }
 }
 

@@ -5,6 +5,7 @@
 
 import { getRedis, isRedisConnected, RedisKeys } from '../db';
 import { generateOtp, hashOtp, hashIdentifier, constantTimeCompare } from '../utils/crypto';
+import elog from '../utils/adieuuLogger';
 
 /** OTP configuration */
 const OTP_CONFIG = {
@@ -40,7 +41,7 @@ export async function createOtp(
   type: 'email' | 'sms'
 ): Promise<string | null> {
   if (!isRedisConnected()) {
-    console.warn('Redis not connected - OTP creation skipped');
+    elog.warn('Redis not connected - OTP creation skipped');
     return null;
   }
 
@@ -77,7 +78,7 @@ export async function verifyOtp(
   error?: 'not_found' | 'expired' | 'invalid' | 'max_attempts' | 'redis_unavailable';
 }> {
   if (!isRedisConnected()) {
-    console.warn('Redis not connected - OTP verification skipped');
+    elog.warn('Redis not connected - OTP verification skipped');
     return { valid: false, error: 'redis_unavailable' };
   }
 
@@ -153,4 +154,3 @@ export async function getOtpTtl(identifier: string): Promise<number> {
   const ttl = await redis.ttl(key);
   return ttl > 0 ? ttl : 0;
 }
-

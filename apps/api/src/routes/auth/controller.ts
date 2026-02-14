@@ -10,6 +10,7 @@ import { sanitizeString } from '../../utils/sanitize';
 import { hashIdentifier, hashIp } from '../../utils/crypto';
 import { addJitter } from '../../utils/timing';
 import { config } from '../../config';
+import elog from '../../utils/adieuuLogger';
 
 /** OTP request input */
 export interface RequestOtpInput {
@@ -43,7 +44,7 @@ export async function requestOtp(
     : sanitizeString(identifier, 'phone');
 
   // Hash identifier and IP for rate limiting and logging
-  const identifierHash = hashIdentifier(sanitizedIdentifier);
+  const identifierHash = hashIdentifier(sanitizedIdentifier.value);
   const ipHash = hashIp(clientIp);
 
   // Check rate limits
@@ -61,17 +62,17 @@ export async function requestOtp(
   }
 
   // Generate and store OTP
-  const otp = await createOtp(sanitizedIdentifier, type);
+  const otp = await createOtp(sanitizedIdentifier.value, type);
 
   if (otp) {
     // Send OTP via appropriate channel (fire and forget - don't await)
     if (type === 'email') {
-      sendOtpEmail(sanitizedIdentifier, otp).catch((err) => {
-        console.error('Failed to send OTP email:', err);
+      sendOtpEmail(sanitizedIdentifier.value, otp).catch((err) => {
+        elog.error('Failed to send OTP email', { error: err, identifierHash });
       });
     } else {
-      sendOtpSms(sanitizedIdentifier, otp).catch((err) => {
-        console.error('Failed to send OTP SMS:', err);
+      sendOtpSms(sanitizedIdentifier.value, otp).catch((err) => {
+        elog.error('Failed to send OTP SMS', { error: err, identifierHash });
       });
     }
   }
@@ -141,7 +142,6 @@ function buildMagicLink(identifier: string, otp: string): string {
  * Create HMAC signature for magic link
  */
 function createSignature(data: string): string {
-  const encoder = new TextEncoder();
   // Simple signature using OTP secret - in production, use proper HMAC
   const combined = `${data}:${config.security.otpSecret}`;
   let hash = 0;
@@ -171,4 +171,3 @@ export function getClientIp(request: Request): string {
   // Fallback - this won't be accurate behind a proxy
   return '127.0.0.1';
 }
-

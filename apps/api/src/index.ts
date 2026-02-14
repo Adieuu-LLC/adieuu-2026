@@ -8,6 +8,7 @@ import { securityHeaders, requestId, cors } from './middleware';
 import { registerRoutes } from './routes';
 import { initializeDatabases, closeDatabases } from './db';
 import { config, validateProductionConfig } from './config';
+import { elog } from './utils';
 
 // Validate production configuration
 validateProductionConfig();
@@ -37,11 +38,11 @@ async function start(): Promise<void> {
     fetch: app.handler(),
   });
 
-  console.log(`Server running at http://${server.hostname}:${server.port}`);
+  elog.info('Server started', { host: server.hostname, port: server.port });
 
   // Graceful shutdown handler
   const shutdown = async () => {
-    console.log('\nShutting down gracefully...');
+    elog.info('Shutting down gracefully');
     await closeDatabases();
     server.stop();
     process.exit(0);
@@ -52,6 +53,6 @@ async function start(): Promise<void> {
 }
 
 start().catch((error) => {
-  console.error('Failed to start server:', error);
+  elog.error('Failed to start server', { error });
   process.exit(1);
 });

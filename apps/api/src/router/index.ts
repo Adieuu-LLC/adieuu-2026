@@ -4,6 +4,7 @@
 
 import type { HttpMethod, Route, RouteHandler, RouteContext, Middleware, RouterOptions } from './types';
 import { errors } from '../utils/response';
+import elog from '../utils/adieuuLogger';
 
 /**
  * Converts a route pattern like '/users/:id' to a regex and extracts param names
@@ -212,7 +213,7 @@ export class Router {
       try {
         return await next();
       } catch (err) {
-        console.error('Unhandled error:', err);
+        elog.error('Unhandled error', { error: err, path, method, requestId });
         return errors.internal();
       }
     };

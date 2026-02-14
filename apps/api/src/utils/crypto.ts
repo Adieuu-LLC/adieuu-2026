@@ -15,7 +15,8 @@ export function generateOtp(length = 6): string {
   const buffer = new Uint32Array(1);
   crypto.getRandomValues(buffer);
   const max = Math.pow(10, length);
-  return (buffer[0] % max).toString().padStart(length, '0');
+  const value = buffer[0] ?? 0;
+  return (value % max).toString().padStart(length, '0');
 }
 
 /**
@@ -118,4 +119,3 @@ export function base64UrlToBuffer(base64Url: string): Uint8Array {
   const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
   return new Uint8Array(Buffer.from(padded, 'base64'));
 }
-

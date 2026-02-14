@@ -4,6 +4,7 @@
  */
 
 import type { IEmailProvider, EmailOptions, EmailResult } from '../types';
+import elog from '../../../utils/adieuuLogger';
 
 /**
  * Console Email Provider
@@ -16,17 +17,22 @@ export class ConsoleEmailProvider implements IEmailProvider {
   async send(options: EmailOptions): Promise<EmailResult> {
     const messageId = `console-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    console.log('\n========== EMAIL (Console Provider) ==========');
-    console.log(`To: ${options.to}`);
-    console.log(`Subject: ${options.subject}`);
-    console.log('--- Text Body ---');
-    console.log(options.text);
-    if (options.html) {
-      console.log('--- HTML Body ---');
-      console.log(options.html);
-    }
-    console.log(`Message ID: ${messageId}`);
-    console.log('===============================================\n');
+    elog.info('Email sent (console provider)', {
+      to: options.to,
+      subject: options.subject,
+      textLength: options.text.length,
+      hasHtml: !!options.html,
+      messageId,
+    });
+
+    // Also log full content at debug level for development inspection
+    elog.debug('Email content (console provider)', {
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+      html: options.html,
+      messageId,
+    });
 
     return {
       success: true,
@@ -34,4 +40,3 @@ export class ConsoleEmailProvider implements IEmailProvider {
     };
   }
 }
-

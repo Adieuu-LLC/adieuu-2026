@@ -5,6 +5,7 @@
 
 import { config } from '../../../config';
 import type { ISmsProvider, SmsOptions, SmsResult } from '../types';
+import elog from '../../../utils/adieuuLogger';
 
 const TEXTMAGIC_API_BASE = 'https://rest.textmagic.com/api/v2';
 
@@ -39,7 +40,7 @@ export class TextMagicSmsProvider implements ISmsProvider {
    */
   async send(options: SmsOptions): Promise<SmsResult> {
     if (!this.isConfigured()) {
-      console.warn('TextMagic not configured - SMS not sent');
+      elog.warn('TextMagic not configured - SMS not sent');
       return {
         success: false,
         error: 'TextMagic credentials not configured',
@@ -64,7 +65,7 @@ export class TextMagicSmsProvider implements ISmsProvider {
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
-        console.error('TextMagic send failed:', errorBody);
+        elog.error('TextMagic send failed', { status: response.status, error: errorBody });
         return {
           success: false,
           error: `TextMagic error: ${response.status} - ${JSON.stringify(errorBody)}`,
@@ -78,7 +79,7 @@ export class TextMagicSmsProvider implements ISmsProvider {
         messageId: result.id?.toString(),
       };
     } catch (error) {
-      console.error('TextMagic send error:', error);
+      elog.error('TextMagic send error', { error });
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -86,4 +87,3 @@ export class TextMagicSmsProvider implements ISmsProvider {
     }
   }
 }
-

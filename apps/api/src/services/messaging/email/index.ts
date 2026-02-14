@@ -6,6 +6,7 @@ import { config } from '../../../config';
 import type { IEmailProvider } from '../types';
 import { SesEmailProvider } from './ses.provider';
 import { ConsoleEmailProvider } from './console.provider';
+import elog from '../../../utils/adieuuLogger';
 
 export { SesEmailProvider } from './ses.provider';
 export { ConsoleEmailProvider } from './console.provider';
@@ -29,7 +30,7 @@ export function getEmailProvider(): IEmailProvider {
       } else if (config.env === 'production') {
         throw new Error('SES credentials required in production');
       } else {
-        console.warn('SES not configured, using console provider');
+        elog.warn('SES not configured, using console provider');
         emailProvider = new ConsoleEmailProvider();
       }
       break;
@@ -56,4 +57,3 @@ export async function sendEmail(options: {
   const provider = getEmailProvider();
   return provider.send(options);
 }
-

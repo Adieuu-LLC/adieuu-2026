@@ -6,6 +6,7 @@ import { config } from '../../../config';
 import type { ISmsProvider } from '../types';
 import { TextMagicSmsProvider } from './textmagic.provider';
 import { ConsoleSmsProvider } from './console.provider';
+import elog from '../../../utils/adieuuLogger';
 
 export { TextMagicSmsProvider } from './textmagic.provider';
 export { ConsoleSmsProvider } from './console.provider';
@@ -29,7 +30,7 @@ export function getSmsProvider(): ISmsProvider {
       } else if (config.env === 'production') {
         throw new Error('TextMagic credentials required in production');
       } else {
-        console.warn('TextMagic not configured, using console provider');
+        elog.warn('TextMagic not configured, using console provider');
         smsProvider = new ConsoleSmsProvider();
       }
       break;
@@ -54,4 +55,3 @@ export async function sendSms(options: {
   const provider = getSmsProvider();
   return provider.send(options);
 }
-

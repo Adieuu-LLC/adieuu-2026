@@ -5,6 +5,7 @@
 
 import { MongoClient, Db, Collection, Document } from 'mongodb';
 import { config } from '../config';
+import elog from '../utils/adieuuLogger';
 
 let client: MongoClient | null = null;
 let db: Db | null = null;
@@ -33,10 +34,10 @@ export async function connectMongo(): Promise<Db> {
     await client.connect();
     db = client.db(config.mongodb.dbName);
 
-    console.log(`Connected to MongoDB: ${config.mongodb.dbName}`);
+    elog.info('Connected to MongoDB', { database: config.mongodb.dbName });
     return db;
   } catch (error) {
-    console.error('Failed to connect to MongoDB:', error);
+    elog.error('Failed to connect to MongoDB', { error });
     throw error;
   }
 }
@@ -93,7 +94,7 @@ export async function disconnectMongo(): Promise<void> {
     await client.close();
     client = null;
     db = null;
-    console.log('Disconnected from MongoDB');
+    elog.info('Disconnected from MongoDB');
   }
 }
 
