@@ -101,6 +101,19 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: api
+          name: api-coverage
+          report_type: coverage
+          files: ./apps/api/coverage/lcov.info
+          fail_ci_if_error: true
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: api
+          name: api-tests
+          report_type: test_results
           fail_ci_if_error: true
 
   build-api:
