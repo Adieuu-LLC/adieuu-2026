@@ -110,7 +110,7 @@ jobs:
           name: api-coverage
           report_type: coverage
           files: ./apps/api/coverage/lcov.info
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
@@ -121,7 +121,7 @@ jobs:
           name: api-tests
           files: ./apps/api/junit.xml
           report_type: test_results
-          fail_ci_if_error: true
+          fail_ci_if_error: false
 
   build-api:
     runs-on: ubuntu-latest
