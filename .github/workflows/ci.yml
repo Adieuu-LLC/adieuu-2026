@@ -194,8 +194,6 @@ jobs:
           apiKey: ${{ secrets.MANIFEST_API_KEY }}
           relationship: 'first'
           sbomName: 'chadder-2026'
-          sbomVersion: '1.0.0'
           sbomGenerator: 'cdxgen'
           asset-labels: 'chadder,oss'
           active: true
-          enrich: 'ecosystems'
