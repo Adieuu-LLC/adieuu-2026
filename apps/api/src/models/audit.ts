@@ -1,0 +1,60 @@
+/**
+ * Audit log model
+ * Tracks security-relevant events
+ */
+
+import type { ObjectId } from 'mongodb';
+import type { BaseDocument } from './base';
+
+/**
+ * Audit action types
+ */
+export type AuditAction =
+  | 'otp_requested'
+  | 'otp_verified'
+  | 'otp_failed'
+  | 'login_success'
+  | 'login_failed'
+  | 'logout'
+  | 'session_created'
+  | 'session_revoked'
+  | 'account_locked'
+  | 'account_unlocked'
+  | 'identifier_linked'
+  | 'identifier_unlinked';
+
+/**
+ * Audit log document stored in MongoDB
+ */
+export interface AuditLogDocument extends BaseDocument {
+  // User reference (null for failed attempts on non-existent accounts)
+  userId?: ObjectId;
+
+  // Event details
+  action: AuditAction;
+
+  // Identifier used (hashed for privacy)
+  identifierHash?: string;
+
+  // Request metadata (hashed for privacy)
+  ipHash: string;
+  userAgent?: string;
+
+  // Additional context
+  metadata?: Record<string, unknown>;
+
+  // Note: createdAt from BaseDocument serves as event timestamp
+  // updatedAt is not meaningful for audit logs
+}
+
+/**
+ * Audit log creation input
+ */
+export interface CreateAuditLogInput {
+  userId?: ObjectId;
+  action: AuditAction;
+  identifierHash?: string;
+  ipHash: string;
+  userAgent?: string;
+  metadata?: Record<string, unknown>;
+}

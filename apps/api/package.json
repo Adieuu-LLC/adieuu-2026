@@ -11,7 +11,9 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@chadder/shared": "workspace:*"
+    "@chadder/shared": "workspace:*",
+    "ioredis": "^5.4.2",
+    "mongodb": "^6.14.2"
   },
   "devDependencies": {
     "@chadder/tsconfig": "workspace:*",

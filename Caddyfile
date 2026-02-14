@@ -1,0 +1,42 @@
+# Chadder Development Caddyfile
+#
+# Usage:
+#   1. Install Caddy: https://caddyserver.com/docs/install
+#   2. Run: caddy run
+#   3. Access app at: https://localhost
+#   4. API calls to /api/* are proxied to Bun
+#
+# First run will prompt to install local CA certificate for HTTPS.
+
+localhost {
+	# API reverse proxy (Bun server)
+	handle /api/* {
+		reverse_proxy localhost:4000 {
+			# Forward real client IP
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	# Web app reverse proxy (Vite dev server)
+	handle {
+		reverse_proxy localhost:3000 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	# Logging
+	log {
+		output stdout
+		format console
+	}
+}
+
+# Note: For IP-based rate limiting at the edge, you can either:
+# 1. Use Caddy with the caddy-ratelimit plugin (requires custom build)
+# 2. Use a cloud WAF (Cloudflare, AWS WAF) in production
+# 3. Rely on app-level rate limiting (what we're building)
+#
+# App-level rate limiting is essential regardless because it's
+# auth-aware (per-email, per-user limits).

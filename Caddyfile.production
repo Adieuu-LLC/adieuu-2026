@@ -1,0 +1,59 @@
+# Chadder Production Caddyfile
+#
+# Usage:
+#   caddy run --config Caddyfile.production
+#
+# Requirements:
+#   - DNS A record pointing to this server
+#   - Ports 80/443 open (Caddy handles Let's Encrypt automatically)
+
+# API subdomain
+api.chadder.app {
+	reverse_proxy localhost:4000 {
+		# Forward real client IP to application
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	# Request body size limit
+	request_body {
+		max_size 10MB
+	}
+
+	log {
+		output file /var/log/caddy/api.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+		format json
+	}
+}
+
+# Web app subdomain
+app.chadder.app {
+	# Option 1: Reverse proxy to SSR/Node server
+	reverse_proxy localhost:3000
+
+	# Option 2: Serve static files (uncomment if using static build)
+	# root * /var/www/chadder/web/dist
+	# file_server
+	# try_files {path} /index.html
+
+	log {
+		output file /var/log/caddy/web.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+		format json
+	}
+}
+
+# Redirect www to non-www
+www.chadder.app {
+	redir https://app.chadder.app{uri} permanent
+}
+
+# Note: For additional edge rate limiting, consider:
+# - Cloudflare (free tier includes rate limiting)
+# - AWS WAF + CloudFront
+# - Custom Caddy build with caddy-ratelimit plugin
