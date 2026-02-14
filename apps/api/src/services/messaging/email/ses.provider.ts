@@ -1,6 +1,38 @@
 /**
- * AWS SES Email Provider
- * Sends emails via Amazon Simple Email Service
+ * @fileoverview AWS SES Email Provider
+ *
+ * Sends emails via Amazon Simple Email Service using direct API calls
+ * with AWS Signature v4 authentication (no heavy SDK dependency).
+ *
+ * @module services/messaging/email/ses
+ *
+ * @remarks
+ * This implementation uses the native `fetch` API with manual AWS Signature v4
+ * signing to avoid the large AWS SDK dependency. This keeps the bundle size
+ * small while still providing full SES functionality.
+ *
+ * Required environment variables:
+ * - `AWS_ACCESS_KEY_ID`: AWS access key
+ * - `AWS_SECRET_ACCESS_KEY`: AWS secret key
+ * - `AWS_REGION`: AWS region (e.g., 'us-east-1')
+ * - `EMAIL_FROM_ADDRESS`: Verified sender email address
+ *
+ * @see https://docs.aws.amazon.com/ses/latest/APIReference/API_SendEmail.html
+ *
+ * @example
+ * ```typescript
+ * import { SesEmailProvider } from './ses.provider';
+ *
+ * const provider = new SesEmailProvider();
+ *
+ * if (provider.isConfigured()) {
+ *   const result = await provider.send({
+ *     to: 'user@example.com',
+ *     subject: 'Hello',
+ *     text: 'World',
+ *   });
+ * }
+ * ```
  */
 
 import { config } from '../../../config';
@@ -9,18 +41,61 @@ import elog from '../../../utils/adieuuLogger';
 
 /**
  * AWS SES Email Provider
- * 
- * Uses AWS SDK v3 via fetch (no heavy SDK dependency)
- * Requires AWS credentials to be configured
+ *
+ * Implements the IEmailProvider interface for sending emails via
+ * Amazon Simple Email Service.
+ *
+ * @remarks
+ * Uses lightweight fetch-based implementation with manual AWS Signature v4
+ * signing instead of the full AWS SDK to minimize bundle size.
+ *
+ * Features:
+ * - Supports both text and HTML email bodies
+ * - Automatic AWS Signature v4 request signing
+ * - Proper error handling and logging
+ * - Returns message ID for tracking
+ *
+ * @example
+ * ```typescript
+ * const ses = new SesEmailProvider();
+ *
+ * if (!ses.isConfigured()) {
+ *   throw new Error('SES not configured');
+ * }
+ *
+ * const result = await ses.send({
+ *   to: 'user@example.com',
+ *   subject: 'Your verification code',
+ *   text: 'Your code is: 123456',
+ *   html: '<p>Your code is: <strong>123456</strong></p>',
+ * });
+ *
+ * if (result.success) {
+ *   console.log(`Sent with ID: ${result.messageId}`);
+ * }
+ * ```
  */
 export class SesEmailProvider implements IEmailProvider {
+  /** Provider name for identification */
   readonly name = 'ses';
 
+  /** AWS region for SES endpoint */
   private readonly region: string;
+
+  /** AWS access key ID */
   private readonly accessKeyId: string | undefined;
+
+  /** AWS secret access key */
   private readonly secretAccessKey: string | undefined;
+
+  /** Verified sender email address */
   private readonly fromAddress: string;
 
+  /**
+   * Creates a new SES email provider instance
+   *
+   * Reads configuration from environment variables via the config module.
+   */
   constructor() {
     this.region = config.email.awsRegion;
     this.accessKeyId = config.email.awsAccessKeyId;
@@ -29,14 +104,39 @@ export class SesEmailProvider implements IEmailProvider {
   }
 
   /**
-   * Check if provider is configured
+   * Checks if the provider has required credentials configured
+   *
+   * @returns True if both access key ID and secret key are set
+   *
+   * @example
+   * ```typescript
+   * const ses = new SesEmailProvider();
+   * if (!ses.isConfigured()) {
+   *   console.warn('SES credentials not configured');
+   * }
+   * ```
    */
   isConfigured(): boolean {
     return !!(this.accessKeyId && this.secretAccessKey);
   }
 
   /**
-   * Send an email via SES
+   * Sends an email via AWS SES
+   *
+   * Constructs and signs an SES SendEmail API request, then sends it
+   * using the fetch API.
+   *
+   * @param options - Email options including recipient, subject, and body
+   * @returns Promise resolving to send result with success status and message ID
+   *
+   * @example
+   * ```typescript
+   * const result = await ses.send({
+   *   to: 'user@example.com',
+   *   subject: 'Welcome',
+   *   text: 'Welcome to our app!',
+   * });
+   * ```
    */
   async send(options: EmailOptions): Promise<EmailResult> {
     if (!this.isConfigured()) {
@@ -89,7 +189,11 @@ export class SesEmailProvider implements IEmailProvider {
   }
 
   /**
-   * Build SES SendEmail request body
+   * Builds the URL-encoded request body for SES SendEmail API
+   *
+   * @param options - Email options
+   * @returns URL-encoded string suitable for SES API
+   * @internal
    */
   private buildSendEmailBody(options: EmailOptions): string {
     const params = new URLSearchParams();
@@ -109,8 +213,18 @@ export class SesEmailProvider implements IEmailProvider {
   }
 
   /**
-   * Sign request with AWS Signature v4
-   * Simplified implementation for SES
+   * Signs a request with AWS Signature Version 4
+   *
+   * Implements the AWS Signature v4 algorithm for authenticating
+   * requests to AWS services.
+   *
+   * @param method - HTTP method (e.g., 'POST')
+   * @param endpoint - Full URL of the SES endpoint
+   * @param body - Request body to sign
+   * @returns Headers object with Authorization and required AWS headers
+   *
+   * @see https://docs.aws.amazon.com/general/latest/gr/sigv4_signing.html
+   * @internal
    */
   private async signRequest(
     method: string,
@@ -176,6 +290,13 @@ export class SesEmailProvider implements IEmailProvider {
     };
   }
 
+  /**
+   * Computes SHA-256 hash of a string
+   *
+   * @param data - String to hash
+   * @returns Hexadecimal hash string
+   * @internal
+   */
   private async sha256(data: string): Promise<string> {
     const encoder = new TextEncoder();
     const buffer = await crypto.subtle.digest('SHA-256', encoder.encode(data));
@@ -184,6 +305,14 @@ export class SesEmailProvider implements IEmailProvider {
       .join('');
   }
 
+  /**
+   * Computes HMAC-SHA256 signature
+   *
+   * @param key - Signing key as ArrayBuffer or Uint8Array
+   * @param data - String data to sign
+   * @returns HMAC signature as ArrayBuffer
+   * @internal
+   */
   private async hmac(key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayBuffer> {
     const encoder = new TextEncoder();
     const cryptoKey = await crypto.subtle.importKey(
@@ -196,6 +325,14 @@ export class SesEmailProvider implements IEmailProvider {
     return crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(data));
   }
 
+  /**
+   * Computes HMAC-SHA256 signature and returns as hex string
+   *
+   * @param key - Signing key as ArrayBuffer
+   * @param data - String data to sign
+   * @returns HMAC signature as hexadecimal string
+   * @internal
+   */
   private async hmacHex(key: ArrayBuffer, data: string): Promise<string> {
     const buffer = await this.hmac(key, data);
     return Array.from(new Uint8Array(buffer))
@@ -203,6 +340,21 @@ export class SesEmailProvider implements IEmailProvider {
       .join('');
   }
 
+  /**
+   * Derives the AWS Signature v4 signing key
+   *
+   * The signing key is derived through a series of HMAC operations:
+   * kDate = HMAC("AWS4" + secret, dateStamp)
+   * kRegion = HMAC(kDate, region)
+   * kService = HMAC(kRegion, service)
+   * kSigning = HMAC(kService, "aws4_request")
+   *
+   * @param dateStamp - Date in YYYYMMDD format
+   * @param region - AWS region
+   * @param service - AWS service name (e.g., 'ses')
+   * @returns Derived signing key as ArrayBuffer
+   * @internal
+   */
   private async getSignatureKey(
     dateStamp: string,
     region: string,

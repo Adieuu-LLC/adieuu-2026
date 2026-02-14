@@ -1,40 +1,118 @@
 /**
- * OTP Service
- * Handles OTP generation, storage, and verification
+ * @fileoverview OTP (One-Time Password) Service
+ *
+ * Provides secure OTP generation, storage, and verification for authentication.
+ * OTPs are stored in Redis with automatic expiration and attempt limiting.
+ *
+ * @module services/otp
+ *
+ * Security features:
+ * - OTPs are hashed before storage (never stored in plaintext)
+ * - Identifier is also hashed for privacy
+ * - Constant-time comparison prevents timing attacks
+ * - Maximum attempt limiting prevents brute force
+ * - Automatic expiration via Redis TTL
+ * - Single-use (deleted after successful verification)
+ *
+ * @example
+ * ```typescript
+ * import { createOtp, verifyOtp } from './services/otp.service';
+ *
+ * // Generate and send OTP
+ * const otp = await createOtp('user@example.com', 'email');
+ * if (otp) {
+ *   await sendEmail({ to: 'user@example.com', text: `Your code: ${otp}` });
+ * }
+ *
+ * // Verify OTP from user input
+ * const result = await verifyOtp('user@example.com', userProvidedCode);
+ * if (result.valid) {
+ *   // Create session
+ * } else {
+ *   // Handle error (result.error contains reason)
+ * }
+ * ```
  */
 
 import { getRedis, isRedisConnected, RedisKeys } from '../db';
 import { generateOtp, hashOtp, hashIdentifier, constantTimeCompare } from '../utils/crypto';
 import elog from '../utils/adieuuLogger';
 
-/** OTP configuration */
+/**
+ * OTP configuration constants
+ *
+ * @remarks
+ * These values balance security with user experience:
+ * - 6 digits provides 1 million combinations (sufficient with attempt limiting)
+ * - 10 minute TTL allows for email/SMS delivery delays
+ * - 5 attempts prevents brute force while allowing for typos
+ */
 const OTP_CONFIG = {
   /** OTP length in digits */
   length: 6,
-  /** Time-to-live in seconds */
-  ttlSeconds: 10 * 60, // 10 minutes
-  /** Maximum verification attempts */
+  /** Time-to-live in seconds (10 minutes) */
+  ttlSeconds: 10 * 60,
+  /** Maximum verification attempts before lockout */
   maxAttempts: 5,
 } as const;
 
-/** Stored OTP data in Redis */
+/**
+ * Structure of OTP data stored in Redis
+ *
+ * @remarks
+ * The OTP itself is never stored - only its hash.
+ * This ensures that even if Redis is compromised, OTPs cannot be recovered.
+ *
+ * @internal
+ */
 interface StoredOtp {
-  /** Hashed OTP */
+  /**
+   * SHA-256 hash of the OTP combined with the identifier
+   * The identifier is included to prevent OTP reuse across accounts
+   */
   hash: string;
-  /** Number of verification attempts */
+
+  /**
+   * Number of verification attempts made
+   * Incremented before each verification check (prevents race conditions)
+   */
   attempts: number;
-  /** Creation timestamp */
+
+  /**
+   * Unix timestamp (milliseconds) when the OTP was created
+   * Used for audit logging and debugging
+   */
   createdAt: number;
-  /** Identifier type */
+
+  /**
+   * Delivery channel type
+   * Used for audit logging and analytics
+   */
   type: 'email' | 'sms';
 }
 
 /**
- * Request a new OTP for an identifier
- * 
- * @param identifier - Normalized email or phone
- * @param type - Delivery type ('email' or 'sms')
- * @returns The plain OTP (for sending to user) or null if Redis unavailable
+ * Creates and stores a new OTP for an identifier
+ *
+ * Generates a cryptographically secure random OTP, hashes it with the
+ * identifier, and stores it in Redis with automatic expiration.
+ *
+ * @param identifier - Normalized email address or phone number (E.164 format)
+ * @param type - Delivery channel type ('email' or 'sms')
+ * @returns The plaintext OTP to send to the user, or null if Redis is unavailable
+ *
+ * @remarks
+ * - Any existing OTP for this identifier is overwritten
+ * - The returned OTP should be sent immediately and never logged
+ * - The identifier should be normalized before calling this function
+ *
+ * @example
+ * ```typescript
+ * const otp = await createOtp('user@example.com', 'email');
+ * if (otp) {
+ *   await sendEmail({ to: 'user@example.com', text: `Your code: ${otp}` });
+ * }
+ * ```
  */
 export async function createOtp(
   identifier: string,
@@ -64,11 +142,35 @@ export async function createOtp(
 }
 
 /**
- * Verify an OTP for an identifier
- * 
- * @param identifier - Normalized email or phone
- * @param code - The OTP code provided by user
- * @returns Verification result
+ * Verifies an OTP code against the stored hash
+ *
+ * Uses constant-time comparison to prevent timing attacks.
+ * Increments attempt counter before checking (prevents race conditions).
+ * Deletes OTP after successful verification (single-use).
+ *
+ * @param identifier - Normalized email address or phone number
+ * @param code - The OTP code provided by the user
+ * @returns Verification result with validity status and optional error code
+ *
+ * @remarks
+ * Error codes:
+ * - `not_found`: No OTP exists for this identifier (expired or never created)
+ * - `expired`: OTP has expired (same as not_found for security)
+ * - `invalid`: OTP code does not match
+ * - `max_attempts`: Too many failed attempts (OTP deleted)
+ * - `redis_unavailable`: Redis connection is down
+ *
+ * @example
+ * ```typescript
+ * const result = await verifyOtp('user@example.com', '123456');
+ * if (result.valid) {
+ *   // Authentication successful - create session
+ * } else if (result.error === 'max_attempts') {
+ *   // User must request a new OTP
+ * } else {
+ *   // Show generic error (don't reveal specific reason to user)
+ * }
+ * ```
  */
 export async function verifyOtp(
   identifier: string,
@@ -119,7 +221,19 @@ export async function verifyOtp(
 }
 
 /**
- * Delete an OTP (e.g., when user requests a new one)
+ * Deletes an existing OTP for an identifier
+ *
+ * Use this when a user requests a new OTP to ensure the old one
+ * is invalidated immediately (even though it would be overwritten).
+ *
+ * @param identifier - Normalized email address or phone number
+ *
+ * @example
+ * ```typescript
+ * // Before creating a new OTP, delete any existing one
+ * await deleteOtp('user@example.com');
+ * const newOtp = await createOtp('user@example.com', 'email');
+ * ```
  */
 export async function deleteOtp(identifier: string): Promise<void> {
   if (!isRedisConnected()) return;
@@ -131,7 +245,24 @@ export async function deleteOtp(identifier: string): Promise<void> {
 }
 
 /**
- * Check if an OTP exists for an identifier
+ * Checks if an OTP exists for an identifier
+ *
+ * Useful for rate limiting decisions - if an OTP was recently sent,
+ * you may want to prevent sending another one too quickly.
+ *
+ * @param identifier - Normalized email address or phone number
+ * @returns True if an OTP exists, false otherwise
+ *
+ * @example
+ * ```typescript
+ * if (await hasOtp('user@example.com')) {
+ *   // OTP already sent - check TTL to see if user can request another
+ *   const ttl = await getOtpTtl('user@example.com');
+ *   if (ttl > 540) { // Less than 1 minute since creation
+ *     return { error: 'Please wait before requesting another code' };
+ *   }
+ * }
+ * ```
  */
 export async function hasOtp(identifier: string): Promise<boolean> {
   if (!isRedisConnected()) return false;
@@ -143,7 +274,25 @@ export async function hasOtp(identifier: string): Promise<boolean> {
 }
 
 /**
- * Get remaining TTL for an OTP (for rate limiting decisions)
+ * Gets the remaining time-to-live for an OTP in seconds
+ *
+ * Useful for rate limiting and informing users how long until
+ * they can request a new OTP.
+ *
+ * @param identifier - Normalized email address or phone number
+ * @returns Remaining TTL in seconds, or 0 if no OTP exists
+ *
+ * @example
+ * ```typescript
+ * const ttl = await getOtpTtl('user@example.com');
+ * if (ttl > 0) {
+ *   // Calculate time since creation
+ *   const elapsed = 600 - ttl; // OTP_CONFIG.ttlSeconds - ttl
+ *   if (elapsed < 60) {
+ *     return { error: `Please wait ${60 - elapsed} seconds` };
+ *   }
+ * }
+ * ```
  */
 export async function getOtpTtl(identifier: string): Promise<number> {
   if (!isRedisConnected()) return 0;
