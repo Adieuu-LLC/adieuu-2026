@@ -3,7 +3,7 @@
  * 
  * Provides standardized response formatting for consistent API responses.
  * All responses follow a unified structure with success/error indicators,
- * timestamps, and optional metadata.
+ * timestamps, and optional metadata. Supports localized error messages.
  * 
  * Response format:
  * ```json
@@ -26,15 +26,20 @@
  * 
  * @example
  * ```typescript
- * import { success, error, errors } from './response';
+ * import { success, error, errors, localizedErrors } from './response';
  * 
  * // Success response with data
  * return success({ user: { id: 1, name: 'John' } });
  * 
  * // Error response
  * return errors.notFound('User not found');
+ * 
+ * // Localized error response
+ * return localizedErrors.invalidOtp('es');
  * ```
  */
+
+import { getErrorMessage, type Locale, type ErrorKey, DEFAULT_LOCALE } from '../i18n';
 
 /**
  * Success response body structure.
@@ -273,4 +278,115 @@ export const errors = {
    */
   internal: (message = 'An unexpected error occurred.') =>
     error('INTERNAL_ERROR', message, 500),
+
+  /**
+   * Creates a 413 Payload Too Large response.
+   * 
+   * Use when the request body exceeds size limits.
+   * 
+   * @param message - Error message (default: 'Payload too large')
+   * @returns Response with status 413 and code 'PAYLOAD_TOO_LARGE'
+   */
+  payloadTooLarge: (message = 'Payload too large') =>
+    error('PAYLOAD_TOO_LARGE', message, 413),
+} as const;
+
+/**
+ * Creates a localized error response using the i18n system.
+ * 
+ * @param key - The error key from the i18n system
+ * @param code - The error code for the response
+ * @param status - HTTP status code
+ * @param locale - The locale for the message (default: 'en')
+ * @returns A Response object with JSON body
+ */
+export function localizedError(
+  key: ErrorKey,
+  code: string,
+  status: number,
+  locale: Locale = DEFAULT_LOCALE
+): Response {
+  const message = getErrorMessage(key, locale);
+  return error(code, message, status);
+}
+
+/**
+ * Pre-configured localized error response factories.
+ * 
+ * These use the i18n system for user-facing error messages, making them
+ * suitable for responses that end users will see.
+ * 
+ * @example
+ * ```typescript
+ * // Get user's locale from request
+ * const locale = parseAcceptLanguage(request.headers.get('Accept-Language'));
+ * 
+ * // Return localized error
+ * return localizedErrors.invalidOtp(locale);
+ * ```
+ */
+export const localizedErrors = {
+  /** 400 - Bad request */
+  badRequest: (locale?: Locale) =>
+    localizedError('badRequest', 'BAD_REQUEST', 400, locale),
+
+  /** 401 - Unauthorized */
+  unauthorized: (locale?: Locale) =>
+    localizedError('unauthorized', 'UNAUTHORIZED', 401, locale),
+
+  /** 403 - Forbidden */
+  forbidden: (locale?: Locale) =>
+    localizedError('forbidden', 'FORBIDDEN', 403, locale),
+
+  /** 404 - Not found */
+  notFound: (locale?: Locale) =>
+    localizedError('notFound', 'NOT_FOUND', 404, locale),
+
+  /** 405 - Method not allowed */
+  methodNotAllowed: (locale?: Locale) =>
+    localizedError('methodNotAllowed', 'METHOD_NOT_ALLOWED', 405, locale),
+
+  /** 429 - Rate limited */
+  rateLimited: (locale?: Locale) =>
+    localizedError('rateLimited', 'RATE_LIMITED', 429, locale),
+
+  /** 500 - Internal error */
+  internal: (locale?: Locale) =>
+    localizedError('internal', 'INTERNAL_ERROR', 500, locale),
+
+  /** 400 - Validation failed */
+  validationFailed: (locale?: Locale) =>
+    localizedError('validationFailed', 'VALIDATION_FAILED', 400, locale),
+
+  /** 400 - Invalid email */
+  invalidEmail: (locale?: Locale) =>
+    localizedError('invalidEmail', 'INVALID_EMAIL', 400, locale),
+
+  /** 400 - Invalid phone */
+  invalidPhone: (locale?: Locale) =>
+    localizedError('invalidPhone', 'INVALID_PHONE', 400, locale),
+
+  /** 400 - Invalid OTP */
+  invalidOtp: (locale?: Locale) =>
+    localizedError('invalidOtp', 'INVALID_OTP', 400, locale),
+
+  /** 400 - OTP expired */
+  otpExpired: (locale?: Locale) =>
+    localizedError('otpExpired', 'OTP_EXPIRED', 400, locale),
+
+  /** 429 - Too many attempts */
+  tooManyAttempts: (locale?: Locale) =>
+    localizedError('tooManyAttempts', 'TOO_MANY_ATTEMPTS', 429, locale),
+
+  /** 423 - Account locked */
+  accountLocked: (locale?: Locale) =>
+    localizedError('accountLocked', 'ACCOUNT_LOCKED', 423, locale),
+
+  /** 401 - Session expired */
+  sessionExpired: (locale?: Locale) =>
+    localizedError('sessionExpired', 'SESSION_EXPIRED', 401, locale),
+
+  /** 413 - Payload too large */
+  payloadTooLarge: (locale?: Locale) =>
+    localizedError('payloadTooLarge', 'PAYLOAD_TOO_LARGE', 413, locale),
 } as const;

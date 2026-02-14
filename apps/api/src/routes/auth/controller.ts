@@ -15,7 +15,14 @@ import { sanitizeString } from '../../utils/sanitize';
 import { hashIdentifier, hashIp, encrypt } from '../../utils/crypto';
 import { addJitter } from '../../utils/timing';
 import { config } from '../../config';
+import { getEmailTemplate, getSmsMessage, type Locale, DEFAULT_LOCALE } from '../../i18n';
 import elog from '../../utils/adieuuLogger';
+
+/** OTP expiration time in minutes */
+const OTP_EXPIRES_IN_MINUTES = 10;
+
+/** Application name for templates */
+const APP_NAME = 'Chadder';
 
 /**
  * Input parameters for requesting an OTP.
@@ -162,35 +169,30 @@ export async function requestOtp(
  *
  * @param email - The recipient's email address (must be pre-sanitized)
  * @param otp - The one-time password to send
+ * @param locale - The locale for message translations (default: 'en')
  * @returns A promise that resolves when the email is queued for delivery
  *
  * @internal
  */
-async function sendOtpEmail(email: string, otp: string): Promise<void> {
+async function sendOtpEmail(
+  email: string,
+  otp: string,
+  locale: Locale = DEFAULT_LOCALE
+): Promise<void> {
   const magicLink = buildMagicLink(email, otp);
+
+  const template = getEmailTemplate('otpWithMagicLink', locale, {
+    appName: APP_NAME,
+    otp,
+    magicLink,
+    expiresInMinutes: OTP_EXPIRES_IN_MINUTES,
+  });
 
   await sendEmail({
     to: email,
-    subject: 'Your Chadder login code',
-    text: `Your login code is: ${otp}\n\nOr click this link to sign in: ${magicLink}\n\nThis code expires in 10 minutes.\n\nIf you didn't request this code, you can safely ignore this email.`,
-    html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Your Chadder login code</h2>
-        <p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 24px 0;">
-          ${otp}
-        </p>
-        <p>Or click the button below to sign in:</p>
-        <a href="${magicLink}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">
-          Sign in to Chadder
-        </a>
-        <p style="color: #666; font-size: 14px; margin-top: 24px;">
-          This code expires in 10 minutes.
-        </p>
-        <p style="color: #999; font-size: 12px;">
-          If you didn't request this code, you can safely ignore this email.
-        </p>
-      </div>
-    `,
+    subject: template.subject,
+    text: template.text,
+    html: template.html,
   });
 }
 
@@ -202,14 +204,25 @@ async function sendOtpEmail(email: string, otp: string): Promise<void> {
  *
  * @param phone - The recipient's phone number in E.164 format (must be pre-sanitized)
  * @param otp - The one-time password to send
+ * @param locale - The locale for message translations (default: 'en')
  * @returns A promise that resolves when the SMS is queued for delivery
  *
  * @internal
  */
-async function sendOtpSms(phone: string, otp: string): Promise<void> {
+async function sendOtpSms(
+  phone: string,
+  otp: string,
+  locale: Locale = DEFAULT_LOCALE
+): Promise<void> {
+  const message = getSmsMessage('otp', locale, {
+    appName: APP_NAME,
+    otp,
+    expiresInMinutes: OTP_EXPIRES_IN_MINUTES,
+  });
+
   await sendSms({
     to: phone,
-    message: `Your Chadder code is ${otp}. It expires in 10 minutes.`,
+    message,
   });
 }
 
