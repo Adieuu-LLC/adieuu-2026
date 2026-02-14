@@ -414,10 +414,28 @@ describe('sanitizeString', () => {
       expect(result.deltas).toBeGreaterThan(0);
     });
 
-    test('handles email without @ symbol', () => {
+    test('returns empty string for email without @ symbol', () => {
       const result = sanitizeString('invalidemail', 'email');
-      expect(result.value).toBe('invalidemail');
-      expect(result.deltas).toBe(0);
+      expect(result.value).toBe('');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('returns empty string for email with empty local part', () => {
+      const result = sanitizeString('@domain.com', 'email');
+      expect(result.value).toBe('');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('returns empty string for email with empty domain', () => {
+      const result = sanitizeString('user@', 'email');
+      expect(result.value).toBe('');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('returns empty string for just @ symbol', () => {
+      const result = sanitizeString('@', 'email');
+      expect(result.value).toBe('');
+      expect(result.deltas).toBeGreaterThan(0);
     });
 
     test('removes invalid characters from local part', () => {

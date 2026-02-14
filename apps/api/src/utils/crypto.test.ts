@@ -19,6 +19,10 @@ import {
   hashIp,
   constantTimeCompare,
   base64UrlToBuffer,
+  hmacSign,
+  hmacVerify,
+  encrypt,
+  decrypt,
 } from './crypto';
 
 describe('crypto utilities', () => {
@@ -362,6 +366,166 @@ describe('crypto utilities', () => {
         ids.add(generateSessionId());
       }
       expect(ids.size).toBe(1000);
+    });
+  });
+
+  describe('hmacSign', () => {
+    test('returns a base64url-encoded signature', () => {
+      const signature = hmacSign('test data');
+      expect(signature).toMatch(/^[a-zA-Z0-9_-]+$/);
+    });
+
+    test('produces consistent signatures for same input', () => {
+      const sig1 = hmacSign('test data');
+      const sig2 = hmacSign('test data');
+      expect(sig1).toBe(sig2);
+    });
+
+    test('produces different signatures for different input', () => {
+      const sig1 = hmacSign('test data 1');
+      const sig2 = hmacSign('test data 2');
+      expect(sig1).not.toBe(sig2);
+    });
+
+    test('handles empty string', () => {
+      const signature = hmacSign('');
+      expect(signature).toMatch(/^[a-zA-Z0-9_-]+$/);
+    });
+
+    test('handles unicode characters', () => {
+      const signature = hmacSign('Hello World');
+      expect(signature).toMatch(/^[a-zA-Z0-9_-]+$/);
+    });
+
+    test('handles long strings', () => {
+      const longString = 'a'.repeat(10000);
+      const signature = hmacSign(longString);
+      expect(signature).toMatch(/^[a-zA-Z0-9_-]+$/);
+    });
+  });
+
+  describe('hmacVerify', () => {
+    test('returns true for valid signature', () => {
+      const data = 'test data';
+      const signature = hmacSign(data);
+      expect(hmacVerify(data, signature)).toBe(true);
+    });
+
+    test('returns false for invalid signature', () => {
+      const data = 'test data';
+      const signature = hmacSign(data);
+      expect(hmacVerify(data, 'invalid-signature')).toBe(false);
+    });
+
+    test('returns false for tampered data', () => {
+      const signature = hmacSign('original data');
+      expect(hmacVerify('tampered data', signature)).toBe(false);
+    });
+
+    test('returns false for signature of different data', () => {
+      const sig1 = hmacSign('data 1');
+      expect(hmacVerify('data 2', sig1)).toBe(false);
+    });
+
+    test('handles empty string data', () => {
+      const signature = hmacSign('');
+      expect(hmacVerify('', signature)).toBe(true);
+      expect(hmacVerify('non-empty', signature)).toBe(false);
+    });
+  });
+
+  describe('encrypt', () => {
+    test('returns a base64url-encoded string', () => {
+      const encrypted = encrypt('test plaintext');
+      expect(encrypted).toMatch(/^[a-zA-Z0-9_-]+$/);
+    });
+
+    test('produces different ciphertext for same plaintext (due to random IV)', () => {
+      const enc1 = encrypt('same plaintext');
+      const enc2 = encrypt('same plaintext');
+      expect(enc1).not.toBe(enc2);
+    });
+
+    test('handles empty string', () => {
+      const encrypted = encrypt('');
+      expect(encrypted).toMatch(/^[a-zA-Z0-9_-]+$/);
+    });
+
+    test('handles unicode characters', () => {
+      const encrypted = encrypt('Hello World');
+      expect(encrypted).toMatch(/^[a-zA-Z0-9_-]+$/);
+    });
+
+    test('handles long strings', () => {
+      const longString = 'a'.repeat(10000);
+      const encrypted = encrypt(longString);
+      expect(encrypted).toMatch(/^[a-zA-Z0-9_-]+$/);
+    });
+
+    test('handles special characters', () => {
+      const encrypted = encrypt('user@example.com:123456');
+      expect(encrypted).toMatch(/^[a-zA-Z0-9_-]+$/);
+    });
+  });
+
+  describe('decrypt', () => {
+    test('decrypts encrypted data correctly', () => {
+      const plaintext = 'test plaintext';
+      const encrypted = encrypt(plaintext);
+      const decrypted = decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    test('decrypts empty string correctly', () => {
+      const encrypted = encrypt('');
+      const decrypted = decrypt(encrypted);
+      expect(decrypted).toBe('');
+    });
+
+    test('decrypts unicode correctly', () => {
+      const plaintext = 'Hello World';
+      const encrypted = encrypt(plaintext);
+      const decrypted = decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    test('decrypts long strings correctly', () => {
+      const plaintext = 'a'.repeat(10000);
+      const encrypted = encrypt(plaintext);
+      const decrypted = decrypt(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    test('returns null for invalid ciphertext', () => {
+      const result = decrypt('not-valid-ciphertext');
+      expect(result).toBeNull();
+    });
+
+    test('returns null for tampered ciphertext', () => {
+      const encrypted = encrypt('test');
+      // Tamper with the ciphertext by changing a character
+      const tampered = encrypted.slice(0, -1) + (encrypted.slice(-1) === 'A' ? 'B' : 'A');
+      const result = decrypt(tampered);
+      expect(result).toBeNull();
+    });
+
+    test('returns null for truncated ciphertext', () => {
+      const encrypted = encrypt('test');
+      const truncated = encrypted.slice(0, 10);
+      const result = decrypt(truncated);
+      expect(result).toBeNull();
+    });
+
+    test('returns null for empty string', () => {
+      const result = decrypt('');
+      expect(result).toBeNull();
+    });
+
+    test('roundtrip with complex payload', () => {
+      const payload = 'user@example.com:123456:1707900000000';
+      const encrypted = encrypt(payload);
+      const decrypted = decrypt(encrypted);
+      expect(decrypted).toBe(payload);
     });
   });
 });
