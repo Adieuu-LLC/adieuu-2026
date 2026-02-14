@@ -9,6 +9,9 @@ on:
 env:
   NODE_VERSION: '20'
   PNPM_VERSION: '9'
+  # Disable Turborepo telemetry
+  # https://turborepo.dev/docs/telemetry
+  TURBO_TELEMETRY_DISABLED: 1
 
 jobs:
   lint-and-typecheck:
@@ -97,6 +100,10 @@ jobs:
     needs: [lint-and-typecheck, test-api]
     steps:
       - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - uses: pnpm/action-setup@v3
         with:
