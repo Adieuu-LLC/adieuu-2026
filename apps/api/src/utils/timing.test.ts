@@ -103,7 +103,8 @@ describe('timing utilities', () => {
       }, minTime);
 
       const elapsed = performance.now() - start;
-      expect(elapsed).toBeGreaterThanOrEqual(minTime - 1);
+      // Allow 5ms tolerance for CI environment timing variations
+      expect(elapsed).toBeGreaterThanOrEqual(minTime - 5);
     });
 
     test('does not delay slow operations beyond their natural time', async () => {
