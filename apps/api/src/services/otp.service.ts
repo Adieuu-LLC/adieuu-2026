@@ -149,6 +149,12 @@ export async function createOtp(
   const key = RedisKeys.otp(identifierHash);
   await redis.set(key, JSON.stringify(data), 'EX', OTP_CONFIG.ttlSeconds);
 
+  elog.info('OTP created', {
+    identifierHash,
+    type,
+    expiresInSeconds: OTP_CONFIG.ttlSeconds,
+  });
+
   return otp;
 }
 
@@ -256,6 +262,9 @@ export async function verifyOtp(
     performDummyHashCompare(identifier, code);
     // Perform a dummy Redis operation to match SET timing
     await redis.get(key);
+
+    elog.debug('OTP verification failed: not found', { identifierHash });
+
     return { valid: false, error: 'not_found' };
   }
 
@@ -267,6 +276,14 @@ export async function verifyOtp(
     // Still in backoff - perform dummy operations for consistent timing
     performDummyHashCompare(identifier, code);
     const retryAfterSeconds = Math.ceil((data.backoffUntil - now) / 1000);
+
+    elog.warn('OTP verification blocked: backoff active', {
+      identifierHash,
+      failedAttempts: data.attempts,
+      retryAfterSeconds,
+      type: data.type,
+    });
+
     return {
       valid: false,
       error: 'backoff',
@@ -281,6 +298,14 @@ export async function verifyOtp(
     performDummyHashCompare(identifier, code);
     // Don't delete - let it expire naturally so user can't enumerate by
     // checking if a new OTP request succeeds immediately
+
+    elog.warn('OTP locked: max attempts exceeded', {
+      identifierHash,
+      failedAttempts: data.attempts,
+      maxAttempts: OTP_CONFIG.maxAttempts,
+      type: data.type,
+    });
+
     return {
       valid: false,
       error: 'max_attempts',
@@ -295,6 +320,13 @@ export async function verifyOtp(
   if (isValid) {
     // Delete OTP on successful verification (single use)
     await redis.del(key);
+
+    elog.info('OTP verified successfully', {
+      identifierHash,
+      type: data.type,
+      attemptsUsed: data.attempts + 1,
+    });
+
     return { valid: true };
   }
 
@@ -304,6 +336,22 @@ export async function verifyOtp(
   await redis.set(key, JSON.stringify(data), 'KEEPTTL');
 
   const retryAfterSeconds = Math.ceil(calculateBackoffMs(data.attempts) / 1000);
+
+  // Log at warn level if approaching max attempts (security concern)
+  if (data.attempts >= OTP_CONFIG.maxAttempts - 1) {
+    elog.warn('OTP verification failed: approaching max attempts', {
+      identifierHash,
+      failedAttempts: data.attempts,
+      maxAttempts: OTP_CONFIG.maxAttempts,
+      type: data.type,
+    });
+  } else {
+    elog.debug('OTP verification failed: invalid code', {
+      identifierHash,
+      failedAttempts: data.attempts,
+      retryAfterSeconds,
+    });
+  }
 
   return {
     valid: false,

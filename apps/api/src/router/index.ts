@@ -10,8 +10,15 @@ import elog from '../utils/adieuuLogger';
 /**
  * Creates a ContextErrors object bound to a specific locale.
  * This allows routes to call ctx.errors.notFound() without passing locale.
+ *
+ * @remarks
+ * For OTP verification, use `verificationFailed()` which returns identical
+ * responses for all failure types to prevent enumeration attacks.
  */
 function createContextErrors(locale: Locale): ContextErrors {
+  // Anti-enumeration: verificationFailed is used for ALL OTP verification errors
+  const verificationFailed = () => localizedErrors.verificationFailed(locale);
+
   return {
     badRequest: () => localizedErrors.badRequest(locale),
     unauthorized: () => localizedErrors.unauthorized(locale),
@@ -23,9 +30,11 @@ function createContextErrors(locale: Locale): ContextErrors {
     validationFailed: () => localizedErrors.validationFailed(locale),
     invalidEmail: () => localizedErrors.invalidEmail(locale),
     invalidPhone: () => localizedErrors.invalidPhone(locale),
-    invalidOtp: () => localizedErrors.invalidOtp(locale),
-    otpExpired: () => localizedErrors.otpExpired(locale),
-    tooManyAttempts: () => localizedErrors.tooManyAttempts(locale),
+    // All verification errors return identical responses (anti-enumeration)
+    verificationFailed,
+    invalidOtp: verificationFailed,
+    otpExpired: verificationFailed,
+    tooManyAttempts: verificationFailed,
     accountLocked: () => localizedErrors.accountLocked(locale),
     sessionExpired: () => localizedErrors.sessionExpired(locale),
     payloadTooLarge: () => localizedErrors.payloadTooLarge(locale),

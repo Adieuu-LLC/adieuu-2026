@@ -169,9 +169,19 @@ If you didn't make this change, please contact our support team immediately.`,
     validationFailed: 'Validation failed. Please check your input.',
     invalidEmail: 'Please enter a valid email address',
     invalidPhone: 'Please enter a valid phone number',
-    invalidOtp: 'Invalid code. Please check and try again.',
-    otpExpired: 'This code has expired. Please request a new one.',
-    tooManyAttempts: 'Too many attempts. Please try again later.',
+    // IMPORTANT: These verification messages are intentionally identical to prevent enumeration.
+    // Attackers should not be able to distinguish between:
+    // - Invalid code vs. expired code
+    // - Non-existent OTP vs. wrong code
+    // - Locked OTP vs. wrong code
+    // All verification failures return the same generic message.
+    // Use 'verificationFailed' as the canonical key for OTP verification responses.
+    verificationFailed: 'Unable to verify. Please check your code or request a new one.',
+    invalidOtp: 'Unable to verify. Please check your code or request a new one.',
+    otpExpired: 'Unable to verify. Please check your code or request a new one.',
+    tooManyAttempts: 'Unable to verify. Please check your code or request a new one.',
+    // accountLocked is for ACCOUNT-level lockouts sent via email/SMS notifications,
+    // NOT for OTP verification failures (which use the generic messages above)
     accountLocked: 'Account temporarily locked. Please try again later.',
     sessionExpired: 'Your session has expired. Please sign in again.',
     payloadTooLarge: 'Request too large. Please reduce the size of your request.',

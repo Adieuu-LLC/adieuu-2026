@@ -49,14 +49,22 @@ describe('i18n', () => {
 
   describe('getErrorMessage', () => {
     test('returns error message for valid key', () => {
-      const message = getErrorMessage('invalidOtp');
-      expect(message).toBe('Invalid code. Please check and try again.');
+      const message = getErrorMessage('verificationFailed');
+      expect(message).toBe('Unable to verify. Please check your code or request a new one.');
     });
 
     test('returns default locale message when locale not implemented', () => {
-      const message = getErrorMessage('invalidOtp', 'es');
+      const message = getErrorMessage('verificationFailed', 'es');
       // Falls back to English since Spanish isn't implemented yet
-      expect(message).toBe('Invalid code. Please check and try again.');
+      expect(message).toBe('Unable to verify. Please check your code or request a new one.');
+    });
+
+    test('verification error keys return identical messages (anti-enumeration)', () => {
+      const expected = 'Unable to verify. Please check your code or request a new one.';
+      expect(getErrorMessage('verificationFailed')).toBe(expected);
+      expect(getErrorMessage('invalidOtp')).toBe(expected);
+      expect(getErrorMessage('otpExpired')).toBe(expected);
+      expect(getErrorMessage('tooManyAttempts')).toBe(expected);
     });
 
     test('returns message for all error keys', () => {
@@ -71,6 +79,7 @@ describe('i18n', () => {
         'validationFailed',
         'invalidEmail',
         'invalidPhone',
+        'verificationFailed',
         'invalidOtp',
         'otpExpired',
         'tooManyAttempts',

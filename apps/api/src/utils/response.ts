@@ -366,17 +366,32 @@ export const localizedErrors = {
   invalidPhone: (locale?: Locale) =>
     localizedError('invalidPhone', 'INVALID_PHONE', 400, locale),
 
-  /** 400 - Invalid OTP */
+  /**
+   * 400 - Generic verification failure (anti-enumeration)
+   *
+   * Use this for ALL OTP/code verification failures. Returns identical
+   * message and error code regardless of the actual failure reason to
+   * prevent attackers from distinguishing between:
+   * - Invalid code vs. non-existent OTP
+   * - Expired code vs. wrong code
+   * - Locked OTP vs. invalid code
+   */
+  verificationFailed: (locale?: Locale) =>
+    localizedError('verificationFailed', 'VERIFICATION_FAILED', 400, locale),
+
+  // Aliases that map to verificationFailed - all return identical responses
+  // These exist for semantic code clarity but MUST use the same message/code
+  /** @deprecated Use verificationFailed instead - identical response */
   invalidOtp: (locale?: Locale) =>
-    localizedError('invalidOtp', 'INVALID_OTP', 400, locale),
+    localizedError('verificationFailed', 'VERIFICATION_FAILED', 400, locale),
 
-  /** 400 - OTP expired */
+  /** @deprecated Use verificationFailed instead - identical response */
   otpExpired: (locale?: Locale) =>
-    localizedError('otpExpired', 'OTP_EXPIRED', 400, locale),
+    localizedError('verificationFailed', 'VERIFICATION_FAILED', 400, locale),
 
-  /** 429 - Too many attempts */
+  /** @deprecated Use verificationFailed instead - identical response */
   tooManyAttempts: (locale?: Locale) =>
-    localizedError('tooManyAttempts', 'TOO_MANY_ATTEMPTS', 429, locale),
+    localizedError('verificationFailed', 'VERIFICATION_FAILED', 400, locale),
 
   /** 423 - Account locked */
   accountLocked: (locale?: Locale) =>

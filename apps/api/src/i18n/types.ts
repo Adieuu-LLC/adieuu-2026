@@ -50,6 +50,15 @@ export type SmsTemplateKey =
 
 /**
  * All error message keys.
+ *
+ * @remarks
+ * **Anti-enumeration design:**
+ * The following keys intentionally share identical messages to prevent
+ * attackers from distinguishing between different failure states:
+ * - `invalidOtp`, `otpExpired`, `tooManyAttempts` - All return generic verification failure
+ *
+ * For OTP/code verification, use `verificationFailed` as the canonical key.
+ * The specific keys exist for internal logging differentiation only.
  */
 export type ErrorKey =
   | 'badRequest'
@@ -62,9 +71,12 @@ export type ErrorKey =
   | 'validationFailed'
   | 'invalidEmail'
   | 'invalidPhone'
-  | 'invalidOtp'
-  | 'otpExpired'
-  | 'tooManyAttempts'
+  // Verification errors - intentionally identical messages for anti-enumeration
+  | 'verificationFailed' // Canonical key for all OTP verification failures
+  | 'invalidOtp'         // Alias - same message as verificationFailed
+  | 'otpExpired'         // Alias - same message as verificationFailed
+  | 'tooManyAttempts'    // Alias - same message as verificationFailed
+  // Account-level errors (for notifications, not API responses)
   | 'accountLocked'
   | 'sessionExpired'
   | 'payloadTooLarge';

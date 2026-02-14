@@ -9,6 +9,11 @@ export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS'
 /**
  * Localized error response factories available on the route context.
  * These automatically use the request's locale.
+ *
+ * @remarks
+ * **Anti-enumeration:** For OTP/code verification failures, use `verificationFailed()`
+ * which returns an identical message and error code for all failure types
+ * (invalid, expired, locked, etc.) to prevent enumeration attacks.
  */
 export interface ContextErrors {
   badRequest: () => Response;
@@ -21,8 +26,16 @@ export interface ContextErrors {
   validationFailed: () => Response;
   invalidEmail: () => Response;
   invalidPhone: () => Response;
+  /**
+   * Generic verification failure - use for ALL OTP/code verification errors.
+   * Returns identical response regardless of actual failure reason.
+   */
+  verificationFailed: () => Response;
+  /** @deprecated Use verificationFailed instead */
   invalidOtp: () => Response;
+  /** @deprecated Use verificationFailed instead */
   otpExpired: () => Response;
+  /** @deprecated Use verificationFailed instead */
   tooManyAttempts: () => Response;
   accountLocked: () => Response;
   sessionExpired: () => Response;
