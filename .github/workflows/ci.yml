@@ -112,16 +112,18 @@ jobs:
           files: ./apps/api/coverage/lcov.info
           fail_ci_if_error: false
 
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          flags: api
-          name: api-tests
-          files: ./apps/api/junit.xml
-          report_type: test_results
-          fail_ci_if_error: false
+      # Test results don't seem to parse correctly on CodeCov side, so investigate later when we have time
+      # - name: Upload test results to Codecov
+      #   if: ${{ !cancelled() }}
+      #   uses: codecov/codecov-action@v5
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+      #     flags: api
+      #     name: api-tests
+      #     files: ./apps/api/junit.xml
+      #     report_type: test_results
+      #     fail_ci_if_error: false
+      #     verbose: true
 
   build-api:
     runs-on: ubuntu-latest
