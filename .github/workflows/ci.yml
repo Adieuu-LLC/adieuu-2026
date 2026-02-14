@@ -99,12 +99,8 @@ jobs:
       - name: Fix coverage paths
         run: sed -i 's|SF:src/|SF:apps/api/src/|g' apps/api/coverage/lcov.info
 
-      - name: Debug junit.xml format
-        run: |
-          echo "=== junit.xml file size ==="
-          ls -la apps/api/junit.xml
-          echo "=== Full junit.xml content ==="
-          cat apps/api/junit.xml
+      - name: Fix test result paths
+        run: sed -i 's|file="src/|file="apps/api/src/|g' apps/api/junit.xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
