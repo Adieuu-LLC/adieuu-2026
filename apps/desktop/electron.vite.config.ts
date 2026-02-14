@@ -4,17 +4,17 @@ import path from 'path';
 export default defineConfig({
   main: {
     build: {
-      outDir: 'dist',
-      lib: {
-        entry: 'src/main.ts',
+      outDir: 'dist/main',
+      rollupOptions: {
+        input: 'src/main.ts',
       },
     },
   },
   preload: {
     build: {
-      outDir: 'dist',
-      lib: {
-        entry: 'src/preload.ts',
+      outDir: 'dist/preload',
+      rollupOptions: {
+        input: 'src/preload.ts',
       },
     },
   },

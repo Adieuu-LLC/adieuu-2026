@@ -2,9 +2,8 @@ import { app, BrowserWindow, shell } from 'electron';
 import path from 'path';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
-if (require('electron-squirrel-startup')) {
-  app.quit();
-}
+// Note: electron-squirrel-startup is only needed for Squirrel.Windows installers
+// We use NSIS so this can be safely removed
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -17,7 +16,7 @@ async function createWindow() {
     minWidth: 800,
     minHeight: 600,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, '../preload/preload.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -38,13 +37,14 @@ async function createWindow() {
   });
 
   if (isDev) {
-    // In dev, load from web dev server
-    await mainWindow.loadURL('http://localhost:3000');
+    // In dev, load from electron-vite renderer dev server
+    const rendererUrl = process.env.ELECTRON_RENDERER_URL || 'http://localhost:5173';
+    await mainWindow.loadURL(rendererUrl);
     mainWindow.webContents.openDevTools();
   } else {
     // In production, load from built web app
     // You would copy the built web app here during build process
-    await mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+    await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 }
 

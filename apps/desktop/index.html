@@ -8,13 +8,45 @@
       content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'"
     />
     <title>Chadder</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        color: #eee;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .container {
+        text-align: center;
+        padding: 2rem;
+      }
+      h1 {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(90deg, #00d9ff, #00ff88);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      p {
+        color: #888;
+        font-size: 1.1rem;
+      }
+      .version {
+        margin-top: 2rem;
+        font-size: 0.85rem;
+        color: #555;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script>
-      // In production, this page loads the built web app
-      // In development, Electron loads http://localhost:3000 directly
-      document.body.innerHTML = '<p>Loading...</p>';
-    </script>
+    <div class="container">
+      <h1>Chadder Desktop</h1>
+      <p>Electron shell is running</p>
+      <p class="version">Development Mode</p>
+    </div>
   </body>
 </html>
