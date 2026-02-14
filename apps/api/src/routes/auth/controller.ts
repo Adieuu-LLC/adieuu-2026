@@ -1,6 +1,11 @@
 /**
- * Auth controller
- * Business logic for authentication endpoints
+ * Authentication controller module.
+ *
+ * Contains the business logic for authentication endpoints, including OTP
+ * generation, delivery, and verification. This module implements security
+ * best practices to prevent enumeration attacks and abuse.
+ *
+ * @module routes/auth/controller
  */
 
 import { createOtp } from '../../services/otp.service';
@@ -12,25 +17,71 @@ import { addJitter } from '../../utils/timing';
 import { config } from '../../config';
 import elog from '../../utils/adieuuLogger';
 
-/** OTP request input */
+/**
+ * Input parameters for requesting an OTP.
+ *
+ * @interface RequestOtpInput
+ * @property identifier - The email address or phone number to send the OTP to
+ * @property type - The delivery channel ('email' for email, 'sms' for SMS)
+ */
 export interface RequestOtpInput {
   identifier: string;
   type: 'email' | 'sms';
 }
 
-/** OTP request result */
+/**
+ * Result type for OTP request operations.
+ *
+ * This is a discriminated union type that represents either a successful
+ * OTP request or a failure with error details.
+ *
+ * @typedef RequestOtpResult
+ *
+ * @example
+ * ```typescript
+ * const result = await requestOtp(input, clientIp);
+ * if (result.success) {
+ *   // OTP was generated and sent
+ * } else if (result.error === 'rate_limited') {
+ *   // Handle rate limiting, optionally using result.rateLimitResult
+ * }
+ * ```
+ */
 export type RequestOtpResult =
   | { success: true }
   | { success: false; error: 'validation' | 'rate_limited'; rateLimitResult?: RateLimitResult };
 
 /**
- * Request an OTP for authentication
- * 
- * Security measures:
- * - Rate limiting per identifier and per IP
- * - Consistent response regardless of user existence
- * - Jitter added to prevent timing attacks
- * - Identifiers are sanitized and hashed for logging
+ * Requests an OTP for passwordless authentication.
+ *
+ * This function handles the complete OTP request flow including validation,
+ * rate limiting, OTP generation, and delivery. It implements multiple
+ * security measures to prevent abuse and enumeration attacks.
+ *
+ * @param input - The OTP request parameters containing identifier and delivery type
+ * @param clientIp - The client's IP address for rate limiting purposes
+ * @returns A promise resolving to the operation result
+ *
+ * @remarks
+ * Security measures implemented:
+ * - Rate limiting per identifier (prevents brute force on single account)
+ * - Rate limiting per IP (prevents distributed attacks)
+ * - Consistent response regardless of user existence (anti-enumeration)
+ * - Timing jitter added to all responses (prevents timing-based analysis)
+ * - Identifiers are sanitized before processing
+ * - Identifiers and IPs are hashed for logging (no PII in logs)
+ *
+ * @example
+ * ```typescript
+ * const result = await requestOtp(
+ *   { identifier: 'user@example.com', type: 'email' },
+ *   '192.168.1.1'
+ * );
+ *
+ * if (!result.success && result.error === 'rate_limited') {
+ *   console.log('Rate limited, reset at:', result.rateLimitResult?.resetAt);
+ * }
+ * ```
  */
 export async function requestOtp(
   input: RequestOtpInput,
@@ -85,7 +136,17 @@ export async function requestOtp(
 }
 
 /**
- * Send OTP via email
+ * Sends an OTP to the user via email.
+ *
+ * Constructs and sends an HTML email containing the OTP code and a magic link
+ * that allows one-click authentication. The email includes both plaintext and
+ * HTML versions for maximum compatibility.
+ *
+ * @param email - The recipient's email address (must be pre-sanitized)
+ * @param otp - The one-time password to send
+ * @returns A promise that resolves when the email is queued for delivery
+ *
+ * @internal
  */
 async function sendOtpEmail(email: string, otp: string): Promise<void> {
   const magicLink = buildMagicLink(email, otp);
@@ -116,7 +177,16 @@ async function sendOtpEmail(email: string, otp: string): Promise<void> {
 }
 
 /**
- * Send OTP via SMS
+ * Sends an OTP to the user via SMS.
+ *
+ * Sends a brief SMS message containing the OTP code and expiration notice.
+ * The message is kept short to minimize SMS segment costs.
+ *
+ * @param phone - The recipient's phone number in E.164 format (must be pre-sanitized)
+ * @param otp - The one-time password to send
+ * @returns A promise that resolves when the SMS is queued for delivery
+ *
+ * @internal
  */
 async function sendOtpSms(phone: string, otp: string): Promise<void> {
   await sendSms({
@@ -126,7 +196,17 @@ async function sendOtpSms(phone: string, otp: string): Promise<void> {
 }
 
 /**
- * Build a magic link for email authentication
+ * Builds a magic link URL for one-click email authentication.
+ *
+ * Creates a signed URL that encodes the user's identifier and OTP, allowing
+ * them to authenticate by simply clicking the link in their email. The link
+ * includes an HMAC signature to prevent tampering.
+ *
+ * @param identifier - The user's email address
+ * @param otp - The one-time password
+ * @returns A fully-qualified URL pointing to the web app's verification endpoint
+ *
+ * @internal
  */
 function buildMagicLink(identifier: string, otp: string): string {
   // Encode identifier and OTP in the token
@@ -139,7 +219,19 @@ function buildMagicLink(identifier: string, otp: string): string {
 }
 
 /**
- * Create HMAC signature for magic link
+ * Creates an HMAC signature for magic link integrity verification.
+ *
+ * Generates a signature using a simple hash algorithm combined with the
+ * OTP secret. This prevents tampering with magic link parameters.
+ *
+ * @param data - The data to sign (typically the base64url-encoded token)
+ * @returns A base36-encoded signature string
+ *
+ * @remarks
+ * This is a simplified implementation. In production environments,
+ * consider using a proper HMAC implementation (e.g., crypto.createHmac).
+ *
+ * @internal
  */
 function createSignature(data: string): string {
   // Simple signature using OTP secret - in production, use proper HMAC
@@ -154,7 +246,23 @@ function createSignature(data: string): string {
 }
 
 /**
- * Get client IP from request, handling proxy headers
+ * Extracts the client's IP address from the request, handling reverse proxy headers.
+ *
+ * This function checks common proxy headers to determine the original client IP
+ * when the API is running behind a reverse proxy (e.g., Caddy, nginx).
+ *
+ * @param request - The incoming HTTP request object
+ * @returns The client's IP address, or '127.0.0.1' if it cannot be determined
+ *
+ * @remarks
+ * Header priority:
+ * 1. `X-Real-IP` - Set by Caddy and some proxies
+ * 2. `X-Forwarded-For` - Standard proxy header (first IP in chain)
+ * 3. Fallback to localhost if no headers present
+ *
+ * @security
+ * These headers can be spoofed by clients if not properly stripped by the
+ * reverse proxy. Ensure your proxy configuration overwrites these headers.
  */
 export function getClientIp(request: Request): string {
   // Check X-Real-IP header (set by Caddy)
