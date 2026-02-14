@@ -194,6 +194,7 @@ jobs:
           apiKey: ${{ secrets.MANIFEST_API_KEY }}
           relationship: 'first'
           sbomName: 'chadder-2026'
+          sbomVersion: '${{ github.sha }}'
           sbomGenerator: 'cdxgen'
           asset-labels: 'chadder,oss'
           active: true
