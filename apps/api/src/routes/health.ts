@@ -1,13 +1,19 @@
-import type { FastifyPluginAsync } from 'fastify';
+/**
+ * Health check routes
+ */
 
-export const healthRoutes: FastifyPluginAsync = async (fastify) => {
-  fastify.get('/health', async () => {
-    return {
-      success: true,
-      data: {
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-      },
-    };
+import { Router } from '../router';
+import { success } from '../utils/response';
+
+const router = new Router();
+
+// GET /health
+router.get('/health', () => {
+  return success({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    version: process.env.npm_package_version ?? '0.0.0',
   });
-};
+});
+
+export const healthRoutes = router;

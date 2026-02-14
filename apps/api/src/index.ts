@@ -1,35 +1,32 @@
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
-import sensible from '@fastify/sensible';
-import { healthRoutes } from './routes/health';
-import { userRoutes } from './routes/users';
+/**
+ * Chadder API Server
+ * Built with Bun.serve()
+ */
 
-const fastify = Fastify({
-  logger: true,
+import { Router } from './router';
+import { securityHeaders, requestId, cors } from './middleware';
+import { registerRoutes } from './routes';
+
+// Create router
+const app = new Router();
+
+// Register middleware
+app.use(requestId());
+app.use(securityHeaders());
+app.use(cors());
+
+// Register routes
+registerRoutes(app);
+
+// Server configuration
+const port = Number(process.env.PORT) || 4000;
+const host = process.env.HOST ?? '0.0.0.0';
+
+// Start server
+const server = Bun.serve({
+  port,
+  hostname: host,
+  fetch: app.handler(),
 });
 
-async function start() {
-  // Register plugins
-  await fastify.register(cors, {
-    origin: process.env.CORS_ORIGIN ?? 'http://localhost:3000',
-  });
-  await fastify.register(sensible);
-
-  // Register routes
-  await fastify.register(healthRoutes, { prefix: '/api' });
-  await fastify.register(userRoutes, { prefix: '/api/users' });
-
-  // Start server
-  const port = Number(process.env.PORT) || 4000;
-  const host = process.env.HOST ?? '0.0.0.0';
-
-  try {
-    await fastify.listen({ port, host });
-    console.log(`Server running at http://${host}:${port}`);
-  } catch (err) {
-    fastify.log.error(err);
-    process.exit(1);
-  }
-}
-
-start();
+console.log(`Server running at http://${server.hostname}:${server.port}`);
