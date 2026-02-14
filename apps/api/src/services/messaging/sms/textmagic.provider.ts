@@ -72,7 +72,7 @@ export class TextMagicSmsProvider implements ISmsProvider {
         };
       }
 
-      const result = await response.json();
+      const result = await response.json() as { id?: number };
 
       return {
         success: true,

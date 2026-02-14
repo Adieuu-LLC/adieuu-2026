@@ -12,7 +12,11 @@ const router = new Router();
 
 // GET /users/:id
 router.get('/users/:id', async (ctx) => {
-  const { id } = ctx.params;
+  const id = ctx.params.id;
+
+  if (!id) {
+    return errors.badRequest('User ID is required');
+  }
 
   // Validate UUID format
   const parseResult = z.string().uuid().safeParse(id);

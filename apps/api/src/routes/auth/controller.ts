@@ -165,7 +165,8 @@ export function getClientIp(request: Request): string {
   const forwardedFor = request.headers.get('X-Forwarded-For');
   if (forwardedFor) {
     // Take the first IP (original client)
-    return forwardedFor.split(',')[0].trim();
+    const firstIp = forwardedFor.split(',')[0];
+    return firstIp?.trim() ?? '127.0.0.1';
   }
 
   // Fallback - this won't be accurate behind a proxy

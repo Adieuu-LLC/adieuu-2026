@@ -6,7 +6,7 @@
 import { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
-import type { AuditLogDocument, CreateAuditLogInput } from '../models/audit';
+import type { AuditLogDocument, CreateAuditLogInput, AuditAction } from '../models/audit';
 
 /**
  * Audit log repository interface
@@ -15,8 +15,8 @@ export interface IAuditLogRepository {
   create(input: CreateAuditLogInput): Promise<AuditLogDocument>;
   findByUserId(userId: string | ObjectId, limit?: number): Promise<AuditLogDocument[]>;
   findByIpHash(ipHash: string, limit?: number): Promise<AuditLogDocument[]>;
-  countRecentByIpHash(ipHash: string, action: string, windowMs: number): Promise<number>;
-  countRecentByIdentifierHash(identifierHash: string, action: string, windowMs: number): Promise<number>;
+  countRecentByIpHash(ipHash: string, action: AuditAction, windowMs: number): Promise<number>;
+  countRecentByIdentifierHash(identifierHash: string, action: AuditAction, windowMs: number): Promise<number>;
 }
 
 /**
@@ -74,7 +74,7 @@ export class AuditLogRepository
    */
   async countRecentByIpHash(
     ipHash: string,
-    action: string,
+    action: AuditAction,
     windowMs: number
   ): Promise<number> {
     const since = new Date(Date.now() - windowMs);
@@ -90,7 +90,7 @@ export class AuditLogRepository
    */
   async countRecentByIdentifierHash(
     identifierHash: string,
-    action: string,
+    action: AuditAction,
     windowMs: number
   ): Promise<number> {
     const since = new Date(Date.now() - windowMs);

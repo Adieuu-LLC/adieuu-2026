@@ -40,7 +40,11 @@ function extractParams(
 
   const params: Record<string, string> = {};
   for (let i = 0; i < paramNames.length; i++) {
-    params[paramNames[i]] = match[i + 1];
+    const name = paramNames[i];
+    const value = match[i + 1];
+    if (name !== undefined && value !== undefined) {
+      params[name] = value;
+    }
   }
   return params;
 }
@@ -206,8 +210,10 @@ export class Router {
       let next = executeHandler;
       for (let i = this.middlewares.length - 1; i >= 0; i--) {
         const middleware = this.middlewares[i];
-        const currentNext = next;
-        next = async () => middleware(ctx, currentNext);
+        if (middleware) {
+          const currentNext = next;
+          next = async () => middleware(ctx, currentNext);
+        }
       }
 
       try {
