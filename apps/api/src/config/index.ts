@@ -220,6 +220,12 @@ export const config = {
      * Set to false for local development without running databases.
      */
     requireDatabase: optionalEnvBool('REQUIRE_DATABASE', false),
+    /**
+     * Whether to initialize MongoDB collections on startup.
+     * When true, creates the database and all collections if they don't exist.
+     * Useful for ensuring consistent state in dev/staging environments.
+     */
+    initializeCollections: optionalEnvBool('INITIALIZE_COLLECTIONS', false),
   },
 } as const;
 

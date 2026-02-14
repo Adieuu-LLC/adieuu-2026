@@ -48,6 +48,7 @@ export {
   getCollection,
   checkMongoHealth,
   disconnectMongo,
+  initializeCollections,
   Collections,
   type MongoHealthResult,
   type CollectionName,
@@ -64,7 +65,7 @@ export {
   type RedisKeyGenerators,
 } from './redis';
 
-import { connectMongo, disconnectMongo } from './mongo';
+import { connectMongo, disconnectMongo, initializeCollections } from './mongo';
 import { connectRedis, disconnectRedis } from './redis';
 import { config } from '../config';
 import elog from '../utils/adieuuLogger';
@@ -107,6 +108,11 @@ export async function initializeDatabases(): Promise<void> {
 
   try {
     await connectMongo();
+
+    // Initialize collections if configured
+    if (config.features.initializeCollections) {
+      await initializeCollections();
+    }
   } catch (error) {
     if (config.features.requireDatabase) {
       throw error;

@@ -278,3 +278,42 @@ export const Collections = {
  * ```
  */
 export type CollectionName = typeof Collections[keyof typeof Collections];
+
+/**
+ * Initializes MongoDB collections.
+ * 
+ * Creates all defined collections if they don't already exist. This ensures
+ * the database and collections are visible in MongoDB tools even before
+ * any data is written. Useful for development and staging environments.
+ * 
+ * @returns Array of collection names that were created
+ * 
+ * @example
+ * ```typescript
+ * // Initialize collections on startup
+ * await connectMongo();
+ * const created = await initializeCollections();
+ * console.log('Created collections:', created);
+ * ```
+ */
+export async function initializeCollections(): Promise<string[]> {
+  const database = getDb();
+  const existingCollections = await database.listCollections().toArray();
+  const existingNames = new Set(existingCollections.map(c => c.name));
+  
+  const created: string[] = [];
+  
+  for (const collectionName of Object.values(Collections)) {
+    if (!existingNames.has(collectionName)) {
+      await database.createCollection(collectionName);
+      created.push(collectionName);
+      elog.info('Created MongoDB collection', { collection: collectionName });
+    }
+  }
+  
+  if (created.length === 0) {
+    elog.info('All MongoDB collections already exist');
+  }
+  
+  return created;
+}

@@ -196,5 +196,5 @@ jobs:
           sbomName: 'chadder-2026'
           sbomVersion: '${{ github.sha }}'
           sbomGenerator: 'cdxgen'
-          asset-labels: 'chadder,oss'
+          asset-labels: 'chadder,oss,generated-pipeline'
           active: true
