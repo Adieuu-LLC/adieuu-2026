@@ -14,7 +14,7 @@
  */
 
 import { Router } from '../../router';
-import { success, errors } from '../../utils/response';
+import { success } from '../../utils/response';
 import { requestOtp, getClientIp } from './controller';
 import { z } from '@chadder/shared/schemas';
 
@@ -90,7 +90,7 @@ router.post('/auth/request', async (ctx) => {
   // Validate request body
   const parseResult = RequestOtpSchema.safeParse(ctx.body);
   if (!parseResult.success) {
-    return errors.badRequest(parseResult.error.errors[0]?.message ?? 'Invalid request');
+    return ctx.errors.validationFailed();
   }
 
   const { identifier, type } = parseResult.data;
@@ -101,7 +101,7 @@ router.post('/auth/request', async (ctx) => {
 
   if (!result.success) {
     if (result.error === 'rate_limited') {
-      const response = errors.rateLimited();
+      const response = ctx.errors.rateLimited();
       // Add rate limit headers
       if (result.rateLimitResult) {
         const headers = new Headers(response.headers);
@@ -113,7 +113,7 @@ router.post('/auth/request', async (ctx) => {
       }
       return response;
     }
-    return errors.badRequest('Invalid request');
+    return ctx.errors.badRequest();
   }
 
   // Always return same message (anti-enumeration)

@@ -13,7 +13,7 @@
  */
 
 import { Router } from '../../router';
-import { success, errors } from '../../utils/response';
+import { success } from '../../utils/response';
 import { getUserById } from './controller';
 import { z } from '@chadder/shared/schemas';
 
@@ -52,19 +52,19 @@ router.get('/users/:id', async (ctx) => {
   const id = ctx.params.id;
 
   if (!id) {
-    return errors.badRequest('User ID is required');
+    return ctx.errors.badRequest();
   }
 
   // Validate UUID format
   const parseResult = z.string().uuid().safeParse(id);
   if (!parseResult.success) {
-    return errors.badRequest('Invalid user ID format');
+    return ctx.errors.validationFailed();
   }
 
   const result = await getUserById(id);
 
   if (!result.success) {
-    return errors.notFound(result.error);
+    return ctx.errors.notFound();
   }
 
   return success(result.user);

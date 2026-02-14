@@ -2,9 +2,35 @@
  * Simple router for Bun.serve
  */
 
-import type { HttpMethod, Route, RouteHandler, RouteContext, Middleware, RouterOptions } from './types';
-import { error, errors } from '../utils/response';
+import type { HttpMethod, Route, RouteHandler, RouteContext, ContextErrors, Middleware, RouterOptions } from './types';
+import { localizedErrors } from '../utils/response';
+import { parseAcceptLanguage, type Locale } from '../i18n';
 import elog from '../utils/adieuuLogger';
+
+/**
+ * Creates a ContextErrors object bound to a specific locale.
+ * This allows routes to call ctx.errors.notFound() without passing locale.
+ */
+function createContextErrors(locale: Locale): ContextErrors {
+  return {
+    badRequest: () => localizedErrors.badRequest(locale),
+    unauthorized: () => localizedErrors.unauthorized(locale),
+    forbidden: () => localizedErrors.forbidden(locale),
+    notFound: () => localizedErrors.notFound(locale),
+    methodNotAllowed: () => localizedErrors.methodNotAllowed(locale),
+    rateLimited: () => localizedErrors.rateLimited(locale),
+    internal: () => localizedErrors.internal(locale),
+    validationFailed: () => localizedErrors.validationFailed(locale),
+    invalidEmail: () => localizedErrors.invalidEmail(locale),
+    invalidPhone: () => localizedErrors.invalidPhone(locale),
+    invalidOtp: () => localizedErrors.invalidOtp(locale),
+    otpExpired: () => localizedErrors.otpExpired(locale),
+    tooManyAttempts: () => localizedErrors.tooManyAttempts(locale),
+    accountLocked: () => localizedErrors.accountLocked(locale),
+    sessionExpired: () => localizedErrors.sessionExpired(locale),
+    payloadTooLarge: () => localizedErrors.payloadTooLarge(locale),
+  };
+}
 
 /**
  * Converts a route pattern like '/users/:id' to a regex and extracts param names
@@ -186,12 +212,16 @@ export class Router {
         });
       }
 
+      // Parse locale from Accept-Language for localized error messages
+      const locale = parseAcceptLanguage(request.headers.get('Accept-Language'));
+      const contextErrors = createContextErrors(locale);
+
       // Find matching route
       const match = this.findRoute(method, path);
 
       if (!match) {
         // Generic message to avoid leaking route structure
-        return errors.notFound('Not found');
+        return contextErrors.notFound();
       }
 
       // Parse body for POST/PUT/PATCH
@@ -202,7 +232,7 @@ export class Router {
         if (contentLength) {
           const size = parseInt(contentLength, 10);
           if (!isNaN(size) && size > this.maxBodySize) {
-            return error('PAYLOAD_TOO_LARGE', `Request body exceeds maximum size of ${Math.round(this.maxBodySize / 1024)}KB`, 413);
+            return contextErrors.payloadTooLarge();
           }
         }
 
@@ -212,19 +242,19 @@ export class Router {
             // Read body with size limit (handles chunked encoding where Content-Length may be absent)
             const text = await request.text();
             if (text.length > this.maxBodySize) {
-              return error('PAYLOAD_TOO_LARGE', `Request body exceeds maximum size of ${Math.round(this.maxBodySize / 1024)}KB`, 413);
+              return contextErrors.payloadTooLarge();
             }
             body = JSON.parse(text);
           } catch (e) {
             if (e instanceof SyntaxError) {
-              return errors.badRequest('Invalid JSON body');
+              return contextErrors.badRequest();
             }
             throw e;
           }
         }
       }
 
-      // Build context
+      // Build context with locale and localized error helpers
       const ctx: RouteContext = {
         request,
         url,
@@ -232,6 +262,8 @@ export class Router {
         query: url.searchParams,
         requestId,
         body,
+        locale,
+        errors: contextErrors,
       };
 
       // Execute middleware chain and handler
@@ -253,7 +285,7 @@ export class Router {
         return await next();
       } catch (err) {
         elog.error('Unhandled error', { error: err, path, method, requestId });
-        return errors.internal();
+        return contextErrors.internal();
       }
     };
   }
