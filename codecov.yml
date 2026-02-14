@@ -34,10 +34,10 @@ comment:
   # Behavior: default, once, new, spammed
   behavior: default
   # Require changes to post comment
-  require_changes: true
+  require_changes: false
   # Only post on pull requests
-  require_base: true
-  require_head: true
+  require_base: false
+  require_head: false
 
 # Flags to group coverage by component
 flags:
