@@ -100,24 +100,8 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./apps/api/coverage/lcov.info
           flags: api
-          name: api-coverage
-          root_dir: ./apps/api
           fail_ci_if_error: true
-          verbose: true
-
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@v5
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./apps/api/junit.xml
-          flags: api
-          name: api-tests
-          report_type: test_results
-          fail_ci_if_error: true
-          verbose: true
 
   build-api:
     runs-on: ubuntu-latest
