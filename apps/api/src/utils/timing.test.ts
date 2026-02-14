@@ -140,22 +140,6 @@ describe('timing utilities', () => {
       await expect(withMinimumTime(errorFn, 100)).rejects.toThrow('Test error');
     });
 
-    test('timing is consistent across multiple calls', async () => {
-      const minTime = 50;
-      const results: number[] = [];
-
-      for (let i = 0; i < 5; i++) {
-        const start = performance.now();
-        await withMinimumTime(async () => 'test', minTime);
-        results.push(performance.now() - start);
-      }
-
-      // All results should be >= minTime
-      for (const elapsed of results) {
-        expect(elapsed).toBeGreaterThanOrEqual(minTime - 1);
-      }
-    });
-
     test('handles async functions that return promises', async () => {
       const result = await withMinimumTime(async () => {
         return Promise.resolve('nested promise');

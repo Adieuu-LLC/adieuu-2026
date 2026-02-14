@@ -113,6 +113,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           flags: api
           name: api-tests
+          files: ./apps/api/junit.xml
           report_type: test_results
           fail_ci_if_error: true
 
