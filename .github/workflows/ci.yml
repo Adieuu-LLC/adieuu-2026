@@ -179,3 +179,23 @@ jobs:
 
       # Note: For actual releases, you'd run electron-builder here
       # and upload artifacts or publish to GitHub Releases
+
+  sbom:
+    runs-on: ubuntu-latest
+    needs: [build-web, build-api, build-desktop]
+    # Only generate SBOM on pushes to main, not on PRs
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate and upload SBOM
+        uses: manifest-cyber/manifest-github-action@main
+        with:
+          apiKey: ${{ secrets.MANIFEST_API_KEY }}
+          relationship: 'first'
+          sbomName: 'chadder-2026'
+          sbomVersion: '1.0.0'
+          sbomGenerator: 'cdxgen'
+          asset-labels: 'chadder,oss'
+          active: true
+          enrich: 'ecosystems'
