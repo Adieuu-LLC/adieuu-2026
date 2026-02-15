@@ -154,8 +154,21 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            artifact-name: desktop-linux
+            artifact-path: apps/desktop/out/*.AppImage
+          - os: windows-latest
+            artifact-name: desktop-windows
+            artifact-path: apps/desktop/out/*.exe
+          - os: macos-latest
+            artifact-name: desktop-macos
+            artifact-path: apps/desktop/out/*.dmg
     runs-on: ${{ matrix.os }}
     needs: lint-and-typecheck
+    env:
+      # API URL baked into the desktop app at build time
+      VITE_API_URL: https://localhost:4000
     steps:
       - uses: actions/checkout@v4
 
@@ -171,14 +184,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build web app
-        run: pnpm build --filter @chadder/web...
+      - name: Build shared packages
+        run: pnpm build --filter @chadder/shared --filter @chadder/ui --filter @chadder/tsconfig
 
       - name: Build Electron app
         run: pnpm build --filter @chadder/desktop
 
-      # Note: For actual releases, you'd run electron-builder here
-      # and upload artifacts or publish to GitHub Releases
+      - name: Package Electron app
+        run: pnpm --filter @chadder/desktop package
+
+      - name: Upload desktop artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: ${{ matrix.artifact-path }}
 
   sbom:
     runs-on: ubuntu-latest
