@@ -15,7 +15,7 @@
 
 import { Router } from '../../router';
 import { success } from '../../utils/response';
-import { requestOtp, getClientIp } from './controller';
+import { requestOtp, verifyOtpHandler, getClientIp } from './controller';
 import { z } from '@chadder/shared/schemas';
 
 const router = new Router();
@@ -118,6 +118,84 @@ router.post('/auth/request', async (ctx) => {
 
   // Always return same message (anti-enumeration)
   return success(undefined, 'If this account exists, a code has been sent.');
+});
+
+/**
+ * Zod schema for validating OTP verification payloads.
+ *
+ * @property identifier - The email address or phone number used to request the OTP
+ * @property code - The 6-digit OTP code from the user
+ */
+const VerifyOtpSchema = z.object({
+  identifier: z.string().min(1).max(255),
+  code: z.string().length(6).regex(/^\d{6}$/, 'Code must be 6 digits'),
+});
+
+/**
+ * POST /auth/verify - Verify an OTP code for authentication.
+ *
+ * Completes the passwordless authentication flow by verifying the OTP
+ * and creating a session on success.
+ *
+ * @route POST /api/auth/verify
+ *
+ * @requestBody
+ * - `identifier` (string, required): Email address or phone number
+ * - `code` (string, required): The 6-digit OTP code
+ *
+ * @returns 200 OK with session data on successful verification
+ * @returns 400 Bad Request if validation fails
+ * @returns 401 Unauthorized if OTP is invalid, expired, or locked
+ * @returns 429 Too Many Requests if in backoff period
+ *
+ * @security
+ * - Implements exponential backoff after failed attempts
+ * - Constant-time comparison prevents timing attacks
+ * - OTP is single-use (deleted after successful verification)
+ *
+ * @example
+ * ```json
+ * // Request body
+ * {
+ *   "identifier": "user@example.com",
+ *   "code": "123456"
+ * }
+ *
+ * // Success response
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "accessToken": "eyJ...",
+ *     "expiresIn": 3600
+ *   }
+ * }
+ * ```
+ */
+router.post('/auth/verify', async (ctx) => {
+  const parseResult = VerifyOtpSchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const { identifier, code } = parseResult.data;
+  const clientIp = getClientIp(ctx.request);
+
+  const result = await verifyOtpHandler({ identifier, code }, clientIp);
+
+  if (!result.success) {
+    if (result.error === 'backoff' && result.retryAfterSeconds) {
+      const response = ctx.errors.rateLimited();
+      const headers = new Headers(response.headers);
+      headers.set('Retry-After', result.retryAfterSeconds.toString());
+      return new Response(response.body, { status: 429, headers });
+    }
+    if (result.error === 'max_attempts') {
+      return ctx.errors.tooManyAttempts();
+    }
+    return ctx.errors.verificationFailed();
+  }
+
+  return success(result.data, 'Authentication successful.');
 });
 
 export const authRoutes = router;

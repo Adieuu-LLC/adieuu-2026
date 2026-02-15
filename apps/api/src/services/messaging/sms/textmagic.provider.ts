@@ -155,7 +155,7 @@ export class TextMagicSmsProvider implements ISmsProvider {
         body: new URLSearchParams({
           phones: options.to.replace(/^\+/, ''), // TextMagic expects number without +
           text: options.message,
-          from: this.fromName,
+          // from: this.fromName,
         }),
       });
 

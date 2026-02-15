@@ -16,6 +16,8 @@
  * 3. If count exceeds limit, request is denied
  * 4. Keys automatically expire to prevent memory buildup
  *
+ * Rate limiting can be disabled via RATE_LIMIT_ENABLED=false for development.
+ *
  * @example
  * ```typescript
  * import { checkRateLimit, RATE_LIMITS } from './services/rate-limit.service';
@@ -36,6 +38,7 @@
  */
 
 import { getRedis, isRedisConnected, RedisKeys } from '../db';
+import { config } from '../config';
 
 /**
  * Configuration for a rate limit rule
@@ -56,50 +59,79 @@ export interface RateLimitConfig {
 }
 
 /**
- * Predefined rate limit configurations for common actions
+ * Gets rate limits from config, allowing runtime configuration via env vars.
+ * This function is called at runtime to get current config values.
+ */
+function getRateLimits(): Record<string, RateLimitConfig> {
+  return {
+    /**
+     * OTP request limit per identifier (email/phone)
+     * 3 requests per 15 minutes prevents abuse while allowing retries
+     */
+    'auth:request:identifier': {
+      limit: config.rateLimit.authRequestIdentifierLimit,
+      windowSeconds: config.rateLimit.authRequestIdentifierWindow,
+    },
+
+    /**
+     * OTP request limit per IP address
+     * 10 requests per 15 minutes allows multiple users behind NAT
+     */
+    'auth:request:ip': {
+      limit: config.rateLimit.authRequestIpLimit,
+      windowSeconds: config.rateLimit.authRequestIpWindow,
+    },
+
+    /**
+     * OTP verification limit per identifier
+     * 5 attempts per 15 minutes (in addition to per-OTP limits)
+     */
+    'auth:verify:identifier': {
+      limit: config.rateLimit.authVerifyIdentifierLimit,
+      windowSeconds: config.rateLimit.authVerifyIdentifierWindow,
+    },
+
+    /**
+     * OTP verification limit per IP address
+     * 20 attempts per 15 minutes
+     */
+    'auth:verify:ip': {
+      limit: config.rateLimit.authVerifyIpLimit,
+      windowSeconds: config.rateLimit.authVerifyIpWindow,
+    },
+
+    /**
+     * Global request limit per authenticated user
+     * 100 requests per minute for general API usage
+     */
+    'global:user': {
+      limit: config.rateLimit.globalUserLimit,
+      windowSeconds: config.rateLimit.globalUserWindow,
+    },
+
+    /**
+     * Global request limit per IP address
+     * 1000 requests per minute (high to allow multiple users behind NAT)
+     */
+    'global:ip': {
+      limit: config.rateLimit.globalIpLimit,
+      windowSeconds: config.rateLimit.globalIpWindow,
+    },
+  };
+}
+
+/**
+ * Predefined rate limit configurations for common actions.
+ * These are the default values; actual values come from config.
  *
- * @remarks
- * Rate limits are tuned based on security requirements:
- * - Auth endpoints use stricter limits to prevent brute force
- * - Global limits are more permissive for general API usage
- *
- * Limits are applied per-identifier (hashed email/phone/IP), not globally.
+ * @deprecated Use getRateLimits() for runtime config values
  */
 export const RATE_LIMITS = {
-  /**
-   * OTP request limit per identifier (email/phone)
-   * 3 requests per 15 minutes prevents abuse while allowing retries
-   */
   'auth:request:identifier': { limit: 3, windowSeconds: 900 } as RateLimitConfig,
-
-  /**
-   * OTP request limit per IP address
-   * 10 requests per 15 minutes allows multiple users behind NAT
-   */
   'auth:request:ip': { limit: 10, windowSeconds: 900 } as RateLimitConfig,
-
-  /**
-   * OTP verification limit per identifier
-   * 5 attempts per 15 minutes (in addition to per-OTP limits)
-   */
   'auth:verify:identifier': { limit: 5, windowSeconds: 900 } as RateLimitConfig,
-
-  /**
-   * OTP verification limit per IP address
-   * 20 attempts per 15 minutes
-   */
   'auth:verify:ip': { limit: 20, windowSeconds: 900 } as RateLimitConfig,
-
-  /**
-   * Global request limit per authenticated user
-   * 100 requests per minute for general API usage
-   */
   'global:user': { limit: 100, windowSeconds: 60 } as RateLimitConfig,
-
-  /**
-   * Global request limit per IP address
-   * 1000 requests per minute (high to allow multiple users behind NAT)
-   */
   'global:ip': { limit: 1000, windowSeconds: 60 } as RateLimitConfig,
 } as const;
 
@@ -145,12 +177,12 @@ export interface RateLimitResult {
  *
  * @param action - The rate limit action (must be a key in RATE_LIMITS or custom)
  * @param identifier - The identifier to limit (should be hashed for privacy)
- * @param config - Optional custom config (overrides predefined limits)
+ * @param customConfig - Optional custom config (overrides predefined limits)
  * @returns Rate limit result with allow status and metadata
  *
  * @remarks
- * If Redis is unavailable, fails open (allows the request) in development mode.
- * This is intentional to allow local development without Redis.
+ * - If rate limiting is disabled via RATE_LIMIT_ENABLED=false, always allows
+ * - If Redis is unavailable, fails open (allows the request) in development mode
  *
  * @throws Error if action is not found in RATE_LIMITS and no config provided
  *
@@ -174,11 +206,17 @@ export interface RateLimitResult {
 export async function checkRateLimit(
   action: RateLimitAction | string,
   identifier: string,
-  config?: RateLimitConfig
+  customConfig?: RateLimitConfig
 ): Promise<RateLimitResult> {
-  // If Redis is not connected, allow the request (fail open for dev)
-  if (!isRedisConnected()) {
-    const cfg = config ?? RATE_LIMITS[action as RateLimitAction] ?? { limit: 100, windowSeconds: 60 };
+  const rateLimits = getRateLimits();
+  const cfg = customConfig ?? rateLimits[action] ?? RATE_LIMITS[action as RateLimitAction];
+
+  if (!cfg) {
+    throw new Error(`Unknown rate limit action: ${action}`);
+  }
+
+  // If rate limiting is disabled, always allow
+  if (!config.rateLimit.enabled) {
     return {
       allowed: true,
       remaining: cfg.limit - 1,
@@ -187,9 +225,14 @@ export async function checkRateLimit(
     };
   }
 
-  const cfg = config ?? RATE_LIMITS[action as RateLimitAction];
-  if (!cfg) {
-    throw new Error(`Unknown rate limit action: ${action}`);
+  // If Redis is not connected, allow the request (fail open for dev)
+  if (!isRedisConnected()) {
+    return {
+      allowed: true,
+      remaining: cfg.limit - 1,
+      resetAt: Math.ceil(Date.now() / 1000) + cfg.windowSeconds,
+      limit: cfg.limit,
+    };
   }
 
   const redis = getRedis();
@@ -251,14 +294,16 @@ export async function getRateLimitStatus(
   action: RateLimitAction | string,
   identifier: string
 ): Promise<{ count: number; remaining: number; limit: number }> {
-  if (!isRedisConnected()) {
-    const cfg = RATE_LIMITS[action as RateLimitAction] ?? { limit: 100, windowSeconds: 60 };
-    return { count: 0, remaining: cfg.limit, limit: cfg.limit };
-  }
+  const rateLimits = getRateLimits();
+  const cfg = rateLimits[action] ?? RATE_LIMITS[action as RateLimitAction];
 
-  const cfg = RATE_LIMITS[action as RateLimitAction];
   if (!cfg) {
     throw new Error(`Unknown rate limit action: ${action}`);
+  }
+
+  // If rate limiting disabled or Redis not connected, return full allowance
+  if (!config.rateLimit.enabled || !isRedisConnected()) {
+    return { count: 0, remaining: cfg.limit, limit: cfg.limit };
   }
 
   const redis = getRedis();

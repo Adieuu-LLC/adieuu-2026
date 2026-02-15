@@ -40,10 +40,10 @@ async function createWindow() {
     // In dev, load from electron-vite renderer dev server
     const rendererUrl = process.env.ELECTRON_RENDERER_URL || 'http://localhost:5173';
     await mainWindow.loadURL(rendererUrl);
-    mainWindow.webContents.openDevTools();
+    // Uncomment to open dev tools on startup:
+    // mainWindow.webContents.openDevTools();
   } else {
-    // In production, load from built web app
-    // You would copy the built web app here during build process
+    // In production, load from built renderer
     await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 }

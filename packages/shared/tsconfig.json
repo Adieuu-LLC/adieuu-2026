@@ -1,8 +1,9 @@
 {
-  "extends": "@chadder/tsconfig/node.json",
+  "extends": "@chadder/tsconfig/base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["src/**/*"]
 }

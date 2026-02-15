@@ -151,8 +151,20 @@ export const config = {
   /** HTTP server host/interface to bind to */
   host: optionalEnv('HOST', '0.0.0.0'),
 
-  /** CORS origin for cross-origin requests */
-  corsOrigin: optionalEnv('CORS_ORIGIN', 'http://localhost:3000'),
+  /** CORS configuration */
+  cors: {
+    /**
+     * Allowed origins for cross-origin requests.
+     * Comma-separated list of origins, or '*' for all origins (dev only).
+     * @example 'http://localhost:3000,http://localhost:5173'
+     */
+    origins: optionalEnv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173'),
+    /** Whether to allow credentials (cookies, auth headers) */
+    credentials: optionalEnvBool('CORS_CREDENTIALS', true),
+  },
+
+  /** @deprecated Use cors.origins instead */
+  corsOrigin: optionalEnv('CORS_ORIGIN', optionalEnv('CORS_ORIGINS', 'http://localhost:3000')),
 
   /** MongoDB database configuration */
   mongodb: {
@@ -226,6 +238,45 @@ export const config = {
      * Useful for ensuring consistent state in dev/staging environments.
      */
     initializeCollections: optionalEnvBool('INITIALIZE_COLLECTIONS', false),
+  },
+
+  /**
+   * Rate limiting configuration.
+   * Set RATE_LIMIT_ENABLED=false to disable all rate limiting (dev only).
+   */
+  rateLimit: {
+    /** Whether rate limiting is enabled (default: true, set false for dev) */
+    enabled: optionalEnvBool('RATE_LIMIT_ENABLED', true),
+
+    /** Auth OTP request limit per identifier (email/phone) */
+    authRequestIdentifierLimit: optionalEnvInt('RATE_LIMIT_AUTH_REQUEST_IDENTIFIER', 3),
+    /** Auth OTP request window in seconds */
+    authRequestIdentifierWindow: optionalEnvInt('RATE_LIMIT_AUTH_REQUEST_IDENTIFIER_WINDOW', 900),
+
+    /** Auth OTP request limit per IP */
+    authRequestIpLimit: optionalEnvInt('RATE_LIMIT_AUTH_REQUEST_IP', 10),
+    /** Auth OTP request per IP window in seconds */
+    authRequestIpWindow: optionalEnvInt('RATE_LIMIT_AUTH_REQUEST_IP_WINDOW', 900),
+
+    /** Auth verify limit per identifier */
+    authVerifyIdentifierLimit: optionalEnvInt('RATE_LIMIT_AUTH_VERIFY_IDENTIFIER', 5),
+    /** Auth verify per identifier window in seconds */
+    authVerifyIdentifierWindow: optionalEnvInt('RATE_LIMIT_AUTH_VERIFY_IDENTIFIER_WINDOW', 900),
+
+    /** Auth verify limit per IP */
+    authVerifyIpLimit: optionalEnvInt('RATE_LIMIT_AUTH_VERIFY_IP', 20),
+    /** Auth verify per IP window in seconds */
+    authVerifyIpWindow: optionalEnvInt('RATE_LIMIT_AUTH_VERIFY_IP_WINDOW', 900),
+
+    /** Global rate limit per user (authenticated) */
+    globalUserLimit: optionalEnvInt('RATE_LIMIT_GLOBAL_USER', 100),
+    /** Global per user window in seconds */
+    globalUserWindow: optionalEnvInt('RATE_LIMIT_GLOBAL_USER_WINDOW', 60),
+
+    /** Global rate limit per IP */
+    globalIpLimit: optionalEnvInt('RATE_LIMIT_GLOBAL_IP', 1000),
+    /** Global per IP window in seconds */
+    globalIpWindow: optionalEnvInt('RATE_LIMIT_GLOBAL_IP_WINDOW', 60),
   },
 } as const;
 

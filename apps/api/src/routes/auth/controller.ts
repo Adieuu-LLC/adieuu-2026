@@ -8,7 +8,7 @@
  * @module routes/auth/controller
  */
 
-import { createOtp } from '../../services/otp.service';
+import { createOtp, verifyOtp, type VerifyOtpResult } from '../../services/otp.service';
 import { checkRateLimit, type RateLimitResult } from '../../services/rate-limit.service';
 import { sendEmail, sendSms } from '../../services/messaging';
 import { sanitizeString } from '../../utils/sanitize';
@@ -288,4 +288,102 @@ export function getClientIp(request: Request): string {
 
   // Fallback - this won't be accurate behind a proxy
   return '127.0.0.1';
+}
+
+/**
+ * Input parameters for verifying an OTP.
+ */
+export interface VerifyOtpInput {
+  identifier: string;
+  code: string;
+}
+
+/**
+ * Result type for OTP verification operations.
+ */
+export type VerifyOtpHandlerResult =
+  | { success: true; data: { accessToken: string; expiresIn: number } }
+  | {
+    success: false;
+    error: 'invalid' | 'expired' | 'max_attempts' | 'backoff' | 'rate_limited';
+    retryAfterSeconds?: number;
+  };
+
+/**
+ * Detects whether an identifier is an email or phone number.
+ *
+ * @param identifier - The email or phone number to check
+ * @returns 'email' if contains @, 'phone' otherwise
+ */
+function detectIdentifierType(identifier: string): 'email' | 'phone' {
+  return identifier.includes('@') ? 'email' : 'phone';
+}
+
+/**
+ * Verifies an OTP code for passwordless authentication.
+ *
+ * This function handles OTP verification with rate limiting and returns
+ * session tokens on successful authentication.
+ *
+ * @param input - The verification parameters containing identifier and code
+ * @param clientIp - The client's IP address for rate limiting purposes
+ * @returns A promise resolving to the verification result
+ */
+export async function verifyOtpHandler(
+  input: VerifyOtpInput,
+  clientIp: string
+): Promise<VerifyOtpHandlerResult> {
+  const { identifier, code } = input;
+
+  // Detect identifier type and sanitize accordingly
+  const identifierType = detectIdentifierType(identifier);
+  const sanitizedIdentifier = sanitizeString(identifier, identifierType);
+  const sanitizedIp = sanitizeString(clientIp, 'ip');
+  const identifierHash = hashIdentifier(sanitizedIdentifier.value);
+  const ipHash = hashIp(sanitizedIp.value);
+
+  // Check rate limits for verification attempts
+  const ipLimit = await checkRateLimit('auth:verify:ip', ipHash);
+  if (!ipLimit.allowed) {
+    await addJitter();
+    return { success: false, error: 'rate_limited', retryAfterSeconds: 60 };
+  }
+
+  // Verify the OTP
+  const result = await verifyOtp(sanitizedIdentifier.value, code);
+
+  if (!result.valid) {
+    await addJitter();
+
+    if (result.error === 'backoff') {
+      return {
+        success: false,
+        error: 'backoff',
+        retryAfterSeconds: result.retryAfterSeconds,
+      };
+    }
+
+    if (result.error === 'max_attempts') {
+      return { success: false, error: 'max_attempts' };
+    }
+
+    if (result.error === 'not_found') {
+      return { success: false, error: 'expired' };
+    }
+
+    return { success: false, error: 'invalid' };
+  }
+
+  // TODO: Create actual session/JWT token here
+  // For now, return a placeholder token
+  elog.info('User authenticated successfully', { identifierHash });
+
+  return {
+    success: true,
+    data: {
+      // Placeholder - actual token generation would go here
+      accessToken: `placeholder_${Date.now()}_${identifierHash.slice(0, 8)}`,
+      expiresIn: 3600,
+    },
+  };
 }

@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom';
-import { Button, Logo, Card } from '@chadder/ui';
+import { Button, Logo, Card, usePlatform } from '@chadder/ui';
 import { useAuth } from '../hooks/useAuth';
 
 export function About() {
+  const platform = usePlatform();
   const { logout } = useAuth();
 
   return (
@@ -16,6 +17,9 @@ export function About() {
           <Link to="/about" className="nav-link active">
             About
           </Link>
+          <span className="platform-badge">
+            {platform === 'desktop' ? 'Desktop' : platform}
+          </span>
           <Button variant="ghost" size="sm" onClick={logout}>
             Sign out
           </Button>
@@ -47,11 +51,12 @@ export function About() {
               our business model.
             </p>
 
-            <h2 style={{ color: 'var(--color-text-primary)' }}>Security</h2>
+            <h2 style={{ color: 'var(--color-text-primary)' }}>Desktop App</h2>
             <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
-              All messages are encrypted using industry-standard cryptographic
-              algorithms. Our passwordless authentication system eliminates the
-              risk of password breaches while providing a seamless user experience.
+              The Chadder desktop app is built with Electron, providing a native
+              experience on Windows, macOS, and Linux. It shares the same secure
+              codebase as our web application, ensuring consistent security across
+              all platforms.
             </p>
           </Card>
         </div>

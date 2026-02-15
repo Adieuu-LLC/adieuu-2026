@@ -1,7 +1,10 @@
-/* Import Outfit font from Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap');
+/* Desktop-specific styles that extend the base UI styles */
 
-/* App-specific styles that extend the base UI styles */
+/* Remove default window chrome area for custom title bar */
+body {
+  /* Add draggable region at the top for window controls on macOS */
+  -webkit-app-region: no-drag;
+}
 
 /* Container utility */
 .container {
@@ -24,11 +27,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  -webkit-app-region: drag;
+}
+
+.dashboard-header .nav,
+.dashboard-header button,
+.dashboard-header a {
+  -webkit-app-region: no-drag;
 }
 
 .dashboard-content {
   flex: 1;
   padding: var(--spacing-xl);
+  overflow-y: auto;
 }
 
 /* Nav styles */
@@ -104,4 +115,17 @@
 /* Link reset for buttons */
 a {
   text-decoration: none;
+}
+
+/* Desktop-specific: platform indicator */
+.platform-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
 }

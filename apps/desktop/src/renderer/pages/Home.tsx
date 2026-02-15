@@ -17,6 +17,9 @@ export function Home() {
           <Link to="/about" className="nav-link">
             About
           </Link>
+          <span className="platform-badge">
+            {platform === 'desktop' ? 'Desktop' : platform}
+          </span>
           <Button variant="ghost" size="sm" onClick={logout}>
             Sign out
           </Button>
@@ -45,11 +48,11 @@ export function Home() {
 
             <Card variant="elevated" className="slide-up stagger-1">
               <h3 style={{ marginTop: 0, color: 'var(--color-text-primary)' }}>
-                Cross-Platform
+                Native Desktop App
               </h3>
               <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
-                Access your messages from web, desktop, or mobile. Stay connected
-                wherever you are.
+                Experience Chadder as a native desktop application with system
+                notifications and offline support.
               </p>
             </Card>
 

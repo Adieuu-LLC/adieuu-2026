@@ -1,4 +1,5 @@
 import { defineConfig } from 'electron-vite';
+import react from '@vitejs/plugin-react';
 import path from 'path';
 
 export default defineConfig({
@@ -19,11 +20,17 @@ export default defineConfig({
     },
   },
   renderer: {
-    root: '.',
+    root: 'src/renderer',
     build: {
       outDir: 'dist/renderer',
       rollupOptions: {
-        input: path.resolve(__dirname, 'index.html'),
+        input: path.resolve(__dirname, 'src/renderer/index.html'),
+      },
+    },
+    plugins: [react()],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, 'src/renderer'),
       },
     },
   },

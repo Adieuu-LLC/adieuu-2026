@@ -12,7 +12,7 @@ export const en: LocaleTranslations = {
 
   emails: {
     otp: {
-      subject: 'Your {{appName}} login code',
+      subject: 'Your {{appName}} login code is {{otp}}',
       text: `Your login code is: {{otp}}
 
 This code expires in {{expiresInMinutes}} minutes.
@@ -34,7 +34,7 @@ If you didn't request this code, you can safely ignore this email.`,
     },
 
     otpWithMagicLink: {
-      subject: 'Your {{appName}} login code',
+      subject: 'Your {{appName}} login code is {{otp}}',
       text: `Your login code is: {{otp}}
 
 Or click this link to sign in: {{magicLink}}
