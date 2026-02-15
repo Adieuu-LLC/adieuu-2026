@@ -1,0 +1,212 @@
+<html>
+
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <link href='http://fonts.googleapis.com/css?family=Roboto:400,500,300' rel='stylesheet' type='text/css'>
+    <script src="https://code.jquery.com/jquery-1.10.2.js"></script>
+    <script src="http://ajax.aspnetcdn.com/ajax/signalr/jquery.signalr-2.2.0.min.js" type="text/javascript"></script>
+    <script src="chadderjs.min.js"></script>
+    <script type="text/javascript">
+        var token;
+        var userId;
+
+        function List() {
+            $.ajax({
+                data: {
+                    token: token,
+                },
+                dataType: 'json',
+                success: function(data) {
+                    console.log(data);
+                    if (data.ok) {
+                        localStorage.slack = token;
+                        $('#dashboard').show();
+                        $('#tokenDiv').hide();
+                        $.each(data.channels, function(i, option) {
+                            $('#sel').append($('<option/>').attr("value", option.id).text(option.name));
+                        });
+                    } else {
+                        localStorage.removeItem("slack");
+                    }
+                },
+                error: function() {
+                    console.log(data);
+                },
+                type: 'POST',
+                url: 'https://slack.com/api/channels.list'
+            });
+        }
+
+        function GetUserInfo() {
+            $.ajax({
+                data: {
+                    token: token,
+                },
+                dataType: 'json',
+                success: function(data) {
+                    console.log(data);
+                    userId = data.user_id;
+                },
+                error: function() {
+                    console.log(data);
+                },
+                type: 'POST',
+                url: 'https://slack.com/api/auth.test'
+            });
+        }
+
+        function Send(channel, text) {
+            $.ajax({
+                data: {
+                    token: token,
+                    channel: channel,
+                    text: text,
+                    as_user: true,
+                },
+                dataType: 'json',
+                success: function(data) {
+                    console.log(data);
+                    GetHistory();
+                },
+                error: function() {
+                    console.log(data);
+                },
+                type: 'POST',
+                url: 'https://slack.com/api/chat.postMessage'
+            });
+        }
+
+
+        function GetHistory() {
+            $('#messages').empty();
+            var channel = $('#sel').val();
+            $.ajax({
+                data: {
+                    token: token,
+                    channel: channel,
+                },
+                dataType: 'json',
+                success: function(data) {
+                    console.log(data);
+                    if (data.ok) {
+                        $.each(data.messages.reverse(), function(i, item) {
+                            var txt = item.text;
+                            if (txt === undefined) {
+                                txt = "Not a text Message";
+                            } else {
+                                var lookfor = 'chadder=';
+                                if (!txt.indexOf(lookfor)) {
+                                    txt = txt.substring(lookfor.length);
+                                    txt = Chadder.Source.Decrypt(txt);
+                                    if (txt === undefined) {
+                                        txt = "Unable to decrypt message";
+                                    }
+                                }
+                            }
+                            $('<tr>').append(
+                                $('<td>').text(txt)
+                            ).appendTo('#messages');
+                        });
+                    }
+                },
+                error: function() {
+                    console.log(data);
+                },
+                type: 'POST',
+                url: 'https://slack.com/api/channels.history'
+            });
+        }
+
+        function DoSend() {
+            var txt = $('#msg').val();
+            var channel = $('#sel').val();
+            txt = "chadder=" + Chadder.Source.EncryptForUser($('#selContact').val(), txt);
+            $('#msg').val('');
+            Send(channel, txt);
+        }
+
+        function DoLoadToken() {
+            token = $('#token').val();
+            $('#token').val('');
+            List();
+        }
+
+        function DoLogin() {
+            Chadder.Account.Login($('#username').val(), $('#pwd').val(), "slack-client")
+                .then(function(result) {
+                    console.log(result); // "Stuff worked!"
+                    Chadder.Account.NewKey();
+                    ListContacts();
+
+                }, function(err) {
+                    $('#pwd').val('');
+                    console.log(err); // Error: "It broke"
+                });
+        }
+
+        function ListContacts() {
+            Chadder.Source.RequestUpdates();
+            $.each(Chadder.Database.Contacts, function(i, option) {
+                $('#selContact').append($('<option/>').attr("value", option.id).text(option.name));
+            });
+            token = localStorage.slack;
+            $('#chadderDiv').hide();
+            $('#tokenDiv').show();
+            $('#pwd').val('');
+            if (token === undefined) {} else {
+                List();
+            }
+        }
+        $(function() {
+            $('#dashboard').hide();
+            Chadder.Database.Load();
+            if (Chadder.Database.token === undefined) {
+                $('#tokenDiv').hide();
+            } else {
+                $('#chadderDiv').hide();
+                ListContacts();
+            }
+        });
+    </script>
+
+</head>
+
+<body>
+<img  src="etransfrlogo.png">
+    <div id="chadderDiv">
+        <p>Chadder Username:</p>
+        <input id="username" />
+        <br>
+        <br>
+        <p>Password:</p>
+        <input id="pwd" />
+        <br>
+        <br>
+        <input id="LoadChadder" type="button" value="Login" onclick="DoLogin();" />
+    </div>
+
+    <div id="tokenDiv">
+        <a href="https://api.slack.com/web#basics">Slack Web API Token:</a>
+        <input id="token" />
+        <input id="loadToken" type="button" value="Load Token" onclick="DoLoadToken();" />
+    </div>
+
+    <div id="dashboard">
+        <select id="sel" onchange="GetHistory();">
+
+        </select>
+        <select id="selContact">
+
+        </select>
+
+        <table id="messages">
+
+        </table>
+        <input id="msg" />
+        <input id="clickMe" type="button" value="Send" onclick="DoSend();" />
+    </div>
+</body>
+
+</html>
