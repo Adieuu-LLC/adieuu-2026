@@ -7,6 +7,29 @@ export { Logo } from './components/Logo';
 export { Alert } from './components/Alert';
 export { Spinner } from './components/Spinner';
 export { AuthLayout } from './components/AuthLayout';
+export { AppLayout } from './components/AppLayout';
+export {
+  Sidebar,
+  SidebarItem,
+  SidebarSubItem,
+  SidebarDivider,
+  SidebarSection,
+  useSidebar,
+} from './components/Sidebar';
+
+// Icons
+export {
+  HomeIcon,
+  MessageIcon,
+  UsersIcon,
+  SettingsIcon,
+  InfoIcon,
+  LogoutIcon,
+  ShieldIcon,
+  KeyIcon,
+  BellIcon,
+  SearchIcon,
+} from './components/Icons';
 
 // Hooks
 export { usePlatform } from './hooks/usePlatform';
@@ -20,3 +43,11 @@ export type { LogoProps } from './components/Logo';
 export type { AlertProps } from './components/Alert';
 export type { SpinnerProps } from './components/Spinner';
 export type { AuthLayoutProps } from './components/AuthLayout';
+export type { AppLayoutProps } from './components/AppLayout';
+export type {
+  SidebarProps,
+  SidebarItemProps,
+  SidebarSubItemProps,
+  SidebarSectionProps,
+  SidebarOrientation,
+} from './components/Sidebar';

@@ -1,13 +1,16 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { AppLayout } from '@chadder/ui';
 import { Home } from './pages/Home';
 import { About } from './pages/About';
 import { Login, Verify } from './pages/auth';
 import { useAuth } from './hooks/useAuth';
+import { AppSidebar } from './components/AppSidebar';
 
 /**
- * Protected route wrapper - redirects to login if not authenticated
+ * Protected route wrapper - redirects to login if not authenticated.
+ * When authenticated, renders the app layout with sidebar.
  */
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedLayout() {
   const { status } = useAuth();
 
   if (status === 'loading') {
@@ -22,7 +25,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth/login" replace />;
   }
 
-  return <>{children}</>;
+  return (
+    <AppLayout sidebar={<AppSidebar />}>
+      <Outlet />
+    </AppLayout>
+  );
 }
 
 /**
@@ -67,23 +74,11 @@ export function App() {
         }
       />
 
-      {/* Protected Routes */}
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <Home />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/about"
-        element={
-          <ProtectedRoute>
-            <About />
-          </ProtectedRoute>
-        }
-      />
+      {/* Protected Routes with Sidebar Layout */}
+      <Route element={<ProtectedLayout />}>
+        <Route path="/" element={<Home />} />
+        <Route path="/about" element={<About />} />
+      </Route>
 
       {/* Catch-all redirect */}
       <Route path="*" element={<Navigate to="/" replace />} />
