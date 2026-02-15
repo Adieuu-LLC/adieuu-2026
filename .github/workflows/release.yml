@@ -19,6 +19,9 @@ env:
   NODE_VERSION: '20'
   PNPM_VERSION: '9'
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -42,10 +45,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
-      - name: Configure Git
+      - name: Configure Git for signed commits
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Get current version
         id: current
