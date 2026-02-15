@@ -54,6 +54,7 @@ export const en = {
       // Edit/Add contact info
       add: 'Add',
       sendCode: 'Send Code',
+      verify: 'Verify',
       codeSent: 'Verification code sent.',
       enterCodeFor: 'Enter the code sent to',
       enterEmail: 'Enter email address',

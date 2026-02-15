@@ -305,7 +305,10 @@ export function AccountOverview() {
                             length={6}
                             value={otpCode}
                             onChange={setOtpCode}
-                            onComplete={handleVerifyEmail}
+                            onComplete={(code) => {
+                              // Use setTimeout to let React state settle before API call
+                              setTimeout(() => handleVerifyEmail(code), 100);
+                            }}
                             disabled={submitting}
                           />
                           <div className="account-edit-actions">
@@ -315,6 +318,13 @@ export function AccountOverview() {
                               disabled={submitting}
                             >
                               {t('common.cancel')}
+                            </Button>
+                            <Button
+                              onClick={() => handleVerifyEmail(otpCode)}
+                              className="btn btn-primary btn-sm"
+                              disabled={submitting || otpCode.length !== 6}
+                            >
+                              {submitting ? <Spinner size="sm" /> : t('account.overview.verify')}
                             </Button>
                           </div>
                         </>
@@ -384,7 +394,10 @@ export function AccountOverview() {
                             length={6}
                             value={otpCode}
                             onChange={setOtpCode}
-                            onComplete={handleVerifyPhone}
+                            onComplete={(code) => {
+                              // Use setTimeout to let React state settle before API call
+                              setTimeout(() => handleVerifyPhone(code), 100);
+                            }}
                             disabled={submitting}
                           />
                           <div className="account-edit-actions">
@@ -394,6 +407,13 @@ export function AccountOverview() {
                               disabled={submitting}
                             >
                               {t('common.cancel')}
+                            </Button>
+                            <Button
+                              onClick={() => handleVerifyPhone(otpCode)}
+                              className="btn btn-primary btn-sm"
+                              disabled={submitting || otpCode.length !== 6}
+                            >
+                              {submitting ? <Spinner size="sm" /> : t('account.overview.verify')}
                             </Button>
                           </div>
                         </>

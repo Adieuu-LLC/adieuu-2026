@@ -56,8 +56,8 @@ export function OtpInput({
         focusInput(index + 1);
       }
 
-      // Check if complete
-      if (digit && newValue.length === length && !newValue.includes('')) {
+      // Check if complete - when all slots are filled, newValue.length will equal length
+      if (digit && newValue.length === length) {
         onComplete?.(newValue);
       }
     },
