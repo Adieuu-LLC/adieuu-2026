@@ -1,8 +1,12 @@
 name: Release
 
 on:
-  push:
+  # Run after CI completes successfully
+  workflow_run:
+    workflows: ["CI"]
     branches: [main]
+    types: [completed]
+  # Allow manual releases
   workflow_dispatch:
     inputs:
       bump:
@@ -25,8 +29,10 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Only run if there are actual changes (not just version bumps)
-    if: "!contains(github.event.head_commit.message, 'chore(release):')"
+    # Only run if CI succeeded (for workflow_run) or manual trigger (workflow_dispatch)
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     outputs:
       new_version: ${{ steps.version.outputs.new_version }}
       released: ${{ steps.version.outputs.released }}
@@ -35,22 +41,39 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          # Use the SHA from the workflow that triggered us, or default for manual runs
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - name: Check if release commit
+        id: check_release
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+          if [[ "$COMMIT_MSG" == chore\(release\):* ]]; then
+            echo "Skipping release - this is a release commit: $COMMIT_MSG"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
 
       - uses: pnpm/action-setup@v3
+        if: steps.check_release.outputs.skip != 'true'
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - uses: actions/setup-node@v4
+        if: steps.check_release.outputs.skip != 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          # No cache needed - this job only does version bumps, not installs
 
       - name: Configure Git for signed commits
+        if: steps.check_release.outputs.skip != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Get current version
+        if: steps.check_release.outputs.skip != 'true'
         id: current
         run: |
           CURRENT_VERSION=$(node -p "require('./apps/desktop/package.json').version")
@@ -58,6 +81,7 @@ jobs:
           echo "Current version: $CURRENT_VERSION"
 
       - name: Determine version bump
+        if: steps.check_release.outputs.skip != 'true'
         id: bump
         run: |
           # Use manual input if provided
@@ -96,6 +120,7 @@ jobs:
           echo "Detected: patch (default)"
 
       - name: Calculate new version
+        if: steps.check_release.outputs.skip != 'true'
         id: version
         run: |
           CURRENT="${{ steps.current.outputs.version }}"

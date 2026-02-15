@@ -1,6 +1,8 @@
 {
   "extends": "@chadder/tsconfig/react.json",
   "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
     "outDir": "./dist/renderer",
     "rootDir": "./src/renderer",
     "baseUrl": "./src/renderer",
