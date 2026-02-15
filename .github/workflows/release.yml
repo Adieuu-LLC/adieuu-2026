@@ -41,8 +41,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-          # Use the SHA from the workflow that triggered us, or default for manual runs
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          ref: main
 
       - name: Check if release commit
         id: check_release
