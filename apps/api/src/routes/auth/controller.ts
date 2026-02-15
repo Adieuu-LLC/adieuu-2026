@@ -10,7 +10,15 @@
 
 import { createOtp, verifyOtp, type VerifyOtpResult } from '../../services/otp.service';
 import { checkRateLimit, type RateLimitResult } from '../../services/rate-limit.service';
-import { createSession, getSessionFromRequest, destroySession, getSessionIdFromRequest, buildLogoutCookie, type SessionData } from '../../services/session.service';
+import {
+  createSession,
+  getSessionFromRequest,
+  destroySession,
+  getSessionIdFromRequest,
+  buildLogoutCookie,
+  type SessionData,
+} from '../../services/session.service';
+import { getUserRepository } from '../../repositories/user.repository';
 import { sendEmail, sendSms } from '../../services/messaging';
 import { sanitizeString } from '../../utils/sanitize';
 import { hashIdentifier, hashIp, encrypt } from '../../utils/crypto';
@@ -18,12 +26,19 @@ import { addJitter } from '../../utils/timing';
 import { config } from '../../config';
 import { getEmailTemplate, getSmsMessage, type Locale, DEFAULT_LOCALE } from '../../i18n';
 import elog from '../../utils/adieuuLogger';
+import type { UserDocument } from '../../models/user';
 
 /** OTP expiration time in minutes */
 const OTP_EXPIRES_IN_MINUTES = 10;
 
 /** Application name for templates */
 const APP_NAME = 'Chadder';
+
+/** Maximum failed OTP attempts before account lockout */
+const MAX_FAILED_ATTEMPTS = 5;
+
+/** Account lockout duration in minutes */
+const LOCKOUT_DURATION_MINUTES = 15;
 
 /**
  * Input parameters for requesting an OTP.
@@ -57,7 +72,7 @@ export interface RequestOtpInput {
  */
 export type RequestOtpResult =
   | { success: true }
-  | { success: false; error: 'validation' | 'rate_limited'; rateLimitResult?: RateLimitResult };
+  | { success: false; error: 'validation' | 'rate_limited' | 'account_locked'; rateLimitResult?: RateLimitResult; retryAfterSeconds?: number };
 
 /**
  * Requests an OTP for passwordless authentication.
@@ -98,9 +113,10 @@ export async function requestOtp(
   const { identifier, type } = input;
 
   // Sanitize and normalize identifier
-  const sanitizedIdentifier = type === 'email'
-    ? sanitizeString(identifier, 'email')
-    : sanitizeString(identifier, 'phone');
+  const sanitizedIdentifier =
+    type === 'email'
+      ? sanitizeString(identifier, 'email')
+      : sanitizeString(identifier, 'phone');
 
   // Sanitize the IP address to prevent injection via proxy headers
   const sanitizedIp = sanitizeString(clientIp, 'ip');
@@ -123,6 +139,22 @@ export async function requestOtp(
   // Hash identifier and IP for rate limiting and logging
   const identifierHash = hashIdentifier(sanitizedIdentifier.value);
   const ipHash = hashIp(sanitizedIp.value);
+
+  // Check if user account is locked (if user exists)
+  const userRepo = getUserRepository();
+  const existingUser = await userRepo.findByIdentifier(sanitizedIdentifier.value);
+
+  if (existingUser?.lockedUntil && existingUser.lockedUntil > new Date()) {
+    const retryAfterSeconds = Math.ceil(
+      (existingUser.lockedUntil.getTime() - Date.now()) / 1000
+    );
+    elog.warn('OTP request blocked: account locked', {
+      identifierHash,
+      retryAfterSeconds,
+    });
+    await addJitter();
+    return { success: false, error: 'account_locked', retryAfterSeconds };
+  }
 
   // Check rate limits
   const identifierLimit = await checkRateLimit('auth:request:identifier', identifierHash);
@@ -303,10 +335,10 @@ export interface VerifyOtpInput {
  * Result type for OTP verification operations.
  */
 export type VerifyOtpHandlerResult =
-  | { success: true; cookie: string }
+  | { success: true; cookie: string; user: UserDocument }
   | {
     success: false;
-    error: 'invalid' | 'expired' | 'max_attempts' | 'backoff' | 'rate_limited';
+    error: 'invalid' | 'expired' | 'max_attempts' | 'backoff' | 'rate_limited' | 'account_locked';
     retryAfterSeconds?: number;
   };
 
@@ -318,6 +350,82 @@ export type VerifyOtpHandlerResult =
  */
 function detectIdentifierType(identifier: string): 'email' | 'phone' {
   return identifier.includes('@') ? 'email' : 'phone';
+}
+
+/**
+ * Finds or creates a user based on identifier.
+ *
+ * @param identifier - The user's email or phone
+ * @param identifierType - Whether it's email or phone
+ * @returns The user document
+ */
+async function findOrCreateUser(
+  identifier: string,
+  identifierType: 'email' | 'phone'
+): Promise<UserDocument> {
+  const userRepo = getUserRepository();
+  const existingUser = await userRepo.findByIdentifier(identifier);
+
+  if (existingUser) {
+    // Record successful login
+    await userRepo.recordLogin(existingUser._id);
+    return existingUser;
+  }
+
+  // Create new user
+  const newUser = await userRepo.create({
+    ...(identifierType === 'email'
+      ? { email: identifier, emailVerified: true }
+      : { phone: identifier, phoneVerified: true }),
+  });
+
+  elog.info('New user created', {
+    userId: newUser._id.toHexString(),
+    identifierType,
+  });
+
+  return newUser;
+}
+
+/**
+ * Records a failed authentication attempt.
+ *
+ * @param identifier - The user's email or phone
+ * @returns Object with lockout info if account is now locked
+ */
+async function recordFailedAttempt(
+  identifier: string
+): Promise<{ locked: boolean; retryAfterSeconds?: number }> {
+  const userRepo = getUserRepository();
+  const user = await userRepo.findByIdentifier(identifier);
+
+  if (!user) {
+    // User doesn't exist yet - can't track attempts
+    // This is fine - we'll track via OTP service's Redis-based backoff
+    return { locked: false };
+  }
+
+  await userRepo.incrementFailedAttempts(user._id);
+
+  // Check if we should lock the account
+  const updatedUser = await userRepo.findById(user._id);
+  if (updatedUser && updatedUser.failedAttempts >= MAX_FAILED_ATTEMPTS) {
+    const lockUntil = new Date(Date.now() + LOCKOUT_DURATION_MINUTES * 60 * 1000);
+    await userRepo.lockAccount(user._id, lockUntil);
+
+    elog.warn('Account locked due to too many failed attempts', {
+      userId: user._id.toHexString(),
+      failedAttempts: updatedUser.failedAttempts,
+      lockDurationMinutes: LOCKOUT_DURATION_MINUTES,
+    });
+
+    return {
+      locked: true,
+      retryAfterSeconds: LOCKOUT_DURATION_MINUTES * 60,
+    };
+  }
+
+  return { locked: false };
 }
 
 /**
@@ -345,6 +453,18 @@ export async function verifyOtpHandler(
   const identifierHash = hashIdentifier(sanitizedIdentifier.value);
   const ipHash = hashIp(sanitizedIp.value);
 
+  // Check if account is locked
+  const userRepo = getUserRepository();
+  const existingUser = await userRepo.findByIdentifier(sanitizedIdentifier.value);
+
+  if (existingUser?.lockedUntil && existingUser.lockedUntil > new Date()) {
+    const retryAfterSeconds = Math.ceil(
+      (existingUser.lockedUntil.getTime() - Date.now()) / 1000
+    );
+    await addJitter();
+    return { success: false, error: 'account_locked', retryAfterSeconds };
+  }
+
   // Check rate limits for verification attempts
   const ipLimit = await checkRateLimit('auth:verify:ip', ipHash);
   if (!ipLimit.allowed) {
@@ -356,6 +476,17 @@ export async function verifyOtpHandler(
   const result = await verifyOtp(sanitizedIdentifier.value, code);
 
   if (!result.valid) {
+    // Record failed attempt in database
+    const lockResult = await recordFailedAttempt(sanitizedIdentifier.value);
+    if (lockResult.locked) {
+      await addJitter();
+      return {
+        success: false,
+        error: 'account_locked',
+        retryAfterSeconds: lockResult.retryAfterSeconds,
+      };
+    }
+
     await addJitter();
 
     if (result.error === 'backoff') {
@@ -377,16 +508,22 @@ export async function verifyOtpHandler(
     return { success: false, error: 'invalid' };
   }
 
+  // Find or create user
+  const user = await findOrCreateUser(sanitizedIdentifier.value, identifierType);
+
   // Create session with HTTP-only cookie
-  const { cookie } = await createSession(
-    sanitizedIdentifier.value,
-    identifierType === 'email' ? 'email' : 'phone',
-    { userAgent, ipAddress: sanitizedIp.value }
-  );
+  const { cookie } = await createSession(user._id, sanitizedIdentifier.value, identifierType, {
+    userAgent,
+    ipAddress: sanitizedIp.value,
+  });
 
-  elog.info('User authenticated successfully', { identifierHash, identifierType });
+  elog.info('User authenticated successfully', {
+    identifierHash,
+    identifierType,
+    userId: user._id.toHexString(),
+  });
 
-  return { success: true, cookie };
+  return { success: true, cookie, user };
 }
 
 /**

@@ -3,6 +3,13 @@ import { AppLayout } from '@chadder/ui';
 import { Home } from './pages/Home';
 import { About } from './pages/About';
 import { Login, Verify } from './pages/auth';
+import {
+  AccountOverview,
+  AccountAppearance,
+  AccountSecurity,
+  AccountPrivacy,
+  AccountNotifications,
+} from './pages/account';
 import { useAuth } from './hooks/useAuth';
 import { AppSidebar } from './components/AppSidebar';
 
@@ -78,6 +85,14 @@ export function App() {
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
+
+        {/* Account Routes */}
+        <Route path="/account" element={<Navigate to="/account/overview" replace />} />
+        <Route path="/account/overview" element={<AccountOverview />} />
+        <Route path="/account/appearance" element={<AccountAppearance />} />
+        <Route path="/account/security" element={<AccountSecurity />} />
+        <Route path="/account/privacy" element={<AccountPrivacy />} />
+        <Route path="/account/notifications" element={<AccountNotifications />} />
       </Route>
 
       {/* Catch-all redirect */}

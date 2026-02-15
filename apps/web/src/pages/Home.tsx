@@ -1,55 +1,54 @@
+import { useTranslation } from 'react-i18next';
 import { Card, usePlatform } from '@chadder/ui';
 
 export function Home() {
+  const { t } = useTranslation();
   const platform = usePlatform();
 
   return (
     <div className="page-content">
       <div className="container">
         <div className="page-header">
-          <h1 className="page-title">Welcome to Chadder</h1>
+          <h1 className="page-title">{t('home.title')}</h1>
           <p className="page-subtitle">
-            Your secure messaging platform. Running on {platform}.
+            {t('home.subtitle', { platform })}
           </p>
         </div>
 
         <div className="grid grid-2">
           <Card variant="elevated" className="slide-up">
             <h3 style={{ marginTop: 0, color: 'var(--color-text-primary)' }}>
-              End-to-End Encryption
+              {t('home.features.encryption.title')}
             </h3>
             <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
-              All messages are encrypted with strong cryptography. Only you and
-              your recipients can read them.
+              {t('home.features.encryption.description')}
             </p>
           </Card>
 
           <Card variant="elevated" className="slide-up stagger-1">
             <h3 style={{ marginTop: 0, color: 'var(--color-text-primary)' }}>
-              Cross-Platform
+              {t('home.features.crossPlatform.title')}
             </h3>
             <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
-              Access your messages from web, desktop, or mobile. Stay connected
-              wherever you are.
+              {t('home.features.crossPlatform.description')}
             </p>
           </Card>
 
           <Card variant="elevated" className="slide-up stagger-2">
             <h3 style={{ marginTop: 0, color: 'var(--color-text-primary)' }}>
-              No Password Required
+              {t('home.features.passwordless.title')}
             </h3>
             <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
-              Passwordless authentication keeps your account secure without the
-              hassle of remembering passwords.
+              {t('home.features.passwordless.description')}
             </p>
           </Card>
 
           <Card variant="elevated" className="slide-up stagger-3">
             <h3 style={{ marginTop: 0, color: 'var(--color-text-primary)' }}>
-              Privacy First
+              {t('home.features.privacy.title')}
             </h3>
             <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
-              We collect only what's necessary. Your data is yours.
+              {t('home.features.privacy.description')}
             </p>
           </Card>
         </div>

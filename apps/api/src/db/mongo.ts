@@ -314,6 +314,40 @@ export async function initializeCollections(): Promise<string[]> {
   if (created.length === 0) {
     elog.info('All MongoDB collections already exist');
   }
+
+  // Create indexes
+  await createIndexes();
   
   return created;
+}
+
+/**
+ * Creates indexes for all collections.
+ * 
+ * Ensures efficient queries on common fields like email, phone, sessionId, etc.
+ * Safe to call multiple times - indexes are created if they don't exist.
+ */
+async function createIndexes(): Promise<void> {
+  const database = getDb();
+
+  // Users collection indexes
+  const users = database.collection(Collections.USERS);
+  await users.createIndex({ email: 1 }, { unique: true, sparse: true });
+  await users.createIndex({ phone: 1 }, { unique: true, sparse: true });
+  await users.createIndex({ lockedUntil: 1 }, { sparse: true });
+
+  // Sessions collection indexes
+  const sessions = database.collection(Collections.SESSIONS);
+  await sessions.createIndex({ sessionId: 1 }, { unique: true });
+  await sessions.createIndex({ userId: 1 });
+  await sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index for auto-cleanup
+  await sessions.createIndex({ revoked: 1, expiresAt: 1 });
+
+  // Audit logs collection indexes
+  const auditLogs = database.collection(Collections.AUDIT_LOGS);
+  await auditLogs.createIndex({ userId: 1, createdAt: -1 });
+  await auditLogs.createIndex({ action: 1, createdAt: -1 });
+  await auditLogs.createIndex({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 }); // 90 day retention
+
+  elog.debug('MongoDB indexes created/verified');
 }

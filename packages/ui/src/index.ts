@@ -29,6 +29,9 @@ export {
   KeyIcon,
   BellIcon,
   SearchIcon,
+  UserIcon,
+  PaletteIcon,
+  LockIcon,
 } from './components/Icons';
 
 // Hooks

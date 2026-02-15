@@ -113,6 +113,12 @@ router.post('/auth/request', async (ctx) => {
       }
       return response;
     }
+    if (result.error === 'account_locked' && result.retryAfterSeconds) {
+      const response = ctx.errors.rateLimited();
+      const headers = new Headers(response.headers);
+      headers.set('Retry-After', result.retryAfterSeconds.toString());
+      return new Response(response.body, { status: 429, headers });
+    }
     return ctx.errors.badRequest();
   }
 
@@ -185,6 +191,12 @@ router.post('/auth/verify', async (ctx) => {
 
   if (!result.success) {
     if (result.error === 'backoff' && result.retryAfterSeconds) {
+      const response = ctx.errors.rateLimited();
+      const headers = new Headers(response.headers);
+      headers.set('Retry-After', result.retryAfterSeconds.toString());
+      return new Response(response.body, { status: 429, headers });
+    }
+    if (result.error === 'account_locked' && result.retryAfterSeconds) {
       const response = ctx.errors.rateLimited();
       const headers = new Headers(response.headers);
       headers.set('Retry-After', result.retryAfterSeconds.toString());

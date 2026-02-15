@@ -1,5 +1,6 @@
 import { useState, createContext, useContext, useCallback } from 'react';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 
 // ============================================================================
 // Types
@@ -48,6 +49,7 @@ export function Sidebar({
   defaultExpanded = true,
   orientation = 'left',
 }: SidebarProps) {
+  const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   const toggleExpanded = useCallback(() => {
@@ -74,6 +76,10 @@ export function Sidebar({
     `sidebar-${orientation}`,
   ].join(' ');
 
+  const toggleLabel = isExpanded 
+    ? t('nav.collapseSidebar') 
+    : t('nav.expandSidebar');
+
   return (
     <SidebarContext.Provider value={{ isExpanded, orientation, toggleExpanded, setExpanded }}>
       <aside className={classNames}>
@@ -86,8 +92,8 @@ export function Sidebar({
         <button
           className="sidebar-toggle"
           onClick={toggleExpanded}
-          aria-label={isExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
-          title={isExpanded ? 'Collapse' : 'Expand'}
+          aria-label={toggleLabel}
+          title={toggleLabel}
         >
           <svg
             width="16"

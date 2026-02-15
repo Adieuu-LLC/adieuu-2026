@@ -1,4 +1,5 @@
 import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Sidebar,
   SidebarItem,
@@ -9,9 +10,7 @@ import {
   Button,
   HomeIcon,
   InfoIcon,
-  SettingsIcon,
-  ShieldIcon,
-  KeyIcon,
+  UserIcon,
   LogoutIcon,
 } from '@chadder/ui';
 import { useAuth } from '../hooks/useAuth';
@@ -21,6 +20,7 @@ import { useAuth } from '../hooks/useAuth';
  * Wraps the Sidebar component with app-specific navigation items.
  */
 export function AppSidebar() {
+  const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -31,6 +31,7 @@ export function AppSidebar() {
   };
 
   const isActive = (path: string) => location.pathname === path;
+  const isAccountActive = location.pathname.startsWith('/account');
 
   return (
     <Sidebar
@@ -43,22 +44,22 @@ export function AppSidebar() {
           className="sidebar-logout-btn"
         >
           <LogoutIcon />
-          <span className="sidebar-logout-label">Logout</span>
+          <span className="sidebar-logout-label">{t('nav.logout')}</span>
         </Button>
       }
     >
-      <SidebarSection label="Main">
+      <SidebarSection label={t('sidebar.main')}>
         <Link to="/" style={{ textDecoration: 'none' }}>
           <SidebarItem
             icon={<HomeIcon />}
-            label="Home"
+            label={t('nav.home')}
             isActive={isActive('/')}
           />
         </Link>
         <Link to="/about" style={{ textDecoration: 'none' }}>
           <SidebarItem
             icon={<InfoIcon />}
-            label="About"
+            label={t('nav.about')}
             isActive={isActive('/about')}
           />
         </Link>
@@ -66,26 +67,43 @@ export function AppSidebar() {
 
       <SidebarDivider />
 
-      <SidebarSection label="Settings">
+      <SidebarSection label={t('sidebar.account')}>
         <SidebarItem
-          icon={<SettingsIcon />}
-          label="Preferences"
+          icon={<UserIcon />}
+          label={t('nav.account')}
+          isActive={isAccountActive}
         >
-          <SidebarSubItem label="General" />
-          <SidebarSubItem label="Notifications" />
-          <SidebarSubItem label="Appearance" />
+          <Link to="/account/overview" style={{ textDecoration: 'none' }}>
+            <SidebarSubItem
+              label={t('account.overview.title')}
+              isActive={isActive('/account/overview')}
+            />
+          </Link>
+          <Link to="/account/appearance" style={{ textDecoration: 'none' }}>
+            <SidebarSubItem
+              label={t('account.appearance.title')}
+              isActive={isActive('/account/appearance')}
+            />
+          </Link>
+          <Link to="/account/security" style={{ textDecoration: 'none' }}>
+            <SidebarSubItem
+              label={t('account.security.title')}
+              isActive={isActive('/account/security')}
+            />
+          </Link>
+          <Link to="/account/privacy" style={{ textDecoration: 'none' }}>
+            <SidebarSubItem
+              label={t('account.privacy.title')}
+              isActive={isActive('/account/privacy')}
+            />
+          </Link>
+          <Link to="/account/notifications" style={{ textDecoration: 'none' }}>
+            <SidebarSubItem
+              label={t('account.notifications.title')}
+              isActive={isActive('/account/notifications')}
+            />
+          </Link>
         </SidebarItem>
-        <SidebarItem
-          icon={<ShieldIcon />}
-          label="Privacy & Security"
-        >
-          <SidebarSubItem label="Privacy" />
-          <SidebarSubItem label="Blocked Users" />
-        </SidebarItem>
-        <SidebarItem
-          icon={<KeyIcon />}
-          label="Encryption Keys"
-        />
       </SidebarSection>
     </Sidebar>
   );
