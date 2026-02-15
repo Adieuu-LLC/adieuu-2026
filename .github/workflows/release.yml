@@ -23,6 +23,11 @@ env:
   NODE_VERSION: '25'
   PNPM_VERSION: '9'
 
+concurrency:
+  # Only one release at a time
+  group: release
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
