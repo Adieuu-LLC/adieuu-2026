@@ -3,9 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { Card, Button, Input, OtpInput, Alert, Tooltip, Spinner } from '@chadder/ui';
 import { createApiClient, type UserProfile } from '@chadder/shared';
 import { useAuth } from '../../hooks/useAuth';
+import { API_BASE_URL } from '../../config';
 
-// Create API client - desktop app needs explicit URL (no proxy)
-const api = createApiClient({ baseUrl: 'http://localhost:4000' });
+// Create API client using configured base URL
+const api = createApiClient({ baseUrl: API_BASE_URL });
 
 type EditMode = 'none' | 'email' | 'phone';
 type VerifyMode = 'none' | 'email' | 'phone';

@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Button, Tabs, TabList, TabTrigger, TabContent, Spinner } from '@chadder/ui';
 import { createApiClient, type SessionDetails } from '@chadder/shared';
+import { API_BASE_URL } from '../../config';
 
-// Create API client - desktop app needs explicit URL (no proxy)
-const api = createApiClient({ baseUrl: 'http://localhost:4000' });
+// Create API client using configured base URL
+const api = createApiClient({ baseUrl: API_BASE_URL });
 
 /**
  * Parse user agent string to get a readable device/browser name

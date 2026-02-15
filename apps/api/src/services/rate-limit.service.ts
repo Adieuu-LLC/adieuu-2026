@@ -117,6 +117,42 @@ function getRateLimits(): Record<string, RateLimitConfig> {
       limit: config.rateLimit.globalIpLimit,
       windowSeconds: config.rateLimit.globalIpWindow,
     },
+
+    /**
+     * User email verification request limit per IP
+     * Reuses auth request IP limits
+     */
+    'user:email:ip': {
+      limit: config.rateLimit.authRequestIpLimit,
+      windowSeconds: config.rateLimit.authRequestIpWindow,
+    },
+
+    /**
+     * User email verification request limit per identifier
+     * Reuses auth request identifier limits
+     */
+    'user:email:identifier': {
+      limit: config.rateLimit.authRequestIdentifierLimit,
+      windowSeconds: config.rateLimit.authRequestIdentifierWindow,
+    },
+
+    /**
+     * User phone verification request limit per IP
+     * Reuses auth request IP limits
+     */
+    'user:phone:ip': {
+      limit: config.rateLimit.authRequestIpLimit,
+      windowSeconds: config.rateLimit.authRequestIpWindow,
+    },
+
+    /**
+     * User phone verification request limit per identifier
+     * Reuses auth request identifier limits
+     */
+    'user:phone:identifier': {
+      limit: config.rateLimit.authRequestIdentifierLimit,
+      windowSeconds: config.rateLimit.authRequestIdentifierWindow,
+    },
   };
 }
 
@@ -133,6 +169,10 @@ export const RATE_LIMITS = {
   'auth:verify:ip': { limit: 20, windowSeconds: 900 } as RateLimitConfig,
   'global:user': { limit: 100, windowSeconds: 60 } as RateLimitConfig,
   'global:ip': { limit: 1000, windowSeconds: 60 } as RateLimitConfig,
+  'user:email:ip': { limit: 10, windowSeconds: 900 } as RateLimitConfig,
+  'user:email:identifier': { limit: 3, windowSeconds: 900 } as RateLimitConfig,
+  'user:phone:ip': { limit: 10, windowSeconds: 900 } as RateLimitConfig,
+  'user:phone:identifier': { limit: 3, windowSeconds: 900 } as RateLimitConfig,
 } as const;
 
 /**

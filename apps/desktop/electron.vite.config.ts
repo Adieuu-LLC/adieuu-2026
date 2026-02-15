@@ -33,5 +33,12 @@ export default defineConfig({
         '@': path.resolve(__dirname, 'src/renderer'),
       },
     },
+    // Environment variable defaults - can be overridden via .env file
+    define: {
+      // Provide fallback for VITE_API_URL if not set in environment
+      'import.meta.env.VITE_API_URL': JSON.stringify(
+        process.env.VITE_API_URL ?? 'http://localhost:4000'
+      ),
+    },
   },
 });

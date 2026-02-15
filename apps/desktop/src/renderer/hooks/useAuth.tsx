@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect, createContext, useContext } from 'react';
 import type { ReactNode } from 'react';
 import { createApiClient, type SessionInfo } from '@chadder/shared';
+import { API_BASE_URL } from '../config';
 
-// Create API client pointing to local dev server
-// In production, this would be configured via environment
-const api = createApiClient({ baseUrl: 'http://localhost:4000' });
+// Create API client using configured base URL
+const api = createApiClient({ baseUrl: API_BASE_URL });
 
 // ============================================================================
 // Auth State Types
