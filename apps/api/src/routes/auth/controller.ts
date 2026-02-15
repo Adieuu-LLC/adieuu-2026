@@ -14,10 +14,14 @@ import {
   createSession,
   getSessionFromRequest,
   destroySession,
+  destroyAllSessions,
   getSessionIdFromRequest,
   buildLogoutCookie,
   type SessionData,
 } from '../../services/session.service';
+import { getSessionRepository } from '../../repositories/session.repository';
+import { toPublicSession, type PublicSession } from '../../models/session';
+import { ObjectId } from 'mongodb';
 import { getUserRepository } from '../../repositories/user.repository';
 import { sendEmail, sendSms } from '../../services/messaging';
 import { sanitizeString } from '../../utils/sanitize';
@@ -548,4 +552,174 @@ export async function logoutHandler(request: Request): Promise<string> {
     await destroySession(sessionId);
   }
   return buildLogoutCookie();
+}
+
+/**
+ * Result type for listing sessions.
+ */
+export type ListSessionsResult =
+  | { success: true; sessions: PublicSession[] }
+  | { success: false; error: 'unauthorized' };
+
+/**
+ * Lists all sessions for the current user.
+ *
+ * @param request - The incoming request with session cookie
+ * @returns List of sessions or unauthorized error
+ */
+export async function listSessionsHandler(
+  request: Request
+): Promise<ListSessionsResult> {
+  const currentSessionId = getSessionIdFromRequest(request);
+  const session = await getSessionFromRequest(request);
+
+  if (!session) {
+    return { success: false, error: 'unauthorized' };
+  }
+
+  const sessionRepo = getSessionRepository();
+  let publicSessions: PublicSession[] = [];
+
+  // If we have a userId, query MongoDB for all sessions
+  if (session.userId) {
+    const sessions = await sessionRepo.findByUserId(session.userId);
+
+    // Convert to public format with current session marked
+    publicSessions = sessions.map((s) =>
+      toPublicSession(s, currentSessionId ?? undefined)
+    );
+  }
+
+  // If the current session isn't in the list (legacy session from Redis-only era),
+  // add it as a synthetic entry so the user sees their current session
+  const currentSessionInList = publicSessions.some((s) => s.isCurrent);
+  if (!currentSessionInList && currentSessionId) {
+    const userAgent = request.headers.get('User-Agent') ?? undefined;
+    publicSessions.unshift({
+      id: currentSessionId,
+      identifier: session.identifier,
+      identifierType: session.identifierType,
+      createdAt: new Date().toISOString(), // Unknown, use now
+      lastActivityAt: new Date().toISOString(),
+      userAgent,
+      ipAddress: undefined,
+      isCurrent: true,
+    });
+  }
+
+  // Sort: current session first, then by last activity
+  publicSessions.sort((a, b) => {
+    if (a.isCurrent) return -1;
+    if (b.isCurrent) return 1;
+    return new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime();
+  });
+
+  return { success: true, sessions: publicSessions };
+}
+
+/**
+ * Result type for revoking a session.
+ */
+export type RevokeSessionResult =
+  | { success: true }
+  | { success: false; error: 'unauthorized' | 'not_found' | 'cannot_revoke_current' };
+
+/**
+ * Revokes a specific session.
+ *
+ * @param request - The incoming request with session cookie
+ * @param sessionIdToRevoke - The session ID to revoke
+ * @returns Success or error
+ */
+export async function revokeSessionHandler(
+  request: Request,
+  sessionIdToRevoke: string
+): Promise<RevokeSessionResult> {
+  const currentSessionId = getSessionIdFromRequest(request);
+  const session = await getSessionFromRequest(request);
+
+  if (!session || !session.userId) {
+    return { success: false, error: 'unauthorized' };
+  }
+
+  // Prevent revoking current session via this endpoint
+  if (sessionIdToRevoke === currentSessionId) {
+    return { success: false, error: 'cannot_revoke_current' };
+  }
+
+  const sessionRepo = getSessionRepository();
+
+  // Verify the session belongs to this user
+  const targetSession = await sessionRepo.findBySessionId(sessionIdToRevoke);
+  if (!targetSession || targetSession.userId.toHexString() !== session.userId) {
+    return { success: false, error: 'not_found' };
+  }
+
+  await sessionRepo.revoke(sessionIdToRevoke);
+
+  elog.info('Session revoked by user', {
+    userId: session.userId,
+    revokedSessionId: sessionIdToRevoke.substring(0, 8) + '...',
+  });
+
+  return { success: true };
+}
+
+/**
+ * Result type for revoking all sessions.
+ */
+export type RevokeAllSessionsResult =
+  | { success: true; count: number; cookie: string }
+  | { success: false; error: 'unauthorized' };
+
+/**
+ * Revokes all sessions except the current one.
+ *
+ * @param request - The incoming request with session cookie
+ * @param includeCurrentSession - Whether to also revoke the current session
+ * @returns Success with count or error
+ */
+export async function revokeAllSessionsHandler(
+  request: Request,
+  includeCurrentSession = false
+): Promise<RevokeAllSessionsResult> {
+  const currentSessionId = getSessionIdFromRequest(request);
+  const session = await getSessionFromRequest(request);
+
+  if (!session || !session.userId) {
+    return { success: false, error: 'unauthorized' };
+  }
+
+  const sessionRepo = getSessionRepository();
+
+  if (includeCurrentSession) {
+    // Revoke all sessions including current
+    const count = await destroyAllSessions(session.userId);
+
+    elog.info('All sessions revoked by user', {
+      userId: session.userId,
+      count,
+    });
+
+    return { success: true, count, cookie: buildLogoutCookie() };
+  } else {
+    // Revoke all except current
+    const sessions = await sessionRepo.findByUserId(session.userId);
+    let count = 0;
+
+    for (const s of sessions) {
+      if (s.sessionId !== currentSessionId) {
+        await sessionRepo.revoke(s.sessionId);
+        count++;
+      }
+    }
+
+    elog.info('Other sessions revoked by user', {
+      userId: session.userId,
+      count,
+    });
+
+    // Return empty cookie since current session is still valid
+    return { success: true, count, cookie: '' };
+  }
 }

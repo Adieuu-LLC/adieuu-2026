@@ -15,7 +15,16 @@
 
 import { Router } from '../../router';
 import { success } from '../../utils/response';
-import { requestOtp, verifyOtpHandler, getSessionHandler, logoutHandler, getClientIp } from './controller';
+import {
+  requestOtp,
+  verifyOtpHandler,
+  getSessionHandler,
+  logoutHandler,
+  listSessionsHandler,
+  revokeSessionHandler,
+  revokeAllSessionsHandler,
+  getClientIp,
+} from './controller';
 import { z } from '@chadder/shared/schemas';
 
 const router = new Router();
@@ -260,6 +269,105 @@ router.post('/auth/logout', async (ctx) => {
   const headers = new Headers(response.headers);
   headers.set('Set-Cookie', logoutCookie);
   return new Response(response.body, { status: response.status, headers });
+});
+
+/**
+ * GET /auth/sessions - List all sessions for the current user.
+ *
+ * Returns a list of all active sessions for the authenticated user,
+ * with the current session marked.
+ *
+ * @route GET /api/auth/sessions
+ *
+ * @returns 200 OK with list of sessions
+ * @returns 401 Unauthorized if no valid session
+ *
+ * @security
+ * - Requires authenticated session
+ * - IP addresses are partially masked for privacy
+ */
+router.get('/auth/sessions', async (ctx) => {
+  const result = await listSessionsHandler(ctx.request);
+
+  if (!result.success) {
+    return ctx.errors.unauthorized();
+  }
+
+  return success(result.sessions);
+});
+
+/**
+ * DELETE /auth/sessions/:sessionId - Revoke a specific session.
+ *
+ * Revokes a specific session by ID. Cannot revoke the current session
+ * (use /auth/logout for that).
+ *
+ * @route DELETE /api/auth/sessions/:sessionId
+ *
+ * @returns 200 OK on successful revocation
+ * @returns 400 Bad Request if trying to revoke current session
+ * @returns 401 Unauthorized if no valid session
+ * @returns 404 Not Found if session doesn't exist or belongs to another user
+ */
+router.delete('/auth/sessions/:sessionId', async (ctx) => {
+  const sessionId = ctx.params.sessionId;
+
+  if (!sessionId) {
+    return ctx.errors.badRequest();
+  }
+
+  const result = await revokeSessionHandler(ctx.request, sessionId);
+
+  if (!result.success) {
+    if (result.error === 'unauthorized') {
+      return ctx.errors.unauthorized();
+    }
+    if (result.error === 'cannot_revoke_current') {
+      return ctx.errors.badRequest();
+    }
+    return ctx.errors.notFound();
+  }
+
+  return success(undefined, 'Session revoked successfully.');
+});
+
+/**
+ * DELETE /auth/sessions - Revoke all sessions except current.
+ *
+ * Revokes all sessions for the user except the current one.
+ * Useful for "log out all other devices" functionality.
+ *
+ * @route DELETE /api/auth/sessions
+ *
+ * @queryParam includeCurrentSession - If 'true', also logs out current session
+ *
+ * @returns 200 OK with count of revoked sessions
+ * @returns 401 Unauthorized if no valid session
+ */
+router.delete('/auth/sessions', async (ctx) => {
+  // Check if we should include current session (full logout)
+  const url = new URL(ctx.request.url);
+  const includeCurrentSession = url.searchParams.get('includeCurrentSession') === 'true';
+
+  const result = await revokeAllSessionsHandler(ctx.request, includeCurrentSession);
+
+  if (!result.success) {
+    return ctx.errors.unauthorized();
+  }
+
+  const response = success(
+    { revokedCount: result.count },
+    `${result.count} session(s) revoked successfully.`
+  );
+
+  // If current session was revoked, clear the cookie
+  if (result.cookie) {
+    const headers = new Headers(response.headers);
+    headers.set('Set-Cookie', result.cookie);
+    return new Response(response.body, { status: response.status, headers });
+  }
+
+  return response;
 });
 
 export const authRoutes = router;

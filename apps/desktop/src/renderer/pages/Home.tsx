@@ -1,9 +1,11 @@
 import { useTranslation } from 'react-i18next';
-import { Card, usePlatform } from '@chadder/ui';
+import { Card, usePlatform, Button } from '@chadder/ui';
+import { useTourContext } from '../hooks/useTourContext';
 
 export function Home() {
   const { t } = useTranslation();
   const platform = usePlatform();
+  const tour = useTourContext();
 
   return (
     <div className="page-content">
@@ -13,6 +15,14 @@ export function Home() {
           <p className="page-subtitle">
             {t('home.subtitle', { platform })}
           </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => tour.start()}
+            style={{ marginTop: 'var(--spacing-md)' }}
+          >
+            {t('home.startTour', { defaultValue: 'Take a Tour' })}
+          </Button>
         </div>
 
         <div className="grid grid-2">

@@ -16,6 +16,10 @@ export {
   SidebarSection,
   useSidebar,
 } from './components/Sidebar';
+export { Tabs, TabList, TabTrigger, TabContent } from './components/Tabs';
+export { TourRoot, useTour, createTourSteps } from './components/Tour';
+export { Avatar } from './components/Avatar';
+export { Tooltip } from './components/Tooltip';
 
 // Icons
 export {
@@ -54,3 +58,11 @@ export type {
   SidebarSectionProps,
   SidebarOrientation,
 } from './components/Sidebar';
+export type {
+  TourStep,
+  TourStepAction,
+  TourRootProps,
+  TourApi,
+} from './components/Tour';
+export type { AvatarProps, AvatarInfo } from './components/Avatar';
+export type { TooltipProps } from './components/Tooltip';

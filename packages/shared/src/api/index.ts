@@ -1,6 +1,7 @@
 export {
   ApiClient,
   AuthApi,
+  UsersApi,
   createApiClient,
   defaultConfig,
   type ApiClientConfig,
@@ -8,5 +9,13 @@ export {
   type RequestOtpParams,
   type VerifyOtpParams,
   type SessionInfo,
+  type SessionDetails,
+  type RevokeSessionsResponse,
   type AuthSession,
+  type AvatarInfo,
+  type UserProfile,
+  type RequestEmailVerificationParams,
+  type VerifyEmailParams,
+  type RequestPhoneVerificationParams,
+  type VerifyPhoneParams,
 } from './client';

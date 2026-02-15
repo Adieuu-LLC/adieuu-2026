@@ -71,21 +71,54 @@ export interface CachedSessionData {
  * Public session representation (safe to send to client)
  */
 export interface PublicSession {
+  /** Session ID (for revocation) */
+  id: string;
+  /** User identifier (email or phone) */
   identifier: string;
+  /** Identifier type */
   identifierType: 'email' | 'phone';
+  /** When the session was created */
   createdAt: string;
+  /** Last activity timestamp */
   lastActivityAt: string;
+  /** User agent (browser/device info) */
+  userAgent?: string;
+  /** IP address (partially masked for privacy) */
+  ipAddress?: string;
+  /** Whether this is the current session */
+  isCurrent?: boolean;
+}
+
+/**
+ * Mask IP address for privacy (show first two octets only)
+ * e.g., "192.168.1.100" -> "192.168.*.*"
+ */
+function maskIpAddress(ip?: string): string | undefined {
+  if (!ip) return undefined;
+  const parts = ip.split('.');
+  if (parts.length === 4) {
+    return `${parts[0]}.${parts[1]}.*.*`;
+  }
+  // IPv6 or other format - just show first part
+  return ip.split(':').slice(0, 2).join(':') + ':*';
 }
 
 /**
  * Convert a SessionDocument to PublicSession (safe for client)
  */
-export function toPublicSession(doc: SessionDocument): PublicSession {
+export function toPublicSession(
+  doc: SessionDocument,
+  currentSessionId?: string
+): PublicSession {
   return {
+    id: doc.sessionId,
     identifier: doc.identifier,
     identifierType: doc.identifierType,
     createdAt: doc.createdAt.toISOString(),
     lastActivityAt: doc.lastActivityAt.toISOString(),
+    userAgent: doc.userAgent,
+    ipAddress: maskIpAddress(doc.ipAddress),
+    isCurrent: currentSessionId ? doc.sessionId === currentSessionId : undefined,
   };
 }
 

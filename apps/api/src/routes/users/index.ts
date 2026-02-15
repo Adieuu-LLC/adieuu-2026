@@ -1,23 +1,273 @@
 /**
  * User routes module.
  *
- * Provides endpoints for user management including retrieval, creation,
- * and profile updates. User data is returned in a sanitized format to
- * protect sensitive information.
+ * Provides endpoints for user management including profile retrieval,
+ * email/phone verification, and profile updates.
  *
  * @module routes/users
- *
- * @remarks
- * All user identifiers are expected to be UUIDs. Invalid formats will
- * result in a 400 Bad Request response.
  */
 
 import { Router } from '../../router';
 import { success } from '../../utils/response';
-import { getUserById } from './controller';
+import {
+  getUserById,
+  getCurrentUserProfile,
+  requestEmailVerification,
+  verifyEmailAddress,
+  requestPhoneVerification,
+  verifyPhoneNumber,
+} from './controller';
+import { getSessionFromRequest } from '../../services/session.service';
+import { getClientIp } from '../auth/controller';
 import { z } from '@chadder/shared/schemas';
 
 const router = new Router();
+
+/**
+ * GET /users/me - Get current user's profile.
+ *
+ * Returns the authenticated user's full profile including avatar data.
+ *
+ * @route GET /api/users/me
+ *
+ * @returns 200 OK with user profile
+ * @returns 401 Unauthorized if not authenticated
+ */
+router.get('/users/me', async (ctx) => {
+  const session = await getSessionFromRequest(ctx.request);
+
+  if (!session || !session.userId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const profile = await getCurrentUserProfile(session.userId);
+
+  if (!profile) {
+    return ctx.errors.notFound();
+  }
+
+  return success(profile);
+});
+
+/**
+ * Zod schema for email request payload.
+ */
+const EmailRequestSchema = z.object({
+  email: z.string().email().max(255),
+});
+
+/**
+ * POST /users/me/email - Request email verification.
+ *
+ * Sends a verification code to the specified email address.
+ *
+ * @route POST /api/users/me/email
+ *
+ * @requestBody
+ * - `email` (string, required): Email address to verify
+ *
+ * @returns 200 OK - Verification code sent (or error occurred silently)
+ * @returns 400 Bad Request if email already exists for another user
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 429 Too Many Requests if rate limited
+ */
+router.post('/users/me/email', async (ctx) => {
+  const session = await getSessionFromRequest(ctx.request);
+
+  if (!session || !session.userId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const parseResult = EmailRequestSchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const { email } = parseResult.data;
+  const clientIp = getClientIp(ctx.request);
+
+  const result = await requestEmailVerification(session.userId, email, clientIp);
+
+  if (!result.success) {
+    if (result.error === 'rate_limited') {
+      return ctx.errors.rateLimited();
+    }
+    if (result.error === 'already_exists') {
+      return ctx.errors.badRequest();
+    }
+    if (result.error === 'already_verified') {
+      return success(undefined, 'Email already verified.');
+    }
+    return ctx.errors.badRequest();
+  }
+
+  return success(undefined, 'Verification code sent.');
+});
+
+/**
+ * Zod schema for email verification payload.
+ */
+const EmailVerifySchema = z.object({
+  email: z.string().email().max(255),
+  code: z.string().length(6).regex(/^\d{6}$/, 'Code must be 6 digits'),
+});
+
+/**
+ * POST /users/me/email/verify - Verify email with OTP.
+ *
+ * Verifies the email address using the provided OTP code.
+ *
+ * @route POST /api/users/me/email/verify
+ *
+ * @requestBody
+ * - `email` (string, required): Email address being verified
+ * - `code` (string, required): 6-digit verification code
+ *
+ * @returns 200 OK with updated user profile
+ * @returns 401 Unauthorized if not authenticated or verification failed
+ * @returns 429 Too Many Requests if in backoff period
+ */
+router.post('/users/me/email/verify', async (ctx) => {
+  const session = await getSessionFromRequest(ctx.request);
+
+  if (!session || !session.userId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const parseResult = EmailVerifySchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const { email, code } = parseResult.data;
+
+  const result = await verifyEmailAddress(session.userId, email, code);
+
+  if (!result.success) {
+    if (result.error === 'backoff' && result.retryAfterSeconds) {
+      const response = ctx.errors.rateLimited();
+      const headers = new Headers(response.headers);
+      headers.set('Retry-After', result.retryAfterSeconds.toString());
+      return new Response(response.body, { status: 429, headers });
+    }
+    if (result.error === 'max_attempts') {
+      return ctx.errors.tooManyAttempts();
+    }
+    return ctx.errors.verificationFailed();
+  }
+
+  return success(result.user, 'Email verified successfully.');
+});
+
+/**
+ * Zod schema for phone request payload.
+ */
+const PhoneRequestSchema = z.object({
+  phone: z.string().min(8).max(20).regex(/^[+\d][\d\s\-().]{7,}$/, 'Invalid phone format'),
+});
+
+/**
+ * POST /users/me/phone - Request phone verification.
+ *
+ * Sends a verification code to the specified phone number.
+ *
+ * @route POST /api/users/me/phone
+ *
+ * @requestBody
+ * - `phone` (string, required): Phone number to verify (E.164 format)
+ *
+ * @returns 200 OK - Verification code sent
+ * @returns 400 Bad Request if phone already exists for another user
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 429 Too Many Requests if rate limited
+ */
+router.post('/users/me/phone', async (ctx) => {
+  const session = await getSessionFromRequest(ctx.request);
+
+  if (!session || !session.userId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const parseResult = PhoneRequestSchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const { phone } = parseResult.data;
+  const clientIp = getClientIp(ctx.request);
+
+  const result = await requestPhoneVerification(session.userId, phone, clientIp);
+
+  if (!result.success) {
+    if (result.error === 'rate_limited') {
+      return ctx.errors.rateLimited();
+    }
+    if (result.error === 'already_exists') {
+      return ctx.errors.badRequest();
+    }
+    if (result.error === 'already_verified') {
+      return success(undefined, 'Phone already verified.');
+    }
+    return ctx.errors.badRequest();
+  }
+
+  return success(undefined, 'Verification code sent.');
+});
+
+/**
+ * Zod schema for phone verification payload.
+ */
+const PhoneVerifySchema = z.object({
+  phone: z.string().min(8).max(20),
+  code: z.string().length(6).regex(/^\d{6}$/, 'Code must be 6 digits'),
+});
+
+/**
+ * POST /users/me/phone/verify - Verify phone with OTP.
+ *
+ * Verifies the phone number using the provided OTP code.
+ *
+ * @route POST /api/users/me/phone/verify
+ *
+ * @requestBody
+ * - `phone` (string, required): Phone number being verified
+ * - `code` (string, required): 6-digit verification code
+ *
+ * @returns 200 OK with updated user profile
+ * @returns 401 Unauthorized if not authenticated or verification failed
+ * @returns 429 Too Many Requests if in backoff period
+ */
+router.post('/users/me/phone/verify', async (ctx) => {
+  const session = await getSessionFromRequest(ctx.request);
+
+  if (!session || !session.userId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const parseResult = PhoneVerifySchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const { phone, code } = parseResult.data;
+
+  const result = await verifyPhoneNumber(session.userId, phone, code);
+
+  if (!result.success) {
+    if (result.error === 'backoff' && result.retryAfterSeconds) {
+      const response = ctx.errors.rateLimited();
+      const headers = new Headers(response.headers);
+      headers.set('Retry-After', result.retryAfterSeconds.toString());
+      return new Response(response.body, { status: 429, headers });
+    }
+    if (result.error === 'max_attempts') {
+      return ctx.errors.tooManyAttempts();
+    }
+    return ctx.errors.verificationFailed();
+  }
+
+  return success(result.user, 'Phone verified successfully.');
+});
 
 /**
  * GET /users/:id - Retrieve a user by their unique identifier.
@@ -31,22 +281,6 @@ const router = new Router();
  * @returns 200 OK with user data if found
  * @returns 400 Bad Request if the ID format is invalid
  * @returns 404 Not Found if no user exists with the given ID
- *
- * @example
- * ```json
- * // GET /api/users/550e8400-e29b-41d4-a716-446655440000
- * // Response
- * {
- *   "success": true,
- *   "data": {
- *     "id": "550e8400-e29b-41d4-a716-446655440000",
- *     "email": "user@example.com",
- *     "name": "Example User",
- *     "createdAt": "2026-01-01T00:00:00.000Z",
- *     "updatedAt": "2026-02-14T12:00:00.000Z"
- *   }
- * }
- * ```
  */
 router.get('/users/:id', async (ctx) => {
   const id = ctx.params.id;

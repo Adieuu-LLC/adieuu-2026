@@ -53,6 +53,30 @@ export interface UpdateUserInput {
 }
 
 /**
+ * Avatar data for rendering deterministic avatars
+ */
+export interface AvatarInfo {
+  /** Background color (hex) */
+  backgroundColor: string;
+  /** Skin tone color (hex) */
+  skinColor: string;
+  /** Hair color (hex) */
+  hairColor: string;
+  /** Hair style index (0-4) */
+  hairStyle: number;
+  /** Face shape index (0-3) */
+  faceShape: number;
+  /** Eye style index (0-3) */
+  eyeStyle: number;
+  /** Accessory index (0-3, 0 = none) */
+  accessory: number;
+  /** Facial hair index (0-4, 0 = none) */
+  facialHair: number;
+  /** Hash used to generate the avatar */
+  hash: string;
+}
+
+/**
  * Public user representation (safe to send to client)
  */
 export interface PublicUser {
@@ -64,12 +88,17 @@ export interface PublicUser {
   displayName?: string;
   createdAt: string;
   lastLoginAt?: string;
+  /** Avatar data for rendering */
+  avatar?: AvatarInfo;
 }
 
 /**
  * Convert a UserDocument to PublicUser (safe for client)
+ *
+ * @param doc - The user document from MongoDB
+ * @param avatarData - Optional avatar data to include
  */
-export function toPublicUser(doc: UserDocument): PublicUser {
+export function toPublicUser(doc: UserDocument, avatarData?: AvatarInfo): PublicUser {
   return {
     id: doc._id.toHexString(),
     email: doc.email,
@@ -79,5 +108,6 @@ export function toPublicUser(doc: UserDocument): PublicUser {
     displayName: doc.displayName,
     createdAt: doc.createdAt.toISOString(),
     lastLoginAt: doc.lastLoginAt?.toISOString(),
+    avatar: avatarData,
   };
 }

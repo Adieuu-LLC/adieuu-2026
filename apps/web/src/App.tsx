@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { AppLayout } from '@chadder/ui';
+import { AppLayout, TourRoot } from '@chadder/ui';
 import { Home } from './pages/Home';
 import { About } from './pages/About';
 import { Login, Verify } from './pages/auth';
@@ -12,6 +12,7 @@ import {
 } from './pages/account';
 import { useAuth } from './hooks/useAuth';
 import { AppSidebar } from './components/AppSidebar';
+import { TourProvider, useTourContext } from './hooks/useTourContext';
 
 /**
  * Protected route wrapper - redirects to login if not authenticated.
@@ -33,9 +34,25 @@ function ProtectedLayout() {
   }
 
   return (
-    <AppLayout sidebar={<AppSidebar />}>
-      <Outlet />
-    </AppLayout>
+    <TourProvider>
+      <ProtectedLayoutContent />
+    </TourProvider>
+  );
+}
+
+/**
+ * Inner layout component that has access to tour context.
+ */
+function ProtectedLayoutContent() {
+  const tour = useTourContext();
+
+  return (
+    <>
+      <TourRoot tour={tour} />
+      <AppLayout sidebar={<AppSidebar />}>
+        <Outlet />
+      </AppLayout>
+    </>
   );
 }
 

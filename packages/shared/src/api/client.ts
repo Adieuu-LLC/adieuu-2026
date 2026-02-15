@@ -145,6 +145,74 @@ export interface SessionInfo {
 }
 
 /**
+ * Detailed session info for session management.
+ */
+export interface SessionDetails {
+  /** Session ID (for revocation) */
+  id: string;
+  /** User identifier (email or phone) */
+  identifier: string;
+  /** Identifier type */
+  identifierType: 'email' | 'phone';
+  /** When the session was created */
+  createdAt: string;
+  /** Last activity timestamp */
+  lastActivityAt: string;
+  /** User agent (browser/device info) */
+  userAgent?: string;
+  /** IP address (partially masked for privacy) */
+  ipAddress?: string;
+  /** Whether this is the current session */
+  isCurrent?: boolean;
+}
+
+/**
+ * Response from revoking sessions.
+ */
+export interface RevokeSessionsResponse {
+  revokedCount: number;
+}
+
+/**
+ * Avatar data for rendering deterministic avatars.
+ */
+export interface AvatarInfo {
+  /** Background color (hex) */
+  backgroundColor: string;
+  /** Skin tone color (hex) */
+  skinColor: string;
+  /** Hair color (hex) */
+  hairColor: string;
+  /** Hair style index (0-4) */
+  hairStyle: number;
+  /** Face shape index (0-3) */
+  faceShape: number;
+  /** Eye style index (0-3) */
+  eyeStyle: number;
+  /** Accessory index (0-3, 0 = none) */
+  accessory: number;
+  /** Facial hair index (0-4, 0 = none) */
+  facialHair: number;
+  /** Hash used to generate the avatar */
+  hash: string;
+}
+
+/**
+ * User profile returned from /users/me endpoint.
+ */
+export interface UserProfile {
+  id: string;
+  email?: string;
+  emailVerified: boolean;
+  phone?: string;
+  phoneVerified: boolean;
+  displayName?: string;
+  createdAt: string;
+  lastLoginAt?: string;
+  avatar?: AvatarInfo;
+}
+
+/**
  * @deprecated Use SessionInfo instead - sessions are now cookie-based
  */
 export interface AuthSession {
@@ -201,6 +269,119 @@ export class AuthApi {
   async logout(): Promise<ApiResponse<void>> {
     return this.client.post('/api/auth/logout');
   }
+
+  /**
+   * Get all sessions for the current user.
+   *
+   * Returns a list of all active sessions, with the current session marked.
+   *
+   * @returns List of session details
+   */
+  async getSessions(): Promise<ApiResponse<SessionDetails[]>> {
+    return this.client.get('/api/auth/sessions');
+  }
+
+  /**
+   * Revoke a specific session.
+   *
+   * Cannot revoke the current session (use logout for that).
+   *
+   * @param sessionId - The ID of the session to revoke
+   * @returns Success on revocation
+   */
+  async revokeSession(sessionId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/auth/sessions/${sessionId}`);
+  }
+
+  /**
+   * Revoke all sessions except the current one.
+   *
+   * Useful for "log out all other devices" functionality.
+   *
+   * @returns Count of revoked sessions
+   */
+  async revokeAllOtherSessions(): Promise<ApiResponse<RevokeSessionsResponse>> {
+    return this.client.delete('/api/auth/sessions');
+  }
+}
+
+// ============================================================================
+// Users API Methods
+// ============================================================================
+
+export interface RequestEmailVerificationParams {
+  email: string;
+}
+
+export interface VerifyEmailParams {
+  email: string;
+  code: string;
+}
+
+export interface RequestPhoneVerificationParams {
+  phone: string;
+}
+
+export interface VerifyPhoneParams {
+  phone: string;
+  code: string;
+}
+
+export class UsersApi {
+  constructor(private client: ApiClient) {}
+
+  /**
+   * Get the current user's profile.
+   *
+   * @returns User profile with avatar data
+   */
+  async getProfile(): Promise<ApiResponse<UserProfile>> {
+    return this.client.get('/api/users/me');
+  }
+
+  /**
+   * Request email verification.
+   *
+   * Sends a verification code to the specified email address.
+   *
+   * @param params - Email address to verify
+   * @returns Success on code sent
+   */
+  async requestEmailVerification(params: RequestEmailVerificationParams): Promise<ApiResponse<void>> {
+    return this.client.post('/api/users/me/email', params);
+  }
+
+  /**
+   * Verify email address with OTP.
+   *
+   * @param params - Email and verification code
+   * @returns Updated user profile on success
+   */
+  async verifyEmail(params: VerifyEmailParams): Promise<ApiResponse<UserProfile>> {
+    return this.client.post('/api/users/me/email/verify', params);
+  }
+
+  /**
+   * Request phone verification.
+   *
+   * Sends a verification code to the specified phone number.
+   *
+   * @param params - Phone number to verify
+   * @returns Success on code sent
+   */
+  async requestPhoneVerification(params: RequestPhoneVerificationParams): Promise<ApiResponse<void>> {
+    return this.client.post('/api/users/me/phone', params);
+  }
+
+  /**
+   * Verify phone number with OTP.
+   *
+   * @param params - Phone and verification code
+   * @returns Updated user profile on success
+   */
+  async verifyPhone(params: VerifyPhoneParams): Promise<ApiResponse<UserProfile>> {
+    return this.client.post('/api/users/me/phone/verify', params);
+  }
 }
 
 // ============================================================================
@@ -216,6 +397,7 @@ export function createApiClient(config: ApiClientConfig) {
   return {
     client,
     auth: new AuthApi(client),
+    users: new UsersApi(client),
   };
 }
 

@@ -42,6 +42,7 @@ export function AppSidebar() {
           size="sm"
           onClick={handleLogout}
           className="sidebar-logout-btn"
+          data-tour="logout"
         >
           <LogoutIcon />
           <span className="sidebar-logout-label">{t('nav.logout')}</span>
@@ -72,6 +73,7 @@ export function AppSidebar() {
           icon={<UserIcon />}
           label={t('nav.account')}
           isActive={isAccountActive}
+          data-tour="account"
         >
           <Link to="/account/overview" style={{ textDecoration: 'none' }}>
             <SidebarSubItem

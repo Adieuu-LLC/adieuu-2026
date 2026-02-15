@@ -16,6 +16,7 @@ export const en = {
     delete: 'Delete',
     edit: 'Edit',
     notSet: 'Not set',
+    retry: 'Retry',
   },
 
   // Navigation
@@ -50,6 +51,21 @@ export const en = {
       roleUser: 'User',
       roleAdmin: 'Admin',
       roleModerator: 'Moderator',
+      // Edit/Add contact info
+      add: 'Add',
+      sendCode: 'Send Code',
+      codeSent: 'Verification code sent.',
+      enterCodeFor: 'Enter the code sent to',
+      enterEmail: 'Enter email address',
+      enterPhone: 'Enter phone number',
+      emailVerified: 'Email verified successfully.',
+      phoneVerified: 'Phone verified successfully.',
+      invalidCode: 'Invalid verification code. Please try again.',
+      errorSendingCode: 'Failed to send verification code.',
+      // Verification tooltips
+      verified: 'Verified',
+      emailNotVerifiedTooltip: 'Email not yet verified. Add and verify to use this as login.',
+      phoneNotVerifiedTooltip: 'Phone not yet verified. Add and verify to use this as login.',
     },
 
     // Appearance
@@ -73,12 +89,35 @@ export const en = {
     // Security
     security: {
       title: 'Security',
-      subtitle: 'Manage your security settings and encryption keys.',
-      comingSoon: 'Security settings coming soon.',
-      encryptionKeys: 'Encryption Keys',
-      activeSessions: 'Active Sessions',
-      twoFactor: 'Two-Factor Authentication',
-      loginHistory: 'Login History',
+      subtitle: 'Manage your security settings and active sessions.',
+      // Tabs
+      tabs: {
+        authentication: 'Authentication',
+        sessions: 'Sessions',
+      },
+      // Authentication tab
+      authentication: {
+        title: 'Authentication Settings',
+        comingSoon: 'Authentication settings coming soon.',
+        encryptionKeys: 'Encryption Keys',
+        twoFactor: 'Two-Factor Authentication',
+      },
+      // Sessions tab
+      sessions: {
+        title: 'Active Sessions',
+        description: 'These are the devices currently logged into your account. You can revoke access to any session.',
+        currentSession: 'Current session',
+        lastActive: 'Last active',
+        created: 'Created',
+        revokeSession: 'Revoke',
+        revokeAllOthers: 'Revoke all other sessions',
+        revokeAllConfirm: 'Are you sure you want to log out of all other devices?',
+        noOtherSessions: 'No other active sessions.',
+        sessionRevoked: 'Session revoked successfully.',
+        allSessionsRevoked: '{{count}} session(s) revoked successfully.',
+        unknownDevice: 'Unknown device',
+        unknownLocation: 'Unknown location',
+      },
     },
 
     // Privacy

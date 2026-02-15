@@ -23,6 +23,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@ark-ui/react": "^5.31.0",
     "@chadder/shared": "workspace:*",
     "i18next": "^24.2.2",
     "react-i18next": "^15.4.1"

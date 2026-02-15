@@ -1,5 +1,5 @@
 import { useState, createContext, useContext, useCallback } from 'react';
-import type { ReactNode } from 'react';
+import type { ReactNode, HTMLAttributes } from 'react';
 import { useTranslation } from 'react-i18next';
 
 // ============================================================================
@@ -121,7 +121,7 @@ export function Sidebar({
 // Navigation Item
 // ============================================================================
 
-export interface SidebarItemProps {
+export interface SidebarItemProps extends Omit<HTMLAttributes<HTMLElement>, 'onClick'> {
   icon: ReactNode;
   label: string;
   href?: string;
@@ -130,7 +130,7 @@ export interface SidebarItemProps {
   children?: ReactNode;
 }
 
-export function SidebarItem({ icon, label, href, onClick, isActive, children }: SidebarItemProps) {
+export function SidebarItem({ icon, label, href, onClick, isActive, children, ...props }: SidebarItemProps) {
   const { isExpanded } = useSidebar();
   const [isOpen, setIsOpen] = useState(false);
   const hasChildren = Boolean(children);
@@ -184,7 +184,7 @@ export function SidebarItem({ icon, label, href, onClick, isActive, children }: 
   }
 
   return (
-    <div className="sidebar-item-wrapper">
+    <div className="sidebar-item-wrapper" {...props}>
       <button
         className={itemClasses}
         onClick={handleClick}
