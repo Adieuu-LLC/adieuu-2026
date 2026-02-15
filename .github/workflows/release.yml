@@ -20,7 +20,7 @@ on:
           - major
 
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '25'
   PNPM_VERSION: '9'
 
 permissions:

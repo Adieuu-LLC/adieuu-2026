@@ -10,6 +10,81 @@ mock.module('../../utils/adieuuLogger', () => ({
   },
 }));
 
+// Mock crypto utilities to avoid needing real config
+mock.module('../../utils/crypto', () => ({
+  hashIdentifier: mock((id: string) => `hashed:${id}`),
+  hashIp: mock((ip: string) => `ip:${ip}`),
+  encrypt: mock((data: string) => Buffer.from(data).toString('base64url')),
+  decrypt: mock((data: string) => Buffer.from(data, 'base64url').toString()),
+  hmacSign: mock((data: string) => `sig:${data}`),
+  hmacVerify: mock(() => true),
+  generateOtp: mock(() => '123456'),
+  generateSessionId: mock(() => 'test-session-id'),
+  constantTimeCompare: mock(() => true),
+}));
+
+// Mock db submodules to prevent them from loading real config
+mock.module('../../db/mongo', () => ({
+  connectMongo: mock(() => Promise.resolve()),
+  disconnectMongo: mock(() => Promise.resolve()),
+  getDb: mock(() => ({})),
+  getCollection: mock(() => ({
+    findOne: mock(() => Promise.resolve(null)),
+    insertOne: mock(() => Promise.resolve({ insertedId: 'test-id' })),
+    updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })),
+    deleteOne: mock(() => Promise.resolve({ deletedCount: 1 })),
+  })),
+  checkMongoHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 5 })),
+  initializeCollections: mock(() => Promise.resolve([])),
+  Collections: {
+    USERS: 'users',
+    SESSIONS: 'sessions',
+    AUDIT_LOGS: 'audit_logs',
+  },
+}));
+
+mock.module('../../db/redis', () => ({
+  connectRedis: mock(() => Promise.resolve()),
+  disconnectRedis: mock(() => Promise.resolve()),
+  getRedis: mock(() => ({})),
+  isRedisConnected: mock(() => true),
+  checkRedisHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 2 })),
+  RedisKeys: {
+    otp: (id: string) => `otp:${id}`,
+    rateLimit: (action: string, id: string) => `rate:${action}:${id}`,
+    session: (id: string) => `session:${id}`,
+  },
+}));
+
+mock.module('../../db', () => ({
+  connectMongo: mock(() => Promise.resolve()),
+  disconnectMongo: mock(() => Promise.resolve()),
+  getDb: mock(() => ({})),
+  getCollection: mock(() => ({
+    findOne: mock(() => Promise.resolve(null)),
+    insertOne: mock(() => Promise.resolve({ insertedId: 'test-id' })),
+    updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })),
+    deleteOne: mock(() => Promise.resolve({ deletedCount: 1 })),
+  })),
+  checkMongoHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 5 })),
+  initializeCollections: mock(() => Promise.resolve([])),
+  Collections: {
+    USERS: 'users',
+    SESSIONS: 'sessions',
+    AUDIT_LOGS: 'audit_logs',
+  },
+  connectRedis: mock(() => Promise.resolve()),
+  disconnectRedis: mock(() => Promise.resolve()),
+  getRedis: mock(() => ({})),
+  isRedisConnected: mock(() => true),
+  checkRedisHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 2 })),
+  RedisKeys: {
+    otp: (id: string) => `otp:${id}`,
+    rateLimit: (action: string, id: string) => `rate:${action}:${id}`,
+    session: (id: string) => `session:${id}`,
+  },
+}));
+
 import { getUserById, type User, type GetUserResult } from './controller';
 
 describe('users controller', () => {

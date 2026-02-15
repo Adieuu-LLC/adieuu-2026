@@ -503,8 +503,13 @@ describe('crypto utilities', () => {
 
     test('returns null for tampered ciphertext', () => {
       const encrypted = encrypt('test');
-      // Tamper with the ciphertext by changing a character
-      const tampered = encrypted.slice(0, -1) + (encrypted.slice(-1) === 'A' ? 'B' : 'A');
+      // Tamper with the middle of the ciphertext by flipping multiple characters
+      // This ensures we're modifying actual ciphertext/authTag bytes, not padding
+      const midPoint = Math.floor(encrypted.length / 2);
+      const tampered = 
+        encrypted.slice(0, midPoint - 2) + 
+        'ZZZZ' + // Replace 4 characters in the middle
+        encrypted.slice(midPoint + 2);
       const result = decrypt(tampered);
       expect(result).toBeNull();
     });

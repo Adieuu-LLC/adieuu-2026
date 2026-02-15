@@ -104,7 +104,7 @@ describe('i18n', () => {
         expiresInMinutes: 10,
       });
 
-      expect(template.subject).toBe('Your TestApp login code');
+      expect(template.subject).toBe('Your TestApp login code is 123456');
       expect(template.text).toContain('123456');
       expect(template.text).toContain('10 minutes');
       expect(template.html).toBeDefined();

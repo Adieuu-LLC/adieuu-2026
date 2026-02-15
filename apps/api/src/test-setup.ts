@@ -27,19 +27,52 @@ mock.module('./config', () => ({
   },
 }));
 
+// Mock collection factory - shared by all db mocks
+const mockCollection = {
+  findOne: mock(() => Promise.resolve(null)),
+  find: mock(() => ({ limit: mock(() => ({ toArray: mock(() => Promise.resolve([])) })) })),
+  insertOne: mock(() => Promise.resolve({ insertedId: 'test-id' })),
+  updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })),
+  findOneAndUpdate: mock(() => Promise.resolve(null)),
+  deleteOne: mock(() => Promise.resolve({ deletedCount: 1 })),
+  countDocuments: mock(() => Promise.resolve(0)),
+  createIndex: mock(() => Promise.resolve('index_name')),
+};
+
+// Collection name constants
+const Collections = {
+  USERS: 'users',
+  SESSIONS: 'sessions',
+  AUDIT_LOGS: 'audit_logs',
+};
+
 // Mock db/mongo to prevent real MongoDB connections
 mock.module('./db/mongo', () => ({
   connectMongo: mock(() => Promise.resolve()),
   disconnectMongo: mock(() => Promise.resolve()),
-  getMongoClient: mock(() => null),
+  getDb: mock(() => ({
+    collection: mock(() => mockCollection),
+    command: mock(() => Promise.resolve({ ok: 1 })),
+    listCollections: mock(() => ({ toArray: mock(() => Promise.resolve([])) })),
+    createCollection: mock(() => Promise.resolve()),
+  })),
+  getCollection: mock(() => mockCollection),
   checkMongoHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 5 })),
+  initializeCollections: mock(() => Promise.resolve([])),
+  Collections,
 }));
 
 // Mock db/redis to prevent real Redis connections
 mock.module('./db/redis', () => ({
   connectRedis: mock(() => Promise.resolve()),
   disconnectRedis: mock(() => Promise.resolve()),
-  getRedis: mock(() => ({})),
+  getRedis: mock(() => ({
+    get: mock(() => Promise.resolve(null)),
+    set: mock(() => Promise.resolve('OK')),
+    del: mock(() => Promise.resolve(1)),
+    expire: mock(() => Promise.resolve(1)),
+    ttl: mock(() => Promise.resolve(-1)),
+  })),
   isRedisConnected: mock(() => true),
   checkRedisHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 2 })),
   RedisKeys: {
@@ -49,15 +82,31 @@ mock.module('./db/redis', () => ({
   },
 }));
 
-// Mock the main db export
+// Mock the main db export - must include ALL exports from db/index.ts
 mock.module('./db', () => ({
+  // MongoDB exports
   connectMongo: mock(() => Promise.resolve()),
   disconnectMongo: mock(() => Promise.resolve()),
-  getMongoClient: mock(() => null),
+  getDb: mock(() => ({
+    collection: mock(() => mockCollection),
+    command: mock(() => Promise.resolve({ ok: 1 })),
+    listCollections: mock(() => ({ toArray: mock(() => Promise.resolve([])) })),
+    createCollection: mock(() => Promise.resolve()),
+  })),
+  getCollection: mock(() => mockCollection),
   checkMongoHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 5 })),
+  initializeCollections: mock(() => Promise.resolve([])),
+  Collections,
+  // Redis exports
   connectRedis: mock(() => Promise.resolve()),
   disconnectRedis: mock(() => Promise.resolve()),
-  getRedis: mock(() => ({})),
+  getRedis: mock(() => ({
+    get: mock(() => Promise.resolve(null)),
+    set: mock(() => Promise.resolve('OK')),
+    del: mock(() => Promise.resolve(1)),
+    expire: mock(() => Promise.resolve(1)),
+    ttl: mock(() => Promise.resolve(-1)),
+  })),
   isRedisConnected: mock(() => true),
   checkRedisHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 2 })),
   RedisKeys: {
@@ -65,4 +114,7 @@ mock.module('./db', () => ({
     rateLimit: (action: string, id: string) => `rate:${action}:${id}`,
     session: (id: string) => `session:${id}`,
   },
+  // Initialization helpers
+  initializeDatabases: mock(() => Promise.resolve()),
+  closeDatabases: mock(() => Promise.resolve()),
 }));

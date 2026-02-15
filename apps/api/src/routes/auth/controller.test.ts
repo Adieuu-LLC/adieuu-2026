@@ -23,12 +23,41 @@ mock.module('../../utils/crypto', () => ({
   constantTimeCompare: mock(() => true),
 }));
 
+// Mock config to avoid loading env
+mock.module('../../config', () => ({
+  config: {
+    mongodb: { uri: 'mongodb://localhost:27017', dbName: 'test', minPoolSize: 1, maxPoolSize: 10 },
+    redis: { url: 'redis://localhost:6379' },
+    features: { requireDatabase: false, initializeCollections: false },
+    app: { name: 'Chadder' },
+    session: { secret: 'test-secret', expiresIn: 3600 },
+  },
+}));
+
+// Mock collection factory
+const mockCollection = {
+  findOne: mock(() => Promise.resolve(null)),
+  find: mock(() => ({ limit: mock(() => ({ toArray: mock(() => Promise.resolve([])) })) })),
+  insertOne: mock(() => Promise.resolve({ insertedId: 'test-id' })),
+  updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })),
+  findOneAndUpdate: mock(() => Promise.resolve(null)),
+  deleteOne: mock(() => Promise.resolve({ deletedCount: 1 })),
+  countDocuments: mock(() => Promise.resolve(0)),
+};
+
 // Mock db submodules to prevent them from loading real config
 mock.module('../../db/mongo', () => ({
   connectMongo: mock(() => Promise.resolve()),
   disconnectMongo: mock(() => Promise.resolve()),
-  getMongoClient: mock(() => null),
+  getDb: mock(() => ({})),
+  getCollection: mock(() => mockCollection),
   checkMongoHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 5 })),
+  initializeCollections: mock(() => Promise.resolve([])),
+  Collections: {
+    USERS: 'users',
+    SESSIONS: 'sessions',
+    AUDIT_LOGS: 'audit_logs',
+  },
 }));
 
 mock.module('../../db/redis', () => ({
@@ -47,8 +76,15 @@ mock.module('../../db/redis', () => ({
 mock.module('../../db', () => ({
   connectMongo: mock(() => Promise.resolve()),
   disconnectMongo: mock(() => Promise.resolve()),
-  getMongoClient: mock(() => null),
+  getDb: mock(() => ({})),
+  getCollection: mock(() => mockCollection),
   checkMongoHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 5 })),
+  initializeCollections: mock(() => Promise.resolve([])),
+  Collections: {
+    USERS: 'users',
+    SESSIONS: 'sessions',
+    AUDIT_LOGS: 'audit_logs',
+  },
   connectRedis: mock(() => Promise.resolve()),
   disconnectRedis: mock(() => Promise.resolve()),
   getRedis: mock(() => ({})),
@@ -59,6 +95,62 @@ mock.module('../../db', () => ({
     rateLimit: (action: string, id: string) => `rate:${action}:${id}`,
     session: (id: string) => `session:${id}`,
   },
+}));
+
+// Mock base repository to avoid db dependency
+mock.module('../../repositories/base.repository', () => ({
+  BaseRepository: class MockBaseRepository {
+    collection = mockCollection;
+    constructor() {}
+    findById = mock(() => Promise.resolve(null));
+    findOne = mock(() => Promise.resolve(null));
+    findMany = mock(() => Promise.resolve([]));
+    create = mock(() => Promise.resolve({ _id: 'test-id' }));
+    updateById = mock(() => Promise.resolve(null));
+    deleteById = mock(() => Promise.resolve(true));
+    count = mock(() => Promise.resolve(0));
+  },
+}));
+
+// Mock repositories
+mock.module('../../repositories/user.repository', () => ({
+  getUserRepository: mock(() => ({
+    findById: mock(() => Promise.resolve(null)),
+    findOne: mock(() => Promise.resolve(null)),
+    findByEmail: mock(() => Promise.resolve(null)),
+    findByPhone: mock(() => Promise.resolve(null)),
+    findByIdentifier: mock(() => Promise.resolve(null)),
+    create: mock(() => Promise.resolve({ _id: 'test-id' })),
+    updateById: mock(() => Promise.resolve(null)),
+    recordLogin: mock(() => Promise.resolve()),
+    incrementFailedAttempts: mock(() => Promise.resolve()),
+    resetFailedAttempts: mock(() => Promise.resolve()),
+    lockAccount: mock(() => Promise.resolve()),
+    unlockAccount: mock(() => Promise.resolve()),
+  })),
+}));
+
+mock.module('../../repositories/session.repository', () => ({
+  getSessionRepository: mock(() => ({
+    findById: mock(() => Promise.resolve(null)),
+    findBySessionId: mock(() => Promise.resolve(null)),
+    findByUserId: mock(() => Promise.resolve([])),
+    create: mock(() => Promise.resolve({ _id: 'test-id', sessionId: 'test-session' })),
+    updateById: mock(() => Promise.resolve(null)),
+    deleteById: mock(() => Promise.resolve(true)),
+    revokeSession: mock(() => Promise.resolve(null)),
+    revokeAllUserSessions: mock(() => Promise.resolve(0)),
+  })),
+}));
+
+// Mock session service
+mock.module('../../services/session.service', () => ({
+  createSession: mock(() => Promise.resolve({ sessionId: 'test-session', userId: 'test-user' })),
+  getSessionFromRequest: mock(() => Promise.resolve(null)),
+  destroySession: mock(() => Promise.resolve()),
+  destroyAllSessions: mock(() => Promise.resolve(0)),
+  getSessionIdFromRequest: mock(() => null),
+  buildLogoutCookie: mock(() => 'session=; Path=/; HttpOnly; Max-Age=0'),
 }));
 
 // Now mock the services that depend on db
@@ -75,6 +167,7 @@ const mockAddJitter = mock(() => Promise.resolve());
 
 mock.module('../../services/otp.service', () => ({
   createOtp: mockCreateOtp,
+  verifyOtp: mock(() => Promise.resolve({ success: true, userId: 'test-user-id' })),
 }));
 
 mock.module('../../services/rate-limit.service', () => ({

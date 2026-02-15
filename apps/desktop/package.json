@@ -1,6 +1,12 @@
 {
   "name": "@chadder/desktop",
   "version": "0.1.0",
+  "description": "Chadder Desktop - Secure encrypted messaging application",
+  "author": {
+    "name": "Chadder Team",
+    "email": "team@chadder.im"
+  },
+  "homepage": "https://chadder.im",
   "private": true,
   "main": "dist/main/main.js",
   "type": "module",
@@ -61,7 +67,8 @@
         "deb",
         "rpm"
       ],
-      "category": "Utility"
+      "category": "Utility",
+      "maintainer": "Chadder Team <team@chadder.im>"
     }
   }
 }
