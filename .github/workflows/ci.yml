@@ -204,16 +204,34 @@ jobs:
     needs: [build-web, build-api, build-desktop]
     # Only generate SBOM on pushes to main, not on PRs
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: api
+            path: apps/api
+          - app: web
+            path: apps/web
+          - app: desktop
+            path: apps/desktop
+          # Mobile doesn't have a build job yet, but we can still generate its SBOM
+          - app: mobile
+            path: apps/mobile
     steps:
       - uses: actions/checkout@v4
+
+      - name: Get app version
+        id: version
+        run: echo "version=$(jq -r .version ${{ matrix.path }}/package.json)" >> $GITHUB_OUTPUT
 
       - name: Generate and upload SBOM
         uses: manifest-cyber/manifest-github-action@main
         with:
           apiKey: ${{ secrets.MANIFEST_API_KEY }}
+          path: ${{ matrix.path }}
           relationship: 'first'
-          sbomName: 'chadder-2026'
-          sbomVersion: '${{ github.sha }}'
+          sbomName: 'chadder-${{ matrix.app }}'
+          sbomVersion: '${{ steps.version.outputs.version }}'
           sbomGenerator: 'cdxgen'
-          asset-labels: 'chadder,oss,generated-pipeline'
+          asset-labels: 'chadder,environment-${{ matrix.app }},v${{ steps.version.outputs.version }},oss,generated-pipeline'
           active: true
