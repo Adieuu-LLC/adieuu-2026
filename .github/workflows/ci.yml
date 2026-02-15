@@ -247,3 +247,4 @@ jobs:
           sbomGenerator: 'cdxgen'
           asset-labels: 'chadder,environment-${{ matrix.app }},v${{ steps.version.outputs.version }},oss,generated-pipeline'
           active: true
+          artifactName: 'sbom-${{ matrix.app }}'
