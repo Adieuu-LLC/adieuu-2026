@@ -202,6 +202,17 @@ jobs:
           git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
           git push origin main --follow-tags
 
+      - name: Create draft release
+        if: steps.version.outputs.released == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.new_version }}
+          name: v${{ steps.version.outputs.new_version }}
+          draft: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-and-release-desktop:
     needs: release
     if: needs.release.outputs.released == 'true'
@@ -248,6 +259,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.release.outputs.new_version }}
+          # Keep as draft until all artifacts are uploaded
+          draft: true
           files: |
             apps/desktop/out/*.exe
             apps/desktop/out/*.dmg
@@ -256,5 +269,18 @@ jobs:
             apps/desktop/out/*.rpm
             apps/desktop/out/*.zip
           fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-release:
+    needs: [release, build-and-release-desktop]
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.release.outputs.new_version }}
+          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
