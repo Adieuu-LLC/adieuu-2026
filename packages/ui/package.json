@@ -30,7 +30,8 @@
   },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0"
+    "react-dom": "^18.0.0 || ^19.0.0",
+    "react-router-dom": "^7.0.0"
   },
   "devDependencies": {
     "@chadder/tsconfig": "workspace:*",
@@ -38,6 +39,7 @@
     "@types/react-dom": "^18.3.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^7.1.1",
     "typescript": "^5.7.3"
   }
 }

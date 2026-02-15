@@ -1,4 +1,62 @@
-// Shared UI components
+// ============================================================================
+// Shared App & Pages
+// ============================================================================
+
+export { App, AppSidebar } from './app';
+export {
+  Home,
+  About,
+  Login,
+  Verify,
+  AccountOverview,
+  AccountAppearance,
+  AccountSecurity,
+  AccountPrivacy,
+  AccountNotifications,
+} from './pages';
+
+// ============================================================================
+// Platform Configuration & Capabilities
+// ============================================================================
+
+export {
+  PlatformProvider,
+  usePlatformContext,
+  useAppConfig,
+  usePlatformCapabilities,
+  usePlatformFeatures,
+} from './config';
+
+export type {
+  AppConfig,
+  PlatformCapabilities,
+  PlatformContextValue,
+  PlatformFeatures,
+  SecureStorage,
+  FileSystem,
+  Notifications,
+  PlatformProviderProps,
+} from './config';
+
+// ============================================================================
+// Auth & Tour Hooks
+// ============================================================================
+
+export { useAuth, AuthProvider } from './hooks/useAuth';
+export { useTourContext, TourProvider } from './hooks/useTourContext';
+
+export type {
+  AuthStatus,
+  AuthState,
+  AuthContextValue,
+  AuthProviderProps,
+} from './hooks/useAuth';
+export type { TourProviderProps } from './hooks/useTourContext';
+
+// ============================================================================
+// UI Components
+// ============================================================================
+
 export { Button } from './components/Button';
 export { Input } from './components/Input';
 export { OtpInput } from './components/OtpInput';
@@ -21,7 +79,10 @@ export { TourRoot, useTour, createTourSteps } from './components/Tour';
 export { Avatar } from './components/Avatar';
 export { Tooltip } from './components/Tooltip';
 
+// ============================================================================
 // Icons
+// ============================================================================
+
 export {
   HomeIcon,
   MessageIcon,
@@ -38,10 +99,16 @@ export {
   LockIcon,
 } from './components/Icons';
 
-// Hooks
+// ============================================================================
+// Utility Hooks
+// ============================================================================
+
 export { usePlatform } from './hooks/usePlatform';
 
-// Types
+// ============================================================================
+// Component Types
+// ============================================================================
+
 export type { ButtonProps } from './components/Button';
 export type { InputProps } from './components/Input';
 export type { OtpInputProps } from './components/OtpInput';

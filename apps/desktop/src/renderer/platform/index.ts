@@ -1,0 +1,1 @@
+export { desktopCapabilities } from './capabilities';
