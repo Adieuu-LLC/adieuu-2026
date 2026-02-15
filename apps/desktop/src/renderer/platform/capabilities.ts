@@ -214,7 +214,8 @@ export const desktopCapabilities: PlatformCapabilities = {
     hasSecureStorage: true, // Will use safeStorage once IPC is added
     hasLocalFileSystem: true, // Will use fs via IPC once added
     hasSystemTray: true, // Can be implemented
-    hasBiometrics: process.platform === 'darwin' || process.platform === 'win32',
+    hasBiometrics:
+      window.electron?.platform === 'darwin' || window.electron?.platform === 'win32',
     hasNativeWindowControls: true,
     hasDeepLinking: true,
   },
