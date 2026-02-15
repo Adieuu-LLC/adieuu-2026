@@ -15,7 +15,7 @@
 
 import { Router } from '../../router';
 import { success } from '../../utils/response';
-import { requestOtp, verifyOtpHandler, getClientIp } from './controller';
+import { requestOtp, verifyOtpHandler, getSessionHandler, logoutHandler, getClientIp } from './controller';
 import { z } from '@chadder/shared/schemas';
 
 const router = new Router();
@@ -179,8 +179,9 @@ router.post('/auth/verify', async (ctx) => {
 
   const { identifier, code } = parseResult.data;
   const clientIp = getClientIp(ctx.request);
+  const userAgent = ctx.request.headers.get('User-Agent') ?? undefined;
 
-  const result = await verifyOtpHandler({ identifier, code }, clientIp);
+  const result = await verifyOtpHandler({ identifier, code }, clientIp, userAgent);
 
   if (!result.success) {
     if (result.error === 'backoff' && result.retryAfterSeconds) {
@@ -195,7 +196,58 @@ router.post('/auth/verify', async (ctx) => {
     return ctx.errors.verificationFailed();
   }
 
-  return success(result.data, 'Authentication successful.');
+  // Return success with Set-Cookie header (HTTP-only session cookie)
+  const response = success(undefined, 'Authentication successful.');
+  const headers = new Headers(response.headers);
+  headers.set('Set-Cookie', result.cookie);
+  return new Response(response.body, { status: response.status, headers });
+});
+
+/**
+ * GET /auth/session - Get current session status.
+ *
+ * Returns the current user's session information if authenticated,
+ * or 401 Unauthorized if not authenticated.
+ *
+ * @route GET /api/auth/session
+ *
+ * @returns 200 OK with session info (identifier, identifier type)
+ * @returns 401 Unauthorized if no valid session
+ *
+ * @security
+ * - Session is read from HTTP-only cookie (not accessible to JavaScript)
+ * - Does not expose sensitive session internals
+ */
+router.get('/auth/session', async (ctx) => {
+  const session = await getSessionHandler(ctx.request);
+
+  if (!session) {
+    return ctx.errors.unauthorized();
+  }
+
+  // Return non-sensitive session info for the UI
+  return success({
+    identifier: session.identifier,
+    identifierType: session.identifierType,
+  });
+});
+
+/**
+ * POST /auth/logout - Log out the current session.
+ *
+ * Destroys the current session and clears the session cookie.
+ *
+ * @route POST /api/auth/logout
+ *
+ * @returns 200 OK with cleared session cookie
+ */
+router.post('/auth/logout', async (ctx) => {
+  const logoutCookie = await logoutHandler(ctx.request);
+
+  const response = success(undefined, 'Logged out successfully.');
+  const headers = new Headers(response.headers);
+  headers.set('Set-Cookie', logoutCookie);
+  return new Response(response.body, { status: response.status, headers });
 });
 
 export const authRoutes = router;

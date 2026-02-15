@@ -25,4 +25,5 @@
 
 export * from './otp.service';
 export * from './rate-limit.service';
+export * from './session.service';
 export * from './messaging';

@@ -17,7 +17,7 @@ export function Home() {
           <Link to="/about" className="nav-link">
             About
           </Link>
-          <Button variant="ghost" size="sm" onClick={logout}>
+          <Button variant="ghost" size="sm" onClick={() => logout()}>
             Sign out
           </Button>
         </nav>

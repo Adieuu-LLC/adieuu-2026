@@ -16,7 +16,7 @@ export function About() {
           <Link to="/about" className="nav-link active">
             About
           </Link>
-          <Button variant="ghost" size="sm" onClick={logout}>
+          <Button variant="ghost" size="sm" onClick={() => logout()}>
             Sign out
           </Button>
         </nav>

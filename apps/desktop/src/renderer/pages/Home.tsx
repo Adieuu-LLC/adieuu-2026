@@ -20,7 +20,7 @@ export function Home() {
           <span className="platform-badge">
             {platform === 'desktop' ? 'Desktop' : platform}
           </span>
-          <Button variant="ghost" size="sm" onClick={logout}>
+          <Button variant="ghost" size="sm" onClick={() => logout()}>
             Sign out
           </Button>
         </nav>

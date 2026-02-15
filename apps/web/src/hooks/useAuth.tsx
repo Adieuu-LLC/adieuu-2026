@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, createContext, useContext } from 'react';
 import type { ReactNode } from 'react';
-import { createApiClient, type AuthSession } from '@chadder/shared';
+import { createApiClient, type SessionInfo } from '@chadder/shared';
 
 // Create API client
 const api = createApiClient({ baseUrl: '' });
@@ -13,13 +13,15 @@ export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
 export interface AuthState {
   status: AuthStatus;
-  session: AuthSession | null;
+  session: SessionInfo | null;
 }
 
 export interface AuthContextValue extends AuthState {
   requestOtp: (identifier: string, type: 'email' | 'sms') => Promise<{ success: boolean; error?: string }>;
   verifyOtp: (identifier: string, code: string) => Promise<{ success: boolean; error?: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  /** Refresh session status from server */
+  refreshSession: () => Promise<void>;
 }
 
 // ============================================================================
@@ -27,12 +29,6 @@ export interface AuthContextValue extends AuthState {
 // ============================================================================
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-// ============================================================================
-// Storage Keys
-// ============================================================================
-
-const STORAGE_KEY = 'chadder_session';
 
 // ============================================================================
 // Auth Hook
@@ -52,21 +48,34 @@ export function useAuthState(): AuthContextValue {
     session: null,
   });
 
-  // Load session from storage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const session = JSON.parse(stored) as AuthSession;
-        setState({ status: 'authenticated', session });
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
-        setState({ status: 'unauthenticated', session: null });
+  // Check session status from server on mount
+  const refreshSession = useCallback(async () => {
+    try {
+      const response = await api.auth.getSession();
+
+      if (response.success && response.data) {
+        setState({
+          status: 'authenticated',
+          session: response.data,
+        });
+      } else {
+        setState({
+          status: 'unauthenticated',
+          session: null,
+        });
       }
-    } else {
-      setState({ status: 'unauthenticated', session: null });
+    } catch {
+      setState({
+        status: 'unauthenticated',
+        session: null,
+      });
     }
   }, []);
+
+  // Check session on mount
+  useEffect(() => {
+    refreshSession();
+  }, [refreshSession]);
 
   const requestOtp = useCallback(async (identifier: string, type: 'email' | 'sms') => {
     const response = await api.auth.requestOtp({ identifier, type });
@@ -91,18 +100,19 @@ export function useAuthState(): AuthContextValue {
       };
     }
 
-    // Store session
-    if (response.data) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(response.data));
-      setState({ status: 'authenticated', session: response.data });
-    }
+    // Session cookie is set by the server automatically
+    // Refresh session to get the session info
+    await refreshSession();
 
     return { success: true };
-  }, []);
+  }, [refreshSession]);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    setState({ status: 'unauthenticated', session: null });
+  const logout = useCallback(async () => {
+    await api.auth.logout();
+    setState({
+      status: 'unauthenticated',
+      session: null,
+    });
   }, []);
 
   return {
@@ -110,6 +120,7 @@ export function useAuthState(): AuthContextValue {
     requestOtp,
     verifyOtp,
     logout,
+    refreshSession,
   };
 }
 

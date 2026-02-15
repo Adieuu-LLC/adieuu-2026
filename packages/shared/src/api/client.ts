@@ -134,6 +134,19 @@ export interface VerifyOtpParams {
   code: string;
 }
 
+/**
+ * Session info returned from /auth/session endpoint.
+ * Note: The actual session token is stored in HTTP-only cookies,
+ * not exposed to JavaScript.
+ */
+export interface SessionInfo {
+  identifier: string;
+  identifierType: 'email' | 'phone';
+}
+
+/**
+ * @deprecated Use SessionInfo instead - sessions are now cookie-based
+ */
 export interface AuthSession {
   accessToken: string;
   expiresIn: number;
@@ -155,11 +168,38 @@ export class AuthApi {
   /**
    * Verify an OTP code.
    *
+   * On success, the server sets an HTTP-only session cookie.
+   * The response body contains success status but no token
+   * (token is in the cookie, not accessible to JS).
+   *
    * @param params - The identifier and OTP code
-   * @returns Session data on success, error on failure
+   * @returns Success on valid OTP, error on failure
    */
-  async verifyOtp(params: VerifyOtpParams): Promise<ApiResponse<AuthSession>> {
+  async verifyOtp(params: VerifyOtpParams): Promise<ApiResponse<void>> {
     return this.client.post('/api/auth/verify', params);
+  }
+
+  /**
+   * Get current session status.
+   *
+   * Returns session info if authenticated (cookie is valid),
+   * or error if not authenticated.
+   *
+   * @returns Session info on success, error if not authenticated
+   */
+  async getSession(): Promise<ApiResponse<SessionInfo>> {
+    return this.client.get('/api/auth/session');
+  }
+
+  /**
+   * Log out the current session.
+   *
+   * Destroys the session server-side and clears the session cookie.
+   *
+   * @returns Success on logout
+   */
+  async logout(): Promise<ApiResponse<void>> {
+    return this.client.post('/api/auth/logout');
   }
 }
 

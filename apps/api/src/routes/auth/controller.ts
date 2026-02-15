@@ -10,6 +10,7 @@
 
 import { createOtp, verifyOtp, type VerifyOtpResult } from '../../services/otp.service';
 import { checkRateLimit, type RateLimitResult } from '../../services/rate-limit.service';
+import { createSession, getSessionFromRequest, destroySession, getSessionIdFromRequest, buildLogoutCookie, type SessionData } from '../../services/session.service';
 import { sendEmail, sendSms } from '../../services/messaging';
 import { sanitizeString } from '../../utils/sanitize';
 import { hashIdentifier, hashIp, encrypt } from '../../utils/crypto';
@@ -302,7 +303,7 @@ export interface VerifyOtpInput {
  * Result type for OTP verification operations.
  */
 export type VerifyOtpHandlerResult =
-  | { success: true; data: { accessToken: string; expiresIn: number } }
+  | { success: true; cookie: string }
   | {
     success: false;
     error: 'invalid' | 'expired' | 'max_attempts' | 'backoff' | 'rate_limited';
@@ -322,16 +323,18 @@ function detectIdentifierType(identifier: string): 'email' | 'phone' {
 /**
  * Verifies an OTP code for passwordless authentication.
  *
- * This function handles OTP verification with rate limiting and returns
- * session tokens on successful authentication.
+ * This function handles OTP verification with rate limiting and creates
+ * a session on successful authentication.
  *
  * @param input - The verification parameters containing identifier and code
- * @param clientIp - The client's IP address for rate limiting purposes
- * @returns A promise resolving to the verification result
+ * @param clientIp - The client's IP address for rate limiting and session metadata
+ * @param userAgent - The user agent string for session metadata
+ * @returns A promise resolving to the verification result with session cookie
  */
 export async function verifyOtpHandler(
   input: VerifyOtpInput,
-  clientIp: string
+  clientIp: string,
+  userAgent?: string
 ): Promise<VerifyOtpHandlerResult> {
   const { identifier, code } = input;
 
@@ -374,16 +377,38 @@ export async function verifyOtpHandler(
     return { success: false, error: 'invalid' };
   }
 
-  // TODO: Create actual session/JWT token here
-  // For now, return a placeholder token
-  elog.info('User authenticated successfully', { identifierHash });
+  // Create session with HTTP-only cookie
+  const { cookie } = await createSession(
+    sanitizedIdentifier.value,
+    identifierType === 'email' ? 'email' : 'phone',
+    { userAgent, ipAddress: sanitizedIp.value }
+  );
 
-  return {
-    success: true,
-    data: {
-      // Placeholder - actual token generation would go here
-      accessToken: `placeholder_${Date.now()}_${identifierHash.slice(0, 8)}`,
-      expiresIn: 3600,
-    },
-  };
+  elog.info('User authenticated successfully', { identifierHash, identifierType });
+
+  return { success: true, cookie };
+}
+
+/**
+ * Gets the current session from a request.
+ *
+ * @param request - The incoming request with session cookie
+ * @returns Session data if valid, null otherwise
+ */
+export async function getSessionHandler(request: Request): Promise<SessionData | null> {
+  return getSessionFromRequest(request);
+}
+
+/**
+ * Logs out the current session.
+ *
+ * @param request - The incoming request with session cookie
+ * @returns The logout cookie to clear the session
+ */
+export async function logoutHandler(request: Request): Promise<string> {
+  const sessionId = getSessionIdFromRequest(request);
+  if (sessionId) {
+    await destroySession(sessionId);
+  }
+  return buildLogoutCookie();
 }
