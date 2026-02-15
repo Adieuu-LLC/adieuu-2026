@@ -12,6 +12,10 @@ concurrency:
   # Cancel in-progress runs when a new run is triggered
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  actions: write
+
 env:
   NODE_VERSION: '25'
   PNPM_VERSION: '9'
@@ -231,7 +235,9 @@ jobs:
         run: echo "version=$(jq -r .version ${{ matrix.path }}/package.json)" >> $GITHUB_OUTPUT
 
       - name: Generate and upload SBOM
-        uses: manifest-cyber/manifest-github-action@main
+        # SBOM generation is best-effort; don't fail CI if upload has transient issues
+        continue-on-error: true
+        uses: manifest-cyber/manifest-github-action@v1.6.0
         with:
           apiKey: ${{ secrets.MANIFEST_API_KEY }}
           path: ${{ matrix.path }}
