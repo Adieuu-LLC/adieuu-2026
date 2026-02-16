@@ -403,22 +403,22 @@ export async function verifyWebAuthnAuthentication(
     return { success: false, error: 'unauthorized' };
   }
 
-  const opts: VerifyAuthenticationResponseOpts = {
-    response,
-    expectedChallenge: storedChallenge,
-    expectedOrigin: RP_ORIGIN,
-    expectedRPID: RP_ID,
-    credential: {
-      id: credential.credentialId,
-      publicKey: Buffer.from(credential.publicKey, 'base64url'),
-      counter: credential.counter,
-      transports: credential.transports as AuthenticatorTransportFuture[],
-    },
-    requireUserVerification: false,
-  };
-
   let verification: VerifiedAuthenticationResponse;
   try {
+    const opts: VerifyAuthenticationResponseOpts = {
+      response,
+      expectedChallenge: storedChallenge,
+      expectedOrigin: RP_ORIGIN,
+      expectedRPID: RP_ID,
+      credential: {
+        id: credential.credentialId,
+        publicKey: Buffer.from(credential.publicKey, 'base64url'),
+        counter: credential.counter,
+        transports: credential.transports as AuthenticatorTransportFuture[],
+      },
+      requireUserVerification: false,
+    };
+
     verification = await verifyAuthenticationResponse(opts);
   } catch (error) {
     elog.warn('WebAuthn authentication verification failed', { error, userId });
@@ -759,7 +759,17 @@ export async function getMfaLoginChallenge(sessionId: string): Promise<MfaChalle
     return null;
   }
 
-  const challenge = JSON.parse(data) as MfaChallengeData;
+  let challenge: MfaChallengeData;
+  try {
+    challenge = JSON.parse(data) as MfaChallengeData;
+  } catch {
+    // Malformed data in Redis - log and clean up
+    elog.warn('Failed to parse MFA login challenge data', {
+      sessionIdPrefix: sessionId.substring(0, 8),
+    });
+    await redis.del(key);
+    return null;
+  }
 
   // Check expiration
   if (challenge.expiresAt < Date.now()) {

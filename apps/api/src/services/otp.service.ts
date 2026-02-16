@@ -268,7 +268,17 @@ export async function verifyOtp(
     return { valid: false, error: 'not_found' };
   }
 
-  const data: StoredOtp = JSON.parse(stored);
+  let data: StoredOtp;
+  try {
+    data = JSON.parse(stored);
+  } catch {
+    // Malformed data in Redis - log and clean up
+    elog.warn('Failed to parse OTP data', { identifierHash });
+    await redis.del(key);
+    // Perform dummy operations for consistent timing
+    performDummyHashCompare(identifier, code);
+    return { valid: false, error: 'not_found' };
+  }
   const now = Date.now();
 
   // Check if in backoff period
