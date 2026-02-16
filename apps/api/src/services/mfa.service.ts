@@ -365,10 +365,12 @@ export async function verifyWebAuthnRegistration(
   const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
 
   // Save the credential
+  // Use response.id directly - it's already base64url-encoded from the browser
+  // Using Buffer.from(credential.id) can cause double-encoding issues
   const repo = getWebAuthnRepository();
   const savedCredential = await repo.create({
     userId: new ObjectId(userId),
-    credentialId: Buffer.from(credential.id).toString('base64url'),
+    credentialId: response.id,
     publicKey: Buffer.from(credential.publicKey).toString('base64url'),
     counter: credential.counter,
     deviceType: credentialDeviceType,

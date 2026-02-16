@@ -4,6 +4,7 @@ import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
 import { Spinner } from '../../components/Spinner';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { TotpSetup, WebAuthnSetup, MfaCredentialsList } from '../../components/MfaSetup';
 import { createApiClient, type SessionDetails } from '@chadder/shared';
 import { useAppConfig } from '../../config';
@@ -70,6 +71,7 @@ function SessionsList() {
   const [loading, setLoading] = useState(true);
   const [revoking, setRevoking] = useState<string | null>(null);
   const [revokingAll, setRevokingAll] = useState(false);
+  const [showRevokeAllConfirm, setShowRevokeAllConfirm] = useState(false);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -103,10 +105,6 @@ function SessionsList() {
   };
 
   const handleRevokeAllOthers = async () => {
-    if (!window.confirm(t('account.security.sessions.revokeAllConfirm'))) {
-      return;
-    }
-
     setRevokingAll(true);
     try {
       const response = await api.auth.revokeAllOtherSessions();
@@ -118,6 +116,7 @@ function SessionsList() {
       console.error('Failed to revoke all sessions:', error);
     } finally {
       setRevokingAll(false);
+      setShowRevokeAllConfirm(false);
     }
   };
 
@@ -142,7 +141,7 @@ function SessionsList() {
           <Button
             variant="secondary"
             size="sm"
-            onClick={handleRevokeAllOthers}
+            onClick={() => setShowRevokeAllConfirm(true)}
             disabled={revokingAll}
           >
             {revokingAll ? <Spinner size="sm" /> : t('account.security.sessions.revokeAllOthers')}
@@ -198,6 +197,18 @@ function SessionsList() {
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={showRevokeAllConfirm}
+        onOpenChange={setShowRevokeAllConfirm}
+        title={t('account.security.sessions.revokeAllTitle', 'Sign out of all other sessions')}
+        description={t('account.security.sessions.revokeAllConfirm', 'Are you sure you want to sign out of all other sessions? You will remain signed in on this device.')}
+        confirmLabel={t('account.security.sessions.revokeAllOthers', 'Sign out all others')}
+        cancelLabel={t('common.cancel', 'Cancel')}
+        variant="danger"
+        loading={revokingAll}
+        onConfirm={handleRevokeAllOthers}
+      />
     </div>
   );
 }

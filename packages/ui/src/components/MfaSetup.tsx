@@ -9,6 +9,7 @@ import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
 import { Spinner } from './Spinner';
+import { ConfirmDialog } from './ConfirmDialog';
 import {
   createApiClient,
   type MfaStatus,
@@ -336,6 +337,9 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
   const [webauthnCredentials, setWebauthnCredentials] = useState<WebAuthnCredential[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  // Confirm dialog state
+  const [confirmDelete, setConfirmDelete] = useState<{ type: 'totp' | 'webauthn'; id: string } | null>(null);
+
   const fetchCredentials = useCallback(async () => {
     try {
       const [statusRes, credentialsRes] = await Promise.all([
@@ -362,10 +366,6 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
   }, [fetchCredentials]);
 
   const handleDeleteTotp = async (id: string) => {
-    if (!window.confirm(t('account.security.mfa.totp.deleteConfirm', 'Are you sure you want to remove this authenticator?'))) {
-      return;
-    }
-
     setDeleting(id);
     try {
       const response = await api.mfa.deleteTotp(id);
@@ -377,14 +377,11 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
       console.error('Failed to delete TOTP:', err);
     } finally {
       setDeleting(null);
+      setConfirmDelete(null);
     }
   };
 
   const handleDeleteWebAuthn = async (id: string) => {
-    if (!window.confirm(t('account.security.mfa.webauthn.deleteConfirm', 'Are you sure you want to remove this passkey?'))) {
-      return;
-    }
-
     setDeleting(id);
     try {
       const response = await api.mfa.deleteWebAuthn(id);
@@ -396,6 +393,16 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
       console.error('Failed to delete WebAuthn:', err);
     } finally {
       setDeleting(null);
+      setConfirmDelete(null);
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (!confirmDelete) return;
+    if (confirmDelete.type === 'totp') {
+      handleDeleteTotp(confirmDelete.id);
+    } else {
+      handleDeleteWebAuthn(confirmDelete.id);
     }
   };
 
@@ -460,7 +467,7 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleDeleteTotp(cred.id)}
+                  onClick={() => setConfirmDelete({ type: 'totp', id: cred.id })}
                   disabled={deleting === cred.id}
                 >
                   {deleting === cred.id ? <Spinner size="sm" /> : t('common.remove', 'Remove')}
@@ -504,7 +511,7 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleDeleteWebAuthn(cred.id)}
+                  onClick={() => setConfirmDelete({ type: 'webauthn', id: cred.id })}
                   disabled={deleting === cred.id}
                 >
                   {deleting === cred.id ? <Spinner size="sm" /> : t('common.remove', 'Remove')}
@@ -534,6 +541,25 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
           </div>
         </div>
       )}
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        onOpenChange={(open) => !open && setConfirmDelete(null)}
+        title={confirmDelete?.type === 'totp'
+          ? t('account.security.mfa.totp.deleteTitle', 'Remove Authenticator')
+          : t('account.security.mfa.webauthn.deleteTitle', 'Remove Passkey')
+        }
+        description={confirmDelete?.type === 'totp'
+          ? t('account.security.mfa.totp.deleteConfirm', 'Are you sure you want to remove this authenticator?')
+          : t('account.security.mfa.webauthn.deleteConfirm', 'Are you sure you want to remove this passkey?')
+        }
+        confirmLabel={t('common.remove', 'Remove')}
+        cancelLabel={t('common.cancel', 'Cancel')}
+        variant="danger"
+        loading={deleting !== null}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }
@@ -543,12 +569,9 @@ function RegenerateBackupCodes({ api, onRegenerate }: { api: ReturnType<typeof c
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [codes, setCodes] = useState<string[] | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const handleRegenerate = async () => {
-    if (!window.confirm(t('account.security.mfa.backupCodes.regenerateConfirm', 'This will invalidate your existing backup codes. Continue?'))) {
-      return;
-    }
-
     setLoading(true);
     try {
       const response = await api.mfa.regenerateBackupCodes();
@@ -560,6 +583,7 @@ function RegenerateBackupCodes({ api, onRegenerate }: { api: ReturnType<typeof c
       console.error('Failed to regenerate backup codes:', err);
     } finally {
       setLoading(false);
+      setShowConfirm(false);
     }
   };
 
@@ -592,8 +616,21 @@ function RegenerateBackupCodes({ api, onRegenerate }: { api: ReturnType<typeof c
   }
 
   return (
-    <Button variant="secondary" size="sm" onClick={handleRegenerate} disabled={loading}>
-      {loading ? <Spinner size="sm" /> : t('account.security.mfa.backupCodes.regenerate', 'Regenerate codes')}
-    </Button>
+    <>
+      <Button variant="secondary" size="sm" onClick={() => setShowConfirm(true)} disabled={loading}>
+        {loading ? <Spinner size="sm" /> : t('account.security.mfa.backupCodes.regenerate', 'Regenerate codes')}
+      </Button>
+      <ConfirmDialog
+        open={showConfirm}
+        onOpenChange={setShowConfirm}
+        title={t('account.security.mfa.backupCodes.regenerateTitle', 'Regenerate Backup Codes')}
+        description={t('account.security.mfa.backupCodes.regenerateConfirm', 'This will invalidate your existing backup codes. Continue?')}
+        confirmLabel={t('account.security.mfa.backupCodes.regenerate', 'Regenerate codes')}
+        cancelLabel={t('common.cancel', 'Cancel')}
+        variant="danger"
+        loading={loading}
+        onConfirm={handleRegenerate}
+      />
+    </>
   );
 }
