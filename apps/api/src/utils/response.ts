@@ -404,4 +404,13 @@ export const localizedErrors = {
   /** 413 - Payload too large */
   payloadTooLarge: (locale?: Locale) =>
     localizedError('payloadTooLarge', 'PAYLOAD_TOO_LARGE', 413, locale),
+
+  /**
+   * 409 - Contact already owned by another account
+   *
+   * This is ONLY returned AFTER OTP verification succeeds, so the user
+   * has proven they own the email/phone. Safe to reveal this information.
+   */
+  alreadyOwned: (locale?: Locale) =>
+    localizedError('alreadyOwned', 'ALREADY_OWNED', 409, locale),
 } as const;

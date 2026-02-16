@@ -63,10 +63,13 @@ export const en = {
       phoneVerified: 'Phone verified successfully.',
       invalidCode: 'Invalid verification code. Please try again.',
       errorSendingCode: 'Failed to send verification code.',
+      alreadyOwned: 'This is already attached to another Chadder account. You may have signed up with it previously.',
       // Verification tooltips
       verified: 'Verified',
       emailNotVerifiedTooltip: 'Email not yet verified. Add and verify to use this as login.',
       phoneNotVerifiedTooltip: 'Phone not yet verified. Add and verify to use this as login.',
+      emailUnchanged: 'Enter a different email address to change it.',
+      phoneUnchanged: 'Enter a different phone number to change it.',
     },
 
     // Appearance

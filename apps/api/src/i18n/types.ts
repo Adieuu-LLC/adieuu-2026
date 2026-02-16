@@ -35,6 +35,7 @@ export interface EmailTemplate {
 export type EmailTemplateKey =
   | 'otp'
   | 'otpWithMagicLink'
+  | 'otpAccountAdd'
   | 'accountLocked'
   | 'failedLoginAttempts'
   | 'welcome'
@@ -45,6 +46,7 @@ export type EmailTemplateKey =
  */
 export type SmsTemplateKey =
   | 'otp'
+  | 'otpAccountAdd'
   | 'accountLocked'
   | 'failedLoginAttempts';
 
@@ -79,7 +81,9 @@ export type ErrorKey =
   // Account-level errors (for notifications, not API responses)
   | 'accountLocked'
   | 'sessionExpired'
-  | 'payloadTooLarge';
+  | 'payloadTooLarge'
+  // Contact already attached to another account (revealed AFTER OTP verification)
+  | 'alreadyOwned';
 
 /**
  * Structure of a locale translation file.

@@ -40,6 +40,11 @@ export interface ContextErrors {
   accountLocked: () => Response;
   sessionExpired: () => Response;
   payloadTooLarge: () => Response;
+  /**
+   * Contact (email/phone) already owned by another account.
+   * Only use AFTER OTP verification proves ownership - safe to reveal.
+   */
+  alreadyOwned: () => Response;
 }
 
 export interface RouteContext {

@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { initI18n } from '@chadder/ui/i18n';
-import { App, PlatformProvider, AuthProvider, type AppConfig } from '@chadder/ui';
+import { App, PlatformProvider, AuthProvider, ToastProvider, type AppConfig } from '@chadder/ui';
 import { webCapabilities } from './platform';
 import '@chadder/ui/styles.css';
 import './index.css';
@@ -25,7 +25,9 @@ createRoot(rootElement).render(
     <BrowserRouter>
       <PlatformProvider config={config} capabilities={webCapabilities}>
         <AuthProvider>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </AuthProvider>
       </PlatformProvider>
     </BrowserRouter>

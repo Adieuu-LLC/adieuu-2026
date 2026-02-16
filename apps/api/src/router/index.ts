@@ -68,6 +68,7 @@ function createContextErrors(locale: Locale): ContextErrors {
     accountLocked: () => localizedErrors.accountLocked(locale),
     sessionExpired: () => localizedErrors.sessionExpired(locale),
     payloadTooLarge: () => localizedErrors.payloadTooLarge(locale),
+    alreadyOwned: () => localizedErrors.alreadyOwned(locale),
   };
 }
 

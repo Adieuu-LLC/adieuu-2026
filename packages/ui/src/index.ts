@@ -78,6 +78,7 @@ export { Tabs, TabList, TabTrigger, TabContent } from './components/Tabs';
 export { TourRoot, useTour, createTourSteps } from './components/Tour';
 export { Avatar } from './components/Avatar';
 export { Tooltip } from './components/Tooltip';
+export { ToastProvider, useToast } from './components/Toast';
 
 // ============================================================================
 // Icons
@@ -133,3 +134,4 @@ export type {
 } from './components/Tour';
 export type { AvatarProps, AvatarInfo } from './components/Avatar';
 export type { TooltipProps } from './components/Tooltip';
+export type { ToastOptions, ToastVariant, ToastContextValue, ToastProviderProps } from './components/Toast';

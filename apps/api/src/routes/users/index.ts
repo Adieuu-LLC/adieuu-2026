@@ -60,14 +60,15 @@ const EmailRequestSchema = z.object({
  * POST /users/me/email - Request email verification.
  *
  * Sends a verification code to the specified email address.
+ * Note: We don't check if the email belongs to another user here to prevent
+ * account enumeration. That check happens AFTER OTP verification.
  *
  * @route POST /api/users/me/email
  *
  * @requestBody
  * - `email` (string, required): Email address to verify
  *
- * @returns 200 OK - Verification code sent (or error occurred silently)
- * @returns 400 Bad Request if email already exists for another user
+ * @returns 200 OK - Verification code sent
  * @returns 401 Unauthorized if not authenticated
  * @returns 429 Too Many Requests if rate limited
  */
@@ -92,9 +93,6 @@ router.post('/users/me/email', async (ctx) => {
     if (result.error === 'rate_limited') {
       return ctx.errors.rateLimited();
     }
-    if (result.error === 'already_exists') {
-      return ctx.errors.badRequest();
-    }
     if (result.error === 'already_verified') {
       return success(undefined, 'Email already verified.');
     }
@@ -116,6 +114,9 @@ const EmailVerifySchema = z.object({
  * POST /users/me/email/verify - Verify email with OTP.
  *
  * Verifies the email address using the provided OTP code.
+ * Note: The check for whether this email belongs to another account happens
+ * AFTER OTP verification to prevent enumeration attacks. Only after proving
+ * ownership do we reveal if it's already attached to another account.
  *
  * @route POST /api/users/me/email/verify
  *
@@ -125,6 +126,7 @@ const EmailVerifySchema = z.object({
  *
  * @returns 200 OK with updated user profile
  * @returns 401 Unauthorized if not authenticated or verification failed
+ * @returns 409 Conflict if email belongs to another account (after proving ownership)
  * @returns 429 Too Many Requests if in backoff period
  */
 router.post('/users/me/email/verify', async (ctx) => {
@@ -153,6 +155,10 @@ router.post('/users/me/email/verify', async (ctx) => {
     if (result.error === 'max_attempts') {
       return ctx.errors.tooManyAttempts();
     }
+    // User proved ownership but email is attached to another account
+    if (result.error === 'already_owned') {
+      return ctx.errors.alreadyOwned();
+    }
     return ctx.errors.verificationFailed();
   }
 
@@ -170,6 +176,8 @@ const PhoneRequestSchema = z.object({
  * POST /users/me/phone - Request phone verification.
  *
  * Sends a verification code to the specified phone number.
+ * Note: We don't check if the phone belongs to another user here to prevent
+ * account enumeration. That check happens AFTER OTP verification.
  *
  * @route POST /api/users/me/phone
  *
@@ -177,7 +185,6 @@ const PhoneRequestSchema = z.object({
  * - `phone` (string, required): Phone number to verify (E.164 format)
  *
  * @returns 200 OK - Verification code sent
- * @returns 400 Bad Request if phone already exists for another user
  * @returns 401 Unauthorized if not authenticated
  * @returns 429 Too Many Requests if rate limited
  */
@@ -202,9 +209,6 @@ router.post('/users/me/phone', async (ctx) => {
     if (result.error === 'rate_limited') {
       return ctx.errors.rateLimited();
     }
-    if (result.error === 'already_exists') {
-      return ctx.errors.badRequest();
-    }
     if (result.error === 'already_verified') {
       return success(undefined, 'Phone already verified.');
     }
@@ -226,6 +230,9 @@ const PhoneVerifySchema = z.object({
  * POST /users/me/phone/verify - Verify phone with OTP.
  *
  * Verifies the phone number using the provided OTP code.
+ * Note: The check for whether this phone belongs to another account happens
+ * AFTER OTP verification to prevent enumeration attacks. Only after proving
+ * ownership do we reveal if it's already attached to another account.
  *
  * @route POST /api/users/me/phone/verify
  *
@@ -235,6 +242,7 @@ const PhoneVerifySchema = z.object({
  *
  * @returns 200 OK with updated user profile
  * @returns 401 Unauthorized if not authenticated or verification failed
+ * @returns 409 Conflict if phone belongs to another account (after proving ownership)
  * @returns 429 Too Many Requests if in backoff period
  */
 router.post('/users/me/phone/verify', async (ctx) => {
@@ -262,6 +270,10 @@ router.post('/users/me/phone/verify', async (ctx) => {
     }
     if (result.error === 'max_attempts') {
       return ctx.errors.tooManyAttempts();
+    }
+    // User proved ownership but phone is attached to another account
+    if (result.error === 'already_owned') {
+      return ctx.errors.alreadyOwned();
     }
     return ctx.errors.verificationFailed();
   }

@@ -96,13 +96,21 @@ export async function getCurrentUserProfile(userId: string): Promise<PublicUser 
 
 /**
  * Result type for requesting contact verification.
+ *
+ * Note: We intentionally don't check if the email/phone belongs to another user here.
+ * This prevents account enumeration attacks. The check happens AFTER OTP verification
+ * to ensure the user owns the email/phone before revealing any account information.
  */
 export type RequestContactVerificationResult =
   | { success: true }
-  | { success: false; error: 'rate_limited' | 'already_verified' | 'already_exists' | 'invalid_format' };
+  | { success: false; error: 'rate_limited' | 'already_verified' | 'invalid_format' };
 
 /**
  * Requests email verification for a user.
+ *
+ * Note: We intentionally don't check if the email belongs to another user here.
+ * This prevents account enumeration attacks. The check happens AFTER OTP verification
+ * to ensure the user owns the email before revealing any account information.
  *
  * @param userId - The user's MongoDB ObjectId
  * @param email - The email address to verify
@@ -133,15 +141,8 @@ export async function requestEmailVerification(
     return { success: false, error: 'rate_limited' };
   }
 
-  // Check if email already exists for another user
+  // Get current user - only check if this exact email is already verified for THIS user
   const userRepo = getUserRepository();
-  const existingUser = await userRepo.findByEmail(sanitizedEmail.value);
-  if (existingUser && existingUser._id.toHexString() !== userId) {
-    await addJitter();
-    return { success: false, error: 'already_exists' };
-  }
-
-  // Get current user
   const currentUser = await userRepo.findById(userId);
   if (currentUser?.email === sanitizedEmail.value && currentUser.emailVerified) {
     return { success: false, error: 'already_verified' };
@@ -151,8 +152,8 @@ export async function requestEmailVerification(
   const otp = await createOtp(sanitizedEmail.value, 'email');
 
   if (otp) {
-    // Send verification email
-    sendVerificationEmail(sanitizedEmail.value, otp).catch((err) => {
+    // Send verification email using account-add template (different from login OTP)
+    sendAccountAddEmail(sanitizedEmail.value, otp).catch((err) => {
       elog.error('Failed to send verification email', { error: err, emailHash });
     });
   }
@@ -162,10 +163,12 @@ export async function requestEmailVerification(
 }
 
 /**
- * Sends a verification email with OTP.
+ * Sends an account-add verification email with OTP.
+ * Uses a different template than login OTP to inform the user
+ * someone is trying to add this email to their account.
  */
-async function sendVerificationEmail(email: string, otp: string): Promise<void> {
-  const template = getEmailTemplate('otp', DEFAULT_LOCALE, {
+async function sendAccountAddEmail(email: string, otp: string): Promise<void> {
+  const template = getEmailTemplate('otpAccountAdd', DEFAULT_LOCALE, {
     appName: APP_NAME,
     otp,
     expiresInMinutes: OTP_EXPIRES_IN_MINUTES,
@@ -181,13 +184,21 @@ async function sendVerificationEmail(email: string, otp: string): Promise<void> 
 
 /**
  * Result type for verifying contact.
+ *
+ * Note: The 'already_owned' error is returned AFTER OTP verification succeeds.
+ * This is intentional: we only reveal that an email/phone belongs to another account
+ * after the user proves they own it (via OTP). This prevents enumeration attacks.
  */
 export type VerifyContactResult =
   | { success: true; user: PublicUser }
-  | { success: false; error: 'invalid' | 'expired' | 'max_attempts' | 'backoff'; retryAfterSeconds?: number };
+  | { success: false; error: 'invalid' | 'expired' | 'max_attempts' | 'backoff' | 'already_owned'; retryAfterSeconds?: number };
 
 /**
  * Verifies an email address with OTP.
+ *
+ * The ownership check (whether the email belongs to another account) happens
+ * AFTER OTP verification. This is intentional for security: we only reveal
+ * account information after the user proves they own the email.
  *
  * @param userId - The user's MongoDB ObjectId
  * @param email - The email address to verify
@@ -201,7 +212,7 @@ export async function verifyEmailAddress(
 ): Promise<VerifyContactResult> {
   const sanitizedEmail = sanitizeString(email, 'email');
 
-  // Verify the OTP
+  // Verify the OTP first - user must prove ownership before we reveal any info
   const result = await verifyOtp(sanitizedEmail.value, code);
 
   if (!result.valid) {
@@ -226,8 +237,19 @@ export async function verifyEmailAddress(
     return { success: false, error: 'invalid' };
   }
 
-  // Update user email
+  // OTP verified - user has proven ownership of this email
+  // NOW we can safely check if it belongs to another account
   const userRepo = getUserRepository();
+  const existingUser = await userRepo.findByEmail(sanitizedEmail.value);
+  if (existingUser && existingUser._id.toHexString() !== userId) {
+    elog.info('Email already owned by another account', {
+      userId,
+      emailHash: hashIdentifier(sanitizedEmail.value),
+    });
+    return { success: false, error: 'already_owned' };
+  }
+
+  // Update user email
   const updatedUser = await userRepo.updateById(userId, {
     email: sanitizedEmail.value,
     emailVerified: true,
@@ -250,6 +272,10 @@ export async function verifyEmailAddress(
 
 /**
  * Requests phone verification for a user.
+ *
+ * Note: We intentionally don't check if the phone belongs to another user here.
+ * This prevents account enumeration attacks. The check happens AFTER OTP verification
+ * to ensure the user owns the phone before revealing any account information.
  *
  * @param userId - The user's MongoDB ObjectId
  * @param phone - The phone number to verify
@@ -280,15 +306,8 @@ export async function requestPhoneVerification(
     return { success: false, error: 'rate_limited' };
   }
 
-  // Check if phone already exists for another user
+  // Get current user - only check if this exact phone is already verified for THIS user
   const userRepo = getUserRepository();
-  const existingUser = await userRepo.findByPhone(sanitizedPhone.value);
-  if (existingUser && existingUser._id.toHexString() !== userId) {
-    await addJitter();
-    return { success: false, error: 'already_exists' };
-  }
-
-  // Get current user
   const currentUser = await userRepo.findById(userId);
   if (currentUser?.phone === sanitizedPhone.value && currentUser.phoneVerified) {
     return { success: false, error: 'already_verified' };
@@ -298,8 +317,8 @@ export async function requestPhoneVerification(
   const otp = await createOtp(sanitizedPhone.value, 'sms');
 
   if (otp) {
-    // Send verification SMS
-    sendVerificationSms(sanitizedPhone.value, otp).catch((err) => {
+    // Send verification SMS using account-add template (different from login OTP)
+    sendAccountAddSms(sanitizedPhone.value, otp).catch((err) => {
       elog.error('Failed to send verification SMS', { error: err, phoneHash });
     });
   }
@@ -309,10 +328,12 @@ export async function requestPhoneVerification(
 }
 
 /**
- * Sends a verification SMS with OTP.
+ * Sends an account-add verification SMS with OTP.
+ * Uses a different template than login OTP to inform the user
+ * someone is trying to add this phone to their account.
  */
-async function sendVerificationSms(phone: string, otp: string): Promise<void> {
-  const message = getSmsMessage('otp', DEFAULT_LOCALE, {
+async function sendAccountAddSms(phone: string, otp: string): Promise<void> {
+  const message = getSmsMessage('otpAccountAdd', DEFAULT_LOCALE, {
     appName: APP_NAME,
     otp,
     expiresInMinutes: OTP_EXPIRES_IN_MINUTES,
@@ -327,6 +348,10 @@ async function sendVerificationSms(phone: string, otp: string): Promise<void> {
 /**
  * Verifies a phone number with OTP.
  *
+ * The ownership check (whether the phone belongs to another account) happens
+ * AFTER OTP verification. This is intentional for security: we only reveal
+ * account information after the user proves they own the phone.
+ *
  * @param userId - The user's MongoDB ObjectId
  * @param phone - The phone number to verify
  * @param code - The OTP code
@@ -339,7 +364,7 @@ export async function verifyPhoneNumber(
 ): Promise<VerifyContactResult> {
   const sanitizedPhone = sanitizeString(phone, 'phone');
 
-  // Verify the OTP
+  // Verify the OTP first - user must prove ownership before we reveal any info
   const result = await verifyOtp(sanitizedPhone.value, code);
 
   if (!result.valid) {
@@ -364,8 +389,19 @@ export async function verifyPhoneNumber(
     return { success: false, error: 'invalid' };
   }
 
-  // Update user phone
+  // OTP verified - user has proven ownership of this phone
+  // NOW we can safely check if it belongs to another account
   const userRepo = getUserRepository();
+  const existingUser = await userRepo.findByPhone(sanitizedPhone.value);
+  if (existingUser && existingUser._id.toHexString() !== userId) {
+    elog.info('Phone already owned by another account', {
+      userId,
+      phoneHash: hashIdentifier(sanitizedPhone.value),
+    });
+    return { success: false, error: 'already_owned' };
+  }
+
+  // Update user phone
   const updatedUser = await userRepo.updateById(userId, {
     phone: sanitizedPhone.value,
     phoneVerified: true,

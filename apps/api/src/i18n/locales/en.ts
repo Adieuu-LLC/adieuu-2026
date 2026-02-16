@@ -61,6 +61,36 @@ If you didn't request this code, you can safely ignore this email.`,
 </div>`,
     },
 
+    otpAccountAdd: {
+      subject: 'Verify your email change: {{otp}} - {{appName}}',
+      text: `Someone is attempting to add this email address to their {{appName}} account.
+
+If this was you, enter this code to verify: {{otp}}
+
+This code expires in {{expiresInMinutes}} minutes.
+
+If you didn't request this, you can safely ignore this email. No changes will be made to any account.`,
+      html: `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+  <h2 style="color: #1a1a1a; margin-bottom: 24px;">Verify your email</h2>
+  <p style="color: #1a1a1a; line-height: 1.6;">
+    Someone is attempting to add this email address to their {{appName}} account.
+  </p>
+  <p style="color: #666; line-height: 1.6; margin-top: 16px;">
+    If this was you, enter this code to verify:
+  </p>
+  <p style="font-size: 32px; font-weight: bold; letter-spacing: 8px; margin: 24px 0; color: #2563eb; font-family: monospace;">
+    {{otp}}
+  </p>
+  <p style="color: #666; font-size: 14px; margin-top: 24px;">
+    This code expires in {{expiresInMinutes}} minutes.
+  </p>
+  <p style="color: #999; font-size: 12px; margin-top: 16px;">
+    If you didn't request this, you can safely ignore this email. No changes will be made to any account.
+  </p>
+</div>`,
+    },
+
     accountLocked: {
       subject: '{{appName}} account security alert',
       text: `Your {{appName}} account has been temporarily locked due to multiple failed login attempts.
@@ -154,6 +184,7 @@ If you didn't make this change, please contact our support team immediately.`,
 
   sms: {
     otp: '{{appName}} code: {{otp}}. Expires in {{expiresInMinutes}} min.',
+    otpAccountAdd: '{{appName}}: Someone is adding this phone to their account. Code: {{otp}}. Expires in {{expiresInMinutes}} min. Ignore if not you.',
     accountLocked: '{{appName}}: Account locked due to failed login attempts. Try again in {{lockoutMinutes}} min.',
     failedLoginAttempts: '{{appName}}: {{attemptCount}} failed login attempts detected on your account.',
   },
@@ -185,5 +216,6 @@ If you didn't make this change, please contact our support team immediately.`,
     accountLocked: 'Account temporarily locked. Please try again later.',
     sessionExpired: 'Your session has expired. Please sign in again.',
     payloadTooLarge: 'Request too large. Please reduce the size of your request.',
+    alreadyOwned: 'This is already attached to another Chadder account. You may have signed up with it previously.',
   },
 };
