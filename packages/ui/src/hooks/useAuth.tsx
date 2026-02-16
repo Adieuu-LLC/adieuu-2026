@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, createContext, useContext, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import { createApiClient, type SessionInfo } from '@chadder/shared';
+import { createApiClient, type SessionInfo, type PublicKeyCredentialRequestOptionsJSON } from '@chadder/shared';
 import { useAppConfig } from '../config';
 
 // ============================================================================
@@ -14,9 +14,27 @@ export interface AuthState {
   session: SessionInfo | null;
 }
 
+export interface MfaChallenge {
+  mfaToken: string;
+  mfaOptions: {
+    totp: boolean;
+    webauthn: boolean;
+    backupCodes: boolean;
+  };
+  webauthnChallenge?: PublicKeyCredentialRequestOptionsJSON;
+}
+
+export type VerifyOtpResult = 
+  | { success: true; mfaRequired?: false }
+  | { success: true; mfaRequired: true; mfaChallenge: MfaChallenge }
+  | { success: false; error: string };
+
 export interface AuthContextValue extends AuthState {
   requestOtp: (identifier: string, type: 'email' | 'sms') => Promise<{ success: boolean; error?: string }>;
-  verifyOtp: (identifier: string, code: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOtp: (identifier: string, code: string) => Promise<VerifyOtpResult>;
+  completeMfaTotp: (mfaToken: string, code: string) => Promise<{ success: boolean; error?: string }>;
+  completeMfaWebAuthn: (mfaToken: string, webauthnChallenge: PublicKeyCredentialRequestOptionsJSON) => Promise<{ success: boolean; error?: string }>;
+  completeMfaBackupCode: (mfaToken: string, code: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   /** Refresh session status from server */
   refreshSession: () => Promise<void>;
@@ -101,7 +119,7 @@ function useAuthState(): AuthContextValue {
     return { success: true };
   }, [api]);
 
-  const verifyOtp = useCallback(async (identifier: string, code: string) => {
+  const verifyOtp = useCallback(async (identifier: string, code: string): Promise<VerifyOtpResult> => {
     const response = await api.auth.verifyOtp({ identifier, code });
 
     if (!response.success) {
@@ -111,10 +129,78 @@ function useAuthState(): AuthContextValue {
       };
     }
 
+    // Check if MFA is required
+    if (response.data?.mfaRequired && response.data.mfaToken && response.data.mfaOptions) {
+      return {
+        success: true,
+        mfaRequired: true,
+        mfaChallenge: {
+          mfaToken: response.data.mfaToken,
+          mfaOptions: response.data.mfaOptions,
+          webauthnChallenge: response.data.webauthnChallenge,
+        },
+      };
+    }
+
     // Session cookie is set by the server automatically
     // Refresh session to get the session info
     await refreshSession();
 
+    return { success: true };
+  }, [api, refreshSession]);
+
+  const completeMfaTotp = useCallback(async (mfaToken: string, code: string) => {
+    const response = await api.auth.verifyMfaTotp(mfaToken, code);
+
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.error?.message ?? 'Invalid code',
+      };
+    }
+
+    // Session cookie is set by the server
+    await refreshSession();
+    return { success: true };
+  }, [api, refreshSession]);
+
+  const completeMfaWebAuthn = useCallback(async (mfaToken: string, webauthnChallenge: PublicKeyCredentialRequestOptionsJSON) => {
+    // Import dynamically to avoid issues in non-browser environments
+    const { startAuthentication } = await import('@simplewebauthn/browser');
+
+    try {
+      // Type assertion needed due to minor type differences between our simplified type and @simplewebauthn's type
+      const credential = await startAuthentication({ optionsJSON: webauthnChallenge as Parameters<typeof startAuthentication>[0]['optionsJSON'] });
+      const response = await api.auth.verifyMfaWebAuthn(mfaToken, credential);
+
+      if (!response.success) {
+        return {
+          success: false,
+          error: response.error?.message ?? 'WebAuthn verification failed',
+        };
+      }
+
+      await refreshSession();
+      return { success: true };
+    } catch (err) {
+      if (err instanceof Error && err.name === 'NotAllowedError') {
+        return { success: false, error: 'Authentication was cancelled' };
+      }
+      return { success: false, error: 'WebAuthn authentication failed' };
+    }
+  }, [api, refreshSession]);
+
+  const completeMfaBackupCode = useCallback(async (mfaToken: string, code: string) => {
+    const response = await api.auth.verifyMfaBackupCode(mfaToken, code);
+
+    if (!response.success) {
+      return {
+        success: false,
+        error: response.error?.message ?? 'Invalid backup code',
+      };
+    }
+
+    await refreshSession();
     return { success: true };
   }, [api, refreshSession]);
 
@@ -130,6 +216,9 @@ function useAuthState(): AuthContextValue {
     ...state,
     requestOtp,
     verifyOtp,
+    completeMfaTotp,
+    completeMfaWebAuthn,
+    completeMfaBackupCode,
     logout,
     refreshSession,
   };

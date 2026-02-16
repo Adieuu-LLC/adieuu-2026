@@ -67,6 +67,18 @@ export function Verify() {
       return;
     }
 
+    // Check if MFA is required
+    if (result.mfaRequired) {
+      navigate('/auth/mfa', {
+        replace: true,
+        state: {
+          mfaChallenge: result.mfaChallenge,
+          identifier,
+        },
+      });
+      return;
+    }
+
     // Navigate to home on success
     navigate('/', { replace: true });
   };
@@ -99,6 +111,14 @@ export function Verify() {
           if (!result.success) {
             setError(result.error ?? 'Invalid code');
             setCode('');
+          } else if (result.mfaRequired) {
+            navigate('/auth/mfa', {
+              replace: true,
+              state: {
+                mfaChallenge: result.mfaChallenge,
+                identifier,
+              },
+            });
           } else {
             navigate('/', { replace: true });
           }

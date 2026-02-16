@@ -412,7 +412,7 @@ router.post('/auth/mfa/totp', async (ctx) => {
     return ctx.errors.badRequest();
   }
 
-  const sanitizedMfaToken = sanitizeString(parsed.data.mfaToken, 'base64');
+  const sanitizedMfaToken = sanitizeString(parsed.data.mfaToken, 'base64url');
   const sanitizedCode = sanitizeString(parsed.data.code, 'authcode');
 
   if (!sanitizedMfaToken.value || !sanitizedCode.value) {
@@ -452,7 +452,7 @@ router.post('/auth/mfa/webauthn', async (ctx) => {
     return ctx.errors.badRequest();
   }
 
-  const sanitizedMfaToken = sanitizeString(parsed.data.mfaToken, 'base64');
+  const sanitizedMfaToken = sanitizeString(parsed.data.mfaToken, 'base64url');
   if (!sanitizedMfaToken.value) {
     return ctx.errors.badRequest();
   }
@@ -492,7 +492,7 @@ router.post('/auth/mfa/backup-code', async (ctx) => {
     return ctx.errors.badRequest();
   }
 
-  const sanitizedMfaToken = sanitizeString(parsed.data.mfaToken, 'base64');
+  const sanitizedMfaToken = sanitizeString(parsed.data.mfaToken, 'base64url');
   const sanitizedCode = sanitizeString(parsed.data.code, 'authcode');
 
   if (!sanitizedMfaToken.value || !sanitizedCode.value) {

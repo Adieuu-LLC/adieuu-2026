@@ -51,6 +51,13 @@ const RP_NAME = APP_NAME;
 const RP_ID = config.webauthn?.rpId || 'localhost';
 const RP_ORIGIN = config.webauthn?.origin || 'http://localhost:5173';
 
+// Log WebAuthn configuration on module load
+elog.info('WebAuthn configuration loaded', {
+  rpId: RP_ID,
+  rpOrigin: RP_ORIGIN,
+  rpName: RP_NAME,
+});
+
 // Backup codes configuration
 const BACKUP_CODE_COUNT = 10;
 const BACKUP_CODE_LENGTH = 8;
@@ -266,7 +273,8 @@ export async function generateWebAuthnRegistrationOptions(
     authenticatorSelection: {
       residentKey: 'preferred',
       userVerification: 'preferred',
-      authenticatorAttachment: 'platform', // Prefer platform authenticators (Touch ID, Face ID, Windows Hello)
+      // Don't specify authenticatorAttachment to allow both platform (Windows Hello, Touch ID)
+      // and cross-platform (Yubikey, security keys) authenticators
     },
     excludeCredentials: existingCredentials.map((cred) => ({
       id: cred.credentialId,
@@ -376,7 +384,10 @@ export async function verifyWebAuthnRegistration(
   elog.info('WebAuthn credential registered', {
     userId,
     credentialId: savedCredential._id.toHexString().substring(0, 8),
+    credentialIdB64: savedCredential.credentialId.substring(0, 20) + '...',
     deviceType: credentialDeviceType,
+    transports: savedCredential.transports,
+    aaguid: savedCredential.aaguid,
   });
 
   return { success: true, credential: savedCredential };
@@ -398,16 +409,34 @@ export async function generateWebAuthnAuthenticationOptions(
     return null;
   }
 
+  const allowCredentials = credentials.map((cred) => ({
+    id: cred.credentialId,
+    transports: cred.transports as AuthenticatorTransportFuture[],
+  }));
+
+  elog.debug('WebAuthn authentication options', {
+    userId,
+    credentialCount: credentials.length,
+    allowedCredentialIds: allowCredentials.map(c => c.id),
+    credentialTransports: allowCredentials.map(c => c.transports),
+  });
+
   const opts: GenerateAuthenticationOptionsOpts = {
     rpID: RP_ID,
     userVerification: 'preferred',
-    allowCredentials: credentials.map((cred) => ({
-      id: cred.credentialId,
-      transports: cred.transports as AuthenticatorTransportFuture[],
-    })),
+    allowCredentials,
   };
 
   const options = await generateAuthenticationOptions(opts);
+
+  elog.debug('WebAuthn authentication options generated', {
+    userId,
+    rpId: options.rpId,
+    challenge: options.challenge?.substring(0, 20) + '...',
+    allowCredentialsCount: options.allowCredentials?.length,
+    allowCredentialIds: options.allowCredentials?.map(c => c.id?.substring(0, 20) + '...'),
+    userVerification: options.userVerification,
+  });
 
   // Store challenge temporarily
   await storeMfaChallenge(userId, 'authentication', options.challenge);
@@ -430,9 +459,24 @@ export async function verifyWebAuthnAuthentication(
 
   // Find the credential
   const repo = getWebAuthnRepository();
+  
+  // Debug: log what we're looking for
+  elog.debug('WebAuthn authentication: looking up credential', {
+    userId,
+    responseId: response.id,
+    responseIdLength: response.id?.length,
+  });
+  
   const credential = await repo.findByCredentialId(response.id);
 
   if (!credential) {
+    // Debug: check what credentials exist for this user
+    const userCredentials = await repo.findByUserId(userId);
+    elog.warn('WebAuthn authentication: credential not found', {
+      userId,
+      responseId: response.id,
+      storedCredentialIds: userCredentials.map(c => c.credentialId),
+    });
     return { success: false, error: 'credential_not_found' };
   }
 

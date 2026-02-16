@@ -3,7 +3,7 @@ import { AppLayout } from '../components/AppLayout';
 import { TourRoot } from '../components/Tour';
 import { Home } from '../pages/Home';
 import { About } from '../pages/About';
-import { Login, Verify } from '../pages/auth';
+import { Login, Verify, MfaVerify } from '../pages/auth';
 import {
   AccountOverview,
   AccountAppearance,
@@ -99,6 +99,14 @@ export function App() {
         element={
           <AuthRoute>
             <Verify />
+          </AuthRoute>
+        }
+      />
+      <Route
+        path="/auth/mfa"
+        element={
+          <AuthRoute>
+            <MfaVerify />
           </AuthRoute>
         }
       />

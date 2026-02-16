@@ -94,7 +94,7 @@ export const generateEmojiString = (): string => {
  * - `base64` - Base64 encoded strings (A-Z, a-z, 0-9, +, /, =)
  * - `alphanumdash` - Alphanumeric with hyphens only (good for slugs)
  */
-export type SanitizationType = 'default' | 'phone' | 'ip' | 'id' | 'idenhanced' | 'general' | 'authcode' | 'email' | 'hash' | 'base64' | 'alphanumdash';
+export type SanitizationType = 'default' | 'phone' | 'ip' | 'id' | 'idenhanced' | 'general' | 'authcode' | 'email' | 'hash' | 'base64' | 'base64url' | 'alphanumdash';
 
 /**
  * Result of a sanitization operation.
@@ -269,6 +269,9 @@ export const sanitizeString = (target: SanitizationOptions['target'], type: Sani
         break;
       case 'base64': // Standard base64: A-Z, a-z, 0-9, +, /, and = for padding
         sanitized = sanitized.replace(/[^a-zA-Z0-9+/=]/g, '');
+        break;
+      case 'base64url': // URL-safe base64: A-Z, a-z, 0-9, -, _ (no padding)
+        sanitized = sanitized.replace(/[^a-zA-Z0-9_-]/g, '');
         break;
       case 'email':
         // Do some light sanitization of our own

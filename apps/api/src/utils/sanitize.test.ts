@@ -364,6 +364,38 @@ describe('sanitizeString', () => {
     });
   });
 
+  describe('type: base64url', () => {
+    test('allows URL-safe base64 characters', () => {
+      const result = sanitizeString('SGVsbG8tV29ybGRf', 'base64url');
+      expect(result.value).toBe('SGVsbG8tV29ybGRf');
+      expect(result.deltas).toBe(0);
+    });
+
+    test('allows underscore and hyphen', () => {
+      const result = sanitizeString('abc-def_ghi', 'base64url');
+      expect(result.value).toBe('abc-def_ghi');
+      expect(result.deltas).toBe(0);
+    });
+
+    test('removes standard base64 padding and special chars', () => {
+      const result = sanitizeString('abc+def/ghi=', 'base64url');
+      expect(result.value).toBe('abcdefghi');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('removes spaces and other special characters', () => {
+      const result = sanitizeString('abc def!@#', 'base64url');
+      expect(result.value).toBe('abcdef');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('preserves uppercase and lowercase', () => {
+      const result = sanitizeString('ABCDabcd0123_-', 'base64url');
+      expect(result.value).toBe('ABCDabcd0123_-');
+      expect(result.deltas).toBe(0);
+    });
+  });
+
   describe('type: email', () => {
     test('sanitizes valid email', () => {
       const result = sanitizeString('User.Name+tag@Example.COM', 'email');
