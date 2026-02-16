@@ -12,6 +12,7 @@ import { Router } from '../router';
 import { healthRoutes } from './health';
 import { userRoutes } from './users';
 import { authRoutes } from './auth';
+import mfaRoutes from './mfa';
 
 /**
  * Registers all application routes with the main router.
@@ -42,4 +43,7 @@ export function registerRoutes(app: Router): void {
 
   // User routes at /api
   app.merge(userRoutes, '/api');
+
+  // MFA routes at /api
+  app.merge(mfaRoutes, '/api');
 }

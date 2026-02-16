@@ -4,6 +4,7 @@ import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
 import { Spinner } from '../../components/Spinner';
+import { TotpSetup, WebAuthnSetup, MfaCredentialsList } from '../../components/MfaSetup';
 import { createApiClient, type SessionDetails } from '@chadder/shared';
 import { useAppConfig } from '../../config';
 
@@ -202,19 +203,37 @@ function SessionsList() {
 }
 
 /**
- * Authentication settings component (placeholder for now)
+ * Authentication settings component with MFA setup
  */
 function AuthenticationSettings() {
-  const { t } = useTranslation();
+  const [setupMode, setSetupMode] = useState<'none' | 'totp' | 'webauthn'>('none');
+
+  const handleSetupComplete = () => {
+    setSetupMode('none');
+  };
+
+  if (setupMode === 'totp') {
+    return (
+      <Card variant="elevated">
+        <TotpSetup onComplete={handleSetupComplete} onCancel={() => setSetupMode('none')} />
+      </Card>
+    );
+  }
+
+  if (setupMode === 'webauthn') {
+    return (
+      <Card variant="elevated">
+        <WebAuthnSetup onComplete={handleSetupComplete} onCancel={() => setSetupMode('none')} />
+      </Card>
+    );
+  }
 
   return (
     <Card variant="elevated">
-      <h3 style={{ margin: '0 0 var(--spacing-md) 0', color: 'var(--color-text-primary)' }}>
-        {t('account.security.authentication.title')}
-      </h3>
-      <p style={{ color: 'var(--color-text-secondary)', margin: 0 }}>
-        {t('account.security.authentication.comingSoon')}
-      </p>
+      <MfaCredentialsList
+        onSetupTotp={() => setSetupMode('totp')}
+        onSetupWebAuthn={() => setSetupMode('webauthn')}
+      />
     </Card>
   );
 }

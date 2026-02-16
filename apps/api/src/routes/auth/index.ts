@@ -15,6 +15,7 @@
 
 import { Router } from '../../router';
 import { success } from '../../utils/response';
+import { sanitizeString } from '../../utils/sanitize';
 import {
   requestOtp,
   verifyOtpHandler,
@@ -23,6 +24,9 @@ import {
   listSessionsHandler,
   revokeSessionHandler,
   revokeAllSessionsHandler,
+  verifyMfaTotpHandler,
+  verifyMfaWebAuthnHandler,
+  verifyMfaBackupCodeHandler,
   getClientIp,
 } from './controller';
 import { z } from '@chadder/shared/schemas';
@@ -217,10 +221,26 @@ router.post('/auth/verify', async (ctx) => {
     return ctx.errors.verificationFailed();
   }
 
+  // Check if MFA is required
+  if ('mfaRequired' in result && result.mfaRequired) {
+    return success({
+      mfaRequired: true,
+      mfaToken: result.mfaToken,
+      mfaOptions: {
+        totp: result.mfaOptions.totpEnabled,
+        webauthn: result.mfaOptions.webauthnEnabled,
+        backupCodes: result.mfaOptions.backupCodesExist,
+      },
+      webauthnChallenge: result.webauthnChallenge?.options,
+    }, 'MFA verification required.');
+  }
+
   // Return success with Set-Cookie header (HTTP-only session cookie)
+  // At this point we know it's not mfaRequired, so cookie exists
+  const cookie = 'cookie' in result ? result.cookie : '';
   const response = success(undefined, 'Authentication successful.');
   const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', result.cookie);
+  headers.set('Set-Cookie', cookie);
   return new Response(response.body, { status: response.status, headers });
 });
 
@@ -368,6 +388,133 @@ router.delete('/auth/sessions', async (ctx) => {
   }
 
   return response;
+});
+
+// ============================================================================
+// MFA Verification Endpoints (during login)
+// ============================================================================
+
+const MfaTotpSchema = z.object({
+  mfaToken: z.string().min(1),
+  code: z.string().length(6),
+});
+
+/**
+ * POST /auth/mfa/totp - Verify TOTP code during MFA login.
+ *
+ * After initial OTP verification returns mfaRequired, use this endpoint
+ * to complete login with an authenticator app code.
+ */
+router.post('/auth/mfa/totp', async (ctx) => {
+  const body = await ctx.request.json().catch(() => ({}));
+  const parsed = MfaTotpSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return ctx.errors.badRequest();
+  }
+
+  const sanitizedMfaToken = sanitizeString(parsed.data.mfaToken, 'base64');
+  const sanitizedCode = sanitizeString(parsed.data.code, 'authcode');
+
+  if (!sanitizedMfaToken.value || !sanitizedCode.value) {
+    return ctx.errors.badRequest();
+  }
+
+  const result = await verifyMfaTotpHandler(sanitizedMfaToken.value, sanitizedCode.value);
+
+  if (!result.success) {
+    if (result.error === 'invalid_token' || result.error === 'expired') {
+      return ctx.errors.unauthorized();
+    }
+    return ctx.errors.verificationFailed();
+  }
+
+  const response = success({ message: 'MFA verification successful' });
+  const headers = new Headers(response.headers);
+  headers.set('Set-Cookie', result.cookie);
+  return new Response(response.body, { status: response.status, headers });
+});
+
+const MfaWebAuthnSchema = z.object({
+  mfaToken: z.string().min(1),
+  response: z.any(), // WebAuthn response is complex
+});
+
+/**
+ * POST /auth/mfa/webauthn - Verify WebAuthn during MFA login.
+ *
+ * After initial OTP verification returns mfaRequired, use this endpoint
+ * to complete login with a passkey.
+ */
+router.post('/auth/mfa/webauthn', async (ctx) => {
+  const body = await ctx.request.json().catch(() => ({}));
+  const parsed = MfaWebAuthnSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return ctx.errors.badRequest();
+  }
+
+  const sanitizedMfaToken = sanitizeString(parsed.data.mfaToken, 'base64');
+  if (!sanitizedMfaToken.value) {
+    return ctx.errors.badRequest();
+  }
+
+  // Note: WebAuthn response is validated by the @simplewebauthn/server library
+  const { response: webauthnResponse } = parsed.data;
+  const result = await verifyMfaWebAuthnHandler(sanitizedMfaToken.value, webauthnResponse);
+
+  if (!result.success) {
+    if (result.error === 'invalid_token' || result.error === 'expired') {
+      return ctx.errors.unauthorized();
+    }
+    return ctx.errors.verificationFailed();
+  }
+
+  const response = success({ message: 'MFA verification successful' });
+  const headers = new Headers(response.headers);
+  headers.set('Set-Cookie', result.cookie);
+  return new Response(response.body, { status: response.status, headers });
+});
+
+const MfaBackupCodeSchema = z.object({
+  mfaToken: z.string().min(1),
+  code: z.string().min(1),
+});
+
+/**
+ * POST /auth/mfa/backup-code - Verify backup code during MFA login.
+ *
+ * After initial OTP verification returns mfaRequired, use this endpoint
+ * to complete login with a backup code.
+ */
+router.post('/auth/mfa/backup-code', async (ctx) => {
+  const body = await ctx.request.json().catch(() => ({}));
+  const parsed = MfaBackupCodeSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return ctx.errors.badRequest();
+  }
+
+  const sanitizedMfaToken = sanitizeString(parsed.data.mfaToken, 'base64');
+  const sanitizedCode = sanitizeString(parsed.data.code, 'authcode');
+
+  if (!sanitizedMfaToken.value || !sanitizedCode.value) {
+    return ctx.errors.badRequest();
+  }
+
+  const result = await verifyMfaBackupCodeHandler(sanitizedMfaToken.value, sanitizedCode.value);
+
+  if (!result.success) {
+    if (result.error === 'invalid_token' || result.error === 'expired') {
+      return ctx.errors.unauthorized();
+    }
+    return ctx.errors.verificationFailed();
+  }
+
+  const response = success({ message: 'MFA verification successful' });
+  const headers = new Headers(response.headers);
+  headers.set('Set-Cookie', result.cookie);
+  return new Response(response.body, { status: response.status, headers });
 });
 
 export const authRoutes = router;

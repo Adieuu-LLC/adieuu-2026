@@ -135,6 +135,36 @@ export interface VerifyOtpParams {
 }
 
 /**
+ * Response from OTP verification.
+ * May indicate MFA is required.
+ */
+export interface VerifyOtpResponse {
+  /** If true, MFA verification is required before session is created */
+  mfaRequired?: boolean;
+  /** Token to use for MFA verification (only if mfaRequired) */
+  mfaToken?: string;
+  /** Available MFA options */
+  mfaOptions?: {
+    totp: boolean;
+    webauthn: boolean;
+    backupCodes: boolean;
+  };
+  /** WebAuthn challenge options (only if webauthn is available) */
+  webauthnChallenge?: PublicKeyCredentialRequestOptionsJSON;
+}
+
+/**
+ * PublicKeyCredentialRequestOptionsJSON from WebAuthn
+ */
+export interface PublicKeyCredentialRequestOptionsJSON {
+  challenge: string;
+  timeout?: number;
+  rpId?: string;
+  allowCredentials?: Array<{ id: string; type: 'public-key'; transports?: string[] }>;
+  userVerification?: 'discouraged' | 'preferred' | 'required';
+}
+
+/**
  * Session info returned from /auth/session endpoint.
  * Note: The actual session token is stored in HTTP-only cookies,
  * not exposed to JavaScript.
@@ -236,15 +266,48 @@ export class AuthApi {
   /**
    * Verify an OTP code.
    *
-   * On success, the server sets an HTTP-only session cookie.
-   * The response body contains success status but no token
-   * (token is in the cookie, not accessible to JS).
+   * On success, either sets a session cookie (login complete) or
+   * returns MFA challenge data if MFA is enabled.
    *
    * @param params - The identifier and OTP code
-   * @returns Success on valid OTP, error on failure
+   * @returns Success with optional MFA challenge, or error on failure
    */
-  async verifyOtp(params: VerifyOtpParams): Promise<ApiResponse<void>> {
+  async verifyOtp(params: VerifyOtpParams): Promise<ApiResponse<VerifyOtpResponse>> {
     return this.client.post('/api/auth/verify', params);
+  }
+
+  /**
+   * Complete MFA with TOTP code.
+   *
+   * @param mfaToken - Token from verifyOtp response
+   * @param code - 6-digit TOTP code from authenticator app
+   * @returns Success on valid code (session cookie is set)
+   */
+  async verifyMfaTotp(mfaToken: string, code: string): Promise<ApiResponse<void>> {
+    return this.client.post('/api/auth/mfa/totp', { mfaToken, code });
+  }
+
+  /**
+   * Complete MFA with WebAuthn.
+   *
+   * @param mfaToken - Token from verifyOtp response
+   * @param response - WebAuthn authentication response
+   * @returns Success on valid response (session cookie is set)
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async verifyMfaWebAuthn(mfaToken: string, response: any): Promise<ApiResponse<void>> {
+    return this.client.post('/api/auth/mfa/webauthn', { mfaToken, response });
+  }
+
+  /**
+   * Complete MFA with backup code.
+   *
+   * @param mfaToken - Token from verifyOtp response
+   * @param code - Backup code
+   * @returns Success on valid code (session cookie is set)
+   */
+  async verifyMfaBackupCode(mfaToken: string, code: string): Promise<ApiResponse<void>> {
+    return this.client.post('/api/auth/mfa/backup-code', { mfaToken, code });
   }
 
   /**
@@ -302,6 +365,211 @@ export class AuthApi {
    */
   async revokeAllOtherSessions(): Promise<ApiResponse<RevokeSessionsResponse>> {
     return this.client.delete('/api/auth/sessions');
+  }
+}
+
+// ============================================================================
+// MFA Types
+// ============================================================================
+
+/**
+ * MFA status for a user
+ */
+export interface MfaStatus {
+  enabled: boolean;
+  totpEnabled: boolean;
+  totpCount: number;
+  webauthnEnabled: boolean;
+  webauthnCount: number;
+  backupCodesExist: boolean;
+  backupCodesRemaining: number;
+}
+
+/**
+ * Public TOTP credential
+ */
+export interface TotpCredential {
+  id: string;
+  name: string;
+  verified: boolean;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+/**
+ * Public WebAuthn credential
+ */
+export interface WebAuthnCredential {
+  id: string;
+  name: string;
+  deviceType: 'singleDevice' | 'multiDevice';
+  backedUp: boolean;
+  createdAt: string;
+  lastUsedAt?: string;
+}
+
+/**
+ * MFA credentials response
+ */
+export interface MfaCredentials {
+  totp: TotpCredential[];
+  webauthn: WebAuthnCredential[];
+}
+
+/**
+ * TOTP setup response
+ */
+export interface TotpSetupResponse {
+  credentialId: string;
+  secret: string;
+  qrCodeUrl: string;
+  manualEntryKey: string;
+}
+
+/**
+ * TOTP verify response
+ */
+export interface TotpVerifyResponse {
+  verified: boolean;
+  backupCodes?: string[];
+}
+
+/**
+ * WebAuthn register start response
+ */
+export interface WebAuthnRegisterStartResponse {
+  options: PublicKeyCredentialCreationOptionsJSON;
+  credentialName: string;
+}
+
+/**
+ * WebAuthn register finish response
+ */
+export interface WebAuthnRegisterFinishResponse {
+  credential: WebAuthnCredential;
+  backupCodes?: string[];
+}
+
+/**
+ * Backup codes regenerate response
+ */
+export interface BackupCodesResponse {
+  codes: string[];
+  message: string;
+}
+
+/**
+ * PublicKeyCredentialCreationOptionsJSON from WebAuthn
+ * Simplified type for client usage
+ */
+export interface PublicKeyCredentialCreationOptionsJSON {
+  challenge: string;
+  rp: { name: string; id?: string };
+  user: { id: string; name: string; displayName: string };
+  pubKeyCredParams: Array<{ type: 'public-key'; alg: number }>;
+  timeout?: number;
+  excludeCredentials?: Array<{ id: string; type: 'public-key'; transports?: string[] }>;
+  authenticatorSelection?: {
+    authenticatorAttachment?: 'platform' | 'cross-platform';
+    residentKey?: 'discouraged' | 'preferred' | 'required';
+    requireResidentKey?: boolean;
+    userVerification?: 'discouraged' | 'preferred' | 'required';
+  };
+  attestation?: 'none' | 'indirect' | 'direct' | 'enterprise';
+}
+
+// ============================================================================
+// MFA API Methods
+// ============================================================================
+
+export class MfaApi {
+  constructor(private client: ApiClient) {}
+
+  /**
+   * Get MFA status for current user.
+   */
+  async getStatus(): Promise<ApiResponse<MfaStatus>> {
+    return this.client.get('/api/mfa/status');
+  }
+
+  /**
+   * Get all MFA credentials for current user.
+   */
+  async getCredentials(): Promise<ApiResponse<MfaCredentials>> {
+    return this.client.get('/api/mfa/credentials');
+  }
+
+  // TOTP methods
+
+  /**
+   * Start TOTP setup - returns secret and QR code URL.
+   */
+  async setupTotp(name?: string): Promise<ApiResponse<TotpSetupResponse>> {
+    return this.client.post('/api/mfa/totp/setup', { name: name || 'Authenticator' });
+  }
+
+  /**
+   * Verify and activate TOTP with code from authenticator app.
+   */
+  async verifyTotp(credentialId: string, code: string): Promise<ApiResponse<TotpVerifyResponse>> {
+    return this.client.post('/api/mfa/totp/verify', { credentialId, code });
+  }
+
+  /**
+   * Delete a TOTP credential.
+   */
+  async deleteTotp(credentialId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/mfa/totp/${credentialId}`);
+  }
+
+  // WebAuthn methods
+
+  /**
+   * Start WebAuthn registration.
+   */
+  async startWebAuthnRegistration(name?: string): Promise<ApiResponse<WebAuthnRegisterStartResponse>> {
+    return this.client.post('/api/mfa/webauthn/register/start', { name: name || 'Passkey' });
+  }
+
+  /**
+   * Complete WebAuthn registration.
+   */
+  async finishWebAuthnRegistration(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    response: any,
+    name: string
+  ): Promise<ApiResponse<WebAuthnRegisterFinishResponse>> {
+    return this.client.post('/api/mfa/webauthn/register/finish', { response, name });
+  }
+
+  /**
+   * Rename a WebAuthn credential.
+   */
+  async renameWebAuthn(credentialId: string, name: string): Promise<ApiResponse<void>> {
+    return this.client.patch(`/api/mfa/webauthn/${credentialId}`, { name });
+  }
+
+  /**
+   * Delete a WebAuthn credential.
+   */
+  async deleteWebAuthn(credentialId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/mfa/webauthn/${credentialId}`);
+  }
+
+  // Backup codes methods
+
+  /**
+   * Regenerate backup codes.
+   */
+  async regenerateBackupCodes(): Promise<ApiResponse<BackupCodesResponse>> {
+    return this.client.post('/api/mfa/backup-codes/regenerate');
+  }
+
+  /**
+   * Get remaining backup codes count.
+   */
+  async getBackupCodesCount(): Promise<ApiResponse<{ remaining: number }>> {
+    return this.client.get('/api/mfa/backup-codes/count');
   }
 }
 
@@ -398,6 +666,7 @@ export function createApiClient(config: ApiClientConfig) {
     client,
     auth: new AuthApi(client),
     users: new UsersApi(client),
+    mfa: new MfaApi(client),
   };
 }
 

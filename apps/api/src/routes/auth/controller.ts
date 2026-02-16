@@ -19,18 +19,28 @@ import {
   buildLogoutCookie,
   type SessionData,
 } from '../../services/session.service';
+import {
+  getMfaStatus,
+  verifyTotpCode,
+  verifyWebAuthnAuthentication,
+  verifyBackupCode,
+  generateWebAuthnAuthenticationOptions,
+} from '../../services/mfa.service';
 import { getSessionRepository } from '../../repositories/session.repository';
 import { toPublicSession, type PublicSession } from '../../models/session';
+import type { MfaStatus } from '../../models/mfa';
 import { ObjectId } from 'mongodb';
 import { getUserRepository } from '../../repositories/user.repository';
 import { sendEmail, sendSms } from '../../services/messaging';
 import { sanitizeString } from '../../utils/sanitize';
-import { hashIdentifier, hashIp, encrypt } from '../../utils/crypto';
+import { hashIdentifier, hashIp, encrypt, generateSecureToken } from '../../utils/crypto';
 import { addJitter } from '../../utils/timing';
 import { config } from '../../config';
 import { getEmailTemplate, getSmsMessage, type Locale, DEFAULT_LOCALE } from '../../i18n';
+import { getRedis, isRedisConnected } from '../../db';
 import elog from '../../utils/adieuuLogger';
 import type { UserDocument } from '../../models/user';
+import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
 
 /** OTP expiration time in minutes */
 const OTP_EXPIRES_IN_MINUTES = 10;
@@ -341,10 +351,30 @@ export interface VerifyOtpInput {
 export type VerifyOtpHandlerResult =
   | { success: true; cookie: string; user: UserDocument }
   | {
+    success: true;
+    mfaRequired: true;
+    mfaToken: string;
+    mfaOptions: MfaStatus;
+    webauthnChallenge?: Awaited<ReturnType<typeof generateWebAuthnAuthenticationOptions>>;
+  }
+  | {
     success: false;
     error: 'invalid' | 'expired' | 'max_attempts' | 'backoff' | 'rate_limited' | 'account_locked';
     retryAfterSeconds?: number;
   };
+
+/** MFA token TTL in seconds */
+const MFA_TOKEN_TTL_SECONDS = 300; // 5 minutes
+
+/** Data stored with MFA token */
+interface MfaPendingLogin {
+  userId: string;
+  identifier: string;
+  identifierType: 'email' | 'phone';
+  userAgent?: string;
+  ipAddress?: string;
+  createdAt: number;
+}
 
 /**
  * Detects whether an identifier is an email or phone number.
@@ -514,8 +544,56 @@ export async function verifyOtpHandler(
 
   // Find or create user
   const user = await findOrCreateUser(sanitizedIdentifier.value, identifierType);
+  const userId = user._id.toHexString();
 
-  // Create session with HTTP-only cookie
+  // Check if user has MFA enabled
+  const mfaStatus = await getMfaStatus(userId);
+
+  if (mfaStatus.enabled) {
+    // MFA is required - create a pending MFA token instead of session
+    const mfaToken = generateSecureToken(32);
+    const pendingLogin: MfaPendingLogin = {
+      userId,
+      identifier: sanitizedIdentifier.value,
+      identifierType,
+      userAgent,
+      ipAddress: sanitizedIp.value,
+      createdAt: Date.now(),
+    };
+
+    // Store pending login in Redis
+    if (isRedisConnected()) {
+      const redis = getRedis();
+      await redis.set(
+        `mfa:pending:${mfaToken}`,
+        JSON.stringify(pendingLogin),
+        'EX',
+        MFA_TOKEN_TTL_SECONDS
+      );
+    }
+
+    elog.info('MFA required for login', {
+      identifierHash,
+      identifierType,
+      userId,
+    });
+
+    // Get WebAuthn challenge if available
+    let webauthnChallenge: Awaited<ReturnType<typeof generateWebAuthnAuthenticationOptions>> | undefined;
+    if (mfaStatus.webauthnEnabled) {
+      webauthnChallenge = await generateWebAuthnAuthenticationOptions(userId) ?? undefined;
+    }
+
+    return {
+      success: true,
+      mfaRequired: true,
+      mfaToken,
+      mfaOptions: mfaStatus,
+      webauthnChallenge,
+    };
+  }
+
+  // No MFA - create session directly
   const { cookie } = await createSession(user._id, sanitizedIdentifier.value, identifierType, {
     userAgent,
     ipAddress: sanitizedIp.value,
@@ -524,7 +602,7 @@ export async function verifyOtpHandler(
   elog.info('User authenticated successfully', {
     identifierHash,
     identifierType,
-    userId: user._id.toHexString(),
+    userId,
   });
 
   return { success: true, cookie, user };
@@ -722,4 +800,169 @@ export async function revokeAllSessionsHandler(
     // Return empty cookie since current session is still valid
     return { success: true, count, cookie: '' };
   }
+}
+
+// ============================================================================
+// MFA Verification Handlers (for login flow)
+// ============================================================================
+
+/**
+ * Result type for MFA verification during login.
+ */
+export type VerifyMfaResult =
+  | { success: true; cookie: string }
+  | { success: false; error: 'invalid_token' | 'invalid_code' | 'expired' | 'rate_limited' };
+
+/**
+ * Get pending login data from MFA token
+ */
+async function getPendingLogin(mfaToken: string): Promise<MfaPendingLogin | null> {
+  if (!isRedisConnected()) {
+    return null;
+  }
+
+  const redis = getRedis();
+  const data = await redis.get(`mfa:pending:${mfaToken}`);
+
+  if (!data) {
+    return null;
+  }
+
+  return JSON.parse(data) as MfaPendingLogin;
+}
+
+/**
+ * Clear pending login after successful MFA
+ */
+async function clearPendingLogin(mfaToken: string): Promise<void> {
+  if (!isRedisConnected()) {
+    return;
+  }
+
+  const redis = getRedis();
+  await redis.del(`mfa:pending:${mfaToken}`);
+}
+
+/**
+ * Verify MFA with TOTP code during login.
+ */
+export async function verifyMfaTotpHandler(
+  mfaToken: string,
+  code: string
+): Promise<VerifyMfaResult> {
+  const pendingLogin = await getPendingLogin(mfaToken);
+
+  if (!pendingLogin) {
+    return { success: false, error: 'invalid_token' };
+  }
+
+  // Verify TOTP code
+  const result = await verifyTotpCode(pendingLogin.userId, code);
+
+  if (!result.success) {
+    return { success: false, error: 'invalid_code' };
+  }
+
+  // Clear pending login
+  await clearPendingLogin(mfaToken);
+
+  // Create session
+  const { cookie } = await createSession(
+    new ObjectId(pendingLogin.userId),
+    pendingLogin.identifier,
+    pendingLogin.identifierType,
+    {
+      userAgent: pendingLogin.userAgent,
+      ipAddress: pendingLogin.ipAddress,
+    }
+  );
+
+  elog.info('User authenticated with MFA (TOTP)', {
+    userId: pendingLogin.userId,
+  });
+
+  return { success: true, cookie };
+}
+
+/**
+ * Verify MFA with WebAuthn during login.
+ */
+export async function verifyMfaWebAuthnHandler(
+  mfaToken: string,
+  response: AuthenticationResponseJSON
+): Promise<VerifyMfaResult> {
+  const pendingLogin = await getPendingLogin(mfaToken);
+
+  if (!pendingLogin) {
+    return { success: false, error: 'invalid_token' };
+  }
+
+  // Verify WebAuthn response
+  const result = await verifyWebAuthnAuthentication(pendingLogin.userId, response);
+
+  if (!result.success) {
+    return { success: false, error: 'invalid_code' };
+  }
+
+  // Clear pending login
+  await clearPendingLogin(mfaToken);
+
+  // Create session
+  const { cookie } = await createSession(
+    new ObjectId(pendingLogin.userId),
+    pendingLogin.identifier,
+    pendingLogin.identifierType,
+    {
+      userAgent: pendingLogin.userAgent,
+      ipAddress: pendingLogin.ipAddress,
+    }
+  );
+
+  elog.info('User authenticated with MFA (WebAuthn)', {
+    userId: pendingLogin.userId,
+  });
+
+  return { success: true, cookie };
+}
+
+/**
+ * Verify MFA with backup code during login.
+ */
+export async function verifyMfaBackupCodeHandler(
+  mfaToken: string,
+  code: string
+): Promise<VerifyMfaResult> {
+  const pendingLogin = await getPendingLogin(mfaToken);
+
+  if (!pendingLogin) {
+    return { success: false, error: 'invalid_token' };
+  }
+
+  // Verify backup code
+  const result = await verifyBackupCode(pendingLogin.userId, code);
+
+  if (!result.success) {
+    return { success: false, error: 'invalid_code' };
+  }
+
+  // Clear pending login
+  await clearPendingLogin(mfaToken);
+
+  // Create session
+  const { cookie } = await createSession(
+    new ObjectId(pendingLogin.userId),
+    pendingLogin.identifier,
+    pendingLogin.identifierType,
+    {
+      userAgent: pendingLogin.userAgent,
+      ipAddress: pendingLogin.ipAddress,
+    }
+  );
+
+  elog.info('User authenticated with MFA (backup code)', {
+    userId: pendingLogin.userId,
+    backupCodesRemaining: result.remaining,
+  });
+
+  return { success: true, cookie };
 }

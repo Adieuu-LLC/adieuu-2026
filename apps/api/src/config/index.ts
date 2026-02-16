@@ -144,6 +144,8 @@ function optionalEnvBool(name: string, defaultValue: boolean): boolean {
  * ```
  */
 export const config = {
+  /** Application name (used in emails, TOTP labels, etc.) */
+  appName: optionalEnv('APP_NAME', 'Chadder'),
   /** Current environment: 'development', 'production', or 'test' */
   env: optionalEnv('NODE_ENV', 'development'),
   /** HTTP server port */
@@ -224,6 +226,14 @@ export const config = {
 
   /** Web application URL for magic links and redirects */
   webAppUrl: optionalEnv('WEB_APP_URL', 'http://localhost:3000'),
+
+  /** WebAuthn (Passkeys) configuration */
+  webauthn: {
+    /** Relying Party ID (usually the domain without protocol) */
+    rpId: optionalEnv('WEBAUTHN_RP_ID', 'localhost'),
+    /** Expected origin for WebAuthn requests */
+    origin: optionalEnv('WEBAUTHN_ORIGIN', 'http://localhost:5173'),
+  },
 
   /** Feature flags for conditional functionality */
   features: {

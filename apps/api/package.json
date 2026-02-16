@@ -15,8 +15,10 @@
   },
   "dependencies": {
     "@chadder/shared": "workspace:*",
+    "@simplewebauthn/server": "^13.2.2",
     "ioredis": "^5.4.2",
     "mongodb": "^6.14.2",
+    "otpauth": "^9.5.0",
     "winston": "^3.19.0",
     "winston-transport": "^4.9.0"
   },

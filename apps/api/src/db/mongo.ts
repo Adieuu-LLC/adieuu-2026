@@ -265,6 +265,12 @@ export const Collections = {
   SESSIONS: 'sessions',
   /** Security audit logs collection */
   AUDIT_LOGS: 'audit_logs',
+  /** TOTP authenticator credentials */
+  TOTP_CREDENTIALS: 'totp_credentials',
+  /** WebAuthn/passkey credentials */
+  WEBAUTHN_CREDENTIALS: 'webauthn_credentials',
+  /** MFA backup codes */
+  MFA_BACKUP_CODES: 'mfa_backup_codes',
 } as const;
 
 /**
@@ -348,6 +354,19 @@ async function createIndexes(): Promise<void> {
   await auditLogs.createIndex({ userId: 1, createdAt: -1 });
   await auditLogs.createIndex({ action: 1, createdAt: -1 });
   await auditLogs.createIndex({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 }); // 90 day retention
+
+  // TOTP credentials collection indexes
+  const totpCredentials = database.collection(Collections.TOTP_CREDENTIALS);
+  await totpCredentials.createIndex({ userId: 1 });
+
+  // WebAuthn credentials collection indexes
+  const webauthnCredentials = database.collection(Collections.WEBAUTHN_CREDENTIALS);
+  await webauthnCredentials.createIndex({ userId: 1 });
+  await webauthnCredentials.createIndex({ credentialId: 1 }, { unique: true });
+
+  // MFA backup codes collection indexes
+  const mfaBackupCodes = database.collection(Collections.MFA_BACKUP_CODES);
+  await mfaBackupCodes.createIndex({ userId: 1 }, { unique: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

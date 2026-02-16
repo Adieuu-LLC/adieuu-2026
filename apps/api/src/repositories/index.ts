@@ -5,3 +5,15 @@
 export { BaseRepository, type IRepository } from './base.repository';
 export { UserRepository, getUserRepository, type IUserRepository } from './user.repository';
 export { AuditLogRepository, getAuditLogRepository, type IAuditLogRepository } from './audit.repository';
+export { SessionRepository, getSessionRepository, type ISessionRepository } from './session.repository';
+export {
+  TotpRepository,
+  getTotpRepository,
+  type ITotpRepository,
+  WebAuthnRepository,
+  getWebAuthnRepository,
+  type IWebAuthnRepository,
+  BackupCodesRepository,
+  getBackupCodesRepository,
+  type IBackupCodesRepository,
+} from './mfa.repository';
