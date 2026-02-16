@@ -16,13 +16,30 @@ function useTabsContext() {
 }
 
 interface TabsProps {
-  defaultTab: string;
+  /** Default tab for uncontrolled mode */
+  defaultTab?: string;
+  /** Controlled tab value */
+  value?: string;
+  /** Callback when tab changes (for controlled mode or side effects) */
+  onValueChange?: (tab: string) => void;
   children: ReactNode;
   className?: string;
 }
 
-export function Tabs({ defaultTab, children, className = '' }: TabsProps) {
-  const [activeTab, setActiveTab] = useState(defaultTab);
+export function Tabs({ defaultTab, value, onValueChange, children, className = '' }: TabsProps) {
+  // Support both controlled and uncontrolled modes
+  const [internalTab, setInternalTab] = useState(defaultTab ?? '');
+  
+  const activeTab = value !== undefined ? value : internalTab;
+  
+  const setActiveTab = (tab: string) => {
+    if (value === undefined) {
+      // Uncontrolled mode - update internal state
+      setInternalTab(tab);
+    }
+    // Always call onValueChange if provided
+    onValueChange?.(tab);
+  };
 
   return (
     <TabsContext.Provider value={{ activeTab, setActiveTab }}>

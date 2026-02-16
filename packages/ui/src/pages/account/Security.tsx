@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
@@ -8,6 +9,9 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { TotpSetup, WebAuthnSetup, MfaCredentialsList } from '../../components/MfaSetup';
 import { createApiClient, type SessionDetails } from '@chadder/shared';
 import { useAppConfig } from '../../config';
+
+const VALID_TABS = ['authentication', 'sessions'] as const;
+type SecurityTab = typeof VALID_TABS[number];
 
 /**
  * Parse user agent string to get a readable device/browser name
@@ -251,6 +255,17 @@ function AuthenticationSettings() {
 
 export function AccountSecurity() {
   const { t } = useTranslation();
+  const { tab } = useParams<{ tab: string }>();
+  const navigate = useNavigate();
+
+  // Validate tab parameter and default to authentication
+  const activeTab: SecurityTab = VALID_TABS.includes(tab as SecurityTab) 
+    ? (tab as SecurityTab) 
+    : 'authentication';
+
+  const handleTabChange = (newTab: string) => {
+    navigate(`/account/security/${newTab}`, { replace: true });
+  };
 
   return (
     <div className="page-content">
@@ -260,7 +275,7 @@ export function AccountSecurity() {
           <p className="page-subtitle">{t('account.security.subtitle')}</p>
         </div>
 
-        <Tabs defaultTab="sessions" className="slide-up">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="slide-up">
           <TabList>
             <TabTrigger value="authentication">
               {t('account.security.tabs.authentication')}

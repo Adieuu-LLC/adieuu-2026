@@ -242,6 +242,9 @@ export async function deleteTotp(
 
   elog.info('TOTP deleted', { userId, totpId: totpId.substring(0, 8) });
 
+  // Clean up backup codes if MFA is now fully disabled
+  await cleanupBackupCodesIfMfaDisabled(userId);
+
   return { success: true };
 }
 
@@ -552,6 +555,9 @@ export async function deleteWebAuthnCredential(
 
   elog.info('WebAuthn credential deleted', { userId, credentialId: credentialId.substring(0, 8) });
 
+  // Clean up backup codes if MFA is now fully disabled
+  await cleanupBackupCodesIfMfaDisabled(userId);
+
   return { success: true };
 }
 
@@ -695,6 +701,32 @@ function hashBackupCode(code: string, userId: string): string {
 // ============================================================================
 // MFA Status Functions
 // ============================================================================
+
+/**
+ * Clean up backup codes if the user has no active MFA methods.
+ * This prevents orphaned backup codes from being used after MFA is disabled.
+ */
+async function cleanupBackupCodesIfMfaDisabled(userId: string): Promise<void> {
+  const totpRepo = getTotpRepository();
+  const webauthnRepo = getWebAuthnRepository();
+  const backupRepo = getBackupCodesRepository();
+
+  // Check if user still has any active MFA methods
+  const [totpCredentials, webauthnCredentials] = await Promise.all([
+    totpRepo.findVerifiedByUserId(userId),
+    webauthnRepo.findByUserId(userId),
+  ]);
+
+  const hasActiveMfa = totpCredentials.length > 0 || webauthnCredentials.length > 0;
+
+  if (!hasActiveMfa) {
+    // User has no active MFA - delete backup codes for security
+    const deleted = await backupRepo.deleteForUser(userId);
+    if (deleted) {
+      elog.info('Backup codes deleted - MFA disabled', { userId });
+    }
+  }
+}
 
 /**
  * Get MFA status for a user

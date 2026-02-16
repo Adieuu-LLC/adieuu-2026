@@ -120,7 +120,8 @@ export function App() {
         <Route path="/account" element={<Navigate to="/account/overview" replace />} />
         <Route path="/account/overview" element={<AccountOverview />} />
         <Route path="/account/appearance" element={<AccountAppearance />} />
-        <Route path="/account/security" element={<AccountSecurity />} />
+        <Route path="/account/security" element={<Navigate to="/account/security/authentication" replace />} />
+        <Route path="/account/security/:tab" element={<AccountSecurity />} />
         <Route path="/account/privacy" element={<AccountPrivacy />} />
         <Route path="/account/notifications" element={<AccountNotifications />} />
       </Route>
