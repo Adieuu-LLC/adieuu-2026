@@ -44,10 +44,11 @@ export class SessionRepository
 
   /**
    * Find session by session ID
-   * Checks Redis cache first, falls back to MongoDB
+   * Always queries MongoDB to get full session document.
+   * Uses cache only to quickly detect expired sessions.
    */
   async findBySessionId(sessionId: string): Promise<SessionDocument | null> {
-    // Try cache first
+    // Check cache for quick expiration check
     const cached = await this.getFromCache(sessionId);
     if (cached) {
       // Check if expired
@@ -55,13 +56,9 @@ export class SessionRepository
         await this.invalidateCache(sessionId);
         return null;
       }
-
-      // Return a partial session document from cache for validation
-      // The caller should use this for auth checks only
-      return null; // We'll handle this differently - see getCachedSession
     }
 
-    // Cache miss - query MongoDB
+    // Query MongoDB for full session document
     const session = await this.findOne({ sessionId, revoked: false });
 
     if (session) {
@@ -70,7 +67,7 @@ export class SessionRepository
         return null;
       }
 
-      // Populate cache
+      // Populate/refresh cache
       await this.setCache(sessionId, session);
     }
 
