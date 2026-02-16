@@ -296,6 +296,23 @@ export async function verifyWebAuthnRegistration(
     return { success: false, error: 'challenge_expired' };
   }
 
+  // Decode clientDataJSON to extract actual origin for debugging
+  let actualOrigin: string | undefined;
+  try {
+    const clientDataBuffer = Buffer.from(response.response.clientDataJSON, 'base64url');
+    const clientData = JSON.parse(clientDataBuffer.toString('utf-8'));
+    actualOrigin = clientData.origin;
+  } catch {
+    // Ignore decode errors - this is just for debugging
+  }
+
+  elog.debug('WebAuthn registration attempt', {
+    userId,
+    expectedOrigin: RP_ORIGIN,
+    actualOrigin,
+    expectedRPID: RP_ID,
+  });
+
   const opts: VerifyRegistrationResponseOpts = {
     response,
     expectedChallenge: storedChallenge,
@@ -304,11 +321,32 @@ export async function verifyWebAuthnRegistration(
     requireUserVerification: false, // Allow both UV and non-UV
   };
 
+  // Validate response structure
+  if (!response?.response?.clientDataJSON || !response?.response?.attestationObject) {
+    elog.warn('WebAuthn registration failed: invalid response structure', {
+      userId,
+      hasResponse: !!response,
+      hasNestedResponse: !!response?.response,
+      hasClientDataJSON: !!response?.response?.clientDataJSON,
+      hasAttestationObject: !!response?.response?.attestationObject,
+    });
+    return { success: false, error: 'invalid_response' };
+  }
+
   let verification: VerifiedRegistrationResponse;
   try {
     verification = await verifyRegistrationResponse(opts);
   } catch (error) {
-    elog.warn('WebAuthn registration verification failed', { error, userId });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    elog.warn('WebAuthn registration verification failed', {
+      errorMessage,
+      errorStack,
+      userId,
+      expectedOrigin: RP_ORIGIN,
+      expectedRPID: RP_ID,
+      actualOrigin,
+    });
     return { success: false, error: 'verification_failed' };
   }
 
@@ -421,7 +459,15 @@ export async function verifyWebAuthnAuthentication(
 
     verification = await verifyAuthenticationResponse(opts);
   } catch (error) {
-    elog.warn('WebAuthn authentication verification failed', { error, userId });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    elog.warn('WebAuthn authentication verification failed', {
+      errorMessage,
+      errorStack,
+      userId,
+      expectedOrigin: RP_ORIGIN,
+      expectedRPID: RP_ID,
+    });
     return { success: false, error: 'verification_failed' };
   }
 

@@ -336,7 +336,17 @@ export class Router {
       try {
         return await next();
       } catch (err) {
-        elog.error('Unhandled error', { error: err, path, method, requestId });
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        const errorStack = err instanceof Error ? err.stack : undefined;
+        const errorName = err instanceof Error ? err.name : undefined;
+        elog.error('Unhandled error', {
+          errorMessage,
+          errorName,
+          errorStack,
+          path,
+          method,
+          requestId,
+        });
         return contextErrors.internal();
       }
     };

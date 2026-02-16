@@ -406,8 +406,7 @@ const MfaTotpSchema = z.object({
  * to complete login with an authenticator app code.
  */
 router.post('/auth/mfa/totp', async (ctx) => {
-  const body = await ctx.request.json().catch(() => ({}));
-  const parsed = MfaTotpSchema.safeParse(body);
+  const parsed = MfaTotpSchema.safeParse(ctx.body);
 
   if (!parsed.success) {
     return ctx.errors.badRequest();
@@ -447,8 +446,7 @@ const MfaWebAuthnSchema = z.object({
  * to complete login with a passkey.
  */
 router.post('/auth/mfa/webauthn', async (ctx) => {
-  const body = await ctx.request.json().catch(() => ({}));
-  const parsed = MfaWebAuthnSchema.safeParse(body);
+  const parsed = MfaWebAuthnSchema.safeParse(ctx.body);
 
   if (!parsed.success) {
     return ctx.errors.badRequest();
@@ -488,8 +486,7 @@ const MfaBackupCodeSchema = z.object({
  * to complete login with a backup code.
  */
 router.post('/auth/mfa/backup-code', async (ctx) => {
-  const body = await ctx.request.json().catch(() => ({}));
-  const parsed = MfaBackupCodeSchema.safeParse(body);
+  const parsed = MfaBackupCodeSchema.safeParse(ctx.body);
 
   if (!parsed.success) {
     return ctx.errors.badRequest();

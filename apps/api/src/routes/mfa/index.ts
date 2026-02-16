@@ -96,8 +96,7 @@ router.post('/mfa/totp/setup', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  const body = await ctx.request.json().catch(() => ({}));
-  const parsed = TotpSetupSchema.safeParse(body);
+  const parsed = TotpSetupSchema.safeParse(ctx.body);
   const rawName = parsed.success ? parsed.data.name : 'Authenticator';
   const sanitizedName = sanitizeString(rawName, 'general');
   const name = sanitizedName.value || 'Authenticator';
@@ -132,8 +131,7 @@ router.post('/mfa/totp/verify', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  const body = await ctx.request.json().catch(() => ({}));
-  const parsed = TotpVerifySchema.safeParse(body);
+  const parsed = TotpVerifySchema.safeParse(ctx.body);
   if (!parsed.success) {
     return ctx.errors.badRequest();
   }
@@ -217,8 +215,7 @@ router.post('/mfa/webauthn/register/start', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  const body = await ctx.request.json().catch(() => ({}));
-  const parsed = WebAuthnRegisterStartSchema.safeParse(body);
+  const parsed = WebAuthnRegisterStartSchema.safeParse(ctx.body);
   const rawName = parsed.success ? parsed.data.name : 'Passkey';
   const sanitizedName = sanitizeString(rawName, 'general');
   const name = sanitizedName.value || 'Passkey';
@@ -252,8 +249,8 @@ router.post('/mfa/webauthn/register/finish', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  const body = await ctx.request.json().catch(() => ({}));
-  const parsed = WebAuthnRegisterFinishSchema.safeParse(body);
+  // Use ctx.body - the router already parsed the JSON body
+  const parsed = WebAuthnRegisterFinishSchema.safeParse(ctx.body);
   if (!parsed.success) {
     return ctx.errors.badRequest();
   }
@@ -307,8 +304,7 @@ router.patch('/mfa/webauthn/:credentialId', async (ctx) => {
     return ctx.errors.badRequest();
   }
 
-  const body = await ctx.request.json().catch(() => ({}));
-  const parsed = WebAuthnRenameSchema.safeParse(body);
+  const parsed = WebAuthnRenameSchema.safeParse(ctx.body);
   if (!parsed.success) {
     return ctx.errors.badRequest();
   }
