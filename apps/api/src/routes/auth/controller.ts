@@ -828,7 +828,17 @@ async function getPendingLogin(mfaToken: string): Promise<MfaPendingLogin | null
     return null;
   }
 
-  return JSON.parse(data) as MfaPendingLogin;
+  try {
+    return JSON.parse(data) as MfaPendingLogin;
+  } catch {
+    // Malformed data in Redis - log and treat as invalid token
+    elog.warn('Failed to parse MFA pending login data', {
+      mfaTokenPrefix: mfaToken.substring(0, 8),
+    });
+    // Clean up the corrupted entry
+    await redis.del(`mfa:pending:${mfaToken}`);
+    return null;
+  }
 }
 
 /**
