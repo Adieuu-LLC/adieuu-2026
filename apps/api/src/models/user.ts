@@ -25,7 +25,36 @@ export interface UserDocument extends BaseDocument {
 
   // Metadata
   lastLoginAt?: Date;
+
+  // Identity-related fields
+  /** Lifetime count of identities created by this user */
+  identityCount: number;
+  /** User's preferred lockout duration in milliseconds (default: 1 hour) */
+  identityLockoutDuration: number;
+  /** Timestamps of recent failed identity login attempts (capped at 6) */
+  identityLoginAttempts: Date[];
+  /** When the identity lockout expires */
+  identityLockedUntil?: Date;
 }
+
+/** Default identity lockout duration: 1 hour in milliseconds */
+export const DEFAULT_IDENTITY_LOCKOUT_DURATION = 60 * 60 * 1000;
+
+/** Minimum identity lockout duration: 15 minutes */
+export const MIN_IDENTITY_LOCKOUT_DURATION = 15 * 60 * 1000;
+
+/** Valid identity lockout duration presets in milliseconds */
+export const IDENTITY_LOCKOUT_PRESETS = {
+  '15min': 15 * 60 * 1000,
+  '30min': 30 * 60 * 1000,
+  '1hour': 60 * 60 * 1000,
+  '3hours': 3 * 60 * 60 * 1000,
+  '6hours': 6 * 60 * 60 * 1000,
+  '12hours': 12 * 60 * 60 * 1000,
+  '1day': 24 * 60 * 60 * 1000,
+  '1week': 7 * 24 * 60 * 60 * 1000,
+  'permanent': -1, // Special value indicating permanent lockout
+} as const;
 
 /**
  * User creation input (without system-generated fields)
@@ -50,6 +79,10 @@ export interface UpdateUserInput {
   failedAttempts?: number;
   lockedUntil?: Date | null;
   lastLoginAt?: Date;
+  identityCount?: number;
+  identityLockoutDuration?: number;
+  identityLoginAttempts?: Date[];
+  identityLockedUntil?: Date | null;
 }
 
 /**

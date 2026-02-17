@@ -7,6 +7,7 @@ import { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type { UserDocument, CreateUserInput, UpdateUserInput } from '../models/user';
+import { DEFAULT_IDENTITY_LOCKOUT_DURATION } from '../models/user';
 import { withTimestamps } from '../models/base';
 
 /**
@@ -72,6 +73,10 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
       phoneVerified: input.phoneVerified ?? false,
       displayName: input.displayName,
       failedAttempts: 0,
+      // Identity-related defaults
+      identityCount: 0,
+      identityLockoutDuration: DEFAULT_IDENTITY_LOCKOUT_DURATION,
+      identityLoginAttempts: [],
     };
 
     return await super.create(doc);
@@ -153,6 +158,124 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
         $unset: { lockedUntil: '' },
       }
     );
+  }
+
+  /**
+   * Increment identity count (when user creates an identity)
+   */
+  async incrementIdentityCount(id: string | ObjectId): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $inc: { identityCount: 1 },
+        $set: { updatedAt: new Date() },
+      }
+    );
+  }
+
+  /**
+   * Record failed identity login attempt
+   * Returns the updated list of attempts and whether lockout was triggered
+   */
+  async recordIdentityLoginAttempt(id: string | ObjectId): Promise<{
+    attempts: Date[];
+    lockedUntil?: Date;
+  }> {
+    const objectId = this.toObjectId(id);
+    const now = new Date();
+
+    // Get current user to check attempt count
+    const user = await this.findById(objectId);
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Add new attempt, keep only last 6
+    const attempts = [...(user.identityLoginAttempts || []), now].slice(-6);
+
+    // Check if we should trigger lockout (6 attempts)
+    let lockedUntil: Date | undefined;
+    if (attempts.length >= 6) {
+      // Calculate lockout expiration
+      const duration = user.identityLockoutDuration;
+      if (duration === -1) {
+        // Permanent lockout - set to far future
+        lockedUntil = new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000);
+      } else {
+        lockedUntil = new Date(now.getTime() + duration);
+      }
+    }
+
+    const updateDoc: Record<string, unknown> = {
+      identityLoginAttempts: attempts,
+      updatedAt: now,
+    };
+    if (lockedUntil) {
+      updateDoc.identityLockedUntil = lockedUntil;
+    }
+
+    await this.collection.updateOne(
+      { _id: objectId },
+      { $set: updateDoc }
+    );
+
+    return { attempts, lockedUntil };
+  }
+
+  /**
+   * Reset identity login attempts (on successful login)
+   */
+  async resetIdentityLoginAttempts(id: string | ObjectId): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          identityLoginAttempts: [],
+          updatedAt: new Date(),
+        },
+        $unset: { identityLockedUntil: '' },
+      }
+    );
+  }
+
+  /**
+   * Update identity lockout duration preference
+   */
+  async updateIdentityLockoutDuration(
+    id: string | ObjectId,
+    duration: number
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          identityLockoutDuration: duration,
+          updatedAt: new Date(),
+        },
+      }
+    );
+  }
+
+  /**
+   * Check if user is locked out from identity login
+   */
+  async isIdentityLockedOut(id: string | ObjectId): Promise<{
+    lockedOut: boolean;
+    lockedUntil?: Date;
+  }> {
+    const user = await this.findById(id);
+    if (!user) {
+      return { lockedOut: false };
+    }
+
+    if (user.identityLockedUntil && user.identityLockedUntil > new Date()) {
+      return { lockedOut: true, lockedUntil: user.identityLockedUntil };
+    }
+
+    return { lockedOut: false };
   }
 }
 

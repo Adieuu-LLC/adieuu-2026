@@ -271,6 +271,10 @@ export const Collections = {
   WEBAUTHN_CREDENTIALS: 'webauthn_credentials',
   /** MFA backup codes */
   MFA_BACKUP_CODES: 'mfa_backup_codes',
+  /** User identities collection */
+  IDENTITIES: 'identities',
+  /** Identity sessions collection */
+  IDENTITY_SESSIONS: 'identity_sessions',
 } as const;
 
 /**
@@ -367,6 +371,23 @@ async function createIndexes(): Promise<void> {
   // MFA backup codes collection indexes
   const mfaBackupCodes = database.collection(Collections.MFA_BACKUP_CODES);
   await mfaBackupCodes.createIndex({ userId: 1 }, { unique: true });
+
+  // Identities collection indexes
+  const identities = database.collection(Collections.IDENTITIES);
+  // Partial unique index - only enforce uniqueness for non-deleted identities
+  await identities.createIndex(
+    { ident: 1 },
+    { unique: true, partialFilterExpression: { ident: { $ne: 'deleted' } } }
+  );
+  await identities.createIndex({ username: 1 }, { unique: true });
+  await identities.createIndex({ lastActiveAt: 1 });
+
+  // Identity sessions collection indexes
+  const identitySessions = database.collection(Collections.IDENTITY_SESSIONS);
+  await identitySessions.createIndex({ identitySessionId: 1 }, { unique: true });
+  await identitySessions.createIndex({ identityId: 1 });
+  await identitySessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index
+  await identitySessions.createIndex({ revoked: 1, expiresAt: 1 });
 
   elog.debug('MongoDB indexes created/verified');
 }

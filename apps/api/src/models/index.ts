@@ -7,3 +7,5 @@ export * from './user';
 export * from './audit';
 export * from './session';
 export * from './mfa';
+export * from './identity';
+export * from './identity-session';

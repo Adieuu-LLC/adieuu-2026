@@ -20,6 +20,11 @@ import {
   type SessionData,
 } from '../../services/session.service';
 import {
+  logoutFromIdentity,
+  getIdentitySessionIdFromRequest,
+  buildIdentityLogoutCookie,
+} from '../../services/identity.service';
+import {
   getMfaStatus,
   verifyTotpCode,
   verifyWebAuthnAuthentication,
@@ -619,17 +624,31 @@ export async function getSessionHandler(request: Request): Promise<SessionData |
 }
 
 /**
- * Logs out the current session.
+ * Logs out the current session and identity session.
  *
- * @param request - The incoming request with session cookie
- * @returns The logout cookie to clear the session
+ * @param request - The incoming request with session cookies
+ * @returns Both logout cookies to clear the sessions
  */
-export async function logoutHandler(request: Request): Promise<string> {
+export async function logoutHandler(request: Request): Promise<{
+  userCookie: string;
+  identityCookie: string;
+}> {
+  // Logout user session
   const sessionId = getSessionIdFromRequest(request);
   if (sessionId) {
     await destroySession(sessionId);
   }
-  return buildLogoutCookie();
+
+  // Logout identity session (if exists)
+  const identitySessionId = getIdentitySessionIdFromRequest(request);
+  if (identitySessionId) {
+    await logoutFromIdentity(identitySessionId);
+  }
+
+  return {
+    userCookie: buildLogoutCookie(),
+    identityCookie: buildIdentityLogoutCookie(),
+  };
 }
 
 /**
@@ -747,7 +766,7 @@ export async function revokeSessionHandler(
  * Result type for revoking all sessions.
  */
 export type RevokeAllSessionsResult =
-  | { success: true; count: number; cookie: string }
+  | { success: true; count: number; userCookie: string; identityCookie: string }
   | { success: false; error: 'unauthorized' };
 
 /**
@@ -774,12 +793,23 @@ export async function revokeAllSessionsHandler(
     // Revoke all sessions including current
     const count = await destroyAllSessions(session.userId);
 
+    // Also logout identity session if present
+    const identitySessionId = getIdentitySessionIdFromRequest(request);
+    if (identitySessionId) {
+      await logoutFromIdentity(identitySessionId);
+    }
+
     elog.info('All sessions revoked by user', {
       userId: session.userId,
       count,
     });
 
-    return { success: true, count, cookie: buildLogoutCookie() };
+    return {
+      success: true,
+      count,
+      userCookie: buildLogoutCookie(),
+      identityCookie: buildIdentityLogoutCookie(),
+    };
   } else {
     // Revoke all except current
     const sessions = await sessionRepo.findByUserId(session.userId);
@@ -797,8 +827,8 @@ export async function revokeAllSessionsHandler(
       count,
     });
 
-    // Return empty cookie since current session is still valid
-    return { success: true, count, cookie: '' };
+    // Return empty cookies since current session is still valid
+    return { success: true, count, userCookie: '', identityCookie: '' };
   }
 }
 

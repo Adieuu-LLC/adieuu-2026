@@ -17,3 +17,9 @@ export {
   getBackupCodesRepository,
   type IBackupCodesRepository,
 } from './mfa.repository';
+export { IdentityRepository, getIdentityRepository, type IIdentityRepository } from './identity.repository';
+export {
+  IdentitySessionRepository,
+  getIdentitySessionRepository,
+  type IIdentitySessionRepository,
+} from './identity-session.repository';

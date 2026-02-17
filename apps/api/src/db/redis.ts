@@ -372,6 +372,14 @@ export const RedisKeys = {
    * ```
    */
   userSessions: (userId: string) => `user_sessions:${userId}`,
+
+  /**
+   * Generates a key for identity session storage.
+   * 
+   * @param sessionId - The identity session identifier
+   * @returns Key in format `identity_session:{sessionId}`
+   */
+  identitySession: (sessionId: string) => `identity_session:${sessionId}`,
 } as const;
 
 /**

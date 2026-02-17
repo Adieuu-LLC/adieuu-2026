@@ -13,6 +13,7 @@ import { healthRoutes } from './health';
 import { userRoutes } from './users';
 import { authRoutes } from './auth';
 import mfaRoutes from './mfa';
+import { identityRoutes } from './identity';
 
 /**
  * Registers all application routes with the main router.
@@ -22,6 +23,7 @@ import mfaRoutes from './mfa';
  * - `/api/health` - Health check and liveness endpoints
  * - `/api/auth` - Authentication endpoints (OTP request, verification)
  * - `/api/users` - User management endpoints
+ * - `/api/identity` - Anonymous identity management endpoints
  *
  * @param app - The main application router instance to register routes on
  *
@@ -46,4 +48,7 @@ export function registerRoutes(app: Router): void {
 
   // MFA routes at /api
   app.merge(mfaRoutes, '/api');
+
+  // Identity routes at /api
+  app.merge(identityRoutes, '/api');
 }

@@ -276,18 +276,21 @@ router.get('/auth/session', async (ctx) => {
 /**
  * POST /auth/logout - Log out the current session.
  *
- * Destroys the current session and clears the session cookie.
+ * Destroys the current user session and identity session (if any),
+ * and clears both session cookies.
  *
  * @route POST /api/auth/logout
  *
- * @returns 200 OK with cleared session cookie
+ * @returns 200 OK with cleared session cookies
  */
 router.post('/auth/logout', async (ctx) => {
-  const logoutCookie = await logoutHandler(ctx.request);
+  const { userCookie, identityCookie } = await logoutHandler(ctx.request);
 
   const response = success(undefined, 'Logged out successfully.');
+  // Need to set multiple cookies - use append instead of set
   const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', logoutCookie);
+  headers.append('Set-Cookie', userCookie);
+  headers.append('Set-Cookie', identityCookie);
   return new Response(response.body, { status: response.status, headers });
 });
 
@@ -380,10 +383,15 @@ router.delete('/auth/sessions', async (ctx) => {
     `${result.count} session(s) revoked successfully.`
   );
 
-  // If current session was revoked, clear the cookie
-  if (result.cookie) {
+  // If current session was revoked, clear both cookies
+  if (result.userCookie || result.identityCookie) {
     const headers = new Headers(response.headers);
-    headers.set('Set-Cookie', result.cookie);
+    if (result.userCookie) {
+      headers.append('Set-Cookie', result.userCookie);
+    }
+    if (result.identityCookie) {
+      headers.append('Set-Cookie', result.identityCookie);
+    }
     return new Response(response.body, { status: response.status, headers });
   }
 
