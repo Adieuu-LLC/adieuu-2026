@@ -574,4 +574,3 @@ This lockout is temporary and will expire based on your security settings.`;
 
 // Re-export constants for use in routes
 export { MIN_PASSPHRASE_LENGTH, IDENTITY_SESSION_CONFIG };
-

@@ -314,4 +314,3 @@ export function getIdentitySessionRepository(): IdentitySessionRepository {
   }
   return identitySessionRepository;
 }
-

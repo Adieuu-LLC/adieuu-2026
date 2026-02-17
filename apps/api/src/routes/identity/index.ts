@@ -314,4 +314,3 @@ router.delete('/identity', async (ctx) => {
 });
 
 export const identityRoutes = router;
-

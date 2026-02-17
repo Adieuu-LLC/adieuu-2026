@@ -119,4 +119,3 @@ export function toCachedIdentitySession(
     lastActivityAt: doc.lastActivityAt.getTime(),
   };
 }
-
