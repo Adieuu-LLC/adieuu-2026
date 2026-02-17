@@ -1,15 +1,5 @@
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 
-// Mock the logger - used by many modules
-mock.module('../../utils/adieuuLogger', () => ({
-  default: {
-    info: mock(() => {}),
-    warn: mock(() => {}),
-    error: mock(() => {}),
-    debug: mock(() => {}),
-  },
-}));
-
 // Mock crypto utilities to avoid needing real config
 mock.module('../../utils/crypto', () => ({
   hashIdentifier: mock((id: string) => `hashed:${id}`),

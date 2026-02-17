@@ -1,15 +1,5 @@
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 
-// Mock logger to prevent log spam during tests
-mock.module('../../utils/adieuuLogger', () => ({
-  default: {
-    info: mock(() => {}),
-    warn: mock(() => {}),
-    error: mock(() => {}),
-    debug: mock(() => {}),
-  },
-}));
-
 // Define the HealthCheck type for mocks
 type HealthCheckResult = { status: 'up'; latencyMs: number } | { status: 'down'; error: string };
 

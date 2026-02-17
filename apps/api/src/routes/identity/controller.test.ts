@@ -1,16 +1,6 @@
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
-// Mock the logger
-mock.module('../../utils/adieuuLogger', () => ({
-  default: {
-    info: mock(() => {}),
-    warn: mock(() => {}),
-    error: mock(() => {}),
-    debug: mock(() => {}),
-  },
-}));
-
 // Mock config
 mock.module('../../config', () => ({
   config: {

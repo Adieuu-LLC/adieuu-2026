@@ -1,14 +1,6 @@
-import { describe, expect, test, mock } from 'bun:test';
-
-// Mock the logger before importing sanitize
-mock.module('./adieuuLogger', () => ({
-  default: {
-    info: mock(() => { }),
-    error: mock(() => { }),
-  },
-}));
-
+import { describe, expect, test, spyOn } from 'bun:test';
 import { sanitizeString, generateEmojiString, type SanitizationResult } from './sanitize';
+import elog from './adieuuLogger';
 
 describe('generateEmojiString', () => {
   test('returns a string containing emojis', () => {
@@ -755,6 +747,10 @@ describe('sanitizeString', () => {
       const originalReplace = String.prototype.replace;
       let callCount = 0;
 
+      // Spy on logger.error to prevent Winston from using String.prototype.replace
+      // which we've monkey-patched for this test
+      const errorSpy = spyOn(elog, 'error').mockImplementation(() => elog);
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (String.prototype as any).replace = function (
         this: string,
@@ -773,8 +769,10 @@ describe('sanitizeString', () => {
         const result = sanitizeString('test', 'alphanumdash');
         expect(result.value).toBe('');
         expect(result.deltas).toBeGreaterThan(0);
+        expect(errorSpy).toHaveBeenCalled();
       } finally {
         String.prototype.replace = originalReplace;
+        errorSpy.mockRestore();
       }
     });
   });
