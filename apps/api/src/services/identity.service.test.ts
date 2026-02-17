@@ -519,4 +519,3 @@ describe('identity.service', () => {
     });
   });
 });
-

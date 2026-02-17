@@ -398,4 +398,3 @@ describe('identity-hash utilities', () => {
     });
   });
 });
-
