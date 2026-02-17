@@ -336,6 +336,9 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
   const [totpCredentials, setTotpCredentials] = useState<TotpCredential[]>([]);
   const [webauthnCredentials, setWebauthnCredentials] = useState<WebAuthnCredential[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [editingPasskey, setEditingPasskey] = useState<{ id: string; name: string } | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
 
   // Confirm dialog state
   const [confirmDelete, setConfirmDelete] = useState<{ type: 'totp' | 'webauthn'; id: string } | null>(null);
@@ -395,6 +398,51 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
       setDeleting(null);
       setConfirmDelete(null);
     }
+  };
+
+  const handleRenameWebAuthn = async () => {
+    if (!editingPasskey) return;
+    
+    // Sanitize name: trim whitespace, limit length, remove control characters
+    const sanitizedName = editingPasskey.name
+      .trim()
+      .slice(0, 100)
+      .replace(/[\x00-\x1F\x7F]/g, ''); // Remove control characters
+    
+    if (!sanitizedName) {
+      setRenameError(t('account.security.mfa.webauthn.nameRequired', 'Name is required'));
+      return;
+    }
+    
+    setRenaming(editingPasskey.id);
+    setRenameError(null);
+    
+    try {
+      const response = await api.mfa.renameWebAuthn(editingPasskey.id, sanitizedName);
+      if (response.success) {
+        setWebauthnCredentials((prev) =>
+          prev.map((c) => (c.id === editingPasskey.id ? { ...c, name: sanitizedName } : c))
+        );
+        setEditingPasskey(null);
+      } else {
+        setRenameError(t('account.security.mfa.webauthn.renameFailed', 'Failed to rename passkey'));
+      }
+    } catch (err) {
+      console.error('Failed to rename WebAuthn:', err);
+      setRenameError(t('account.security.mfa.webauthn.renameFailed', 'Failed to rename passkey'));
+    } finally {
+      setRenaming(null);
+    }
+  };
+
+  const startEditingPasskey = (cred: WebAuthnCredential) => {
+    setEditingPasskey({ id: cred.id, name: cred.name });
+    setRenameError(null);
+  };
+
+  const cancelEditingPasskey = () => {
+    setEditingPasskey(null);
+    setRenameError(null);
   };
 
   const handleConfirmDelete = () => {
@@ -496,26 +544,77 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
             {webauthnCredentials.map((cred) => (
               <div key={cred.id} className="mfa-credential-item">
                 <div className="mfa-credential-info">
-                  <span className="mfa-credential-name">
-                    {cred.name}
-                    {cred.backedUp && (
-                      <span className="mfa-badge mfa-badge-synced" title="Synced across devices">
-                        {t('account.security.mfa.webauthn.synced', 'Synced')}
+                  {editingPasskey?.id === cred.id ? (
+                    <div className="mfa-credential-edit">
+                      <Input
+                        value={editingPasskey.name}
+                        onChange={(e) => setEditingPasskey({ ...editingPasskey, name: e.target.value })}
+                        maxLength={100}
+                        autoFocus
+                        error={renameError ?? undefined}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleRenameWebAuthn();
+                          } else if (e.key === 'Escape') {
+                            cancelEditingPasskey();
+                          }
+                        }}
+                      />
+                      <div className="mfa-credential-edit-actions">
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={handleRenameWebAuthn}
+                          disabled={renaming === cred.id}
+                        >
+                          {renaming === cred.id ? <Spinner size="sm" /> : t('common.save', 'Save')}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={cancelEditingPasskey}
+                          disabled={renaming === cred.id}
+                        >
+                          {t('common.cancel', 'Cancel')}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="mfa-credential-name">
+                        {cred.name}
+                        {cred.backedUp && (
+                          <span className="mfa-badge mfa-badge-synced" title="Synced across devices">
+                            {t('account.security.mfa.webauthn.synced', 'Synced')}
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </span>
-                  <span className="mfa-credential-meta">
-                    {t('account.security.mfa.addedOn', 'Added')} {new Date(cred.createdAt).toLocaleDateString()}
-                  </span>
+                      <span className="mfa-credential-meta">
+                        {t('account.security.mfa.addedOn', 'Added')} {new Date(cred.createdAt).toLocaleDateString()}
+                      </span>
+                    </>
+                  )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setConfirmDelete({ type: 'webauthn', id: cred.id })}
-                  disabled={deleting === cred.id}
-                >
-                  {deleting === cred.id ? <Spinner size="sm" /> : t('common.remove', 'Remove')}
-                </Button>
+                {editingPasskey?.id !== cred.id && (
+                  <div className="mfa-credential-actions">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => startEditingPasskey(cred)}
+                      disabled={deleting === cred.id || editingPasskey !== null}
+                    >
+                      {t('common.edit', 'Edit')}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setConfirmDelete({ type: 'webauthn', id: cred.id })}
+                      disabled={deleting === cred.id || editingPasskey !== null}
+                    >
+                      {deleting === cred.id ? <Spinner size="sm" /> : t('common.remove', 'Remove')}
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

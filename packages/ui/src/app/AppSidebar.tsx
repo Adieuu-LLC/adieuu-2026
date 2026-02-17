@@ -87,7 +87,7 @@ export function AppSidebar() {
           <Link to="/account/security" style={{ textDecoration: 'none' }}>
             <SidebarSubItem
               label={t('account.security.title')}
-              isActive={isActive('/account/security')}
+              isActive={location.pathname.startsWith('/account/security')}
             />
           </Link>
           <Link to="/account/privacy" style={{ textDecoration: 'none' }}>
