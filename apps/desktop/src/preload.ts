@@ -10,6 +10,14 @@ contextBridge.exposeInMainWorld('electron', {
     electron: process.versions.electron,
   },
 
+  // Window controls (for custom title bar on Windows/Linux)
+  window: {
+    minimize: () => ipcRenderer.invoke('window:minimize'),
+    maximize: () => ipcRenderer.invoke('window:maximize'),
+    close: () => ipcRenderer.invoke('window:close'),
+    isMaximized: () => ipcRenderer.invoke('window:isMaximized') as Promise<boolean>,
+  },
+
   // IPC communication (add as needed)
   invoke: (channel: string, ...args: unknown[]) => {
     const allowedChannels = ['get-app-version', 'open-external'];
@@ -36,6 +44,12 @@ declare global {
         node: string;
         chrome: string;
         electron: string;
+      };
+      window: {
+        minimize: () => Promise<void>;
+        maximize: () => Promise<void>;
+        close: () => Promise<void>;
+        isMaximized: () => Promise<boolean>;
       };
       invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
       on: (channel: string, callback: (...args: unknown[]) => void) => void;

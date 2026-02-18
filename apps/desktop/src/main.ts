@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import path from 'path';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling
@@ -8,20 +8,25 @@ import path from 'path';
 let mainWindow: BrowserWindow | null = null;
 
 const isDev = process.env.NODE_ENV === 'development';
+const isMac = process.platform === 'darwin';
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    minWidth: 800,
-    minHeight: 600,
+    minWidth: 320,
+    minHeight: 400,
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
     },
-    titleBarStyle: 'hiddenInset',
+    // macOS: use native traffic lights with hidden title bar
+    // Windows/Linux: fully frameless for custom window controls
+    ...(isMac
+      ? { titleBarStyle: 'hiddenInset' }
+      : { frame: false, titleBarStyle: 'hidden' }),
     show: false,
   });
 
@@ -72,4 +77,25 @@ app.on('web-contents-created', (_, contents) => {
       event.preventDefault();
     }
   });
+});
+
+// Window control IPC handlers
+ipcMain.handle('window:minimize', () => {
+  mainWindow?.minimize();
+});
+
+ipcMain.handle('window:maximize', () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow?.maximize();
+  }
+});
+
+ipcMain.handle('window:close', () => {
+  mainWindow?.close();
+});
+
+ipcMain.handle('window:isMaximized', () => {
+  return mainWindow?.isMaximized() ?? false;
 });

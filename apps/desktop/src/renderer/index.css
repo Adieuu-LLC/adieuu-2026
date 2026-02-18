@@ -6,6 +6,65 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* Custom Window Title Bar for Windows/Linux */
+.window-title-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  z-index: 9999;
+  -webkit-app-region: drag;
+}
+
+.window-drag-region {
+  flex: 1;
+  height: 100%;
+}
+
+.window-controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.window-control-btn {
+  width: 46px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.window-control-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.window-control-btn:focus-visible {
+  outline: 2px solid var(--color-accent-primary);
+  outline-offset: -2px;
+}
+
+.window-control-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+/* Offset main content for title bar on Windows/Linux */
+.has-custom-title-bar .app-layout,
+.has-custom-title-bar .auth-page {
+  padding-top: 32px;
+}
+
 /* Page content - used inside the app layout */
 .page-content {
   padding: var(--spacing-xl);
