@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { useLocation, useNavigate, Link } from 'react-router-dom';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   Sidebar,
   SidebarItem,
-  SidebarSubItem,
-  SidebarDivider,
   SidebarSection,
+  useSidebar,
 } from '../components/Sidebar';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
@@ -16,29 +15,98 @@ import { useIdentity } from '../hooks/useIdentity';
 import { IdentityModal } from './IdentityModal';
 
 /**
- * Main application sidebar with navigation links.
- * Shared across all platforms (web, desktop, mobile).
+ * Account flyout menu that appears on hover in the sidebar footer.
+ * Shows account navigation links and logout option.
  */
-export function AppSidebar() {
+function AccountFlyout() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const { status: identityStatus, identity, logoutFromIdentity } = useIdentity();
+  const { isExpanded } = useSidebar();
 
-  const [identityModalOpen, setIdentityModalOpen] = useState(false);
+  const isActive = (path: string) => location.pathname === path;
+  const isAccountActive = location.pathname.startsWith('/account');
 
   const handleLogout = async () => {
     await logout();
     navigate('/auth/login');
   };
 
+  return (
+    <div className="sidebar-account-flyout-wrapper" data-tour="account">
+      <Button
+        variant="ghost"
+        size="sm"
+        className={`sidebar-account-btn ${isAccountActive ? 'sidebar-account-btn-active' : ''}`}
+      >
+        <UserIcon />
+        <span className="sidebar-account-label">{t('nav.account')}</span>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="sidebar-account-chevron"
+        >
+          <path
+            d="M4.5 3L7.5 6L4.5 9"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </Button>
+      <div className={`sidebar-account-flyout ${!isExpanded ? 'sidebar-account-flyout-collapsed' : ''}`}>
+        <div className="sidebar-account-flyout-content">
+          <Link to="/account/overview" className={`sidebar-flyout-item ${isActive('/account/overview') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('account.overview.title')}
+          </Link>
+          <Link to="/account/appearance" className={`sidebar-flyout-item ${isActive('/account/appearance') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('account.appearance.title')}
+          </Link>
+          <Link to="/account/security" className={`sidebar-flyout-item ${location.pathname.startsWith('/account/security') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('account.security.title')}
+          </Link>
+          <Link to="/account/privacy" className={`sidebar-flyout-item ${isActive('/account/privacy') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('account.privacy.title')}
+          </Link>
+          <Link to="/account/notifications" className={`sidebar-flyout-item ${isActive('/account/notifications') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('account.notifications.title')}
+          </Link>
+          <div className="sidebar-flyout-divider" />
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="sidebar-flyout-item sidebar-flyout-item-logout"
+          >
+            <LogoutIcon />
+            {t('nav.logout')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Main application sidebar with navigation links.
+ * Shared across all platforms (web, desktop, mobile).
+ */
+export function AppSidebar() {
+  const { t } = useTranslation();
+  const location = useLocation();
+  const { status: identityStatus, identity, logoutFromIdentity } = useIdentity();
+
+  const [identityModalOpen, setIdentityModalOpen] = useState(false);
+
   const handleIdentityLogout = async () => {
     await logoutFromIdentity();
   };
 
   const isActive = (path: string) => location.pathname === path;
-  const isAccountActive = location.pathname.startsWith('/account');
 
   const isIdentityLoggedIn = identityStatus === 'logged_in' && identity;
 
@@ -82,17 +150,8 @@ export function AppSidebar() {
             )}
           </div>
 
-          {/* Account Logout Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="sidebar-logout-btn"
-            data-tour="logout"
-          >
-            <LogoutIcon />
-            <span className="sidebar-logout-label">{t('nav.logout')}</span>
-          </Button>
+          {/* Account Menu with Flyout */}
+          <AccountFlyout />
         </div>
       }
     >
@@ -113,47 +172,6 @@ export function AppSidebar() {
         </Link>
       </SidebarSection>
 
-      <SidebarDivider />
-
-      <SidebarSection label={t('sidebar.account')}>
-        <SidebarItem
-          icon={<UserIcon />}
-          label={t('nav.account')}
-          isActive={isAccountActive}
-          data-tour="account"
-        >
-          <Link to="/account/overview" style={{ textDecoration: 'none' }}>
-            <SidebarSubItem
-              label={t('account.overview.title')}
-              isActive={isActive('/account/overview')}
-            />
-          </Link>
-          <Link to="/account/appearance" style={{ textDecoration: 'none' }}>
-            <SidebarSubItem
-              label={t('account.appearance.title')}
-              isActive={isActive('/account/appearance')}
-            />
-          </Link>
-          <Link to="/account/security" style={{ textDecoration: 'none' }}>
-            <SidebarSubItem
-              label={t('account.security.title')}
-              isActive={location.pathname.startsWith('/account/security')}
-            />
-          </Link>
-          <Link to="/account/privacy" style={{ textDecoration: 'none' }}>
-            <SidebarSubItem
-              label={t('account.privacy.title')}
-              isActive={isActive('/account/privacy')}
-            />
-          </Link>
-          <Link to="/account/notifications" style={{ textDecoration: 'none' }}>
-            <SidebarSubItem
-              label={t('account.notifications.title')}
-              isActive={isActive('/account/notifications')}
-            />
-          </Link>
-        </SidebarItem>
-      </SidebarSection>
     </Sidebar>
 
     {/* Identity Login/Create Modal */}

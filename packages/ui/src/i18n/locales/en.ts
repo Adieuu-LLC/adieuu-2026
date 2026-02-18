@@ -24,7 +24,7 @@ export const en = {
     home: 'Home',
     about: 'About',
     account: 'Account',
-    logout: 'Account Logout',
+    logout: 'Logout',
     expandSidebar: 'Expand sidebar',
     collapseSidebar: 'Collapse sidebar',
   },

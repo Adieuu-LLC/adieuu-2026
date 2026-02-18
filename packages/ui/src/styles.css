@@ -1953,6 +1953,154 @@ a:hover {
   color: var(--color-text-primary);
 }
 
+/* === Account Flyout Menu === */
+.sidebar-account-flyout-wrapper {
+  position: relative;
+}
+
+.sidebar-account-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.sidebar-account-btn svg:first-child {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.sidebar-account-label {
+  flex: 1;
+  text-align: left;
+  color: var(--color-text-primary);
+}
+
+.sidebar-account-chevron {
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: transform var(--transition-fast);
+}
+
+.sidebar-account-btn:hover {
+  background: var(--color-bg-hover);
+}
+
+.sidebar-account-btn-active {
+  background: var(--color-bg-active);
+  color: var(--color-accent-primary);
+}
+
+.sidebar-account-btn-active .sidebar-account-label {
+  color: var(--color-accent-primary);
+}
+
+/* Flyout panel */
+.sidebar-account-flyout {
+  position: absolute;
+  left: 100%;
+  bottom: 0;
+  min-width: 200px;
+  margin-left: var(--spacing-sm);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-8px);
+  transition: 
+    opacity var(--transition-fast),
+    visibility var(--transition-fast),
+    transform var(--transition-fast);
+  z-index: 100;
+}
+
+.sidebar-account-flyout-wrapper:hover .sidebar-account-flyout {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(0);
+}
+
+.sidebar-account-flyout-wrapper:hover .sidebar-account-chevron {
+  transform: translateX(2px);
+}
+
+.sidebar-account-flyout-content {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-xs);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* Flyout items */
+.sidebar-flyout-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  text-decoration: none;
+  cursor: pointer;
+  transition: 
+    background var(--transition-fast),
+    color var(--transition-fast);
+  white-space: nowrap;
+}
+
+.sidebar-flyout-item:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.sidebar-flyout-item-active {
+  color: var(--color-accent-primary);
+  background: var(--color-bg-active);
+}
+
+.sidebar-flyout-item-logout {
+  color: var(--color-text-secondary);
+}
+
+.sidebar-flyout-item-logout:hover {
+  color: var(--color-danger);
+  background: var(--color-bg-hover);
+}
+
+.sidebar-flyout-item-logout svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sidebar-flyout-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--spacing-xs) 0;
+}
+
+/* Collapsed sidebar - position flyout from the right edge of collapsed sidebar */
+.sidebar-collapsed .sidebar-account-label,
+.sidebar-collapsed .sidebar-account-chevron {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-account-btn {
+  justify-content: center;
+  padding: var(--spacing-sm);
+}
+
+.sidebar-collapsed .sidebar-account-flyout {
+  bottom: 0;
+}
+
 /* === Modal Overlay === */
 .modal-overlay {
   position: fixed;
