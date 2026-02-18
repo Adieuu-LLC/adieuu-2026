@@ -23,6 +23,7 @@ export function Login() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (isLoading) return; // Prevent multiple submissions
     setError(null);
     setIsLoading(true);
 
@@ -74,6 +75,7 @@ export function Login() {
                 setDeliveryType('email');
                 setIdentifier('');
               }}
+              disabled={isLoading}
               style={{ flex: 1 }}
             >
               Email
@@ -85,6 +87,7 @@ export function Login() {
                 setDeliveryType('sms');
                 setIdentifier('');
               }}
+              disabled={isLoading}
               style={{ flex: 1 }}
             >
               Phone

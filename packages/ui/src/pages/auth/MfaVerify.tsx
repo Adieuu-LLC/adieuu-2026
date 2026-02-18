@@ -92,7 +92,7 @@ export function MfaVerify() {
 
   const handleTotpSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
-    if (code.length !== 6 || !mfaChallenge) return;
+    if (code.length !== 6 || !mfaChallenge || isLoading) return; // Prevent multiple submissions
 
     setError(null);
     setIsLoading(true);
@@ -112,7 +112,7 @@ export function MfaVerify() {
 
   const handleBackupSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
-    if (!backupCode.trim() || !mfaChallenge) return;
+    if (!backupCode.trim() || !mfaChallenge || isLoading) return; // Prevent multiple submissions
 
     setError(null);
     setIsLoading(true);
@@ -132,9 +132,12 @@ export function MfaVerify() {
 
   const handleTotpComplete = (value: string) => {
     setCode(value);
-    if (value.length === 6 && mfaChallenge) {
+    // Auto-submit when code is complete (skip if already loading)
+    if (value.length === 6 && mfaChallenge && !isLoading) {
+      setIsLoading(true);
       setTimeout(() => {
         completeMfaTotp(mfaChallenge.mfaToken, value).then((result) => {
+          setIsLoading(false);
           if (!result.success) {
             setError(result.error ?? 'Invalid code');
             setCode('');

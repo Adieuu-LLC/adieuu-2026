@@ -231,8 +231,12 @@ export const config = {
   webauthn: {
     /** Relying Party ID (usually the domain without protocol) */
     rpId: optionalEnv('WEBAUTHN_RP_ID', 'localhost'),
-    /** Expected origin for WebAuthn requests */
-    origin: optionalEnv('WEBAUTHN_ORIGIN', 'http://localhost:5173'),
+    /**
+     * Expected origins for WebAuthn requests.
+     * Comma-separated list of origins to support multiple platforms.
+     * @example 'https://app.adieuu.app,capacitor://localhost,http://localhost'
+     */
+    origins: optionalEnv('WEBAUTHN_ORIGINS', 'http://localhost:5173,https://localhost').split(',').map(o => o.trim()).filter(Boolean),
   },
 
   /** Feature flags for conditional functionality */

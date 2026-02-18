@@ -52,6 +52,7 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
   };
 
   const handleLogin = async () => {
+    if (loading) return; // Prevent multiple submissions
     if (passphrase.length < 8) {
       setError(t('identity.create.passphraseHint'));
       return;
@@ -83,6 +84,7 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
   };
 
   const handleCreate = async () => {
+    if (loading) return; // Prevent multiple submissions
     if (passphrase.length < 8) {
       setError(t('identity.create.passphraseHint'));
       return;

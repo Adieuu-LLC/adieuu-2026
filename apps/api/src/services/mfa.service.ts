@@ -49,12 +49,13 @@ const TOTP_PERIOD = 30;
 // WebAuthn configuration
 const RP_NAME = APP_NAME;
 const RP_ID = config.webauthn?.rpId || 'localhost';
-const RP_ORIGIN = config.webauthn?.origin || 'http://localhost:5173';
+// Support multiple origins for cross-platform (web, desktop, mobile)
+const RP_ORIGINS: string[] = config.webauthn?.origins || ['http://localhost:5173'];
 
 // Log WebAuthn configuration on module load
 elog.info('WebAuthn configuration loaded', {
   rpId: RP_ID,
-  rpOrigin: RP_ORIGIN,
+  rpOrigins: RP_ORIGINS,
   rpName: RP_NAME,
 });
 
@@ -319,7 +320,7 @@ export async function verifyWebAuthnRegistration(
 
   elog.debug('WebAuthn registration attempt', {
     userId,
-    expectedOrigin: RP_ORIGIN,
+    expectedOrigins: RP_ORIGINS,
     actualOrigin,
     expectedRPID: RP_ID,
   });
@@ -327,7 +328,7 @@ export async function verifyWebAuthnRegistration(
   const opts: VerifyRegistrationResponseOpts = {
     response,
     expectedChallenge: storedChallenge,
-    expectedOrigin: RP_ORIGIN,
+    expectedOrigin: RP_ORIGINS,
     expectedRPID: RP_ID,
     requireUserVerification: false, // Allow both UV and non-UV
   };
@@ -354,7 +355,7 @@ export async function verifyWebAuthnRegistration(
       errorMessage,
       errorStack,
       userId,
-      expectedOrigin: RP_ORIGIN,
+      expectedOrigins: RP_ORIGINS,
       expectedRPID: RP_ID,
       actualOrigin,
     });
@@ -495,7 +496,7 @@ export async function verifyWebAuthnAuthentication(
     const opts: VerifyAuthenticationResponseOpts = {
       response,
       expectedChallenge: storedChallenge,
-      expectedOrigin: RP_ORIGIN,
+      expectedOrigin: RP_ORIGINS,
       expectedRPID: RP_ID,
       credential: {
         id: credential.credentialId,
@@ -514,7 +515,7 @@ export async function verifyWebAuthnAuthentication(
       errorMessage,
       errorStack,
       userId,
-      expectedOrigin: RP_ORIGIN,
+      expectedOrigins: RP_ORIGINS,
       expectedRPID: RP_ID,
     });
     return { success: false, error: 'verification_failed' };

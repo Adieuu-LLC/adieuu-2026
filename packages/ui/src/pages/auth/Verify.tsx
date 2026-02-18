@@ -52,7 +52,7 @@ export function Verify() {
 
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
-    if (code.length !== 6) return;
+    if (code.length !== 6 || isLoading) return; // Prevent multiple submissions
 
     setError(null);
     setIsLoading(true);
@@ -103,11 +103,13 @@ export function Verify() {
 
   const handleComplete = (value: string) => {
     setCode(value);
-    // Auto-submit when code is complete
-    if (value.length === 6) {
+    // Auto-submit when code is complete (skip if already loading)
+    if (value.length === 6 && !isLoading) {
       // Use a small delay to let the UI update
+      setIsLoading(true);
       setTimeout(() => {
         verifyOtp(identifier, value).then((result) => {
+          setIsLoading(false);
           if (!result.success) {
             setError(result.error ?? 'Invalid code');
             setCode('');
