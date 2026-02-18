@@ -5,7 +5,7 @@ import { initI18n } from '@chadder/ui/i18n';
 import { App, PlatformProvider, AuthProvider, IdentityProvider, ToastProvider, type AppConfig } from '@chadder/ui';
 import { desktopCapabilities } from './platform';
 import { API_BASE_URL } from './config';
-import '@chadder/ui/styles.css';
+import '@chadder/ui/styles.scss';
 import './index.css';
 
 // Initialize i18n before rendering

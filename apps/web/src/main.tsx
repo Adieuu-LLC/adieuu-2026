@@ -4,7 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { initI18n } from '@chadder/ui/i18n';
 import { App, PlatformProvider, AuthProvider, IdentityProvider, ToastProvider, type AppConfig } from '@chadder/ui';
 import { webCapabilities } from './platform';
-import '@chadder/ui/styles.css';
+import '@chadder/ui/styles.scss';
 import './index.css';
 
 // Initialize i18n before rendering

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, useCallback, type ReactNode } from 'react';
 import type { SidebarOrientation } from './Sidebar';
 
 export interface AppLayoutProps {
@@ -6,28 +6,46 @@ export interface AppLayoutProps {
   children: ReactNode;
   /** Sidebar position - affects layout order */
   sidebarOrientation?: SidebarOrientation;
+  /** Whether sidebar is collapsed by default */
+  defaultSidebarCollapsed?: boolean;
 }
 
 /**
- * Main application layout with sidebar navigation.
- * The sidebar takes up to 25% of the viewport when expanded,
- * with the remaining space devoted to page content.
+ * Main application layout with fixed sidebar navigation.
+ * The sidebar is positioned fixed and the main content has padding to accommodate it.
  * 
- * Supports left or right sidebar positioning via sidebarOrientation prop.
+ * Features:
+ * - Fixed sidebar with 20vw width (max 300px)
+ * - Main content area with corresponding padding
+ * - Mobile responsive with hamburger menu (< 600px viewport)
+ * - Supports left or right sidebar positioning
  */
 export function AppLayout({ 
   sidebar, 
   children,
   sidebarOrientation = 'left',
+  defaultSidebarCollapsed = false,
 }: AppLayoutProps) {
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(defaultSidebarCollapsed);
+
+  const handleSidebarExpandedChange = useCallback((expanded: boolean) => {
+    setIsSidebarCollapsed(!expanded);
+  }, []);
+
   const classNames = [
     'app-layout',
     `app-layout-sidebar-${sidebarOrientation}`,
-  ].join(' ');
+    isSidebarCollapsed ? 'sidebar-is-collapsed' : '',
+  ].filter(Boolean).join(' ');
+
+  // Clone the sidebar element and pass the onExpandedChange prop
+  const sidebarWithCallback = typeof sidebar === 'object' && sidebar !== null && 'type' in sidebar
+    ? { ...sidebar, props: { ...sidebar.props, onExpandedChange: handleSidebarExpandedChange } }
+    : sidebar;
 
   return (
     <div className={classNames}>
-      {sidebar}
+      {sidebarWithCallback}
       <main className="app-content">{children}</main>
     </div>
   );

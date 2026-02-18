@@ -23,14 +23,19 @@ function AccountFlyout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const { isExpanded } = useSidebar();
+  const { isExpanded, closeMobile } = useSidebar();
 
   const isActive = (path: string) => location.pathname === path;
   const isAccountActive = location.pathname.startsWith('/account');
 
   const handleLogout = async () => {
+    closeMobile();
     await logout();
     navigate('/auth/login');
+  };
+
+  const handleNavClick = () => {
+    closeMobile();
   };
 
   return (
@@ -61,19 +66,19 @@ function AccountFlyout() {
       </Button>
       <div className={`sidebar-account-flyout ${!isExpanded ? 'sidebar-account-flyout-collapsed' : ''}`}>
         <div className="sidebar-account-flyout-content">
-          <Link to="/account/overview" className={`sidebar-flyout-item ${isActive('/account/overview') ? 'sidebar-flyout-item-active' : ''}`}>
+          <Link to="/account/overview" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/overview') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('account.overview.title')}
           </Link>
-          <Link to="/account/appearance" className={`sidebar-flyout-item ${isActive('/account/appearance') ? 'sidebar-flyout-item-active' : ''}`}>
+          <Link to="/account/appearance" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/appearance') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('account.appearance.title')}
           </Link>
-          <Link to="/account/security" className={`sidebar-flyout-item ${location.pathname.startsWith('/account/security') ? 'sidebar-flyout-item-active' : ''}`}>
+          <Link to="/account/security" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/account/security') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('account.security.title')}
           </Link>
-          <Link to="/account/privacy" className={`sidebar-flyout-item ${isActive('/account/privacy') ? 'sidebar-flyout-item-active' : ''}`}>
+          <Link to="/account/privacy" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/privacy') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('account.privacy.title')}
           </Link>
-          <Link to="/account/notifications" className={`sidebar-flyout-item ${isActive('/account/notifications') ? 'sidebar-flyout-item-active' : ''}`}>
+          <Link to="/account/notifications" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/notifications') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('account.notifications.title')}
           </Link>
           <div className="sidebar-flyout-divider" />
@@ -92,93 +97,113 @@ function AccountFlyout() {
 }
 
 /**
- * Main application sidebar with navigation links.
- * Shared across all platforms (web, desktop, mobile).
+ * Navigation content component that has access to sidebar context.
  */
-export function AppSidebar() {
+function SidebarNavContent() {
   const { t } = useTranslation();
   const location = useLocation();
+  const { closeMobile } = useSidebar();
+
+  const isActive = (path: string) => location.pathname === path;
+
+  return (
+    <SidebarSection label={t('sidebar.main')}>
+      <Link to="/" style={{ textDecoration: 'none' }} onClick={closeMobile}>
+        <SidebarItem
+          icon={<HomeIcon />}
+          label={t('nav.home')}
+          isActive={isActive('/')}
+        />
+      </Link>
+      <Link to="/about" style={{ textDecoration: 'none' }} onClick={closeMobile}>
+        <SidebarItem
+          icon={<InfoIcon />}
+          label={t('nav.about')}
+          isActive={isActive('/about')}
+        />
+      </Link>
+    </SidebarSection>
+  );
+}
+
+/**
+ * Footer content component that has access to sidebar context.
+ */
+function SidebarFooterContent() {
+  const { t } = useTranslation();
+  const { closeMobile } = useSidebar();
   const { status: identityStatus, identity, logoutFromIdentity } = useIdentity();
 
   const [identityModalOpen, setIdentityModalOpen] = useState(false);
 
   const handleIdentityLogout = async () => {
+    closeMobile();
     await logoutFromIdentity();
   };
-
-  const isActive = (path: string) => location.pathname === path;
 
   const isIdentityLoggedIn = identityStatus === 'logged_in' && identity;
 
   return (
     <>
-    <Sidebar
-      header={<Logo size="sm" />}
-      footer={
-        <div className="sidebar-footer-stack">
-          {/* Identity Section */}
-          <div className="sidebar-identity-section">
-            {isIdentityLoggedIn ? (
-              <div className="sidebar-identity-info">
-                <div className="sidebar-identity-display">
-                  <MaskIcon className="sidebar-identity-icon" />
-                  <div className="sidebar-identity-details">
-                    <span className="sidebar-identity-name">{identity.displayName}</span>
-                    <span className="sidebar-identity-username">@{identity.username}</span>
-                  </div>
+      <div className="sidebar-footer-stack">
+        {/* Identity Section */}
+        <div className="sidebar-identity-section">
+          {isIdentityLoggedIn ? (
+            <div className="sidebar-identity-info">
+              <div className="sidebar-identity-display">
+                <MaskIcon className="sidebar-identity-icon" />
+                <div className="sidebar-identity-details">
+                  <span className="sidebar-identity-name">{identity.displayName}</span>
+                  <span className="sidebar-identity-username">@{identity.username}</span>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleIdentityLogout}
-                  className="sidebar-identity-logout-btn"
-                >
-                  {t('identity.logoutButton')}
-                </Button>
               </div>
-            ) : (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setIdentityModalOpen(true)}
-                className="sidebar-identity-btn"
-                data-tour="identity"
+                onClick={handleIdentityLogout}
+                className="sidebar-identity-logout-btn"
               >
-                <MaskIcon />
-                <span className="sidebar-identity-label">{t('identity.loginButton')}</span>
+                {t('identity.logoutButton')}
               </Button>
-            )}
-          </div>
-
-          {/* Account Menu with Flyout */}
-          <AccountFlyout />
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIdentityModalOpen(true)}
+              className="sidebar-identity-btn"
+              data-tour="identity"
+            >
+              <MaskIcon />
+              <span className="sidebar-identity-label">{t('identity.loginButton')}</span>
+            </Button>
+          )}
         </div>
-      }
-    >
-      <SidebarSection label={t('sidebar.main')}>
-        <Link to="/" style={{ textDecoration: 'none' }}>
-          <SidebarItem
-            icon={<HomeIcon />}
-            label={t('nav.home')}
-            isActive={isActive('/')}
-          />
-        </Link>
-        <Link to="/about" style={{ textDecoration: 'none' }}>
-          <SidebarItem
-            icon={<InfoIcon />}
-            label={t('nav.about')}
-            isActive={isActive('/about')}
-          />
-        </Link>
-      </SidebarSection>
 
-    </Sidebar>
+        {/* Account Menu with Flyout */}
+        <AccountFlyout />
+      </div>
 
-    {/* Identity Login/Create Modal */}
-    <IdentityModal
-      isOpen={identityModalOpen}
-      onClose={() => setIdentityModalOpen(false)}
-    />
+      {/* Identity Login/Create Modal */}
+      <IdentityModal
+        isOpen={identityModalOpen}
+        onClose={() => setIdentityModalOpen(false)}
+      />
     </>
+  );
+}
+
+/**
+ * Main application sidebar with navigation links.
+ * Shared across all platforms (web, desktop, mobile).
+ */
+export function AppSidebar() {
+  return (
+    <Sidebar
+      header={<Logo size="sm" />}
+      footer={<SidebarFooterContent />}
+    >
+      <SidebarNavContent />
+    </Sidebar>
   );
 }

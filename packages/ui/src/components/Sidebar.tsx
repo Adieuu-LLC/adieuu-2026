@@ -1,4 +1,4 @@
-import { useState, createContext, useContext, useCallback } from 'react';
+import { useState, createContext, useContext, useCallback, useEffect } from 'react';
 import type { ReactNode, HTMLAttributes } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -14,9 +14,12 @@ export type SidebarOrientation = 'left' | 'right';
 
 interface SidebarContextValue {
   isExpanded: boolean;
+  isMobileOpen: boolean;
   orientation: SidebarOrientation;
   toggleExpanded: () => void;
   setExpanded: (expanded: boolean) => void;
+  setMobileOpen: (open: boolean) => void;
+  closeMobile: () => void;
 }
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
@@ -40,6 +43,8 @@ export interface SidebarProps {
   defaultExpanded?: boolean;
   /** Sidebar position - left or right side of the screen */
   orientation?: SidebarOrientation;
+  /** Callback when expanded state changes */
+  onExpandedChange?: (expanded: boolean) => void;
 }
 
 export function Sidebar({ 
@@ -48,17 +53,56 @@ export function Sidebar({
   footer, 
   defaultExpanded = true,
   orientation = 'left',
+  onExpandedChange,
 }: SidebarProps) {
   const { t } = useTranslation();
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isExpanded, setIsExpandedState] = useState(defaultExpanded);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  const setIsExpanded = useCallback((expanded: boolean) => {
+    setIsExpandedState(expanded);
+    onExpandedChange?.(expanded);
+  }, [onExpandedChange]);
 
   const toggleExpanded = useCallback(() => {
-    setIsExpanded(prev => !prev);
-  }, []);
+    setIsExpanded(!isExpanded);
+  }, [isExpanded, setIsExpanded]);
 
   const setExpanded = useCallback((expanded: boolean) => {
     setIsExpanded(expanded);
+  }, [setIsExpanded]);
+
+  const setMobileOpen = useCallback((open: boolean) => {
+    setIsMobileOpen(open);
   }, []);
+
+  const closeMobile = useCallback(() => {
+    setIsMobileOpen(false);
+  }, []);
+
+  // Close mobile sidebar on resize to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 600) {
+        setIsMobileOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Handle escape key to close mobile sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isMobileOpen) {
+        setIsMobileOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isMobileOpen]);
 
   // Determine chevron direction based on orientation and expanded state
   const getChevronPath = () => {
@@ -74,14 +118,50 @@ export function Sidebar({
     'sidebar',
     isExpanded ? 'sidebar-expanded' : 'sidebar-collapsed',
     `sidebar-${orientation}`,
-  ].join(' ');
+    isMobileOpen ? 'sidebar-mobile-open' : '',
+  ].filter(Boolean).join(' ');
 
   const toggleLabel = isExpanded 
     ? t('nav.collapseSidebar') 
     : t('nav.expandSidebar');
 
+  const contextValue: SidebarContextValue = {
+    isExpanded,
+    isMobileOpen,
+    orientation,
+    toggleExpanded,
+    setExpanded,
+    setMobileOpen,
+    closeMobile,
+  };
+
   return (
-    <SidebarContext.Provider value={{ isExpanded, orientation, toggleExpanded, setExpanded }}>
+    <SidebarContext.Provider value={contextValue}>
+      {/* Mobile overlay */}
+      <div 
+        className={`sidebar-mobile-overlay ${isMobileOpen ? 'visible' : ''}`}
+        onClick={closeMobile}
+        aria-hidden="true"
+      />
+      
+      {/* Hamburger menu button for mobile */}
+      <button
+        className="sidebar-hamburger"
+        onClick={() => setMobileOpen(!isMobileOpen)}
+        aria-label={isMobileOpen ? t('nav.collapseSidebar') : t('nav.expandSidebar')}
+        aria-expanded={isMobileOpen}
+      >
+        {isMobileOpen ? (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        ) : (
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 12H21M3 6H21M3 18H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        )}
+      </button>
+
       <aside className={classNames}>
         {header && <div className="sidebar-header">{header}</div>}
         
