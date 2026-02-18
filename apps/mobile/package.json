@@ -22,5 +22,10 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^6.2.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "tar": ">=7.5.9"
+    }
   }
 }
