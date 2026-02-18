@@ -653,6 +653,122 @@ export class UsersApi {
 }
 
 // ============================================================================
+// Identity API Methods
+// ============================================================================
+
+/**
+ * Public identity info (safe for clients).
+ */
+export interface PublicIdentity {
+  /** Unique identity ID */
+  id: string;
+  /** Username for the identity */
+  username: string;
+  /** Display name for the identity */
+  displayName: string;
+  /** When the identity was created */
+  createdAt: string;
+  /** Last time this identity was active */
+  lastActiveAt: string;
+  /** Whether this identity has been deleted */
+  isDeleted: boolean;
+}
+
+/**
+ * Parameters for creating an identity.
+ */
+export interface CreateIdentityParams {
+  /** Passphrase (min 8 characters) */
+  passphrase: string;
+  /** Username (3-30 chars, alphanumeric + underscores/hyphens) */
+  username: string;
+  /** Display name (1-50 chars) */
+  displayName: string;
+}
+
+/**
+ * Parameters for logging into an identity.
+ */
+export interface LoginIdentityParams {
+  /** Passphrase to authenticate */
+  passphrase: string;
+}
+
+/**
+ * Response from identity login.
+ */
+export interface IdentityLoginResponse {
+  identity: PublicIdentity;
+}
+
+/**
+ * Response from identity login failure with attempt info.
+ */
+export interface IdentityLoginErrorResponse {
+  error: string;
+  attemptNumber?: number;
+  retryAfter?: number;
+}
+
+export class IdentityApi {
+  constructor(private client: ApiClient) {}
+
+  /**
+   * Create a new identity.
+   *
+   * @param params - Identity creation parameters
+   * @returns Created identity on success
+   */
+  async create(params: CreateIdentityParams): Promise<ApiResponse<PublicIdentity>> {
+    return this.client.post('/api/identity', params);
+  }
+
+  /**
+   * Login to an identity using passphrase.
+   *
+   * On success, sets an identity session cookie.
+   *
+   * @param params - Login parameters with passphrase
+   * @returns Identity info on success, error with retry info on failure
+   */
+  async login(params: LoginIdentityParams): Promise<ApiResponse<IdentityLoginResponse>> {
+    return this.client.post('/api/identity/login', params);
+  }
+
+  /**
+   * Logout from the current identity session.
+   *
+   * Clears the identity session cookie.
+   *
+   * @returns Success on logout
+   */
+  async logout(): Promise<ApiResponse<void>> {
+    return this.client.post('/api/identity/logout', {});
+  }
+
+  /**
+   * Get the current identity session.
+   *
+   * @returns Current identity if logged in, error if not
+   */
+  async getSession(): Promise<ApiResponse<PublicIdentity>> {
+    return this.client.get('/api/identity/session');
+  }
+
+  /**
+   * Delete the current identity (soft delete).
+   *
+   * The identity record is preserved for historical purposes,
+   * but the passphrase hash is cleared.
+   *
+   * @returns Success on deletion
+   */
+  async delete(): Promise<ApiResponse<void>> {
+    return this.client.delete('/api/identity');
+  }
+}
+
+// ============================================================================
 // Factory Functions
 // ============================================================================
 
@@ -667,6 +783,7 @@ export function createApiClient(config: ApiClientConfig) {
     auth: new AuthApi(client),
     users: new UsersApi(client),
     mfa: new MfaApi(client),
+    identity: new IdentityApi(client),
   };
 }
 

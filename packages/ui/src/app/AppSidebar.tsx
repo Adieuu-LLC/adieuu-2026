@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -9,8 +10,10 @@ import {
 } from '../components/Sidebar';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
-import { HomeIcon, InfoIcon, UserIcon, LogoutIcon } from '../components/Icons';
+import { HomeIcon, InfoIcon, UserIcon, LogoutIcon, MaskIcon } from '../components/Icons';
 import { useAuth } from '../hooks/useAuth';
+import { useIdentity } from '../hooks/useIdentity';
+import { IdentityModal } from './IdentityModal';
 
 /**
  * Main application sidebar with navigation links.
@@ -21,29 +24,76 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { status: identityStatus, identity, logoutFromIdentity } = useIdentity();
+
+  const [identityModalOpen, setIdentityModalOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
     navigate('/auth/login');
   };
 
+  const handleIdentityLogout = async () => {
+    await logoutFromIdentity();
+  };
+
   const isActive = (path: string) => location.pathname === path;
   const isAccountActive = location.pathname.startsWith('/account');
 
+  const isIdentityLoggedIn = identityStatus === 'logged_in' && identity;
+
   return (
+    <>
     <Sidebar
       header={<Logo size="sm" />}
       footer={
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleLogout}
-          className="sidebar-logout-btn"
-          data-tour="logout"
-        >
-          <LogoutIcon />
-          <span className="sidebar-logout-label">{t('nav.logout')}</span>
-        </Button>
+        <div className="sidebar-footer-stack">
+          {/* Identity Section */}
+          <div className="sidebar-identity-section">
+            {isIdentityLoggedIn ? (
+              <div className="sidebar-identity-info">
+                <div className="sidebar-identity-display">
+                  <MaskIcon className="sidebar-identity-icon" />
+                  <div className="sidebar-identity-details">
+                    <span className="sidebar-identity-name">{identity.displayName}</span>
+                    <span className="sidebar-identity-username">@{identity.username}</span>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleIdentityLogout}
+                  className="sidebar-identity-logout-btn"
+                >
+                  {t('identity.logoutButton')}
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIdentityModalOpen(true)}
+                className="sidebar-identity-btn"
+                data-tour="identity"
+              >
+                <MaskIcon />
+                <span className="sidebar-identity-label">{t('identity.loginButton')}</span>
+              </Button>
+            )}
+          </div>
+
+          {/* Account Logout Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="sidebar-logout-btn"
+            data-tour="logout"
+          >
+            <LogoutIcon />
+            <span className="sidebar-logout-label">{t('nav.logout')}</span>
+          </Button>
+        </div>
       }
     >
       <SidebarSection label={t('sidebar.main')}>
@@ -105,5 +155,12 @@ export function AppSidebar() {
         </SidebarItem>
       </SidebarSection>
     </Sidebar>
+
+    {/* Identity Login/Create Modal */}
+    <IdentityModal
+      isOpen={identityModalOpen}
+      onClose={() => setIdentityModalOpen(false)}
+    />
+    </>
   );
 }

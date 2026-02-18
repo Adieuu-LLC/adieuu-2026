@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import { initI18n } from '@chadder/ui/i18n';
-import { App, PlatformProvider, AuthProvider, ToastProvider, type AppConfig } from '@chadder/ui';
+import { App, PlatformProvider, AuthProvider, IdentityProvider, ToastProvider, type AppConfig } from '@chadder/ui';
 import { desktopCapabilities } from './platform';
 import { API_BASE_URL } from './config';
 import '@chadder/ui/styles.css';
@@ -27,9 +27,11 @@ createRoot(rootElement).render(
     <HashRouter>
       <PlatformProvider config={config} capabilities={desktopCapabilities}>
         <AuthProvider>
-          <ToastProvider>
-            <App />
-          </ToastProvider>
+          <IdentityProvider>
+            <ToastProvider>
+              <App />
+            </ToastProvider>
+          </IdentityProvider>
         </AuthProvider>
       </PlatformProvider>
     </HashRouter>

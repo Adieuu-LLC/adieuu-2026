@@ -39,10 +39,11 @@ export type {
 } from './config';
 
 // ============================================================================
-// Auth & Tour Hooks
+// Auth, Identity & Tour Hooks
 // ============================================================================
 
 export { useAuth, AuthProvider } from './hooks/useAuth';
+export { useIdentity, IdentityProvider } from './hooks/useIdentity';
 export { useTourContext, TourProvider } from './hooks/useTourContext';
 
 export type {
@@ -51,6 +52,14 @@ export type {
   AuthContextValue,
   AuthProviderProps,
 } from './hooks/useAuth';
+export type {
+  IdentityStatus,
+  IdentityState,
+  IdentityContextValue,
+  IdentityProviderProps,
+  CreateIdentityResult,
+  LoginIdentityResult,
+} from './hooks/useIdentity';
 export type { TourProviderProps } from './hooks/useTourContext';
 
 // ============================================================================
@@ -98,6 +107,8 @@ export {
   UserIcon,
   PaletteIcon,
   LockIcon,
+  MaskIcon,
+  PlusIcon,
 } from './components/Icons';
 
 // ============================================================================

@@ -318,3 +318,62 @@ export function LockIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function MaskIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M10 3C6 3 3 6 3 10C3 11 3.5 12 4 13L5 12C5 10 6.5 8 10 8C13.5 8 15 10 15 12L16 13C16.5 12 17 11 17 10C17 6 14 3 10 3Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <ellipse
+        cx="7"
+        cy="10"
+        rx="1.5"
+        ry="2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <ellipse
+        cx="13"
+        cy="10"
+        rx="1.5"
+        ry="2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M7 15C8 16 12 16 13 15"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+export function PlusIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M10 4V16M4 10H16"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}

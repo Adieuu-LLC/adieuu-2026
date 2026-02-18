@@ -3,6 +3,7 @@ export {
   AuthApi,
   UsersApi,
   MfaApi,
+  IdentityApi,
   createApiClient,
   defaultConfig,
   type ApiClientConfig,
@@ -32,4 +33,10 @@ export {
   type BackupCodesResponse,
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
+  // Identity types
+  type PublicIdentity,
+  type CreateIdentityParams,
+  type LoginIdentityParams,
+  type IdentityLoginResponse,
+  type IdentityLoginErrorResponse,
 } from './client';

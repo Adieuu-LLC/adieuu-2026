@@ -24,7 +24,7 @@ export const en = {
     home: 'Home',
     about: 'About',
     account: 'Account',
-    logout: 'Logout',
+    logout: 'Account Logout',
     expandSidebar: 'Expand sidebar',
     collapseSidebar: 'Collapse sidebar',
   },
@@ -33,6 +33,55 @@ export const en = {
   sidebar: {
     main: 'Main',
     account: 'Account',
+    identity: 'Identity',
+  },
+
+  // Identity
+  identity: {
+    title: 'Anonymous Identity',
+    notLoggedIn: 'Not logged in',
+    loginButton: 'Login to Identity',
+    createButton: 'Create Identity',
+    logoutButton: 'Identity Logout',
+    loggedInAs: 'Logged in as',
+    // Create modal
+    create: {
+      title: 'Create Anonymous Identity',
+      subtitle: 'Your identity is cryptographically separated from your account. No one can trace it back to you.',
+      passphrasePlaceholder: 'Enter a memorable passphrase',
+      passphraseHint: 'Use a sentence or phrase (8+ characters). You will need this to login.',
+      usernamePlaceholder: 'Choose a username',
+      usernameHint: 'This will be visible to others.',
+      displayNamePlaceholder: 'Display name',
+      displayNameHint: 'How you appear in conversations.',
+      submitButton: 'Create Identity',
+      creating: 'Creating...',
+      success: 'Identity created successfully! You can now login.',
+      errorUsernameTaken: 'This username is already taken.',
+      errorMaxIdentities: 'You have reached the maximum number of identities.',
+      errorValidation: 'Please check your input and try again.',
+    },
+    // Login modal
+    login: {
+      title: 'Login to Identity',
+      subtitle: 'Enter your passphrase to access your anonymous identity.',
+      passphrasePlaceholder: 'Enter your passphrase',
+      submitButton: 'Login',
+      loggingIn: 'Logging in...',
+      success: 'Logged in successfully!',
+      errorInvalid: 'Invalid passphrase. Please try again.',
+      errorLocked: 'Too many failed attempts. Please try again later.',
+      errorRateLimited: 'Please wait {{seconds}} seconds before trying again.',
+      attemptsRemaining: '{{remaining}} attempts remaining before lockout.',
+      noIdentity: "You don't have an identity yet.",
+      createPrompt: 'Create one to get started.',
+    },
+    // Delete confirmation
+    delete: {
+      title: 'Delete Identity',
+      warning: 'This action cannot be undone. Your identity will be permanently deleted.',
+      confirmButton: 'Delete Identity',
+    },
   },
 
   // Account pages
