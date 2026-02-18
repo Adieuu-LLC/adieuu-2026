@@ -40,10 +40,16 @@ export const en = {
   identity: {
     title: 'Anonymous Identity',
     notLoggedIn: 'Not logged in',
-    loginButton: 'Login to Identity',
+    loginButton: 'Identity',
     createButton: 'Create Identity',
-    logoutButton: 'Identity Logout',
+    logoutButton: 'Logout',
     loggedInAs: 'Logged in as',
+    // Menu items for identity flyout
+    menu: {
+      profile: 'Profile',
+      contentSocial: 'Content & Social',
+      ciphers: 'Ciphers',
+    },
     // Create modal
     create: {
       title: 'Create Anonymous Identity',

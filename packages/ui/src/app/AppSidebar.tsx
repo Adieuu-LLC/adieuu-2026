@@ -97,6 +97,117 @@ function AccountFlyout() {
 }
 
 /**
+ * Identity flyout menu that appears on hover in the sidebar footer.
+ * Shows identity navigation links and logout option when logged in,
+ * or login button when not logged in.
+ */
+function IdentityFlyout() {
+  const { t } = useTranslation();
+  const location = useLocation();
+  const { isExpanded, closeMobile } = useSidebar();
+  const { status: identityStatus, identity, logoutFromIdentity } = useIdentity();
+  const [identityModalOpen, setIdentityModalOpen] = useState(false);
+
+  const isActive = (path: string) => location.pathname === path;
+  const isIdentityActive = location.pathname.startsWith('/identity');
+  const isIdentityLoggedIn = identityStatus === 'logged_in' && identity;
+
+  const handleIdentityLogout = async () => {
+    closeMobile();
+    await logoutFromIdentity();
+  };
+
+  const handleNavClick = () => {
+    closeMobile();
+  };
+
+  const handleLoginClick = () => {
+    closeMobile();
+    setIdentityModalOpen(true);
+  };
+
+  // When not logged in, show a simple button to open the identity modal
+  if (!isIdentityLoggedIn) {
+    return (
+      <>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLoginClick}
+          className="sidebar-identity-btn"
+          data-tour="identity"
+        >
+          <MaskIcon />
+          <span className="sidebar-identity-label">{t('identity.loginButton')}</span>
+        </Button>
+        <IdentityModal
+          isOpen={identityModalOpen}
+          onClose={() => setIdentityModalOpen(false)}
+        />
+      </>
+    );
+  }
+
+  // When logged in, show the flyout menu
+  return (
+    <div className="sidebar-identity-flyout-wrapper" data-tour="identity">
+      <Button
+        variant="ghost"
+        size="sm"
+        className={`sidebar-identity-btn ${isIdentityActive ? 'sidebar-identity-btn-active' : ''}`}
+      >
+        <MaskIcon />
+        <span className="sidebar-identity-label">
+          {identity.displayName}
+        </span>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="sidebar-identity-chevron"
+        >
+          <path
+            d="M4.5 3L7.5 6L4.5 9"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </Button>
+      <div className={`sidebar-identity-flyout ${!isExpanded ? 'sidebar-identity-flyout-collapsed' : ''}`}>
+        <div className="sidebar-identity-flyout-content">
+          <div className="sidebar-identity-flyout-header">
+            <span className="sidebar-identity-name">{identity.displayName}</span>
+            <span className="sidebar-identity-username">@{identity.username}</span>
+          </div>
+          <Link to="/identity/profile" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/profile') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('identity.menu.profile')}
+          </Link>
+          <Link to="/identity/content" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/content') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('identity.menu.contentSocial')}
+          </Link>
+          <Link to="/identity/ciphers" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/ciphers') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('identity.menu.ciphers')}
+          </Link>
+          <div className="sidebar-flyout-divider" />
+          <button
+            type="button"
+            onClick={handleIdentityLogout}
+            className="sidebar-flyout-item sidebar-flyout-item-logout"
+          >
+            <LogoutIcon />
+            {t('identity.logoutButton')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Navigation content component that has access to sidebar context.
  */
 function SidebarNavContent() {
@@ -130,66 +241,16 @@ function SidebarNavContent() {
  * Footer content component that has access to sidebar context.
  */
 function SidebarFooterContent() {
-  const { t } = useTranslation();
-  const { closeMobile } = useSidebar();
-  const { status: identityStatus, identity, logoutFromIdentity } = useIdentity();
-
-  const [identityModalOpen, setIdentityModalOpen] = useState(false);
-
-  const handleIdentityLogout = async () => {
-    closeMobile();
-    await logoutFromIdentity();
-  };
-
-  const isIdentityLoggedIn = identityStatus === 'logged_in' && identity;
-
   return (
-    <>
-      <div className="sidebar-footer-stack">
-        {/* Identity Section */}
-        <div className="sidebar-identity-section">
-          {isIdentityLoggedIn ? (
-            <div className="sidebar-identity-info">
-              <div className="sidebar-identity-display">
-                <MaskIcon className="sidebar-identity-icon" />
-                <div className="sidebar-identity-details">
-                  <span className="sidebar-identity-name">{identity.displayName}</span>
-                  <span className="sidebar-identity-username">@{identity.username}</span>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleIdentityLogout}
-                className="sidebar-identity-logout-btn"
-              >
-                {t('identity.logoutButton')}
-              </Button>
-            </div>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIdentityModalOpen(true)}
-              className="sidebar-identity-btn"
-              data-tour="identity"
-            >
-              <MaskIcon />
-              <span className="sidebar-identity-label">{t('identity.loginButton')}</span>
-            </Button>
-          )}
-        </div>
-
-        {/* Account Menu with Flyout */}
-        <AccountFlyout />
+    <div className="sidebar-footer-stack">
+      {/* Identity Menu with Flyout */}
+      <div className="sidebar-identity-section">
+        <IdentityFlyout />
       </div>
 
-      {/* Identity Login/Create Modal */}
-      <IdentityModal
-        isOpen={identityModalOpen}
-        onClose={() => setIdentityModalOpen(false)}
-      />
-    </>
+      {/* Account Menu with Flyout */}
+      <AccountFlyout />
+    </div>
   );
 }
 
