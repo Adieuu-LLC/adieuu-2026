@@ -10,17 +10,21 @@ mock.module('../config', () => ({
   },
 }));
 
-// Mock collection
+// Mock collection - use 'any' for test flexibility with dynamic mock implementations
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
+
 const mockCollection = {
-  findOne: mock(() => Promise.resolve(null)),
+  findOne: mock(() => Promise.resolve(null)) as AnyMock,
   find: mock(() => ({
     toArray: mock(() => Promise.resolve([])),
-  })),
-  insertOne: mock(() => Promise.resolve({ insertedId: new ObjectId() })),
-  updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })),
-  findOneAndUpdate: mock(() => Promise.resolve({ value: null })),
-  deleteOne: mock(() => Promise.resolve({ deletedCount: 1 })),
+  })) as AnyMock,
+  insertOne: mock(() => Promise.resolve({ insertedId: new ObjectId() })) as AnyMock,
+  updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })) as AnyMock,
+  findOneAndUpdate: mock(() => Promise.resolve({ value: null })) as AnyMock,
+  deleteOne: mock(() => Promise.resolve({ deletedCount: 1 })) as AnyMock,
 };
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 mock.module('../db', () => ({
   getCollection: mock(() => mockCollection),

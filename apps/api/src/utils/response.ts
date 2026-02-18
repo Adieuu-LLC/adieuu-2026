@@ -269,6 +269,16 @@ export const errors = {
     error('RATE_LIMITED', message, 429),
 
   /**
+   * Creates a 409 Conflict response.
+   * 
+   * Use when the request conflicts with the current state (e.g., resource already exists).
+   * 
+   * @param message - Error message (default: 'Conflict')
+   * @returns Response with status 409 and code 'CONFLICT'
+   */
+  conflict: (message = 'Conflict') => error('CONFLICT', message, 409),
+
+  /**
    * Creates a 500 Internal Server Error response.
    * 
    * Use for unexpected server errors. Avoid exposing internal details.
@@ -349,6 +359,10 @@ export const localizedErrors = {
   /** 429 - Rate limited */
   rateLimited: (locale?: Locale) =>
     localizedError('rateLimited', 'RATE_LIMITED', 429, locale),
+
+  /** 409 - Conflict (resource already exists or state conflict) */
+  conflict: (locale?: Locale) =>
+    localizedError('conflict', 'CONFLICT', 409, locale),
 
   /** 500 - Internal error */
   internal: (locale?: Locale) =>

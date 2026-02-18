@@ -1,37 +1,41 @@
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
-// Mock dependencies
+// Mock dependencies - use 'any' for test flexibility with dynamic mock implementations
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
+
 const mockUserRepo = {
-  findById: mock(() => Promise.resolve(null)),
-  incrementIdentityCount: mock(() => Promise.resolve()),
-  recordIdentityLoginAttempt: mock(() => Promise.resolve({ attempts: [], lockedUntil: undefined })),
-  resetIdentityLoginAttempts: mock(() => Promise.resolve()),
-  isIdentityLockedOut: mock(() => Promise.resolve({ lockedOut: false })),
+  findById: mock(() => Promise.resolve(null)) as AnyMock,
+  incrementIdentityCount: mock(() => Promise.resolve()) as AnyMock,
+  recordIdentityLoginAttempt: mock(() => Promise.resolve({ attempts: [] as Date[], lockedUntil: undefined })) as AnyMock,
+  resetIdentityLoginAttempts: mock(() => Promise.resolve()) as AnyMock,
+  isIdentityLockedOut: mock(() => Promise.resolve({ lockedOut: false })) as AnyMock,
 };
 
 const mockIdentityRepo = {
-  findByUsername: mock(() => Promise.resolve(null)),
-  findByIdent: mock(() => Promise.resolve(null)),
-  findActiveByIdent: mock(() => Promise.resolve(null)),
-  findByIdentityId: mock(() => Promise.resolve(null)),
-  create: mock(() => Promise.resolve(null)),
-  softDelete: mock(() => Promise.resolve(true)),
-  updateLastActive: mock(() => Promise.resolve()),
-  upgradeHashVersion: mock(() => Promise.resolve(true)),
+  findByUsername: mock(() => Promise.resolve(null)) as AnyMock,
+  findByIdent: mock(() => Promise.resolve(null)) as AnyMock,
+  findActiveByIdent: mock(() => Promise.resolve(null)) as AnyMock,
+  findByIdentityId: mock(() => Promise.resolve(null)) as AnyMock,
+  create: mock(() => Promise.resolve(null)) as AnyMock,
+  softDelete: mock(() => Promise.resolve(true)) as AnyMock,
+  updateLastActive: mock(() => Promise.resolve()) as AnyMock,
+  upgradeHashVersion: mock(() => Promise.resolve(true)) as AnyMock,
 };
 
 const mockIdentitySessionRepo = {
-  create: mock(() => Promise.resolve(null)),
-  findBySessionId: mock(() => Promise.resolve(null)),
-  getSession: mock(() => Promise.resolve(null)),
-  revoke: mock(() => Promise.resolve()),
-  revokeAllForIdentity: mock(() => Promise.resolve(0)),
+  create: mock(() => Promise.resolve(null)) as AnyMock,
+  findBySessionId: mock(() => Promise.resolve(null)) as AnyMock,
+  getSession: mock(() => Promise.resolve(null)) as AnyMock,
+  revoke: mock(() => Promise.resolve()) as AnyMock,
+  revokeAllForIdentity: mock(() => Promise.resolve(0)) as AnyMock,
 };
 
 const mockAuditRepo = {
-  create: mock(() => Promise.resolve(null)),
+  create: mock(() => Promise.resolve(null)) as AnyMock,
 };
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 mock.module('../repositories/user.repository', () => ({
   getUserRepository: () => mockUserRepo,

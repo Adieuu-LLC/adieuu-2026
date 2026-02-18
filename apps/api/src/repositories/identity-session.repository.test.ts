@@ -10,28 +10,32 @@ mock.module('../config', () => ({
   },
 }));
 
-// Mock collection
+// Mock collection - use 'any' for test flexibility with dynamic mock implementations
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
+
 const mockCollection = {
-  findOne: mock(() => Promise.resolve(null)),
+  findOne: mock(() => Promise.resolve(null)) as AnyMock,
   find: mock(() => ({
     limit: mock(() => ({
       toArray: mock(() => Promise.resolve([])),
     })),
     toArray: mock(() => Promise.resolve([])),
-  })),
-  insertOne: mock(() => Promise.resolve({ insertedId: new ObjectId() })),
-  updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })),
-  updateMany: mock(() => Promise.resolve({ modifiedCount: 0 })),
-  findOneAndUpdate: mock(() => Promise.resolve({ value: null })),
-  deleteOne: mock(() => Promise.resolve({ deletedCount: 1 })),
-  deleteMany: mock(() => Promise.resolve({ deletedCount: 0 })),
+  })) as AnyMock,
+  insertOne: mock(() => Promise.resolve({ insertedId: new ObjectId() })) as AnyMock,
+  updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })) as AnyMock,
+  updateMany: mock(() => Promise.resolve({ modifiedCount: 0 })) as AnyMock,
+  findOneAndUpdate: mock(() => Promise.resolve({ value: null })) as AnyMock,
+  deleteOne: mock(() => Promise.resolve({ deletedCount: 1 })) as AnyMock,
+  deleteMany: mock(() => Promise.resolve({ deletedCount: 0 })) as AnyMock,
 };
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
-// Mock Redis
+// Mock Redis - use 'any' for test flexibility
 const mockRedis = {
-  get: mock(() => Promise.resolve(null)),
-  set: mock(() => Promise.resolve('OK')),
-  del: mock(() => Promise.resolve(1)),
+  get: mock(() => Promise.resolve(null)) as AnyMock,
+  set: mock(() => Promise.resolve('OK')) as AnyMock,
+  del: mock(() => Promise.resolve(1)) as AnyMock,
 };
 
 mock.module('../db', () => ({

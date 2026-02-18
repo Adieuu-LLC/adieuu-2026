@@ -14,7 +14,7 @@
  */
 
 import { Router } from '../../router';
-import { success } from '../../utils/response';
+import { success, errors } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
 import { getSessionFromRequest } from '../../services/session.service';
 import { getUserRepository } from '../../repositories/user.repository';
@@ -101,12 +101,12 @@ router.post('/identity', async (ctx) => {
 
   if (!result.success) {
     if (result.errorCode === 'MAX_IDENTITIES') {
-      return ctx.errors.conflict('Maximum number of identities reached.');
+      return errors.conflict('Maximum number of identities reached.');
     }
     if (result.errorCode === 'USERNAME_TAKEN') {
-      return ctx.errors.conflict('Username is already taken.');
+      return errors.conflict('Username is already taken.');
     }
-    return ctx.errors.badRequest(result.error);
+    return errors.badRequest(result.error ?? 'Identity creation failed.');
   }
 
   return success(result.identity, 'Identity created successfully.');
@@ -310,7 +310,7 @@ router.delete('/identity', async (ctx) => {
   // Delete the identity
   const result = await deleteIdentity(identity._id, identitySessionId);
   if (!result.success) {
-    return ctx.errors.badRequest(result.error);
+    return errors.badRequest(result.error ?? 'Identity deletion failed.');
   }
 
   // Clear the identity cookie

@@ -56,6 +56,7 @@ function createContextErrors(locale: Locale): ContextErrors {
     notFound: () => localizedErrors.notFound(locale),
     methodNotAllowed: () => localizedErrors.methodNotAllowed(locale),
     rateLimited: () => localizedErrors.rateLimited(locale),
+    conflict: () => localizedErrors.conflict(locale),
     internal: () => localizedErrors.internal(locale),
     validationFailed: () => localizedErrors.validationFailed(locale),
     invalidEmail: () => localizedErrors.invalidEmail(locale),

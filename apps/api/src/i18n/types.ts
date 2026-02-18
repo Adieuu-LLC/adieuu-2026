@@ -69,6 +69,7 @@ export type ErrorKey =
   | 'notFound'
   | 'methodNotAllowed'
   | 'rateLimited'
+  | 'conflict'
   | 'internal'
   | 'validationFailed'
   | 'invalidEmail'

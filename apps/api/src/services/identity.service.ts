@@ -37,7 +37,6 @@ import { ObjectId } from 'mongodb';
 import { getIdentityRepository } from '../repositories/identity.repository';
 import { getIdentitySessionRepository } from '../repositories/identity-session.repository';
 import { getUserRepository } from '../repositories/user.repository';
-import { getAuditLogRepository } from '../repositories/audit.repository';
 import {
   generateIdentityHash,
   validatePassphrase,
@@ -222,7 +221,6 @@ export async function loginToIdentity(
   const userRepo = getUserRepository();
   const identityRepo = getIdentityRepository();
   const identitySessionRepo = getIdentitySessionRepository();
-  const auditRepo = getAuditLogRepository();
 
   // Get user and check lockout
   const user = await userRepo.findById(userId);
@@ -295,18 +293,11 @@ export async function loginToIdentity(
   const identity = await identityRepo.findActiveByIdent(ident);
 
   if (!identity) {
-    // Identity not found - record failed attempt
+    // Identity not found - record failed attempt for rate limiting only
+    // NOTE: We intentionally do NOT create an audit log here to preserve
+    // cryptographic separation between identities and user accounts.
+    // Any audit logging of identity operations could enable correlation attacks.
     const { attempts, lockedUntil } = await userRepo.recordIdentityLoginAttempt(userId);
-
-    // Log the failed attempt (tied to User, not Identity - this is safe)
-    await auditRepo.create({
-      userId: user._id,
-      action: 'identity_login_failed',
-      metadata: {
-        attemptNumber: attempts.length,
-        ipAddress: metadata?.ipAddress,
-      },
-    });
 
     // Check if we just triggered a lockout
     if (lockedUntil) {

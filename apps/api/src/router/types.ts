@@ -22,6 +22,7 @@ export interface ContextErrors {
   notFound: () => Response;
   methodNotAllowed: () => Response;
   rateLimited: () => Response;
+  conflict: () => Response;
   internal: () => Response;
   validationFailed: () => Response;
   invalidEmail: () => Response;
