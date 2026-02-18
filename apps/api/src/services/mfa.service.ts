@@ -40,7 +40,7 @@ import elog from '../utils/adieuuLogger';
 // Configuration
 // ============================================================================
 
-const APP_NAME = config.appName || 'Chadder';
+const APP_NAME = config.appName || 'Adieuu';
 const TOTP_ISSUER = APP_NAME;
 const TOTP_ALGORITHM = 'SHA1'; // Standard for Google Authenticator compatibility
 const TOTP_DIGITS = 6;
@@ -464,14 +464,14 @@ export async function verifyWebAuthnAuthentication(
 
   // Find the credential
   const repo = getWebAuthnRepository();
-  
+
   // Debug: log what we're looking for
   elog.debug('WebAuthn authentication: looking up credential', {
     userId,
     responseId: response.id,
     responseIdLength: response.id?.length,
   });
-  
+
   const credential = await repo.findByCredentialId(response.id);
 
   if (!credential) {

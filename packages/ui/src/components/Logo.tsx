@@ -66,7 +66,7 @@ export function Logo({ size = 'md', showText = true }: LogoProps) {
       </svg>
       {showText && (
         <span className="auth-logo-text" style={{ fontSize: text }}>
-          Chadder
+          Adieuu
         </span>
       )}
     </div>

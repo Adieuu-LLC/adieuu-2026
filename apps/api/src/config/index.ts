@@ -145,7 +145,7 @@ function optionalEnvBool(name: string, defaultValue: boolean): boolean {
  */
 export const config = {
   /** Application name (used in emails, TOTP labels, etc.) */
-  appName: optionalEnv('APP_NAME', 'Chadder'),
+  appName: optionalEnv('APP_NAME', 'Adieuu'),
   /** Current environment: 'development', 'production', or 'test' */
   env: optionalEnv('NODE_ENV', 'development'),
   /** HTTP server port */
@@ -173,7 +173,7 @@ export const config = {
     /** MongoDB connection URI */
     uri: optionalEnv('MONGODB_URI', 'mongodb://localhost:27017'),
     /** Database name to use */
-    dbName: optionalEnv('MONGODB_DB_NAME', 'chadder'),
+    dbName: optionalEnv('MONGODB_DB_NAME', 'adieuu'),
     /** Minimum number of connections in the pool */
     minPoolSize: optionalEnvInt('MONGODB_MIN_POOL_SIZE', 5),
     /** Maximum number of connections in the pool */
@@ -185,7 +185,7 @@ export const config = {
     /** Redis connection URL */
     url: optionalEnv('REDIS_URL', 'redis://localhost:6379'),
     /** Key prefix for namespacing all Redis keys */
-    keyPrefix: optionalEnv('REDIS_KEY_PREFIX', 'chadder:'),
+    keyPrefix: optionalEnv('REDIS_KEY_PREFIX', 'adieuu:'),
   },
 
   /** Security secrets and configuration */
@@ -203,7 +203,7 @@ export const config = {
     /** Email provider: 'ses' or 'console' */
     provider: optionalEnv('EMAIL_PROVIDER', 'ses'),
     /** From address for outgoing emails */
-    fromAddress: optionalEnv('EMAIL_FROM_ADDRESS', 'noreply@chadder.app'),
+    fromAddress: optionalEnv('EMAIL_FROM_ADDRESS', 'noreply@adieuu.app'),
     /** AWS region for SES */
     awsRegion: optionalEnv('AWS_REGION', 'us-east-1'),
     /** AWS access key ID (optional - uses default credential chain if not set) */
@@ -221,7 +221,7 @@ export const config = {
     /** TextMagic API key */
     textmagicApiKey: process.env.TEXTMAGIC_API_KEY,
     /** Sender name/ID for outgoing SMS */
-    fromName: optionalEnv('SMS_FROM_NAME', 'Chadder'),
+    fromName: optionalEnv('SMS_FROM_NAME', 'Adieuu'),
   },
 
   /** Web application URL for magic links and redirects */

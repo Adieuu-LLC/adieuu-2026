@@ -3,7 +3,7 @@
 ## Base URL
 
 - Development: `http://localhost:4000/api`
-- Production: `https://api.chadder.app/api`
+- Production: `https://api.adieuu.app/api`
 
 ## Common Headers
 

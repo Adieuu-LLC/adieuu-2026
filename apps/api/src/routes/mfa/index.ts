@@ -26,7 +26,7 @@ import {
   renameWebAuthnCredential,
 } from '../../services/mfa.service';
 import { toPublicTotp, toPublicWebAuthn } from '../../models/mfa';
-import { z } from '@chadder/shared/schemas';
+import { z } from '@adieuu/shared/schemas';
 
 const router = new Router();
 
@@ -138,7 +138,7 @@ router.post('/mfa/totp/verify', async (ctx) => {
 
   const sanitizedCredentialId = sanitizeString(parsed.data.credentialId, 'id');
   const sanitizedCode = sanitizeString(parsed.data.code, 'authcode');
-  
+
   if (!sanitizedCredentialId.value || !sanitizedCode.value) {
     return ctx.errors.badRequest();
   }
@@ -258,7 +258,7 @@ router.post('/mfa/webauthn/register/finish', async (ctx) => {
   const { response } = parsed.data;
   const sanitizedName = sanitizeString(parsed.data.name, 'general');
   const name = sanitizedName.value || 'Passkey';
-  
+
   const result = await verifyWebAuthnRegistration(auth.userId, response, name);
 
   if (!result.success) {

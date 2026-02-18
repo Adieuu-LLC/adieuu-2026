@@ -1,5 +1,5 @@
-# Chadder
-[![codecov](https://codecov.io/github/Adieuu-LLC/chadder-26/graph/badge.svg?token=2MI5WRYO9K)](https://codecov.io/github/Adieuu-LLC/chadder-26)
+# Adieuu
+[![codecov](https://codecov.io/github/Adieuu-LLC/adieuu-26/graph/badge.svg?token=2MI5WRYO9K)](https://codecov.io/github/Adieuu-LLC/adieuu-26)
 
 Cross-platform application with web, desktop (Electron), and mobile (Capacitor) targets. 
 
@@ -42,7 +42,7 @@ packages/
 pnpm install
 
 # Build shared packages
-pnpm build --filter @chadder/shared --filter @chadder/ui
+pnpm build --filter @adieuu/shared --filter @adieuu/ui
 
 # Start development
 pnpm dev:web    # Web app at http://localhost:3000

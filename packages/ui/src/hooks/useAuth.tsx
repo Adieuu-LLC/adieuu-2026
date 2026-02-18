@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, createContext, useContext, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import { createApiClient, type SessionInfo, type PublicKeyCredentialRequestOptionsJSON } from '@chadder/shared';
+import { createApiClient, type SessionInfo, type PublicKeyCredentialRequestOptionsJSON } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 
 // ============================================================================
@@ -24,7 +24,7 @@ export interface MfaChallenge {
   webauthnChallenge?: PublicKeyCredentialRequestOptionsJSON;
 }
 
-export type VerifyOtpResult = 
+export type VerifyOtpResult =
   | { success: true; mfaRequired?: false }
   | { success: true; mfaRequired: true; mfaChallenge: MfaChallenge }
   | { success: false; error: string };

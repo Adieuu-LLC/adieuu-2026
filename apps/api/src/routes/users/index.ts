@@ -19,7 +19,7 @@ import {
 } from './controller';
 import { getSessionFromRequest } from '../../services/session.service';
 import { getClientIp } from '../auth/controller';
-import { z } from '@chadder/shared/schemas';
+import { z } from '@adieuu/shared/schemas';
 
 const router = new Router();
 

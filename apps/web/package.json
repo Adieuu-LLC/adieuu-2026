@@ -1,5 +1,5 @@
 {
-  "name": "@chadder/web",
+  "name": "@adieuu/web",
   "version": "0.1.6",
   "private": true,
   "type": "module",
@@ -11,8 +11,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@chadder/shared": "workspace:*",
-    "@chadder/ui": "workspace:*",
+    "@adieuu/shared": "workspace:*",
+    "@adieuu/ui": "workspace:*",
     "i18next": "^24.2.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -20,7 +20,7 @@
     "react-router-dom": "^7.1.1"
   },
   "devDependencies": {
-    "@chadder/tsconfig": "workspace:*",
+    "@adieuu/tsconfig": "workspace:*",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",

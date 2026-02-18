@@ -55,7 +55,7 @@ export function Login() {
   return (
     <AuthLayout
       title="Welcome back"
-      subtitle="Sign in to continue to Chadder"
+      subtitle="Sign in to continue to Adieuu"
     >
       <Card variant="elevated" className="slide-up stagger-2">
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -128,7 +128,7 @@ export function Login() {
 
       <footer className="auth-footer slide-up stagger-3">
         <p>
-          By continuing, you agree to Chadder's{' '}
+          By continuing, you agree to Adieuu's{' '}
           <a href={termsUrl} className="auth-link" {...linkProps}>
             Terms of Service
           </a>{' '}

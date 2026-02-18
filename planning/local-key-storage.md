@@ -51,7 +51,7 @@ const signingKeyPair = await crypto.subtle.generateKey(
 
 // Store the CryptoKey object in IndexedDB
 // Even XSS can't read the raw key bytes - only USE the key
-const db = await openDB("chadder-keys", 1);
+const db = await openDB("adieuu-keys", 1);
 await db.put("keys", keyPair.privateKey, "identity-private");
 await db.put("keys", keyPair.publicKey, "identity-public");
 ```
@@ -243,7 +243,7 @@ The WebAuthn PRF (Pseudo-Random Function) extension allows deriving a secret fro
 const credential = await navigator.credentials.create({
   publicKey: {
     challenge: crypto.getRandomValues(new Uint8Array(32)),
-    rp: { name: "Chadder", id: "chadder.app" },
+    rp: { name: "Adieuu", id: "adieuu.app" },
     user: {
       id: new TextEncoder().encode(userId),
       name: userEmail,
@@ -274,7 +274,7 @@ async function deriveKeyFromWebAuthn(): Promise<CryptoKey> {
       extensions: {
         prf: {
           eval: {
-            first: new TextEncoder().encode("chadder-key-encryption-v1"),
+            first: new TextEncoder().encode("adieuu-key-encryption-v1"),
           },
         },
       },
@@ -380,7 +380,7 @@ User imports their key file from local filesystem at the start of each session. 
 async function importKeyFromFile(): Promise<CryptoKey> {
   const [fileHandle] = await window.showOpenFilePicker({
     types: [{
-      description: "Chadder Key File",
+      description: "Adieuu Key File",
       accept: { "application/octet-stream": [".chadkey"] },
     }],
   });
@@ -579,7 +579,7 @@ function downloadBackupFile(blob: ArrayBuffer, filename: string): void {
 
 ## 7. Implementation Recommendations
 
-### For Chadder Web App
+### For Adieuu Web App
 
 1. **Primary Storage**: Non-extractable keys in IndexedDB
    - Best XSS protection for daily use
@@ -614,7 +614,7 @@ const SECURITY_WARNINGS = {
   `,
   
   publicComputer: `
-    Do not use Chadder on shared or public computers.
+    Do not use Adieuu on shared or public computers.
     Your encryption keys would be stored in this browser.
   `,
 };

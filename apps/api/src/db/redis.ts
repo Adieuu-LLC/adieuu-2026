@@ -274,7 +274,7 @@ export async function disconnectRedis(): Promise<void> {
  * All keys are automatically prefixed with the global key prefix from config.
  * 
  * Key format: `{globalPrefix}{typePrefix}:{identifier}`
- * Example: `chadder:otp:abc123...` (where `chadder:` is the global prefix)
+ * Example: `adieuu:otp:abc123...` (where `adieuu:` is the global prefix)
  * 
  * @example
  * ```typescript
@@ -311,7 +311,7 @@ export const RedisKeys = {
    * ```typescript
    * const key = RedisKeys.otp('abc123def456...');
    * // Result: 'otp:abc123def456...'
-   * // With prefix: 'chadder:otp:abc123def456...'
+   * // With prefix: 'adieuu:otp:abc123def456...'
    * ```
    */
   otp: (hashedIdentifier: string) => `otp:${hashedIdentifier}`,

@@ -1,2 +1,2 @@
-call browserify -r ../ChadderJS -s Chadder > chadderjs.min.js
+call browserify -r ../ChadderJS -s Adieuu > adieuujs.min.js
 pause

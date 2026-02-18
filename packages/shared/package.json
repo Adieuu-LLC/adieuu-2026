@@ -1,5 +1,5 @@
 {
-  "name": "@chadder/shared",
+  "name": "@adieuu/shared",
   "version": "0.1.6",
   "private": true,
   "type": "module",
@@ -25,7 +25,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@chadder/tsconfig": "workspace:*",
+    "@adieuu/tsconfig": "workspace:*",
     "typescript": "^5.7.3"
   }
 }

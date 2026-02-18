@@ -1,6 +1,6 @@
 
-//var d = "http://chadder.student.rit.edu";
-var d = "https://service.chadder.im";
+//var d = "http://adieuu.student.rit.edu";
+var d = "https://service.adieuu.im";
 var api = d + "/api";
 var signalr = d + "/SignalR";
 

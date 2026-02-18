@@ -31,7 +31,7 @@ import {
   verifyMfaBackupCodeHandler,
   getClientIp,
 } from './controller';
-import { z } from '@chadder/shared/schemas';
+import { z } from '@adieuu/shared/schemas';
 
 const router = new Router();
 

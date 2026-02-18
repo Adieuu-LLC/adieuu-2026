@@ -60,7 +60,7 @@ export const MAX_IDENTITIES_PER_USER = 1;
 /** Identity session configuration */
 const IDENTITY_SESSION_CONFIG = {
   /** Cookie name */
-  cookieName: 'chadder_identity',
+  cookieName: 'adieuu_identity',
   /** Session TTL in seconds (7 days) */
   ttlSeconds: 7 * 24 * 60 * 60,
   /** Session ID length in bytes */

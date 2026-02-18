@@ -1,6 +1,6 @@
 # ChadderJS (Legacy - 2015) Architecture Documentation
 
-This document describes the architecture and key functionality of 2015 ChadderJS, a JavaScript client library for the Chadder secure messaging platform. Chadder implements device-based end-to-end (E2E) encryption using elliptic curve cryptography (ECC).
+This document describes the architecture and key functionality of 2015 ChadderJS, a JavaScript client library for the Adieuu secure messaging platform. Adieuu implements device-based end-to-end (E2E) encryption using elliptic curve cryptography (ECC).
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@ ChadderJS is built on top of `bitcoinjs-lib` for elliptic curve cryptography ope
 - **Account Key**: A user-level EC key pair used for encrypting messages between users
 - **Device Key**: A per-device EC key pair used for device-specific encryption and authentication
 
-The client communicates with a central server (`service.chadder.im`) for authentication, key exchange, and message relay, but all message content is encrypted client-side before transmission.
+The client communicates with a central server (`service.adieuu.im`) for authentication, key exchange, and message relay, but all message content is encrypted client-side before transmission.
 
 ---
 
@@ -228,7 +228,7 @@ When a member is removed:
 
 ## Message Revocation via Key Management
 
-This is a key feature of Chadder's architecture. Messages can be revoked by invalidating the keys used to encrypt them.
+This is a key feature of Adieuu's architecture. Messages can be revoked by invalidating the keys used to encrypt them.
 
 ### How It Works
 

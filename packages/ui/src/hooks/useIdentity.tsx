@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, createContext, useContext, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import { createApiClient, type PublicIdentity } from '@chadder/shared';
+import { createApiClient, type PublicIdentity } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { useAuth } from './useAuth';
 

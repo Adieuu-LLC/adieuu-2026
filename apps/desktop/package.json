@@ -1,12 +1,12 @@
 {
-  "name": "@chadder/desktop",
+  "name": "@adieuu/desktop",
   "version": "0.1.6",
-  "description": "Chadder Desktop - Secure encrypted messaging application",
+  "description": "Adieuu Desktop - Secure encrypted messaging application",
   "author": {
-    "name": "Chadder Team",
-    "email": "team@chadder.im"
+    "name": "Adieuu Team",
+    "email": "team@adieuu.im"
   },
-  "homepage": "https://chadder.im",
+  "homepage": "https://adieuu.im",
   "private": true,
   "main": "dist/main/main.js",
   "type": "module",
@@ -19,8 +19,8 @@
     "clean": "rm -rf dist out"
   },
   "dependencies": {
-    "@chadder/shared": "workspace:*",
-    "@chadder/ui": "workspace:*",
+    "@adieuu/shared": "workspace:*",
+    "@adieuu/ui": "workspace:*",
     "i18next": "^24.2.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -28,7 +28,7 @@
     "react-router-dom": "^7.1.1"
   },
   "devDependencies": {
-    "@chadder/tsconfig": "workspace:*",
+    "@adieuu/tsconfig": "workspace:*",
     "@swc/core": "^1.10.0",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
@@ -41,8 +41,8 @@
     "vite": "^6.0.7"
   },
   "build": {
-    "appId": "com.chadder.desktop",
-    "productName": "Chadder",
+    "appId": "com.adieuu.desktop",
+    "productName": "Adieuu",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "out"
@@ -70,7 +70,7 @@
         "rpm"
       ],
       "category": "Utility",
-      "maintainer": "Chadder Team <team@chadder.im>"
+      "maintainer": "Adieuu Team <team@adieuu.im>"
     }
   }
 }

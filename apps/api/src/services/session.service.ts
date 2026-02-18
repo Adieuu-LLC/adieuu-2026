@@ -41,7 +41,7 @@ import elog from '../utils/adieuuLogger';
 /** Session configuration */
 const SESSION_CONFIG = {
   /** Session cookie name */
-  cookieName: 'chadder_session',
+  cookieName: 'adieuu_session',
   /** Session TTL in seconds (7 days) */
   ttlSeconds: 7 * 24 * 60 * 60,
   /** Session ID length in bytes (32 bytes = 256 bits) */

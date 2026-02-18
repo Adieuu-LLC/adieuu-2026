@@ -15,7 +15,7 @@ import {
   type MfaStatus,
   type TotpCredential,
   type WebAuthnCredential,
-} from '@chadder/shared';
+} from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { startRegistration } from '@simplewebauthn/browser';
 
@@ -402,21 +402,21 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
 
   const handleRenameWebAuthn = async () => {
     if (!editingPasskey) return;
-    
+
     // Sanitize name: trim whitespace, limit length, remove control characters
     const sanitizedName = editingPasskey.name
       .trim()
       .slice(0, 100)
       .replace(/[\x00-\x1F\x7F]/g, ''); // Remove control characters
-    
+
     if (!sanitizedName) {
       setRenameError(t('account.security.mfa.webauthn.nameRequired', 'Name is required'));
       return;
     }
-    
+
     setRenaming(editingPasskey.id);
     setRenameError(null);
-    
+
     try {
       const response = await api.mfa.renameWebAuthn(editingPasskey.id, sanitizedName);
       if (response.success) {

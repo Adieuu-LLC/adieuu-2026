@@ -1,5 +1,5 @@
 /**
- * Chadder API Server
+ * Adieuu API Server
  * Built with Bun.serve()
  */
 

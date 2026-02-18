@@ -24,7 +24,7 @@ import elog from '../../utils/adieuuLogger';
 const OTP_EXPIRES_IN_MINUTES = 10;
 
 /** Application name for templates */
-const APP_NAME = 'Chadder';
+const APP_NAME = 'Adieuu';
 
 /**
  * Represents a user entity in the system.

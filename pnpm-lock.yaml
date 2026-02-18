@@ -20,7 +20,7 @@ importers:
 
   apps/api:
     dependencies:
-      '@chadder/shared':
+      '@adieuu/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@simplewebauthn/server':
@@ -42,7 +42,7 @@ importers:
         specifier: ^4.9.0
         version: 4.9.0
     devDependencies:
-      '@chadder/tsconfig':
+      '@adieuu/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@types/bun':
@@ -54,10 +54,10 @@ importers:
 
   apps/desktop:
     dependencies:
-      '@chadder/shared':
+      '@adieuu/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@chadder/ui':
+      '@adieuu/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       i18next:
@@ -76,7 +76,7 @@ importers:
         specifier: ^7.1.1
         version: 7.13.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
-      '@chadder/tsconfig':
+      '@adieuu/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@swc/core':
@@ -143,10 +143,10 @@ importers:
 
   apps/web:
     dependencies:
-      '@chadder/shared':
+      '@adieuu/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@chadder/ui':
+      '@adieuu/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       i18next:
@@ -165,7 +165,7 @@ importers:
         specifier: ^7.1.1
         version: 7.13.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
-      '@chadder/tsconfig':
+      '@adieuu/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@types/react':
@@ -193,7 +193,7 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
     devDependencies:
-      '@chadder/tsconfig':
+      '@adieuu/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       typescript:
@@ -204,12 +204,12 @@ importers:
 
   packages/ui:
     dependencies:
+      '@adieuu/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@ark-ui/react':
         specifier: ^5.31.0
         version: 5.31.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@chadder/shared':
-        specifier: workspace:*
-        version: link:../shared
       '@simplewebauthn/browser':
         specifier: ^13.2.2
         version: 13.2.2
@@ -220,7 +220,7 @@ importers:
         specifier: ^15.4.1
         version: 15.7.4(i18next@24.2.3(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
     devDependencies:
-      '@chadder/tsconfig':
+      '@adieuu/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/react':

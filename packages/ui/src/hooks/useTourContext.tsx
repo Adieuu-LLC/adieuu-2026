@@ -29,7 +29,7 @@ export function useTourContext(): TourApi {
  */
 function createOnboardingSteps(platform: 'web' | 'desktop' | 'mobile') {
   const platformName = platform === 'desktop' ? 'Desktop' : platform === 'mobile' ? 'Mobile' : '';
-  const welcomeTitle = `Welcome to Chadder${platformName ? ` ${platformName}` : ''}!`;
+  const welcomeTitle = `Welcome to Adieuu${platformName ? ` ${platformName}` : ''}!`;
   const welcomeDescription = platform === 'desktop'
     ? 'Your privacy-first messaging app, now on your desktop. Let us show you around the key features.'
     : 'Your privacy-first messaging app. Let us show you around the key features.';

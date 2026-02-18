@@ -19,7 +19,7 @@ mock.module('../../config', () => ({
     mongodb: { uri: 'mongodb://localhost:27017', dbName: 'test', minPoolSize: 1, maxPoolSize: 10 },
     redis: { url: 'redis://localhost:6379' },
     features: { requireDatabase: false, initializeCollections: false },
-    app: { name: 'Chadder' },
+    app: { name: 'Adieuu' },
     session: { secret: 'test-secret', expiresIn: 3600 },
   },
 }));
@@ -91,7 +91,7 @@ mock.module('../../db', () => ({
 mock.module('../../repositories/base.repository', () => ({
   BaseRepository: class MockBaseRepository {
     collection = mockCollection;
-    constructor() {}
+    constructor() { }
     findById = mock(() => Promise.resolve(null));
     findOne = mock(() => Promise.resolve(null));
     findMany = mock(() => Promise.resolve([]));

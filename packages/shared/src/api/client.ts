@@ -1,7 +1,7 @@
 /**
- * API Client for Chadder
+ * API Client for Adieuu
  *
- * A minimal, type-safe API client for communicating with the Chadder API.
+ * A minimal, type-safe API client for communicating with the Adieuu API.
  * Supports both browser and Node.js environments.
  */
 
@@ -255,7 +255,7 @@ export interface AuthSession {
 }
 
 export class AuthApi {
-  constructor(private client: ApiClient) {}
+  constructor(private client: ApiClient) { }
 
   /**
    * Request an OTP for passwordless authentication.
@@ -487,7 +487,7 @@ export interface PublicKeyCredentialCreationOptionsJSON {
 // ============================================================================
 
 export class MfaApi {
-  constructor(private client: ApiClient) {}
+  constructor(private client: ApiClient) { }
 
   /**
    * Get MFA status for current user.
@@ -600,7 +600,7 @@ export interface VerifyPhoneParams {
 }
 
 export class UsersApi {
-  constructor(private client: ApiClient) {}
+  constructor(private client: ApiClient) { }
 
   /**
    * Get the current user's profile.
@@ -715,7 +715,7 @@ export interface IdentityLoginErrorResponse {
 }
 
 export class IdentityApi {
-  constructor(private client: ApiClient) {}
+  constructor(private client: ApiClient) { }
 
   /**
    * Create a new identity.

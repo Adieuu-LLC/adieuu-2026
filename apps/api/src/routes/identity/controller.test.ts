@@ -127,7 +127,7 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity', {
         method: 'POST',
         body: {}, // Missing required fields
-        cookies: 'chadder_session=test-session',
+        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(400);
@@ -141,7 +141,7 @@ describe('identity routes', () => {
           username: 'testuser',
           displayName: 'Test User',
         },
-        cookies: 'chadder_session=test-session',
+        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(400);
@@ -155,7 +155,7 @@ describe('identity routes', () => {
           username: 'invalid@user!',
           displayName: 'Test User',
         },
-        cookies: 'chadder_session=test-session',
+        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(400);
@@ -169,7 +169,7 @@ describe('identity routes', () => {
           username: 'validuser',
           displayName: 'Test User',
         },
-        cookies: 'chadder_session=test-session',
+        cookies: 'adieuu_session=test-session',
       });
 
       // May succeed or fail based on mock setup, but should not be 400/401
@@ -182,7 +182,7 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity/login', {
         method: 'POST',
         body: {}, // Missing passphrase
-        cookies: 'chadder_session=test-session',
+        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(400);
@@ -194,7 +194,7 @@ describe('identity routes', () => {
         body: {
           passphrase: 'valid-passphrase-123',
         },
-        cookies: 'chadder_session=test-session',
+        cookies: 'adieuu_session=test-session',
       });
 
       // May be 401 (invalid passphrase), 200 (success), or 500 (internal error from mocked deps)
@@ -207,12 +207,12 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity/logout', {
         method: 'POST',
         body: {}, // Empty body is valid for logout
-        cookies: 'chadder_session=test-session; chadder_identity=test-identity-session',
+        cookies: 'adieuu_session=test-session; adieuu_identity=test-identity-session',
       });
 
       expect(response.status).toBe(200);
       const setCookie = response.headers.get('Set-Cookie');
-      expect(setCookie).toContain('chadder_identity=');
+      expect(setCookie).toContain('adieuu_identity=');
       expect(setCookie).toContain('Max-Age=0');
     });
 
@@ -220,7 +220,7 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity/logout', {
         method: 'POST',
         body: {}, // Empty body is valid for logout
-        cookies: 'chadder_session=test-session',
+        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(200);
@@ -231,7 +231,7 @@ describe('identity routes', () => {
     test('returns 401 without identity session cookie', async () => {
       const response = await makeRequest('/identity/session', {
         method: 'GET',
-        cookies: 'chadder_session=test-session',
+        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(401);
@@ -242,7 +242,7 @@ describe('identity routes', () => {
     test('returns 401 without identity session cookie', async () => {
       const response = await makeRequest('/identity', {
         method: 'DELETE',
-        cookies: 'chadder_session=test-session',
+        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(401);
@@ -261,7 +261,7 @@ describe('identity routes', () => {
             username,
             displayName: 'Test',
           },
-          cookies: 'chadder_session=test-session',
+          cookies: 'adieuu_session=test-session',
         });
         // Should not be a validation error
         expect(response.status).not.toBe(400);
@@ -278,7 +278,7 @@ describe('identity routes', () => {
             username,
             displayName: 'Test',
           },
-          cookies: 'chadder_session=test-session',
+          cookies: 'adieuu_session=test-session',
         });
         expect(response.status).toBe(400);
       }
@@ -293,7 +293,7 @@ describe('identity routes', () => {
           username: 'testuser',
           displayName: '',
         },
-        cookies: 'chadder_session=test-session',
+        cookies: 'adieuu_session=test-session',
       });
       expect(emptyResponse.status).toBe(400);
 
@@ -305,7 +305,7 @@ describe('identity routes', () => {
           username: 'testuser',
           displayName: 'a'.repeat(100),
         },
-        cookies: 'chadder_session=test-session',
+        cookies: 'adieuu_session=test-session',
       });
       expect(longResponse.status).toBe(400);
     });

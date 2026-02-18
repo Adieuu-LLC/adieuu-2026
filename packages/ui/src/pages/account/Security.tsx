@@ -7,7 +7,7 @@ import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
 import { Spinner } from '../../components/Spinner';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { TotpSetup, WebAuthnSetup, MfaCredentialsList } from '../../components/MfaSetup';
-import { createApiClient, type SessionDetails } from '@chadder/shared';
+import { createApiClient, type SessionDetails } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
 
 const VALID_TABS = ['authentication', 'sessions'] as const;
@@ -259,8 +259,8 @@ export function AccountSecurity() {
   const navigate = useNavigate();
 
   // Validate tab parameter and default to authentication
-  const activeTab: SecurityTab = VALID_TABS.includes(tab as SecurityTab) 
-    ? (tab as SecurityTab) 
+  const activeTab: SecurityTab = VALID_TABS.includes(tab as SecurityTab)
+    ? (tab as SecurityTab)
     : 'authentication';
 
   const handleTabChange = (newTab: string) => {

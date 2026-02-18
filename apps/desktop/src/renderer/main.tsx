@@ -1,11 +1,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
-import { initI18n } from '@chadder/ui/i18n';
-import { App, PlatformProvider, AuthProvider, IdentityProvider, ToastProvider, type AppConfig } from '@chadder/ui';
+import { initI18n } from '@adieuu/ui/i18n';
+import { App, PlatformProvider, AuthProvider, IdentityProvider, ToastProvider, type AppConfig } from '@adieuu/ui';
 import { desktopCapabilities } from './platform';
 import { API_BASE_URL } from './config';
-import '@chadder/ui/styles.scss';
+import '@adieuu/ui/styles.scss';
 import './index.css';
 
 // Initialize i18n before rendering
@@ -14,7 +14,7 @@ initI18n();
 // Desktop platform configuration
 const config: AppConfig = {
   apiBaseUrl: API_BASE_URL,
-  externalLinkBase: 'https://chadder.app', // External links open in browser
+  externalLinkBase: 'https://adieuu.app', // External links open in browser
   platform: 'desktop',
 };
 

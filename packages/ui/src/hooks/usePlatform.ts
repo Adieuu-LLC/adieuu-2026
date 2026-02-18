@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Platform } from '@chadder/shared';
+import type { Platform } from '@adieuu/shared';
 
 /**
  * Detects the current platform (web, desktop, or mobile)

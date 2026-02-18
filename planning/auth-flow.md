@@ -93,7 +93,7 @@ Magic links are an alternative to manual OTP entry. The link contains the OTP em
 
 ```
 Email contains:
-https://app.chadder.com/auth/verify?token={base64(identifier + ':' + otp)}&signature={hmac}
+https://app.adieuu.com/auth/verify?token={base64(identifier + ':' + otp)}&signature={hmac}
 
 When clicked:
 1. Client extracts token and signature

@@ -474,7 +474,7 @@ describe('identity.service', () => {
     test('returns a cookie string that clears the session', () => {
       const cookie = buildIdentityLogoutCookie();
 
-      expect(cookie).toContain('chadder_identity=');
+      expect(cookie).toContain('adieuu_identity=');
       expect(cookie).toContain('Max-Age=0');
       expect(cookie).toContain('HttpOnly');
       expect(cookie).toContain('Path=/');
@@ -498,7 +498,7 @@ describe('identity.service', () => {
 
     test('returns session ID when identity cookie present', () => {
       const request = new Request('http://localhost/test', {
-        headers: { Cookie: 'chadder_identity=test-session-id; other=value' },
+        headers: { Cookie: 'adieuu_identity=test-session-id; other=value' },
       });
       const result = getIdentitySessionIdFromRequest(request);
       expect(result).toBe('test-session-id');
@@ -506,7 +506,7 @@ describe('identity.service', () => {
 
     test('handles cookie as only cookie', () => {
       const request = new Request('http://localhost/test', {
-        headers: { Cookie: 'chadder_identity=session123' },
+        headers: { Cookie: 'adieuu_identity=session123' },
       });
       const result = getIdentitySessionIdFromRequest(request);
       expect(result).toBe('session123');

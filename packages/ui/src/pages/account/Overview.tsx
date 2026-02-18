@@ -8,7 +8,7 @@ import { Alert } from '../../components/Alert';
 import { Tooltip } from '../../components/Tooltip';
 import { Spinner } from '../../components/Spinner';
 import { useToast } from '../../components/Toast';
-import { createApiClient, type UserProfile } from '@chadder/shared';
+import { createApiClient, type UserProfile } from '@adieuu/shared';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppConfig } from '../../config';
 
@@ -216,7 +216,7 @@ export function AccountOverview() {
       );
     }
 
-    const notSetText = type === 'email' 
+    const notSetText = type === 'email'
       ? t('account.overview.emailNotVerifiedTooltip')
       : t('account.overview.phoneNotVerifiedTooltip');
 

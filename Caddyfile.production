@@ -1,4 +1,4 @@
-# Chadder Production Caddyfile
+# Adieuu Production Caddyfile
 #
 # Usage:
 #   caddy run --config Caddyfile.production
@@ -8,7 +8,7 @@
 #   - Ports 80/443 open (Caddy handles Let's Encrypt automatically)
 
 # API subdomain
-api.chadder.app {
+api.adieuu.app {
 	reverse_proxy localhost:4000 {
 		# Forward real client IP to application
 		header_up X-Real-IP {remote_host}
@@ -30,12 +30,12 @@ api.chadder.app {
 }
 
 # Web app subdomain
-app.chadder.app {
+app.adieuu.app {
 	# Option 1: Reverse proxy to SSR/Node server
 	reverse_proxy localhost:3000
 
 	# Option 2: Serve static files (uncomment if using static build)
-	# root * /var/www/chadder/web/dist
+	# root * /var/www/adieuu/web/dist
 	# file_server
 	# try_files {path} /index.html
 
@@ -49,8 +49,8 @@ app.chadder.app {
 }
 
 # Redirect www to non-www
-www.chadder.app {
-	redir https://app.chadder.app{uri} permanent
+www.adieuu.app {
+	redir https://app.adieuu.app{uri} permanent
 }
 
 # Note: For additional edge rate limiting, consider:

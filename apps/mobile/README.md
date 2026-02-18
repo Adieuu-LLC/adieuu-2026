@@ -14,7 +14,7 @@ This package contains the Capacitor configuration for iOS and Android builds.
 1. Build the web app first:
 
 ```bash
-pnpm --filter @chadder/web build
+pnpm --filter @adieuu/web build
 ```
 
 2. Initialize native platforms:
@@ -70,6 +70,6 @@ server: {
 
 ## Production Build
 
-1. Build the web app: `pnpm --filter @chadder/web build`
-2. Sync: `pnpm --filter @chadder/mobile sync`
+1. Build the web app: `pnpm --filter @adieuu/web build`
+2. Sync: `pnpm --filter @adieuu/mobile sync`
 3. Build in Xcode / Android Studio

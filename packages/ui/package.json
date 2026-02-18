@@ -1,5 +1,5 @@
 {
-  "name": "@chadder/ui",
+  "name": "@adieuu/ui",
   "version": "0.1.6",
   "private": true,
   "type": "module",
@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@ark-ui/react": "^5.31.0",
-    "@chadder/shared": "workspace:*",
+    "@adieuu/shared": "workspace:*",
     "@simplewebauthn/browser": "^13.2.2",
     "i18next": "^24.2.2",
     "react-i18next": "^15.4.1"
@@ -35,7 +35,7 @@
     "react-router-dom": "^7.0.0"
   },
   "devDependencies": {
-    "@chadder/tsconfig": "workspace:*",
+    "@adieuu/tsconfig": "workspace:*",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "react": "^18.3.1",

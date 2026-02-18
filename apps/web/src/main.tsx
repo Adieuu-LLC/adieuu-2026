@@ -1,10 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { initI18n } from '@chadder/ui/i18n';
-import { App, PlatformProvider, AuthProvider, IdentityProvider, ToastProvider, type AppConfig } from '@chadder/ui';
+import { initI18n } from '@adieuu/ui/i18n';
+import { App, PlatformProvider, AuthProvider, IdentityProvider, ToastProvider, type AppConfig } from '@adieuu/ui';
 import { webCapabilities } from './platform';
-import '@chadder/ui/styles.scss';
+import '@adieuu/ui/styles.scss';
 import './index.css';
 
 // Initialize i18n before rendering

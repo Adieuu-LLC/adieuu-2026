@@ -7,11 +7,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      // In dev mode, resolve @chadder/ui to source files for instant HMR
+      // In dev mode, resolve @adieuu/ui to source files for instant HMR
       // More specific paths MUST come before less specific ones
-      '@chadder/ui/styles.scss': path.resolve(__dirname, '../../packages/ui/src/styles.scss'),
-      '@chadder/ui/i18n': path.resolve(__dirname, '../../packages/ui/src/i18n/index.ts'),
-      '@chadder/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
+      '@adieuu/ui/styles.scss': path.resolve(__dirname, '../../packages/ui/src/styles.scss'),
+      '@adieuu/ui/i18n': path.resolve(__dirname, '../../packages/ui/src/i18n/index.ts'),
+      '@adieuu/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
     },
   },
   server: {

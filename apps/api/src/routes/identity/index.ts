@@ -30,7 +30,7 @@ import {
 } from '../../services/identity.service';
 import { toPublicIdentity } from '../../models/identity';
 import { getClientIp } from '../auth/controller';
-import { z } from '@chadder/shared/schemas';
+import { z } from '@adieuu/shared/schemas';
 
 const router = new Router();
 

@@ -248,13 +248,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build shared packages
-        run: pnpm build --filter @chadder/shared --filter @chadder/ui --filter @chadder/tsconfig
+        run: pnpm build --filter @adieuu/shared --filter @adieuu/ui --filter @adieuu/tsconfig
 
       - name: Build Electron app
-        run: pnpm build --filter @chadder/desktop
+        run: pnpm build --filter @adieuu/desktop
 
       - name: Package Electron app
-        run: pnpm --filter @chadder/desktop package
+        run: pnpm --filter @adieuu/desktop package
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -282,7 +282,7 @@ jobs:
       - name: Download SBOM artifacts from CI workflow
         uses: actions/download-artifact@v4
         with:
-          pattern: chadder-*-*-sbom.json
+          pattern: adieuu-*-*-sbom.json
           path: sboms
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
@@ -332,12 +332,12 @@ jobs:
           apiKey: ${{ secrets.MANIFEST_API_KEY }}
           path: ${{ matrix.path }}
           relationship: 'first'
-          sbomName: 'chadder-${{ matrix.app }}'
+          sbomName: 'adieuu-${{ matrix.app }}'
           sbomVersion: '${{ needs.release.outputs.new_version }}'
           sbomGenerator: 'cdxgen'
-          asset-labels: 'chadder,environment-${{ matrix.app }},v${{ needs.release.outputs.new_version }},oss,generated-pipeline'
+          asset-labels: 'adieuu,environment-${{ matrix.app }},v${{ needs.release.outputs.new_version }},oss,generated-pipeline'
           active: true
-          sbomArtifactName: 'chadder-${{ matrix.app }}-${{ needs.release.outputs.new_version }}-sbom.json'
+          sbomArtifactName: 'adieuu-${{ matrix.app }}-${{ needs.release.outputs.new_version }}-sbom.json'
 
   # Attach manually generated SBOMs to release
   attach-sboms-manual:
@@ -348,7 +348,7 @@ jobs:
       - name: Download SBOM artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: chadder-*-*-sbom.json
+          pattern: adieuu-*-*-sbom.json
           path: sboms
           merge-multiple: true
 

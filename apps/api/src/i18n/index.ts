@@ -15,7 +15,7 @@
  *
  * // Get email template with variables
  * const email = getEmailTemplate('otpWithMagicLink', 'en', {
- *   appName: 'Chadder',
+ *   appName: 'Adieuu',
  *   otp: '123456',
  *   magicLink: 'https://...',
  *   expiresInMinutes: 10,
@@ -23,7 +23,7 @@
  *
  * // Get SMS message with variables
  * const sms = getSmsMessage('otp', 'en', {
- *   appName: 'Chadder',
+ *   appName: 'Adieuu',
  *   otp: '123456',
  *   expiresInMinutes: 10,
  * });
@@ -125,12 +125,12 @@ export function getErrorMessage(
  * @example
  * ```typescript
  * const email = getEmailTemplate('otpWithMagicLink', 'en', {
- *   appName: 'Chadder',
+ *   appName: 'Adieuu',
  *   otp: '123456',
- *   magicLink: 'https://app.chadder.im/auth/verify?t=...',
+ *   magicLink: 'https://app.adieuu.im/auth/verify?t=...',
  *   expiresInMinutes: 10,
  * });
- * // Returns: { subject: 'Your Chadder login code', text: '...', html: '...' }
+ * // Returns: { subject: 'Your Adieuu login code', text: '...', html: '...' }
  * ```
  */
 export function getEmailTemplate(
@@ -159,11 +159,11 @@ export function getEmailTemplate(
  * @example
  * ```typescript
  * const sms = getSmsMessage('otp', 'en', {
- *   appName: 'Chadder',
+ *   appName: 'Adieuu',
  *   otp: '123456',
  *   expiresInMinutes: 10,
  * });
- * // Returns: 'Chadder code: 123456. Expires in 10 min.'
+ * // Returns: 'Adieuu code: 123456. Expires in 10 min.'
  * ```
  */
 export function getSmsMessage(

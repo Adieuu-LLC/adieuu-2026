@@ -221,8 +221,8 @@ HOST=0.0.0.0
 NODE_ENV=development
 
 # MongoDB
-MONGODB_URI=mongodb://localhost:27017/chadder
-MONGODB_DB_NAME=chadder
+MONGODB_URI=mongodb://localhost:27017/adieuu
+MONGODB_DB_NAME=adieuu
 
 # Redis
 REDIS_URL=redis://localhost:6379
@@ -231,12 +231,12 @@ REDIS_URL=redis://localhost:6379
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
-SES_FROM_EMAIL=noreply@chadder.app
+SES_FROM_EMAIL=noreply@adieuu.app
 
 # TextMagic
 TEXTMAGIC_USERNAME=
 TEXTMAGIC_API_KEY=
-TEXTMAGIC_FROM=Chadder
+TEXTMAGIC_FROM=Adieuu
 
 # Security
 CSRF_SECRET=           # For CSRF token generation

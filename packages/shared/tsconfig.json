@@ -1,5 +1,5 @@
 {
-  "extends": "@chadder/tsconfig/base.json",
+  "extends": "@adieuu/tsconfig/base.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",

@@ -51,7 +51,7 @@ import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
 const OTP_EXPIRES_IN_MINUTES = 10;
 
 /** Application name for templates */
-const APP_NAME = 'Chadder';
+const APP_NAME = 'Adieuu';
 
 /** Maximum failed OTP attempts before account lockout */
 const MAX_FAILED_ATTEMPTS = 5;

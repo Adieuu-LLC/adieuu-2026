@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.chadder.mobile',
-  appName: 'Chadder',
+  appId: 'com.adieuu.mobile',
+  appName: 'Adieuu',
   webDir: '../web/dist',
   server: {
     // In development, connect to local dev server

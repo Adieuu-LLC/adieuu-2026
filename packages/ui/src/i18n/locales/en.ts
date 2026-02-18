@@ -1,5 +1,5 @@
 /**
- * English translations for the Chadder UI.
+ * English translations for the Adieuu UI.
  */
 export const en = {
   // Common
@@ -137,7 +137,7 @@ export const en = {
       phoneVerified: 'Phone verified successfully.',
       invalidCode: 'Invalid verification code. Please try again.',
       errorSendingCode: 'Failed to send verification code.',
-      alreadyOwned: 'This is already attached to another Chadder account. You may have signed up with it previously.',
+      alreadyOwned: 'This is already attached to another Adieuu account. You may have signed up with it previously.',
       // Verification tooltips
       verified: 'Verified',
       emailNotVerifiedTooltip: 'Email not yet verified. Add and verify to use this as login.',
@@ -149,7 +149,7 @@ export const en = {
     // Appearance
     appearance: {
       title: 'Appearance',
-      subtitle: 'Customize how Chadder looks and feels.',
+      subtitle: 'Customize how Adieuu looks and feels.',
       comingSoon: 'Appearance settings coming soon.',
       theme: 'Theme',
       themeDark: 'Dark',
@@ -225,20 +225,20 @@ export const en = {
 
   // About page
   about: {
-    title: 'About Chadder',
+    title: 'About Adieuu',
     subtitle: 'Secure, private messaging for everyone.',
     missionTitle: 'Our Mission',
-    missionText1: "Chadder was built with privacy at its core. We believe that private communication is a fundamental right, not a luxury. Our platform uses end-to-end encryption to ensure that your messages remain private between you and your intended recipients.",
+    missionText1: "Adieuu was built with privacy at its core. We believe that private communication is a fundamental right, not a luxury. Our platform uses end-to-end encryption to ensure that your messages remain private between you and your intended recipients.",
     missionText2: "Unlike other messaging platforms, we don't sell your data, track your conversations, or serve you targeted ads. Your privacy is not our business model.",
     securityTitle: 'Security',
     securityText: 'All messages are encrypted using industry-standard cryptographic algorithms. Our passwordless authentication system eliminates the risk of password breaches while providing a seamless user experience.',
     desktopTitle: 'Desktop App',
-    desktopText: 'The Chadder desktop app is built with Electron, providing a native experience on Windows, macOS, and Linux. It shares the same secure codebase as our web application, ensuring consistent security across all platforms.',
+    desktopText: 'The Adieuu desktop app is built with Electron, providing a native experience on Windows, macOS, and Linux. It shares the same secure codebase as our web application, ensuring consistent security across all platforms.',
   },
 
   // Home page
   home: {
-    title: 'Welcome to Chadder',
+    title: 'Welcome to Adieuu',
     subtitle: 'Your secure messaging platform. Running on {{platform}}.',
     features: {
       encryption: {
@@ -251,7 +251,7 @@ export const en = {
       },
       nativeDesktop: {
         title: 'Native Desktop App',
-        description: 'Experience Chadder as a native desktop application with system notifications and offline support.',
+        description: 'Experience Adieuu as a native desktop application with system notifications and offline support.',
       },
       passwordless: {
         title: 'No Password Required',
@@ -267,7 +267,7 @@ export const en = {
   // Auth pages
   auth: {
     login: {
-      title: 'Sign in to Chadder',
+      title: 'Sign in to Adieuu',
       subtitle: 'Enter your email or phone to receive a verification code.',
       emailPlaceholder: 'Email or phone number',
       submitButton: 'Send code',

@@ -1,11 +1,11 @@
-import type { PlatformCapabilities } from '@chadder/ui';
+import type { PlatformCapabilities } from '@adieuu/ui';
 
 // ============================================================================
 // IndexedDB Helper for Key Storage (temporary until secure storage IPC is added)
 // TODO: Replace with Electron safeStorage or OS keychain via IPC
 // ============================================================================
 
-const DB_NAME = 'chadder-keys';
+const DB_NAME = 'adieuu-keys';
 const STORE_NAME = 'keys';
 
 function openKeyDB(): Promise<IDBDatabase> {
@@ -101,13 +101,13 @@ export const desktopCapabilities: PlatformCapabilities = {
     async pickFile(options?: { accept?: string[] }): Promise<{ name: string; data: Uint8Array } | null> {
       // TODO: Replace with IPC call using dialog.showOpenDialog
       // Example: return window.electron.invoke('file-system:pick-file', options);
-      
+
       // Fallback to browser file input for now
       return new Promise((resolve) => {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = options?.accept?.join(',') ?? '';
-        
+
         input.onchange = async () => {
           const file = input.files?.[0];
           if (!file) {
@@ -133,7 +133,7 @@ export const desktopCapabilities: PlatformCapabilities = {
     async saveFile(data: Uint8Array, suggestedName: string): Promise<boolean> {
       // TODO: Replace with IPC call using dialog.showSaveDialog
       // Example: return window.electron.invoke('file-system:save-file', { data, suggestedName });
-      
+
       // Fallback to download for now
       try {
         // Convert to ArrayBuffer slice to ensure compatibility
@@ -195,7 +195,7 @@ export const desktopCapabilities: PlatformCapabilities = {
     show(title: string, body: string, options?: { onClick?: () => void }): void {
       // TODO: Replace with IPC call for native Electron notifications
       // Example: window.electron.invoke('notifications:show', { title, body });
-      
+
       // For now, use web notification API which works in Electron renderer
       if ('Notification' in window) {
         const notification = new Notification(title, { body });

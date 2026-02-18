@@ -1,13 +1,13 @@
 {
-  "name": "chadder",
+  "name": "adieuu",
   "private": true,
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev --filter=@chadder/api --filter=@chadder/web",
-    "dev:web": "turbo run dev --filter=@chadder/web",
-    "dev:api": "turbo run dev --filter=@chadder/api",
-    "dev:desktop": "turbo run dev --filter=@chadder/desktop",
+    "dev": "turbo run dev --filter=@adieuu/api --filter=@adieuu/web",
+    "dev:web": "turbo run dev --filter=@adieuu/web",
+    "dev:api": "turbo run dev --filter=@adieuu/api",
+    "dev:desktop": "turbo run dev --filter=@adieuu/desktop",
     "dev:proxy": "caddy run",
     "services:up": "docker-compose up -d",
     "services:down": "docker-compose down",

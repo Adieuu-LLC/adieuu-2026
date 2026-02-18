@@ -1,5 +1,5 @@
 /**
- * Chadder UI Design System
+ * Adieuu UI Design System
  * 
  * A modern dark theme with cyan/teal accents.
  * Designed for privacy-focused messaging with a sleek, sophisticated feel.
@@ -503,11 +503,10 @@ body {
 .sidebar-collapsed .sidebar-item {
   justify-content: center;
   padding: var(--spacing-sm);
+  gap: 0;
 
   .sidebar-item-label {
-    opacity: 0;
-    width: 0;
-    overflow: hidden;
+    display: none;
   }
 
   .sidebar-item-icon {
@@ -565,6 +564,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xs);
+
+  // Ensure links wrapping sidebar items are block-level
+  > a {
+    display: block;
+    text-decoration: none;
+  }
 
   &-label {
     padding: var(--spacing-xs) var(--spacing-md);

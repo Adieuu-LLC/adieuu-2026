@@ -295,7 +295,7 @@ Phased approach to implementing the authentication system. Each phase builds on 
 ### Tasks
 
 #### 6.1 Shared Auth Utilities
-- [ ] Create auth API client in @chadder/shared
+- [ ] Create auth API client in @adieuu/shared
 - [ ] Create auth state management hooks
 - [ ] Handle session cookie (web) vs secure storage (mobile)
 

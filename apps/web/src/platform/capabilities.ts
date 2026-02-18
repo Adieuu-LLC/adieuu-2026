@@ -1,10 +1,10 @@
-import type { PlatformCapabilities } from '@chadder/ui';
+import type { PlatformCapabilities } from '@adieuu/ui';
 
 // ============================================================================
 // IndexedDB Helper for Key Storage
 // ============================================================================
 
-const DB_NAME = 'chadder-keys';
+const DB_NAME = 'adieuu-keys';
 const STORE_NAME = 'keys';
 
 function openKeyDB(): Promise<IDBDatabase> {
@@ -87,7 +87,7 @@ export const webCapabilities: PlatformCapabilities = {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = options?.accept?.join(',') ?? '';
-        
+
         input.onchange = async () => {
           const file = input.files?.[0];
           if (!file) {
@@ -107,7 +107,7 @@ export const webCapabilities: PlatformCapabilities = {
 
         // Handle cancel
         input.oncancel = () => resolve(null);
-        
+
         input.click();
       });
     },
