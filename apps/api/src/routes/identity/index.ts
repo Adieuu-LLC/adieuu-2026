@@ -15,6 +15,7 @@
 
 import { Router } from '../../router';
 import { success } from '../../utils/response';
+import { sanitizeString } from '../../utils/sanitize';
 import { getSessionFromRequest } from '../../services/session.service';
 import { getUserRepository } from '../../repositories/user.repository';
 import {
@@ -73,7 +74,14 @@ router.post('/identity', async (ctx) => {
     return ctx.errors.validationFailed();
   }
 
-  const { passphrase, username, displayName } = parseResult.data;
+  const { passphrase, username, displayName: rawDisplayName } = parseResult.data;
+
+  // Sanitize displayName to remove control characters and other problematic chars
+  // Note: We don't log sanitization details to avoid log injection vectors
+  const { value: displayName } = sanitizeString(rawDisplayName, 'general');
+  if (!displayName || displayName.length === 0) {
+    return ctx.errors.validationFailed();
+  }
 
   // Get user to obtain createdAt for salt
   const userRepo = getUserRepository();
@@ -204,7 +212,8 @@ router.post('/identity/login', async (ctx) => {
   }
 
   // Success - set identity session cookie
-  const response = success(result.identity, 'Identity login successful.');
+  // Wrap identity in an object to match the expected IdentityLoginResponse type
+  const response = success({ identity: result.identity }, 'Identity login successful.');
   const headers = new Headers(response.headers);
   if (result.cookie) {
     headers.set('Set-Cookie', result.cookie);

@@ -4,7 +4,8 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Alert } from '../components/Alert';
 import { Spinner } from '../components/Spinner';
-import { MaskIcon, PlusIcon, LockIcon } from '../components/Icons';
+import { Popover } from '../components/Popover';
+import { MaskIcon, PlusIcon, LockIcon, InfoCircleIcon } from '../components/Icons';
 import { useIdentity } from '../hooks/useIdentity';
 
 interface IdentityModalProps {
@@ -16,7 +17,7 @@ type ModalView = 'choose' | 'login' | 'create';
 
 export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
   const { t } = useTranslation();
-  const { createIdentity, loginToIdentity, hasIdentity } = useIdentity();
+  const { createIdentity, loginToIdentity, hasIdentity, canCreateMore } = useIdentity();
 
   const [view, setView] = useState<ModalView>(hasIdentity ? 'login' : 'choose');
   const [loading, setLoading] = useState(false);
@@ -25,6 +26,7 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
 
   // Form fields
   const [passphrase, setPassphrase] = useState('');
+  const [passphraseConfirm, setPassphraseConfirm] = useState('');
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
 
@@ -34,6 +36,7 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
 
   const resetForm = () => {
     setPassphrase('');
+    setPassphraseConfirm('');
     setUsername('');
     setDisplayName('');
     setError(null);
@@ -84,6 +87,10 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
       setError(t('identity.create.passphraseHint'));
       return;
     }
+    if (passphrase !== passphraseConfirm) {
+      setError(t('identity.create.passphraseMismatch'));
+      return;
+    }
     if (username.length < 3) {
       setError(t('identity.create.usernameHint'));
       return;
@@ -119,6 +126,28 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
     }
   };
 
+  // Check if passphrases match for form validation
+  const passphrasesMatch = passphrase.length >= 8 && passphrase === passphraseConfirm;
+
+  // Evaluate passphrase strength
+  type StrengthLevel = 'weak' | 'medium' | 'strong' | 'veryStrong';
+  const getPassphraseStrength = (phrase: string): StrengthLevel => {
+    const length = phrase.length;
+    const hasSpaces = /\s/.test(phrase);
+    const wordCount = phrase.trim().split(/\s+/).length;
+    const hasNumbers = /\d/.test(phrase);
+    const hasMixedCase = /[a-z]/.test(phrase) && /[A-Z]/.test(phrase);
+
+    // Very strong: long phrase with multiple words (like a sentence)
+    if (length >= 30 && wordCount >= 5) return 'veryStrong';
+    if (length >= 24 && wordCount >= 4) return 'strong';
+    if (length >= 16 && (hasSpaces || hasNumbers || hasMixedCase)) return 'medium';
+    if (length >= 12) return 'medium';
+    return 'weak';
+  };
+
+  const passphraseStrength = passphrasesMatch ? getPassphraseStrength(passphrase) : null;
+
   if (!isOpen) return null;
 
   return (
@@ -137,13 +166,21 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
             </div>
 
             <div className="identity-modal-actions">
-              {hasIdentity ? (
+              {/* Show login button if user has at least one identity */}
+              {hasIdentity && (
                 <Button variant="primary" size="lg" onClick={() => setView('login')}>
                   <LockIcon />
                   {t('identity.loginButton')}
                 </Button>
-              ) : (
-                <Button variant="primary" size="lg" onClick={() => setView('create')}>
+              )}
+
+              {/* Show create button if user can create more identities */}
+              {canCreateMore && (
+                <Button
+                  variant={hasIdentity ? 'secondary' : 'primary'}
+                  size="lg"
+                  onClick={() => setView('create')}
+                >
                   <PlusIcon />
                   {t('identity.createButton')}
                 </Button>
@@ -196,7 +233,7 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
               </div>
             </form>
 
-            {!hasIdentity && (
+            {!hasIdentity && canCreateMore && (
               <div className="identity-modal-footer">
                 <p>{t('identity.login.noIdentity')}</p>
                 <Button variant="ghost" size="sm" onClick={() => setView('create')}>
@@ -215,6 +252,8 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
               <p>{t('identity.create.subtitle')}</p>
             </div>
 
+            <Alert variant="warning">{t('identity.create.noRecoveryWarning')}</Alert>
+
             {error && <Alert variant="error">{error}</Alert>}
             {success && <Alert variant="success">{success}</Alert>}
 
@@ -226,15 +265,68 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
               }}
             >
               <div className="form-group">
+                <div className="input-with-info">
+                  <Input
+                    type="password"
+                    placeholder={t('identity.create.passphrasePlaceholder')}
+                    value={passphrase}
+                    onChange={(e) => setPassphrase(e.target.value)}
+                    disabled={loading}
+                    autoFocus
+                  />
+                  <Popover
+                    trigger={
+                      <button
+                        type="button"
+                        className="passphrase-info-btn"
+                        aria-label="Passphrase tips"
+                      >
+                        <InfoCircleIcon />
+                      </button>
+                    }
+                    positioning={{ placement: 'bottom-end' }}
+                    className="passphrase-popover"
+                  >
+                    <div className="passphrase-info-content">
+                      <h4>{t('identity.create.passphraseExamplesTitle')}</h4>
+                      <ul>
+                        {(t('identity.create.passphraseExamples', { returnObjects: true }) as string[]).map((example, i) => (
+                          <li key={i}>{example}</li>
+                        ))}
+                      </ul>
+                      <p className="passphrase-tip">{t('identity.create.passphraseExamplesTip')}</p>
+                    </div>
+                  </Popover>
+                </div>
+                <p className="form-hint">{t('identity.create.passphraseHint')}</p>
+              </div>
+
+              <div className="form-group">
                 <Input
                   type="password"
-                  placeholder={t('identity.create.passphrasePlaceholder')}
-                  value={passphrase}
-                  onChange={(e) => setPassphrase(e.target.value)}
+                  placeholder={t('identity.create.passphraseConfirmPlaceholder')}
+                  value={passphraseConfirm}
+                  onChange={(e) => setPassphraseConfirm(e.target.value)}
                   disabled={loading}
-                  autoFocus
                 />
-                <p className="form-hint">{t('identity.create.passphraseHint')}</p>
+                {passphraseConfirm.length > 0 && passphrase !== passphraseConfirm && (
+                  <p className="form-error">{t('identity.create.passphraseMismatch')}</p>
+                )}
+                {passphrasesMatch && passphraseStrength && (
+                  <p className={`passphrase-strength passphrase-strength-${passphraseStrength}`}>
+                    {t('identity.create.passphraseStrength.match')}
+                    {passphraseStrength !== 'veryStrong' && (
+                      <span className="passphrase-strength-hint">
+                        {' '}&mdash; {t(`identity.create.passphraseStrength.${passphraseStrength}`)}
+                      </span>
+                    )}
+                    {passphraseStrength === 'veryStrong' && (
+                      <span className="passphrase-strength-hint passphrase-strength-excellent">
+                        {' '}&mdash; {t('identity.create.passphraseStrength.veryStrong')}
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
 
               <div className="form-group">
@@ -268,7 +360,7 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
                 <Button
                   type="submit"
                   variant="primary"
-                  disabled={loading || passphrase.length < 8 || username.length < 3 || displayName.length < 1}
+                  disabled={loading || !passphrasesMatch || username.length < 3 || displayName.length < 1}
                 >
                   {loading ? <Spinner size="sm" /> : t('identity.create.submitButton')}
                 </Button>

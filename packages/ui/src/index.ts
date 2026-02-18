@@ -109,6 +109,7 @@ export {
   LockIcon,
   MaskIcon,
   PlusIcon,
+  InfoCircleIcon,
 } from './components/Icons';
 
 // ============================================================================

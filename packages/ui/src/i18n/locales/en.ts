@@ -49,7 +49,25 @@ export const en = {
       title: 'Create Anonymous Identity',
       subtitle: 'Your identity is cryptographically separated from your account. No one can trace it back to you.',
       passphrasePlaceholder: 'Enter a memorable passphrase',
+      passphraseConfirmPlaceholder: 'Confirm your passphrase',
       passphraseHint: 'Use a sentence or phrase (8+ characters). You will need this to login.',
+      passphraseMismatch: 'Passphrases do not match.',
+      passphraseExamplesTitle: 'Strong Passphrase Examples',
+      passphraseExamples: [
+        'the purple elephant dances at midnight',
+        'my coffee is always too hot on tuesdays',
+        'three blind mice ran up the clock tower',
+        'sunshine through the kitchen window 2024',
+      ],
+      passphraseExamplesTip: 'Sentences and phrases are easier to remember and harder to crack than random characters.',
+      // Passphrase strength hints
+      passphraseStrength: {
+        match: 'Passphrases match',
+        weak: 'Could be stronger - try adding more words',
+        medium: 'Good, but a longer phrase is even better',
+        strong: 'Strong passphrase',
+        veryStrong: 'Excellent passphrase',
+      },
       usernamePlaceholder: 'Choose a username',
       usernameHint: 'This will be visible to others.',
       displayNamePlaceholder: 'Display name',
@@ -60,6 +78,7 @@ export const en = {
       errorUsernameTaken: 'This username is already taken.',
       errorMaxIdentities: 'You have reached the maximum number of identities.',
       errorValidation: 'Please check your input and try again.',
+      noRecoveryWarning: 'There is no recovery option for your passphrase. Make sure you remember it!',
     },
     // Login modal
     login: {

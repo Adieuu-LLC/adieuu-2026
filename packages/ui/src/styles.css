@@ -2095,6 +2095,163 @@ a:hover {
   text-align: center;
 }
 
+/* === Input with Info Button === */
+.input-with-info {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: stretch;
+}
+
+.input-with-info .input {
+  flex: 1;
+}
+
+.passphrase-info-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.passphrase-info-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-accent-primary);
+  border-color: var(--color-accent-primary);
+}
+
+.passphrase-info-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* === Popover Component (Ark UI) === */
+.popover-content {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-popover);
+  animation: fadeIn var(--transition-fast) ease;
+  max-width: 320px;
+}
+
+.popover-arrow {
+  --arrow-size: 8px;
+  --arrow-background: var(--color-bg-secondary);
+}
+
+.popover-arrow-tip {
+  border-top: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+}
+
+/* === Passphrase Info Popover Content === */
+.passphrase-popover {
+  padding: 0;
+}
+
+.passphrase-info-content {
+  padding: var(--spacing-md);
+}
+
+.passphrase-info-content h4 {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--spacing-sm);
+}
+
+.passphrase-info-content ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--spacing-sm);
+}
+
+.passphrase-info-content li {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.passphrase-info-content li:last-child {
+  margin-bottom: 0;
+}
+
+.passphrase-tip {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  margin: var(--spacing-sm) 0 0;
+  font-style: italic;
+  line-height: var(--line-height-relaxed);
+}
+
+/* === Form Validation States === */
+.form-error {
+  color: var(--color-error);
+  font-size: var(--font-size-xs);
+  margin: var(--spacing-xs) 0 0;
+}
+
+.form-success {
+  color: var(--color-success);
+  font-size: var(--font-size-xs);
+  margin: var(--spacing-xs) 0 0;
+}
+
+/* === Passphrase Strength Indicator === */
+.passphrase-strength {
+  font-size: var(--font-size-xs);
+  margin: var(--spacing-xs) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.passphrase-strength-weak {
+  color: var(--color-warning);
+}
+
+.passphrase-strength-medium {
+  color: var(--color-text-secondary);
+}
+
+.passphrase-strength-strong {
+  color: var(--color-success);
+}
+
+.passphrase-strength-veryStrong {
+  color: var(--color-success);
+}
+
+.passphrase-strength-hint {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.passphrase-strength-excellent {
+  color: var(--color-success);
+  font-style: normal;
+  font-weight: var(--font-weight-medium);
+}
+
+/* === Button Icon Sizing Fix === */
+.identity-modal-actions .btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

@@ -172,6 +172,10 @@ export interface PublicKeyCredentialRequestOptionsJSON {
 export interface SessionInfo {
   identifier: string;
   identifierType: 'email' | 'phone';
+  /** Number of identities the user has created */
+  identityCount: number;
+  /** Maximum number of identities allowed */
+  maxIdentities: number;
 }
 
 /**

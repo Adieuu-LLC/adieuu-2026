@@ -54,8 +54,8 @@ import { toPublicIdentity, DELETED_IDENT } from '../models/identity';
 /** Whether to decrement identity count on deletion (currently disabled) */
 const DECREMENT_COUNT_ON_DELETE = false;
 
-/** Maximum identities per user */
-const MAX_IDENTITIES_PER_USER = 1;
+/** Maximum identities per user (exported for auth session response) */
+export const MAX_IDENTITIES_PER_USER = 1;
 
 /** Identity session configuration */
 const IDENTITY_SESSION_CONFIG = {
@@ -195,10 +195,9 @@ export async function createIdentity(
   });
 
   // Increment user's identity count
-  // NOTE: We intentionally do NOT log this action to prevent timing correlation
+  // NOTE: We intentionally do NOT log identity creation to prevent timing correlation
+  // that could be used to de-anonymize users
   await userRepo.incrementIdentityCount(userId);
-
-  elog.info('Identity created', { username });
 
   return {
     success: true,

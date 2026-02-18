@@ -13,8 +13,14 @@ export type IdentityStatus = 'loading' | 'logged_in' | 'logged_out' | 'no_identi
 export interface IdentityState {
   status: IdentityStatus;
   identity: PublicIdentity | null;
-  /** Whether the user has created an identity (but may not be logged in) */
+  /** Whether the user has created at least one identity (but may not be logged in) */
   hasIdentity: boolean;
+  /** Number of identities the user has created */
+  identityCount: number;
+  /** Maximum number of identities allowed */
+  maxIdentities: number;
+  /** Whether the user can create more identities */
+  canCreateMore: boolean;
 }
 
 export interface CreateIdentityResult {
@@ -73,14 +79,23 @@ export function useIdentity(): IdentityContextValue {
  */
 function useIdentityState(): IdentityContextValue {
   const { apiBaseUrl } = useAppConfig();
-  const { status: authStatus } = useAuth();
+  const { status: authStatus, session } = useAuth();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+
+  // Derive identity counts from auth session
+  const identityCount = session?.identityCount ?? 0;
+  const maxIdentities = session?.maxIdentities ?? 1;
+  const hasIdentity = identityCount > 0;
+  const canCreateMore = identityCount < maxIdentities;
 
   const [state, setState] = useState<IdentityState>({
     status: 'loading',
     identity: null,
     hasIdentity: false,
+    identityCount: 0,
+    maxIdentities: 1,
+    canCreateMore: true,
   });
 
   // Check identity session status
@@ -91,6 +106,9 @@ function useIdentityState(): IdentityContextValue {
         status: 'logged_out',
         identity: null,
         hasIdentity: false,
+        identityCount: 0,
+        maxIdentities: 1,
+        canCreateMore: true,
       });
       return;
     }
@@ -102,26 +120,35 @@ function useIdentityState(): IdentityContextValue {
         setState({
           status: 'logged_in',
           identity: response.data,
-          hasIdentity: true,
+          hasIdentity,
+          identityCount,
+          maxIdentities,
+          canCreateMore,
         });
       } else {
         // Not logged into identity, but might have one
-        setState((prev) => ({
-          ...prev,
-          status: 'logged_out',
+        setState({
+          status: hasIdentity ? 'logged_out' : 'no_identity',
           identity: null,
-        }));
+          hasIdentity,
+          identityCount,
+          maxIdentities,
+          canCreateMore,
+        });
       }
     } catch {
-      setState((prev) => ({
-        ...prev,
-        status: 'logged_out',
+      setState({
+        status: hasIdentity ? 'logged_out' : 'no_identity',
         identity: null,
-      }));
+        hasIdentity,
+        identityCount,
+        maxIdentities,
+        canCreateMore,
+      });
     }
-  }, [api, authStatus]);
+  }, [api, authStatus, hasIdentity, identityCount, maxIdentities, canCreateMore]);
 
-  // Check identity session when auth status changes
+  // Check identity session when auth status or identity counts change
   useEffect(() => {
     if (authStatus === 'authenticated') {
       refreshIdentitySession();
@@ -130,9 +157,12 @@ function useIdentityState(): IdentityContextValue {
         status: 'logged_out',
         identity: null,
         hasIdentity: false,
+        identityCount: 0,
+        maxIdentities: 1,
+        canCreateMore: true,
       });
     }
-  }, [authStatus, refreshIdentitySession]);
+  }, [authStatus, refreshIdentitySession, identityCount]);
 
   const createIdentity = useCallback(
     async (passphrase: string, username: string, displayName: string): Promise<CreateIdentityResult> => {
@@ -157,12 +187,15 @@ function useIdentityState(): IdentityContextValue {
         };
       }
 
-      // Update state with the new identity
-      setState({
+      // Update state with the new identity - note: identityCount will be refreshed from auth session
+      setState((prev) => ({
+        ...prev,
         status: 'no_identity', // Still need to login
         identity: null,
         hasIdentity: true,
-      });
+        identityCount: prev.identityCount + 1,
+        canCreateMore: prev.identityCount + 1 < prev.maxIdentities,
+      }));
 
       return {
         success: true,
@@ -194,16 +227,18 @@ function useIdentityState(): IdentityContextValue {
       }
 
       // Update state with the identity
-      if (response.data?.identity) {
-        setState({
+      const loggedInIdentity = response.data?.identity;
+      if (loggedInIdentity) {
+        setState((prev) => ({
+          ...prev,
           status: 'logged_in',
-          identity: response.data.identity,
+          identity: loggedInIdentity,
           hasIdentity: true,
-        });
+        }));
 
         return {
           success: true,
-          identity: response.data.identity,
+          identity: loggedInIdentity,
         };
       }
 
@@ -219,7 +254,7 @@ function useIdentityState(): IdentityContextValue {
     await api.identity.logout();
     setState((prev) => ({
       ...prev,
-      status: 'logged_out',
+      status: prev.hasIdentity ? 'logged_out' : 'no_identity',
       identity: null,
     }));
   }, [api]);
@@ -234,11 +269,13 @@ function useIdentityState(): IdentityContextValue {
       };
     }
 
-    setState({
+    // Note: identityCount doesn't decrement on delete (per user requirement)
+    setState((prev) => ({
+      ...prev,
       status: 'no_identity',
       identity: null,
-      hasIdentity: false,
-    });
+      // hasIdentity stays true because identityCount doesn't decrement
+    }));
 
     return { success: true };
   }, [api]);
