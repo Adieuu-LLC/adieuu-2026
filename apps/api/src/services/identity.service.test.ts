@@ -32,9 +32,6 @@ const mockIdentitySessionRepo = {
   revokeAllForIdentity: mock(() => Promise.resolve(0)) as AnyMock,
 };
 
-const mockAuditRepo = {
-  create: mock(() => Promise.resolve(null)) as AnyMock,
-};
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 mock.module('../repositories/user.repository', () => ({
@@ -47,10 +44,6 @@ mock.module('../repositories/identity.repository', () => ({
 
 mock.module('../repositories/identity-session.repository', () => ({
   getIdentitySessionRepository: () => mockIdentitySessionRepo,
-}));
-
-mock.module('../repositories/audit.repository', () => ({
-  getAuditLogRepository: () => mockAuditRepo,
 }));
 
 mock.module('./messaging', () => ({
@@ -106,7 +99,6 @@ describe('identity.service', () => {
     mockIdentitySessionRepo.getSession.mockReset();
     mockIdentitySessionRepo.revoke.mockReset();
     mockIdentitySessionRepo.revokeAllForIdentity.mockReset();
-    mockAuditRepo.create.mockReset();
 
     // Set up default mock returns
     mockUserRepo.isIdentityLockedOut.mockImplementation(() =>
@@ -324,7 +316,8 @@ describe('identity.service', () => {
       expect(result.success).toBe(false);
       expect(result.errorCode).toBe('INVALID_PASSPHRASE');
       expect(mockUserRepo.recordIdentityLoginAttempt).toHaveBeenCalled();
-      expect(mockAuditRepo.create).toHaveBeenCalled();
+      // NOTE: We intentionally do NOT audit identity login failures to preserve
+      // cryptographic separation between identities and user accounts
     });
 
     test('triggers lockout after max attempts', async () => {
