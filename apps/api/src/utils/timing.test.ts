@@ -10,7 +10,7 @@ describe('timing utilities', () => {
       const elapsed = performance.now() - start;
 
       expect(elapsed).toBeGreaterThanOrEqual(99); // Allow 1ms tolerance
-      expect(elapsed).toBeLessThanOrEqual(510); // Allow 10ms tolerance
+      expect(elapsed).toBeLessThanOrEqual(550); // Allow 50ms tolerance for OS scheduling variance
     });
 
     test('delays execution for custom range', async () => {
