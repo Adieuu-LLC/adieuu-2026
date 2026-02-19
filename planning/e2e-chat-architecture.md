@@ -623,25 +623,396 @@ This effectively revokes the conversation by:
 
 ---
 
-## 7. Server Architecture
+## 7. Encrypted File Attachments
 
-### 7.1 What Server Stores
+Files (images, videos, documents, voice messages) are encrypted separately from message text and stored in object storage. The file encryption key is distributed using the same patterns as message encryption.
+
+### 7.1 Architecture Overview
+
+```
+FILE UPLOAD FLOW
+════════════════
+
+Client                           API                     Object Storage (R2/S3)
+──────                           ───                     ──────────────────────
+
+1. Generate file key
+   fileKey = random(32 bytes)
+         │
+2. Encrypt file locally
+   encryptedFile = ChaCha20-Poly1305(fileKey, file)
+   encryptedThumb = ChaCha20-Poly1305(fileKey, thumbnail)  // if applicable
+         │
+3. Hash for integrity
+   fileHash = SHA3-256(encryptedFile)
+         │
+         ▼
+4. Request upload URL ─────────► 5. Generate presigned URL
+                                        │
+         ◄──────────────────────────────┘
+         │
+6. Upload encrypted blob ─────────────────────────────────► 7. Store blob
+         │
+         ▼
+8. Send message with file metadata
+   {
+     type: "file",
+     fileId: "...",
+     fileKey: wrappedKey,     // Wrapped per-recipient (same as session key)
+     fileHash: "...",
+     encryptedMetadata: "..." // Filename, MIME, size (encrypted)
+   }
+```
+
+### 7.2 Encryption Model
+
+```typescript
+interface FileEncryption {
+  // Per-file random key (never reused)
+  fileKey: Uint8Array;  // 32 bytes
+  
+  // Nonces (unique per encryption operation)
+  fileNonce: Uint8Array;      // 12 bytes - for file content
+  thumbNonce: Uint8Array;     // 12 bytes - for thumbnail
+  metaNonce: Uint8Array;      // 12 bytes - for metadata
+}
+
+interface EncryptedFileBundle {
+  // Content (stored in object storage)
+  encryptedFile: Uint8Array;
+  encryptedThumbnail?: Uint8Array;
+  
+  // Integrity
+  fileHash: string;           // SHA3-256(encryptedFile)
+  thumbHash?: string;         // SHA3-256(encryptedThumbnail)
+  
+  // Metadata (encrypted with same fileKey)
+  encryptedMetadata: string;  // Contains: filename, mimeType, size, dimensions
+  metaNonce: string;
+  
+  // Key distribution (same pattern as messages)
+  wrappedKeys: WrappedFileKey[];
+  
+  // Attribution
+  signature: string;          // Ed25519(signingKey, fileHash || metadataHash)
+}
+
+interface WrappedFileKey {
+  identityId: string;
+  ephemeralPublicKey: string;
+  kemCiphertext: string;
+  wrappedFileKey: string;     // AES-GCM(derivedKey, fileKey)
+}
+```
+
+### 7.3 Context-Specific Key Distribution
+
+File keys follow the same distribution patterns as message keys:
+
+```
+DM (1:1):
+  fileKey wrapped for: sender + recipient (all devices)
+  Same as message wrappedKeys
+
+GROUP (<50):
+  Option A: Wrap fileKey for all members (fan-out)
+  Option B: Encrypt fileKey with sender's senderKey
+            Recipients derive from their copy of sender's senderKey
+  
+  Recommendation: Option A for simplicity (files are less frequent than messages)
+
+SPACE:
+  Encrypt fileKey with space cipher (or channel cipher if applicable)
+  
+  encryptedFileKey = AES-GCM(spaceCipher, fileKey)
+  
+  Anyone with the cipher can decrypt the file key
+```
+
+### 7.4 Chunked Encryption (Large Files)
+
+Files over 5MB use chunked encryption for:
+- Resumable uploads/downloads
+- Streaming playback (video/audio)
+- Memory efficiency on mobile
+
+```
+CHUNKED FILE STRUCTURE
+══════════════════════
+
+File: 50MB video
+
+Split into 1MB chunks:
+  Chunk 0: bytes[0..1MB]
+  Chunk 1: bytes[1MB..2MB]
+  ...
+  Chunk 49: bytes[49MB..50MB]
+
+Encrypt each chunk independently:
+  chunkKey[i] = HKDF(fileKey, salt: "chunk", info: i)
+  encryptedChunk[i] = ChaCha20-Poly1305(chunkKey[i], nonce[i], chunk[i])
+
+Build Merkle tree for integrity:
+  leaf[i] = SHA3-256(encryptedChunk[i])
+  root = MerkleRoot(leaves)
+
+Store:
+  Object storage: encryptedChunk[0..49] as single blob or separate objects
+  Message: fileKey, rootHash, chunkCount
+
+
+STREAMING PLAYBACK:
+───────────────────
+1. Download chunk[i]
+2. Verify: SHA3-256(chunk[i]) matches Merkle proof
+3. Derive: chunkKey[i] = HKDF(fileKey, "chunk", i)
+4. Decrypt and play
+5. Continue to chunk[i+1]
+
+No need to download entire file before playback.
+```
+
+### 7.5 Thumbnails and Previews
+
+```
+IMAGE/VIDEO THUMBNAILS
+══════════════════════
+
+Client generates thumbnail locally:
+  thumbnail = resize(image, maxDim: 200px)
+  
+Encrypt with same fileKey (different nonce):
+  encryptedThumb = ChaCha20-Poly1305(fileKey, thumbNonce, thumbnail)
+
+Include in message:
+  - Recipients can decrypt and display thumbnail immediately
+  - Full file downloaded on tap/click
+
+
+BLURHASH ALTERNATIVE (Optional):
+────────────────────────────────
+For ultra-low-bandwidth preview:
+  blurhash = encode(image)  // ~20-30 characters
+  
+Include blurhash in encrypted metadata:
+  - Renders placeholder color pattern
+  - No additional download needed
+  - Still encrypted (in metadata blob)
+```
+
+### 7.6 Metadata Encryption
+
+All file metadata is encrypted - server sees only opaque blobs:
+
+```typescript
+interface FileMetadata {
+  filename: string;           // Original filename
+  mimeType: string;           // e.g., "image/jpeg"
+  size: number;               // Bytes
+  
+  // Media-specific
+  width?: number;
+  height?: number;
+  duration?: number;          // Audio/video in seconds
+  
+  // Optional
+  blurhash?: string;          // Low-res preview
+  waveform?: number[];        // Audio visualization
+  
+  // Chunking info (if applicable)
+  chunkCount?: number;
+  chunkSize?: number;
+  merkleRoot?: string;
+}
+
+// Encrypted before transmission
+encryptedMetadata = ChaCha20-Poly1305(fileKey, metaNonce, JSON.stringify(metadata))
+```
+
+### 7.7 File Size Limits
+
+```
+RECOMMENDED LIMITS
+══════════════════
+
+| File Type      | Max Size | Rationale                      |
+|----------------|----------|--------------------------------|
+| Images         | 20 MB    | Sufficient for high-res photos |
+| Videos         | 100 MB   | ~2min 1080p, mobile-friendly   |
+| Voice messages | 5 MB     | ~5min of audio                 |
+| Documents      | 50 MB    | PDFs, slides                   |
+| Other          | 25 MB    | General attachments            |
+
+SPACE OVERRIDES:
+  Spaces can set lower limits per channel
+  Cannot exceed system maximums
+```
+
+### 7.8 Storage Architecture
+
+```
+OBJECT STORAGE LAYOUT
+═════════════════════
+
+Bucket: adieuu-attachments
+├── {year}/
+│   ├── {month}/
+│   │   ├── {fileId}              # Encrypted file blob
+│   │   ├── {fileId}.thumb        # Encrypted thumbnail (if exists)
+│   │   └── {fileId}.meta         # NOT stored here (in message DB)
+
+File ID: UUID v7 (time-sortable)
+Path: 2026/02/{fileId}
+
+Presigned URLs:
+  - Upload: PUT presigned, expires in 15 minutes
+  - Download: GET presigned, expires in 1 hour
+  - Thumbnails: Separate presigned URL
+
+
+RETENTION:
+──────────
+- Files follow message retention (TTL/count limits)
+- Orphaned files (no message reference) cleaned up after 24h
+- Cooperative deletion removes file from storage
+```
+
+### 7.9 API Endpoints
+
+```
+File Attachments:
+  POST   /api/files/upload-url       # Get presigned upload URL
+  POST   /api/files/confirm          # Confirm upload complete
+  GET    /api/files/:id/download-url # Get presigned download URL
+  DELETE /api/files/:id              # Delete file (cooperative)
+
+Request body for upload-url:
+{
+  "fileHash": "sha3-256-hex",
+  "size": 1234567,
+  "context": {
+    "type": "dm" | "group" | "space",
+    "targetId": "conversation/group/space ID"
+  }
+}
+
+Response:
+{
+  "fileId": "uuid",
+  "uploadUrl": "https://r2.../presigned...",
+  "thumbUploadUrl": "https://r2.../presigned...",
+  "expiresAt": "ISO8601"
+}
+```
+
+### 7.10 Message Schema Update
+
+```typescript
+interface EncryptedMessage {
+  // ... existing fields ...
+  
+  // File attachment (optional)
+  attachment?: {
+    fileId: string;
+    fileHash: string;
+    thumbHash?: string;
+    
+    // Key distribution (same structure as message wrappedKeys)
+    wrappedFileKeys: WrappedFileKey[];
+    
+    // Encrypted metadata
+    encryptedMetadata: string;
+    metaNonce: string;
+    
+    // Chunking (if applicable)
+    chunked: boolean;
+    chunkCount?: number;
+    merkleRoot?: string;
+  };
+}
+
+// For Spaces (community cipher context)
+interface SpaceFileAttachment {
+  fileId: string;
+  fileHash: string;
+  thumbHash?: string;
+  
+  // Key encrypted with space/channel cipher
+  encryptedFileKey: string;
+  fileKeyNonce: string;
+  
+  // Encrypted metadata
+  encryptedMetadata: string;
+  metaNonce: string;
+  
+  // Chunking
+  chunked: boolean;
+  chunkCount?: number;
+  merkleRoot?: string;
+}
+```
+
+### 7.11 Client Implementation
+
+```typescript
+// packages/crypto/files/
+├── encrypt.ts        # File encryption (single + chunked)
+├── decrypt.ts        # File decryption
+├── chunk.ts          # Chunking logic, Merkle tree
+├── thumbnail.ts      # Client-side thumbnail generation
+├── metadata.ts       # Metadata encryption/decryption
+└── stream.ts         # Streaming decryption for playback
+```
+
+### 7.12 Security Considerations
+
+| Threat | Mitigation |
+|--------|------------|
+| File key reuse | Random 32-byte key per file |
+| Chunk reordering | Merkle tree verification |
+| Metadata leakage | All metadata encrypted |
+| Thumbnail analysis | Thumbnails encrypted with same key |
+| Storage correlation | File IDs are random UUIDs, no content hash |
+| Orphaned file access | Presigned URLs expire; require valid session |
+
+### 7.13 What Server NEVER Sees
+
+- Original filename
+- File type / MIME
+- File contents
+- Thumbnail contents
+- File dimensions / duration
+- Any semantic content
+
+Server only sees:
+- Encrypted blob
+- File size (encrypted size, not original)
+- File ID (random UUID)
+- Upload timestamp
+- Associated message ID (for retention)
+
+---
+
+## 8. Server Architecture
+
+### 8.1 What Server Stores
 
 | Data | Purpose | Encrypted? |
 |------|---------|------------|
 | Identity public keys | Key distribution | No (public) |
 | Encrypted identity key bundle | Multi-device convenience | Yes (passphrase) |
 | Encrypted messages | Delivery | Yes (E2E) |
+| Encrypted file attachments | Delivery | Yes (E2E) |
 | Message metadata | Routing | Minimal (from/to IDs, timestamp) |
 
-### 7.2 What Server NEVER Sees
+### 8.2 What Server NEVER Sees
 
 - Private keys (never transmitted)
 - Session keys (wrapped with public keys)
 - Plaintext messages
 - Link between Identity and User
 
-### 7.3 New API Endpoints
+### 8.3 New API Endpoints
 
 ```
 Identity Key Management:
@@ -690,7 +1061,7 @@ Spaces:
   DELETE /api/spaces/:id/members/:mid    # Kick/ban member (admin)
 ```
 
-### 7.4 New Data Models
+### 8.4 New Data Models
 
 ```typescript
 // Identity Key Bundle
@@ -852,9 +1223,9 @@ interface SpaceMessage {
 
 ---
 
-## 8. Client Architecture
+## 9. Client Architecture
 
-### 8.1 Crypto Module (`packages/crypto/`)
+### 9.1 Crypto Module (`packages/crypto/`)
 
 ```
 packages/crypto/
@@ -872,14 +1243,21 @@ packages/crypto/
 ├── kdf/
 │   ├── hkdf.ts            # Key derivation
 │   └── argon2.ts          # Password-based KDF
-└── ciphers/
-    ├── derive.ts          # Community Cipher derivation from entropy
-    ├── storage.ts         # Local cipher storage (IndexedDB)
-    ├── identify.ts        # Cipher ID generation (SHA-512(HMAC...))
-    └── compose.ts         # Multi-layer encryption for channels
+├── ciphers/
+│   ├── derive.ts          # Community Cipher derivation from entropy
+│   ├── storage.ts         # Local cipher storage (IndexedDB)
+│   ├── identify.ts        # Cipher ID generation (SHA-512(HMAC...))
+│   └── compose.ts         # Multi-layer encryption for channels
+└── files/
+    ├── encrypt.ts         # File encryption (single + chunked)
+    ├── decrypt.ts         # File decryption
+    ├── chunk.ts           # Chunking logic, Merkle tree
+    ├── thumbnail.ts       # Client-side thumbnail generation
+    ├── metadata.ts        # Metadata encryption/decryption
+    └── stream.ts          # Streaming decryption for playback
 ```
 
-### 8.2 Key Storage (Web/Desktop)
+### 9.2 Key Storage (Web/Desktop)
 
 ```typescript
 // IndexedDB structure - Identity Keys
@@ -922,7 +1300,7 @@ interface CipherStore {
 }
 ```
 
-### 8.3 Message Queue
+### 9.3 Message Queue
 
 Handle offline scenarios:
 
@@ -942,9 +1320,9 @@ interface OutboundMessage {
 
 ---
 
-## 9. Real-Time Infrastructure
+## 10. Real-Time Infrastructure
 
-### 9.1 Architecture Overview
+### 10.1 Architecture Overview
 
 Chat is deployed as a separate service from the REST API for independent scaling:
 
@@ -990,7 +1368,7 @@ api.adieuu.app   → REST API (Bun)
 chat.adieuu.app  → WebSocket (uWebSockets.js, load balanced)
 ```
 
-### 9.2 Why uWebSockets.js
+### 10.2 Why uWebSockets.js
 
 | Library | Messages/sec | Memory/conn | Notes |
 |---------|-------------|-------------|-------|
@@ -1005,7 +1383,7 @@ chat.adieuu.app  → WebSocket (uWebSockets.js, load balanced)
 - HTTP + WebSocket in one server
 - Proven at scale (Discord, Trello)
 
-### 9.3 Horizontal Scaling with Redis Pub/Sub
+### 10.3 Horizontal Scaling with Redis Pub/Sub
 
 Multiple chat server instances coordinate via Redis:
 
@@ -1035,7 +1413,7 @@ Flow:
 4. Server 2 pushes to User B's WebSocket
 ```
 
-### 9.4 WebSocket Authentication
+### 10.4 WebSocket Authentication
 
 WebSocket connections authenticate using Identity sessions:
 
@@ -1096,7 +1474,7 @@ upgrade: async (res, req, context) => {
 }
 ```
 
-### 9.5 E2E Message Flow
+### 10.5 E2E Message Flow
 
 The chat server is encryption-agnostic - it relays encrypted blobs:
 
@@ -1141,7 +1519,7 @@ SERVER SEES (encrypted payload):
 }
 ```
 
-### 9.6 Mobile: WebSocket + Push Notifications
+### 10.6 Mobile: WebSocket + Push Notifications
 
 Mobile apps use WebSocket when active, push notifications when backgrounded:
 
@@ -1179,7 +1557,7 @@ PUSH PAYLOAD (E2E compliant):
 App opens → WebSocket connects → Fetches & decrypts actual content
 ```
 
-### 9.7 Presence (Online/Offline)
+### 10.7 Presence (Online/Offline)
 
 Presence uses long-polling via API (not real-time WebSocket):
 
@@ -1208,7 +1586,7 @@ Response:
 }
 ```
 
-### 9.8 Message Ordering
+### 10.8 Message Ordering
 
 Messages use eventual consistency with timestamp ordering:
 
@@ -1246,7 +1624,7 @@ WHY EVENTUAL CONSISTENCY:
 ✓ Reply threading handles important ordering
 ```
 
-### 9.9 Chat Server Implementation
+### 10.9 Chat Server Implementation
 
 ```typescript
 // apps/chat/src/index.ts
@@ -1388,7 +1766,7 @@ const app = uWS.App()
   });
 ```
 
-### 9.10 Capacity Planning
+### 10.10 Capacity Planning
 
 ```
 SINGLE INSTANCE (8 cores, 16GB RAM):
@@ -1415,7 +1793,7 @@ SCALING TRIGGERS:
   Connections > 100K  → Add instance
 ```
 
-### 9.11 Project Structure Update
+### 10.11 Project Structure Update
 
 ```
 apps/
@@ -1445,7 +1823,7 @@ apps/
 
 ---
 
-## 10. Implementation Phases
+## 11. Implementation Phases
 
 ### Phase 1: Crypto Foundation (Week 1-2)
 - [ ] Add crypto dependencies (@noble/curves, ML-KEM library)
@@ -1473,13 +1851,24 @@ apps/
 - [ ] Disappearing messages (TTL + view count)
 - [ ] Conversation wipe
 
-### Phase 5: Group Chats (Week 5-6)
+### Phase 5: File Attachments (Week 5-6)
+- [ ] Client: File encryption module (single file + chunked)
+- [ ] Client: Thumbnail generation (images/videos)
+- [ ] Client: Metadata encryption
+- [ ] API: Presigned URL generation (upload/download)
+- [ ] API: File confirmation and linking to messages
+- [ ] Infrastructure: Object storage setup (R2/S3)
+- [ ] Client: Chunked upload with resume support
+- [ ] Client: Streaming decryption for playback
+- [ ] Client: Merkle tree verification for large files
+
+### Phase 6: Group Chats (Week 6-7)
 - [ ] API: Group CRUD
 - [ ] Sender key generation and distribution
 - [ ] Group message encryption/decryption
 - [ ] Member add/remove with key rotation
 
-### Phase 6: Real-Time Infrastructure (Week 6-7)
+### Phase 7: Real-Time Infrastructure (Week 7-8)
 - [ ] Set up chat service project (uWebSockets.js)
 - [ ] WebSocket authentication (Identity session validation)
 - [ ] Redis pub/sub for cross-instance routing
@@ -1491,7 +1880,7 @@ apps/
 - [ ] Docker deployment configuration
 - [ ] Load testing (target: 100K connections)
 
-### Phase 7: Spaces - Community Ciphers (Week 7-9)
+### Phase 8: Spaces - Community Ciphers (Week 8-10)
 - [ ] Client: Cipher derivation from entropy pieces
 - [ ] Client: Local cipher storage (IndexedDB)
 - [ ] Client: QR code generation/scanning for cipher sharing
@@ -1504,7 +1893,7 @@ apps/
 - [ ] API: Message retention (TTL + count limits)
 - [ ] Server: Cleanup jobs for expired messages
 
-### Phase 8: Push Notifications (Week 9-10)
+### Phase 9: Push Notifications (Week 10-11)
 - [ ] Set up push service project
 - [ ] Firebase Cloud Messaging (FCM) integration
 - [ ] Apple Push Notification service (APNs) integration
@@ -1512,7 +1901,7 @@ apps/
 - [ ] Device token management API
 - [ ] E2E-compliant push payloads (no content)
 
-### Phase 9: UI Integration (Week 10-12)
+### Phase 10: UI Integration (Week 11-13)
 - [ ] DM conversation list
 - [ ] DM message thread view
 - [ ] Group chat UI
@@ -1526,9 +1915,9 @@ apps/
 
 ---
 
-## 11. Security Considerations
+## 12. Security Considerations
 
-### 11.1 Threats Addressed
+### 12.1 Threats Addressed
 
 | Threat | Mitigation |
 |--------|------------|
@@ -1538,8 +1927,11 @@ apps/
 | Timing attacks | Constant-time crypto operations |
 | Identity-User linkage | No logging of crypto ops, separate sessions |
 | Message tampering | Ed25519 signatures on all messages |
+| File content analysis | Files encrypted client-side, server sees only blobs |
+| File metadata leakage | Filename, MIME, dimensions all encrypted |
+| Chunk reordering attack | Merkle tree verification on large files |
 
-### 11.2 Accepted Risks
+### 12.2 Accepted Risks
 
 | Risk | Rationale |
 |------|-----------|
@@ -1550,7 +1942,7 @@ apps/
 | Entropy can be shared | Social trust model; same as sharing a password |
 | No individual revocation in Spaces | Epoch rotation is the mechanism; expensive but rare |
 
-### 11.3 Future Enhancements
+### 12.3 Future Enhancements
 
 - [ ] Double Ratchet for forward secrecy (v2)
 - [ ] Screenshot detection (platform-dependent)
@@ -1560,7 +1952,7 @@ apps/
 
 ---
 
-## 12. Open Questions
+## 13. Open Questions
 
 1. ~~**Spaces architecture**: Alternative to sender keys for large communities~~ → **RESOLVED: Community Ciphers (Section 5)**
 2. **Message search**: How to search E2E encrypted messages? (client-side index?)
@@ -1568,7 +1960,7 @@ apps/
 4. **Read receipts**: Optional, but how to E2E encrypt the receipt itself?
 5. **Reactions/emoji**: Encrypt reactions separately or include in message edits?
 6. **Message editing**: Allow edits? How to handle edit history cryptographically?
-7. **File attachments**: Size limits? Separate encryption for media?
+7. ~~**File attachments**: Size limits? Separate encryption for media?~~ → **RESOLVED: Encrypted File Attachments (Section 7)**
 8. **Push notifications**: How to show preview without decrypting on server?
 9. **CNSA 2.0 profile negotiation**: When two identities use different profiles, how to negotiate? Options:
    - Always use sender's profile (recipient must support both)
