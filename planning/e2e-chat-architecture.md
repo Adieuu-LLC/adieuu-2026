@@ -25,6 +25,61 @@ This document captures the architectural decisions for end-to-end encrypted mess
 | Key Derivation | HKDF-SHA3-256 | Post-quantum friendly |
 | Password KDF | Argon2id | Memory-hard, for key wrapping |
 
+### 1.1.1 CNSA Suite 2.0 Profile (Optional)
+
+For users or deployments requiring NSA CNSA Suite 2.0 compliance (e.g., government/defense contractors), an alternative algorithm profile is available:
+
+| Purpose | Default Profile | CNSA 2.0 Profile | Notes |
+|---------|-----------------|------------------|-------|
+| Key Agreement (Classical) | X25519 | X25519 | Hybrid; classical layer |
+| Key Agreement (PQC) | ML-KEM-768 | ML-KEM-1024 | ~1.5KB ciphertexts |
+| Signing | Ed25519 | ML-DSA-87 | ~4.6KB signatures |
+| Symmetric Encryption | ChaCha20-Poly1305 | AES-256-GCM | AEAD, 256-bit keys |
+| Hashing / KDF | HKDF-SHA3-256 | HKDF-SHA-384 | SHA-2 family required |
+| Password KDF | Argon2id | Argon2id | Not specified by CNSA |
+
+**CNSA 2.0 Trade-offs:**
+- **Larger signatures**: ML-DSA-87 signatures are ~4.6KB vs Ed25519's 64 bytes (~72x larger)
+- **Larger KEM ciphertexts**: ML-KEM-1024 is ~1568 bytes vs ML-KEM-768's ~1088 bytes
+- **Higher compute**: AES-256 may be slower on devices without AES-NI hardware acceleration
+- **Future-proof**: Full post-quantum resistance including signatures
+
+**Implementation Approach:**
+```typescript
+type CryptoProfile = 'default' | 'cnsa2';
+
+interface CryptoProfileConfig {
+  kem: 'ML-KEM-768' | 'ML-KEM-1024';
+  signature: 'Ed25519' | 'ML-DSA-87';
+  symmetric: 'ChaCha20-Poly1305' | 'AES-256-GCM';
+  kdf: 'HKDF-SHA3-256' | 'HKDF-SHA-384';
+}
+
+const PROFILES: Record<CryptoProfile, CryptoProfileConfig> = {
+  default: {
+    kem: 'ML-KEM-768',
+    signature: 'Ed25519',
+    symmetric: 'ChaCha20-Poly1305',
+    kdf: 'HKDF-SHA3-256',
+  },
+  cnsa2: {
+    kem: 'ML-KEM-1024',
+    signature: 'ML-DSA-87',
+    symmetric: 'AES-256-GCM',
+    kdf: 'HKDF-SHA-384',
+  },
+};
+```
+
+**Profile Selection:**
+- Per-Identity setting (stored with identity metadata)
+- Conversations/Spaces negotiate to the highest common profile
+- Messages include profile indicator for decryption routing
+- Default profile recommended for consumer use (smaller payloads, faster)
+- CNSA 2.0 profile for regulated/enterprise deployments
+
+**Note:** CNSA 2.0 compliance requires third-party validation (CAVP/CMVP/NIAP), not self-declaration. Using CNSA 2.0 algorithms does not automatically confer compliance—formal validation processes apply for NSS deployments.
+
 ### 1.2 Hybrid Encryption Flow
 
 Messages use hybrid encryption combining classical and post-quantum algorithms:
@@ -1501,6 +1556,7 @@ apps/
 - [ ] Screenshot detection (platform-dependent)
 - [ ] Safety numbers / key verification UI
 - [ ] Key rotation reminders
+- [ ] CNSA Suite 2.0 profile support (ML-KEM-1024, ML-DSA-87, AES-256-GCM, SHA-384)
 
 ---
 
@@ -1514,21 +1570,49 @@ apps/
 6. **Message editing**: Allow edits? How to handle edit history cryptographically?
 7. **File attachments**: Size limits? Separate encryption for media?
 8. **Push notifications**: How to show preview without decrypting on server?
+9. **CNSA 2.0 profile negotiation**: When two identities use different profiles, how to negotiate? Options:
+   - Always use sender's profile (recipient must support both)
+   - Negotiate to highest common security level
+   - Require matching profiles for conversation
+10. **CNSA 2.0 signature size**: ML-DSA-87 signatures are ~72x larger than Ed25519. Impact on:
+    - Message storage costs
+    - Mobile bandwidth
+    - Group chat overhead (each message signed)
 
 ---
 
 ## Appendix A: Library Choices
 
+### Default Profile
+
 | Purpose | Library | Rationale |
 |---------|---------|-----------|
 | Classical ECC | @noble/curves | Pure JS, audited, maintained |
-| ML-KEM | @noble/post-quantum | Same author, consistent API |
-| Hashing | @noble/hashes | SHA3, HKDF support |
+| ML-KEM-768 | @noble/post-quantum | Same author, consistent API |
+| Hashing (SHA3) | @noble/hashes | SHA3, HKDF support |
 | Argon2 | argon2-browser or hash-wasm | Memory-hard KDF |
+
+### CNSA 2.0 Profile (Additional)
+
+| Purpose | Library | Notes |
+|---------|---------|-------|
+| ML-KEM-1024 | @noble/post-quantum | Same library, higher security level |
+| ML-DSA-87 | @noble/post-quantum | Post-quantum signatures |
+| AES-256-GCM | WebCrypto native | Hardware-accelerated where available |
+| SHA-384/512 | @noble/hashes or WebCrypto | SHA-2 family |
+
+**WebCrypto Compatibility:**
+- AES-256-GCM: Native WebCrypto support (non-extractable keys)
+- SHA-384/512: Native WebCrypto support
+- ML-KEM / ML-DSA: Requires @noble/post-quantum (no WebCrypto support yet)
+- Ed25519: WebCrypto support varies by browser; @noble/curves for consistency
 
 ## Appendix B: References
 
 - [Signal Protocol Specifications](https://signal.org/docs/)
 - [ML-KEM (Kyber) NIST Standard](https://csrc.nist.gov/pubs/fips/203/final)
+- [ML-DSA (Dilithium) NIST Standard](https://csrc.nist.gov/pubs/fips/204/final)
+- [NSA CNSA Suite 2.0 Algorithms](https://media.defense.gov/2022/Sep/07/2003071834/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS_.PDF)
+- [NSA CNSA Suite 2.0 FAQ](https://media.defense.gov/2022/Sep/07/2003071836/-1/-1/0/CSI_CNSA_2.0_FAQ_.PDF)
 - [Legacy ChadderJS Architecture](../legacy-chadder/docs/ARCHITECTURE.md)
 - [Local Key Storage Analysis](./local-key-storage.md)
