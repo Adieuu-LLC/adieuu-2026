@@ -8,7 +8,7 @@ import { Spinner } from '../../components/Spinner';
 import { Tooltip } from '../../components/Tooltip';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useToast } from '../../components/Toast';
-import { useCipherStore, createTextEntropy, type StoredCipher } from '../../hooks/useCipherStore';
+import { useCipherStore, createTextEntropy, type DecryptedCipher } from '../../hooks/useCipherStore';
 import { useIdentity } from '../../hooks/useIdentity';
 import type { EntropyPiece } from '@adieuu/crypto';
 
@@ -203,7 +203,7 @@ function AddCipherModal({ isOpen, onClose, onAdd }: AddCipherModalProps) {
 // ============================================================================
 
 interface CipherCardProps {
-  cipher: StoredCipher;
+  cipher: DecryptedCipher;
   onRename: (id: string, newName: string) => Promise<void>;
   onDelete: (id: string) => void;
 }
@@ -328,7 +328,7 @@ export function IdentityCiphers() {
   const { loading, ciphers, error, createCipher, deleteCipher, renameCipher, refresh } = useCipherStore();
 
   const [addModalOpen, setAddModalOpen] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<StoredCipher | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<DecryptedCipher | null>(null);
 
   const handleAddCipher = useCallback(
     async (name: string, entropyPieces: EntropyPiece[]) => {

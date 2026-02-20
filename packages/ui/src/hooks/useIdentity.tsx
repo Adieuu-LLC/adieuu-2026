@@ -1,8 +1,60 @@
-import { useState, useCallback, useEffect, createContext, useContext, useMemo } from 'react';
+import { useState, useCallback, useEffect, createContext, useContext, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { createApiClient, type PublicIdentity } from '@adieuu/shared';
+import { deriveEntropyWrappingKey, generateWrappingSalt, fromBase64, toBase64 } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
 import { useAuth } from './useAuth';
+
+// ============================================================================
+// Wrapping Key Storage (IndexedDB)
+// ============================================================================
+
+const WRAPPING_KEY_DB_NAME = 'adieuu-wrapping-keys';
+const WRAPPING_KEY_DB_VERSION = 1;
+const WRAPPING_KEY_STORE_NAME = 'salts';
+
+/**
+ * Opens the wrapping key salt database.
+ */
+function openWrappingKeyDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(WRAPPING_KEY_DB_NAME, WRAPPING_KEY_DB_VERSION);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(WRAPPING_KEY_STORE_NAME)) {
+        db.createObjectStore(WRAPPING_KEY_STORE_NAME, { keyPath: 'identityId' });
+      }
+    };
+  });
+}
+
+/**
+ * Gets or creates the wrapping key salt for an identity.
+ */
+async function getOrCreateWrappingSalt(identityId: string): Promise<Uint8Array> {
+  const db = await openWrappingKeyDb();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(WRAPPING_KEY_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(WRAPPING_KEY_STORE_NAME);
+    const getRequest = store.get(identityId);
+
+    getRequest.onerror = () => reject(getRequest.error);
+    getRequest.onsuccess = () => {
+      if (getRequest.result?.salt) {
+        resolve(fromBase64(getRequest.result.salt));
+      } else {
+        // Generate new salt
+        const salt = generateWrappingSalt();
+        const putRequest = store.put({ identityId, salt: toBase64(salt) });
+        putRequest.onerror = () => reject(putRequest.error);
+        putRequest.onsuccess = () => resolve(salt);
+      }
+    };
+  });
+}
 
 // ============================================================================
 // Identity State Types
@@ -50,6 +102,17 @@ export interface IdentityContextValue extends IdentityState {
   deleteIdentity: () => Promise<{ success: boolean; error?: string }>;
   /** Refresh identity session status */
   refreshIdentitySession: () => Promise<void>;
+  /**
+   * Get the entropy wrapping key for the current identity session.
+   * Returns null if not logged in or key not yet derived.
+   * Used by cipher store to encrypt/decrypt entropy at rest.
+   */
+  getWrappingKey: () => Uint8Array | null;
+  /**
+   * Get the wrapping salt for the current identity.
+   * Returns null if not logged in.
+   */
+  getWrappingSalt: () => Uint8Array | null;
 }
 
 // ============================================================================
@@ -97,6 +160,24 @@ function useIdentityState(): IdentityContextValue {
     maxIdentities: 1,
     canCreateMore: true,
   });
+
+  // Wrapping key for cipher entropy encryption (kept in memory only)
+  const wrappingKeyRef = useRef<Uint8Array | null>(null);
+  const wrappingSaltRef = useRef<Uint8Array | null>(null);
+
+  // Getters for wrapping key (used by cipher store)
+  const getWrappingKey = useCallback(() => wrappingKeyRef.current, []);
+  const getWrappingSalt = useCallback(() => wrappingSaltRef.current, []);
+
+  // Clear wrapping key on logout
+  const clearWrappingKey = useCallback(() => {
+    if (wrappingKeyRef.current) {
+      // Zero out the key material for security
+      wrappingKeyRef.current.fill(0);
+      wrappingKeyRef.current = null;
+    }
+    wrappingSaltRef.current = null;
+  }, []);
 
   // Check identity session status
   const refreshIdentitySession = useCallback(async () => {
@@ -229,6 +310,17 @@ function useIdentityState(): IdentityContextValue {
       // Update state with the identity
       const loggedInIdentity = response.data?.identity;
       if (loggedInIdentity) {
+        // Derive wrapping key for cipher entropy encryption
+        try {
+          const salt = await getOrCreateWrappingSalt(loggedInIdentity.id);
+          const wrappingKey = await deriveEntropyWrappingKey(passphrase, salt);
+          wrappingKeyRef.current = wrappingKey;
+          wrappingSaltRef.current = salt;
+        } catch (err) {
+          console.warn('Failed to derive wrapping key:', err);
+          // Non-fatal: ciphers will work but entropy won't be encrypted
+        }
+
         setState((prev) => ({
           ...prev,
           status: 'logged_in',
@@ -252,12 +344,13 @@ function useIdentityState(): IdentityContextValue {
 
   const logoutFromIdentity = useCallback(async () => {
     await api.identity.logout();
+    clearWrappingKey();
     setState((prev) => ({
       ...prev,
       status: prev.hasIdentity ? 'logged_out' : 'no_identity',
       identity: null,
     }));
-  }, [api]);
+  }, [api, clearWrappingKey]);
 
   const deleteIdentity = useCallback(async () => {
     const response = await api.identity.delete();
@@ -287,6 +380,8 @@ function useIdentityState(): IdentityContextValue {
     logoutFromIdentity,
     deleteIdentity,
     refreshIdentitySession,
+    getWrappingKey,
+    getWrappingSalt,
   };
 }
 

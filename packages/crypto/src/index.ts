@@ -188,6 +188,8 @@ export {
   type LayeredCipherPayload,
   type SerializedLayeredPayload,
   type CipherEpoch,
+  type EntropyWrapConfig,
+  type WrappedEntropy,
   // Cipher derivation
   deriveCommunityCipher,
   deriveChannelCipher,
@@ -221,4 +223,13 @@ export {
   getRequiredCipherIds,
   canDecrypt,
   getLayerCount,
+  // Entropy wrapping (encryption at rest)
+  deriveEntropyWrappingKey,
+  generateWrappingSalt,
+  wrapEntropy,
+  unwrapEntropy,
+  isWrappedEntropy,
+  migrateEntropyToWrapped,
+  getSaltFromWrapped,
+  ENTROPY_WRAP_VERSION,
 } from './ciphers';

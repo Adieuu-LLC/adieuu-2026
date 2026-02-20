@@ -112,3 +112,16 @@ export {
   canDecrypt,
   getLayerCount,
 } from './compose';
+
+// Entropy wrapping (encryption at rest)
+export type { EntropyWrapConfig, WrappedEntropy } from './wrap';
+export {
+  deriveEntropyWrappingKey,
+  generateWrappingSalt,
+  wrapEntropy,
+  unwrapEntropy,
+  isWrappedEntropy,
+  migrateEntropyToWrapped,
+  getSaltFromWrapped,
+  ENTROPY_WRAP_VERSION,
+} from './wrap';
