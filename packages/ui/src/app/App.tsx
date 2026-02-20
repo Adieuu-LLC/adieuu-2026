@@ -11,8 +11,10 @@ import {
   AccountPrivacy,
   AccountNotifications,
 } from '../pages/account';
+import { IdentityCiphers } from '../pages/identity';
 import { useAuth } from '../hooks/useAuth';
 import { TourProvider, useTourContext } from '../hooks/useTourContext';
+import { CipherStoreProvider } from '../hooks/useCipherStore';
 import { AppSidebar } from './AppSidebar';
 
 /**
@@ -36,7 +38,9 @@ function ProtectedLayout() {
 
   return (
     <TourProvider>
-      <ProtectedLayoutContent />
+      <CipherStoreProvider>
+        <ProtectedLayoutContent />
+      </CipherStoreProvider>
     </TourProvider>
   );
 }
@@ -124,6 +128,10 @@ export function App() {
         <Route path="/account/security/:tab" element={<AccountSecurity />} />
         <Route path="/account/privacy" element={<AccountPrivacy />} />
         <Route path="/account/notifications" element={<AccountNotifications />} />
+
+        {/* Identity Routes */}
+        <Route path="/identity" element={<Navigate to="/identity/ciphers" replace />} />
+        <Route path="/identity/ciphers" element={<IdentityCiphers />} />
       </Route>
 
       {/* Catch-all redirect */}

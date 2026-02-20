@@ -25,6 +25,10 @@
     "./kdf": {
       "types": "./dist/kdf/index.d.ts",
       "import": "./dist/kdf/index.js"
+    },
+    "./ciphers": {
+      "types": "./dist/ciphers/index.d.ts",
+      "import": "./dist/ciphers/index.js"
     }
   },
   "scripts": {

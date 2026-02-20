@@ -213,3 +213,77 @@ export interface Argon2Options {
   /** Output key length in bytes (default: 32) */
   outputLength?: number;
 }
+
+// ============================================================================
+// Group Chat / Sender Key Types
+// ============================================================================
+
+/**
+ * Sender key for group messaging.
+ *
+ * Each group member has their own sender key that they use to encrypt
+ * messages to the group. Other members hold copies of this key to decrypt.
+ */
+export interface SenderKey {
+  /** The symmetric key material (32 bytes) */
+  key: Uint8Array;
+  /** Current chain index (increments with each message sent) */
+  chainIndex: number;
+}
+
+/**
+ * Sender key with metadata for storage/distribution.
+ */
+export interface SenderKeyRecord {
+  /** Group ID this sender key belongs to */
+  groupId: string;
+  /** Identity ID of the key owner (who sends with this key) */
+  ownerIdentityId: string;
+  /** The sender key material */
+  senderKey: SenderKey;
+  /** When this sender key was created */
+  createdAt: Date;
+}
+
+/**
+ * Wrapped sender key for distribution to a group member.
+ *
+ * When a member joins a group or when sender keys are rotated,
+ * each member's sender key is encrypted for each recipient.
+ */
+export interface WrappedSenderKey {
+  /** Group ID */
+  groupId: string;
+  /** Identity ID of the sender key owner */
+  ownerIdentityId: string;
+  /** Identity ID of the recipient (who can decrypt this) */
+  recipientIdentityId: string;
+  /** Ephemeral X25519 public key used for wrapping */
+  ephemeralPublicKey: Uint8Array;
+  /** ML-KEM ciphertext */
+  kemCiphertext: Uint8Array;
+  /** Encrypted sender key (AES-GCM wrapped) */
+  wrappedSenderKey: Uint8Array;
+  /** Nonce used for AES-GCM wrapping */
+  wrappingNonce: Uint8Array;
+  /** Initial chain index (usually 0 for new keys) */
+  initialChainIndex: number;
+}
+
+/**
+ * Group message encrypted with sender key.
+ */
+export interface SenderKeyMessage {
+  /** Group ID */
+  groupId: string;
+  /** Identity ID of the sender */
+  fromIdentityId: string;
+  /** Chain index used to derive the message key */
+  chainIndex: number;
+  /** Encrypted message content */
+  ciphertext: Uint8Array;
+  /** Nonce for decryption */
+  nonce: Uint8Array;
+  /** Ed25519 signature over ciphertext */
+  signature: Uint8Array;
+}

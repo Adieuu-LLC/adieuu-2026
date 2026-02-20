@@ -26,11 +26,13 @@
     "node": ">=25.0.0",
     "pnpm": ">=9.0.0"
   },
-  "pnpm": {
-    "overrides": {
-      "tar": ">=7.5.9",
-      "ajv": ">=8.18.0",
-      "@develar/schema-utils>ajv": "^6.12.6"
-    }
-  }
+  "overrides": {
+    "tar": ">=7.5.9",
+    "ajv": ">=8.18.0",
+    "@develar/schema-utils>ajv": "^6.12.6"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
 }

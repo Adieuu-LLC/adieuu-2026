@@ -57,6 +57,11 @@ export type {
   AEADResult,
   HKDFOptions,
   Argon2Options,
+  // Group chat types
+  SenderKey,
+  SenderKeyRecord,
+  WrappedSenderKey,
+  SenderKeyMessage,
 } from './types';
 
 export { CRYPTO_PROFILES } from './types';
@@ -152,3 +157,68 @@ export {
   ARGON2_DEFAULTS,
   ARGON2_HIGH_SECURITY,
 } from './kdf';
+
+// Group chat (Sender Keys)
+export {
+  generateSenderKey,
+  deriveMessageKey,
+  advanceAndDeriveMessageKey,
+  createSenderKey,
+  isValidChainIndex,
+  validateAndUpdateChainIndex,
+  wrapSenderKeyForRecipient,
+  wrapSenderKeyForRecipients,
+  unwrapSenderKey,
+  findAndUnwrapSenderKey,
+  prepareKeysForNewMember,
+  SENDER_KEY_SIZE,
+  SENDER_KEY_MESSAGE_INFO,
+  type MemberJoinKeyDistribution,
+} from './groups';
+
+// Community Ciphers (Spaces)
+export {
+  // Types
+  type EntropyType,
+  type EntropyPiece,
+  type CommunityCipher,
+  type CommunityCipherRecord,
+  type CipherEncryptedPayload,
+  type SerializedCipherPayload,
+  type LayeredCipherPayload,
+  type SerializedLayeredPayload,
+  type CipherEpoch,
+  // Cipher derivation
+  deriveCommunityCipher,
+  deriveChannelCipher,
+  verifyCipherEntropy,
+  entropyPieceToBytes,
+  hashFileForEntropy,
+  hashUrlForEntropy,
+  createTextEntropy,
+  createFileEntropy,
+  createUrlEntropy,
+  createHardwareEntropy,
+  CIPHER_DERIVATION_VERSION,
+  // Cipher identification
+  generateCipherId,
+  isValidCipherId,
+  cipherIdsEqual,
+  shortCipherId,
+  formatCipherId,
+  CIPHER_ID_DOMAIN,
+  CIPHER_KEY_SIZE,
+  CIPHER_ID_LENGTH,
+  // Encryption/decryption with ciphers
+  encryptWithCipher,
+  decryptWithCipher,
+  encryptLayered,
+  decryptLayered,
+  serializeCipherPayload,
+  deserializeCipherPayload,
+  serializeLayeredPayload,
+  deserializeLayeredPayload,
+  getRequiredCipherIds,
+  canDecrypt,
+  getLayerCount,
+} from './ciphers';

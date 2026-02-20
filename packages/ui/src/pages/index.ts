@@ -13,3 +13,6 @@ export {
   AccountPrivacy,
   AccountNotifications,
 } from './account';
+
+// Identity pages
+export { IdentityCiphers } from './identity';

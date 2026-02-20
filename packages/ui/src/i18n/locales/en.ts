@@ -282,6 +282,64 @@ export const en = {
       changeIdentifier: 'Use a different email or phone',
     },
   },
+
+  // Ciphers (Community Ciphers for Spaces)
+  ciphers: {
+    title: 'Ciphers',
+    subtitle: 'Manage your community ciphers for encrypted Spaces.',
+    addButton: 'Add Cipher',
+    notLoggedIn: 'Please log in to your identity to manage ciphers.',
+
+    // Empty state
+    empty: {
+      title: 'No Ciphers Yet',
+      description: 'Ciphers are shared encryption keys for Spaces. Add a cipher to join or create encrypted communities.',
+      addFirst: 'Add Your First Cipher',
+    },
+
+    // Cipher card
+    card: {
+      cipherId: 'Cipher ID',
+      created: 'Created',
+      entropyPieces: 'Entropy Pieces',
+    },
+
+    // Add cipher modal
+    addModal: {
+      title: 'Add New Cipher',
+      description: 'Create a cipher from one or more secret phrases. Anyone who knows the same phrases can derive the same cipher.',
+      nameLabel: 'Cipher Name',
+      namePlaceholder: 'e.g., My Community',
+      nameHint: 'A friendly name to identify this cipher.',
+      entropyLabel: 'Secret Phrases',
+      entropyPlaceholder: 'Enter one or more secret phrases (one per line)',
+      entropyHint: 'These phrases are combined to derive the cipher. Order matters.',
+      securityTitle: 'Security Note',
+      securityWarning: 'Anyone who knows these phrases can decrypt messages encrypted with this cipher. Keep them secret and share only with trusted community members.',
+      submit: 'Create Cipher',
+    },
+
+    // Delete modal
+    deleteModal: {
+      title: 'Delete Cipher',
+      message: 'Are you sure you want to delete "{{name}}"? You will lose access to any messages encrypted with this cipher unless you re-add it with the same entropy.',
+    },
+
+    // Messages
+    messages: {
+      created: 'Cipher created successfully.',
+      deleted: 'Cipher deleted.',
+      renamed: 'Cipher renamed.',
+    },
+
+    // Errors
+    errors: {
+      noEntropy: 'Please enter at least one secret phrase.',
+      createFailed: 'Failed to create cipher.',
+      deleteFailed: 'Failed to delete cipher.',
+      renameFailed: 'Failed to rename cipher.',
+    },
+  },
 } as const;
 
 export type TranslationKeys = typeof en;
