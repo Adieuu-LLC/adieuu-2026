@@ -16,6 +16,11 @@ import type { EntropyPiece } from '@adieuu/crypto';
 // Add Cipher Modal Component
 // ============================================================================
 
+interface EntropyRow {
+  id: string;
+  value: string;
+}
+
 interface AddCipherModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -25,25 +30,42 @@ interface AddCipherModalProps {
 function AddCipherModal({ isOpen, onClose, onAdd }: AddCipherModalProps) {
   const { t } = useTranslation();
   const [name, setName] = useState('');
-  const [entropyText, setEntropyText] = useState('');
+  const [entropyRows, setEntropyRows] = useState<EntropyRow[]>([{ id: '1', value: '' }]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const addEntropyRow = () => {
+    setEntropyRows((prev) => [...prev, { id: Date.now().toString(), value: '' }]);
+  };
+
+  const removeEntropyRow = (id: string) => {
+    setEntropyRows((prev) => {
+      // Don't remove if it's the only row
+      if (prev.length <= 1) return prev;
+      return prev.filter((row) => row.id !== id);
+    });
+  };
+
+  const updateEntropyRow = (id: string, value: string) => {
+    setEntropyRows((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, value } : row))
+    );
+  };
+
+  const hasValidEntropy = entropyRows.some((row) => row.value.trim().length > 0);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !entropyText.trim()) return;
+    if (!name.trim() || !hasValidEntropy) return;
 
     setSubmitting(true);
     setError(null);
 
     try {
-      // For now, we only support text entropy
-      // Split by newlines to allow multiple phrases
-      const pieces = entropyText
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0)
-        .map((line, idx) => createTextEntropy(line, `Phrase ${idx + 1}`));
+      // Convert rows to entropy pieces (filter out empty ones)
+      const pieces = entropyRows
+        .filter((row) => row.value.trim().length > 0)
+        .map((row, idx) => createTextEntropy(row.value.trim(), `Phrase ${idx + 1}`));
 
       if (pieces.length === 0) {
         setError(t('ciphers.errors.noEntropy'));
@@ -54,7 +76,7 @@ function AddCipherModal({ isOpen, onClose, onAdd }: AddCipherModalProps) {
       await onAdd(name.trim(), pieces);
       // Reset form
       setName('');
-      setEntropyText('');
+      setEntropyRows([{ id: '1', value: '' }]);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('ciphers.errors.createFailed'));
@@ -65,7 +87,7 @@ function AddCipherModal({ isOpen, onClose, onAdd }: AddCipherModalProps) {
 
   const handleClose = () => {
     setName('');
-    setEntropyText('');
+    setEntropyRows([{ id: '1', value: '' }]);
     setError(null);
     onClose();
   };
@@ -106,14 +128,44 @@ function AddCipherModal({ isOpen, onClose, onAdd }: AddCipherModalProps) {
 
             <div className="form-group">
               <label className="form-label">{t('ciphers.addModal.entropyLabel')}</label>
-              <textarea
-                className="input input-textarea"
-                value={entropyText}
-                onChange={(e) => setEntropyText(e.target.value)}
-                placeholder={t('ciphers.addModal.entropyPlaceholder')}
-                rows={4}
+              <div className="entropy-rows">
+                {entropyRows.map((row, index) => (
+                  <div key={row.id} className="entropy-row">
+                    <span className="entropy-row-number">{index + 1}</span>
+                    <Input
+                      type="text"
+                      value={row.value}
+                      onChange={(e) => updateEntropyRow(row.id, e.target.value)}
+                      placeholder={t('ciphers.addModal.entropyRowPlaceholder')}
+                      disabled={submitting}
+                    />
+                    <button
+                      type="button"
+                      className="entropy-row-remove"
+                      onClick={() => removeEntropyRow(row.id)}
+                      disabled={submitting || entropyRows.length <= 1}
+                      title={t('common.remove')}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="entropy-add-btn"
+                onClick={addEntropyRow}
                 disabled={submitting}
-              />
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                {t('ciphers.addModal.addEntropy')}
+              </button>
               <p className="form-hint">{t('ciphers.addModal.entropyHint')}</p>
             </div>
 
@@ -135,7 +187,7 @@ function AddCipherModal({ isOpen, onClose, onAdd }: AddCipherModalProps) {
             <Button
               type="submit"
               className="btn btn-primary btn-md"
-              disabled={submitting || !name.trim() || !entropyText.trim()}
+              disabled={submitting || !name.trim() || !hasValidEntropy}
             >
               {submitting ? <Spinner size="sm" /> : t('ciphers.addModal.submit')}
             </Button>
