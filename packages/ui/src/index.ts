@@ -6,6 +6,7 @@ export { App, AppSidebar } from './app';
 export {
   Home,
   About,
+  Search,
   Login,
   Verify,
   AccountOverview,
@@ -45,6 +46,7 @@ export type {
 export { useAuth, AuthProvider } from './hooks/useAuth';
 export { useIdentity, IdentityProvider } from './hooks/useIdentity';
 export { useTourContext, TourProvider } from './hooks/useTourContext';
+export { useIdentitySearch } from './hooks/useIdentitySearch';
 
 export type {
   AuthStatus,
@@ -61,6 +63,10 @@ export type {
   LoginIdentityResult,
 } from './hooks/useIdentity';
 export type { TourProviderProps } from './hooks/useTourContext';
+export type {
+  UseIdentitySearchOptions,
+  UseIdentitySearchResult,
+} from './hooks/useIdentitySearch';
 
 // ============================================================================
 // UI Components
@@ -88,6 +94,8 @@ export { TourRoot, useTour, createTourSteps } from './components/Tour';
 export { Avatar } from './components/Avatar';
 export { Tooltip } from './components/Tooltip';
 export { ToastProvider, useToast } from './components/Toast';
+export { SidebarSearch } from './components/SidebarSearch';
+export { IdentityCard, IdentityCardCompact } from './components/IdentityCard';
 
 // ============================================================================
 // Icons
@@ -147,3 +155,5 @@ export type {
 export type { AvatarProps, AvatarInfo } from './components/Avatar';
 export type { TooltipProps } from './components/Tooltip';
 export type { ToastOptions, ToastVariant, ToastContextValue, ToastProviderProps } from './components/Toast';
+export type { SidebarSearchProps } from './components/SidebarSearch';
+export type { IdentityCardProps } from './components/IdentityCard';

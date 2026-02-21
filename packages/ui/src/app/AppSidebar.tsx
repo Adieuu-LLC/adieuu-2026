@@ -7,6 +7,7 @@ import {
   SidebarSection,
   useSidebar,
 } from '../components/Sidebar';
+import { SidebarSearch } from '../components/SidebarSearch';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
 import { HomeIcon, InfoIcon, UserIcon, LogoutIcon, MaskIcon } from '../components/Icons';
@@ -249,22 +250,27 @@ function SidebarNavContent() {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <SidebarSection label={t('sidebar.main')}>
-      <Link to="/" style={{ textDecoration: 'none' }} onClick={closeMobile}>
-        <SidebarItem
-          icon={<HomeIcon />}
-          label={t('nav.home')}
-          isActive={isActive('/')}
-        />
-      </Link>
-      <Link to="/about" style={{ textDecoration: 'none' }} onClick={closeMobile}>
-        <SidebarItem
-          icon={<InfoIcon />}
-          label={t('nav.about')}
-          isActive={isActive('/about')}
-        />
-      </Link>
-    </SidebarSection>
+    <>
+      <div className="sidebar-search-section">
+        <SidebarSearch />
+      </div>
+      <SidebarSection label={t('sidebar.main')}>
+        <Link to="/" style={{ textDecoration: 'none' }} onClick={closeMobile}>
+          <SidebarItem
+            icon={<HomeIcon />}
+            label={t('nav.home')}
+            isActive={isActive('/')}
+          />
+        </Link>
+        <Link to="/about" style={{ textDecoration: 'none' }} onClick={closeMobile}>
+          <SidebarItem
+            icon={<InfoIcon />}
+            label={t('nav.about')}
+            isActive={isActive('/about')}
+          />
+        </Link>
+      </SidebarSection>
+    </>
   );
 }
 

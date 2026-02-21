@@ -19,6 +19,10 @@ import { sanitizeString } from '../../utils/sanitize';
 import { getSessionFromRequest } from '../../services/session.service';
 import { getUserRepository } from '../../repositories/user.repository';
 import {
+  getIdentityRepository,
+  IDENTITY_SEARCH_DEFAULTS,
+} from '../../repositories/identity.repository';
+import {
   createIdentity,
   loginToIdentity,
   logoutFromIdentity,
@@ -33,6 +37,70 @@ import { getClientIp } from '../auth/controller';
 import { z } from '@adieuu/shared/schemas';
 
 const router = new Router();
+
+/**
+ * GET /identity/search - Search for identities
+ *
+ * Public endpoint for searching identities by username or display name.
+ * Returns public identity information only.
+ *
+ * @route GET /api/identity/search
+ *
+ * @queryParam q (string, required): Search query (min 2 characters)
+ * @queryParam limit (number, optional): Max results (default: 10, max: 50)
+ *
+ * @returns 200 OK with array of matching identities
+ * @returns 400 Bad Request if query is too short
+ */
+router.get('/identity/search', async (ctx) => {
+  const query = ctx.query.get('q')?.trim() ?? '';
+  const limitParam = ctx.query.get('limit');
+  const limit = limitParam ? parseInt(limitParam, 10) : IDENTITY_SEARCH_DEFAULTS.DEFAULT_LIMIT;
+
+  if (query.length < IDENTITY_SEARCH_DEFAULTS.MIN_QUERY_LENGTH) {
+    return errors.badRequest(
+      `Search query must be at least ${IDENTITY_SEARCH_DEFAULTS.MIN_QUERY_LENGTH} characters.`
+    );
+  }
+
+  if (isNaN(limit) || limit < 1) {
+    return errors.badRequest('Invalid limit parameter.');
+  }
+
+  const identityRepo = getIdentityRepository();
+  const results = await identityRepo.search(query, limit);
+
+  return success(results.map(toPublicIdentity));
+});
+
+/**
+ * GET /identity/:id - Get a public identity by ID
+ *
+ * Public endpoint for fetching a specific identity's public profile.
+ *
+ * @route GET /api/identity/:id
+ *
+ * @param id (string, required): Identity ID
+ *
+ * @returns 200 OK with identity profile
+ * @returns 404 Not Found if identity doesn't exist
+ */
+router.get('/identity/:id', async (ctx) => {
+  const identityId = ctx.params.id;
+
+  if (!identityId || identityId.length !== 24) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+
+  const identityRepo = getIdentityRepository();
+  const identity = await identityRepo.findByIdentityId(identityId);
+
+  if (!identity) {
+    return errors.notFound('Identity not found.');
+  }
+
+  return success(toPublicIdentity(identity));
+});
 
 /**
  * Zod schema for identity creation

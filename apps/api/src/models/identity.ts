@@ -35,6 +35,12 @@ export interface IdentityDocument extends BaseDocument {
   /** Display name for the identity */
   displayName: string;
 
+  /** Short bio/description (max 160 characters) */
+  bio?: string;
+
+  /** URL to avatar image */
+  avatarUrl?: string;
+
   /** Last time this identity was active */
   lastActiveAt: Date;
 }
@@ -57,6 +63,8 @@ export interface UpdateIdentityInput {
   hashVersion?: number;
   username?: string;
   displayName?: string;
+  bio?: string;
+  avatarUrl?: string;
   lastActiveAt?: Date;
 }
 
@@ -68,6 +76,8 @@ export interface PublicIdentity {
   id: string;
   username: string;
   displayName: string;
+  bio?: string;
+  avatarUrl?: string;
   createdAt: string;
   lastActiveAt: string;
   /** Whether this identity has been deleted */
@@ -84,6 +94,8 @@ export function toPublicIdentity(doc: IdentityDocument): PublicIdentity {
     id: doc._id.toHexString(),
     username: doc.username,
     displayName: doc.displayName,
+    bio: doc.bio,
+    avatarUrl: doc.avatarUrl,
     createdAt: doc.createdAt.toISOString(),
     lastActiveAt: doc.lastActiveAt.toISOString(),
     isDeleted: doc.ident === DELETED_IDENT,

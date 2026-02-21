@@ -40,6 +40,25 @@ export const en = {
     identity: 'Identity',
   },
 
+  // Search
+  search: {
+    title: 'Search',
+    subtitle: 'Find people by username or display name.',
+    placeholder: 'Search for people...',
+    noResults: 'No results found.',
+    noResultsHint: 'Try a different search term or check the spelling.',
+    hint: 'Enter a username or display name to search.',
+    viewAll: 'View all results',
+    resultsCount: '{{count}} result(s) found',
+    resultsCount_one: '1 result found',
+    resultsCount_other: '{{count}} results found',
+    actions: {
+      viewProfile: 'View Profile',
+      message: 'Message',
+      addFriend: 'Add Friend',
+    },
+  },
+
   // Identity
   identity: {
     title: 'Anonymous Identity',

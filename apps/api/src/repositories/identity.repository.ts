@@ -19,6 +19,15 @@ import { withUpdatedAt } from '../models/base';
 import elog from '../utils/adieuuLogger';
 
 /**
+ * Search configuration defaults
+ */
+export const IDENTITY_SEARCH_DEFAULTS = {
+  MIN_QUERY_LENGTH: 2,
+  DEFAULT_LIMIT: 10,
+  MAX_LIMIT: 50,
+} as const;
+
+/**
  * Identity repository interface
  */
 export interface IIdentityRepository {
@@ -26,6 +35,7 @@ export interface IIdentityRepository {
   findByIdent(ident: string): Promise<IdentityDocument | null>;
   findActiveByIdent(ident: string): Promise<IdentityDocument | null>;
   findByUsername(username: string): Promise<IdentityDocument | null>;
+  search(query: string, limit?: number): Promise<IdentityDocument[]>;
   create(input: CreateIdentityInput): Promise<IdentityDocument>;
   updateByIdent(ident: string, update: UpdateIdentityInput): Promise<IdentityDocument | null>;
   softDelete(identityId: string | ObjectId): Promise<boolean>;
@@ -73,6 +83,46 @@ export class IdentityRepository
    */
   async findByUsername(username: string): Promise<IdentityDocument | null> {
     return await this.findOne({ username });
+  }
+
+  /**
+   * Search identities by username or displayName.
+   * Case-insensitive partial matching.
+   * Excludes deleted identities.
+   *
+   * @param query - Search query (must be at least MIN_QUERY_LENGTH characters)
+   * @param limit - Maximum number of results (default: DEFAULT_LIMIT, max: MAX_LIMIT)
+   * @returns Array of matching identity documents
+   */
+  async search(
+    query: string,
+    limit: number = IDENTITY_SEARCH_DEFAULTS.DEFAULT_LIMIT
+  ): Promise<IdentityDocument[]> {
+    if (query.length < IDENTITY_SEARCH_DEFAULTS.MIN_QUERY_LENGTH) {
+      return [];
+    }
+
+    const effectiveLimit = Math.min(
+      Math.max(1, limit),
+      IDENTITY_SEARCH_DEFAULTS.MAX_LIMIT
+    );
+
+    // Escape special regex characters to prevent ReDoS attacks
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedQuery, 'i');
+
+    const results = await this.collection
+      .find({
+        ident: { $ne: DELETED_IDENT },
+        $or: [
+          { username: regex },
+          { displayName: regex },
+        ],
+      })
+      .limit(effectiveLimit)
+      .toArray();
+
+    return results as IdentityDocument[];
   }
 
   /**

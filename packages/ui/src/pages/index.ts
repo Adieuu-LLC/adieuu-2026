@@ -1,6 +1,7 @@
 // Main pages
 export { Home } from './Home';
 export { About } from './About';
+export { Search } from './Search';
 
 // Auth pages
 export { Login, Verify } from './auth';

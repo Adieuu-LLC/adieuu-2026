@@ -3,6 +3,7 @@ import { AppLayout } from '../components/AppLayout';
 import { TourRoot } from '../components/Tour';
 import { Home } from '../pages/Home';
 import { About } from '../pages/About';
+import { Search } from '../pages/Search';
 import { Login, Verify, MfaVerify } from '../pages/auth';
 import {
   AccountOverview,
@@ -120,6 +121,7 @@ export function App() {
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
+        <Route path="/search" element={<Search />} />
 
         {/* Account Routes */}
         <Route path="/account" element={<Navigate to="/account/overview" replace />} />

@@ -670,6 +670,10 @@ export interface PublicIdentity {
   username: string;
   /** Display name for the identity */
   displayName: string;
+  /** Short bio/description (max 160 characters) */
+  bio?: string;
+  /** URL to avatar image */
+  avatarUrl?: string;
   /** When the identity was created */
   createdAt: string;
   /** Last time this identity was active */
@@ -769,6 +773,35 @@ export class IdentityApi {
    */
   async delete(): Promise<ApiResponse<void>> {
     return this.client.delete('/api/identity');
+  }
+
+  /**
+   * Search for identities by username or display name.
+   *
+   * Public endpoint - no authentication required.
+   *
+   * @param query - Search query (min 2 characters)
+   * @param limit - Max results (default: 10, max: 50)
+   * @returns Array of matching identities
+   */
+  async search(query: string, limit?: number): Promise<ApiResponse<PublicIdentity[]>> {
+    const params = new URLSearchParams({ q: query });
+    if (limit !== undefined) {
+      params.set('limit', limit.toString());
+    }
+    return this.client.get(`/api/identity/search?${params.toString()}`);
+  }
+
+  /**
+   * Get a public identity by ID.
+   *
+   * Public endpoint - no authentication required.
+   *
+   * @param id - Identity ID
+   * @returns Identity profile
+   */
+  async getById(id: string): Promise<ApiResponse<PublicIdentity>> {
+    return this.client.get(`/api/identity/${encodeURIComponent(id)}`);
   }
 }
 
