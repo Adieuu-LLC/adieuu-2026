@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -111,6 +111,14 @@ function IdentityFlyout() {
   const isActive = (path: string) => location.pathname === path;
   const isIdentityActive = location.pathname.startsWith('/identity');
   const isIdentityLoggedIn = identityStatus === 'logged_in' && identity;
+  const isIdentityLocked = identityStatus === 'locked' && identity;
+
+  // Auto-open unlock modal when identity is locked (e.g., after page refresh)
+  useEffect(() => {
+    if (isIdentityLocked) {
+      setIdentityModalOpen(true);
+    }
+  }, [isIdentityLocked]);
 
   const handleIdentityLogout = async () => {
     closeMobile();
@@ -125,6 +133,29 @@ function IdentityFlyout() {
     closeMobile();
     setIdentityModalOpen(true);
   };
+
+  // When locked, show locked button and auto-open unlock modal
+  if (isIdentityLocked) {
+    return (
+      <>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLoginClick}
+          className="sidebar-identity-btn sidebar-identity-btn-locked"
+          data-tour="identity"
+        >
+          <MaskIcon />
+          <span className="sidebar-identity-label">{t('identity.unlock.title')}</span>
+        </Button>
+        <IdentityModal
+          isOpen={identityModalOpen}
+          onClose={() => setIdentityModalOpen(false)}
+          unlockMode={true}
+        />
+      </>
+    );
+  }
 
   // When not logged in, show a simple button to open the identity modal
   if (!isIdentityLoggedIn) {

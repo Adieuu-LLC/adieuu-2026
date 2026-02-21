@@ -1,0 +1,20 @@
+---
+description: Always get user consent before making code changes
+alwaysApply: true
+---
+
+# Get Consent Before Making Changes
+
+Before making any code changes, you MUST:
+
+1. **Present options or analysis** - Explain the problem and potential solutions
+2. **Wait for explicit approval** - Do not proceed until the user confirms which approach to take
+3. **Ask clarifying questions** - If the approach is unclear, ask before implementing
+
+This applies to:
+- Writing new code
+- Editing existing files
+- Deleting files
+- Any modification to the codebase
+
+Only after receiving clear consent (e.g., "yes", "do it", "go ahead", "implement option A") should you proceed with changes.

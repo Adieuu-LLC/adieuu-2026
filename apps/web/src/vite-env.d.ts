@@ -1,8 +1,6 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** API base URL for backend requests */
-  readonly VITE_API_URL?: string;
   /** Chat WebSocket URL */
   readonly VITE_CHAT_WS_URL?: string;
   /** Development mode */

@@ -12,6 +12,7 @@ import {
   AccountNotifications,
 } from '../pages/account';
 import { IdentityCiphers } from '../pages/identity';
+import { ServiceStatus } from '../pages/ServiceStatus';
 import { useAuth } from '../hooks/useAuth';
 import { TourProvider, useTourContext } from '../hooks/useTourContext';
 import { CipherStoreProvider } from '../hooks/useCipherStore';
@@ -133,6 +134,9 @@ export function App() {
         <Route path="/identity" element={<Navigate to="/identity/ciphers" replace />} />
         <Route path="/identity/ciphers" element={<IdentityCiphers />} />
       </Route>
+
+      {/* Utility Routes (no auth required) */}
+      <Route path="/service-status" element={<ServiceStatus />} />
 
       {/* Catch-all redirect */}
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -40,3 +40,20 @@ export {
   type IdentityLoginResponse,
   type IdentityLoginErrorResponse,
 } from './client';
+
+export {
+  ChatClient,
+  createChatClient,
+  type ChatClientConfig,
+  type ChatClientEvents,
+  type ChatConnectionState,
+  type ChatMessageType,
+  type ChatIncomingMessage,
+  type ChatOutgoingMessage,
+  type ChatPingMessage,
+  type ChatPongMessage,
+  type ChatErrorMessage,
+  type ChatAckMessage,
+  type ChatTypingMessage,
+  type ChatTypingNotification,
+} from './chat-client';

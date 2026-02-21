@@ -4,7 +4,7 @@ import { HashRouter } from 'react-router-dom';
 import { initI18n } from '@adieuu/ui/i18n';
 import { App, PlatformProvider, AuthProvider, IdentityProvider, ToastProvider, type AppConfig } from '@adieuu/ui';
 import { desktopCapabilities } from './platform';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, CHAT_WS_URL } from './config';
 import { WindowTitleBar } from './components/WindowTitleBar';
 import '@adieuu/ui/styles.scss';
 import './index.css';
@@ -15,6 +15,7 @@ initI18n();
 // Desktop platform configuration
 const config: AppConfig = {
   apiBaseUrl: API_BASE_URL,
+  chatWsUrl: CHAT_WS_URL,
   externalLinkBase: 'https://adieuu.app', // External links open in browser
   platform: 'desktop',
 };

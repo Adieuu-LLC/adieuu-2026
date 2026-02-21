@@ -30,6 +30,7 @@ export function useAppConfig(): AppConfig {
   const ctx = usePlatformContext();
   return {
     apiBaseUrl: ctx.apiBaseUrl,
+    chatWsUrl: ctx.chatWsUrl,
     externalLinkBase: ctx.externalLinkBase,
     platform: ctx.platform,
   };

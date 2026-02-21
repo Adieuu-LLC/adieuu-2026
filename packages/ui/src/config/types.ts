@@ -8,6 +8,8 @@
 export interface AppConfig {
   /** Base URL for API calls. Empty string for same-origin (web), full URL for desktop */
   apiBaseUrl: string;
+  /** WebSocket URL for chat service. ws:// or wss:// */
+  chatWsUrl: string;
   /** Base URL for external links like Terms/Privacy. Empty for relative (web), full URL for desktop */
   externalLinkBase: string;
   /** Current platform identifier */

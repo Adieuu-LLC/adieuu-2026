@@ -16,3 +16,6 @@ export {
 
 // Identity pages
 export { IdentityCiphers } from './identity';
+
+// Utility pages
+export { ServiceStatus } from './ServiceStatus';

@@ -24,11 +24,7 @@ import { useIdentity } from './useIdentity';
 /**
  * Stored cipher record with all metadata.
  *
- * Entropy can be stored in two formats:
- * - `entropyPieces`: Legacy plaintext (will be migrated on next save)
- * - `encryptedEntropy`: Encrypted with identity-derived wrapping key
- *
- * When reading, encrypted entropy takes precedence if present.
+ * Entropy is always stored encrypted with identity passphrase-derived key.
  */
 export interface StoredCipher {
   /** Unique local ID */
@@ -42,15 +38,10 @@ export interface StoredCipher {
   /** Epoch identifier */
   epochId?: string;
   /**
-   * Legacy: Plaintext entropy pieces.
-   * @deprecated Use encryptedEntropy instead. Kept for migration.
-   */
-  entropyPieces?: EntropyPiece[];
-  /**
    * Encrypted entropy pieces (wrapped with identity passphrase-derived key).
    * Protects entropy from XSS exfiltration.
    */
-  encryptedEntropy?: WrappedEntropy;
+  encryptedEntropy: WrappedEntropy;
   /** Cipher ID (derived from key, safe to store) */
   cipherId: string;
   /** Short cipher ID for display */
@@ -83,6 +74,28 @@ export interface CreateCipherInput {
 }
 
 /**
+ * Input for updating a cipher.
+ *
+ * When entropy pieces are changed, the cipher key and cipherId will be
+ * re-derived. This is expected for epoch rotation use cases. The UI should
+ * warn users that changing entropy will change the cipher.
+ */
+export interface UpdateCipherInput {
+  /** New name (optional) */
+  name?: string;
+  /**
+   * Updated entropy pieces (optional).
+   * WARNING: Changing entropy re-derives the cipher key and cipherId.
+   * Content encrypted with the old cipher will NOT decrypt with the new one.
+   */
+  entropyPieces?: EntropyPiece[];
+  /** Associated Space ID (optional, use null to clear) */
+  spaceId?: string | null;
+  /** Epoch identifier (optional, use null to clear) */
+  epochId?: string | null;
+}
+
+/**
  * Cipher store state.
  */
 export interface CipherStoreState {
@@ -101,6 +114,12 @@ export interface CipherStoreContextValue extends CipherStoreState {
   deleteCipher: (id: string) => Promise<{ success: boolean; error?: string }>;
   /** Rename a cipher */
   renameCipher: (id: string, newName: string) => Promise<{ success: boolean; error?: string }>;
+  /** Update cipher (name, entropy, spaceId, epochId). Changing entropy re-derives the cipher. */
+  updateCipher: (id: string, input: UpdateCipherInput) => Promise<{ success: boolean; error?: string }>;
+  /** Duplicate a cipher with a new name */
+  duplicateCipher: (id: string, newName: string) => Promise<{ success: boolean; cipher?: DecryptedCipher; error?: string }>;
+  /** Get a cipher by ID */
+  getCipherById: (id: string) => DecryptedCipher | undefined;
   /** Get a derived cipher key by ID (for encryption/decryption) */
   getCipherKey: (id: string) => CommunityCipher | null;
   /** Update last used timestamp */
@@ -181,7 +200,7 @@ async function deleteCipherFromDb(id: string): Promise<void> {
   });
 }
 
-async function getCipherById(id: string): Promise<StoredCipher | undefined> {
+async function getCipherByIdFromDb(id: string): Promise<StoredCipher | undefined> {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -240,62 +259,23 @@ function useCipherStoreState(): CipherStoreContextValue {
   const encryptionAvailable = getWrappingKey() !== null && getWrappingSalt() !== null;
 
   /**
-   * Decrypt a stored cipher's entropy, handling both encrypted and legacy formats.
-   * Also handles migration from plaintext to encrypted.
+   * Decrypt a stored cipher's encrypted entropy.
    */
   const decryptCipherEntropy = useCallback(
-    async (stored: StoredCipher): Promise<{ entropy: EntropyPiece[]; needsMigration: boolean }> => {
+    async (stored: StoredCipher): Promise<EntropyPiece[]> => {
       const wrappingKey = getWrappingKey();
 
-      // Case 1: Has encrypted entropy
-      if (stored.encryptedEntropy && isWrappedEntropy(stored.encryptedEntropy)) {
-        if (!wrappingKey) {
-          throw new Error('Cannot decrypt entropy: wrapping key not available');
-        }
-        const entropy = await unwrapEntropy(stored.encryptedEntropy, wrappingKey);
-        return { entropy, needsMigration: false };
+      if (!wrappingKey) {
+        throw new Error('Cannot decrypt entropy: wrapping key not available');
       }
 
-      // Case 2: Legacy plaintext entropy
-      if (stored.entropyPieces && stored.entropyPieces.length > 0) {
-        // Mark for migration if wrapping key is available
-        return { entropy: stored.entropyPieces, needsMigration: wrappingKey !== null };
+      if (!isWrappedEntropy(stored.encryptedEntropy)) {
+        throw new Error('Cipher has invalid encrypted entropy');
       }
 
-      throw new Error('Cipher has no entropy data');
+      return unwrapEntropy(stored.encryptedEntropy, wrappingKey);
     },
     [getWrappingKey]
-  );
-
-  /**
-   * Migrate a cipher from plaintext to encrypted entropy.
-   */
-  const migrateCipherToEncrypted = useCallback(
-    async (stored: StoredCipher, entropyPieces: EntropyPiece[]): Promise<void> => {
-      const wrappingKey = getWrappingKey();
-      const salt = getWrappingSalt();
-
-      if (!wrappingKey || !salt) {
-        return; // Can't migrate without wrapping key
-      }
-
-      try {
-        const encryptedEntropy = await wrapEntropy(entropyPieces, wrappingKey, salt);
-
-        // Update stored cipher: add encrypted, remove plaintext
-        const migrated: StoredCipher = {
-          ...stored,
-          encryptedEntropy,
-          entropyPieces: undefined, // Remove plaintext
-        };
-
-        await saveCipher(migrated);
-        console.log(`Migrated cipher ${stored.id} to encrypted entropy`);
-      } catch (err) {
-        console.warn(`Failed to migrate cipher ${stored.id}:`, err);
-      }
-    },
-    [getWrappingKey, getWrappingSalt]
   );
 
   // Load ciphers when identity changes
@@ -316,12 +296,7 @@ function useCipherStoreState(): CipherStoreContextValue {
 
       for (const stored of storedCiphers) {
         try {
-          const { entropy, needsMigration } = await decryptCipherEntropy(stored);
-
-          // Migrate if needed (async, don't block loading)
-          if (needsMigration) {
-            migrateCipherToEncrypted(stored, entropy).catch(() => {});
-          }
+          const entropy = await decryptCipherEntropy(stored);
 
           // Derive the cipher key
           const derived = deriveCommunityCipher(entropy, stored.profile);
@@ -355,7 +330,7 @@ function useCipherStoreState(): CipherStoreContextValue {
         error: err instanceof Error ? err.message : 'Failed to load ciphers',
       });
     }
-  }, [identityId, cipherKeysRef, decryptCipherEntropy, migrateCipherToEncrypted]);
+  }, [identityId, cipherKeysRef, decryptCipherEntropy]);
 
   // Load ciphers when identity changes
   useEffect(() => {
@@ -382,6 +357,14 @@ function useCipherStoreState(): CipherStoreContextValue {
       }
 
       try {
+        // Require wrapping key for encryption
+        const wrappingKey = getWrappingKey();
+        const salt = getWrappingSalt();
+
+        if (!wrappingKey || !salt) {
+          return { success: false, error: 'Cannot create cipher: encryption key not available' };
+        }
+
         // Derive the cipher
         const profile = input.profile ?? 'default';
         const derived = deriveCommunityCipher(input.entropyPieces, profile);
@@ -389,9 +372,8 @@ function useCipherStoreState(): CipherStoreContextValue {
         const now = new Date().toISOString();
         const id = generateId();
 
-        // Build stored cipher with encrypted entropy if possible
-        const wrappingKey = getWrappingKey();
-        const salt = getWrappingSalt();
+        // Encrypt entropy
+        const encryptedEntropy = await wrapEntropy(input.entropyPieces, wrappingKey, salt);
 
         const storedCipher: StoredCipher = {
           id,
@@ -399,20 +381,13 @@ function useCipherStoreState(): CipherStoreContextValue {
           identityId,
           spaceId: input.spaceId,
           epochId: input.epochId,
+          encryptedEntropy,
           cipherId: derived.cipherId,
           shortId: shortCipherId(derived.cipherId),
           profile,
           createdAt: now,
           lastUsedAt: now,
         };
-
-        // Encrypt entropy if wrapping key is available, otherwise store plaintext
-        if (wrappingKey && salt) {
-          storedCipher.encryptedEntropy = await wrapEntropy(input.entropyPieces, wrappingKey, salt);
-        } else {
-          console.warn('Wrapping key not available, storing entropy in plaintext');
-          storedCipher.entropyPieces = input.entropyPieces;
-        }
 
         // Save to IndexedDB
         await saveCipher(storedCipher);
@@ -479,7 +454,7 @@ function useCipherStoreState(): CipherStoreContextValue {
       }
 
       try {
-        const storedCipher = await getCipherById(id);
+        const storedCipher = await getCipherByIdFromDb(id);
         if (!storedCipher) {
           return { success: false, error: 'Cipher not found' };
         }
@@ -507,6 +482,130 @@ function useCipherStoreState(): CipherStoreContextValue {
     []
   );
 
+  const updateCipher = useCallback(
+    async (id: string, input: UpdateCipherInput) => {
+      try {
+        // Require wrapping key for encryption
+        const wrappingKey = getWrappingKey();
+        const salt = getWrappingSalt();
+
+        if (!wrappingKey || !salt) {
+          return { success: false, error: 'Cannot update cipher: encryption key not available' };
+        }
+
+        const storedCipher = await getCipherByIdFromDb(id);
+        if (!storedCipher) {
+          return { success: false, error: 'Cipher not found' };
+        }
+
+        // Find the current decrypted cipher to get entropy pieces
+        const currentCipher = state.ciphers.find((c) => c.id === id);
+        if (!currentCipher) {
+          return { success: false, error: 'Cipher not found in state' };
+        }
+
+        // Determine final entropy pieces
+        const updatedEntropyPieces = input.entropyPieces ?? currentCipher.entropyPieces;
+
+        // Validate entropy
+        if (updatedEntropyPieces.length === 0) {
+          return { success: false, error: 'At least one entropy piece is required' };
+        }
+
+        // Check if entropy actually changed (need to re-derive cipher)
+        const entropyChanged = input.entropyPieces !== undefined;
+
+        // Re-derive cipher if entropy changed
+        let newCipherId = storedCipher.cipherId;
+        let newShortId = storedCipher.shortId;
+        if (entropyChanged) {
+          const derived = deriveCommunityCipher(updatedEntropyPieces, storedCipher.profile);
+          newCipherId = derived.cipherId;
+          newShortId = shortCipherId(derived.cipherId);
+          // Update the cached key
+          cipherKeysRef.set(id, derived);
+        }
+
+        // Encrypt entropy
+        const encryptedEntropy = await wrapEntropy(updatedEntropyPieces, wrappingKey, salt);
+
+        // Build updated stored cipher
+        const updatedStored: StoredCipher = {
+          ...storedCipher,
+          name: input.name !== undefined ? input.name.trim() : storedCipher.name,
+          spaceId: input.spaceId === null ? undefined : (input.spaceId ?? storedCipher.spaceId),
+          epochId: input.epochId === null ? undefined : (input.epochId ?? storedCipher.epochId),
+          encryptedEntropy,
+          cipherId: newCipherId,
+          shortId: newShortId,
+        };
+
+        await saveCipher(updatedStored);
+
+        // Update state
+        setState((prev) => ({
+          ...prev,
+          ciphers: prev.ciphers.map((c) =>
+            c.id === id
+              ? {
+                  ...c,
+                  name: updatedStored.name,
+                  spaceId: updatedStored.spaceId,
+                  epochId: updatedStored.epochId,
+                  entropyPieces: updatedEntropyPieces,
+                  cipherId: newCipherId,
+                  shortId: newShortId,
+                }
+              : c
+          ),
+        }));
+
+        return { success: true };
+      } catch (err) {
+        return {
+          success: false,
+          error: err instanceof Error ? err.message : 'Failed to update cipher',
+        };
+      }
+    },
+    [state.ciphers, getWrappingKey, getWrappingSalt, cipherKeysRef]
+  );
+
+  const duplicateCipher = useCallback(
+    async (id: string, newName: string) => {
+      if (!identityId) {
+        return { success: false, error: 'Not logged into an identity' };
+      }
+
+      if (!newName.trim()) {
+        return { success: false, error: 'Name is required' };
+      }
+
+      // Find the cipher to duplicate
+      const sourceCipher = state.ciphers.find((c) => c.id === id);
+      if (!sourceCipher) {
+        return { success: false, error: 'Cipher not found' };
+      }
+
+      // Create a new cipher with the same entropy
+      return createCipher({
+        name: newName.trim(),
+        entropyPieces: sourceCipher.entropyPieces,
+        spaceId: sourceCipher.spaceId,
+        epochId: sourceCipher.epochId,
+        profile: sourceCipher.profile,
+      });
+    },
+    [identityId, state.ciphers, createCipher]
+  );
+
+  const getCipherByIdFromState = useCallback(
+    (id: string): DecryptedCipher | undefined => {
+      return state.ciphers.find((c) => c.id === id);
+    },
+    [state.ciphers]
+  );
+
   const getCipherKey = useCallback(
     (id: string): CommunityCipher | null => {
       return cipherKeysRef.get(id) ?? null;
@@ -516,7 +615,7 @@ function useCipherStoreState(): CipherStoreContextValue {
 
   const touchCipher = useCallback(async (id: string) => {
     try {
-      const storedCipher = await getCipherById(id);
+      const storedCipher = await getCipherByIdFromDb(id);
       if (storedCipher) {
         const newLastUsedAt = new Date().toISOString();
         storedCipher.lastUsedAt = newLastUsedAt;
@@ -549,6 +648,9 @@ function useCipherStoreState(): CipherStoreContextValue {
     createCipher,
     deleteCipher: deleteCipherAction,
     renameCipher,
+    updateCipher,
+    duplicateCipher,
+    getCipherById: getCipherByIdFromState,
     getCipherKey,
     touchCipher,
     verifyCipherById,

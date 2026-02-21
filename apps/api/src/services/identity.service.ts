@@ -54,7 +54,7 @@ import { toPublicIdentity, DELETED_IDENT } from '../models/identity';
 const DECREMENT_COUNT_ON_DELETE = false;
 
 /** Maximum identities per user (exported for auth session response) */
-export const MAX_IDENTITIES_PER_USER = 1;
+export const MAX_IDENTITIES_PER_USER = 2;
 
 /** Identity session configuration */
 const IDENTITY_SESSION_CONFIG = {

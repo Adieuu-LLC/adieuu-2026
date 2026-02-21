@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -11,18 +11,27 @@ import { useIdentity } from '../hooks/useIdentity';
 interface IdentityModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** If true, show unlock view instead of login (for locked sessions after refresh) */
+  unlockMode?: boolean;
 }
 
-type ModalView = 'choose' | 'login' | 'create';
+type ModalView = 'choose' | 'login' | 'create' | 'unlock';
 
-export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
+export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityModalProps) {
   const { t } = useTranslation();
-  const { createIdentity, loginToIdentity, hasIdentity, canCreateMore } = useIdentity();
+  const { createIdentity, loginToIdentity, unlockIdentity, logoutFromIdentity, hasIdentity, canCreateMore } = useIdentity();
 
-  const [view, setView] = useState<ModalView>(hasIdentity ? 'login' : 'choose');
+  const [view, setView] = useState<ModalView>(unlockMode ? 'unlock' : (hasIdentity ? 'login' : 'choose'));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Switch to unlock view when unlockMode prop changes
+  useEffect(() => {
+    if (unlockMode && isOpen) {
+      setView('unlock');
+    }
+  }, [unlockMode, isOpen]);
 
   // Form fields
   const [passphrase, setPassphrase] = useState('');
@@ -47,7 +56,7 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
 
   const handleClose = () => {
     resetForm();
-    setView(hasIdentity ? 'login' : 'choose');
+    setView(unlockMode ? 'unlock' : (hasIdentity ? 'login' : 'choose'));
     onClose();
   };
 
@@ -58,10 +67,12 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
       return;
     }
 
+    const passphraseValue = passphrase;
     setLoading(true);
     setError(null);
+    setPassphrase('');
 
-    const result = await loginToIdentity(passphrase);
+    const result = await loginToIdentity(passphraseValue);
 
     setLoading(false);
 
@@ -80,6 +91,32 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
         setError(result.error || t('identity.login.errorInvalid'));
       }
       setAttemptNumber(result.attemptNumber ?? null);
+    }
+  };
+
+  const handleUnlock = async () => {
+    if (loading) return;
+    if (passphrase.length < 8) {
+      setError(t('identity.unlock.passphraseRequired'));
+      return;
+    }
+
+    const passphraseValue = passphrase;
+    setLoading(true);
+    setError(null);
+    setPassphrase('');
+
+    const result = await unlockIdentity(passphraseValue);
+
+    setLoading(false);
+
+    if (result.success) {
+      setSuccess(t('identity.unlock.success'));
+      setTimeout(() => {
+        handleClose();
+      }, 500);
+    } else {
+      setError(result.error || t('identity.unlock.errorInvalid'));
     }
   };
 
@@ -102,10 +139,15 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
       return;
     }
 
+    const passphraseValue = passphrase;
+    const usernameValue = username;
+    const displayNameValue = displayName;
     setLoading(true);
     setError(null);
+    setPassphrase('');
+    setPassphraseConfirm('');
 
-    const result = await createIdentity(passphrase, username, displayName);
+    const result = await createIdentity(passphraseValue, usernameValue, displayNameValue);
 
     setLoading(false);
 
@@ -243,6 +285,55 @@ export function IdentityModal({ isOpen, onClose }: IdentityModalProps) {
                 </Button>
               </div>
             )}
+          </div>
+        )}
+
+        {view === 'unlock' && (
+          <div className="identity-modal-content">
+            <div className="identity-modal-header">
+              <LockIcon className="identity-modal-icon" />
+              <h2>{t('identity.unlock.title')}</h2>
+              <p>{t('identity.unlock.subtitle')}</p>
+            </div>
+
+            {error && <Alert variant="error">{error}</Alert>}
+            {success && <Alert variant="success">{success}</Alert>}
+
+            <form
+              className="identity-modal-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleUnlock();
+              }}
+            >
+              <Input
+                type="password"
+                placeholder={t('identity.unlock.passphrasePlaceholder')}
+                value={passphrase}
+                onChange={(e) => setPassphrase(e.target.value)}
+                disabled={loading}
+                autoFocus
+              />
+
+              <div className="identity-modal-buttons">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={loading || passphrase.length < 8}
+                >
+                  {loading ? <Spinner size="sm" /> : t('identity.unlock.submitButton')}
+                </Button>
+              </div>
+            </form>
+
+            <div className="identity-modal-footer">
+              <Button variant="ghost" size="sm" onClick={() => setView('login')}>
+                {t('identity.unlock.loginDifferent')}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { logoutFromIdentity(); handleClose(); }}>
+                {t('identity.unlock.logoutButton')}
+              </Button>
+            </div>
           </div>
         )}
 

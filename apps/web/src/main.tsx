@@ -10,9 +10,15 @@ import './index.css';
 // Initialize i18n before rendering
 initI18n();
 
+// Determine WebSocket URL based on current location
+const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const chatWsUrl = import.meta.env.VITE_CHAT_WS_URL ??
+  (import.meta.env.DEV ? 'ws://localhost:9001/ws/chat' : `${wsProtocol}//${window.location.host}/ws/chat`);
+
 // Web platform configuration
 const config: AppConfig = {
   apiBaseUrl: '', // Same-origin, no base URL needed
+  chatWsUrl,
   externalLinkBase: '', // Relative links
   platform: 'web',
 };
