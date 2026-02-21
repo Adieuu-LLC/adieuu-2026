@@ -184,6 +184,8 @@ jobs:
       # Production URLs injected at build time via GitHub Secrets
       VITE_API_URL: ${{ secrets.VITE_API_URL }}
       VITE_CHAT_WS_URL: ${{ secrets.VITE_CHAT_WS_URL }}
+      # Cache Electron binaries to avoid re-downloading
+      ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
     steps:
       - uses: actions/checkout@v4
 
@@ -196,8 +198,21 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
+      - name: Cache Electron binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: electron-${{ runner.os }}-${{ hashFiles('apps/desktop/package.json') }}
+          restore-keys: |
+            electron-${{ runner.os }}-
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: pnpm install --frozen-lockfile
 
       - name: Build shared packages
         run: pnpm build --filter @adieuu/shared --filter @adieuu/ui --filter @adieuu/tsconfig

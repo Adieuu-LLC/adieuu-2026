@@ -57,6 +57,9 @@ mock.module('../config', () => ({
     security: {
       sessionSecret: 'test-secret',
     },
+    cookie: {
+      domain: '',
+    },
   },
 }));
 
@@ -143,7 +146,7 @@ describe('identity.service', () => {
       mockUserRepo.findById.mockImplementation(() =>
         Promise.resolve({
           _id: testUserId,
-          identityCount: 1, // Already at max
+          identityCount: 2, // Already at max (MAX_IDENTITIES_PER_USER = 2)
           createdAt: testUserCreatedAt,
         })
       );

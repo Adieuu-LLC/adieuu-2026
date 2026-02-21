@@ -11,6 +11,9 @@ mock.module('../../config', () => ({
     security: {
       sessionSecret: 'test-secret',
     },
+    cookie: {
+      domain: '',
+    },
   },
 }));
 
