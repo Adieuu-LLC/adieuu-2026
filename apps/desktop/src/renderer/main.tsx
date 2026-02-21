@@ -7,7 +7,7 @@ import { desktopCapabilities } from './platform';
 import { API_BASE_URL, CHAT_WS_URL } from './config';
 import { WindowTitleBar } from './components/WindowTitleBar';
 import '@adieuu/ui/styles.scss';
-import './index.css';
+import './index.scss';
 
 // Initialize i18n before rendering
 initI18n();

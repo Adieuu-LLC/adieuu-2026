@@ -17,6 +17,7 @@ import type {
 import { DELETED_IDENT } from '../models/identity';
 import { withUpdatedAt } from '../models/base';
 import elog from '../utils/adieuuLogger';
+import { sanitizeString } from '../utils';
 
 /**
  * Search configuration defaults
@@ -47,8 +48,7 @@ export interface IIdentityRepository {
  */
 export class IdentityRepository
   extends BaseRepository<IdentityDocument>
-  implements IIdentityRepository
-{
+  implements IIdentityRepository {
   constructor() {
     super(Collections.IDENTITIES);
   }
@@ -108,7 +108,7 @@ export class IdentityRepository
     );
 
     // Escape special regex characters to prevent ReDoS attacks
-    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedQuery = sanitizeString(query, 'general').value;
     const regex = new RegExp(escapedQuery, 'i');
 
     const results = await this.collection

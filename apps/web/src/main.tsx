@@ -5,7 +5,7 @@ import { initI18n } from '@adieuu/ui/i18n';
 import { App, PlatformProvider, AuthProvider, IdentityProvider, ToastProvider, type AppConfig } from '@adieuu/ui';
 import { webCapabilities } from './platform';
 import '@adieuu/ui/styles.scss';
-import './index.css';
+import './index.scss';
 
 // Initialize i18n before rendering
 initI18n();

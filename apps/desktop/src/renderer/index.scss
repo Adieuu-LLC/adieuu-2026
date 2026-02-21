@@ -1,0 +1,334 @@
+// =============================================================================
+// Desktop-specific styles that extend the base UI styles
+// =============================================================================
+
+body {
+  -webkit-app-region: no-drag;
+}
+
+// =============================================================================
+// Custom Window Title Bar (Windows/Linux)
+// =============================================================================
+
+.window-title-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  z-index: 9999;
+  -webkit-app-region: drag;
+}
+
+.window-drag-region {
+  flex: 1;
+  height: 100%;
+}
+
+.window-controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.window-control-btn {
+  width: 46px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: -2px;
+  }
+
+  &.window-control-close:hover {
+    background: #e81123;
+    color: #fff;
+  }
+}
+
+// Offset main content for title bar on Windows/Linux
+.has-custom-title-bar {
+  .app-layout,
+  .auth-page {
+    padding-top: 32px;
+  }
+}
+
+// =============================================================================
+// Layout Utilities
+// =============================================================================
+
+.page-content {
+  padding: var(--spacing-xl);
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: var(--spacing-xl);
+}
+
+// Desktop: Sidebar header should be draggable for window moving
+.sidebar-header {
+  -webkit-app-region: drag;
+
+  .auth-logo {
+    -webkit-app-region: no-drag;
+  }
+}
+
+// =============================================================================
+// Page Header
+// =============================================================================
+
+.page-header {
+  margin-bottom: var(--spacing-xl);
+}
+
+.page-title {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--spacing-xs) 0;
+}
+
+.page-subtitle {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+// =============================================================================
+// Grid System
+// =============================================================================
+
+.grid {
+  display: grid;
+  gap: var(--spacing-lg);
+
+  &-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  &-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .grid-2,
+  .grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+// =============================================================================
+// General Utilities
+// =============================================================================
+
+.actions {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+a {
+  text-decoration: none;
+}
+
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+}
+
+// =============================================================================
+// Sidebar Logout Button
+// =============================================================================
+
+.sidebar-logout-btn {
+  width: 100%;
+  justify-content: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  color: var(--color-text-secondary);
+
+  &:hover {
+    color: var(--color-error);
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+}
+
+.sidebar-collapsed {
+  .sidebar-logout-btn {
+    justify-content: center;
+    padding: var(--spacing-sm);
+  }
+
+  .sidebar-logout-label {
+    display: none;
+  }
+}
+
+// =============================================================================
+// Account Overview
+// =============================================================================
+
+.account-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+.account-avatar {
+  display: flex;
+  justify-content: center;
+
+  &-placeholder {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, var(--color-accent-primary) 0%, var(--color-accent-secondary) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-inverse);
+  }
+}
+
+.account-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.account-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--color-border-muted);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover .account-edit-btn {
+    opacity: 1;
+  }
+}
+
+.account-detail-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.account-detail-value {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.account-detail-muted {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.account-status-good {
+  color: var(--color-success);
+}
+
+.account-detail-content {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.account-detail-display {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.account-edit-btn {
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+// =============================================================================
+// Verification Badges
+// =============================================================================
+
+.verification-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  cursor: help;
+
+  &.verification-verified {
+    color: var(--color-success);
+    background: var(--color-success-bg);
+  }
+
+  &.verification-pending {
+    color: var(--color-warning);
+    background: var(--color-warning-bg);
+  }
+}
+
+// =============================================================================
+// Account Edit Form
+// =============================================================================
+
+.account-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  width: 100%;
+  max-width: 320px;
+}
+
+.account-edit-info {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--spacing-xs) 0;
+}
+
+.account-edit-alert {
+  margin-bottom: var(--spacing-xs);
+}
+
+.account-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+}
