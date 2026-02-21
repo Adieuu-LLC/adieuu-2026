@@ -18,6 +18,14 @@ localhost {
 		}
 	}
 
+	# Chat WebSocket proxy (uWebSockets.js server)
+	handle /ws/* {
+		reverse_proxy localhost:9001 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
 	# Web app reverse proxy (Vite dev server)
 	handle {
 		reverse_proxy localhost:3000 {

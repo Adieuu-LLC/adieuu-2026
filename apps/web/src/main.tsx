@@ -10,14 +10,16 @@ import './index.css';
 // Initialize i18n before rendering
 initI18n();
 
-// Determine WebSocket URL based on current location
+// Determine API URL - empty string for same-origin (dev), full URL for production
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '';
+
+// Determine WebSocket URL - use env var if set, otherwise derive from current location
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const chatWsUrl = import.meta.env.VITE_CHAT_WS_URL ??
-  (import.meta.env.DEV ? 'ws://localhost:9001/ws/chat' : `${wsProtocol}//${window.location.host}/ws/chat`);
+const chatWsUrl = import.meta.env.VITE_CHAT_WS_URL ?? `${wsProtocol}//${window.location.host}/ws/chat`;
 
 // Web platform configuration
 const config: AppConfig = {
-  apiBaseUrl: '', // Same-origin, no base URL needed
+  apiBaseUrl,
   chatWsUrl,
   externalLinkBase: '', // Relative links
   platform: 'web',

@@ -53,6 +53,10 @@ jobs:
   build-web:
     runs-on: ubuntu-latest
     needs: lint-and-typecheck
+    env:
+      # Production URLs injected at build time via GitHub Secrets
+      VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+      VITE_CHAT_WS_URL: ${{ secrets.VITE_CHAT_WS_URL }}
     steps:
       - uses: actions/checkout@v4
 
@@ -177,8 +181,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: lint-and-typecheck
     env:
-      # API URL baked into the desktop app at build time
-      VITE_API_URL: https://localhost:4000
+      # Production URLs injected at build time via GitHub Secrets
+      VITE_API_URL: ${{ secrets.VITE_API_URL }}
+      VITE_CHAT_WS_URL: ${{ secrets.VITE_CHAT_WS_URL }}
     steps:
       - uses: actions/checkout@v4
 

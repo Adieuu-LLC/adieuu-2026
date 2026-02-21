@@ -4,18 +4,21 @@
 #   caddy run --config Caddyfile.production
 #
 # Requirements:
-#   - DNS A record pointing to this server
+#   - DNS A records for api.adieuu.com, chat.adieuu.com, ws.adieuu.com
 #   - Ports 80/443 open (Caddy handles Let's Encrypt automatically)
+#
+# Environment variables required:
+#   - COOKIE_DOMAIN=.adieuu.com (for cross-subdomain cookie sharing)
+#   - VITE_API_BASE_URL=https://api.adieuu.com (for web app build)
+#   - VITE_CHAT_WS_URL=wss://ws.adieuu.com/ws/chat (for web app build)
 
 # API subdomain
-api.adieuu.app {
+api.adieuu.com {
 	reverse_proxy localhost:4000 {
-		# Forward real client IP to application
 		header_up X-Real-IP {remote_host}
 		header_up X-Forwarded-Proto {scheme}
 	}
 
-	# Request body size limit
 	request_body {
 		max_size 10MB
 	}
@@ -29,8 +32,24 @@ api.adieuu.app {
 	}
 }
 
+# WebSocket subdomain (chat service)
+ws.adieuu.com {
+	reverse_proxy localhost:9001 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output file /var/log/caddy/ws.log {
+			roll_size 100mb
+			roll_keep 5
+		}
+		format json
+	}
+}
+
 # Web app subdomain
-app.adieuu.app {
+chat.adieuu.com {
 	# Option 1: Reverse proxy to SSR/Node server
 	reverse_proxy localhost:3000
 
@@ -40,7 +59,7 @@ app.adieuu.app {
 	# try_files {path} /index.html
 
 	log {
-		output file /var/log/caddy/web.log {
+		output file /var/log/caddy/chat.log {
 			roll_size 100mb
 			roll_keep 5
 		}
@@ -48,9 +67,14 @@ app.adieuu.app {
 	}
 }
 
-# Redirect www to non-www
-www.adieuu.app {
-	redir https://app.adieuu.app{uri} permanent
+# Redirect www to main app
+www.adieuu.com {
+	redir https://chat.adieuu.com{uri} permanent
+}
+
+# Redirect bare domain to main app
+adieuu.com {
+	redir https://chat.adieuu.com{uri} permanent
 }
 
 # Note: For additional edge rate limiting, consider:

@@ -165,6 +165,17 @@ export const config = {
     credentials: optionalEnvBool('CORS_CREDENTIALS', true),
   },
 
+  /** Cookie configuration for cross-subdomain sharing */
+  cookie: {
+    /**
+     * Domain for cookies to enable sharing across subdomains.
+     * Set to parent domain with leading dot for subdomain sharing.
+     * Leave empty for single-domain (localhost) development.
+     * @example '.adieuu.com' for api.adieuu.com + chat.adieuu.com + ws.adieuu.com
+     */
+    domain: process.env.COOKIE_DOMAIN || '',
+  },
+
   /** @deprecated Use cors.origins instead */
   corsOrigin: optionalEnv('CORS_ORIGIN', optionalEnv('CORS_ORIGINS', 'http://localhost:3000')),
 

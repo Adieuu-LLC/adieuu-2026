@@ -61,6 +61,7 @@ function createApp(): uWS.TemplatedApp {
       const aborted = { value: false };
       res.onAborted(() => {
         aborted.value = true;
+        logger.debug('WebSocket upgrade aborted by client');
       });
 
       const cookieHeader = req.getHeader('cookie');
@@ -73,6 +74,10 @@ function createApp(): uWS.TemplatedApp {
       const sessionId = extractSessionId(cookieHeader, query);
 
       if (!sessionId) {
+        logger.warn('WebSocket upgrade rejected: missing session', {
+          hasQuery: !!query,
+          hasCookie: !!cookieHeader,
+        });
         if (!aborted.value) {
           res.writeStatus('401 Unauthorized').end('Missing session');
         }
@@ -82,13 +87,21 @@ function createApp(): uWS.TemplatedApp {
       const session = await validateSession(sessionId);
 
       if (aborted.value) {
+        logger.debug('WebSocket upgrade aborted during session validation');
         return;
       }
 
       if (!session) {
+        logger.warn('WebSocket upgrade rejected: invalid session', {
+          sessionIdPrefix: sessionId.substring(0, 8) + '...',
+        });
         res.writeStatus('401 Unauthorized').end('Invalid session');
         return;
       }
+
+      logger.debug('WebSocket upgrade accepted', {
+        identityId: session.identityId.substring(0, 8) + '...',
+      });
 
       const userData: WsUserData = {
         identityId: session.identityId,
@@ -107,6 +120,9 @@ function createApp(): uWS.TemplatedApp {
 
     open: async (ws) => {
       const userData = ws.getUserData();
+      logger.info('WebSocket connection opened', {
+        identityId: userData.identityId.substring(0, 8) + '...',
+      });
       await registerConnection(userData.identityId, ws);
     },
 
@@ -154,6 +170,13 @@ function createApp(): uWS.TemplatedApp {
 
     close: async (ws, code, message) => {
       const userData = ws.getUserData();
+      const reason = message ? Buffer.from(message).toString('utf-8') : '';
+      logger.info('WebSocket connection closed', {
+        identityId: userData.identityId.substring(0, 8) + '...',
+        code,
+        reason: reason || undefined,
+        connectedForMs: Date.now() - userData.connectedAt,
+      });
       await unregisterConnection(userData.identityId);
     },
   });
@@ -213,6 +236,9 @@ async function start(): Promise<void> {
       logger.info('Chat server started', {
         host: config.host,
         port: config.port,
+        idleTimeoutSec: config.webSocket.idleTimeout,
+        maxPayloadBytes: config.webSocket.maxPayloadLength,
+        compression: config.webSocket.compression,
       });
     } else {
       logger.error('Failed to start chat server', {
@@ -222,6 +248,13 @@ async function start(): Promise<void> {
       process.exit(1);
     }
   });
+
+  setInterval(() => {
+    const count = getConnectionCount();
+    if (count > 0) {
+      logger.debug('Active connections', { count });
+    }
+  }, 60000);
 
   const shutdown = async () => {
     logger.info('Shutting down gracefully');

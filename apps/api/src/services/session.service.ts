@@ -179,9 +179,12 @@ function buildSessionCookie(sessionId: string, maxAge: number): string {
     'SameSite=Lax',
   ];
 
-  // Only set Secure flag in production (HTTPS)
   if (isProduction) {
     parts.push('Secure');
+  }
+
+  if (config.cookie.domain) {
+    parts.push(`Domain=${config.cookie.domain}`);
   }
 
   return parts.join('; ');
@@ -203,6 +206,10 @@ export function buildLogoutCookie(): string {
 
   if (config.env === 'production') {
     parts.push('Secure');
+  }
+
+  if (config.cookie.domain) {
+    parts.push(`Domain=${config.cookie.domain}`);
   }
 
   return parts.join('; ');

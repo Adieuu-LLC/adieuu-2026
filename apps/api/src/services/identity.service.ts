@@ -469,6 +469,10 @@ function buildIdentitySessionCookie(sessionId: string, maxAge: number): string {
     parts.push('Secure');
   }
 
+  if (config.cookie.domain) {
+    parts.push(`Domain=${config.cookie.domain}`);
+  }
+
   return parts.join('; ');
 }
 
@@ -486,6 +490,10 @@ export function buildIdentityLogoutCookie(): string {
 
   if (config.env === 'production') {
     parts.push('Secure');
+  }
+
+  if (config.cookie.domain) {
+    parts.push(`Domain=${config.cookie.domain}`);
   }
 
   return parts.join('; ');
