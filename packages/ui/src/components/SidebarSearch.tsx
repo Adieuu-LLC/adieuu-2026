@@ -3,7 +3,7 @@
  * Uses Ark UI Combobox for accessible autocomplete functionality.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Combobox, Portal, createListCollection } from '@ark-ui/react';
@@ -23,25 +23,36 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
   const { isExpanded, closeMobile } = useSidebar();
   const { results, isLoading, search, clear, query } = useIdentitySearch();
   const [inputValue, setInputValue] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
 
-  const collection = createListCollection({
-    items: results,
-    itemToString: (item) => item.displayName,
-    itemToValue: (item) => item.id,
-  });
+  const collection = useMemo(
+    () =>
+      createListCollection({
+        items: results,
+        itemToString: (item) => item.displayName,
+        itemToValue: (item) => item.id,
+      }),
+    [results]
+  );
 
   const handleInputChange = useCallback(
     (details: { inputValue: string }) => {
       setInputValue(details.inputValue);
       search(details.inputValue);
+      setIsOpen(details.inputValue.trim().length >= 2);
     },
     [search]
   );
+
+  const handleOpenChange = useCallback((details: { open: boolean }) => {
+    setIsOpen(details.open);
+  }, []);
 
   const handleSelect = useCallback(
     (details: { items: PublicIdentity[] }) => {
       const selected = details.items[0];
       if (selected) {
+        setIsOpen(false);
         closeMobile();
         clear();
         setInputValue('');
@@ -59,6 +70,7 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && query.length >= 2) {
         e.preventDefault();
+        setIsOpen(false);
         closeMobile();
         clear();
         setInputValue('');
@@ -89,6 +101,8 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
         inputValue={inputValue}
         onInputValueChange={handleInputChange}
         onValueChange={handleSelect}
+        open={isOpen}
+        onOpenChange={handleOpenChange}
         loopFocus
         openOnClick={false}
         selectionBehavior="clear"

@@ -102,7 +102,7 @@ export function useIdentitySearch(
             setError(null);
           } else {
             setResults([]);
-            setError(response.error ?? 'Search failed');
+            setError(response.error?.message ?? 'Search failed');
           }
         } catch (err) {
           if (err instanceof Error && err.name === 'AbortError') {

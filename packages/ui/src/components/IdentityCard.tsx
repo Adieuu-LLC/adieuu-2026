@@ -68,14 +68,14 @@ export function IdentityCard({
       {showActions && (
         <div className="identity-card-actions">
           <Link to={`/identity/${identity.id}`} className="identity-card-action-link">
-            <Button variant="outline" size="sm">
+            <Button variant="secondary" size="sm">
               <UserIcon />
               {t('search.actions.viewProfile')}
             </Button>
           </Link>
           {onMessage && (
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               onClick={() => onMessage(identity)}
             >

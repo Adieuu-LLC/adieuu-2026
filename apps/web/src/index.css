@@ -301,7 +301,11 @@ a {
 }
 
 .sidebar-search-positioner {
-  z-index: var(--z-dropdown);
+  z-index: 150 !important;
+}
+
+.sidebar-search-positioner[data-state="closed"] {
+  display: none;
 }
 
 .sidebar-search-content {
