@@ -61,17 +61,31 @@ export function IdentityCard({
     .toUpperCase();
 
   const handleFriendAction = async () => {
+    console.log('[IdentityCard] handleFriendAction called', {
+      friendshipStatus,
+      identityId: identity.id,
+      isIdentityLoggedIn,
+    });
+    
+    let result;
     if (!friendshipStatus) {
-      await sendRequest();
+      console.log('[IdentityCard] Calling sendRequest (status null)');
+      result = await sendRequest();
     } else if (friendshipStatus.status === 'none') {
-      await sendRequest();
+      console.log('[IdentityCard] Calling sendRequest (status none)');
+      result = await sendRequest();
     } else if (friendshipStatus.status === 'request_sent') {
-      await cancelRequest();
+      console.log('[IdentityCard] Calling cancelRequest');
+      result = await cancelRequest();
     } else if (friendshipStatus.status === 'request_received') {
-      await acceptRequest();
+      console.log('[IdentityCard] Calling acceptRequest');
+      result = await acceptRequest();
     } else if (friendshipStatus.status === 'friends') {
-      await removeFriend();
+      console.log('[IdentityCard] Calling removeFriend');
+      result = await removeFriend();
     }
+    
+    console.log('[IdentityCard] Action result:', result);
   };
 
   const renderFriendButton = () => {
@@ -88,7 +102,8 @@ export function IdentityCard({
       );
     }
 
-    if (friendshipLoading || !friendshipStatus) {
+    // Only show loading spinner while actively loading, not when status is null due to error
+    if (friendshipLoading) {
       return (
         <Button variant="secondary" size="sm" disabled>
           <span className="spinner spinner-sm" />
@@ -96,11 +111,14 @@ export function IdentityCard({
       );
     }
 
-    switch (friendshipStatus.status) {
+    // Treat null status (error or not fetched) as 'none' so button is usable
+    const effectiveStatus = friendshipStatus?.status ?? 'none';
+
+    switch (effectiveStatus) {
       case 'friends':
         return (
           <Tooltip content={t('friends.actions.removeFriend')} position="top">
-            <Button variant="secondary" size="sm" onClick={handleFriendAction}>
+            <Button variant="secondary" size="sm" onClick={handleFriendAction} disabled={friendshipLoading}>
               <CheckIcon />
               {t('friends.actions.friends')}
             </Button>
@@ -109,7 +127,7 @@ export function IdentityCard({
       case 'request_sent':
         return (
           <Tooltip content={t('friends.actions.cancelRequest')} position="top">
-            <Button variant="secondary" size="sm" onClick={handleFriendAction}>
+            <Button variant="secondary" size="sm" onClick={handleFriendAction} disabled={friendshipLoading}>
               <ClockIcon />
               {t('friends.actions.requestSent')}
             </Button>
@@ -117,7 +135,7 @@ export function IdentityCard({
         );
       case 'request_received':
         return (
-          <Button variant="primary" size="sm" onClick={handleFriendAction}>
+          <Button variant="primary" size="sm" onClick={handleFriendAction} disabled={friendshipLoading}>
             <CheckIcon />
             {t('friends.actions.acceptRequest')}
           </Button>
@@ -125,7 +143,7 @@ export function IdentityCard({
       case 'none':
       default:
         return (
-          <Button variant="primary" size="sm" onClick={handleFriendAction}>
+          <Button variant="primary" size="sm" onClick={handleFriendAction} disabled={friendshipLoading}>
             <PlusIcon />
             {t('friends.actions.addFriend')}
           </Button>

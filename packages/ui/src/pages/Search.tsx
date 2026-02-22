@@ -55,11 +55,6 @@ export function Search() {
     [inputValue, search, setSearchParams]
   );
 
-  const handleAddFriend = useCallback((identity: { id: string; displayName: string }) => {
-    // TODO: Implement add friend functionality
-    console.log('Add friend:', identity.id);
-  }, []);
-
   const handleMessage = useCallback((identity: { id: string; displayName: string }) => {
     // TODO: Implement message functionality
     console.log('Message:', identity.id);
@@ -116,7 +111,6 @@ export function Search() {
                     key={identity.id}
                     identity={identity}
                     showActions={true}
-                    onAddFriend={handleAddFriend}
                     onMessage={handleMessage}
                   />
                 ))}

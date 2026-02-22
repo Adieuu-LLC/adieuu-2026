@@ -56,6 +56,7 @@ export function useFriendshipStatus({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const actionLoadingRef = useRef(false);
 
   const isLoggedIn = identityStatus === 'logged_in';
 
@@ -89,25 +90,35 @@ export function useFriendshipStatus({
   }, [immediate, isLoggedIn, refresh]);
 
   const sendRequest = useCallback(async () => {
-    if (actionLoading) return { success: false, error: 'Action in progress' };
+    console.log('[useFriendshipStatus] sendRequest called', { identityId, actionLoading: actionLoadingRef.current });
+    if (actionLoadingRef.current) {
+      console.log('[useFriendshipStatus] Action already in progress');
+      return { success: false, error: 'Action in progress' };
+    }
+    actionLoadingRef.current = true;
     setActionLoading(true);
 
     try {
+      console.log('[useFriendshipStatus] Calling API friends.sendRequest');
       const response = await api.friends.sendRequest(identityId);
+      console.log('[useFriendshipStatus] API response:', response);
       if (response.success) {
         await refresh();
         return { success: true };
       }
       return { success: false, error: response.error?.message ?? 'Failed to send request' };
-    } catch {
+    } catch (err) {
+      console.error('[useFriendshipStatus] Error:', err);
       return { success: false, error: 'Failed to send request' };
     } finally {
+      actionLoadingRef.current = false;
       setActionLoading(false);
     }
-  }, [api, identityId, actionLoading, refresh]);
+  }, [api, identityId, refresh]);
 
   const cancelRequest = useCallback(async () => {
-    if (actionLoading || !status?.requestId) return { success: false, error: 'No request to cancel' };
+    if (actionLoadingRef.current || !status?.requestId) return { success: false, error: 'No request to cancel' };
+    actionLoadingRef.current = true;
     setActionLoading(true);
 
     try {
@@ -120,12 +131,14 @@ export function useFriendshipStatus({
     } catch {
       return { success: false, error: 'Failed to cancel request' };
     } finally {
+      actionLoadingRef.current = false;
       setActionLoading(false);
     }
-  }, [api, status, actionLoading, refresh]);
+  }, [api, status, refresh]);
 
   const acceptRequest = useCallback(async () => {
-    if (actionLoading || !status?.requestId) return { success: false, error: 'No request to accept' };
+    if (actionLoadingRef.current || !status?.requestId) return { success: false, error: 'No request to accept' };
+    actionLoadingRef.current = true;
     setActionLoading(true);
 
     try {
@@ -138,12 +151,14 @@ export function useFriendshipStatus({
     } catch {
       return { success: false, error: 'Failed to accept request' };
     } finally {
+      actionLoadingRef.current = false;
       setActionLoading(false);
     }
-  }, [api, status, actionLoading, refresh]);
+  }, [api, status, refresh]);
 
   const ignoreRequest = useCallback(async () => {
-    if (actionLoading || !status?.requestId) return { success: false, error: 'No request to ignore' };
+    if (actionLoadingRef.current || !status?.requestId) return { success: false, error: 'No request to ignore' };
+    actionLoadingRef.current = true;
     setActionLoading(true);
 
     try {
@@ -156,12 +171,14 @@ export function useFriendshipStatus({
     } catch {
       return { success: false, error: 'Failed to ignore request' };
     } finally {
+      actionLoadingRef.current = false;
       setActionLoading(false);
     }
-  }, [api, status, actionLoading, refresh]);
+  }, [api, status, refresh]);
 
   const removeFriend = useCallback(async () => {
-    if (actionLoading) return { success: false, error: 'Action in progress' };
+    if (actionLoadingRef.current) return { success: false, error: 'Action in progress' };
+    actionLoadingRef.current = true;
     setActionLoading(true);
 
     try {
@@ -174,9 +191,10 @@ export function useFriendshipStatus({
     } catch {
       return { success: false, error: 'Failed to remove friend' };
     } finally {
+      actionLoadingRef.current = false;
       setActionLoading(false);
     }
-  }, [api, identityId, actionLoading, refresh]);
+  }, [api, identityId, refresh]);
 
   return {
     status,
