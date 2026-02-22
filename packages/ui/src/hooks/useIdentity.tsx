@@ -18,13 +18,22 @@ const WRAPPING_KEY_STORE_NAME = 'salts';
  */
 function openWrappingKeyDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    console.debug('[Identity] openWrappingKeyDb: opening database:', WRAPPING_KEY_DB_NAME);
     const request = indexedDB.open(WRAPPING_KEY_DB_NAME, WRAPPING_KEY_DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => {
+      console.error('[Identity] openWrappingKeyDb: failed to open database:', request.error);
+      reject(request.error);
+    };
+    request.onsuccess = () => {
+      console.debug('[Identity] openWrappingKeyDb: database opened successfully');
+      resolve(request.result);
+    };
     request.onupgradeneeded = (event) => {
+      console.debug('[Identity] openWrappingKeyDb: upgrading database schema...');
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(WRAPPING_KEY_STORE_NAME)) {
         db.createObjectStore(WRAPPING_KEY_STORE_NAME, { keyPath: 'identityId' });
+        console.debug('[Identity] openWrappingKeyDb: created object store:', WRAPPING_KEY_STORE_NAME);
       }
     };
   });
@@ -34,23 +43,35 @@ function openWrappingKeyDb(): Promise<IDBDatabase> {
  * Gets or creates the wrapping key salt for an identity.
  */
 async function getOrCreateWrappingSalt(identityId: string): Promise<Uint8Array> {
+  console.debug('[Identity] getOrCreateWrappingSalt: opening IndexedDB...');
   const db = await openWrappingKeyDb();
+  console.debug('[Identity] getOrCreateWrappingSalt: IndexedDB opened successfully');
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(WRAPPING_KEY_STORE_NAME, 'readwrite');
     const store = tx.objectStore(WRAPPING_KEY_STORE_NAME);
     const getRequest = store.get(identityId);
 
-    getRequest.onerror = () => reject(getRequest.error);
+    getRequest.onerror = () => {
+      console.error('[Identity] getOrCreateWrappingSalt: failed to get salt from IndexedDB:', getRequest.error);
+      reject(getRequest.error);
+    };
     getRequest.onsuccess = () => {
       if (getRequest.result?.salt) {
+        console.debug('[Identity] getOrCreateWrappingSalt: found existing salt for identity');
         resolve(fromBase64(getRequest.result.salt));
       } else {
-        // Generate new salt
+        console.debug('[Identity] getOrCreateWrappingSalt: no existing salt, generating new one...');
         const salt = generateWrappingSalt();
         const putRequest = store.put({ identityId, salt: toBase64(salt) });
-        putRequest.onerror = () => reject(putRequest.error);
-        putRequest.onsuccess = () => resolve(salt);
+        putRequest.onerror = () => {
+          console.error('[Identity] getOrCreateWrappingSalt: failed to store new salt:', putRequest.error);
+          reject(putRequest.error);
+        };
+        putRequest.onsuccess = () => {
+          console.debug('[Identity] getOrCreateWrappingSalt: new salt stored successfully');
+          resolve(salt);
+        };
       }
     };
   });
@@ -101,7 +122,7 @@ export interface LoginIdentityResult {
   success: boolean;
   identity?: PublicIdentity;
   error?: string;
-  errorCode?: 'INVALID_PASSPHRASE' | 'LOCKED_OUT' | 'RATE_LIMITED';
+  errorCode?: 'INVALID_PASSPHRASE' | 'LOCKED_OUT' | 'RATE_LIMITED' | 'KEY_DERIVATION_FAILED';
   attemptNumber?: number;
   retryAfter?: number;
 }
@@ -350,14 +371,42 @@ function useIdentityState(): IdentityContextValue {
       const loggedInIdentity = response.data?.identity;
       if (loggedInIdentity) {
         // Derive wrapping key for cipher entropy encryption
+        // This is required for cipher operations - fail login if it fails
         try {
+          console.debug('[Identity] loginToIdentity: starting wrapping key derivation for identity:', loggedInIdentity.id);
+
+          console.debug('[Identity] loginToIdentity: getting or creating salt...');
           const salt = await getOrCreateWrappingSalt(loggedInIdentity.id);
+          console.debug('[Identity] loginToIdentity: salt obtained, length:', salt.length);
+
+          console.debug('[Identity] loginToIdentity: deriving wrapping key with Argon2...');
           const wrappingKey = await deriveEntropyWrappingKey(passphrase, salt);
+          console.debug('[Identity] loginToIdentity: wrapping key derived, length:', wrappingKey.length);
+
           wrappingKeyRef.current = wrappingKey;
           wrappingSaltRef.current = salt;
+          console.debug('[Identity] loginToIdentity: wrapping key stored in memory');
         } catch (err) {
-          console.warn('Failed to derive wrapping key:', err);
-          // Non-fatal: ciphers will work but entropy won't be encrypted
+          // Wrapping key is required for cipher operations - treat as login failure
+          console.error('[Identity] loginToIdentity: failed to derive wrapping key:', err);
+          console.error('[Identity] loginToIdentity: error details:', {
+            name: err instanceof Error ? err.name : 'unknown',
+            message: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+          });
+
+          // Logout from server since we can't complete local setup
+          try {
+            await api.identity.logout();
+          } catch {
+            // Ignore logout errors
+          }
+
+          return {
+            success: false,
+            error: 'Failed to initialize encryption keys. Please try again.',
+            errorCode: 'KEY_DERIVATION_FAILED',
+          };
         }
 
         setState((prev) => ({
@@ -394,14 +443,22 @@ function useIdentityState(): IdentityContextValue {
 
       try {
         // Derive wrapping key from passphrase (no server call needed)
+        console.debug('[Identity] unlockIdentity: starting wrapping key derivation for identity:', state.identity.id);
+
+        console.debug('[Identity] unlockIdentity: getting or creating salt...');
         const salt = await getOrCreateWrappingSalt(state.identity.id);
+        console.debug('[Identity] unlockIdentity: salt obtained, length:', salt.length);
+
+        console.debug('[Identity] unlockIdentity: deriving wrapping key with Argon2...');
         const wrappingKey = await deriveEntropyWrappingKey(passphrase, salt);
+        console.debug('[Identity] unlockIdentity: wrapping key derived, length:', wrappingKey.length);
 
         // Verify the passphrase is correct by attempting to load and decrypt a cipher
         // For now, we trust that if key derivation succeeds, the passphrase is correct
         // The cipher store will fail to decrypt if the passphrase was wrong
         wrappingKeyRef.current = wrappingKey;
         wrappingSaltRef.current = salt;
+        console.debug('[Identity] unlockIdentity: wrapping key stored in memory');
 
         setState((prev) => ({
           ...prev,
@@ -410,6 +467,12 @@ function useIdentityState(): IdentityContextValue {
 
         return { success: true };
       } catch (err) {
+        console.error('[Identity] unlockIdentity: failed to derive wrapping key:', err);
+        console.error('[Identity] unlockIdentity: error details:', {
+          name: err instanceof Error ? err.name : 'unknown',
+          message: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+        });
         return {
           success: false,
           error: err instanceof Error ? err.message : 'Failed to unlock',
