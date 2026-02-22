@@ -132,6 +132,17 @@ export const en = {
       hoursAgo: '{{count}}h ago',
       daysAgo: '{{count}}d ago',
     },
+    // Toast notifications
+    toast: {
+      friendRequestTitle: 'Friend Request',
+      friendRequestDescription: '{{name}} sent you a friend request',
+      friendAcceptedTitle: 'Friend Request Accepted',
+      friendAcceptedDescription: '{{name}} accepted your friend request',
+      friendshipTitle: 'New Friend',
+      friendshipDescription: 'You are now friends with {{name}}',
+      newNotificationTitle: 'New Notification',
+      newNotificationDescription: 'You have a new notification',
+    },
   },
 
   // Blocked users

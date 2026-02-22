@@ -11,7 +11,6 @@ import { SidebarSearch } from '../components/SidebarSearch';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
 import { HomeIcon, InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon } from '../components/Icons';
-import { NotificationBell } from '../components/NotificationBell';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
 import { IdentityModal } from './IdentityModal';
@@ -288,7 +287,6 @@ function SidebarFooterContent() {
       <div className="sidebar-identity-section">
         <div className="sidebar-identity-row">
           <IdentityFlyout />
-          <NotificationBell />
         </div>
       </div>
 
