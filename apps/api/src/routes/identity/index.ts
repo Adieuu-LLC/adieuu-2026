@@ -34,6 +34,7 @@ import {
 } from '../../services/identity.service';
 import { toPublicIdentity } from '../../models/identity';
 import { getClientIp } from '../auth/controller';
+import { getBlockedIdentityIds } from '../../services/block.service';
 import { z } from '@adieuu/shared/schemas';
 
 const router = new Router();
@@ -41,8 +42,9 @@ const router = new Router();
 /**
  * GET /identity/search - Search for identities
  *
- * Public endpoint for searching identities by username or display name.
+ * Endpoint for searching identities by username or display name.
  * Returns public identity information only.
+ * If the caller has an identity session, blocked identities are filtered out.
  *
  * @route GET /api/identity/search
  *
@@ -67,8 +69,18 @@ router.get('/identity/search', async (ctx) => {
     return errors.badRequest('Invalid limit parameter.');
   }
 
+  // Get blocked identity IDs if caller has an identity session
+  let excludeIds;
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (identitySessionId) {
+    const identity = await getIdentityFromSession(identitySessionId);
+    if (identity) {
+      excludeIds = await getBlockedIdentityIds(identity._id);
+    }
+  }
+
   const identityRepo = getIdentityRepository();
-  const results = await identityRepo.search(query, limit);
+  const results = await identityRepo.search(query, limit, excludeIds);
 
   return success(results.map(toPublicIdentity));
 });

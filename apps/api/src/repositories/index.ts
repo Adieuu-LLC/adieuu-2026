@@ -23,3 +23,7 @@ export {
   getIdentitySessionRepository,
   type IIdentitySessionRepository,
 } from './identity-session.repository';
+export { BlockRepository, getBlockRepository, type IBlockRepository } from './block.repository';
+export { FriendRequestRepository, getFriendRequestRepository, type IFriendRequestRepository } from './friend-request.repository';
+export { FriendshipRepository, getFriendshipRepository, type IFriendshipRepository } from './friendship.repository';
+export { NotificationRepository, getNotificationRepository, type INotificationRepository } from './notification.repository';

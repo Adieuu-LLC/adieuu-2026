@@ -10,7 +10,8 @@ import {
 import { SidebarSearch } from '../components/SidebarSearch';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
-import { HomeIcon, InfoIcon, UserIcon, LogoutIcon, MaskIcon } from '../components/Icons';
+import { HomeIcon, InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon } from '../components/Icons';
+import { NotificationBell } from '../components/NotificationBell';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
 import { IdentityModal } from './IdentityModal';
@@ -218,6 +219,9 @@ function IdentityFlyout() {
           <Link to="/identity/profile" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/profile') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('identity.menu.profile')}
           </Link>
+          <Link to="/identity/friends" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/friends') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('identity.menu.friends')}
+          </Link>
           <Link to="/identity/content" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/content') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('identity.menu.contentSocial')}
           </Link>
@@ -282,7 +286,10 @@ function SidebarFooterContent() {
     <div className="sidebar-footer-stack">
       {/* Identity Menu with Flyout */}
       <div className="sidebar-identity-section">
-        <IdentityFlyout />
+        <div className="sidebar-identity-row">
+          <IdentityFlyout />
+          <NotificationBell />
+        </div>
       </div>
 
       {/* Account Menu with Flyout */}

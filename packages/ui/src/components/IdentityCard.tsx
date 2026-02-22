@@ -7,15 +7,18 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import type { PublicIdentity } from '@adieuu/shared';
 import { Button } from './Button';
-import { MessageIcon, UserIcon, PlusIcon } from './Icons';
+import { Tooltip } from './Tooltip';
+import { MessageIcon, UserIcon, PlusIcon, CheckIcon, ClockIcon, XIcon } from './Icons';
+import { useIdentity } from '../hooks/useIdentity';
+import { useFriendshipStatus } from '../hooks/useFriends';
 
 export interface IdentityCardProps {
   /** The identity to display */
   identity: PublicIdentity;
   /** Whether to show action buttons */
   showActions?: boolean;
-  /** Callback when "Add Friend" is clicked */
-  onAddFriend?: (identity: PublicIdentity) => void;
+  /** Whether to enable friend actions (fetches friendship status) */
+  enableFriendActions?: boolean;
   /** Callback when "Message" is clicked */
   onMessage?: (identity: PublicIdentity) => void;
   /** Additional CSS class name */
@@ -28,11 +31,27 @@ export interface IdentityCardProps {
 export function IdentityCard({
   identity,
   showActions = true,
-  onAddFriend,
+  enableFriendActions = true,
   onMessage,
   className = '',
 }: IdentityCardProps) {
   const { t } = useTranslation();
+  const { status: identityStatus, identity: currentIdentity } = useIdentity();
+
+  const isIdentityLoggedIn = identityStatus === 'logged_in';
+  const isSelf = currentIdentity?.id === identity.id;
+
+  const {
+    status: friendshipStatus,
+    isLoading: friendshipLoading,
+    sendRequest,
+    cancelRequest,
+    acceptRequest,
+    removeFriend,
+  } = useFriendshipStatus({
+    identityId: identity.id,
+    immediate: isIdentityLoggedIn && enableFriendActions && !isSelf,
+  });
 
   const initials = identity.displayName
     .split(' ')
@@ -40,6 +59,79 @@ export function IdentityCard({
     .slice(0, 2)
     .join('')
     .toUpperCase();
+
+  const handleFriendAction = async () => {
+    if (!friendshipStatus) {
+      await sendRequest();
+    } else if (friendshipStatus.status === 'none') {
+      await sendRequest();
+    } else if (friendshipStatus.status === 'request_sent') {
+      await cancelRequest();
+    } else if (friendshipStatus.status === 'request_received') {
+      await acceptRequest();
+    } else if (friendshipStatus.status === 'friends') {
+      await removeFriend();
+    }
+  };
+
+  const renderFriendButton = () => {
+    if (isSelf) return null;
+
+    if (!isIdentityLoggedIn) {
+      return (
+        <Tooltip content={t('friends.actions.signInToAddFriend')} position="top">
+          <Button variant="primary" size="sm" disabled aria-disabled="true">
+            <PlusIcon />
+            {t('friends.actions.addFriend')}
+          </Button>
+        </Tooltip>
+      );
+    }
+
+    if (friendshipLoading || !friendshipStatus) {
+      return (
+        <Button variant="secondary" size="sm" disabled>
+          <span className="spinner spinner-sm" />
+        </Button>
+      );
+    }
+
+    switch (friendshipStatus.status) {
+      case 'friends':
+        return (
+          <Tooltip content={t('friends.actions.removeFriend')} position="top">
+            <Button variant="secondary" size="sm" onClick={handleFriendAction}>
+              <CheckIcon />
+              {t('friends.actions.friends')}
+            </Button>
+          </Tooltip>
+        );
+      case 'request_sent':
+        return (
+          <Tooltip content={t('friends.actions.cancelRequest')} position="top">
+            <Button variant="secondary" size="sm" onClick={handleFriendAction}>
+              <ClockIcon />
+              {t('friends.actions.requestSent')}
+            </Button>
+          </Tooltip>
+        );
+      case 'request_received':
+        return (
+          <Button variant="primary" size="sm" onClick={handleFriendAction}>
+            <CheckIcon />
+            {t('friends.actions.acceptRequest')}
+          </Button>
+        );
+      case 'none':
+      default:
+        return (
+          <Button variant="primary" size="sm" onClick={handleFriendAction}>
+            <PlusIcon />
+            {t('friends.actions.addFriend')}
+          </Button>
+        );
+    }
+  };
 
   return (
     <div className={`identity-card ${className}`.trim()}>
@@ -83,16 +175,7 @@ export function IdentityCard({
               {t('search.actions.message')}
             </Button>
           )}
-          {onAddFriend && (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => onAddFriend(identity)}
-            >
-              <PlusIcon />
-              {t('search.actions.addFriend')}
-            </Button>
-          )}
+          {enableFriendActions && renderFriendButton()}
         </div>
       )}
     </div>

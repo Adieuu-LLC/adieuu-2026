@@ -56,7 +56,94 @@ export const en = {
       viewProfile: 'View Profile',
       message: 'Message',
       addFriend: 'Add Friend',
+      signInToAddFriend: 'Sign in to add friend',
     },
+  },
+
+  // Friends
+  friends: {
+    title: 'Friends',
+    subtitle: 'Manage your friends and friend requests.',
+    noFriends: 'No friends yet.',
+    noFriendsHint: 'Send friend requests to connect with people.',
+    friendsSince: 'Friends since {{date}}',
+    // Actions
+    actions: {
+      addFriend: 'Add Friend',
+      cancelRequest: 'Cancel Request',
+      requestSent: 'Request Sent',
+      acceptRequest: 'Accept',
+      ignoreRequest: 'Ignore',
+      removeFriend: 'Remove Friend',
+      friends: 'Friends',
+      signInToAddFriend: 'Sign in to add friend',
+    },
+    // Friend requests
+    requests: {
+      title: 'Friend Requests',
+      incoming: 'Incoming',
+      sent: 'Sent',
+      noIncoming: 'No incoming requests.',
+      noSent: 'No sent requests.',
+      accept: 'Accept',
+      ignore: 'Ignore',
+      cancel: 'Cancel',
+    },
+    // Messages
+    messages: {
+      requestSent: 'Friend request sent.',
+      requestCancelled: 'Friend request cancelled.',
+      requestAccepted: 'Friend request accepted.',
+      requestIgnored: 'Friend request ignored.',
+      friendRemoved: 'Friend removed.',
+      alreadyFriends: 'You are already friends.',
+      mutualAdd: 'You are now friends!',
+    },
+    // Errors
+    errors: {
+      sendFailed: 'Failed to send friend request.',
+      cancelFailed: 'Failed to cancel friend request.',
+      acceptFailed: 'Failed to accept friend request.',
+      ignoreFailed: 'Failed to ignore friend request.',
+      removeFailed: 'Failed to remove friend.',
+      burstLimit: 'Please wait before sending more requests.',
+    },
+  },
+
+  // Notifications
+  notifications: {
+    title: 'Notifications',
+    subtitle: 'Your notifications and alerts.',
+    noNotifications: 'No notifications.',
+    markAllRead: 'Mark all as read',
+    clearAll: 'Clear all',
+    // Notification types
+    types: {
+      friend_request_received: '{{name}} sent you a friend request',
+      friend_request_accepted: '{{name}} accepted your friend request',
+      friendship_established: 'You are now friends with {{name}}',
+      message_received: '{{name}} sent you a message',
+      mention: '{{name}} mentioned you',
+    },
+    // Time formatting
+    time: {
+      justNow: 'Just now',
+      minutesAgo: '{{count}}m ago',
+      hoursAgo: '{{count}}h ago',
+      daysAgo: '{{count}}d ago',
+    },
+  },
+
+  // Blocked users
+  blocked: {
+    title: 'Blocked Identities',
+    subtitle: 'Manage identities you have blocked.',
+    noBlocked: 'No blocked identities.',
+    unblock: 'Unblock',
+    blockUser: 'Block',
+    confirmBlock: 'Are you sure you want to block this user?',
+    confirmUnblock: 'Are you sure you want to unblock this user?',
+    blocked: 'Blocked',
   },
 
   // Identity
@@ -70,6 +157,7 @@ export const en = {
     // Menu items for identity flyout
     menu: {
       profile: 'Profile',
+      friends: 'Friends',
       contentSocial: 'Content & Social',
       ciphers: 'Ciphers',
     },

@@ -275,6 +275,14 @@ export const Collections = {
   IDENTITIES: 'identities',
   /** Identity sessions collection */
   IDENTITY_SESSIONS: 'identity_sessions',
+  /** Blocks between identities */
+  BLOCKS: 'blocks',
+  /** Friend requests between identities */
+  FRIEND_REQUESTS: 'friend_requests',
+  /** Established friendships (denormalized, two records per friendship) */
+  FRIENDSHIPS: 'friendships',
+  /** Notifications for identities */
+  NOTIFICATIONS: 'notifications',
 } as const;
 
 /**
@@ -388,6 +396,40 @@ async function createIndexes(): Promise<void> {
   await identitySessions.createIndex({ identityId: 1 });
   await identitySessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index
   await identitySessions.createIndex({ revoked: 1, expiresAt: 1 });
+
+  // Blocks collection indexes
+  const blocks = database.collection(Collections.BLOCKS);
+  await blocks.createIndex(
+    { blockerIdentityId: 1, blockedIdentityId: 1 },
+    { unique: true }
+  );
+  await blocks.createIndex({ blockedIdentityId: 1, blockerIdentityId: 1 });
+  await blocks.createIndex({ blockerIdentityId: 1 });
+
+  // Friend requests collection indexes
+  const friendRequests = database.collection(Collections.FRIEND_REQUESTS);
+  await friendRequests.createIndex(
+    { fromIdentityId: 1, toIdentityId: 1 },
+    { unique: true }
+  );
+  await friendRequests.createIndex({ toIdentityId: 1, status: 1 });
+  await friendRequests.createIndex({ fromIdentityId: 1, status: 1 });
+  await friendRequests.createIndex({ status: 1, updatedAt: 1 });
+
+  // Friendships collection indexes
+  const friendships = database.collection(Collections.FRIENDSHIPS);
+  await friendships.createIndex(
+    { identityId: 1, friendIdentityId: 1 },
+    { unique: true }
+  );
+  await friendships.createIndex({ identityId: 1, createdAt: -1 });
+  await friendships.createIndex({ friendIdentityId: 1 });
+
+  // Notifications collection indexes
+  const notifications = database.collection(Collections.NOTIFICATIONS);
+  await notifications.createIndex({ recipientIdentityId: 1, read: 1, createdAt: -1 });
+  await notifications.createIndex({ recipientIdentityId: 1, createdAt: -1 });
+  await notifications.createIndex({ recipientIdentityId: 1, type: 1 });
 
   elog.debug('MongoDB indexes created/verified');
 }

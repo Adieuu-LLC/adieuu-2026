@@ -806,6 +806,310 @@ export class IdentityApi {
 }
 
 // ============================================================================
+// Friends API Types
+// ============================================================================
+
+/**
+ * Friend request response
+ */
+export interface SendFriendRequestResponse {
+  requestId: string;
+  status: 'pending' | 'accepted';
+  message: string;
+}
+
+/**
+ * Incoming friend request with sender info
+ */
+export interface IncomingFriendRequest {
+  id: string;
+  fromIdentity: PublicIdentity;
+  createdAt: string;
+}
+
+/**
+ * Sent friend request with recipient info
+ */
+export interface SentFriendRequest {
+  id: string;
+  toIdentity: PublicIdentity;
+  status: 'pending';
+  createdAt: string;
+}
+
+/**
+ * Friend with relationship info
+ */
+export interface Friend {
+  identity: PublicIdentity;
+  friendsSince: string;
+}
+
+/**
+ * Friendship status between two identities
+ */
+export interface FriendshipStatus {
+  status: 'friends' | 'request_sent' | 'request_received' | 'none';
+  friendsSince?: string;
+  requestId?: string;
+}
+
+/**
+ * Paginated list response
+ */
+export interface PaginatedResponse<T> {
+  cursor: string | null;
+}
+
+export class FriendsApi {
+  constructor(private client: ApiClient) {}
+
+  /**
+   * Send a friend request to another identity.
+   */
+  async sendRequest(toIdentityId: string): Promise<ApiResponse<SendFriendRequestResponse>> {
+    return this.client.post('/api/friends/request', { toIdentityId });
+  }
+
+  /**
+   * Get incoming friend requests.
+   */
+  async getIncomingRequests(
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ requests: IncomingFriendRequest[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(`/api/friends/requests/incoming${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * Get sent friend requests.
+   */
+  async getSentRequests(
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ requests: SentFriendRequest[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(`/api/friends/requests/sent${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * Accept a friend request.
+   */
+  async acceptRequest(requestId: string): Promise<ApiResponse<{ friend: PublicIdentity }>> {
+    return this.client.post(`/api/friends/request/${encodeURIComponent(requestId)}/accept`);
+  }
+
+  /**
+   * Ignore a friend request.
+   */
+  async ignoreRequest(requestId: string): Promise<ApiResponse<void>> {
+    return this.client.post(`/api/friends/request/${encodeURIComponent(requestId)}/ignore`);
+  }
+
+  /**
+   * Cancel a sent friend request.
+   */
+  async cancelRequest(requestId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/friends/request/${encodeURIComponent(requestId)}`);
+  }
+
+  /**
+   * Get friends list.
+   */
+  async getFriends(
+    limit?: number,
+    cursor?: string,
+    search?: string
+  ): Promise<ApiResponse<{ friends: Friend[]; cursor: string | null; total: number }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    if (search) params.set('search', search);
+    const query = params.toString();
+    return this.client.get(`/api/friends${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * Check friendship status with another identity.
+   */
+  async getStatus(identityId: string): Promise<ApiResponse<FriendshipStatus>> {
+    return this.client.get(`/api/friends/status/${encodeURIComponent(identityId)}`);
+  }
+
+  /**
+   * Remove a friend.
+   */
+  async removeFriend(identityId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/friends/${encodeURIComponent(identityId)}`);
+  }
+}
+
+// ============================================================================
+// Blocks API Types
+// ============================================================================
+
+/**
+ * Blocked identity with info
+ */
+export interface BlockedIdentity {
+  identity: PublicIdentity;
+  blockedAt: string;
+}
+
+/**
+ * Block check result
+ */
+export interface BlockCheckResult {
+  blocked: boolean;
+  blockedAt?: string;
+}
+
+export class BlocksApi {
+  constructor(private client: ApiClient) {}
+
+  /**
+   * Block an identity.
+   */
+  async block(identityId: string): Promise<ApiResponse<void>> {
+    return this.client.post('/api/blocks', { identityId });
+  }
+
+  /**
+   * Unblock an identity.
+   */
+  async unblock(identityId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/blocks/${encodeURIComponent(identityId)}`);
+  }
+
+  /**
+   * Get blocked identities list.
+   */
+  async getBlocked(
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ blocks: BlockedIdentity[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(`/api/blocks${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * Check if an identity is blocked by you.
+   */
+  async checkBlocked(identityId: string): Promise<ApiResponse<BlockCheckResult>> {
+    return this.client.get(`/api/blocks/check/${encodeURIComponent(identityId)}`);
+  }
+}
+
+// ============================================================================
+// Notifications API Types
+// ============================================================================
+
+/**
+ * Notification types
+ */
+export type NotificationType =
+  | 'friend_request_received'
+  | 'friend_request_accepted'
+  | 'friendship_established'
+  | 'message_received'
+  | 'mention';
+
+/**
+ * Notification data (varies by type)
+ */
+export interface NotificationData {
+  requestId?: string;
+  fromIdentityId?: string;
+  fromDisplayName?: string;
+  fromUsername?: string;
+  fromAvatarUrl?: string;
+  friendIdentityId?: string;
+  friendDisplayName?: string;
+  friendUsername?: string;
+  friendAvatarUrl?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Notification
+ */
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  data: NotificationData;
+  read: boolean;
+  createdAt: string;
+}
+
+/**
+ * Notification counts
+ */
+export interface NotificationCounts {
+  unread: number;
+  byType: Record<string, number>;
+}
+
+export class NotificationsApi {
+  constructor(private client: ApiClient) {}
+
+  /**
+   * Get notifications.
+   */
+  async getNotifications(options?: {
+    limit?: number;
+    since?: string;
+    unreadOnly?: boolean;
+    types?: NotificationType[];
+  }): Promise<ApiResponse<{ notifications: Notification[]; unreadCount: number }>> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', options.limit.toString());
+    if (options?.since) params.set('since', options.since);
+    if (options?.unreadOnly) params.set('unreadOnly', 'true');
+    if (options?.types) params.set('types', options.types.join(','));
+    const query = params.toString();
+    return this.client.get(`/api/notifications${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * Mark notifications as read.
+   */
+  async markAsRead(notificationIds: string[] | 'all'): Promise<ApiResponse<{ markedCount: number }>> {
+    return this.client.post('/api/notifications/read', { notificationIds });
+  }
+
+  /**
+   * Mark notifications as unread.
+   */
+  async markAsUnread(notificationIds: string[] | 'all'): Promise<ApiResponse<{ markedCount: number }>> {
+    return this.client.post('/api/notifications/unread', { notificationIds });
+  }
+
+  /**
+   * Delete notifications.
+   */
+  async deleteNotifications(notificationIds: string[] | 'all'): Promise<ApiResponse<{ deletedCount: number }>> {
+    return this.client.delete('/api/notifications');
+  }
+
+  /**
+   * Get unread notification counts.
+   */
+  async getCounts(): Promise<ApiResponse<NotificationCounts>> {
+    return this.client.get('/api/notifications/count');
+  }
+}
+
+// ============================================================================
 // Factory Functions
 // ============================================================================
 
@@ -821,6 +1125,9 @@ export function createApiClient(config: ApiClientConfig) {
     users: new UsersApi(client),
     mfa: new MfaApi(client),
     identity: new IdentityApi(client),
+    friends: new FriendsApi(client),
+    blocks: new BlocksApi(client),
+    notifications: new NotificationsApi(client),
   };
 }
 

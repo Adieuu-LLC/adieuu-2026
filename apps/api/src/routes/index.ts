@@ -14,6 +14,9 @@ import { userRoutes } from './users';
 import { authRoutes } from './auth';
 import mfaRoutes from './mfa';
 import { identityRoutes } from './identity';
+import { blockRoutes } from './blocks';
+import { friendRoutes } from './friends';
+import { notificationRoutes } from './notifications';
 
 /**
  * Registers all application routes with the main router.
@@ -51,4 +54,13 @@ export function registerRoutes(app: Router): void {
 
   // Identity routes at /api
   app.merge(identityRoutes, '/api');
+
+  // Block routes at /api
+  app.merge(blockRoutes, '/api');
+
+  // Friend routes at /api
+  app.merge(friendRoutes, '/api');
+
+  // Notification routes at /api
+  app.merge(notificationRoutes, '/api');
 }

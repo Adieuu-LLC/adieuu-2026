@@ -36,7 +36,7 @@ export interface IIdentityRepository {
   findByIdent(ident: string): Promise<IdentityDocument | null>;
   findActiveByIdent(ident: string): Promise<IdentityDocument | null>;
   findByUsername(username: string): Promise<IdentityDocument | null>;
-  search(query: string, limit?: number): Promise<IdentityDocument[]>;
+  search(query: string, limit?: number, excludeIds?: ObjectId[]): Promise<IdentityDocument[]>;
   create(input: CreateIdentityInput): Promise<IdentityDocument>;
   updateByIdent(ident: string, update: UpdateIdentityInput): Promise<IdentityDocument | null>;
   softDelete(identityId: string | ObjectId): Promise<boolean>;
@@ -88,15 +88,17 @@ export class IdentityRepository
   /**
    * Search identities by username or displayName.
    * Case-insensitive partial matching.
-   * Excludes deleted identities.
+   * Excludes deleted identities and optionally excludes specific identity IDs.
    *
    * @param query - Search query (must be at least MIN_QUERY_LENGTH characters)
    * @param limit - Maximum number of results (default: DEFAULT_LIMIT, max: MAX_LIMIT)
+   * @param excludeIds - Optional array of identity IDs to exclude from results (e.g., blocked identities)
    * @returns Array of matching identity documents
    */
   async search(
     query: string,
-    limit: number = IDENTITY_SEARCH_DEFAULTS.DEFAULT_LIMIT
+    limit: number = IDENTITY_SEARCH_DEFAULTS.DEFAULT_LIMIT,
+    excludeIds?: ObjectId[]
   ): Promise<IdentityDocument[]> {
     if (query.length < IDENTITY_SEARCH_DEFAULTS.MIN_QUERY_LENGTH) {
       return [];
@@ -111,14 +113,22 @@ export class IdentityRepository
     const escapedQuery = sanitizeString(query, 'general').value;
     const regex = new RegExp(escapedQuery, 'i');
 
+    // Build filter
+    const filter: Record<string, unknown> = {
+      ident: { $ne: DELETED_IDENT },
+      $or: [
+        { username: regex },
+        { displayName: regex },
+      ],
+    };
+
+    // Exclude blocked identities if provided
+    if (excludeIds && excludeIds.length > 0) {
+      filter._id = { $nin: excludeIds };
+    }
+
     const results = await this.collection
-      .find({
-        ident: { $ne: DELETED_IDENT },
-        $or: [
-          { username: regex },
-          { displayName: regex },
-        ],
-      })
+      .find(filter)
       .limit(effectiveLimit)
       .toArray();
 
