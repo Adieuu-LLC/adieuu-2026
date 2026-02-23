@@ -4608,7 +4608,7 @@ a {
 .conversation-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh;
   width: 100%;
 }
 
@@ -4729,6 +4729,7 @@ a {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  position: relative;
 }
 
 .conversation-main {
@@ -4736,6 +4737,8 @@ a {
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 
 // ============================================================================
@@ -4744,6 +4747,7 @@ a {
 
 .conversation-messages {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: var(--spacing-md);
 
@@ -4772,6 +4776,7 @@ a {
   padding: var(--spacing-sm) var(--spacing-md);
   border-top: 1px solid var(--color-border);
   background: var(--color-bg-secondary);
+  flex-shrink: 0;
 
   &-field {
     flex: 1;
@@ -4806,12 +4811,14 @@ a {
 
 .conversation-members-sidebar {
   width: 280px;
+  height: 100%;
   border-left: 1px solid var(--color-border);
   background: var(--color-bg-secondary);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .conversation-members-header {
