@@ -1,4 +1,4 @@
-import { useState, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, cloneElement, isValidElement, type ReactNode } from 'react';
 import type { SidebarOrientation } from './Sidebar';
 
 export interface AppLayoutProps {
@@ -39,8 +39,8 @@ export function AppLayout({
   ].filter(Boolean).join(' ');
 
   // Clone the sidebar element and pass the onExpandedChange prop
-  const sidebarWithCallback = typeof sidebar === 'object' && sidebar !== null && 'type' in sidebar
-    ? { ...sidebar, props: { ...sidebar.props, onExpandedChange: handleSidebarExpandedChange } }
+  const sidebarWithCallback = isValidElement(sidebar)
+    ? cloneElement(sidebar, { onExpandedChange: handleSidebarExpandedChange })
     : sidebar;
 
   return (

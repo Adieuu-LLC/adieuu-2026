@@ -64,6 +64,12 @@ export function Sidebar({
     onExpandedChange?.(expanded);
   }, [onExpandedChange]);
 
+  // Notify parent of initial state on mount
+  useEffect(() => {
+    onExpandedChange?.(isExpanded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const toggleExpanded = useCallback(() => {
     setIsExpanded(!isExpanded);
   }, [isExpanded, setIsExpanded]);

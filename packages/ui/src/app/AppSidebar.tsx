@@ -350,11 +350,16 @@ function SidebarFooterContent() {
  * Main application sidebar with navigation links.
  * Shared across all platforms (web, desktop, mobile).
  */
-export function AppSidebar() {
+interface AppSidebarProps {
+  onExpandedChange?: (expanded: boolean) => void;
+}
+
+export function AppSidebar({ onExpandedChange }: AppSidebarProps) {
   return (
     <Sidebar
       header={<Logo size="sm" />}
       footer={<SidebarFooterContent />}
+      onExpandedChange={onExpandedChange}
     >
       <SidebarNavContent />
     </Sidebar>
