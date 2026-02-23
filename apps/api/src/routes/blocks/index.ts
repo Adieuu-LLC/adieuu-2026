@@ -28,22 +28,9 @@ import {
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { toPublicIdentity } from '../../models/identity';
 import { z } from '@adieuu/shared/schemas';
-import { ObjectId } from 'mongodb';
+import { isValidObjectId } from '../../utils';
 
 const router = new Router();
-
-/**
- * Validates that a string is a valid MongoDB ObjectId
- */
-function isValidObjectId(id: string): boolean {
-  if (!id || id.length !== 24) return false;
-  try {
-    new ObjectId(id);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Zod schema for block request

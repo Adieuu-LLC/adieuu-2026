@@ -2,7 +2,7 @@
  * Identity routes module.
  *
  * Provides endpoints for anonymous identity management including creation,
- * login, logout, and deletion.
+ * login, logout, deletion, and blocklist management.
  *
  * @module routes/identity
  *
@@ -11,33 +11,33 @@
  * - Identities are cryptographically unlinkable to users
  * - Rate limiting with progressive backoff prevents brute force attacks
  * - Lockout notifications alert users to potential attack attempts
+ *
+ * PRIVACY NOTES (Blocklist):
+ * - Blocks are invisible to the blocked party
+ * - Only the blocker can see their block list
+ * - Cannot check if someone has blocked you
  */
 
 import { Router } from '../../router';
-import { success, errors } from '../../utils/response';
-import { sanitizeString } from '../../utils/sanitize';
-import { getSessionFromRequest } from '../../services/session.service';
-import { getUserRepository } from '../../repositories/user.repository';
 import {
-  getIdentityRepository,
-  IDENTITY_SEARCH_DEFAULTS,
-} from '../../repositories/identity.repository';
-import {
-  createIdentity,
-  loginToIdentity,
-  logoutFromIdentity,
-  deleteIdentity,
-  getIdentityFromSession,
-  getIdentitySessionIdFromRequest,
-  buildIdentityLogoutCookie,
-  MIN_PASSPHRASE_LENGTH,
-} from '../../services/identity.service';
-import { toPublicIdentity } from '../../models/identity';
-import { getClientIp } from '../auth/controller';
-import { getBlockedIdentityIds } from '../../services/block.service';
-import { z } from '@adieuu/shared/schemas';
+  searchIdentitiesCtrl,
+  getIdentityByIdCtrl,
+  createIdentityCtrl,
+  loginIdentityCtrl,
+  logoutIdentityCtrl,
+  getIdentitySessionCtrl,
+  deleteIdentityCtrl,
+  getBlocklistCtrl,
+  addToBlocklistCtrl,
+  removeFromBlocklistCtrl,
+  checkBlocklistCtrl,
+} from './controller';
 
 const router = new Router();
+
+// ============================================================================
+// Identity Search
+// ============================================================================
 
 /**
  * GET /identity/search - Search for identities
@@ -55,73 +55,108 @@ const router = new Router();
  * @returns 400 Bad Request if query is too short
  */
 router.get('/identity/search', async (ctx) => {
-  const query = ctx.query.get('q')?.trim() ?? '';
-  const limitParam = ctx.query.get('limit');
-  const limit = limitParam ? parseInt(limitParam, 10) : IDENTITY_SEARCH_DEFAULTS.DEFAULT_LIMIT;
-
-  if (query.length < IDENTITY_SEARCH_DEFAULTS.MIN_QUERY_LENGTH) {
-    return errors.badRequest(
-      `Search query must be at least ${IDENTITY_SEARCH_DEFAULTS.MIN_QUERY_LENGTH} characters.`
-    );
-  }
-
-  if (isNaN(limit) || limit < 1) {
-    return errors.badRequest('Invalid limit parameter.');
-  }
-
-  // Get blocked identity IDs if caller has an identity session
-  let excludeIds;
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (identitySessionId) {
-    const identity = await getIdentityFromSession(identitySessionId);
-    if (identity) {
-      excludeIds = await getBlockedIdentityIds(identity._id);
-    }
-  }
-
-  const identityRepo = getIdentityRepository();
-  const results = await identityRepo.search(query, limit, excludeIds);
-
-  return success(results.map(toPublicIdentity));
+  return await searchIdentitiesCtrl(ctx);
 });
 
+// ============================================================================
+// Identity Session
+// ============================================================================
+
 /**
- * GET /identity/:id - Get a public identity by ID
+ * GET /identity/session - Get current identity session
  *
- * Public endpoint for fetching a specific identity's public profile.
+ * Returns the current identity's public profile if logged in.
  *
- * @route GET /api/identity/:id
- *
- * @param id (string, required): Identity ID
+ * @route GET /api/identity/session
  *
  * @returns 200 OK with identity profile
- * @returns 404 Not Found if identity doesn't exist
+ * @returns 401 Unauthorized if not logged into an identity
  */
-router.get('/identity/:id', async (ctx) => {
-  const identityId = ctx.params.id;
+router.get('/identity/session', async (ctx) => {
+  return await getIdentitySessionCtrl(ctx);
+});
 
-  if (!identityId || identityId.length !== 24) {
-    return errors.badRequest('Invalid identity ID.');
-  }
+// ============================================================================
+// Blocklist Management
+// ============================================================================
 
-  const identityRepo = getIdentityRepository();
-  const identity = await identityRepo.findByIdentityId(identityId);
-
-  if (!identity) {
-    return errors.notFound('Identity not found.');
-  }
-
-  return success(toPublicIdentity(identity));
+/**
+ * GET /identity/blocklist - Get list of blocked identities
+ *
+ * Returns the list of identities blocked by the current identity.
+ * Uses cursor-based pagination.
+ *
+ * @route GET /api/identity/blocklist
+ *
+ * @queryParam limit (number, optional): Max results (default: 50, max: 100)
+ * @queryParam cursor (string, optional): Pagination cursor
+ *
+ * @returns 200 OK with array of blocked identities and pagination cursor
+ * @returns 401 Unauthorized if not authenticated
+ */
+router.get('/identity/blocklist', async (ctx) => {
+  return await getBlocklistCtrl(ctx);
 });
 
 /**
- * Zod schema for identity creation
+ * POST /identity/blocklist - Block an identity
+ *
+ * Blocks the specified identity. Side effects:
+ * - Any existing friendship is removed (both directions)
+ * - Any pending friend requests between the identities are cancelled/ignored
+ * - Future friend requests from blocked identity are silently ignored
+ *
+ * @route POST /api/identity/blocklist
+ *
+ * @requestBody
+ * - `identityId` (string, required): The identity ID to block
+ *
+ * @returns 200 OK with success message
+ * @returns 400 Bad Request if cannot block yourself or already blocked
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 404 Not Found if identity doesn't exist
  */
-const CreateIdentitySchema = z.object({
-  passphrase: z.string().min(MIN_PASSPHRASE_LENGTH),
-  username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, underscores, and hyphens'),
-  displayName: z.string().min(1).max(50),
+router.post('/identity/blocklist', async (ctx) => {
+  return await addToBlocklistCtrl(ctx);
 });
+
+/**
+ * GET /identity/blocklist/check/:identityId - Check if an identity is blocked
+ *
+ * Checks if the current identity has blocked the specified identity.
+ * NOTE: This only checks if YOU have blocked them, not if they blocked you.
+ *
+ * @route GET /api/identity/blocklist/check/:identityId
+ *
+ * @param identityId (string, required): The identity ID to check
+ *
+ * @returns 200 OK with blocked status
+ * @returns 401 Unauthorized if not authenticated
+ */
+router.get('/identity/blocklist/check/:identityId', async (ctx) => {
+  return await checkBlocklistCtrl(ctx);
+});
+
+/**
+ * DELETE /identity/blocklist/:identityId - Unblock an identity
+ *
+ * Removes the block on the specified identity.
+ *
+ * @route DELETE /api/identity/blocklist/:identityId
+ *
+ * @param identityId (string, required): The identity ID to unblock
+ *
+ * @returns 200 OK with success message
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 404 Not Found if block doesn't exist
+ */
+router.delete('/identity/blocklist/:identityId', async (ctx) => {
+  return await removeFromBlocklistCtrl(ctx);
+});
+
+// ============================================================================
+// Identity CRUD
+// ============================================================================
 
 /**
  * POST /identity - Create a new identity
@@ -142,61 +177,7 @@ const CreateIdentitySchema = z.object({
  * @returns 409 Conflict if username is taken or max identities reached
  */
 router.post('/identity', async (ctx) => {
-  // Require authenticated user session
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session || !session.userId) {
-    return ctx.errors.unauthorized();
-  }
-
-  // Validate request body
-  const parseResult = CreateIdentitySchema.safeParse(ctx.body);
-  if (!parseResult.success) {
-    return ctx.errors.validationFailed();
-  }
-
-  const { passphrase, username, displayName: rawDisplayName } = parseResult.data;
-
-  // Sanitize displayName to remove control characters and other problematic chars
-  // Note: We don't log sanitization details to avoid log injection vectors
-  const { value: displayName } = sanitizeString(rawDisplayName, 'general');
-  if (!displayName || displayName.length === 0) {
-    return ctx.errors.validationFailed();
-  }
-
-  // Get user to obtain createdAt for salt
-  const userRepo = getUserRepository();
-  const user = await userRepo.findById(session.userId);
-  if (!user) {
-    return ctx.errors.unauthorized();
-  }
-
-  // Create identity
-  const result = await createIdentity(
-    user._id,
-    user.createdAt,
-    passphrase,
-    username,
-    displayName
-  );
-
-  if (!result.success) {
-    if (result.errorCode === 'MAX_IDENTITIES') {
-      return errors.conflict('Maximum number of identities reached.');
-    }
-    if (result.errorCode === 'USERNAME_TAKEN') {
-      return errors.conflict('Username is already taken.');
-    }
-    return errors.badRequest(result.error ?? 'Identity creation failed.');
-  }
-
-  return success(result.identity, 'Identity created successfully.');
-});
-
-/**
- * Zod schema for identity login
- */
-const LoginIdentitySchema = z.object({
-  passphrase: z.string().min(1),
+  return await createIdentityCtrl(ctx);
 });
 
 /**
@@ -215,90 +196,7 @@ const LoginIdentitySchema = z.object({
  * @returns 429 Too Many Requests if rate limited or locked out
  */
 router.post('/identity/login', async (ctx) => {
-  // Require authenticated user session
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session || !session.userId) {
-    return ctx.errors.unauthorized();
-  }
-
-  // Validate request body
-  const parseResult = LoginIdentitySchema.safeParse(ctx.body);
-  if (!parseResult.success) {
-    return ctx.errors.validationFailed();
-  }
-
-  const { passphrase } = parseResult.data;
-  const clientIp = getClientIp(ctx.request);
-  const userAgent = ctx.request.headers.get('User-Agent') ?? undefined;
-
-  // Get user to obtain createdAt for salt
-  const userRepo = getUserRepository();
-  const user = await userRepo.findById(session.userId);
-  if (!user) {
-    return ctx.errors.unauthorized();
-  }
-
-  // Attempt login
-  const result = await loginToIdentity(
-    user._id,
-    user.createdAt,
-    passphrase,
-    { userAgent, ipAddress: clientIp }
-  );
-
-  if (!result.success) {
-    // Handle different error codes
-    if (result.errorCode === 'LOCKED_OUT' || result.errorCode === 'RATE_LIMITED') {
-      const response = ctx.errors.rateLimited();
-      if (result.retryAfter) {
-        const headers = new Headers(response.headers);
-        headers.set('Retry-After', result.retryAfter.toString());
-
-        // Include helpful message in body
-        const body = JSON.stringify({
-          success: false,
-          error: result.error,
-          retryAfter: result.retryAfter,
-          attemptNumber: result.attemptNumber,
-        });
-
-        return new Response(body, {
-          status: 429,
-          headers: {
-            'Content-Type': 'application/json',
-            'Retry-After': result.retryAfter.toString(),
-          },
-        });
-      }
-      return response;
-    }
-
-    if (result.errorCode === 'INVALID_PASSPHRASE') {
-      // Return 401 with attempt info so client can show helpful message
-      const body = JSON.stringify({
-        success: false,
-        error: result.error,
-        attemptNumber: result.attemptNumber,
-        retryAfter: result.retryAfter,
-      });
-
-      return new Response(body, {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    return ctx.errors.unauthorized();
-  }
-
-  // Success - set identity session cookie
-  // Wrap identity in an object to match the expected IdentityLoginResponse type
-  const response = success({ identity: result.identity }, 'Identity login successful.');
-  const headers = new Headers(response.headers);
-  if (result.cookie) {
-    headers.set('Set-Cookie', result.cookie);
-  }
-  return new Response(response.body, { status: response.status, headers });
+  return await loginIdentityCtrl(ctx);
 });
 
 /**
@@ -311,51 +209,7 @@ router.post('/identity/login', async (ctx) => {
  * @returns 200 OK with cleared identity cookie
  */
 router.post('/identity/logout', async (ctx) => {
-  // Get identity session from cookie
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-
-  if (identitySessionId) {
-    await logoutFromIdentity(identitySessionId);
-  }
-
-  // Clear the identity cookie
-  const logoutCookie = buildIdentityLogoutCookie();
-
-  const response = success(undefined, 'Identity logout successful.');
-  const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', logoutCookie);
-  return new Response(response.body, { status: response.status, headers });
-});
-
-/**
- * GET /identity/session - Get current identity session
- *
- * Returns the current identity's public profile if logged in.
- *
- * @route GET /api/identity/session
- *
- * @returns 200 OK with identity profile
- * @returns 401 Unauthorized if not logged into an identity
- */
-router.get('/identity/session', async (ctx) => {
-  // Require authenticated user session
-  const userSession = await getSessionFromRequest(ctx.request);
-  if (!userSession || !userSession.userId) {
-    return ctx.errors.unauthorized();
-  }
-
-  // Get identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
-
-  return success(toPublicIdentity(identity));
+  return await logoutIdentityCtrl(ctx);
 });
 
 /**
@@ -370,36 +224,28 @@ router.get('/identity/session', async (ctx) => {
  * @returns 401 Unauthorized if not logged into an identity
  */
 router.delete('/identity', async (ctx) => {
-  // Require authenticated user session
-  const userSession = await getSessionFromRequest(ctx.request);
-  if (!userSession || !userSession.userId) {
-    return ctx.errors.unauthorized();
-  }
+  return await deleteIdentityCtrl(ctx);
+});
 
-  // Get identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
+// ============================================================================
+// Identity Profile (parameterized - must be last)
+// ============================================================================
 
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
-
-  // Delete the identity
-  const result = await deleteIdentity(identity._id, identitySessionId);
-  if (!result.success) {
-    return errors.badRequest(result.error ?? 'Identity deletion failed.');
-  }
-
-  // Clear the identity cookie
-  const logoutCookie = buildIdentityLogoutCookie();
-
-  const response = success(undefined, 'Identity deleted successfully.');
-  const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', logoutCookie);
-  return new Response(response.body, { status: response.status, headers });
+/**
+ * GET /identity/:id - Get a public identity by ID
+ *
+ * Public endpoint for fetching a specific identity's public profile.
+ * NOTE: This route must be defined last as it matches any path segment.
+ *
+ * @route GET /api/identity/:id
+ *
+ * @param id (string, required): Identity ID
+ *
+ * @returns 200 OK with identity profile
+ * @returns 404 Not Found if identity doesn't exist
+ */
+router.get('/identity/:id', async (ctx) => {
+  return await getIdentityByIdCtrl(ctx);
 });
 
 export const identityRoutes = router;

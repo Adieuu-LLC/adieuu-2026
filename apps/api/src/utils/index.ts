@@ -38,6 +38,7 @@ export * from './sanitize';
 export * from './crypto';
 export * from './timing';
 export * from './identity-hash';
+export * from './isValidObjectId';
 
 /**
  * Re-export the logger as both named exports.

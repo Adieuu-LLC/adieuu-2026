@@ -277,9 +277,9 @@ export class Router {
         return contextErrors.notFound();
       }
 
-      // Parse body for POST/PUT/PATCH
+      // Parse body for POST/PUT/PATCH/DELETE
       let body: unknown;
-      if (['POST', 'PUT', 'PATCH'].includes(method)) {
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
         // Check Content-Length to prevent DoS via large payloads
         const contentLength = request.headers.get('Content-Length');
         if (contentLength) {
@@ -297,7 +297,10 @@ export class Router {
             if (text.length > this.maxBodySize) {
               return contextErrors.payloadTooLarge();
             }
-            body = JSON.parse(text);
+            // Only parse if there's actual content (empty body is valid for some requests)
+            if (text.length > 0) {
+              body = JSON.parse(text);
+            }
           } catch (e) {
             if (e instanceof SyntaxError) {
               return contextErrors.badRequest();
