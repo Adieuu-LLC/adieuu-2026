@@ -21,6 +21,7 @@ export const en = {
     duplicate: 'Duplicate',
     share: 'Share',
     copy: 'Copy',
+    comingSoon: 'Coming soon',
   },
 
   // Navigation
@@ -38,6 +39,18 @@ export const en = {
     main: 'Main',
     account: 'Account',
     identity: 'Identity',
+    comingSoon: '{{feature}} coming soon.',
+    tabs: {
+      friends: 'Friends',
+      conversations: 'Conversations',
+      spaces: 'Spaces',
+    },
+    friends: {
+      loginRequired: 'Log in to see your friends.',
+      error: 'Failed to load friends.',
+      empty: 'No friends yet.',
+      findFriends: 'Find friends',
+    },
   },
 
   // Search
@@ -171,6 +184,13 @@ export const en = {
       friends: 'Friends',
       contentSocial: 'Content & Social',
       ciphers: 'Ciphers',
+    },
+    // Actions for identity interactions
+    actions: {
+      message: 'Message',
+      viewProfile: 'View Profile',
+      addFriend: 'Add Friend',
+      removeFriend: 'Remove Friend',
     },
     // Create modal
     create: {

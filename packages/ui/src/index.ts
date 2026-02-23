@@ -96,6 +96,10 @@ export { Tooltip } from './components/Tooltip';
 export { ToastProvider, useToast } from './components/Toast';
 export { SidebarSearch } from './components/SidebarSearch';
 export { IdentityCard, IdentityCardCompact } from './components/IdentityCard';
+export { HoverCard } from './components/HoverCard';
+export { SidebarTabs } from './components/SidebarTabs';
+export { FriendListItem } from './components/FriendListItem';
+export { SidebarFriendsList } from './components/SidebarFriendsList';
 
 // ============================================================================
 // Icons
@@ -118,6 +122,7 @@ export {
   MaskIcon,
   PlusIcon,
   InfoCircleIcon,
+  SpacesIcon,
 } from './components/Icons';
 
 // ============================================================================
@@ -152,8 +157,11 @@ export type {
   TourRootProps,
   TourApi,
 } from './components/Tour';
-export type { AvatarProps, AvatarInfo } from './components/Avatar';
+export type { AvatarProps, AvatarInfo, AvatarSize } from './components/Avatar';
 export type { TooltipProps } from './components/Tooltip';
 export type { ToastOptions, ToastVariant, ToastContextValue, ToastProviderProps } from './components/Toast';
 export type { SidebarSearchProps } from './components/SidebarSearch';
 export type { IdentityCardProps } from './components/IdentityCard';
+export type { HoverCardProps } from './components/HoverCard';
+export type { SidebarTab, SidebarTabsProps } from './components/SidebarTabs';
+export type { FriendListItemProps } from './components/FriendListItem';

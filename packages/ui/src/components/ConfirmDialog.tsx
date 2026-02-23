@@ -5,7 +5,7 @@ import { Button } from './Button';
 /**
  * Confirmation dialog variant types.
  */
-export type ConfirmDialogVariant = 'default' | 'danger';
+export type ConfirmDialogVariant = 'default' | 'danger' | 'warning';
 
 /**
  * Props for the ConfirmDialog component.

@@ -21,15 +21,42 @@ export interface AvatarInfo {
   hash: string;
 }
 
+/** Predefined avatar sizes */
+export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+
+const AVATAR_SIZES: Record<AvatarSize, number> = {
+  xs: 24,
+  sm: 32,
+  md: 48,
+  lg: 64,
+  xl: 80,
+};
+
 export interface AvatarProps {
-  /** Avatar data from the API */
+  /** Avatar data from the API (for deterministic avatars) */
   data?: AvatarInfo;
-  /** Size in pixels (default: 80) */
-  size?: number;
-  /** Fallback initial to display if no avatar data */
+  /** Image URL (for simple image avatars) */
+  src?: string;
+  /** Name to derive initials from (for simple avatars without image) */
+  name?: string;
+  /** Size - either a preset name or pixel value (default: 80) */
+  size?: AvatarSize | number;
+  /** Fallback initial to display if no avatar data or image */
   fallbackInitial?: string;
   /** CSS class name */
   className?: string;
+}
+
+/**
+ * Gets initials from a name for avatar placeholder.
+ */
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
 }
 
 /**
@@ -95,35 +122,56 @@ function generateAvatarSvg(data: AvatarInfo, size: number): string {
 }
 
 /**
- * Avatar component that displays a deterministic person avatar.
+ * Avatar component that displays either a deterministic person avatar,
+ * a simple image avatar, or initials placeholder.
  */
-export function Avatar({ data, size = 80, fallbackInitial = '?', className }: AvatarProps) {
+export function Avatar({ data, src, name, size = 80, fallbackInitial = '?', className }: AvatarProps) {
+  const pixelSize = typeof size === 'string' ? AVATAR_SIZES[size] : size;
+
   const svgDataUri = useMemo(() => {
     if (!data) return null;
-    const svg = generateAvatarSvg(data, size);
+    const svg = generateAvatarSvg(data, pixelSize);
     const base64 = btoa(svg);
     return `data:image/svg+xml;base64,${base64}`;
-  }, [data, size]);
+  }, [data, pixelSize]);
 
-  if (!data) {
+  const initials = name ? getInitials(name) : fallbackInitial;
+
+  // If we have a src URL, render a simple image avatar
+  if (src) {
     return (
-      <div
-        className={`account-avatar-placeholder ${className || ''}`}
-        style={{ width: size, height: size }}
-      >
-        {fallbackInitial}
-      </div>
+      <img
+        src={src}
+        alt={name ?? 'User avatar'}
+        width={pixelSize}
+        height={pixelSize}
+        className={`avatar ${className || ''}`}
+        style={{ borderRadius: '50%', objectFit: 'cover' }}
+      />
     );
   }
 
+  // If we have deterministic avatar data, render the SVG
+  if (data && svgDataUri) {
+    return (
+      <img
+        src={svgDataUri}
+        alt={name ?? 'User avatar'}
+        width={pixelSize}
+        height={pixelSize}
+        className={`avatar ${className || ''}`}
+        style={{ borderRadius: '50%' }}
+      />
+    );
+  }
+
+  // Fallback to initials placeholder
   return (
-    <img
-      src={svgDataUri ?? undefined}
-      alt="User avatar"
-      width={size}
-      height={size}
-      className={className}
-      style={{ borderRadius: '50%' }}
-    />
+    <div
+      className={`avatar avatar-placeholder ${className || ''}`}
+      style={{ width: pixelSize, height: pixelSize }}
+    >
+      {initials}
+    </div>
   );
 }

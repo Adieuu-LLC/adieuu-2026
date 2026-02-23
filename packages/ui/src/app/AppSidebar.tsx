@@ -8,9 +8,11 @@ import {
   useSidebar,
 } from '../components/Sidebar';
 import { SidebarSearch } from '../components/SidebarSearch';
+import { SidebarTabs, type SidebarTab } from '../components/SidebarTabs';
+import { SidebarFriendsList } from '../components/SidebarFriendsList';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
-import { HomeIcon, InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon } from '../components/Icons';
+import { HomeIcon, InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon, MessageIcon, SpacesIcon } from '../components/Icons';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
 import { IdentityModal } from './IdentityModal';
@@ -243,14 +245,50 @@ function IdentityFlyout() {
 }
 
 /**
+ * Placeholder content for tabs that are coming soon.
+ */
+function ComingSoonPlaceholder({ label }: { label: string }) {
+  const { t } = useTranslation();
+  const { isExpanded } = useSidebar();
+
+  return (
+    <div className="sidebar-coming-soon">
+      {isExpanded && (
+        <p>{t('sidebar.comingSoon', { feature: label })}</p>
+      )}
+    </div>
+  );
+}
+
+/**
  * Navigation content component that has access to sidebar context.
  */
 function SidebarNavContent() {
   const { t } = useTranslation();
   const location = useLocation();
-  const { closeMobile } = useSidebar();
+  const { closeMobile, isExpanded } = useSidebar();
+  const [activeTab, setActiveTab] = useState('friends');
 
   const isActive = (path: string) => location.pathname === path;
+
+  const tabs: SidebarTab[] = [
+    { id: 'friends', icon: <UsersIcon />, label: t('sidebar.tabs.friends') },
+    { id: 'conversations', icon: <MessageIcon />, label: t('sidebar.tabs.conversations') },
+    { id: 'spaces', icon: <SpacesIcon />, label: t('sidebar.tabs.spaces') },
+  ];
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'friends':
+        return <SidebarFriendsList />;
+      case 'conversations':
+        return <ComingSoonPlaceholder label={t('sidebar.tabs.conversations')} />;
+      case 'spaces':
+        return <ComingSoonPlaceholder label={t('sidebar.tabs.spaces')} />;
+      default:
+        return null;
+    }
+  };
 
   return (
     <>
@@ -273,6 +311,17 @@ function SidebarNavContent() {
           />
         </Link>
       </SidebarSection>
+
+      <div className="sidebar-tabs-section">
+        <SidebarTabs
+          tabs={tabs}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+        <div className="sidebar-tab-content">
+          {renderTabContent()}
+        </div>
+      </div>
     </>
   );
 }

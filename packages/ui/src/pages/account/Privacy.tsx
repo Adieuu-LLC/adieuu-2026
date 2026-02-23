@@ -92,11 +92,11 @@ export function AccountPrivacy() {
         </Card>
 
         <ConfirmDialog
-          isOpen={confirmUnblock !== null}
-          onClose={() => setConfirmUnblock(null)}
+          open={confirmUnblock !== null}
+          onOpenChange={(open) => !open && setConfirmUnblock(null)}
           onConfirm={() => confirmUnblock && handleUnblock(confirmUnblock)}
           title={t('blocked.unblock')}
-          message={t('blocked.confirmUnblock')}
+          description={t('blocked.confirmUnblock')}
           confirmLabel={t('blocked.unblock')}
           variant="warning"
         />

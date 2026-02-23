@@ -39,6 +39,13 @@ export {
   type LoginIdentityParams,
   type IdentityLoginResponse,
   type IdentityLoginErrorResponse,
+  // Friends types
+  type Friend,
+  type FriendshipStatus,
+  type IncomingFriendRequest,
+  type SentFriendRequest,
+  // Blocked types
+  type BlockedIdentity,
 } from './client';
 
 export {

@@ -249,7 +249,7 @@ export function IdentityFriends() {
         </div>
 
         <Card variant="elevated" className="slide-up friends-card">
-          <Tabs defaultValue="friends">
+          <Tabs defaultTab="friends">
             <TabList>
               <TabTrigger value="friends">{t('friends.title')}</TabTrigger>
               <TabTrigger value="incoming">
