@@ -14,9 +14,9 @@ This document outlines available options, their security trade-offs, and recomme
 |----------|-------------------|----------|
 | Desktop | Filesystem, OS keychain, TPM | N/A |
 | Mobile | Keystore (Android), Keychain (iOS), TEE | N/A |
-| Web | localStorage, IndexedDB, Cookies, Web Crypto | High |
+| Web | IndexedDB, Cookies, Web Crypto | High |
 
-Web applications face a fundamental limitation: any JavaScript running on the page (including XSS payloads) can potentially access stored key material. The goal is to minimize both the attack surface and the impact of a successful XSS attack.
+Web applications face a fundamental limitation: any JavaScript running on the page (including XSS payloads) can potentially access stored key material. The goal is to minimize both the attack surface and the impact of a successful XSS attack. In general, it's going to always be better to use a Desktop or Mobile app, since they have access to the filesystem and TEEs, which are not available on the web.
 
 ---
 

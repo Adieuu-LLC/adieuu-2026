@@ -10,12 +10,13 @@ body {
 // Custom Window Title Bar (Windows/Linux)
 // =============================================================================
 
+$title-bar-height: 32px;
 .window-title-bar {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 32px;
+  height: $title-bar-height;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -67,6 +68,12 @@ body {
   .app-layout,
   .auth-page {
     padding-top: 32px;
+    min-height: calc(100vh - 32px); // Account for title bar padding
+
+    .app-content {
+      min-height: 90vh;
+      height: calc(100vh - $title-bar-height);
+    }
   }
 }
 
@@ -76,7 +83,7 @@ body {
 
 .page-content {
   padding: var(--spacing-xl);
-  min-height: 100vh;
+  min-height: calc(100vh - $title-bar-height);
 }
 
 .container {
