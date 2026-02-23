@@ -78,7 +78,7 @@ const PROFILES: Record<CryptoProfile, CryptoProfileConfig> = {
 - Default profile recommended for consumer use (smaller payloads, faster)
 - CNSA 2.0 profile for regulated/enterprise deployments
 
-**Note:** CNSA 2.0 compliance requires third-party validation (CAVP/CMVP/NIAP), not self-declaration. Using CNSA 2.0 algorithms does not automatically confer compliance—formal validation processes apply for NSS deployments.
+**Note:** Disclaimer to Adieuu Users: CNSA 2.0 compliance requires third-party validation (CAVP/CMVP/NIAP), which Adieuu does not presently have but may seek to attain later. We wanted to go ahead and ensure our architecture allows for CNSA 2.0 on the technical side, and we'll handle the red tape later.
 
 ### 1.2 Hybrid Encryption Flow
 
@@ -153,6 +153,7 @@ Client stores:
 - Risk: Offline brute-force if database leaked (mitigated by strong passphrase + high KDF cost)
 
 #### Option B: Maximum Security (User opt-in)
+This will be added later, post-MVP. Most users aren't expected to to want to trade the convenience for per-device keys.
 
 ```
 Server stores:
@@ -169,19 +170,9 @@ Client stores:
 - No server-stored encrypted keys to attack
 - Risk: Lost backup = lost identity
 
-### 2.3 No Per-Device Keys (Simplification)
-
-Unlike the original proposal, we use **identity-level keys** (not per-device keys) for message encryption. This simplifies multi-device significantly:
-
-- All devices share the same key material
-- Any device can decrypt any message (sent or received)
-- No complex device-to-device key transfer needed
-
----
-
 ## 3. Direct Messages (DMs)
 
-### 3.1 Encryption Model: Per-Message Session Key (Option A)
+### 3.1 Encryption Model: Per-Message Session Key 
 
 Each message gets a fresh random session key:
 
