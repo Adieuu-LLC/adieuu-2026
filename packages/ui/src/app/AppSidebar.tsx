@@ -10,6 +10,7 @@ import {
 import { SidebarSearch } from '../components/SidebarSearch';
 import { SidebarTabs, type SidebarTab } from '../components/SidebarTabs';
 import { SidebarFriendsList } from '../components/SidebarFriendsList';
+import { SidebarConversationsList } from '../components/SidebarConversationsList';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
 import { HomeIcon, InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon, MessageIcon, SpacesIcon } from '../components/Icons';
@@ -282,7 +283,7 @@ function SidebarNavContent() {
       case 'friends':
         return <SidebarFriendsList />;
       case 'conversations':
-        return <ComingSoonPlaceholder label={t('sidebar.tabs.conversations')} />;
+        return <SidebarConversationsList />;
       case 'spaces':
         return <ComingSoonPlaceholder label={t('sidebar.tabs.spaces')} />;
       default:

@@ -1110,6 +1110,40 @@ export class NotificationsApi {
 }
 
 // ============================================================================
+// Conversation Types
+// ============================================================================
+
+/**
+ * Member of a conversation with their identity info.
+ */
+export interface ConversationMember {
+  identity: PublicIdentity;
+  joinedAt: string;
+}
+
+/**
+ * Conversation type - direct (1-1) or group (1-many).
+ */
+export type ConversationType = 'direct' | 'group';
+
+/**
+ * Conversation with members and metadata.
+ * Note: customTitle is per-identity (each user can label conversations differently).
+ */
+export interface Conversation {
+  id: string;
+  type: ConversationType;
+  members: ConversationMember[];
+  /** User's custom label for this conversation (optional, per-identity) */
+  customTitle?: string;
+  /** Timestamp of the last message */
+  lastMessageAt: string;
+  /** Number of unread messages for the current identity */
+  unreadCount: number;
+  createdAt: string;
+}
+
+// ============================================================================
 // Factory Functions
 // ============================================================================
 

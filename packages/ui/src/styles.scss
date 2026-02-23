@@ -4418,3 +4418,585 @@ a {
     }
   }
 }
+
+// ============================================================================
+// Avatar Group
+// ============================================================================
+
+.avatar-group {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+
+  &-item {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--color-bg-tertiary);
+    border: 2px solid var(--color-bg-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: -8px;
+    position: relative;
+
+    &:first-child {
+      margin-left: 0;
+    }
+  }
+
+  &-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  &-placeholder {
+    font-size: 10px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+  }
+
+  &-overflow {
+    background: var(--color-bg-tertiary);
+  }
+
+  &-overflow-text {
+    font-size: 9px;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-secondary);
+  }
+}
+
+// ============================================================================
+// Conversation List Item
+// ============================================================================
+
+.conversation-list-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+  text-decoration: none;
+  color: inherit;
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+
+  &-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--color-bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    &-placeholder {
+      font-size: var(--font-size-xs);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text-muted);
+    }
+  }
+
+  &-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+
+  &-title {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &-members {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &-badge {
+    flex-shrink: 0;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: var(--radius-full);
+    background: var(--color-accent-primary);
+    color: var(--color-text-inverse);
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+// Collapsed sidebar: show only avatar
+.sidebar-collapsed .conversation-list-item {
+  justify-content: center;
+  padding: var(--spacing-xs);
+
+  &-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 14px;
+    height: 14px;
+    font-size: 9px;
+    padding: 0 3px;
+  }
+}
+
+// ============================================================================
+// Sidebar Conversations List
+// ============================================================================
+
+.sidebar-conversations-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) 0;
+}
+
+.sidebar-conversations-empty,
+.sidebar-conversations-loading,
+.sidebar-conversations-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+
+  p {
+    margin: 0;
+  }
+}
+
+// ============================================================================
+// Conversation Page
+// ============================================================================
+
+.conversation-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--color-bg-primary);
+}
+
+.conversation-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.conversation-loading,
+.conversation-not-found {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--spacing-md);
+  color: var(--color-text-muted);
+
+  p {
+    margin: 0;
+    font-size: var(--font-size-md);
+  }
+}
+
+// ============================================================================
+// Conversation Toolbar
+// ============================================================================
+
+.conversation-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  flex-shrink: 0;
+  min-height: 56px;
+
+  &-left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    min-width: 0;
+  }
+
+  &-avatar-link {
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+
+  &-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--color-bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    &-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    &-placeholder {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text-muted);
+    }
+  }
+
+  &-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &-title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &-subtitle {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &-right {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-shrink: 0;
+  }
+
+  &-btn {
+    padding: var(--spacing-xs);
+    
+    &.active {
+      background: var(--color-bg-active);
+      color: var(--color-accent-primary);
+    }
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+}
+
+// ============================================================================
+// Conversation Body
+// ============================================================================
+
+.conversation-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.conversation-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+// ============================================================================
+// Conversation Messages
+// ============================================================================
+
+.conversation-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+
+  &-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+
+    p {
+      margin: 0;
+    }
+  }
+}
+
+// ============================================================================
+// Conversation Input
+// ============================================================================
+
+.conversation-input {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+
+  &-field {
+    flex: 1;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-family: var(--font-sans);
+    outline: none;
+    transition: border-color var(--transition-fast);
+
+    &::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    &:focus {
+      border-color: var(--color-border-focus);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+// ============================================================================
+// Conversation Members Sidebar
+// ============================================================================
+
+.conversation-members-sidebar {
+  width: 280px;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+.conversation-members-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-muted);
+
+  h3 {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+}
+
+.conversation-members-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  background: var(--color-bg-tertiary);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.conversation-members-list {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-xs);
+}
+
+.conversation-member-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: inherit;
+  transition: background-color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+}
+
+.conversation-member-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  &-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  &-placeholder {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+  }
+}
+
+.conversation-member-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.conversation-member-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conversation-member-username {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+// ============================================================================
+// Conversation Member Profile (for 1-1 DMs)
+// ============================================================================
+
+.conversation-member-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-lg);
+  text-align: center;
+
+  &-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--color-bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--spacing-md);
+
+    &-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    &-placeholder {
+      font-size: var(--font-size-2xl);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text-muted);
+    }
+  }
+
+  &-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+  }
+
+  &-name {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-xs);
+  }
+
+  &-username {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  &-bio {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  &-link {
+    text-decoration: none;
+    margin-top: var(--spacing-md);
+  }
+}
+
+// ============================================================================
+// Conversation Page Responsive
+// ============================================================================
+
+@media (max-width: $mobile-breakpoint) {
+  .conversation-members-sidebar {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 10;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .conversation-toolbar {
+    padding: var(--spacing-xs) var(--spacing-sm);
+    min-height: 48px;
+
+    &-avatar {
+      width: 32px;
+      height: 32px;
+    }
+
+    &-title {
+      font-size: var(--font-size-sm);
+    }
+  }
+}

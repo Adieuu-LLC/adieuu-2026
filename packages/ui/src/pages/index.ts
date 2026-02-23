@@ -2,6 +2,7 @@
 export { Home } from './Home';
 export { About } from './About';
 export { Search } from './Search';
+export { Conversation } from './Conversation';
 
 // Auth pages
 export { Login, Verify } from './auth';

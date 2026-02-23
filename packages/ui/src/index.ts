@@ -47,6 +47,7 @@ export { useAuth, AuthProvider } from './hooks/useAuth';
 export { useIdentity, IdentityProvider } from './hooks/useIdentity';
 export { useTourContext, TourProvider } from './hooks/useTourContext';
 export { useIdentitySearch } from './hooks/useIdentitySearch';
+export { useConversationsList } from './hooks/useConversations';
 
 export type {
   AuthStatus,
@@ -67,6 +68,10 @@ export type {
   UseIdentitySearchOptions,
   UseIdentitySearchResult,
 } from './hooks/useIdentitySearch';
+export type {
+  UseConversationsListOptions,
+  UseConversationsListResult,
+} from './hooks/useConversations';
 
 // ============================================================================
 // UI Components
@@ -100,6 +105,9 @@ export { HoverCard } from './components/HoverCard';
 export { SidebarTabs } from './components/SidebarTabs';
 export { FriendListItem } from './components/FriendListItem';
 export { SidebarFriendsList } from './components/SidebarFriendsList';
+export { AvatarGroup } from './components/AvatarGroup';
+export { ConversationListItem } from './components/ConversationListItem';
+export { SidebarConversationsList } from './components/SidebarConversationsList';
 
 // ============================================================================
 // Icons
@@ -165,3 +173,5 @@ export type { IdentityCardProps } from './components/IdentityCard';
 export type { HoverCardProps } from './components/HoverCard';
 export type { SidebarTab, SidebarTabsProps } from './components/SidebarTabs';
 export type { FriendListItemProps } from './components/FriendListItem';
+export type { AvatarGroupProps } from './components/AvatarGroup';
+export type { ConversationListItemProps } from './components/ConversationListItem';

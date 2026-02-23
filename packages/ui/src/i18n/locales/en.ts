@@ -51,6 +51,30 @@ export const en = {
       empty: 'No friends yet.',
       findFriends: 'Find friends',
     },
+    conversations: {
+      loginRequired: 'Log in to see your conversations.',
+      error: 'Failed to load conversations.',
+      empty: 'No conversations yet.',
+    },
+  },
+
+  // Conversation Page
+  conversation: {
+    loginRequired: 'Log in to view this conversation.',
+    notFound: 'Conversation not found.',
+    goHome: 'Go Home',
+    unknown: 'Unknown',
+    memberCount: '{{count}} members',
+    memberCount_one: '1 member',
+    memberCount_other: '{{count}} members',
+    toggleMembers: 'Toggle members',
+    close: 'Close conversation',
+    members: 'Members',
+    profile: 'Profile',
+    viewProfile: 'View Profile',
+    messagesPlaceholder: 'Messages will appear here.',
+    inputPlaceholder: 'Type a message...',
+    send: 'Send',
   },
 
   // Search
