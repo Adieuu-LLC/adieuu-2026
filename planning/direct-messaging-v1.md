@@ -138,8 +138,8 @@ SENDER encrypts message to RECIPIENT:
    c. Derive: wrapping_key = HKDF-SHA3-256(ecdh_shared || kem_shared)
    d. Wrap: wrapped_key = AES-GCM(wrapping_key, sessionKey)
 
-4. Sign everything
-   signature = Ed25519.Sign(senderSigningKey, hash(ciphertext || wrappedKeys))
+4. Sign everything (Ed25519 internally hashes, no external pre-hash needed)
+   signature = Ed25519.Sign(senderSigningKey, ciphertext || wrappedKeys)
 
 5. Send: { ciphertext, nonce, wrappedKeys[], ephemeralPublicKeys, kemCiphertexts, signature }
 ```
@@ -151,44 +151,98 @@ SENDER encrypts message to RECIPIENT:
 
 ## 2. Key Hierarchy
 
-### 2.1 Identity Keys
+### 2.1 Identity and Device Keys
 
-Each Identity has a single set of keys shared across all their devices:
+Each Identity has a signing key for authentication, plus per-device encryption keys:
 
 ```
 Identity (@alice)
 ├── Identity Signing Key (Ed25519)
 │   └── Signs messages, proves sender authenticity
-├── Identity ECDH Key (X25519)
-│   └── Used for key agreement in encryption
-└── Identity KEM Key (ML-KEM-768)
-    └── Post-quantum key encapsulation
+│   └── Shared across all devices (from encrypted bundle)
+│
+└── Devices[]
+    ├── Device 1
+    │   ├── ECDH Key (X25519) - key agreement
+    │   └── KEM Key (ML-KEM-768) - post-quantum encapsulation
+    ├── Device 2
+    │   ├── ECDH Key (X25519)
+    │   └── KEM Key (ML-KEM-768)
+    └── ...
 ```
 
-### 2.2 Key Storage Options
+**Why per-device encryption keys?**
+- Enables decryption on any device without key synchronization
+- Device compromise only exposes that device's encryption keys
+- Signing key remains identity-level for consistent sender authentication
 
-Balanced (Default)
+**Device Registration:**
+1. User logs into new device with identity passphrase
+2. Device generates its own ECDH/KEM key pair locally
+3. Device registers its public keys with the server
+4. Private keys stored locally (IndexedDB, non-extractable)
 
+### 2.2 Key Storage
+
+**Server-Side (Signing Key Bundle):**
 ```
-Server stores:
-  encrypted_key_bundle = AES-GCM(
-    key: Argon2id(identity_passphrase, salt, iterations=600000),
-    plaintext: identity_private_keys
-  )
+EncryptedKeyBundle collection:
+  bundleId: SHA3-256(identity._id || "adieuu-key-bundle-v1")  // Obfuscated
+  encryptedBundle: AES-GCM(key, signingPrivateKey)
+  salt: Uint8Array(16)
+  nonce: Uint8Array(12)
+  useSeparatePassphrase: boolean
+  createdAt, updatedAt
+```
 
-Client stores:
-  - Decrypted keys as non-extractable CryptoKey objects (IndexedDB)
-  - ML-KEM private key encrypted at rest with derived key
+The `bundleId` is derived from the identity ID, not stored directly. This obfuscates bundle ownership - an attacker with DB access cannot trivially link bundles to identities.
+
+**Passphrase Options:**
+- **Default**: `key = Argon2id(identity_passphrase, salt)`
+- **Advanced** (opt-in): `key = Argon2id(separate_bundle_passphrase, salt)`
+
+Users may opt-in to a separate bundle passphrase during identity creation ("Use additional passphrase for encryption keys" checkbox). With separate passphrases, compromising the identity passphrase alone does not expose the signing key.
+
+**Client-Side (Device Keys):**
+```
+IndexedDB:
+  - Device ECDH private key (non-extractable CryptoKey)
+  - Device KEM private key (non-extractable CryptoKey)
+  - Cached signing key (non-extractable, decrypted from bundle)
 ```
 
 **Properties:**
-- New device login: Enter passphrase → server sends encrypted bundle → decrypt locally
+- New device login: Enter passphrase(s) → decrypt signing key → generate device encryption keys → register device
 - No QR scanning required
+- Device keys never leave the device
 - Risk: Offline brute-force if database leaked (mitigated by strong passphrase + high KDF cost)
 
+### 2.3 Identity Storage Model
 
-Maximum Security (Device-Only, User Opt-In)
-This option isn't discussed here and wont be available until later, post-MVP. Most users aren't expected to to want to trade the convenience for per-device keys.
+```typescript
+interface IdentityDocument {
+  _id: ObjectId;
+  ident: string;                    // Existing: derived identity hash
+  username: string;
+  displayName: string;
+  // ... existing profile fields ...
+
+  preferredCryptoProfile: CryptoProfile;  // 'default' | 'cnsa2'
+  
+  signingPublicKey: string;         // Ed25519 public key (base64)
+  
+  devices: [{
+    deviceId: string;               // Unique device identifier
+    name: string;                   // User-friendly name ("iPhone", "Work Laptop")
+    ecdhPublicKey: string;          // X25519 public key (base64)
+    kemPublicKey: string;           // ML-KEM public key (base64)
+    registeredAt: Date;
+    lastActiveAt: Date;
+  }];
+}
+```
+
+When sending a message to an identity, the sender fetches all device public keys and wraps the session key for each.
 
 
 ## 3. Direct Messages (DMs)
@@ -218,6 +272,116 @@ Alice (2 devices) → Bob (3 devices)
 - Sender's other devices CAN read sent messages (included in wrappedKeys)
 - Recipient's all devices CAN read received messages
 - No sync protocol needed - server delivers to all devices
+
+### 3.3 Message Metadata and Features
+
+**Message Storage Model:**
+```typescript
+interface EncryptedMessage {
+  _id: ObjectId;
+  conversationId: ObjectId;
+  fromIdentityId: ObjectId;
+  fromDeviceId: string;
+  
+  // Encrypted payload
+  ciphertext: string;           // Base64
+  nonce: string;                // Base64
+  wrappedKeys: WrappedKey[];
+  signature: string;            // Base64
+  cryptoProfile: CryptoProfile;
+  
+  // Metadata (server-managed)
+  createdAt: Date;
+  expiresAt?: Date;             // Optional TTL
+  clientMessageId: string;      // Deduplication
+  replyToId?: ObjectId;         // Threading
+  
+  // Deletion tracking
+  deletedForEveryone: boolean;
+  deletedFor: ObjectId[];       // Identities who deleted for self
+}
+```
+
+**Ordering:** Eventual consistency with server timestamps (see e2e-chat-architecture.md section 10.8).
+
+**Persistence:**
+- Default: No expiration
+- Optional: Sender-specified TTL via `expiresAt`
+- Server purges expired messages
+
+**Deletion:**
+- **Sender**: Can delete for everyone (`deletedForEveryone = true`)
+- **Recipient**: Can delete for self (added to `deletedFor[]`)
+- Deleted messages return tombstone to clients, not full payload
+
+### 3.4 Reactions
+
+Reactions are encrypted mini-messages referencing the original:
+
+```typescript
+interface EncryptedReaction {
+  _id: ObjectId;
+  messageId: ObjectId;          // Message being reacted to
+  conversationId: ObjectId;
+  fromIdentityId: ObjectId;
+  
+  // Encrypted payload (contains emoji/reaction type)
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: WrappedKey[];
+  signature: string;
+  
+  createdAt: Date;
+}
+```
+
+**Flow:**
+1. Reactor encrypts reaction (emoji) with fresh session key
+2. Wrap session key for all devices (both participants)
+3. Sign with reactor's identity signing key
+4. Store as separate record linked to original message
+
+**Why encrypt reactions?**
+- Reactions reveal sentiment about specific messages
+- Unencrypted reactions would leak partial conversation context
+- Consistent security model across all content
+
+### 3.5 Message Editing (Post-MVP)
+
+Editing requires re-encryption with fresh keys:
+
+```
+EDIT FLOW:
+1. Generate new session key
+2. Encrypt edited content
+3. Wrap for all devices (sender + recipient)
+4. Sign with identity signing key
+5. Store as edit record linked to original
+
+STORAGE:
+  Original message remains (with editedAt timestamp)
+  Edit stored as child record with:
+    - parentMessageId
+    - version number
+    - full encrypted payload
+  
+UI:
+  Show latest version with "edited" indicator
+  Optional: expand to see edit history
+```
+
+**Deferred because:**
+- Adds versioning complexity
+- Edge cases with deletion + edit races
+- Profile change during edit history
+
+### 3.6 Deferred Features
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Delivery receipts | Post-MVP | Server confirms delivery to device |
+| Read receipts | Post-MVP | Client confirms message viewed |
+| Typing indicators | Post-MVP | Real-time presence |
 
 ## 4. User Identity-Level Options/Customization
 These options should all be available and stored per-Identity
