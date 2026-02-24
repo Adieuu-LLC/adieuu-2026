@@ -140,7 +140,7 @@ describe('notifications routes', () => {
       expect(response.status).toBe(200);
       expect(mockGetNotifications).toHaveBeenCalled();
 
-      const body = await response.json();
+      const body = await response.json() as { success: boolean; data: { notifications: unknown[]; unreadCount: number } };
       expect(body.success).toBe(true);
       expect(body.data.notifications).toBeDefined();
       expect(body.data.unreadCount).toBeDefined();
@@ -330,7 +330,7 @@ describe('notifications routes', () => {
       expect(response.status).toBe(200);
       expect(mockDeleteNotifications).toHaveBeenCalledWith(mockIdentityId, 'all');
 
-      const body = await response.json();
+      const body = await response.json() as { data: { deletedCount: number } };
       expect(body.data.deletedCount).toBe(1);
     });
 
@@ -366,7 +366,7 @@ describe('notifications routes', () => {
       expect(response.status).toBe(200);
       expect(mockGetNotificationCounts).toHaveBeenCalledWith(mockIdentityId);
 
-      const body = await response.json();
+      const body = await response.json() as { data: { unread: number; byType: Record<string, number> } };
       expect(body.data.unread).toBe(5);
       expect(body.data.byType).toBeDefined();
     });

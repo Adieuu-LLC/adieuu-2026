@@ -246,7 +246,7 @@ describe('mfa routes', () => {
       expect(mockGenerateTotpSetup).toHaveBeenCalledWith(mockSession.identifier);
       expect(mockSavePendingTotp).toHaveBeenCalled();
 
-      const body = await response.json();
+      const body = await response.json() as { data: { secret: string; qrCodeUrl: string; credentialId: string } };
       expect(body.data.secret).toBeDefined();
       expect(body.data.qrCodeUrl).toBeDefined();
       expect(body.data.credentialId).toBeDefined();
@@ -356,7 +356,7 @@ describe('mfa routes', () => {
         mockSession.identifier
       );
 
-      const body = await response.json();
+      const body = await response.json() as { data: { options: unknown; credentialName: string } };
       expect(body.data.options).toBeDefined();
       expect(body.data.credentialName).toBe('My Passkey');
     });
@@ -504,7 +504,7 @@ describe('mfa routes', () => {
       expect(response.status).toBe(200);
       expect(mockGenerateBackupCodes).toHaveBeenCalledWith(mockSession.userId);
 
-      const body = await response.json();
+      const body = await response.json() as { data: { codes: string[] } };
       expect(body.data.codes).toBeDefined();
       expect(Array.isArray(body.data.codes)).toBe(true);
     });
@@ -528,7 +528,7 @@ describe('mfa routes', () => {
       expect(response.status).toBe(200);
       expect(mockGetBackupCodesCount).toHaveBeenCalledWith(mockSession.userId);
 
-      const body = await response.json();
+      const body = await response.json() as { data: { remaining: number } };
       expect(body.data.remaining).toBe(8);
     });
   });
