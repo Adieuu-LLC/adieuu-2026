@@ -91,7 +91,7 @@ When Identity A initiates a DM with Identity B and their preferred profiles diff
 If profiles match, the conversation proceeds with no negotiation required.
 
 **Mid-Conversation Profile Changes:**
-Either party may request a profile change at any time:
+Either party may request a cryptographic profile change at any time:
 
 1. Requester proposes new profile
 2. Other party must explicitly accept
@@ -116,7 +116,6 @@ Conversation:
 - Respects each Identity's security preferences
 - Explicit consent required for any profile used
 - Profile changes are deliberate actions with clear consequences
-- Audit trail supports transparency and debugging
 
 
 ### 1.2 Hybrid Encryption Flow
@@ -273,32 +272,65 @@ Alice (2 devices) → Bob (3 devices)
 - Recipient's all devices CAN read received messages
 - No sync protocol needed - server delivers to all devices
 
-### 3.3 Message Metadata and Features
+### 3.3 Storage Model
 
-**Message Storage Model:**
+DMs use separate collections from group messages for optimized schemas and indexes.
+
+**Conversation Storage:**
 ```typescript
-interface EncryptedMessage {
+// Collection: dm_conversations
+interface DmConversation {
+  _id: string;                   // Blinded: SHA3-256(sort([A,B]) || "dm-v1")
+  activeCryptoProfile: CryptoProfile;
+  profileHistory: [{
+    profile: CryptoProfile;
+    changedAt: Date;
+    initiatedBy: ObjectId;
+  }];
+  createdAt: Date;
+  // NO participants field - derived client-side from blinded ID
+}
+```
+
+**Message Storage:**
+```typescript
+// Collection: dm_messages
+interface DmMessage {
   _id: ObjectId;
-  conversationId: ObjectId;
-  fromIdentityId: ObjectId;
-  fromDeviceId: string;
+  conversationId: string;        // Blinded conversation ID
+  toIdentityId: ObjectId;        // Recipient - needed for delivery
+  // fromIdentityId: NOT STORED - revealed after decryption
+  // fromDeviceId: NOT STORED - optional in encrypted payload
   
   // Encrypted payload
-  ciphertext: string;           // Base64
-  nonce: string;                // Base64
+  ciphertext: string;            // Base64
+  nonce: string;                 // Base64
   wrappedKeys: WrappedKey[];
-  signature: string;            // Base64
+  signature: string;             // Base64
   cryptoProfile: CryptoProfile;
   
   // Metadata (server-managed)
   createdAt: Date;
-  expiresAt?: Date;             // Optional TTL
-  clientMessageId: string;      // Deduplication
-  replyToId?: ObjectId;         // Threading
+  expiresAt?: Date;              // Optional TTL
+  clientMessageId: string;       // Deduplication
+  
+  // Threading (plaintext for query performance)
+  replyToId?: ObjectId;          // Inline reply reference
+  threadRootId?: ObjectId;       // Thread grouping
   
   // Deletion tracking
   deletedForEveryone: boolean;
-  deletedFor: ObjectId[];       // Identities who deleted for self
+  deletedFor: ObjectId[];        // Identities who deleted for self
+}
+```
+
+**Encrypted Payload Content:**
+```typescript
+interface DecryptedMessageContent {
+  text: string;
+  fromIdentityId: string;        // Sender revealed after decryption
+  fromDeviceId?: string;         // Optional - sender can omit
+  // Additional content types (attachments, etc.) added later
 }
 ```
 
@@ -314,18 +346,26 @@ interface EncryptedMessage {
 - **Recipient**: Can delete for self (added to `deletedFor[]`)
 - Deleted messages return tombstone to clients, not full payload
 
+**Conversation Discovery:**
+- Client queries: "messages where `toIdentityId` = me"
+- Groups by `conversationId`
+- Decrypts to reveal senders
+- Caches sender mapping locally for performance
+
 ### 3.4 Reactions
 
 Reactions are encrypted mini-messages referencing the original:
 
 ```typescript
-interface EncryptedReaction {
+// Collection: dm_reactions
+interface DmReaction {
   _id: ObjectId;
-  messageId: ObjectId;          // Message being reacted to
-  conversationId: ObjectId;
-  fromIdentityId: ObjectId;
+  messageId: ObjectId;           // Message being reacted to
+  conversationId: string;        // Blinded conversation ID
+  toIdentityId: ObjectId;        // Other participant (for delivery)
+  // fromIdentityId: NOT STORED - in encrypted payload
   
-  // Encrypted payload (contains emoji/reaction type)
+  // Encrypted payload (contains emoji + reactor identity)
   ciphertext: string;
   nonce: string;
   wrappedKeys: WrappedKey[];
@@ -335,16 +375,19 @@ interface EncryptedReaction {
 }
 ```
 
+**Encrypted Payload:**
+```typescript
+interface DecryptedReactionContent {
+  emoji: string;                 // Reaction emoji
+  fromIdentityId: string;        // Reactor revealed after decryption
+}
+```
+
 **Flow:**
-1. Reactor encrypts reaction (emoji) with fresh session key
+1. Reactor encrypts reaction (emoji + identity) with fresh session key
 2. Wrap session key for all devices (both participants)
 3. Sign with reactor's identity signing key
 4. Store as separate record linked to original message
-
-**Why encrypt reactions?**
-- Reactions reveal sentiment about specific messages
-- Unencrypted reactions would leak partial conversation context
-- Consistent security model across all content
 
 ### 3.5 Message Editing (Post-MVP)
 
@@ -375,15 +418,105 @@ UI:
 - Edge cases with deletion + edit races
 - Profile change during edit history
 
-### 3.6 Deferred Features
+### 3.6 Replies and Threads
+
+Two reply modes are supported:
+
+**Inline Reply** (`replyToId` only):
+- Flat reference to another message
+- Displayed chronologically with "replying to [preview]" indicator
+- Simple, Discord-style replies
+
+**Thread** (`replyToId` + `threadRootId`):
+- Grouped conversation branching from a message (like Slack threads)
+- Collapsible in UI
+- All thread messages share the same `threadRootId`
+
+```
+Message A: "What should we do for dinner?"
+  └─ Message B: "Pizza?" [replyToId: A]                    // Inline reply
+  └─ Message C: "Let's discuss" [replyToId: A, threadRootId: A]  // Starts thread
+       └─ Message D: "Pizza +1" [replyToId: C, threadRootId: A]
+       └─ Message E: "Or sushi?" [replyToId: C, threadRootId: A]
+```
+
+**UI Modes:**
+- **Chronological**: All messages in time order, inline replies show context
+- **Threaded**: Threads collapsed under root message, expandable
+
+**Why plaintext `replyToId`/`threadRootId`:**
+Threading structure is stored in plaintext for query performance. Encrypting these would require client-side reconstruction of all messages, which doesn't scale for long conversations. See section 5 (Privacy Trade-offs) for details.
+
+### 3.7 Deferred Features
 
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Delivery receipts | Post-MVP | Server confirms delivery to device |
 | Read receipts | Post-MVP | Client confirms message viewed |
 | Typing indicators | Post-MVP | Real-time presence |
+| Message editing | Post-MVP | Re-encryption with fresh keys (see 3.5) |
 
 ## 4. User Identity-Level Options/Customization
 These options should all be available and stored per-Identity
 - User can choose their preferred cryptographic profile (balanced or CNSA 2.0; balanced is default and the only option for now)
 - User can choose their preferred key storage options (balanced or maximum security; balanced is default and the only option for now)
+
+## 5. Privacy Trade-offs
+
+This section documents what the server can and cannot see, and the rationale for accepted trade-offs.
+
+### 5.1 What Server Cannot See
+
+| Data | Protection |
+|------|------------|
+| Message content | Encrypted with per-message session key |
+| Sender identity | In encrypted payload, revealed only after decryption |
+| Sender device | Optional in encrypted payload |
+| Reaction emoji | Encrypted |
+| Conversation participants | Blinded conversation ID; no explicit participants field |
+
+### 5.2 What Server Can See (Plaintext Metadata)
+
+| Data | Why Visible | Sensitivity |
+|------|-------------|-------------|
+| `toIdentityId` | Required for message delivery/push notifications | Medium |
+| `conversationId` | Blinded hash, not raw participant IDs | Low |
+| `createdAt` | Server timestamp for ordering | Medium (timing analysis) |
+| `expiresAt` | TTL enforcement | Low |
+| `replyToId`, `threadRootId` | Threading query performance | Low-Medium |
+| `messageId` (reactions) | Link reaction to message | Low |
+| Ciphertext size | Approximate message length | Low |
+| `wrappedKeys[].deviceId` | Delivery routing | Low |
+
+### 5.3 What Server Can Infer
+
+| Inference | How | Mitigation |
+|-----------|-----|------------|
+| Conversation participants | Delivery patterns (both A and B receive messages in same conversation) | Blinded IDs add friction; no explicit link |
+| Sender of specific message | Timing correlation across deliveries | Requires active analysis; not trivial |
+| Active hours | Timestamp patterns | Inherent to any delivery system |
+| Message importance | Reaction counts | Reactions are encrypted; only count visible |
+| Conversation structure | Threading metadata | Accepted for performance |
+
+### 5.4 Rationale
+
+**Sender obfuscation (no `fromIdentityId`):**
+Server knows messages are delivered TO someone, but not explicitly FROM whom. Sender is revealed only after decryption. This prevents trivial relationship graphing from message records. This still allows for some enumeration based on delivery patterns, but it increases the floor a bit.
+
+**Blinded conversation IDs:**
+`conversationId = SHA3-256(sort([A, B]) || "dm-v1")` means server cannot directly see participants. Both participants derive the same ID client-side.
+
+**Plaintext threading (`replyToId`, `threadRootId`):**
+Encrypting these would require decrypting all messages to reconstruct threading, which doesn't scale for long conversation histories. The trade-off accepts structural metadata exposure for usable performance.
+
+**Plaintext `toIdentityId`:**
+Required for message delivery. Without it, server cannot easily route messages. Anonymous delivery (encrypting recipient) is a future consideration but adds significant complexity and would delay MVP by a good bit. Given that we're competing with apps with near-zero anonymity, we feel this is already a step up over the others and we can iterate on it later.
+
+### 5.5 Future Enhancements
+
+| Enhancement | Description | Complexity |
+|-------------|-------------|------------|
+| Inbox model | Remove conversation grouping; pure recipient-addressed messages | High |
+| Anonymous delivery | Encrypt `toIdentityId` with key routing | Very High |
+| Encrypted threading | Client-side thread reconstruction | Medium (performance cost) |
+| Metadata padding | Fixed-size messages to hide length | Low |
