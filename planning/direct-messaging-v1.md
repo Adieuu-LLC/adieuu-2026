@@ -69,12 +69,54 @@ const PROFILES: Record<CryptoProfile, CryptoProfileConfig> = {
 
 **Profile Selection:**
 - Per-Identity setting (stored with identity metadata)
-- DMs negotiate to the highest common profile
+- DMs negotiate profile at conversation start (see 1.1.2)
 - Messages include profile indicator for decryption routing
 - Balanced profile recommended for consumer use (smaller payloads, faster)
 - CNSA 2.0 profile for regulated/enterprise deployments
 
 **Note:** Disclaimer to Adieuu Users: CNSA 2.0 compliance requires third-party validation (CAVP/CMVP/NIAP), which Adieuu does not presently have but may seek to attain later. We wanted to go ahead and ensure our architecture allows for CNSA 2.0 on the technical side, and we'll handle the red tape later.
+
+### 1.1.2 Profile Negotiation in DMs
+
+DM conversations require both parties to agree on a single crypto profile. Each Identity stores their preferred profile, but the active profile for a conversation is negotiated.
+
+**Conversation Initiation:**
+When Identity A initiates a DM with Identity B and their preferred profiles differ:
+
+1. Initiator is notified of the profile mismatch
+2. Initiator chooses one of:
+   - **Adopt recipient's profile**: Conversation uses recipient's preferred profile
+   - **Request recipient adopt**: Sends a profile change request to recipient
+
+If profiles match, the conversation proceeds with no negotiation required.
+
+**Mid-Conversation Profile Changes:**
+Either party may request a profile change at any time:
+
+1. Requester proposes new profile
+2. Other party must explicitly accept
+3. Upon acceptance, conversation switches to new profile
+4. **Important**: Previous message history becomes unreadable (old messages were encrypted with keys derived under the previous profile)
+
+**Storage Model:**
+```
+Identity:
+  preferredCryptoProfile: CryptoProfile  // User's default preference
+
+Conversation:
+  activeCryptoProfile: CryptoProfile     // Negotiated profile for this DM
+  profileHistory: [{                     // Audit trail
+    profile: CryptoProfile,
+    changedAt: Date,
+    initiatedBy: IdentityId
+  }]
+```
+
+**Rationale:**
+- Respects each Identity's security preferences
+- Explicit consent required for any profile used
+- Profile changes are deliberate actions with clear consequences
+- Audit trail supports transparency and debugging
 
 
 ### 1.2 Hybrid Encryption Flow
