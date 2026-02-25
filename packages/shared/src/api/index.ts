@@ -34,11 +34,18 @@ export {
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
   // Identity types
+  type CryptoProfile,
   type PublicIdentity,
+  type PublicDevice,
+  type IdentityPublicKeys,
+  type EncryptedKeyBundle,
   type CreateIdentityParams,
   type LoginIdentityParams,
   type IdentityLoginResponse,
   type IdentityLoginErrorResponse,
+  type InitializeE2EParams,
+  type RegisterDeviceParams,
+  type UpdateKeyBundleParams,
   // Friends types
   type Friend,
   type FriendshipStatus,

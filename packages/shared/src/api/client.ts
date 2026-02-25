@@ -661,6 +661,11 @@ export class UsersApi {
 // ============================================================================
 
 /**
+ * Crypto profile type for E2E encryption.
+ */
+export type CryptoProfile = 'default' | 'cnsa2';
+
+/**
  * Public identity info (safe for clients).
  */
 export interface PublicIdentity {
@@ -680,6 +685,82 @@ export interface PublicIdentity {
   lastActiveAt: string;
   /** Whether this identity has been deleted */
   isDeleted: boolean;
+  /** Preferred crypto profile for E2E encryption */
+  preferredCryptoProfile?: CryptoProfile;
+  /** Whether this identity has E2E keys set up */
+  hasE2EKeys?: boolean;
+  /** Number of registered devices */
+  deviceCount?: number;
+}
+
+/**
+ * Public device info for E2E encryption.
+ */
+export interface PublicDevice {
+  deviceId: string;
+  name: string;
+  ecdhPublicKey: string;
+  kemPublicKey?: string;
+}
+
+/**
+ * Identity public keys for E2E encryption.
+ */
+export interface IdentityPublicKeys {
+  identityId: string;
+  signingPublicKey: string;
+  preferredCryptoProfile: CryptoProfile;
+  devices: PublicDevice[];
+}
+
+/**
+ * Encrypted key bundle from server.
+ */
+export interface EncryptedKeyBundle {
+  encryptedBundle: string;
+  salt: string;
+  nonce: string;
+  useSeparatePassphrase: boolean;
+  schemeVersion: number;
+}
+
+/**
+ * Parameters for initializing E2E encryption.
+ */
+export interface InitializeE2EParams {
+  signingPublicKey: string;
+  preferredCryptoProfile?: CryptoProfile;
+  device: {
+    deviceId: string;
+    name: string;
+    ecdhPublicKey: string;
+    kemPublicKey?: string;
+  };
+  bundle: {
+    encryptedBundle: string;
+    salt: string;
+    nonce: string;
+    useSeparatePassphrase: boolean;
+  };
+}
+
+/**
+ * Parameters for registering a new device.
+ */
+export interface RegisterDeviceParams {
+  deviceId: string;
+  name: string;
+  ecdhPublicKey: string;
+  kemPublicKey?: string;
+}
+
+/**
+ * Parameters for updating an encrypted key bundle.
+ */
+export interface UpdateKeyBundleParams {
+  encryptedBundle: string;
+  salt: string;
+  nonce: string;
 }
 
 /**
@@ -802,6 +883,125 @@ export class IdentityApi {
    */
   async getById(id: string): Promise<ApiResponse<PublicIdentity>> {
     return this.client.get(`/api/identity/${encodeURIComponent(id)}`);
+  }
+
+  // ==========================================================================
+  // E2E Encryption Methods
+  // ==========================================================================
+
+  /**
+   * Initialize E2E encryption for an identity.
+   *
+   * Atomic operation that sets up E2E: stores signing public key,
+   * uploads encrypted bundle, and registers the first device.
+   *
+   * @param identityId - Identity ID
+   * @param params - E2E initialization parameters
+   * @returns Success on initialization
+   */
+  async initializeE2E(
+    identityId: string,
+    params: InitializeE2EParams
+  ): Promise<ApiResponse<void>> {
+    return this.client.post(
+      `/api/identity/${encodeURIComponent(identityId)}/e2e/initialize`,
+      params
+    );
+  }
+
+  /**
+   * Get public keys for an identity (for encryption).
+   *
+   * Returns the signing public key and all device keys.
+   * Public endpoint - anyone can fetch keys to encrypt messages.
+   *
+   * @param identityId - Identity ID
+   * @returns Public keys for E2E encryption
+   */
+  async getPublicKeys(identityId: string): Promise<ApiResponse<IdentityPublicKeys>> {
+    return this.client.get(
+      `/api/identity/${encodeURIComponent(identityId)}/keys`
+    );
+  }
+
+  /**
+   * Get the encrypted key bundle for an identity.
+   *
+   * Only the identity owner can access their bundle.
+   *
+   * @param identityId - Identity ID
+   * @returns Encrypted key bundle
+   */
+  async getKeyBundle(identityId: string): Promise<ApiResponse<EncryptedKeyBundle>> {
+    return this.client.get(
+      `/api/identity/${encodeURIComponent(identityId)}/bundle`
+    );
+  }
+
+  /**
+   * Update the encrypted key bundle.
+   *
+   * Used when rotating encryption or changing passphrase.
+   *
+   * @param identityId - Identity ID
+   * @param params - New encrypted bundle data
+   * @returns Success on update
+   */
+  async updateKeyBundle(
+    identityId: string,
+    params: UpdateKeyBundleParams
+  ): Promise<ApiResponse<void>> {
+    return this.client.put(
+      `/api/identity/${encodeURIComponent(identityId)}/bundle`,
+      params
+    );
+  }
+
+  /**
+   * Register a new device for E2E encryption.
+   *
+   * @param identityId - Identity ID
+   * @param params - Device registration parameters
+   * @returns Success on registration
+   */
+  async registerDevice(
+    identityId: string,
+    params: RegisterDeviceParams
+  ): Promise<ApiResponse<void>> {
+    return this.client.post(
+      `/api/identity/${encodeURIComponent(identityId)}/devices`,
+      params
+    );
+  }
+
+  /**
+   * List all devices for an identity.
+   *
+   * Only the identity owner can list their devices.
+   *
+   * @param identityId - Identity ID
+   * @returns Array of registered devices
+   */
+  async listDevices(identityId: string): Promise<ApiResponse<PublicDevice[]>> {
+    return this.client.get(
+      `/api/identity/${encodeURIComponent(identityId)}/devices`
+    );
+  }
+
+  /**
+   * Remove a device from an identity.
+   *
+   * @param identityId - Identity ID
+   * @param deviceId - Device ID to remove
+   * @returns Success on removal
+   */
+  async removeDevice(
+    identityId: string,
+    deviceId: string
+  ): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/identity/${encodeURIComponent(identityId)}/devices/${encodeURIComponent(deviceId)}`
+    );
   }
 }
 

@@ -1,9 +1,22 @@
 import { useState, useCallback, useEffect, createContext, useContext, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { createApiClient, type PublicIdentity } from '@adieuu/shared';
-import { deriveEntropyWrappingKey, generateWrappingSalt, fromBase64, toBase64 } from '@adieuu/crypto';
+import { deriveEntropyWrappingKey, generateWrappingSalt, fromBase64, toBase64, clearBytes } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
 import { useAuth } from './useAuth';
+import {
+  generateE2EKeys,
+  generateDeviceKeys,
+  decryptKeyBundle,
+  getDefaultDeviceName,
+  type E2EInitResult,
+} from '../services/e2eKeyService';
+import {
+  storeDeviceKeys,
+  getDeviceKeysForIdentity,
+  decryptDeviceKeys,
+  hasDeviceKeys,
+} from '../services/deviceKeyStorage';
 
 // ============================================================================
 // Wrapping Key Storage (IndexedDB)
@@ -115,14 +128,14 @@ export interface CreateIdentityResult {
   success: boolean;
   identity?: PublicIdentity;
   error?: string;
-  errorCode?: 'USERNAME_TAKEN' | 'MAX_IDENTITIES' | 'VALIDATION_ERROR';
+  errorCode?: 'USERNAME_TAKEN' | 'MAX_IDENTITIES' | 'VALIDATION_ERROR' | 'E2E_INIT_FAILED';
 }
 
 export interface LoginIdentityResult {
   success: boolean;
   identity?: PublicIdentity;
   error?: string;
-  errorCode?: 'INVALID_PASSPHRASE' | 'LOCKED_OUT' | 'RATE_LIMITED' | 'KEY_DERIVATION_FAILED';
+  errorCode?: 'INVALID_PASSPHRASE' | 'LOCKED_OUT' | 'RATE_LIMITED' | 'KEY_DERIVATION_FAILED' | 'E2E_SETUP_FAILED' | 'BUNDLE_DECRYPT_FAILED';
   attemptNumber?: number;
   retryAfter?: number;
 }
@@ -155,6 +168,17 @@ export interface IdentityContextValue extends IdentityState {
    * Returns null if not logged in.
    */
   getWrappingSalt: () => Uint8Array | null;
+  /**
+   * Get the signing private key for the current session.
+   * Returns null if not logged in or E2E not initialized.
+   * Used for signing messages.
+   */
+  getSigningKey: () => Uint8Array | null;
+  /**
+   * Get the current device ID.
+   * Returns null if not logged in.
+   */
+  getCurrentDeviceId: () => string | null;
 }
 
 // ============================================================================
@@ -207,18 +231,29 @@ function useIdentityState(): IdentityContextValue {
   const wrappingKeyRef = useRef<Uint8Array | null>(null);
   const wrappingSaltRef = useRef<Uint8Array | null>(null);
 
+  // E2E encryption keys (kept in memory only)
+  const signingKeyRef = useRef<Uint8Array | null>(null);
+  const currentDeviceIdRef = useRef<string | null>(null);
+
   // Getters for wrapping key (used by cipher store)
   const getWrappingKey = useCallback(() => wrappingKeyRef.current, []);
   const getWrappingSalt = useCallback(() => wrappingSaltRef.current, []);
+  const getSigningKey = useCallback(() => signingKeyRef.current, []);
+  const getCurrentDeviceId = useCallback(() => currentDeviceIdRef.current, []);
 
-  // Clear wrapping key on logout
-  const clearWrappingKey = useCallback(() => {
+  // Clear all in-memory keys on logout
+  const clearSessionKeys = useCallback(() => {
     if (wrappingKeyRef.current) {
-      // Zero out the key material for security
-      wrappingKeyRef.current.fill(0);
+      clearBytes(wrappingKeyRef.current);
       wrappingKeyRef.current = null;
     }
     wrappingSaltRef.current = null;
+
+    if (signingKeyRef.current) {
+      clearBytes(signingKeyRef.current);
+      signingKeyRef.current = null;
+    }
+    currentDeviceIdRef.current = null;
   }, []);
 
   // Check identity session status
@@ -328,6 +363,120 @@ function useIdentityState(): IdentityContextValue {
         };
       }
 
+      const createdIdentity = response.data;
+      if (!createdIdentity) {
+        return {
+          success: false,
+          error: 'Identity creation returned no data',
+          errorCode: 'VALIDATION_ERROR',
+        };
+      }
+
+      // Generate E2E encryption keys
+      console.debug('[Identity] createIdentity: generating E2E keys for identity:', createdIdentity.id);
+      let e2eResult: E2EInitResult;
+      try {
+        e2eResult = await generateE2EKeys({
+          identityId: createdIdentity.id,
+          passphrase,
+          deviceName: getDefaultDeviceName(),
+          cryptoProfile: 'default',
+        });
+        console.debug('[Identity] createIdentity: E2E keys generated successfully');
+      } catch (err) {
+        console.error('[Identity] createIdentity: failed to generate E2E keys:', err);
+        return {
+          success: false,
+          error: 'Failed to generate encryption keys',
+          errorCode: 'E2E_INIT_FAILED',
+        };
+      }
+
+      // Upload E2E keys to server
+      console.debug('[Identity] createIdentity: uploading E2E keys to server...');
+      try {
+        const initResponse = await api.identity.initializeE2E(createdIdentity.id, {
+          signingPublicKey: e2eResult.signingPublicKey,
+          preferredCryptoProfile: 'default',
+          device: e2eResult.device,
+          bundle: e2eResult.encryptedBundle,
+        });
+
+        if (!initResponse.success) {
+          console.error('[Identity] createIdentity: failed to upload E2E keys:', initResponse.error);
+          // Clear generated keys
+          clearBytes(e2eResult.signingPrivateKey);
+          clearBytes(e2eResult.devicePrivateKeys.ecdh);
+          clearBytes(e2eResult.devicePrivateKeys.kem);
+          return {
+            success: false,
+            error: 'Failed to upload encryption keys to server',
+            errorCode: 'E2E_INIT_FAILED',
+          };
+        }
+        console.debug('[Identity] createIdentity: E2E keys uploaded successfully');
+      } catch (err) {
+        console.error('[Identity] createIdentity: E2E init API error:', err);
+        clearBytes(e2eResult.signingPrivateKey);
+        clearBytes(e2eResult.devicePrivateKeys.ecdh);
+        clearBytes(e2eResult.devicePrivateKeys.kem);
+        return {
+          success: false,
+          error: 'Failed to initialize encryption',
+          errorCode: 'E2E_INIT_FAILED',
+        };
+      }
+
+      // Derive wrapping key for device key storage
+      console.debug('[Identity] createIdentity: deriving wrapping key...');
+      let wrappingKey: Uint8Array;
+      let salt: Uint8Array;
+      try {
+        salt = await getOrCreateWrappingSalt(createdIdentity.id);
+        wrappingKey = await deriveEntropyWrappingKey(passphrase, salt);
+        console.debug('[Identity] createIdentity: wrapping key derived');
+      } catch (err) {
+        console.error('[Identity] createIdentity: failed to derive wrapping key:', err);
+        clearBytes(e2eResult.signingPrivateKey);
+        clearBytes(e2eResult.devicePrivateKeys.ecdh);
+        clearBytes(e2eResult.devicePrivateKeys.kem);
+        return {
+          success: false,
+          error: 'Failed to derive wrapping key',
+          errorCode: 'E2E_INIT_FAILED',
+        };
+      }
+
+      // Store device keys in IndexedDB (encrypted with wrapping key)
+      console.debug('[Identity] createIdentity: storing device keys in IndexedDB...');
+      try {
+        await storeDeviceKeys(
+          e2eResult.device.deviceId,
+          createdIdentity.id,
+          e2eResult.devicePrivateKeys.ecdh,
+          e2eResult.devicePrivateKeys.kem,
+          wrappingKey
+        );
+        console.debug('[Identity] createIdentity: device keys stored');
+      } catch (err) {
+        console.error('[Identity] createIdentity: failed to store device keys:', err);
+        clearBytes(wrappingKey);
+        clearBytes(e2eResult.signingPrivateKey);
+        return {
+          success: false,
+          error: 'Failed to store device keys',
+          errorCode: 'E2E_INIT_FAILED',
+        };
+      }
+
+      // Cache keys in memory
+      wrappingKeyRef.current = wrappingKey;
+      wrappingSaltRef.current = salt;
+      signingKeyRef.current = e2eResult.signingPrivateKey;
+      currentDeviceIdRef.current = e2eResult.device.deviceId;
+
+      console.debug('[Identity] createIdentity: E2E initialization complete');
+
       // Update state with the new identity - note: identityCount will be refreshed from auth session
       setState((prev) => ({
         ...prev,
@@ -340,7 +489,7 @@ function useIdentityState(): IdentityContextValue {
 
       return {
         success: true,
-        identity: response.data,
+        identity: createdIdentity,
       };
     },
     [api]
@@ -372,28 +521,21 @@ function useIdentityState(): IdentityContextValue {
       if (loggedInIdentity) {
         // Derive wrapping key for cipher entropy encryption
         // This is required for cipher operations - fail login if it fails
+        let wrappingKey: Uint8Array;
+        let salt: Uint8Array;
         try {
           console.debug('[Identity] loginToIdentity: starting wrapping key derivation for identity:', loggedInIdentity.id);
 
           console.debug('[Identity] loginToIdentity: getting or creating salt...');
-          const salt = await getOrCreateWrappingSalt(loggedInIdentity.id);
+          salt = await getOrCreateWrappingSalt(loggedInIdentity.id);
           console.debug('[Identity] loginToIdentity: salt obtained, length:', salt.length);
 
           console.debug('[Identity] loginToIdentity: deriving wrapping key with Argon2...');
-          const wrappingKey = await deriveEntropyWrappingKey(passphrase, salt);
+          wrappingKey = await deriveEntropyWrappingKey(passphrase, salt);
           console.debug('[Identity] loginToIdentity: wrapping key derived, length:', wrappingKey.length);
-
-          wrappingKeyRef.current = wrappingKey;
-          wrappingSaltRef.current = salt;
-          console.debug('[Identity] loginToIdentity: wrapping key stored in memory');
         } catch (err) {
           // Wrapping key is required for cipher operations - treat as login failure
           console.error('[Identity] loginToIdentity: failed to derive wrapping key:', err);
-          console.error('[Identity] loginToIdentity: error details:', {
-            name: err instanceof Error ? err.name : 'unknown',
-            message: err instanceof Error ? err.message : String(err),
-            stack: err instanceof Error ? err.stack : undefined,
-          });
 
           // Logout from server since we can't complete local setup
           try {
@@ -408,6 +550,151 @@ function useIdentityState(): IdentityContextValue {
             errorCode: 'KEY_DERIVATION_FAILED',
           };
         }
+
+        // E2E Key Setup: Check if this device has keys or is new
+        console.debug('[Identity] loginToIdentity: checking for existing device keys...');
+        const hasExistingDeviceKeys = await hasDeviceKeys(loggedInIdentity.id);
+
+        let deviceId: string;
+
+        if (hasExistingDeviceKeys) {
+          // Existing device: Load and decrypt device keys
+          console.debug('[Identity] loginToIdentity: existing device, loading keys...');
+          try {
+            const storedKeys = await getDeviceKeysForIdentity(loggedInIdentity.id);
+            if (storedKeys.length === 0) {
+              throw new Error('No device keys found');
+            }
+            // Use the first device (most recent)
+            const deviceKeys = storedKeys[0];
+            if (!deviceKeys) {
+              throw new Error('Device key data missing');
+            }
+            const decryptedKeys = await decryptDeviceKeys(deviceKeys, wrappingKey);
+            deviceId = decryptedKeys.deviceId;
+            console.debug('[Identity] loginToIdentity: device keys loaded, deviceId:', deviceId);
+            
+            // Clear decrypted keys from memory (we don't need them cached here, 
+            // they'll be loaded on-demand for encryption operations)
+            clearBytes(decryptedKeys.ecdhPrivateKey);
+            clearBytes(decryptedKeys.kemPrivateKey);
+          } catch (err) {
+            console.error('[Identity] loginToIdentity: failed to load device keys:', err);
+            clearBytes(wrappingKey);
+            try {
+              await api.identity.logout();
+            } catch {
+              // Ignore
+            }
+            return {
+              success: false,
+              error: 'Failed to load device encryption keys. Try logging in again.',
+              errorCode: 'E2E_SETUP_FAILED',
+            };
+          }
+        } else {
+          // New device: Generate and register device keys
+          console.debug('[Identity] loginToIdentity: new device, generating keys...');
+          try {
+            const newDeviceKeys = generateDeviceKeys(getDefaultDeviceName(), 'default');
+            deviceId = newDeviceKeys.deviceId;
+
+            // Register device with server
+            console.debug('[Identity] loginToIdentity: registering device with server...');
+            const registerResponse = await api.identity.registerDevice(loggedInIdentity.id, {
+              deviceId: newDeviceKeys.deviceId,
+              name: newDeviceKeys.name,
+              ecdhPublicKey: newDeviceKeys.ecdhPublicKey,
+              kemPublicKey: newDeviceKeys.kemPublicKey,
+            });
+
+            if (!registerResponse.success) {
+              console.error('[Identity] loginToIdentity: failed to register device:', registerResponse.error);
+              clearBytes(newDeviceKeys.privateKeys.ecdh);
+              clearBytes(newDeviceKeys.privateKeys.kem);
+              clearBytes(wrappingKey);
+              try {
+                await api.identity.logout();
+              } catch {
+                // Ignore
+              }
+              return {
+                success: false,
+                error: 'Failed to register device for encryption',
+                errorCode: 'E2E_SETUP_FAILED',
+              };
+            }
+
+            // Store device keys in IndexedDB
+            console.debug('[Identity] loginToIdentity: storing device keys...');
+            await storeDeviceKeys(
+              newDeviceKeys.deviceId,
+              loggedInIdentity.id,
+              newDeviceKeys.privateKeys.ecdh,
+              newDeviceKeys.privateKeys.kem,
+              wrappingKey
+            );
+            console.debug('[Identity] loginToIdentity: new device registered and keys stored');
+          } catch (err) {
+            console.error('[Identity] loginToIdentity: failed to setup new device:', err);
+            clearBytes(wrappingKey);
+            try {
+              await api.identity.logout();
+            } catch {
+              // Ignore
+            }
+            return {
+              success: false,
+              error: 'Failed to setup device encryption',
+              errorCode: 'E2E_SETUP_FAILED',
+            };
+          }
+        }
+
+        // Fetch and decrypt the signing key bundle
+        console.debug('[Identity] loginToIdentity: fetching signing key bundle...');
+        let signingPrivateKey: Uint8Array;
+        try {
+          const bundleResponse = await api.identity.getKeyBundle(loggedInIdentity.id);
+          if (!bundleResponse.success || !bundleResponse.data) {
+            throw new Error('Failed to fetch key bundle');
+          }
+
+          const bundle = bundleResponse.data;
+          console.debug('[Identity] loginToIdentity: decrypting signing key bundle...');
+
+          // Use the appropriate passphrase for bundle decryption
+          // If useSeparatePassphrase is true, we would need to prompt for it
+          // For now, assume same passphrase is used
+          if (bundle.useSeparatePassphrase) {
+            // TODO: Prompt user for separate bundle passphrase
+            console.warn('[Identity] loginToIdentity: separate bundle passphrase not yet supported');
+          }
+
+          const decryptedBundle = await decryptKeyBundle(bundle, passphrase);
+          signingPrivateKey = decryptedBundle.signingPrivateKey;
+          console.debug('[Identity] loginToIdentity: signing key decrypted');
+        } catch (err) {
+          console.error('[Identity] loginToIdentity: failed to decrypt bundle:', err);
+          clearBytes(wrappingKey);
+          try {
+            await api.identity.logout();
+          } catch {
+            // Ignore
+          }
+          return {
+            success: false,
+            error: 'Failed to decrypt signing key. Check your passphrase.',
+            errorCode: 'BUNDLE_DECRYPT_FAILED',
+          };
+        }
+
+        // Cache keys in memory
+        wrappingKeyRef.current = wrappingKey;
+        wrappingSaltRef.current = salt;
+        signingKeyRef.current = signingPrivateKey;
+        currentDeviceIdRef.current = deviceId;
+        console.debug('[Identity] loginToIdentity: all keys cached in memory');
 
         setState((prev) => ({
           ...prev,
@@ -441,24 +728,85 @@ function useIdentityState(): IdentityContextValue {
         };
       }
 
+      const identityId = state.identity.id;
+
       try {
-        // Derive wrapping key from passphrase (no server call needed)
-        console.debug('[Identity] unlockIdentity: starting wrapping key derivation for identity:', state.identity.id);
+        // Derive wrapping key from passphrase
+        console.debug('[Identity] unlockIdentity: starting wrapping key derivation for identity:', identityId);
 
         console.debug('[Identity] unlockIdentity: getting or creating salt...');
-        const salt = await getOrCreateWrappingSalt(state.identity.id);
+        const salt = await getOrCreateWrappingSalt(identityId);
         console.debug('[Identity] unlockIdentity: salt obtained, length:', salt.length);
 
         console.debug('[Identity] unlockIdentity: deriving wrapping key with Argon2...');
         const wrappingKey = await deriveEntropyWrappingKey(passphrase, salt);
         console.debug('[Identity] unlockIdentity: wrapping key derived, length:', wrappingKey.length);
 
-        // Verify the passphrase is correct by attempting to load and decrypt a cipher
-        // For now, we trust that if key derivation succeeds, the passphrase is correct
-        // The cipher store will fail to decrypt if the passphrase was wrong
+        // Load device keys to verify passphrase and get device ID
+        console.debug('[Identity] unlockIdentity: loading device keys...');
+        let deviceId: string;
+        try {
+          const storedKeys = await getDeviceKeysForIdentity(identityId);
+          if (storedKeys.length === 0) {
+            throw new Error('No device keys found');
+          }
+          const deviceKeys = storedKeys[0];
+          if (!deviceKeys) {
+            throw new Error('Device key data missing');
+          }
+          // Attempt to decrypt - this verifies the passphrase is correct
+          const decryptedKeys = await decryptDeviceKeys(deviceKeys, wrappingKey);
+          deviceId = decryptedKeys.deviceId;
+          console.debug('[Identity] unlockIdentity: device keys verified, deviceId:', deviceId);
+
+          // Clear decrypted keys from memory
+          clearBytes(decryptedKeys.ecdhPrivateKey);
+          clearBytes(decryptedKeys.kemPrivateKey);
+        } catch (err) {
+          console.error('[Identity] unlockIdentity: failed to decrypt device keys (wrong passphrase?):', err);
+          clearBytes(wrappingKey);
+          return {
+            success: false,
+            error: 'Invalid passphrase',
+            errorCode: 'INVALID_PASSPHRASE',
+          };
+        }
+
+        // Fetch and decrypt the signing key bundle
+        console.debug('[Identity] unlockIdentity: fetching signing key bundle...');
+        let signingPrivateKey: Uint8Array;
+        try {
+          const bundleResponse = await api.identity.getKeyBundle(identityId);
+          if (!bundleResponse.success || !bundleResponse.data) {
+            throw new Error('Failed to fetch key bundle');
+          }
+
+          const bundle = bundleResponse.data;
+          console.debug('[Identity] unlockIdentity: decrypting signing key bundle...');
+
+          if (bundle.useSeparatePassphrase) {
+            console.warn('[Identity] unlockIdentity: separate bundle passphrase not yet supported');
+          }
+
+          const decryptedBundle = await decryptKeyBundle(bundle, passphrase);
+          signingPrivateKey = decryptedBundle.signingPrivateKey;
+          console.debug('[Identity] unlockIdentity: signing key decrypted');
+        } catch (err) {
+          console.error('[Identity] unlockIdentity: failed to decrypt bundle:', err);
+          clearBytes(wrappingKey);
+          return {
+            success: false,
+            error: 'Failed to decrypt signing key. Check your passphrase.',
+            errorCode: 'INVALID_PASSPHRASE',
+          };
+        }
+
+        // Cache keys in memory
         wrappingKeyRef.current = wrappingKey;
         wrappingSaltRef.current = salt;
-        console.debug('[Identity] unlockIdentity: wrapping key stored in memory');
+        signingKeyRef.current = signingPrivateKey;
+        currentDeviceIdRef.current = deviceId;
+        console.debug('[Identity] unlockIdentity: all keys cached in memory');
 
         setState((prev) => ({
           ...prev,
@@ -467,12 +815,7 @@ function useIdentityState(): IdentityContextValue {
 
         return { success: true };
       } catch (err) {
-        console.error('[Identity] unlockIdentity: failed to derive wrapping key:', err);
-        console.error('[Identity] unlockIdentity: error details:', {
-          name: err instanceof Error ? err.name : 'unknown',
-          message: err instanceof Error ? err.message : String(err),
-          stack: err instanceof Error ? err.stack : undefined,
-        });
+        console.error('[Identity] unlockIdentity: failed:', err);
         return {
           success: false,
           error: err instanceof Error ? err.message : 'Failed to unlock',
@@ -480,18 +823,18 @@ function useIdentityState(): IdentityContextValue {
         };
       }
     },
-    [state.status, state.identity]
+    [api, state.status, state.identity]
   );
 
   const logoutFromIdentity = useCallback(async () => {
     await api.identity.logout();
-    clearWrappingKey();
+    clearSessionKeys();
     setState((prev) => ({
       ...prev,
       status: prev.hasIdentity ? 'logged_out' : 'no_identity',
       identity: null,
     }));
-  }, [api, clearWrappingKey]);
+  }, [api, clearSessionKeys]);
 
   const deleteIdentity = useCallback(async () => {
     const response = await api.identity.delete();
@@ -524,6 +867,8 @@ function useIdentityState(): IdentityContextValue {
     refreshIdentitySession,
     getWrappingKey,
     getWrappingSalt,
+    getSigningKey,
+    getCurrentDeviceId,
   };
 }
 

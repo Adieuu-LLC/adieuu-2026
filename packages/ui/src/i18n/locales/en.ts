@@ -285,6 +285,64 @@ export const en = {
       warning: 'This action cannot be undone. Your identity will be permanently deleted.',
       confirmButton: 'Delete Identity',
     },
+
+    // E2E Encryption
+    e2e: {
+      // Key generation and initialization
+      initializingKeys: 'Setting up encryption keys...',
+      keyGenerationFailed: 'Failed to generate encryption keys. Please try again.',
+      bundleEncryptionFailed: 'Failed to encrypt signing key bundle.',
+      bundleUploadFailed: 'Failed to upload encryption keys to server.',
+      deviceRegistrationFailed: 'Failed to register this device for encryption.',
+
+      // Bundle operations
+      bundleFetchFailed: 'Failed to fetch encryption keys from server.',
+      bundleDecryptFailed: 'Failed to decrypt encryption keys. Check your passphrase.',
+      invalidBundleData: 'Invalid encryption key data received from server.',
+
+      // Device key storage
+      deviceKeyStorageFailed: 'Failed to store device encryption keys.',
+      deviceKeyLoadFailed: 'Failed to load device encryption keys.',
+      deviceKeyNotFound: 'No encryption keys found for this device.',
+
+      // Login flow
+      newDeviceDetected: 'New device detected. Setting up encryption...',
+      existingDeviceLoaded: 'Encryption keys loaded successfully.',
+      signingKeyDecrypted: 'Signing key decrypted successfully.',
+
+      // Separate passphrase
+      separatePassphrase: {
+        label: 'Use separate passphrase for encryption keys',
+        hint: 'Advanced: Protect your encryption keys with a different passphrase than your identity login.',
+        placeholder: 'Enter encryption passphrase',
+        confirmPlaceholder: 'Confirm encryption passphrase',
+        mismatch: 'Encryption passphrases do not match.',
+        tooShort: 'Encryption passphrase must be at least 12 characters.',
+        sameAsIdentity: 'Encryption passphrase must be different from identity passphrase.',
+        required: 'Both passphrases are required to access messages on new devices.',
+      },
+
+      // Device naming
+      deviceName: {
+        prompt: 'Name this device',
+        placeholder: 'e.g., Work Laptop, iPhone',
+        hint: 'This name helps you identify devices in your account.',
+        defaultDesktop: 'Desktop',
+        defaultMobile: 'Mobile',
+        defaultWeb: 'Web Browser',
+        defaultUnknown: 'Unknown Device',
+      },
+
+      // Errors
+      errors: {
+        webCryptoUnavailable: 'Web Crypto API is not available. Please use a modern browser.',
+        indexedDbUnavailable: 'IndexedDB is not available. Private browsing mode may not be supported.',
+        kemEncryptionFailed: 'Failed to encrypt post-quantum keys.',
+        kemDecryptionFailed: 'Failed to decrypt post-quantum keys. Check your passphrase.',
+        invalidKeySize: 'Invalid key size. Key data may be corrupted.',
+        argon2Failed: 'Key derivation failed. Please try again.',
+      },
+    },
   },
 
   // Account pages
