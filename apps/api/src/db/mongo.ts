@@ -30,7 +30,7 @@
  * ```
  */
 
-import { MongoClient, Db, Collection, Document } from 'mongodb';
+import { MongoClient, Db, Collection, Document, ClientSession, TransactionOptions } from 'mongodb';
 import { config } from '../config';
 import elog from '../utils/adieuuLogger';
 
@@ -163,6 +163,59 @@ export function getCollection<T extends Document>(name: string): Collection<T> {
 }
 
 /**
+ * Gets the MongoDB client instance.
+ * 
+ * Required for operations that need direct client access, such as
+ * starting transactions. Must call `connectMongo()` first.
+ * 
+ * @returns The MongoDB client instance
+ * @throws Error if not connected to MongoDB
+ */
+export function getMongoClient(): MongoClient {
+  if (!client) {
+    throw new Error('MongoDB not connected. Call connectMongo() first.');
+  }
+  return client;
+}
+
+/**
+ * Executes a callback within a MongoDB transaction.
+ * 
+ * Provides ACID transaction support for multi-document operations.
+ * The transaction is automatically committed on success or aborted on error.
+ * 
+ * NOTE: Requires a MongoDB replica set. Single-node deployments won't support transactions.
+ * 
+ * @param callback - Function to execute within the transaction
+ * @param options - Transaction options (read/write concern, etc.)
+ * @returns The result of the callback
+ * @throws Error if the transaction fails
+ * 
+ * @example
+ * ```typescript
+ * const result = await withTransaction(async (session) => {
+ *   await users.insertOne({ name: 'test' }, { session });
+ *   await logs.insertOne({ action: 'user_created' }, { session });
+ *   return { success: true };
+ * });
+ * ```
+ */
+export async function withTransaction<T>(
+  callback: (session: ClientSession) => Promise<T>,
+  options?: TransactionOptions
+): Promise<T> {
+  const mongoClient = getMongoClient();
+  const session = mongoClient.startSession();
+  
+  try {
+    const result = await session.withTransaction(callback, options);
+    return result as T;
+  } finally {
+    await session.endSession();
+  }
+}
+
+/**
  * Health check result for MongoDB.
  */
 export interface MongoHealthResult {
@@ -283,6 +336,8 @@ export const Collections = {
   FRIENDSHIPS: 'friendships',
   /** Notifications for identities */
   NOTIFICATIONS: 'notifications',
+  /** Encrypted signing key bundles for E2E encryption */
+  KEY_BUNDLES: 'key_bundles',
 } as const;
 
 /**
@@ -430,6 +485,10 @@ async function createIndexes(): Promise<void> {
   await notifications.createIndex({ recipientIdentityId: 1, read: 1, createdAt: -1 });
   await notifications.createIndex({ recipientIdentityId: 1, createdAt: -1 });
   await notifications.createIndex({ recipientIdentityId: 1, type: 1 });
+
+  // Key bundles collection indexes
+  const keyBundles = database.collection(Collections.KEY_BUNDLES);
+  await keyBundles.createIndex({ bundleId: 1 }, { unique: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

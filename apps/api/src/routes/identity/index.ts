@@ -31,6 +31,13 @@ import {
   addToBlocklistCtrl,
   removeFromBlocklistCtrl,
   checkBlocklistCtrl,
+  registerDeviceCtrl,
+  getIdentityKeysCtrl,
+  storeKeyBundleCtrl,
+  getKeyBundleCtrl,
+  listDevicesCtrl,
+  removeDeviceCtrl,
+  initializeE2ECtrl,
 } from './controller';
 
 const router = new Router();
@@ -225,6 +232,140 @@ router.post('/identity/logout', async (ctx) => {
  */
 router.delete('/identity', async (ctx) => {
   return await deleteIdentityCtrl(ctx);
+});
+
+// ============================================================================
+// E2E Encryption
+// ============================================================================
+
+/**
+ * POST /identity/:id/e2e/initialize - Initialize E2E encryption for an identity
+ *
+ * Atomic operation that sets up E2E encryption: creates the signing key,
+ * stores the encrypted bundle, and registers the first device.
+ *
+ * @route POST /api/identity/:id/e2e/initialize
+ *
+ * @requestBody
+ * - `signingPublicKey` (string): Ed25519 signing public key (base64)
+ * - `preferredCryptoProfile` (string, optional): 'default' or 'cnsa2'
+ * - `device` (object): First device to register
+ * - `bundle` (object): Encrypted signing key bundle
+ *
+ * @returns 200 OK on success
+ * @returns 400 Bad Request if already initialized or invalid data
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to initialize for another identity
+ */
+router.post('/identity/:id/e2e/initialize', async (ctx) => {
+  return await initializeE2ECtrl(ctx);
+});
+
+/**
+ * GET /identity/:id/keys - Get public keys for an identity
+ *
+ * Returns the public signing key and device keys for E2E encryption.
+ * This is a public endpoint - anyone can fetch keys to encrypt messages.
+ *
+ * @route GET /api/identity/:id/keys
+ *
+ * @returns 200 OK with public keys
+ * @returns 404 Not Found if identity has no E2E keys
+ */
+router.get('/identity/:id/keys', async (ctx) => {
+  return await getIdentityKeysCtrl(ctx);
+});
+
+/**
+ * GET /identity/:id/bundle - Get the encrypted key bundle
+ *
+ * Returns the encrypted signing key bundle for the identity.
+ * Only the identity owner can access their bundle.
+ *
+ * @route GET /api/identity/:id/bundle
+ *
+ * @returns 200 OK with encrypted bundle
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to access another identity's bundle
+ * @returns 404 Not Found if no bundle exists
+ */
+router.get('/identity/:id/bundle', async (ctx) => {
+  return await getKeyBundleCtrl(ctx);
+});
+
+/**
+ * PUT /identity/:id/bundle - Store or update the encrypted key bundle
+ *
+ * Stores the encrypted signing key bundle. Can be used to update
+ * the bundle when rotating encryption or changing passphrase.
+ *
+ * @route PUT /api/identity/:id/bundle
+ *
+ * @requestBody
+ * - `encryptedBundle` (string): Encrypted signing key (base64)
+ * - `salt` (string): Argon2id salt (base64)
+ * - `nonce` (string): AES-GCM nonce (base64)
+ *
+ * @returns 200 OK on success
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to store for another identity
+ */
+router.put('/identity/:id/bundle', async (ctx) => {
+  return await storeKeyBundleCtrl(ctx);
+});
+
+/**
+ * GET /identity/:id/devices - List all devices for an identity
+ *
+ * Returns all registered devices with their public keys.
+ * Only the identity owner can list their devices.
+ *
+ * @route GET /api/identity/:id/devices
+ *
+ * @returns 200 OK with device list
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to access another identity's devices
+ */
+router.get('/identity/:id/devices', async (ctx) => {
+  return await listDevicesCtrl(ctx);
+});
+
+/**
+ * POST /identity/:id/devices - Register a new device
+ *
+ * Registers a new device with its ECDH/KEM public keys.
+ *
+ * @route POST /api/identity/:id/devices
+ *
+ * @requestBody
+ * - `deviceId` (string): UUID for the device
+ * - `name` (string): Human-readable device name
+ * - `ecdhPublicKey` (string): X25519 public key (base64)
+ * - `kemPublicKey` (string, optional): ML-KEM public key (base64)
+ *
+ * @returns 200 OK on success
+ * @returns 400 Bad Request if device already registered
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to register for another identity
+ */
+router.post('/identity/:id/devices', async (ctx) => {
+  return await registerDeviceCtrl(ctx);
+});
+
+/**
+ * DELETE /identity/:id/devices/:deviceId - Remove a device
+ *
+ * Removes a registered device. Cannot remove the last device.
+ *
+ * @route DELETE /api/identity/:id/devices/:deviceId
+ *
+ * @returns 200 OK on success
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to remove for another identity
+ * @returns 404 Not Found if device doesn't exist
+ */
+router.delete('/identity/:id/devices/:deviceId', async (ctx) => {
+  return await removeDeviceCtrl(ctx);
 });
 
 // ============================================================================

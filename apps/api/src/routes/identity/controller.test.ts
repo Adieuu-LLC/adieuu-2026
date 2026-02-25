@@ -17,12 +17,35 @@ mock.module('../../config', () => ({
   },
 }));
 
+// Mock database - must be before modules that import from db
+mock.module('../../db', () => ({
+  withTransaction: async (callback: () => Promise<unknown>) => {
+    return await callback();
+  },
+  Collections: {
+    KEY_BUNDLES: 'key_bundles',
+    IDENTITIES: 'identities',
+    IDENTITY_SESSIONS: 'identity_sessions',
+    USERS: 'users',
+    SESSIONS: 'sessions',
+    AUDIT_LOGS: 'audit_logs',
+    TOTP_CREDENTIALS: 'totp_credentials',
+    WEBAUTHN_CREDENTIALS: 'webauthn_credentials',
+    MFA_BACKUP_CODES: 'mfa_backup_codes',
+    BLOCKS: 'blocks',
+    FRIEND_REQUESTS: 'friend_requests',
+    FRIENDSHIPS: 'friendships',
+    NOTIFICATIONS: 'notifications',
+  },
+}));
+
 // Mock crypto utilities
 mock.module('../../utils/crypto', () => ({
   generateSecureToken: mock(() => 'test-token'),
   hashIdentifier: mock((id: string) => `hashed:${id}`),
   hmacSign: mock((data: string) => `sig:${data}`),
   hmacVerify: mock(() => true),
+  deriveBundleId: mock((ident: string) => `bundle:${ident}`),
 }));
 
 // Mock session service
@@ -72,7 +95,17 @@ mock.module('../../repositories/identity.repository', () => ({
     findByIdentityId: mock(() => Promise.resolve(mockIdentity)),
     create: mock(() => Promise.resolve(mockIdentity)),
     updateLastActive: mock(() => Promise.resolve()),
+    setSigningPublicKey: mock(() => Promise.resolve(true)),
+    addDevice: mock(() => Promise.resolve(true)),
+    removeDevice: mock(() => Promise.resolve(true)),
+    updateDeviceActivity: mock(() => Promise.resolve(true)),
+    getDevices: mock(() => Promise.resolve([])),
   }),
+  IDENTITY_SEARCH_DEFAULTS: {
+    MIN_QUERY_LENGTH: 2,
+    DEFAULT_LIMIT: 10,
+    MAX_LIMIT: 50,
+  },
 }));
 
 // Mock identity session repository
@@ -98,6 +131,17 @@ mock.module('../../repositories/audit.repository', () => ({
 mock.module('../../services/messaging', () => ({
   sendEmail: mock(() => Promise.resolve({ success: true })),
   sendSms: mock(() => Promise.resolve({ success: true })),
+}));
+
+// Mock key-bundle repository
+mock.module('../../repositories/key-bundle.repository', () => ({
+  getKeyBundleRepository: () => ({
+    findByBundleId: mock(() => Promise.resolve(null)),
+    create: mock(() => Promise.resolve({ bundleId: 'test-bundle' })),
+    updateBundle: mock(() => Promise.resolve(null)),
+    deleteByBundleId: mock(() => Promise.resolve(true)),
+    exists: mock(() => Promise.resolve(false)),
+  }),
 }));
 
 // Mock block service

@@ -33,10 +33,18 @@ import {
   getBlockedIdentities,
   getBlockedIdentityIds,
 } from '../../services/block.service';
-import { toPublicIdentity } from '../../models/identity';
+import {
+  toPublicIdentity,
+  toIdentityPublicKeys,
+  type CryptoProfile,
+  type IdentityDevice,
+} from '../../models/identity';
 import { getClientIp } from '../auth/controller';
 import { isValidObjectId } from '../../utils';
 import { z } from '@adieuu/shared/schemas';
+import { getKeyBundleRepository } from '../../repositories/key-bundle.repository';
+import { deriveBundleId } from '../../utils/crypto';
+import type { ClientSession } from 'mongodb';
 
 // ============================================================================
 // Zod Schemas
@@ -460,4 +468,331 @@ export async function checkBlocklistCtrl(ctx: RouteContext): Promise<Response> {
     blocked: result.blocked,
     blockedAt: result.blockedAt,
   });
+}
+
+// ============================================================================
+// E2E Encryption Endpoints
+// ============================================================================
+
+const RegisterDeviceSchema = z.object({
+  deviceId: z.string().uuid(),
+  name: z.string().min(1).max(100),
+  ecdhPublicKey: z.string().min(32).max(200),
+  kemPublicKey: z.string().min(32).max(2000).optional(),
+});
+
+const StoreKeyBundleSchema = z.object({
+  encryptedBundle: z.string().min(32).max(500),
+  salt: z.string().min(16).max(64),
+  nonce: z.string().min(16).max(64),
+});
+
+const InitializeE2ESchema = z.object({
+  signingPublicKey: z.string().min(32).max(200),
+  preferredCryptoProfile: z.enum(['default', 'cnsa2']).optional(),
+  device: RegisterDeviceSchema,
+  bundle: StoreKeyBundleSchema,
+});
+
+/**
+ * Register a new device for an identity.
+ * POST /identity/:id/devices
+ */
+export async function registerDeviceCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot register device for another identity.');
+  }
+
+  const parseResult = RegisterDeviceSchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const { deviceId, name, ecdhPublicKey, kemPublicKey } = parseResult.data;
+  const identityRepo = getIdentityRepository();
+
+  const existingDevices = await identityRepo.getDevices(identity._id);
+  if (existingDevices.some(d => d.deviceId === deviceId)) {
+    return errors.badRequest('Device already registered.');
+  }
+
+  const now = new Date();
+  const device: IdentityDevice = {
+    deviceId,
+    name: sanitizeString(name, 'general').value ?? name,
+    ecdhPublicKey,
+    kemPublicKey,
+    registeredAt: now,
+    lastActiveAt: now,
+  };
+
+  const added = await identityRepo.addDevice(identity._id, device);
+  if (!added) {
+    return errors.badRequest('Failed to register device.');
+  }
+
+  return success({ deviceId }, 'Device registered successfully.');
+}
+
+/**
+ * Get public keys for an identity (for E2E encryption).
+ * GET /identity/:id/keys
+ */
+export async function getIdentityKeysCtrl(ctx: RouteContext): Promise<Response> {
+  const { id } = ctx.params;
+  
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+
+  const identityRepo = getIdentityRepository();
+  const identity = await identityRepo.findByIdentityId(sanitized.value);
+  
+  if (!identity) {
+    return errors.notFound('Identity not found.');
+  }
+
+  const publicKeys = toIdentityPublicKeys(identity);
+  if (!publicKeys) {
+    return errors.notFound('Identity has not set up E2E encryption.');
+  }
+
+  return success(publicKeys);
+}
+
+/**
+ * Store an encrypted key bundle.
+ * PUT /identity/:id/bundle
+ */
+export async function storeKeyBundleCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot store key bundle for another identity.');
+  }
+
+  const parseResult = StoreKeyBundleSchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const { encryptedBundle, salt, nonce } = parseResult.data;
+  const keyBundleRepo = getKeyBundleRepository();
+  const bundleId = deriveBundleId(identity.ident);
+
+  const existing = await keyBundleRepo.findByBundleId(bundleId);
+  if (existing) {
+    await keyBundleRepo.updateBundle(bundleId, encryptedBundle, salt, nonce);
+    return success({ updated: true }, 'Key bundle updated.');
+  }
+
+  await keyBundleRepo.create({
+    bundleId,
+    encryptedBundle,
+    salt,
+    nonce,
+    useSeparatePassphrase: false,
+  });
+
+  return success({ created: true }, 'Key bundle stored.');
+}
+
+/**
+ * Get an encrypted key bundle.
+ * GET /identity/:id/bundle
+ */
+export async function getKeyBundleCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot retrieve key bundle for another identity.');
+  }
+
+  const keyBundleRepo = getKeyBundleRepository();
+  const bundleId = deriveBundleId(identity.ident);
+
+  const bundle = await keyBundleRepo.findByBundleId(bundleId);
+  if (!bundle) {
+    return errors.notFound('Key bundle not found.');
+  }
+
+  return success({
+    encryptedBundle: bundle.encryptedBundle,
+    salt: bundle.salt,
+    nonce: bundle.nonce,
+    useSeparatePassphrase: bundle.useSeparatePassphrase,
+    schemeVersion: bundle.schemeVersion,
+  });
+}
+
+/**
+ * List all devices for an identity.
+ * GET /identity/:id/devices
+ */
+export async function listDevicesCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot list devices for another identity.');
+  }
+
+  const identityRepo = getIdentityRepository();
+  const devices = await identityRepo.getDevices(identity._id);
+
+  return success({
+    devices: devices.map(d => ({
+      deviceId: d.deviceId,
+      name: d.name,
+      ecdhPublicKey: d.ecdhPublicKey,
+      kemPublicKey: d.kemPublicKey,
+      registeredAt: d.registeredAt.toISOString(),
+      lastActiveAt: d.lastActiveAt.toISOString(),
+    })),
+  });
+}
+
+/**
+ * Remove a device from an identity.
+ * DELETE /identity/:id/devices/:deviceId
+ */
+export async function removeDeviceCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot remove device for another identity.');
+  }
+
+  const { deviceId } = ctx.params;
+  const sanitizedDeviceId = sanitizeString(deviceId ?? '', 'general');
+  if (!sanitizedDeviceId.value) {
+    return errors.badRequest('Invalid device ID.');
+  }
+
+  const identityRepo = getIdentityRepository();
+  const removed = await identityRepo.removeDevice(identity._id, sanitizedDeviceId.value);
+
+  if (!removed) {
+    return errors.notFound('Device not found.');
+  }
+
+  return success(undefined, 'Device removed.');
+}
+
+/**
+ * Initialize E2E encryption for an identity.
+ * This is an atomic operation that sets up the signing key, stores the bundle,
+ * and registers the first device in a single transaction.
+ * POST /identity/:id/e2e/initialize
+ */
+export async function initializeE2ECtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot initialize E2E for another identity.');
+  }
+
+  if (identity.signingPublicKey) {
+    return errors.badRequest('E2E encryption already initialized.');
+  }
+
+  const parseResult = InitializeE2ESchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const { signingPublicKey, preferredCryptoProfile, device, bundle } = parseResult.data;
+
+  try {
+    const { withTransaction } = await import('../../db');
+    await withTransaction(async (_session: ClientSession) => {
+      const identityRepo = getIdentityRepository();
+      const keyBundleRepo = getKeyBundleRepository();
+      const bundleId = deriveBundleId(identity.ident);
+
+      await identityRepo.setSigningPublicKey(
+        identity._id,
+        signingPublicKey,
+        (preferredCryptoProfile as CryptoProfile) ?? 'default'
+      );
+
+      await keyBundleRepo.create({
+        bundleId,
+        encryptedBundle: bundle.encryptedBundle,
+        salt: bundle.salt,
+        nonce: bundle.nonce,
+        useSeparatePassphrase: false,
+      });
+
+      const now = new Date();
+      const deviceDoc: IdentityDevice = {
+        deviceId: device.deviceId,
+        name: sanitizeString(device.name, 'general').value ?? device.name,
+        ecdhPublicKey: device.ecdhPublicKey,
+        kemPublicKey: device.kemPublicKey,
+        registeredAt: now,
+        lastActiveAt: now,
+      };
+
+      await identityRepo.addDevice(identity._id, deviceDoc);
+    });
+
+    return success({
+      initialized: true,
+      deviceId: device.deviceId,
+    }, 'E2E encryption initialized successfully.');
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    return errors.badRequest(`Failed to initialize E2E encryption: ${errorMessage}`);
+  }
 }

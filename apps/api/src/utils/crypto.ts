@@ -403,3 +403,30 @@ export function decrypt(encrypted: string): string | null {
     return null;
   }
 }
+
+/**
+ * Domain separator for key bundle ID derivation.
+ * Ensures bundle IDs are cryptographically distinct from other hash uses.
+ */
+const KEY_BUNDLE_DOMAIN = 'adieuu-key-bundle-v1';
+
+/**
+ * Derives a bundle ID from an identity's ident hash.
+ * 
+ * The bundle ID is computed as: SHA3-256(ident || KEY_BUNDLE_DOMAIN)
+ * This obfuscates the relationship between bundles and identities,
+ * preventing correlation attacks on the key_bundles collection.
+ * 
+ * @param ident - The identity's ident hash (hex string)
+ * @returns The derived bundle ID as a hex string
+ * 
+ * @example
+ * ```typescript
+ * const bundleId = deriveBundleId(identity.ident);
+ * const bundle = await keyBundleRepo.findByBundleId(bundleId);
+ * ```
+ */
+export function deriveBundleId(ident: string): string {
+  const data = `${ident}${KEY_BUNDLE_DOMAIN}`;
+  return createHash('sha3-256').update(data).digest('hex');
+}

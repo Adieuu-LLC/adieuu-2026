@@ -46,6 +46,8 @@ export {
   connectMongo,
   getDb,
   getCollection,
+  getMongoClient,
+  withTransaction,
   checkMongoHealth,
   disconnectMongo,
   initializeCollections,
@@ -53,6 +55,8 @@ export {
   type MongoHealthResult,
   type CollectionName,
 } from './mongo';
+
+export type { ClientSession } from 'mongodb';
 
 export {
   connectRedis,

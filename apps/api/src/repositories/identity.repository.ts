@@ -13,6 +13,8 @@ import type {
   IdentityDocument,
   CreateIdentityInput,
   UpdateIdentityInput,
+  IdentityDevice,
+  CryptoProfile,
 } from '../models/identity';
 import { DELETED_IDENT } from '../models/identity';
 import { withUpdatedAt } from '../models/base';
@@ -41,6 +43,11 @@ export interface IIdentityRepository {
   updateByIdent(ident: string, update: UpdateIdentityInput): Promise<IdentityDocument | null>;
   softDelete(identityId: string | ObjectId): Promise<boolean>;
   upgradeHashVersion(identityId: string | ObjectId, newIdent: string, newVersion: number): Promise<boolean>;
+  setSigningPublicKey(identityId: string | ObjectId, signingPublicKey: string, preferredCryptoProfile: CryptoProfile): Promise<boolean>;
+  addDevice(identityId: string | ObjectId, device: IdentityDevice): Promise<boolean>;
+  removeDevice(identityId: string | ObjectId, deviceId: string): Promise<boolean>;
+  updateDeviceActivity(identityId: string | ObjectId, deviceId: string): Promise<boolean>;
+  getDevices(identityId: string | ObjectId): Promise<IdentityDevice[]>;
 }
 
 /**
@@ -239,6 +246,120 @@ export class IdentityRepository
     }
 
     return false;
+  }
+
+  /**
+   * Set the signing public key and crypto profile for E2E encryption.
+   * Should only be called once when initializing E2E for an identity.
+   */
+  async setSigningPublicKey(
+    identityId: string | ObjectId,
+    signingPublicKey: string,
+    preferredCryptoProfile: CryptoProfile
+  ): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          signingPublicKey,
+          preferredCryptoProfile,
+          updatedAt: now,
+        },
+      }
+    );
+
+    if (result.modifiedCount === 1) {
+      elog.info('Identity signing key set', {
+        identityId: objectId.toHexString(),
+        cryptoProfile: preferredCryptoProfile,
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Add a new device to an identity.
+   */
+  async addDevice(identityId: string | ObjectId, device: IdentityDevice): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $push: { devices: device },
+        $set: { updatedAt: now },
+      }
+    );
+
+    if (result.modifiedCount === 1) {
+      elog.info('Device added to identity', {
+        identityId: objectId.toHexString(),
+        deviceId: device.deviceId,
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Remove a device from an identity.
+   */
+  async removeDevice(identityId: string | ObjectId, deviceId: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $pull: { devices: { deviceId } },
+        $set: { updatedAt: now },
+      }
+    );
+
+    if (result.modifiedCount === 1) {
+      elog.info('Device removed from identity', {
+        identityId: objectId.toHexString(),
+        deviceId,
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Update the last active timestamp for a device.
+   */
+  async updateDeviceActivity(identityId: string | ObjectId, deviceId: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId, 'devices.deviceId': deviceId },
+      {
+        $set: {
+          'devices.$.lastActiveAt': now,
+          updatedAt: now,
+        },
+      }
+    );
+
+    return result.modifiedCount === 1;
+  }
+
+  /**
+   * Get all devices for an identity.
+   */
+  async getDevices(identityId: string | ObjectId): Promise<IdentityDevice[]> {
+    const doc = await this.findByIdentityId(identityId);
+    return doc?.devices ?? [];
   }
 }
 

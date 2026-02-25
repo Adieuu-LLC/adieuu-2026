@@ -13,6 +13,32 @@ import type { BaseDocument } from './base';
 export const DELETED_IDENT = 'deleted';
 
 /**
+ * Crypto profile type for E2E encryption.
+ * - 'default': X25519 + Ed25519 (classical)
+ * - 'cnsa2': ML-KEM-1024 + Ed25519 (post-quantum)
+ */
+export type CryptoProfile = 'default' | 'cnsa2';
+
+/**
+ * Registered device for an identity.
+ * Each device has its own ECDH/KEM key pair for key exchange.
+ */
+export interface IdentityDevice {
+  /** Unique device identifier (UUID) */
+  deviceId: string;
+  /** Human-readable device name */
+  name: string;
+  /** X25519 public key for ECDH (base64) */
+  ecdhPublicKey: string;
+  /** ML-KEM public key for post-quantum (base64, optional) */
+  kemPublicKey?: string;
+  /** When this device was registered */
+  registeredAt: Date;
+  /** Last time this device was active */
+  lastActiveAt: Date;
+}
+
+/**
  * Identity document stored in MongoDB
  */
 export interface IdentityDocument extends BaseDocument {
@@ -43,6 +69,15 @@ export interface IdentityDocument extends BaseDocument {
 
   /** Last time this identity was active */
   lastActiveAt: Date;
+
+  /** Preferred crypto profile for E2E encryption */
+  preferredCryptoProfile?: CryptoProfile;
+
+  /** Ed25519 signing public key (base64) */
+  signingPublicKey?: string;
+
+  /** Registered devices for E2E encryption */
+  devices?: IdentityDevice[];
 }
 
 /**
@@ -53,6 +88,8 @@ export interface CreateIdentityInput {
   hashVersion: number;
   username: string;
   displayName: string;
+  preferredCryptoProfile?: CryptoProfile;
+  signingPublicKey?: string;
 }
 
 /**
@@ -66,6 +103,9 @@ export interface UpdateIdentityInput {
   bio?: string;
   avatarUrl?: string;
   lastActiveAt?: Date;
+  preferredCryptoProfile?: CryptoProfile;
+  signingPublicKey?: string;
+  devices?: IdentityDevice[];
 }
 
 /**
@@ -82,6 +122,32 @@ export interface PublicIdentity {
   lastActiveAt: string;
   /** Whether this identity has been deleted */
   isDeleted: boolean;
+  /** Preferred crypto profile for E2E encryption */
+  preferredCryptoProfile?: CryptoProfile;
+  /** Whether this identity has E2E keys set up */
+  hasE2EKeys?: boolean;
+  /** Number of registered devices */
+  deviceCount?: number;
+}
+
+/**
+ * Public device representation (safe to send to other users)
+ */
+export interface PublicDevice {
+  deviceId: string;
+  name: string;
+  ecdhPublicKey: string;
+  kemPublicKey?: string;
+}
+
+/**
+ * Identity public keys for E2E encryption (sent to other users)
+ */
+export interface IdentityPublicKeys {
+  identityId: string;
+  signingPublicKey: string;
+  preferredCryptoProfile: CryptoProfile;
+  devices: PublicDevice[];
 }
 
 /**
@@ -99,6 +165,9 @@ export function toPublicIdentity(doc: IdentityDocument): PublicIdentity {
     createdAt: doc.createdAt.toISOString(),
     lastActiveAt: doc.lastActiveAt.toISOString(),
     isDeleted: doc.ident === DELETED_IDENT,
+    preferredCryptoProfile: doc.preferredCryptoProfile,
+    hasE2EKeys: !!doc.signingPublicKey,
+    deviceCount: doc.devices?.length ?? 0,
   };
 }
 
@@ -107,4 +176,26 @@ export function toPublicIdentity(doc: IdentityDocument): PublicIdentity {
  */
 export function isIdentityDeleted(doc: IdentityDocument): boolean {
   return doc.ident === DELETED_IDENT;
+}
+
+/**
+ * Convert an IdentityDocument to IdentityPublicKeys for E2E encryption.
+ * Returns null if the identity doesn't have E2E keys set up.
+ */
+export function toIdentityPublicKeys(doc: IdentityDocument): IdentityPublicKeys | null {
+  if (!doc.signingPublicKey) {
+    return null;
+  }
+
+  return {
+    identityId: doc._id.toHexString(),
+    signingPublicKey: doc.signingPublicKey,
+    preferredCryptoProfile: doc.preferredCryptoProfile ?? 'default',
+    devices: (doc.devices ?? []).map(d => ({
+      deviceId: d.deviceId,
+      name: d.name,
+      ecdhPublicKey: d.ecdhPublicKey,
+      kemPublicKey: d.kemPublicKey,
+    })),
+  };
 }
