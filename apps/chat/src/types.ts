@@ -31,6 +31,7 @@ export type WsMessageType =
   | 'ack'
   | 'error'
   | 'dm:new'
+  | 'dm:deleted'
   | 'dm:read'
   | 'dm:typing';
 
@@ -141,6 +142,18 @@ export interface WsDmTypingMessage extends WsMessageBase {
 }
 
 /**
+ * DM message deleted event (from API via Redis)
+ */
+export interface WsDmDeletedMessage extends WsMessageBase {
+  type: 'dm:deleted';
+  payload: {
+    messageId: string;
+    conversationId: string;
+    reason: 'deleted_for_everyone' | 'deleted_for_self' | 'expired';
+  };
+}
+
+/**
  * Encrypted message payload
  */
 export interface WsEncryptedMessage extends WsMessageBase {
@@ -179,6 +192,7 @@ export type WsOutgoingMessage =
   | WsTypingMessage
   | WsEncryptedMessage
   | WsDmNewMessage
+  | WsDmDeletedMessage
   | WsDmReadMessage
   | WsDmTypingMessage;
 

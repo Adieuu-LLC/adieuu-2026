@@ -20,6 +20,8 @@ import {
   getConversationCtrl,
   getConversationsCtrl,
   updateReadStateCtrl,
+  deleteMessageForEveryoneCtrl,
+  deleteMessageForSelfCtrl,
 } from './controller';
 
 const router = new Router();
@@ -157,6 +159,46 @@ router.post('/dm/messages', async (ctx) => {
  */
 router.get('/dm/conversations/:conversationId/messages', async (ctx) => {
   return await getMessagesCtrl(ctx);
+});
+
+/**
+ * DELETE /dm/messages/:messageId - Delete message for everyone
+ *
+ * Deletes a message for all participants. Only the sender can do this.
+ * Sender is verified by checking the message signature against the
+ * requester's signing key.
+ *
+ * @route DELETE /api/dm/messages/:messageId
+ *
+ * @param messageId (string, required): The message ID to delete
+ *
+ * @returns 200 OK with deleted: true
+ * @returns 400 Bad Request if message ID invalid
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if requester is not the sender
+ * @returns 404 Not Found if message doesn't exist
+ */
+router.delete('/dm/messages/:messageId', async (ctx) => {
+  return await deleteMessageForEveryoneCtrl(ctx);
+});
+
+/**
+ * POST /dm/messages/:messageId/delete-for-self - Delete message for self only
+ *
+ * Deletes a message for the current identity only. Other participants
+ * can still see the message.
+ *
+ * @route POST /api/dm/messages/:messageId/delete-for-self
+ *
+ * @param messageId (string, required): The message ID to delete
+ *
+ * @returns 200 OK with deleted: true
+ * @returns 400 Bad Request if message ID invalid
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 404 Not Found if message doesn't exist
+ */
+router.post('/dm/messages/:messageId/delete-for-self', async (ctx) => {
+  return await deleteMessageForSelfCtrl(ctx);
 });
 
 export const dmRoutes = router;

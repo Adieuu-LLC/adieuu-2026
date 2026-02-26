@@ -302,21 +302,29 @@ The following design decisions were made during Phase 3 planning:
 
 ---
 
-## Phase 5a: Core Message Lifecycle
+## Phase 5a: Core Message Lifecycle [COMPLETE]
 
 **Goal:** Send-time TTL, manual deletion, tombstones, and real-time deletion events.
 
 **Dependencies:** Phase 3 complete (Phase 4 is optional polish)
 
+**Status:** Complete. All core message lifecycle functionality implemented.
+
 ### Design Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| TTL expiration behavior | Hard delete (default), soft delete optional via env var | Hard delete saves storage; env var `DM_TTL_SOFT_DELETE=true` for soft delete |
+| TTL expiration behavior | MongoDB TTL index (hard delete) | Zero application load; scales infinitely; MongoDB handles deletion automatically |
 | Sender verification for delete | Verify message signature against requester's signing key | Only sender could have signed the original message; cryptographically secure |
-| WebSocket deletion events | Publish for all deletion types | `dm:deleted` for delete-for-everyone, delete-for-self, TTL expiration |
+| WebSocket deletion events | Publish for delete-for-everyone only | Client handles TTL expiration locally using `expiresAt` field; no server event needed |
 | TTL options (send-time) | 30s, 60s, 3m, 5m, 10m, 30m, 1h, 6h, 1d, 3d, 1w, never | "never" is default; granular options for ephemeral messaging |
 | Tombstone format | `{ id, conversationId, deleted: true, createdAt }` | Minimal info for sync; no additional metadata needed for DMs |
+
+**TTL Implementation:**
+- `expiresAt` field set on message creation when sender specifies TTL
+- MongoDB TTL index (`expireAfterSeconds: 0`) on `expiresAt` field automatically deletes documents
+- Client displays `expiresAt` and can remove from UI when time passes
+- No server-side cron job needed; no WebSocket notification for TTL expiration
 
 **Sender Verification Flow:**
 When requester calls DELETE `/dm/messages/:id`:
@@ -325,17 +333,17 @@ When requester calls DELETE `/dm/messages/:id`:
 3. If verification succeeds → requester is sender → allow deletion
 4. If verification fails → deny deletion (403)
 
-### API Tasks
+### API Tasks [COMPLETE]
 
-| ID | Task | Files | Description |
-|----|------|-------|-------------|
-| 5a.1 | TTL background job | `jobs/message-expiration.ts` | Cron job to hard/soft delete expired messages based on env var |
-| 5a.2 | Delete for everyone endpoint | `routes/dm/controller.ts` | DELETE `/dm/messages/:id` with signature verification |
-| 5a.3 | Delete for self endpoint | `routes/dm/controller.ts` | POST `/dm/messages/:id/delete-for-self` |
-| 5a.4 | Publish deletion events | `services/dm-events.service.ts` | Publish `dm:deleted` to Redis for all deletion types |
-| 5a.5 | Chat server: handle dm:deleted | `apps/chat/src/handlers.ts` | Broadcast deletion events to connected clients |
+| ID | Task | Files | Status |
+|----|------|-------|--------|
+| 5a.1 | MongoDB TTL index | `db/mongo.ts` | Done - `expiresAt` TTL index with `expireAfterSeconds: 0` |
+| 5a.2 | Delete for everyone endpoint | `routes/dm/controller.ts` | Done - DELETE `/dm/messages/:id` with Ed25519 signature verification |
+| 5a.3 | Delete for self endpoint | `routes/dm/controller.ts` | Done - POST `/dm/messages/:id/delete-for-self` |
+| 5a.4 | Publish deletion events | `services/dm-events.service.ts` | Done - `dm:deleted` event for delete-for-everyone |
+| 5a.5 | Chat server: handle dm:deleted | `apps/chat/src/types.ts` | Done - `WsDmDeletedMessage` type; Redis pub/sub forwarding already works |
 
-**Note:** Filtering deleted messages (5.4) and returning tombstones (5.5) are already implemented in the repository and model.
+**Note:** Filtering deleted messages and returning tombstones were already implemented in Phase 3.
 
 ### Client Tasks
 
@@ -392,9 +400,9 @@ When requester calls DELETE `/dm/messages/:id`:
 | 5b.3 | Add encrypted privacy settings to conversation | `models/dm-conversation.ts` | `encryptedPrivacySettings?: string` field |
 | 5b.4 | Update conversation privacy settings | `routes/dm/controller.ts` | PATCH `/dm/conversations/:id/privacy` |
 | 5b.5 | Include recipient privacy in conversation response | `routes/dm/controller.ts` | Return `recipientAllowsReadBasedDeletion` (encrypted) |
-| 5b.6 | Add TTL fields to message model | `models/dm-message.ts` | `ttlDurationSeconds`, `ttlStartsOn`, `firstReadAt` |
-| 5b.7 | Track first read | `routes/dm/controller.ts` | On message fetch, set `firstReadAt` if not set and TTL is read-based |
-| 5b.8 | Update TTL job for read-triggered | `jobs/message-expiration.ts` | Compute expiration from `firstReadAt + ttlDurationSeconds` |
+| 5b.6 | Add TTL fields to message model | `models/dm-message.ts` | `ttlDurationSeconds`, `ttlStartsOn` (send/read) |
+| 5b.7 | Set expiresAt on first read | `routes/dm/controller.ts` | On message fetch, set `expiresAt = now + ttlDurationSeconds` if read-based and not set |
+| 5b.8 | (Removed) | - | MongoDB TTL index handles expiration automatically |
 
 ### Client Tasks
 

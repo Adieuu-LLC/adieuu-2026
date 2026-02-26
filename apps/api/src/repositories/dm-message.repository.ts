@@ -37,6 +37,7 @@ export interface PaginatedMessagesResult {
  * DM message repository interface.
  */
 export interface IDmMessageRepository {
+  findById(messageId: ObjectId): Promise<DmMessageDocument | null>;
   findByClientMessageId(
     conversationId: string,
     clientMessageId: string
@@ -69,6 +70,13 @@ export class DmMessageRepository
 {
   constructor() {
     super(Collections.DM_MESSAGES);
+  }
+
+  /**
+   * Find a message by its ID.
+   */
+  async findById(messageId: ObjectId): Promise<DmMessageDocument | null> {
+    return await this.findOne({ _id: messageId });
   }
 
   /**

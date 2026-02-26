@@ -16,7 +16,7 @@ import { config } from '../config';
 /**
  * DM event types for WebSocket communication
  */
-export type DmEventType = 'dm:new' | 'dm:read' | 'dm:typing';
+export type DmEventType = 'dm:new' | 'dm:deleted' | 'dm:read' | 'dm:typing';
 
 /**
  * Base structure for DM events
@@ -60,9 +60,26 @@ export interface DmTypingEvent extends DmEventBase {
 }
 
 /**
+ * Deletion reason for dm:deleted events
+ */
+export type DmDeletionReason = 'deleted_for_everyone' | 'deleted_for_self' | 'expired';
+
+/**
+ * Message deleted event
+ */
+export interface DmDeletedEvent extends DmEventBase {
+  type: 'dm:deleted';
+  payload: {
+    messageId: string;
+    conversationId: string;
+    reason: DmDeletionReason;
+  };
+}
+
+/**
  * Union of all DM event types
  */
-export type DmEvent = DmNewMessageEvent | DmReadStateEvent | DmTypingEvent;
+export type DmEvent = DmNewMessageEvent | DmDeletedEvent | DmReadStateEvent | DmTypingEvent;
 
 /**
  * Publishes a DM event to Redis for delivery to a specific identity.
@@ -170,4 +187,31 @@ export async function publishTypingIndicator(
   };
 
   await publishToIdentity(otherParticipantId, event);
+}
+
+/**
+ * Publishes a message deleted event to the recipient.
+ * Used for delete-for-everyone and TTL expiration events.
+ *
+ * @param recipientIdentityId - The identity to notify
+ * @param messageId - The deleted message ID
+ * @param conversationId - The conversation ID
+ * @param reason - Why the message was deleted
+ */
+export async function publishMessageDeleted(
+  recipientIdentityId: string,
+  messageId: string,
+  conversationId: string,
+  reason: DmDeletionReason
+): Promise<void> {
+  const event: DmDeletedEvent = {
+    type: 'dm:deleted',
+    payload: {
+      messageId,
+      conversationId,
+      reason,
+    },
+  };
+
+  await publishToIdentity(recipientIdentityId, event);
 }

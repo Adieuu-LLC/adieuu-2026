@@ -133,7 +133,7 @@ const mockMessage = {
   createdAt: new Date(),
   updatedAt: new Date(),
   deletedForEveryone: false,
-  deletedFor: [],
+  deletedFor: [] as ObjectId[],
 };
 
 const mockFindByClientMessageId = mock(() => Promise.resolve(null));
@@ -149,6 +149,9 @@ const mockGetLatestMessagePerConversation = mock(() => {
   map.set('a'.repeat(64), mockMessage);
   return Promise.resolve(map);
 });
+const mockFindMessageById = mock(() => Promise.resolve(mockMessage as typeof mockMessage | null));
+const mockDeleteForEveryone = mock(() => Promise.resolve(true));
+const mockDeleteForSelf = mock(() => Promise.resolve(true));
 
 mock.module('../../repositories/dm-message.repository', () => ({
   getDmMessageRepository: () => ({
@@ -157,6 +160,9 @@ mock.module('../../repositories/dm-message.repository', () => ({
     getMessagesByConversation: mockGetMessagesByConversation,
     getConversationIdsForIdentity: mockGetConversationIdsForIdentity,
     getLatestMessagePerConversation: mockGetLatestMessagePerConversation,
+    findById: mockFindMessageById,
+    deleteForEveryone: mockDeleteForEveryone,
+    deleteForSelf: mockDeleteForSelf,
   }),
 }));
 
@@ -173,6 +179,16 @@ mock.module('../../repositories/identity.repository', () => ({
   }),
 }));
 
+const mockVerifyDmMessageSignature = mock(() => true);
+
+mock.module('../../utils/crypto', () => ({
+  generateSecureToken: mock(() => 'test-token'),
+  hashIdentifier: mock((id: string) => `hashed:${id}`),
+  hmacSign: mock((data: string) => `sig:${data}`),
+  hmacVerify: mock(() => true),
+  verifyDmMessageSignature: mockVerifyDmMessageSignature,
+}));
+
 import {
   getOrCreateConversationCtrl,
   sendMessageCtrl,
@@ -180,6 +196,8 @@ import {
   getConversationCtrl,
   getConversationsCtrl,
   updateReadStateCtrl,
+  deleteMessageForEveryoneCtrl,
+  deleteMessageForSelfCtrl,
 } from './controller';
 import { deriveConversationId } from '../../utils/conversation';
 
@@ -680,6 +698,194 @@ describe('DM Controller', () => {
       expect(json.success).toBe(true);
       expect(json.data.conversation).toBeDefined();
       expect(json.data.conversation.readState).toBeInstanceOf(Array);
+    });
+  });
+
+  describe('deleteMessageForEveryoneCtrl', () => {
+    beforeEach(() => {
+      mockFindMessageById.mockReset();
+      mockDeleteForEveryone.mockReset();
+      mockVerifyDmMessageSignature.mockReset();
+      mockFindMessageById.mockImplementation(() => Promise.resolve(mockMessage));
+      mockDeleteForEveryone.mockImplementation(() => Promise.resolve(true));
+      mockVerifyDmMessageSignature.mockImplementation(() => true);
+    });
+
+    test('returns 401 when not authenticated', async () => {
+      const ctx = createMockContext({
+        method: 'DELETE',
+        path: `/dm/messages/${mockMessageId.toHexString()}`,
+        params: { messageId: mockMessageId.toHexString() },
+        authenticated: false,
+      });
+
+      const response = await deleteMessageForEveryoneCtrl(ctx);
+      expect(response.status).toBe(401);
+    });
+
+    test('returns 400 for invalid message ID', async () => {
+      const ctx = createMockContext({
+        method: 'DELETE',
+        path: '/dm/messages/invalid',
+        params: { messageId: 'invalid' },
+      });
+
+      const response = await deleteMessageForEveryoneCtrl(ctx);
+      expect(response.status).toBe(400);
+    });
+
+    test('returns 404 when message not found', async () => {
+      mockFindMessageById.mockImplementation(() => Promise.resolve(null));
+
+      const ctx = createMockContext({
+        method: 'DELETE',
+        path: `/dm/messages/${mockMessageId.toHexString()}`,
+        params: { messageId: mockMessageId.toHexString() },
+      });
+
+      const response = await deleteMessageForEveryoneCtrl(ctx);
+      expect(response.status).toBe(404);
+    });
+
+    test('returns 403 when signature verification fails (not sender)', async () => {
+      mockVerifyDmMessageSignature.mockImplementation(() => false);
+
+      const ctx = createMockContext({
+        method: 'DELETE',
+        path: `/dm/messages/${mockMessageId.toHexString()}`,
+        params: { messageId: mockMessageId.toHexString() },
+      });
+
+      const response = await deleteMessageForEveryoneCtrl(ctx);
+      expect(response.status).toBe(403);
+    });
+
+    test('deletes message for everyone when sender', async () => {
+      const ctx = createMockContext({
+        method: 'DELETE',
+        path: `/dm/messages/${mockMessageId.toHexString()}`,
+        params: { messageId: mockMessageId.toHexString() },
+      });
+
+      const response = await deleteMessageForEveryoneCtrl(ctx);
+      expect(response.status).toBe(200);
+
+      const json = await response.json() as { success: boolean; data: { deleted: boolean } };
+      expect(json.success).toBe(true);
+      expect(json.data.deleted).toBe(true);
+      expect(mockDeleteForEveryone).toHaveBeenCalled();
+    });
+
+    test('returns success if message already deleted', async () => {
+      mockFindMessageById.mockImplementation(() => Promise.resolve({
+        ...mockMessage,
+        deletedForEveryone: true,
+      }));
+
+      const ctx = createMockContext({
+        method: 'DELETE',
+        path: `/dm/messages/${mockMessageId.toHexString()}`,
+        params: { messageId: mockMessageId.toHexString() },
+      });
+
+      const response = await deleteMessageForEveryoneCtrl(ctx);
+      expect(response.status).toBe(200);
+      expect(mockDeleteForEveryone).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('deleteMessageForSelfCtrl', () => {
+    beforeEach(() => {
+      mockFindMessageById.mockReset();
+      mockDeleteForSelf.mockReset();
+      mockFindMessageById.mockImplementation(() => Promise.resolve(mockMessage));
+      mockDeleteForSelf.mockImplementation(() => Promise.resolve(true));
+    });
+
+    test('returns 401 when not authenticated', async () => {
+      const ctx = createMockContext({
+        method: 'POST',
+        path: `/dm/messages/${mockMessageId.toHexString()}/delete-for-self`,
+        params: { messageId: mockMessageId.toHexString() },
+        authenticated: false,
+      });
+
+      const response = await deleteMessageForSelfCtrl(ctx);
+      expect(response.status).toBe(401);
+    });
+
+    test('returns 400 for invalid message ID', async () => {
+      const ctx = createMockContext({
+        method: 'POST',
+        path: '/dm/messages/invalid/delete-for-self',
+        params: { messageId: 'invalid' },
+      });
+
+      const response = await deleteMessageForSelfCtrl(ctx);
+      expect(response.status).toBe(400);
+    });
+
+    test('returns 404 when message not found', async () => {
+      mockFindMessageById.mockImplementation(() => Promise.resolve(null));
+
+      const ctx = createMockContext({
+        method: 'POST',
+        path: `/dm/messages/${mockMessageId.toHexString()}/delete-for-self`,
+        params: { messageId: mockMessageId.toHexString() },
+      });
+
+      const response = await deleteMessageForSelfCtrl(ctx);
+      expect(response.status).toBe(404);
+    });
+
+    test('deletes message for self', async () => {
+      const ctx = createMockContext({
+        method: 'POST',
+        path: `/dm/messages/${mockMessageId.toHexString()}/delete-for-self`,
+        params: { messageId: mockMessageId.toHexString() },
+      });
+
+      const response = await deleteMessageForSelfCtrl(ctx);
+      expect(response.status).toBe(200);
+
+      const json = await response.json() as { success: boolean; data: { deleted: boolean } };
+      expect(json.success).toBe(true);
+      expect(json.data.deleted).toBe(true);
+      expect(mockDeleteForSelf).toHaveBeenCalled();
+    });
+
+    test('returns success if already deleted for everyone', async () => {
+      mockFindMessageById.mockImplementation(() => Promise.resolve({
+        ...mockMessage,
+        deletedForEveryone: true,
+      }));
+
+      const ctx = createMockContext({
+        method: 'POST',
+        path: `/dm/messages/${mockMessageId.toHexString()}/delete-for-self`,
+        params: { messageId: mockMessageId.toHexString() },
+      });
+
+      const response = await deleteMessageForSelfCtrl(ctx);
+      expect(response.status).toBe(200);
+      expect(mockDeleteForSelf).not.toHaveBeenCalled();
+    });
+
+    test('returns success if already deleted for self', async () => {
+      mockFindMessageById.mockImplementation(() => Promise.resolve({
+        ...mockMessage,
+        deletedFor: [mockIdentityId],
+      }));
+
+      const ctx = createMockContext({
+        method: 'POST',
+        path: `/dm/messages/${mockMessageId.toHexString()}/delete-for-self`,
+        params: { messageId: mockMessageId.toHexString() },
+      });
+
+      const response = await deleteMessageForSelfCtrl(ctx);
+      expect(response.status).toBe(200);
+      expect(mockDeleteForSelf).not.toHaveBeenCalled();
     });
   });
 });

@@ -23,6 +23,7 @@
  */
 
 import { createHash, createHmac, createCipheriv, createDecipheriv, timingSafeEqual } from 'crypto';
+import { verify as ed25519Verify, fromBase64, toBytes, concatBytes } from '@adieuu/crypto';
 import { config } from '../config';
 
 /**
@@ -429,4 +430,44 @@ const KEY_BUNDLE_DOMAIN = 'adieuu-key-bundle-v1';
 export function deriveBundleId(ident: string): string {
   const data = `${ident}${KEY_BUNDLE_DOMAIN}`;
   return createHash('sha3-256').update(data).digest('hex');
+}
+
+/**
+ * Verifies an Ed25519 signature for a DM message.
+ *
+ * The signature is over: ciphertext || nonce || wrappedKeysJson
+ * This matches the client-side signing format in dmMessageService.ts.
+ *
+ * @param signingPublicKey - Base64-encoded Ed25519 public key
+ * @param ciphertext - Base64-encoded ciphertext
+ * @param nonce - Base64-encoded nonce
+ * @param wrappedKeys - Array of wrapped keys (will be JSON-stringified)
+ * @param signature - Base64-encoded Ed25519 signature
+ * @returns true if signature is valid, false otherwise
+ */
+export function verifyDmMessageSignature(
+  signingPublicKey: string,
+  ciphertext: string,
+  nonce: string,
+  wrappedKeys: unknown[],
+  signature: string
+): boolean {
+  try {
+    const publicKeyBytes = fromBase64(signingPublicKey);
+    const ciphertextBytes = fromBase64(ciphertext);
+    const nonceBytes = fromBase64(nonce);
+    const wrappedKeysJson = JSON.stringify(wrappedKeys);
+    const wrappedKeysBytes = toBytes(wrappedKeysJson);
+    const signatureBytes = fromBase64(signature);
+
+    const signatureData = concatBytes(
+      ciphertextBytes,
+      nonceBytes,
+      wrappedKeysBytes
+    );
+
+    return ed25519Verify(publicKeyBytes, signatureData, signatureBytes);
+  } catch {
+    return false;
+  }
 }

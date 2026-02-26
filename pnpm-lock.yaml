@@ -17,6 +17,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@adieuu/crypto':
+        specifier: workspace:*
+        version: link:../../packages/crypto
       '@adieuu/shared':
         specifier: workspace:*
         version: link:../../packages/shared

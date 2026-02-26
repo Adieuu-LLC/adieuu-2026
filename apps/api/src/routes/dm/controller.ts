@@ -10,7 +10,7 @@
 import { ObjectId } from 'mongodb';
 import { success, errors } from '../../utils/response';
 import { RouteContext } from '../../router';
-import { getIdentityFromSession, getIdentitySessionIdFromRequest, publishNewMessage } from '../../services';
+import { getIdentityFromSession, getIdentitySessionIdFromRequest, publishNewMessage, publishMessageDeleted } from '../../services';
 import { getDmConversationRepository } from '../../repositories/dm-conversation.repository';
 import { getDmMessageRepository } from '../../repositories/dm-message.repository';
 import { getIdentityRepository } from '../../repositories/identity.repository';
@@ -535,4 +535,129 @@ export async function updateReadStateCtrl(ctx: RouteContext): Promise<Response> 
   return success({
     conversation: toPublicDmConversation(updated),
   });
+}
+
+/**
+ * DELETE /dm/messages/:messageId - Delete a message for everyone
+ *
+ * Deletes a message for all participants. Only the sender can do this.
+ * The sender is verified by checking the message signature against the
+ * requester's signing key.
+ *
+ * Security: If the signature verifies, the requester is the sender
+ * (only they had the private key to create the signature).
+ */
+export async function deleteMessageForEveryoneCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (!identity.signingPublicKey) {
+    return errors.badRequest('You must set up E2E encryption.');
+  }
+
+  const { messageId } = ctx.params;
+
+  if (!messageId || !isValidObjectId(messageId)) {
+    return errors.badRequest('Invalid message ID.');
+  }
+
+  const messageRepo = getDmMessageRepository();
+  const message = await messageRepo.findById(new ObjectId(messageId));
+
+  if (!message) {
+    return errors.notFound('Message not found.');
+  }
+
+  if (message.deletedForEveryone) {
+    return success({ deleted: true }, 'Message already deleted.');
+  }
+
+  const { verifyDmMessageSignature } = await import('../../utils/crypto');
+
+  const isValidSignature = verifyDmMessageSignature(
+    identity.signingPublicKey,
+    message.ciphertext,
+    message.nonce,
+    message.wrappedKeys,
+    message.signature
+  );
+
+  if (!isValidSignature) {
+    return errors.forbidden('You can only delete messages you sent.');
+  }
+
+  const deleted = await messageRepo.deleteForEveryone(
+    new ObjectId(messageId),
+    identity._id
+  );
+
+  if (!deleted) {
+    return errors.internal('Failed to delete message.');
+  }
+
+  publishMessageDeleted(
+    message.toIdentityId.toHexString(),
+    messageId,
+    message.conversationId,
+    'deleted_for_everyone'
+  ).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error('Failed to publish deletion event:', err);
+  });
+
+  return success({ deleted: true }, 'Message deleted for everyone.');
+}
+
+/**
+ * POST /dm/messages/:messageId/delete-for-self - Delete a message for self
+ *
+ * Deletes a message for the current identity only. Other participants
+ * can still see the message.
+ */
+export async function deleteMessageForSelfCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  const { messageId } = ctx.params;
+
+  if (!messageId || !isValidObjectId(messageId)) {
+    return errors.badRequest('Invalid message ID.');
+  }
+
+  const messageRepo = getDmMessageRepository();
+  const message = await messageRepo.findById(new ObjectId(messageId));
+
+  if (!message) {
+    return errors.notFound('Message not found.');
+  }
+
+  const alreadyDeletedForSelf = message.deletedFor.some((id) => id.equals(identity._id));
+  if (message.deletedForEveryone || alreadyDeletedForSelf) {
+    return success({ deleted: true }, 'Message already deleted.');
+  }
+
+  const deleted = await messageRepo.deleteForSelf(
+    new ObjectId(messageId),
+    identity._id
+  );
+
+  if (!deleted) {
+    return errors.internal('Failed to delete message.');
+  }
+
+  return success({ deleted: true }, 'Message deleted for you.');
 }

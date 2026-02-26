@@ -308,7 +308,7 @@ describe('IdentityRepository', () => {
   describe('updateDeviceName', () => {
     test('updates name for device', async () => {
       mockCollection.updateOne.mockImplementation(() =>
-        Promise.resolve({ modifiedCount: 1 })
+        Promise.resolve({ matchedCount: 1, modifiedCount: 1 })
       );
 
       const result = await repo.updateDeviceName(mockIdentity._id, 'device-123', 'New Name');
@@ -326,7 +326,7 @@ describe('IdentityRepository', () => {
 
     test('returns false when device not found', async () => {
       mockCollection.updateOne.mockImplementation(() =>
-        Promise.resolve({ modifiedCount: 0 })
+        Promise.resolve({ matchedCount: 0, modifiedCount: 0 })
       );
 
       const result = await repo.updateDeviceName(mockIdentity._id, 'nonexistent', 'New Name');
