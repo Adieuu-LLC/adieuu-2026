@@ -1583,6 +1583,35 @@ export class DmApi {
       { encryptedLastReadId }
     );
   }
+
+  /**
+   * Delete a message for everyone in the conversation.
+   *
+   * Only the original sender can delete a message for everyone.
+   * The server verifies this by checking the message signature
+   * against the requester's signing key.
+   *
+   * @param messageId - The message ID to delete
+   */
+  async deleteForEveryone(
+    messageId: string
+  ): Promise<ApiResponse<{ success: boolean }>> {
+    return this.client.delete(`/api/dm/messages/${encodeURIComponent(messageId)}`);
+  }
+
+  /**
+   * Delete a message only for the current identity.
+   *
+   * The message remains visible to other participants.
+   * This is useful for cleaning up messages without affecting others.
+   *
+   * @param messageId - The message ID to delete for self
+   */
+  async deleteForSelf(
+    messageId: string
+  ): Promise<ApiResponse<{ success: boolean }>> {
+    return this.client.post(`/api/dm/messages/${encodeURIComponent(messageId)}/delete-for-self`, {});
+  }
 }
 
 // ============================================================================

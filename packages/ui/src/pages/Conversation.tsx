@@ -11,7 +11,8 @@ import type { Conversation as ConversationType, PublicIdentity } from '@adieuu/s
 import { createApiClient } from '@adieuu/shared';
 import { Button } from '../components/Button';
 import { AvatarGroup } from '../components/AvatarGroup';
-import { XIcon, UsersIcon, SendIcon } from '../components/Icons';
+import { XIcon, UsersIcon } from '../components/Icons';
+import { MessageComposer } from '../components/MessageComposer';
 import { useConversationsList } from '../hooks/useConversations';
 import { useIdentity } from '../hooks/useIdentity';
 import { useDmMessages, useSendDmMessage, type DecryptedDmMessage } from '../hooks/useDmMessages';
@@ -312,31 +313,12 @@ function ConversationMessages({
 }
 
 interface ConversationInputProps {
-  onSend: (text: string) => Promise<void>;
+  onSend: (text: string, expiresInSeconds?: number | null) => Promise<void>;
   isSending: boolean;
   error: string | null;
 }
 
 function ConversationInput({ onSend, isSending, error }: ConversationInputProps) {
-  const { t } = useTranslation();
-  const [inputText, setInputText] = useState('');
-
-  const handleSend = useCallback(async () => {
-    if (!inputText.trim() || isSending) return;
-    await onSend(inputText.trim());
-    setInputText('');
-  }, [inputText, isSending, onSend]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-    },
-    [handleSend]
-  );
-
   return (
     <div className="dm-input-container">
       {error && (
@@ -344,30 +326,11 @@ function ConversationInput({ onSend, isSending, error }: ConversationInputProps)
           <span>{error}</span>
         </div>
       )}
-      <div className="dm-input">
-        <input
-          type="text"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={t('conversation.inputPlaceholder')}
-          className="dm-input-field"
-          disabled={isSending}
-        />
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={handleSend}
-          disabled={!inputText.trim() || isSending}
-          className="dm-input-send"
-        >
-          {isSending ? (
-            <span className="spinner spinner-xs" />
-          ) : (
-            <SendIcon />
-          )}
-        </Button>
-      </div>
+      <MessageComposer
+        onSend={(data) => onSend(data.text, data.expiresInSeconds)}
+        isSending={isSending}
+        showTtlSelector={true}
+      />
     </div>
   );
 }
@@ -473,6 +436,10 @@ export function Conversation() {
       refreshMessages();
       refreshConversations();
     },
+    onDeleted: () => {
+      refreshMessages();
+      refreshConversations();
+    },
   });
 
   // Mark as read when viewing messages
@@ -494,12 +461,13 @@ export function Conversation() {
     setShowMembersSidebar((prev) => !prev);
   };
 
-  const handleSendMessage = useCallback(async (text: string) => {
+  const handleSendMessage = useCallback(async (text: string, expiresInSeconds?: number | null) => {
     if (!otherParticipantId) return;
 
     const result = await sendMessage({
       toIdentityId: otherParticipantId,
       text,
+      expiresInSeconds: expiresInSeconds ?? undefined,
     });
 
     if (result.success) {

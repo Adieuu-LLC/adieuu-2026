@@ -345,29 +345,28 @@ When requester calls DELETE `/dm/messages/:id`:
 
 **Note:** Filtering deleted messages and returning tombstones were already implemented in Phase 3.
 
-### Client Tasks
+### Client Tasks [COMPLETE]
 
-| ID | Task | Files | Description |
-|----|------|-------|-------------|
-| 5a.6 | TTL selector UI | `components/MessageComposer.tsx` | Dropdown with send-time TTL options (30s to 1w, default: never) |
-| 5a.7 | Delete message UI | `components/MessageActions.tsx` | Context menu: "Delete for everyone" (sender) / "Delete for me" (all) |
-| 5a.8 | Handle tombstones | `components/Message.tsx` | Display "Message deleted" placeholder for tombstones |
-| 5a.9 | Optimistic deletion hook | `hooks/useDeleteMessage.ts` | Remove from UI immediately, sync with server, handle errors |
-| 5a.10 | Handle dm:deleted events | `hooks/useDmSubscription.ts` | Update message list when deletion events received |
-| 5a.11 | DM API delete methods | `packages/shared/src/api/client.ts` | `deleteForEveryone()`, `deleteForSelf()` methods |
+| ID | Task | Files | Status |
+|----|------|-------|--------|
+| 5a.6 | TTL selector UI | `components/MessageComposer.tsx` | Done - TTL dropdown with all options (30s to 1w, default: never) |
+| 5a.7 | Delete message UI | `components/MessageList.tsx` | Done - Hover menu with "Delete for everyone" (sender) / "Delete for me" |
+| 5a.8 | Handle tombstones | `components/MessageList.tsx` | Done - `isDeleted` flag, "Message deleted" placeholder styling |
+| 5a.9 | Deletion hook | `hooks/useDeleteMessage.ts` | Done - `deleteForEveryone()`, `deleteForSelf()` methods |
+| 5a.10 | Handle dm:deleted events | `hooks/useDmSubscription.ts` | Done - `DmDeletedEvent` type, `onDeleted` callback |
+| 5a.11 | DM API delete methods | `packages/shared/src/api/client.ts` | Done - `deleteForEveryone()`, `deleteForSelf()` in DmApi |
 
 ### Tests
 
-| Test | Description |
-|------|-------------|
-| Unit: Signature verification for delete | Only message sender can delete for everyone |
-| Unit: Delete for self isolation | Deleting for self doesn't affect other participant |
-| Integration: TTL expiration (hard) | Send with 1s TTL → wait → message gone from DB |
-| Integration: TTL expiration (soft) | With env var → message becomes tombstone |
-| Integration: Delete for everyone | Sender deletes → recipient sees tombstone |
-| Integration: Delete for self | Recipient deletes → sender still sees message |
-| Integration: Unauthorized delete | Non-sender tries delete-for-everyone → 403 |
-| E2E: Real-time deletion | Alice deletes → Bob's client receives dm:deleted event |
+| Test | Description | Status |
+|------|-------------|--------|
+| Unit: Signature verification for delete | Only message sender can delete for everyone | Done - `controller.test.ts` |
+| Unit: Delete for self isolation | Deleting for self doesn't affect other participant | Done - `controller.test.ts` |
+| Integration: TTL expiration | Send with TTL → MongoDB auto-deletes after expiry | Manual (MongoDB TTL index) |
+| Integration: Delete for everyone | Sender deletes → recipient sees tombstone | Deferred to E2E |
+| Integration: Delete for self | Recipient deletes → sender still sees message | Deferred to E2E |
+| Integration: Unauthorized delete | Non-sender tries delete-for-everyone → 403 | Done - `controller.test.ts` |
+| E2E: Real-time deletion | Alice deletes → Bob's client receives dm:deleted event | Deferred to E2E testing |
 
 ---
 

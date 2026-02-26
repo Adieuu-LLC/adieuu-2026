@@ -7,19 +7,48 @@
  * - Send on Enter (Shift+Enter for new line)
  * - Character limit
  * - Loading/disabled states
+ * - TTL (time-to-live) selector for ephemeral messages
  */
 
 import { useState, useRef, useCallback, type KeyboardEvent, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from './Button';
+import { Popover } from './Popover';
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MIN_ROWS = 1;
 const MAX_ROWS = 6;
 
+/**
+ * TTL options in seconds. null means no expiry (default).
+ */
+export type TtlOption = number | null;
+
+export const TTL_OPTIONS: { value: TtlOption; labelKey: string }[] = [
+  { value: null, labelKey: 'messages.ttl.never' },
+  { value: 30, labelKey: 'messages.ttl.30s' },
+  { value: 60, labelKey: 'messages.ttl.60s' },
+  { value: 180, labelKey: 'messages.ttl.3m' },
+  { value: 300, labelKey: 'messages.ttl.5m' },
+  { value: 600, labelKey: 'messages.ttl.10m' },
+  { value: 1800, labelKey: 'messages.ttl.30m' },
+  { value: 3600, labelKey: 'messages.ttl.1h' },
+  { value: 21600, labelKey: 'messages.ttl.6h' },
+  { value: 86400, labelKey: 'messages.ttl.1d' },
+  { value: 259200, labelKey: 'messages.ttl.3d' },
+  { value: 604800, labelKey: 'messages.ttl.1w' },
+];
+
+export interface SendMessageData {
+  /** Message text */
+  text: string;
+  /** TTL in seconds (null for no expiry) */
+  expiresInSeconds: TtlOption;
+}
+
 export interface MessageComposerProps {
   /** Callback when message is submitted */
-  onSend: (text: string) => void;
+  onSend: (data: SendMessageData) => void;
   /** Whether the send operation is in progress */
   isSending?: boolean;
   /** Whether the input is disabled */
@@ -28,6 +57,8 @@ export interface MessageComposerProps {
   placeholder?: string;
   /** Optional class name */
   className?: string;
+  /** Whether to show TTL selector (default: true) */
+  showTtlSelector?: boolean;
 }
 
 export function MessageComposer({
@@ -36,9 +67,11 @@ export function MessageComposer({
   disabled = false,
   placeholder,
   className = '',
+  showTtlSelector = true,
 }: MessageComposerProps) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
+  const [selectedTtl, setSelectedTtl] = useState<TtlOption>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isDisabled = disabled || isSending;
@@ -71,13 +104,16 @@ export function MessageComposer({
     if (!canSend) return;
 
     const trimmedText = text.trim();
-    onSend(trimmedText);
+    onSend({
+      text: trimmedText,
+      expiresInSeconds: selectedTtl,
+    });
     setText('');
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [canSend, text, onSend]);
+  }, [canSend, text, selectedTtl, onSend]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -89,11 +125,53 @@ export function MessageComposer({
     [handleSend]
   );
 
+  const handleTtlSelect = useCallback((ttl: TtlOption) => {
+    setSelectedTtl(ttl);
+  }, []);
+
+  const selectedTtlOption = TTL_OPTIONS.find((opt) => opt.value === selectedTtl) ?? TTL_OPTIONS[0];
+
   const remainingChars = MAX_MESSAGE_LENGTH - text.length;
   const showCharCount = remainingChars < 500;
 
   return (
     <div className={`message-composer ${className}`}>
+      {showTtlSelector && (
+        <div className="message-composer-toolbar">
+          <Popover
+            trigger={
+              <button
+                type="button"
+                className={`message-composer-ttl-btn ${selectedTtl !== null ? 'message-composer-ttl-btn--active' : ''}`}
+                aria-label={t('messages.ttl.select')}
+                disabled={isDisabled}
+              >
+                <span className="message-composer-ttl-icon">&#128337;</span>
+                <span className="message-composer-ttl-label">
+                  {t(selectedTtlOption?.labelKey ?? 'messages.ttl.never')}
+                </span>
+              </button>
+            }
+            positioning={{ placement: 'top-start' }}
+          >
+            <div className="message-composer-ttl-menu">
+              <div className="message-composer-ttl-menu-header">
+                {t('messages.ttl.header')}
+              </div>
+              {TTL_OPTIONS.map((option) => (
+                <button
+                  key={option.value ?? 'never'}
+                  type="button"
+                  className={`message-composer-ttl-option ${selectedTtl === option.value ? 'message-composer-ttl-option--selected' : ''}`}
+                  onClick={() => handleTtlSelect(option.value)}
+                >
+                  {t(option.labelKey)}
+                </button>
+              ))}
+            </div>
+          </Popover>
+        </div>
+      )}
       <div className="message-composer-input-wrapper">
         <textarea
           ref={textareaRef}

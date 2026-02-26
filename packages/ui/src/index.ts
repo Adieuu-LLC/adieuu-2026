@@ -53,7 +53,9 @@ export type { DmConversationWithParticipant } from './hooks/useDmConversationsLi
 export { useMarkAsRead } from './hooks/useMarkAsRead';
 export { useChatConnection } from './hooks/useChatConnection';
 export { useDmSubscription } from './hooks/useDmSubscription';
-export type { DmEvent, DmNewMessageEvent, DmReadStateEvent, DmTypingEvent } from './hooks/useDmSubscription';
+export type { DmEvent, DmNewMessageEvent, DmReadStateEvent, DmTypingEvent, DmDeletedEvent } from './hooks/useDmSubscription';
+export { useDeleteMessage } from './hooks/useDeleteMessage';
+export type { DeleteMessageResult, UseDeleteMessageResult } from './hooks/useDeleteMessage';
 
 export type {
   AuthStatus,
@@ -132,9 +134,9 @@ export { AvatarGroup } from './components/AvatarGroup';
 export { ConversationListItem } from './components/ConversationListItem';
 export { SidebarConversationsList } from './components/SidebarConversationsList';
 export { MessageList } from './components/MessageList';
-export { MessageComposer } from './components/MessageComposer';
+export { MessageComposer, TTL_OPTIONS } from './components/MessageComposer';
 export type { MessageListProps } from './components/MessageList';
-export type { MessageComposerProps } from './components/MessageComposer';
+export type { MessageComposerProps, SendMessageData, TtlOption } from './components/MessageComposer';
 
 // ============================================================================
 // Icons

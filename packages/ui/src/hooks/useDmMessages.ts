@@ -53,9 +53,11 @@ export interface SendDmMessageResult {
 export interface DecryptedDmMessage {
   /** Original message data */
   raw: DmMessage;
-  /** Decrypted content (null if decryption failed) */
+  /** Decrypted content (null if decryption failed or deleted) */
   decrypted: DecryptedMessageContent | null;
-  /** Decryption error if any */
+  /** Whether this message is a tombstone (deleted for everyone) */
+  isDeleted?: boolean;
+  /** Decryption error if any (not set for deleted messages) */
   decryptionError?: string;
 }
 
@@ -400,7 +402,7 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
           results.push({
             raw: msg as unknown as DmMessage,
             decrypted: null,
-            decryptionError: 'Message deleted',
+            isDeleted: true,
           });
           continue;
         }

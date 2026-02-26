@@ -6,13 +6,15 @@
  * - Timestamps and read status
  * - Error states for failed decryption
  * - Loading states and infinite scroll
+ * - Message actions (delete)
  */
 
-import { useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedDmMessage } from '../hooks/useDmMessages';
 import { Avatar } from './Avatar';
 import { Spinner } from './Spinner';
+import { Popover } from './Popover';
 
 /**
  * Formats a date for display in message timestamps.
@@ -65,6 +67,12 @@ export interface MessageListProps {
   onLoadMore: () => void;
   /** Optional callback when a message is clicked */
   onMessageClick?: (message: DecryptedDmMessage) => void;
+  /** Callback to delete message for everyone (sender only) */
+  onDeleteForEveryone?: (messageId: string) => void;
+  /** Callback to delete message for self only */
+  onDeleteForSelf?: (messageId: string) => void;
+  /** Whether a delete operation is in progress */
+  isDeleting?: boolean;
 }
 
 interface MessageBubbleProps {
@@ -72,10 +80,49 @@ interface MessageBubbleProps {
   isOwn: boolean;
   showAvatar: boolean;
   senderName?: string;
+  onDeleteForEveryone?: (messageId: string) => void;
+  onDeleteForSelf?: (messageId: string) => void;
+  isDeleting?: boolean;
 }
 
-function MessageBubble({ message, isOwn, showAvatar, senderName }: MessageBubbleProps) {
+function MessageBubble({
+  message,
+  isOwn,
+  showAvatar,
+  senderName,
+  onDeleteForEveryone,
+  onDeleteForSelf,
+  isDeleting,
+}: MessageBubbleProps) {
   const { t } = useTranslation();
+  const [showActions, setShowActions] = useState(false);
+
+  const handleDeleteForEveryone = useCallback(() => {
+    if (onDeleteForEveryone && message.raw.id) {
+      onDeleteForEveryone(message.raw.id);
+    }
+  }, [onDeleteForEveryone, message.raw.id]);
+
+  const handleDeleteForSelf = useCallback(() => {
+    if (onDeleteForSelf && message.raw.id) {
+      onDeleteForSelf(message.raw.id);
+    }
+  }, [onDeleteForSelf, message.raw.id]);
+
+  const hasActions = (isOwn && onDeleteForEveryone) || onDeleteForSelf;
+
+  if (message.isDeleted) {
+    return (
+      <div className={`message-bubble message-bubble--deleted ${isOwn ? 'message-bubble--own' : ''}`}>
+        <div className="message-bubble-content">
+          <span className="message-deleted-text">
+            {t('messages.deleted')}
+          </span>
+        </div>
+        <span className="message-time">{formatMessageTime(message.raw.createdAt)}</span>
+      </div>
+    );
+  }
 
   if (message.decryptionError || !message.decrypted) {
     return (
@@ -92,7 +139,11 @@ function MessageBubble({ message, isOwn, showAvatar, senderName }: MessageBubble
   }
 
   return (
-    <div className={`message-bubble ${isOwn ? 'message-bubble--own' : ''}`}>
+    <div
+      className={`message-bubble ${isOwn ? 'message-bubble--own' : ''}`}
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
+    >
       {showAvatar && !isOwn && (
         <div className="message-avatar">
           <Avatar
@@ -108,7 +159,44 @@ function MessageBubble({ message, isOwn, showAvatar, senderName }: MessageBubble
         <div className="message-bubble-content">
           <p className="message-text">{message.decrypted.text}</p>
         </div>
-        <span className="message-time">{formatMessageTime(message.raw.createdAt)}</span>
+        <div className="message-footer">
+          <span className="message-time">{formatMessageTime(message.raw.createdAt)}</span>
+          {hasActions && showActions && (
+            <Popover
+              trigger={
+                <button
+                  className="message-actions-btn"
+                  aria-label={t('messages.actions')}
+                  disabled={isDeleting}
+                >
+                  <span className="message-actions-icon">...</span>
+                </button>
+              }
+              positioning={{ placement: isOwn ? 'bottom-end' : 'bottom-start' }}
+            >
+              <div className="message-actions-menu">
+                {isOwn && onDeleteForEveryone && (
+                  <button
+                    className="message-actions-menu-item message-actions-menu-item--danger"
+                    onClick={handleDeleteForEveryone}
+                    disabled={isDeleting}
+                  >
+                    {t('messages.deleteForEveryone')}
+                  </button>
+                )}
+                {onDeleteForSelf && (
+                  <button
+                    className="message-actions-menu-item"
+                    onClick={handleDeleteForSelf}
+                    disabled={isDeleting}
+                  >
+                    {t('messages.deleteForMe')}
+                  </button>
+                )}
+              </div>
+            </Popover>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -121,6 +209,9 @@ export function MessageList({
   error,
   hasMore,
   onLoadMore,
+  onDeleteForEveryone,
+  onDeleteForSelf,
+  isDeleting,
 }: MessageListProps) {
   const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
@@ -207,6 +298,9 @@ export function MessageList({
               isOwn={isOwn}
               showAvatar={showAvatar}
               senderName={message.decrypted?.fromIdentityId}
+              onDeleteForEveryone={onDeleteForEveryone}
+              onDeleteForSelf={onDeleteForSelf}
+              isDeleting={isDeleting}
             />
           );
         })}

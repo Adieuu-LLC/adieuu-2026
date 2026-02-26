@@ -12,7 +12,12 @@ import { useChatConnection } from './useChatConnection';
 /**
  * DM event types from the chat server.
  */
-export type DmEventType = 'dm:new' | 'dm:read' | 'dm:typing';
+export type DmEventType = 'dm:new' | 'dm:read' | 'dm:typing' | 'dm:deleted';
+
+/**
+ * Deletion reason for dm:deleted events.
+ */
+export type DmDeletionReason = 'sender' | 'expired';
 
 /**
  * New DM message event.
@@ -48,7 +53,19 @@ export interface DmTypingEvent {
   };
 }
 
-export type DmEvent = DmNewMessageEvent | DmReadStateEvent | DmTypingEvent;
+/**
+ * Message deleted event.
+ */
+export interface DmDeletedEvent {
+  type: 'dm:deleted';
+  payload: {
+    messageId: string;
+    conversationId: string;
+    reason: DmDeletionReason;
+  };
+}
+
+export type DmEvent = DmNewMessageEvent | DmReadStateEvent | DmTypingEvent | DmDeletedEvent;
 
 export interface UseDmSubscriptionOptions {
   /** Conversation ID to filter events (optional) */
@@ -59,6 +76,8 @@ export interface UseDmSubscriptionOptions {
   onReadStateUpdate?: (event: DmReadStateEvent) => void;
   /** Callback for typing indicators */
   onTyping?: (event: DmTypingEvent) => void;
+  /** Callback for message deletions */
+  onDeleted?: (event: DmDeletedEvent) => void;
 }
 
 export interface UseDmSubscriptionResult {
@@ -92,6 +111,9 @@ function getConversationId(event: DmEvent): string | undefined {
   if (event.type === 'dm:new') {
     return event.payload.message.conversationId;
   }
+  if (event.type === 'dm:deleted') {
+    return event.payload.conversationId;
+  }
   return event.payload.conversationId;
 }
 
@@ -123,11 +145,12 @@ export function useDmSubscription({
   onNewMessage,
   onReadStateUpdate,
   onTyping,
+  onDeleted,
 }: UseDmSubscriptionOptions = {}): UseDmSubscriptionResult {
   const { isConnected, onMessage, sendTyping } = useChatConnection();
 
   useEffect(() => {
-    if (!onNewMessage && !onReadStateUpdate && !onTyping) {
+    if (!onNewMessage && !onReadStateUpdate && !onTyping && !onDeleted) {
       return;
     }
 
@@ -153,9 +176,12 @@ export function useDmSubscription({
         case 'dm:typing':
           onTyping?.(event);
           break;
+        case 'dm:deleted':
+          onDeleted?.(event);
+          break;
       }
     });
-  }, [conversationId, onMessage, onNewMessage, onReadStateUpdate, onTyping]);
+  }, [conversationId, onMessage, onNewMessage, onReadStateUpdate, onTyping, onDeleted]);
 
   const sendTypingIndicator = useCallback(
     (convId: string, isTyping: boolean) => {

@@ -78,6 +78,38 @@ export const en = {
     send: 'Send',
   },
 
+  // Messages (MessageList component)
+  messages: {
+    loading: 'Loading messages...',
+    noMessages: 'No messages yet.',
+    startConversation: 'Start the conversation by sending a message.',
+    loadMore: 'Load more',
+    decryptionFailed: 'Could not decrypt message',
+    deleted: 'This message was deleted.',
+    actions: 'Message actions',
+    deleteForEveryone: 'Delete for everyone',
+    deleteForMe: 'Delete for me',
+    composerPlaceholder: 'Type a message...',
+    composerAriaLabel: 'Message input',
+    send: 'Send',
+    ttl: {
+      select: 'Set message expiry',
+      header: 'Message expires after',
+      never: 'Never',
+      '30s': '30 seconds',
+      '60s': '1 minute',
+      '3m': '3 minutes',
+      '5m': '5 minutes',
+      '10m': '10 minutes',
+      '30m': '30 minutes',
+      '1h': '1 hour',
+      '6h': '6 hours',
+      '1d': '1 day',
+      '3d': '3 days',
+      '1w': '1 week',
+    },
+  },
+
   // Search
   search: {
     title: 'Search',
