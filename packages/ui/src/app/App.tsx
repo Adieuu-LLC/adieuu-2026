@@ -13,7 +13,7 @@ import {
   AccountPrivacy,
   AccountNotifications,
 } from '../pages/account';
-import { IdentityCiphers, IdentityFriends } from '../pages/identity';
+import { IdentityCiphers, IdentityDevices, IdentityFriends } from '../pages/identity';
 import { ServiceStatus } from '../pages/ServiceStatus';
 import { useAuth } from '../hooks/useAuth';
 import { TourProvider, useTourContext } from '../hooks/useTourContext';
@@ -136,6 +136,7 @@ export function App() {
         {/* Identity Routes */}
         <Route path="/identity" element={<Navigate to="/identity/friends" replace />} />
         <Route path="/identity/friends" element={<IdentityFriends />} />
+        <Route path="/identity/devices" element={<IdentityDevices />} />
         <Route path="/identity/ciphers" element={<IdentityCiphers />} />
       </Route>
 

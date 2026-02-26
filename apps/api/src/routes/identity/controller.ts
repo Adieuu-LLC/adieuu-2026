@@ -750,6 +750,67 @@ export async function removeDeviceCtrl(ctx: RouteContext): Promise<Response> {
 }
 
 /**
+ * Update a device (name and/or activity).
+ * PATCH /identity/:id/devices/:deviceId
+ */
+export async function updateDeviceCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot update device for another identity.');
+  }
+
+  const { deviceId } = ctx.params;
+  const sanitizedDeviceId = sanitizeString(deviceId ?? '', 'general');
+  if (!sanitizedDeviceId.value) {
+    return errors.badRequest('Invalid device ID.');
+  }
+
+  const body = await ctx.request.json().catch(() => ({})) as Record<string, unknown>;
+  const { name, updateActivity } = body;
+
+  const identityRepo = getIdentityRepository();
+
+  // Verify device exists
+  const devices = await identityRepo.getDevices(identity._id);
+  const deviceExists = devices.some(d => d.deviceId === sanitizedDeviceId.value);
+  if (!deviceExists) {
+    return errors.notFound('Device not found.');
+  }
+
+  // Update name if provided
+  if (typeof name === 'string') {
+    const sanitizedName = sanitizeString(name, 'general');
+    if (!sanitizedName.value || sanitizedName.value.length > 100) {
+      return errors.badRequest('Device name must be 1-100 characters.');
+    }
+    const nameUpdated = await identityRepo.updateDeviceName(
+      identity._id,
+      sanitizedDeviceId.value,
+      sanitizedName.value
+    );
+    if (!nameUpdated) {
+      return errors.internal('Failed to update device name.');
+    }
+  }
+
+  // Update activity if requested
+  if (updateActivity === true) {
+    await identityRepo.updateDeviceActivity(identity._id, sanitizedDeviceId.value);
+  }
+
+  return success(undefined, 'Device updated.');
+}
+
+/**
  * Initialize E2E encryption for an identity.
  * This is an atomic operation that sets up the signing key, stores the bundle,
  * and registers the first device in a single transaction.

@@ -47,6 +47,7 @@ export interface IIdentityRepository {
   addDevice(identityId: string | ObjectId, device: IdentityDevice): Promise<boolean>;
   removeDevice(identityId: string | ObjectId, deviceId: string): Promise<boolean>;
   updateDeviceActivity(identityId: string | ObjectId, deviceId: string): Promise<boolean>;
+  updateDeviceName(identityId: string | ObjectId, deviceId: string, name: string): Promise<boolean>;
   getDevices(identityId: string | ObjectId): Promise<IdentityDevice[]>;
 }
 
@@ -346,6 +347,26 @@ export class IdentityRepository
       {
         $set: {
           'devices.$.lastActiveAt': now,
+          updatedAt: now,
+        },
+      }
+    );
+
+    return result.modifiedCount === 1;
+  }
+
+  /**
+   * Update the name of a device.
+   */
+  async updateDeviceName(identityId: string | ObjectId, deviceId: string, name: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId, 'devices.deviceId': deviceId },
+      {
+        $set: {
+          'devices.$.name': name,
           updatedAt: now,
         },
       }

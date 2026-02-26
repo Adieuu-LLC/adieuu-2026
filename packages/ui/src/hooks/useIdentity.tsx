@@ -138,6 +138,10 @@ export interface LoginIdentityResult {
   errorCode?: 'INVALID_PASSPHRASE' | 'LOCKED_OUT' | 'RATE_LIMITED' | 'KEY_DERIVATION_FAILED' | 'E2E_SETUP_FAILED' | 'BUNDLE_DECRYPT_FAILED';
   attemptNumber?: number;
   retryAfter?: number;
+  /** Whether this was a new device registration (for showing first-login toast) */
+  isNewDevice?: boolean;
+  /** The device name that was registered */
+  deviceName?: string;
 }
 
 /**
@@ -605,6 +609,8 @@ function useIdentityState(): IdentityContextValue {
         const hasExistingDeviceKeys = await hasDeviceKeys(loggedInIdentity.id);
 
         let deviceId: string;
+        let isNewDevice = false;
+        let newDeviceName = '';
 
         if (hasExistingDeviceKeys) {
           // Existing device: Load and decrypt device keys
@@ -684,6 +690,10 @@ function useIdentityState(): IdentityContextValue {
               wrappingKey
             );
             console.debug('[Identity] loginToIdentity: new device registered and keys stored');
+
+            // Mark as new device for toast notification
+            isNewDevice = true;
+            newDeviceName = newDeviceKeys.name;
           } catch (err) {
             console.error('[Identity] loginToIdentity: failed to setup new device:', err);
             clearBytes(wrappingKey);
@@ -760,6 +770,8 @@ function useIdentityState(): IdentityContextValue {
         return {
           success: true,
           identity: loggedInIdentity,
+          isNewDevice,
+          deviceName: newDeviceName || undefined,
         };
       }
 

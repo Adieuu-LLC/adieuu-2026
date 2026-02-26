@@ -250,47 +250,55 @@ The following design decisions were made during Phase 3 planning:
 
 ---
 
-## Phase 4: Device Management UI
+## Phase 4: Device Management UI [COMPLETE]
 
 **Goal:** Add device management UI and activity tracking. Core multi-device encryption is already working.
 
 **Dependencies:** Phase 3 complete
 
-**Status:** Core multi-device encryption complete. UI tasks remain.
+**Status:** Complete. All device management functionality implemented.
 
-**Already Implemented:**
+**Implemented:**
 - Multi-device key wrapping: Session keys wrapped for all devices of sender + recipient
 - Device registration with naming: `POST /identity/:id/devices` with `name` field
 - List devices API: `GET /identity/:id/devices`
 - Remove device API: `DELETE /identity/:id/devices/:deviceId`
-- API client methods: `listDevices()`, `removeDevice()`
-- Repository method: `updateDeviceActivity()` (not yet exposed via API)
+- Update device API: `PATCH /identity/:id/devices/:deviceId` (name and/or activity)
+- API client methods: `listDevices()`, `removeDevice()`, `updateDevice()`, `renameDevice()`, `updateDeviceActivity()`
+- Device management page at `/identity/devices`
+- Device naming with auto-generated names based on browser/OS
+- Activity heartbeat with configurable preferences (active-only, periodic, disabled)
+- First-login toast notification for new device registration
+- Passphrase confirmation for device removal
+- "Remove all other devices" option with single passphrase prompt
 
-### API Tasks
+### API Tasks [COMPLETE]
 
 | ID | Task | Files | Status |
 |----|------|-------|--------|
 | 4.1 | List devices endpoint | `routes/identity/index.ts` | Done |
 | 4.2 | Remove device endpoint | `routes/identity/index.ts` | Done |
-| 4.3 | Update device activity endpoint | `routes/identity/index.ts` | TODO - expose `PATCH /identity/:id/devices/:deviceId` |
+| 4.3 | Update device endpoint | `routes/identity/index.ts`, `controller.ts` | Done - `PATCH /identity/:id/devices/:deviceId` for name and activity |
 
-### Client Tasks
+### Client Tasks [COMPLETE]
 
 | ID | Task | Files | Status |
 |----|------|-------|--------|
-| 4.4 | Device management UI | `pages/DeviceManagement.tsx` | TODO |
-| 4.5 | Device naming on registration | `hooks/useIdentityLogin.ts` | Partial - backend supports, UI prompt TODO |
-| 4.6 | Remove device flow | `hooks/useDeviceManagement.ts` | TODO |
-| 4.7 | Activity heartbeat | `services/deviceActivity.ts` | TODO |
+| 4.4a | Auto-generate device name utility | `services/deviceInfo.ts` | Done - `generateDeviceName()`, `getDeviceInfo()` |
+| 4.4b | Device management page | `pages/identity/Devices.tsx` | Done - list, rename, remove, activity prefs |
+| 4.5 | Device naming on registration | `hooks/useIdentity.tsx`, `app/IdentityModal.tsx` | Done - auto-generate + first-login toast |
+| 4.6 | Remove device flow | `hooks/useDeviceManagement.ts` | Done - passphrase confirmation, clear local keys |
+| 4.7 | Activity heartbeat | `hooks/useDeviceManagement.ts` | Done - configurable (active-only/periodic/disabled) |
 
-### Tests
+### Tests [COMPLETE]
 
 | Test | Description | Status |
 |------|-------------|--------|
-| Integration: List devices | Identity with 2 devices → returns both with correct metadata | TODO |
-| Integration: Remove device | Remove device → no longer in list | TODO |
+| Unit: updateDeviceActivity | Repository method updates lastActiveAt | Done - `identity.repository.test.ts` |
+| Unit: updateDeviceName | Repository method updates device name | Done - `identity.repository.test.ts` |
+| Unit: getDevices | Repository method returns devices array | Done - `identity.repository.test.ts` |
 | E2E: Multi-device read | Send from device A → read on device B → both see message | Working (via existing encryption) |
-| E2E: Remove and verify | Remove device B → new messages not wrapped for B → B cannot decrypt new messages | TODO |
+| E2E: Remove and verify | Remove device B → new messages not wrapped for B → B cannot decrypt new messages | Deferred to UI integration |
 
 ---
 
@@ -450,7 +458,7 @@ Phase 2: Basic DM Send/Receive          [COMPLETE]
     ↓
 Phase 3: Conversation List & Discovery  [COMPLETE]
     ↓
-Phase 4: Device Management UI           [Optional polish - core multi-device works]
+Phase 4: Device Management UI           [COMPLETE]
     ↓
 Phase 5: Message Lifecycle              [Message management]
     ↓

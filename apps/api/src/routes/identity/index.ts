@@ -37,6 +37,7 @@ import {
   getKeyBundleCtrl,
   listDevicesCtrl,
   removeDeviceCtrl,
+  updateDeviceCtrl,
   initializeE2ECtrl,
 } from './controller';
 
@@ -366,6 +367,27 @@ router.post('/identity/:id/devices', async (ctx) => {
  */
 router.delete('/identity/:id/devices/:deviceId', async (ctx) => {
   return await removeDeviceCtrl(ctx);
+});
+
+/**
+ * PATCH /identity/:id/devices/:deviceId - Update a device
+ *
+ * Updates device properties (name, activity).
+ *
+ * @route PATCH /api/identity/:id/devices/:deviceId
+ *
+ * @requestBody
+ * - `name` (string, optional): New device name (1-100 chars)
+ * - `updateActivity` (boolean, optional): If true, updates lastActiveAt to now
+ *
+ * @returns 200 OK on success
+ * @returns 400 Bad Request if name is invalid
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to update for another identity
+ * @returns 404 Not Found if device doesn't exist
+ */
+router.patch('/identity/:id/devices/:deviceId', async (ctx) => {
+  return await updateDeviceCtrl(ctx);
 });
 
 // ============================================================================

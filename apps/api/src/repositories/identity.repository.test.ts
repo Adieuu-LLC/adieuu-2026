@@ -274,4 +274,111 @@ describe('IdentityRepository', () => {
       expect(repo1).toBe(repo2);
     });
   });
+
+  describe('updateDeviceActivity', () => {
+    test('updates lastActiveAt for device', async () => {
+      mockCollection.updateOne.mockImplementation(() =>
+        Promise.resolve({ modifiedCount: 1 })
+      );
+
+      const result = await repo.updateDeviceActivity(mockIdentity._id, 'device-123');
+
+      expect(result).toBe(true);
+      expect(mockCollection.updateOne).toHaveBeenCalledWith(
+        { _id: expect.any(ObjectId), 'devices.deviceId': 'device-123' },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            'devices.$.lastActiveAt': expect.any(Date),
+          }),
+        })
+      );
+    });
+
+    test('returns false when device not found', async () => {
+      mockCollection.updateOne.mockImplementation(() =>
+        Promise.resolve({ modifiedCount: 0 })
+      );
+
+      const result = await repo.updateDeviceActivity(mockIdentity._id, 'nonexistent');
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('updateDeviceName', () => {
+    test('updates name for device', async () => {
+      mockCollection.updateOne.mockImplementation(() =>
+        Promise.resolve({ modifiedCount: 1 })
+      );
+
+      const result = await repo.updateDeviceName(mockIdentity._id, 'device-123', 'New Name');
+
+      expect(result).toBe(true);
+      expect(mockCollection.updateOne).toHaveBeenCalledWith(
+        { _id: expect.any(ObjectId), 'devices.deviceId': 'device-123' },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            'devices.$.name': 'New Name',
+          }),
+        })
+      );
+    });
+
+    test('returns false when device not found', async () => {
+      mockCollection.updateOne.mockImplementation(() =>
+        Promise.resolve({ modifiedCount: 0 })
+      );
+
+      const result = await repo.updateDeviceName(mockIdentity._id, 'nonexistent', 'New Name');
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('getDevices', () => {
+    test('returns empty array when no devices', async () => {
+      mockCollection.findOne.mockImplementation(() =>
+        Promise.resolve({ ...mockIdentity, devices: [] })
+      );
+
+      const result = await repo.getDevices(mockIdentity._id);
+
+      expect(result).toEqual([]);
+    });
+
+    test('returns devices when present', async () => {
+      const devices = [
+        {
+          deviceId: 'device-1',
+          name: 'Device 1',
+          ecdhPublicKey: 'key1',
+          registeredAt: new Date(),
+          lastActiveAt: new Date(),
+        },
+        {
+          deviceId: 'device-2',
+          name: 'Device 2',
+          ecdhPublicKey: 'key2',
+          registeredAt: new Date(),
+          lastActiveAt: new Date(),
+        },
+      ];
+
+      mockCollection.findOne.mockImplementation(() =>
+        Promise.resolve({ ...mockIdentity, devices })
+      );
+
+      const result = await repo.getDevices(mockIdentity._id);
+
+      expect(result).toEqual(devices);
+    });
+
+    test('returns empty array when identity not found', async () => {
+      mockCollection.findOne.mockImplementation(() => Promise.resolve(null));
+
+      const result = await repo.getDevices(new ObjectId());
+
+      expect(result).toEqual([]);
+    });
+  });
 });

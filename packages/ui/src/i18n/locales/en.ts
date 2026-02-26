@@ -209,6 +209,7 @@ export const en = {
       friends: 'Friends',
       contentSocial: 'Content & Social',
       ciphers: 'Ciphers',
+      devices: 'Devices',
     },
     // Actions for identity interactions
     actions: {
@@ -216,6 +217,11 @@ export const en = {
       viewProfile: 'View Profile',
       addFriend: 'Add Friend',
       removeFriend: 'Remove Friend',
+    },
+    // Device management
+    device: {
+      newDeviceTitle: 'New Device Added',
+      newDeviceMessage: 'You\'re now logged in on {{deviceName}}. Click here to manage your devices.',
     },
     // Create modal
     create: {

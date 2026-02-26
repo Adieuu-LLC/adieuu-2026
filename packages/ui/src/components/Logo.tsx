@@ -1,26 +1,24 @@
 export interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
-  showText?: boolean;
 }
 
 const sizes = {
-  sm: { text: '1.25rem' },
-  md: { text: '1.875rem' },
-  lg: { text: '2.25rem' },
+  sm: { height: 24 },
+  md: { height: 32 },
+  lg: { height: 48 },
 };
 
-export function Logo({ size = 'md', showText = true }: LogoProps) {
-  const { text } = sizes[size];
-
-  if (!showText) {
-    return null;
-  }
+export function Logo({ size = 'md' }: LogoProps) {
+  const { height } = sizes[size];
 
   return (
-    <div className="auth-logo">
-      <span className="auth-logo-text" style={{ fontSize: text }}>
-        adieuu
-      </span>
+    <div className="app-logo">
+      <img
+        src="/img/logo/chat.svg"
+        alt="adieuu"
+        height={height}
+        className="app-logo-img"
+      />
     </div>
   );
 }

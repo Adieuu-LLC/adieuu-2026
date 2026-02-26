@@ -230,6 +230,9 @@ function IdentityFlyout() {
           <Link to="/identity/ciphers" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/ciphers') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('identity.menu.ciphers')}
           </Link>
+          <Link to="/identity/devices" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/devices') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('identity.menu.devices')}
+          </Link>
           <div className="sidebar-flyout-divider" />
           <button
             type="button"

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Alert } from '../components/Alert';
 import { Spinner } from '../components/Spinner';
 import { Popover } from '../components/Popover';
+import { useToast } from '../components/Toast';
 import { MaskIcon, PlusIcon, LockIcon, InfoCircleIcon } from '../components/Icons';
 import { useIdentity, type LoginStatus } from '../hooks/useIdentity';
 
@@ -19,6 +21,8 @@ type ModalView = 'choose' | 'login' | 'create' | 'unlock' | 'creating' | 'loggin
 
 export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityModalProps) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { info: toastInfo } = useToast();
   const { createIdentity, loginToIdentity, unlockIdentity, logoutFromIdentity, hasIdentity, canCreateMore } = useIdentity();
 
   const [view, setView] = useState<ModalView>(unlockMode ? 'unlock' : (hasIdentity ? 'login' : 'choose'));
@@ -87,6 +91,16 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
     if (result.success) {
       setSuccess(t('identity.login.success'));
+
+      // Show toast for new device registration
+      if (result.isNewDevice) {
+        const deviceName = result.deviceName ?? 'this device';
+        toastInfo(
+          t('identity.device.newDeviceTitle'),
+          t('identity.device.newDeviceMessage', { deviceName })
+        );
+      }
+
       setTimeout(() => {
         handleClose();
       }, 500);

@@ -701,6 +701,8 @@ export interface PublicDevice {
   name: string;
   ecdhPublicKey: string;
   kemPublicKey?: string;
+  registeredAt?: string;
+  lastActiveAt?: string;
 }
 
 /**
@@ -980,9 +982,9 @@ export class IdentityApi {
    * Only the identity owner can list their devices.
    *
    * @param identityId - Identity ID
-   * @returns Array of registered devices
+   * @returns Object containing array of registered devices
    */
-  async listDevices(identityId: string): Promise<ApiResponse<PublicDevice[]>> {
+  async listDevices(identityId: string): Promise<ApiResponse<{ devices: PublicDevice[] }>> {
     return this.client.get(
       `/api/identity/${encodeURIComponent(identityId)}/devices`
     );
@@ -1001,6 +1003,61 @@ export class IdentityApi {
   ): Promise<ApiResponse<void>> {
     return this.client.delete(
       `/api/identity/${encodeURIComponent(identityId)}/devices/${encodeURIComponent(deviceId)}`
+    );
+  }
+
+  /**
+   * Update a device (name and/or activity).
+   *
+   * @param identityId - Identity ID
+   * @param deviceId - Device ID to update
+   * @param params - Update parameters
+   * @returns Success on update
+   */
+  async updateDevice(
+    identityId: string,
+    deviceId: string,
+    params: { name?: string; updateActivity?: boolean }
+  ): Promise<ApiResponse<void>> {
+    return this.client.patch(
+      `/api/identity/${encodeURIComponent(identityId)}/devices/${encodeURIComponent(deviceId)}`,
+      params
+    );
+  }
+
+  /**
+   * Update device activity (heartbeat).
+   *
+   * @param identityId - Identity ID
+   * @param deviceId - Device ID
+   * @returns Success on update
+   */
+  async updateDeviceActivity(
+    identityId: string,
+    deviceId: string
+  ): Promise<ApiResponse<void>> {
+    return this.client.patch(
+      `/api/identity/${encodeURIComponent(identityId)}/devices/${encodeURIComponent(deviceId)}`,
+      { updateActivity: true }
+    );
+  }
+
+  /**
+   * Rename a device.
+   *
+   * @param identityId - Identity ID
+   * @param deviceId - Device ID
+   * @param name - New device name
+   * @returns Success on update
+   */
+  async renameDevice(
+    identityId: string,
+    deviceId: string,
+    name: string
+  ): Promise<ApiResponse<void>> {
+    return this.client.patch(
+      `/api/identity/${encodeURIComponent(identityId)}/devices/${encodeURIComponent(deviceId)}`,
+      { name }
     );
   }
 }
