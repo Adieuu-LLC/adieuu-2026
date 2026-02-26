@@ -14,6 +14,8 @@ import {
   encryptDmMessage,
   decryptDmMessage,
   generateClientMessageId,
+  encryptSenderId,
+  decryptSenderHint,
   type DecryptedMessageContent,
   type RecipientPublicKeys,
 } from '../services/dmMessageService';
@@ -22,6 +24,10 @@ import {
   decryptDeviceKeys,
   type DecryptedDeviceKeys,
 } from '../services/deviceKeyStorage';
+import {
+  getCachedParticipant,
+  cacheParticipant,
+} from '../services/participantCache';
 
 // ============================================================================
 // Types
@@ -217,7 +223,10 @@ export function useSendDmMessage(): UseSendDmMessageResult {
           });
         }
 
-        // 5. Encrypt the message
+        // 5. Generate client message ID (needed for sender hint nonce)
+        const clientMessageId = generateClientMessageId();
+
+        // 6. Encrypt the message
         const encrypted = encryptDmMessage({
           text: input.text,
           fromIdentityId: identity.id,
@@ -227,11 +236,19 @@ export function useSendDmMessage(): UseSendDmMessageResult {
           cryptoProfile,
         });
 
-        // 6. Send to API
-        const clientMessageId = generateClientMessageId();
+        // 7. Encrypt sender ID for pre-verification discovery
+        const encryptedSenderIdValue = encryptSenderId(
+          conversation.conversationId,
+          identity.id,
+          clientMessageId,
+          cryptoProfile
+        );
+
+        // 8. Send to API
         const sendResponse = await api.dm.sendMessage({
           conversationId: conversation.conversationId,
           toIdentityId: input.toIdentityId,
+          encryptedSenderId: encryptedSenderIdValue,
           ciphertext: encrypted.ciphertext,
           nonce: encrypted.nonce,
           wrappedKeys: encrypted.wrappedKeys,
@@ -378,35 +395,55 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
         }
 
         try {
-          // Get sender's signing public key for verification
-          // In a DM, if toIdentityId is us, the sender is the other participant
-          // If toIdentityId is them, we are the sender
-          // For now, we fetch the public keys using getPublicKeys which includes signingPublicKey
-          const senderId = msg.toIdentityId === identity!.id
-            ? 'unknown' // TODO: For received messages, we need the other participant's ID
-            : identity!.id; // For sent messages, we are the sender
-
-          // For now, skip signature verification for received messages until we have participant info
-          // This is a temporary simplification for Phase 2
+          let senderId: string;
           let senderSigningPublicKey: string | undefined;
 
-          if (senderId === identity!.id) {
-            // We sent this message - we can get our own signing key
+          // Determine the sender
+          if (msg.toIdentityId === identity!.id) {
+            // This is a received message - decrypt the sender hint
+            try {
+              senderId = decryptSenderHint(
+                msg.conversationId,
+                msg.encryptedSenderId,
+                msg.clientMessageId,
+                msg.cryptoProfile
+              );
+            } catch {
+              results.push({
+                raw: msg,
+                decrypted: null,
+                decryptionError: 'Failed to decrypt sender hint',
+              });
+              continue;
+            }
+
+            // Try to get signing key from cache first
+            const cached = await getCachedParticipant(identity!.id, msg.conversationId);
+            if (cached && cached.otherIdentityId === senderId) {
+              senderSigningPublicKey = cached.signingPublicKey;
+            } else {
+              // Fetch from API and cache
+              const senderKeysResponse = await api.identity.getPublicKeys(senderId);
+              if (senderKeysResponse.success && senderKeysResponse.data) {
+                senderSigningPublicKey = senderKeysResponse.data.signingPublicKey;
+
+                // Cache the participant info
+                await cacheParticipant({
+                  conversationId: msg.conversationId,
+                  otherIdentityId: senderId,
+                  signingPublicKey: senderSigningPublicKey,
+                  cachedAt: Date.now(),
+                  myIdentityId: identity!.id,
+                });
+              }
+            }
+          } else {
+            // This is a sent message - we are the sender
+            senderId = identity!.id;
             const senderKeysResponse = await api.identity.getPublicKeys(identity!.id);
             if (senderKeysResponse.success && senderKeysResponse.data) {
               senderSigningPublicKey = senderKeysResponse.data.signingPublicKey;
             }
-          } else {
-            // TODO: For received messages, we need to get the other participant's signing key
-            // This requires knowing who the other participant is from conversation context
-            // For now, we'll pass an empty string and skip verification in decryptDmMessage
-            // This should be fixed when we have proper conversation participant info
-            results.push({
-              raw: msg,
-              decrypted: null,
-              decryptionError: 'Signature verification not yet implemented for received messages',
-            });
-            continue;
           }
 
           if (!senderSigningPublicKey) {

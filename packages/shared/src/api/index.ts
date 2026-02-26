@@ -57,6 +57,8 @@ export {
   DmApi,
   type SerializedWrappedKey,
   type DmConversation,
+  type DmConversationListItem,
+  type DmReadStateEntry,
   type DmMessage,
   type DmMessageTombstone,
   type SendDmMessageParams,

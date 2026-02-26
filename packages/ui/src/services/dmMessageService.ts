@@ -29,6 +29,8 @@ import {
   concatBytes,
   clearBytes,
   deriveConversationId,
+  deriveSenderHintKey,
+  deriveSenderHintNonce,
   SESSION_KEY_SIZE,
   type CryptoProfile,
   type WrappedKey,
@@ -342,4 +344,69 @@ export function generateClientMessageId(): string {
   const timestamp = Date.now().toString(36);
   const random = randomBytes(8);
   return `${timestamp}-${toBase64(random).replace(/[+/=]/g, '')}`;
+}
+
+/**
+ * Encrypts the sender's identity ID for pre-verification discovery.
+ *
+ * The encrypted sender hint allows recipients to identify the sender
+ * and fetch their signing key before decrypting potentially untrusted
+ * message payloads. The server cannot decrypt this since it doesn't
+ * know the participant IDs that compose the conversationId.
+ *
+ * @param conversationId - The blinded conversation ID (64-char hex)
+ * @param senderId - The sender's identity ID to encrypt
+ * @param clientMessageId - Client-generated message ID (used for nonce derivation)
+ * @param profile - Crypto profile (default: 'default')
+ * @returns Base64-encoded encrypted sender ID
+ */
+export function encryptSenderId(
+  conversationId: string,
+  senderId: string,
+  clientMessageId: string,
+  profile: CryptoProfile = 'default'
+): string {
+  const key = deriveSenderHintKey(conversationId, profile);
+  const nonce = deriveSenderHintNonce(clientMessageId);
+  const plaintext = toBytes(senderId);
+
+  const { ciphertext } = encrypt(key, plaintext, profile, nonce);
+
+  clearBytes(key);
+
+  return toBase64(ciphertext);
+}
+
+/**
+ * Decrypts the sender hint to discover the sender's identity.
+ *
+ * Used by recipients to identify the sender before signature verification.
+ * This allows fetching the sender's signing key without decrypting the
+ * full message payload first.
+ *
+ * @param conversationId - The blinded conversation ID (64-char hex)
+ * @param encryptedSenderId - Base64-encoded encrypted sender ID
+ * @param clientMessageId - Client-generated message ID (used for nonce derivation)
+ * @param profile - Crypto profile (default: 'default')
+ * @returns The sender's identity ID
+ * @throws Error if decryption fails
+ */
+export function decryptSenderHint(
+  conversationId: string,
+  encryptedSenderId: string,
+  clientMessageId: string,
+  profile: CryptoProfile = 'default'
+): string {
+  const key = deriveSenderHintKey(conversationId, profile);
+  const nonce = deriveSenderHintNonce(clientMessageId);
+  const ciphertext = fromBase64(encryptedSenderId);
+
+  let plaintext: Uint8Array;
+  try {
+    plaintext = decrypt(key, ciphertext, nonce, profile);
+  } finally {
+    clearBytes(key);
+  }
+
+  return fromBytes(plaintext);
 }

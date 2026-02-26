@@ -180,6 +180,9 @@ export {
 export {
   deriveConversationId,
   validateConversationId,
+  deriveSenderHintKey,
+  deriveReadStateKey,
+  deriveSenderHintNonce,
 } from './dm';
 
 // Community Ciphers (Spaces)

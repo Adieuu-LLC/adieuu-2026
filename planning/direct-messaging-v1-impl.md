@@ -199,22 +199,36 @@ The following design decisions were made during Phase 3 planning:
 
 ### Client Tasks
 
-| ID | Task | Files | Description |
-|----|------|-------|-------------|
-| 3.9 | Derive sender hint key | `packages/crypto/src/dm/index.ts` | `deriveSenderHintKey(conversationId)` using HKDF |
-| 3.10 | Encrypt sender ID on send | `packages/ui/src/services/dmMessageService.ts` | Add `encryptSenderId()`, include in message payload |
-| 3.11 | Decrypt sender hint on receive | `packages/ui/src/services/dmMessageService.ts` | Add `decryptSenderHint()` for pre-verification sender discovery |
-| 3.12 | Update message verification flow | `packages/ui/src/hooks/useDmMessages.ts` | Decrypt hint → fetch signing key → verify → decrypt payload |
-| 3.13 | Participant cache service | `packages/ui/src/services/participantCache.ts` | IndexedDB cache: `{ conversationId, otherParticipantId, signingPublicKey }` |
-| 3.14 | Derive read state key | `packages/crypto/src/dm/index.ts` | `deriveReadStateKey(conversationId)` using HKDF |
-| 3.15 | Encrypt/decrypt read state | `packages/ui/src/services/readStateService.ts` | `encryptLastReadId()`, `decryptLastReadId()` |
-| 3.16 | Conversation list hook | `packages/ui/src/hooks/useDmConversations.ts` | Replace mock data with real API call, compute unread client-side |
-| 3.17 | Conversation list UI | `packages/ui/src/components/DmConversationList.tsx` | Display conversations with other participant info, unread dot |
-| 3.18 | Start new conversation flow | `packages/ui/src/components/NewDmDialog.tsx` | Search identity → confirm → navigate to conversation |
-| 3.19 | Update DM API client | `packages/shared/src/api/client.ts` | Add `getConversations()`, `updateReadState()` methods |
-| 3.20 | WebSocket connection hook | `packages/ui/src/hooks/useWebSocket.ts` | Connect to chat server, handle reconnection |
-| 3.21 | Real-time message subscription | `packages/ui/src/hooks/useDmSubscription.ts` | Listen for `dm:new` events, trigger refetch/append |
-| 3.22 | Mark conversation as read | `packages/ui/src/hooks/useDmMessages.ts` | On viewing conversation, update read state via API |
+| ID | Task | Files | Status |
+|----|------|-------|--------|
+| 3.9 | Derive sender hint key | `packages/crypto/src/dm/index.ts` | Done - `deriveSenderHintKey()`, `deriveSenderHintNonce()` |
+| 3.10 | Encrypt sender ID on send | `packages/ui/src/services/dmMessageService.ts` | Done - `encryptSenderId()` |
+| 3.11 | Decrypt sender hint on receive | `packages/ui/src/services/dmMessageService.ts` | Done - `decryptSenderHint()` |
+| 3.12 | Update message verification flow | `packages/ui/src/hooks/useDmMessages.ts` | Done - sender hint + participant cache |
+| 3.13 | Participant cache service | `packages/ui/src/services/participantCache.ts` | Done - IndexedDB cache with fallback |
+| 3.14 | Derive read state key | `packages/crypto/src/dm/index.ts` | Done - `deriveReadStateKey()` |
+| 3.15 | Encrypt/decrypt read state | `packages/ui/src/services/readStateService.ts` | Done - `encryptLastReadId()`, `decryptLastReadId()` |
+| 3.16 | Conversation list hook | `packages/ui/src/hooks/useDmConversations.ts` | |
+| 3.17 | Conversation list UI | `packages/ui/src/components/DmConversationList.tsx` | |
+| 3.18 | Start new conversation flow | `packages/ui/src/components/NewDmDialog.tsx` | |
+| 3.19 | Update DM API client | `packages/shared/src/api/client.ts` | Done - `getConversations()`, `updateReadState()`, types updated |
+| 3.20 | WebSocket connection hook | `packages/ui/src/hooks/useWebSocket.ts` | |
+| 3.21 | Real-time message subscription | `packages/ui/src/hooks/useDmSubscription.ts` | |
+| 3.22 | Mark conversation as read | `packages/ui/src/hooks/useDmMessages.ts` | |
+
+**Task Descriptions:**
+- 3.10: Add `encryptSenderId()`, include in message payload
+- 3.11: Add `decryptSenderHint()` for pre-verification sender discovery
+- 3.12: Decrypt hint → fetch signing key → verify → decrypt payload
+- 3.13: IndexedDB cache: `{ conversationId, otherParticipantId, signingPublicKey }`
+- 3.15: `encryptLastReadId()`, `decryptLastReadId()`
+- 3.16: Replace mock data with real API call, compute unread client-side
+- 3.17: Display conversations with other participant info, unread dot
+- 3.18: Search identity → confirm → navigate to conversation
+- 3.19: Add `getConversations()`, `updateReadState()` methods
+- 3.20: Connect to chat server, handle reconnection
+- 3.21: Listen for `dm:new` events, trigger refetch/append
+- 3.22: On viewing conversation, update read state via API
 
 ### Tests
 

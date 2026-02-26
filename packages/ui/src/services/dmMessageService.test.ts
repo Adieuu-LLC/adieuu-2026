@@ -8,6 +8,8 @@ import {
   decryptDmMessage,
   generateClientMessageId,
   deriveConversationId,
+  encryptSenderId,
+  decryptSenderHint,
   type EncryptMessageInput,
   type DecryptMessageInput,
   type RecipientPublicKeys,
@@ -301,6 +303,101 @@ describe('DM Message Service', () => {
 
       expect(convId).toHaveLength(64);
       expect(/^[a-f0-9]+$/.test(convId)).toBe(true);
+    });
+  });
+
+  describe('encryptSenderId / decryptSenderHint', () => {
+    const conversationId = deriveConversationId(aliceIdentityId, bobIdentityId);
+
+    it('should encrypt and decrypt sender ID correctly', () => {
+      const clientMessageId = generateClientMessageId();
+      const senderId = aliceIdentityId;
+
+      const encrypted = encryptSenderId(conversationId, senderId, clientMessageId);
+      const decrypted = decryptSenderHint(conversationId, encrypted, clientMessageId);
+
+      expect(decrypted).toBe(senderId);
+    });
+
+    it('should produce base64 output', () => {
+      const clientMessageId = generateClientMessageId();
+      const encrypted = encryptSenderId(conversationId, aliceIdentityId, clientMessageId);
+
+      expect(typeof encrypted).toBe('string');
+      expect(encrypted.length).toBeGreaterThan(0);
+      expect(() => atob(encrypted)).not.toThrow();
+    });
+
+    it('should produce different ciphertext for different messages', () => {
+      const messageId1 = generateClientMessageId();
+      const messageId2 = generateClientMessageId();
+
+      const encrypted1 = encryptSenderId(conversationId, aliceIdentityId, messageId1);
+      const encrypted2 = encryptSenderId(conversationId, aliceIdentityId, messageId2);
+
+      expect(encrypted1).not.toBe(encrypted2);
+    });
+
+    it('should fail to decrypt with wrong conversation ID', () => {
+      const clientMessageId = generateClientMessageId();
+      const wrongConversationId = deriveConversationId(aliceIdentityId, '507f1f77bcf86cd799439099');
+
+      const encrypted = encryptSenderId(conversationId, aliceIdentityId, clientMessageId);
+
+      expect(() => decryptSenderHint(wrongConversationId, encrypted, clientMessageId)).toThrow();
+    });
+
+    it('should fail to decrypt with wrong client message ID', () => {
+      const clientMessageId = generateClientMessageId();
+      const wrongMessageId = generateClientMessageId();
+
+      const encrypted = encryptSenderId(conversationId, aliceIdentityId, clientMessageId);
+
+      expect(() => decryptSenderHint(conversationId, encrypted, wrongMessageId)).toThrow();
+    });
+
+    it('should work with both crypto profiles', () => {
+      const clientMessageId = generateClientMessageId();
+
+      const encryptedDefault = encryptSenderId(
+        conversationId,
+        aliceIdentityId,
+        clientMessageId,
+        'default'
+      );
+      const decryptedDefault = decryptSenderHint(
+        conversationId,
+        encryptedDefault,
+        clientMessageId,
+        'default'
+      );
+      expect(decryptedDefault).toBe(aliceIdentityId);
+
+      const encryptedCnsa2 = encryptSenderId(
+        conversationId,
+        aliceIdentityId,
+        clientMessageId,
+        'cnsa2'
+      );
+      const decryptedCnsa2 = decryptSenderHint(
+        conversationId,
+        encryptedCnsa2,
+        clientMessageId,
+        'cnsa2'
+      );
+      expect(decryptedCnsa2).toBe(aliceIdentityId);
+
+      expect(encryptedDefault).not.toBe(encryptedCnsa2);
+    });
+
+    it('should handle longer identity IDs', () => {
+      const clientMessageId = generateClientMessageId();
+      const longSenderId = '507f1f77bcf86cd799439011abcdef123456';
+
+      const encrypted = encryptSenderId(conversationId, longSenderId, clientMessageId);
+      const decrypted = decryptSenderHint(conversationId, encrypted, clientMessageId);
+
+      expect(decrypted).toBe(longSenderId);
     });
   });
 });

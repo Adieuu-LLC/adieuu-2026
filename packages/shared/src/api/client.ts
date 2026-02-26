@@ -1371,12 +1371,33 @@ export interface DmConversation {
 }
 
 /**
+ * Read state entry for a participant in a conversation.
+ */
+export interface DmReadStateEntry {
+  identityId: string;
+  encryptedLastReadId: string;
+  updatedAt: string;
+}
+
+/**
+ * DM conversation list item (returned from getConversations).
+ */
+export interface DmConversationListItem {
+  conversationId: string;
+  activeCryptoProfile: 'default' | 'cnsa2';
+  readState: DmReadStateEntry[];
+  lastMessageAt: string | null;
+  lastMessageId: string | null;
+}
+
+/**
  * DM message response.
  */
 export interface DmMessage {
   id: string;
   conversationId: string;
   toIdentityId: string;
+  encryptedSenderId: string;
   ciphertext: string;
   nonce: string;
   wrappedKeys: SerializedWrappedKey[];
@@ -1406,6 +1427,7 @@ export interface DmMessageTombstone {
 export interface SendDmMessageParams {
   conversationId: string;
   toIdentityId: string;
+  encryptedSenderId: string;
   ciphertext: string;
   nonce: string;
   wrappedKeys: SerializedWrappedKey[];
@@ -1469,6 +1491,37 @@ export class DmApi {
     const query = params.toString();
     return this.client.get(
       `/api/dm/conversations/${encodeURIComponent(conversationId)}/messages${query ? `?${query}` : ''}`
+    );
+  }
+
+  /**
+   * Get all conversations for the current identity.
+   *
+   * Returns conversations sorted by last message time (most recent first).
+   * Includes encrypted read state for unread computation.
+   */
+  async getConversations(): Promise<ApiResponse<{
+    conversations: DmConversationListItem[];
+  }>> {
+    return this.client.get('/api/dm/conversations');
+  }
+
+  /**
+   * Update the read state for a conversation.
+   *
+   * The encrypted read state is opaque to the server - it cannot
+   * determine which message was actually read.
+   *
+   * @param conversationId - The blinded conversation ID
+   * @param encryptedLastReadId - Base64-encoded encrypted last read message ID
+   */
+  async updateReadState(
+    conversationId: string,
+    encryptedLastReadId: string
+  ): Promise<ApiResponse<{ success: boolean }>> {
+    return this.client.put(
+      `/api/dm/conversations/${encodeURIComponent(conversationId)}/read-state`,
+      { encryptedLastReadId }
     );
   }
 }
