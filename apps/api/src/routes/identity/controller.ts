@@ -584,6 +584,10 @@ export async function getIdentityKeysCtrl(ctx: RouteContext): Promise<Response> 
     return errors.notFound('Identity has not set up E2E encryption.');
   }
 
+  // Debug logging for public keys retrieval
+  console.log('[Get Keys] Identity ID:', identity._id.toHexString());
+  console.log('[Get Keys] Signing public key:', publicKeys.signingPublicKey);
+
   return success(publicKeys);
 }
 
@@ -653,11 +657,19 @@ export async function getKeyBundleCtrl(ctx: RouteContext): Promise<Response> {
 
   const keyBundleRepo = getKeyBundleRepository();
   const bundleId = deriveBundleId(identity.ident);
+  
+  // Debug logging for bundle retrieval
+  console.log('[Get Bundle] Identity ID:', identity._id.toHexString());
+  console.log('[Get Bundle] Identity ident:', identity.ident);
+  console.log('[Get Bundle] Derived bundle ID:', bundleId);
 
   const bundle = await keyBundleRepo.findByBundleId(bundleId);
   if (!bundle) {
+    console.log('[Get Bundle] Bundle not found!');
     return errors.notFound('Key bundle not found.');
   }
+  
+  console.log('[Get Bundle] Bundle found, salt length:', bundle.salt.length);
 
   return success({
     encryptedBundle: bundle.encryptedBundle,
@@ -769,12 +781,18 @@ export async function initializeE2ECtrl(ctx: RouteContext): Promise<Response> {
 
   const { signingPublicKey, preferredCryptoProfile, device, bundle } = parseResult.data;
 
+  // Debug logging for E2E initialization
+  console.log('[E2E Init] Identity ID:', identity._id.toHexString());
+  console.log('[E2E Init] Identity ident:', identity.ident);
+  console.log('[E2E Init] Signing public key to store:', signingPublicKey);
+
   try {
     const { withTransaction } = await import('../../db');
     await withTransaction(async (_session: ClientSession) => {
       const identityRepo = getIdentityRepository();
       const keyBundleRepo = getKeyBundleRepository();
       const bundleId = deriveBundleId(identity.ident);
+      console.log('[E2E Init] Derived bundle ID:', bundleId);
 
       await identityRepo.setSigningPublicKey(
         identity._id,

@@ -3,13 +3,15 @@
  * Shows avatar, display name, and username with a hover card for actions.
  */
 
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { deriveConversationId } from '@adieuu/crypto';
 import type { Friend } from '@adieuu/shared';
 import { HoverCard } from './HoverCard';
 import { Button } from './Button';
 import { MessageIcon, UserIcon } from './Icons';
 import { useSidebar } from './Sidebar';
+import { useIdentity } from '../hooks/useIdentity';
 
 export interface FriendListItemProps {
   /** Friend data */
@@ -36,9 +38,18 @@ function getInitials(displayName: string): string {
 export function FriendListItem({ friend, onNavigate }: FriendListItemProps) {
   const { t } = useTranslation();
   const { isExpanded } = useSidebar();
+  const navigate = useNavigate();
+  const { identity: myIdentity } = useIdentity();
   const { identity } = friend;
 
   const handleNavigate = () => {
+    onNavigate?.();
+  };
+
+  const handleMessage = () => {
+    if (!myIdentity) return;
+    const conversationId = deriveConversationId(myIdentity.id, identity.id);
+    navigate(`/conversation/${conversationId}?recipient=${identity.id}`);
     onNavigate?.();
   };
 
@@ -94,9 +105,7 @@ export function FriendListItem({ friend, onNavigate }: FriendListItemProps) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={handleNavigate}
-          disabled
-          title={t('common.comingSoon')}
+          onClick={handleMessage}
         >
           <MessageIcon />
           {t('identity.actions.message')}

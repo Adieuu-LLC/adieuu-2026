@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, createContext, useContext, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { createApiClient, type PublicIdentity } from '@adieuu/shared';
-import { deriveEntropyWrappingKey, generateWrappingSalt, fromBase64, toBase64, clearBytes } from '@adieuu/crypto';
+import { deriveEntropyWrappingKey, generateWrappingSalt, fromBase64, toBase64, clearBytes, getSigningPublicKey } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
 import { useAuth } from './useAuth';
 import {
@@ -396,6 +396,8 @@ function useIdentityState(): IdentityContextValue {
           cryptoProfile: 'default',
         });
         console.debug('[Identity] createIdentity: E2E keys generated successfully');
+        console.log('[Identity] createIdentity: SIGNING KEY DEBUG - public key to upload:', e2eResult.signingPublicKey);
+        console.log('[Identity] createIdentity: SIGNING KEY DEBUG - derived from private:', toBase64(getSigningPublicKey(e2eResult.signingPrivateKey)));
       } catch (err) {
         console.error('[Identity] createIdentity: failed to generate E2E keys:', err);
         return {
@@ -721,7 +723,9 @@ function useIdentityState(): IdentityContextValue {
 
           const decryptedBundle = await decryptKeyBundle(bundle, passphrase);
           signingPrivateKey = decryptedBundle.signingPrivateKey;
+          const derivedPublicKey = getSigningPublicKey(signingPrivateKey);
           console.debug('[Identity] loginToIdentity: signing key decrypted');
+          console.log('[Identity] loginToIdentity: SIGNING KEY DEBUG - derived public key from bundle:', toBase64(derivedPublicKey));
         } catch (err) {
           console.error('[Identity] loginToIdentity: failed to decrypt bundle:', err);
           clearBytes(wrappingKey);
@@ -840,7 +844,9 @@ function useIdentityState(): IdentityContextValue {
 
           const decryptedBundle = await decryptKeyBundle(bundle, passphrase);
           signingPrivateKey = decryptedBundle.signingPrivateKey;
+          const derivedPublicKey = getSigningPublicKey(signingPrivateKey);
           console.debug('[Identity] unlockIdentity: signing key decrypted');
+          console.log('[Identity] unlockIdentity: SIGNING KEY DEBUG - derived public key from bundle:', toBase64(derivedPublicKey));
         } catch (err) {
           console.error('[Identity] unlockIdentity: failed to decrypt bundle:', err);
           clearBytes(wrappingKey);

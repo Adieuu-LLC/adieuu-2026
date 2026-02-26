@@ -1388,6 +1388,8 @@ export interface DmConversationListItem {
   readState: DmReadStateEntry[];
   lastMessageAt: string | null;
   lastMessageId: string | null;
+  lastMessageEncryptedSenderId: string | null;
+  lastMessageClientMessageId: string | null;
 }
 
 /**

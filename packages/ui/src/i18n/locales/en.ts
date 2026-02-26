@@ -73,6 +73,7 @@ export const en = {
     profile: 'Profile',
     viewProfile: 'View Profile',
     messagesPlaceholder: 'Messages will appear here.',
+    noMessages: 'No messages yet. Say hi to {{name}}!',
     inputPlaceholder: 'Type a message...',
     send: 'Send',
   },

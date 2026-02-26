@@ -5,7 +5,7 @@
  * conversation messages with decryption.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { createApiClient, type DmMessage, type DmMessageTombstone, type DmConversation } from '@adieuu/shared';
 import { deriveConversationId, type CryptoProfile, fromBase64 } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
@@ -575,8 +575,19 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
     await fetchMessages(cursor, true);
   }, [cursor, hasMore, isLoading, fetchMessages]);
 
-  // Removed auto-fetch on mount since it causes issues with React StrictMode
-  // Users should call refresh() explicitly when they want to load messages
+  // Auto-fetch on mount when immediate is true
+  const hasFetchedRef = useRef(false);
+  useEffect(() => {
+    if (options.immediate && !hasFetchedRef.current && status === 'logged_in' && identity) {
+      hasFetchedRef.current = true;
+      fetchMessages(null, false);
+    }
+  }, [options.immediate, status, identity, fetchMessages]);
+
+  // Reset hasFetched when conversation changes
+  useEffect(() => {
+    hasFetchedRef.current = false;
+  }, [options.conversationId]);
 
   return { messages, isLoading, error, hasMore, fetchMore, refresh };
 }

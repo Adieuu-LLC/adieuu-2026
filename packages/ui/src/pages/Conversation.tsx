@@ -1,22 +1,25 @@
 /**
  * Conversation page for viewing and interacting with a conversation.
  * Displays messages with a toolbar and optional members sidebar.
+ * Supports DM conversations with end-to-end encryption.
  */
 
-import { useState, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Conversation as ConversationType, PublicIdentity } from '@adieuu/shared';
+import { createApiClient } from '@adieuu/shared';
 import { Button } from '../components/Button';
-import { Avatar } from '../components/Avatar';
 import { AvatarGroup } from '../components/AvatarGroup';
-import { XIcon, UsersIcon } from '../components/Icons';
+import { XIcon, UsersIcon, SendIcon } from '../components/Icons';
 import { useConversationsList } from '../hooks/useConversations';
 import { useIdentity } from '../hooks/useIdentity';
+import { useDmMessages, useSendDmMessage, type DecryptedDmMessage } from '../hooks/useDmMessages';
+import { useMarkAsRead } from '../hooks/useMarkAsRead';
+import { useDmSubscription } from '../hooks/useDmSubscription';
+import { getCachedParticipant } from '../services/participantCache';
+import { useAppConfig } from '../config';
 
-/**
- * Gets initials from a display name for avatar placeholder.
- */
 function getInitials(displayName: string): string {
   return displayName
     .split(' ')
@@ -26,9 +29,6 @@ function getInitials(displayName: string): string {
     .toUpperCase();
 }
 
-/**
- * Generates a display title for a group conversation.
- */
 function getGroupTitle(members: { identity: PublicIdentity }[]): string {
   if (members.length === 0) return 'Empty conversation';
 
@@ -45,8 +45,14 @@ function getGroupTitle(members: { identity: PublicIdentity }[]): string {
   return `${firstTwo.join(', ')} +${overflow}`;
 }
 
+function formatMessageTime(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
 interface ConversationToolbarProps {
-  conversation: ConversationType;
+  conversation?: ConversationType;
+  otherParticipant?: PublicIdentity | null;
   showMembersSidebar: boolean;
   onToggleMembersSidebar: () => void;
   onClose: () => void;
@@ -54,18 +60,20 @@ interface ConversationToolbarProps {
 
 function ConversationToolbar({
   conversation,
+  otherParticipant,
   showMembersSidebar,
   onToggleMembersSidebar,
   onClose,
 }: ConversationToolbarProps) {
   const { t } = useTranslation();
-  const isDirect = conversation.type === 'direct';
-  const otherMember = isDirect ? conversation.members[0]?.identity : null;
-  const memberIdentities = conversation.members.map((m) => m.identity);
+
+  const isDirect = !conversation || conversation.type === 'direct';
+  const otherMember = otherParticipant ?? conversation?.members[0]?.identity;
+  const memberIdentities = conversation?.members.map((m) => m.identity) ?? [];
 
   const title = isDirect
     ? otherMember?.displayName ?? t('conversation.unknown')
-    : conversation.customTitle ?? getGroupTitle(conversation.members);
+    : conversation?.customTitle ?? getGroupTitle(conversation?.members ?? []);
 
   return (
     <div className="conversation-toolbar">
@@ -91,7 +99,7 @@ function ConversationToolbar({
         )}
         <div className="conversation-toolbar-info">
           <span className="conversation-toolbar-title">{title}</span>
-          {!isDirect && (
+          {!isDirect && conversation && (
             <span className="conversation-toolbar-subtitle">
               {t('conversation.memberCount', { count: conversation.members.length })}
             </span>
@@ -128,13 +136,14 @@ function ConversationToolbar({
 }
 
 interface MembersSidebarProps {
-  conversation: ConversationType;
+  conversation?: ConversationType;
+  otherParticipant?: PublicIdentity | null;
 }
 
-function MembersSidebar({ conversation }: MembersSidebarProps) {
+function MembersSidebar({ conversation, otherParticipant }: MembersSidebarProps) {
   const { t } = useTranslation();
-  const isDirect = conversation.type === 'direct';
-  const otherMember = isDirect ? conversation.members[0]?.identity : null;
+  const isDirect = !conversation || conversation.type === 'direct';
+  const otherMember = otherParticipant ?? conversation?.members[0]?.identity;
 
   if (isDirect && otherMember) {
     return (
@@ -177,6 +186,8 @@ function MembersSidebar({ conversation }: MembersSidebarProps) {
     );
   }
 
+  if (!conversation) return null;
+
   return (
     <div className="conversation-members-sidebar">
       <div className="conversation-members-header">
@@ -214,49 +225,262 @@ function MembersSidebar({ conversation }: MembersSidebarProps) {
   );
 }
 
-function ConversationMessages() {
-  const { t } = useTranslation();
+interface MessageBubbleProps {
+  message: DecryptedDmMessage;
+  isOwn: boolean;
+}
+
+function MessageBubble({ message, isOwn }: MessageBubbleProps) {
+  if (message.decryptionError) {
+    return (
+      <div className={`dm-message dm-message--error ${isOwn ? 'dm-message--own' : ''}`}>
+        <div className="dm-message-bubble dm-message-bubble--error">
+          <span className="dm-message-error-icon">!</span>
+          <span>{message.decryptionError}</span>
+        </div>
+        <span className="dm-message-time">{formatMessageTime(message.raw.createdAt)}</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="conversation-messages">
-      <div className="conversation-messages-empty">
-        <p>{t('conversation.messagesPlaceholder')}</p>
+    <div className={`dm-message ${isOwn ? 'dm-message--own' : ''}`}>
+      <div className={`dm-message-bubble ${isOwn ? 'dm-message-bubble--own' : ''}`}>
+        <p className="dm-message-text">{message.decrypted?.text}</p>
       </div>
+      <span className="dm-message-time">{formatMessageTime(message.raw.createdAt)}</span>
     </div>
   );
 }
 
-function ConversationInput() {
+interface ConversationMessagesProps {
+  messages: DecryptedDmMessage[];
+  isLoading: boolean;
+  error: string | null;
+  currentIdentityId: string | undefined;
+  otherParticipantName?: string;
+}
+
+function ConversationMessages({
+  messages,
+  isLoading,
+  error,
+  currentIdentityId,
+  otherParticipantName,
+}: ConversationMessagesProps) {
   const { t } = useTranslation();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   return (
-    <div className="conversation-input">
-      <input
-        type="text"
-        placeholder={t('conversation.inputPlaceholder')}
-        className="conversation-input-field"
-        disabled
-      />
-      <Button variant="primary" size="sm" disabled>
-        {t('conversation.send')}
-      </Button>
+    <div className="dm-messages">
+      {isLoading && messages.length === 0 && (
+        <div className="dm-messages-loading">
+          <span className="spinner spinner-sm" />
+        </div>
+      )}
+
+      {error && (
+        <div className="dm-messages-error">
+          <p>{error}</p>
+        </div>
+      )}
+
+      {!isLoading && messages.length === 0 && (
+        <div className="dm-messages-empty">
+          <p>{t('conversation.noMessages', { name: otherParticipantName ?? 'them' })}</p>
+        </div>
+      )}
+
+      {messages.map((msg) => (
+        <MessageBubble
+          key={msg.raw.id}
+          message={msg}
+          isOwn={msg.decrypted?.fromIdentityId === currentIdentityId}
+        />
+      ))}
+
+      <div ref={messagesEndRef} />
+    </div>
+  );
+}
+
+interface ConversationInputProps {
+  onSend: (text: string) => Promise<void>;
+  isSending: boolean;
+  error: string | null;
+}
+
+function ConversationInput({ onSend, isSending, error }: ConversationInputProps) {
+  const { t } = useTranslation();
+  const [inputText, setInputText] = useState('');
+
+  const handleSend = useCallback(async () => {
+    if (!inputText.trim() || isSending) return;
+    await onSend(inputText.trim());
+    setInputText('');
+  }, [inputText, isSending, onSend]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    },
+    [handleSend]
+  );
+
+  return (
+    <div className="dm-input-container">
+      {error && (
+        <div className="dm-input-error">
+          <span>{error}</span>
+        </div>
+      )}
+      <div className="dm-input">
+        <input
+          type="text"
+          value={inputText}
+          onChange={(e) => setInputText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={t('conversation.inputPlaceholder')}
+          className="dm-input-field"
+          disabled={isSending}
+        />
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={handleSend}
+          disabled={!inputText.trim() || isSending}
+          className="dm-input-send"
+        >
+          {isSending ? (
+            <span className="spinner spinner-xs" />
+          ) : (
+            <SendIcon />
+          )}
+        </Button>
+      </div>
     </div>
   );
 }
 
 export function Conversation() {
   const { t } = useTranslation();
-  const { id } = useParams<{ id: string }>();
+  const { id: conversationId } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const recipientIdFromUrl = searchParams.get('recipient');
   const navigate = useNavigate();
-  const { status: identityStatus } = useIdentity();
-  const { conversations, isLoading } = useConversationsList();
+  const { apiBaseUrl } = useAppConfig();
+  const { status: identityStatus, identity } = useIdentity();
+  const { conversations, isLoading: conversationsLoading, refresh: refreshConversations } = useConversationsList();
   const [showMembersSidebar, setShowMembersSidebar] = useState(true);
+  const [otherParticipant, setOtherParticipant] = useState<PublicIdentity | null>(null);
+  const [otherParticipantId, setOtherParticipantId] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
 
-  const isLoggedIn = identityStatus === 'logged_in';
+  const isLoggedIn = identityStatus === 'logged_in' && identity !== null;
 
+  // Find conversation in list (if exists)
   const conversation = useMemo(() => {
-    return conversations.find((c) => c.id === id);
-  }, [conversations, id]);
+    return conversations.find((c) => c.id === conversationId);
+  }, [conversations, conversationId]);
+
+  // Initialize: get other participant info
+  useEffect(() => {
+    if (!isLoggedIn || !conversationId || !identity) {
+      setIsInitializing(false);
+      return;
+    }
+
+    const init = async () => {
+      setIsInitializing(true);
+      const api = createApiClient({ baseUrl: apiBaseUrl });
+
+      // If conversation exists in list, use that
+      if (conversation && conversation.members[0]?.identity) {
+        setOtherParticipant(conversation.members[0].identity);
+        setOtherParticipantId(conversation.members[0].identity.id);
+        setIsInitializing(false);
+        return;
+      }
+
+      // Try participant cache
+      try {
+        const cached = await getCachedParticipant(identity.id, conversationId);
+        if (cached) {
+          setOtherParticipantId(cached.otherIdentityId);
+
+          // Fetch full identity info
+          const response = await api.identity.getById(cached.otherIdentityId);
+          if (response.success && response.data) {
+            setOtherParticipant(response.data);
+            setIsInitializing(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to get participant from cache:', err);
+      }
+
+      // For new conversations, use recipient ID from URL
+      if (recipientIdFromUrl) {
+        setOtherParticipantId(recipientIdFromUrl);
+        try {
+          const response = await api.identity.getById(recipientIdFromUrl);
+          if (response.success && response.data) {
+            setOtherParticipant(response.data);
+          }
+        } catch (err) {
+          console.error('Failed to fetch recipient info:', err);
+        }
+      }
+
+      setIsInitializing(false);
+    };
+
+    init();
+  }, [apiBaseUrl, conversation, conversationId, identity, isLoggedIn, recipientIdFromUrl]);
+
+  // Fetch messages
+  const {
+    messages,
+    isLoading: messagesLoading,
+    error: messagesError,
+    refresh: refreshMessages,
+  } = useDmMessages({
+    conversationId: conversationId ?? '',
+    immediate: !!conversationId && isLoggedIn,
+  });
+
+  // Send message hook
+  const { sendMessage, isSending, error: sendError } = useSendDmMessage();
+
+  // Mark as read hook
+  const { markAsRead } = useMarkAsRead();
+
+  // Subscribe to real-time updates
+  useDmSubscription({
+    conversationId: conversationId ?? undefined,
+    onNewMessage: () => {
+      refreshMessages();
+      refreshConversations();
+    },
+  });
+
+  // Mark as read when viewing messages
+  useEffect(() => {
+    if (!conversationId || messages.length === 0) return;
+
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.raw?.id) {
+      markAsRead(conversationId, lastMessage.raw.id);
+    }
+  }, [conversationId, messages, markAsRead]);
 
   const handleClose = () => {
     navigate('/');
@@ -266,30 +490,49 @@ export function Conversation() {
     setShowMembersSidebar((prev) => !prev);
   };
 
+  const handleSendMessage = useCallback(async (text: string) => {
+    if (!otherParticipantId) return;
+
+    const result = await sendMessage({
+      toIdentityId: otherParticipantId,
+      text,
+    });
+
+    if (result.success) {
+      refreshMessages();
+      refreshConversations();
+    }
+  }, [otherParticipantId, refreshConversations, refreshMessages, sendMessage]);
+
   if (!isLoggedIn) {
     return (
-      <div className="conversation-page">
-        <div className="conversation-not-found">
+      <div className="dm-page">
+        <div className="dm-error">
           <p>{t('conversation.loginRequired')}</p>
         </div>
       </div>
     );
   }
 
-  if (isLoading) {
+  if (conversationsLoading || isInitializing) {
     return (
-      <div className="conversation-page">
-        <div className="conversation-loading">
+      <div className="dm-page">
+        <div className="dm-loading">
           <span className="spinner spinner-md" />
         </div>
       </div>
     );
   }
 
-  if (!conversation) {
+  // For DMs, we allow viewing even if conversation doesn't exist yet (new conversation)
+  // We just need the other participant info
+  const effectiveOtherParticipant = otherParticipant ?? conversation?.members[0]?.identity;
+  const effectiveOtherParticipantId = otherParticipantId ?? conversation?.members[0]?.identity?.id;
+
+  if (!effectiveOtherParticipantId) {
     return (
-      <div className="conversation-page">
-        <div className="conversation-not-found">
+      <div className="dm-page">
+        <div className="dm-error">
           <p>{t('conversation.notFound')}</p>
           <Button variant="secondary" onClick={handleClose}>
             {t('conversation.goHome')}
@@ -300,21 +543,35 @@ export function Conversation() {
   }
 
   return (
-    <div className="conversation-page">
-      <div className="conversation-container">
+    <div className="dm-page">
+      <div className="dm-container">
         <ConversationToolbar
           conversation={conversation}
+          otherParticipant={effectiveOtherParticipant}
           showMembersSidebar={showMembersSidebar}
           onToggleMembersSidebar={handleToggleMembersSidebar}
           onClose={handleClose}
         />
         <div className="conversation-body">
           <div className="conversation-main">
-            <ConversationMessages />
-            <ConversationInput />
+            <ConversationMessages
+              messages={messages}
+              isLoading={messagesLoading}
+              error={messagesError}
+              currentIdentityId={identity?.id}
+              otherParticipantName={effectiveOtherParticipant?.displayName}
+            />
+            <ConversationInput
+              onSend={handleSendMessage}
+              isSending={isSending}
+              error={sendError}
+            />
           </div>
           {showMembersSidebar && (
-            <MembersSidebar conversation={conversation} />
+            <MembersSidebar
+              conversation={conversation}
+              otherParticipant={effectiveOtherParticipant}
+            />
           )}
         </div>
       </div>
