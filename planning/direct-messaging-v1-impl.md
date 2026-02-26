@@ -208,13 +208,13 @@ The following design decisions were made during Phase 3 planning:
 | 3.13 | Participant cache service | `packages/ui/src/services/participantCache.ts` | Done - IndexedDB cache with fallback |
 | 3.14 | Derive read state key | `packages/crypto/src/dm/index.ts` | Done - `deriveReadStateKey()` |
 | 3.15 | Encrypt/decrypt read state | `packages/ui/src/services/readStateService.ts` | Done - `encryptLastReadId()`, `decryptLastReadId()` |
-| 3.16 | Conversation list hook | `packages/ui/src/hooks/useDmConversations.ts` | |
-| 3.17 | Conversation list UI | `packages/ui/src/components/DmConversationList.tsx` | |
-| 3.18 | Start new conversation flow | `packages/ui/src/components/NewDmDialog.tsx` | |
+| 3.16 | Conversation list hook | `packages/ui/src/hooks/useDmConversationsList.ts` | Done - `useDmConversationsList()` with unread status |
+| 3.17 | Conversation list UI | `packages/ui/src/components/DmConversationList.tsx` | Deferred to UI integration phase |
+| 3.18 | Start new conversation flow | `packages/ui/src/components/NewDmDialog.tsx` | Deferred to UI integration phase |
 | 3.19 | Update DM API client | `packages/shared/src/api/client.ts` | Done - `getConversations()`, `updateReadState()`, types updated |
-| 3.20 | WebSocket connection hook | `packages/ui/src/hooks/useWebSocket.ts` | |
-| 3.21 | Real-time message subscription | `packages/ui/src/hooks/useDmSubscription.ts` | |
-| 3.22 | Mark conversation as read | `packages/ui/src/hooks/useDmMessages.ts` | |
+| 3.20 | WebSocket connection hook | `packages/ui/src/hooks/useChatConnection.ts` | Done - `useChatConnection()` with auto-reconnect |
+| 3.21 | Real-time message subscription | `packages/ui/src/hooks/useDmSubscription.ts` | Done - `useDmSubscription()` for dm:new/read/typing |
+| 3.22 | Mark conversation as read | `packages/ui/src/hooks/useMarkAsRead.ts` | Done - `useMarkAsRead()` |
 
 **Task Descriptions:**
 - 3.10: Add `encryptSenderId()`, include in message payload

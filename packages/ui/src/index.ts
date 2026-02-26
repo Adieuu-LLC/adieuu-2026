@@ -48,6 +48,12 @@ export { useIdentity, IdentityProvider } from './hooks/useIdentity';
 export { useTourContext, TourProvider } from './hooks/useTourContext';
 export { useIdentitySearch } from './hooks/useIdentitySearch';
 export { useConversationsList } from './hooks/useConversations';
+export { useDmConversationsList } from './hooks/useDmConversationsList';
+export type { DmConversationWithParticipant } from './hooks/useDmConversationsList';
+export { useMarkAsRead } from './hooks/useMarkAsRead';
+export { useChatConnection } from './hooks/useChatConnection';
+export { useDmSubscription } from './hooks/useDmSubscription';
+export type { DmEvent, DmNewMessageEvent, DmReadStateEvent, DmTypingEvent } from './hooks/useDmSubscription';
 
 export type {
   AuthStatus,
