@@ -98,6 +98,10 @@ export interface IdentityLoginResult {
 export interface IdentityCreationResult {
   success: boolean;
   identity?: PublicIdentity;
+  /** Session ID (only if auto-login is enabled) */
+  sessionId?: string;
+  /** Session cookie (only if auto-login is enabled) */
+  cookie?: string;
   error?: string;
   errorCode?: 'MAX_IDENTITIES' | 'USERNAME_TAKEN' | 'VALIDATION_ERROR';
 }
@@ -118,14 +122,22 @@ function getBackoffDelay(attemptNumber: number): number {
  * @param passphrase - The passphrase to secure the identity (min 8 chars)
  * @param username - Desired username for the identity
  * @param displayName - Display name for the identity
+ * @param options - Optional settings
+ * @param options.autoLogin - If true, automatically create an identity session (default: true)
+ * @param options.metadata - Session metadata (userAgent, ipAddress) for auto-login
  */
 export async function createIdentity(
   userId: string | ObjectId,
   userCreatedAt: Date,
   passphrase: string,
   username: string,
-  displayName: string
+  displayName: string,
+  options?: {
+    autoLogin?: boolean;
+    metadata?: { userAgent?: string; ipAddress?: string };
+  }
 ): Promise<IdentityCreationResult> {
+  const autoLogin = options?.autoLogin ?? true;
   const userRepo = getUserRepository();
   const identityRepo = getIdentityRepository();
 
@@ -197,6 +209,30 @@ export async function createIdentity(
   // NOTE: We intentionally do NOT log identity creation to prevent timing correlation
   // that could be used to de-anonymize users
   await userRepo.incrementIdentityCount(userId);
+
+  // Auto-login: create identity session so user can immediately use the identity
+  if (autoLogin) {
+    const identitySessionRepo = getIdentitySessionRepository();
+    const sessionId = generateSecureToken(IDENTITY_SESSION_CONFIG.idLength);
+    const expiresAt = new Date(Date.now() + IDENTITY_SESSION_CONFIG.ttlSeconds * 1000);
+
+    await identitySessionRepo.create({
+      identitySessionId: sessionId,
+      identityId: identity._id,
+      expiresAt,
+      userAgent: options?.metadata?.userAgent,
+      ipAddress: options?.metadata?.ipAddress,
+    });
+
+    const cookie = buildIdentitySessionCookie(sessionId, IDENTITY_SESSION_CONFIG.ttlSeconds);
+
+    return {
+      success: true,
+      identity: toPublicIdentity(identity),
+      sessionId,
+      cookie,
+    };
+  }
 
   return {
     success: true,

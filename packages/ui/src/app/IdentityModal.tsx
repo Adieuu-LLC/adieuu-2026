@@ -6,7 +6,7 @@ import { Alert } from '../components/Alert';
 import { Spinner } from '../components/Spinner';
 import { Popover } from '../components/Popover';
 import { MaskIcon, PlusIcon, LockIcon, InfoCircleIcon } from '../components/Icons';
-import { useIdentity } from '../hooks/useIdentity';
+import { useIdentity, type LoginStatus } from '../hooks/useIdentity';
 
 interface IdentityModalProps {
   isOpen: boolean;
@@ -15,7 +15,7 @@ interface IdentityModalProps {
   unlockMode?: boolean;
 }
 
-type ModalView = 'choose' | 'login' | 'create' | 'unlock';
+type ModalView = 'choose' | 'login' | 'create' | 'unlock' | 'creating' | 'logging_in';
 
 export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityModalProps) {
   const { t } = useTranslation();
@@ -43,6 +43,9 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
   const [attemptNumber, setAttemptNumber] = useState<number | null>(null);
 
+  // Login status for progress display
+  const [loginStatus, setLoginStatus] = useState<LoginStatus>('authenticating');
+
   const resetForm = () => {
     setPassphrase('');
     setPassphraseConfirm('');
@@ -68,11 +71,17 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     }
 
     const passphraseValue = passphrase;
+    
+    // Switch to logging_in view immediately
+    setView('logging_in');
+    setLoginStatus('authenticating');
     setLoading(true);
     setError(null);
     setPassphrase('');
 
-    const result = await loginToIdentity(passphraseValue);
+    const result = await loginToIdentity(passphraseValue, {
+      onStatusChange: (status) => setLoginStatus(status),
+    });
 
     setLoading(false);
 
@@ -80,8 +89,10 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
       setSuccess(t('identity.login.success'));
       setTimeout(() => {
         handleClose();
-      }, 1000);
+      }, 500);
     } else {
+      // Go back to login view to show error
+      setView('login');
       if (result.errorCode === 'LOCKED_OUT') {
         setError(t('identity.login.errorLocked'));
       } else if (result.errorCode === 'RATE_LIMITED' && result.retryAfter) {
@@ -142,6 +153,9 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     const passphraseValue = passphrase;
     const usernameValue = username;
     const displayNameValue = displayName;
+    
+    // Switch to creating view immediately (hides form, shows loader)
+    setView('creating');
     setLoading(true);
     setError(null);
     setPassphrase('');
@@ -158,8 +172,10 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
         resetForm();
         setView('login');
         setSuccess(null);
-      }, 2000);
+      }, 1500);
     } else {
+      // On error, go back to create view to show the error
+      setView('create');
       if (result.errorCode === 'USERNAME_TAKEN') {
         setError(t('identity.create.errorUsernameTaken'));
       } else if (result.errorCode === 'MAX_IDENTITIES') {
@@ -167,6 +183,9 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
       } else {
         setError(result.error || t('identity.create.errorValidation'));
       }
+      // Restore username and displayName so user doesn't have to retype
+      setUsername(usernameValue);
+      setDisplayName(displayNameValue);
     }
   };
 
@@ -459,6 +478,26 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
                 </Button>
               </div>
             </form>
+          </div>
+        )}
+
+        {view === 'creating' && (
+          <div className="identity-modal-content identity-modal-creating">
+            <div className="identity-creating-loader">
+              <Spinner size="lg" />
+              <h2>{success ? t('identity.create.success') : t('identity.create.creatingTitle')}</h2>
+              <p>{success ? t('identity.create.redirecting') : t('identity.create.creatingSubtitle')}</p>
+            </div>
+          </div>
+        )}
+
+        {view === 'logging_in' && (
+          <div className="identity-modal-content identity-modal-creating">
+            <div className="identity-creating-loader">
+              <Spinner size="lg" />
+              <h2>{success ? t('identity.login.success') : t('identity.login.loggingInTitle')}</h2>
+              <p>{success ? t('identity.login.redirecting') : t(`identity.login.status.${loginStatus}`)}</p>
+            </div>
           </div>
         )}
       </div>

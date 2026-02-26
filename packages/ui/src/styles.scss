@@ -2571,6 +2571,43 @@ a {
       margin: 0 0 var(--spacing-sm);
     }
   }
+
+  &-creating {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+  }
+}
+
+.identity-creating-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-lg);
+  text-align: center;
+  padding: var(--spacing-2xl);
+
+  .spinner {
+    width: 48px;
+    height: 48px;
+  }
+
+  h2 {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    margin: 0;
+  }
+
+  p {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    margin: 0;
+    max-width: 280px;
+    line-height: var(--line-height-relaxed);
+  }
 }
 
 .identity-attempt-warning {

@@ -140,11 +140,24 @@ export interface LoginIdentityResult {
   retryAfter?: number;
 }
 
+/**
+ * Login status steps for progress display.
+ */
+export type LoginStatus = 'authenticating' | 'deriving_keys' | 'loading_device' | 'decrypting_bundle' | 'complete';
+
+/**
+ * Options for loginToIdentity
+ */
+export interface LoginIdentityOptions {
+  /** Callback for status updates during login */
+  onStatusChange?: (status: LoginStatus) => void;
+}
+
 export interface IdentityContextValue extends IdentityState {
   /** Create a new identity */
   createIdentity: (passphrase: string, username: string, displayName: string) => Promise<CreateIdentityResult>;
   /** Login to identity with passphrase */
-  loginToIdentity: (passphrase: string) => Promise<LoginIdentityResult>;
+  loginToIdentity: (passphrase: string, options?: LoginIdentityOptions) => Promise<LoginIdentityResult>;
   /**
    * Unlock a locked identity session by providing the passphrase.
    * Used after page refresh when server session is valid but wrapping key is lost.
@@ -392,6 +405,35 @@ function useIdentityState(): IdentityContextValue {
         };
       }
 
+      // Verify identity session is established before uploading E2E keys
+      // The create endpoint sets the adieuu_identity cookie, but we verify it's working
+      console.debug('[Identity] createIdentity: verifying identity session is established...');
+      try {
+        const sessionCheck = await api.identity.getSession();
+        if (!sessionCheck.success || sessionCheck.data?.id !== createdIdentity.id) {
+          console.error('[Identity] createIdentity: identity session not established after creation');
+          clearBytes(e2eResult.signingPrivateKey);
+          clearBytes(e2eResult.devicePrivateKeys.ecdh);
+          clearBytes(e2eResult.devicePrivateKeys.kem);
+          return {
+            success: false,
+            error: 'Identity session not established. Please try again.',
+            errorCode: 'E2E_INIT_FAILED',
+          };
+        }
+        console.debug('[Identity] createIdentity: identity session verified');
+      } catch (err) {
+        console.error('[Identity] createIdentity: failed to verify identity session:', err);
+        clearBytes(e2eResult.signingPrivateKey);
+        clearBytes(e2eResult.devicePrivateKeys.ecdh);
+        clearBytes(e2eResult.devicePrivateKeys.kem);
+        return {
+          success: false,
+          error: 'Failed to verify identity session',
+          errorCode: 'E2E_INIT_FAILED',
+        };
+      }
+
       // Upload E2E keys to server
       console.debug('[Identity] createIdentity: uploading E2E keys to server...');
       try {
@@ -496,7 +538,10 @@ function useIdentityState(): IdentityContextValue {
   );
 
   const loginToIdentity = useCallback(
-    async (passphrase: string): Promise<LoginIdentityResult> => {
+    async (passphrase: string, options?: LoginIdentityOptions): Promise<LoginIdentityResult> => {
+      const onStatus = options?.onStatusChange;
+      
+      onStatus?.('authenticating');
       const response = await api.identity.login({ passphrase });
 
       if (!response.success) {
@@ -521,6 +566,7 @@ function useIdentityState(): IdentityContextValue {
       if (loggedInIdentity) {
         // Derive wrapping key for cipher entropy encryption
         // This is required for cipher operations - fail login if it fails
+        onStatus?.('deriving_keys');
         let wrappingKey: Uint8Array;
         let salt: Uint8Array;
         try {
@@ -552,6 +598,7 @@ function useIdentityState(): IdentityContextValue {
         }
 
         // E2E Key Setup: Check if this device has keys or is new
+        onStatus?.('loading_device');
         console.debug('[Identity] loginToIdentity: checking for existing device keys...');
         const hasExistingDeviceKeys = await hasDeviceKeys(loggedInIdentity.id);
 
@@ -652,6 +699,7 @@ function useIdentityState(): IdentityContextValue {
         }
 
         // Fetch and decrypt the signing key bundle
+        onStatus?.('decrypting_bundle');
         console.debug('[Identity] loginToIdentity: fetching signing key bundle...');
         let signingPrivateKey: Uint8Array;
         try {
@@ -695,6 +743,8 @@ function useIdentityState(): IdentityContextValue {
         signingKeyRef.current = signingPrivateKey;
         currentDeviceIdRef.current = deviceId;
         console.debug('[Identity] loginToIdentity: all keys cached in memory');
+
+        onStatus?.('complete');
 
         setState((prev) => ({
           ...prev,

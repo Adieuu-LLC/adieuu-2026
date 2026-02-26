@@ -148,13 +148,21 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
     return ctx.errors.unauthorized();
   }
 
-  // Create identity
+  // Get client metadata for session
+  const clientIp = getClientIp(ctx.request);
+  const userAgent = ctx.request.headers.get('User-Agent') ?? undefined;
+
+  // Create identity with auto-login enabled
   const result = await createIdentity(
     user._id,
     user.createdAt,
     passphrase,
     username,
-    displayName
+    displayName,
+    {
+      autoLogin: true,
+      metadata: { userAgent, ipAddress: clientIp },
+    }
   );
 
   if (!result.success) {
@@ -167,7 +175,15 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
     return errors.badRequest(result.error ?? 'Identity creation failed.');
   }
 
-  return success(result.identity, 'Identity created successfully.');
+  // Return response with identity session cookie
+  const response = success(result.identity, 'Identity created successfully.');
+  if (result.cookie) {
+    const headers = new Headers(response.headers);
+    headers.set('Set-Cookie', result.cookie);
+    return new Response(response.body, { status: response.status, headers });
+  }
+
+  return response;
 }
 
 export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {

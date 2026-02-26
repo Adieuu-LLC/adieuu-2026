@@ -246,7 +246,10 @@ export const en = {
       displayNameHint: 'How you appear in conversations.',
       submitButton: 'Create Identity',
       creating: 'Creating...',
-      success: 'Identity created successfully! You can now login.',
+      creatingTitle: 'Creating Your Identity',
+      creatingSubtitle: 'Setting up encryption keys. This may take a moment...',
+      success: 'Identity created successfully!',
+      redirecting: 'Redirecting to login...',
       errorUsernameTaken: 'This username is already taken.',
       errorMaxIdentities: 'You have reached the maximum number of identities.',
       errorValidation: 'Please check your input and try again.',
@@ -259,6 +262,8 @@ export const en = {
       passphrasePlaceholder: 'Enter your passphrase',
       submitButton: 'Login',
       loggingIn: 'Logging in...',
+      loggingInTitle: 'Logging In',
+      redirecting: 'Opening your identity...',
       success: 'Logged in successfully!',
       errorInvalid: 'Invalid passphrase. Please try again.',
       errorLocked: 'Too many failed attempts. Please try again later.',
@@ -266,6 +271,14 @@ export const en = {
       attemptsRemaining: '{{remaining}} attempts remaining before lockout.',
       noIdentity: "You don't have an identity yet.",
       createPrompt: 'Create one to get started.',
+      // Login status messages
+      status: {
+        authenticating: 'Verifying passphrase...',
+        deriving_keys: 'Deriving encryption keys...',
+        loading_device: 'Loading device keys...',
+        decrypting_bundle: 'Decrypting signing keys...',
+        complete: 'Complete!',
+      },
     },
     // Unlock modal (after page refresh)
     unlock: {
