@@ -53,8 +53,17 @@ export function FriendListItem({ friend, onNavigate }: FriendListItemProps) {
     onNavigate?.();
   };
 
+  const handleItemClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    handleMessage();
+  };
+
   const itemContent = (
-    <div className="friend-list-item">
+    <button
+      type="button"
+      className="friend-list-item"
+      onClick={handleItemClick}
+    >
       <div className="friend-list-item-avatar">
         {identity.avatarUrl ? (
           <img
@@ -74,7 +83,7 @@ export function FriendListItem({ friend, onNavigate }: FriendListItemProps) {
           <span className="friend-list-item-username">@{identity.username}</span>
         </div>
       )}
-    </div>
+    </button>
   );
 
   const hoverCardContent = (

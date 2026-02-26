@@ -270,6 +270,13 @@ function SidebarNavContent() {
   const { closeMobile, isExpanded } = useSidebar();
   const [activeTab, setActiveTab] = useState('friends');
 
+  // Auto-switch to conversations tab when viewing a conversation
+  useEffect(() => {
+    if (location.pathname.startsWith('/conversation/')) {
+      setActiveTab('conversations');
+    }
+  }, [location.pathname]);
+
   const isActive = (path: string) => location.pathname === path;
 
   const tabs: SidebarTab[] = [

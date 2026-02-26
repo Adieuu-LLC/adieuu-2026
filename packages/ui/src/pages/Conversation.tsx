@@ -275,6 +275,9 @@ function ConversationMessages({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Messages come from API newest-first, reverse for display (oldest at top, newest at bottom)
+  const displayMessages = useMemo(() => [...messages].reverse(), [messages]);
+
   return (
     <div className="dm-messages">
       {isLoading && messages.length === 0 && (
@@ -295,7 +298,7 @@ function ConversationMessages({
         </div>
       )}
 
-      {messages.map((msg) => (
+      {displayMessages.map((msg) => (
         <MessageBubble
           key={msg.raw.id}
           message={msg}
@@ -473,12 +476,13 @@ export function Conversation() {
   });
 
   // Mark as read when viewing messages
+  // Messages are returned newest-first from API, so messages[0] is the newest
   useEffect(() => {
     if (!conversationId || messages.length === 0) return;
 
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.raw?.id) {
-      markAsRead(conversationId, lastMessage.raw.id);
+    const newestMessage = messages[0];
+    if (newestMessage?.raw?.id) {
+      markAsRead(conversationId, newestMessage.raw.id);
     }
   }, [conversationId, messages, markAsRead]);
 

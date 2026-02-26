@@ -3,7 +3,7 @@
  * Shows avatar(s), conversation title, and unread badge.
  */
 
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { Conversation, PublicIdentity } from '@adieuu/shared';
 import { useSidebar } from './Sidebar';
 import { AvatarGroup } from './AvatarGroup';
@@ -55,6 +55,7 @@ export function ConversationListItem({
   onNavigate,
 }: ConversationListItemProps) {
   const { isExpanded } = useSidebar();
+  const location = useLocation();
   const { id, type, members, customTitle, unreadCount } = conversation;
 
   const handleClick = () => {
@@ -63,6 +64,7 @@ export function ConversationListItem({
 
   const isDirect = type === 'direct';
   const otherMember = isDirect ? members[0]?.identity : null;
+  const isActive = location.pathname === `/conversation/${id}`;
 
   const title = isDirect
     ? otherMember?.displayName ?? 'Unknown'
@@ -73,7 +75,7 @@ export function ConversationListItem({
   return (
     <Link
       to={`/conversation/${id}`}
-      className="conversation-list-item"
+      className={`conversation-list-item ${isActive ? 'conversation-list-item-active' : ''}`}
       onClick={handleClick}
     >
       {isDirect && otherMember ? (
