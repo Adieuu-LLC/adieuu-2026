@@ -1,5 +1,9 @@
+import { LogoSvg } from './LogoSvg';
+
 export interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
+  primaryColor?: string;
+  secondaryColor?: string;
 }
 
 const sizes = {
@@ -8,15 +12,15 @@ const sizes = {
   lg: { height: 48 },
 };
 
-export function Logo({ size = 'md' }: LogoProps) {
+export function Logo({ size = 'md', primaryColor, secondaryColor }: LogoProps) {
   const { height } = sizes[size];
 
   return (
     <div className="app-logo">
-      <img
-        src="/img/logo/chat.svg"
-        alt="adieuu"
+      <LogoSvg
         height={height}
+        primaryColor={primaryColor}
+        secondaryColor={secondaryColor}
         className="app-logo-img"
       />
     </div>
