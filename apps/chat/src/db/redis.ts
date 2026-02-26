@@ -11,45 +11,70 @@ import logger from '../utils/logger';
 
 let publisher: Redis | null = null;
 let subscriber: Redis | null = null;
-let connectionFailed = false;
+let publisherConnected = false;
+let subscriberConnected = false;
 
 /**
- * Creates a Redis client with standard configuration
+ * Creates a Redis client with standard configuration and persistent reconnection
  */
-function createClient(name: string): Promise<Redis> {
+function createClient(name: string, onConnectionChange: (connected: boolean) => void): Promise<Redis> {
   return new Promise((resolve, reject) => {
     const client = new Redis(config.redis.url, {
       keyPrefix: config.redis.keyPrefix,
       retryStrategy: (times) => {
-        if (times > 3) {
-          connectionFailed = true;
-          return null;
-        }
-        return Math.min(times * 200, 2000);
+        // Exponential backoff with max 30 second delay, retry indefinitely
+        const delay = Math.min(times * 500, 30000);
+        logger.warn(`Redis ${name} reconnecting in ${delay}ms (attempt ${times})`);
+        return delay;
       },
-      connectTimeout: 5000,
+      connectTimeout: 10000,
       enableOfflineQueue: true,
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: null, // Retry indefinitely for pub/sub
       showFriendlyErrorStack: false,
+      lazyConnect: false,
     });
 
+    let initialConnectionResolved = false;
     const timeout = setTimeout(() => {
-      connectionFailed = true;
-      client.disconnect();
-      reject(new Error(`Redis ${name} connection timeout`));
-    }, 6000);
+      if (!initialConnectionResolved) {
+        initialConnectionResolved = true;
+        client.disconnect();
+        reject(new Error(`Redis ${name} initial connection timeout`));
+      }
+    }, 15000);
 
-    client.once('ready', () => {
-      clearTimeout(timeout);
-      logger.info(`Redis ${name} connected`);
-      resolve(client);
+    client.on('ready', () => {
+      if (!initialConnectionResolved) {
+        clearTimeout(timeout);
+        initialConnectionResolved = true;
+        logger.info(`Redis ${name} connected`);
+        onConnectionChange(true);
+        resolve(client);
+      } else {
+        // Reconnected after initial connection
+        logger.info(`Redis ${name} reconnected`);
+        onConnectionChange(true);
+      }
     });
 
-    client.once('error', (err) => {
-      clearTimeout(timeout);
-      connectionFailed = true;
-      client.disconnect();
-      reject(err);
+    client.on('error', (err) => {
+      if (!initialConnectionResolved) {
+        clearTimeout(timeout);
+        initialConnectionResolved = true;
+        reject(err);
+      } else {
+        // Log but don't crash - ioredis will retry
+        logger.error(`Redis ${name} error`, { error: err.message });
+      }
+    });
+
+    client.on('close', () => {
+      logger.warn(`Redis ${name} connection closed`);
+      onConnectionChange(false);
+    });
+
+    client.on('reconnecting', () => {
+      logger.debug(`Redis ${name} reconnecting...`);
     });
   });
 }
@@ -58,27 +83,31 @@ function createClient(name: string): Promise<Redis> {
  * Connects to Redis and creates publisher/subscriber clients
  */
 export async function connectRedis(): Promise<void> {
-  if (publisher && subscriber && !connectionFailed) {
+  if (publisher && subscriber) {
     return;
   }
 
-  connectionFailed = false;
-
   const [pub, sub] = await Promise.all([
-    createClient('publisher'),
-    createClient('subscriber'),
+    createClient('publisher', (connected) => {
+      publisherConnected = connected;
+    }),
+    createClient('subscriber', (connected) => {
+      subscriberConnected = connected;
+    }),
   ]);
 
   publisher = pub;
   subscriber = sub;
+  publisherConnected = true;
+  subscriberConnected = true;
 }
 
 /**
  * Gets the Redis publisher client
  */
 export function getPublisher(): Redis {
-  if (!publisher || connectionFailed) {
-    throw new Error('Redis publisher not connected. Call connectRedis() first.');
+  if (!publisher) {
+    throw new Error('Redis publisher not initialized. Call connectRedis() first.');
   }
   return publisher;
 }
@@ -87,17 +116,17 @@ export function getPublisher(): Redis {
  * Gets the Redis subscriber client
  */
 export function getSubscriber(): Redis {
-  if (!subscriber || connectionFailed) {
-    throw new Error('Redis subscriber not connected. Call connectRedis() first.');
+  if (!subscriber) {
+    throw new Error('Redis subscriber not initialized. Call connectRedis() first.');
   }
   return subscriber;
 }
 
 /**
- * Checks if Redis is connected
+ * Checks if Redis is connected (both publisher and subscriber are ready)
  */
 export function isRedisConnected(): boolean {
-  return publisher !== null && subscriber !== null && !connectionFailed;
+  return publisherConnected && subscriberConnected;
 }
 
 /**
@@ -110,7 +139,7 @@ export interface RedisHealthResult {
 }
 
 export async function checkRedisHealth(): Promise<RedisHealthResult> {
-  if (!publisher || connectionFailed) {
+  if (!publisher || !publisherConnected) {
     return { status: 'down', error: 'Not connected' };
   }
 
@@ -137,8 +166,10 @@ export async function disconnectRedis(): Promise<void> {
     promises.push(
       subscriber.quit().then(() => {
         subscriber = null;
+        subscriberConnected = false;
       }).catch(() => {
         subscriber = null;
+        subscriberConnected = false;
       })
     );
   }
@@ -147,13 +178,14 @@ export async function disconnectRedis(): Promise<void> {
     promises.push(
       publisher.quit().then(() => {
         publisher = null;
+        publisherConnected = false;
       }).catch(() => {
         publisher = null;
+        publisherConnected = false;
       })
     );
   }
 
   await Promise.all(promises);
-  connectionFailed = false;
   logger.info('Disconnected from Redis');
 }

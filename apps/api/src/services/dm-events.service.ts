@@ -11,6 +11,7 @@
 import { getRedis, isRedisConnected, RedisKeys } from '../db/redis';
 import type { PublicDmMessage } from '../models/dm-message';
 import elog from '../utils/adieuuLogger';
+import { config } from '../config';
 
 /**
  * DM event types for WebSocket communication
@@ -81,7 +82,8 @@ async function publishToIdentity(identityId: string, event: DmEvent): Promise<vo
 
   try {
     const redis = getRedis();
-    const channel = RedisKeys.identityChannel(identityId);
+    // Pub/sub channels don't use ioredis keyPrefix, so we add it manually
+    const channel = `${config.redis.keyPrefix}${RedisKeys.identityChannel(identityId)}`;
     const message = JSON.stringify(event);
 
     await redis.publish(channel, message);

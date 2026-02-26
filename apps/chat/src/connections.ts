@@ -17,7 +17,7 @@ import { ChatRedisKeys, RedisChannels, type TypedWebSocket } from './types';
 const connections = new Map<string, TypedWebSocket>();
 
 /**
- * Set of subscribed Redis channels
+ * Set of subscribed Redis channels (without prefix, for re-subscription tracking)
  */
 const subscriptions = new Set<string>();
 
@@ -25,6 +25,36 @@ const subscriptions = new Set<string>();
  * Message handler for Redis pub/sub
  */
 let messageHandler: ((channel: string, message: string) => void) | null = null;
+
+/**
+ * Flag to track if we've set up the reconnection handler
+ */
+let reconnectionHandlerInitialized = false;
+
+/**
+ * Re-subscribes to all tracked channels after Redis reconnection
+ */
+async function resubscribeAllChannels(): Promise<void> {
+  if (subscriptions.size === 0) {
+    return;
+  }
+
+  logger.info('Re-subscribing to channels after Redis reconnection', {
+    channelCount: subscriptions.size,
+  });
+
+  const subscriber = getSubscriber();
+  const channels = Array.from(subscriptions).map(
+    (channel) => `${config.redis.keyPrefix}${channel}`
+  );
+
+  try {
+    await subscriber.subscribe(...channels);
+    logger.info('Re-subscribed to all channels', { channelCount: channels.length });
+  } catch (error) {
+    logger.error('Failed to re-subscribe to channels', { error });
+  }
+}
 
 /**
  * Initializes the Redis message handler
@@ -45,9 +75,18 @@ export function initializeMessageHandler(): void {
     }
   };
 
-  if (isRedisConnected()) {
-    const subscriber = getSubscriber();
-    subscriber.on('message', messageHandler);
+  const subscriber = getSubscriber();
+  subscriber.on('message', messageHandler);
+
+  // Set up reconnection handler to re-subscribe after Redis reconnects
+  if (!reconnectionHandlerInitialized) {
+    reconnectionHandlerInitialized = true;
+    subscriber.on('ready', () => {
+      // Only re-subscribe if we have active subscriptions
+      if (subscriptions.size > 0) {
+        resubscribeAllChannels();
+      }
+    });
   }
 }
 
