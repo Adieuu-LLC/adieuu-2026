@@ -3,7 +3,7 @@ import { describe, expect, test, mock, beforeEach } from 'bun:test';
 mock.module('../config', () => ({
   config: {
     env: 'test',
-    redis: { url: 'redis://localhost:6379', keyPrefix: 'test:' },
+    redis: { url: 'redis://localhost:6379', keyPrefix: '' },
   },
 }));
 

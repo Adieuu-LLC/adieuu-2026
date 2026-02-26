@@ -151,12 +151,24 @@ export function useDmConversationsList({
             }
 
             if (otherIdentityId) {
-              // Fetch and cache the participant info
-              const participantResponse = await api.identity.getById(otherIdentityId);
+              // Fetch participant info and signing key in parallel
+              const [participantResponse, keysResponse] = await Promise.all([
+                api.identity.getById(otherIdentityId),
+                api.identity.getPublicKeys(otherIdentityId),
+              ]);
+
               if (participantResponse.success && participantResponse.data) {
                 otherParticipant = participantResponse.data;
-                // Cache for future use
-                await cacheParticipant(identity.id, conv.conversationId, otherIdentityId);
+                // Cache for future use if we have the signing key
+                if (keysResponse.success && keysResponse.data?.signingPublicKey) {
+                  await cacheParticipant({
+                    myIdentityId: identity.id,
+                    conversationId: conv.conversationId,
+                    otherIdentityId,
+                    signingPublicKey: keysResponse.data.signingPublicKey,
+                    cachedAt: Date.now(),
+                  });
+                }
               }
             }
           } catch (err) {
