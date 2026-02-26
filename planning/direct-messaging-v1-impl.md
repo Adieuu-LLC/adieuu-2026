@@ -61,11 +61,13 @@ This document outlines the implementation phases for DM v1 as specified in `dire
 
 ---
 
-## Phase 2: Basic DM Send/Receive
+## Phase 2: Basic DM Send/Receive [COMPLETE]
 
 **Goal:** Send and receive a single encrypted message between two identities.
 
 **Dependencies:** Phase 1 complete
+
+**Status:** All API and Client tasks complete. Core tests passing. E2E tests deferred to Phase 3.
 
 ### Design Decisions
 
@@ -87,7 +89,7 @@ The following design decisions were made during implementation planning:
 - `toIdentityId` IS stored (needed for delivery/queries), but combined with blinded `conversationId`, pattern analysis is required to determine sender
 - This design accepts that determined attackers with full DB access could eventually correlate patterns, but raises the bar significantly
 
-### API Tasks
+### API Tasks [COMPLETE]
 
 | ID | Task | Files | Status |
 |----|------|-------|--------|
@@ -101,68 +103,115 @@ The following design decisions were made during implementation planning:
 | 2.8 | Get or create conversation | `routes/dm/controller.ts` | Done - POST `/dm/conversations` |
 | 2.X | Get conversation endpoint | `routes/dm/controller.ts` | Bonus - GET `/dm/conversations/:id` |
 
-### Client Tasks
+### Client Tasks [COMPLETE]
 
-| ID | Task | Files | Description |
-|----|------|-------|-------------|
-| 2.9 | Derive conversation ID | `services/conversation.ts` | Match server derivation |
-| 2.10 | Fetch recipient keys | `services/encryption.ts` | GET recipient's device public keys |
-| 2.11 | Encrypt message | `services/encryption.ts` | Session key → encrypt content → wrap for all devices → sign |
-| 2.12 | Send message | `hooks/useSendMessage.ts` | Compose encrypted payload → POST to server |
-| 2.13 | Decrypt message | `services/decryption.ts` | Find wrapped key → unwrap → decrypt → verify signature |
-| 2.14 | Message content structure | `types/message.ts` | `DecryptedMessageContent` with `text`, `fromIdentityId`, `fromDeviceId?` |
-| 2.15 | Basic message view | `pages/Conversation.tsx` | Display decrypted messages in a conversation |
-| 2.16 | Message composer | `components/MessageComposer.tsx` | Text input → encrypt → send |
+| ID | Task | Files | Status |
+|----|------|-------|--------|
+| 2.9 | Derive conversation ID | `packages/crypto/src/dm/index.ts` | Done |
+| 2.10 | Fetch recipient keys | `packages/shared/src/api/client.ts` | Done - DmApi.getOrCreateConversation + IdentityApi.getPublicKeys |
+| 2.11 | Encrypt message | `packages/ui/src/services/dmMessageService.ts` | Done - encryptDmMessage() |
+| 2.12 | Send message | `packages/ui/src/hooks/useDmMessages.ts` | Done - useSendDmMessage hook |
+| 2.13 | Decrypt message | `packages/ui/src/services/dmMessageService.ts` | Done - decryptDmMessage() |
+| 2.14 | Message content structure | `packages/ui/src/services/dmMessageService.ts` | Done - DecryptedMessageContent type |
+| 2.15 | Basic message view | `packages/ui/src/components/MessageList.tsx` | Done |
+| 2.16 | Message composer | `packages/ui/src/components/MessageComposer.tsx` | Done |
 
 ### Tests
 
 | Test | Status |
 |------|--------|
-| Unit: Conversation ID derivation | Done - 11 tests in `utils/conversation.test.ts` |
-| Unit: API Controller | Done - 18 tests in `routes/dm/controller.test.ts` |
-| Unit: Message encryption | TODO - Client-side |
-| Unit: Signature verification | TODO - Client-side |
+| Unit: Conversation ID derivation (server) | Done - 11 tests in `apps/api/src/utils/conversation.test.ts` |
+| Unit: Conversation ID derivation (client) | Done - 11 tests in `packages/crypto/src/dm/index.test.ts` |
+| Unit: API Controller | Done - 18 tests in `apps/api/src/routes/dm/controller.test.ts` |
+| Unit: Message encryption | Done - 7 tests in `packages/ui/src/services/dmMessageService.test.ts` |
+| Unit: Signature verification | Done - covered in dmMessageService.test.ts |
 | Integration: Send message | Done - covered by controller tests |
-| Integration: Receive message | TODO - Client-side |
-| E2E: Full flow | TODO - Requires client implementation |
-| E2E: Sender multi-device | TODO - Requires client implementation |
+| Integration: Receive message | Partial - decryption for own messages only (see limitations) |
+| E2E: Full flow | TODO - Phase 3+ |
+| E2E: Sender multi-device | TODO - Phase 3+ |
+
+**Phase 2 Limitations (to address in Phase 3):**
+- Decryption of received messages requires knowing the sender's signing key. Currently only own sent messages can be fully decrypted/verified.
+- Conversation participant info needs to be passed to useDmMessages for received message verification.
 
 ---
 
 ## Phase 3: Conversation List & Discovery
 
-**Goal:** Show all conversations, discover new incoming messages.
+**Goal:** Show all conversations, discover new incoming messages, enable functional DMs between two identities.
 
 **Dependencies:** Phase 2 complete
+
+**Expected Outcome:** By end of Phase 3, two identities can:
+- Start a new DM conversation
+- Send and receive encrypted messages
+- See a list of all their DM conversations
+- Open a conversation and see decrypted message history
+- Receive real-time notifications when new messages arrive
+- See unread indicators on conversations
+
+### Design Decisions
+
+The following design decisions were made during Phase 3 planning:
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Sender verification | Encrypted sender hint using conversation-derived key | Enables signature verification before decrypting untrusted payloads; server cannot derive the key |
+| Sender hint key derivation | `HKDF(conversationId, "adieuu-sender-hint-v1")` | Both participants can compute; domain-separated for security |
+| Conversation list source | Query `dm_messages` for distinct `conversationId` where `toIdentityId` = me | Conversations don't store participants explicitly; derive from message delivery |
+| Participant cache structure | `conversationId → otherParticipantId + signingPublicKey` | In a DM, only 2 participants; cache the "other" party for all operations |
+| WebSocket event flow | API stores → Redis publish → Chat server broadcasts | API is source of truth; chat server is stateless relay; offline messages still stored |
+| Unread tracking | Encrypted `lastReadMessageId` per participant per conversation | ObjectIds contain timestamps; encrypting hides activity patterns from server |
+| Unread computation | Client-side boolean "has unread" check | Server cannot decrypt read state; boolean check is O(1) and scales to groups/spaces |
+| Read state key derivation | `HKDF(conversationId, "adieuu-read-state-v1")` | Both participants can compute; separate from sender hint key |
 
 ### API Tasks
 
 | ID | Task | Files | Description |
 |----|------|-------|-------------|
-| 3.1 | Get conversations for identity | `routes/dm/conversations.ts` | GET `/dm/conversations` - distinct conversations where `toIdentityId` = me |
-| 3.2 | Conversation metadata | `routes/dm/conversations.ts` | Include last message timestamp, unread count |
-| 3.3 | WebSocket: new message event | `services/websocket.ts` | Push notification when new message arrives |
+| 3.1 | Get conversations endpoint | `routes/dm/controller.ts` | GET `/dm/conversations` - returns distinct conversations for identity with metadata |
+| 3.2 | Conversation list repository method | `repositories/dm-message.repository.ts` | `getConversationsForIdentity()` - aggregates conversationIds, last message timestamp |
+| 3.3 | Add `encryptedSenderId` to message model | `models/dm-message.ts` | New field for encrypted sender identity hint |
+| 3.4 | Update send message to include sender hint | `routes/dm/controller.ts` | Validate and store `encryptedSenderId` from client |
+| 3.5 | Add read state to conversation model | `models/dm-conversation.ts` | Add `readState: [{ identityId, encryptedLastReadId, updatedAt }]` |
+| 3.6 | Update read state endpoint | `routes/dm/controller.ts` | PATCH `/dm/conversations/:id/read-state` - store encrypted read position |
+| 3.7 | Redis publish on message send | `routes/dm/controller.ts` | After storing message, publish `dm:new` event to Redis |
+| 3.8 | Chat server: handle dm:new events | `apps/chat/src/connections.ts` | Subscribe to Redis, broadcast to connected clients |
 
 ### Client Tasks
 
 | ID | Task | Files | Description |
 |----|------|-------|-------------|
-| 3.4 | Conversation list hook | `hooks/useConversations.ts` | Fetch and manage conversation list |
-| 3.5 | Conversation list view | `pages/ConversationList.tsx` | Display all conversations with previews |
-| 3.6 | Sender cache | `services/senderCache.ts` | Local IndexedDB cache: `conversationId → senderIdentityId` |
-| 3.7 | Decrypt to discover sender | `services/conversation.ts` | On first message, decrypt to find sender, cache result |
-| 3.8 | Start new conversation | `components/NewConversation.tsx` | Search identity → derive conversation ID → navigate |
-| 3.9 | Real-time updates | `hooks/useMessageSubscription.ts` | WebSocket listener for new messages |
-| 3.10 | Unread indicators | `components/ConversationListItem.tsx` | Show unread count badge |
+| 3.9 | Derive sender hint key | `packages/crypto/src/dm/index.ts` | `deriveSenderHintKey(conversationId)` using HKDF |
+| 3.10 | Encrypt sender ID on send | `packages/ui/src/services/dmMessageService.ts` | Add `encryptSenderId()`, include in message payload |
+| 3.11 | Decrypt sender hint on receive | `packages/ui/src/services/dmMessageService.ts` | Add `decryptSenderHint()` for pre-verification sender discovery |
+| 3.12 | Update message verification flow | `packages/ui/src/hooks/useDmMessages.ts` | Decrypt hint → fetch signing key → verify → decrypt payload |
+| 3.13 | Participant cache service | `packages/ui/src/services/participantCache.ts` | IndexedDB cache: `{ conversationId, otherParticipantId, signingPublicKey }` |
+| 3.14 | Derive read state key | `packages/crypto/src/dm/index.ts` | `deriveReadStateKey(conversationId)` using HKDF |
+| 3.15 | Encrypt/decrypt read state | `packages/ui/src/services/readStateService.ts` | `encryptLastReadId()`, `decryptLastReadId()` |
+| 3.16 | Conversation list hook | `packages/ui/src/hooks/useDmConversations.ts` | Replace mock data with real API call, compute unread client-side |
+| 3.17 | Conversation list UI | `packages/ui/src/components/DmConversationList.tsx` | Display conversations with other participant info, unread dot |
+| 3.18 | Start new conversation flow | `packages/ui/src/components/NewDmDialog.tsx` | Search identity → confirm → navigate to conversation |
+| 3.19 | Update DM API client | `packages/shared/src/api/client.ts` | Add `getConversations()`, `updateReadState()` methods |
+| 3.20 | WebSocket connection hook | `packages/ui/src/hooks/useWebSocket.ts` | Connect to chat server, handle reconnection |
+| 3.21 | Real-time message subscription | `packages/ui/src/hooks/useDmSubscription.ts` | Listen for `dm:new` events, trigger refetch/append |
+| 3.22 | Mark conversation as read | `packages/ui/src/hooks/useDmMessages.ts` | On viewing conversation, update read state via API |
 
 ### Tests
 
 | Test | Description |
 |------|-------------|
-| Integration: List conversations | Identity with 3 conversations → returns all 3 |
+| Unit: Sender hint encryption | `encryptSenderId` → `decryptSenderHint` roundtrip |
+| Unit: Read state encryption | `encryptLastReadId` → `decryptLastReadId` roundtrip |
+| Unit: Key derivation consistency | Client and server derive same keys for same conversationId |
+| Integration: List conversations | Identity with 3 conversations → returns all 3 with metadata |
 | Integration: Empty state | New identity → empty conversation list |
-| E2E: Discovery | Bob sends to Alice → Alice sees new conversation appear |
-| E2E: Real-time | Alice has app open → Bob sends → message appears without refresh |
+| Integration: Conversation aggregation | Messages in conversation → correct last message timestamp |
+| Integration: Read state update | Update read state → persisted and retrievable |
+| E2E: Full send/receive flow | Alice sends to Bob → Bob sees message with verified sender |
+| E2E: Conversation discovery | Bob sends to Alice → Alice sees new conversation appear in list |
+| E2E: Real-time delivery | Alice has app open → Bob sends → message appears without refresh |
+| E2E: Unread indicator | Bob sends to Alice → Alice sees unread dot → opens → dot clears |
 
 ---
 
@@ -352,9 +401,9 @@ The following design decisions were made during implementation planning:
 ```
 Phase 1: Identity Key Infrastructure     [COMPLETE]
     ↓
-Phase 2: Basic DM Send/Receive          [Core messaging]
+Phase 2: Basic DM Send/Receive          [COMPLETE]
     ↓
-Phase 3: Conversation List & Discovery  [Usable product]
+Phase 3: Conversation List & Discovery  [IN PROGRESS - Usable product]
     ↓
 Phase 4: Multi-Device Verification      [Quality assurance]
     ↓

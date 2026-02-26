@@ -53,6 +53,11 @@ export interface IDmMessageRepository {
   ): Promise<PaginatedMessagesResult>;
   deleteForEveryone(messageId: ObjectId, senderIdentityId: ObjectId): Promise<boolean>;
   deleteForSelf(messageId: ObjectId, identityId: ObjectId): Promise<boolean>;
+  getConversationIdsForIdentity(identityId: ObjectId): Promise<string[]>;
+  getLatestMessagePerConversation(
+    conversationIds: string[],
+    identityId: ObjectId
+  ): Promise<Map<string, DmMessageDocument>>;
 }
 
 /**
@@ -84,6 +89,7 @@ export class DmMessageRepository
     const doc = await this.create({
       conversationId: input.conversationId,
       toIdentityId: input.toIdentityId,
+      encryptedSenderId: input.encryptedSenderId,
       ciphertext: input.ciphertext,
       nonce: input.nonce,
       wrappedKeys: input.wrappedKeys,
@@ -239,6 +245,47 @@ export class DmMessageRepository
     });
 
     return conversationIds as string[];
+  }
+
+  /**
+   * Get the latest message for each conversation.
+   * Used for conversation list display and sorting.
+   */
+  async getLatestMessagePerConversation(
+    conversationIds: string[],
+    identityId: ObjectId
+  ): Promise<Map<string, DmMessageDocument>> {
+    if (conversationIds.length === 0) {
+      return new Map();
+    }
+
+    const pipeline = [
+      {
+        $match: {
+          conversationId: { $in: conversationIds },
+          deletedForEveryone: false,
+          deletedFor: { $ne: identityId },
+        },
+      },
+      {
+        $sort: { _id: -1 as const },
+      },
+      {
+        $group: {
+          _id: '$conversationId',
+          latestMessage: { $first: '$$ROOT' },
+        },
+      },
+    ];
+
+    const results = await this.collection.aggregate(pipeline).toArray();
+
+    const map = new Map<string, DmMessageDocument>();
+    for (const result of results) {
+      map.set(result._id as string, result.latestMessage as DmMessageDocument);
+    }
+
+    return map;
   }
 }
 

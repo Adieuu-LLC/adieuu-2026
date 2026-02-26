@@ -72,6 +72,22 @@ export type {
   UseConversationsListOptions,
   UseConversationsListResult,
 } from './hooks/useConversations';
+export {
+  useSendDmMessage,
+  useDmConversation,
+  useDmMessages,
+  deriveConversationId,
+} from './hooks/useDmMessages';
+export type {
+  SendDmMessageInput,
+  SendDmMessageResult,
+  DecryptedDmMessage,
+  UseSendDmMessageResult,
+  UseDmConversationResult,
+  UseDmMessagesOptions,
+  UseDmMessagesResult,
+} from './hooks/useDmMessages';
+export type { DecryptedMessageContent } from './services/dmMessageService';
 
 // ============================================================================
 // UI Components
@@ -108,6 +124,10 @@ export { SidebarFriendsList } from './components/SidebarFriendsList';
 export { AvatarGroup } from './components/AvatarGroup';
 export { ConversationListItem } from './components/ConversationListItem';
 export { SidebarConversationsList } from './components/SidebarConversationsList';
+export { MessageList } from './components/MessageList';
+export { MessageComposer } from './components/MessageComposer';
+export type { MessageListProps } from './components/MessageList';
+export type { MessageComposerProps } from './components/MessageComposer';
 
 // ============================================================================
 // Icons

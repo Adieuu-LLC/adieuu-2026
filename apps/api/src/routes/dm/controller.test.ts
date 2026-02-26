@@ -89,6 +89,11 @@ const mockConversation = {
     changedAt: new Date(),
     initiatedBy: mockIdentityId,
   }],
+  readState: [{
+    identityId: mockIdentityId,
+    encryptedLastReadId: 'encrypted-read-state-base64',
+    updatedAt: new Date(),
+  }],
   createdAt: new Date(),
   updatedAt: new Date(),
 };
@@ -96,12 +101,14 @@ const mockConversation = {
 const mockFindByConversationId = mock(() => Promise.resolve(null));
 const mockGetOrCreate = mock(() => Promise.resolve(mockConversation));
 const mockUpdateCryptoProfile = mock(() => Promise.resolve(mockConversation));
+const mockUpdateReadState = mock(() => Promise.resolve(mockConversation));
 
 mock.module('../../repositories/dm-conversation.repository', () => ({
   getDmConversationRepository: () => ({
     findByConversationId: mockFindByConversationId,
     getOrCreate: mockGetOrCreate,
     updateCryptoProfile: mockUpdateCryptoProfile,
+    updateReadState: mockUpdateReadState,
   }),
 }));
 
@@ -110,6 +117,7 @@ const mockMessage = {
   _id: mockMessageId,
   conversationId: 'a'.repeat(64),
   toIdentityId: mockRecipientId,
+  encryptedSenderId: 'encrypted-sender-id-base64',
   ciphertext: 'encrypted-content-base64',
   nonce: 'nonce-base64',
   wrappedKeys: [{
@@ -135,12 +143,20 @@ const mockGetMessagesByConversation = mock(() => Promise.resolve({
   cursor: null,
   hasMore: false,
 }));
+const mockGetConversationIdsForIdentity = mock(() => Promise.resolve(['a'.repeat(64)]));
+const mockGetLatestMessagePerConversation = mock(() => {
+  const map = new Map<string, typeof mockMessage>();
+  map.set('a'.repeat(64), mockMessage);
+  return Promise.resolve(map);
+});
 
 mock.module('../../repositories/dm-message.repository', () => ({
   getDmMessageRepository: () => ({
     findByClientMessageId: mockFindByClientMessageId,
     createMessage: mockCreateMessage,
     getMessagesByConversation: mockGetMessagesByConversation,
+    getConversationIdsForIdentity: mockGetConversationIdsForIdentity,
+    getLatestMessagePerConversation: mockGetLatestMessagePerConversation,
   }),
 }));
 
@@ -162,6 +178,8 @@ import {
   sendMessageCtrl,
   getMessagesCtrl,
   getConversationCtrl,
+  getConversationsCtrl,
+  updateReadStateCtrl,
 } from './controller';
 import { deriveConversationId } from '../../utils/conversation';
 
@@ -223,13 +241,18 @@ describe('DM Controller', () => {
   beforeEach(() => {
     mockFindByConversationId.mockReset();
     mockGetOrCreate.mockReset();
+    mockUpdateReadState.mockReset();
     mockFindByClientMessageId.mockReset();
     mockCreateMessage.mockReset();
     mockGetMessagesByConversation.mockReset();
+    mockGetConversationIdsForIdentity.mockReset();
+    mockGetLatestMessagePerConversation.mockReset();
     mockFindById.mockReset();
 
     mockFindByConversationId.mockImplementation(() => Promise.resolve(null));
     mockGetOrCreate.mockImplementation(() => Promise.resolve(mockConversation));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUpdateReadState.mockImplementation(() => Promise.resolve(mockConversation as any));
     mockFindByClientMessageId.mockImplementation(() => Promise.resolve(null));
     mockCreateMessage.mockImplementation(() => Promise.resolve(mockMessage));
     mockGetMessagesByConversation.mockImplementation(() => Promise.resolve({
@@ -237,6 +260,12 @@ describe('DM Controller', () => {
       cursor: null,
       hasMore: false,
     }));
+    mockGetConversationIdsForIdentity.mockImplementation(() => Promise.resolve(['a'.repeat(64)]));
+    mockGetLatestMessagePerConversation.mockImplementation(() => {
+      const map = new Map();
+      map.set('a'.repeat(64), mockMessage);
+      return Promise.resolve(map);
+    });
     mockFindById.mockImplementation((id: ObjectId) => {
       if (id.equals(mockRecipientId)) {
         return Promise.resolve(mockRecipient);
@@ -317,6 +346,7 @@ describe('DM Controller', () => {
     const validMessageBody = {
       conversationId: validConversationId,
       toIdentityId: mockRecipientId.toHexString(),
+      encryptedSenderId: 'encrypted-sender-id-base64',
       ciphertext: 'encrypted-content',
       nonce: 'nonce-value',
       wrappedKeys: [{
@@ -524,6 +554,132 @@ describe('DM Controller', () => {
       const json = await response.json() as { success: boolean; data: { conversation: unknown } };
       expect(json.success).toBe(true);
       expect(json.data.conversation).toBeDefined();
+    });
+  });
+
+  describe('getConversationsCtrl', () => {
+    test('returns 401 when not authenticated', async () => {
+      const ctx = createMockContext({
+        method: 'GET',
+        path: '/dm/conversations',
+        authenticated: false,
+      });
+
+      const response = await getConversationsCtrl(ctx);
+      expect(response.status).toBe(401);
+    });
+
+    test('returns empty array when no conversations', async () => {
+      mockGetConversationIdsForIdentity.mockImplementation(() => Promise.resolve([]));
+
+      const ctx = createMockContext({
+        method: 'GET',
+        path: '/dm/conversations',
+      });
+
+      const response = await getConversationsCtrl(ctx);
+      expect(response.status).toBe(200);
+
+      const json = await response.json() as { success: boolean; data: { conversations: unknown[] } };
+      expect(json.success).toBe(true);
+      expect(json.data.conversations).toEqual([]);
+    });
+
+    test('returns conversations list successfully', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mockFindByConversationId.mockImplementation(() => Promise.resolve(mockConversation as any));
+
+      const ctx = createMockContext({
+        method: 'GET',
+        path: '/dm/conversations',
+      });
+
+      const response = await getConversationsCtrl(ctx);
+      expect(response.status).toBe(200);
+
+      const json = await response.json() as { success: boolean; data: { conversations: { conversationId: string; lastMessageAt: string | null }[] } };
+      expect(json.success).toBe(true);
+      expect(json.data.conversations).toBeInstanceOf(Array);
+      expect(json.data.conversations.length).toBe(1);
+      const firstConversation = json.data.conversations[0];
+      expect(firstConversation).toBeDefined();
+      expect(firstConversation!.conversationId).toBe('a'.repeat(64));
+      expect(firstConversation!.lastMessageAt).toBeDefined();
+    });
+  });
+
+  describe('updateReadStateCtrl', () => {
+    const validConversationId = 'a'.repeat(64);
+
+    test('returns 401 when not authenticated', async () => {
+      const ctx = createMockContext({
+        method: 'PUT',
+        path: `/dm/conversations/${validConversationId}/read-state`,
+        params: { conversationId: validConversationId },
+        body: { encryptedLastReadId: 'encrypted-id-base64' },
+        authenticated: false,
+      });
+
+      const response = await updateReadStateCtrl(ctx);
+      expect(response.status).toBe(401);
+    });
+
+    test('returns 400 for invalid conversation ID', async () => {
+      const ctx = createMockContext({
+        method: 'PUT',
+        path: '/dm/conversations/invalid/read-state',
+        params: { conversationId: 'invalid' },
+        body: { encryptedLastReadId: 'encrypted-id-base64' },
+      });
+
+      const response = await updateReadStateCtrl(ctx);
+      expect(response.status).toBe(400);
+    });
+
+    test('returns 400 for missing encryptedLastReadId', async () => {
+      const ctx = createMockContext({
+        method: 'PUT',
+        path: `/dm/conversations/${validConversationId}/read-state`,
+        params: { conversationId: validConversationId },
+        body: {},
+      });
+
+      const response = await updateReadStateCtrl(ctx);
+      expect(response.status).toBe(400);
+    });
+
+    test('returns 404 when conversation not found', async () => {
+      mockFindByConversationId.mockImplementation(() => Promise.resolve(null));
+
+      const ctx = createMockContext({
+        method: 'PUT',
+        path: `/dm/conversations/${validConversationId}/read-state`,
+        params: { conversationId: validConversationId },
+        body: { encryptedLastReadId: 'encrypted-id-base64' },
+      });
+
+      const response = await updateReadStateCtrl(ctx);
+      expect(response.status).toBe(404);
+    });
+
+    test('updates read state successfully', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mockFindByConversationId.mockImplementation(() => Promise.resolve(mockConversation as any));
+
+      const ctx = createMockContext({
+        method: 'PUT',
+        path: `/dm/conversations/${validConversationId}/read-state`,
+        params: { conversationId: validConversationId },
+        body: { encryptedLastReadId: 'new-encrypted-id-base64' },
+      });
+
+      const response = await updateReadStateCtrl(ctx);
+      expect(response.status).toBe(200);
+
+      const json = await response.json() as { success: boolean; data: { conversation: { readState: unknown[] } } };
+      expect(json.success).toBe(true);
+      expect(json.data.conversation).toBeDefined();
+      expect(json.data.conversation.readState).toBeInstanceOf(Array);
     });
   });
 });

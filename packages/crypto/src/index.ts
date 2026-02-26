@@ -176,6 +176,12 @@ export {
   type MemberJoinKeyDistribution,
 } from './groups';
 
+// DM (Direct Messaging)
+export {
+  deriveConversationId,
+  validateConversationId,
+} from './dm';
+
 // Community Ciphers (Spaces)
 export {
   // Types

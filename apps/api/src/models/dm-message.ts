@@ -48,6 +48,14 @@ export interface DmMessageDocument extends BaseDocument {
   /** Recipient identity ID - needed for delivery/queries */
   toIdentityId: ObjectId;
 
+  /**
+   * Encrypted sender identity hint (base64).
+   * Encrypted with: HKDF(conversationId, "adieuu-sender-hint-v1")
+   * Allows recipient to identify sender for signature verification
+   * before decrypting the main payload. Server cannot decrypt.
+   */
+  encryptedSenderId: string;
+
   /** Encrypted message content (base64) */
   ciphertext: string;
 
@@ -88,6 +96,7 @@ export interface DmMessageDocument extends BaseDocument {
 export interface CreateDmMessageInput {
   conversationId: string;
   toIdentityId: ObjectId;
+  encryptedSenderId: string;
   ciphertext: string;
   nonce: string;
   wrappedKeys: SerializedWrappedKey[];
@@ -107,6 +116,7 @@ export interface PublicDmMessage {
   id: string;
   conversationId: string;
   toIdentityId: string;
+  encryptedSenderId: string;
   ciphertext: string;
   nonce: string;
   wrappedKeys: SerializedWrappedKey[];
@@ -157,6 +167,7 @@ export function toPublicDmMessage(
     id: doc._id.toHexString(),
     conversationId: doc.conversationId,
     toIdentityId: doc.toIdentityId.toHexString(),
+    encryptedSenderId: doc.encryptedSenderId,
     ciphertext: doc.ciphertext,
     nonce: doc.nonce,
     wrappedKeys: doc.wrappedKeys,

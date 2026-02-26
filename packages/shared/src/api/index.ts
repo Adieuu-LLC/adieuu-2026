@@ -53,6 +53,13 @@ export {
   type SentFriendRequest,
   // Blocked types
   type BlockedIdentity,
+  // DM types
+  DmApi,
+  type SerializedWrappedKey,
+  type DmConversation,
+  type DmMessage,
+  type DmMessageTombstone,
+  type SendDmMessageParams,
 } from './client';
 
 export {

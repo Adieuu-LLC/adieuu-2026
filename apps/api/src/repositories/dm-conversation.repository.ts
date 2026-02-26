@@ -14,6 +14,7 @@ import type {
   DmConversationDocument,
   CreateDmConversationInput,
   ProfileHistoryEntry,
+  ReadStateEntry,
 } from '../models/dm-conversation';
 import type { CryptoProfile } from '../models/identity';
 
@@ -27,6 +28,11 @@ export interface IDmConversationRepository {
     conversationId: string,
     newProfile: CryptoProfile,
     initiatedBy: ObjectId
+  ): Promise<DmConversationDocument | null>;
+  updateReadState(
+    conversationId: string,
+    identityId: ObjectId,
+    encryptedLastReadId: string
   ): Promise<DmConversationDocument | null>;
 }
 
@@ -68,6 +74,7 @@ export class DmConversationRepository
       conversationId: input.conversationId,
       activeCryptoProfile: input.activeCryptoProfile,
       profileHistory: [initialHistory],
+      readState: [],
     });
 
     return doc;
@@ -98,6 +105,57 @@ export class DmConversationRepository
         $push: {
           profileHistory: historyEntry,
         },
+      },
+      { returnDocument: 'after' }
+    );
+
+    return result as DmConversationDocument | null;
+  }
+
+  /**
+   * Update read state for a participant in a conversation.
+   * Uses upsert logic: creates entry if not exists, updates if exists.
+   * The encrypted read position hides which message was read from the server.
+   */
+  async updateReadState(
+    conversationId: string,
+    identityId: ObjectId,
+    encryptedLastReadId: string
+  ): Promise<DmConversationDocument | null> {
+    const now = new Date();
+
+    const existingEntry = await this.collection.findOne({
+      conversationId,
+      'readState.identityId': identityId,
+    });
+
+    if (existingEntry) {
+      const result = await this.collection.findOneAndUpdate(
+        {
+          conversationId,
+          'readState.identityId': identityId,
+        },
+        {
+          $set: {
+            'readState.$.encryptedLastReadId': encryptedLastReadId,
+            'readState.$.updatedAt': now,
+          },
+        },
+        { returnDocument: 'after' }
+      );
+      return result as DmConversationDocument | null;
+    }
+
+    const newEntry: ReadStateEntry = {
+      identityId,
+      encryptedLastReadId,
+      updatedAt: now,
+    };
+
+    const result = await this.collection.findOneAndUpdate(
+      { conversationId },
+      {
+        $push: { readState: newEntry },
       },
       { returnDocument: 'after' }
     );

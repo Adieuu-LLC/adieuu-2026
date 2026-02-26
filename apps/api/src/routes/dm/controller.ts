@@ -67,6 +67,7 @@ const GetOrCreateConversationSchema = z.object({
 const SendMessageSchema = z.object({
   conversationId: z.string().length(64),
   toIdentityId: z.string().length(24),
+  encryptedSenderId: z.string().min(1).max(256),
   ciphertext: z.string().min(1),
   nonce: z.string().min(1),
   wrappedKeys: z.array(WrappedKeySchema).min(1),
@@ -180,6 +181,7 @@ export async function sendMessageCtrl(ctx: RouteContext): Promise<Response> {
   const {
     conversationId,
     toIdentityId,
+    encryptedSenderId,
     ciphertext,
     nonce,
     wrappedKeys,
@@ -192,8 +194,14 @@ export async function sendMessageCtrl(ctx: RouteContext): Promise<Response> {
   } = parseResult.data;
 
   const sanitizedToId = sanitizeString(toIdentityId, 'general');
+  const sanitizedEncryptedSenderId = sanitizeString(encryptedSenderId, 'base64');
+
   if (!sanitizedToId.value || !isValidObjectId(sanitizedToId.value)) {
     return errors.badRequest('Invalid recipient identity ID.');
+  }
+
+  if (!sanitizedEncryptedSenderId.value) {
+    return errors.badRequest('Invalid encrypted sender ID.');
   }
 
   const toIdentityObjectId = new ObjectId(sanitizedToId.value);
@@ -246,6 +254,7 @@ export async function sendMessageCtrl(ctx: RouteContext): Promise<Response> {
   const message = await messageRepo.createMessage({
     conversationId,
     toIdentityId: toIdentityObjectId,
+    encryptedSenderId: sanitizedEncryptedSenderId.value,
     ciphertext,
     nonce,
     wrappedKeys: wrappedKeys as SerializedWrappedKey[],
@@ -363,5 +372,151 @@ export async function getConversationCtrl(ctx: RouteContext): Promise<Response> 
 
   return success({
     conversation: toPublicDmConversation(conversation),
+  });
+}
+
+/**
+ * Conversation list item returned from the API.
+ */
+interface ConversationListItem {
+  conversationId: string;
+  activeCryptoProfile: CryptoProfile;
+  readState: Array<{
+    identityId: string;
+    encryptedLastReadId: string;
+    updatedAt: string;
+  }>;
+  lastMessageAt: string | null;
+  lastMessageId: string | null;
+}
+
+/**
+ * GET /dm/conversations - List all conversations for the current identity
+ *
+ * Returns conversations where the identity has received messages.
+ * Includes conversation metadata, read state, and last message timestamp.
+ */
+export async function getConversationsCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  const messageRepo = getDmMessageRepository();
+  const conversationRepo = getDmConversationRepository();
+
+  const conversationIds = await messageRepo.getConversationIdsForIdentity(identity._id);
+
+  if (conversationIds.length === 0) {
+    return success({ conversations: [] });
+  }
+
+  const latestMessages = await messageRepo.getLatestMessagePerConversation(
+    conversationIds,
+    identity._id
+  );
+
+  const conversations: ConversationListItem[] = [];
+
+  for (const convId of conversationIds) {
+    const conversationDoc = await conversationRepo.findByConversationId(convId);
+    const latestMsg = latestMessages.get(convId);
+
+    const readState = (conversationDoc?.readState ?? []).map((entry) => ({
+      identityId: entry.identityId.toHexString(),
+      encryptedLastReadId: entry.encryptedLastReadId,
+      updatedAt: entry.updatedAt.toISOString(),
+    }));
+
+    conversations.push({
+      conversationId: convId,
+      activeCryptoProfile: conversationDoc?.activeCryptoProfile ?? 'default',
+      readState,
+      lastMessageAt: latestMsg ? latestMsg.createdAt.toISOString() : null,
+      lastMessageId: latestMsg ? latestMsg._id.toHexString() : null,
+    });
+  }
+
+  conversations.sort((a, b) => {
+    if (!a.lastMessageAt && !b.lastMessageAt) return 0;
+    if (!a.lastMessageAt) return 1;
+    if (!b.lastMessageAt) return -1;
+    return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+  });
+
+  return success({ conversations });
+}
+
+/**
+ * Schema for updating read state.
+ */
+const UpdateReadStateSchema = z.object({
+  encryptedLastReadId: z.string().min(1).max(256),
+});
+
+/**
+ * PUT /dm/conversations/:conversationId/read-state - Update read state
+ *
+ * Updates the encrypted read position for the current identity in a conversation.
+ * The server cannot decrypt this - it's opaque ciphertext.
+ */
+export async function updateReadStateCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  const { conversationId } = ctx.params;
+
+  if (!conversationId || conversationId.length !== 64) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const sanitizedConvId = sanitizeString(conversationId, 'general');
+  if (!sanitizedConvId.value) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const parseResult = UpdateReadStateSchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const { encryptedLastReadId } = parseResult.data;
+
+  const sanitizedEncryptedId = sanitizeString(encryptedLastReadId, 'base64');
+  if (!sanitizedEncryptedId.value) {
+    return errors.badRequest('Invalid encrypted read state.');
+  }
+
+  const conversationRepo = getDmConversationRepository();
+
+  const existingConversation = await conversationRepo.findByConversationId(sanitizedConvId.value);
+  if (!existingConversation) {
+    return errors.notFound('Conversation not found.');
+  }
+
+  const updated = await conversationRepo.updateReadState(
+    sanitizedConvId.value,
+    identity._id,
+    sanitizedEncryptedId.value
+  );
+
+  if (!updated) {
+    return errors.internal('Failed to update read state.');
+  }
+
+  return success({
+    conversation: toPublicDmConversation(updated),
   });
 }

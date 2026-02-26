@@ -280,7 +280,8 @@ DMs use separate collections from group messages for optimized schemas and index
 ```typescript
 // Collection: dm_conversations
 interface DmConversation {
-  _id: string;                   // Blinded: SHA3-256(sort([A,B]) || "dm-v1")
+  _id: ObjectId;                 // Standard MongoDB ObjectId
+  conversationId: string;        // Blinded: SHA3-256(sort([A,B]) || "dm-v1")
   activeCryptoProfile: CryptoProfile;
   profileHistory: [{
     profile: CryptoProfile;
@@ -289,6 +290,13 @@ interface DmConversation {
   }];
   createdAt: Date;
   // NO participants field - derived client-side from blinded ID
+  
+  // Encrypted read state per participant (see 3.4)
+  readState: [{
+    identityId: ObjectId;
+    encryptedLastReadId: string; // encrypt(readStateKey, lastReadMessageId) - base64
+    updatedAt: Date;
+  }];
 }
 ```
 
@@ -301,6 +309,9 @@ interface DmMessage {
   toIdentityId: ObjectId;        // Recipient - needed for delivery
   // fromIdentityId: NOT STORED - revealed after decryption
   // fromDeviceId: NOT STORED - optional in encrypted payload
+  
+  // Encrypted sender hint (for pre-decryption verification)
+  encryptedSenderId: string;     // encrypt(senderHintKey, senderId) - base64
   
   // Encrypted payload
   ciphertext: string;            // Base64
@@ -334,6 +345,33 @@ interface DecryptedMessageContent {
 }
 ```
 
+**Encrypted Sender Hint:**
+
+To enable signature verification before decrypting potentially untrusted payloads, messages include an `encryptedSenderId` field. This allows the recipient to identify the sender and fetch their signing key without exposing sender identity to the server.
+
+```typescript
+// Key derivation - both DM participants can compute this
+const senderHintKey = HKDF(conversationId, "adieuu-sender-hint-v1");
+
+// Included in message metadata (not in encrypted payload)
+interface DmMessage {
+  // ... existing fields ...
+  encryptedSenderId: string;     // encrypt(senderHintKey, senderIdentityId) - base64
+}
+```
+
+**Recipient verification flow:**
+1. Recipient derives `senderHintKey` from `conversationId` (they know both participant IDs)
+2. Decrypt `encryptedSenderId` to get sender's identity ID (~40 bytes, fast)
+3. Fetch sender's signing public key from cache or API
+4. Verify signature over the full message payload
+5. Only if signature valid, decrypt the main message content
+
+**Security properties:**
+- Server cannot derive `senderHintKey` (doesn't know the two identity IDs composing the conversationId)
+- Recipient avoids decrypting potentially malicious large payloads before verification
+- An attacker who already knows both participant IDs could compute the hint key, but they could also derive the conversationId - the obfuscation target is the server/DB, not targeted attackers
+
 **Ordering:** Eventual consistency with server timestamps (see e2e-chat-architecture.md section 10.8).
 
 **Persistence:**
@@ -349,10 +387,90 @@ interface DecryptedMessageContent {
 **Conversation Discovery:**
 - Client queries: "messages where `toIdentityId` = me"
 - Groups by `conversationId`
-- Decrypts to reveal senders
-- Caches sender mapping locally for performance
+- Decrypts sender hint to reveal other participant
+- Caches participant mapping locally for performance
 
-### 3.4 Reactions
+### 3.4 Read State & Unread Tracking
+
+Read state is tracked per-participant per-conversation with privacy-preserving encrypted storage.
+
+**Why encrypted?**
+MongoDB ObjectIds contain a timestamp in the first 4 bytes. Storing `lastReadMessageId` in plaintext would reveal when a user last read messages in a conversation, enabling activity pattern analysis by anyone with DB access.
+
+**Storage Model:**
+```typescript
+// In dm_conversations document
+interface DmConversationDocument {
+  // ... existing fields ...
+  readState: [{
+    identityId: ObjectId;              // Which participant
+    encryptedLastReadId: string;       // Encrypted ObjectId (base64)
+    updatedAt: Date;                   // When read state was updated (coarse timing ok)
+  }];
+}
+
+// Key derivation - both participants can compute this
+const readStateKey = HKDF(conversationId, "adieuu-read-state-v1");
+
+// Encryption
+const encryptedLastReadId = encrypt(readStateKey, lastReadMessageId.toHexString());
+```
+
+**Unread detection flow (client-side):**
+1. Client fetches conversation with `encryptedLastReadId`
+2. Client derives `readStateKey` and decrypts to get `lastReadMessageId`
+3. Client queries messages where `_id > lastReadMessageId`
+4. Displays "has unread" indicator (boolean) or computes count if needed
+
+**Why client-side computation?**
+- Server cannot decrypt `lastReadMessageId`, so cannot compute counts
+- Boolean "has unread" check is efficient: `findOne({ _id: { $gt: lastReadId } })`
+- Scales well for groups/spaces where counting thousands of unreads is wasteful
+- Different devices for the same identity share the same read state (synced via server)
+
+**Updating read state:**
+When user views a conversation, client encrypts the newest message ID and sends to server:
+```
+PATCH /dm/conversations/:id/read-state
+{ encryptedLastReadId: "..." }
+```
+
+### 3.5 Real-Time Messaging (WebSocket)
+
+Real-time message delivery uses a WebSocket service with Redis pub/sub for cross-instance routing.
+
+**Architecture:**
+```
+Client → API (POST /dm/messages)
+              ↓
+         1. Validate & store message in MongoDB
+              ↓
+         2. Publish to Redis: { event: 'dm:new', toIdentityId, conversationId, messageId }
+              ↓
+Chat Server (subscribes to Redis)
+              ↓
+         3. Find WebSocket connections for toIdentityId
+              ↓
+         4. Push to connected clients: { type: 'dm:new', conversationId, messageId }
+              ↓
+Client receives push → fetches full message from API (or message included in push)
+```
+
+**Design rationale:**
+- **API is source of truth**: Messages always stored via API before broadcast
+- **Chat server is stateless relay**: Can scale horizontally, no message storage
+- **Offline resilience**: If WebSocket is down, messages still stored; client syncs on reconnect
+- **Redis pub/sub**: Handles routing across multiple chat server instances
+
+**WebSocket events:**
+| Event | Direction | Payload |
+|-------|-----------|---------|
+| `dm:new` | Server → Client | `{ conversationId, messageId, timestamp }` |
+| `dm:deleted` | Server → Client | `{ conversationId, messageId, deletedForEveryone }` |
+| `dm:typing` | Bidirectional | `{ conversationId }` (future) |
+| `ping` / `pong` | Bidirectional | Heartbeat |
+
+### 3.6 Reactions
 
 Reactions are encrypted mini-messages referencing the original:
 
@@ -389,7 +507,7 @@ interface DecryptedReactionContent {
 3. Sign with reactor's identity signing key
 4. Store as separate record linked to original message
 
-### 3.5 Message Editing (Post-MVP)
+### 3.7 Message Editing (Post-MVP)
 
 Editing requires re-encryption with fresh keys:
 
@@ -418,7 +536,7 @@ UI:
 - Edge cases with deletion + edit races
 - Profile change during edit history
 
-### 3.6 Replies and Threads
+### 3.8 Replies and Threads
 
 Two reply modes are supported:
 
@@ -447,7 +565,7 @@ Message A: "What should we do for dinner?"
 **Why plaintext `replyToId`/`threadRootId`:**
 Threading structure is stored in plaintext for query performance. Encrypting these would require client-side reconstruction of all messages, which doesn't scale for long conversations. See section 5 (Privacy Trade-offs) for details.
 
-### 3.7 Deferred Features
+### 3.9 Deferred Features
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -470,10 +588,12 @@ This section documents what the server can and cannot see, and the rationale for
 | Data | Protection |
 |------|------------|
 | Message content | Encrypted with per-message session key |
-| Sender identity | In encrypted payload, revealed only after decryption |
+| Sender identity | Encrypted sender hint + in encrypted payload |
 | Sender device | Optional in encrypted payload |
 | Reaction emoji | Encrypted |
 | Conversation participants | Blinded conversation ID; no explicit participants field |
+| Read position | Encrypted `lastReadMessageId` per participant |
+| Activity timing | Read state ObjectId encrypted (hides timestamp component) |
 
 ### 5.2 What Server Can See (Plaintext Metadata)
 
@@ -487,6 +607,9 @@ This section documents what the server can and cannot see, and the rationale for
 | `messageId` (reactions) | Link reaction to message | Low |
 | Ciphertext size | Approximate message length | Low |
 | `wrappedKeys[].deviceId` | Delivery routing | Low |
+| `encryptedSenderId` | Ciphertext only; server cannot decrypt | Low |
+| `encryptedLastReadId` | Ciphertext only; server cannot decrypt | Low |
+| `readState.updatedAt` | Coarse timing of read state updates | Low-Medium |
 
 ### 5.3 What Server Can Infer
 
@@ -511,6 +634,12 @@ Encrypting these would require decrypting all messages to reconstruct threading,
 
 **Plaintext `toIdentityId`:**
 Required for message delivery. Without it, server cannot easily route messages. Anonymous delivery (encrypting recipient) is a future consideration but adds significant complexity and would delay MVP by a good bit. Given that we're competing with apps with near-zero anonymity, we feel this is already a step up over the others and we can iterate on it later.
+
+**Encrypted sender hint (`encryptedSenderId`):**
+Instead of storing `fromIdentityId` in plaintext or requiring decryption of the full payload to verify signatures, sender identity is encrypted with a key derivable only by the two participants. This enables signature verification before decrypting untrusted payloads while maintaining sender obfuscation from the server.
+
+**Encrypted read state (`encryptedLastReadId`):**
+MongoDB ObjectIds contain timestamps in the first 4 bytes. Storing the last-read message ID in plaintext would reveal user activity patterns (when they read each conversation). Encrypting with a conversation-derived key prevents this while still allowing both participants to decrypt and compute unread status client-side.
 
 ### 5.5 Future Enhancements
 

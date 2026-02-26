@@ -1344,6 +1344,136 @@ export interface Conversation {
 }
 
 // ============================================================================
+// DM (Direct Messaging) API
+// ============================================================================
+
+/**
+ * Serialized wrapped key for message encryption.
+ */
+export interface SerializedWrappedKey {
+  identityId: string;
+  deviceId?: string;
+  ephemeralPublicKey: string;
+  kemCiphertext: string;
+  wrappedSessionKey: string;
+  wrappingNonce: string;
+}
+
+/**
+ * DM conversation response.
+ */
+export interface DmConversation {
+  id: string;
+  conversationId: string;
+  activeCryptoProfile: 'default' | 'cnsa2';
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * DM message response.
+ */
+export interface DmMessage {
+  id: string;
+  conversationId: string;
+  toIdentityId: string;
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: SerializedWrappedKey[];
+  signature: string;
+  cryptoProfile: 'default' | 'cnsa2';
+  clientMessageId: string;
+  createdAt: string;
+  expiresAt?: string;
+  replyToId?: string;
+  threadRootId?: string;
+  deleted?: boolean;
+}
+
+/**
+ * DM message tombstone (returned when message is deleted).
+ */
+export interface DmMessageTombstone {
+  id: string;
+  conversationId: string;
+  deleted: true;
+  createdAt: string;
+}
+
+/**
+ * Parameters for sending a DM message.
+ */
+export interface SendDmMessageParams {
+  conversationId: string;
+  toIdentityId: string;
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: SerializedWrappedKey[];
+  signature: string;
+  cryptoProfile: 'default' | 'cnsa2';
+  clientMessageId: string;
+  expiresInSeconds?: number;
+  replyToId?: string;
+  threadRootId?: string;
+}
+
+export class DmApi {
+  constructor(private client: ApiClient) {}
+
+  /**
+   * Get or create a DM conversation with another identity.
+   */
+  async getOrCreateConversation(
+    toIdentityId: string
+  ): Promise<ApiResponse<{ conversation: DmConversation }>> {
+    return this.client.post('/api/dm/conversations', { toIdentityId });
+  }
+
+  /**
+   * Get a DM conversation by its blinded conversation ID.
+   */
+  async getConversation(
+    conversationId: string
+  ): Promise<ApiResponse<{ conversation: DmConversation }>> {
+    return this.client.get(`/api/dm/conversations/${encodeURIComponent(conversationId)}`);
+  }
+
+  /**
+   * Send an encrypted DM message.
+   */
+  async sendMessage(
+    params: SendDmMessageParams
+  ): Promise<ApiResponse<{ message: DmMessage }>> {
+    return this.client.post('/api/dm/messages', params);
+  }
+
+  /**
+   * Get messages for a conversation with pagination.
+   */
+  async getMessages(
+    conversationId: string,
+    options?: {
+      limit?: number;
+      cursor?: string;
+      direction?: 'older' | 'newer';
+    }
+  ): Promise<ApiResponse<{
+    messages: (DmMessage | DmMessageTombstone)[];
+    cursor: string | null;
+    hasMore: boolean;
+  }>> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', options.limit.toString());
+    if (options?.cursor) params.set('cursor', options.cursor);
+    if (options?.direction) params.set('direction', options.direction);
+    const query = params.toString();
+    return this.client.get(
+      `/api/dm/conversations/${encodeURIComponent(conversationId)}/messages${query ? `?${query}` : ''}`
+    );
+  }
+}
+
+// ============================================================================
 // Factory Functions
 // ============================================================================
 
@@ -1362,6 +1492,7 @@ export function createApiClient(config: ApiClientConfig) {
     friends: new FriendsApi(client),
     blocks: new BlocksApi(client),
     notifications: new NotificationsApi(client),
+    dm: new DmApi(client),
   };
 }
 

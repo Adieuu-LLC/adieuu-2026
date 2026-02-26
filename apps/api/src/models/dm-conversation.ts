@@ -26,6 +26,25 @@ export interface ProfileHistoryEntry {
 }
 
 /**
+ * Read state entry for a participant.
+ * Stores encrypted last-read message ID to prevent activity timing analysis.
+ * The server cannot decrypt this - only conversation participants can.
+ */
+export interface ReadStateEntry {
+  /** Identity ID of the participant */
+  identityId: ObjectId;
+  /**
+   * Encrypted last-read message ID (base64).
+   * Encrypted with: HKDF(conversationId, "adieuu-read-state-v1")
+   * Contains the MongoDB ObjectId of the last read message, encrypted.
+   * Server cannot determine read position or activity timing.
+   */
+  encryptedLastReadId: string;
+  /** When read state was last updated (coarse timing only) */
+  updatedAt: Date;
+}
+
+/**
  * DM conversation document stored in MongoDB.
  *
  * Privacy notes:
@@ -51,6 +70,13 @@ export interface DmConversationDocument extends BaseDocument {
    * Used for audit and understanding when old messages become unreadable.
    */
   profileHistory: ProfileHistoryEntry[];
+
+  /**
+   * Read state for each participant.
+   * Stores encrypted last-read message ID per participant.
+   * Encryption key: HKDF(conversationId, "adieuu-read-state-v1")
+   */
+  readState: ReadStateEntry[];
 }
 
 /**
@@ -63,12 +89,22 @@ export interface CreateDmConversationInput {
 }
 
 /**
+ * Public read state entry for a single participant.
+ */
+export interface PublicReadStateEntry {
+  identityId: string;
+  encryptedLastReadId: string;
+  updatedAt: string;
+}
+
+/**
  * Public DM conversation representation (safe to send to client).
  */
 export interface PublicDmConversation {
   id: string;
   conversationId: string;
   activeCryptoProfile: CryptoProfile;
+  readState: PublicReadStateEntry[];
   createdAt: string;
   updatedAt: string;
 }
@@ -77,10 +113,17 @@ export interface PublicDmConversation {
  * Convert a DmConversationDocument to PublicDmConversation.
  */
 export function toPublicDmConversation(doc: DmConversationDocument): PublicDmConversation {
+  const readState: PublicReadStateEntry[] = (doc.readState ?? []).map((entry) => ({
+    identityId: entry.identityId.toHexString(),
+    encryptedLastReadId: entry.encryptedLastReadId,
+    updatedAt: entry.updatedAt.toISOString(),
+  }));
+
   return {
     id: doc._id.toHexString(),
     conversationId: doc.conversationId,
     activeCryptoProfile: doc.activeCryptoProfile,
+    readState,
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };

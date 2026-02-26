@@ -18,9 +18,26 @@ import {
   sendMessageCtrl,
   getMessagesCtrl,
   getConversationCtrl,
+  getConversationsCtrl,
+  updateReadStateCtrl,
 } from './controller';
 
 const router = new Router();
+
+/**
+ * GET /dm/conversations - List all conversations
+ *
+ * Returns all conversations where the identity has received messages.
+ * Includes conversation metadata, read state, and last message timestamp.
+ *
+ * @route GET /api/dm/conversations
+ *
+ * @returns 200 OK with conversations array
+ * @returns 401 Unauthorized if not authenticated
+ */
+router.get('/dm/conversations', async (ctx) => {
+  return await getConversationsCtrl(ctx);
+});
 
 /**
  * POST /dm/conversations - Get or create a conversation
@@ -60,6 +77,28 @@ router.post('/dm/conversations', async (ctx) => {
  */
 router.get('/dm/conversations/:conversationId', async (ctx) => {
   return await getConversationCtrl(ctx);
+});
+
+/**
+ * PUT /dm/conversations/:conversationId/read-state - Update read state
+ *
+ * Updates the encrypted read position for the current identity.
+ * The server stores opaque ciphertext and cannot determine the actual read position.
+ *
+ * @route PUT /api/dm/conversations/:conversationId/read-state
+ *
+ * @param conversationId (string, required): The blinded conversation ID (64 hex chars)
+ *
+ * @requestBody
+ * - `encryptedLastReadId` (string, required): Encrypted message ID (base64)
+ *
+ * @returns 200 OK with updated conversation
+ * @returns 400 Bad Request if validation fails
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 404 Not Found if conversation doesn't exist
+ */
+router.put('/dm/conversations/:conversationId/read-state', async (ctx) => {
+  return await updateReadStateCtrl(ctx);
 });
 
 /**
