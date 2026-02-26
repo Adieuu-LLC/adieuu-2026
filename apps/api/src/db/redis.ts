@@ -380,6 +380,21 @@ export const RedisKeys = {
    * @returns Key in format `identity_session:{sessionId}`
    */
   identitySession: (sessionId: string) => `identity_session:${sessionId}`,
+
+  /**
+   * Generates a Redis pub/sub channel name for an identity.
+   * Used for real-time message delivery via the chat service.
+   * 
+   * @param identityId - The identity's ID
+   * @returns Channel name in format `identity:{identityId}`
+   * 
+   * @example
+   * ```typescript
+   * const channel = RedisKeys.identityChannel('abc123...');
+   * await redis.publish(channel, JSON.stringify(event));
+   * ```
+   */
+  identityChannel: (identityId: string) => `identity:${identityId}`,
 } as const;
 
 /**

@@ -10,7 +10,7 @@
 import { ObjectId } from 'mongodb';
 import { success, errors } from '../../utils/response';
 import { RouteContext } from '../../router';
-import { getIdentityFromSession, getIdentitySessionIdFromRequest } from '../../services';
+import { getIdentityFromSession, getIdentitySessionIdFromRequest, publishNewMessage } from '../../services';
 import { getDmConversationRepository } from '../../repositories/dm-conversation.repository';
 import { getDmMessageRepository } from '../../repositories/dm-message.repository';
 import { getIdentityRepository } from '../../repositories/identity.repository';
@@ -21,7 +21,7 @@ import {
   validateConversationId,
 } from '../../utils';
 import { toPublicDmConversation } from '../../models/dm-conversation';
-import { toPublicDmMessage, type SerializedWrappedKey } from '../../models/dm-message';
+import { toPublicDmMessage, type SerializedWrappedKey, type PublicDmMessage } from '../../models/dm-message';
 import { z } from '@adieuu/shared/schemas';
 import type { CryptoProfile } from '../../models/identity';
 
@@ -266,8 +266,20 @@ export async function sendMessageCtrl(ctx: RouteContext): Promise<Response> {
     threadRootId: threadRootId ? new ObjectId(threadRootId) : undefined,
   });
 
+  // Newly created messages are never tombstones
+  const publicMessage = toPublicDmMessage(message) as PublicDmMessage;
+
+  // Publish to Redis for real-time delivery via WebSocket
+  // This is fire-and-forget - we don't wait for delivery confirmation
+  // The message is already persisted, so offline users will get it on next fetch
+  publishNewMessage(sanitizedToId.value, publicMessage).catch((err) => {
+    // Log but don't fail the request - message is already stored
+    // eslint-disable-next-line no-console
+    console.error('Failed to publish DM event:', err);
+  });
+
   return success(
-    { message: toPublicDmMessage(message) },
+    { message: publicMessage },
     'Message sent.',
     201
   );

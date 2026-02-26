@@ -29,7 +29,10 @@ export type WsMessageType =
   | 'typing'
   | 'presence'
   | 'ack'
-  | 'error';
+  | 'error'
+  | 'dm:new'
+  | 'dm:read'
+  | 'dm:typing';
 
 /**
  * Base structure for all WebSocket messages
@@ -82,6 +85,62 @@ export interface WsTypingMessage extends WsMessageBase {
 }
 
 /**
+ * New DM message event (from API via Redis)
+ */
+export interface WsDmNewMessage extends WsMessageBase {
+  type: 'dm:new';
+  payload: {
+    message: {
+      id: string;
+      conversationId: string;
+      toIdentityId: string;
+      encryptedSenderId: string;
+      ciphertext: string;
+      nonce: string;
+      wrappedKeys: Array<{
+        identityId: string;
+        deviceId?: string;
+        ephemeralPublicKey: string;
+        kemCiphertext: string;
+        wrappedSessionKey: string;
+        wrappingNonce: string;
+      }>;
+      signature: string;
+      cryptoProfile: 'default' | 'cnsa2';
+      clientMessageId: string;
+      createdAt: string;
+      expiresAt?: string;
+      replyToId?: string;
+      threadRootId?: string;
+    };
+  };
+}
+
+/**
+ * DM read state update event (from API via Redis)
+ */
+export interface WsDmReadMessage extends WsMessageBase {
+  type: 'dm:read';
+  payload: {
+    conversationId: string;
+    identityId: string;
+    encryptedLastReadId: string;
+  };
+}
+
+/**
+ * DM typing indicator event (from API via Redis)
+ */
+export interface WsDmTypingMessage extends WsMessageBase {
+  type: 'dm:typing';
+  payload: {
+    conversationId: string;
+    identityId: string;
+    isTyping: boolean;
+  };
+}
+
+/**
  * Encrypted message payload
  */
 export interface WsEncryptedMessage extends WsMessageBase {
@@ -118,7 +177,10 @@ export type WsOutgoingMessage =
   | WsErrorMessage
   | WsAckMessage
   | WsTypingMessage
-  | WsEncryptedMessage;
+  | WsEncryptedMessage
+  | WsDmNewMessage
+  | WsDmReadMessage
+  | WsDmTypingMessage;
 
 /**
  * Redis pub/sub channel names
