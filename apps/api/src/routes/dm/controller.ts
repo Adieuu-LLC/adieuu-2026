@@ -400,6 +400,8 @@ interface ConversationListItem {
   }>;
   lastMessageAt: string | null;
   lastMessageId: string | null;
+  lastMessageEncryptedSenderId: string | null;
+  lastMessageClientMessageId: string | null;
 }
 
 /**
@@ -451,6 +453,8 @@ export async function getConversationsCtrl(ctx: RouteContext): Promise<Response>
       readState,
       lastMessageAt: latestMsg ? latestMsg.createdAt.toISOString() : null,
       lastMessageId: latestMsg ? latestMsg._id.toHexString() : null,
+      lastMessageEncryptedSenderId: latestMsg?.encryptedSenderId ?? null,
+      lastMessageClientMessageId: latestMsg?.clientMessageId ?? null,
     });
   }
 

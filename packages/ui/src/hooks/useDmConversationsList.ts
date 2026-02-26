@@ -23,6 +23,7 @@ import {
   getCachedParticipant,
   cacheParticipant,
 } from '../services/participantCache';
+import { decryptSenderHint } from '../services/dmMessageService';
 
 /**
  * Extended DM conversation with decrypted data.
@@ -125,6 +126,42 @@ export function useDmConversationsList({
           const participantResponse = await api.identity.getById(cached.otherIdentityId);
           if (participantResponse.success && participantResponse.data) {
             otherParticipant = participantResponse.data;
+          }
+        } else if (conv.lastMessageEncryptedSenderId && conv.lastMessageClientMessageId) {
+          // No cache - try to discover participant from the last message's sender hint
+          try {
+            const senderId = decryptSenderHint(
+              conv.conversationId,
+              conv.lastMessageEncryptedSenderId,
+              conv.lastMessageClientMessageId,
+              conv.activeCryptoProfile
+            );
+
+            // Determine who the other participant is
+            // If sender is us, the other participant is the toIdentityId (need to fetch from message)
+            // If sender is not us, the other participant is the sender
+            let otherIdentityId: string;
+            if (senderId === identity.id) {
+              // We sent the last message - we need the recipient, but we don't have it here
+              // Skip for now - the cache will be populated when the conversation is opened
+              otherIdentityId = '';
+            } else {
+              // Someone else sent the last message - they are the other participant
+              otherIdentityId = senderId;
+            }
+
+            if (otherIdentityId) {
+              // Fetch and cache the participant info
+              const participantResponse = await api.identity.getById(otherIdentityId);
+              if (participantResponse.success && participantResponse.data) {
+                otherParticipant = participantResponse.data;
+                // Cache for future use
+                await cacheParticipant(identity.id, conv.conversationId, otherIdentityId);
+              }
+            }
+          } catch (err) {
+            // Decryption failed - can happen if we don't have the right keys
+            console.warn('Failed to decrypt sender hint for conversation:', conv.conversationId, err);
           }
         }
 
