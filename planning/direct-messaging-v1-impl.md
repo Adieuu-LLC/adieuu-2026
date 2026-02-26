@@ -165,18 +165,26 @@ The following design decisions were made during Phase 3 planning:
 | Unread computation | Client-side boolean "has unread" check | Server cannot decrypt read state; boolean check is O(1) and scales to groups/spaces |
 | Read state key derivation | `HKDF(conversationId, "adieuu-read-state-v1")` | Both participants can compute; separate from sender hint key |
 
-### API Tasks
+### API Tasks [COMPLETE]
 
-| ID | Task | Files | Description |
-|----|------|-------|-------------|
-| 3.1 | Get conversations endpoint | `routes/dm/controller.ts` | GET `/dm/conversations` - returns distinct conversations for identity with metadata |
-| 3.2 | Conversation list repository method | `repositories/dm-message.repository.ts` | `getConversationsForIdentity()` - aggregates conversationIds, last message timestamp |
-| 3.3 | Add `encryptedSenderId` to message model | `models/dm-message.ts` | New field for encrypted sender identity hint |
-| 3.4 | Update send message to include sender hint | `routes/dm/controller.ts` | Validate and store `encryptedSenderId` from client |
-| 3.5 | Add read state to conversation model | `models/dm-conversation.ts` | Add `readState: [{ identityId, encryptedLastReadId, updatedAt }]` |
-| 3.6 | Update read state endpoint | `routes/dm/controller.ts` | PATCH `/dm/conversations/:id/read-state` - store encrypted read position |
-| 3.7 | Redis publish on message send | `routes/dm/controller.ts` | After storing message, publish `dm:new` event to Redis |
-| 3.8 | Chat server: handle dm:new events | `apps/chat/src/connections.ts` | Subscribe to Redis, broadcast to connected clients |
+| ID | Task | Files | Status |
+|----|------|-------|--------|
+| 3.1 | Get conversations endpoint | `routes/dm/controller.ts`, `routes/dm/index.ts` | Done |
+| 3.2 | Conversation list repository method | `repositories/dm-message.repository.ts` | Done |
+| 3.3 | Add `encryptedSenderId` to message model | `models/dm-message.ts` | Done |
+| 3.4 | Update send message to include sender hint | `routes/dm/controller.ts` | Done |
+| 3.5 | Add read state to conversation model | `models/dm-conversation.ts`, `repositories/dm-conversation.repository.ts` | Done |
+| 3.6 | Update read state endpoint | `routes/dm/controller.ts`, `routes/dm/index.ts` | Done |
+| 3.7 | Redis publish on message send | `routes/dm/controller.ts`, `services/dm-events.service.ts` | Done |
+| 3.8 | Chat server: handle dm:new events | `apps/chat/src/types.ts` | Done |
+
+**Implementation Notes:**
+- `GET /dm/conversations` returns conversations with `lastMessageAt`, `lastMessageId`, `readState`, and `activeCryptoProfile`
+- `PUT /dm/conversations/:conversationId/read-state` accepts `encryptedLastReadId` (base64)
+- Messages now require `encryptedSenderId` field (base64, max 256 chars)
+- DM events (`dm:new`, `dm:read`, `dm:typing`) published to Redis channel `identity:{toIdentityId}`
+- New service `dm-events.service.ts` handles Redis pub/sub for real-time delivery
+- All 640 API tests passing
 
 ### Client Tasks
 
