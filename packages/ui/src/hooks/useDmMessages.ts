@@ -176,6 +176,17 @@ export function useSendDmMessage(): UseSendDmMessageResult {
           return { success: false, error: errMsg };
         }
 
+        // 2b. Cache participant info for conversation list display
+        if (recipientKeysResponse.data.signingPublicKey) {
+          await cacheParticipant({
+            conversationId: conversation.conversationId,
+            otherIdentityId: input.toIdentityId,
+            signingPublicKey: recipientKeysResponse.data.signingPublicKey,
+            cachedAt: Date.now(),
+            myIdentityId: identity.id,
+          });
+        }
+
         // 3. Get sender's own device keys for encryption (so sender can read own messages)
         const senderKeysResponse = await api.identity.getPublicKeys(identity.id);
         if (!senderKeysResponse.success || !senderKeysResponse.data) {
