@@ -302,39 +302,141 @@ The following design decisions were made during Phase 3 planning:
 
 ---
 
-## Phase 5: Message Lifecycle
+## Phase 5a: Core Message Lifecycle
 
-**Goal:** TTL, deletion, message ordering.
+**Goal:** Send-time TTL, manual deletion, tombstones, and real-time deletion events.
 
 **Dependencies:** Phase 3 complete (Phase 4 is optional polish)
+
+### Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| TTL expiration behavior | Hard delete (default), soft delete optional via env var | Hard delete saves storage; env var `DM_TTL_SOFT_DELETE=true` for soft delete |
+| Sender verification for delete | Verify message signature against requester's signing key | Only sender could have signed the original message; cryptographically secure |
+| WebSocket deletion events | Publish for all deletion types | `dm:deleted` for delete-for-everyone, delete-for-self, TTL expiration |
+| TTL options (send-time) | 30s, 60s, 3m, 5m, 10m, 30m, 1h, 6h, 1d, 3d, 1w, never | "never" is default; granular options for ephemeral messaging |
+| Tombstone format | `{ id, conversationId, deleted: true, createdAt }` | Minimal info for sync; no additional metadata needed for DMs |
+
+**Sender Verification Flow:**
+When requester calls DELETE `/dm/messages/:id`:
+1. Server fetches message with its `signature`
+2. Server verifies signature against requester's `signingPublicKey`
+3. If verification succeeds → requester is sender → allow deletion
+4. If verification fails → deny deletion (403)
 
 ### API Tasks
 
 | ID | Task | Files | Description |
 |----|------|-------|-------------|
-| 5.1 | TTL background job | `jobs/message-expiration.ts` | Cron job to delete expired messages |
-| 5.2 | Delete for everyone | `routes/dm/messages.ts` | DELETE `/dm/messages/:id` (sender only) → set `deletedForEveryone` |
-| 5.3 | Delete for self | `routes/dm/messages.ts` | POST `/dm/messages/:id/delete-for-self` → add to `deletedFor[]` |
-| 5.4 | Filter deleted in queries | `repositories/dm-message.repository.ts` | Respect `deletedForEveryone` and `deletedFor` when fetching |
-| 5.5 | Return tombstones | `routes/dm/messages.ts` | Deleted messages return `{ _id, deleted: true }` for sync |
+| 5a.1 | TTL background job | `jobs/message-expiration.ts` | Cron job to hard/soft delete expired messages based on env var |
+| 5a.2 | Delete for everyone endpoint | `routes/dm/controller.ts` | DELETE `/dm/messages/:id` with signature verification |
+| 5a.3 | Delete for self endpoint | `routes/dm/controller.ts` | POST `/dm/messages/:id/delete-for-self` |
+| 5a.4 | Publish deletion events | `services/dm-events.service.ts` | Publish `dm:deleted` to Redis for all deletion types |
+| 5a.5 | Chat server: handle dm:deleted | `apps/chat/src/handlers.ts` | Broadcast deletion events to connected clients |
+
+**Note:** Filtering deleted messages (5.4) and returning tombstones (5.5) are already implemented in the repository and model.
 
 ### Client Tasks
 
 | ID | Task | Files | Description |
 |----|------|-------|-------------|
-| 5.6 | Send with TTL | `components/MessageComposer.tsx` | Optional TTL selector (1 min, 1 hour, 1 day, etc.) |
-| 5.7 | Delete message UI | `components/MessageActions.tsx` | Context menu: "Delete for everyone" (sender) / "Delete for me" (recipient) |
-| 5.8 | Handle tombstones | `services/decryption.ts` | Display "Message deleted" placeholder |
-| 5.9 | Optimistic deletion | `hooks/useDeleteMessage.ts` | Remove from UI immediately, sync with server |
+| 5a.6 | TTL selector UI | `components/MessageComposer.tsx` | Dropdown with send-time TTL options (30s to 1w, default: never) |
+| 5a.7 | Delete message UI | `components/MessageActions.tsx` | Context menu: "Delete for everyone" (sender) / "Delete for me" (all) |
+| 5a.8 | Handle tombstones | `components/Message.tsx` | Display "Message deleted" placeholder for tombstones |
+| 5a.9 | Optimistic deletion hook | `hooks/useDeleteMessage.ts` | Remove from UI immediately, sync with server, handle errors |
+| 5a.10 | Handle dm:deleted events | `hooks/useDmSubscription.ts` | Update message list when deletion events received |
+| 5a.11 | DM API delete methods | `packages/shared/src/api/client.ts` | `deleteForEveryone()`, `deleteForSelf()` methods |
 
 ### Tests
 
 | Test | Description |
 |------|-------------|
-| Integration: TTL expiration | Send with 1-second TTL → wait → message gone |
-| Integration: Delete for everyone | Sender deletes → recipient no longer sees message |
-| Integration: Delete for self | Recipient deletes → still visible to sender |
-| E2E: Tombstone sync | Delete message → other devices see tombstone |
+| Unit: Signature verification for delete | Only message sender can delete for everyone |
+| Unit: Delete for self isolation | Deleting for self doesn't affect other participant |
+| Integration: TTL expiration (hard) | Send with 1s TTL → wait → message gone from DB |
+| Integration: TTL expiration (soft) | With env var → message becomes tombstone |
+| Integration: Delete for everyone | Sender deletes → recipient sees tombstone |
+| Integration: Delete for self | Recipient deletes → sender still sees message |
+| Integration: Unauthorized delete | Non-sender tries delete-for-everyone → 403 |
+| E2E: Real-time deletion | Alice deletes → Bob's client receives dm:deleted event |
+
+---
+
+## Phase 5b: Read-Triggered TTL & Privacy Controls
+
+**Goal:** Add privacy settings UI and read-triggered message expiration.
+
+**Dependencies:** Phase 5a complete
+
+### Design Decisions
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Default `allowReadBasedDeletion` | `false` | Maximum privacy by default; explicit opt-in required |
+| Per-conversation override storage | Encrypted on conversation document | Both participants can decrypt; stored as `encryptedPrivacySettings` |
+| Privacy settings encryption key | `HKDF(conversationId, "adieuu-privacy-settings-v1")` | Same pattern as read state; both participants can compute |
+| Sender TTL availability | Returned in conversation metadata (encrypted) | Option A: sender sees recipient's setting, UI adapts accordingly |
+| `firstReadAt` tracking | Plaintext on message doc (when allowed) | Required for server-side TTL computation; user opted in |
+| Read-triggered TTL options | Same as send-time: 30s to 1w | Consistent UX; timer starts on first read |
+
+**Privacy Trade-off Warning (for UI):**
+"Enabling read-based deletion means the server will temporarily store when you first read each message. This timestamp is deleted when the message expires."
+
+### API Tasks
+
+| ID | Task | Files | Description |
+|----|------|-------|-------------|
+| 5b.1 | Add privacy settings to Identity | `models/identity.ts`, `repositories/identity.repository.ts` | `privacySettings: { allowReadBasedDeletion: boolean }` |
+| 5b.2 | Get/update privacy settings endpoints | `routes/identity/controller.ts` | GET/PATCH `/identity/:id/privacy` |
+| 5b.3 | Add encrypted privacy settings to conversation | `models/dm-conversation.ts` | `encryptedPrivacySettings?: string` field |
+| 5b.4 | Update conversation privacy settings | `routes/dm/controller.ts` | PATCH `/dm/conversations/:id/privacy` |
+| 5b.5 | Include recipient privacy in conversation response | `routes/dm/controller.ts` | Return `recipientAllowsReadBasedDeletion` (encrypted) |
+| 5b.6 | Add TTL fields to message model | `models/dm-message.ts` | `ttlDurationSeconds`, `ttlStartsOn`, `firstReadAt` |
+| 5b.7 | Track first read | `routes/dm/controller.ts` | On message fetch, set `firstReadAt` if not set and TTL is read-based |
+| 5b.8 | Update TTL job for read-triggered | `jobs/message-expiration.ts` | Compute expiration from `firstReadAt + ttlDurationSeconds` |
+
+### Client Tasks
+
+| ID | Task | Files | Description |
+|----|------|-------|-------------|
+| 5b.9 | Privacy settings page | `pages/identity/Privacy.tsx` | Toggle for "Allow read-based deletion in DMs" with warning |
+| 5b.10 | Add Privacy to identity dropdown | `components/IdentityDropdown.tsx` | Link to privacy settings page |
+| 5b.11 | Conversation settings sidebar | `components/ConversationSettings.tsx` | Settings icon → sidebar with per-conversation overrides |
+| 5b.12 | Encrypt/decrypt privacy settings | `services/privacySettingsService.ts` | Encryption helpers for conversation privacy settings |
+| 5b.13 | Extended TTL selector | `components/MessageComposer.tsx` | Show "After read" options when recipient allows |
+| 5b.14 | Update DM API client | `packages/shared/src/api/client.ts` | Privacy settings methods |
+| 5b.15 | Privacy settings hook | `hooks/usePrivacySettings.ts` | Fetch and update identity/conversation privacy settings |
+
+### Tests
+
+| Test | Description |
+|------|-------------|
+| Unit: Privacy settings encryption | Encrypt → decrypt roundtrip for conversation settings |
+| Unit: Default privacy value | New identity has `allowReadBasedDeletion: false` |
+| Integration: Privacy setting update | Update identity privacy → persisted correctly |
+| Integration: Conversation override | Override per-conversation → sender sees updated setting |
+| Integration: Read-triggered TTL | Send with read TTL → recipient reads → timer starts → expires |
+| Integration: Read TTL blocked | Recipient disallows → sender cannot set read-based TTL |
+| E2E: Privacy settings flow | User enables read-based deletion → sender can use read TTL |
+
+---
+
+## Known Security Issues (To Address)
+
+### readState Participant ID Leak
+
+**Issue:** `readState[].identityId` stores plaintext ObjectIds, undermining blinded `conversationId` design.
+
+**Impact:** Anyone with DB access can identify conversation participants.
+
+**Affected fields:**
+- `DmConversationDocument.readState[].identityId`
+- `DmConversationDocument.profileHistory[].initiatedBy`
+
+**Proposed fix:** Replace with hashed participant identifier: `SHA3-256(identityId || conversationId || "participant-v1")` or sorted index (0/1).
+
+**Status:** Tracked for separate fix before production.
 
 ---
 
@@ -342,7 +444,7 @@ The following design decisions were made during Phase 3 planning:
 
 **Goal:** Add and display reactions on messages.
 
-**Dependencies:** Phase 5 complete
+**Dependencies:** Phase 5a complete (5b is independent, can be parallel)
 
 ### API Tasks
 
@@ -460,7 +562,9 @@ Phase 3: Conversation List & Discovery  [COMPLETE]
     ↓
 Phase 4: Device Management UI           [COMPLETE]
     ↓
-Phase 5: Message Lifecycle              [Message management]
+Phase 5a: Core Message Lifecycle        [TTL, deletion, tombstones]
+    ↓
+Phase 5b: Read-Triggered TTL            [Privacy controls, read-based expiration]
     ↓
 Phase 6: Reactions                      [Engagement]
     ↓
@@ -477,3 +581,4 @@ Phase 8: Profile Negotiation            [Advanced security]
 - **Testing:** Each phase should be fully tested before moving to the next
 - **Feature flags:** Consider feature flags for phases 6-8 to enable incremental rollout
 - **Performance:** Add indexes as needed during each phase, don't defer to end
+- **Security issue tracked:** `readState` participant ID leak needs fix before production (see Known Security Issues)
