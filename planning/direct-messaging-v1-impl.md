@@ -67,18 +67,39 @@ This document outlines the implementation phases for DM v1 as specified in `dire
 
 **Dependencies:** Phase 1 complete
 
+### Design Decisions
+
+The following design decisions were made during implementation planning:
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Conversation `_id` | Use `ObjectId` for `_id`, add separate `conversationId: string` for blinded hash | Maintains compatibility with `BaseDocument` and `BaseRepository` patterns; avoids manual `_id` manipulation |
+| WrappedKey storage format | Base64 serialized strings (matching `SerializedEncryptedPayload.wrappedKeys`) | More portable for MongoDB, matches wire format from clients; base64 is encoding not encryption - no security impact |
+| Friendship validation | Placeholder function returning `true` for now | Identity settings for "receive from anyone vs friends only" to be added later; keeps initial implementation simple |
+| Route structure | `/api/dm/*` nested approach | Consistent with planned `/api/group/*` and `/api/space/*` for other messaging types; each has different crypto models |
+| ConversationId validation | Server validates that `authIdentityId + toIdentityId` derives to provided `conversationId` | Maintains obfuscation integrity; prevents malformed requests |
+| Multi-device key wrapping | Trust client to wrap for all devices (sender + recipient) | Server can't validate without knowing sender (obfuscated); client bugs only cause self-inflicted read issues, not security risks |
+| Collection names | `dm_conversations`, `dm_messages` | Consistent with existing naming conventions |
+
+**Privacy/Obfuscation Notes:**
+- `conversationId` is a blinded hash: `SHA3-256(sort([A,B]) || "dm-v1")` - doesn't reveal participants directly
+- `fromIdentityId` is NOT stored on the message document - only revealed after decryption
+- `toIdentityId` IS stored (needed for delivery/queries), but combined with blinded `conversationId`, pattern analysis is required to determine sender
+- This design accepts that determined attackers with full DB access could eventually correlate patterns, but raises the bar significantly
+
 ### API Tasks
 
-| ID | Task | Files | Description |
-|----|------|-------|-------------|
-| 2.1 | DM conversation model | `models/dm-conversation.ts` | `_id` (blinded), `activeCryptoProfile`, `profileHistory`, `createdAt` |
-| 2.2 | DM conversation repository | `repositories/dm-conversation.repository.ts` | CRUD operations |
-| 2.3 | DM message model | `models/dm-message.ts` | Full schema from spec (section 3.3) |
-| 2.4 | DM message repository | `repositories/dm-message.repository.ts` | CRUD + query by conversation |
-| 2.5 | Blinded conversation ID utility | `utils/conversation.ts` | `deriveConversationId(idA, idB)` → `SHA3-256(sort([A,B]) \|\| "dm-v1")` |
-| 2.6 | Send message endpoint | `routes/dm/messages.ts` | POST `/dm/messages` - validate, store encrypted message |
-| 2.7 | Get messages endpoint | `routes/dm/messages.ts` | GET `/dm/conversations/:id/messages` - paginated fetch |
-| 2.8 | Get or create conversation | `routes/dm/conversations.ts` | POST `/dm/conversations` - idempotent creation with blinded ID |
+| ID | Task | Files | Status |
+|----|------|-------|--------|
+| 2.1 | DM conversation model | `models/dm-conversation.ts` | Done |
+| 2.2 | DM conversation repository | `repositories/dm-conversation.repository.ts` | Done |
+| 2.3 | DM message model | `models/dm-message.ts` | Done |
+| 2.4 | DM message repository | `repositories/dm-message.repository.ts` | Done |
+| 2.5 | Blinded conversation ID utility | `utils/conversation.ts` | Done |
+| 2.6 | Send message endpoint | `routes/dm/controller.ts` | Done - POST `/dm/messages` |
+| 2.7 | Get messages endpoint | `routes/dm/controller.ts` | Done - GET `/dm/conversations/:id/messages` |
+| 2.8 | Get or create conversation | `routes/dm/controller.ts` | Done - POST `/dm/conversations` |
+| 2.X | Get conversation endpoint | `routes/dm/controller.ts` | Bonus - GET `/dm/conversations/:id` |
 
 ### Client Tasks
 
@@ -95,15 +116,16 @@ This document outlines the implementation phases for DM v1 as specified in `dire
 
 ### Tests
 
-| Test | Description |
-|------|-------------|
-| Unit: Conversation ID derivation | Verify `sort([A,B])` produces same ID regardless of order |
-| Unit: Message encryption | Encrypt → decrypt roundtrip |
-| Unit: Signature verification | Valid signature passes, tampered fails |
-| Integration: Send message | Alice sends → server stores → returns success |
-| Integration: Receive message | Bob fetches → decrypts → sees content |
-| E2E: Full flow | Alice sends "Hello" → Bob sees "Hello" → signature verified |
-| E2E: Sender multi-device | Alice sends from device 1 → Alice reads on device 2 |
+| Test | Status |
+|------|--------|
+| Unit: Conversation ID derivation | Done - 11 tests in `utils/conversation.test.ts` |
+| Unit: API Controller | Done - 18 tests in `routes/dm/controller.test.ts` |
+| Unit: Message encryption | TODO - Client-side |
+| Unit: Signature verification | TODO - Client-side |
+| Integration: Send message | Done - covered by controller tests |
+| Integration: Receive message | TODO - Client-side |
+| E2E: Full flow | TODO - Requires client implementation |
+| E2E: Sender multi-device | TODO - Requires client implementation |
 
 ---
 

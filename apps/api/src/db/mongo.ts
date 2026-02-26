@@ -338,6 +338,10 @@ export const Collections = {
   NOTIFICATIONS: 'notifications',
   /** Encrypted signing key bundles for E2E encryption */
   KEY_BUNDLES: 'key_bundles',
+  /** DM conversations (1-1 messaging) */
+  DM_CONVERSATIONS: 'dm_conversations',
+  /** DM messages (encrypted) */
+  DM_MESSAGES: 'dm_messages',
 } as const;
 
 /**
@@ -489,6 +493,17 @@ async function createIndexes(): Promise<void> {
   // Key bundles collection indexes
   const keyBundles = database.collection(Collections.KEY_BUNDLES);
   await keyBundles.createIndex({ bundleId: 1 }, { unique: true });
+
+  // DM conversations collection indexes
+  const dmConversations = database.collection(Collections.DM_CONVERSATIONS);
+  await dmConversations.createIndex({ conversationId: 1 }, { unique: true });
+
+  // DM messages collection indexes
+  const dmMessages = database.collection(Collections.DM_MESSAGES);
+  await dmMessages.createIndex({ conversationId: 1, createdAt: -1 });
+  await dmMessages.createIndex({ toIdentityId: 1, createdAt: -1 });
+  await dmMessages.createIndex({ conversationId: 1, clientMessageId: 1 }, { unique: true });
+  await dmMessages.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
 
   elog.debug('MongoDB indexes created/verified');
 }
