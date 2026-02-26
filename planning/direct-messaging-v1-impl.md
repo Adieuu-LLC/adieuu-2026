@@ -158,12 +158,23 @@ The following design decisions were made during Phase 3 planning:
 |----------|--------|-----------|
 | Sender verification | Encrypted sender hint using conversation-derived key | Enables signature verification before decrypting untrusted payloads; server cannot derive the key |
 | Sender hint key derivation | `HKDF(conversationId, "adieuu-sender-hint-v1")` | Both participants can compute; domain-separated for security |
+| Sender hint nonce | Derive from `clientMessageId` via `SHA3-256(clientMessageId).slice(0,12)` | Client-generated, unique per message, available at encryption time |
+| Sender hint cipher | ChaCha20-Poly1305 (default) or AES-256-GCM (cnsa2) | Matches conversation's active crypto profile |
 | Conversation list source | Query `dm_messages` for distinct `conversationId` where `toIdentityId` = me | Conversations don't store participants explicitly; derive from message delivery |
-| Participant cache structure | `conversationId → otherParticipantId + signingPublicKey` | In a DM, only 2 participants; cache the "other" party for all operations |
+| Participant cache structure | `conversationId → otherParticipantId + signingPublicKey + cachedAt` | In a DM, only 2 participants; cache the "other" party for all operations |
+| Participant cache fallback | If cache miss, fetch first message and decrypt sender hint | Resilient to cache clearing; one extra API call per conversation |
 | WebSocket event flow | API stores → Redis publish → Chat server broadcasts | API is source of truth; chat server is stateless relay; offline messages still stored |
+| WebSocket authentication | Session token in query param, validated against Redis on connect | Fast O(1) lookup; session already authenticated by API |
+| WebSocket session expiry | No periodic revalidation in v1 | Low risk (read-only zombie); natural reconnection cycles handle expiry |
 | Unread tracking | Encrypted `lastReadMessageId` per participant per conversation | ObjectIds contain timestamps; encrypting hides activity patterns from server |
 | Unread computation | Client-side boolean "has unread" check | Server cannot decrypt read state; boolean check is O(1) and scales to groups/spaces |
 | Read state key derivation | `HKDF(conversationId, "adieuu-read-state-v1")` | Both participants can compute; separate from sender hint key |
+| Read state nonce | Random 12-byte nonce, included in output as `base64(nonce \|\| ciphertext)` | Unique per encryption; self-contained output |
+| Unified conversation type | `Conversation` with `type: 'dm' \| 'group'` discriminator | UI works with unified type; DM/Group backends merge in hook layer |
+
+**Future Enhancements (deferred):**
+- Add `encryptedOtherParticipant` to conversation document for instant participant recovery without fetching messages
+- Add session expiry events from API to chat server for immediate WebSocket termination on logout/revoke
 
 ### API Tasks [COMPLETE]
 
