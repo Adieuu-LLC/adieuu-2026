@@ -15,7 +15,6 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { createApiClient, type PublicDevice } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
-import { getOrCreateDeviceId } from '../services/deviceInfo';
 import { deleteAllDeviceKeysForIdentity } from '../services/deviceKeyStorage';
 import { clearParticipantCache } from '../services/participantCache';
 
@@ -100,7 +99,7 @@ function saveActivityPreferences(prefs: ActivityPreferences): void {
  */
 export function useDeviceManagement() {
   const { apiBaseUrl } = useAppConfig();
-  const { identity, logoutFromIdentity } = useIdentity();
+  const { identity, logoutFromIdentity, getCurrentDeviceId } = useIdentity();
 
   const [state, setState] = useState<DeviceManagementState>({
     devices: [],
@@ -117,7 +116,7 @@ export function useDeviceManagement() {
   const lastActivityRef = useRef<number>(Date.now());
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
-  const currentDeviceId = useMemo(() => getOrCreateDeviceId(), []);
+  const currentDeviceId = getCurrentDeviceId();
 
   /**
    * Fetch all devices for the current identity.

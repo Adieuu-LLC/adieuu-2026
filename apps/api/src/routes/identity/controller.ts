@@ -774,7 +774,7 @@ export async function updateDeviceCtrl(ctx: RouteContext): Promise<Response> {
     return errors.badRequest('Invalid device ID.');
   }
 
-  const body = await ctx.request.json().catch(() => ({})) as Record<string, unknown>;
+  const body = (ctx.body ?? {}) as Record<string, unknown>;
   const { name, updateActivity } = body;
 
   const identityRepo = getIdentityRepository();

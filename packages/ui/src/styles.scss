@@ -5222,3 +5222,124 @@ a {
 .dm-input-send {
   flex-shrink: 0;
 }
+
+// ============================================================================
+// Activity Tracking Settings
+// ============================================================================
+
+.activity-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.activity-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.activity-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.activity-radio-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+
+  &:hover {
+    border-color: var(--color-border-hover);
+    background: var(--color-bg-hover);
+  }
+
+  &[data-state="checked"] {
+    border-color: var(--color-primary);
+    background: var(--color-primary-bg);
+  }
+}
+
+.activity-radio-control {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border: 2px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-bg);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+
+  &[data-state="checked"] {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    box-shadow: inset 0 0 0 3px var(--color-bg);
+  }
+}
+
+.activity-radio-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  flex: 1;
+}
+
+.activity-radio-title {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.activity-radio-description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.activity-interval-section {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.activity-interval-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.activity-interval-select {
+  flex: 1;
+  max-width: 200px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+  }
+
+  &:hover {
+    border-color: var(--color-border-hover);
+  }
+
+  option {
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+    padding: var(--spacing-sm);
+  }
+}

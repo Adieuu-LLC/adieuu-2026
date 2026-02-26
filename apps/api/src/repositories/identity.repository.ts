@@ -372,7 +372,8 @@ export class IdentityRepository
       }
     );
 
-    return result.modifiedCount === 1;
+    // Return true if document was matched (even if name was same, so modifiedCount = 0)
+    return result.matchedCount === 1;
   }
 
   /**

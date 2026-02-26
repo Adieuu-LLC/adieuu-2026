@@ -11,10 +11,12 @@
 
 import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dialog, Portal } from '@ark-ui/react';
+import { Dialog, Portal, RadioGroup } from '@ark-ui/react';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
+import { Spinner } from '../../components/Spinner';
+import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
 import { useDeviceManagement, type DeviceWithStatus, type ActivityTrackingMode, type ActivityInterval } from '../../hooks/useDeviceManagement';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useToast } from '../../components/Toast';
@@ -50,55 +52,51 @@ function DeviceItem({
   onRename: (deviceId: string, currentName: string) => void;
   onRemove: (deviceId: string, isCurrentDevice: boolean) => void;
 }) {
+  const { t } = useTranslation();
+
   return (
-    <div className={`device-item ${device.isCurrentDevice ? 'device-item-current' : ''}`}>
-      <div className="device-icon">
-        <DeviceIcon />
-      </div>
-      <div className="device-info">
-        <div className="device-name">
-          {device.name}
+    <div className={`session-item ${device.isCurrentDevice ? 'session-item-current' : ''}`}>
+      <div className="session-info">
+        <div className="session-device">
+          <DeviceIcon />
+          <span>{device.name}</span>
           {device.isCurrentDevice && (
-            <span className="device-badge">This device</span>
+            <span className="session-current-badge">
+              {t('identity.devices.thisDevice', 'This device')}
+            </span>
           )}
         </div>
-        <div className="device-meta">
-          <span className="device-id" title={device.deviceId}>
+        <div className="session-meta">
+          <span title={device.deviceId}>
             ID: {device.deviceId.slice(0, 8)}...
           </span>
           {device.lastActiveAt && (
-            <>
-              <span className="device-separator">|</span>
-              <span className="device-last-active">
-                Active: {formatLastActive(device.lastActiveAt)}
-              </span>
-            </>
+            <span>
+              {t('identity.devices.lastActive', 'Active')}: {formatLastActive(device.lastActiveAt)}
+            </span>
           )}
           {device.registeredAt && (
-            <>
-              <span className="device-separator">|</span>
-              <span className="device-registered">
-                Added: {new Date(device.registeredAt).toLocaleDateString()}
-              </span>
-            </>
+            <span>
+              {t('identity.devices.added', 'Added')}: {new Date(device.registeredAt).toLocaleDateString()}
+            </span>
           )}
         </div>
       </div>
-      <div className="device-actions">
+      <div className="session-actions">
         <Button
           variant="secondary"
           size="sm"
           onClick={() => onRename(device.deviceId, device.name)}
         >
-          Rename
+          {t('identity.devices.rename', 'Rename')}
         </Button>
         <Button
           variant="secondary"
           size="sm"
-          className="btn-danger-outline"
+          className="session-revoke-btn"
           onClick={() => onRemove(device.deviceId, device.isCurrentDevice)}
         >
-          Remove
+          {t('identity.devices.remove', 'Remove')}
         </Button>
       </div>
     </div>
@@ -319,78 +317,83 @@ function RenameDialog({
 }
 
 /**
- * Activity preferences section.
+ * Activity preferences section using Ark UI components.
  */
 function ActivityPreferences() {
+  const { t } = useTranslation();
   const { activityPrefs, setActivityPreferences } = useDeviceManagement();
+  const { success: toastSuccess } = useToast();
 
-  const handleModeChange = (mode: ActivityTrackingMode) => {
-    setActivityPreferences({ ...activityPrefs, mode });
+  const handleModeChange = (details: { value: string | null }) => {
+    if (details.value) {
+      setActivityPreferences({ ...activityPrefs, mode: details.value as ActivityTrackingMode });
+      toastSuccess(t('identity.activity.settingUpdated', 'Activity tracking preference updated'));
+    }
   };
 
-  const handleIntervalChange = (interval: ActivityInterval) => {
-    setActivityPreferences({ ...activityPrefs, intervalMinutes: interval });
+  const handleIntervalChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setActivityPreferences({ ...activityPrefs, intervalMinutes: Number(e.target.value) as ActivityInterval });
+    toastSuccess(t('identity.activity.settingUpdated', 'Activity tracking preference updated'));
   };
 
   return (
-    <div className="activity-preferences">
-      <h3 className="activity-preferences-title">Activity Tracking</h3>
-      <p className="activity-preferences-description">
-        Choose how your device activity is tracked. This helps you see when each device was last used.
-      </p>
-
-      <div className="activity-mode-options">
-        <label className="activity-mode-option">
-          <input
-            type="radio"
-            name="activityMode"
-            checked={activityPrefs.mode === 'active-only'}
-            onChange={() => handleModeChange('active-only')}
-          />
-          <span className="activity-mode-label">
-            <strong>When active</strong>
-            <span>Only update when you interact with the app</span>
-          </span>
-        </label>
-
-        <label className="activity-mode-option">
-          <input
-            type="radio"
-            name="activityMode"
-            checked={activityPrefs.mode === 'periodic'}
-            onChange={() => handleModeChange('periodic')}
-          />
-          <span className="activity-mode-label">
-            <strong>Periodic</strong>
-            <span>Update at regular intervals while the app is open</span>
-          </span>
-        </label>
-
-        <label className="activity-mode-option">
-          <input
-            type="radio"
-            name="activityMode"
-            checked={activityPrefs.mode === 'disabled'}
-            onChange={() => handleModeChange('disabled')}
-          />
-          <span className="activity-mode-label">
-            <strong>Disabled</strong>
-            <span>Don't track activity (last active won't update)</span>
-          </span>
-        </label>
+    <div className="activity-settings">
+      <div className="sessions-header">
+        <div className="sessions-header-text">
+          <h3>{t('identity.activity.title', 'Activity Tracking')}</h3>
+          <p>{t('identity.activity.description', 'Choose how your device activity is tracked. This helps you see when each device was last used.')}</p>
+        </div>
       </div>
 
-      {activityPrefs.mode !== 'disabled' && (
-        <div className="activity-interval">
-          <label htmlFor="activityInterval">Update interval:</label>
+      <div className="activity-section">
+        <RadioGroup.Root
+          value={activityPrefs.mode}
+          onValueChange={handleModeChange}
+          className="activity-radio-group"
+        >
+          <RadioGroup.Item value="active-only" className="activity-radio-item">
+            <RadioGroup.ItemControl className="activity-radio-control" />
+            <RadioGroup.ItemText className="activity-radio-text">
+              <span className="activity-radio-title">{t('identity.activity.whenActive', 'When active')}</span>
+              <span className="activity-radio-description">{t('identity.activity.whenActiveDesc', 'Only update when you interact with the app')}</span>
+            </RadioGroup.ItemText>
+            <RadioGroup.ItemHiddenInput />
+          </RadioGroup.Item>
+
+          <RadioGroup.Item value="periodic" className="activity-radio-item">
+            <RadioGroup.ItemControl className="activity-radio-control" />
+            <RadioGroup.ItemText className="activity-radio-text">
+              <span className="activity-radio-title">{t('identity.activity.periodic', 'Periodic')}</span>
+              <span className="activity-radio-description">{t('identity.activity.periodicDesc', 'Update at regular intervals while the app is open')}</span>
+            </RadioGroup.ItemText>
+            <RadioGroup.ItemHiddenInput />
+          </RadioGroup.Item>
+
+          <RadioGroup.Item value="disabled" className="activity-radio-item">
+            <RadioGroup.ItemControl className="activity-radio-control" />
+            <RadioGroup.ItemText className="activity-radio-text">
+              <span className="activity-radio-title">{t('identity.activity.disabled', 'Disabled')}</span>
+              <span className="activity-radio-description">{t('identity.activity.disabledDesc', "Don't track activity (last active won't update)")}</span>
+            </RadioGroup.ItemText>
+            <RadioGroup.ItemHiddenInput />
+          </RadioGroup.Item>
+        </RadioGroup.Root>
+      </div>
+
+      {activityPrefs.mode === 'periodic' && (
+        <div className="activity-section activity-interval-section">
+          <label htmlFor="activityInterval" className="activity-interval-label">
+            {t('identity.activity.updateInterval', 'Update interval')}
+          </label>
           <select
             id="activityInterval"
+            className="activity-interval-select"
             value={activityPrefs.intervalMinutes}
-            onChange={(e) => handleIntervalChange(Number(e.target.value) as ActivityInterval)}
+            onChange={handleIntervalChange}
           >
-            <option value={15}>Every 15 minutes</option>
-            <option value={30}>Every 30 minutes</option>
-            <option value={60}>Every hour</option>
+            <option value={15}>{t('identity.activity.interval15', 'Every 15 minutes')}</option>
+            <option value={30}>{t('identity.activity.interval30', 'Every 30 minutes')}</option>
+            <option value={60}>{t('identity.activity.interval60', 'Every hour')}</option>
           </select>
         </div>
       )}
@@ -485,72 +488,93 @@ export function Devices() {
 
   if (!identity) {
     return (
-      <div className="devices-page">
-        <Card>
-          <p>Please log in to an identity to manage devices.</p>
-        </Card>
+      <div className="page-content">
+        <div className="container">
+          <Card variant="elevated">
+            <p>Please log in to an identity to manage devices.</p>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="devices-page">
-      <div className="devices-header">
-        <h1>Devices</h1>
-        <p className="devices-subtitle">
-          Manage devices that have access to your identity. Each device has its own encryption keys.
-        </p>
+    <div className="page-content">
+      <div className="container">
+        <div className="page-header">
+          <h1 className="page-title">{t('identity.devices.title', 'Devices')}</h1>
+          <p className="page-subtitle">
+            {t('identity.devices.subtitle', 'Manage devices that have access to your identity. Each device has its own encryption keys.')}
+          </p>
+        </div>
+
+        <Tabs defaultTab="devices" className="slide-up">
+          <TabList>
+            <TabTrigger value="devices">
+              {t('identity.devices.tabs.devices', 'Devices')}
+            </TabTrigger>
+            <TabTrigger value="activity">
+              {t('identity.devices.tabs.activity', 'Activity')}
+            </TabTrigger>
+          </TabList>
+
+          <TabContent value="devices">
+            {error && (
+              <Card variant="elevated" className="devices-error-card">
+                <p>{error}</p>
+                <Button variant="secondary" size="sm" onClick={fetchDevices}>
+                  {t('common.retry', 'Retry')}
+                </Button>
+              </Card>
+            )}
+
+            <Card variant="elevated">
+              <div className="sessions-header">
+                <div className="sessions-header-text">
+                  <h3>{t('identity.devices.yourDevices', 'Your Devices')} ({devices.length})</h3>
+                </div>
+                {otherDevicesCount > 0 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="session-revoke-btn"
+                    onClick={() => setRemoveAllDialogOpen(true)}
+                  >
+                    {t('identity.devices.removeAllOthers', 'Remove all other devices')}
+                  </Button>
+                )}
+              </div>
+
+              {loading && devices.length === 0 ? (
+                <div className="sessions-loading">
+                  <Spinner size="md" />
+                </div>
+              ) : devices.length === 0 ? (
+                <div className="sessions-empty">
+                  <p>{t('identity.devices.noDevices', 'No devices found.')}</p>
+                </div>
+              ) : (
+                <div className="session-list">
+                  {devices.map((device) => (
+                    <DeviceItem
+                      key={device.deviceId}
+                      device={device}
+                      onRename={handleRenameClick}
+                      onRemove={handleRemoveClick}
+                    />
+                  ))}
+                </div>
+              )}
+            </Card>
+          </TabContent>
+
+          <TabContent value="activity">
+            <Card variant="elevated">
+              <ActivityPreferences />
+            </Card>
+          </TabContent>
+        </Tabs>
       </div>
-
-      {error && (
-        <div className="devices-error">
-          <p>{error}</p>
-          <Button variant="secondary" size="sm" onClick={fetchDevices}>
-            Retry
-          </Button>
-        </div>
-      )}
-
-      <Card className="devices-card">
-        <div className="devices-card-header">
-          <h2>Your Devices ({devices.length})</h2>
-          {otherDevicesCount > 0 && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="btn-danger-outline"
-              onClick={() => setRemoveAllDialogOpen(true)}
-            >
-              Remove all other devices
-            </Button>
-          )}
-        </div>
-
-        {loading && devices.length === 0 ? (
-          <div className="devices-loading">
-            <span className="spinner spinner-md" />
-          </div>
-        ) : devices.length === 0 ? (
-          <div className="devices-empty">
-            <p>No devices found.</p>
-          </div>
-        ) : (
-          <div className="devices-list">
-            {devices.map((device) => (
-              <DeviceItem
-                key={device.deviceId}
-                device={device}
-                onRename={handleRenameClick}
-                onRemove={handleRemoveClick}
-              />
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <Card className="devices-card">
-        <ActivityPreferences />
-      </Card>
 
       {/* Remove device dialog */}
       <PassphraseDialog
@@ -593,7 +617,7 @@ export function Devices() {
 /** Device icon SVG */
 function DeviceIcon() {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.5rem', flexShrink: 0 }}>
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
       <line x1="8" y1="21" x2="16" y2="21" />
       <line x1="12" y1="17" x2="12" y2="21" />

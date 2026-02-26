@@ -223,6 +223,39 @@ export const en = {
       newDeviceTitle: 'New Device Added',
       newDeviceMessage: 'You\'re now logged in on {{deviceName}}. Click here to manage your devices.',
     },
+    // Devices page
+    devices: {
+      title: 'Devices',
+      subtitle: 'Manage devices that have access to your identity. Each device has its own encryption keys.',
+      tabs: {
+        devices: 'Devices',
+        activity: 'Activity',
+      },
+      yourDevices: 'Your Devices',
+      noDevices: 'No devices found.',
+      thisDevice: 'This device',
+      lastActive: 'Active',
+      added: 'Added',
+      rename: 'Rename',
+      remove: 'Remove',
+      removeAllOthers: 'Remove all other devices',
+    },
+    // Activity tracking
+    activity: {
+      title: 'Activity Tracking',
+      description: 'Choose how your device activity is tracked. This helps you see when each device was last used.',
+      whenActive: 'When active',
+      whenActiveDesc: 'Only update when you interact with the app',
+      periodic: 'Periodic',
+      periodicDesc: 'Update at regular intervals while the app is open',
+      disabled: 'Disabled',
+      disabledDesc: "Don't track activity (last active won't update)",
+      updateInterval: 'Update interval',
+      interval15: 'Every 15 minutes',
+      interval30: 'Every 30 minutes',
+      interval60: 'Every hour',
+      settingUpdated: 'Activity tracking preference updated',
+    },
     // Create modal
     create: {
       title: 'Create Anonymous Identity',
