@@ -195,11 +195,8 @@ The following design decisions were made during Phase 3 planning:
 - `GET /dm/conversations` returns conversations with `lastMessageAt`, `lastMessageId`, `readState`, and `activeCryptoProfile`
 - `PUT /dm/conversations/:conversationId/read-state` accepts `encryptedLastReadId` (base64)
 - Messages now require `encryptedSenderId` field (base64, max 256 chars)
-- DM events (`dm:new`, `dm:read`, `dm:typing`) published to Redis channel `identity:{identityId}`
-- `dm:new` events published to BOTH sender and recipient for instant conversation list updates
+- DM events (`dm:new`, `dm:read`, `dm:typing`) published to Redis channel `identity:{toIdentityId}`
 - New service `dm-events.service.ts` handles Redis pub/sub for real-time delivery
-- Conversation list query finds conversations where identity is sender OR recipient (via `wrappedKeys.identityId`)
-- `useDmConversationsList` hook subscribes to `dm:new` events for real-time refresh
 - All 640 API tests passing
 
 ### Client Tasks [COMPLETE]
@@ -353,8 +350,8 @@ When requester calls DELETE `/dm/messages/:id`:
 | ID | Task | Files | Status |
 |----|------|-------|--------|
 | 5a.6 | TTL selector UI | `components/MessageComposer.tsx` | Done - TTL dropdown with all options (30s to 1w, default: never) |
-| 5a.7 | Delete message UI | `pages/Conversation.tsx` | Done - Hover menu with "Delete for everyone" (sender) / "Delete for me" |
-| 5a.8 | Handle tombstones | `pages/Conversation.tsx` | Done - `isDeleted` flag, "Message deleted" placeholder styling |
+| 5a.7 | Delete message UI | `components/MessageList.tsx` | Done - Hover menu with "Delete for everyone" (sender) / "Delete for me" |
+| 5a.8 | Handle tombstones | `components/MessageList.tsx` | Done - `isDeleted` flag, "Message deleted" placeholder styling |
 | 5a.9 | Deletion hook | `hooks/useDeleteMessage.ts` | Done - `deleteForEveryone()`, `deleteForSelf()` methods |
 | 5a.10 | Handle dm:deleted events | `hooks/useDmSubscription.ts` | Done - `DmDeletedEvent` type, `onDeleted` callback |
 | 5a.11 | DM API delete methods | `packages/shared/src/api/client.ts` | Done - `deleteForEveryone()`, `deleteForSelf()` in DmApi |
@@ -432,9 +429,9 @@ When requester calls DELETE `/dm/messages/:id`:
 
 ---
 
-## Known Security Issues
+## Known Security Issues (To Address)
 
-### readState Participant ID Leak [RESOLVED]
+### readState Participant ID Leak
 
 **Issue:** `readState[].identityId` stores plaintext ObjectIds, undermining blinded `conversationId` design.
 
@@ -444,46 +441,9 @@ When requester calls DELETE `/dm/messages/:id`:
 - `DmConversationDocument.readState[].identityId`
 - `DmConversationDocument.profileHistory[].initiatedBy`
 
-**Fix applied:** Replaced with hashed participant identifier: `SHA3-256(identityId || conversationId || "participant-v1")`
+**Proposed fix:** Replace with hashed participant identifier: `SHA3-256(identityId || conversationId || "participant-v1")` or sorted index (0/1).
 
-**Changes made:**
-- Added `deriveParticipantHash()` to `packages/crypto/src/dm/index.ts` and `apps/api/src/utils/conversation.ts`
-- Updated `ReadStateEntry.identityId` → `participantHash: string`
-- Updated `ProfileHistoryEntry.initiatedBy` → `initiatedByHash: string`
-- Updated repository, controller, shared types, and client hooks
-- Added tests for `deriveParticipantHash()` function
-
-**Status:** RESOLVED
-
----
-
-### wrappedKeys Identity ID Exposure (To Address)
-
-**Issue:** `wrappedKeys[].identityId` stores plaintext identity IDs, allowing server to identify message senders.
-
-**Impact:** The `encryptedSenderId` field was designed to hide the sender from the server, but `wrappedKeys` contains plaintext identity IDs for all key recipients - including the sender (for multi-device access). This partially undermines sender privacy.
-
-**Affected field:**
-- `DmMessageDocument.wrappedKeys[].identityId`
-
-**Example:**
-```
-wrappedKeys: [
-  { identityId: "sender-id", ... },   // Sender's wrapped key (multi-device)
-  { identityId: "recipient-id", ... } // Recipient's wrapped key
-]
-```
-Server can identify sender by finding the identity in `wrappedKeys` that doesn't match `toIdentityId`.
-
-**Potential mitigations:**
-1. Hash the `identityId` in wrapped keys using participant hash approach
-2. Use positional index (0/1) instead of identity ID
-3. Accept trade-off since message delivery requires some server-side routing knowledge
-4. Encrypt the entire wrappedKeys array structure
-
-**Trade-off consideration:** Any fix must preserve the ability for recipients to find their wrapped key for decryption. The client needs to identify which wrapped key belongs to them.
-
-**Status:** Tracked for future consideration. Lower priority than `readState` leak since `toIdentityId` already reveals the recipient, and the sender is one of only two participants.
+**Status:** Tracked for separate fix before production.
 
 ---
 
@@ -628,5 +588,4 @@ Phase 8: Profile Negotiation            [Advanced security]
 - **Testing:** Each phase should be fully tested before moving to the next
 - **Feature flags:** Consider feature flags for phases 6-8 to enable incremental rollout
 - **Performance:** Add indexes as needed during each phase, don't defer to end
-- **Security issue resolved:** `readState` participant ID leak fixed with `participantHash` approach (see Known Security Issues)
-- **Security issue tracked:** `wrappedKeys.identityId` exposure tracked for future consideration (see Known Security Issues)
+- **Security issue tracked:** `readState` participant ID leak needs fix before production (see Known Security Issues)
