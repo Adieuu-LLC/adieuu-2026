@@ -9,12 +9,66 @@
  * - Message actions (delete)
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DecryptedDmMessage } from '../hooks/useDmMessages';
 import { Avatar } from './Avatar';
 import { Spinner } from './Spinner';
 import { Popover } from './Popover';
+
+/**
+ * Hook to get remaining time until expiration, updating every second.
+ */
+function useExpiryCountdown(expiresAt: string | undefined): string | null {
+  const [remaining, setRemaining] = useState<string | null>(() => {
+    if (!expiresAt) return null;
+    return formatRemainingTime(expiresAt);
+  });
+
+  useEffect(() => {
+    if (!expiresAt) {
+      setRemaining(null);
+      return;
+    }
+
+    const updateRemaining = () => {
+      const formatted = formatRemainingTime(expiresAt);
+      setRemaining(formatted);
+    };
+
+    updateRemaining();
+    const intervalId = setInterval(updateRemaining, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [expiresAt]);
+
+  return remaining;
+}
+
+/**
+ * Format remaining time until expiration.
+ */
+function formatRemainingTime(expiresAt: string): string | null {
+  const expiresAtMs = new Date(expiresAt).getTime();
+  const now = Date.now();
+  const remainingMs = expiresAtMs - now;
+
+  if (remainingMs <= 0) return null;
+
+  const seconds = Math.floor(remainingMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  if (hours > 0) {
+    const mins = minutes % 60;
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  }
+  if (minutes > 0) {
+    const secs = seconds % 60;
+    return secs > 0 ? `${minutes}m ${secs}s` : `${minutes}m`;
+  }
+  return `${seconds}s`;
+}
 
 /**
  * Formats a date for display in message timestamps.
@@ -96,6 +150,12 @@ function MessageBubble({
 }: MessageBubbleProps) {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
+  const expiryCountdown = useExpiryCountdown(message.raw.expiresAt);
+  
+  // Debug: verify expiresAt is present
+  if (message.raw.expiresAt) {
+    console.log('Message TTL:', message.raw.id, 'expiresAt:', message.raw.expiresAt, 'countdown:', expiryCountdown);
+  }
 
   const handleDeleteForEveryone = useCallback(() => {
     if (onDeleteForEveryone && message.raw.id) {
@@ -161,6 +221,11 @@ function MessageBubble({
         </div>
         <div className="message-footer">
           <span className="message-time">{formatMessageTime(message.raw.createdAt)}</span>
+          {expiryCountdown && (
+            <span className="message-expiry" title={t('messages.expiresIn')}>
+              <span className="message-expiry-time">{expiryCountdown}</span>
+            </span>
+          )}
           {hasActions && showActions && (
             <Popover
               trigger={

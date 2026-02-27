@@ -89,6 +89,7 @@ export const en = {
     actions: 'Message actions',
     deleteForEveryone: 'Delete for everyone',
     deleteForMe: 'Delete for me',
+    expiresIn: 'Expires in',
     composerPlaceholder: 'Type a message...',
     composerAriaLabel: 'Message input',
     send: 'Send',

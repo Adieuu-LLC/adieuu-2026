@@ -9,8 +9,15 @@
 
 import type { BaseDocument } from './base';
 
-/** Sentinel value for deleted identities */
-export const DELETED_IDENT = 'deleted';
+/** Prefix for deleted identity idents (followed by objectId) */
+export const DELETED_IDENT_PREFIX = '_deleted_';
+
+/**
+ * Check if an ident value indicates a deleted identity.
+ */
+export function isDeletedIdent(ident: string): boolean {
+  return ident.startsWith(DELETED_IDENT_PREFIX);
+}
 
 /**
  * Crypto profile type for E2E encryption.
@@ -164,7 +171,7 @@ export function toPublicIdentity(doc: IdentityDocument): PublicIdentity {
     avatarUrl: doc.avatarUrl,
     createdAt: doc.createdAt.toISOString(),
     lastActiveAt: doc.lastActiveAt.toISOString(),
-    isDeleted: doc.ident === DELETED_IDENT,
+    isDeleted: isDeletedIdent(doc.ident),
     preferredCryptoProfile: doc.preferredCryptoProfile,
     hasE2EKeys: !!doc.signingPublicKey,
     deviceCount: doc.devices?.length ?? 0,
@@ -175,7 +182,7 @@ export function toPublicIdentity(doc: IdentityDocument): PublicIdentity {
  * Check if an identity is deleted
  */
 export function isIdentityDeleted(doc: IdentityDocument): boolean {
-  return doc.ident === DELETED_IDENT;
+  return isDeletedIdent(doc.ident);
 }
 
 /**

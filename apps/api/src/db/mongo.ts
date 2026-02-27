@@ -409,8 +409,14 @@ async function createIndexes(): Promise<void> {
 
   // Users collection indexes
   const users = database.collection(Collections.USERS);
-  await users.createIndex({ email: 1 }, { unique: true, sparse: true });
-  await users.createIndex({ phone: 1 }, { unique: true, sparse: true });
+  await users.createIndex(
+    { email: 1 },
+    { unique: true, partialFilterExpression: { email: { $type: 'string' } } }
+  );
+  await users.createIndex(
+    { phone: 1 },
+    { unique: true, partialFilterExpression: { phone: { $type: 'string' } } }
+  );
   await users.createIndex({ lockedUntil: 1 }, { sparse: true });
 
   // Sessions collection indexes
@@ -441,11 +447,8 @@ async function createIndexes(): Promise<void> {
 
   // Identities collection indexes
   const identities = database.collection(Collections.IDENTITIES);
-  // Partial unique index - only enforce uniqueness for non-deleted identities
-  await identities.createIndex(
-    { ident: 1 },
-    { unique: true, partialFilterExpression: { ident: { $ne: 'deleted' } } }
-  );
+  // Unique index on ident - deleted identities get unique idents like '_deleted_{objectId}'
+  await identities.createIndex({ ident: 1 }, { unique: true });
   await identities.createIndex({ username: 1 }, { unique: true });
   await identities.createIndex({ lastActiveAt: 1 });
 

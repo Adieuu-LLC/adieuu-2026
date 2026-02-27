@@ -35,7 +35,7 @@ mock.module('../db', () => ({
 
 // Import after mocking
 import { IdentityRepository, getIdentityRepository } from './identity.repository';
-import { DELETED_IDENT } from '../models/identity';
+import { DELETED_IDENT_PREFIX } from '../models/identity';
 
 describe('IdentityRepository', () => {
   let repo: IdentityRepository;
@@ -96,12 +96,13 @@ describe('IdentityRepository', () => {
 
   describe('findActiveByIdent', () => {
     test('returns null when identity is deleted', async () => {
-      const deletedIdentity = { ...mockIdentity, ident: DELETED_IDENT };
+      const deletedIdent = `${DELETED_IDENT_PREFIX}${mockIdentity._id.toHexString()}`;
+      const deletedIdentity = { ...mockIdentity, ident: deletedIdent };
       mockCollection.findOne.mockImplementation(({ ident }) =>
-        Promise.resolve(ident === DELETED_IDENT ? null : deletedIdentity)
+        Promise.resolve(ident === deletedIdent ? null : deletedIdentity)
       );
 
-      const result = await repo.findActiveByIdent(DELETED_IDENT);
+      const result = await repo.findActiveByIdent(deletedIdent);
 
       expect(result).toBeNull();
     });
@@ -206,7 +207,7 @@ describe('IdentityRepository', () => {
   });
 
   describe('softDelete', () => {
-    test('sets ident to DELETED_IDENT', async () => {
+    test('sets ident to deleted prefix with objectId', async () => {
       mockCollection.updateOne.mockImplementation(() =>
         Promise.resolve({ modifiedCount: 1 })
       );
@@ -218,7 +219,7 @@ describe('IdentityRepository', () => {
         { _id: expect.any(ObjectId) },
         expect.objectContaining({
           $set: expect.objectContaining({
-            ident: DELETED_IDENT,
+            ident: expect.stringMatching(new RegExp(`^${DELETED_IDENT_PREFIX}`)),
           }),
         })
       );

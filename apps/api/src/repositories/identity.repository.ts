@@ -16,7 +16,7 @@ import type {
   IdentityDevice,
   CryptoProfile,
 } from '../models/identity';
-import { DELETED_IDENT } from '../models/identity';
+import { DELETED_IDENT_PREFIX, isDeletedIdent } from '../models/identity';
 import { withUpdatedAt } from '../models/base';
 import elog from '../utils/adieuuLogger';
 import { sanitizeString } from '../utils';
@@ -79,8 +79,8 @@ export class IdentityRepository
    * Find active (non-deleted) identity by ident string
    */
   async findActiveByIdent(ident: string): Promise<IdentityDocument | null> {
-    // Deleted identities have ident set to 'deleted', so this naturally excludes them
-    if (ident === DELETED_IDENT) {
+    // Deleted identities have ident starting with '_deleted_', so this naturally excludes them
+    if (isDeletedIdent(ident)) {
       return null;
     }
     return await this.findOne({ ident });
@@ -121,9 +121,9 @@ export class IdentityRepository
     const escapedQuery = sanitizeString(query, 'general').value;
     const regex = new RegExp(escapedQuery, 'i');
 
-    // Build filter
+    // Build filter - exclude deleted identities (idents starting with '_deleted_')
     const filter: Record<string, unknown> = {
-      ident: { $ne: DELETED_IDENT },
+      ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
       $or: [
         { username: regex },
         { displayName: regex },
@@ -189,7 +189,7 @@ export class IdentityRepository
       { _id: objectId },
       {
         $set: {
-          ident: DELETED_IDENT,
+          ident: `${DELETED_IDENT_PREFIX}${objectId.toHexString()}`,
           updatedAt: now,
         },
       }

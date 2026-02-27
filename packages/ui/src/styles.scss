@@ -5306,6 +5306,23 @@ a {
   text-align: right;
 }
 
+.message-expiry {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xxs);
+  font-size: var(--font-size-xs);
+  color: var(--color-warning);
+  margin-left: var(--spacing-xs);
+  background: var(--color-warning-bg);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.message-expiry-time {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
 .message-bubble--error .message-bubble-content {
   background: var(--color-error-bg);
   color: var(--color-error);

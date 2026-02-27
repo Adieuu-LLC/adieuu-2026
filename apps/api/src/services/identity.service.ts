@@ -48,7 +48,7 @@ import { config } from '../config';
 import elog from '../utils/adieuuLogger';
 import { sendEmail, sendSms } from './messaging';
 import type { IdentityDocument, PublicIdentity } from '../models/identity';
-import { toPublicIdentity, DELETED_IDENT } from '../models/identity';
+import { toPublicIdentity } from '../models/identity';
 
 /** Whether to decrement identity count on deletion (currently disabled) */
 const DECREMENT_COUNT_ON_DELETE = false;

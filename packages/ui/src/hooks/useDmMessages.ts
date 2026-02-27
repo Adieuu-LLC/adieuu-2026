@@ -30,6 +30,41 @@ import {
 } from '../services/participantCache';
 
 // ============================================================================
+// Helpers
+// ============================================================================
+
+/**
+ * Check if a message has expired based on its expiresAt field.
+ */
+function isMessageExpired(expiresAt: string | undefined): boolean {
+  if (!expiresAt) return false;
+  return new Date(expiresAt).getTime() <= Date.now();
+}
+
+/**
+ * Get the soonest expiration time from a list of messages.
+ * Returns null if no messages have expiration times.
+ */
+function getSoonestExpiration(messages: DecryptedDmMessage[]): number | null {
+  const now = Date.now();
+  let soonest: number | null = null;
+
+  for (const msg of messages) {
+    const expiresAt = msg.raw.expiresAt;
+    if (!expiresAt) continue;
+
+    const expiresAtMs = new Date(expiresAt).getTime();
+    if (expiresAtMs > now) {
+      if (soonest === null || expiresAtMs < soonest) {
+        soonest = expiresAtMs;
+      }
+    }
+  }
+
+  return soonest;
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -533,6 +568,12 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
             return;
           }
 
+          // Debug: Check if API returns expiresAt
+          const messagesWithTtl = response.data.messages.filter((m) => 'expiresAt' in m && m.expiresAt);
+          if (messagesWithTtl.length > 0) {
+            console.log('API returned messages with expiresAt:', messagesWithTtl);
+          }
+
           // Decrypt messages
           const decrypted = await decryptMessages(response.data.messages, deviceKeys);
 
@@ -591,7 +632,36 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
     hasFetchedRef.current = false;
   }, [options.conversationId]);
 
-  return { messages, isLoading, error, hasMore, fetchMore, refresh };
+  // Filter out expired messages and track expiration tick
+  const [expirationTick, setExpirationTick] = useState(0);
+
+  const visibleMessages = useMemo(() => {
+    // Re-filter when expirationTick changes (triggered by timer)
+    void expirationTick;
+    return messages.filter((msg) => !isMessageExpired(msg.raw.expiresAt));
+  }, [messages, expirationTick]);
+
+  // Set up timer to trigger re-render when soonest message expires
+  useEffect(() => {
+    const soonestExpiration = getSoonestExpiration(visibleMessages);
+    if (!soonestExpiration) return;
+
+    const timeUntilExpiration = soonestExpiration - Date.now();
+    if (timeUntilExpiration <= 0) {
+      // Already expired, trigger immediate re-filter
+      setExpirationTick((t) => t + 1);
+      return;
+    }
+
+    // Add small buffer (100ms) to ensure the message is definitely expired
+    const timerId = setTimeout(() => {
+      setExpirationTick((t) => t + 1);
+    }, timeUntilExpiration + 100);
+
+    return () => clearTimeout(timerId);
+  }, [visibleMessages]);
+
+  return { messages: visibleMessages, isLoading, error, hasMore, fetchMore, refresh };
 }
 
 /**
