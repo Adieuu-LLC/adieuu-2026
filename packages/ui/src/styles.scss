@@ -5172,7 +5172,104 @@ a {
 .dm-message-time {
   font-size: var(--font-size-xs);
   color: var(--color-text-tertiary);
+}
+
+.dm-message-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
   margin-top: var(--spacing-xxs);
+}
+
+.dm-message-expiry {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-size-xs);
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.dm-message-actions-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+
+  &:hover {
+    opacity: 1;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.dm-message-actions-icon {
+  font-size: var(--font-size-sm);
+  letter-spacing: 1px;
+  line-height: 1;
+  color: var(--color-text-secondary);
+}
+
+.dm-message-actions-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: var(--spacing-xs) 0;
+}
+
+.dm-message-actions-item {
+  display: block;
+  width: 100%;
+  padding: var(--spacing-xs) var(--spacing-md);
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &--danger {
+    color: var(--color-error);
+
+    &:hover {
+      background: var(--color-error-bg);
+    }
+  }
+}
+
+.dm-message--deleted {
+  .dm-message-bubble--deleted {
+    background: var(--color-bg-tertiary);
+    border: 1px dashed var(--color-border);
+  }
+
+  .dm-message-deleted-text {
+    font-style: italic;
+    color: var(--color-text-tertiary);
+    font-size: var(--font-size-sm);
+  }
 }
 
 // ============================================================================

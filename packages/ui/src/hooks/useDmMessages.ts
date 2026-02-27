@@ -568,12 +568,6 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
             return;
           }
 
-          // Debug: Check if API returns expiresAt
-          const messagesWithTtl = response.data.messages.filter((m) => 'expiresAt' in m && m.expiresAt);
-          if (messagesWithTtl.length > 0) {
-            console.log('API returned messages with expiresAt:', messagesWithTtl);
-          }
-
           // Decrypt messages
           const decrypted = await decryptMessages(response.data.messages, deviceKeys);
 

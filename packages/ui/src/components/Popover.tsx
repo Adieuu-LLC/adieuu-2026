@@ -16,6 +16,8 @@ export interface PopoverProps {
   };
   /** CSS class name for the popover content */
   className?: string;
+  /** Callback when open state changes */
+  onOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -36,9 +38,14 @@ export function Popover({
   children,
   positioning = { placement: 'bottom' },
   className = '',
+  onOpenChange,
 }: PopoverProps) {
+  const handleOpenChange = onOpenChange
+    ? (details: { open: boolean }) => onOpenChange(details.open)
+    : undefined;
+
   return (
-    <ArkPopover.Root positioning={positioning}>
+    <ArkPopover.Root positioning={positioning} onOpenChange={handleOpenChange}>
       <ArkPopover.Trigger asChild>{trigger}</ArkPopover.Trigger>
       <Portal>
         <ArkPopover.Positioner>

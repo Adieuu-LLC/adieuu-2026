@@ -133,9 +133,7 @@ export { SidebarFriendsList } from './components/SidebarFriendsList';
 export { AvatarGroup } from './components/AvatarGroup';
 export { ConversationListItem } from './components/ConversationListItem';
 export { SidebarConversationsList } from './components/SidebarConversationsList';
-export { MessageList } from './components/MessageList';
 export { MessageComposer, TTL_OPTIONS } from './components/MessageComposer';
-export type { MessageListProps } from './components/MessageList';
 export type { MessageComposerProps, SendMessageData, TtlOption } from './components/MessageComposer';
 
 // ============================================================================

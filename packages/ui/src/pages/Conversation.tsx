@@ -13,11 +13,13 @@ import { Button } from '../components/Button';
 import { AvatarGroup } from '../components/AvatarGroup';
 import { XIcon, UsersIcon } from '../components/Icons';
 import { MessageComposer } from '../components/MessageComposer';
+import { Popover } from '../components/Popover';
 import { useConversationsList } from '../hooks/useConversations';
 import { useIdentity } from '../hooks/useIdentity';
 import { useDmMessages, useSendDmMessage, type DecryptedDmMessage } from '../hooks/useDmMessages';
 import { useMarkAsRead } from '../hooks/useMarkAsRead';
 import { useDmSubscription } from '../hooks/useDmSubscription';
+import { useDeleteMessage } from '../hooks/useDeleteMessage';
 import { getCachedParticipant } from '../services/participantCache';
 import { useAppConfig } from '../config';
 
@@ -226,12 +228,107 @@ function MembersSidebar({ conversation, otherParticipant }: MembersSidebarProps)
   );
 }
 
+/**
+ * Format remaining time until expiration.
+ */
+function formatRemainingTime(expiresAt: string): string | null {
+  const expiresAtMs = new Date(expiresAt).getTime();
+  const now = Date.now();
+  const remainingMs = expiresAtMs - now;
+
+  if (remainingMs <= 0) return null;
+
+  const seconds = Math.floor(remainingMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  if (hours > 0) {
+    const mins = minutes % 60;
+    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  }
+  if (minutes > 0) {
+    const secs = seconds % 60;
+    return secs > 0 ? `${minutes}m ${secs}s` : `${minutes}m`;
+  }
+  return `${seconds}s`;
+}
+
+/**
+ * Hook to get remaining time until expiration, updating every second.
+ */
+function useExpiryCountdown(expiresAt: string | undefined): string | null {
+  const [remaining, setRemaining] = useState<string | null>(() => {
+    if (!expiresAt) return null;
+    return formatRemainingTime(expiresAt);
+  });
+
+  useEffect(() => {
+    if (!expiresAt) {
+      setRemaining(null);
+      return;
+    }
+
+    const updateRemaining = () => {
+      const formatted = formatRemainingTime(expiresAt);
+      setRemaining(formatted);
+    };
+
+    updateRemaining();
+    const intervalId = setInterval(updateRemaining, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [expiresAt]);
+
+  return remaining;
+}
+
 interface MessageBubbleProps {
   message: DecryptedDmMessage;
   isOwn: boolean;
+  onDeleteForEveryone?: (messageId: string) => void;
+  onDeleteForSelf?: (messageId: string) => void;
+  isDeleting?: boolean;
 }
 
-function MessageBubble({ message, isOwn }: MessageBubbleProps) {
+function MessageBubble({
+  message,
+  isOwn,
+  onDeleteForEveryone,
+  onDeleteForSelf,
+  isDeleting,
+}: MessageBubbleProps) {
+  const { t } = useTranslation();
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const expiryCountdown = useExpiryCountdown(message.raw.expiresAt);
+
+  const showActions = isHovered || isPopoverOpen;
+
+  const handleDeleteForEveryone = useCallback(() => {
+    if (onDeleteForEveryone && message.raw.id) {
+      onDeleteForEveryone(message.raw.id);
+    }
+  }, [onDeleteForEveryone, message.raw.id]);
+
+  const handleDeleteForSelf = useCallback(() => {
+    if (onDeleteForSelf && message.raw.id) {
+      onDeleteForSelf(message.raw.id);
+    }
+  }, [onDeleteForSelf, message.raw.id]);
+
+  const hasActions = (isOwn && onDeleteForEveryone) || onDeleteForSelf;
+
+  if (message.isDeleted) {
+    return (
+      <div className={`dm-message dm-message--deleted ${isOwn ? 'dm-message--own' : ''}`}>
+        <div className="dm-message-bubble dm-message-bubble--deleted">
+          <span className="dm-message-deleted-text">{t('messages.deleted')}</span>
+        </div>
+        <span className="dm-message-time">{formatMessageTime(message.raw.createdAt)}</span>
+      </div>
+    );
+  }
+
   if (message.decryptionError) {
     return (
       <div className={`dm-message dm-message--error ${isOwn ? 'dm-message--own' : ''}`}>
@@ -245,11 +342,58 @@ function MessageBubble({ message, isOwn }: MessageBubbleProps) {
   }
 
   return (
-    <div className={`dm-message ${isOwn ? 'dm-message--own' : ''}`}>
+    <div
+      className={`dm-message ${isOwn ? 'dm-message--own' : ''}`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <div className={`dm-message-bubble ${isOwn ? 'dm-message-bubble--own' : ''}`}>
         <p className="dm-message-text">{message.decrypted?.text}</p>
       </div>
-      <span className="dm-message-time">{formatMessageTime(message.raw.createdAt)}</span>
+      <div className="dm-message-footer">
+        <span className="dm-message-time">{formatMessageTime(message.raw.createdAt)}</span>
+        {expiryCountdown && (
+          <span className="dm-message-expiry" title={t('messages.expiresIn')}>
+            {expiryCountdown}
+          </span>
+        )}
+        {hasActions && showActions && (
+          <Popover
+            trigger={
+              <button
+                className="dm-message-actions-btn"
+                aria-label={t('messages.actions')}
+                disabled={isDeleting}
+              >
+                <span className="dm-message-actions-icon">...</span>
+              </button>
+            }
+            positioning={{ placement: isOwn ? 'bottom-end' : 'bottom-start' }}
+            onOpenChange={setIsPopoverOpen}
+          >
+            <div className="dm-message-actions-menu">
+              {isOwn && onDeleteForEveryone && (
+                <button
+                  className="dm-message-actions-item dm-message-actions-item--danger"
+                  onClick={handleDeleteForEveryone}
+                  disabled={isDeleting}
+                >
+                  {t('messages.deleteForEveryone')}
+                </button>
+              )}
+              {onDeleteForSelf && (
+                <button
+                  className="dm-message-actions-item"
+                  onClick={handleDeleteForSelf}
+                  disabled={isDeleting}
+                >
+                  {t('messages.deleteForMe')}
+                </button>
+              )}
+            </div>
+          </Popover>
+        )}
+      </div>
     </div>
   );
 }
@@ -260,6 +404,9 @@ interface ConversationMessagesProps {
   error: string | null;
   currentIdentityId: string | undefined;
   otherParticipantName?: string;
+  onDeleteForEveryone?: (messageId: string) => void;
+  onDeleteForSelf?: (messageId: string) => void;
+  isDeleting?: boolean;
 }
 
 function ConversationMessages({
@@ -268,6 +415,9 @@ function ConversationMessages({
   error,
   currentIdentityId,
   otherParticipantName,
+  onDeleteForEveryone,
+  onDeleteForSelf,
+  isDeleting,
 }: ConversationMessagesProps) {
   const { t } = useTranslation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -304,6 +454,9 @@ function ConversationMessages({
           key={msg.raw.id}
           message={msg}
           isOwn={msg.decrypted?.fromIdentityId === currentIdentityId}
+          onDeleteForEveryone={onDeleteForEveryone}
+          onDeleteForSelf={onDeleteForSelf}
+          isDeleting={isDeleting}
         />
       ))}
 
@@ -426,6 +579,9 @@ export function Conversation() {
   // Send message hook
   const { sendMessage, isSending, error: sendError } = useSendDmMessage();
 
+  // Delete message hook
+  const { deleteForEveryone, deleteForSelf, isDeleting } = useDeleteMessage();
+
   // Mark as read hook
   const { markAsRead } = useMarkAsRead();
 
@@ -475,6 +631,20 @@ export function Conversation() {
       refreshConversations();
     }
   }, [otherParticipantId, refreshConversations, refreshMessages, sendMessage]);
+
+  const handleDeleteForEveryone = useCallback(async (messageId: string) => {
+    const result = await deleteForEveryone(messageId);
+    if (result.success) {
+      refreshMessages();
+    }
+  }, [deleteForEveryone, refreshMessages]);
+
+  const handleDeleteForSelf = useCallback(async (messageId: string) => {
+    const result = await deleteForSelf(messageId);
+    if (result.success) {
+      refreshMessages();
+    }
+  }, [deleteForSelf, refreshMessages]);
 
   if (!isLoggedIn) {
     return (
@@ -532,6 +702,9 @@ export function Conversation() {
               error={messagesError}
               currentIdentityId={identity?.id}
               otherParticipantName={effectiveOtherParticipant?.displayName}
+              onDeleteForEveryone={handleDeleteForEveryone}
+              onDeleteForSelf={handleDeleteForSelf}
+              isDeleting={isDeleting}
             />
             <ConversationInput
               onSend={handleSendMessage}
