@@ -33,6 +33,12 @@ const DM_SENDER_HINT_DOMAIN = 'adieuu-sender-hint-v1';
 const DM_READ_STATE_DOMAIN = 'adieuu-read-state-v1';
 
 /**
+ * Domain separator for participant hash derivation.
+ * Used to identify participants without exposing their identity IDs.
+ */
+const DM_PARTICIPANT_DOMAIN = 'participant-v1';
+
+/**
  * Nonce size for symmetric encryption (12 bytes for ChaCha20/AES-GCM).
  */
 const NONCE_SIZE = 12;
@@ -189,4 +195,34 @@ export function deriveReadStateKey(
 export function deriveSenderHintNonce(clientMessageId: string): Uint8Array {
   const hash = sha3_256(toBytes(clientMessageId));
   return hash.slice(0, NONCE_SIZE);
+}
+
+/**
+ * Derives a participant hash for privacy-preserving participant identification.
+ *
+ * The hash is computed as: SHA3-256(identityId || conversationId || "participant-v1")
+ *
+ * This provides:
+ * - **Privacy**: The hash cannot be reversed to reveal the identity ID
+ * - **Binding**: The hash is tied to a specific conversation, preventing cross-conversation tracking
+ * - **Determinism**: Same inputs always produce the same hash
+ * - **Uniqueness**: Each participant in each conversation has a unique hash
+ *
+ * Used to identify participants in read state and profile history without
+ * storing plaintext identity IDs in the database.
+ *
+ * @param identityId - The identity ID (hex string, 24 chars)
+ * @param conversationId - The blinded conversation ID (hex string, 64 chars)
+ * @returns The participant hash as a hex string (64 chars)
+ *
+ * @example
+ * ```typescript
+ * const myHash = deriveParticipantHash(myIdentityId, conversationId);
+ * const myReadState = conversation.readState.find(r => r.participantHash === myHash);
+ * ```
+ */
+export function deriveParticipantHash(identityId: string, conversationId: string): string {
+  const data = `${identityId}${conversationId}${DM_PARTICIPANT_DOMAIN}`;
+  const hash = sha3_256(toBytes(data));
+  return toHex(hash);
 }

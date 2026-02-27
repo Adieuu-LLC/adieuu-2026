@@ -7,7 +7,6 @@
  * @module repositories/dm-conversation
  */
 
-import { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type {
@@ -27,11 +26,11 @@ export interface IDmConversationRepository {
   updateCryptoProfile(
     conversationId: string,
     newProfile: CryptoProfile,
-    initiatedBy: ObjectId
+    initiatedByHash: string
   ): Promise<DmConversationDocument | null>;
   updateReadState(
     conversationId: string,
-    identityId: ObjectId,
+    participantHash: string,
     encryptedLastReadId: string
   ): Promise<DmConversationDocument | null>;
 }
@@ -67,7 +66,7 @@ export class DmConversationRepository
     const initialHistory: ProfileHistoryEntry = {
       profile: input.activeCryptoProfile,
       changedAt: new Date(),
-      initiatedBy: input.initiatedBy,
+      initiatedByHash: input.initiatedByHash,
     };
 
     const doc = await this.create({
@@ -87,12 +86,12 @@ export class DmConversationRepository
   async updateCryptoProfile(
     conversationId: string,
     newProfile: CryptoProfile,
-    initiatedBy: ObjectId
+    initiatedByHash: string
   ): Promise<DmConversationDocument | null> {
     const historyEntry: ProfileHistoryEntry = {
       profile: newProfile,
       changedAt: new Date(),
-      initiatedBy,
+      initiatedByHash,
     };
 
     const result = await this.collection.findOneAndUpdate(
@@ -116,24 +115,28 @@ export class DmConversationRepository
    * Update read state for a participant in a conversation.
    * Uses upsert logic: creates entry if not exists, updates if exists.
    * The encrypted read position hides which message was read from the server.
+   *
+   * @param conversationId - The blinded conversation ID
+   * @param participantHash - SHA3-256(identityId || conversationId || "participant-v1")
+   * @param encryptedLastReadId - Encrypted last read message ID
    */
   async updateReadState(
     conversationId: string,
-    identityId: ObjectId,
+    participantHash: string,
     encryptedLastReadId: string
   ): Promise<DmConversationDocument | null> {
     const now = new Date();
 
     const existingEntry = await this.collection.findOne({
       conversationId,
-      'readState.identityId': identityId,
+      'readState.participantHash': participantHash,
     });
 
     if (existingEntry) {
       const result = await this.collection.findOneAndUpdate(
         {
           conversationId,
-          'readState.identityId': identityId,
+          'readState.participantHash': participantHash,
         },
         {
           $set: {
@@ -147,7 +150,7 @@ export class DmConversationRepository
     }
 
     const newEntry: ReadStateEntry = {
-      identityId,
+      participantHash,
       encryptedLastReadId,
       updatedAt: now,
     };

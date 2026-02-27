@@ -8,7 +8,6 @@
  * @module models/dm-conversation
  */
 
-import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
 import type { CryptoProfile } from './identity';
 
@@ -21,8 +20,12 @@ export interface ProfileHistoryEntry {
   profile: CryptoProfile;
   /** When this profile became active */
   changedAt: Date;
-  /** Identity who initiated the change */
-  initiatedBy: ObjectId;
+  /**
+   * Hashed identifier of the participant who initiated the change.
+   * Computed as: SHA3-256(identityId || conversationId || "participant-v1")
+   * This prevents exposing participant identity IDs in the database.
+   */
+  initiatedByHash: string;
 }
 
 /**
@@ -31,8 +34,12 @@ export interface ProfileHistoryEntry {
  * The server cannot decrypt this - only conversation participants can.
  */
 export interface ReadStateEntry {
-  /** Identity ID of the participant */
-  identityId: ObjectId;
+  /**
+   * Hashed identifier of the participant.
+   * Computed as: SHA3-256(identityId || conversationId || "participant-v1")
+   * This prevents exposing participant identity IDs in the database.
+   */
+  participantHash: string;
   /**
    * Encrypted last-read message ID (base64).
    * Encrypted with: HKDF(conversationId, "adieuu-read-state-v1")
@@ -85,14 +92,22 @@ export interface DmConversationDocument extends BaseDocument {
 export interface CreateDmConversationInput {
   conversationId: string;
   activeCryptoProfile: CryptoProfile;
-  initiatedBy: ObjectId;
+  /**
+   * Hashed identifier of the participant who initiated the conversation.
+   * Computed as: SHA3-256(identityId || conversationId || "participant-v1")
+   */
+  initiatedByHash: string;
 }
 
 /**
  * Public read state entry for a single participant.
  */
 export interface PublicReadStateEntry {
-  identityId: string;
+  /**
+   * Hashed identifier of the participant.
+   * Clients compute their own hash to find their entry.
+   */
+  participantHash: string;
   encryptedLastReadId: string;
   updatedAt: string;
 }
@@ -114,7 +129,7 @@ export interface PublicDmConversation {
  */
 export function toPublicDmConversation(doc: DmConversationDocument): PublicDmConversation {
   const readState: PublicReadStateEntry[] = (doc.readState ?? []).map((entry) => ({
-    identityId: entry.identityId.toHexString(),
+    participantHash: entry.participantHash,
     encryptedLastReadId: entry.encryptedLastReadId,
     updatedAt: entry.updatedAt.toISOString(),
   }));

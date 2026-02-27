@@ -16,6 +16,12 @@ import { createHash } from 'crypto';
 const DM_CONVERSATION_DOMAIN = 'dm-v1';
 
 /**
+ * Domain separator for participant hash derivation.
+ * Used to identify participants without exposing their identity IDs.
+ */
+const DM_PARTICIPANT_DOMAIN = 'participant-v1';
+
+/**
  * Derives a blinded conversation ID from two identity IDs.
  *
  * The conversation ID is computed as: SHA3-256(sort([A, B]) || "dm-v1")
@@ -70,4 +76,33 @@ export function validateConversationId(
 ): boolean {
   const expected = deriveConversationId(identityIdA, identityIdB);
   return conversationId === expected;
+}
+
+/**
+ * Derives a participant hash for privacy-preserving participant identification.
+ *
+ * The hash is computed as: SHA3-256(identityId || conversationId || "participant-v1")
+ *
+ * This provides:
+ * - **Privacy**: The hash cannot be reversed to reveal the identity ID
+ * - **Binding**: The hash is tied to a specific conversation, preventing cross-conversation tracking
+ * - **Determinism**: Same inputs always produce the same hash
+ * - **Uniqueness**: Each participant in each conversation has a unique hash
+ *
+ * Used to identify participants in read state and profile history without
+ * storing plaintext identity IDs in the database.
+ *
+ * @param identityId - The identity ID (hex string, 24 chars)
+ * @param conversationId - The blinded conversation ID (hex string, 64 chars)
+ * @returns The participant hash as a hex string (64 chars)
+ *
+ * @example
+ * ```typescript
+ * const myHash = deriveParticipantHash(myIdentityId, conversationId);
+ * const myReadState = conversation.readState.find(r => r.participantHash === myHash);
+ * ```
+ */
+export function deriveParticipantHash(identityId: string, conversationId: string): string {
+  const data = `${identityId}${conversationId}${DM_PARTICIPANT_DOMAIN}`;
+  return createHash('sha3-256').update(data).digest('hex');
 }

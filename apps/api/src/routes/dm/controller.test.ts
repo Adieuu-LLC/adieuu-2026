@@ -80,6 +80,7 @@ mock.module('../../services/identity.service', () => ({
 }));
 
 const mockConversationId = new ObjectId();
+const mockParticipantHash = 'b'.repeat(64);
 const mockConversation = {
   _id: mockConversationId,
   conversationId: 'a'.repeat(64),
@@ -87,10 +88,10 @@ const mockConversation = {
   profileHistory: [{
     profile: 'default' as const,
     changedAt: new Date(),
-    initiatedBy: mockIdentityId,
+    initiatedByHash: mockParticipantHash,
   }],
   readState: [{
-    identityId: mockIdentityId,
+    participantHash: mockParticipantHash,
     encryptedLastReadId: 'encrypted-read-state-base64',
     updatedAt: new Date(),
   }],

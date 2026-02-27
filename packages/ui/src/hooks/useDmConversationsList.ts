@@ -15,6 +15,7 @@ import {
 } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
+import { deriveParticipantHash } from '@adieuu/crypto';
 import {
   decryptLastReadId,
   hasUnreadMessages,
@@ -104,8 +105,9 @@ export function useDmConversationsList({
         let otherParticipant: PublicIdentity | null = null;
         let lastReadMessageId: string | null = null;
 
-        // Decrypt read state for current identity
-        const myReadState = conv.readState.find((r) => r.identityId === identity.id);
+        // Compute participant hash to find our read state entry
+        const myParticipantHash = deriveParticipantHash(identity.id, conv.conversationId);
+        const myReadState = conv.readState.find((r) => r.participantHash === myParticipantHash);
         if (myReadState) {
           try {
             lastReadMessageId = decryptLastReadId(

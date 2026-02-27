@@ -9,6 +9,7 @@ import {
   deriveSenderHintKey,
   deriveReadStateKey,
   deriveSenderHintNonce,
+  deriveParticipantHash,
 } from './index';
 
 describe('deriveConversationId', () => {
@@ -232,5 +233,50 @@ describe('deriveSenderHintNonce', () => {
         expect(nonces[i]).not.toEqual(nonces[j]);
       }
     }
+  });
+});
+
+describe('deriveParticipantHash', () => {
+  const alice = '507f1f77bcf86cd799439011';
+  const bob = '507f1f77bcf86cd799439012';
+  const conversationId = deriveConversationId(alice, bob);
+
+  it('should produce a 64-character hex string', () => {
+    const hash = deriveParticipantHash(alice, conversationId);
+    expect(hash).toHaveLength(64);
+    expect(/^[a-f0-9]+$/.test(hash)).toBe(true);
+  });
+
+  it('should be deterministic', () => {
+    const hash1 = deriveParticipantHash(alice, conversationId);
+    const hash2 = deriveParticipantHash(alice, conversationId);
+    expect(hash1).toBe(hash2);
+  });
+
+  it('should produce different hashes for different identities in same conversation', () => {
+    const aliceHash = deriveParticipantHash(alice, conversationId);
+    const bobHash = deriveParticipantHash(bob, conversationId);
+    expect(aliceHash).not.toBe(bobHash);
+  });
+
+  it('should produce different hashes for same identity in different conversations', () => {
+    const carol = '507f1f77bcf86cd799439013';
+    const convIdAliceCarol = deriveConversationId(alice, carol);
+
+    const hashInAliceBob = deriveParticipantHash(alice, conversationId);
+    const hashInAliceCarol = deriveParticipantHash(alice, convIdAliceCarol);
+
+    expect(hashInAliceBob).not.toBe(hashInAliceCarol);
+  });
+
+  it('should be different from conversation ID', () => {
+    const hash = deriveParticipantHash(alice, conversationId);
+    expect(hash).not.toBe(conversationId);
+  });
+
+  it('should not reveal identity when given only conversationId', () => {
+    const hash = deriveParticipantHash(alice, conversationId);
+    expect(hash).not.toContain(alice);
+    expect(hash).not.toContain(bob);
   });
 });
