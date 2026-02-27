@@ -25,6 +25,7 @@ import {
   cacheParticipant,
 } from '../services/participantCache';
 import { decryptSenderHint } from '../services/dmMessageService';
+import { useDmSubscription } from './useDmSubscription';
 
 /**
  * Extended DM conversation with decrypted data.
@@ -222,6 +223,18 @@ export function useDmConversationsList({
       setConversations([]);
     }
   }, [isLoggedIn]);
+
+  // Subscribe to real-time events to refresh on new messages
+  // This handles both receiving messages in existing conversations
+  // and seeing new conversations initiated by others
+  useDmSubscription({
+    onNewMessage: () => {
+      refresh();
+    },
+    onDeleted: () => {
+      refresh();
+    },
+  });
 
   // Map to unified Conversation interface for UI compatibility
   const unifiedConversations = useMemo((): Conversation[] => {

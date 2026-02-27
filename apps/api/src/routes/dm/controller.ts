@@ -282,7 +282,12 @@ export async function sendMessageCtrl(ctx: RouteContext): Promise<Response> {
   // Publish to Redis for real-time delivery via WebSocket
   // This is fire-and-forget - we don't wait for delivery confirmation
   // The message is already persisted, so offline users will get it on next fetch
-  publishNewMessage(sanitizedToId.value, publicMessage).catch((err) => {
+  // Publishes to both sender and recipient so both conversation lists update
+  publishNewMessage(
+    identity._id.toHexString(),
+    sanitizedToId.value,
+    publicMessage
+  ).catch((err) => {
     // Log but don't fail the request - message is already stored
     // eslint-disable-next-line no-console
     console.error('Failed to publish DM event:', err);

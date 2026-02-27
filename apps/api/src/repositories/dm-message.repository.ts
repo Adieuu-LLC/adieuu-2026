@@ -244,10 +244,19 @@ export class DmMessageRepository
   /**
    * Get distinct conversation IDs for an identity.
    * Used for listing conversations.
+   *
+   * Finds conversations where the identity is a participant (sent or received messages).
+   * - toIdentityId matches: received messages
+   * - wrappedKeys.identityId matches: sent messages (sender has wrapped key for themselves)
    */
   async getConversationIdsForIdentity(identityId: ObjectId): Promise<string[]> {
+    const identityIdStr = identityId.toHexString();
+
     const conversationIds = await this.collection.distinct('conversationId', {
-      toIdentityId: identityId,
+      $or: [
+        { toIdentityId: identityId },
+        { 'wrappedKeys.identityId': identityIdStr },
+      ],
       deletedForEveryone: false,
       deletedFor: { $ne: identityId },
     });

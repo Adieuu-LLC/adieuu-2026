@@ -119,12 +119,18 @@ async function publishToIdentity(identityId: string, event: DmEvent): Promise<vo
 }
 
 /**
- * Publishes a new message event to the recipient.
+ * Publishes a new message event to both sender and recipient.
  *
+ * Both parties receive the event so their conversation lists can update in real-time.
+ * This ensures the sender sees the new conversation appear immediately, and the
+ * recipient gets notified of the incoming message.
+ *
+ * @param senderIdentityId - The message sender's identity ID
  * @param recipientIdentityId - The message recipient's identity ID
  * @param message - The public message representation
  */
 export async function publishNewMessage(
+  senderIdentityId: string,
   recipientIdentityId: string,
   message: PublicDmMessage
 ): Promise<void> {
@@ -133,7 +139,11 @@ export async function publishNewMessage(
     payload: { message },
   };
 
-  await publishToIdentity(recipientIdentityId, event);
+  // Publish to both parties in parallel
+  await Promise.all([
+    publishToIdentity(senderIdentityId, event),
+    publishToIdentity(recipientIdentityId, event),
+  ]);
 }
 
 /**
