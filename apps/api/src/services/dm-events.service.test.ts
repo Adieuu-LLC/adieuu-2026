@@ -50,16 +50,15 @@ describe('DM Events Service', () => {
       createdAt: new Date().toISOString(),
     };
 
-    test('publishes to both sender and recipient channels', async () => {
-      await publishNewMessage('sender-id', 'recipient-id', mockMessage);
+    test('publishes to correct channel', async () => {
+      await publishNewMessage('recipient-id', mockMessage);
 
-      expect(mockPublish).toHaveBeenCalledTimes(2);
+      expect(mockPublish).toHaveBeenCalledTimes(1);
+      const call = mockPublish.mock.calls[0] as unknown as [string, string];
+      const [channel, payload] = call;
+      expect(channel).toBe('identity:recipient-id');
 
-      const calls = mockPublish.mock.calls as unknown as [string, string][];
-      const channels = calls.map(([channel]) => channel).sort();
-      expect(channels).toEqual(['identity:recipient-id', 'identity:sender-id']);
-
-      const parsed = JSON.parse(calls[0][1]);
+      const parsed = JSON.parse(payload);
       expect(parsed.type).toBe('dm:new');
       expect(parsed.payload.message.id).toBe('msg-123');
     });
@@ -67,7 +66,7 @@ describe('DM Events Service', () => {
     test('does not throw when Redis is disconnected', async () => {
       mockIsConnected.mockImplementation(() => false);
 
-      await expect(publishNewMessage('sender-id', 'recipient-id', mockMessage)).resolves.toBeUndefined();
+      await expect(publishNewMessage('recipient-id', mockMessage)).resolves.toBeUndefined();
       expect(mockPublish).not.toHaveBeenCalled();
     });
   });
