@@ -18,6 +18,11 @@ export interface ToastOptions {
   variant?: ToastVariant;
   /** Duration in milliseconds (default: 5000) */
   duration?: number;
+  /** Action button configuration */
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 /**
@@ -34,6 +39,8 @@ export interface ToastContextValue {
   info: (title: string, description?: string) => void;
   /** Show a warning toast */
   warning: (title: string, description?: string) => void;
+  /** Show a message notification toast (with action to view) */
+  message: (senderName: string, preview: string, onView: () => void) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -85,6 +92,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
       description: options.description,
       type: options.variant ?? 'info',
       duration: options.duration ?? 5000,
+      meta: options.action ? { action: options.action } : undefined,
     });
   };
 
@@ -104,38 +112,65 @@ export function ToastProvider({ children }: ToastProviderProps) {
     toast({ title, description, variant: 'warning' });
   };
 
+  const message = (senderName: string, preview: string, onView: () => void) => {
+    toast({
+      title: senderName,
+      description: preview,
+      variant: 'info',
+      duration: 8000,
+      action: { label: 'View', onClick: onView },
+    });
+  };
+
   const value: ToastContextValue = {
     toast,
     success,
     error,
     info,
     warning,
+    message,
   };
 
   return (
     <ToastContext.Provider value={value}>
       {children}
       <Toaster toaster={toaster}>
-        {(toast) => (
-          <ArkToast.Root key={toast.id} className={`toast toast-${toast.type}`}>
-            <div className="toast-content">
-              <div className="toast-icon">
-                <ToastIcon variant={toast.type as ToastVariant} />
+        {(toast) => {
+          const action = (toast.meta as { action?: ToastOptions['action'] } | undefined)?.action;
+          return (
+            <ArkToast.Root key={toast.id} className={`toast toast-${toast.type}`}>
+              <div className="toast-content">
+                <div className="toast-icon">
+                  <ToastIcon variant={toast.type as ToastVariant} />
+                </div>
+                <div className="toast-text">
+                  <ArkToast.Title className="toast-title">{toast.title}</ArkToast.Title>
+                  {toast.description && (
+                    <ArkToast.Description className="toast-description">
+                      {toast.description}
+                    </ArkToast.Description>
+                  )}
+                </div>
               </div>
-              <div className="toast-text">
-                <ArkToast.Title className="toast-title">{toast.title}</ArkToast.Title>
-                {toast.description && (
-                  <ArkToast.Description className="toast-description">
-                    {toast.description}
-                  </ArkToast.Description>
+              <div className="toast-actions">
+                {action && (
+                  <ArkToast.ActionTrigger
+                    className="toast-action"
+                    onClick={() => {
+                      action.onClick();
+                      toaster.dismiss(toast.id);
+                    }}
+                  >
+                    {action.label}
+                  </ArkToast.ActionTrigger>
                 )}
+                <ArkToast.CloseTrigger className="toast-close" aria-label="Close">
+                  <CloseIcon />
+                </ArkToast.CloseTrigger>
               </div>
-            </div>
-            <ArkToast.CloseTrigger className="toast-close" aria-label="Close">
-              <CloseIcon />
-            </ArkToast.CloseTrigger>
-          </ArkToast.Root>
-        )}
+            </ArkToast.Root>
+          );
+        }}
       </Toaster>
     </ToastContext.Provider>
   );

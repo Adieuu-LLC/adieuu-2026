@@ -431,7 +431,7 @@ When requester calls DELETE `/dm/messages/:id`:
 
 ## Known Security Issues (To Address)
 
-### readState Participant ID Leak
+### readState Participant ID Leak [FIXED]
 
 **Issue:** `readState[].identityId` stores plaintext ObjectIds, undermining blinded `conversationId` design.
 
@@ -441,9 +441,17 @@ When requester calls DELETE `/dm/messages/:id`:
 - `DmConversationDocument.readState[].identityId`
 - `DmConversationDocument.profileHistory[].initiatedBy`
 
-**Proposed fix:** Replace with hashed participant identifier: `SHA3-256(identityId || conversationId || "participant-v1")` or sorted index (0/1).
+**Fix applied:** Replaced with hashed participant identifier: `SHA3-256(identityId || conversationId || "participant-v1")`
 
-**Status:** Tracked for separate fix before production.
+**Implementation:**
+- Added `deriveParticipantHash()` utility to server (`apps/api/src/utils/conversation.ts`) and client (`packages/crypto/src/dm/index.ts`)
+- Updated `ReadStateEntry.identityId` to `ReadStateEntry.participantHash`
+- Updated `ProfileHistoryEntry.initiatedBy` to `ProfileHistoryEntry.initiatedByHash`
+- Updated repository methods to compute hash from authenticated identity
+- Updated API responses to use `participantHash` instead of `identityId`
+- Updated client code to compute hash when finding own read state
+
+**Status:** Fixed.
 
 ---
 
@@ -588,4 +596,4 @@ Phase 8: Profile Negotiation            [Advanced security]
 - **Testing:** Each phase should be fully tested before moving to the next
 - **Feature flags:** Consider feature flags for phases 6-8 to enable incremental rollout
 - **Performance:** Add indexes as needed during each phase, don't defer to end
-- **Security issue tracked:** `readState` participant ID leak needs fix before production (see Known Security Issues)
+- **Security issue fixed:** `readState` participant ID leak has been resolved using hashed participant identifiers (see Known Security Issues)

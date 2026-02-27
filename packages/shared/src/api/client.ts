@@ -1431,7 +1431,8 @@ export interface DmConversation {
  * Read state entry for a participant in a conversation.
  */
 export interface DmReadStateEntry {
-  identityId: string;
+  /** Hashed participant identifier (64-char hex) */
+  participantHash: string;
   encryptedLastReadId: string;
   updatedAt: string;
 }

@@ -18,6 +18,7 @@ import { ServiceStatus } from '../pages/ServiceStatus';
 import { useAuth } from '../hooks/useAuth';
 import { TourProvider, useTourContext } from '../hooks/useTourContext';
 import { CipherStoreProvider } from '../hooks/useCipherStore';
+import { useDmNotifications } from '../hooks/useDmNotifications';
 import { AppSidebar } from './AppSidebar';
 
 /**
@@ -50,9 +51,13 @@ function ProtectedLayout() {
 
 /**
  * Inner layout component that has access to tour context.
+ * Also sets up global DM notifications for incoming messages.
  */
 function ProtectedLayoutContent() {
   const tour = useTourContext();
+
+  // Enable toast notifications for incoming DMs when not viewing the conversation
+  useDmNotifications();
 
   return (
     <>

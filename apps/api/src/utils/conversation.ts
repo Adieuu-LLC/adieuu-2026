@@ -16,6 +16,12 @@ import { createHash } from 'crypto';
 const DM_CONVERSATION_DOMAIN = 'dm-v1';
 
 /**
+ * Domain separator for participant hash derivation.
+ * Used to obfuscate participant identity in readState and profileHistory.
+ */
+const PARTICIPANT_HASH_DOMAIN = 'participant-v1';
+
+/**
  * Derives a blinded conversation ID from two identity IDs.
  *
  * The conversation ID is computed as: SHA3-256(sort([A, B]) || "dm-v1")
@@ -70,4 +76,34 @@ export function validateConversationId(
 ): boolean {
   const expected = deriveConversationId(identityIdA, identityIdB);
   return conversationId === expected;
+}
+
+/**
+ * Derives a hashed participant identifier for a given identity in a conversation.
+ *
+ * This hash is used instead of storing plaintext identity IDs in readState
+ * and profileHistory, preventing server/DB administrators from identifying
+ * conversation participants.
+ *
+ * The hash is computed as: SHA3-256(identityId || conversationId || "participant-v1")
+ *
+ * Properties:
+ * - **Deterministic**: Same identity + conversation always produces same hash
+ * - **Unique per conversation**: Same identity has different hashes in different conversations
+ * - **One-way**: Cannot reverse to get identity ID without brute force
+ * - **Verifiable**: Server can compute hash from authenticated identity to find/update entries
+ *
+ * @param identityId - The identity ID (hex string, 24 chars)
+ * @param conversationId - The blinded conversation ID (hex string, 64 chars)
+ * @returns The hashed participant identifier as a hex string (64 chars)
+ *
+ * @example
+ * ```typescript
+ * const participantHash = deriveParticipantHash(identity._id.toHexString(), conversationId);
+ * // Store participantHash instead of identity._id in readState
+ * ```
+ */
+export function deriveParticipantHash(identityId: string, conversationId: string): string {
+  const data = `${identityId}${conversationId}${PARTICIPANT_HASH_DOMAIN}`;
+  return createHash('sha3-256').update(data).digest('hex');
 }

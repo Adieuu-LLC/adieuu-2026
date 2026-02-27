@@ -54,6 +54,7 @@ export { useMarkAsRead } from './hooks/useMarkAsRead';
 export { useChatConnection } from './hooks/useChatConnection';
 export { useDmSubscription } from './hooks/useDmSubscription';
 export type { DmEvent, DmNewMessageEvent, DmReadStateEvent, DmTypingEvent, DmDeletedEvent } from './hooks/useDmSubscription';
+export { useDmNotifications } from './hooks/useDmNotifications';
 export { useDeleteMessage } from './hooks/useDeleteMessage';
 export type { DeleteMessageResult, UseDeleteMessageResult } from './hooks/useDeleteMessage';
 

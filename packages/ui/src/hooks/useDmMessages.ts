@@ -28,6 +28,7 @@ import {
   getCachedParticipant,
   cacheParticipant,
 } from '../services/participantCache';
+import { encryptLastReadId } from '../services/readStateService';
 
 // ============================================================================
 // Helpers
@@ -313,7 +314,22 @@ export function useSendDmMessage(): UseSendDmMessageResult {
           return { success: false, error: errMsg };
         }
 
-        return { success: true, message: sendResponse.data.message };
+        // Auto-mark our own sent message as read to prevent false unread indicators
+        const sentMessage = sendResponse.data.message;
+        if (sentMessage.id) {
+          try {
+            const encryptedReadState = encryptLastReadId(
+              conversation.conversationId,
+              sentMessage.id,
+              cryptoProfile
+            );
+            await api.dm.updateReadState(conversation.conversationId, encryptedReadState);
+          } catch {
+            // Non-critical: failing to update read state doesn't affect the message send
+          }
+        }
+
+        return { success: true, message: sentMessage };
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : 'Failed to send message';
         setError(errMsg);

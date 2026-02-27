@@ -4,7 +4,7 @@
  * Supports DM conversations with end-to-end encryption.
  */
 
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef, memo } from 'react';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Conversation as ConversationType, PublicIdentity } from '@adieuu/shared';
@@ -290,7 +290,7 @@ interface MessageBubbleProps {
   isDeleting?: boolean;
 }
 
-function MessageBubble({
+const MessageBubble = memo(function MessageBubble({
   message,
   isOwn,
   onDeleteForEveryone,
@@ -396,7 +396,18 @@ function MessageBubble({
       </div>
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison to avoid re-renders when callbacks change reference
+  return (
+    prevProps.message.raw.id === nextProps.message.raw.id &&
+    prevProps.message.isDeleted === nextProps.message.isDeleted &&
+    prevProps.message.decrypted?.text === nextProps.message.decrypted?.text &&
+    prevProps.message.decryptionError === nextProps.message.decryptionError &&
+    prevProps.message.raw.expiresAt === nextProps.message.raw.expiresAt &&
+    prevProps.isOwn === nextProps.isOwn &&
+    prevProps.isDeleting === nextProps.isDeleting
+  );
+});
 
 interface ConversationMessagesProps {
   messages: DecryptedDmMessage[];

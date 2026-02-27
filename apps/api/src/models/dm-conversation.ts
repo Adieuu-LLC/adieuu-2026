@@ -21,8 +21,12 @@ export interface ProfileHistoryEntry {
   profile: CryptoProfile;
   /** When this profile became active */
   changedAt: Date;
-  /** Identity who initiated the change */
-  initiatedBy: ObjectId;
+  /**
+   * Hashed participant identifier who initiated the change.
+   * Computed as SHA3-256(identityId || conversationId || "participant-v1")
+   * This prevents revealing participant identity to DB administrators.
+   */
+  initiatedByHash: string;
 }
 
 /**
@@ -31,8 +35,12 @@ export interface ProfileHistoryEntry {
  * The server cannot decrypt this - only conversation participants can.
  */
 export interface ReadStateEntry {
-  /** Identity ID of the participant */
-  identityId: ObjectId;
+  /**
+   * Hashed participant identifier.
+   * Computed as SHA3-256(identityId || conversationId || "participant-v1")
+   * This prevents revealing participant identity to DB administrators.
+   */
+  participantHash: string;
   /**
    * Encrypted last-read message ID (base64).
    * Encrypted with: HKDF(conversationId, "adieuu-read-state-v1")
@@ -85,14 +93,16 @@ export interface DmConversationDocument extends BaseDocument {
 export interface CreateDmConversationInput {
   conversationId: string;
   activeCryptoProfile: CryptoProfile;
-  initiatedBy: ObjectId;
+  /** Hashed participant identifier of the initiator */
+  initiatedByHash: string;
 }
 
 /**
  * Public read state entry for a single participant.
  */
 export interface PublicReadStateEntry {
-  identityId: string;
+  /** Hashed participant identifier (64-char hex) */
+  participantHash: string;
   encryptedLastReadId: string;
   updatedAt: string;
 }
@@ -114,7 +124,7 @@ export interface PublicDmConversation {
  */
 export function toPublicDmConversation(doc: DmConversationDocument): PublicDmConversation {
   const readState: PublicReadStateEntry[] = (doc.readState ?? []).map((entry) => ({
-    identityId: entry.identityId.toHexString(),
+    participantHash: entry.participantHash,
     encryptedLastReadId: entry.encryptedLastReadId,
     updatedAt: entry.updatedAt.toISOString(),
   }));

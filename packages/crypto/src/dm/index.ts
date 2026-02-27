@@ -33,6 +33,12 @@ const DM_SENDER_HINT_DOMAIN = 'adieuu-sender-hint-v1';
 const DM_READ_STATE_DOMAIN = 'adieuu-read-state-v1';
 
 /**
+ * Domain separator for participant hash derivation.
+ * Used to obfuscate participant identity in readState and profileHistory.
+ */
+const PARTICIPANT_HASH_DOMAIN = 'participant-v1';
+
+/**
  * Nonce size for symmetric encryption (12 bytes for ChaCha20/AES-GCM).
  */
 const NONCE_SIZE = 12;
@@ -189,4 +195,35 @@ export function deriveReadStateKey(
 export function deriveSenderHintNonce(clientMessageId: string): Uint8Array {
   const hash = sha3_256(toBytes(clientMessageId));
   return hash.slice(0, NONCE_SIZE);
+}
+
+/**
+ * Derives a hashed participant identifier for a given identity in a conversation.
+ *
+ * This hash is used instead of storing plaintext identity IDs in readState
+ * and profileHistory, preventing server/DB administrators from identifying
+ * conversation participants.
+ *
+ * The hash is computed as: SHA3-256(identityId || conversationId || "participant-v1")
+ *
+ * Properties:
+ * - **Deterministic**: Same identity + conversation always produces same hash
+ * - **Unique per conversation**: Same identity has different hashes in different conversations
+ * - **One-way**: Cannot reverse to get identity ID without brute force
+ * - **Verifiable**: Client can compute hash from own identity to find their entry
+ *
+ * @param identityId - The identity ID (hex string, 24 chars)
+ * @param conversationId - The blinded conversation ID (hex string, 64 chars)
+ * @returns The hashed participant identifier as a hex string (64 chars)
+ *
+ * @example
+ * ```typescript
+ * const myParticipantHash = deriveParticipantHash(myIdentityId, conversationId);
+ * const myReadState = conversation.readState.find(r => r.participantHash === myParticipantHash);
+ * ```
+ */
+export function deriveParticipantHash(identityId: string, conversationId: string): string {
+  const data = `${identityId}${conversationId}${PARTICIPANT_HASH_DOMAIN}`;
+  const hash = sha3_256(toBytes(data));
+  return toHex(hash);
 }

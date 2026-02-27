@@ -109,6 +109,8 @@ export const en = {
       '3d': '3 days',
       '1w': '1 week',
     },
+    newMessage: 'New message',
+    newMessageDescription: 'Sent you a message',
   },
 
   // Search

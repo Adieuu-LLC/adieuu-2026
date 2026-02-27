@@ -13,6 +13,7 @@ import {
   type Conversation,
   type PublicIdentity,
 } from '@adieuu/shared';
+import { deriveParticipantHash } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
 import {
@@ -104,8 +105,9 @@ export function useDmConversationsList({
         let otherParticipant: PublicIdentity | null = null;
         let lastReadMessageId: string | null = null;
 
-        // Decrypt read state for current identity
-        const myReadState = conv.readState.find((r) => r.identityId === identity.id);
+        // Compute our participant hash to find our read state entry
+        const myParticipantHash = deriveParticipantHash(identity.id, conv.conversationId);
+        const myReadState = conv.readState.find((r) => r.participantHash === myParticipantHash);
         if (myReadState) {
           try {
             lastReadMessageId = decryptLastReadId(
