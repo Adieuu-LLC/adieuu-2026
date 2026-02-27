@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { deriveConversationId, validateConversationId, deriveParticipantHash } from './conversation';
+import { deriveConversationId, validateConversationId } from './conversation';
 
 describe('deriveConversationId', () => {
   const aliceId = '507f1f77bcf86cd799439011';
@@ -93,48 +93,5 @@ describe('validateConversationId', () => {
     const modified = 'f' + validConvId.substring(1);
 
     expect(validateConversationId(modified, aliceId, bobId)).toBe(false);
-  });
-});
-
-describe('deriveParticipantHash', () => {
-  const aliceId = '507f1f77bcf86cd799439011';
-  const bobId = '507f1f77bcf86cd799439022';
-  const conversationId = deriveConversationId(aliceId, bobId);
-
-  test('produces a 64-character hex string', () => {
-    const hash = deriveParticipantHash(aliceId, conversationId);
-
-    expect(hash).toHaveLength(64);
-    expect(/^[a-f0-9]+$/.test(hash)).toBe(true);
-  });
-
-  test('produces consistent output for same inputs', () => {
-    const hash1 = deriveParticipantHash(aliceId, conversationId);
-    const hash2 = deriveParticipantHash(aliceId, conversationId);
-
-    expect(hash1).toBe(hash2);
-  });
-
-  test('produces different hashes for different identities in same conversation', () => {
-    const aliceHash = deriveParticipantHash(aliceId, conversationId);
-    const bobHash = deriveParticipantHash(bobId, conversationId);
-
-    expect(aliceHash).not.toBe(bobHash);
-  });
-
-  test('produces different hashes for same identity in different conversations', () => {
-    const carolId = '507f1f77bcf86cd799439033';
-    const convIdAliceCarol = deriveConversationId(aliceId, carolId);
-
-    const hashInAliceBob = deriveParticipantHash(aliceId, conversationId);
-    const hashInAliceCarol = deriveParticipantHash(aliceId, convIdAliceCarol);
-
-    expect(hashInAliceBob).not.toBe(hashInAliceCarol);
-  });
-
-  test('produces different result from conversation ID', () => {
-    const hash = deriveParticipantHash(aliceId, conversationId);
-
-    expect(hash).not.toBe(conversationId);
   });
 });

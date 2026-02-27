@@ -19,7 +19,6 @@ import {
   sanitizeString,
   deriveConversationId,
   validateConversationId,
-  deriveParticipantHash,
 } from '../../utils';
 import { toPublicDmConversation } from '../../models/dm-conversation';
 import { toPublicDmMessage, type SerializedWrappedKey, type PublicDmMessage } from '../../models/dm-message';
@@ -140,15 +139,10 @@ export async function getOrCreateConversationCtrl(ctx: RouteContext): Promise<Re
   const activeCryptoProfile: CryptoProfile =
     identity.preferredCryptoProfile ?? 'default';
 
-  const participantHash = deriveParticipantHash(
-    identity._id.toHexString(),
-    conversationId
-  );
-
   const conversation = await conversationRepo.getOrCreate({
     conversationId,
     activeCryptoProfile,
-    initiatedByHash: participantHash,
+    initiatedBy: identity._id,
   });
 
   return success(
@@ -245,14 +239,10 @@ export async function sendMessageCtrl(ctx: RouteContext): Promise<Response> {
   const conversationRepo = getDmConversationRepository();
   let conversation = await conversationRepo.findByConversationId(conversationId);
   if (!conversation) {
-    const senderParticipantHash = deriveParticipantHash(
-      identity._id.toHexString(),
-      conversationId
-    );
     conversation = await conversationRepo.getOrCreate({
       conversationId,
       activeCryptoProfile: cryptoProfile,
-      initiatedByHash: senderParticipantHash,
+      initiatedBy: identity._id,
     });
   }
 
@@ -404,7 +394,7 @@ interface ConversationListItem {
   conversationId: string;
   activeCryptoProfile: CryptoProfile;
   readState: Array<{
-    participantHash: string;
+    identityId: string;
     encryptedLastReadId: string;
     updatedAt: string;
   }>;
@@ -452,7 +442,7 @@ export async function getConversationsCtrl(ctx: RouteContext): Promise<Response>
     const latestMsg = latestMessages.get(convId);
 
     const readState = (conversationDoc?.readState ?? []).map((entry) => ({
-      participantHash: entry.participantHash,
+      identityId: entry.identityId.toHexString(),
       encryptedLastReadId: entry.encryptedLastReadId,
       updatedAt: entry.updatedAt.toISOString(),
     }));
@@ -532,14 +522,9 @@ export async function updateReadStateCtrl(ctx: RouteContext): Promise<Response> 
     return errors.notFound('Conversation not found.');
   }
 
-  const participantHash = deriveParticipantHash(
-    identity._id.toHexString(),
-    sanitizedConvId.value
-  );
-
   const updated = await conversationRepo.updateReadState(
     sanitizedConvId.value,
-    participantHash,
+    identity._id,
     sanitizedEncryptedId.value
   );
 

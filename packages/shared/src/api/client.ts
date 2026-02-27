@@ -1431,12 +1431,7 @@ export interface DmConversation {
  * Read state entry for a participant in a conversation.
  */
 export interface DmReadStateEntry {
-  /**
-   * Hashed identifier of the participant.
-   * Computed as: SHA3-256(identityId || conversationId || "participant-v1")
-   * Clients compute their own hash to find their entry.
-   */
-  participantHash: string;
+  identityId: string;
   encryptedLastReadId: string;
   updatedAt: string;
 }

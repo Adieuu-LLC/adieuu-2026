@@ -183,7 +183,6 @@ export {
   deriveSenderHintKey,
   deriveReadStateKey,
   deriveSenderHintNonce,
-  deriveParticipantHash,
 } from './dm';
 
 // Community Ciphers (Spaces)
