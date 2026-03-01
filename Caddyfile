@@ -11,7 +11,7 @@
 localhost {
 	# API reverse proxy (Bun server)
 	handle /api/* {
-		reverse_proxy localhost:4000 {
+		reverse_proxy 127.0.0.1:4000 {
 			# Forward real client IP
 			header_up X-Real-IP {remote_host}
 			header_up X-Forwarded-Proto {scheme}
@@ -20,7 +20,7 @@ localhost {
 
 	# Chat WebSocket proxy (uWebSockets.js server)
 	handle /ws/* {
-		reverse_proxy localhost:9001 {
+		reverse_proxy 127.0.0.1:9001 {
 			header_up X-Real-IP {remote_host}
 			header_up X-Forwarded-Proto {scheme}
 		}
@@ -28,7 +28,7 @@ localhost {
 
 	# Web app reverse proxy (Vite dev server)
 	handle {
-		reverse_proxy localhost:3000 {
+		reverse_proxy 127.0.0.1:3000 {
 			header_up X-Real-IP {remote_host}
 			header_up X-Forwarded-Proto {scheme}
 		}
