@@ -693,7 +693,7 @@ export function Conversation() {
     );
   }
 
-  if (conversationsLoading || isInitializing) {
+  if ((conversationsLoading && conversations.length === 0) || isInitializing) {
     return (
       <div className="dm-page">
         <div className="dm-loading">
