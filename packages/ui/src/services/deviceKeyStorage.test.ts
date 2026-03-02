@@ -9,6 +9,7 @@ import {
   deleteDeviceKeys,
   deleteAllDeviceKeysForIdentity,
   clearAllDeviceKeys,
+  getOrCreateWrappingSalt,
   DeviceKeyStorageError,
   type StoredDeviceKeys,
 } from './deviceKeyStorage';
@@ -445,6 +446,27 @@ describeIfBrowser('services/deviceKeyStorage', () => {
 
       expect(keys1.length).toBe(0);
       expect(keys2.length).toBe(0);
+    });
+  });
+
+  describe('getOrCreateWrappingSalt', () => {
+    test('creates and returns a salt when none exists', async () => {
+      const salt = await getOrCreateWrappingSalt('identity-new');
+      expect(salt).toBeInstanceOf(Uint8Array);
+      expect(salt.length).toBeGreaterThan(0);
+    });
+
+    test('returns the same salt on subsequent calls', async () => {
+      const identityId = 'identity-stable';
+      const salt1 = await getOrCreateWrappingSalt(identityId);
+      const salt2 = await getOrCreateWrappingSalt(identityId);
+      expect(new Uint8Array(salt1)).toEqual(new Uint8Array(salt2));
+    });
+
+    test('returns different salts for different identities', async () => {
+      const salt1 = await getOrCreateWrappingSalt('identity-a');
+      const salt2 = await getOrCreateWrappingSalt('identity-b');
+      expect(new Uint8Array(salt1)).not.toEqual(new Uint8Array(salt2));
     });
   });
 

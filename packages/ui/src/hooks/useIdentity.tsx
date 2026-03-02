@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, createContext, useContext, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { createApiClient, type PublicIdentity } from '@adieuu/shared';
-import { deriveEntropyWrappingKey, generateWrappingSalt, fromBase64, toBase64, clearBytes, getSigningPublicKey } from '@adieuu/crypto';
+import { deriveEntropyWrappingKey, toBase64, clearBytes, getSigningPublicKey } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
 import { useAuth } from './useAuth';
 import {
@@ -16,80 +16,8 @@ import {
   getDeviceKeysForIdentity,
   decryptDeviceKeys,
   hasDeviceKeys,
+  getOrCreateWrappingSalt,
 } from '../services/deviceKeyStorage';
-
-// ============================================================================
-// Wrapping Key Storage (IndexedDB)
-// ============================================================================
-
-const WRAPPING_KEY_DB_NAME = 'adieuu-wrapping-keys';
-const WRAPPING_KEY_DB_VERSION = 1;
-const WRAPPING_KEY_STORE_NAME = 'salts';
-
-/**
- * Opens the wrapping key salt database.
- */
-function openWrappingKeyDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    console.debug('[Identity] openWrappingKeyDb: opening database:', WRAPPING_KEY_DB_NAME);
-    const request = indexedDB.open(WRAPPING_KEY_DB_NAME, WRAPPING_KEY_DB_VERSION);
-    request.onerror = () => {
-      console.error('[Identity] openWrappingKeyDb: failed to open database:', request.error);
-      reject(request.error);
-    };
-    request.onsuccess = () => {
-      console.debug('[Identity] openWrappingKeyDb: database opened successfully');
-      resolve(request.result);
-    };
-    request.onupgradeneeded = (event) => {
-      console.debug('[Identity] openWrappingKeyDb: upgrading database schema...');
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(WRAPPING_KEY_STORE_NAME)) {
-        db.createObjectStore(WRAPPING_KEY_STORE_NAME, { keyPath: 'identityId' });
-        console.debug('[Identity] openWrappingKeyDb: created object store:', WRAPPING_KEY_STORE_NAME);
-      }
-    };
-  });
-}
-
-/**
- * Gets or creates the wrapping key salt for an identity.
- */
-async function getOrCreateWrappingSalt(identityId: string): Promise<Uint8Array> {
-  console.debug('[Identity] getOrCreateWrappingSalt: opening IndexedDB...');
-  const db = await openWrappingKeyDb();
-  console.debug('[Identity] getOrCreateWrappingSalt: IndexedDB opened successfully');
-
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(WRAPPING_KEY_STORE_NAME, 'readwrite');
-    const store = tx.objectStore(WRAPPING_KEY_STORE_NAME);
-    const getRequest = store.get(identityId);
-
-    getRequest.onerror = () => {
-      console.error('[Identity] getOrCreateWrappingSalt: failed to get salt from IndexedDB:', getRequest.error);
-      reject(getRequest.error);
-    };
-    getRequest.onsuccess = () => {
-      if (getRequest.result?.salt) {
-        console.debug('[Identity] getOrCreateWrappingSalt: found existing salt for identity');
-        resolve(fromBase64(getRequest.result.salt));
-      } else {
-        console.debug('[Identity] getOrCreateWrappingSalt: no existing salt, generating new one...');
-        const salt = generateWrappingSalt();
-        const putRequest = store.put({ identityId, salt: toBase64(salt) });
-        putRequest.onerror = () => {
-          console.error('[Identity] getOrCreateWrappingSalt: failed to store new salt:', putRequest.error);
-          reject(putRequest.error);
-        };
-        putRequest.onsuccess = () => {
-          console.debug('[Identity] getOrCreateWrappingSalt: new salt stored successfully');
-          resolve(salt);
-        };
-      }
-    };
-  });
-}
-
 
 // ============================================================================
 // Identity State Types

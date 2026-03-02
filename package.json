@@ -4,7 +4,7 @@
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev --filter=@adieuu/api --filter=@adieuu/web",
+    "dev": "turbo run dev --filter=@adieuu/api --filter=@adieuu/web --filter=@adieuu/chat",
     "dev:web": "turbo run dev --filter=@adieuu/web",
     "dev:api": "turbo run dev --filter=@adieuu/api",
     "dev:desktop": "turbo run dev --filter=@adieuu/desktop",

@@ -20,7 +20,7 @@
  * @module services/deviceKeyStorage
  */
 
-import { toBase64, fromBase64, clearBytes } from '@adieuu/crypto';
+import { toBase64, fromBase64, clearBytes, generateWrappingSalt } from '@adieuu/crypto';
 import type { SecureStorage } from '../config/types';
 
 const DB_NAME = 'adieuu-device-keys';
@@ -28,6 +28,7 @@ const DB_VERSION = 1;
 const STORE_NAME = 'keys';
 
 const IDENTITY_KEY_PREFIX = 'dkeys-';
+const WRAPPING_SALT_KEY_PREFIX = 'wsalt-';
 const OLD_SINGLE_BLOB_KEY = 'adieuu-device-keys';
 const MIGRATION_MARKER_KEY = 'dkeys-migration-v2';
 
@@ -141,6 +142,95 @@ async function saveIdentityStore(identityId: string, keys: StoredDeviceKeys[]): 
 async function getAllIdentityKeyIds(): Promise<string[]> {
   if (!storageBackend?.listKeys) return [];
   return storageBackend.listKeys(IDENTITY_KEY_PREFIX);
+}
+
+/**
+ * Derives an opaque salt key ID from an identity ID using SHA-256.
+ */
+async function wrappingSaltKeyId(identityId: string): Promise<string> {
+  const data = new TextEncoder().encode(identityId);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return `${WRAPPING_SALT_KEY_PREFIX}${toHex(new Uint8Array(hash)).slice(0, 32)}`;
+}
+
+// ============================================================================
+// Wrapping Salt Storage
+// ============================================================================
+
+const WRAPPING_SALT_IDB_NAME = 'adieuu-wrapping-keys';
+const WRAPPING_SALT_IDB_VERSION = 1;
+const WRAPPING_SALT_IDB_STORE = 'salts';
+
+function openWrappingSaltDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new DeviceKeyStorageError('IndexedDB is not available', 'INDEXEDDB_UNAVAILABLE'));
+      return;
+    }
+    const request = indexedDB.open(WRAPPING_SALT_IDB_NAME, WRAPPING_SALT_IDB_VERSION);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(WRAPPING_SALT_IDB_STORE)) {
+        db.createObjectStore(WRAPPING_SALT_IDB_STORE, { keyPath: 'identityId' });
+      }
+    };
+  });
+}
+
+async function getWrappingSaltFromIndexedDb(identityId: string): Promise<Uint8Array | null> {
+  const db = await openWrappingSaltDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(WRAPPING_SALT_IDB_STORE, 'readonly');
+    const store = tx.objectStore(WRAPPING_SALT_IDB_STORE);
+    const request = store.get(identityId);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      resolve(request.result?.salt ? fromBase64(request.result.salt) : null);
+    };
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function storeWrappingSaltInIndexedDb(identityId: string, salt: Uint8Array): Promise<void> {
+  const db = await openWrappingSaltDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(WRAPPING_SALT_IDB_STORE, 'readwrite');
+    const store = tx.objectStore(WRAPPING_SALT_IDB_STORE);
+    const request = store.put({ identityId, salt: toBase64(salt) });
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
+ * Gets or creates the Argon2id wrapping salt for an identity.
+ *
+ * On desktop (SecureStorage backend available), the salt is persisted
+ * alongside the device keys so it survives browser cache clears.
+ * On web, IndexedDB is used.
+ */
+export async function getOrCreateWrappingSalt(identityId: string): Promise<Uint8Array> {
+  if (storageBackend) {
+    const keyId = await wrappingSaltKeyId(identityId);
+    const raw = await storageBackend.getKey(keyId);
+    if (raw) {
+      return fromBase64(new TextDecoder().decode(raw));
+    }
+
+    const salt = generateWrappingSalt();
+    await storageBackend.setKey(keyId, new TextEncoder().encode(toBase64(salt)));
+    return salt;
+  }
+
+  const existing = await getWrappingSaltFromIndexedDb(identityId);
+  if (existing) return existing;
+
+  const salt = generateWrappingSalt();
+  await storeWrappingSaltInIndexedDb(identityId, salt);
+  return salt;
 }
 
 // ============================================================================

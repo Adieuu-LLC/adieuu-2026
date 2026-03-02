@@ -11,6 +11,7 @@ import {
   clearAllDeviceKeys,
   setDeviceKeyStorageBackend,
   migrateIndexedDbToBackend,
+  getOrCreateWrappingSalt,
   DeviceKeyStorageError,
 } from './deviceKeyStorage';
 import type { SecureStorage } from '../config/types';
@@ -430,6 +431,53 @@ describe('deviceKeyStorage with SecureStorage backend', () => {
       expect(await getDeviceKeysForIdentity('identity-2')).toEqual([]);
       const remaining = await mockStorage.listKeys!('dkeys-');
       expect(remaining.length).toBe(0);
+    });
+  });
+
+  // ==========================================================================
+  // getOrCreateWrappingSalt
+  // ==========================================================================
+
+  describe('getOrCreateWrappingSalt', () => {
+    test('creates and returns a salt when none exists', async () => {
+      const salt = await getOrCreateWrappingSalt('identity-new');
+      expect(salt).toBeInstanceOf(Uint8Array);
+      expect(salt.length).toBeGreaterThan(0);
+    });
+
+    test('returns the same salt on subsequent calls', async () => {
+      const identityId = 'identity-stable';
+      const salt1 = await getOrCreateWrappingSalt(identityId);
+      const salt2 = await getOrCreateWrappingSalt(identityId);
+      expect(new Uint8Array(salt1)).toEqual(new Uint8Array(salt2));
+    });
+
+    test('returns different salts for different identities', async () => {
+      const salt1 = await getOrCreateWrappingSalt('identity-a');
+      const salt2 = await getOrCreateWrappingSalt('identity-b');
+      expect(new Uint8Array(salt1)).not.toEqual(new Uint8Array(salt2));
+    });
+
+    test('stores salt under a hashed key that does not reveal identity', async () => {
+      const identityId = 'my-secret-identity-xyz';
+      await getOrCreateWrappingSalt(identityId);
+
+      const saltKeys = await mockStorage.listKeys!('wsalt-');
+      expect(saltKeys.length).toBe(1);
+      expect(saltKeys[0]!.startsWith('wsalt-')).toBe(true);
+      expect(saltKeys[0]!).not.toContain(identityId);
+    });
+
+    test('salt persists independently of device keys', async () => {
+      const identityId = 'identity-persist';
+      const wrappingKey = generateWrappingKey();
+
+      const salt = await getOrCreateWrappingSalt(identityId);
+      await storeDeviceKeys('dev-x', identityId, randomBytes(32), randomBytes(2400), wrappingKey);
+      await deleteAllDeviceKeysForIdentity(identityId);
+
+      const saltAfterDelete = await getOrCreateWrappingSalt(identityId);
+      expect(new Uint8Array(saltAfterDelete)).toEqual(new Uint8Array(salt));
     });
   });
 
