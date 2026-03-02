@@ -1245,6 +1245,31 @@ body {
 }
 
 // ============================================================================
+// Key Storage Banner
+// ============================================================================
+
+.key-storage-banner {
+  padding: var(--spacing-sm) var(--spacing-md);
+
+  .alert {
+    margin: 0;
+  }
+}
+
+.key-storage-banner-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  width: 100%;
+  justify-content: space-between;
+}
+
+.key-storage-banner-dismiss {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+// ============================================================================
 // Spinner/Loader
 // ============================================================================
 

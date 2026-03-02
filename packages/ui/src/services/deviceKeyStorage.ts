@@ -1,33 +1,38 @@
 /**
  * Device Key Storage Service
  *
- * Stores device private keys in IndexedDB using a combination of Web Crypto
- * non-extractable keys and encrypted storage.
+ * Stores device private keys using either:
+ *   - A platform-provided SecureStorage backend (desktop: safeStorage + local file)
+ *   - IndexedDB with AES-GCM encryption (web fallback)
  *
- * SECURITY ARCHITECTURE:
- * - ECDH keys (X25519): Cannot use Web Crypto non-extractable (no X25519 support)
- *   so we encrypt them with the wrapping key derived from passphrase
- * - KEM keys (ML-KEM): Also encrypted with wrapping key (no native support)
+ * On desktop, all device keys are stored as a single JSON blob under the key
+ * 'adieuu-device-keys' via the SecureStorage interface. The main process
+ * encrypts that blob with safeStorage (OS keychain / DPAPI / libsecret) and
+ * writes it to a file under userData, so keys survive browser cache clears.
  *
- * The wrapping key is derived from the identity passphrase using Argon2id
- * and is only held in memory during the session. This provides XSS protection
- * since attackers cannot exfiltrate the raw key material without the passphrase.
+ * On web, keys are stored in IndexedDB encrypted with a passphrase-derived
+ * wrapping key (unchanged from the original implementation).
  *
- * NOTE: Web Crypto doesn't support X25519 or ML-KEM natively, so we cannot use
- * truly non-extractable CryptoKey objects. Instead, we encrypt the key material
- * with a passphrase-derived wrapping key.
+ * In both cases, the private key material itself is encrypted with an
+ * AES-GCM wrapping key derived from the identity passphrase via Argon2id.
  *
  * @module services/deviceKeyStorage
  */
 
 import { toBase64, fromBase64, clearBytes } from '@adieuu/crypto';
+import type { SecureStorage } from '../config/types';
 
 const DB_NAME = 'adieuu-device-keys';
 const DB_VERSION = 1;
 const STORE_NAME = 'keys';
+const BACKEND_KEY_ID = 'adieuu-device-keys';
+
+// ============================================================================
+// Types
+// ============================================================================
 
 /**
- * Stored device key record in IndexedDB.
+ * Stored device key record (persisted in IndexedDB or SecureStorage blob).
  */
 export interface StoredDeviceKeys {
   /** Unique device identifier */
@@ -71,9 +76,46 @@ export class DeviceKeyStorageError extends Error {
   }
 }
 
+// ============================================================================
+// SecureStorage Backend (Desktop)
+// ============================================================================
+
+let storageBackend: SecureStorage | null = null;
+
 /**
- * Opens the device key database.
+ * Sets the storage backend for device keys.
+ *
+ * When a backend is provided (desktop), all device key operations use a single
+ * JSON blob persisted via the SecureStorage interface. When null (web), the
+ * existing IndexedDB implementation is used.
+ *
+ * Call this once at app init before any identity/login operations.
  */
+export function setDeviceKeyStorageBackend(backend: SecureStorage | null): void {
+  storageBackend = backend;
+}
+
+type DeviceKeyStore = Record<string, StoredDeviceKeys[]>;
+
+async function getFullStore(): Promise<DeviceKeyStore> {
+  if (!storageBackend) throw new Error('No storage backend set');
+  const raw = await storageBackend.getKey(BACKEND_KEY_ID);
+  if (!raw) return {};
+  const json = new TextDecoder().decode(raw);
+  return JSON.parse(json) as DeviceKeyStore;
+}
+
+async function saveFullStore(store: DeviceKeyStore): Promise<void> {
+  if (!storageBackend) throw new Error('No storage backend set');
+  const json = JSON.stringify(store);
+  const data = new TextEncoder().encode(json);
+  await storageBackend.setKey(BACKEND_KEY_ID, data);
+}
+
+// ============================================================================
+// IndexedDB Helpers (Web)
+// ============================================================================
+
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') {
@@ -105,19 +147,12 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
-/**
- * Copies a Uint8Array to a new ArrayBuffer.
- * This ensures we get a proper ArrayBuffer (not SharedArrayBuffer).
- */
 function toArrayBuffer(arr: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(arr.length);
   copy.set(arr);
   return copy.buffer as ArrayBuffer;
 }
 
-/**
- * Encrypts data with AES-GCM using the wrapping key.
- */
 async function encryptWithWrappingKey(
   data: Uint8Array,
   wrappingKey: Uint8Array
@@ -143,9 +178,6 @@ async function encryptWithWrappingKey(
   };
 }
 
-/**
- * Decrypts data with AES-GCM using the wrapping key.
- */
 async function decryptWithWrappingKey(
   encrypted: { ciphertext: string; nonce: string },
   wrappingKey: Uint8Array
@@ -170,17 +202,15 @@ async function decryptWithWrappingKey(
   return new Uint8Array(plaintext);
 }
 
+// ============================================================================
+// Public API
+// ============================================================================
+
 /**
- * Stores device keys in IndexedDB.
+ * Stores device keys.
  *
  * The private keys are encrypted with the wrapping key before storage.
  * The original key arrays are cleared from memory after encryption.
- *
- * @param deviceId - Unique device identifier
- * @param identityId - Associated identity ID
- * @param ecdhPrivateKey - X25519 private key (will be cleared after storage)
- * @param kemPrivateKey - ML-KEM private key (will be cleared after storage)
- * @param wrappingKey - Passphrase-derived wrapping key
  */
 export async function storeDeviceKeys(
   deviceId: string,
@@ -189,30 +219,40 @@ export async function storeDeviceKeys(
   kemPrivateKey: Uint8Array,
   wrappingKey: Uint8Array
 ): Promise<void> {
-  // Encrypt the private keys
   const ecdhEncrypted = await encryptWithWrappingKey(ecdhPrivateKey, wrappingKey);
   const kemEncrypted = await encryptWithWrappingKey(kemPrivateKey, wrappingKey);
 
-  // Clear original key material from memory
   clearBytes(ecdhPrivateKey);
   clearBytes(kemPrivateKey);
 
-  // Store in IndexedDB
+  const record: StoredDeviceKeys = {
+    deviceId,
+    identityId,
+    ecdhPrivateKeyEncrypted: ecdhEncrypted,
+    kemPrivateKeyEncrypted: kemEncrypted,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (storageBackend) {
+    const store = await getFullStore();
+    const identityKeys = store[identityId] ?? [];
+    const existingIdx = identityKeys.findIndex((k) => k.deviceId === deviceId);
+    if (existingIdx >= 0) {
+      identityKeys[existingIdx] = record;
+    } else {
+      identityKeys.push(record);
+    }
+    store[identityId] = identityKeys;
+    await saveFullStore(store);
+    return;
+  }
+
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-
-    const record: StoredDeviceKeys = {
-      deviceId,
-      identityId,
-      ecdhPrivateKeyEncrypted: ecdhEncrypted,
-      kemPrivateKeyEncrypted: kemEncrypted,
-      createdAt: new Date().toISOString(),
-    };
-
-    const request = store.put(record);
+    const objectStore = tx.objectStore(STORE_NAME);
+    const request = objectStore.put(record);
 
     request.onerror = () => {
       reject(new DeviceKeyStorageError(
@@ -222,26 +262,31 @@ export async function storeDeviceKeys(
     };
 
     request.onsuccess = () => resolve();
-
     tx.oncomplete = () => db.close();
   });
 }
 
 /**
  * Retrieves stored device keys by device ID.
- *
- * @param deviceId - Unique device identifier
- * @returns Stored device keys, or null if not found
  */
 export async function getStoredDeviceKeys(
   deviceId: string
 ): Promise<StoredDeviceKeys | null> {
+  if (storageBackend) {
+    const store = await getFullStore();
+    for (const keys of Object.values(store)) {
+      const found = keys.find((k) => k.deviceId === deviceId);
+      if (found) return found;
+    }
+    return null;
+  }
+
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.get(deviceId);
+    const objectStore = tx.objectStore(STORE_NAME);
+    const request = objectStore.get(deviceId);
 
     request.onerror = () => {
       reject(new DeviceKeyStorageError(
@@ -260,19 +305,21 @@ export async function getStoredDeviceKeys(
 
 /**
  * Gets all stored device keys for an identity.
- *
- * @param identityId - Identity ID to search for
- * @returns Array of stored device keys
  */
 export async function getDeviceKeysForIdentity(
   identityId: string
 ): Promise<StoredDeviceKeys[]> {
+  if (storageBackend) {
+    const store = await getFullStore();
+    return store[identityId] ?? [];
+  }
+
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const index = store.index('identityId');
+    const objectStore = tx.objectStore(STORE_NAME);
+    const index = objectStore.index('identityId');
     const request = index.getAll(identityId);
 
     request.onerror = () => {
@@ -293,9 +340,6 @@ export async function getDeviceKeysForIdentity(
 /**
  * Decrypts device keys using the wrapping key.
  *
- * @param stored - Stored encrypted device keys
- * @param wrappingKey - Passphrase-derived wrapping key
- * @returns Decrypted device keys
  * @throws DeviceKeyStorageError if decryption fails
  */
 export async function decryptDeviceKeys(
@@ -323,7 +367,6 @@ export async function decryptDeviceKeys(
       wrappingKey
     );
   } catch {
-    // Clean up already decrypted key
     clearBytes(ecdhPrivateKey);
     throw new DeviceKeyStorageError(
       'Failed to decrypt KEM key. Check your passphrase.',
@@ -341,9 +384,6 @@ export async function decryptDeviceKeys(
 
 /**
  * Checks if device keys exist for an identity.
- *
- * @param identityId - Identity ID to check
- * @returns True if keys exist
  */
 export async function hasDeviceKeys(identityId: string): Promise<boolean> {
   const keys = await getDeviceKeysForIdentity(identityId);
@@ -352,16 +392,34 @@ export async function hasDeviceKeys(identityId: string): Promise<boolean> {
 
 /**
  * Deletes device keys by device ID.
- *
- * @param deviceId - Device ID to delete
  */
 export async function deleteDeviceKeys(deviceId: string): Promise<void> {
+  if (storageBackend) {
+    const store = await getFullStore();
+    let found = false;
+    for (const [identityId, keys] of Object.entries(store)) {
+      const filtered = keys.filter((k) => k.deviceId !== deviceId);
+      if (filtered.length !== keys.length) {
+        found = true;
+        if (filtered.length === 0) {
+          delete store[identityId];
+        } else {
+          store[identityId] = filtered;
+        }
+      }
+    }
+    if (found) {
+      await saveFullStore(store);
+    }
+    return;
+  }
+
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.delete(deviceId);
+    const objectStore = tx.objectStore(STORE_NAME);
+    const request = objectStore.delete(deviceId);
 
     request.onerror = () => {
       reject(new DeviceKeyStorageError(
@@ -371,7 +429,6 @@ export async function deleteDeviceKeys(deviceId: string): Promise<void> {
     };
 
     request.onsuccess = () => resolve();
-
     tx.oncomplete = () => db.close();
   });
 }
@@ -379,14 +436,21 @@ export async function deleteDeviceKeys(deviceId: string): Promise<void> {
 /**
  * Deletes all device keys for an identity.
  *
- * Used when deleting an identity.
- *
- * @param identityId - Identity ID whose keys should be deleted
  * @returns Number of keys deleted
  */
 export async function deleteAllDeviceKeysForIdentity(
   identityId: string
 ): Promise<number> {
+  if (storageBackend) {
+    const store = await getFullStore();
+    const existing = store[identityId];
+    if (!existing || existing.length === 0) return 0;
+    const count = existing.length;
+    delete store[identityId];
+    await saveFullStore(store);
+    return count;
+  }
+
   const keys = await getDeviceKeysForIdentity(identityId);
 
   if (keys.length === 0) {
@@ -397,13 +461,13 @@ export async function deleteAllDeviceKeysForIdentity(
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
+    const objectStore = tx.objectStore(STORE_NAME);
 
     let deletedCount = 0;
     let completedCount = 0;
 
     for (const key of keys) {
-      const request = store.delete(key.deviceId);
+      const request = objectStore.delete(key.deviceId);
 
       request.onerror = () => {
         completedCount++;
@@ -431,12 +495,17 @@ export async function deleteAllDeviceKeysForIdentity(
  * WARNING: This removes all keys for all identities. Use with caution.
  */
 export async function clearAllDeviceKeys(): Promise<void> {
+  if (storageBackend) {
+    await storageBackend.deleteKey(BACKEND_KEY_ID);
+    return;
+  }
+
   const db = await openDatabase();
 
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.clear();
+    const objectStore = tx.objectStore(STORE_NAME);
+    const request = objectStore.clear();
 
     request.onerror = () => {
       reject(new DeviceKeyStorageError(
@@ -446,7 +515,73 @@ export async function clearAllDeviceKeys(): Promise<void> {
     };
 
     request.onsuccess = () => resolve();
-
     tx.oncomplete = () => db.close();
   });
+}
+
+// ============================================================================
+// Migration: IndexedDB -> SecureStorage backend
+// ============================================================================
+
+/**
+ * Migrates device keys from IndexedDB to the SecureStorage backend.
+ *
+ * This should be called once on desktop startup after setting the backend.
+ * It reads all records from the IndexedDB store, writes them to the backend
+ * as a single blob, then clears the IndexedDB store. If the backend already
+ * has data, this is a no-op.
+ *
+ * @returns Number of records migrated (0 if nothing to migrate or backend has data)
+ */
+export async function migrateIndexedDbToBackend(): Promise<number> {
+  if (!storageBackend) return 0;
+
+  const backendHasData = await storageBackend.hasKey(BACKEND_KEY_ID);
+  if (backendHasData) return 0;
+
+  if (typeof indexedDB === 'undefined') return 0;
+
+  let db: IDBDatabase;
+  try {
+    db = await openDatabase();
+  } catch {
+    return 0;
+  }
+
+  const allRecords: StoredDeviceKeys[] = await new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const objectStore = tx.objectStore(STORE_NAME);
+    const request = objectStore.getAll();
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result ?? []);
+    tx.oncomplete = () => db.close();
+  });
+
+  if (allRecords.length === 0) return 0;
+
+  const store: DeviceKeyStore = {};
+  for (const record of allRecords) {
+    const list = store[record.identityId] ?? [];
+    list.push(record);
+    store[record.identityId] = list;
+  }
+
+  await saveFullStore(store);
+
+  try {
+    const clearDb = await openDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const tx = clearDb.transaction(STORE_NAME, 'readwrite');
+      const objectStore = tx.objectStore(STORE_NAME);
+      const request = objectStore.clear();
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve();
+      tx.oncomplete = () => clearDb.close();
+    });
+  } catch {
+    // Non-fatal: migration succeeded even if IndexedDB cleanup fails
+  }
+
+  return allRecords.length;
 }

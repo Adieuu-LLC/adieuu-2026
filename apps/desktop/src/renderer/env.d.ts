@@ -14,3 +14,34 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+interface Window {
+  electron: {
+    platform: NodeJS.Platform;
+    versions: {
+      node: string;
+      chrome: string;
+      electron: string;
+    };
+    window: {
+      minimize: () => Promise<void>;
+      maximize: () => Promise<void>;
+      close: () => Promise<void>;
+      isMaximized: () => Promise<boolean>;
+    };
+    secureStorage: {
+      get: (keyId: string) => Promise<string | null>;
+      set: (keyId: string, dataBase64: string) => Promise<void>;
+      delete: (keyId: string) => Promise<void>;
+      has: (keyId: string) => Promise<boolean>;
+      isAvailable: () => Promise<boolean>;
+      status: () => Promise<{
+        teeAvailable: boolean;
+        teeFailed: boolean;
+        lastError: string | null;
+      }>;
+    };
+    invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
+    on: (channel: string, callback: (...args: unknown[]) => void) => void;
+  };
+}

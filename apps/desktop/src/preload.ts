@@ -18,6 +18,26 @@ contextBridge.exposeInMainWorld('electron', {
     isMaximized: () => ipcRenderer.invoke('window:isMaximized') as Promise<boolean>,
   },
 
+  // Secure storage (safeStorage + local file, managed by main process)
+  secureStorage: {
+    get: (keyId: string) =>
+      ipcRenderer.invoke('secure-storage:get', keyId) as Promise<string | null>,
+    set: (keyId: string, dataBase64: string) =>
+      ipcRenderer.invoke('secure-storage:set', keyId, dataBase64) as Promise<void>,
+    delete: (keyId: string) =>
+      ipcRenderer.invoke('secure-storage:delete', keyId) as Promise<void>,
+    has: (keyId: string) =>
+      ipcRenderer.invoke('secure-storage:has', keyId) as Promise<boolean>,
+    isAvailable: () =>
+      ipcRenderer.invoke('secure-storage:isAvailable') as Promise<boolean>,
+    status: () =>
+      ipcRenderer.invoke('secure-storage:status') as Promise<{
+        teeAvailable: boolean;
+        teeFailed: boolean;
+        lastError: string | null;
+      }>,
+  },
+
   // IPC communication (add as needed)
   invoke: (channel: string, ...args: unknown[]) => {
     const allowedChannels = ['get-app-version', 'open-external'];
@@ -50,6 +70,18 @@ declare global {
         maximize: () => Promise<void>;
         close: () => Promise<void>;
         isMaximized: () => Promise<boolean>;
+      };
+      secureStorage: {
+        get: (keyId: string) => Promise<string | null>;
+        set: (keyId: string, dataBase64: string) => Promise<void>;
+        delete: (keyId: string) => Promise<void>;
+        has: (keyId: string) => Promise<boolean>;
+        isAvailable: () => Promise<boolean>;
+        status: () => Promise<{
+          teeAvailable: boolean;
+          teeFailed: boolean;
+          lastError: string | null;
+        }>;
       };
       invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
       on: (channel: string, callback: (...args: unknown[]) => void) => void;

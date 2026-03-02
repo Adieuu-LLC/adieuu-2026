@@ -34,6 +34,7 @@ export type {
   PlatformContextValue,
   PlatformFeatures,
   SecureStorage,
+  StorageStatus,
   FileSystem,
   Notifications,
   PlatformProviderProps,
@@ -97,6 +98,7 @@ export type {
   UseDmMessagesResult,
 } from './hooks/useDmMessages';
 export type { DecryptedMessageContent } from './services/dmMessageService';
+export { setDeviceKeyStorageBackend, migrateIndexedDbToBackend } from './services/deviceKeyStorage';
 
 // ============================================================================
 // UI Components
@@ -135,6 +137,7 @@ export { AvatarGroup } from './components/AvatarGroup';
 export { ConversationListItem } from './components/ConversationListItem';
 export { SidebarConversationsList } from './components/SidebarConversationsList';
 export { MessageComposer, TTL_OPTIONS } from './components/MessageComposer';
+export { KeyStorageBanner } from './components/KeyStorageBanner';
 export type { MessageComposerProps, SendMessageData, TtlOption } from './components/MessageComposer';
 
 // ============================================================================

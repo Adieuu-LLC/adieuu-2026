@@ -15,6 +15,7 @@ export type {
   PlatformContextValue,
   PlatformFeatures,
   SecureStorage,
+  StorageStatus,
   FileSystem,
   Notifications,
 } from './types';

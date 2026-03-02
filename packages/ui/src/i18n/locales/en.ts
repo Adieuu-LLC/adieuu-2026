@@ -393,6 +393,13 @@ export const en = {
       deviceKeyLoadFailed: 'Failed to load device encryption keys.',
       deviceKeyNotFound: 'No encryption keys found for this device.',
 
+      // Key storage warnings (banner)
+      keyStorageWarning: {
+        teeUnavailable: 'Your encryption keys are not protected by the OS keychain. They are still encrypted with your passphrase, but OS-level protection is unavailable. Ensure your system keyring (KWallet, GNOME Keyring, etc.) is running.',
+        teeFailed: 'The OS keychain encountered an error while protecting your encryption keys. Keys have been saved with passphrase encryption only. Error: {{error}}',
+        dismiss: 'Dismiss',
+      },
+
       // Login flow
       newDeviceDetected: 'New device detected. Setting up encryption...',
       existingDeviceLoaded: 'Encryption keys loaded successfully.',

@@ -21,6 +21,19 @@ export interface AppConfig {
 // ============================================================================
 
 /**
+ * Storage health status returned by getStorageStatus.
+ * Used by the UI to surface warnings when key protection is degraded.
+ */
+export interface StorageStatus {
+  /** Whether the OS keychain / TEE is available */
+  teeAvailable: boolean;
+  /** Whether a TEE operation failed at runtime (encrypt/decrypt) */
+  teeFailed: boolean;
+  /** Human-readable error message, or null if no error */
+  lastError: string | null;
+}
+
+/**
  * Secure storage for encryption keys.
  * Desktop uses OS keychain, web uses IndexedDB (less secure).
  */
@@ -33,6 +46,8 @@ export interface SecureStorage {
   deleteKey(keyId: string): Promise<void>;
   /** Check if a key exists */
   hasKey(keyId: string): Promise<boolean>;
+  /** Query storage health. Returns null on platforms without TEE support (e.g. web). */
+  getStorageStatus?(): Promise<StorageStatus | null>;
 }
 
 /**

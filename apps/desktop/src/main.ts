@@ -1,9 +1,26 @@
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import path from 'path';
+import { registerSecureStorageIpc } from './ipc/secureStorage';
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling
-// Note: electron-squirrel-startup is only needed for Squirrel.Windows installers
-// We use NSIS so this can be safely removed
+// ============================================================================
+// Linux password store detection (must run before app.whenReady)
+// ============================================================================
+
+if (process.platform === 'linux') {
+  const override = process.env.ADIEUU_PASSWORD_STORE;
+  if (override) {
+    app.commandLine.appendSwitch('password-store', override);
+  } else {
+    const desktop = (process.env.XDG_CURRENT_DESKTOP ?? '').toLowerCase();
+    if (desktop.includes('kde')) {
+      app.commandLine.appendSwitch('password-store', 'kwallet5');
+    } else if (desktop.includes('gnome') || desktop.includes('unity') || desktop.includes('pantheon') || desktop.includes('cinnamon')) {
+      app.commandLine.appendSwitch('password-store', 'gnome-libsecret');
+    }
+  }
+}
+
+// ============================================================================
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -78,6 +95,9 @@ app.on('web-contents-created', (_, contents) => {
     }
   });
 });
+
+// Secure storage IPC (safeStorage + local file)
+registerSecureStorageIpc();
 
 // Window control IPC handlers
 ipcMain.handle('window:minimize', () => {
