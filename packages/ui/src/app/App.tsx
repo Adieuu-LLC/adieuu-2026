@@ -19,6 +19,7 @@ import { useAuth } from '../hooks/useAuth';
 import { TourProvider, useTourContext } from '../hooks/useTourContext';
 import { CipherStoreProvider } from '../hooks/useCipherStore';
 import { ChatConnectionProvider } from '../hooks/useChatConnection';
+import { ConversationsProvider } from '../hooks/ConversationsProvider';
 import { useDmNotifications } from '../hooks/useDmNotifications';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { WebSecurityBanner } from '../components/WebSecurityBanner';
@@ -47,7 +48,9 @@ function ProtectedLayout() {
     <TourProvider>
       <CipherStoreProvider>
         <ChatConnectionProvider>
-          <ProtectedLayoutContent />
+          <ConversationsProvider>
+            <ProtectedLayoutContent />
+          </ConversationsProvider>
         </ChatConnectionProvider>
       </CipherStoreProvider>
     </TourProvider>

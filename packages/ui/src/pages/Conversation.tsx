@@ -15,11 +15,12 @@ import { XIcon, UsersIcon } from '../components/Icons';
 import { MessageComposer } from '../components/MessageComposer';
 import { Popover } from '../components/Popover';
 import { useConversationsList } from '../hooks/useConversations';
+import { useConversationsContext } from '../hooks/ConversationsProvider';
 import { useIdentity } from '../hooks/useIdentity';
 import { useDmMessages, useSendDmMessage, type DecryptedDmMessage } from '../hooks/useDmMessages';
-import { useMarkAsRead } from '../hooks/useMarkAsRead';
-import { useDmSubscription } from '../hooks/useDmSubscription';
+import { useDmSubscription, type DmNewMessageEvent, type DmDeletedEvent } from '../hooks/useDmSubscription';
 import { useDeleteMessage } from '../hooks/useDeleteMessage';
+import { useDocumentVisibility } from '../hooks/useDocumentVisibility';
 import { getCachedParticipant } from '../services/participantCache';
 import { useAppConfig } from '../config';
 
@@ -527,7 +528,9 @@ export function Conversation() {
   const navigate = useNavigate();
   const { apiBaseUrl } = useAppConfig();
   const { status: identityStatus, identity } = useIdentity();
-  const { conversations, isLoading: conversationsLoading, refresh: refreshConversations } = useConversationsList();
+  const { conversations, isLoading: conversationsLoading, markConversationRead } = useConversationsList();
+  const { dmConversations } = useConversationsContext();
+  const { isVisible, isVisibleRef } = useDocumentVisibility();
   const [showMembersSidebar, setShowMembersSidebar] = useState(true);
   const [otherParticipant, setOtherParticipant] = useState<PublicIdentity | null>(null);
   const [otherParticipantId, setOtherParticipantId] = useState<string | null>(null);
@@ -539,6 +542,12 @@ export function Conversation() {
   const conversation = useMemo(() => {
     return conversations.find((c) => c.id === conversationId);
   }, [conversations, conversationId]);
+
+  // Get the crypto profile for this conversation (needed for read state encryption)
+  const cryptoProfile = useMemo(() => {
+    const dm = dmConversations.find((c) => c.conversationId === conversationId);
+    return dm?.cryptoProfile ?? 'default';
+  }, [dmConversations, conversationId]);
 
   // Initialize: get other participant info
   useEffect(() => {
@@ -615,36 +624,39 @@ export function Conversation() {
   // Delete message hook
   const { deleteForEveryone, deleteForSelf, isDeleting } = useDeleteMessage();
 
-  // Mark as read hook
-  const { markAsRead } = useMarkAsRead();
-
-  // Subscribe to real-time updates
+  // Subscribe to real-time updates for THIS conversation only.
+  // The ConversationsProvider handles global list updates separately.
   useDmSubscription({
     conversationId: conversationId ?? undefined,
-    onNewMessage: (event) => {
-      appendNewMessage(event.payload.message);
-      refreshConversations();
-    },
-    onDeleted: (event) => {
-      removeMessage(event.payload.messageId);
-      refreshConversations();
-    },
-    onReconnect: () => {
+    onNewMessage: useCallback(
+      (event: DmNewMessageEvent) => {
+        appendNewMessage(event.payload.message);
+        if (conversationId && isVisibleRef.current) {
+          markConversationRead(conversationId, event.payload.message.id, cryptoProfile);
+        }
+      },
+      [appendNewMessage, conversationId, cryptoProfile, isVisibleRef, markConversationRead]
+    ),
+    onDeleted: useCallback(
+      (event: DmDeletedEvent) => {
+        removeMessage(event.payload.messageId);
+      },
+      [removeMessage]
+    ),
+    onReconnect: useCallback(() => {
       refreshMessages();
-      refreshConversations();
-    },
+    }, [refreshMessages]),
   });
 
-  // Mark as read when viewing messages
-  // Messages are returned newest-first from API, so messages[0] is the newest
+  // Mark as read when viewing messages or tab becomes visible again
   useEffect(() => {
-    if (!conversationId || messages.length === 0) return;
+    if (!conversationId || messages.length === 0 || !isVisible) return;
 
     const newestMessage = messages[0];
     if (newestMessage?.raw?.id) {
-      markAsRead(conversationId, newestMessage.raw.id);
+      markConversationRead(conversationId, newestMessage.raw.id, cryptoProfile);
     }
-  }, [conversationId, messages, markAsRead]);
+  }, [conversationId, messages, isVisible, cryptoProfile, markConversationRead]);
 
   const handleClose = () => {
     navigate('/');
@@ -665,9 +677,8 @@ export function Conversation() {
 
     if (result.success && result.message) {
       appendNewMessage(result.message);
-      refreshConversations();
     }
-  }, [otherParticipantId, appendNewMessage, refreshConversations, sendMessage]);
+  }, [otherParticipantId, appendNewMessage, sendMessage]);
 
   const handleDeleteForEveryone = useCallback(async (messageId: string) => {
     const result = await deleteForEveryone(messageId);

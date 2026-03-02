@@ -62,6 +62,10 @@ export interface UseDmConversationsListResult {
   error: string | null;
   /** Refresh the list */
   refresh: () => Promise<void>;
+  /** Optimistically mark a conversation as read in local state */
+  markRead: (conversationId: string, lastReadMessageId: string) => void;
+  /** Update a conversation's latest message and re-sort. Returns false if conversation not found. */
+  bumpLatestMessage: (conversationId: string, lastMessageId: string, lastMessageAt: string) => void;
 }
 
 /**
@@ -223,6 +227,47 @@ export function useDmConversationsList({
     }
   }, [isLoggedIn]);
 
+  const markRead = useCallback((conversationId: string, lastReadMessageId: string) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.conversationId === conversationId
+          ? {
+              ...c,
+              lastReadMessageId,
+              hasUnread: hasUnreadMessages(c.lastMessageId, lastReadMessageId),
+            }
+          : c
+      )
+    );
+  }, []);
+
+  const bumpLatestMessage = useCallback(
+    (conversationId: string, lastMessageId: string, lastMessageAt: string) => {
+      setConversations((prev) => {
+        const idx = prev.findIndex((c) => c.conversationId === conversationId);
+        if (idx === -1) return prev;
+
+        const updated = [...prev];
+        updated[idx] = {
+          ...updated[idx]!,
+          lastMessageId,
+          lastMessageAt,
+          hasUnread: hasUnreadMessages(lastMessageId, updated[idx]!.lastReadMessageId),
+        };
+
+        updated.sort((a, b) => {
+          if (!a.lastMessageAt && !b.lastMessageAt) return 0;
+          if (!a.lastMessageAt) return 1;
+          if (!b.lastMessageAt) return -1;
+          return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+        });
+
+        return updated;
+      });
+    },
+    []
+  );
+
   // Map to unified Conversation interface for UI compatibility
   const unifiedConversations = useMemo((): Conversation[] => {
     return conversations.map((conv) => ({
@@ -248,5 +293,7 @@ export function useDmConversationsList({
     isLoading,
     error,
     refresh,
+    markRead,
+    bumpLatestMessage,
   };
 }

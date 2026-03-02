@@ -79,6 +79,17 @@ mock.module('../../services/identity.service', () => ({
   getIdentityFromSession: mock(() => Promise.resolve(mockIdentity)),
 }));
 
+const mockPublishReadStateUpdate = mock(() => Promise.resolve());
+const mockPublishNewMessage = mock(() => Promise.resolve());
+const mockPublishMessageDeleted = mock(() => Promise.resolve());
+
+mock.module('../../services/dm-events.service', () => ({
+  publishNewMessage: mockPublishNewMessage,
+  publishReadStateUpdate: mockPublishReadStateUpdate,
+  publishMessageDeleted: mockPublishMessageDeleted,
+  publishTypingIndicator: mock(() => Promise.resolve()),
+}));
+
 const mockConversationId = new ObjectId();
 const mockConversation = {
   _id: mockConversationId,
@@ -150,6 +161,7 @@ const mockGetLatestMessagePerConversation = mock(() => {
   return Promise.resolve(map);
 });
 const mockFindMessageById = mock(() => Promise.resolve(mockMessage as typeof mockMessage | null));
+const mockFindSentMessage = mock(() => Promise.resolve(mockMessage as typeof mockMessage | null));
 const mockDeleteForEveryone = mock(() => Promise.resolve(true));
 const mockDeleteForSelf = mock(() => Promise.resolve(true));
 
@@ -161,6 +173,7 @@ mock.module('../../repositories/dm-message.repository', () => ({
     getConversationIdsForIdentity: mockGetConversationIdsForIdentity,
     getLatestMessagePerConversation: mockGetLatestMessagePerConversation,
     findById: mockFindMessageById,
+    findSentMessage: mockFindSentMessage,
     deleteForEveryone: mockDeleteForEveryone,
     deleteForSelf: mockDeleteForSelf,
   }),
@@ -266,6 +279,10 @@ describe('DM Controller', () => {
     mockGetConversationIdsForIdentity.mockReset();
     mockGetLatestMessagePerConversation.mockReset();
     mockFindById.mockReset();
+    mockFindSentMessage.mockReset();
+    mockPublishReadStateUpdate.mockReset();
+    mockPublishNewMessage.mockReset();
+    mockPublishMessageDeleted.mockReset();
 
     mockFindByConversationId.mockImplementation(() => Promise.resolve(null));
     mockGetOrCreate.mockImplementation(() => Promise.resolve(mockConversation));
@@ -290,6 +307,10 @@ describe('DM Controller', () => {
       }
       return Promise.resolve(null);
     });
+    mockFindSentMessage.mockImplementation(() => Promise.resolve(mockMessage));
+    mockPublishReadStateUpdate.mockImplementation(() => Promise.resolve());
+    mockPublishNewMessage.mockImplementation(() => Promise.resolve());
+    mockPublishMessageDeleted.mockImplementation(() => Promise.resolve());
   });
 
   describe('getOrCreateConversationCtrl', () => {
@@ -698,6 +719,65 @@ describe('DM Controller', () => {
       expect(json.success).toBe(true);
       expect(json.data.conversation).toBeDefined();
       expect(json.data.conversation.readState).toBeInstanceOf(Array);
+    });
+
+    test('publishes dm:read event to the other participant', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mockFindByConversationId.mockImplementation(() => Promise.resolve(mockConversation as any));
+      mockFindSentMessage.mockImplementation(() => Promise.resolve(mockMessage));
+
+      const ctx = createMockContext({
+        method: 'PUT',
+        path: `/dm/conversations/${validConversationId}/read-state`,
+        params: { conversationId: validConversationId },
+        body: { encryptedLastReadId: 'new-encrypted-id-base64' },
+      });
+
+      const response = await updateReadStateCtrl(ctx);
+      expect(response.status).toBe(200);
+
+      expect(mockFindSentMessage).toHaveBeenCalledTimes(1);
+      expect(mockPublishReadStateUpdate).toHaveBeenCalledTimes(1);
+      const publishCall = mockPublishReadStateUpdate.mock.calls[0] as unknown as [string, string, string, string];
+      expect(publishCall[0]).toBe(mockRecipientId.toHexString());
+      expect(publishCall[1]).toBe(validConversationId);
+      expect(publishCall[2]).toBe(mockIdentityId.toHexString());
+      expect(typeof publishCall[3]).toBe('string');
+      expect(publishCall[3]!.length).toBeGreaterThan(0);
+    });
+
+    test('succeeds even when no sent message found for read receipt', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mockFindByConversationId.mockImplementation(() => Promise.resolve(mockConversation as any));
+      mockFindSentMessage.mockImplementation(() => Promise.resolve(null));
+
+      const ctx = createMockContext({
+        method: 'PUT',
+        path: `/dm/conversations/${validConversationId}/read-state`,
+        params: { conversationId: validConversationId },
+        body: { encryptedLastReadId: 'new-encrypted-id-base64' },
+      });
+
+      const response = await updateReadStateCtrl(ctx);
+      expect(response.status).toBe(200);
+      expect(mockPublishReadStateUpdate).not.toHaveBeenCalled();
+    });
+
+    test('succeeds even when publishing read receipt fails', async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mockFindByConversationId.mockImplementation(() => Promise.resolve(mockConversation as any));
+      mockFindSentMessage.mockImplementation(() => Promise.resolve(mockMessage));
+      mockPublishReadStateUpdate.mockImplementation(() => Promise.reject(new Error('Redis error')));
+
+      const ctx = createMockContext({
+        method: 'PUT',
+        path: `/dm/conversations/${validConversationId}/read-state`,
+        params: { conversationId: validConversationId },
+        body: { encryptedLastReadId: 'new-encrypted-id-base64' },
+      });
+
+      const response = await updateReadStateCtrl(ctx);
+      expect(response.status).toBe(200);
     });
   });
 

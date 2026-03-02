@@ -42,6 +42,10 @@ export interface IDmMessageRepository {
     conversationId: string,
     clientMessageId: string
   ): Promise<DmMessageDocument | null>;
+  findSentMessage(
+    conversationId: string,
+    senderIdentityId: ObjectId
+  ): Promise<DmMessageDocument | null>;
   createMessage(input: CreateDmMessageInput): Promise<DmMessageDocument>;
   getMessagesByConversation(
     conversationId: string,
@@ -88,6 +92,22 @@ export class DmMessageRepository
     clientMessageId: string
   ): Promise<DmMessageDocument | null> {
     return await this.findOne({ conversationId, clientMessageId });
+  }
+
+  /**
+   * Find a message sent by a specific identity in a conversation.
+   * Used to resolve the other participant (via toIdentityId) for read receipts.
+   * Since the sender is encrypted, we find messages where toIdentityId != senderIdentityId
+   * (i.e. messages the identity sent TO someone else).
+   */
+  async findSentMessage(
+    conversationId: string,
+    senderIdentityId: ObjectId
+  ): Promise<DmMessageDocument | null> {
+    return await this.findOne({
+      conversationId,
+      toIdentityId: { $ne: senderIdentityId },
+    });
   }
 
   /**

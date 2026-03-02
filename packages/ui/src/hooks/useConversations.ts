@@ -1,15 +1,17 @@
 /**
- * Hook for managing conversations.
- * Fetches real DM conversations from the API.
+ * Hook for consuming the shared conversations list.
+ *
+ * Thin wrapper around ConversationsProvider context, returning the unified
+ * Conversation[] interface used by sidebar and conversation page components.
  */
 
-import type { Conversation } from '@adieuu/shared';
-import { useDmConversationsList } from './useDmConversationsList';
+import type { Conversation, CryptoProfile } from '@adieuu/shared';
+import { useConversationsContext } from './ConversationsProvider';
 
 export interface UseConversationsListOptions {
-  /** Number of conversations per page (default: 50) */
+  /** @deprecated No longer used; kept for API compatibility */
   limit?: number;
-  /** Whether to fetch immediately (default: true) */
+  /** @deprecated No longer used; kept for API compatibility */
   immediate?: boolean;
 }
 
@@ -22,26 +24,29 @@ export interface UseConversationsListResult {
   error: string | null;
   /** Refresh the list */
   refresh: () => Promise<void>;
+  /** Mark a conversation as read (optimistic + API call) */
+  markConversationRead: (
+    conversationId: string,
+    lastReadMessageId: string,
+    cryptoProfile?: CryptoProfile
+  ) => void;
 }
 
 /**
- * Hook for fetching conversations list.
- * Fetches real DM conversations from the API.
+ * Hook for accessing the shared conversations list.
+ * Must be used within a ConversationsProvider.
  */
-export function useConversationsList({
-  immediate = true,
-}: UseConversationsListOptions = {}): UseConversationsListResult {
-  const {
-    unifiedConversations,
-    isLoading,
-    error,
-    refresh,
-  } = useDmConversationsList({ immediate });
+export function useConversationsList(
+  _options?: UseConversationsListOptions
+): UseConversationsListResult {
+  const { conversations, isLoading, error, refresh, markConversationRead } =
+    useConversationsContext();
 
   return {
-    conversations: unifiedConversations,
+    conversations,
     isLoading,
     error,
     refresh,
+    markConversationRead,
   };
 }

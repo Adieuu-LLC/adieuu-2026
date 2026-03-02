@@ -10,7 +10,7 @@
 import { ObjectId } from 'mongodb';
 import { success, errors } from '../../utils/response';
 import { RouteContext } from '../../router';
-import { getIdentityFromSession, getIdentitySessionIdFromRequest, publishNewMessage, publishMessageDeleted } from '../../services';
+import { getIdentityFromSession, getIdentitySessionIdFromRequest, publishNewMessage, publishMessageDeleted, publishReadStateUpdate } from '../../services';
 import { getDmConversationRepository } from '../../repositories/dm-conversation.repository';
 import { getDmMessageRepository } from '../../repositories/dm-message.repository';
 import { getIdentityRepository } from '../../repositories/identity.repository';
@@ -545,6 +545,26 @@ export async function updateReadStateCtrl(ctx: RouteContext): Promise<Response> 
 
   if (!updated) {
     return errors.internal('Failed to update read state.');
+  }
+
+  // Best-effort: notify the other participant of our read state for read receipts.
+  // We find the other participant by looking at a message we sent (toIdentityId != us).
+  const messageRepo = getDmMessageRepository();
+  try {
+    const sentMessage = await messageRepo.findSentMessage(
+      sanitizedConvId.value,
+      identity._id
+    );
+    if (sentMessage) {
+      await publishReadStateUpdate(
+        sentMessage.toIdentityId.toHexString(),
+        sanitizedConvId.value,
+        identity._id.toHexString(),
+        sanitizedEncryptedId.value
+      );
+    }
+  } catch {
+    // Non-critical: read receipts are best-effort
   }
 
   return success({

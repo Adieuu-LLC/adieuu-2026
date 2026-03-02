@@ -131,6 +131,30 @@ describe('DmMessageRepository', () => {
     });
   });
 
+  describe('findSentMessage', () => {
+    test('queries for messages sent by identity (toIdentityId != senderIdentityId)', async () => {
+      const senderId = new ObjectId();
+      mockCollection.findOne.mockImplementation(() => Promise.resolve(mockMessage));
+
+      const result = await repo.findSentMessage(mockConversationId, senderId);
+
+      expect(result).toEqual(mockMessage);
+      expect(mockCollection.findOne).toHaveBeenCalledWith({
+        conversationId: mockConversationId,
+        toIdentityId: { $ne: senderId },
+      });
+    });
+
+    test('returns null when no sent messages found', async () => {
+      const senderId = new ObjectId();
+      mockCollection.findOne.mockImplementation(() => Promise.resolve(null));
+
+      const result = await repo.findSentMessage(mockConversationId, senderId);
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe('deleteForSelf', () => {
     test('adds identity to deletedFor array', async () => {
       mockCollection.updateOne.mockImplementation(() =>
