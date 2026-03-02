@@ -420,7 +420,7 @@ interface ConversationMessagesProps {
   isDeleting?: boolean;
 }
 
-function ConversationMessages({
+const ConversationMessages = memo(function ConversationMessages({
   messages,
   isLoading,
   error,
@@ -432,16 +432,36 @@ function ConversationMessages({
 }: ConversationMessagesProps) {
   const { t } = useTranslation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
+  const prevMessageCountRef = useRef(0);
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const threshold = 80;
+    isNearBottomRef.current =
+      el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+  }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const prevCount = prevMessageCountRef.current;
+    prevMessageCountRef.current = messages.length;
+
+    if (prevCount === 0 && messages.length > 0) {
+      // Initial load: jump to bottom instantly
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      isNearBottomRef.current = true;
+    } else if (messages.length > prevCount && isNearBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   // Messages come from API newest-first, reverse for display (oldest at top, newest at bottom)
   const displayMessages = useMemo(() => [...messages].reverse(), [messages]);
 
   return (
-    <div className="dm-messages">
+    <div className="dm-messages" ref={containerRef} onScroll={handleScroll}>
       {isLoading && messages.length === 0 && (
         <div className="dm-messages-loading">
           <span className="spinner spinner-sm" />
@@ -474,7 +494,7 @@ function ConversationMessages({
       <div ref={messagesEndRef} />
     </div>
   );
-}
+});
 
 interface ConversationInputProps {
   onSend: (text: string, expiresInSeconds?: number | null) => Promise<void>;
