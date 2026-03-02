@@ -20,6 +20,7 @@ import { TourProvider, useTourContext } from '../hooks/useTourContext';
 import { CipherStoreProvider } from '../hooks/useCipherStore';
 import { useDmNotifications } from '../hooks/useDmNotifications';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
+import { WebSecurityBanner } from '../components/WebSecurityBanner';
 import { AppSidebar } from './AppSidebar';
 
 /**
@@ -65,6 +66,7 @@ function ProtectedLayoutContent() {
       <TourRoot tour={tour} />
       <AppLayout sidebar={<AppSidebar />}>
         <KeyStorageBanner />
+        <WebSecurityBanner />
         <Outlet />
       </AppLayout>
     </>

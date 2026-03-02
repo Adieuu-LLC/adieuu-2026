@@ -459,6 +459,12 @@ export const en = {
         dismiss: 'Dismiss',
       },
 
+      // Web platform security recommendation (banner)
+      webSecurityBanner: {
+        message: 'For stronger security, consider using the Adieuu desktop app. It can protect your encryption keys with your operating system\'s secure keychain, adding a layer of protection beyond your passphrase alone.',
+        dismiss: 'Dismiss',
+      },
+
       // Login flow
       newDeviceDetected: 'New device detected. Setting up encryption...',
       existingDeviceLoaded: 'Encryption keys loaded successfully.',
