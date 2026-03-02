@@ -59,6 +59,10 @@ export const desktopCapabilities: PlatformCapabilities = {
       return window.electron.secureStorage.has(keyId);
     },
 
+    async listKeys(prefix: string): Promise<string[]> {
+      return window.electron.secureStorage.list(prefix);
+    },
+
     async getStorageStatus() {
       return window.electron.secureStorage.status();
     },

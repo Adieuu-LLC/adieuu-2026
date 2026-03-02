@@ -299,8 +299,69 @@ degraded key storage state to the user via an in-app warning banner.
 
 ---
 
-## 8. Future Work
+## 8. Phase 5 -- Per-Identity Key Files
 
-- **Linux:** If safeStorage is often unavailable, consider prompting user to set up a secret service (e.g. GNOME Keyring) or document the fallback.
-- **Backup/export:** Allow exporting an encrypted backup of device keys (e.g. for restore on another machine) using the same passphrase; out of scope for this plan.
-- **Multiple key files:** If we later need to store more than one blob (e.g. per-identity files), we can extend the IPC to accept keyId as a path segment in the filename (e.g. `keys/device-keys-<hash(keyId)>.enc`) without changing the SecureStorage interface.
+**Goal:** Store each identity's device keys in a separate file. Filenames are
+SHA-256 hashes of the identity ID so they cannot be enumerated to reveal which
+identities are present on the device.
+
+### 8a. Storage Model
+
+- **Old:** Single blob `adieuu-device-keys.enc` containing
+  `Record<identityId, StoredDeviceKeys[]>`.
+- **New:** Per-identity file `dkeys-{sha256(identityId).hex[0:32]}.enc`,
+  each containing `StoredDeviceKeys[]`.
+- Operations that know the identity ID (most) touch only the relevant file.
+- Cross-identity operations (`getStoredDeviceKeys` by deviceId only,
+  `clearAllDeviceKeys`) use the new `listKeys(prefix)` method.
+
+### 8b. SecureStorage Interface Changes
+
+- Added `listKeys?(prefix: string): Promise<string[]>` -- lists key IDs
+  matching a prefix. Desktop implements via `fs.readdir` + filter.
+
+### 8c. Migration (v2)
+
+- Detects old single-blob `adieuu-device-keys`, splits by identity into
+  per-identity files, deletes the old blob.
+- IndexedDB migration now writes directly to per-identity files.
+- A marker key `dkeys-migration-v2` prevents re-running.
+
+### 8d. Privacy
+
+Filenames use `SHA-256(identityId).hex.slice(0, 32)` -- someone with
+filesystem access sees only hex strings, not identity IDs.
+
+### 8e. Caller Updates
+
+- `getStoredDeviceKeys(deviceId, identityId?)` -- optional `identityId`
+  parameter enables a fast single-file lookup (used by `useDmMessages`).
+- `deleteDeviceKeys(deviceId, identityId?)` -- same pattern.
+- All other functions already receive `identityId`.
+
+### 8f. Files Changed
+
+| File | Change |
+|------|--------|
+| `packages/ui/src/config/types.ts` | `listKeys` on `SecureStorage` |
+| `apps/desktop/src/ipc/secureStorage.ts` | `secure-storage:list` handler |
+| `apps/desktop/src/preload.ts` | Expose `list()` |
+| `apps/desktop/src/renderer/env.d.ts` | `list()` type |
+| `apps/desktop/src/renderer/platform/capabilities.ts` | `listKeys` impl |
+| `packages/ui/src/services/deviceKeyStorage.ts` | Full refactor: per-identity hashed files, SHA-256 key derivation, updated migration |
+| `packages/ui/src/services/deviceKeyStorage.backend.test.ts` | Updated tests, mock `listKeys`, new migration + hashing tests |
+| `packages/ui/src/hooks/useDmMessages.ts` | Pass `identity.id` to `getStoredDeviceKeys` |
+
+---
+
+## 9. Future Work
+
+- **Linux safeStorage detection:** Environment variables like `XDG_CURRENT_DESKTOP`
+  and `KDE_SESSION_VERSION` can be missing when the app is launched from IDEs,
+  AppImages, or Flatpaks. The app now uses a three-tier detection strategy:
+  1. `ADIEUU_PASSWORD_STORE` env var (explicit user override).
+  2. `XDG_CURRENT_DESKTOP` / `KDE_SESSION_VERSION` env vars (fast, zero-cost).
+  3. D-Bus probing: synchronously queries `org.kde.kwalletd6`, `org.kde.kwalletd5`,
+     and `org.freedesktop.secrets` on the session bus to find an available backend.
+  KDE 6 requires `--password-store=kwallet6` (not `kwallet5`).
+- **Backup/export/import:** See `planning/device-key-backup-export.md` for the full spec.

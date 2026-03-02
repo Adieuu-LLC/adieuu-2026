@@ -565,7 +565,7 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
 
       try {
         // Get device keys for decryption
-        const storedKeys = await getStoredDeviceKeys(deviceId);
+        const storedKeys = await getStoredDeviceKeys(deviceId, identity.id);
         if (!storedKeys) {
           setError('Device keys not found');
           return;

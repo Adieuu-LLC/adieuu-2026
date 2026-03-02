@@ -46,6 +46,8 @@ export interface SecureStorage {
   deleteKey(keyId: string): Promise<void>;
   /** Check if a key exists */
   hasKey(keyId: string): Promise<boolean>;
+  /** List key IDs matching a prefix. Used for cross-identity operations on desktop. */
+  listKeys?(prefix: string): Promise<string[]>;
   /** Query storage health. Returns null on platforms without TEE support (e.g. web). */
   getStorageStatus?(): Promise<StorageStatus | null>;
 }

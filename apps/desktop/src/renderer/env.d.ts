@@ -34,6 +34,7 @@ interface Window {
       set: (keyId: string, dataBase64: string) => Promise<void>;
       delete: (keyId: string) => Promise<void>;
       has: (keyId: string) => Promise<boolean>;
+      list: (prefix: string) => Promise<string[]>;
       isAvailable: () => Promise<boolean>;
       status: () => Promise<{
         teeAvailable: boolean;

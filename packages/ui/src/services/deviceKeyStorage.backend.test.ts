@@ -45,6 +45,10 @@ function createMockSecureStorage(): SecureStorage & { _store: Map<string, Uint8A
     async hasKey(keyId: string): Promise<boolean> {
       return store.has(keyId);
     },
+
+    async listKeys(prefix: string): Promise<string[]> {
+      return Array.from(store.keys()).filter((k) => k.startsWith(prefix));
+    },
   };
 }
 
@@ -87,7 +91,26 @@ describe('deviceKeyStorage with SecureStorage backend', () => {
       expect(stored!.identityId).toBe(identityId);
     });
 
-    test('persists data in the backend store', async () => {
+    test('uses hashed key IDs that do not reveal identity', async () => {
+      const wrappingKey = generateWrappingKey();
+      const identityId = 'my-secret-identity-abc123';
+
+      await storeDeviceKeys(
+        'device-x',
+        identityId,
+        randomBytes(32),
+        randomBytes(2400),
+        wrappingKey
+      );
+
+      const keyIds = await mockStorage.listKeys!('dkeys-');
+      expect(keyIds.length).toBe(1);
+      expect(keyIds[0]!.startsWith('dkeys-')).toBe(true);
+      expect(keyIds[0]!).not.toContain(identityId);
+      expect(keyIds[0]!.length).toBeGreaterThan('dkeys-'.length);
+    });
+
+    test('persists data in a per-identity file with hashed key ID', async () => {
       const wrappingKey = generateWrappingKey();
 
       await storeDeviceKeys(
@@ -98,12 +121,14 @@ describe('deviceKeyStorage with SecureStorage backend', () => {
         wrappingKey
       );
 
-      expect(mockStorage._store.has('adieuu-device-keys')).toBe(true);
-      const raw = mockStorage._store.get('adieuu-device-keys')!;
-      const parsed = JSON.parse(new TextDecoder().decode(raw));
-      expect(parsed['identity-1']).toBeDefined();
-      expect(parsed['identity-1'].length).toBe(1);
-      expect(parsed['identity-1'][0].deviceId).toBe('device-1');
+      const keyIds = await mockStorage.listKeys!('dkeys-');
+      expect(keyIds.length).toBe(1);
+
+      const raw = mockStorage._store.get(keyIds[0]!)!;
+      const parsed = JSON.parse(new TextDecoder().decode(raw)) as Array<{ deviceId: string }>;
+      expect(Array.isArray(parsed)).toBe(true);
+      expect(parsed.length).toBe(1);
+      expect(parsed[0]!.deviceId).toBe('device-1');
     });
 
     test('clears original key arrays after storage', async () => {
@@ -403,7 +428,8 @@ describe('deviceKeyStorage with SecureStorage backend', () => {
 
       expect(await getDeviceKeysForIdentity('identity-1')).toEqual([]);
       expect(await getDeviceKeysForIdentity('identity-2')).toEqual([]);
-      expect(mockStorage._store.has('adieuu-device-keys')).toBe(false);
+      const remaining = await mockStorage.listKeys!('dkeys-');
+      expect(remaining.length).toBe(0);
     });
   });
 
@@ -471,14 +497,39 @@ describe('migrateIndexedDbToBackend', () => {
     expect(count).toBe(0);
   });
 
-  test('returns 0 when backend already has data', async () => {
-    // Pre-populate backend so migration is skipped
-    const existing = JSON.stringify({ 'existing-id': [] });
-    await mockStorage.setKey('adieuu-device-keys', new TextEncoder().encode(existing));
+  test('returns 0 when migration marker already exists', async () => {
+    await mockStorage.setKey('dkeys-migration-v2', new TextEncoder().encode('done'));
 
     setDeviceKeyStorageBackend(mockStorage);
     const count = await migrateIndexedDbToBackend();
     expect(count).toBe(0);
+  });
+
+  test('migrates single-blob format to per-identity files', async () => {
+    const legacyStore = {
+      'id-alpha': [
+        { deviceId: 'dev-1', identityId: 'id-alpha', ecdhPrivateKeyEncrypted: { ciphertext: 'a', nonce: 'b' }, kemPrivateKeyEncrypted: { ciphertext: 'c', nonce: 'd' }, createdAt: new Date().toISOString() },
+      ],
+      'id-beta': [
+        { deviceId: 'dev-2', identityId: 'id-beta', ecdhPrivateKeyEncrypted: { ciphertext: 'e', nonce: 'f' }, kemPrivateKeyEncrypted: { ciphertext: 'g', nonce: 'h' }, createdAt: new Date().toISOString() },
+      ],
+    };
+    await mockStorage.setKey('adieuu-device-keys', new TextEncoder().encode(JSON.stringify(legacyStore)));
+
+    setDeviceKeyStorageBackend(mockStorage);
+    const count = await migrateIndexedDbToBackend();
+    expect(count).toBe(2);
+
+    const alphaKeys = await getDeviceKeysForIdentity('id-alpha');
+    expect(alphaKeys.length).toBe(1);
+    expect(alphaKeys[0]!.deviceId).toBe('dev-1');
+
+    const betaKeys = await getDeviceKeysForIdentity('id-beta');
+    expect(betaKeys.length).toBe(1);
+    expect(betaKeys[0]!.deviceId).toBe('dev-2');
+
+    expect(mockStorage._store.has('adieuu-device-keys')).toBe(false);
+    expect(mockStorage._store.has('dkeys-migration-v2')).toBe(true);
   });
 
   test('returns 0 when IndexedDB is unavailable', async () => {

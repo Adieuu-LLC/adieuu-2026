@@ -144,6 +144,23 @@ export function registerSecureStorageIpc(): void {
   );
 
   ipcMain.handle(
+    'secure-storage:list',
+    async (_event, prefix: string): Promise<string[]> => {
+      const dir = path.join(app.getPath('userData'), SECURE_KEYS_DIR);
+      let entries: string[];
+      try {
+        entries = await fs.readdir(dir);
+      } catch {
+        return [];
+      }
+      return entries
+        .filter((f) => f.endsWith('.enc'))
+        .map((f) => f.slice(0, -4))
+        .filter((id) => id.startsWith(prefix));
+    }
+  );
+
+  ipcMain.handle(
     'secure-storage:isAvailable',
     (): boolean => {
       return safeStorage.isEncryptionAvailable();

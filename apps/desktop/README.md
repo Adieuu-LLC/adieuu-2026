@@ -29,11 +29,12 @@ Device encryption keys are stored in a local file under the Electron `userData` 
 
 ### Linux Password Store
 
-On Linux, the app auto-detects your desktop environment and configures the appropriate password store backend for `safeStorage`:
+On Linux, the app auto-detects the appropriate password store backend for `safeStorage`. It first checks environment variables (`XDG_CURRENT_DESKTOP`, `KDE_SESSION_VERSION`), then falls back to probing D-Bus for available secret services (KWallet 6, KWallet 5, freedesktop Secret Service):
 
 | Desktop | Backend |
 |---------|---------|
-| KDE/Plasma | `kwallet5` |
+| KDE/Plasma 6+ | `kwallet6` |
+| KDE/Plasma 5 | `kwallet5` |
 | GNOME, Unity, Pantheon, Cinnamon | `gnome-libsecret` |
 | Other / undetected | Chromium default (libsecret via D-Bus) |
 

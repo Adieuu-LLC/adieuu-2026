@@ -5,10 +5,11 @@
  *   - A platform-provided SecureStorage backend (desktop: safeStorage + local file)
  *   - IndexedDB with AES-GCM encryption (web fallback)
  *
- * On desktop, all device keys are stored as a single JSON blob under the key
- * 'adieuu-device-keys' via the SecureStorage interface. The main process
- * encrypts that blob with safeStorage (OS keychain / DPAPI / libsecret) and
- * writes it to a file under userData, so keys survive browser cache clears.
+ * On desktop, each identity's device keys are stored in a separate file under
+ * userData. Filenames are SHA-256 hashes of the identity ID so they cannot be
+ * enumerated to reveal which identities are present on the device. When
+ * safeStorage (OS keychain / DPAPI / libsecret) is available, file contents
+ * are additionally encrypted with OS-level keys.
  *
  * On web, keys are stored in IndexedDB encrypted with a passphrase-derived
  * wrapping key (unchanged from the original implementation).
@@ -25,7 +26,10 @@ import type { SecureStorage } from '../config/types';
 const DB_NAME = 'adieuu-device-keys';
 const DB_VERSION = 1;
 const STORE_NAME = 'keys';
-const BACKEND_KEY_ID = 'adieuu-device-keys';
+
+const IDENTITY_KEY_PREFIX = 'dkeys-';
+const OLD_SINGLE_BLOB_KEY = 'adieuu-device-keys';
+const MIGRATION_MARKER_KEY = 'dkeys-migration-v2';
 
 // ============================================================================
 // Types
@@ -77,7 +81,7 @@ export class DeviceKeyStorageError extends Error {
 }
 
 // ============================================================================
-// SecureStorage Backend (Desktop)
+// SecureStorage Backend (Desktop) -- Per-Identity Files
 // ============================================================================
 
 let storageBackend: SecureStorage | null = null;
@@ -85,8 +89,8 @@ let storageBackend: SecureStorage | null = null;
 /**
  * Sets the storage backend for device keys.
  *
- * When a backend is provided (desktop), all device key operations use a single
- * JSON blob persisted via the SecureStorage interface. When null (web), the
+ * When a backend is provided (desktop), each identity's device keys are stored
+ * in a separate file with a SHA-256 hashed filename. When null (web), the
  * existing IndexedDB implementation is used.
  *
  * Call this once at app init before any identity/login operations.
@@ -95,21 +99,48 @@ export function setDeviceKeyStorageBackend(backend: SecureStorage | null): void 
   storageBackend = backend;
 }
 
-type DeviceKeyStore = Record<string, StoredDeviceKeys[]>;
-
-async function getFullStore(): Promise<DeviceKeyStore> {
-  if (!storageBackend) throw new Error('No storage backend set');
-  const raw = await storageBackend.getKey(BACKEND_KEY_ID);
-  if (!raw) return {};
-  const json = new TextDecoder().decode(raw);
-  return JSON.parse(json) as DeviceKeyStore;
+function toHex(bytes: Uint8Array): string {
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i]!.toString(16).padStart(2, '0');
+  }
+  return hex;
 }
 
-async function saveFullStore(store: DeviceKeyStore): Promise<void> {
+/**
+ * Derives an opaque key ID from an identity ID using SHA-256.
+ * Filenames reveal no information about the identity.
+ */
+async function identityKeyId(identityId: string): Promise<string> {
+  const data = new TextEncoder().encode(identityId);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return `${IDENTITY_KEY_PREFIX}${toHex(new Uint8Array(hash)).slice(0, 32)}`;
+}
+
+async function getIdentityStore(identityId: string): Promise<StoredDeviceKeys[]> {
   if (!storageBackend) throw new Error('No storage backend set');
-  const json = JSON.stringify(store);
+  const keyId = await identityKeyId(identityId);
+  const raw = await storageBackend.getKey(keyId);
+  if (!raw) return [];
+  const json = new TextDecoder().decode(raw);
+  return JSON.parse(json) as StoredDeviceKeys[];
+}
+
+async function saveIdentityStore(identityId: string, keys: StoredDeviceKeys[]): Promise<void> {
+  if (!storageBackend) throw new Error('No storage backend set');
+  const keyId = await identityKeyId(identityId);
+  if (keys.length === 0) {
+    await storageBackend.deleteKey(keyId);
+    return;
+  }
+  const json = JSON.stringify(keys);
   const data = new TextEncoder().encode(json);
-  await storageBackend.setKey(BACKEND_KEY_ID, data);
+  await storageBackend.setKey(keyId, data);
+}
+
+async function getAllIdentityKeyIds(): Promise<string[]> {
+  if (!storageBackend?.listKeys) return [];
+  return storageBackend.listKeys(IDENTITY_KEY_PREFIX);
 }
 
 // ============================================================================
@@ -234,16 +265,14 @@ export async function storeDeviceKeys(
   };
 
   if (storageBackend) {
-    const store = await getFullStore();
-    const identityKeys = store[identityId] ?? [];
-    const existingIdx = identityKeys.findIndex((k) => k.deviceId === deviceId);
+    const keys = await getIdentityStore(identityId);
+    const existingIdx = keys.findIndex((k) => k.deviceId === deviceId);
     if (existingIdx >= 0) {
-      identityKeys[existingIdx] = record;
+      keys[existingIdx] = record;
     } else {
-      identityKeys.push(record);
+      keys.push(record);
     }
-    store[identityId] = identityKeys;
-    await saveFullStore(store);
+    await saveIdentityStore(identityId, keys);
     return;
   }
 
@@ -268,13 +297,24 @@ export async function storeDeviceKeys(
 
 /**
  * Retrieves stored device keys by device ID.
+ *
+ * When identityId is provided (recommended), only that identity's file is
+ * read. Otherwise all identity files are scanned.
  */
 export async function getStoredDeviceKeys(
-  deviceId: string
+  deviceId: string,
+  identityId?: string
 ): Promise<StoredDeviceKeys | null> {
   if (storageBackend) {
-    const store = await getFullStore();
-    for (const keys of Object.values(store)) {
+    if (identityId) {
+      const keys = await getIdentityStore(identityId);
+      return keys.find((k) => k.deviceId === deviceId) ?? null;
+    }
+    const allKeyIds = await getAllIdentityKeyIds();
+    for (const keyId of allKeyIds) {
+      const raw = await storageBackend.getKey(keyId);
+      if (!raw) continue;
+      const keys = JSON.parse(new TextDecoder().decode(raw)) as StoredDeviceKeys[];
       const found = keys.find((k) => k.deviceId === deviceId);
       if (found) return found;
     }
@@ -310,8 +350,7 @@ export async function getDeviceKeysForIdentity(
   identityId: string
 ): Promise<StoredDeviceKeys[]> {
   if (storageBackend) {
-    const store = await getFullStore();
-    return store[identityId] ?? [];
+    return getIdentityStore(identityId);
   }
 
   const db = await openDatabase();
@@ -392,24 +431,38 @@ export async function hasDeviceKeys(identityId: string): Promise<boolean> {
 
 /**
  * Deletes device keys by device ID.
+ *
+ * When identityId is provided (recommended), only that identity's file is
+ * read. Otherwise all identity files are scanned.
  */
-export async function deleteDeviceKeys(deviceId: string): Promise<void> {
+export async function deleteDeviceKeys(
+  deviceId: string,
+  identityId?: string
+): Promise<void> {
   if (storageBackend) {
-    const store = await getFullStore();
-    let found = false;
-    for (const [identityId, keys] of Object.entries(store)) {
+    if (identityId) {
+      const keys = await getIdentityStore(identityId);
       const filtered = keys.filter((k) => k.deviceId !== deviceId);
       if (filtered.length !== keys.length) {
-        found = true;
-        if (filtered.length === 0) {
-          delete store[identityId];
-        } else {
-          store[identityId] = filtered;
-        }
+        await saveIdentityStore(identityId, filtered);
       }
+      return;
     }
-    if (found) {
-      await saveFullStore(store);
+    const allKeyIds = await getAllIdentityKeyIds();
+    for (const keyId of allKeyIds) {
+      const raw = await storageBackend.getKey(keyId);
+      if (!raw) continue;
+      const keys = JSON.parse(new TextDecoder().decode(raw)) as StoredDeviceKeys[];
+      const filtered = keys.filter((k) => k.deviceId !== deviceId);
+      if (filtered.length !== keys.length) {
+        if (filtered.length === 0) {
+          await storageBackend.deleteKey(keyId);
+        } else {
+          const json = JSON.stringify(filtered);
+          await storageBackend.setKey(keyId, new TextEncoder().encode(json));
+        }
+        return;
+      }
     }
     return;
   }
@@ -442,12 +495,10 @@ export async function deleteAllDeviceKeysForIdentity(
   identityId: string
 ): Promise<number> {
   if (storageBackend) {
-    const store = await getFullStore();
-    const existing = store[identityId];
-    if (!existing || existing.length === 0) return 0;
-    const count = existing.length;
-    delete store[identityId];
-    await saveFullStore(store);
+    const keys = await getIdentityStore(identityId);
+    if (keys.length === 0) return 0;
+    const count = keys.length;
+    await saveIdentityStore(identityId, []);
     return count;
   }
 
@@ -496,7 +547,10 @@ export async function deleteAllDeviceKeysForIdentity(
  */
 export async function clearAllDeviceKeys(): Promise<void> {
   if (storageBackend) {
-    await storageBackend.deleteKey(BACKEND_KEY_ID);
+    const allKeyIds = await getAllIdentityKeyIds();
+    for (const keyId of allKeyIds) {
+      await storageBackend.deleteKey(keyId);
+    }
     return;
   }
 
@@ -520,68 +574,124 @@ export async function clearAllDeviceKeys(): Promise<void> {
 }
 
 // ============================================================================
-// Migration: IndexedDB -> SecureStorage backend
+// Migration
 // ============================================================================
 
+type LegacyDeviceKeyStore = Record<string, StoredDeviceKeys[]>;
+
 /**
- * Migrates device keys from IndexedDB to the SecureStorage backend.
+ * Migrates the old single-blob format (adieuu-device-keys) to per-identity
+ * files with hashed filenames.
+ */
+async function migrateSingleBlobToPerIdentity(): Promise<number> {
+  if (!storageBackend) return 0;
+
+  const hasOldBlob = await storageBackend.hasKey(OLD_SINGLE_BLOB_KEY);
+  if (!hasOldBlob) return 0;
+
+  const raw = await storageBackend.getKey(OLD_SINGLE_BLOB_KEY);
+  if (!raw) return 0;
+
+  let store: LegacyDeviceKeyStore;
+  try {
+    store = JSON.parse(new TextDecoder().decode(raw)) as LegacyDeviceKeyStore;
+  } catch {
+    console.error('[DeviceKeyStorage] Corrupt legacy single-blob, skipping migration');
+    return 0;
+  }
+
+  let totalMigrated = 0;
+
+  for (const [iid, keys] of Object.entries(store)) {
+    if (keys.length > 0) {
+      await saveIdentityStore(iid, keys);
+      totalMigrated += keys.length;
+    }
+  }
+
+  await storageBackend.deleteKey(OLD_SINGLE_BLOB_KEY);
+
+  return totalMigrated;
+}
+
+/**
+ * Migrates device keys from older storage formats to the current per-identity
+ * file model.
  *
- * This should be called once on desktop startup after setting the backend.
- * It reads all records from the IndexedDB store, writes them to the backend
- * as a single blob, then clears the IndexedDB store. If the backend already
- * has data, this is a no-op.
+ * Migration order:
+ *   1. Single-blob file -> per-identity files (desktop users from Phase 3)
+ *   2. IndexedDB -> per-identity files (desktop users upgrading from web-only)
  *
- * @returns Number of records migrated (0 if nothing to migrate or backend has data)
+ * Each step is idempotent. A marker key prevents re-running after success.
+ *
+ * @returns Number of records migrated (0 if nothing to migrate)
  */
 export async function migrateIndexedDbToBackend(): Promise<number> {
   if (!storageBackend) return 0;
 
-  const backendHasData = await storageBackend.hasKey(BACKEND_KEY_ID);
-  if (backendHasData) return 0;
+  const markerExists = await storageBackend.hasKey(MIGRATION_MARKER_KEY);
+  if (markerExists) return 0;
 
-  if (typeof indexedDB === 'undefined') return 0;
+  let totalMigrated = 0;
 
-  let db: IDBDatabase;
-  try {
-    db = await openDatabase();
-  } catch {
-    return 0;
-  }
+  // Step 1: single-blob -> per-identity
+  totalMigrated += await migrateSingleBlobToPerIdentity();
 
-  const allRecords: StoredDeviceKeys[] = await new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const objectStore = tx.objectStore(STORE_NAME);
-    const request = objectStore.getAll();
+  // Step 2: IndexedDB -> per-identity (for fresh upgrades from web-only)
+  if (typeof indexedDB !== 'undefined') {
+    let db: IDBDatabase;
+    try {
+      db = await openDatabase();
+    } catch {
+      // No IndexedDB data to migrate
+      await storageBackend.setKey(MIGRATION_MARKER_KEY, new TextEncoder().encode('done'));
+      return totalMigrated;
+    }
 
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result ?? []);
-    tx.oncomplete = () => db.close();
-  });
-
-  if (allRecords.length === 0) return 0;
-
-  const store: DeviceKeyStore = {};
-  for (const record of allRecords) {
-    const list = store[record.identityId] ?? [];
-    list.push(record);
-    store[record.identityId] = list;
-  }
-
-  await saveFullStore(store);
-
-  try {
-    const clearDb = await openDatabase();
-    await new Promise<void>((resolve, reject) => {
-      const tx = clearDb.transaction(STORE_NAME, 'readwrite');
+    const allRecords: StoredDeviceKeys[] = await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
       const objectStore = tx.objectStore(STORE_NAME);
-      const request = objectStore.clear();
+      const request = objectStore.getAll();
+
       request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve();
-      tx.oncomplete = () => clearDb.close();
+      request.onsuccess = () => resolve(request.result ?? []);
+      tx.oncomplete = () => db.close();
     });
-  } catch {
-    // Non-fatal: migration succeeded even if IndexedDB cleanup fails
+
+    if (allRecords.length > 0) {
+      const byIdentity: Record<string, StoredDeviceKeys[]> = {};
+      for (const record of allRecords) {
+        const list = byIdentity[record.identityId] ?? [];
+        list.push(record);
+        byIdentity[record.identityId] = list;
+      }
+
+      for (const [iid, keys] of Object.entries(byIdentity)) {
+        const existing = await getIdentityStore(iid);
+        if (existing.length === 0) {
+          await saveIdentityStore(iid, keys);
+          totalMigrated += keys.length;
+        }
+      }
+
+      try {
+        const clearDb = await openDatabase();
+        await new Promise<void>((resolve, reject) => {
+          const tx = clearDb.transaction(STORE_NAME, 'readwrite');
+          const objectStore = tx.objectStore(STORE_NAME);
+          const request = objectStore.clear();
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => resolve();
+          tx.oncomplete = () => clearDb.close();
+        });
+      } catch {
+        // Non-fatal: migration succeeded even if IndexedDB cleanup fails
+      }
+    }
   }
 
-  return allRecords.length;
+  // Write marker so we don't re-run
+  await storageBackend.setKey(MIGRATION_MARKER_KEY, new TextEncoder().encode('done'));
+
+  return totalMigrated;
 }
