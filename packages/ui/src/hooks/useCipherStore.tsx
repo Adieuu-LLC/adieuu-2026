@@ -140,12 +140,32 @@ const DB_NAME = 'adieuu-ciphers';
 const DB_VERSION = 1;
 const STORE_NAME = 'ciphers';
 
+/**
+ * Opens the cipher IndexedDB, creating the object store on first use.
+ * If the database exists but is missing the expected store (e.g. due to a
+ * prior crash or aborted upgrade), the database is deleted and recreated.
+ */
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
     request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
+
+    request.onsuccess = () => {
+      const db = request.result;
+
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.close();
+        const deleteReq = indexedDB.deleteDatabase(DB_NAME);
+        deleteReq.onsuccess = () => {
+          openDatabase().then(resolve, reject);
+        };
+        deleteReq.onerror = () => reject(deleteReq.error);
+        return;
+      }
+
+      resolve(db);
+    };
 
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
@@ -169,10 +189,11 @@ async function getAllCiphers(identityId: string): Promise<StoredCipher[]> {
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
       const ciphers = request.result as StoredCipher[];
-      // Sort by createdAt descending (newest first)
       ciphers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       resolve(ciphers);
     };
+
+    tx.oncomplete = () => db.close();
   });
 }
 
@@ -185,6 +206,7 @@ async function saveCipher(cipher: StoredCipher): Promise<void> {
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
   });
 }
 
@@ -197,6 +219,7 @@ async function deleteCipherFromDb(id: string): Promise<void> {
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
   });
 }
 
@@ -209,6 +232,7 @@ async function getCipherByIdFromDb(id: string): Promise<StoredCipher | undefined
 
     request.onerror = () => reject(request.error);
     request.onsuccess = () => resolve(request.result as StoredCipher | undefined);
+    tx.oncomplete = () => db.close();
   });
 }
 
