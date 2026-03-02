@@ -99,6 +99,19 @@ export type {
 } from './hooks/useDmMessages';
 export type { DecryptedMessageContent } from './services/dmMessageService';
 export { setDeviceKeyStorageBackend, migrateIndexedDbToBackend } from './services/deviceKeyStorage';
+export {
+  exportKeyBackup,
+  decryptKeyBackup,
+  parseKeyBackupHeader,
+  applyKeyBackupImport,
+  getExportFilename,
+  KeyBackupError,
+} from './services/keyBackupService';
+export type {
+  KeyBackupHeader,
+  KeyBackupPayload,
+  KeyBackupImportResult,
+} from './services/keyBackupService';
 
 // ============================================================================
 // UI Components
@@ -138,6 +151,10 @@ export { ConversationListItem } from './components/ConversationListItem';
 export { SidebarConversationsList } from './components/SidebarConversationsList';
 export { MessageComposer, TTL_OPTIONS } from './components/MessageComposer';
 export { KeyStorageBanner } from './components/KeyStorageBanner';
+export { ExportKeyBackupModal } from './components/ExportKeyBackupModal';
+export { ImportKeyBackupModal } from './components/ImportKeyBackupModal';
+export type { ExportKeyBackupModalProps } from './components/ExportKeyBackupModal';
+export type { ImportKeyBackupModalProps } from './components/ImportKeyBackupModal';
 export type { MessageComposerProps, SendMessageData, TtlOption } from './components/MessageComposer';
 
 // ============================================================================

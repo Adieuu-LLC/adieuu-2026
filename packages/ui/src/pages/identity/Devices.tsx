@@ -17,6 +17,8 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Spinner } from '../../components/Spinner';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
+import { ExportKeyBackupModal } from '../../components/ExportKeyBackupModal';
+import { ImportKeyBackupModal } from '../../components/ImportKeyBackupModal';
 import { useDeviceManagement, type DeviceWithStatus, type ActivityTrackingMode, type ActivityInterval } from '../../hooks/useDeviceManagement';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useToast } from '../../components/Toast';
@@ -422,6 +424,8 @@ export function Devices() {
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [removeAllDialogOpen, setRemoveAllDialogOpen] = useState(false);
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<{ id: string; name: string; isCurrent: boolean } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -486,6 +490,30 @@ export function Devices() {
     }
   };
 
+  const handleExportSuccess = useCallback(() => {
+    toastSuccess(t('identity.devices.export.success', 'Key backup exported successfully.'));
+  }, [toastSuccess, t]);
+
+  const handleImportSuccess = useCallback((imported: number, skipped: number) => {
+    if (skipped > 0) {
+      toastSuccess(
+        t('identity.devices.import.successWithSkipped', {
+          imported,
+          skipped,
+          defaultValue: `Imported ${imported} device key(s). Skipped ${skipped} existing.`,
+        })
+      );
+    } else {
+      toastSuccess(
+        t('identity.devices.import.success', {
+          imported,
+          defaultValue: `Imported ${imported} device key(s).`,
+        })
+      );
+    }
+    fetchDevices();
+  }, [toastSuccess, t, fetchDevices]);
+
   if (!identity) {
     return (
       <div className="page-content">
@@ -533,16 +561,18 @@ export function Devices() {
                 <div className="sessions-header-text">
                   <h3>{t('identity.devices.yourDevices', 'Your Devices')} ({devices.length})</h3>
                 </div>
-                {otherDevicesCount > 0 && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="session-revoke-btn"
-                    onClick={() => setRemoveAllDialogOpen(true)}
-                  >
-                    {t('identity.devices.removeAllOthers', 'Remove all other devices')}
-                  </Button>
-                )}
+                <div className="sessions-header-actions">
+                  {otherDevicesCount > 0 && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="session-revoke-btn"
+                      onClick={() => setRemoveAllDialogOpen(true)}
+                    >
+                      {t('identity.devices.removeAllOthers', 'Remove all other devices')}
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {loading && devices.length === 0 ? (
@@ -565,6 +595,25 @@ export function Devices() {
                   ))}
                 </div>
               )}
+
+              <div className="key-backup-actions">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setExportDialogOpen(true)}
+                >
+                  <KeyBackupIcon />
+                  {t('identity.devices.exportKeyBackup', 'Export Key Backup')}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setImportDialogOpen(true)}
+                >
+                  <KeyImportIcon />
+                  {t('identity.devices.importKeyBackup', 'Import Key Backup')}
+                </Button>
+              </div>
             </Card>
           </TabContent>
 
@@ -610,6 +659,20 @@ export function Devices() {
         onConfirm={handleRename}
         loading={actionLoading}
       />
+
+      {/* Export key backup dialog */}
+      <ExportKeyBackupModal
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        onSuccess={handleExportSuccess}
+      />
+
+      {/* Import key backup dialog */}
+      <ImportKeyBackupModal
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onSuccess={handleImportSuccess}
+      />
     </div>
   );
 }
@@ -621,6 +684,28 @@ function DeviceIcon() {
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
       <line x1="8" y1="21" x2="16" y2="21" />
       <line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  );
+}
+
+/** Download / export icon */
+function KeyBackupIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.375rem', flexShrink: 0 }}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+/** Upload / import icon */
+function KeyImportIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.375rem', flexShrink: 0 }}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
     </svg>
   );
 }

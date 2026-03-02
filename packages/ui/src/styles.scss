@@ -1539,6 +1539,102 @@ a {
   color: var(--color-text-secondary);
 }
 
+.sessions-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+}
+
+// ============================================================================
+// Key Backup Export/Import
+// ============================================================================
+
+.key-backup-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding-top: var(--spacing-md);
+  margin-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.key-backup-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.key-backup-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.key-backup-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.key-backup-warning {
+  margin-bottom: 0;
+}
+
+.key-backup-info {
+  margin-bottom: 0;
+}
+
+.key-backup-error {
+  font-size: var(--font-size-sm);
+  color: var(--color-danger);
+  padding: var(--spacing-xs) 0;
+}
+
+.key-backup-hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.key-backup-file-info {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  word-break: break-all;
+}
+
+.key-backup-merge-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.key-backup-merge-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+
+  input[type="radio"] {
+    accent-color: var(--color-accent-primary);
+  }
+}
+
+.key-backup-importing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg) 0;
+  color: var(--color-text-secondary);
+}
+
 // ============================================================================
 // Tooltip Component
 // ============================================================================

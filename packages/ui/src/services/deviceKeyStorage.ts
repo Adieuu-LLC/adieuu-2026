@@ -296,6 +296,46 @@ export async function storeDeviceKeys(
 }
 
 /**
+ * Stores a pre-encrypted StoredDeviceKeys record directly.
+ *
+ * Used by key backup import where records are already encrypted with
+ * the identity passphrase wrapping key. No additional encryption is applied.
+ */
+export async function storePreEncryptedDeviceKeys(
+  record: StoredDeviceKeys
+): Promise<void> {
+  if (storageBackend) {
+    const keys = await getIdentityStore(record.identityId);
+    const existingIdx = keys.findIndex((k) => k.deviceId === record.deviceId);
+    if (existingIdx >= 0) {
+      keys[existingIdx] = record;
+    } else {
+      keys.push(record);
+    }
+    await saveIdentityStore(record.identityId, keys);
+    return;
+  }
+
+  const db = await openDatabase();
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const objectStore = tx.objectStore(STORE_NAME);
+    const request = objectStore.put(record);
+
+    request.onerror = () => {
+      reject(new DeviceKeyStorageError(
+        'Failed to store device keys',
+        'STORAGE_FAILED'
+      ));
+    };
+
+    request.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
  * Retrieves stored device keys by device ID.
  *
  * When identityId is provided (recommended), only that identity's file is
