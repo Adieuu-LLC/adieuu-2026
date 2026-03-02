@@ -147,6 +147,10 @@ export interface UseDmMessagesResult {
   fetchMore: () => Promise<void>;
   /** Refresh messages from the beginning */
   refresh: () => Promise<void>;
+  /** Decrypt and prepend a single new message (skips duplicates) */
+  appendNewMessage: (rawMessage: DmMessage) => Promise<void>;
+  /** Remove a message from the local list by ID */
+  removeMessage: (messageId: string) => void;
 }
 
 // ============================================================================
@@ -628,6 +632,37 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
     await fetchMessages(cursor, true);
   }, [cursor, hasMore, isLoading, fetchMessages]);
 
+  const appendNewMessage = useCallback(
+    async (rawMessage: DmMessage) => {
+      if (status !== 'logged_in' || !identity) return;
+
+      const wrappingKey = getWrappingKey();
+      const deviceId = getCurrentDeviceId();
+      if (!wrappingKey || !deviceId) return;
+
+      try {
+        const storedKeys = await getStoredDeviceKeys(deviceId, identity.id);
+        if (!storedKeys) return;
+        const deviceKeys = await decryptDeviceKeys(storedKeys, wrappingKey);
+
+        const [decrypted] = await decryptMessages([rawMessage], deviceKeys);
+        if (decrypted) {
+          setMessages((prev) => {
+            if (prev.some((m) => m.raw.id === rawMessage.id)) return prev;
+            return [decrypted, ...prev];
+          });
+        }
+      } catch {
+        // Decryption failed silently; message will appear on next full refresh
+      }
+    },
+    [status, identity, getWrappingKey, getCurrentDeviceId, decryptMessages]
+  );
+
+  const removeMessage = useCallback((messageId: string) => {
+    setMessages((prev) => prev.filter((m) => m.raw.id !== messageId));
+  }, []);
+
   // Auto-fetch on mount when immediate is true
   const hasFetchedRef = useRef(false);
   useEffect(() => {
@@ -671,7 +706,7 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
     return () => clearTimeout(timerId);
   }, [visibleMessages]);
 
-  return { messages: visibleMessages, isLoading, error, hasMore, fetchMore, refresh };
+  return { messages: visibleMessages, isLoading, error, hasMore, fetchMore, refresh, appendNewMessage, removeMessage };
 }
 
 /**

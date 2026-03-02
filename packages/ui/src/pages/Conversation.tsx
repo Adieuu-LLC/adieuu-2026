@@ -582,6 +582,8 @@ export function Conversation() {
     isLoading: messagesLoading,
     error: messagesError,
     refresh: refreshMessages,
+    appendNewMessage,
+    removeMessage,
   } = useDmMessages({
     conversationId: conversationId ?? '',
     immediate: !!conversationId && isLoggedIn,
@@ -599,12 +601,12 @@ export function Conversation() {
   // Subscribe to real-time updates
   useDmSubscription({
     conversationId: conversationId ?? undefined,
-    onNewMessage: () => {
-      refreshMessages();
+    onNewMessage: (event) => {
+      appendNewMessage(event.payload.message);
       refreshConversations();
     },
-    onDeleted: () => {
-      refreshMessages();
+    onDeleted: (event) => {
+      removeMessage(event.payload.messageId);
       refreshConversations();
     },
     onReconnect: () => {
@@ -641,25 +643,25 @@ export function Conversation() {
       expiresInSeconds: expiresInSeconds ?? undefined,
     });
 
-    if (result.success) {
-      refreshMessages();
+    if (result.success && result.message) {
+      appendNewMessage(result.message);
       refreshConversations();
     }
-  }, [otherParticipantId, refreshConversations, refreshMessages, sendMessage]);
+  }, [otherParticipantId, appendNewMessage, refreshConversations, sendMessage]);
 
   const handleDeleteForEveryone = useCallback(async (messageId: string) => {
     const result = await deleteForEveryone(messageId);
     if (result.success) {
-      refreshMessages();
+      removeMessage(messageId);
     }
-  }, [deleteForEveryone, refreshMessages]);
+  }, [deleteForEveryone, removeMessage]);
 
   const handleDeleteForSelf = useCallback(async (messageId: string) => {
     const result = await deleteForSelf(messageId);
     if (result.success) {
-      refreshMessages();
+      removeMessage(messageId);
     }
-  }, [deleteForSelf, refreshMessages]);
+  }, [deleteForSelf, removeMessage]);
 
   if (!isLoggedIn) {
     return (
