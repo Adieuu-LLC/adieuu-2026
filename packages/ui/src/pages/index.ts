@@ -10,14 +10,19 @@ export { Login, Verify } from './auth';
 // Account pages
 export {
   AccountOverview,
-  AccountAppearance,
   AccountSecurity,
-  AccountPrivacy,
-  AccountNotifications,
+  AccountSettings,
 } from './account';
 
 // Identity pages
-export { IdentityCiphers } from './identity';
+export {
+  IdentityCiphers,
+  IdentityContentSocial,
+  IdentityDevices,
+  IdentityFriends,
+  IdentityPrivacy,
+  IdentityProfile,
+} from './identity';
 
 // Utility pages
 export { ServiceStatus } from './ServiceStatus';

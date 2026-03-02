@@ -243,6 +243,7 @@ export const en = {
       profile: 'Profile',
       friends: 'Friends',
       contentSocial: 'Content & Social',
+      privacy: 'Privacy',
       ciphers: 'Ciphers',
       devices: 'Devices',
     },
@@ -523,6 +524,28 @@ export const en = {
         argon2Failed: 'Key derivation failed. Please try again.',
       },
     },
+    // Profile page
+    profile: {
+      title: 'Profile',
+      subtitle: 'View and manage your identity profile.',
+      comingSoon: 'Profile settings coming soon.',
+    },
+    // Content & Social page
+    contentSocial: {
+      title: 'Content & Social',
+      subtitle: 'Manage your content and social settings.',
+      comingSoon: 'Content & Social settings coming soon.',
+    },
+    // Privacy page (identity-scoped)
+    privacy: {
+      title: 'Privacy',
+      subtitle: 'Control your privacy settings and who can interact with you.',
+      blockedUsers: 'Blocked Users',
+      profileVisibility: 'Profile Visibility',
+      readReceipts: 'Read Receipts',
+      typingIndicators: 'Typing Indicators',
+      lastSeen: 'Last Seen',
+    },
   },
 
   // Account pages
@@ -562,22 +585,11 @@ export const en = {
       phoneUnchanged: 'Enter a different phone number to change it.',
     },
 
-    // Appearance
-    appearance: {
-      title: 'Appearance',
-      subtitle: 'Customize how Adieuu looks and feels.',
-      comingSoon: 'Appearance settings coming soon.',
-      theme: 'Theme',
-      themeDark: 'Dark',
-      themeLight: 'Light',
-      themeSystem: 'System',
-      sidebarPosition: 'Sidebar Position',
-      sidebarLeft: 'Left',
-      sidebarRight: 'Right',
-      fontSize: 'Font Size',
-      fontSizeSmall: 'Small',
-      fontSizeMedium: 'Medium',
-      fontSizeLarge: 'Large',
+    // App Settings
+    settings: {
+      title: 'App Settings',
+      subtitle: 'Configure application preferences.',
+      comingSoon: 'App settings coming soon.',
     },
 
     // Security
@@ -614,29 +626,6 @@ export const en = {
       },
     },
 
-    // Privacy
-    privacy: {
-      title: 'Privacy',
-      subtitle: 'Control your privacy settings and who can contact you.',
-      comingSoon: 'Privacy settings coming soon.',
-      blockedUsers: 'Blocked Users',
-      profileVisibility: 'Profile Visibility',
-      readReceipts: 'Read Receipts',
-      typingIndicators: 'Typing Indicators',
-      lastSeen: 'Last Seen',
-    },
-
-    // Notifications
-    notifications: {
-      title: 'Notifications',
-      subtitle: 'Configure how and when you receive notifications.',
-      comingSoon: 'Notification settings coming soon.',
-      pushNotifications: 'Push Notifications',
-      emailNotifications: 'Email Notifications',
-      soundEnabled: 'Sound Enabled',
-      desktopNotifications: 'Desktop Notifications',
-      messagePreview: 'Message Preview',
-    },
   },
 
   // About page

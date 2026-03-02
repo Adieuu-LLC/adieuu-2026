@@ -8,12 +8,17 @@ import { Conversation } from '../pages/Conversation';
 import { Login, Verify, MfaVerify } from '../pages/auth';
 import {
   AccountOverview,
-  AccountAppearance,
   AccountSecurity,
-  AccountPrivacy,
-  AccountNotifications,
+  AccountSettings,
 } from '../pages/account';
-import { IdentityCiphers, IdentityDevices, IdentityFriends } from '../pages/identity';
+import {
+  IdentityCiphers,
+  IdentityContentSocial,
+  IdentityDevices,
+  IdentityFriends,
+  IdentityPrivacy,
+  IdentityProfile,
+} from '../pages/identity';
 import { ServiceStatus } from '../pages/ServiceStatus';
 import { useAuth } from '../hooks/useAuth';
 import { TourProvider, useTourContext } from '../hooks/useTourContext';
@@ -143,14 +148,16 @@ export function App() {
         {/* Account Routes */}
         <Route path="/account" element={<Navigate to="/account/overview" replace />} />
         <Route path="/account/overview" element={<AccountOverview />} />
-        <Route path="/account/appearance" element={<AccountAppearance />} />
         <Route path="/account/security" element={<Navigate to="/account/security/authentication" replace />} />
         <Route path="/account/security/:tab" element={<AccountSecurity />} />
-        <Route path="/account/privacy" element={<AccountPrivacy />} />
+        <Route path="/account/settings" element={<AccountSettings />} />
 
         {/* Identity Routes */}
-        <Route path="/identity" element={<Navigate to="/identity/friends" replace />} />
+        <Route path="/identity" element={<Navigate to="/identity/profile" replace />} />
+        <Route path="/identity/profile" element={<IdentityProfile />} />
         <Route path="/identity/friends" element={<IdentityFriends />} />
+        <Route path="/identity/content" element={<IdentityContentSocial />} />
+        <Route path="/identity/privacy" element={<IdentityPrivacy />} />
         <Route path="/identity/devices" element={<IdentityDevices />} />
         <Route path="/identity/ciphers" element={<IdentityCiphers />} />
       </Route>

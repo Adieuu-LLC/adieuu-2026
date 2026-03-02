@@ -10,10 +10,14 @@ export {
   Login,
   Verify,
   AccountOverview,
-  AccountAppearance,
   AccountSecurity,
-  AccountPrivacy,
-  AccountNotifications,
+  AccountSettings,
+  IdentityCiphers,
+  IdentityContentSocial,
+  IdentityDevices,
+  IdentityFriends,
+  IdentityPrivacy,
+  IdentityProfile,
 } from './pages';
 
 // ============================================================================

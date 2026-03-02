@@ -73,17 +73,11 @@ function AccountFlyout() {
           <Link to="/account/overview" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/overview') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('account.overview.title')}
           </Link>
-          <Link to="/account/appearance" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/appearance') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('account.appearance.title')}
-          </Link>
           <Link to="/account/security" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/account/security') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('account.security.title')}
           </Link>
-          <Link to="/account/privacy" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/privacy') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('account.privacy.title')}
-          </Link>
-          <Link to="/account/notifications" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/notifications') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('account.notifications.title')}
+          <Link to="/account/settings" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/settings') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('account.settings.title')}
           </Link>
           <div className="sidebar-flyout-divider" />
           <button
@@ -226,6 +220,9 @@ function IdentityFlyout() {
           </Link>
           <Link to="/identity/content" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/content') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('identity.menu.contentSocial')}
+          </Link>
+          <Link to="/identity/privacy" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/privacy') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('identity.menu.privacy')}
           </Link>
           <Link to="/identity/ciphers" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/ciphers') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('identity.menu.ciphers')}

@@ -7,7 +7,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useBlocks } from '../../hooks/useBlocks';
 import { useIdentity } from '../../hooks/useIdentity';
 
-export function AccountPrivacy() {
+export function IdentityPrivacy() {
   const { t } = useTranslation();
   const { status: identityStatus } = useIdentity();
   const { blocked, isLoading, hasMore, loadMore, unblock } = useBlocks();
@@ -27,9 +27,9 @@ export function AccountPrivacy() {
     <div className="page-content">
       <div className="container">
         <div className="page-header">
-          <h1 className="page-title">{t('account.privacy.title')}</h1>
+          <h1 className="page-title">{t('identity.privacy.title')}</h1>
           <p className="page-subtitle">
-            {t('account.privacy.subtitle')}
+            {t('identity.privacy.subtitle')}
           </p>
         </div>
 
