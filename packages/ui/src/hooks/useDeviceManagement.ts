@@ -71,7 +71,7 @@ const ACTIVITY_PREFS_KEY = 'adieuu-activity-prefs';
  */
 function getActivityPreferences(): ActivityPreferences {
   if (typeof localStorage === 'undefined') {
-    return { mode: 'active-only', intervalMinutes: 15 };
+    return { mode: 'disabled', intervalMinutes: 15 };
   }
 
   try {
@@ -83,7 +83,7 @@ function getActivityPreferences(): ActivityPreferences {
     // Ignore parse errors
   }
 
-  return { mode: 'active-only', intervalMinutes: 15 };
+  return { mode: 'disabled', intervalMinutes: 15 };
 }
 
 /**

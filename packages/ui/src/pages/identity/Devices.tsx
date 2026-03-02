@@ -4,12 +4,12 @@
  * Allows users to:
  * - View all registered devices
  * - Rename devices
- * - Remove devices (with passphrase confirmation)
- * - Remove all other devices
+ * - Delete devices (with passphrase confirmation)
+ * - Delete all other devices
  * - Configure activity tracking preferences
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Portal, RadioGroup } from '@ark-ui/react';
 import { Card } from '../../components/Card';
@@ -17,10 +17,13 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Spinner } from '../../components/Spinner';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ExportKeyBackupModal } from '../../components/ExportKeyBackupModal';
 import { ImportKeyBackupModal } from '../../components/ImportKeyBackupModal';
+import { createApiClient, type PublicIdentitySession } from '@adieuu/shared';
 import { useDeviceManagement, type DeviceWithStatus, type ActivityTrackingMode, type ActivityInterval } from '../../hooks/useDeviceManagement';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useAppConfig } from '../../config';
 import { useToast } from '../../components/Toast';
 
 /**
@@ -106,7 +109,7 @@ function DeviceItem({
           className="session-revoke-btn"
           onClick={() => onRemove(device.deviceId, device.isCurrentDevice)}
         >
-          {t('identity.devices.remove', 'Remove')}
+          {t('identity.devices.remove', 'Delete')}
         </Button>
       </div>
     </div>
@@ -411,6 +414,198 @@ function ActivityPreferences() {
   );
 }
 
+function parseUserAgent(userAgent?: string): string {
+  if (!userAgent) return 'Unknown device';
+
+  if (userAgent.includes('Firefox')) {
+    return userAgent.includes('Mobile') ? 'Firefox Mobile' : 'Firefox';
+  }
+  if (userAgent.includes('Edg/')) return 'Microsoft Edge';
+  if (userAgent.includes('Chrome')) {
+    return userAgent.includes('Mobile') ? 'Chrome Mobile' : 'Chrome';
+  }
+  if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
+    return userAgent.includes('Mobile') ? 'Safari Mobile' : 'Safari';
+  }
+  if (userAgent.includes('Windows')) return 'Windows Device';
+  if (userAgent.includes('Mac')) return 'Mac Device';
+  if (userAgent.includes('Linux')) return 'Linux Device';
+  if (userAgent.includes('Android')) return 'Android Device';
+  if (userAgent.includes('iPhone') || userAgent.includes('iPad')) return 'iOS Device';
+
+  return 'Unknown device';
+}
+
+/**
+ * Identity sessions list component.
+ */
+function IdentitySessionsList() {
+  const { t } = useTranslation();
+  const { apiBaseUrl } = useAppConfig();
+  const { identity } = useIdentity();
+  const { success: toastSuccess } = useToast();
+  const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+
+  const [sessions, setSessions] = useState<PublicIdentitySession[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [revoking, setRevoking] = useState<string | null>(null);
+  const [revokingAll, setRevokingAll] = useState(false);
+  const [showRevokeAllConfirm, setShowRevokeAllConfirm] = useState(false);
+
+  const fetchSessions = useCallback(async () => {
+    if (!identity) return;
+    try {
+      const response = await api.identity.listSessions(identity.id);
+      if (response.success && response.data?.sessions) {
+        setSessions(response.data.sessions);
+      }
+    } catch (error) {
+      console.error('Failed to fetch identity sessions:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [api, identity]);
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
+
+  const handleRevokeSession = async (sessionId: string) => {
+    if (!identity) return;
+    setRevoking(sessionId);
+    try {
+      const response = await api.identity.revokeIdentitySession(identity.id, sessionId);
+      if (response.success) {
+        setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+        toastSuccess(t('identity.sessions.sessionRevoked', 'Session revoked successfully.'));
+      }
+    } catch (error) {
+      console.error('Failed to revoke identity session:', error);
+    } finally {
+      setRevoking(null);
+    }
+  };
+
+  const handleRevokeAllOthers = async () => {
+    if (!identity) return;
+    setRevokingAll(true);
+    try {
+      const response = await api.identity.revokeAllOtherIdentitySessions(identity.id);
+      if (response.success) {
+        setSessions((prev) => prev.filter((s) => s.isCurrent));
+        const count = response.data?.count ?? 0;
+        toastSuccess(
+          t('identity.sessions.allSessionsRevoked', {
+            count,
+            defaultValue: `${count} session(s) revoked successfully.`,
+          })
+        );
+      }
+    } catch (error) {
+      console.error('Failed to revoke all identity sessions:', error);
+    } finally {
+      setRevokingAll(false);
+      setShowRevokeAllConfirm(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="sessions-loading">
+        <Spinner size="md" />
+      </div>
+    );
+  }
+
+  const otherSessions = sessions.filter((s) => !s.isCurrent);
+
+  return (
+    <div>
+      <div className="sessions-header">
+        <div className="sessions-header-text">
+          <h3>{t('identity.sessions.title', 'Identity Sessions')}</h3>
+          <p>{t('identity.sessions.description', "These are the active sessions for your identity. You can revoke access to any session you don't recognize.")}</p>
+        </div>
+        {otherSessions.length > 0 && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="session-revoke-btn"
+            onClick={() => setShowRevokeAllConfirm(true)}
+            disabled={revokingAll}
+          >
+            {revokingAll ? <Spinner size="sm" /> : t('identity.sessions.revokeAllOthers', 'Revoke all other sessions')}
+          </Button>
+        )}
+      </div>
+
+      <div className="session-list">
+        {sessions.map((session) => (
+          <div
+            key={session.id}
+            className={`session-item ${session.isCurrent ? 'session-item-current' : ''}`}
+          >
+            <div className="session-info">
+              <div className="session-device">
+                {parseUserAgent(session.userAgent)}
+                {session.isCurrent && (
+                  <span className="session-current-badge">
+                    {t('identity.sessions.currentSession', 'Current session')}
+                  </span>
+                )}
+              </div>
+              <div className="session-meta">
+                <span>
+                  {t('identity.sessions.lastActive', 'Last active')}: {formatLastActive(session.lastActivityAt)}
+                </span>
+                <span>
+                  {t('identity.sessions.created', 'Created')}: {new Date(session.createdAt).toLocaleDateString()}
+                </span>
+                {session.ipAddress && <span>IP: {session.ipAddress}</span>}
+              </div>
+            </div>
+            {!session.isCurrent && (
+              <div className="session-actions">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="session-revoke-btn"
+                  onClick={() => handleRevokeSession(session.id)}
+                  disabled={revoking === session.id}
+                >
+                  {revoking === session.id ? (
+                    <Spinner size="sm" />
+                  ) : (
+                    t('identity.sessions.revokeSession', 'Revoke')
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {sessions.length === 0 && (
+          <div className="sessions-empty">
+            {t('identity.sessions.noOtherSessions', 'No other active sessions.')}
+          </div>
+        )}
+      </div>
+
+      <ConfirmDialog
+        open={showRevokeAllConfirm}
+        onOpenChange={setShowRevokeAllConfirm}
+        title={t('identity.sessions.revokeAllConfirmTitle', 'Revoke all other sessions?')}
+        description={t('identity.sessions.revokeAllConfirmDescription', 'This will sign out all other sessions for this identity. You will remain signed in on this device.')}
+        confirmLabel={t('identity.sessions.revokeAllOthers', 'Revoke all other sessions')}
+        cancelLabel={t('common.cancel', 'Cancel')}
+        variant="danger"
+        loading={revokingAll}
+        onConfirm={handleRevokeAllOthers}
+      />
+    </div>
+  );
+}
+
 /**
  * Main Devices page component.
  */
@@ -475,14 +670,14 @@ export function Devices() {
 
     if (result.success) {
       if (selectedDevice.isCurrent) {
-        toastSuccess('Device removed', 'You have been logged out');
+        toastSuccess('Device deleted', 'You have been logged out');
       } else {
-        toastSuccess('Device removed', 'The device has been removed');
+        toastSuccess('Device deleted', 'The device has been deleted');
         setRemoveDialogOpen(false);
         setSelectedDevice(null);
       }
     } else {
-      throw new Error(result.error ?? 'Failed to remove device');
+      throw new Error(result.error ?? 'Failed to delete device');
     }
   };
 
@@ -492,10 +687,10 @@ export function Devices() {
     setActionLoading(false);
 
     if (result.success) {
-      toastSuccess('Devices removed', `${otherDevicesCount} device(s) have been removed`);
+      toastSuccess('Devices deleted', `${otherDevicesCount} device(s) have been deleted`);
       setRemoveAllDialogOpen(false);
     } else {
-      throw new Error(result.error ?? 'Failed to remove devices');
+      throw new Error(result.error ?? 'Failed to delete devices');
     }
   };
 
@@ -550,6 +745,9 @@ export function Devices() {
             <TabTrigger value="devices">
               {t('identity.devices.tabs.devices', 'Devices')}
             </TabTrigger>
+            <TabTrigger value="sessions">
+              {t('identity.devices.tabs.sessions', 'Sessions')}
+            </TabTrigger>
             <TabTrigger value="activity">
               {t('identity.devices.tabs.activity', 'Activity')}
             </TabTrigger>
@@ -578,7 +776,7 @@ export function Devices() {
                       className="session-revoke-btn"
                       onClick={() => setRemoveAllDialogOpen(true)}
                     >
-                      {t('identity.devices.removeAllOthers', 'Remove all other devices')}
+                      {t('identity.devices.removeAllOthers', 'Delete all other devices')}
                     </Button>
                   )}
                 </div>
@@ -626,6 +824,12 @@ export function Devices() {
             </Card>
           </TabContent>
 
+          <TabContent value="sessions">
+            <Card variant="elevated">
+              <IdentitySessionsList />
+            </Card>
+          </TabContent>
+
           <TabContent value="activity">
             <Card variant="elevated">
               <ActivityPreferences />
@@ -642,20 +846,20 @@ export function Devices() {
           selectedDevice?.name === WEB_SHARED_DEVICE_NAME
             ? t('identity.e2e.webDeviceRevocation.confirmTitle')
             : selectedDevice?.isCurrent
-              ? 'Remove This Device?'
-              : 'Remove Device?'
+              ? 'Delete This Device?'
+              : 'Delete Device?'
         }
         description={
           selectedDevice?.name === WEB_SHARED_DEVICE_NAME
             ? t('identity.e2e.webDeviceRevocation.confirmBody')
             : selectedDevice?.isCurrent
-              ? 'This will log you out and remove this device. You will need to log in again on this device to use it.'
-              : 'This will remove the device and revoke its access. The device will no longer be able to decrypt messages.'
+              ? 'This will log you out and delete this device. You will need to log in again and register a new device.'
+              : 'This will delete the device and its encryption keys. The device will no longer be able to decrypt messages.'
         }
         confirmLabel={
           selectedDevice?.name === WEB_SHARED_DEVICE_NAME
             ? t('identity.e2e.webDeviceRevocation.confirm')
-            : 'Remove Device'
+            : 'Delete Device'
         }
         onConfirm={handleRemove}
         loading={actionLoading}
@@ -665,9 +869,9 @@ export function Devices() {
       <PassphraseDialog
         open={removeAllDialogOpen}
         onOpenChange={setRemoveAllDialogOpen}
-        title="Remove All Other Devices?"
-        description={`This will remove ${otherDevicesCount} device(s) and revoke their access. They will no longer be able to decrypt new messages.`}
-        confirmLabel="Remove All"
+        title="Delete All Other Devices?"
+        description={`This will delete ${otherDevicesCount} device(s) and their encryption keys. They will no longer be able to decrypt new messages.`}
+        confirmLabel="Delete All"
         onConfirm={handleRemoveAll}
         loading={actionLoading}
       />

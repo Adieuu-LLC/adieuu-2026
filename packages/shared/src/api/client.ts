@@ -706,6 +706,24 @@ export interface PublicDevice {
 }
 
 /**
+ * Public identity session info for session management.
+ */
+export interface PublicIdentitySession {
+  /** Session ID (for revocation) */
+  id: string;
+  /** When the session was created */
+  createdAt: string;
+  /** Last activity timestamp */
+  lastActivityAt: string;
+  /** User agent (browser/device info) */
+  userAgent?: string;
+  /** IP address (partially masked for privacy) */
+  ipAddress?: string;
+  /** Whether this is the current session */
+  isCurrent?: boolean;
+}
+
+/**
  * Identity public keys for E2E encryption.
  */
 export interface IdentityPublicKeys {
@@ -1058,6 +1076,51 @@ export class IdentityApi {
     return this.client.patch(
       `/api/identity/${encodeURIComponent(identityId)}/devices/${encodeURIComponent(deviceId)}`,
       { name }
+    );
+  }
+
+  /**
+   * List all identity sessions.
+   *
+   * @param identityId - Identity ID
+   * @returns Object containing array of active sessions
+   */
+  async listSessions(
+    identityId: string
+  ): Promise<ApiResponse<{ sessions: PublicIdentitySession[] }>> {
+    return this.client.get(
+      `/api/identity/${encodeURIComponent(identityId)}/sessions`
+    );
+  }
+
+  /**
+   * Revoke a specific identity session.
+   * Cannot revoke the current session.
+   *
+   * @param identityId - Identity ID
+   * @param sessionId - Session ID to revoke
+   * @returns Success on revocation
+   */
+  async revokeIdentitySession(
+    identityId: string,
+    sessionId: string
+  ): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/identity/${encodeURIComponent(identityId)}/sessions/${encodeURIComponent(sessionId)}`
+    );
+  }
+
+  /**
+   * Revoke all other identity sessions (except the current one).
+   *
+   * @param identityId - Identity ID
+   * @returns Count of revoked sessions
+   */
+  async revokeAllOtherIdentitySessions(
+    identityId: string
+  ): Promise<ApiResponse<{ count: number }>> {
+    return this.client.delete(
+      `/api/identity/${encodeURIComponent(identityId)}/sessions`
     );
   }
 }

@@ -1474,6 +1474,7 @@ a {
   gap: var(--spacing-sm);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
+  flex-wrap: wrap;
 }
 
 .session-current-badge {

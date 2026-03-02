@@ -30,6 +30,7 @@ export interface IIdentitySessionRepository {
   updateLastActivity(sessionId: string): Promise<void>;
   revoke(sessionId: string): Promise<void>;
   revokeAllForIdentity(identityId: string | ObjectId): Promise<number>;
+  revokeAllForIdentityExcept(identityId: string | ObjectId, excludeSessionId: string): Promise<number>;
   deleteExpired(): Promise<number>;
 }
 
@@ -212,6 +213,36 @@ export class IdentitySessionRepository
     elog.info('All identity sessions revoked', {
       identityId: objectId.toHexString(),
       count: result.modifiedCount,
+    });
+
+    return result.modifiedCount;
+  }
+
+  /**
+   * Revoke all sessions for an identity except a specific one (e.g. the caller's current session)
+   */
+  async revokeAllForIdentityExcept(identityId: string | ObjectId, excludeSessionId: string): Promise<number> {
+    const objectId = this.toObjectId(identityId);
+
+    const sessions = await this.findMany({
+      identityId: objectId,
+      revoked: false,
+      identitySessionId: { $ne: excludeSessionId },
+    });
+
+    await Promise.all(
+      sessions.map((s) => this.invalidateCache(s.identitySessionId))
+    );
+
+    const result = await this.collection.updateMany(
+      { identityId: objectId, revoked: false, identitySessionId: { $ne: excludeSessionId } },
+      { $set: { revoked: true, updatedAt: new Date() } }
+    );
+
+    elog.info('Other identity sessions revoked', {
+      identityId: objectId.toHexString(),
+      count: result.modifiedCount,
+      excludedSession: excludeSessionId.substring(0, 8) + '...',
     });
 
     return result.modifiedCount;

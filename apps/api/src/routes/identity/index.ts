@@ -39,6 +39,9 @@ import {
   removeDeviceCtrl,
   updateDeviceCtrl,
   initializeE2ECtrl,
+  listIdentitySessionsCtrl,
+  revokeIdentitySessionCtrl,
+  revokeAllOtherIdentitySessionsCtrl,
 } from './controller';
 
 const router = new Router();
@@ -388,6 +391,58 @@ router.delete('/identity/:id/devices/:deviceId', async (ctx) => {
  */
 router.patch('/identity/:id/devices/:deviceId', async (ctx) => {
   return await updateDeviceCtrl(ctx);
+});
+
+// ============================================================================
+// Identity Session Management
+// ============================================================================
+
+/**
+ * GET /identity/:id/sessions - List all identity sessions
+ *
+ * Returns all active sessions for the identity.
+ * Only the identity owner can list their sessions.
+ *
+ * @route GET /api/identity/:id/sessions
+ *
+ * @returns 200 OK with session list
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to access another identity's sessions
+ */
+router.get('/identity/:id/sessions', async (ctx) => {
+  return await listIdentitySessionsCtrl(ctx);
+});
+
+/**
+ * DELETE /identity/:id/sessions/:sessionId - Revoke a specific identity session
+ *
+ * Revokes a single session. Cannot revoke the current session.
+ *
+ * @route DELETE /api/identity/:id/sessions/:sessionId
+ *
+ * @returns 200 OK on success
+ * @returns 400 Bad Request if trying to revoke current session
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to revoke for another identity
+ * @returns 404 Not Found if session doesn't exist
+ */
+router.delete('/identity/:id/sessions/:sessionId', async (ctx) => {
+  return await revokeIdentitySessionCtrl(ctx);
+});
+
+/**
+ * DELETE /identity/:id/sessions - Revoke all other identity sessions
+ *
+ * Revokes all sessions except the current one.
+ *
+ * @route DELETE /api/identity/:id/sessions
+ *
+ * @returns 200 OK with count of revoked sessions
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to revoke for another identity
+ */
+router.delete('/identity/:id/sessions', async (ctx) => {
+  return await revokeAllOtherIdentitySessionsCtrl(ctx);
 });
 
 // ============================================================================

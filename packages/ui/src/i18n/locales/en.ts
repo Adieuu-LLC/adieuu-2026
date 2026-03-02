@@ -264,6 +264,7 @@ export const en = {
       subtitle: 'Manage devices that have access to your identity. Each device has its own encryption keys.',
       tabs: {
         devices: 'Devices',
+        sessions: 'Sessions',
         activity: 'Activity',
       },
       yourDevices: 'Your Devices',
@@ -272,8 +273,8 @@ export const en = {
       lastActive: 'Active',
       added: 'Added',
       rename: 'Rename',
-      remove: 'Remove',
-      removeAllOthers: 'Remove all other devices',
+      remove: 'Delete',
+      removeAllOthers: 'Delete all other devices',
       // Key backup export/import
       exportKeyBackup: 'Export Key Backup',
       importKeyBackup: 'Import Key Backup',
@@ -318,19 +319,35 @@ export const en = {
     },
     // Activity tracking
     activity: {
-      title: 'Activity Tracking',
-      description: 'Choose how your device activity is tracked. This helps you see when each device was last used.',
+      title: 'Device Activity',
+      description: 'Control whether this device reports its last-active time. This is only visible to you on your other devices -- no one else can see it.',
       whenActive: 'When active',
       whenActiveDesc: 'Only update when you interact with the app',
       periodic: 'Periodic',
       periodicDesc: 'Update at regular intervals while the app is open',
       disabled: 'Disabled',
-      disabledDesc: "Don't track activity (last active won't update)",
+      disabledDesc: "This device won't report when it was last used",
       updateInterval: 'Update interval',
       interval15: 'Every 15 minutes',
       interval30: 'Every 30 minutes',
       interval60: 'Every hour',
       settingUpdated: 'Activity tracking preference updated',
+    },
+    // Identity session management
+    sessions: {
+      title: 'Identity Sessions',
+      description: 'These are the active sessions for your identity. You can revoke access to any session you don\'t recognize.',
+      currentSession: 'Current session',
+      lastActive: 'Last active',
+      created: 'Created',
+      revokeSession: 'Revoke',
+      revokeAllOthers: 'Revoke all other sessions',
+      revokeAllConfirmTitle: 'Revoke all other sessions?',
+      revokeAllConfirmDescription: 'This will sign out all other sessions for this identity. You will remain signed in on this device.',
+      noOtherSessions: 'No other active sessions.',
+      sessionRevoked: 'Session revoked successfully.',
+      allSessionsRevoked: '{{count}} session(s) revoked successfully.',
+      unknownDevice: 'Unknown device',
     },
     // Create modal
     create: {

@@ -43,6 +43,8 @@ import { getClientIp } from '../auth/controller';
 import { isValidObjectId } from '../../utils';
 import { z } from '@adieuu/shared/schemas';
 import { getKeyBundleRepository } from '../../repositories/key-bundle.repository';
+import { getIdentitySessionRepository } from '../../repositories/identity-session.repository';
+import { toPublicIdentitySession } from '../../models/identity-session';
 import { deriveBundleId } from '../../utils/crypto';
 import type { ClientSession } from 'mongodb';
 
@@ -808,6 +810,107 @@ export async function updateDeviceCtrl(ctx: RouteContext): Promise<Response> {
   }
 
   return success(undefined, 'Device updated.');
+}
+
+// ============================================================================
+// Identity Session Management
+// ============================================================================
+
+/**
+ * List all sessions for an identity.
+ * GET /identity/:id/sessions
+ */
+export async function listIdentitySessionsCtrl(ctx: RouteContext): Promise<Response> {
+  const currentSessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!currentSessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(currentSessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot list sessions for another identity.');
+  }
+
+  const identitySessionRepo = getIdentitySessionRepository();
+  const sessions = await identitySessionRepo.findByIdentityId(identity._id);
+
+  const activeSessions = sessions.filter((s) => s.expiresAt > new Date());
+
+  return success({
+    sessions: activeSessions.map((s) => toPublicIdentitySession(s, currentSessionId)),
+  });
+}
+
+/**
+ * Revoke a specific identity session.
+ * DELETE /identity/:id/sessions/:sessionId
+ */
+export async function revokeIdentitySessionCtrl(ctx: RouteContext): Promise<Response> {
+  const currentSessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!currentSessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(currentSessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot revoke sessions for another identity.');
+  }
+
+  const { sessionId } = ctx.params;
+  if (!sessionId) {
+    return errors.badRequest('Session ID is required.');
+  }
+
+  if (sessionId === currentSessionId) {
+    return errors.badRequest('Cannot revoke your current session. Use logout instead.');
+  }
+
+  const identitySessionRepo = getIdentitySessionRepository();
+
+  const session = await identitySessionRepo.findBySessionId(sessionId);
+  if (!session || session.identityId.toHexString() !== identity._id.toHexString()) {
+    return errors.notFound('Session not found.');
+  }
+
+  await identitySessionRepo.revoke(sessionId);
+
+  return success(undefined, 'Session revoked.');
+}
+
+/**
+ * Revoke all other identity sessions (except the current one).
+ * DELETE /identity/:id/sessions
+ */
+export async function revokeAllOtherIdentitySessionsCtrl(ctx: RouteContext): Promise<Response> {
+  const currentSessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!currentSessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(currentSessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot revoke sessions for another identity.');
+  }
+
+  const identitySessionRepo = getIdentitySessionRepository();
+  const revokedCount = await identitySessionRepo.revokeAllForIdentityExcept(
+    identity._id,
+    currentSessionId
+  );
+
+  return success({ count: revokedCount }, `${revokedCount} session(s) revoked.`);
 }
 
 /**

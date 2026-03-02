@@ -46,6 +46,7 @@ export {
   type InitializeE2EParams,
   type RegisterDeviceParams,
   type UpdateKeyBundleParams,
+  type PublicIdentitySession,
   // Friends types
   type Friend,
   type FriendshipStatus,
