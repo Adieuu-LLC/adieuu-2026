@@ -8,7 +8,9 @@
  * SECURITY NOTES:
  * - Bundle ID is derived from identity's ident hash to obfuscate ownership
  * - Server never sees plaintext signing key
- * - encryptedBundle contains only the Ed25519 private signing key (32 bytes)
+ * - v1: encryptedBundle contains only the Ed25519 private signing key (32 bytes)
+ * - v2: encryptedBundle contains a JSON payload with the signing key and
+ *   optional shared web device ECDH+KEM private keys
  * - Salt and nonce are unique per bundle for cryptographic isolation
  *
  * @module models/key-bundle
@@ -31,9 +33,9 @@ export interface KeyBundleDocument extends BaseDocument {
   bundleId: string;
 
   /**
-   * Encrypted Ed25519 signing private key.
-   * Encrypted with: AES-GCM(Argon2id(passphrase, salt), nonce, signingPrivateKey)
-   * Base64 encoded.
+   * Encrypted key material (base64).
+   * v1: ChaCha20-Poly1305(derived_key, Ed25519 private key)
+   * v2: ChaCha20-Poly1305(derived_key, JSON { signingKey, webDevice? })
    */
   encryptedBundle: string;
 
@@ -79,9 +81,10 @@ export interface CreateKeyBundleInput {
 
 /**
  * Current encryption scheme version.
- * Increment when changing encryption parameters.
+ * v1: Raw Ed25519 signing key
+ * v2: JSON with signing key + optional shared web device keys
  */
-export const CURRENT_KEY_BUNDLE_SCHEME_VERSION = 1;
+export const CURRENT_KEY_BUNDLE_SCHEME_VERSION = 2;
 
 /**
  * Domain separator for bundle ID derivation.

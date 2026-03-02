@@ -100,6 +100,14 @@ export function setDeviceKeyStorageBackend(backend: SecureStorage | null): void 
   storageBackend = backend;
 }
 
+/**
+ * Returns true when a SecureStorage backend is configured (desktop).
+ * When false, the app is running in web-only mode with IndexedDB.
+ */
+export function hasSecureStorageBackend(): boolean {
+  return storageBackend !== null;
+}
+
 function toHex(bytes: Uint8Array): string {
   let hex = '';
   for (let i = 0; i < bytes.length; i++) {

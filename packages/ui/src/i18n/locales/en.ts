@@ -393,6 +393,7 @@ export const en = {
         deriving_keys: 'Deriving encryption keys...',
         loading_device: 'Loading device keys...',
         decrypting_bundle: 'Decrypting signing keys...',
+        web_device_choice: 'Waiting for device choice...',
         complete: 'Complete!',
       },
     },
@@ -467,6 +468,26 @@ export const en = {
         defaultMobile: 'Mobile',
         defaultWeb: 'Web Browser',
         defaultUnknown: 'Unknown Device',
+      },
+
+      // Web device choice modal
+      webDeviceChoice: {
+        title: 'How should this browser store encryption keys?',
+        sharedTitle: 'Shared Web Device (more user-friendly)',
+        sharedDescription: 'Keys are locally encrypted, then stored on the server and recovered automatically after cache clears. Shared across other browser sessions using this device option.',
+        individualTitle: 'Individual Device (more secure)',
+        individualDescription: 'Keys are stored in this browser only. If your browser cache is cleared, these keys will be lost and a new device will be created. This is safer, but less convenient.',
+        confirm: 'Continue',
+      },
+
+      // Shared web device revocation
+      webDeviceRevocation: {
+        label: 'Web (Shared Web Device)',
+        subtitle: 'Shared by browser sessions where you enabled the "Shared Web Device" option',
+        confirmTitle: 'Revoke shared web device?',
+        confirmBody: 'This will sign out all web browser sessions using this device. Messages encrypted for this device will no longer be readable from any browser. You can re-enroll a new shared web device on your next web login.',
+        cancel: 'Cancel',
+        confirm: 'Revoke',
       },
 
       // Errors

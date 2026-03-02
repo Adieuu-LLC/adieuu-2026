@@ -7,11 +7,15 @@ import {
   getDefaultDeviceName,
   E2EKeyError,
   type E2EInitInput,
+  type DecryptedWebDevice,
 } from './e2eKeyService';
 import {
   fromBase64,
+  toBase64,
+  encryptChaCha20Poly1305,
   deriveKeyFromPassword,
   decryptChaCha20Poly1305,
+  randomBytes,
   ARGON2_DEFAULTS,
   constantTimeEqual,
 } from '@adieuu/crypto';
@@ -72,10 +76,9 @@ describe('services/e2eKeyService', () => {
       expect(result.devicePrivateKeys.kem.length).toBe(3168);
     });
 
-    test('encrypts signing key that can be decrypted', async () => {
+    test('encrypts v2 bundle that can be raw-decrypted to JSON', async () => {
       const result = await generateE2EKeys(baseInput);
 
-      // Derive the key the same way
       const derivedKey = await deriveKeyFromPassword({
         password: baseInput.passphrase,
         salt: fromBase64(result.encryptedBundle.salt),
@@ -85,15 +88,19 @@ describe('services/e2eKeyService', () => {
         outputLength: 32,
       });
 
-      // Decrypt the bundle
       const decrypted = decryptChaCha20Poly1305(
         derivedKey,
         fromBase64(result.encryptedBundle.encryptedBundle),
         fromBase64(result.encryptedBundle.nonce)
       );
 
-      // Should match the signing private key
-      expect(constantTimeEqual(decrypted, result.signingPrivateKey)).toBe(true);
+      // v2 bundle plaintext is JSON, not raw bytes
+      const json = JSON.parse(new TextDecoder().decode(decrypted));
+      expect(json.v).toBe(2);
+      expect(typeof json.signingKey).toBe('string');
+      expect(constantTimeEqual(fromBase64(json.signingKey), result.signingPrivateKey)).toBe(true);
+      expect(json.webDevice).toBeDefined();
+      expect(json.webDevice.deviceId).toBe(result.webDevice.deviceId);
     });
 
     test('generates valid UUID device ID', async () => {
@@ -142,23 +149,9 @@ describe('services/e2eKeyService', () => {
         )
       ).toThrow();
 
-      // Bundle SHOULD decrypt with bundle passphrase
-      const correctKey = await deriveKeyFromPassword({
-        password: 'separate-bundle-passphrase-secure',
-        salt: fromBase64(result.encryptedBundle.salt),
-        memoryCost: ARGON2_DEFAULTS.memoryCost,
-        timeCost: ARGON2_DEFAULTS.timeCost,
-        parallelism: ARGON2_DEFAULTS.parallelism,
-        outputLength: 32,
-      });
-
-      const decrypted = decryptChaCha20Poly1305(
-        correctKey,
-        fromBase64(result.encryptedBundle.encryptedBundle),
-        fromBase64(result.encryptedBundle.nonce)
-      );
-
-      expect(constantTimeEqual(decrypted, result.signingPrivateKey)).toBe(true);
+      // Bundle SHOULD decrypt with bundle passphrase via decryptKeyBundle
+      const decrypted = await decryptKeyBundle(result.encryptedBundle, 'separate-bundle-passphrase-secure');
+      expect(constantTimeEqual(decrypted.signingPrivateKey, result.signingPrivateKey)).toBe(true);
     });
 
     test('throws when separate passphrase requested but not provided', async () => {
@@ -196,6 +189,41 @@ describe('services/e2eKeyService', () => {
 
       // Public keys should be different
       expect(result1.signingPublicKey).not.toBe(result2.signingPublicKey);
+    });
+
+    test('generates web device keys with valid UUID', async () => {
+      const result = await generateE2EKeys(baseInput);
+
+      expect(result.webDevice).toBeDefined();
+      expect(result.webDevice.deviceId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      );
+      // Web device ID is distinct from local device ID
+      expect(result.webDevice.deviceId).not.toBe(result.device.deviceId);
+    });
+
+    test('generates valid web device ECDH key pair', async () => {
+      const result = await generateE2EKeys(baseInput);
+
+      const publicKey = fromBase64(result.webDevice.ecdhPublicKey);
+      expect(publicKey.length).toBe(32);
+      expect(result.webDevice.privateKeys.ecdh.length).toBe(32);
+    });
+
+    test('generates valid web device KEM key pair', async () => {
+      const result = await generateE2EKeys(baseInput);
+
+      const publicKey = fromBase64(result.webDevice.kemPublicKey);
+      expect(publicKey.length).toBe(1184); // ML-KEM-768
+      expect(result.webDevice.privateKeys.kem.length).toBe(2400);
+    });
+
+    test('web device keys are different from local device keys', async () => {
+      const result = await generateE2EKeys(baseInput);
+
+      expect(result.webDevice.ecdhPublicKey).not.toBe(result.device.ecdhPublicKey);
+      expect(result.webDevice.kemPublicKey).not.toBe(result.device.kemPublicKey);
+      expect(constantTimeEqual(result.webDevice.privateKeys.ecdh, result.devicePrivateKeys.ecdh)).toBe(false);
     });
   });
 
@@ -370,6 +398,81 @@ describe('services/e2eKeyService', () => {
       const decrypted = await decryptKeyBundle(generated.encryptedBundle, input.passphrase);
 
       expect(decrypted.signingPrivateKey.length).toBe(32);
+    });
+
+    test('v2 round-trip: decryptKeyBundle returns webDevice from generateE2EKeys', async () => {
+      const input: E2EInitInput = {
+        identityId: 'test-id',
+        passphrase: 'my-v2-round-trip-passphrase',
+        deviceName: 'Test',
+      };
+
+      const generated = await generateE2EKeys(input);
+      const decrypted = await decryptKeyBundle(generated.encryptedBundle, input.passphrase);
+
+      expect(decrypted.webDevice).toBeDefined();
+      const wd = decrypted.webDevice!;
+      expect(wd.deviceId).toBe(generated.webDevice.deviceId);
+
+      // Public keys from decrypted bundle must match what was generated
+      expect(constantTimeEqual(wd.ecdhPublicKey, fromBase64(generated.webDevice.ecdhPublicKey))).toBe(true);
+      expect(constantTimeEqual(wd.kemPublicKey, fromBase64(generated.webDevice.kemPublicKey))).toBe(true);
+
+      // Private keys must also round-trip
+      expect(wd.ecdhPrivateKey.length).toBe(32);
+      expect(wd.kemPrivateKey.length).toBeGreaterThan(0);
+    });
+
+    test('v1 backward compatibility: raw 32-byte plaintext returns signing key only', async () => {
+      // Manually create a v1 bundle (raw 32-byte Ed25519 key)
+      const passphrase = 'v1-compat-passphrase';
+      const signingKey = randomBytes(32);
+      const salt = randomBytes(16);
+
+      const derivedKey = await deriveKeyFromPassword({
+        password: passphrase,
+        salt,
+        memoryCost: ARGON2_DEFAULTS.memoryCost,
+        timeCost: ARGON2_DEFAULTS.timeCost,
+        parallelism: ARGON2_DEFAULTS.parallelism,
+        outputLength: 32,
+      });
+
+      const { ciphertext, nonce } = encryptChaCha20Poly1305(derivedKey, signingKey);
+
+      const v1Bundle = {
+        encryptedBundle: toBase64(ciphertext),
+        salt: toBase64(salt),
+        nonce: toBase64(nonce),
+      };
+
+      const decrypted = await decryptKeyBundle(v1Bundle, passphrase);
+
+      expect(constantTimeEqual(decrypted.signingPrivateKey, signingKey)).toBe(true);
+      expect(decrypted.webDevice).toBeUndefined();
+    });
+
+    test('v2 decrypted web device public keys match generated values', async () => {
+      const input: E2EInitInput = {
+        identityId: 'pub-key-match-test',
+        passphrase: 'pub-key-match-passphrase-long',
+        deviceName: 'Test',
+      };
+
+      const generated = await generateE2EKeys(input);
+      const decrypted = await decryptKeyBundle(generated.encryptedBundle, input.passphrase);
+
+      expect(decrypted.webDevice).toBeDefined();
+      const wd = decrypted.webDevice as DecryptedWebDevice;
+
+      // ECDH public key: 32 bytes (X25519)
+      expect(wd.ecdhPublicKey.length).toBe(32);
+      // KEM public key: 1184 bytes (ML-KEM-768 default)
+      expect(wd.kemPublicKey.length).toBe(1184);
+
+      // They should match the public keys returned from generateE2EKeys
+      expect(toBase64(wd.ecdhPublicKey)).toBe(generated.webDevice.ecdhPublicKey);
+      expect(toBase64(wd.kemPublicKey)).toBe(generated.webDevice.kemPublicKey);
     });
   });
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
@@ -8,7 +8,8 @@ import { Spinner } from '../components/Spinner';
 import { Popover } from '../components/Popover';
 import { useToast } from '../components/Toast';
 import { MaskIcon, PlusIcon, LockIcon, InfoCircleIcon } from '../components/Icons';
-import { useIdentity, type LoginStatus } from '../hooks/useIdentity';
+import { useIdentity, type LoginStatus, type WebDeviceChoice } from '../hooks/useIdentity';
+import { WebDeviceChoiceModal } from '../components/WebDeviceChoiceModal';
 
 interface IdentityModalProps {
   isOpen: boolean;
@@ -50,6 +51,23 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   // Login status for progress display
   const [loginStatus, setLoginStatus] = useState<LoginStatus>('authenticating');
 
+  // Web device choice modal state
+  const [webDeviceChoiceOpen, setWebDeviceChoiceOpen] = useState(false);
+  const webDeviceChoiceResolver = useRef<((choice: WebDeviceChoice) => void) | null>(null);
+
+  const handleWebDeviceChoice = useCallback((): Promise<WebDeviceChoice> => {
+    return new Promise<WebDeviceChoice>((resolve) => {
+      webDeviceChoiceResolver.current = resolve;
+      setWebDeviceChoiceOpen(true);
+    });
+  }, []);
+
+  const onWebDeviceChoiceSelected = useCallback((choice: WebDeviceChoice) => {
+    setWebDeviceChoiceOpen(false);
+    webDeviceChoiceResolver.current?.(choice);
+    webDeviceChoiceResolver.current = null;
+  }, []);
+
   const resetForm = () => {
     setPassphrase('');
     setPassphraseConfirm('');
@@ -85,6 +103,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
     const result = await loginToIdentity(passphraseValue, {
       onStatusChange: (status) => setLoginStatus(status),
+      onWebDeviceChoice: handleWebDeviceChoice,
     });
 
     setLoading(false);
@@ -515,6 +534,11 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
           </div>
         )}
       </div>
+
+      <WebDeviceChoiceModal
+        open={webDeviceChoiceOpen}
+        onChoice={onWebDeviceChoiceSelected}
+      />
     </div>
   );
 }

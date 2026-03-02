@@ -8,6 +8,12 @@
  * - Signing key is encrypted with Argon2id(passphrase) and stored server-side
  * - Device keys (ECDH + KEM) are generated locally per-device
  * - Signing key is cached in memory only (never persisted locally)
+ * - An optional "shared web device" keypair can be embedded in the encrypted
+ *   bundle so web-app sessions can recover device keys after cache clears.
+ *
+ * BUNDLE FORMAT:
+ * - v1 (legacy): Raw 32-byte Ed25519 signing private key
+ * - v2: JSON { v:2, signingKey, webDevice: { deviceId, ecdh*, kem* } }
  *
  * @module services/e2eKeyService
  */
@@ -51,7 +57,7 @@ export interface E2EInitInput {
 export interface E2EInitResult {
   /** Signing public key (base64) */
   signingPublicKey: string;
-  /** Encrypted signing key bundle for server storage */
+  /** Encrypted signing key bundle for server storage (v2 format with web device keys) */
   encryptedBundle: {
     encryptedBundle: string;
     salt: string;
@@ -71,6 +77,16 @@ export interface E2EInitResult {
   devicePrivateKeys: {
     ecdh: Uint8Array;
     kem: Uint8Array;
+  };
+  /** Pre-generated shared web device keys (encrypted inside the bundle, not yet registered on server) */
+  webDevice: {
+    deviceId: string;
+    ecdhPublicKey: string;
+    kemPublicKey: string;
+    privateKeys: {
+      ecdh: Uint8Array;
+      kem: Uint8Array;
+    };
   };
 }
 
@@ -94,11 +110,39 @@ export interface DeviceKeysResult {
 }
 
 /**
+ * Decrypted web device keys from a v2 bundle.
+ */
+export interface DecryptedWebDevice {
+  deviceId: string;
+  ecdhPrivateKey: Uint8Array;
+  kemPrivateKey: Uint8Array;
+  ecdhPublicKey: Uint8Array;
+  kemPublicKey: Uint8Array;
+}
+
+/**
  * Bundle decryption result.
  */
 export interface DecryptedBundle {
   /** Signing private key */
   signingPrivateKey: Uint8Array;
+  /** Shared web device keys (present in v2 bundles, absent in v1) */
+  webDevice?: DecryptedWebDevice;
+}
+
+/**
+ * V2 bundle plaintext structure (JSON, encrypted inside the bundle ciphertext).
+ */
+interface BundleV2Plaintext {
+  v: 2;
+  signingKey: string;
+  webDevice: {
+    deviceId: string;
+    ecdhPrivateKey: string;
+    kemPrivateKey: string;
+    ecdhPublicKey: string;
+    kemPublicKey: string;
+  };
 }
 
 /**
@@ -121,7 +165,12 @@ export class E2EKeyError extends Error {
  * 1. Generate Ed25519 signing key pair (identity-level)
  * 2. Generate X25519 ECDH key pair (device-level)
  * 3. Generate ML-KEM key pair (device-level, post-quantum)
- * 4. Encrypt signing private key with Argon2id-derived key
+ * 4. Generate shared web device ECDH+KEM key pair
+ * 5. Build v2 bundle JSON (signing key + web device keys) and encrypt
+ *
+ * The web device keys are pre-generated and stored in the encrypted bundle
+ * but NOT registered on the server. Registration happens lazily when the
+ * user opts into shared web mode on their first web login.
  *
  * @param input - Initialization parameters
  * @returns Generated keys and encrypted bundle
@@ -141,14 +190,33 @@ export async function generateE2EKeys(input: E2EInitInput): Promise<E2EInitResul
   // 1. Generate signing key pair (Ed25519)
   const signingKeyPair = generateSigningKeyPair();
 
-  // 2. Generate device keys
+  // 2. Generate local device keys
   const ecdhKeyPair = generateECDHKeyPair();
   const kemKeyPair = generateKEMKeyPair(profile);
 
-  // 3. Encrypt signing private key with Argon2id
+  // 3. Generate shared web device keys
+  const webEcdhKeyPair = generateECDHKeyPair();
+  const webKemKeyPair = generateKEMKeyPair(profile);
+  const webDeviceId = crypto.randomUUID();
+
+  // 4. Build v2 bundle JSON and encrypt with Argon2id
   const bundlePassphrase = input.useSeparatePassphrase
     ? input.bundlePassphrase!
     : input.passphrase;
+
+  const bundlePlaintext: BundleV2Plaintext = {
+    v: 2,
+    signingKey: toBase64(signingKeyPair.privateKey),
+    webDevice: {
+      deviceId: webDeviceId,
+      ecdhPrivateKey: toBase64(webEcdhKeyPair.privateKey),
+      kemPrivateKey: toBase64(webKemKeyPair.privateKey),
+      ecdhPublicKey: toBase64(webEcdhKeyPair.publicKey),
+      kemPublicKey: toBase64(webKemKeyPair.publicKey),
+    },
+  };
+
+  const plaintextBytes = new TextEncoder().encode(JSON.stringify(bundlePlaintext));
 
   const salt = randomBytes(16);
   let derivedKey: Uint8Array;
@@ -169,16 +237,12 @@ export async function generateE2EKeys(input: E2EInitInput): Promise<E2EInitResul
     );
   }
 
-  // Encrypt the signing private key
-  const { ciphertext, nonce } = encryptChaCha20Poly1305(
-    derivedKey,
-    signingKeyPair.privateKey
-  );
+  const { ciphertext, nonce } = encryptChaCha20Poly1305(derivedKey, plaintextBytes);
 
-  // Clear the derived key from memory
   clearBytes(derivedKey);
+  clearBytes(plaintextBytes);
 
-  // 4. Generate device ID
+  // 5. Generate local device ID
   const deviceId = crypto.randomUUID();
 
   return {
@@ -199,6 +263,15 @@ export async function generateE2EKeys(input: E2EInitInput): Promise<E2EInitResul
     devicePrivateKeys: {
       ecdh: ecdhKeyPair.privateKey,
       kem: kemKeyPair.privateKey,
+    },
+    webDevice: {
+      deviceId: webDeviceId,
+      ecdhPublicKey: toBase64(webEcdhKeyPair.publicKey),
+      kemPublicKey: toBase64(webKemKeyPair.publicKey),
+      privateKeys: {
+        ecdh: webEcdhKeyPair.privateKey,
+        kem: webKemKeyPair.privateKey,
+      },
     },
   };
 }
@@ -237,11 +310,15 @@ export function generateDeviceKeys(
  * Decrypts a key bundle retrieved from the server.
  *
  * Uses Argon2id to derive the decryption key from the passphrase,
- * then decrypts the signing private key using ChaCha20-Poly1305.
+ * then decrypts the bundle using ChaCha20-Poly1305.
+ *
+ * Supports two formats:
+ * - v1 (legacy): Raw 32-byte Ed25519 signing private key
+ * - v2: JSON with signing key + optional shared web device keys
  *
  * @param encryptedBundle - Encrypted bundle data from server
  * @param passphrase - Passphrase (identity or separate bundle passphrase)
- * @returns Decrypted signing private key
+ * @returns Decrypted bundle contents
  * @throws E2EKeyError if decryption fails (wrong passphrase or corrupted data)
  */
 export async function decryptKeyBundle(
@@ -252,7 +329,6 @@ export async function decryptKeyBundle(
   },
   passphrase: string
 ): Promise<DecryptedBundle> {
-  // Decode bundle data
   let salt: Uint8Array;
   let nonce: Uint8Array;
   let ciphertext: Uint8Array;
@@ -265,7 +341,6 @@ export async function decryptKeyBundle(
     throw new E2EKeyError('Invalid bundle data format', 'INVALID_BUNDLE_DATA');
   }
 
-  // Validate sizes
   if (salt.length < 8) {
     throw new E2EKeyError('Invalid salt size', 'INVALID_SALT_SIZE');
   }
@@ -273,7 +348,6 @@ export async function decryptKeyBundle(
     throw new E2EKeyError('Invalid nonce size', 'INVALID_NONCE_SIZE');
   }
 
-  // Derive decryption key
   let derivedKey: Uint8Array;
   try {
     derivedKey = await deriveKeyFromPassword({
@@ -291,32 +365,57 @@ export async function decryptKeyBundle(
     );
   }
 
-  // Decrypt the signing private key
-  let signingPrivateKey: Uint8Array;
+  let plaintext: Uint8Array;
   try {
-    signingPrivateKey = decryptChaCha20Poly1305(derivedKey, ciphertext, nonce);
+    plaintext = decryptChaCha20Poly1305(derivedKey, ciphertext, nonce);
   } catch {
     throw new E2EKeyError(
       'Failed to decrypt bundle. Check your passphrase.',
       'DECRYPTION_FAILED'
     );
   } finally {
-    // Clear derived key from memory
     clearBytes(derivedKey);
   }
 
-  // Validate decrypted key size (Ed25519 private key is 32 bytes)
-  if (signingPrivateKey.length !== 32) {
-    clearBytes(signingPrivateKey);
-    throw new E2EKeyError(
-      'Decrypted key has invalid size',
-      'INVALID_KEY_SIZE'
-    );
+  // v1 format: raw 32-byte Ed25519 private key
+  if (plaintext.length === 32) {
+    return { signingPrivateKey: plaintext };
   }
 
-  return {
-    signingPrivateKey,
-  };
+  // v2 format: JSON
+  let parsed: BundleV2Plaintext;
+  try {
+    const json = new TextDecoder().decode(plaintext);
+    parsed = JSON.parse(json) as BundleV2Plaintext;
+  } catch {
+    clearBytes(plaintext);
+    throw new E2EKeyError('Invalid bundle plaintext format', 'INVALID_BUNDLE_FORMAT');
+  }
+
+  clearBytes(plaintext);
+
+  if (parsed.v !== 2 || !parsed.signingKey) {
+    throw new E2EKeyError('Unsupported bundle version', 'UNSUPPORTED_BUNDLE_VERSION');
+  }
+
+  const signingPrivateKey = fromBase64(parsed.signingKey);
+  if (signingPrivateKey.length !== 32) {
+    clearBytes(signingPrivateKey);
+    throw new E2EKeyError('Decrypted signing key has invalid size', 'INVALID_KEY_SIZE');
+  }
+
+  let webDevice: DecryptedWebDevice | undefined;
+  if (parsed.webDevice) {
+    webDevice = {
+      deviceId: parsed.webDevice.deviceId,
+      ecdhPrivateKey: fromBase64(parsed.webDevice.ecdhPrivateKey),
+      kemPrivateKey: fromBase64(parsed.webDevice.kemPrivateKey),
+      ecdhPublicKey: fromBase64(parsed.webDevice.ecdhPublicKey),
+      kemPublicKey: fromBase64(parsed.webDevice.kemPublicKey),
+    };
+  }
+
+  return { signingPrivateKey, webDevice };
 }
 
 /**

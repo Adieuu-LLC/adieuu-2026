@@ -10,6 +10,7 @@ import {
   decryptKeyBundle,
   getDefaultDeviceName,
   type E2EInitResult,
+  type DecryptedWebDevice,
 } from '../services/e2eKeyService';
 import {
   storeDeviceKeys,
@@ -17,6 +18,7 @@ import {
   decryptDeviceKeys,
   hasDeviceKeys,
   getOrCreateWrappingSalt,
+  hasSecureStorageBackend,
 } from '../services/deviceKeyStorage';
 
 // ============================================================================
@@ -72,10 +74,13 @@ export interface LoginIdentityResult {
   deviceName?: string;
 }
 
+/** Web device mode choice returned by the onWebDeviceChoice callback. */
+export type WebDeviceChoice = 'shared' | 'individual';
+
 /**
  * Login status steps for progress display.
  */
-export type LoginStatus = 'authenticating' | 'deriving_keys' | 'loading_device' | 'decrypting_bundle' | 'complete';
+export type LoginStatus = 'authenticating' | 'deriving_keys' | 'loading_device' | 'decrypting_bundle' | 'web_device_choice' | 'complete';
 
 /**
  * Options for loginToIdentity
@@ -83,6 +88,13 @@ export type LoginStatus = 'authenticating' | 'deriving_keys' | 'loading_device' 
 export interface LoginIdentityOptions {
   /** Callback for status updates during login */
   onStatusChange?: (status: LoginStatus) => void;
+  /**
+   * Callback invoked on web (no SecureStorage backend) when no cached device
+   * keys exist and the shared web device has not been registered yet.
+   * The UI should present a modal and resolve with the user's choice.
+   * If not provided, defaults to 'individual' (current behavior).
+   */
+  onWebDeviceChoice?: () => Promise<WebDeviceChoice>;
 }
 
 export interface IdentityContextValue extends IdentityState {
@@ -146,6 +158,11 @@ export function useIdentity(): IdentityContextValue {
     throw new Error('useIdentity must be used within an IdentityProvider');
   }
   return context;
+}
+
+function clearWebDeviceKeys(webDev: DecryptedWebDevice): void {
+  clearBytes(webDev.ecdhPrivateKey);
+  clearBytes(webDev.kemPrivateKey);
 }
 
 /**
@@ -339,8 +356,11 @@ function useIdentityState(): IdentityContextValue {
         };
       }
 
+      // Web device private keys are encrypted inside the bundle — clear from memory
+      clearBytes(e2eResult.webDevice.privateKeys.ecdh);
+      clearBytes(e2eResult.webDevice.privateKeys.kem);
+
       // Verify identity session is established before uploading E2E keys
-      // The create endpoint sets the adieuu_identity cookie, but we verify it's working
       console.debug('[Identity] createIdentity: verifying identity session is established...');
       try {
         const sessionCheck = await api.identity.getSession();
@@ -368,7 +388,7 @@ function useIdentityState(): IdentityContextValue {
         };
       }
 
-      // Upload E2E keys to server
+      // Upload E2E keys to server (web device keys are in the bundle but NOT registered as a device yet)
       console.debug('[Identity] createIdentity: uploading E2E keys to server...');
       try {
         const initResponse = await api.identity.initializeE2E(createdIdentity.id, {
@@ -380,7 +400,6 @@ function useIdentityState(): IdentityContextValue {
 
         if (!initResponse.success) {
           console.error('[Identity] createIdentity: failed to upload E2E keys:', initResponse.error);
-          // Clear generated keys
           clearBytes(e2eResult.signingPrivateKey);
           clearBytes(e2eResult.devicePrivateKeys.ecdh);
           clearBytes(e2eResult.devicePrivateKeys.kem);
@@ -474,6 +493,7 @@ function useIdentityState(): IdentityContextValue {
   const loginToIdentity = useCallback(
     async (passphrase: string, options?: LoginIdentityOptions): Promise<LoginIdentityResult> => {
       const onStatus = options?.onStatusChange;
+      const onWebDeviceChoice = options?.onWebDeviceChoice;
       
       onStatus?.('authenticating');
       const response = await api.identity.login({ passphrase });
@@ -536,9 +556,11 @@ function useIdentityState(): IdentityContextValue {
         console.debug('[Identity] loginToIdentity: checking for existing device keys...');
         const hasExistingDeviceKeys = await hasDeviceKeys(loggedInIdentity.id);
 
-        let deviceId: string;
+        let deviceId = '';
         let isNewDevice = false;
         let newDeviceName = '';
+        let signingPrivateKey: Uint8Array | undefined;
+        let bundleAlreadyDecrypted = false;
 
         if (hasExistingDeviceKeys) {
           // Existing device: Load and decrypt device keys
@@ -576,113 +598,201 @@ function useIdentityState(): IdentityContextValue {
             };
           }
         } else {
-          // New device: Generate and register device keys
-          console.debug('[Identity] loginToIdentity: new device, generating keys...');
-          try {
-            const newDeviceKeys = generateDeviceKeys(getDefaultDeviceName(), 'default');
-            deviceId = newDeviceKeys.deviceId;
+          // No cached device keys — behaviour depends on platform.
+          //
+          // Desktop (SecureStorage backend): generate a fresh per-device keypair
+          //   and register it on the server (existing behaviour).
+          //
+          // Web (no backend): fetch the bundle first so we can check for a
+          //   shared web device. If one is registered, use it automatically.
+          //   Otherwise ask the user whether they want shared or individual.
 
-            // Register device with server
-            console.debug('[Identity] loginToIdentity: registering device with server...');
-            const registerResponse = await api.identity.registerDevice(loggedInIdentity.id, {
-              deviceId: newDeviceKeys.deviceId,
-              name: newDeviceKeys.name,
-              ecdhPublicKey: newDeviceKeys.ecdhPublicKey,
-              kemPublicKey: newDeviceKeys.kemPublicKey,
-            });
+          const isWebApp = !hasSecureStorageBackend();
 
-            if (!registerResponse.success) {
-              console.error('[Identity] loginToIdentity: failed to register device:', registerResponse.error);
-              clearBytes(newDeviceKeys.privateKeys.ecdh);
-              clearBytes(newDeviceKeys.privateKeys.kem);
-              clearBytes(wrappingKey);
-              try {
-                await api.identity.logout();
-              } catch {
-                // Ignore
+          if (isWebApp) {
+            // --- Web path: try shared web device from bundle ---
+            console.debug('[Identity] loginToIdentity: web platform, fetching bundle for web device check...');
+            onStatus?.('decrypting_bundle');
+
+            try {
+              const bundleResponse = await api.identity.getKeyBundle(loggedInIdentity.id);
+              if (!bundleResponse.success || !bundleResponse.data) {
+                throw new Error('Failed to fetch key bundle');
               }
+
+              const bundle = bundleResponse.data;
+              if (bundle.useSeparatePassphrase) {
+                console.warn('[Identity] loginToIdentity: separate bundle passphrase not yet supported');
+              }
+
+              const decryptedBundle = await decryptKeyBundle(bundle, passphrase);
+              signingPrivateKey = decryptedBundle.signingPrivateKey;
+              bundleAlreadyDecrypted = true;
+
+              if (decryptedBundle.webDevice) {
+                const webDev = decryptedBundle.webDevice;
+
+                // Check if this web device is already registered on the server
+                const keysResponse = await api.identity.getPublicKeys(loggedInIdentity.id);
+                const registeredDevices = keysResponse.success ? keysResponse.data?.devices ?? [] : [];
+                const webDeviceRegistered = registeredDevices.some((d) => d.deviceId === webDev.deviceId);
+
+                let useShared: boolean;
+
+                if (webDeviceRegistered) {
+                  // Already registered — use automatically
+                  console.debug('[Identity] loginToIdentity: shared web device already registered, using it');
+                  useShared = true;
+                } else {
+                  // Not registered — ask user
+                  onStatus?.('web_device_choice');
+                  const choice = onWebDeviceChoice ? await onWebDeviceChoice() : 'individual';
+                  useShared = choice === 'shared';
+
+                  if (useShared) {
+                    // Register the web device on the server
+                    console.debug('[Identity] loginToIdentity: registering shared web device...');
+                    const regResponse = await api.identity.registerDevice(loggedInIdentity.id, {
+                      deviceId: webDev.deviceId,
+                      name: 'Web (shared)',
+                      ecdhPublicKey: toBase64(webDev.ecdhPublicKey),
+                      kemPublicKey: toBase64(webDev.kemPublicKey),
+                    });
+
+                    if (!regResponse.success) {
+                      console.error('[Identity] loginToIdentity: failed to register web device:', regResponse.error);
+                      clearWebDeviceKeys(webDev);
+                      clearBytes(signingPrivateKey!);
+                      clearBytes(wrappingKey);
+                      try { await api.identity.logout(); } catch { /* ignore */ }
+                      return {
+                        success: false,
+                        error: 'Failed to register shared web device',
+                        errorCode: 'E2E_SETUP_FAILED',
+                      };
+                    }
+                  }
+                }
+
+                if (useShared) {
+                  // Cache web device keys locally so subsequent operations work
+                  deviceId = webDev.deviceId;
+                  await storeDeviceKeys(
+                    webDev.deviceId,
+                    loggedInIdentity.id,
+                    webDev.ecdhPrivateKey,
+                    webDev.kemPrivateKey,
+                    wrappingKey
+                  );
+                  console.debug('[Identity] loginToIdentity: shared web device keys cached in IndexedDB');
+                } else {
+                  // User chose individual — fall through to generate fresh device
+                  clearWebDeviceKeys(webDev);
+                }
+              }
+              // If no webDevice in bundle, fall through to individual device path
+            } catch (err) {
+              console.error('[Identity] loginToIdentity: failed to decrypt bundle during web device check:', err);
+              clearBytes(wrappingKey);
+              try { await api.identity.logout(); } catch { /* ignore */ }
               return {
                 success: false,
-                error: 'Failed to register device for encryption',
+                error: 'Failed to decrypt signing key. Check your passphrase.',
+                errorCode: 'BUNDLE_DECRYPT_FAILED',
+              };
+            }
+          }
+
+          // If deviceId was not set yet (desktop, or web user chose individual, or no webDevice in bundle)
+          if (!deviceId) {
+            console.debug('[Identity] loginToIdentity: generating individual device keys...');
+            try {
+              const newDeviceKeys = generateDeviceKeys(getDefaultDeviceName(), 'default');
+              deviceId = newDeviceKeys.deviceId;
+
+              console.debug('[Identity] loginToIdentity: registering device with server...');
+              const registerResponse = await api.identity.registerDevice(loggedInIdentity.id, {
+                deviceId: newDeviceKeys.deviceId,
+                name: newDeviceKeys.name,
+                ecdhPublicKey: newDeviceKeys.ecdhPublicKey,
+                kemPublicKey: newDeviceKeys.kemPublicKey,
+              });
+
+              if (!registerResponse.success) {
+                console.error('[Identity] loginToIdentity: failed to register device:', registerResponse.error);
+                clearBytes(newDeviceKeys.privateKeys.ecdh);
+                clearBytes(newDeviceKeys.privateKeys.kem);
+                clearBytes(wrappingKey);
+                try { await api.identity.logout(); } catch { /* ignore */ }
+                return {
+                  success: false,
+                  error: 'Failed to register device for encryption',
+                  errorCode: 'E2E_SETUP_FAILED',
+                };
+              }
+
+              await storeDeviceKeys(
+                newDeviceKeys.deviceId,
+                loggedInIdentity.id,
+                newDeviceKeys.privateKeys.ecdh,
+                newDeviceKeys.privateKeys.kem,
+                wrappingKey
+              );
+              console.debug('[Identity] loginToIdentity: new device registered and keys stored');
+
+              isNewDevice = true;
+              newDeviceName = newDeviceKeys.name;
+            } catch (err) {
+              console.error('[Identity] loginToIdentity: failed to setup new device:', err);
+              clearBytes(wrappingKey);
+              try { await api.identity.logout(); } catch { /* ignore */ }
+              return {
+                success: false,
+                error: 'Failed to setup device encryption',
                 errorCode: 'E2E_SETUP_FAILED',
               };
             }
-
-            // Store device keys in IndexedDB
-            console.debug('[Identity] loginToIdentity: storing device keys...');
-            await storeDeviceKeys(
-              newDeviceKeys.deviceId,
-              loggedInIdentity.id,
-              newDeviceKeys.privateKeys.ecdh,
-              newDeviceKeys.privateKeys.kem,
-              wrappingKey
-            );
-            console.debug('[Identity] loginToIdentity: new device registered and keys stored');
-
-            // Mark as new device for toast notification
-            isNewDevice = true;
-            newDeviceName = newDeviceKeys.name;
-          } catch (err) {
-            console.error('[Identity] loginToIdentity: failed to setup new device:', err);
-            clearBytes(wrappingKey);
-            try {
-              await api.identity.logout();
-            } catch {
-              // Ignore
-            }
-            return {
-              success: false,
-              error: 'Failed to setup device encryption',
-              errorCode: 'E2E_SETUP_FAILED',
-            };
           }
         }
 
-        // Fetch and decrypt the signing key bundle
-        onStatus?.('decrypting_bundle');
-        console.debug('[Identity] loginToIdentity: fetching signing key bundle...');
-        let signingPrivateKey: Uint8Array;
-        try {
-          const bundleResponse = await api.identity.getKeyBundle(loggedInIdentity.id);
-          if (!bundleResponse.success || !bundleResponse.data) {
-            throw new Error('Failed to fetch key bundle');
-          }
-
-          const bundle = bundleResponse.data;
-          console.debug('[Identity] loginToIdentity: decrypting signing key bundle...');
-
-          // Use the appropriate passphrase for bundle decryption
-          // If useSeparatePassphrase is true, we would need to prompt for it
-          // For now, assume same passphrase is used
-          if (bundle.useSeparatePassphrase) {
-            // TODO: Prompt user for separate bundle passphrase
-            console.warn('[Identity] loginToIdentity: separate bundle passphrase not yet supported');
-          }
-
-          const decryptedBundle = await decryptKeyBundle(bundle, passphrase);
-          signingPrivateKey = decryptedBundle.signingPrivateKey;
-          const derivedPublicKey = getSigningPublicKey(signingPrivateKey);
-          console.debug('[Identity] loginToIdentity: signing key decrypted');
-          console.log('[Identity] loginToIdentity: SIGNING KEY DEBUG - derived public key from bundle:', toBase64(derivedPublicKey));
-        } catch (err) {
-          console.error('[Identity] loginToIdentity: failed to decrypt bundle:', err);
-          clearBytes(wrappingKey);
+        // Fetch and decrypt the signing key bundle (skip if already done in the web path)
+        if (!bundleAlreadyDecrypted) {
+          onStatus?.('decrypting_bundle');
+          console.debug('[Identity] loginToIdentity: fetching signing key bundle...');
           try {
-            await api.identity.logout();
-          } catch {
-            // Ignore
+            const bundleResponse = await api.identity.getKeyBundle(loggedInIdentity.id);
+            if (!bundleResponse.success || !bundleResponse.data) {
+              throw new Error('Failed to fetch key bundle');
+            }
+
+            const bundle = bundleResponse.data;
+            console.debug('[Identity] loginToIdentity: decrypting signing key bundle...');
+
+            if (bundle.useSeparatePassphrase) {
+              console.warn('[Identity] loginToIdentity: separate bundle passphrase not yet supported');
+            }
+
+            const decryptedBundle = await decryptKeyBundle(bundle, passphrase);
+            signingPrivateKey = decryptedBundle.signingPrivateKey;
+            const derivedPublicKey = getSigningPublicKey(signingPrivateKey);
+            console.debug('[Identity] loginToIdentity: signing key decrypted');
+            console.log('[Identity] loginToIdentity: SIGNING KEY DEBUG - derived public key from bundle:', toBase64(derivedPublicKey));
+          } catch (err) {
+            console.error('[Identity] loginToIdentity: failed to decrypt bundle:', err);
+            clearBytes(wrappingKey);
+            try { await api.identity.logout(); } catch { /* ignore */ }
+            return {
+              success: false,
+              error: 'Failed to decrypt signing key. Check your passphrase.',
+              errorCode: 'BUNDLE_DECRYPT_FAILED',
+            };
           }
-          return {
-            success: false,
-            error: 'Failed to decrypt signing key. Check your passphrase.',
-            errorCode: 'BUNDLE_DECRYPT_FAILED',
-          };
         }
 
         // Cache keys in memory
         wrappingKeyRef.current = wrappingKey;
         wrappingSaltRef.current = salt;
-        signingKeyRef.current = signingPrivateKey;
+        signingKeyRef.current = signingPrivateKey ?? null;
         currentDeviceIdRef.current = deviceId;
         console.debug('[Identity] loginToIdentity: all keys cached in memory');
 
@@ -738,7 +848,8 @@ function useIdentityState(): IdentityContextValue {
 
         // Load device keys to verify passphrase and get device ID
         console.debug('[Identity] unlockIdentity: loading device keys...');
-        let deviceId: string;
+        let deviceId = '';
+        let deviceKeysLoaded = false;
         try {
           const storedKeys = await getDeviceKeysForIdentity(identityId);
           if (storedKeys.length === 0) {
@@ -748,22 +859,27 @@ function useIdentityState(): IdentityContextValue {
           if (!deviceKeys) {
             throw new Error('Device key data missing');
           }
-          // Attempt to decrypt - this verifies the passphrase is correct
           const decryptedKeys = await decryptDeviceKeys(deviceKeys, wrappingKey);
           deviceId = decryptedKeys.deviceId;
+          deviceKeysLoaded = true;
           console.debug('[Identity] unlockIdentity: device keys verified, deviceId:', deviceId);
 
-          // Clear decrypted keys from memory
           clearBytes(decryptedKeys.ecdhPrivateKey);
           clearBytes(decryptedKeys.kemPrivateKey);
         } catch (err) {
-          console.error('[Identity] unlockIdentity: failed to decrypt device keys (wrong passphrase?):', err);
-          clearBytes(wrappingKey);
-          return {
-            success: false,
-            error: 'Invalid passphrase',
-            errorCode: 'INVALID_PASSPHRASE',
-          };
+          // On web, device keys may have been wiped by a cache clear.
+          // Try to recover from the bundle if a shared web device was enrolled.
+          if (!hasSecureStorageBackend()) {
+            console.debug('[Identity] unlockIdentity: device keys missing on web, will try bundle recovery');
+          } else {
+            console.error('[Identity] unlockIdentity: failed to decrypt device keys (wrong passphrase?):', err);
+            clearBytes(wrappingKey);
+            return {
+              success: false,
+              error: 'Invalid passphrase',
+              errorCode: 'INVALID_PASSPHRASE',
+            };
+          }
         }
 
         // Fetch and decrypt the signing key bundle
@@ -784,9 +900,44 @@ function useIdentityState(): IdentityContextValue {
 
           const decryptedBundle = await decryptKeyBundle(bundle, passphrase);
           signingPrivateKey = decryptedBundle.signingPrivateKey;
-          const derivedPublicKey = getSigningPublicKey(signingPrivateKey);
           console.debug('[Identity] unlockIdentity: signing key decrypted');
-          console.log('[Identity] unlockIdentity: SIGNING KEY DEBUG - derived public key from bundle:', toBase64(derivedPublicKey));
+
+          // If device keys were not loaded (web cache cleared), recover from bundle
+          if (!deviceKeysLoaded && !hasSecureStorageBackend() && decryptedBundle.webDevice) {
+            const webDev = decryptedBundle.webDevice;
+            console.debug('[Identity] unlockIdentity: recovering shared web device keys from bundle');
+
+            // Verify the web device is still registered on the server
+            const keysResponse = await api.identity.getPublicKeys(identityId);
+            const registeredDevices = keysResponse.success ? keysResponse.data?.devices ?? [] : [];
+            const webDeviceRegistered = registeredDevices.some((d) => d.deviceId === webDev.deviceId);
+
+            if (webDeviceRegistered) {
+              deviceId = webDev.deviceId;
+              await storeDeviceKeys(
+                webDev.deviceId,
+                identityId,
+                webDev.ecdhPrivateKey,
+                webDev.kemPrivateKey,
+                wrappingKey
+              );
+              deviceKeysLoaded = true;
+              console.debug('[Identity] unlockIdentity: web device keys recovered and cached');
+            } else {
+              clearWebDeviceKeys(webDev);
+              console.warn('[Identity] unlockIdentity: web device found in bundle but not registered on server');
+            }
+          }
+
+          if (!deviceKeysLoaded) {
+            clearBytes(signingPrivateKey);
+            clearBytes(wrappingKey);
+            return {
+              success: false,
+              error: 'Invalid passphrase',
+              errorCode: 'INVALID_PASSPHRASE',
+            };
+          }
         } catch (err) {
           console.error('[Identity] unlockIdentity: failed to decrypt bundle:', err);
           clearBytes(wrappingKey);

@@ -42,6 +42,8 @@ function formatLastActive(isoDate: string): string {
   return date.toLocaleDateString();
 }
 
+const WEB_SHARED_DEVICE_NAME = 'Web (shared)';
+
 /**
  * Device list item component.
  */
@@ -55,16 +57,22 @@ function DeviceItem({
   onRemove: (deviceId: string, isCurrentDevice: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const isSharedWebDevice = device.name === WEB_SHARED_DEVICE_NAME;
 
   return (
     <div className={`session-item ${device.isCurrentDevice ? 'session-item-current' : ''}`}>
       <div className="session-info">
         <div className="session-device">
-          <DeviceIcon />
-          <span>{device.name}</span>
+          {isSharedWebDevice ? <GlobeIcon /> : <DeviceIcon />}
+          <span>{isSharedWebDevice ? t('identity.e2e.webDeviceRevocation.label') : device.name}</span>
           {device.isCurrentDevice && (
             <span className="session-current-badge">
               {t('identity.devices.thisDevice', 'This device')}
+            </span>
+          )}
+          {isSharedWebDevice && (
+            <span className="session-current-badge" style={{ backgroundColor: 'var(--color-warning-bg, #fef3c7)', color: 'var(--color-warning-text, #92400e)' }}>
+              {t('identity.e2e.webDeviceRevocation.subtitle')}
             </span>
           )}
         </div>
@@ -437,9 +445,10 @@ export function Devices() {
   }, []);
 
   const handleRemoveClick = useCallback((deviceId: string, isCurrentDevice: boolean) => {
-    setSelectedDevice({ id: deviceId, name: '', isCurrent: isCurrentDevice });
+    const device = devices.find((d) => d.deviceId === deviceId);
+    setSelectedDevice({ id: deviceId, name: device?.name ?? '', isCurrent: isCurrentDevice });
     setRemoveDialogOpen(true);
-  }, []);
+  }, [devices]);
 
   const handleRename = async (newName: string) => {
     if (!selectedDevice) return;
@@ -629,13 +638,25 @@ export function Devices() {
       <PassphraseDialog
         open={removeDialogOpen}
         onOpenChange={setRemoveDialogOpen}
-        title={selectedDevice?.isCurrent ? 'Remove This Device?' : 'Remove Device?'}
-        description={
-          selectedDevice?.isCurrent
-            ? 'This will log you out and remove this device. You will need to log in again on this device to use it.'
-            : 'This will remove the device and revoke its access. The device will no longer be able to decrypt messages.'
+        title={
+          selectedDevice?.name === WEB_SHARED_DEVICE_NAME
+            ? t('identity.e2e.webDeviceRevocation.confirmTitle')
+            : selectedDevice?.isCurrent
+              ? 'Remove This Device?'
+              : 'Remove Device?'
         }
-        confirmLabel="Remove Device"
+        description={
+          selectedDevice?.name === WEB_SHARED_DEVICE_NAME
+            ? t('identity.e2e.webDeviceRevocation.confirmBody')
+            : selectedDevice?.isCurrent
+              ? 'This will log you out and remove this device. You will need to log in again on this device to use it.'
+              : 'This will remove the device and revoke its access. The device will no longer be able to decrypt messages.'
+        }
+        confirmLabel={
+          selectedDevice?.name === WEB_SHARED_DEVICE_NAME
+            ? t('identity.e2e.webDeviceRevocation.confirm')
+            : 'Remove Device'
+        }
         onConfirm={handleRemove}
         loading={actionLoading}
       />
@@ -674,6 +695,17 @@ export function Devices() {
         onSuccess={handleImportSuccess}
       />
     </div>
+  );
+}
+
+/** Globe icon SVG for shared web device */
+function GlobeIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.5rem', flexShrink: 0 }}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
   );
 }
 

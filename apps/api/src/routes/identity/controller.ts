@@ -498,7 +498,7 @@ const RegisterDeviceSchema = z.object({
 });
 
 const StoreKeyBundleSchema = z.object({
-  encryptedBundle: z.string().min(32).max(500),
+  encryptedBundle: z.string().min(32).max(8000),
   salt: z.string().min(16).max(64),
   nonce: z.string().min(16).max(64),
 });
