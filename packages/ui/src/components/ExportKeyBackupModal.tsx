@@ -1,11 +1,12 @@
 /**
  * Export Key Backup Modal
  *
- * Prompts the user for an export password, encrypts all device keys
- * for the current identity, and triggers a file download.
+ * Prompts the user for an export password and lets them choose which
+ * data to include (device keys, ciphers). Encrypts the selected data
+ * and triggers a file download.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Portal } from '@ark-ui/react';
 import { Button } from './Button';
@@ -13,7 +14,12 @@ import { Input } from './Input';
 import { Alert } from './Alert';
 import { usePlatformCapabilities } from '../config';
 import { useIdentity } from '../hooks/useIdentity';
-import { exportKeyBackup, getExportFilename, KeyBackupError } from '../services/keyBackupService';
+import {
+  exportKeyBackup,
+  getExportFilename,
+  KeyBackupError,
+  type BackupContentType,
+} from '../services/keyBackupService';
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -21,12 +27,15 @@ export interface ExportKeyBackupModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  /** Which content types to pre-select. Defaults to ['devices']. */
+  defaultContent?: BackupContentType[];
 }
 
 export function ExportKeyBackupModal({
   open,
   onOpenChange,
   onSuccess,
+  defaultContent = ['devices'],
 }: ExportKeyBackupModalProps) {
   const { t } = useTranslation();
   const { identity, getWrappingSalt } = useIdentity();
@@ -34,15 +43,38 @@ export function ExportKeyBackupModal({
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [selectedContent, setSelectedContent] = useState<Set<BackupContentType>>(
+    new Set(defaultContent)
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Reset selections when defaultContent changes (e.g. modal opened from different page)
+  useEffect(() => {
+    if (open) {
+      setSelectedContent(new Set(defaultContent));
+    }
+  }, [open, defaultContent]);
+
+  const toggleContent = useCallback((type: BackupContentType) => {
+    setSelectedContent((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) {
+        next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
+  }, []);
 
   const resetState = useCallback(() => {
     setPassword('');
     setConfirmPassword('');
+    setSelectedContent(new Set(defaultContent));
     setError(null);
     setLoading(false);
-  }, []);
+  }, [defaultContent]);
 
   const handleClose = useCallback(() => {
     if (loading) return;
@@ -69,20 +101,30 @@ export function ExportKeyBackupModal({
     }
 
     if (!identity) {
-      setError(t('identity.devices.export.errorFailed', 'Failed to export key backup.'));
+      setError(t('identity.devices.export.errorFailed', 'Failed to export backup.'));
+      return;
+    }
+
+    if (selectedContent.size === 0) {
+      setError(t('identity.devices.export.errorNothingSelected', 'Select at least one data type to export.'));
       return;
     }
 
     const wrappingSalt = getWrappingSalt();
     if (!wrappingSalt) {
-      setError(t('identity.devices.export.errorFailed', 'Failed to export key backup.'));
+      setError(t('identity.devices.export.errorFailed', 'Failed to export backup.'));
       return;
     }
 
     setLoading(true);
 
     try {
-      const data = await exportKeyBackup(identity.id, wrappingSalt, password);
+      const data = await exportKeyBackup(
+        identity.id,
+        wrappingSalt,
+        password,
+        Array.from(selectedContent)
+      );
       const filename = getExportFilename();
 
       const saved = await capabilities.fileSystem.saveFile(data, filename);
@@ -95,19 +137,20 @@ export function ExportKeyBackupModal({
       onOpenChange(false);
       onSuccess?.();
     } catch (err) {
-      if (err instanceof KeyBackupError && err.code === 'NO_KEYS') {
-        setError(t('identity.devices.export.errorNoKeys', 'No device keys found for this identity.'));
+      if (err instanceof KeyBackupError && err.code === 'NO_DATA') {
+        setError(t('identity.devices.export.errorNoData', 'No data found to export for this identity.'));
       } else {
-        setError(t('identity.devices.export.errorFailed', 'Failed to export key backup.'));
+        setError(t('identity.devices.export.errorFailed', 'Failed to export backup.'));
       }
     } finally {
       setLoading(false);
     }
-  }, [password, confirmPassword, identity, getWrappingSalt, capabilities.fileSystem, t, resetState, onOpenChange, onSuccess]);
+  }, [password, confirmPassword, identity, selectedContent, getWrappingSalt, capabilities.fileSystem, t, resetState, onOpenChange, onSuccess]);
 
   const canSubmit =
     password.length >= MIN_PASSWORD_LENGTH &&
     confirmPassword.length > 0 &&
+    selectedContent.size > 0 &&
     !loading;
 
   return (
@@ -118,13 +161,13 @@ export function ExportKeyBackupModal({
           <Dialog.Content className="confirm-dialog-content">
             <div className="confirm-dialog-header">
               <Dialog.Title className="confirm-dialog-title">
-                {t('identity.devices.export.title', 'Export Key Backup')}
+                {t('identity.devices.export.title', 'Export Backup')}
               </Dialog.Title>
             </div>
 
             <div className="confirm-dialog-body">
               <Dialog.Description className="confirm-dialog-description">
-                {t('identity.devices.export.description', 'Create an encrypted backup of your device encryption keys. You will need the export password to restore this backup later.')}
+                {t('identity.devices.export.description', 'Create an encrypted backup of your identity data. You will need the export password to restore this backup later.')}
               </Dialog.Description>
 
               <Alert variant="warning" className="key-backup-warning">
@@ -132,6 +175,30 @@ export function ExportKeyBackupModal({
               </Alert>
 
               <div className="key-backup-form">
+                <div className="key-backup-content-selection">
+                  <span className="key-backup-label">
+                    {t('identity.devices.export.includeLabel', 'Include in backup')}
+                  </span>
+                  <label className="key-backup-content-option">
+                    <input
+                      type="checkbox"
+                      checked={selectedContent.has('devices')}
+                      onChange={() => toggleContent('devices')}
+                      disabled={loading}
+                    />
+                    <span>{t('identity.devices.export.contentDevices', 'Device Keys')}</span>
+                  </label>
+                  <label className="key-backup-content-option">
+                    <input
+                      type="checkbox"
+                      checked={selectedContent.has('ciphers')}
+                      onChange={() => toggleContent('ciphers')}
+                      disabled={loading}
+                    />
+                    <span>{t('identity.devices.export.contentCiphers', 'Ciphers')}</span>
+                  </label>
+                </div>
+
                 <div className="key-backup-field">
                   <label htmlFor="export-password" className="key-backup-label">
                     {t('identity.devices.export.passwordLabel', 'Export Password')}

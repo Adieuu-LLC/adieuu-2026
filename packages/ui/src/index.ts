@@ -117,6 +117,7 @@ export {
   KeyBackupError,
 } from './services/keyBackupService';
 export type {
+  BackupContentType,
   KeyBackupHeader,
   KeyBackupPayload,
   KeyBackupImportResult,

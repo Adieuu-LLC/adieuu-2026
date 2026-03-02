@@ -695,28 +695,24 @@ export function Devices() {
   };
 
   const handleExportSuccess = useCallback(() => {
-    toastSuccess(t('identity.devices.export.success', 'Key backup exported successfully.'));
+    toastSuccess(t('identity.devices.export.success', 'Backup exported successfully.'));
   }, [toastSuccess, t]);
 
-  const handleImportSuccess = useCallback((imported: number, skipped: number) => {
-    if (skipped > 0) {
-      toastSuccess(
-        t('identity.devices.import.successWithSkipped', {
-          imported,
-          skipped,
-          defaultValue: `Imported ${imported} device key(s). Skipped ${skipped} existing.`,
-        })
-      );
-    } else {
-      toastSuccess(
-        t('identity.devices.import.success', {
-          imported,
-          defaultValue: `Imported ${imported} device key(s).`,
-        })
-      );
+  const handleImportSuccess = useCallback((result: { imported: number; skipped: number; ciphersImported: number; ciphersSkipped: number }) => {
+    const parts: string[] = [];
+    if (result.imported > 0 || result.skipped > 0) {
+      parts.push(`${result.imported} device key(s)`);
     }
+    if (result.ciphersImported > 0 || result.ciphersSkipped > 0) {
+      parts.push(`${result.ciphersImported} cipher(s)`);
+    }
+    const totalSkipped = result.skipped + result.ciphersSkipped;
+    const msg = totalSkipped > 0
+      ? `Imported ${parts.join(', ')}. Skipped ${totalSkipped} existing.`
+      : `Imported ${parts.join(', ')}.`;
+    toastSuccess(msg);
     fetchDevices();
-  }, [toastSuccess, t, fetchDevices]);
+  }, [toastSuccess, fetchDevices]);
 
   if (!identity) {
     return (
@@ -890,6 +886,7 @@ export function Devices() {
         open={exportDialogOpen}
         onOpenChange={setExportDialogOpen}
         onSuccess={handleExportSuccess}
+        defaultContent={['devices']}
       />
 
       {/* Import key backup dialog */}

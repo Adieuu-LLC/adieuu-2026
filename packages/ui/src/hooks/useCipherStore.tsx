@@ -706,3 +706,18 @@ export function CipherStoreProvider({ children }: CipherStoreProviderProps) {
 // ============================================================================
 
 export { createTextEntropy, createFileEntropy, createUrlEntropy };
+
+// ============================================================================
+// Direct IDB access for backup export/import
+// ============================================================================
+
+export { getAllCiphers as getStoredCiphersForIdentity };
+
+/**
+ * Stores a pre-encrypted StoredCipher record directly.
+ * Used by backup import where records are already encrypted with
+ * the identity wrapping key.
+ */
+export async function storePreEncryptedCipher(cipher: StoredCipher): Promise<void> {
+  return saveCipher(cipher);
+}

@@ -1,7 +1,9 @@
 /**
  * Key Backup Export & Import Service
  *
- * Handles exporting and importing device key backups as encrypted binary files.
+ * Handles exporting and importing identity backups as encrypted binary files.
+ * Supports device keys and ciphers (both already encrypted with the identity
+ * passphrase wrapping key).
  *
  * Export format: `.adieuu-keys` binary file
  *   [4 bytes: header length as uint32 big-endian]
@@ -14,9 +16,10 @@
  *     -> HKDF-SHA3-256 (info = 'adieuu-key-backup-v1')
  *     -> 32-byte AES-256-GCM key
  *
- * The encrypted payload contains StoredDeviceKeys records that are already
- * encrypted with the identity passphrase. The outer export encryption is
- * an independent layer -- two passwords are needed to reach raw key material.
+ * The encrypted payload contains StoredDeviceKeys and/or StoredCipher records
+ * that are already encrypted with the identity passphrase. The outer export
+ * encryption is an independent layer -- two passwords are needed to reach
+ * raw key material.
  *
  * @module services/keyBackupService
  */
@@ -37,6 +40,7 @@ import {
 } from '@adieuu/crypto';
 
 import { getDeviceKeysForIdentity, type StoredDeviceKeys } from './deviceKeyStorage';
+import { getStoredCiphersForIdentity, storePreEncryptedCipher, type StoredCipher } from '../hooks/useCipherStore';
 
 // ============================================================================
 // Constants
@@ -72,16 +76,23 @@ export interface KeyBackupHeader {
   };
 }
 
+/** Content types that can be included in a backup. */
+export type BackupContentType = 'devices' | 'ciphers';
+
 export interface KeyBackupPayload {
   payloadVersion: number;
   identityId: string;
   wrappingSalt: string;
   devices: StoredDeviceKeys[];
+  /** Stored ciphers (added in payload v1, optional for backward compat). */
+  ciphers?: StoredCipher[];
 }
 
 export interface KeyBackupImportResult {
   imported: number;
   skipped: number;
+  ciphersImported: number;
+  ciphersSkipped: number;
 }
 
 export class KeyBackupError extends Error {
@@ -123,17 +134,19 @@ async function deriveExportKey(
 // ============================================================================
 
 /**
- * Exports all device keys for an identity as an encrypted backup file.
+ * Exports selected identity data as an encrypted backup file.
  *
- * @param identityId - The identity whose keys to export
+ * @param identityId - The identity whose data to export
  * @param wrappingSalt - The wrapping salt for the identity (needed for import)
  * @param exportPassword - User-chosen password to encrypt the backup
+ * @param content - Which data types to include (defaults to all)
  * @returns Binary data for the .adieuu-keys file
  */
 export async function exportKeyBackup(
   identityId: string,
   wrappingSalt: Uint8Array,
-  exportPassword: string
+  exportPassword: string,
+  content: BackupContentType[] = ['devices', 'ciphers']
 ): Promise<Uint8Array> {
   if (exportPassword.length < MIN_EXPORT_PASSWORD_LENGTH) {
     throw new KeyBackupError(
@@ -142,11 +155,17 @@ export async function exportKeyBackup(
     );
   }
 
-  const devices = await getDeviceKeysForIdentity(identityId);
-  if (devices.length === 0) {
+  const devices = content.includes('devices')
+    ? await getDeviceKeysForIdentity(identityId)
+    : [];
+  const ciphers = content.includes('ciphers')
+    ? await getStoredCiphersForIdentity(identityId)
+    : [];
+
+  if (devices.length === 0 && ciphers.length === 0) {
     throw new KeyBackupError(
-      'No device keys found for this identity',
-      'NO_KEYS'
+      'Nothing to export for this identity',
+      'NO_DATA'
     );
   }
 
@@ -155,6 +174,7 @@ export async function exportKeyBackup(
     identityId,
     wrappingSalt: toBase64(wrappingSalt),
     devices,
+    ciphers: ciphers.length > 0 ? ciphers : undefined,
   };
 
   const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
@@ -330,10 +350,11 @@ export async function decryptKeyBackup(
     );
   }
 
-  if (payload.devices.length === 0) {
+  const hasCiphers = Array.isArray(payload.ciphers) && payload.ciphers.length > 0;
+  if (payload.devices.length === 0 && !hasCiphers) {
     throw new KeyBackupError(
-      'The backup file contains no device keys.',
-      'NO_KEYS'
+      'The backup file contains no data.',
+      'NO_DATA'
     );
   }
 
@@ -343,22 +364,24 @@ export async function decryptKeyBackup(
 /**
  * Applies an imported backup payload to local storage.
  *
- * Import is per-device: for each device in the payload, if a local record
- * with the same deviceId exists, the merge strategy is applied. Otherwise
- * the device is always imported.
+ * Import is per-device/per-cipher: for each record in the payload, if a local
+ * record with the same ID exists, the merge strategy is applied.
  *
- * Keys are stored as-is (passthrough) since the inner passphrase encryption
- * is preserved. The wrapping salt must be handled separately by the caller.
+ * Keys and ciphers are stored as-is (passthrough) since the inner passphrase
+ * encryption is preserved. The wrapping salt must be handled separately by
+ * the caller.
  *
  * @param payload - Decrypted backup payload from decryptKeyBackup
- * @param mergeStrategy - How to handle devices that already exist locally
- * @param storeRecord - Function to persist a single StoredDeviceKeys record
- * @returns Counts of imported and skipped devices
+ * @param mergeStrategy - How to handle records that already exist locally
+ * @param storeDeviceRecord - Function to persist a single StoredDeviceKeys record
+ * @param storeCipherRecord - Function to persist a single StoredCipher record (defaults to storePreEncryptedCipher)
+ * @returns Counts of imported and skipped devices/ciphers
  */
 export async function applyKeyBackupImport(
   payload: KeyBackupPayload,
   mergeStrategy: 'skip' | 'replace',
-  storeRecord: (record: StoredDeviceKeys) => Promise<void>
+  storeDeviceRecord: (record: StoredDeviceKeys) => Promise<void>,
+  storeCipherRecord: (record: StoredCipher) => Promise<void> = storePreEncryptedCipher
 ): Promise<KeyBackupImportResult> {
   const existingKeys = await getDeviceKeysForIdentity(payload.identityId);
   const existingDeviceIds = new Set(existingKeys.map((k) => k.deviceId));
@@ -374,11 +397,37 @@ export async function applyKeyBackupImport(
       continue;
     }
 
-    await storeRecord(device);
+    await storeDeviceRecord(device);
     imported++;
   }
 
-  return { imported, skipped };
+  // Import ciphers (if present in payload)
+  let ciphersImported = 0;
+  let ciphersSkipped = 0;
+
+  if (Array.isArray(payload.ciphers) && payload.ciphers.length > 0) {
+    const existingCiphers = await getStoredCiphersForIdentity(payload.identityId);
+    const existingCipherIds = new Set(existingCiphers.map((c) => c.cipherId));
+
+    for (const cipher of payload.ciphers) {
+      const exists = existingCipherIds.has(cipher.cipherId);
+
+      if (exists && mergeStrategy === 'skip') {
+        ciphersSkipped++;
+        continue;
+      }
+
+      // When replacing or new, generate a fresh local ID to avoid key conflicts
+      const localCipher: StoredCipher = exists
+        ? { ...cipher, id: existingCiphers.find((c) => c.cipherId === cipher.cipherId)!.id }
+        : { ...cipher, id: `cipher-${Date.now()}-${Math.random().toString(36).slice(2, 9)}` };
+
+      await storeCipherRecord(localCipher);
+      ciphersImported++;
+    }
+  }
+
+  return { imported, skipped, ciphersImported, ciphersSkipped };
 }
 
 /**

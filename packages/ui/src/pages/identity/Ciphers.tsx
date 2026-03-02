@@ -7,6 +7,8 @@ import { Alert } from '../../components/Alert';
 import { Spinner } from '../../components/Spinner';
 import { Tooltip } from '../../components/Tooltip';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { ExportKeyBackupModal } from '../../components/ExportKeyBackupModal';
+import { ImportKeyBackupModal } from '../../components/ImportKeyBackupModal';
 import { useToast } from '../../components/Toast';
 import { useCipherStore, createTextEntropy, type DecryptedCipher } from '../../hooks/useCipherStore';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -830,6 +832,22 @@ export function IdentityCiphers() {
   const [shareCipher, setShareCipher] = useState<DecryptedCipher | null>(null);
   const [duplicateCipherModal, setDuplicateCipherModal] = useState<DecryptedCipher | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DecryptedCipher | null>(null);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+
+  const handleExportSuccess = useCallback(() => {
+    toast.success(t('identity.devices.export.success', 'Backup exported successfully.'));
+  }, [toast, t]);
+
+  const handleImportSuccess = useCallback((result: { ciphersImported: number; ciphersSkipped: number }) => {
+    const totalImported = result.ciphersImported;
+    const totalSkipped = result.ciphersSkipped;
+    const msg = totalSkipped > 0
+      ? `Imported ${totalImported} cipher(s). Skipped ${totalSkipped} existing.`
+      : `Imported ${totalImported} cipher(s).`;
+    toast.success(msg);
+    refresh();
+  }, [toast, refresh]);
 
   const handleAddCipher = useCallback(
     async (name: string, entropyPieces: EntropyPiece[]) => {
@@ -951,13 +969,31 @@ export function IdentityCiphers() {
               <h1 className="page-title">{t('ciphers.title')}</h1>
               <p className="page-subtitle">{t('ciphers.subtitle')}</p>
             </div>
-            <Button onClick={() => setAddModalOpen(true)} className="btn btn-primary btn-md">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '0.5rem' }}>
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              {t('ciphers.addButton')}
-            </Button>
+            <div className="page-header-actions">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setExportDialogOpen(true)}
+              >
+                <BackupExportIcon />
+                {t('ciphers.exportBackup', 'Export')}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setImportDialogOpen(true)}
+              >
+                <BackupImportIcon />
+                {t('ciphers.importBackup', 'Import')}
+              </Button>
+              <Button onClick={() => setAddModalOpen(true)} className="btn btn-primary btn-md">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginRight: '0.5rem' }}>
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                {t('ciphers.addButton')}
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -1033,6 +1069,41 @@ export function IdentityCiphers() {
         onConfirm={handleDeleteCipher}
         onCancel={() => setDeleteConfirm(null)}
       />
+
+      {/* Export backup dialog */}
+      <ExportKeyBackupModal
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
+        onSuccess={handleExportSuccess}
+        defaultContent={['ciphers']}
+      />
+
+      {/* Import backup dialog */}
+      <ImportKeyBackupModal
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onSuccess={handleImportSuccess}
+      />
     </div>
+  );
+}
+
+function BackupExportIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.375rem', flexShrink: 0 }}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+function BackupImportIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.375rem', flexShrink: 0 }}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
   );
 }

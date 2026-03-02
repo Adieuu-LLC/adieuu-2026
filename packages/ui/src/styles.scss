@@ -1636,6 +1636,32 @@ a {
   color: var(--color-text-secondary);
 }
 
+.key-backup-content-selection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-sm);
+}
+
+.key-backup-content-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+
+  input[type="checkbox"] {
+    accent-color: var(--color-accent-primary);
+  }
+}
+
+.key-backup-summary {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  padding: var(--spacing-xs) 0;
+}
+
 // ============================================================================
 // Tooltip Component
 // ============================================================================
@@ -2956,6 +2982,13 @@ a {
   justify-content: space-between;
   align-items: flex-start;
   gap: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
   flex-wrap: wrap;
 }
 

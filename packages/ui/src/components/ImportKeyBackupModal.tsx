@@ -5,7 +5,7 @@
  *   1. Pick a .adieuu-keys file
  *   2. Enter the export password to decrypt
  *   3. If wrapping salts differ, prompt for identity passphrase to re-wrap
- *   4. If device overlap, choose merge strategy
+ *   4. If device/cipher overlap, choose merge strategy
  *   5. Import
  */
 
@@ -22,6 +22,7 @@ import {
   applyKeyBackupImport,
   KeyBackupError,
   type KeyBackupPayload,
+  type KeyBackupImportResult,
 } from '../services/keyBackupService';
 import {
   getDeviceKeysForIdentity,
@@ -29,7 +30,14 @@ import {
   type StoredDeviceKeys,
 } from '../services/deviceKeyStorage';
 import {
+  getStoredCiphersForIdentity,
+  storePreEncryptedCipher,
+  type StoredCipher,
+} from '../hooks/useCipherStore';
+import {
   deriveEntropyWrappingKey,
+  wrapEntropy,
+  unwrapEntropy,
   toBase64,
   fromBase64,
   clearBytes,
@@ -41,7 +49,7 @@ type ImportStep = 'file' | 'decrypt' | 'passphrase' | 'merge' | 'importing' | 'd
 export interface ImportKeyBackupModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: (imported: number, skipped: number) => void;
+  onSuccess?: (result: KeyBackupImportResult) => void;
 }
 
 export function ImportKeyBackupModal({
@@ -60,6 +68,7 @@ export function ImportKeyBackupModal({
   const [identityPassphrase, setIdentityPassphrase] = useState('');
   const [payload, setPayload] = useState<KeyBackupPayload | null>(null);
   const [overlapCount, setOverlapCount] = useState(0);
+  const [cipherOverlapCount, setCipherOverlapCount] = useState(0);
   const [mergeStrategy, setMergeStrategy] = useState<'skip' | 'replace'>('skip');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -74,6 +83,7 @@ export function ImportKeyBackupModal({
     setIdentityPassphrase('');
     setPayload(null);
     setOverlapCount(0);
+    setCipherOverlapCount(0);
     setMergeStrategy('skip');
     setError(null);
     setLoading(false);
@@ -110,9 +120,10 @@ export function ImportKeyBackupModal({
 
     try {
       const localWK = getWrappingKey();
+      const localSalt = getWrappingSalt();
       const needsRewrap = backupWrappingKeyRef.current !== null;
 
-      const storeRecord = async (record: StoredDeviceKeys) => {
+      const storeDeviceRecord = async (record: StoredDeviceKeys) => {
         if (needsRewrap && backupWrappingKeyRef.current && localWK) {
           const rewrapped = await rewrapDeviceKeys(record, backupWrappingKeyRef.current, localWK);
           await storePreEncryptedDeviceKeys(rewrapped);
@@ -121,7 +132,16 @@ export function ImportKeyBackupModal({
         }
       };
 
-      const result = await applyKeyBackupImport(importPayload, strategy, storeRecord);
+      const storeCipherRecord = async (record: StoredCipher) => {
+        if (needsRewrap && backupWrappingKeyRef.current && localWK && localSalt) {
+          const rewrapped = await rewrapCipher(record, backupWrappingKeyRef.current, localWK, localSalt);
+          await storePreEncryptedCipher(rewrapped);
+        } else {
+          await storePreEncryptedCipher(record);
+        }
+      };
+
+      const result = await applyKeyBackupImport(importPayload, strategy, storeDeviceRecord, storeCipherRecord);
 
       if (backupWrappingKeyRef.current) {
         clearBytes(backupWrappingKeyRef.current);
@@ -130,9 +150,9 @@ export function ImportKeyBackupModal({
 
       resetState();
       onOpenChange(false);
-      onSuccess?.(result.imported, result.skipped);
+      onSuccess?.(result);
     } catch {
-      setError(t('identity.devices.import.errorFailed', 'Failed to import key backup.'));
+      setError(t('identity.devices.import.errorFailed', 'Failed to import backup.'));
       setStep('merge');
     } finally {
       setLoading(false);
@@ -142,11 +162,19 @@ export function ImportKeyBackupModal({
   const checkOverlapAndImport = async (decryptedPayload: KeyBackupPayload) => {
     const existingKeys = await getDeviceKeysForIdentity(decryptedPayload.identityId);
     const existingIds = new Set(existingKeys.map((k) => k.deviceId));
-    const overlap = decryptedPayload.devices.filter((d) => existingIds.has(d.deviceId)).length;
+    const deviceOverlap = decryptedPayload.devices.filter((d) => existingIds.has(d.deviceId)).length;
 
-    setOverlapCount(overlap);
+    let cipherOverlap = 0;
+    if (Array.isArray(decryptedPayload.ciphers) && decryptedPayload.ciphers.length > 0) {
+      const existingCiphers = await getStoredCiphersForIdentity(decryptedPayload.identityId);
+      const existingCipherIds = new Set(existingCiphers.map((c) => c.cipherId));
+      cipherOverlap = decryptedPayload.ciphers.filter((c) => existingCipherIds.has(c.cipherId)).length;
+    }
 
-    if (overlap > 0) {
+    setOverlapCount(deviceOverlap);
+    setCipherOverlapCount(cipherOverlap);
+
+    if (deviceOverlap > 0 || cipherOverlap > 0) {
       setStep('merge');
       setLoading(false);
     } else {
@@ -185,17 +213,18 @@ export function ImportKeyBackupModal({
       if (err instanceof KeyBackupError) {
         const messageMap: Record<string, string> = {
           WRONG_PASSWORD: t('identity.devices.import.errorWrongPassword', 'Incorrect export password. The backup could not be decrypted.'),
-          CORRUPT_FILE: t('identity.devices.import.errorCorruptFile', 'The backup file is damaged or not a valid Adieuu key backup.'),
-          CORRUPT_PAYLOAD: t('identity.devices.import.errorCorruptFile', 'The backup file is damaged or not a valid Adieuu key backup.'),
-          INVALID_FORMAT: t('identity.devices.import.errorCorruptFile', 'The backup file is damaged or not a valid Adieuu key backup.'),
-          INVALID_PAYLOAD: t('identity.devices.import.errorCorruptFile', 'The backup file is damaged or not a valid Adieuu key backup.'),
+          CORRUPT_FILE: t('identity.devices.import.errorCorruptFile', 'The backup file is damaged or not a valid Adieuu backup.'),
+          CORRUPT_PAYLOAD: t('identity.devices.import.errorCorruptFile', 'The backup file is damaged or not a valid Adieuu backup.'),
+          INVALID_FORMAT: t('identity.devices.import.errorCorruptFile', 'The backup file is damaged or not a valid Adieuu backup.'),
+          INVALID_PAYLOAD: t('identity.devices.import.errorCorruptFile', 'The backup file is damaged or not a valid Adieuu backup.'),
           UNSUPPORTED_VERSION: t('identity.devices.import.errorUnsupportedVersion', 'This backup was created with a newer version of Adieuu. Please update.'),
-          NO_KEYS: t('identity.devices.import.errorNoKeys', 'The backup file contains no device keys.'),
-          EMPTY_PAYLOAD: t('identity.devices.import.errorNoKeys', 'The backup file contains no device keys.'),
+          NO_DATA: t('identity.devices.import.errorNoData', 'The backup file contains no data.'),
+          NO_KEYS: t('identity.devices.import.errorNoData', 'The backup file contains no data.'),
+          EMPTY_PAYLOAD: t('identity.devices.import.errorNoData', 'The backup file contains no data.'),
         };
-        setError(messageMap[err.code] ?? t('identity.devices.import.errorFailed', 'Failed to import key backup.'));
+        setError(messageMap[err.code] ?? t('identity.devices.import.errorFailed', 'Failed to import backup.'));
       } else {
-        setError(t('identity.devices.import.errorFailed', 'Failed to import key backup.'));
+        setError(t('identity.devices.import.errorFailed', 'Failed to import backup.'));
       }
     } finally {
       setLoading(false);
@@ -214,7 +243,7 @@ export function ImportKeyBackupModal({
 
       await checkOverlapAndImport(payload);
     } catch {
-      setError(t('identity.devices.import.errorFailed', 'Failed to import key backup.'));
+      setError(t('identity.devices.import.errorFailed', 'Failed to import backup.'));
     } finally {
       setLoading(false);
     }
@@ -227,6 +256,11 @@ export function ImportKeyBackupModal({
     await doImport(payload, mergeStrategy);
   };
 
+  // Build a summary of what the backup contains
+  const backupSummary = payload ? buildBackupSummary(payload, t) : null;
+  const totalOverlap = overlapCount + cipherOverlapCount;
+  const totalItems = (payload?.devices.length ?? 0) + (payload?.ciphers?.length ?? 0);
+
   return (
     <Dialog.Root open={open} onOpenChange={() => handleClose()} closeOnInteractOutside={!loading}>
       <Portal>
@@ -235,13 +269,13 @@ export function ImportKeyBackupModal({
           <Dialog.Content className="confirm-dialog-content">
             <div className="confirm-dialog-header">
               <Dialog.Title className="confirm-dialog-title">
-                {t('identity.devices.import.title', 'Import Key Backup')}
+                {t('identity.devices.import.title', 'Import Backup')}
               </Dialog.Title>
             </div>
 
             <div className="confirm-dialog-body">
               <Dialog.Description className="confirm-dialog-description">
-                {t('identity.devices.import.description', 'Restore device encryption keys from a previously exported backup file.')}
+                {t('identity.devices.import.description', 'Restore data from a previously exported backup file.')}
               </Dialog.Description>
 
               {step === 'file' && (
@@ -281,16 +315,19 @@ export function ImportKeyBackupModal({
               {step === 'passphrase' && (
                 <div className="key-backup-form">
                   <Alert variant="info" className="key-backup-info">
-                    Your identity passphrase is needed to re-encrypt the imported keys for this device.
+                    {t('identity.devices.import.passphraseNeeded', 'Your identity passphrase is needed to re-encrypt the imported data for this device.')}
                   </Alert>
+                  {backupSummary && (
+                    <div className="key-backup-summary">{backupSummary}</div>
+                  )}
                   <div className="key-backup-field">
                     <label htmlFor="import-passphrase" className="key-backup-label">
-                      Identity Passphrase
+                      {t('identity.devices.import.passphraseLabel', 'Identity Passphrase')}
                     </label>
                     <Input
                       id="import-passphrase"
                       type="password"
-                      placeholder="Enter your identity passphrase"
+                      placeholder={t('identity.devices.import.passphrasePlaceholder', 'Enter your identity passphrase')}
                       value={identityPassphrase}
                       onChange={(e) => setIdentityPassphrase(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && identityPassphrase && handlePassphraseSubmit()}
@@ -303,11 +340,14 @@ export function ImportKeyBackupModal({
 
               {step === 'merge' && payload && (
                 <div className="key-backup-form">
+                  {backupSummary && (
+                    <div className="key-backup-summary">{backupSummary}</div>
+                  )}
                   <Alert variant="warning" className="key-backup-warning">
                     {t('identity.devices.import.mergeDescription', {
-                      count: overlapCount,
-                      total: payload.devices.length,
-                      defaultValue: `${overlapCount} of ${payload.devices.length} devices in this backup already exist on this device.`,
+                      count: totalOverlap,
+                      total: totalItems,
+                      defaultValue: `${totalOverlap} of ${totalItems} items in this backup already exist on this device.`,
                     })}
                   </Alert>
                   <div className="key-backup-merge-options">
@@ -319,7 +359,7 @@ export function ImportKeyBackupModal({
                         checked={mergeStrategy === 'skip'}
                         onChange={() => setMergeStrategy('skip')}
                       />
-                      <span>{t('identity.devices.import.mergeSkip', 'Skip existing devices')}</span>
+                      <span>{t('identity.devices.import.mergeSkip', 'Skip existing')}</span>
                     </label>
                     <label className="key-backup-merge-option">
                       <input
@@ -329,7 +369,7 @@ export function ImportKeyBackupModal({
                         checked={mergeStrategy === 'replace'}
                         onChange={() => setMergeStrategy('replace')}
                       />
-                      <span>{t('identity.devices.import.mergeReplace', 'Replace existing devices')}</span>
+                      <span>{t('identity.devices.import.mergeReplace', 'Replace existing')}</span>
                     </label>
                   </div>
                 </div>
@@ -380,10 +420,10 @@ export function ImportKeyBackupModal({
                   {loading ? (
                     <span className="confirm-dialog-loading">
                       <span className="spinner spinner-sm" />
-                      Continue
+                      {t('common.continue', 'Continue')}
                     </span>
                   ) : (
-                    'Continue'
+                    t('common.continue', 'Continue')
                   )}
                 </Button>
               )}
@@ -406,17 +446,44 @@ export function ImportKeyBackupModal({
 }
 
 /**
- * Re-wraps a StoredDeviceKeys record from one wrapping key to another.
- *
- * Decrypts each private key with the source wrapping key and re-encrypts
- * with the target wrapping key. Returns a new record with the re-encrypted keys.
+ * Builds a human-readable summary of what a backup contains.
  */
+function buildBackupSummary(
+  payload: KeyBackupPayload,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string {
+  const parts: string[] = [];
+  if (payload.devices.length > 0) {
+    parts.push(t('identity.devices.import.summaryDevices', {
+      count: payload.devices.length,
+      defaultValue: `${payload.devices.length} device key(s)`,
+    }));
+  }
+  if (Array.isArray(payload.ciphers) && payload.ciphers.length > 0) {
+    parts.push(t('identity.devices.import.summaryCiphers', {
+      count: payload.ciphers.length,
+      defaultValue: `${payload.ciphers.length} cipher(s)`,
+    }));
+  }
+  return t('identity.devices.import.summaryContains', {
+    items: parts.join(', '),
+    defaultValue: `Backup contains: ${parts.join(', ')}`,
+  });
+}
+
+// ============================================================================
+// Re-wrap helpers
+// ============================================================================
+
 function toArrayBuffer(arr: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(arr.length);
   copy.set(arr);
   return copy.buffer as ArrayBuffer;
 }
 
+/**
+ * Re-wraps a StoredDeviceKeys record from one wrapping key to another.
+ */
 async function rewrapDeviceKeys(
   record: StoredDeviceKeys,
   sourceWrappingKey: Uint8Array,
@@ -480,3 +547,21 @@ async function rewrapDeviceKeys(
   };
 }
 
+/**
+ * Re-wraps a StoredCipher's encrypted entropy from one wrapping key/salt to another.
+ * Uses the crypto library's unwrapEntropy/wrapEntropy for the WrappedEntropy format.
+ */
+async function rewrapCipher(
+  cipher: StoredCipher,
+  sourceWrappingKey: Uint8Array,
+  targetWrappingKey: Uint8Array,
+  targetSalt: Uint8Array
+): Promise<StoredCipher> {
+  const entropyPieces = await unwrapEntropy(cipher.encryptedEntropy, sourceWrappingKey);
+  const rewrapped = await wrapEntropy(entropyPieces, targetWrappingKey, targetSalt);
+
+  return {
+    ...cipher,
+    encryptedEntropy: rewrapped,
+  };
+}
