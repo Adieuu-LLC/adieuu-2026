@@ -607,6 +607,10 @@ export function Conversation() {
       refreshMessages();
       refreshConversations();
     },
+    onReconnect: () => {
+      refreshMessages();
+      refreshConversations();
+    },
   });
 
   // Mark as read when viewing messages

@@ -78,6 +78,8 @@ export interface UseDmSubscriptionOptions {
   onTyping?: (event: DmTypingEvent) => void;
   /** Callback for message deletions */
   onDeleted?: (event: DmDeletedEvent) => void;
+  /** Callback when the WebSocket reconnects after a drop (for refetching missed messages) */
+  onReconnect?: () => void;
 }
 
 export interface UseDmSubscriptionResult {
@@ -146,8 +148,9 @@ export function useDmSubscription({
   onReadStateUpdate,
   onTyping,
   onDeleted,
+  onReconnect,
 }: UseDmSubscriptionOptions = {}): UseDmSubscriptionResult {
-  const { isConnected, onMessage, sendTyping } = useChatConnection();
+  const { isConnected, onMessage, onReconnect: onReconnectHandler, sendTyping } = useChatConnection();
 
   useEffect(() => {
     if (!onNewMessage && !onReadStateUpdate && !onTyping && !onDeleted) {
@@ -182,6 +185,11 @@ export function useDmSubscription({
       }
     });
   }, [conversationId, onMessage, onNewMessage, onReadStateUpdate, onTyping, onDeleted]);
+
+  useEffect(() => {
+    if (!onReconnect) return;
+    return onReconnectHandler(onReconnect);
+  }, [onReconnectHandler, onReconnect]);
 
   const sendTypingIndicator = useCallback(
     (convId: string, isTyping: boolean) => {

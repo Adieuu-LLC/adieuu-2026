@@ -18,6 +18,7 @@ import { ServiceStatus } from '../pages/ServiceStatus';
 import { useAuth } from '../hooks/useAuth';
 import { TourProvider, useTourContext } from '../hooks/useTourContext';
 import { CipherStoreProvider } from '../hooks/useCipherStore';
+import { ChatConnectionProvider } from '../hooks/useChatConnection';
 import { useDmNotifications } from '../hooks/useDmNotifications';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { WebSecurityBanner } from '../components/WebSecurityBanner';
@@ -45,7 +46,9 @@ function ProtectedLayout() {
   return (
     <TourProvider>
       <CipherStoreProvider>
-        <ProtectedLayoutContent />
+        <ChatConnectionProvider>
+          <ProtectedLayoutContent />
+        </ChatConnectionProvider>
       </CipherStoreProvider>
     </TourProvider>
   );
