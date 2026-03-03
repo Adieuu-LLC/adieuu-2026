@@ -266,11 +266,16 @@ jobs:
           draft: true
           files: |
             apps/desktop/out/*.exe
+            apps/desktop/out/*.exe.blockmap
             apps/desktop/out/*.dmg
+            apps/desktop/out/*.zip
+            apps/desktop/out/*.zip.blockmap
             apps/desktop/out/*.AppImage
             apps/desktop/out/*.deb
             apps/desktop/out/*.rpm
-            apps/desktop/out/*.zip
+            apps/desktop/out/latest.yml
+            apps/desktop/out/latest-mac.yml
+            apps/desktop/out/latest-linux.yml
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

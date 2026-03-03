@@ -1269,6 +1269,13 @@ body {
   white-space: nowrap;
 }
 
+.update-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
 // ============================================================================
 // Spinner/Loader
 // ============================================================================

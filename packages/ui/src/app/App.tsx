@@ -28,6 +28,7 @@ import { ConversationsProvider } from '../hooks/ConversationsProvider';
 import { useDmNotifications } from '../hooks/useDmNotifications';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { WebSecurityBanner } from '../components/WebSecurityBanner';
+import { UpdateBanner } from '../components/UpdateBanner';
 import { AppSidebar } from './AppSidebar';
 
 /**
@@ -76,6 +77,7 @@ function ProtectedLayoutContent() {
     <>
       <TourRoot tour={tour} />
       <AppLayout sidebar={<AppSidebar />}>
+        <UpdateBanner />
         <KeyStorageBanner />
         <WebSecurityBanner />
         <Outlet />

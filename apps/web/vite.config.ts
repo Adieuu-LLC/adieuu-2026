@@ -1,9 +1,25 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import fs from 'fs';
+import pkg from './package.json';
+
+function versionJsonPlugin(): Plugin {
+  return {
+    name: 'version-json',
+    closeBundle() {
+      const outDir = path.resolve(__dirname, 'dist');
+      fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(outDir, 'version.json'),
+        JSON.stringify({ version: pkg.version }) + '\n',
+      );
+    },
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), versionJsonPlugin()],
   publicDir: path.resolve(__dirname, '../../packages/ui/public'),
   resolve: {
     alias: {
@@ -24,6 +40,9 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
   },
   build: {
     outDir: 'dist',

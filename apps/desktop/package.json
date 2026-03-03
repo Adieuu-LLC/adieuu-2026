@@ -21,6 +21,7 @@
   "dependencies": {
     "@adieuu/shared": "workspace:*",
     "@adieuu/ui": "workspace:*",
+    "electron-updater": "^6.8.3",
     "i18next": "^24.2.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -44,6 +45,11 @@
     "appId": "com.adieuu.desktop",
     "productName": "Adieuu",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "publish": {
+      "provider": "github",
+      "owner": "Adieuu-LLC",
+      "repo": "adieuu-2026"
+    },
     "directories": {
       "output": "out"
     },

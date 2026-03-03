@@ -1,6 +1,8 @@
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import path from 'path';
 import { execSync } from 'child_process';
+import electronUpdater from 'electron-updater';
+const { autoUpdater } = electronUpdater;
 import { registerSecureStorageIpc } from './ipc/secureStorage';
 
 // ============================================================================
@@ -126,7 +128,10 @@ async function createWindow() {
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  initAutoUpdater();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -154,6 +159,103 @@ app.on('web-contents-created', (_, contents) => {
 
 // Secure storage IPC (safeStorage + local file)
 registerSecureStorageIpc();
+
+// ============================================================================
+// Auto-updater (electron-updater)
+// ============================================================================
+
+const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+
+function initAutoUpdater() {
+  if (isDev) {
+    simulateUpdateFlow();
+    return;
+  }
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available', (info) => {
+    console.info('[AutoUpdater] Update available:', info.version);
+    mainWindow?.webContents.send('update-available', {
+      version: info.version,
+      releaseNotes: info.releaseNotes,
+    });
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    mainWindow?.webContents.send('download-progress', {
+      percent: progress.percent,
+      transferred: progress.transferred,
+      total: progress.total,
+    });
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.info('[AutoUpdater] Update downloaded:', info.version);
+    mainWindow?.webContents.send('update-downloaded', {
+      version: info.version,
+    });
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[AutoUpdater] Error:', err.message);
+  });
+
+  autoUpdater.checkForUpdates().catch((err: unknown) => {
+    console.error('[AutoUpdater] Initial check failed:', err);
+  });
+
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch((err: unknown) => {
+      console.error('[AutoUpdater] Periodic check failed:', err);
+    });
+  }, UPDATE_CHECK_INTERVAL_MS);
+}
+
+/**
+ * Simulates the update lifecycle in dev mode so the banner UI can be tested.
+ * Fires update-available after 5s, download-progress ticks for 3s, then
+ * update-downloaded. install-update just logs instead of quitting.
+ */
+function simulateUpdateFlow() {
+  const fakeVersion = '99.0.0';
+  console.info('[AutoUpdater] Dev mode: simulating update flow in 5s');
+
+  setTimeout(() => {
+    console.info('[AutoUpdater] Dev: update-available');
+    mainWindow?.webContents.send('update-available', {
+      version: fakeVersion,
+      releaseNotes: 'Simulated update for development testing.',
+    });
+
+    let percent = 0;
+    const progressInterval = setInterval(() => {
+      percent += 25;
+      mainWindow?.webContents.send('download-progress', {
+        percent,
+        transferred: percent * 1_000_000,
+        total: 100_000_000,
+      });
+
+      if (percent >= 100) {
+        clearInterval(progressInterval);
+        console.info('[AutoUpdater] Dev: update-downloaded');
+        mainWindow?.webContents.send('update-downloaded', {
+          version: fakeVersion,
+        });
+      }
+    }, 750);
+  }, 5000);
+}
+
+ipcMain.handle('install-update', () => {
+  if (isDev) {
+    console.info('[AutoUpdater] Dev mode: install-update called (no-op)');
+    return;
+  }
+  autoUpdater.quitAndInstall();
+});
 
 // Window control IPC handlers
 ipcMain.handle('window:minimize', () => {

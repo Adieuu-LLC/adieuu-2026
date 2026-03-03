@@ -1,5 +1,7 @@
 /// <reference types="vite/client" />
 
+declare const __APP_VERSION__: string;
+
 interface ImportMetaEnv {
   /** Chat WebSocket URL */
   readonly VITE_CHAT_WS_URL?: string;

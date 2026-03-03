@@ -474,6 +474,16 @@ export const en = {
         dismiss: 'Dismiss',
       },
 
+      // App update notification (banner)
+      updateBanner: {
+        message: 'A new version of Adieuu is available.',
+        refresh: 'Refresh',
+        restart: 'Restart Now',
+        later: 'Later',
+        downloading: 'Downloading update...',
+        ready: 'Update ready -- restart to apply.',
+      },
+
       // Login flow
       newDeviceDetected: 'New device detected. Setting up encryption...',
       existingDeviceLoaded: 'Encryption keys loaded successfully.',

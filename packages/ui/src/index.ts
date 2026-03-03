@@ -161,6 +161,7 @@ export { ConversationListItem } from './components/ConversationListItem';
 export { SidebarConversationsList } from './components/SidebarConversationsList';
 export { MessageComposer, TTL_OPTIONS } from './components/MessageComposer';
 export { KeyStorageBanner } from './components/KeyStorageBanner';
+export { UpdateBanner } from './components/UpdateBanner';
 export { ExportKeyBackupModal } from './components/ExportKeyBackupModal';
 export { ImportKeyBackupModal } from './components/ImportKeyBackupModal';
 export type { ExportKeyBackupModalProps } from './components/ExportKeyBackupModal';
@@ -196,6 +197,8 @@ export {
 // ============================================================================
 
 export { usePlatform } from './hooks/usePlatform';
+export { useUpdateCheck } from './hooks/useUpdateCheck';
+export type { UpdateStatus, UseUpdateCheckResult } from './hooks/useUpdateCheck';
 
 // ============================================================================
 // Component Types
