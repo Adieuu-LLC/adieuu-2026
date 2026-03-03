@@ -1,0 +1,168 @@
+# App Update Mechanism
+
+Inline update support for both the web app and the Electron desktop app. The web app polls for new versions and prompts the user to refresh. The desktop app uses electron-updater to download and apply updates from GitHub Releases, with differential downloads on Windows and macOS.
+
+**Goal:** Users are notified of new versions without leaving the app and can update with minimal friction -- a page refresh on web, or an app restart on desktop.
+
+**Dependencies:** Existing GitHub Release workflow, electron-builder packaging, Vite build pipeline.
+
+---
+
+## 1. Web App Updates
+
+### 1.1 How It Works
+
+The web app is a Vite-built SPA. Vite produces content-hashed filenames for all JS/CSS chunks (e.g. `index-a3b2c1d4.js`). When a new version is deployed, the server has new files with new hashes, but existing browser tabs still run the old bundle.
+
+Update detection:
+
+1. **Build time:** Vite injects the current version into the JS bundle as `__APP_VERSION__` (from `package.json`). A small Vite plugin also writes a `version.json` file to `dist/` containing `{ "version": "x.y.z" }`.
+
+2. **Runtime polling:** A `useUpdateCheck` hook fetches `/version.json` every ~60 seconds with a cache-busting query parameter (`?t=<timestamp>`) to bypass CDN/proxy caches. It compares the fetched version string against the build-time `__APP_VERSION__`.
+
+3. **Notification:** When the versions differ, a non-intrusive banner appears: "A new version of Adieuu is available. [Refresh] [Later]".
+
+4. **Refresh:** Clicking "Refresh" calls `window.location.reload()`. The browser fetches the new `index.html` from the server, which references the new content-hashed assets. Old cached chunks are irrelevant because their filenames no longer appear in the HTML.
+
+### 1.2 Why This Works Without Cache Busting
+
+Vite's content-hashing strategy means every build produces unique filenames for changed files. The critical requirement is that `index.html` itself is served with appropriate cache headers (`no-cache` or short `max-age`), which is the default behaviour for Caddy serving HTML. Since the HTML is always fresh, it points to the correct hashed assets, and a simple `reload()` picks up the new version.
+
+There is no service worker involved. No manual cache clearing is needed.
+
+### 1.3 Polling Details
+
+- **Interval:** 60 seconds (configurable).
+- **Cache busting:** `fetch('/version.json?t=' + Date.now())` prevents stale responses from intermediate caches.
+- **Platform guard:** Polling is skipped on the desktop platform, where electron-updater handles updates instead.
+- **Dismissal:** The user can dismiss the banner. It will not reappear until the next version change or the next page load.
+- **Failure handling:** If the fetch fails (network error, 404), the hook silently retries on the next interval. No error is surfaced to the user.
+
+### 1.4 Security Considerations
+
+- `version.json` contains only a version string. No sensitive data is exposed.
+- No user data is transmitted during the polling request.
+- The fetch uses the same origin, so it is subject to the same CORS/CSP policies as the rest of the app.
+
+---
+
+## 2. Desktop App Updates
+
+### 2.1 Overview
+
+The desktop app uses Electron with electron-builder for packaging. Updates are handled by `electron-updater`, the standard companion library to electron-builder. It checks GitHub Releases for new versions, downloads updates in the background, and applies them on restart.
+
+This is the same mechanism used by Discord, VS Code, Slack, and other Electron apps.
+
+### 2.2 Update Metadata
+
+When electron-builder packages the app with a `publish` configuration pointing to GitHub, it generates metadata files alongside the binaries:
+
+- `latest.yml` (Windows)
+- `latest-mac.yml` (macOS)
+- `latest-linux.yml` (Linux)
+
+These YAML files contain the current version, download URLs, file sizes, and SHA512 checksums. They are uploaded to the GitHub Release alongside the binary artifacts.
+
+`electron-updater` fetches the appropriate YAML file for the current platform to determine whether an update is available.
+
+### 2.3 Windows (NSIS Installer)
+
+**What electron-builder produces:**
+
+- `Adieuu-x.y.z-win-x64.exe` -- the NSIS installer
+- `Adieuu-x.y.z-win-x64.exe.blockmap` -- a content-defined chunking map of the installer binary
+- `latest.yml` -- version metadata
+
+**Update process:**
+
+1. `electron-updater` fetches `latest.yml` from the GitHub Release.
+2. Compares the version against the running app version.
+3. If newer, fetches the **new blockmap** and diffs it against the **old blockmap** (cached locally from the previous install).
+4. Downloads only the **changed blocks**. For a typical code-only change, this is roughly 5-15 MB instead of the full 80-100 MB installer.
+5. Reconstructs the full new installer locally by combining unchanged blocks (from the existing install) with the downloaded deltas.
+6. When the user triggers install (or on next app quit), runs the NSIS installer silently, which replaces the entire app directory (`C:\Users\<user>\AppData\Local\Programs\Adieuu\`).
+
+**Result:** The full installation directory is replaced, but only the diff is downloaded. This is the "differential update" or "delta update" mechanism.
+
+### 2.4 macOS (zip)
+
+**What electron-builder produces:**
+
+- `Adieuu-x.y.z-mac-x64.zip` -- the zipped `.app` bundle
+- `Adieuu-x.y.z-mac-x64.zip.blockmap` -- blockmap for differential downloads
+- `latest-mac.yml` -- version metadata
+
+**Update process:**
+
+Identical to Windows: blockmap-based differential download, then the full `.app` bundle in `/Applications/` is replaced with the new one.
+
+**Note:** The DMG target (also in the build config) is for first-time manual installation. `electron-updater` uses the **zip** target for auto-updates. Both are produced by the build.
+
+### 2.5 Linux (AppImage)
+
+**What electron-builder produces:**
+
+- `Adieuu-x.y.z-linux-x86_64.AppImage` -- self-contained application image
+- `latest-linux.yml` -- version metadata
+
+**Update process:**
+
+1. `electron-updater` fetches `latest-linux.yml` from the GitHub Release.
+2. If newer, downloads the **full new AppImage**. There is no blockmap/differential support for AppImage.
+3. Replaces the old AppImage file on disk.
+4. Relaunches from the new file.
+
+AppImages are typically 60-100 MB, so this is a full download. The trade-off is simplicity -- AppImage is a single-file format with no installer.
+
+**Note:** deb and rpm targets do not support auto-update via electron-updater. Users who install via deb/rpm would update through their system package manager. AppImage is the recommended format for auto-updating Linux users.
+
+### 2.6 Platform Summary
+
+| Platform | Download size | What's replaced | Differential? |
+|----------|---------------|-----------------|---------------|
+| Windows (NSIS) | Changed blocks only (~5-15 MB typical) | Entire app directory via silent NSIS reinstall | Yes (blockmap) |
+| macOS (zip) | Changed blocks only | Entire `.app` bundle | Yes (blockmap) |
+| Linux (AppImage) | Full AppImage (~60-100 MB) | Single AppImage file | No |
+
+### 2.7 User Experience Flow
+
+1. App launches and checks GitHub Releases in the background.
+2. If a new version exists, downloads the update silently (differential where supported).
+3. A banner appears in the app: "Update ready -- restart to apply. [Restart Now] [Later]"
+4. "Restart Now" calls `autoUpdater.quitAndInstall()` via IPC. The app closes, the update is applied, and the app relaunches on the new version.
+5. "Later" dismisses the banner. The update is applied automatically the next time the user quits the app (`autoInstallOnAppQuit: true`).
+
+There is no partial or live-patching of the running process. An app restart is always required to apply the update.
+
+### 2.8 IPC Architecture
+
+The update lifecycle is managed entirely in Electron's **main process**. The renderer (UI) is notified via IPC:
+
+- **Main to renderer:**
+  - `update-available` -- fired when a new version is detected (includes version info)
+  - `download-progress` -- fired during download (includes progress percentage)
+  - `update-downloaded` -- fired when the update is ready to install
+
+- **Renderer to main:**
+  - `install-update` -- triggers `autoUpdater.quitAndInstall()`
+
+These IPC channels are already scaffolded in the preload script's allowed channel lists.
+
+### 2.9 Security Considerations
+
+- `electron-updater` verifies the SHA512 checksum of downloaded files against the value in the `latest*.yml` metadata.
+- All downloads happen over HTTPS from GitHub Releases.
+- Code signing (macOS notarization, Windows Authenticode) is a separate concern and can be added independently. It improves user trust and OS gatekeeper behaviour but is not required for the update mechanism to function.
+- The `will-navigate` security restriction in the main process is unaffected -- updates are handled entirely in the main process, not through web navigation.
+
+---
+
+## 3. What Is NOT Patched
+
+On both platforms, updates are **full replacements**, not surgical patches of individual files:
+
+- **Web:** The browser fetches entirely new HTML/JS/CSS assets. Old cached files are simply ignored (different hashes).
+- **Desktop:** The entire app bundle/directory is replaced by a new installer run or AppImage swap. Individual `.js` or `.html` files inside the Electron app are not patched in place.
+
+The "inline" aspect refers to the *user experience* -- the app itself tells you an update is available and handles it, rather than requiring the user to manually visit a download page. The underlying mechanism is full-version replacement with (on Windows/macOS) differential *downloads* to minimise bandwidth.
