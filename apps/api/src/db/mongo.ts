@@ -342,6 +342,8 @@ export const Collections = {
   DM_CONVERSATIONS: 'dm_conversations',
   /** DM messages (encrypted) */
   DM_MESSAGES: 'dm_messages',
+  /** Pre-keys for forward secrecy (signed + one-time) */
+  PRE_KEYS: 'pre_keys',
 } as const;
 
 /**
@@ -507,6 +509,19 @@ async function createIndexes(): Promise<void> {
   await dmMessages.createIndex({ toIdentityId: 1, createdAt: -1 });
   await dmMessages.createIndex({ conversationId: 1, clientMessageId: 1 }, { unique: true });
   await dmMessages.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
+
+  // Pre-keys collection indexes
+  const preKeys = database.collection(Collections.PRE_KEYS);
+  await preKeys.createIndex({ identityId: 1, deviceId: 1, keyType: 1, consumed: 1 });
+  await preKeys.createIndex(
+    { identityId: 1, deviceId: 1, keyType: 1, expiresAt: 1 },
+    { partialFilterExpression: { keyType: 'signed' } }
+  );
+  await preKeys.createIndex({ keyId: 1 }, { unique: true });
+  await preKeys.createIndex(
+    { expiresAt: 1 },
+    { expireAfterSeconds: 0, partialFilterExpression: { consumed: true } }
+  );
 
   elog.debug('MongoDB indexes created/verified');
 }

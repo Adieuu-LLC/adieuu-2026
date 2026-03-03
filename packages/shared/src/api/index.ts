@@ -54,6 +54,14 @@ export {
   type SentFriendRequest,
   // Blocked types
   type BlockedIdentity,
+  // Pre-key types
+  type PreKeyType,
+  type PublicSignedPreKey,
+  type PublicOneTimePreKey,
+  type ClaimedDevicePreKeys,
+  type UploadPreKeysParams,
+  type ClaimPreKeysParams,
+  type PreKeyCountResponse,
   // DM types
   DmApi,
   type SerializedWrappedKey,

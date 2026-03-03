@@ -176,6 +176,30 @@ export {
   type MemberJoinKeyDistribution,
 } from './groups';
 
+// Pre-Keys (Forward Secrecy)
+export {
+  // Types
+  type GeneratedSignedPreKey,
+  type GeneratedOneTimePreKey,
+  type SignedPreKeyPublic,
+  type OneTimePreKeyPublic,
+  type PreKeyExchangeResult,
+  type PreKeyWrappedKey,
+  // Generation
+  generateSignedPreKey,
+  generateOneTimePreKeys,
+  verifySignedPreKey,
+  // Exchange (sender side)
+  preKeyExchange,
+  wrapSessionKeyWithPreKeys,
+  // Decapsulation (recipient side)
+  preKeyDecapsulate,
+  unwrapSessionKeyWithPreKeys,
+  // Constants
+  PREKEY_KDF_INFO,
+  SPK_SIGNATURE_DOMAIN,
+} from './prekeys';
+
 // DM (Direct Messaging)
 export {
   deriveConversationId,

@@ -48,11 +48,15 @@ async function canMessageIdentity(
  */
 const WrappedKeySchema = z.object({
   identityId: z.string().length(24),
-  deviceId: z.string().optional(),
+  deviceId: z.string(),
   ephemeralPublicKey: z.string().min(1),
   kemCiphertext: z.string().min(1),
   wrappedSessionKey: z.string().min(1),
   wrappingNonce: z.string().min(1),
+  preKeyType: z.enum(['otpk', 'spk', 'static']),
+  oneTimePreKeyId: z.string().uuid().optional(),
+  signedPreKeyId: z.string().uuid().optional(),
+  oneTimeKemCiphertext: z.string().min(1).optional(),
 });
 
 /**
