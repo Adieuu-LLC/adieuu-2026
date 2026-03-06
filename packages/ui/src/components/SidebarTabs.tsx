@@ -14,6 +14,8 @@ export interface SidebarTab {
   icon: ReactNode;
   /** Tooltip label */
   label: string;
+  /** Optional badge count shown as a pill; renders when > 0 */
+  badge?: number;
 }
 
 export interface SidebarTabsProps {
@@ -43,7 +45,14 @@ export function SidebarTabs({ tabs, activeTab, onTabChange }: SidebarTabsProps) 
             aria-label={tab.label}
             aria-pressed={activeTab === tab.id}
           >
-            <span className="sidebar-tab-icon">{tab.icon}</span>
+            <span className="sidebar-tab-icon">
+              {tab.icon}
+              {tab.badge != null && tab.badge > 0 && (
+                <span className="sidebar-tab-badge" aria-label={`${tab.badge} new`}>
+                  {tab.badge > 99 ? '99+' : tab.badge}
+                </span>
+              )}
+            </span>
             {isExpanded && <span className="sidebar-tab-label">{tab.label}</span>}
           </button>
         </Tooltip>

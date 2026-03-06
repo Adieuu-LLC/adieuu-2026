@@ -19,7 +19,7 @@ export function SidebarFriendsList() {
   const { t } = useTranslation();
   const { status: identityStatus } = useIdentity();
   const { closeMobile, isExpanded } = useSidebar();
-  const { friends, isLoading, error } = useFriendsList({ limit: 50 });
+  const { friends, isLoading, error } = useFriendsList({ limit: 50, pollInterval: 30_000 });
 
   const isLoggedIn = identityStatus === 'logged_in';
 

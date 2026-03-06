@@ -12,6 +12,7 @@ import {
 } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
+import { usePolling } from './usePolling';
 
 export interface UseFriendshipStatusOptions {
   /** Identity ID to check status for */
@@ -216,6 +217,8 @@ export interface UseFriendsListOptions {
   search?: string;
   /** Whether to fetch immediately (default: true) */
   immediate?: boolean;
+  /** Polling interval in ms. When set, periodically refreshes the list. Pauses when the document is hidden. */
+  pollInterval?: number;
 }
 
 export interface UseFriendsListResult {
@@ -242,6 +245,7 @@ export function useFriendsList({
   limit = 20,
   search,
   immediate = true,
+  pollInterval,
 }: UseFriendsListOptions = {}): UseFriendsListResult {
   const { apiBaseUrl } = useAppConfig();
   const { status: identityStatus } = useIdentity();
@@ -305,6 +309,8 @@ export function useFriendsList({
       refresh();
     }
   }, [immediate, isLoggedIn, refresh]);
+
+  usePolling(refresh, pollInterval, isLoggedIn);
 
   return {
     friends,

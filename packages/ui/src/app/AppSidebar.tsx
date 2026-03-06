@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -16,6 +16,7 @@ import { Button } from '../components/Button';
 import { HomeIcon, InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon, MessageIcon, SpacesIcon } from '../components/Icons';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
+import { useConversationsContext } from '../hooks/ConversationsProvider';
 import { IdentityModal } from './IdentityModal';
 
 /**
@@ -263,12 +264,17 @@ function ComingSoonPlaceholder({ label }: { label: string }) {
 
 /**
  * Navigation content component that has access to sidebar context.
+ *
+ * All tab panels are kept mounted so their hooks (WS subscriptions, polling)
+ * stay active regardless of the visible tab. Inactive panels are hidden
+ * with `display: none` so they have zero layout/paint cost.
  */
 function SidebarNavContent() {
   const { t } = useTranslation();
   const location = useLocation();
   const { closeMobile, isExpanded } = useSidebar();
   const [activeTab, setActiveTab] = useState('friends');
+  const { dmConversations } = useConversationsContext();
 
   // Auto-switch to conversations tab when viewing a conversation
   useEffect(() => {
@@ -279,24 +285,19 @@ function SidebarNavContent() {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const tabs: SidebarTab[] = [
-    { id: 'friends', icon: <UsersIcon />, label: t('sidebar.tabs.friends') },
-    { id: 'conversations', icon: <MessageIcon />, label: t('sidebar.tabs.conversations') },
-    { id: 'spaces', icon: <SpacesIcon />, label: t('sidebar.tabs.spaces') },
-  ];
+  const unreadConversationCount = useMemo(
+    () => dmConversations.filter((c) => c.hasUnread).length,
+    [dmConversations]
+  );
 
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case 'friends':
-        return <SidebarFriendsList />;
-      case 'conversations':
-        return <SidebarConversationsList />;
-      case 'spaces':
-        return <ComingSoonPlaceholder label={t('sidebar.tabs.spaces')} />;
-      default:
-        return null;
-    }
-  };
+  const tabs: SidebarTab[] = useMemo(
+    () => [
+      { id: 'friends', icon: <UsersIcon />, label: t('sidebar.tabs.friends') },
+      { id: 'conversations', icon: <MessageIcon />, label: t('sidebar.tabs.conversations'), badge: unreadConversationCount },
+      { id: 'spaces', icon: <SpacesIcon />, label: t('sidebar.tabs.spaces') },
+    ],
+    [t, unreadConversationCount]
+  );
 
   return (
     <>
@@ -327,7 +328,15 @@ function SidebarNavContent() {
           onTabChange={setActiveTab}
         />
         <div className="sidebar-tab-content">
-          {renderTabContent()}
+          <div className={activeTab !== 'friends' ? 'sidebar-tab-panel-hidden' : undefined}>
+            <SidebarFriendsList />
+          </div>
+          <div className={activeTab !== 'conversations' ? 'sidebar-tab-panel-hidden' : undefined}>
+            <SidebarConversationsList />
+          </div>
+          <div className={activeTab !== 'spaces' ? 'sidebar-tab-panel-hidden' : undefined}>
+            <ComingSoonPlaceholder label={t('sidebar.tabs.spaces')} />
+          </div>
         </div>
       </div>
     </>
