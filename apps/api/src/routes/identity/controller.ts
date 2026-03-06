@@ -587,8 +587,10 @@ export async function getIdentityKeysCtrl(ctx: RouteContext): Promise<Response> 
   }
 
   // Debug logging for public keys retrieval
-  console.log('[Get Keys] Identity ID:', identity._id.toHexString());
-  console.log('[Get Keys] Signing public key:', publicKeys.signingPublicKey);
+  if (process.env.LOGGING_INCLUDE_PUBLIC_KEY_SIGNS === 'true') {
+    console.log('[Get Keys] Identity ID:', identity._id.toHexString());
+    console.log('[Get Keys] Signing public key:', publicKeys.signingPublicKey);
+  }
 
   return success(publicKeys);
 }
