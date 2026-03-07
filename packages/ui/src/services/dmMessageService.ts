@@ -22,6 +22,7 @@ import {
   verify,
   wrapSessionKey,
   wrapSessionKeyWithPreKeys,
+  unwrapSessionKeyWithPreKeys,
   findAndUnwrapSessionKey,
   toBase64,
   fromBase64,
@@ -127,6 +128,16 @@ export interface EncryptedMessage {
 }
 
 /**
+ * Pre-key private keys for decrypting FS messages (preKeyType !== 'static').
+ */
+export interface PreKeyPrivateKeys {
+  spkEcdhPrivateKey: Uint8Array;
+  spkKemPrivateKey: Uint8Array;
+  otpkEcdhPrivateKey?: Uint8Array;
+  otpkKemPrivateKey?: Uint8Array;
+}
+
+/**
  * Input for decrypting a DM message.
  */
 export interface DecryptMessageInput {
@@ -142,14 +153,16 @@ export interface DecryptMessageInput {
   recipientIdentityId: string;
   /** Recipient's device ID (if deviceId was used in wrapping) */
   recipientDeviceId?: string;
-  /** Recipient's ECDH private key */
+  /** Recipient's static ECDH private key (used for static wrapping) */
   ecdhPrivateKey: Uint8Array;
-  /** Recipient's KEM private key */
+  /** Recipient's static KEM private key (used for static wrapping) */
   kemPrivateKey: Uint8Array;
   /** Sender's signing public key for verification (base64) */
   senderSigningPublicKey: string;
   /** Crypto profile used */
   cryptoProfile?: CryptoProfile;
+  /** Pre-key private keys for FS-encrypted messages. Required when the target wrapped key has preKeyType !== 'static'. */
+  preKeyPrivateKeys?: PreKeyPrivateKeys;
 }
 
 /**
@@ -374,16 +387,49 @@ export function decryptDmMessage(input: DecryptMessageInput): DecryptedMessageCo
     throw new Error('Message not encrypted for this identity/device');
   }
 
-  // 3. Unwrap session key
-  const wrappedKeyBinary = deserializeWrappedKey(wrappedKey);
-  const wrappedKeysArray = [wrappedKeyBinary];
-  const sessionKey = findAndUnwrapSessionKey(
-    wrappedKeysArray,
-    input.recipientIdentityId,
-    input.ecdhPrivateKey,
-    input.kemPrivateKey,
-    profile
-  );
+  // 3. Unwrap session key -- branch on pre-key type
+  let sessionKey: Uint8Array | null;
+
+  if (wrappedKey.preKeyType && wrappedKey.preKeyType !== 'static') {
+    if (!input.preKeyPrivateKeys) {
+      throw new Error(
+        `Pre-key private keys required to decrypt FS message (preKeyType: ${wrappedKey.preKeyType})`
+      );
+    }
+
+    const preKeyWrapped: PreKeyWrappedKey = {
+      ephemeralPublicKey: fromBase64(wrappedKey.ephemeralPublicKey),
+      spkKemCiphertext: fromBase64(wrappedKey.kemCiphertext),
+      otpkKemCiphertext: wrappedKey.oneTimeKemCiphertext
+        ? fromBase64(wrappedKey.oneTimeKemCiphertext)
+        : undefined,
+      wrappedSessionKey: fromBase64(wrappedKey.wrappedSessionKey),
+      wrappingNonce: fromBase64(wrappedKey.wrappingNonce),
+    };
+
+    try {
+      sessionKey = unwrapSessionKeyWithPreKeys(
+        preKeyWrapped,
+        input.preKeyPrivateKeys.spkEcdhPrivateKey,
+        input.preKeyPrivateKeys.spkKemPrivateKey,
+        input.preKeyPrivateKeys.otpkEcdhPrivateKey,
+        input.preKeyPrivateKeys.otpkKemPrivateKey,
+        profile
+      );
+    } catch {
+      throw new Error('Failed to unwrap session key with pre-keys (key may have been rotated/deleted)');
+    }
+  } else {
+    const wrappedKeyBinary = deserializeWrappedKey(wrappedKey);
+    const wrappedKeysArray = [wrappedKeyBinary];
+    sessionKey = findAndUnwrapSessionKey(
+      wrappedKeysArray,
+      input.recipientIdentityId,
+      input.ecdhPrivateKey,
+      input.kemPrivateKey,
+      profile
+    );
+  }
 
   if (!sessionKey) {
     throw new Error('Failed to unwrap session key');

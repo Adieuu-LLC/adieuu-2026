@@ -95,67 +95,68 @@ The `preKeyType` field on `SerializedWrappedKey` enables graceful coexistence:
 | `apps/api`: Pre-key upload/claim/count endpoints | Done |
 | `apps/api`: Pre-key MongoDB model and repository | Done |
 | `packages/ui`: `serializeWrappedKey` updated with `preKeyType` + required `deviceId` | Done |
-| `packages/ui`: `dmMessageService` encrypt/decrypt (still uses static keys) | Needs update |
-| `packages/ui`: Pre-key upload on device registration/login | Not started |
-| `packages/ui`: Pre-key claim before sending | Not started |
+| `packages/ui`: `preKeyStorage.ts` local pre-key storage (dual-backend, encrypted at rest) | Done |
+| `packages/ui`: `preKeyService.ts` pre-key generation + upload on device setup | Done |
+| `packages/ui`: `dmMessageService` encrypt branching (static vs pre-key per device) | Done |
+| `packages/ui`: `dmMessageService` decrypt branching (static vs pre-key, `PreKeyPrivateKeys` input) | Done |
+| `packages/ui`: `useDmMessages` pre-key claim + SPK verification on send (`forwardSecrecy` param) | Done |
+| `packages/ui`: `useDmMessages` pre-key private key lookup on decrypt | Done |
+| `packages/ui`: OTPK private key deletion after decrypt | Deferred (needs local message storage) |
+| `packages/ui`: Local message storage for FS messages | Not started |
 | `packages/ui`: SPK rotation + key lifecycle | Not started |
 | `packages/ui`: OTPK replenishment | Not started |
 | `packages/ui`: FS toggle UI | Not started |
-| `apps/api`: SPK signature verification on upload | TODO in controller |
+| `apps/api`: SPK signature verification on upload | Done |
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Pre-Key Storage and Upload
+### Phase 1: Pre-Key Storage and Upload -- DONE
 
 **Goal:** Devices generate pre-keys on registration/login and upload them to the server.
 
-#### 1.1 Local Pre-Key Storage
+#### 1.1 Local Pre-Key Storage -- DONE
 
-- [ ] Define local storage schema for pre-key private keys (alongside device keys)
-  - SPK: `{ keyId, ecdhPrivateKey, kemPrivateKey, createdAt, status: 'active' | 'retired', retiredAt? }`
-  - OTPK: `{ keyId, ecdhPrivateKey, kemPrivateKey, createdAt, consumed: boolean }`
-- [ ] Implement storage/retrieval in the device key store (encrypted at rest, same protection as device keys)
-- [ ] Desktop: safeStorage/TEE-backed
-- [ ] Web: IndexedDB (same as current device key storage)
+- [x] `preKeyStorage.ts`: dual-backend (SecureStorage/IndexedDB), encrypted at rest with wrapping key
+- [x] SPK: `StoredSignedPreKey` with `{ keyId, identityId, deviceId, ecdhPrivateKeyEncrypted, kemPrivateKeyEncrypted, status, createdAt, retiredAt? }`
+- [x] OTPK: `StoredOneTimePreKey` with `{ keyId, identityId, deviceId, ecdhPrivateKeyEncrypted, kemPrivateKeyEncrypted, createdAt }`
+- [x] Desktop: safeStorage backend via `setPreKeyStorageBackend()`
+- [x] Web: IndexedDB fallback (same pattern as device key storage)
 
-#### 1.2 Pre-Key Generation on Device Setup
+#### 1.2 Pre-Key Generation on Device Setup -- DONE
 
-- [ ] After device key generation/import, generate initial pre-key bundle:
-  - 1 signed pre-key (SPK)
-  - N one-time pre-keys (OTPKs), where N is platform-dependent batch size
-- [ ] Store private keys locally
-- [ ] Call `api.identity.uploadPreKeys()` with public halves
-- [ ] Handle upload failure (retry logic, don't block device setup)
+- [x] `preKeyService.ts`: `generateAndUploadPreKeys()` generates SPK + platform-appropriate OTPK batch
+- [x] Stores private keys locally via `preKeyStorage`
+- [x] Uploads public halves via `api.identity.uploadPreKeys()`
+- [x] Called in `useIdentity.tsx` after both identity creation and new device login
+- [x] Non-blocking: errors logged but don't prevent device setup
 
-#### 1.3 SPK Signature Verification (Server-Side)
+#### 1.3 SPK Signature Verification (Server-Side) -- DONE
 
-- [ ] Complete the existing TODO in `pre-key.controller.ts`: verify SPK signature against identity's signing public key on upload
-- [ ] Reject uploads with invalid signatures
-
-**Estimated effort:** Medium
+- [x] `pre-key.controller.ts`: verifies SPK signature against `identity.signingPublicKey` on upload
+- [x] Returns `400 Bad Request` on invalid signature
 
 ---
 
-### Phase 2: Pre-Key Claiming and Encryption
+### Phase 2: Pre-Key Claiming and Encryption -- DONE
 
 **Goal:** When sending a DM with FS enabled, claim pre-keys and use pre-key wrapping.
 
-#### 2.1 Update Send Flow in `useDmMessages.ts`
+#### 2.1 Update Send Flow in `useDmMessages.ts` -- DONE
 
-- [ ] Add FS toggle state to send flow (default: on)
-- [ ] When FS is on: call `api.identity.claimPreKeys()` instead of `api.identity.getPublicKeys()`
-- [ ] Build recipient key list from claimed pre-keys (includes SPK, optional OTPK, pre-key IDs)
-- [ ] When FS is off: continue using `getPublicKeys()` with static device keys (existing path)
+- [x] Added `forwardSecrecy?: boolean` to `SendDmMessageInput` (defaults to `true`)
+- [x] When FS on: calls `claimPreKeys()` for recipient, verifies SPK signatures client-side
+- [x] Builds mixed recipient list: pre-key wrapping for recipient devices, static for sender devices
+- [x] Graceful fallback: if claim fails or SPK verification fails, falls back to static wrapping
+- [x] When FS off: uses `getPublicKeys()` with static device keys (existing path, unchanged)
 
-#### 2.2 Update `encryptDmMessage` in `dmMessageService.ts`
+#### 2.2 Update `encryptDmMessage` in `dmMessageService.ts` -- DONE
 
-- [ ] Accept pre-key data in `EncryptMessageInput` (SPK public keys, OTPK public keys, key IDs, pre-key type)
-- [ ] Branch on pre-key type:
-  - `'static'`: use existing `wrapSessionKeyForRecipients()` (no change)
-  - `'spk'` / `'otpk'`: use `wrapSessionKeyWithPreKeys()` from `@adieuu/crypto`
-- [ ] Pass `preKeyType`, `signedPreKeyId`, `oneTimePreKeyId`, `oneTimeKemCiphertext` to `serializeWrappedKey()`
+- [x] Added `PreKeyRecipientData` interface with SPK/OTPK public keys and key IDs
+- [x] Per-recipient branching: `wrapSessionKeyWithPreKeys()` when `preKeyData` present, `wrapSessionKey()` otherwise
+- [x] Separate serializers: `serializeStaticWrappedKey()` and `serializePreKeyWrappedKey()`
+- [x] Pre-key serializer maps `spkKemCiphertext` -> `kemCiphertext`, includes `signedPreKeyId`, `oneTimePreKeyId`, `oneTimeKemCiphertext`
 
 #### 2.3 FS Toggle UI
 
@@ -163,35 +164,45 @@ The `preKeyType` field on `SerializedWrappedKey` enables graceful coexistence:
 - [ ] Persist user's default preference (per-conversation or global)
 - [ ] Visual indicator on sent messages showing FS status
 
-**Estimated effort:** Medium-High
-
 ---
 
-### Phase 3: Pre-Key Decryption
+### Phase 3: Pre-Key Decryption -- PARTIALLY DONE
 
 **Goal:** Recipients decrypt FS-protected messages using stored pre-key private keys.
 
-#### 3.1 Update `decryptDmMessage` in `dmMessageService.ts`
+#### 3.1 Update `decryptDmMessage` in `dmMessageService.ts` -- DONE
 
-- [ ] Read `preKeyType` from incoming `SerializedWrappedKey`
-- [ ] Branch on pre-key type:
-  - `'static'`: use existing `findAndUnwrapSessionKey()` (no change)
-  - `'spk'` / `'otpk'`: look up corresponding SPK/OTPK private keys from local storage, use `unwrapSessionKeyWithPreKeys()`
-- [ ] Handle missing private key gracefully (key was deleted or device was reset)
-- [ ] Store decrypted message in local message database
+- [x] Added `PreKeyPrivateKeys` interface with SPK + optional OTPK private keys
+- [x] Branches on `wrappedKey.preKeyType`:
+  - `'static'` (or absent): existing `findAndUnwrapSessionKey()` (unchanged)
+  - `'spk'` / `'otpk'`: reconstructs `PreKeyWrappedKey` from serialized format, calls `unwrapSessionKeyWithPreKeys()`
+- [x] Clear error messages for missing keys and wrong keys
 
-#### 3.2 OTPK Private Key Deletion
+#### 3.1b Update `useDmMessages.ts` Decrypt Flow -- DONE
 
-- [ ] After successfully decrypting a message that consumed an OTPK, delete that OTPK's private key from local storage
+- [x] `decryptMessages` now accepts `wrappingKey` parameter
+- [x] Before decrypting, finds target wrapped key and checks `preKeyType`
+- [x] If FS: looks up SPK private key via `findAndDecryptSignedPreKey()`, optionally OTPK via `findAndDecryptOneTimePreKey()`
+- [x] Graceful degradation: missing SPK -> error message; missing OTPK -> warns, attempts SPK-only
+
+#### 3.2 OTPK Private Key Deletion -- DEFERRED
+
+**Blocked on:** Phase 3.3 (Local Message Storage). Deleting OTPK private keys before the decrypted message content is persisted locally would cause data loss -- on the next fetch, the server still has the ciphertext but the OTPK key is gone, making the message permanently unreadable.
+
+**Current behavior:** OTPK private keys are retained after decrypt. This is less secure (OTPK messages remain re-decryptable) but avoids data loss. FS still functions through SPK rotation (Phase 4): when SPK private keys are eventually deleted, older FS messages become undecryptable from the server.
+
+- [ ] After local message storage is implemented: delete OTPK private key after successful decrypt + local persist
 - [ ] Mark the OTPK as consumed to prevent re-use
 
-#### 3.3 Local Message Storage for FS Messages
+#### 3.3 Local Message Storage for FS Messages -- DEFERRED
 
-- [ ] Ensure FS-decrypted messages are persisted locally (they cannot be re-derived from server)
-- [ ] Local storage should be queryable for conversation history display
-- [ ] Handle the case where local storage is cleared (messages are lost; display appropriate notice)
+**Rationale:** This is a distinct subsystem (IndexedDB-based message cache with query, expiry, and clearing logic) that can be built independently. Phases 1-4 function correctly without it -- FS messages are decryptable as long as the pre-key private keys exist locally. The main consequence of deferring is that OTPK deletion (3.2) is also deferred.
 
-**Estimated effort:** Medium-High
+- [ ] IndexedDB store for decrypted FS message content, keyed by message ID
+- [ ] Check local cache before attempting server-side decryption
+- [ ] Queryable for conversation history display
+- [ ] Handle local storage cleared (messages lost; display appropriate notice)
+- [ ] Once implemented, unblock OTPK deletion (3.2)
 
 ---
 
@@ -269,20 +280,24 @@ The `preKeyType` field on `SerializedWrappedKey` enables graceful coexistence:
 ## Dependency Graph
 
 ```
-Phase 1 (storage + upload)
+Phase 1 (storage + upload) .............. DONE
     |
-    +---> Phase 2 (claim + encrypt)
+    +---> Phase 2 (claim + encrypt) ..... DONE (UI toggle pending)
     |         |
     |         +---> Phase 5 (OTPK replenishment)
     |
-    +---> Phase 3 (decrypt)
+    +---> Phase 3 (decrypt) ............. DONE (3.2/3.3 deferred)
               |
               +---> Phase 4 (rotation + lifecycle)
               |
               +---> Phase 5 (OTPK replenishment)
+              |
+              +---> Phase 3.3 (local message storage)
+                        |
+                        +---> Phase 3.2 (OTPK deletion)
 ```
 
-Phases 2 and 3 can be developed in parallel once Phase 1 is done. Phase 4 depends on Phase 3 (retirement tracking requires the decrypt path to report which SPKs it used). Phase 5 depends on Phase 3 (replenishment triggers on OTPK consumption).
+Phases 1-3 (core decrypt path) are complete. Phase 4 (SPK rotation) is the next critical piece -- it provides the forward secrecy guarantee by eventually deleting old SPK private keys. Phase 5 (OTPK replenishment) can follow. Phase 3.3 (local message storage) and 3.2 (OTPK deletion) are deferred but not blocking: FS messages work end-to-end, and OTPK keys are simply retained longer than ideal until local storage is in place.
 
 ---
 
@@ -322,39 +337,51 @@ const PLATFORM_OTPK_CONFIG = {
 
 ---
 
-## Files Likely Touched
+## Files Changed / To Be Changed
 
-| File | Changes |
-|------|---------|
-| `packages/ui/src/services/dmMessageService.ts` | Encrypt/decrypt branching on `preKeyType` |
-| `packages/ui/src/hooks/useDmMessages.ts` | Pre-key claim flow, FS toggle state |
-| `packages/ui/src/services/deviceKeyService.ts` (or similar) | Pre-key local storage, rotation, deletion |
-| `packages/ui/src/hooks/usePreKeys.ts` (new) | Pre-key lifecycle hook (rotation timer, replenishment) |
-| `packages/ui/src/components/` | FS toggle UI in composer, security level setting, deletion policy setting |
-| `apps/api/src/routes/identity/controller.ts` | SPK signature verification (existing TODO) |
-| `packages/shared/src/api/client.ts` | Types already done; may need minor additions |
+| File | Changes | Status |
+|------|---------|--------|
+| `packages/ui/src/services/preKeyStorage.ts` (new) | Pre-key local storage, dual-backend, encrypted at rest | Done |
+| `packages/ui/src/services/preKeyService.ts` (new) | Pre-key generation + upload on device setup | Done |
+| `packages/ui/src/services/dmMessageService.ts` | Encrypt/decrypt branching on `preKeyType`, `PreKeyRecipientData`, `PreKeyPrivateKeys` | Done |
+| `packages/ui/src/hooks/useDmMessages.ts` | Pre-key claim flow, SPK verification, FS toggle param, pre-key lookup on decrypt | Done |
+| `packages/ui/src/hooks/useIdentity.tsx` | Pre-key generation calls on identity creation + new device login | Done |
+| `packages/ui/src/index.ts` | Export `setPreKeyStorageBackend` | Done |
+| `apps/desktop/src/renderer/main.tsx` | Initialize pre-key storage backend | Done |
+| `apps/api/src/routes/identity/pre-key.controller.ts` | SPK signature verification on upload | Done |
+| `packages/ui/src/hooks/usePreKeys.ts` (new) | Pre-key lifecycle hook (rotation timer, replenishment) | Phase 4/5 |
+| `packages/ui/src/services/localMessageStorage.ts` (new) | IndexedDB cache for decrypted FS messages | Phase 3.3 (deferred) |
+| `packages/ui/src/components/` | FS toggle UI in composer, security level setting, deletion policy setting | Phase 2.3/4 |
 
 ---
 
 ## Testing Strategy
 
-### Unit Tests
-- SPK rotation logic (time checks, timer scheduling)
-- Deletion policy: `after-sync` (mock pending message queries, safety cap enforcement)
-- Deletion policy: `timed` (verify unconditional deletion after interval)
-- OTPK replenishment threshold checks
-- Encrypt/decrypt round-trip with all three `preKeyType` values
-- Backward compatibility: decrypt `'static'` messages with new code path
+### Unit Tests -- Partially Done
+- [x] Encrypt with SPK-only: produces `preKeyType: 'spk'`, correct key IDs
+- [x] Encrypt with SPK+OTPK: produces `preKeyType: 'otpk'`, includes `oneTimeKemCiphertext`
+- [x] Mixed wrapping: pre-key for recipient, static for sender in same message
+- [x] Independent ephemeral keys per pre-key wrapped recipient
+- [x] Encrypt+decrypt round-trip with SPK-only
+- [x] Encrypt+decrypt round-trip with SPK+OTPK
+- [x] Mixed wrapping round-trip: both recipient (FS) and sender (static) decrypt correctly
+- [x] FS message fails without pre-key private keys (clear error)
+- [x] FS message fails with wrong pre-key private keys (clear error)
+- [x] Backward compatibility: static messages decrypt with unchanged code path
+- [ ] SPK rotation logic (time checks, timer scheduling) -- Phase 4
+- [ ] Deletion policy: `after-sync` (mock pending message queries, safety cap enforcement) -- Phase 4
+- [ ] Deletion policy: `timed` (verify unconditional deletion after interval) -- Phase 4
+- [ ] OTPK replenishment threshold checks -- Phase 5
 
 ### Integration Tests
-- Full send/receive cycle: claim pre-keys -> encrypt -> deliver -> decrypt -> verify OTPK deletion
-- SPK rotation during active conversation
-- Mixed FS/non-FS messages in same conversation
-- New device setup: FS messages unavailable, static messages accessible
+- [ ] Full send/receive cycle: claim pre-keys -> encrypt -> deliver -> decrypt -> verify OTPK deletion
+- [ ] SPK rotation during active conversation
+- [ ] Mixed FS/non-FS messages in same conversation
+- [ ] New device setup: FS messages unavailable, static messages accessible
 
 ### Security Tests
-- Verify `after-sync`: old SPK private keys are deleted after pending messages drained
-- Verify `timed`: old SPK private keys are deleted unconditionally after interval
-- Verify OTPK private keys are deleted after single use
-- Verify pre-key upload rejects invalid SPK signatures
-- Verify claimed OTPKs are atomically consumed (no double-claim)
+- [ ] Verify `after-sync`: old SPK private keys are deleted after pending messages drained
+- [ ] Verify `timed`: old SPK private keys are deleted unconditionally after interval
+- [ ] Verify OTPK private keys are deleted after single use
+- [x] Verify pre-key upload rejects invalid SPK signatures (server-side)
+- [ ] Verify claimed OTPKs are atomically consumed (no double-claim)

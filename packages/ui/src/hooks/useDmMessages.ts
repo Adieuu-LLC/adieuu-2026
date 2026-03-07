@@ -19,12 +19,17 @@ import {
   type DecryptedMessageContent,
   type RecipientPublicKeys,
   type PreKeyRecipientData,
+  type PreKeyPrivateKeys,
 } from '../services/dmMessageService';
 import {
   getStoredDeviceKeys,
   decryptDeviceKeys,
   type DecryptedDeviceKeys,
 } from '../services/deviceKeyStorage';
+import {
+  findAndDecryptSignedPreKey,
+  findAndDecryptOneTimePreKey,
+} from '../services/preKeyStorage';
 import {
   getCachedParticipant,
   cacheParticipant,
@@ -505,7 +510,8 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
   const decryptMessages = useCallback(
     async (
       rawMessages: (DmMessage | DmMessageTombstone)[],
-      deviceKeys: DecryptedDeviceKeys
+      deviceKeys: DecryptedDeviceKeys,
+      wrappingKey: Uint8Array
     ): Promise<DecryptedDmMessage[]> => {
       const results: DecryptedDmMessage[] = [];
 
@@ -580,6 +586,60 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
             continue;
           }
 
+          // Look up pre-key private keys if this message uses FS wrapping
+          let preKeyPrivateKeys: PreKeyPrivateKeys | undefined;
+          const targetWrappedKey = msg.wrappedKeys.find(
+            (wk) => wk.identityId === identity!.id && wk.deviceId === deviceKeys.deviceId
+          ) ?? msg.wrappedKeys.find(
+            (wk) => wk.identityId === identity!.id
+          );
+
+          if (targetWrappedKey?.preKeyType && targetWrappedKey.preKeyType !== 'static') {
+            if (!targetWrappedKey.signedPreKeyId) {
+              results.push({
+                raw: msg,
+                decrypted: null,
+                decryptionError: 'FS message missing signedPreKeyId',
+              });
+              continue;
+            }
+
+            const spkKeys = await findAndDecryptSignedPreKey(
+              targetWrappedKey.signedPreKeyId,
+              identity!.id,
+              wrappingKey
+            );
+
+            if (!spkKeys) {
+              results.push({
+                raw: msg,
+                decrypted: null,
+                decryptionError: 'SPK private key not found (may have been rotated/deleted)',
+              });
+              continue;
+            }
+
+            preKeyPrivateKeys = {
+              spkEcdhPrivateKey: spkKeys.ecdhPrivateKey,
+              spkKemPrivateKey: spkKeys.kemPrivateKey,
+            };
+
+            if (targetWrappedKey.preKeyType === 'otpk' && targetWrappedKey.oneTimePreKeyId) {
+              const otpkKeys = await findAndDecryptOneTimePreKey(
+                targetWrappedKey.oneTimePreKeyId,
+                identity!.id,
+                wrappingKey
+              );
+
+              if (otpkKeys) {
+                preKeyPrivateKeys.otpkEcdhPrivateKey = otpkKeys.ecdhPrivateKey;
+                preKeyPrivateKeys.otpkKemPrivateKey = otpkKeys.kemPrivateKey;
+              } else {
+                console.warn(`[DM] OTPK ${targetWrappedKey.oneTimePreKeyId} not found, attempting SPK-only decrypt`);
+              }
+            }
+          }
+
           const decrypted = decryptDmMessage({
             ciphertext: msg.ciphertext,
             nonce: msg.nonce,
@@ -591,7 +651,12 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
             kemPrivateKey: deviceKeys.kemPrivateKey,
             senderSigningPublicKey,
             cryptoProfile: msg.cryptoProfile,
+            preKeyPrivateKeys,
           });
+
+          // TODO (Phase 3.2): After local message storage is implemented,
+          // delete OTPK private keys here for successfully decrypted OTPK messages.
+          // Deletion is deferred to prevent data loss on re-fetch without local cache.
 
           results.push({ raw: msg, decrypted });
         } catch (err) {
@@ -646,7 +711,7 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
           }
 
           // Decrypt messages
-          const decrypted = await decryptMessages(response.data.messages, deviceKeys);
+          const decrypted = await decryptMessages(response.data.messages, deviceKeys, wrappingKey);
 
           if (append) {
             setMessages((prev) => [...prev, ...decrypted]);
@@ -702,7 +767,7 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
         if (!storedKeys) return;
         const deviceKeys = await decryptDeviceKeys(storedKeys, wrappingKey);
 
-        const [decrypted] = await decryptMessages([rawMessage], deviceKeys);
+        const [decrypted] = await decryptMessages([rawMessage], deviceKeys, wrappingKey);
         if (decrypted) {
           setMessages((prev) => {
             if (prev.some((m) => m.raw.id === rawMessage.id)) return prev;
