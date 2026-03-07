@@ -42,7 +42,7 @@ Users configure rotation via a "Security level" setting rather than raw time val
 
 Rotation is triggered by both:
 - **On app open:** If current SPK age exceeds the rotation interval, rotate immediately
-- **In-app timer:** `setInterval` at the rotation interval while the app is running
+- **In-app timer:** `setTimeout` that reschedules itself after each rotation check
 
 This covers both users who leave the app open indefinitely and users who open it periodically.
 
@@ -68,7 +68,7 @@ All platforms use OTPKs (same code path), with batch sizes tuned to storage dura
 | Platform | OTPK Batch Size | Rationale |
 |----------|----------------|-----------|
 | Desktop | 50 | Durable local storage (safeStorage/TEE) |
-| Web | 5-10 | IndexedDB is volatile (cache clears, private browsing) |
+| Web | 10 | IndexedDB is volatile (cache clears, private browsing) |
 | Mobile | 50 | Secure enclave / Keystore |
 
 Replenishment threshold: upload a fresh batch when remaining count drops below 10 (desktop/mobile) or 3 (web).
@@ -103,8 +103,11 @@ The `preKeyType` field on `SerializedWrappedKey` enables graceful coexistence:
 | `packages/ui`: `useDmMessages` pre-key private key lookup on decrypt | Done |
 | `packages/ui`: OTPK private key deletion after decrypt | Deferred (needs local message storage) |
 | `packages/ui`: Local message storage for FS messages | Not started |
-| `packages/ui`: SPK rotation + key lifecycle | Not started |
-| `packages/ui`: OTPK replenishment | Not started |
+| `packages/ui`: `preKeyService.ts` SPK rotation check + retired SPK cleanup | Done |
+| `packages/ui`: `preKeyService.ts` FS config persistence (`loadFsConfig`/`saveFsConfig`) | Done |
+| `packages/ui`: `usePreKeys.ts` hook (on-open check, timer, manual rotation, config) | Done |
+| `packages/ui`: `preKeyService.ts` OTPK replenishment check (`checkAndReplenishOtpks`) | Done |
+| `packages/ui`: `usePreKeys.ts` OTPK replenishment on app open + debounced trigger | Done |
 | `packages/ui`: FS toggle UI | Not started |
 | `apps/api`: SPK signature verification on upload | Done |
 
@@ -206,74 +209,69 @@ The `preKeyType` field on `SerializedWrappedKey` enables graceful coexistence:
 
 ---
 
-### Phase 4: SPK Rotation and Key Lifecycle
+### Phase 4: SPK Rotation and Key Lifecycle -- DONE
 
 **Goal:** Automate SPK rotation, implement pending-message-aware deletion, and add manual rotation.
 
-#### 4.1 Rotation Timer and On-Open Check
+#### 4.1 Rotation Timer and On-Open Check -- DONE
 
-- [ ] On app open: check current SPK age against rotation interval; rotate if overdue
-- [ ] While app is running: schedule `setInterval` at the rotation interval
-- [ ] Rotation function: generate new SPK, upload to server, mark old SPK as "retired" locally
+- [x] `checkAndRotateSpk()` in `preKeyService.ts`: checks active SPK age against tier's rotation interval, rotates if overdue or missing
+- [x] Returns `nextRotationMs` so the caller can schedule the next check
+- [x] `usePreKeys` hook: on mount (app open), calls `checkAndRotateSpk()`, then schedules `setTimeout` for next rotation
+- [x] On config change (e.g. security level switch), clears existing timer and re-checks immediately
+- [x] Retry on failure: re-checks after 5 minutes
 
-#### 4.2 Security Level Setting
+#### 4.2 Security Level Setting -- DONE
 
-- [ ] Add "Security level" setting in identity/privacy preferences
-- [ ] Options: Standard (24h), High (4h), Maximum (1h)
-- [ ] Persist per-identity
-- [ ] Changing the level takes effect on next rotation check
+- [x] `SecurityLevel` type: `'standard'` | `'high'` | `'maximum'`
+- [x] `SECURITY_LEVEL_CONFIG` defines per-tier: `spkRotationIntervalMs`, `maxRetiredSpks`, `hardDeleteCapMs`
+  - Standard: 24h rotation, 5 max retired, 7-day hard cap
+  - High: 4h rotation, 8 max retired, 48h hard cap
+  - Maximum: 1h rotation, 12 max retired, 24h hard cap
+- [x] `ForwardSecrecyConfig` persisted per-identity in `localStorage` via `loadFsConfig()` / `saveFsConfig()`
+- [x] `usePreKeys` hook exposes `config` and `updateConfig()` for UI binding
 
-#### 4.3 Manual Rotation
+#### 4.3 Manual Rotation -- DONE
 
-- [ ] Add "Rotate keys now" action in security settings
-- [ ] Calls the same rotation function, bypasses time check
-- [ ] Confirmation dialog explaining what this does
+- [x] `usePreKeys.rotateNow()`: calls `rotateSignedPreKey()` bypassing time check, then runs cleanup and resets timer
+- [ ] UI: Confirmation dialog + "Rotate keys now" button in security settings (Phase 4 UI, pending)
 
-#### 4.4 SPK Deletion Policy Setting
+#### 4.4 SPK Deletion Policy Setting -- DONE
 
-- [ ] Add "Key deletion policy" setting in security preferences
-  - `after-sync` (default): "Delete old keys after messages are received (recommended)"
-  - `timed`: "Delete old keys on a fixed schedule (stricter, may lose unread messages)"
-- [ ] Display clear warning when selecting `timed` mode explaining the trade-off
-- [ ] Persist per-identity alongside security level
+- [x] `SpkDeletionPolicy` type: `'after-sync'` (default) | `'timed'`
+- [x] Persisted alongside security level in `ForwardSecrecyConfig`
+- [x] `usePreKeys.updateConfig()` updates deletion policy in real-time
+- [ ] UI: Deletion policy selector with trade-off warning (Phase 4 UI, pending)
 
-#### 4.5 Deletion Logic (Both Policies)
+#### 4.5 Deletion Logic (Both Policies) -- DONE
 
-- [ ] `after-sync` policy:
-  - After message sync completes, check each retired SPK
-  - Query: are there any undelivered/undecrypted messages referencing this SPK's key ID?
-  - If none: delete the retired SPK's private key
-  - If yes: retain
-  - Apply safety caps: if retired SPK count exceeds tier max, delete oldest regardless
-  - Apply hard-delete cap: delete retired SPKs older than the tier's time cap regardless
-- [ ] `timed` policy:
-  - After SPK retirement, schedule deletion timer equal to the current tier's rotation interval
-  - When timer fires: delete retired SPK private key unconditionally
-  - No pending-message check; forward secrecy window is strict
-
-**Estimated effort:** High
+- [x] `cleanupRetiredSpks()` in `preKeyService.ts`:
+  - `after-sync` policy: applies safety caps as backstop:
+    - Hard-delete cap: deletes retired SPKs older than tier's `hardDeleteCapMs`
+    - Max retained cap: deletes oldest retired SPKs beyond `maxRetiredSpks`
+    - Full pending-message-aware deletion deferred until local message storage is implemented
+  - `timed` policy: deletes any retired SPK older than the tier's rotation interval unconditionally
+- [x] Runs automatically after each rotation check and manual rotation
 
 ---
 
-### Phase 5: OTPK Replenishment
+### Phase 5: OTPK Replenishment -- DONE
 
 **Goal:** Keep the server stocked with fresh OTPKs.
 
-#### 5.1 Replenishment Trigger
+#### 5.1 Replenishment Trigger -- DONE
 
-- [ ] After decrypting a message that consumed an OTPK, check remaining count
-- [ ] Call `api.identity.getPreKeyCount()` (or track locally)
-- [ ] If below threshold (10 desktop/mobile, 3 web): generate and upload fresh batch
-- [ ] Also check on app open (in case OTPKs were consumed while offline on another device)
+- [x] `checkAndReplenishOtpks()` in `preKeyService.ts`: calls `getPreKeyCount()`, compares against platform threshold
+- [x] Platform thresholds: Desktop/Mobile 10, Web 3 (via `PLATFORM_OTPK_REPLENISH_THRESHOLD`)
+- [x] On app open: runs automatically as part of the `usePreKeys` rotation check cycle
+- [x] After OTPK consumption: `usePreKeys.triggerReplenishCheck()` exposed for callers, debounced (2s) to batch multiple OTPK messages
 
-#### 5.2 Replenishment Batch Generation
+#### 5.2 Replenishment Batch Generation -- DONE
 
-- [ ] Generate N new OTPKs (platform-dependent batch size)
-- [ ] Store private keys locally
-- [ ] Upload public halves to server
-- [ ] Handle upload failure (retry, don't block message flow)
-
-**Estimated effort:** Low-Medium
+- [x] `replenishOneTimePreKeys()` generates platform-appropriate batch (Desktop/Mobile 50, Web 10)
+- [x] Stores private keys locally via `preKeyStorage`
+- [x] Uploads public halves via `api.identity.uploadPreKeys()`
+- [x] Non-blocking: errors logged but don't interrupt message flow
 
 ---
 
@@ -284,20 +282,20 @@ Phase 1 (storage + upload) .............. DONE
     |
     +---> Phase 2 (claim + encrypt) ..... DONE (UI toggle pending)
     |         |
-    |         +---> Phase 5 (OTPK replenishment)
+    |         +---> Phase 5 (OTPK replenishment) . DONE
     |
     +---> Phase 3 (decrypt) ............. DONE (3.2/3.3 deferred)
               |
-              +---> Phase 4 (rotation + lifecycle)
+              +---> Phase 4 (rotation + lifecycle) .. DONE
               |
-              +---> Phase 5 (OTPK replenishment)
+              +---> Phase 5 (OTPK replenishment) . DONE
               |
               +---> Phase 3.3 (local message storage)
                         |
                         +---> Phase 3.2 (OTPK deletion)
 ```
 
-Phases 1-3 (core decrypt path) are complete. Phase 4 (SPK rotation) is the next critical piece -- it provides the forward secrecy guarantee by eventually deleting old SPK private keys. Phase 5 (OTPK replenishment) can follow. Phase 3.3 (local message storage) and 3.2 (OTPK deletion) are deferred but not blocking: FS messages work end-to-end, and OTPK keys are simply retained longer than ideal until local storage is in place.
+Phases 1-5 are complete. The full FS lifecycle is operational: pre-key generation, encryption, decryption, SPK rotation with cleanup, and OTPK replenishment all function end-to-end. Remaining work is UI (Phase 2.3 FS toggle, Phase 4 settings UI) and deferred items (Phase 3.3 local message storage, Phase 3.2 OTPK deletion).
 
 ---
 
@@ -305,10 +303,10 @@ Phases 1-3 (core decrypt path) are complete. Phase 4 (SPK rotation) is the next 
 
 ```typescript
 interface ForwardSecrecyConfig {
-  securityLevel: 'standard' | 'high' | 'maximum';
-  spkDeletionPolicy: 'after-sync' | 'timed'; // default: 'after-sync'
-  defaultFsEnabled: boolean; // default: true
+  securityLevel: 'standard' | 'high' | 'maximum';  // default: 'standard'
+  spkDeletionPolicy: 'after-sync' | 'timed';        // default: 'after-sync'
 }
+// Per-message FS toggle is on SendDmMessageInput.forwardSecrecy (default: true)
 
 const SECURITY_LEVEL_CONFIG = {
   standard: {
@@ -342,14 +340,14 @@ const PLATFORM_OTPK_CONFIG = {
 | File | Changes | Status |
 |------|---------|--------|
 | `packages/ui/src/services/preKeyStorage.ts` (new) | Pre-key local storage, dual-backend, encrypted at rest | Done |
-| `packages/ui/src/services/preKeyService.ts` (new) | Pre-key generation + upload on device setup | Done |
+| `packages/ui/src/services/preKeyService.ts` (new) | Pre-key generation, upload, rotation check, retired cleanup, OTPK replenishment, FS config persistence | Done |
 | `packages/ui/src/services/dmMessageService.ts` | Encrypt/decrypt branching on `preKeyType`, `PreKeyRecipientData`, `PreKeyPrivateKeys` | Done |
 | `packages/ui/src/hooks/useDmMessages.ts` | Pre-key claim flow, SPK verification, FS toggle param, pre-key lookup on decrypt | Done |
 | `packages/ui/src/hooks/useIdentity.tsx` | Pre-key generation calls on identity creation + new device login | Done |
-| `packages/ui/src/index.ts` | Export `setPreKeyStorageBackend` | Done |
+| `packages/ui/src/index.ts` | Export `setPreKeyStorageBackend`, `usePreKeys`, FS config types | Done |
 | `apps/desktop/src/renderer/main.tsx` | Initialize pre-key storage backend | Done |
 | `apps/api/src/routes/identity/pre-key.controller.ts` | SPK signature verification on upload | Done |
-| `packages/ui/src/hooks/usePreKeys.ts` (new) | Pre-key lifecycle hook (rotation timer, replenishment) | Phase 4/5 |
+| `packages/ui/src/hooks/usePreKeys.ts` (new) | Pre-key lifecycle hook (on-open check, timer, manual rotation, config management) | Done |
 | `packages/ui/src/services/localMessageStorage.ts` (new) | IndexedDB cache for decrypted FS messages | Phase 3.3 (deferred) |
 | `packages/ui/src/components/` | FS toggle UI in composer, security level setting, deletion policy setting | Phase 2.3/4 |
 
@@ -368,10 +366,10 @@ const PLATFORM_OTPK_CONFIG = {
 - [x] FS message fails without pre-key private keys (clear error)
 - [x] FS message fails with wrong pre-key private keys (clear error)
 - [x] Backward compatibility: static messages decrypt with unchanged code path
-- [ ] SPK rotation logic (time checks, timer scheduling) -- Phase 4
-- [ ] Deletion policy: `after-sync` (mock pending message queries, safety cap enforcement) -- Phase 4
-- [ ] Deletion policy: `timed` (verify unconditional deletion after interval) -- Phase 4
-- [ ] OTPK replenishment threshold checks -- Phase 5
+- [ ] SPK rotation logic (time checks, timer scheduling) -- implemented, needs unit tests
+- [ ] Deletion policy: `after-sync` (safety cap enforcement) -- implemented, needs unit tests
+- [ ] Deletion policy: `timed` (verify unconditional deletion after interval) -- implemented, needs unit tests
+- [ ] OTPK replenishment threshold checks -- implemented, needs unit tests
 
 ### Integration Tests
 - [ ] Full send/receive cycle: claim pre-keys -> encrypt -> deliver -> decrypt -> verify OTPK deletion

@@ -109,6 +109,12 @@ export type {
 export type { DecryptedMessageContent } from './services/dmMessageService';
 export { setDeviceKeyStorageBackend, migrateIndexedDbToBackend } from './services/deviceKeyStorage';
 export { setPreKeyStorageBackend } from './services/preKeyStorage';
+export { usePreKeys } from './hooks/usePreKeys';
+export type {
+  ForwardSecrecyConfig,
+  SecurityLevel,
+  SpkDeletionPolicy,
+} from './services/preKeyService';
 export {
   exportKeyBackup,
   decryptKeyBackup,
