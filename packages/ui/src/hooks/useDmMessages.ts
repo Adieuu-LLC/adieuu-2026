@@ -240,7 +240,7 @@ export function useSendDmMessage(): UseSendDmMessageResult {
         // 4. Build recipient keys list (all recipient devices + all sender devices)
         const recipientKeys: Array<{
           identityId: string;
-          deviceId?: string;
+          deviceId: string;
           publicKeys: RecipientPublicKeys;
         }> = [];
 

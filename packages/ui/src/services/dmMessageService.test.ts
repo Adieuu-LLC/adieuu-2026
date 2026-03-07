@@ -92,10 +92,12 @@ describe('DM Message Service', () => {
         recipientKeys: [
           {
             identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
             publicKeys: bobPublicKeys,
           },
           {
             identityId: aliceIdentityId,
+            deviceId: 'alice-device-1',
             publicKeys: alicePublicKeys,
           },
         ],
@@ -174,6 +176,7 @@ describe('DM Message Service', () => {
         recipientKeys: [
           {
             identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
             publicKeys: bobPublicKeys,
           },
         ],
@@ -211,6 +214,7 @@ describe('DM Message Service', () => {
         recipientKeys: [
           {
             identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
             publicKeys: bobPublicKeys,
           },
         ],
@@ -248,6 +252,7 @@ describe('DM Message Service', () => {
         recipientKeys: [
           {
             identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
             publicKeys: bobPublicKeys,
           },
         ],

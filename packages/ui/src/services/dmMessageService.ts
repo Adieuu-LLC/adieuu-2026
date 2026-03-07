@@ -37,7 +37,7 @@ import {
   type WrappedKey,
   type IdentityPublicKeys as CryptoIdentityPublicKeys,
 } from '@adieuu/crypto';
-import type { SerializedWrappedKey } from '@adieuu/shared';
+import type { SerializedWrappedKey, PreKeyType } from '@adieuu/shared';
 
 /**
  * Public keys needed for message encryption (subset of full IdentityPublicKeys).
@@ -80,7 +80,7 @@ export interface EncryptMessageInput {
   /** All recipient devices' public keys (including sender's own devices) */
   recipientKeys: Array<{
     identityId: string;
-    deviceId?: string;
+    deviceId: string;
     publicKeys: RecipientPublicKeys;
   }>;
   /** Sender's signing private key (Ed25519) */
@@ -136,7 +136,9 @@ export interface DecryptMessageInput {
  */
 function serializeWrappedKey(
   wk: WrappedKey,
-  deviceId?: string
+  deviceId: string,
+  preKeyType: PreKeyType = 'static',
+  preKeyIds?: { oneTimePreKeyId?: string; signedPreKeyId?: string; oneTimeKemCiphertext?: string }
 ): SerializedWrappedKey {
   return {
     identityId: wk.identityId,
@@ -145,6 +147,8 @@ function serializeWrappedKey(
     kemCiphertext: toBase64(wk.kemCiphertext),
     wrappedSessionKey: toBase64(wk.wrappedSessionKey),
     wrappingNonce: toBase64(wk.wrappingNonce),
+    preKeyType,
+    ...preKeyIds,
   };
 }
 
@@ -208,8 +212,7 @@ export function encryptDmMessage(input: EncryptMessageInput): EncryptedMessage {
 
   // Serialize wrapped keys with deviceId association
   const wrappedKeys: SerializedWrappedKey[] = wrappedKeysRaw.map((wk, idx) => {
-    const deviceId = input.recipientKeys[idx]?.deviceId;
-    return serializeWrappedKey(wk, deviceId);
+    return serializeWrappedKey(wk, input.recipientKeys[idx]!.deviceId);
   });
 
   // Clear session key from memory
