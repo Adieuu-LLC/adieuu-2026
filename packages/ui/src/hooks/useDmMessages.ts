@@ -6,8 +6,8 @@
  */
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { createApiClient, type DmMessage, type DmMessageTombstone, type DmConversation } from '@adieuu/shared';
-import { deriveConversationId, type CryptoProfile, fromBase64 } from '@adieuu/crypto';
+import { createApiClient, type DmMessage, type DmMessageTombstone, type DmConversation, type ClaimedDevicePreKeys } from '@adieuu/shared';
+import { deriveConversationId, verifySignedPreKey, type CryptoProfile, type SignedPreKeyPublic, type OneTimePreKeyPublic, fromBase64 } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
 import {
@@ -18,6 +18,7 @@ import {
   decryptSenderHint,
   type DecryptedMessageContent,
   type RecipientPublicKeys,
+  type PreKeyRecipientData,
 } from '../services/dmMessageService';
 import {
   getStoredDeviceKeys,
@@ -78,6 +79,8 @@ export interface SendDmMessageInput {
   expiresInSeconds?: number;
   /** Optional reply to message ID */
   replyToId?: string;
+  /** Whether to use forward secrecy (pre-key wrapping) for this message. Defaults to true. */
+  forwardSecrecy?: boolean;
 }
 
 export interface SendDmMessageResult {
@@ -210,7 +213,10 @@ export function useSendDmMessage(): UseSendDmMessageResult {
         const conversation = convResponse.data.conversation;
         const cryptoProfile = conversation.activeCryptoProfile as CryptoProfile;
 
-        // 2. Get recipient's public keys (all devices)
+        const fsEnabled = input.forwardSecrecy ?? true;
+
+        // 2. Get recipient's public keys (all devices) -- needed for static
+        // fallback and for devices without pre-keys
         const recipientKeysResponse = await api.identity.getPublicKeys(input.toIdentityId);
         if (!recipientKeysResponse.success || !recipientKeysResponse.data) {
           const errMsg = recipientKeysResponse.error?.message ?? 'Failed to get recipient keys';
@@ -229,6 +235,21 @@ export function useSendDmMessage(): UseSendDmMessageResult {
           });
         }
 
+        // 2c. If FS enabled, claim pre-keys for recipient devices
+        let claimedPreKeys: ClaimedDevicePreKeys[] | undefined;
+        if (fsEnabled) {
+          try {
+            const claimResponse = await api.identity.claimPreKeys(input.toIdentityId);
+            if (claimResponse.success && claimResponse.data) {
+              claimedPreKeys = claimResponse.data.devices;
+            } else {
+              console.warn('[DM] Pre-key claim returned no data, falling back to static wrapping');
+            }
+          } catch (err) {
+            console.warn('[DM] Failed to claim pre-keys, falling back to static wrapping', err);
+          }
+        }
+
         // 3. Get sender's own device keys for encryption (so sender can read own messages)
         const senderKeysResponse = await api.identity.getPublicKeys(identity.id);
         if (!senderKeysResponse.success || !senderKeysResponse.data) {
@@ -242,12 +263,48 @@ export function useSendDmMessage(): UseSendDmMessageResult {
           identityId: string;
           deviceId: string;
           publicKeys: RecipientPublicKeys;
+          preKeyData?: PreKeyRecipientData;
         }> = [];
 
-        // Add recipient devices
+        // Add recipient devices -- use pre-key wrapping where available
+        const recipientSigningPubKey = recipientKeysResponse.data.signingPublicKey
+          ? fromBase64(recipientKeysResponse.data.signingPublicKey)
+          : undefined;
+
         for (const device of recipientKeysResponse.data.devices) {
-          // Skip devices without KEM key (old devices not supporting E2E)
           if (!device.kemPublicKey) continue;
+
+          let preKeyData: PreKeyRecipientData | undefined;
+
+          if (claimedPreKeys && recipientSigningPubKey) {
+            const claimed = claimedPreKeys.find((c) => c.deviceId === device.deviceId);
+            if (claimed?.signedPreKey) {
+              const spkPublic: SignedPreKeyPublic = {
+                keyId: claimed.signedPreKey.keyId,
+                ecdhPublicKey: fromBase64(claimed.signedPreKey.ecdhPublicKey),
+                kemPublicKey: fromBase64(claimed.signedPreKey.kemPublicKey),
+                signature: fromBase64(claimed.signedPreKey.signature),
+              };
+
+              if (verifySignedPreKey(spkPublic, recipientSigningPubKey)) {
+                preKeyData = {
+                  signedPreKey: spkPublic,
+                  signedPreKeyId: claimed.signedPreKey.keyId,
+                };
+                if (claimed.oneTimePreKey) {
+                  const otpkPublic: OneTimePreKeyPublic = {
+                    keyId: claimed.oneTimePreKey.keyId,
+                    ecdhPublicKey: fromBase64(claimed.oneTimePreKey.ecdhPublicKey),
+                    kemPublicKey: fromBase64(claimed.oneTimePreKey.kemPublicKey),
+                  };
+                  preKeyData.oneTimePreKey = otpkPublic;
+                  preKeyData.oneTimePreKeyId = claimed.oneTimePreKey.keyId;
+                }
+              } else {
+                console.warn(`[DM] SPK signature verification failed for device ${device.deviceId}, using static wrapping`);
+              }
+            }
+          }
 
           recipientKeys.push({
             identityId: input.toIdentityId,
@@ -257,12 +314,12 @@ export function useSendDmMessage(): UseSendDmMessageResult {
               kem: fromBase64(device.kemPublicKey),
               profile: cryptoProfile,
             },
+            preKeyData,
           });
         }
 
-        // Add sender devices (for multi-device read)
+        // Add sender devices (always static wrapping -- sender doesn't consume own OTPKs)
         for (const device of senderKeysResponse.data.devices) {
-          // Skip devices without KEM key (old devices not supporting E2E)
           if (!device.kemPublicKey) continue;
 
           recipientKeys.push({

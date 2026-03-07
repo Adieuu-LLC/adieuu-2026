@@ -13,12 +13,17 @@ import {
   type EncryptMessageInput,
   type DecryptMessageInput,
   type RecipientPublicKeys,
+  type PreKeyRecipientData,
 } from './dmMessageService';
 import {
   generateSigningKeyPair,
   generateECDHKeyPair,
   generateKEMKeyPair,
+  generateSignedPreKey,
+  generateOneTimePreKeys,
   toBase64,
+  type SignedPreKeyPublic,
+  type OneTimePreKeyPublic,
 } from '@adieuu/crypto';
 
 describe('DM Message Service', () => {
@@ -109,6 +114,208 @@ describe('DM Message Service', () => {
       expect(result.wrappedKeys).toHaveLength(2);
       expect(result.wrappedKeys.map((wk) => wk.identityId)).toContain(bobIdentityId);
       expect(result.wrappedKeys.map((wk) => wk.identityId)).toContain(aliceIdentityId);
+    });
+  });
+
+  describe('encryptDmMessage with pre-key wrapping (forward secrecy)', () => {
+    const bobSpk = generateSignedPreKey(bobSigningKeys.privateKey, 'default');
+    const bobOtpks = generateOneTimePreKeys(2, 'default');
+
+    const bobSpkPublic: SignedPreKeyPublic = {
+      keyId: bobSpk.keyId,
+      ecdhPublicKey: bobSpk.ecdh.publicKey,
+      kemPublicKey: bobSpk.kem.publicKey,
+      signature: bobSpk.signature,
+    };
+
+    const bobOtpkPublic: OneTimePreKeyPublic = {
+      keyId: bobOtpks[0]!.keyId,
+      ecdhPublicKey: bobOtpks[0]!.ecdh.publicKey,
+      kemPublicKey: bobOtpks[0]!.kem.publicKey,
+    };
+
+    it('should produce preKeyType "spk" when using SPK only', () => {
+      const preKeyData: PreKeyRecipientData = {
+        signedPreKey: bobSpkPublic,
+        signedPreKeyId: bobSpk.keyId,
+      };
+
+      const input: EncryptMessageInput = {
+        text: 'FS message (SPK only)',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData,
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      };
+
+      const result = encryptDmMessage(input);
+
+      expect(result.wrappedKeys).toHaveLength(1);
+      const wk = result.wrappedKeys[0]!;
+      expect(wk.preKeyType).toBe('spk');
+      expect(wk.signedPreKeyId).toBe(bobSpk.keyId);
+      expect(wk.oneTimePreKeyId).toBeUndefined();
+      expect(wk.oneTimeKemCiphertext).toBeUndefined();
+      expect(wk.deviceId).toBe('bob-device-1');
+    });
+
+    it('should produce preKeyType "otpk" when using SPK + OTPK', () => {
+      const preKeyData: PreKeyRecipientData = {
+        signedPreKey: bobSpkPublic,
+        signedPreKeyId: bobSpk.keyId,
+        oneTimePreKey: bobOtpkPublic,
+        oneTimePreKeyId: bobOtpks[0]!.keyId,
+      };
+
+      const input: EncryptMessageInput = {
+        text: 'FS message (SPK + OTPK)',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData,
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      };
+
+      const result = encryptDmMessage(input);
+
+      expect(result.wrappedKeys).toHaveLength(1);
+      const wk = result.wrappedKeys[0]!;
+      expect(wk.preKeyType).toBe('otpk');
+      expect(wk.signedPreKeyId).toBe(bobSpk.keyId);
+      expect(wk.oneTimePreKeyId).toBe(bobOtpks[0]!.keyId);
+      expect(wk.oneTimeKemCiphertext).toBeDefined();
+      expect(wk.oneTimeKemCiphertext!.length).toBeGreaterThan(0);
+    });
+
+    it('should support mixed wrapping (pre-key for recipient, static for sender)', () => {
+      const preKeyData: PreKeyRecipientData = {
+        signedPreKey: bobSpkPublic,
+        signedPreKeyId: bobSpk.keyId,
+        oneTimePreKey: bobOtpkPublic,
+        oneTimePreKeyId: bobOtpks[0]!.keyId,
+      };
+
+      const input: EncryptMessageInput = {
+        text: 'Mixed wrapping message',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData,
+          },
+          {
+            identityId: aliceIdentityId,
+            deviceId: 'alice-device-1',
+            publicKeys: {
+              ecdh: aliceEcdhKeys.publicKey,
+              kem: aliceKemKeys.publicKey,
+              profile: 'default',
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      };
+
+      const result = encryptDmMessage(input);
+
+      expect(result.wrappedKeys).toHaveLength(2);
+
+      const bobWk = result.wrappedKeys.find((wk) => wk.identityId === bobIdentityId)!;
+      expect(bobWk.preKeyType).toBe('otpk');
+      expect(bobWk.signedPreKeyId).toBe(bobSpk.keyId);
+      expect(bobWk.oneTimePreKeyId).toBe(bobOtpks[0]!.keyId);
+      expect(bobWk.oneTimeKemCiphertext).toBeDefined();
+
+      const aliceWk = result.wrappedKeys.find((wk) => wk.identityId === aliceIdentityId)!;
+      expect(aliceWk.preKeyType).toBe('static');
+      expect(aliceWk.signedPreKeyId).toBeUndefined();
+      expect(aliceWk.oneTimePreKeyId).toBeUndefined();
+      expect(aliceWk.oneTimeKemCiphertext).toBeUndefined();
+    });
+
+    it('should produce different ephemeral keys for each pre-key wrapped recipient', () => {
+      const carolSigningKeys = generateSigningKeyPair();
+      const carolSpk = generateSignedPreKey(carolSigningKeys.privateKey, 'default');
+      const carolEcdhKeys = generateECDHKeyPair();
+      const carolKemKeys = generateKEMKeyPair('default');
+
+      const input: EncryptMessageInput = {
+        text: 'Multi-recipient FS',
+        fromIdentityId: aliceIdentityId,
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: bobSpkPublic,
+              signedPreKeyId: bobSpk.keyId,
+            },
+          },
+          {
+            identityId: '507f1f77bcf86cd799439013',
+            deviceId: 'carol-device-1',
+            publicKeys: {
+              ecdh: carolEcdhKeys.publicKey,
+              kem: carolKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: {
+                keyId: carolSpk.keyId,
+                ecdhPublicKey: carolSpk.ecdh.publicKey,
+                kemPublicKey: carolSpk.kem.publicKey,
+                signature: carolSpk.signature,
+              },
+              signedPreKeyId: carolSpk.keyId,
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      };
+
+      const result = encryptDmMessage(input);
+
+      expect(result.wrappedKeys).toHaveLength(2);
+      expect(result.wrappedKeys[0]!.ephemeralPublicKey).not.toBe(
+        result.wrappedKeys[1]!.ephemeralPublicKey
+      );
     });
   });
 

@@ -20,7 +20,8 @@ import {
   decrypt,
   sign,
   verify,
-  wrapSessionKeyForRecipients,
+  wrapSessionKey,
+  wrapSessionKeyWithPreKeys,
   findAndUnwrapSessionKey,
   toBase64,
   fromBase64,
@@ -36,6 +37,9 @@ import {
   type CryptoProfile,
   type WrappedKey,
   type IdentityPublicKeys as CryptoIdentityPublicKeys,
+  type SignedPreKeyPublic,
+  type OneTimePreKeyPublic,
+  type PreKeyWrappedKey,
 } from '@adieuu/crypto';
 import type { SerializedWrappedKey, PreKeyType } from '@adieuu/shared';
 
@@ -68,6 +72,18 @@ export interface DecryptedMessageContent {
 }
 
 /**
+ * Pre-key data for a recipient device when using forward secrecy wrapping.
+ * When present, the session key is wrapped using pre-key exchange instead of
+ * static device keys.
+ */
+export interface PreKeyRecipientData {
+  signedPreKey: SignedPreKeyPublic;
+  signedPreKeyId: string;
+  oneTimePreKey?: OneTimePreKeyPublic;
+  oneTimePreKeyId?: string;
+}
+
+/**
  * Input for encrypting a DM message.
  */
 export interface EncryptMessageInput {
@@ -77,11 +93,16 @@ export interface EncryptMessageInput {
   fromIdentityId: string;
   /** Sender's device ID */
   fromDeviceId?: string;
-  /** All recipient devices' public keys (including sender's own devices) */
+  /**
+   * All recipient devices' public keys (including sender's own devices).
+   * When `preKeyData` is provided, that device uses pre-key wrapping (FS);
+   * otherwise static device key wrapping is used.
+   */
   recipientKeys: Array<{
     identityId: string;
     deviceId: string;
     publicKeys: RecipientPublicKeys;
+    preKeyData?: PreKeyRecipientData;
   }>;
   /** Sender's signing private key (Ed25519) */
   signingPrivateKey: Uint8Array;
@@ -132,13 +153,11 @@ export interface DecryptMessageInput {
 }
 
 /**
- * Serializes a WrappedKey to the format stored in the database.
+ * Serializes a static WrappedKey to the format stored in the database.
  */
-function serializeWrappedKey(
+function serializeStaticWrappedKey(
   wk: WrappedKey,
   deviceId: string,
-  preKeyType: PreKeyType = 'static',
-  preKeyIds?: { oneTimePreKeyId?: string; signedPreKeyId?: string; oneTimeKemCiphertext?: string }
 ): SerializedWrappedKey {
   return {
     identityId: wk.identityId,
@@ -147,8 +166,32 @@ function serializeWrappedKey(
     kemCiphertext: toBase64(wk.kemCiphertext),
     wrappedSessionKey: toBase64(wk.wrappedSessionKey),
     wrappingNonce: toBase64(wk.wrappingNonce),
+    preKeyType: 'static',
+  };
+}
+
+/**
+ * Serializes a PreKeyWrappedKey to the format stored in the database.
+ * Maps spkKemCiphertext -> kemCiphertext and otpkKemCiphertext -> oneTimeKemCiphertext.
+ */
+function serializePreKeyWrappedKey(
+  wk: PreKeyWrappedKey,
+  identityId: string,
+  deviceId: string,
+  preKeyData: PreKeyRecipientData,
+): SerializedWrappedKey {
+  const preKeyType: PreKeyType = preKeyData.oneTimePreKey ? 'otpk' : 'spk';
+  return {
+    identityId,
+    deviceId,
+    ephemeralPublicKey: toBase64(wk.ephemeralPublicKey),
+    kemCiphertext: toBase64(wk.spkKemCiphertext),
+    wrappedSessionKey: toBase64(wk.wrappedSessionKey),
+    wrappingNonce: toBase64(wk.wrappingNonce),
     preKeyType,
-    ...preKeyIds,
+    signedPreKeyId: preKeyData.signedPreKeyId,
+    oneTimePreKeyId: preKeyData.oneTimePreKeyId,
+    oneTimeKemCiphertext: wk.otpkKemCiphertext ? toBase64(wk.otpkKemCiphertext) : undefined,
   };
 }
 
@@ -201,18 +244,25 @@ export function encryptDmMessage(input: EncryptMessageInput): EncryptedMessage {
     profile
   );
 
-  // 4. Wrap session key for each recipient
-  // Note: wrapSessionKeyForRecipients expects CryptoIdentityPublicKeys which includes signing,
-  // but the function only uses ecdh/kem/profile. We cast here since signing isn't needed.
-  const recipientsForCrypto = input.recipientKeys.map((r) => ({
-    identityId: r.identityId,
-    publicKeys: r.publicKeys as CryptoIdentityPublicKeys,
-  }));
-  const wrappedKeysRaw = wrapSessionKeyForRecipients(sessionKey, recipientsForCrypto);
-
-  // Serialize wrapped keys with deviceId association
-  const wrappedKeys: SerializedWrappedKey[] = wrappedKeysRaw.map((wk, idx) => {
-    return serializeWrappedKey(wk, input.recipientKeys[idx]!.deviceId);
+  // 4. Wrap session key for each recipient device.
+  // Each device may use either pre-key wrapping (FS) or static device key wrapping,
+  // depending on whether preKeyData is provided.
+  const wrappedKeys: SerializedWrappedKey[] = input.recipientKeys.map((r) => {
+    if (r.preKeyData) {
+      const wrapped = wrapSessionKeyWithPreKeys(
+        sessionKey,
+        r.preKeyData.signedPreKey,
+        r.preKeyData.oneTimePreKey,
+        profile
+      );
+      return serializePreKeyWrappedKey(wrapped, r.identityId, r.deviceId, r.preKeyData);
+    }
+    const wrapped = wrapSessionKey(
+      sessionKey,
+      r.publicKeys as CryptoIdentityPublicKeys,
+      r.identityId
+    );
+    return serializeStaticWrappedKey(wrapped, r.deviceId);
   });
 
   // Clear session key from memory
