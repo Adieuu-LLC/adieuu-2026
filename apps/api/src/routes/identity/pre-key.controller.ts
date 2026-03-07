@@ -25,6 +25,7 @@ import { isValidObjectId } from '../../utils';
 import { sanitizeString } from '../../utils/sanitize';
 import { z } from '@adieuu/shared/schemas';
 import { ObjectId } from 'mongodb';
+import { verifySignedPreKey, fromBase64, type SignedPreKeyPublic } from '@adieuu/crypto';
 
 // ============================================================================
 // Zod Schemas
@@ -106,8 +107,22 @@ export async function uploadPreKeysCtrl(ctx: RouteContext): Promise<Response> {
 
   // Store signed pre-key (replaces existing)
   if (signedPreKey) {
-    // TODO: In Phase 2, verify the signature against identity.signingPublicKey
-    // using the crypto package. For now, store as-is.
+    if (!identity.signingPublicKey) {
+      return errors.badRequest('Identity has no signing public key configured.');
+    }
+
+    const spkPublic: SignedPreKeyPublic = {
+      keyId: signedPreKey.keyId,
+      ecdhPublicKey: fromBase64(signedPreKey.ecdhPublicKey),
+      kemPublicKey: fromBase64(signedPreKey.kemPublicKey),
+      signature: fromBase64(signedPreKey.signature),
+    };
+
+    const signingPubKey = fromBase64(identity.signingPublicKey);
+    if (!verifySignedPreKey(spkPublic, signingPubKey)) {
+      return errors.badRequest('Signed pre-key signature verification failed.');
+    }
+
     const expiresInDays = signedPreKeyExpiresInDays ?? 7;
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
 
