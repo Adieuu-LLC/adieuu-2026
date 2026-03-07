@@ -210,7 +210,7 @@ Alice (2 devices) → Bob (3 devices)
 
 ### 3.4 Forward Secrecy (Partial)
 
-DMs support optional partial forward secrecy via X3DH-style pre-key exchange. This is a stepping stone toward full forward secrecy (Double Ratchet, planned for v2). The design provides forward secrecy at the pre-key granularity: compromising a device's long-term keys does not reveal messages encrypted under already-deleted pre-keys.
+DMs support optional partial forward secrecy via X3DH-style pre-key exchange. This is a stepping stone toward full forward secrecy (Double Ratchet, tentatively planned for v2). The design provides forward secrecy at the pre-key granularity: compromising a device's long-term keys does not reveal messages encrypted under already-deleted pre-keys.
 
 #### 3.4.1 Pre-Key Types
 
@@ -314,13 +314,15 @@ SPK rotation is driven by both a periodic timer and an on-app-open check, ensuri
 2. Mark old SPK as "retired" locally (keep private key)
 3. Schedule timer for next rotation (also check on next app open)
 
-#### 3.4.5 SPK Private Key Deletion (Pending-Message-Aware)
+#### 3.4.5 SPK Private Key Deletion Policy
 
-Old SPK private keys are not deleted on a pure timer. Instead, deletion is tied to message receipt to avoid making unread messages permanently undecryptable:
+Users can choose how aggressively old SPK private keys are deleted via a deletion policy setting:
+
+**`after-sync` (default, recommended):** Pending-message-aware deletion. Old SPK private keys are retained until all messages encrypted under them have been decrypted. This avoids making unread messages permanently undecryptable for users who go offline.
 
 ```
-DELETION FLOW
-=============
+AFTER-SYNC DELETION FLOW
+=========================
 
 1. SPK rotated -> old SPK marked "retired" locally
 2. Messages arrive encrypted under old SPK
@@ -334,10 +336,32 @@ DELETION FLOW
    - Prevents accumulation on abandoned/lost devices
 ```
 
+**`timed` (stricter):** Pure timer-based deletion. Old SPK private keys are deleted after a fixed interval following retirement, regardless of whether pending messages remain. This provides a tighter forward secrecy window but means messages arriving after the deletion window are permanently unreadable.
+
+```
+TIMED DELETION FLOW
+===================
+
+1. SPK rotated -> old SPK marked "retired" with timestamp
+2. Deletion timer = rotation interval of current security tier
+   (e.g., 24h for Standard, 4h for High, 1h for Maximum)
+3. After timer expires: delete retired SPK private key unconditionally
+4. Any messages still encrypted under the deleted SPK become unrecoverable
+```
+
+**Properties of each policy:**
+
+| Property | `after-sync` | `timed` |
+|----------|-------------|---------|
+| Unread messages at risk | No (until safety cap) | Yes, after timer expires |
+| Forward secrecy window | Bounded by sync + safety cap | Bounded by timer |
+| Suitable for | Most users | High-threat-model users who accept the trade-off |
+| Safety caps still apply | Yes | N/A (timer is the primary mechanism) |
+
 This ensures:
-- Active users: old SPKs cleaned up promptly after messages are read
-- Offline users: old SPKs persist until they return and sync
-- Abandoned devices: safety cap bounds storage and provides eventual forward secrecy
+- Default: users never lose messages due to being offline; forward secrecy is eventual
+- Opt-in strict mode: tighter forward secrecy window for users who prioritize it over message availability
+- Both modes: abandoned devices are bounded by safety caps
 
 #### 3.4.6 OTPK Management
 

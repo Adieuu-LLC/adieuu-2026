@@ -28,7 +28,7 @@ The toggle is implemented as a sender-side UI control in the message composer. D
 **Metadata trade-off:** The `preKeyType` field is visible in message metadata, meaning an observer with server access can distinguish FS from non-FS messages. This was accepted because:
 - All content is E2E encrypted regardless
 - The threat model (server access + device key compromise) is narrow
-- Hiding the distinction would require double-wrapping every message, increasing payload size per recipient device
+- Hiding the distinction would require double-wrapping every message, notably increasing payload size per recipient device
 
 ### 3. SPK Rotation Tiers
 
@@ -48,18 +48,18 @@ This covers both users who leave the app open indefinitely and users who open it
 
 ### 4. Manual Rotation
 
-Users can trigger immediate SPK rotation from security settings. This calls the same rotation function as the automatic path, bypassing the time check. Useful as a "panic button" if a user suspects compromise or observes unexpected behavior.
+Users can trigger immediate SPK rotation from security settings. This calls the same rotation function as the automatic path, bypassing and resetting the time check. Useful as a "panic button" if a user suspects compromise or observes unexpected behavior.
 
-### 5. Pending-Message-Aware SPK Deletion
+### 5. Configurable SPK Deletion Policy
 
-Old SPK private keys are not deleted on a pure timer. Instead, deletion is tied to message receipt:
+Users choose how aggressively old SPK private keys are deleted:
 
-1. SPK rotated -> old SPK marked "retired" locally
-2. Client syncs and decrypts pending messages using retired SPKs
-3. After sync: if no pending messages reference a retired SPK, delete its private key
-4. Safety caps prevent unbounded accumulation (per tier table above)
+- **`after-sync` (default):** Pending-message-aware. Old SPK private keys are retained until all messages encrypted under them have been decrypted. Safety caps (max retained SPKs, hard-delete time cap) still apply as a backstop for abandoned devices.
+- **`timed` (stricter):** Pure timer-based. Old SPK private keys are deleted after a fixed interval following retirement (equal to the rotation interval of the current security tier), regardless of pending messages.
 
-**Rationale:** Pure time-based deletion creates a hard UX cliff -- a user offline longer than the grace period loses messages. Pending-message-aware deletion ensures users always receive their messages, while the safety cap provides eventual forward secrecy on abandoned devices.
+**Rationale for defaulting to `after-sync`:** Pure time-based deletion creates a hard UX cliff -- a user offline longer than the deletion window loses messages. Most users won't understand or expect this. Pending-message-aware deletion ensures users always receive their messages, while the safety cap provides eventual forward secrecy on abandoned devices.
+
+**Rationale for offering `timed`:** High-threat-model users may prefer a tighter forward secrecy window and accept the trade-off that messages arriving after the deletion window are permanently unreadable. This is a conscious opt-in with clear warnings in the UI.
 
 ### 6. OTPK Batch Sizes by Platform
 
@@ -218,14 +218,27 @@ The `preKeyType` field on `SerializedWrappedKey` enables graceful coexistence:
 - [ ] Calls the same rotation function, bypasses time check
 - [ ] Confirmation dialog explaining what this does
 
-#### 4.4 Pending-Message-Aware Deletion
+#### 4.4 SPK Deletion Policy Setting
 
-- [ ] After message sync completes, check each retired SPK:
+- [ ] Add "Key deletion policy" setting in security preferences
+  - `after-sync` (default): "Delete old keys after messages are received (recommended)"
+  - `timed`: "Delete old keys on a fixed schedule (stricter, may lose unread messages)"
+- [ ] Display clear warning when selecting `timed` mode explaining the trade-off
+- [ ] Persist per-identity alongside security level
+
+#### 4.5 Deletion Logic (Both Policies)
+
+- [ ] `after-sync` policy:
+  - After message sync completes, check each retired SPK
   - Query: are there any undelivered/undecrypted messages referencing this SPK's key ID?
   - If none: delete the retired SPK's private key
   - If yes: retain
-- [ ] Apply safety caps: if retired SPK count exceeds tier max, delete oldest regardless
-- [ ] Apply hard-delete cap: delete retired SPKs older than the tier's time cap regardless
+  - Apply safety caps: if retired SPK count exceeds tier max, delete oldest regardless
+  - Apply hard-delete cap: delete retired SPKs older than the tier's time cap regardless
+- [ ] `timed` policy:
+  - After SPK retirement, schedule deletion timer equal to the current tier's rotation interval
+  - When timer fires: delete retired SPK private key unconditionally
+  - No pending-message check; forward secrecy window is strict
 
 **Estimated effort:** High
 
@@ -278,6 +291,7 @@ Phases 2 and 3 can be developed in parallel once Phase 1 is done. Phase 4 depend
 ```typescript
 interface ForwardSecrecyConfig {
   securityLevel: 'standard' | 'high' | 'maximum';
+  spkDeletionPolicy: 'after-sync' | 'timed'; // default: 'after-sync'
   defaultFsEnabled: boolean; // default: true
 }
 
@@ -316,7 +330,7 @@ const PLATFORM_OTPK_CONFIG = {
 | `packages/ui/src/hooks/useDmMessages.ts` | Pre-key claim flow, FS toggle state |
 | `packages/ui/src/services/deviceKeyService.ts` (or similar) | Pre-key local storage, rotation, deletion |
 | `packages/ui/src/hooks/usePreKeys.ts` (new) | Pre-key lifecycle hook (rotation timer, replenishment) |
-| `packages/ui/src/components/` | FS toggle UI in composer, security level setting |
+| `packages/ui/src/components/` | FS toggle UI in composer, security level setting, deletion policy setting |
 | `apps/api/src/routes/identity/controller.ts` | SPK signature verification (existing TODO) |
 | `packages/shared/src/api/client.ts` | Types already done; may need minor additions |
 
@@ -326,7 +340,8 @@ const PLATFORM_OTPK_CONFIG = {
 
 ### Unit Tests
 - SPK rotation logic (time checks, timer scheduling)
-- Pending-message-aware deletion (mock pending message queries)
+- Deletion policy: `after-sync` (mock pending message queries, safety cap enforcement)
+- Deletion policy: `timed` (verify unconditional deletion after interval)
 - OTPK replenishment threshold checks
 - Encrypt/decrypt round-trip with all three `preKeyType` values
 - Backward compatibility: decrypt `'static'` messages with new code path
@@ -338,7 +353,8 @@ const PLATFORM_OTPK_CONFIG = {
 - New device setup: FS messages unavailable, static messages accessible
 
 ### Security Tests
-- Verify old SPK private keys are deleted after pending messages drained
+- Verify `after-sync`: old SPK private keys are deleted after pending messages drained
+- Verify `timed`: old SPK private keys are deleted unconditionally after interval
 - Verify OTPK private keys are deleted after single use
 - Verify pre-key upload rejects invalid SPK signatures
 - Verify claimed OTPKs are atomically consumed (no double-claim)
