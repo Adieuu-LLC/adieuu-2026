@@ -18,6 +18,7 @@ import {
 } from './useDmConversationsList';
 import { useDmSubscription, type DmNewMessageEvent, type DmDeletedEvent } from './useDmSubscription';
 import { useMarkAsRead } from './useMarkAsRead';
+import { usePolling } from './usePolling';
 
 export interface ConversationsContextValue {
   /** DM conversations with full participant info */
@@ -43,6 +44,8 @@ export interface ConversationsContextValue {
 
 export interface ConversationsProviderProps {
   children: ReactNode;
+  /** Safety-net polling interval in ms (default: 60 000). Set to 0 to disable. */
+  pollInterval?: number;
 }
 
 const ConversationsContext = createContext<ConversationsContextValue | null>(null);
@@ -63,7 +66,12 @@ export function useConversationsContext(): ConversationsContextValue {
  * Provides shared conversations state for the entire authenticated layout.
  * Must be nested inside ChatConnectionProvider (needs WebSocket for real-time updates).
  */
-export function ConversationsProvider({ children }: ConversationsProviderProps) {
+const DEFAULT_POLL_INTERVAL = 60_000;
+
+export function ConversationsProvider({
+  children,
+  pollInterval = DEFAULT_POLL_INTERVAL,
+}: ConversationsProviderProps) {
   const {
     conversations: dmConversations,
     unifiedConversations,
@@ -77,6 +85,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const { markAsRead } = useMarkAsRead();
   const dmConversationsRef = useRef(dmConversations);
   dmConversationsRef.current = dmConversations;
+
+  usePolling(refresh, pollInterval, true);
 
   // Global subscription for dm:new events (updates list for ALL conversations)
   useDmSubscription({
