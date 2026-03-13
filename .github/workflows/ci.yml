@@ -52,7 +52,7 @@ jobs:
 
   build-web:
     runs-on: ubuntu-latest
-    needs: lint-and-typecheck
+    needs: [lint-and-typecheck, test-security, test-fs]
     env:
       # Production URLs injected at build time via GitHub Secrets
       VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
@@ -139,9 +139,65 @@ jobs:
       #     fail_ci_if_error: false
       #     verbose: true
 
+  test-security:
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm build --filter @adieuu/shared --filter @adieuu/ui --filter @adieuu/tsconfig
+
+      - name: Run security regression suite
+        run: pnpm test:security
+
+  test-fs:
+    runs-on: ubuntu-latest
+    needs: lint-and-typecheck
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm build --filter @adieuu/shared --filter @adieuu/ui --filter @adieuu/tsconfig
+
+      - name: Run forward secrecy regression suite
+        run: pnpm test:fs
+
   build-api:
     runs-on: ubuntu-latest
-    needs: [lint-and-typecheck, test-api]
+    needs: [lint-and-typecheck, test-api, test-security, test-fs]
     steps:
       - uses: actions/checkout@v4
 
@@ -179,7 +235,7 @@ jobs:
             artifact-name: desktop-macos
             artifact-path: apps/desktop/out/*.dmg
     runs-on: ${{ matrix.os }}
-    needs: lint-and-typecheck
+    needs: [lint-and-typecheck, test-security, test-fs]
     env:
       # Production URLs injected at build time via GitHub Secrets
       VITE_API_URL: ${{ secrets.VITE_API_URL }}
