@@ -26,6 +26,13 @@ import {
   type ForwardSecrecyConfig,
   type Platform,
 } from '../services/preKeyService';
+import {
+  PREKEY_REPLENISH_DEBOUNCE_MS,
+  PREKEY_ROTATION_RETRY_MS,
+  createDebouncedAsyncTrigger,
+  rescheduleTimer,
+  type DebouncedAsyncTrigger,
+} from './usePreKeys.scheduler';
 
 export interface UsePreKeysResult {
   /** Whether a rotation is currently in progress */
@@ -62,7 +69,7 @@ export function usePreKeys(): UsePreKeysResult {
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rotatingRef = useRef(false);
-  const replenishPendingRef = useRef(false);
+  const replenishDebouncerRef = useRef<DebouncedAsyncTrigger | null>(null);
 
   // Reload config when identity changes
   useEffect(() => {
@@ -152,17 +159,22 @@ export function usePreKeys(): UsePreKeysResult {
       await performReplenishCheck();
 
       // Schedule next check
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        performRotationCheck();
-      }, result.nextRotationMs);
+      timerRef.current = rescheduleTimer(
+        timerRef.current,
+        () => {
+          void performRotationCheck();
+        },
+        result.nextRotationMs
+      );
     } catch (err) {
       console.error('[PreKeys] Rotation check failed:', err);
-      // Retry in 5 minutes on failure
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        performRotationCheck();
-      }, 5 * 60 * 1000);
+      timerRef.current = rescheduleTimer(
+        timerRef.current,
+        () => {
+          void performRotationCheck();
+        },
+        PREKEY_ROTATION_RETRY_MS
+      );
     } finally {
       rotatingRef.current = false;
       setIsRotating(false);
@@ -182,6 +194,17 @@ export function usePreKeys(): UsePreKeysResult {
       }
     };
   }, [status, identity?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    replenishDebouncerRef.current = createDebouncedAsyncTrigger(
+      performReplenishCheck,
+      PREKEY_REPLENISH_DEBOUNCE_MS
+    );
+    return () => {
+      replenishDebouncerRef.current?.cancel();
+      replenishDebouncerRef.current = null;
+    };
+  }, [performReplenishCheck]);
 
   // When config changes (e.g. user switches security level), reschedule
   useEffect(() => {
@@ -226,11 +249,14 @@ export function usePreKeys(): UsePreKeysResult {
       }
 
       // Reset the timer from now
-      if (timerRef.current) clearTimeout(timerRef.current);
       const levelConfig = SECURITY_LEVEL_CONFIG[currentConfig.securityLevel];
-      timerRef.current = setTimeout(() => {
-        performRotationCheck();
-      }, levelConfig.spkRotationIntervalMs);
+      timerRef.current = rescheduleTimer(
+        timerRef.current,
+        () => {
+          void performRotationCheck();
+        },
+        levelConfig.spkRotationIntervalMs
+      );
     } catch (err) {
       console.error('[PreKeys] Manual rotation failed:', err);
       throw err;
@@ -240,14 +266,8 @@ export function usePreKeys(): UsePreKeysResult {
   }, [status, identity, getSigningKey, getCurrentDeviceId, getWrappingKey, api, performRotationCheck]);
 
   const triggerReplenishCheck = useCallback(() => {
-    if (replenishPendingRef.current) return;
-    replenishPendingRef.current = true;
-    // Debounce: wait 2s so multiple OTPK messages in a batch trigger only one check
-    setTimeout(async () => {
-      replenishPendingRef.current = false;
-      await performReplenishCheck();
-    }, 2000);
-  }, [performReplenishCheck]);
+    replenishDebouncerRef.current?.trigger();
+  }, []);
 
   return {
     isRotating,

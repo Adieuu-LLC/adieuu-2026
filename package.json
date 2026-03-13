@@ -16,6 +16,7 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "test:force": "turbo run test --force",
+    "test:fs": "pnpm --filter @adieuu/ui test -- ./src/hooks/usePreKeys.scheduler.test.ts ./src/hooks/useDmMessages.fs-cache.test.ts ./src/services/preKeyStorage.test.ts ./src/services/preKeyService.test.ts ./src/services/localMessageStorage.test.ts && pnpm --filter @adieuu/api test -- ./src/repositories/pre-key.repository.test.ts ./src/routes/identity/pre-key.controller.test.ts",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules"
   },

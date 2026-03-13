@@ -40,6 +40,10 @@ import {
   cacheParticipant,
 } from '../services/participantCache';
 import { encryptLastReadId } from '../services/readStateService';
+import {
+  maybeGetFsCachedMessage,
+  persistFsMessageAndMaybeDeleteOtpk,
+} from './useDmMessages.fs-cache';
 
 // ============================================================================
 // Helpers
@@ -603,11 +607,13 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
           );
 
           if (isFsWrapped && msg.id) {
-            const cached = await getFsMessageContent(
-              msg.id,
-              msg.conversationId,
-              wrappingKey
-            );
+            const cached = await maybeGetFsCachedMessage({
+              isFsWrapped,
+              messageId: msg.id,
+              conversationId: msg.conversationId,
+              wrappingKey,
+              getFsMessageContentFn: getFsMessageContent,
+            });
             if (cached) {
               results.push({ raw: msg, decrypted: cached });
               continue;
@@ -675,21 +681,20 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
           });
 
           if (isFsWrapped && msg.id) {
-            try {
-              await storeFsMessageContent(
-                msg.id,
-                msg.conversationId,
-                decrypted,
-                wrappingKey
-              );
-
-              // Delete OTPK only after decrypt + local persist succeeds.
-              if (targetWrappedKey?.preKeyType === 'otpk' && targetWrappedKey.oneTimePreKeyId) {
-                await deleteOneTimePreKey(targetWrappedKey.oneTimePreKeyId, identity!.id);
-              }
-            } catch (err) {
-              console.warn('[DM] Failed to persist local FS message cache; skipping OTPK deletion', err);
-            }
+            await persistFsMessageAndMaybeDeleteOtpk({
+              isFsWrapped,
+              messageId: msg.id,
+              conversationId: msg.conversationId,
+              decrypted,
+              wrappingKey,
+              targetWrappedKey,
+              identityId: identity!.id,
+              storeFsMessageContentFn: storeFsMessageContent,
+              deleteOneTimePreKeyFn: deleteOneTimePreKey,
+              logWarn: (message, err) => {
+                console.warn(message, err);
+              },
+            });
           }
 
           results.push({ raw: msg, decrypted });

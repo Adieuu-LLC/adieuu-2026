@@ -174,6 +174,31 @@ describe('pre-key.controller', () => {
     expect(storeOneTimePreKeysMock).not.toHaveBeenCalled();
   });
 
+  test('uploadPreKeys returns 404 when device does not belong to identity', async () => {
+    currentIdentity = {
+      _id: ownerId,
+      signingPublicKey: 'signing-public-key-base64',
+      devices: [{ deviceId: 'other-device' }],
+    };
+
+    const response = await uploadPreKeysCtrl(
+      makeCtx({
+        params: { id: ownerId.toHexString(), deviceId: 'device-1' },
+        body: {
+          signedPreKey: {
+            keyId: '11111111-1111-4111-8111-111111111111',
+            ecdhPublicKey: 'a'.repeat(64),
+            kemPublicKey: 'b'.repeat(64),
+            signature: 'c'.repeat(64),
+          },
+        },
+      })
+    );
+
+    expect(response.status).toBe(404);
+    expect(storeSignedPreKeyMock).not.toHaveBeenCalled();
+  });
+
   test('uploadPreKeys stores signed and one-time pre-keys', async () => {
     storeOneTimePreKeysMock.mockResolvedValue(2);
 
@@ -208,6 +233,38 @@ describe('pre-key.controller', () => {
     expect(storeOneTimePreKeysMock).toHaveBeenCalledTimes(1);
   });
 
+  test('uploadPreKeys still succeeds for signed pre-key when OTPK capacity is full', async () => {
+    countUnconsumedOneTimePreKeysMock.mockResolvedValue(MAX_OTPK_PER_DEVICE);
+
+    const response = await uploadPreKeysCtrl(
+      makeCtx({
+        params: { id: ownerId.toHexString(), deviceId: 'device-1' },
+        body: {
+          signedPreKey: {
+            keyId: '11111111-1111-4111-8111-111111111111',
+            ecdhPublicKey: 'a'.repeat(64),
+            kemPublicKey: 'b'.repeat(64),
+            signature: 'c'.repeat(64),
+          },
+          oneTimePreKeys: [
+            {
+              keyId: '22222222-2222-4222-8222-222222222222',
+              ecdhPublicKey: 'd'.repeat(64),
+              kemPublicKey: 'e'.repeat(64),
+            },
+          ],
+        },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(storeSignedPreKeyMock).toHaveBeenCalledTimes(1);
+    expect(storeOneTimePreKeysMock).not.toHaveBeenCalled();
+    const json = await response.json() as { data: { storedSignedPreKey: boolean; storedOneTimePreKeys: number } };
+    expect(json.data.storedSignedPreKey).toBe(true);
+    expect(json.data.storedOneTimePreKeys).toBe(0);
+  });
+
   test('claimPreKeys requires authentication', async () => {
     const response = await claimPreKeysCtrl(
       makeCtx({
@@ -218,6 +275,19 @@ describe('pre-key.controller', () => {
     );
 
     expect(response.status).toBe(401);
+  });
+
+  test('claimPreKeys rejects invalid identity id format', async () => {
+    const response = await claimPreKeysCtrl(
+      makeCtx({
+        params: { id: 'not-an-object-id' },
+        body: {},
+      })
+    );
+
+    expect(response.status).toBe(400);
+    expect(findByIdentityIdMock).not.toHaveBeenCalled();
+    expect(claimPreKeysForAllDevicesMock).not.toHaveBeenCalled();
   });
 
   test('claimPreKeys filters requested deviceIds and claims for target identity', async () => {
@@ -247,6 +317,55 @@ describe('pre-key.controller', () => {
       targetId,
       ['device-b']
     );
+  });
+
+  test('claimPreKeys claims for all target devices when deviceIds filter is omitted', async () => {
+    currentIdentity = {
+      _id: callerId,
+      signingPublicKey: 'caller-signing',
+      devices: [{ deviceId: 'caller-device' }],
+    };
+    findByIdentityIdMock.mockResolvedValue({
+      _id: targetId,
+      signingPublicKey: 'target-signing',
+      devices: [{ deviceId: 'device-a' }, { deviceId: 'device-b' }],
+    });
+
+    const response = await claimPreKeysCtrl(
+      makeCtx({
+        params: { id: targetId.toHexString() },
+        body: {},
+      })
+    );
+
+    expect(response.status).toBe(200);
+    expect(claimPreKeysForAllDevicesMock).toHaveBeenCalledWith(
+      targetId,
+      ['device-a', 'device-b']
+    );
+  });
+
+  test('claimPreKeys rejects when requested deviceIds do not match target devices', async () => {
+    currentIdentity = {
+      _id: callerId,
+      signingPublicKey: 'caller-signing',
+      devices: [{ deviceId: 'caller-device' }],
+    };
+    findByIdentityIdMock.mockResolvedValue({
+      _id: targetId,
+      signingPublicKey: 'target-signing',
+      devices: [{ deviceId: 'device-a' }],
+    });
+
+    const response = await claimPreKeysCtrl(
+      makeCtx({
+        params: { id: targetId.toHexString() },
+        body: { deviceIds: ['missing-device'] },
+      })
+    );
+
+    expect(response.status).toBe(400);
+    expect(claimPreKeysForAllDevicesMock).not.toHaveBeenCalled();
   });
 
   test('claimPreKeys returns 404 when target identity does not exist', async () => {
@@ -280,6 +399,21 @@ describe('pre-key.controller', () => {
       })
     );
     expect(response.status).toBe(401);
+  });
+
+  test('getPreKeyCount returns 404 when device does not belong to identity', async () => {
+    currentIdentity = {
+      _id: ownerId,
+      signingPublicKey: 'signing-public-key-base64',
+      devices: [{ deviceId: 'other-device' }],
+    };
+
+    const response = await getPreKeyCountCtrl(
+      makeCtx({
+        params: { id: ownerId.toHexString(), deviceId: 'device-1' },
+      })
+    );
+    expect(response.status).toBe(404);
   });
 
   test('getPreKeyCount returns signed key + remaining OTPK count for owner', async () => {
