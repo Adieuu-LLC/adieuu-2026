@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -68,6 +68,10 @@ import {
 } from './block.service';
 
 describe('block.service', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   const identityA = new ObjectId();
   const identityB = new ObjectId();
 

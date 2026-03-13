@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 const mockConfig = {
   rateLimit: {
@@ -60,6 +60,10 @@ import {
 } from './rate-limit.service';
 
 describe('rate-limit.service', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     redisConnected = true;
     mockConfig.rateLimit.enabled = true;

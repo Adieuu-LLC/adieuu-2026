@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -54,6 +54,10 @@ import {
 } from './session.service';
 
 describe('session.service', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     mockConfig.env = 'test';
     mockConfig.cookie.domain = '';
