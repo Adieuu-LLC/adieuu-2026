@@ -26,6 +26,7 @@ import { CipherStoreProvider } from '../hooks/useCipherStore';
 import { ChatConnectionProvider } from '../hooks/useChatConnection';
 import { ConversationsProvider } from '../hooks/ConversationsProvider';
 import { useDmNotifications } from '../hooks/useDmNotifications';
+import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { WebSecurityBanner } from '../components/WebSecurityBanner';
 import { UpdateBanner } from '../components/UpdateBanner';
@@ -69,6 +70,10 @@ function ProtectedLayout() {
  */
 function ProtectedLayoutContent() {
   const tour = useTourContext();
+
+  // Mount pre-key lifecycle management once for authenticated app runtime.
+  // This enables automatic SPK rotation + cleanup and OTPK replenishment checks.
+  usePreKeys();
 
   // Enable toast notifications for incoming DMs when not viewing the conversation
   useDmNotifications();

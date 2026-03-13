@@ -29,7 +29,12 @@ import {
 import {
   findAndDecryptSignedPreKey,
   findAndDecryptOneTimePreKey,
+  deleteOneTimePreKey,
 } from '../services/preKeyStorage';
+import {
+  getFsMessageContent,
+  storeFsMessageContent,
+} from '../services/localMessageStorage';
 import {
   getCachedParticipant,
   cacheParticipant,
@@ -593,8 +598,23 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
           ) ?? msg.wrappedKeys.find(
             (wk) => wk.identityId === identity!.id
           );
+          const isFsWrapped = Boolean(
+            targetWrappedKey?.preKeyType && targetWrappedKey.preKeyType !== 'static'
+          );
 
-          if (targetWrappedKey?.preKeyType && targetWrappedKey.preKeyType !== 'static') {
+          if (isFsWrapped && msg.id) {
+            const cached = await getFsMessageContent(
+              msg.id,
+              msg.conversationId,
+              wrappingKey
+            );
+            if (cached) {
+              results.push({ raw: msg, decrypted: cached });
+              continue;
+            }
+          }
+
+          if (isFsWrapped) {
             if (!targetWrappedKey.signedPreKeyId) {
               results.push({
                 raw: msg,
@@ -654,9 +674,23 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
             preKeyPrivateKeys,
           });
 
-          // TODO (Phase 3.2): After local message storage is implemented,
-          // delete OTPK private keys here for successfully decrypted OTPK messages.
-          // Deletion is deferred to prevent data loss on re-fetch without local cache.
+          if (isFsWrapped && msg.id) {
+            try {
+              await storeFsMessageContent(
+                msg.id,
+                msg.conversationId,
+                decrypted,
+                wrappingKey
+              );
+
+              // Delete OTPK only after decrypt + local persist succeeds.
+              if (targetWrappedKey?.preKeyType === 'otpk' && targetWrappedKey.oneTimePreKeyId) {
+                await deleteOneTimePreKey(targetWrappedKey.oneTimePreKeyId, identity!.id);
+              }
+            } catch (err) {
+              console.warn('[DM] Failed to persist local FS message cache; skipping OTPK deletion', err);
+            }
+          }
 
           results.push({ raw: msg, decrypted });
         } catch (err) {

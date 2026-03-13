@@ -302,6 +302,7 @@ const MessageBubble = memo(function MessageBubble({
   const [isHovered, setIsHovered] = useState(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const expiryCountdown = useExpiryCountdown(message.raw.expiresAt);
+  const fsEnabledForMessage = message.raw.wrappedKeys.some((wk) => wk.preKeyType !== 'static');
 
   const showActions = isHovered || isPopoverOpen;
 
@@ -353,6 +354,14 @@ const MessageBubble = memo(function MessageBubble({
       </div>
       <div className="dm-message-footer">
         <span className="dm-message-time">{formatMessageTime(message.raw.createdAt)}</span>
+        {isOwn && (
+          <span
+            className={`dm-message-fs-indicator ${fsEnabledForMessage ? 'dm-message-fs-indicator--enabled' : 'dm-message-fs-indicator--disabled'}`}
+            title={fsEnabledForMessage ? t('messages.fs.enabledHint') : t('messages.fs.disabledHint')}
+          >
+            {fsEnabledForMessage ? t('messages.fs.enabledShort') : t('messages.fs.disabledShort')}
+          </span>
+        )}
         {expiryCountdown && (
           <span className="dm-message-expiry" title={t('messages.expiresIn')}>
             {expiryCountdown}
@@ -498,12 +507,18 @@ const ConversationMessages = memo(function ConversationMessages({
 });
 
 interface ConversationInputProps {
-  onSend: (text: string, expiresInSeconds?: number | null) => Promise<void>;
+  onSend: (text: string, expiresInSeconds?: number | null, forwardSecrecy?: boolean) => Promise<void>;
   isSending: boolean;
   error: string | null;
+  forwardSecrecyStorageKey: string;
 }
 
-function ConversationInput({ onSend, isSending, error }: ConversationInputProps) {
+function ConversationInput({
+  onSend,
+  isSending,
+  error,
+  forwardSecrecyStorageKey,
+}: ConversationInputProps) {
   return (
     <div className="dm-input-container">
       {error && (
@@ -512,9 +527,12 @@ function ConversationInput({ onSend, isSending, error }: ConversationInputProps)
         </div>
       )}
       <MessageComposer
-        onSend={(data) => onSend(data.text, data.expiresInSeconds)}
+        onSend={(data) => onSend(data.text, data.expiresInSeconds, data.forwardSecrecy)}
         isSending={isSending}
         showTtlSelector={true}
+        showForwardSecrecyToggle={true}
+        forwardSecrecyDefault={true}
+        forwardSecrecyStorageKey={forwardSecrecyStorageKey}
       />
     </div>
   );
@@ -666,13 +684,18 @@ export function Conversation() {
     setShowMembersSidebar((prev) => !prev);
   };
 
-  const handleSendMessage = useCallback(async (text: string, expiresInSeconds?: number | null) => {
+  const handleSendMessage = useCallback(async (
+    text: string,
+    expiresInSeconds?: number | null,
+    forwardSecrecy?: boolean
+  ) => {
     if (!otherParticipantId) return;
 
     const result = await sendMessage({
       toIdentityId: otherParticipantId,
       text,
       expiresInSeconds: expiresInSeconds ?? undefined,
+      forwardSecrecy,
     });
 
     if (result.success && result.message) {
@@ -758,6 +781,7 @@ export function Conversation() {
               onSend={handleSendMessage}
               isSending={isSending}
               error={sendError}
+              forwardSecrecyStorageKey={`adieuu-dm-fs-default-${identity.id}-${conversationId ?? ''}`}
             />
           </div>
           {showMembersSidebar && (

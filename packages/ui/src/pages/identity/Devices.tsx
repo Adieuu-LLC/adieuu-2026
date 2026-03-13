@@ -23,6 +23,7 @@ import { ImportKeyBackupModal } from '../../components/ImportKeyBackupModal';
 import { createApiClient, type PublicIdentitySession } from '@adieuu/shared';
 import { useDeviceManagement, type DeviceWithStatus, type ActivityTrackingMode, type ActivityInterval } from '../../hooks/useDeviceManagement';
 import { useIdentity } from '../../hooks/useIdentity';
+import { usePreKeys } from '../../hooks/usePreKeys';
 import { useAppConfig } from '../../config';
 import { useToast } from '../../components/Toast';
 
@@ -414,6 +415,133 @@ function ActivityPreferences() {
   );
 }
 
+/**
+ * Forward secrecy settings for SPK rotation and key deletion policy.
+ */
+function ForwardSecrecySettings() {
+  const { t } = useTranslation();
+  const { config, updateConfig, rotateNow, isRotating, lastRotation } = usePreKeys();
+  const { success: toastSuccess, error: toastError } = useToast();
+
+  const handleSecurityLevelChange = (details: { value: string | null }) => {
+    if (!details.value) return;
+    updateConfig({ securityLevel: details.value as 'standard' | 'high' | 'maximum' });
+    toastSuccess(t('identity.devices.forwardSecrecy.securityUpdated'));
+  };
+
+  const handleDeletionPolicyChange = (details: { value: string | null }) => {
+    if (!details.value) return;
+    updateConfig({ spkDeletionPolicy: details.value as 'after-sync' | 'timed' });
+    toastSuccess(t('identity.devices.forwardSecrecy.deletionUpdated'));
+  };
+
+  const handleRotateNow = async () => {
+    try {
+      await rotateNow();
+      toastSuccess(t('identity.devices.forwardSecrecy.rotateSuccess'));
+    } catch (err) {
+      toastError(
+        t('identity.devices.forwardSecrecy.rotateErrorTitle'),
+        err instanceof Error ? err.message : t('identity.devices.forwardSecrecy.rotateErrorBody')
+      );
+    }
+  };
+
+  return (
+    <div className="activity-settings">
+      <div className="sessions-header">
+        <div className="sessions-header-text">
+          <h3>{t('identity.devices.forwardSecrecy.title')}</h3>
+          <p>{t('identity.devices.forwardSecrecy.description')}</p>
+        </div>
+      </div>
+
+      <div className="activity-section">
+        <h4 className="activity-radio-title">{t('identity.devices.forwardSecrecy.securityLevelTitle')}</h4>
+        <RadioGroup.Root
+          value={config.securityLevel}
+          onValueChange={handleSecurityLevelChange}
+          className="activity-radio-group"
+        >
+          <RadioGroup.Item value="standard" className="activity-radio-item">
+            <RadioGroup.ItemControl className="activity-radio-control" />
+            <RadioGroup.ItemText className="activity-radio-text">
+              <span className="activity-radio-title">{t('identity.devices.forwardSecrecy.security.standard.title')}</span>
+              <span className="activity-radio-description">{t('identity.devices.forwardSecrecy.security.standard.description')}</span>
+            </RadioGroup.ItemText>
+            <RadioGroup.ItemHiddenInput />
+          </RadioGroup.Item>
+          <RadioGroup.Item value="high" className="activity-radio-item">
+            <RadioGroup.ItemControl className="activity-radio-control" />
+            <RadioGroup.ItemText className="activity-radio-text">
+              <span className="activity-radio-title">{t('identity.devices.forwardSecrecy.security.high.title')}</span>
+              <span className="activity-radio-description">{t('identity.devices.forwardSecrecy.security.high.description')}</span>
+            </RadioGroup.ItemText>
+            <RadioGroup.ItemHiddenInput />
+          </RadioGroup.Item>
+          <RadioGroup.Item value="maximum" className="activity-radio-item">
+            <RadioGroup.ItemControl className="activity-radio-control" />
+            <RadioGroup.ItemText className="activity-radio-text">
+              <span className="activity-radio-title">{t('identity.devices.forwardSecrecy.security.maximum.title')}</span>
+              <span className="activity-radio-description">{t('identity.devices.forwardSecrecy.security.maximum.description')}</span>
+            </RadioGroup.ItemText>
+            <RadioGroup.ItemHiddenInput />
+          </RadioGroup.Item>
+        </RadioGroup.Root>
+      </div>
+
+      <div className="activity-section">
+        <h4 className="activity-radio-title">{t('identity.devices.forwardSecrecy.deletionPolicyTitle')}</h4>
+        <RadioGroup.Root
+          value={config.spkDeletionPolicy}
+          onValueChange={handleDeletionPolicyChange}
+          className="activity-radio-group"
+        >
+          <RadioGroup.Item value="after-sync" className="activity-radio-item">
+            <RadioGroup.ItemControl className="activity-radio-control" />
+            <RadioGroup.ItemText className="activity-radio-text">
+              <span className="activity-radio-title">{t('identity.devices.forwardSecrecy.deletion.afterSync.title')}</span>
+              <span className="activity-radio-description">{t('identity.devices.forwardSecrecy.deletion.afterSync.description')}</span>
+            </RadioGroup.ItemText>
+            <RadioGroup.ItemHiddenInput />
+          </RadioGroup.Item>
+          <RadioGroup.Item value="timed" className="activity-radio-item">
+            <RadioGroup.ItemControl className="activity-radio-control" />
+            <RadioGroup.ItemText className="activity-radio-text">
+              <span className="activity-radio-title">{t('identity.devices.forwardSecrecy.deletion.timed.title')}</span>
+              <span className="activity-radio-description">{t('identity.devices.forwardSecrecy.deletion.timed.description')}</span>
+            </RadioGroup.ItemText>
+            <RadioGroup.ItemHiddenInput />
+          </RadioGroup.Item>
+        </RadioGroup.Root>
+      </div>
+
+      <div className="activity-section">
+        <div className="sessions-header">
+          <div className="sessions-header-text">
+            <h4>{t('identity.devices.forwardSecrecy.manualRotationTitle')}</h4>
+            <p>
+              {lastRotation
+                ? t('identity.devices.forwardSecrecy.lastRotatedAt', {
+                    date: new Date(lastRotation).toLocaleString(),
+                  })
+                : t('identity.devices.forwardSecrecy.lastRotatedUnknown')}
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleRotateNow}
+            disabled={isRotating}
+          >
+            {isRotating ? <Spinner size="sm" /> : t('identity.devices.forwardSecrecy.rotateNow')}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function parseUserAgent(userAgent?: string): string {
   if (!userAgent) return 'Unknown device';
 
@@ -747,6 +875,9 @@ export function Devices() {
             <TabTrigger value="activity">
               {t('identity.devices.tabs.activity', 'Activity')}
             </TabTrigger>
+            <TabTrigger value="forward-secrecy">
+              {t('identity.devices.tabs.forwardSecrecy', 'Forward Secrecy')}
+            </TabTrigger>
           </TabList>
 
           <TabContent value="devices">
@@ -829,6 +960,12 @@ export function Devices() {
           <TabContent value="activity">
             <Card variant="elevated">
               <ActivityPreferences />
+            </Card>
+          </TabContent>
+
+          <TabContent value="forward-secrecy">
+            <Card variant="elevated">
+              <ForwardSecrecySettings />
             </Card>
           </TabContent>
         </Tabs>
