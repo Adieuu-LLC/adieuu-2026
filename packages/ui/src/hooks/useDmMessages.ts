@@ -621,6 +621,15 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
           }
 
           if (isFsWrapped) {
+            if (!targetWrappedKey) {
+              results.push({
+                raw: msg,
+                decrypted: null,
+                decryptionError: 'FS wrapped key not found for this recipient',
+              });
+              continue;
+            }
+
             if (!targetWrappedKey.signedPreKeyId) {
               results.push({
                 raw: msg,

@@ -7,7 +7,11 @@ import {
 
 describe('useDmMessages fs-cache helpers', () => {
   test('maybeGetFsCachedMessage returns null when message is not FS wrapped', async () => {
-    const getFsMessageContentFn = mock(async () => ({ text: 'cached' }));
+    const getFsMessageContentFn = mock(async () => ({
+      text: 'cached',
+      fromIdentityId: 'identity-1',
+      version: 1,
+    }));
     const result = await maybeGetFsCachedMessage({
       isFsWrapped: false,
       messageId: 'msg-1',
@@ -20,7 +24,11 @@ describe('useDmMessages fs-cache helpers', () => {
   });
 
   test('maybeGetFsCachedMessage checks cache before decryption path', async () => {
-    const cached: DecryptedMessageContent = { text: 'cached-text' };
+    const cached: DecryptedMessageContent = {
+      text: 'cached-text',
+      fromIdentityId: 'identity-1',
+      version: 1,
+    };
     const getFsMessageContentFn = mock(async () => cached);
 
     const result = await maybeGetFsCachedMessage({
@@ -47,7 +55,11 @@ describe('useDmMessages fs-cache helpers', () => {
       isFsWrapped: true,
       messageId: 'msg-1',
       conversationId: 'conv-1',
-      decrypted: { text: 'decrypted' },
+      decrypted: {
+        text: 'decrypted',
+        fromIdentityId: 'identity-1',
+        version: 1,
+      },
       wrappingKey: new Uint8Array(32),
       targetWrappedKey: {
         preKeyType: 'otpk',
@@ -73,7 +85,11 @@ describe('useDmMessages fs-cache helpers', () => {
       isFsWrapped: true,
       messageId: 'msg-1',
       conversationId: 'conv-1',
-      decrypted: { text: 'decrypted' },
+      decrypted: {
+        text: 'decrypted',
+        fromIdentityId: 'identity-1',
+        version: 1,
+      },
       wrappingKey: new Uint8Array(32),
       targetWrappedKey: {
         preKeyType: 'otpk',

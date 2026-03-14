@@ -1,5 +1,5 @@
 import type { DecryptedMessageContent } from '../services/dmMessageService';
-import type { SerializedWrappedKey } from '@adieuu/crypto';
+import type { SerializedWrappedKey } from '@adieuu/shared';
 
 interface FsCacheLookupInput {
   isFsWrapped: boolean;
