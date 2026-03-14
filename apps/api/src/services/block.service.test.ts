@@ -44,7 +44,7 @@ mock.module('../repositories/friend-request.repository', () => ({
 
 mock.module('../models/identity', () => ({
   toPublicIdentity: (identity: { _id: ObjectId; username?: string }) => ({
-    identityId: identity._id.toHexString(),
+    id: identity._id.toHexString(),
     username: identity.username ?? 'user',
   }),
 }));
@@ -165,7 +165,7 @@ describe('block.service', () => {
 
     const result = await getBlockedIdentities(identityA, 10);
     expect(result.blocks.length).toBe(1);
-    expect(result.blocks[0]?.identity.identityId).toBe(blockedIdentity1.toHexString());
+    expect(result.blocks[0]?.identity.id).toBe(blockedIdentity1.toHexString());
     expect(result.cursor).toBeNull();
   });
 

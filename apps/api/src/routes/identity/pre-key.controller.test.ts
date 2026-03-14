@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
+import type { IdentityDocument } from '../../models/identity';
 import { MAX_OTPK_PER_DEVICE } from '../../models/pre-key';
+import type { ClaimedDevicePreKeys, PreKeyDocument } from '../../models/pre-key';
 
 const ownerId = new ObjectId();
 const callerId = new ObjectId();
@@ -13,14 +15,14 @@ let currentIdentity = {
 };
 
 const getIdentityFromSessionMock = mock(async () => currentIdentity);
-const findByIdentityIdMock = mock(async () => null);
+const findByIdentityIdMock = mock(async (): Promise<IdentityDocument | null> => null);
 const verifySignedPreKeyMock = mock(() => true);
 
 const storeSignedPreKeyMock = mock(async () => {});
 const countUnconsumedOneTimePreKeysMock = mock(async () => 0);
 const storeOneTimePreKeysMock = mock(async () => 0);
-const claimPreKeysForAllDevicesMock = mock(async () => []);
-const getActiveSignedPreKeyMock = mock(async () => null);
+const claimPreKeysForAllDevicesMock = mock(async (): Promise<ClaimedDevicePreKeys[]> => []);
+const getActiveSignedPreKeyMock = mock(async (): Promise<PreKeyDocument | null> => null);
 
 mock.module('../../services/identity.service', () => ({
   getIdentityFromSession: getIdentityFromSessionMock,
@@ -300,7 +302,7 @@ describe('pre-key.controller', () => {
       _id: targetId,
       signingPublicKey: 'target-signing',
       devices: [{ deviceId: 'device-a' }, { deviceId: 'device-b' }],
-    });
+    } as IdentityDocument);
     claimPreKeysForAllDevicesMock.mockResolvedValue([
       { deviceId: 'device-b', signedPreKey: null, oneTimePreKey: null },
     ]);
@@ -329,7 +331,7 @@ describe('pre-key.controller', () => {
       _id: targetId,
       signingPublicKey: 'target-signing',
       devices: [{ deviceId: 'device-a' }, { deviceId: 'device-b' }],
-    });
+    } as IdentityDocument);
 
     const response = await claimPreKeysCtrl(
       makeCtx({
@@ -355,7 +357,7 @@ describe('pre-key.controller', () => {
       _id: targetId,
       signingPublicKey: 'target-signing',
       devices: [{ deviceId: 'device-a' }],
-    });
+    } as IdentityDocument);
 
     const response = await claimPreKeysCtrl(
       makeCtx({
@@ -420,7 +422,7 @@ describe('pre-key.controller', () => {
     getActiveSignedPreKeyMock.mockResolvedValue({
       keyId: 'spk-123',
       expiresAt: new Date('2030-01-01T00:00:00.000Z'),
-    });
+    } as PreKeyDocument);
     countUnconsumedOneTimePreKeysMock.mockResolvedValue(17);
 
     const response = await getPreKeyCountCtrl(

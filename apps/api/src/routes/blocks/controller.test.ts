@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
+import type { BlockResult, UnblockResult } from '../../services/block.service';
 
 const myIdentityId = new ObjectId();
 const targetIdentityId = new ObjectId();
@@ -13,8 +14,8 @@ const getIdentityFromSessionMock = mock(async () => ({
   username: 'me',
 }));
 
-const blockIdentityMock = mock(async () => ({ success: true }));
-const unblockIdentityMock = mock(async () => ({ success: true }));
+const blockIdentityMock = mock(async (): Promise<BlockResult> => ({ success: true }));
+const unblockIdentityMock = mock(async (): Promise<UnblockResult> => ({ success: true }));
 const checkIfBlockedMock = mock(async () => ({ blocked: false, blockedAt: null as string | null }));
 const getBlockedIdentitiesMock = mock(async () => ({ blocks: [], cursor: null as string | null }));
 
