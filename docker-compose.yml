@@ -16,13 +16,14 @@ services:
       retries: 3
 
   mongo:
-    image: mongo:8
+    image: mongo:8.2.5
     ports:
       - "27018:27017"
     volumes:
       - mongo_data:/data/db
     environment:
       MONGO_INITDB_DATABASE: adieuu
+    command: ["mongod", "--setParameter", "tcmallocEnableBackgroundThread=false"] # address a tcmalloc failure
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
