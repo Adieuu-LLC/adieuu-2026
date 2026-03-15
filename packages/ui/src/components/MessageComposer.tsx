@@ -185,40 +185,42 @@ export function MessageComposer({
 
   return (
     <div className={`message-composer ${className}`}>
-      {showTtlSelector && (
+      {(showTtlSelector || showForwardSecrecyToggle) && (
         <div className="message-composer-toolbar">
-          <Popover
-            trigger={
-              <button
-                type="button"
-                className={`message-composer-ttl-btn ${selectedTtl !== null ? 'message-composer-ttl-btn--active' : ''}`}
-                aria-label={t('messages.ttl.select')}
-                disabled={isDisabled}
-              >
-                <span className="message-composer-ttl-icon">&#128337;</span>
-                <span className="message-composer-ttl-label">
-                  {t(selectedTtlOption?.labelKey ?? 'messages.ttl.never')}
-                </span>
-              </button>
-            }
-            positioning={{ placement: 'top-start' }}
-          >
-            <div className="message-composer-ttl-menu">
-              <div className="message-composer-ttl-menu-header">
-                {t('messages.ttl.header')}
-              </div>
-              {TTL_OPTIONS.map((option) => (
+          {showTtlSelector && (
+            <Popover
+              trigger={
                 <button
-                  key={option.value ?? 'never'}
                   type="button"
-                  className={`message-composer-ttl-option ${selectedTtl === option.value ? 'message-composer-ttl-option--selected' : ''}`}
-                  onClick={() => handleTtlSelect(option.value)}
+                  className={`message-composer-ttl-btn ${selectedTtl !== null ? 'message-composer-ttl-btn--active' : ''}`}
+                  aria-label={t('messages.ttl.select')}
+                  disabled={isDisabled}
                 >
-                  {t(option.labelKey)}
+                  <span className="message-composer-ttl-icon">&#128337;</span>
+                  <span className="message-composer-ttl-label">
+                    {t(selectedTtlOption?.labelKey ?? 'messages.ttl.never')}
+                  </span>
                 </button>
-              ))}
-            </div>
-          </Popover>
+              }
+              positioning={{ placement: 'top-start' }}
+            >
+              <div className="message-composer-ttl-menu">
+                <div className="message-composer-ttl-menu-header">
+                  {t('messages.ttl.header')}
+                </div>
+                {TTL_OPTIONS.map((option) => (
+                  <button
+                    key={option.value ?? 'never'}
+                    type="button"
+                    className={`message-composer-ttl-option ${selectedTtl === option.value ? 'message-composer-ttl-option--selected' : ''}`}
+                    onClick={() => handleTtlSelect(option.value)}
+                  >
+                    {t(option.labelKey)}
+                  </button>
+                ))}
+              </div>
+            </Popover>
+          )}
           {showForwardSecrecyToggle && (
             <button
               type="button"

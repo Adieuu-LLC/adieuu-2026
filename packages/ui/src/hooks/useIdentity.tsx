@@ -503,7 +503,7 @@ function useIdentityState(): IdentityContextValue {
         identity: createdIdentity,
       };
     },
-    [api]
+    [api, platform]
   );
 
   const loginToIdentity = useCallback(
@@ -851,7 +851,7 @@ function useIdentityState(): IdentityContextValue {
         error: 'Unexpected response',
       };
     },
-    [api]
+    [api, platform]
   );
 
   const unlockIdentity = useCallback(

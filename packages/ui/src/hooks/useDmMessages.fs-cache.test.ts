@@ -106,6 +106,41 @@ describe('useDmMessages fs-cache helpers', () => {
     expect(logWarn).toHaveBeenCalledTimes(1);
   });
 
+  test('persistFsMessageAndMaybeDeleteOtpk logs OTPK deletion failure separately from storage', async () => {
+    const storeFsMessageContentFn = mock(async () => {});
+    const deleteOneTimePreKeyFn = mock(async () => {
+      throw new Error('OTPK deletion failed');
+    });
+    const logWarn = mock((_message: string, _err: unknown) => {});
+
+    await persistFsMessageAndMaybeDeleteOtpk({
+      isFsWrapped: true,
+      messageId: 'msg-1',
+      conversationId: 'conv-1',
+      decrypted: {
+        text: 'decrypted',
+        fromIdentityId: 'identity-1',
+        version: 1,
+      },
+      wrappingKey: new Uint8Array(32),
+      targetWrappedKey: {
+        preKeyType: 'otpk',
+        oneTimePreKeyId: 'otpk-1',
+      } as never,
+      identityId: 'identity-1',
+      storeFsMessageContentFn,
+      deleteOneTimePreKeyFn,
+      logWarn,
+    });
+
+    expect(storeFsMessageContentFn).toHaveBeenCalledTimes(1);
+    expect(deleteOneTimePreKeyFn).toHaveBeenCalledTimes(1);
+    expect(logWarn).toHaveBeenCalledWith(
+      '[DM] Failed to delete consumed OTPK from local storage',
+      expect.any(Error)
+    );
+  });
+
   test('maybeGetFsCachedMessage serves cached content when keys are gone', async () => {
     const cached: DecryptedMessageContent = {
       text: 'previously decrypted',

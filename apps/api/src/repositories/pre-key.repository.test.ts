@@ -260,6 +260,28 @@ describe('PreKeyRepository', () => {
     expect(results[1]?.oneTimePreKey).toBeNull();
   });
 
+  test('claimPreKeysForAllDevices processes devices concurrently', async () => {
+    let activeCalls = 0;
+    let maxConcurrentCalls = 0;
+
+    const trackConcurrency = async () => {
+      activeCalls++;
+      maxConcurrentCalls = Math.max(maxConcurrentCalls, activeCalls);
+      await new Promise((r) => setTimeout(r, 10));
+      activeCalls--;
+      return null;
+    };
+
+    mockCollection.findOne.mockImplementation(trackConcurrency);
+    mockCollection.findOneAndUpdate.mockImplementation(trackConcurrency);
+
+    await repo.claimPreKeysForAllDevices(identityId, ['dev-1', 'dev-2', 'dev-3']);
+
+    // Sequential per-device processing would max at 2 concurrent calls (inner Promise.all).
+    // Cross-device parallelism pushes this higher (up to 6 with 3 devices x 2 calls each).
+    expect(maxConcurrentCalls).toBeGreaterThan(2);
+  });
+
   test('claimPreKeysForAllDevices omits signedPreKey when signature is missing', async () => {
     mockCollection.findOne.mockResolvedValue({
       _id: new ObjectId(),

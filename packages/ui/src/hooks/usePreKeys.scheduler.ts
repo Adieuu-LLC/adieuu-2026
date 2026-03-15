@@ -40,7 +40,9 @@ export function createDebouncedAsyncTrigger(
       timer = setTimer(() => {
         pending = false;
         timer = null;
-        void run();
+        run().catch((err) => {
+          console.error('[DebouncedAsyncTrigger] Unhandled error in run():', err);
+        });
       }, delayMs);
       return true;
     },

@@ -156,37 +156,39 @@ export class PreKeyRepository extends BaseRepository<PreKeyDocument> implements 
     identityId: string | ObjectId,
     deviceIds: string[]
   ): Promise<ClaimedDevicePreKeys[]> {
-    const results: ClaimedDevicePreKeys[] = [];
+    const results = await Promise.all(
+      deviceIds.map(async (deviceId) => {
+        const [signedPreKey, oneTimePreKey] = await Promise.all([
+          this.getActiveSignedPreKey(identityId, deviceId),
+          this.claimOneTimePreKey(identityId, deviceId),
+        ]);
 
-    for (const deviceId of deviceIds) {
-      const signedPreKey = await this.getActiveSignedPreKey(identityId, deviceId);
-      const oneTimePreKey = await this.claimOneTimePreKey(identityId, deviceId);
+        let publicSignedPreKey: PublicSignedPreKey | null = null;
+        if (signedPreKey?.signature) {
+          publicSignedPreKey = {
+            keyId: signedPreKey.keyId,
+            ecdhPublicKey: signedPreKey.ecdhPublicKey,
+            kemPublicKey: signedPreKey.kemPublicKey,
+            signature: signedPreKey.signature,
+          };
+        }
 
-      let publicSignedPreKey: PublicSignedPreKey | null = null;
-      if (signedPreKey?.signature) {
-        publicSignedPreKey = {
-          keyId: signedPreKey.keyId,
-          ecdhPublicKey: signedPreKey.ecdhPublicKey,
-          kemPublicKey: signedPreKey.kemPublicKey,
-          signature: signedPreKey.signature,
+        let publicOneTimePreKey: PublicOneTimePreKey | null = null;
+        if (oneTimePreKey) {
+          publicOneTimePreKey = {
+            keyId: oneTimePreKey.keyId,
+            ecdhPublicKey: oneTimePreKey.ecdhPublicKey,
+            kemPublicKey: oneTimePreKey.kemPublicKey,
+          };
+        }
+
+        return {
+          deviceId,
+          signedPreKey: publicSignedPreKey,
+          oneTimePreKey: publicOneTimePreKey,
         };
-      }
-
-      let publicOneTimePreKey: PublicOneTimePreKey | null = null;
-      if (oneTimePreKey) {
-        publicOneTimePreKey = {
-          keyId: oneTimePreKey.keyId,
-          ecdhPublicKey: oneTimePreKey.ecdhPublicKey,
-          kemPublicKey: oneTimePreKey.kemPublicKey,
-        };
-      }
-
-      results.push({
-        deviceId,
-        signedPreKey: publicSignedPreKey,
-        oneTimePreKey: publicOneTimePreKey,
-      });
-    }
+      })
+    );
 
     return results;
   }

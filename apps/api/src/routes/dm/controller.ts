@@ -48,7 +48,7 @@ async function canMessageIdentity(
  */
 const WrappedKeySchema = z.object({
   identityId: z.string().length(24),
-  deviceId: z.string(),
+  deviceId: z.string().min(1),
   ephemeralPublicKey: z.string().min(1),
   kemCiphertext: z.string().min(1),
   wrappedSessionKey: z.string().min(1),
@@ -57,6 +57,37 @@ const WrappedKeySchema = z.object({
   oneTimePreKeyId: z.string().uuid().optional(),
   signedPreKeyId: z.string().uuid().optional(),
   oneTimeKemCiphertext: z.string().min(1).optional(),
+}).superRefine((value, ctx) => {
+  if (value.preKeyType === 'otpk') {
+    if (!value.oneTimePreKeyId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['oneTimePreKeyId'],
+        message: 'oneTimePreKeyId is required when preKeyType is otpk',
+      });
+    }
+    if (!value.signedPreKeyId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['signedPreKeyId'],
+        message: 'signedPreKeyId is required when preKeyType is otpk',
+      });
+    }
+    if (!value.oneTimeKemCiphertext) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['oneTimeKemCiphertext'],
+        message: 'oneTimeKemCiphertext is required when preKeyType is otpk',
+      });
+    }
+  }
+  if (value.preKeyType === 'spk' && !value.signedPreKeyId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['signedPreKeyId'],
+      message: 'signedPreKeyId is required when preKeyType is spk',
+    });
+  }
 });
 
 /**

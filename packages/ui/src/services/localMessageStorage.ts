@@ -122,11 +122,10 @@ export async function storeFsMessageContent(
   const db = await openDatabase();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.put(record);
-    req.onerror = () => reject(new Error('Failed to store cached FS message'));
-    req.onsuccess = () => resolve();
-    tx.oncomplete = () => db.close();
+    tx.objectStore(STORE_NAME).put(record);
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(new Error('Failed to store cached FS message')); };
+    tx.onabort = () => { db.close(); reject(new Error('Failed to store cached FS message')); };
   });
 }
 
@@ -137,11 +136,10 @@ export async function clearFsMessageCache(): Promise<void> {
   const db = await openDatabase();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.clear();
-    req.onerror = () => reject(new Error('Failed to clear FS message cache'));
-    req.onsuccess = () => resolve();
-    tx.oncomplete = () => db.close();
+    tx.objectStore(STORE_NAME).clear();
+    tx.oncomplete = () => { db.close(); resolve(); };
+    tx.onerror = () => { db.close(); reject(new Error('Failed to clear FS message cache')); };
+    tx.onabort = () => { db.close(); reject(new Error('Failed to clear FS message cache')); };
   });
 }
 
@@ -153,11 +151,10 @@ export async function getFsMessageContent(
   const db = await openDatabase();
   const record = await new Promise<StoredFsMessage | null>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.get(messageId);
-    req.onerror = () => reject(new Error('Failed to load cached FS message'));
-    req.onsuccess = () => resolve((req.result as StoredFsMessage | undefined) ?? null);
-    tx.oncomplete = () => db.close();
+    const req = tx.objectStore(STORE_NAME).get(messageId);
+    tx.oncomplete = () => { db.close(); resolve((req.result as StoredFsMessage | undefined) ?? null); };
+    tx.onerror = () => { db.close(); reject(new Error('Failed to load cached FS message')); };
+    tx.onabort = () => { db.close(); reject(new Error('Failed to load cached FS message')); };
   });
 
   if (!record || record.conversationId !== conversationId) return null;

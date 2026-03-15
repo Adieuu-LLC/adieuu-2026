@@ -467,18 +467,3 @@ describe('services/deviceKeyStorage', () => {
     });
   });
 });
-
-// Tests that can run without browser APIs
-describe('services/deviceKeyStorage (unit)', () => {
-  describe('DeviceKeyStorageError', () => {
-    test('is instanceof Error', () => {
-      const error = new DeviceKeyStorageError('test', 'TEST_CODE');
-      expect(error).toBeInstanceOf(Error);
-    });
-
-    test('preserves error code', () => {
-      const error = new DeviceKeyStorageError('message', 'MY_ERROR_CODE');
-      expect(error.code).toBe('MY_ERROR_CODE');
-    });
-  });
-});

@@ -295,8 +295,7 @@ Phase 1 (storage + upload) .............. DONE
                         +---> Phase 3.2 (OTPK deletion)
 ```
 
-Phases 1-5 are complete. The full FS lifecycle is operational: pre-key generation, encryption, decryption, SPK rotation with cleanup, and OTPK replenishment all function end-to-end. Remaining work is UI (Phase 2.3 FS toggle, Phase 4 settings UI) and deferred items (Phase 3.3 local message storage, Phase 3.2 OTPK deletion).
-
+Core FS crypto and service flows are complete (pre-key generation, encryption/decryption, SPK rotation cleanup, OTPK replenishment). Remaining work includes UI items (Phase 2.3, Phase 4 UI) and deferred storage/deletion tasks (Phase 3.3, Phase 3.2).
 ---
 
 ## Configuration Defaults

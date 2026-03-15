@@ -5912,7 +5912,8 @@ a {
   gap: var(--spacing-sm);
 }
 
-.message-composer-ttl-btn {
+.message-composer-ttl-btn,
+.message-composer-fs-btn {
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
@@ -5947,43 +5948,15 @@ a {
   font-size: var(--font-size-md);
 }
 
-.message-composer-ttl-label {
+.message-composer-ttl-label,
+.message-composer-fs-label {
   font-weight: 500;
-}
-
-.message-composer-fs-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-xs) var(--spacing-sm);
-  background: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-
-  &:hover {
-    background: var(--color-bg-tertiary);
-    border-color: var(--color-border-hover);
-    color: var(--color-text);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
 }
 
 .message-composer-fs-btn--active {
   background: var(--color-success-bg);
   border-color: var(--color-success);
   color: var(--color-success);
-}
-
-.message-composer-fs-label {
-  font-weight: 500;
 }
 
 .message-composer-ttl-menu {

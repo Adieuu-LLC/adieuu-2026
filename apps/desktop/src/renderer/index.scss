@@ -592,12 +592,17 @@ a {
   &:hover {
     color: var(--color-text-primary);
   }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: -2px;
+  }
 }
 
 .dm-fs-rotation-notice-hidden-messages {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-xxs);
   margin-top: var(--spacing-xs);
   padding: var(--spacing-xs);
   border-radius: var(--radius-md);

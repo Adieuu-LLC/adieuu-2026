@@ -52,7 +52,12 @@ export async function persistFsMessageAndMaybeDeleteOtpk(input: FsPersistInput):
       input.decrypted,
       input.wrappingKey
     );
+  } catch (err) {
+    input.logWarn?.('[DM] Failed to persist local FS message cache; skipping OTPK deletion', err);
+    return;
+  }
 
+  try {
     if (input.targetWrappedKey?.preKeyType === 'otpk' && input.targetWrappedKey.oneTimePreKeyId) {
       await input.deleteOneTimePreKeyFn(
         input.targetWrappedKey.oneTimePreKeyId,
@@ -60,7 +65,7 @@ export async function persistFsMessageAndMaybeDeleteOtpk(input: FsPersistInput):
       );
     }
   } catch (err) {
-    input.logWarn?.('[DM] Failed to persist local FS message cache; skipping OTPK deletion', err);
+    input.logWarn?.('[DM] Failed to delete consumed OTPK from local storage', err);
   }
 }
 

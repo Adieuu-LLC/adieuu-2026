@@ -128,6 +128,19 @@ describe('rate-limit.service', () => {
     expect(pipelineMock.expire).toHaveBeenCalledTimes(1);
   });
 
+  test('checkRateLimit allows but shows zero remaining at exact limit boundary', async () => {
+    pipelineExecResult = [
+      [null, 1],
+      [null, 1],
+      [null, 3], // zcard equals limit of 3
+      [null, 1],
+    ];
+    const result = await checkRateLimit('auth:request:identifier', 'id-1');
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(0);
+    expect(result.limit).toBe(3);
+  });
+
   test('checkRateLimit denies when count exceeds configured limit', async () => {
     pipelineExecResult = [
       [null, 1],
@@ -138,6 +151,19 @@ describe('rate-limit.service', () => {
     const result = await checkRateLimit('auth:request:identifier', 'id-1');
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
+  });
+
+  test('checkRateLimit resolves correct config for auth:verify:identifier action', async () => {
+    pipelineExecResult = [
+      [null, 1],
+      [null, 1],
+      [null, 4], // zcard under auth:verify:identifier limit of 5
+      [null, 1],
+    ];
+    const result = await checkRateLimit('auth:verify:identifier', 'id-1');
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(1);
+    expect(result.limit).toBe(5);
   });
 
   test('getRateLimitStatus returns full allowance when disabled or redis disconnected', async () => {

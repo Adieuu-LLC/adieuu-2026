@@ -12,24 +12,35 @@ mock.module('../config', () => ({
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
 
-const mockCollection = {
-  findOne: mock(() => Promise.resolve(null)) as AnyMock,
-  find: mock(() => ({
-    limit: mock(() => ({
+function createMockCollection() {
+  return {
+    findOne: mock(() => Promise.resolve(null)) as AnyMock,
+    find: mock(() => ({
+      limit: mock(() => ({
+        toArray: mock(() => Promise.resolve([])),
+      })),
       toArray: mock(() => Promise.resolve([])),
-    })),
-    toArray: mock(() => Promise.resolve([])),
-  })) as AnyMock,
-  insertOne: mock(() => Promise.resolve({ insertedId: new ObjectId() })) as AnyMock,
-  findOneAndUpdate: mock(() => Promise.resolve(null)) as AnyMock,
-  deleteOne: mock(() => Promise.resolve({ deletedCount: 1 })) as AnyMock,
-  deleteMany: mock(() => Promise.resolve({ deletedCount: 0 })) as AnyMock,
-  updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })) as AnyMock,
-};
+    })) as AnyMock,
+    insertOne: mock(() => Promise.resolve({ insertedId: new ObjectId() })) as AnyMock,
+    findOneAndUpdate: mock(() => Promise.resolve(null)) as AnyMock,
+    deleteOne: mock(() => Promise.resolve({ deletedCount: 1 })) as AnyMock,
+    deleteMany: mock(() => Promise.resolve({ deletedCount: 0 })) as AnyMock,
+    updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })) as AnyMock,
+  };
+}
+
+const mockTotpCollection = createMockCollection();
+const mockWebAuthnCollection = createMockCollection();
+const mockBackupCollection = createMockCollection();
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 mock.module('../db', () => ({
-  getCollection: mock(() => mockCollection),
+  getCollection: mock((name: string) => {
+    if (name === 'totp_credentials') return mockTotpCollection;
+    if (name === 'webauthn_credentials') return mockWebAuthnCollection;
+    if (name === 'mfa_backup_codes') return mockBackupCollection;
+    throw new Error(`Unexpected collection: ${name}`);
+  }),
   Collections: {
     TOTP_CREDENTIALS: 'totp_credentials',
     WEBAUTHN_CREDENTIALS: 'webauthn_credentials',
@@ -49,26 +60,28 @@ describe('mfa.repository', () => {
   });
 
   beforeEach(() => {
-    mockCollection.findOne.mockReset();
-    mockCollection.find.mockReset();
-    mockCollection.insertOne.mockReset();
-    mockCollection.findOneAndUpdate.mockReset();
-    mockCollection.deleteOne.mockReset();
-    mockCollection.deleteMany.mockReset();
-    mockCollection.updateOne.mockReset();
+    for (const col of [mockTotpCollection, mockWebAuthnCollection, mockBackupCollection]) {
+      col.findOne.mockReset();
+      col.find.mockReset();
+      col.insertOne.mockReset();
+      col.findOneAndUpdate.mockReset();
+      col.deleteOne.mockReset();
+      col.deleteMany.mockReset();
+      col.updateOne.mockReset();
 
-    mockCollection.findOne.mockResolvedValue(null);
-    mockCollection.find.mockImplementation(() => ({
-      limit: () => ({
+      col.findOne.mockResolvedValue(null);
+      col.find.mockImplementation(() => ({
+        limit: () => ({
+          toArray: async () => [],
+        }),
         toArray: async () => [],
-      }),
-      toArray: async () => [],
-    }));
-    mockCollection.insertOne.mockResolvedValue({ insertedId: new ObjectId() });
-    mockCollection.findOneAndUpdate.mockResolvedValue(null);
-    mockCollection.deleteOne.mockResolvedValue({ deletedCount: 1 });
-    mockCollection.deleteMany.mockResolvedValue({ deletedCount: 0 });
-    mockCollection.updateOne.mockResolvedValue({ modifiedCount: 1 });
+      }));
+      col.insertOne.mockResolvedValue({ insertedId: new ObjectId() });
+      col.findOneAndUpdate.mockResolvedValue(null);
+      col.deleteOne.mockResolvedValue({ deletedCount: 1 });
+      col.deleteMany.mockResolvedValue({ deletedCount: 0 });
+      col.updateOne.mockResolvedValue({ modifiedCount: 1 });
+    }
   });
 
   test('TotpRepository.create sets verified=false and stores encrypted secret', async () => {
@@ -81,7 +94,7 @@ describe('mfa.repository', () => {
       name: 'Authenticator',
     });
 
-    expect(mockCollection.insertOne).toHaveBeenCalledWith(
+    expect(mockTotpCollection.insertOne).toHaveBeenCalledWith(
       expect.objectContaining({
         userId,
         encryptedSecret: 'enc:secret',
@@ -95,7 +108,7 @@ describe('mfa.repository', () => {
     const repo = new TotpRepository();
     await repo.verify(new ObjectId());
 
-    expect(mockCollection.findOneAndUpdate).toHaveBeenCalledWith(
+    expect(mockTotpCollection.findOneAndUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ _id: expect.any(ObjectId) }),
       expect.objectContaining({
         $set: expect.objectContaining({
@@ -110,7 +123,7 @@ describe('mfa.repository', () => {
   test('WebAuthnRepository.findByCredentialId queries by credentialId', async () => {
     const repo = new WebAuthnRepository();
     await repo.findByCredentialId('cred-id-1');
-    expect(mockCollection.findOne).toHaveBeenCalledWith({ credentialId: 'cred-id-1' });
+    expect(mockWebAuthnCollection.findOne).toHaveBeenCalledWith({ credentialId: 'cred-id-1' });
   });
 
   test('BackupCodesRepository.create clears existing codes before insert', async () => {
@@ -123,8 +136,8 @@ describe('mfa.repository', () => {
       totalGenerated: 2,
     });
 
-    expect(mockCollection.deleteMany).toHaveBeenCalledWith({ userId });
-    expect(mockCollection.insertOne).toHaveBeenCalledWith(
+    expect(mockBackupCollection.deleteMany).toHaveBeenCalledWith({ userId });
+    expect(mockBackupCollection.insertOne).toHaveBeenCalledWith(
       expect.objectContaining({
         userId,
         hashedCodes: ['h1', 'h2'],
@@ -138,10 +151,10 @@ describe('mfa.repository', () => {
     const repo = new BackupCodesRepository();
     const userId = new ObjectId();
 
-    mockCollection.deleteMany.mockResolvedValueOnce({ deletedCount: 0 });
+    mockBackupCollection.deleteMany.mockResolvedValueOnce({ deletedCount: 0 });
     expect(await repo.deleteForUser(userId)).toBe(false);
 
-    mockCollection.deleteMany.mockResolvedValueOnce({ deletedCount: 1 });
+    mockBackupCollection.deleteMany.mockResolvedValueOnce({ deletedCount: 1 });
     expect(await repo.deleteForUser(userId)).toBe(true);
   });
 });
