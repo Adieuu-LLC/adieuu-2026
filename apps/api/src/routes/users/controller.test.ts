@@ -1,16 +1,14 @@
 import { describe, expect, test, mock } from 'bun:test';
 
-// Mock crypto utilities to avoid needing real config
-mock.module('../../utils/crypto', () => ({
-  hashIdentifier: mock((id: string) => `hashed:${id}`),
-  hashIp: mock((ip: string) => `ip:${ip}`),
-  encrypt: mock((data: string) => Buffer.from(data).toString('base64url')),
-  decrypt: mock((data: string) => Buffer.from(data, 'base64url').toString()),
-  hmacSign: mock((data: string) => `sig:${data}`),
-  hmacVerify: mock(() => true),
-  generateOtp: mock(() => '123456'),
-  generateSessionId: mock(() => 'test-session-id'),
-  constantTimeCompare: mock(() => true),
+// Mock config to avoid loading env
+mock.module('../../config', () => ({
+  config: {
+    env: 'test',
+    security: {
+      sessionSecret: 'test-secret',
+      otpSecret: 'test-otp-secret',
+    },
+  },
 }));
 
 // Mock db submodules to prevent them from loading real config

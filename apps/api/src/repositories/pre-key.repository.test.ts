@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import { CONSUMED_OTPK_TTL_DAYS } from '../models/pre-key';
 
@@ -34,6 +34,10 @@ mock.module('../db', () => ({
 import { PreKeyRepository } from './pre-key.repository';
 
 describe('PreKeyRepository', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   let repo: PreKeyRepository;
   const identityId = new ObjectId();
   const deviceId = 'device-1';

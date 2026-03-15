@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import type { IdentityDocument } from '../../models/identity';
 import { MAX_OTPK_PER_DEVICE } from '../../models/pre-key';
@@ -97,6 +97,9 @@ function makeCtx(options: {
 }
 
 describe('pre-key.controller', () => {
+  afterAll(() => {
+    mock.restore();
+  });
   beforeEach(() => {
     currentIdentity = {
       _id: ownerId,

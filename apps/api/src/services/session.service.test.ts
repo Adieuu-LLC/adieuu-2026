@@ -10,6 +10,10 @@ const mockConfig = {
   cookie: {
     domain: '',
   },
+  security: {
+    sessionSecret: 'test-secret',
+    otpSecret: 'test-otp-secret',
+  },
 };
 
 const mockSessionRepo = {
@@ -20,27 +24,12 @@ const mockSessionRepo = {
   revokeAllForUser: mock(() => Promise.resolve(0)) as AnyMock,
 };
 
-const mockGenerateSecureToken = mock(() => 'fixed-session-token');
-
 mock.module('../config', () => ({
   config: mockConfig,
 }));
 
 mock.module('../repositories/session.repository', () => ({
   getSessionRepository: () => mockSessionRepo,
-}));
-
-mock.module('../utils/crypto', () => ({
-  generateSecureToken: mockGenerateSecureToken,
-}));
-
-mock.module('../utils/adieuuLogger', () => ({
-  default: {
-    info: mock(() => {}),
-    warn: mock(() => {}),
-    error: mock(() => {}),
-    debug: mock(() => {}),
-  },
 }));
 
 import {
@@ -61,9 +50,6 @@ describe('session.service', () => {
   beforeEach(() => {
     mockConfig.env = 'test';
     mockConfig.cookie.domain = '';
-
-    mockGenerateSecureToken.mockReset();
-    mockGenerateSecureToken.mockReturnValue('fixed-session-token');
 
     mockSessionRepo.create.mockReset();
     mockSessionRepo.getSession.mockReset();
@@ -89,7 +75,7 @@ describe('session.service', () => {
 
     expect(mockSessionRepo.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionId: 'fixed-session-token',
+        sessionId: expect.stringMatching(/^[a-zA-Z0-9_-]+$/),
         userId,
         identifier: 'user@example.com',
         identifierType: 'email',
@@ -97,8 +83,8 @@ describe('session.service', () => {
         ipAddress: '127.0.0.1',
       })
     );
-    expect(result.sessionId).toBe('fixed-session-token');
-    expect(result.cookie).toContain('adieuu_session=fixed-session-token');
+    expect(result.sessionId).toMatch(/^[a-zA-Z0-9_-]{42,44}$/);
+    expect(result.cookie).toContain(`adieuu_session=${result.sessionId}`);
     expect(result.cookie).toContain('HttpOnly');
     expect(result.cookie).toContain('SameSite=Lax');
     expect(result.cookie).toContain('Path=/');
@@ -138,14 +124,15 @@ describe('session.service', () => {
       lastActivityAt: 1234,
     });
 
-    const result = await getSession('fixed-session-token');
+    const testSessionId = 'valid-session-token-for-test';
+    const result = await getSession(testSessionId);
     expect(result).toEqual({
       userId: '507f1f77bcf86cd799439011',
       identifier: 'user@example.com',
       identifierType: 'email',
       lastActivityAt: 1234,
     });
-    expect(mockSessionRepo.updateLastActivity).toHaveBeenCalledWith('fixed-session-token');
+    expect(mockSessionRepo.updateLastActivity).toHaveBeenCalledWith(testSessionId);
   });
 
   test('getSessionIdFromRequest parses session cookie among multiple cookies', () => {

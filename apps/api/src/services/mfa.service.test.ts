@@ -36,6 +36,7 @@ const mockConfig = {
   },
   security: {
     otpSecret: 'otp-secret-for-tests',
+    sessionSecret: 'test-session-secret',
   },
 };
 
@@ -81,12 +82,6 @@ mock.module('@simplewebauthn/server', () => ({
   verifyAuthenticationResponse: mock(async () => ({ verified: false })),
 }));
 
-mock.module('../utils/crypto', () => ({
-  encrypt: (value: string) => `enc:${value}`,
-  decrypt: (value: string) => (value.startsWith('enc:') ? value.slice(4) : null),
-  generateSecureToken: () => 'secure-token',
-}));
-
 mock.module('../repositories', () => ({
   getTotpRepository: () => mockTotpRepo,
   getWebAuthnRepository: () => mockWebAuthnRepo,
@@ -103,15 +98,6 @@ mock.module('../db', () => ({
   RedisKeys: {},
 }));
 
-mock.module('../utils/adieuuLogger', () => ({
-  default: {
-    info: mock(() => {}),
-    warn: mock(() => {}),
-    error: mock(() => {}),
-    debug: mock(() => {}),
-  },
-}));
-
 import {
   verifyAndActivateTotp,
   verifyTotpCode,
@@ -121,6 +107,10 @@ import {
   getMfaLoginChallenge,
   clearMfaLoginChallenge,
 } from './mfa.service';
+import { encrypt } from '../utils/crypto';
+
+const encryptedABC = encrypt('ABC');
+const encryptedValidSecret = encrypt('VALIDSECRET');
 
 describe('mfa.service', () => {
   afterAll(() => {
@@ -175,7 +165,7 @@ describe('mfa.service', () => {
     mockTotpRepo.findById.mockResolvedValue({
       _id: totpDocId,
       userId: new ObjectId(),
-      encryptedSecret: 'enc:ABC',
+      encryptedSecret: encryptedABC,
       name: 'totp',
       verified: false,
       createdAt: new Date(),
@@ -189,7 +179,7 @@ describe('mfa.service', () => {
     mockTotpRepo.findById.mockResolvedValue({
       _id: totpDocId,
       userId: new ObjectId(userId),
-      encryptedSecret: 'enc:ABC',
+      encryptedSecret: encryptedABC,
       name: 'totp',
       verified: true,
       createdAt: new Date(),
@@ -219,7 +209,7 @@ describe('mfa.service', () => {
     mockTotpRepo.findById.mockResolvedValue({
       _id: totpDocId,
       userId: new ObjectId(userId),
-      encryptedSecret: 'enc:VALIDSECRET',
+      encryptedSecret: encryptedValidSecret,
       name: 'totp',
       verified: false,
       createdAt: new Date(),
@@ -243,7 +233,7 @@ describe('mfa.service', () => {
       {
         _id: totpDocId,
         userId: new ObjectId(userId),
-        encryptedSecret: 'enc:VALIDSECRET',
+        encryptedSecret: encryptedValidSecret,
         name: 'totp',
         verified: true,
         createdAt: new Date(),
@@ -284,7 +274,7 @@ describe('mfa.service', () => {
     mockTotpRepo.findVerifiedByUserId.mockResolvedValue([{
       _id: new ObjectId(),
       userId: new ObjectId(userId),
-      encryptedSecret: 'enc:VALIDSECRET',
+      encryptedSecret: encryptedValidSecret,
       name: 'totp',
       verified: true,
       createdAt: new Date(),
@@ -323,7 +313,7 @@ describe('mfa.service', () => {
     mockTotpRepo.findVerifiedByUserId.mockResolvedValue([{
       _id: new ObjectId(),
       userId: new ObjectId(userId),
-      encryptedSecret: 'enc:VALIDSECRET',
+      encryptedSecret: encryptedValidSecret,
       name: 'totp',
       verified: true,
       createdAt: new Date(),

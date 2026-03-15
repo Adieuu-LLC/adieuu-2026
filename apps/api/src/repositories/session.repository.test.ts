@@ -42,15 +42,6 @@ mock.module('../db', () => ({
   },
 }));
 
-mock.module('../utils/adieuuLogger', () => ({
-  default: {
-    info: mock(() => {}),
-    warn: mock(() => {}),
-    error: mock(() => {}),
-    debug: mock(() => {}),
-  },
-}));
-
 import { SessionRepository } from './session.repository';
 
 describe('session.repository', () => {

@@ -49,15 +49,6 @@ mock.module('../models/identity', () => ({
   }),
 }));
 
-mock.module('../utils/adieuuLogger', () => ({
-  default: {
-    info: mock(() => {}),
-    warn: mock(() => {}),
-    error: mock(() => {}),
-    debug: mock(() => {}),
-  },
-}));
-
 import {
   blockIdentity,
   unblockIdentity,

@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
 mock.module('../../config', () => ({
@@ -271,6 +271,10 @@ function createMockContext(options: {
 }
 
 describe('DM Controller', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     mockFindByConversationId.mockReset();
     mockGetOrCreate.mockReset();
