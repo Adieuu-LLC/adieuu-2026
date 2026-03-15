@@ -105,5 +105,43 @@ describe('useDmMessages fs-cache helpers', () => {
     expect(deleteOneTimePreKeyFn).not.toHaveBeenCalled();
     expect(logWarn).toHaveBeenCalledTimes(1);
   });
+
+  test('maybeGetFsCachedMessage serves cached content when keys are gone', async () => {
+    const cached: DecryptedMessageContent = {
+      text: 'previously decrypted',
+      fromIdentityId: 'identity-1',
+      version: 1,
+    };
+    const getFsMessageContentFn = mock(async () => cached);
+
+    // When pre-key private keys are gone, the decrypt path would fail.
+    // The cache lookup runs first and returns the previously-decrypted content,
+    // bypassing decryption entirely.
+    const result = await maybeGetFsCachedMessage({
+      isFsWrapped: true,
+      messageId: 'msg-1',
+      conversationId: 'conv-1',
+      wrappingKey: new Uint8Array(32),
+      getFsMessageContentFn,
+    });
+
+    expect(result).toEqual(cached);
+    expect(result!.text).toBe('previously decrypted');
+  });
+
+  test('maybeGetFsCachedMessage returns null when cache is empty (keys gone, no cache)', async () => {
+    const getFsMessageContentFn = mock(async () => null);
+
+    // If the cache is also empty (e.g., cache was cleared), there's no fallback.
+    const result = await maybeGetFsCachedMessage({
+      isFsWrapped: true,
+      messageId: 'msg-1',
+      conversationId: 'conv-1',
+      wrappingKey: new Uint8Array(32),
+      getFsMessageContentFn,
+    });
+
+    expect(result).toBeNull();
+  });
 });
 

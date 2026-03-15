@@ -516,6 +516,121 @@ a {
   margin-top: var(--spacing-xxs);
 }
 
+// FS Key Rotation Notice
+.dm-fs-rotation-notice {
+  padding: var(--spacing-md) var(--spacing-lg);
+}
+
+.dm-fs-rotation-notice-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.dm-fs-rotation-notice-line {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+
+.dm-fs-rotation-notice-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.dm-fs-rotation-notice-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.dm-fs-rotation-notice-body {
+  text-align: center;
+  padding: var(--spacing-xs) 0;
+}
+
+.dm-fs-rotation-notice-explanation {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  line-height: 1.4;
+}
+
+.dm-fs-rotation-notice-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-xs);
+}
+
+.dm-fs-rotation-notice-link {
+  font-size: var(--font-size-xs);
+  color: var(--color-primary);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.dm-fs-rotation-notice-toggle {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+
+  &:hover {
+    color: var(--color-text-primary);
+  }
+}
+
+.dm-fs-rotation-notice-hidden-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--spacing-xs);
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+}
+
+.dm-fs-rotation-hidden-message {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+}
+
+.dm-fs-rotation-hidden-message-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+.dm-fs-rotation-hidden-message-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  flex: 1;
+}
+
+.dm-fs-rotation-hidden-message-time {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
 .dm-input-container {
   padding: var(--spacing-sm) var(--spacing-md) var(--spacing-md);
   border-top: 1px solid var(--color-border);

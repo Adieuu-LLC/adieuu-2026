@@ -56,6 +56,7 @@ describe('services/preKeyService', () => {
       {
         securityLevel: 'standard',
         spkDeletionPolicy: 'after-sync',
+        clearCacheOnRotation: false,
       }
     );
 
@@ -85,6 +86,7 @@ describe('services/preKeyService', () => {
       {
         securityLevel: 'standard',
         spkDeletionPolicy: 'after-sync',
+        clearCacheOnRotation: false,
       }
     );
 
@@ -108,6 +110,7 @@ describe('services/preKeyService', () => {
       {
         securityLevel: 'maximum', // 1h
         spkDeletionPolicy: 'timed',
+        clearCacheOnRotation: false,
       }
     );
 
@@ -132,6 +135,7 @@ describe('services/preKeyService', () => {
       {
         securityLevel: 'standard', // maxRetiredSpks = 5
         spkDeletionPolicy: 'after-sync',
+        clearCacheOnRotation: false,
       }
     );
 
@@ -215,6 +219,7 @@ describe('services/preKeyService', () => {
     preKeyService.saveFsConfig(identityId, {
       securityLevel: 'high',
       spkDeletionPolicy: 'timed',
+      clearCacheOnRotation: false,
     });
 
     const loaded = preKeyService.loadFsConfig(identityId);

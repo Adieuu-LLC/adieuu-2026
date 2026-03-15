@@ -130,6 +130,21 @@ export async function storeFsMessageContent(
   });
 }
 
+/**
+ * Clears all cached FS message content from the local database.
+ */
+export async function clearFsMessageCache(): Promise<void> {
+  const db = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.clear();
+    req.onerror = () => reject(new Error('Failed to clear FS message cache'));
+    req.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
+  });
+}
+
 export async function getFsMessageContent(
   messageId: string,
   conversationId: string,

@@ -11,7 +11,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dialog, Portal, RadioGroup } from '@ark-ui/react';
+import { Checkbox, Dialog, Portal, RadioGroup } from '@ark-ui/react';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
@@ -420,8 +420,14 @@ function ActivityPreferences() {
  */
 function ForwardSecrecySettings() {
   const { t } = useTranslation();
-  const { config, updateConfig, rotateNow, isRotating, lastRotation } = usePreKeys();
+  const { config, updateConfig, rotateNow, purgeRetiredKeys, isRotating, lastRotation } = usePreKeys();
   const { success: toastSuccess, error: toastError } = useToast();
+
+  const [immediateConfirmOpen, setImmediateConfirmOpen] = useState(false);
+  const [clearCacheConfirmOpen, setClearCacheConfirmOpen] = useState(false);
+  const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
+  const [purgeClearCache, setPurgeClearCache] = useState(false);
+  const [isPurging, setIsPurging] = useState(false);
 
   const handleSecurityLevelChange = (details: { value: string | null }) => {
     if (!details.value) return;
@@ -431,8 +437,33 @@ function ForwardSecrecySettings() {
 
   const handleDeletionPolicyChange = (details: { value: string | null }) => {
     if (!details.value) return;
-    updateConfig({ spkDeletionPolicy: details.value as 'after-sync' | 'timed' });
+    if (details.value === 'immediate') {
+      setImmediateConfirmOpen(true);
+      return;
+    }
+    updateConfig({ spkDeletionPolicy: details.value as 'after-sync' | 'timed' | 'immediate' });
     toastSuccess(t('identity.devices.forwardSecrecy.deletionUpdated'));
+  };
+
+  const handleConfirmImmediate = () => {
+    updateConfig({ spkDeletionPolicy: 'immediate' });
+    setImmediateConfirmOpen(false);
+    toastSuccess(t('identity.devices.forwardSecrecy.deletionUpdated'));
+  };
+
+  const handleClearCacheToggle = (next: boolean) => {
+    if (next) {
+      setClearCacheConfirmOpen(true);
+    } else {
+      updateConfig({ clearCacheOnRotation: false });
+      toastSuccess(t('identity.devices.forwardSecrecy.clearCacheUpdated'));
+    }
+  };
+
+  const handleConfirmClearCache = () => {
+    updateConfig({ clearCacheOnRotation: true });
+    setClearCacheConfirmOpen(false);
+    toastSuccess(t('identity.devices.forwardSecrecy.clearCacheUpdated'));
   };
 
   const handleRotateNow = async () => {
@@ -444,6 +475,27 @@ function ForwardSecrecySettings() {
         t('identity.devices.forwardSecrecy.rotateErrorTitle'),
         err instanceof Error ? err.message : t('identity.devices.forwardSecrecy.rotateErrorBody')
       );
+    }
+  };
+
+  const handlePurgeRetiredKeys = async () => {
+    setIsPurging(true);
+    try {
+      const deleted = await purgeRetiredKeys(purgeClearCache);
+      setPurgeConfirmOpen(false);
+      setPurgeClearCache(false);
+      if (deleted > 0) {
+        toastSuccess(t('identity.devices.forwardSecrecy.purgeSuccess', { count: deleted }));
+      } else {
+        toastSuccess(t('identity.devices.forwardSecrecy.purgeNone'));
+      }
+    } catch (err) {
+      toastError(
+        t('identity.devices.forwardSecrecy.purgeErrorTitle'),
+        err instanceof Error ? err.message : t('identity.devices.forwardSecrecy.purgeErrorBody')
+      );
+    } finally {
+      setIsPurging(false);
     }
   };
 
@@ -513,7 +565,28 @@ function ForwardSecrecySettings() {
             </RadioGroup.ItemText>
             <RadioGroup.ItemHiddenInput />
           </RadioGroup.Item>
+          <RadioGroup.Item value="immediate" className="activity-radio-item">
+            <RadioGroup.ItemControl className="activity-radio-control" />
+            <RadioGroup.ItemText className="activity-radio-text">
+              <span className="activity-radio-title">{t('identity.devices.forwardSecrecy.deletion.immediate.title')}</span>
+              <span className="activity-radio-description">{t('identity.devices.forwardSecrecy.deletion.immediate.description')}</span>
+            </RadioGroup.ItemText>
+            <RadioGroup.ItemHiddenInput />
+          </RadioGroup.Item>
         </RadioGroup.Root>
+
+        <Checkbox.Root
+          checked={config.clearCacheOnRotation}
+          onCheckedChange={(e) => handleClearCacheToggle(e.checked === true)}
+          className="fs-cache-clear-checkbox"
+        >
+          <Checkbox.Control className="fs-checkbox-control" />
+          <Checkbox.Label className="fs-checkbox-label">
+            <span className="fs-checkbox-title">{t('identity.devices.forwardSecrecy.clearCacheOnRotation')}</span>
+            <span className="fs-checkbox-hint">{t('identity.devices.forwardSecrecy.clearCacheOnRotationHint')}</span>
+          </Checkbox.Label>
+          <Checkbox.HiddenInput />
+        </Checkbox.Root>
       </div>
 
       <div className="activity-section">
@@ -538,6 +611,70 @@ function ForwardSecrecySettings() {
           </Button>
         </div>
       </div>
+
+      <div className="activity-section">
+        <div className="sessions-header">
+          <div className="sessions-header-text">
+            <h4>{t('identity.devices.forwardSecrecy.purgeTitle')}</h4>
+            <p>{t('identity.devices.forwardSecrecy.purgeDescription')}</p>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setPurgeConfirmOpen(true)}
+          >
+            {t('identity.devices.forwardSecrecy.purgeButton')}
+          </Button>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        open={immediateConfirmOpen}
+        onOpenChange={setImmediateConfirmOpen}
+        title={t('identity.devices.forwardSecrecy.deletion.immediateConfirmTitle')}
+        description={t('identity.devices.forwardSecrecy.deletion.immediateConfirmBody')}
+        confirmLabel={t('identity.devices.forwardSecrecy.deletion.immediateConfirmAction')}
+        variant="warning"
+        onConfirm={handleConfirmImmediate}
+      />
+
+      <ConfirmDialog
+        open={clearCacheConfirmOpen}
+        onOpenChange={setClearCacheConfirmOpen}
+        title={t('identity.devices.forwardSecrecy.clearCacheConfirmTitle')}
+        description={t('identity.devices.forwardSecrecy.clearCacheConfirmBody')}
+        confirmLabel={t('identity.devices.forwardSecrecy.clearCacheConfirmAction')}
+        variant="warning"
+        onConfirm={handleConfirmClearCache}
+      />
+
+      <ConfirmDialog
+        open={purgeConfirmOpen}
+        onOpenChange={(open) => {
+          setPurgeConfirmOpen(open);
+          if (!open) setPurgeClearCache(false);
+        }}
+        title={t('identity.devices.forwardSecrecy.purgeConfirmTitle')}
+        confirmLabel={t('identity.devices.forwardSecrecy.purgeConfirmAction')}
+        variant="danger"
+        loading={isPurging}
+        onConfirm={handlePurgeRetiredKeys}
+      >
+        <p className="confirm-dialog-description">
+          {t('identity.devices.forwardSecrecy.purgeConfirmBody')}
+        </p>
+        <Checkbox.Root
+          checked={purgeClearCache}
+          onCheckedChange={(e) => setPurgeClearCache(e.checked === true)}
+          className="fs-cache-clear-checkbox fs-purge-cache-checkbox"
+        >
+          <Checkbox.Control className="fs-checkbox-control" />
+          <Checkbox.Label className="fs-checkbox-label">
+            {t('identity.devices.forwardSecrecy.purgeConfirmClearCache')}
+          </Checkbox.Label>
+          <Checkbox.HiddenInput />
+        </Checkbox.Root>
+      </ConfirmDialog>
     </div>
   );
 }

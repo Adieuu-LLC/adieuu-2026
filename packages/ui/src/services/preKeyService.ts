@@ -30,16 +30,18 @@ import {
 
 export type Platform = 'desktop' | 'web' | 'mobile';
 export type SecurityLevel = 'standard' | 'high' | 'maximum';
-export type SpkDeletionPolicy = 'after-sync' | 'timed';
+export type SpkDeletionPolicy = 'after-sync' | 'timed' | 'immediate';
 
 export interface ForwardSecrecyConfig {
   securityLevel: SecurityLevel;
   spkDeletionPolicy: SpkDeletionPolicy;
+  clearCacheOnRotation: boolean;
 }
 
 export const DEFAULT_FS_CONFIG: ForwardSecrecyConfig = {
   securityLevel: 'standard',
   spkDeletionPolicy: 'after-sync',
+  clearCacheOnRotation: false,
 };
 
 export const SECURITY_LEVEL_CONFIG = {
@@ -327,6 +329,15 @@ export async function cleanupRetiredSpks(
   const now = Date.now();
   let deletedCount = 0;
 
+  if (config.spkDeletionPolicy === 'immediate') {
+    for (const spk of retired) {
+      await deleteSignedPreKey(spk.keyId, identityId);
+      deletedCount++;
+      console.debug(`[PreKey] Immediate-deleted retired SPK ${spk.keyId}`);
+    }
+    return deletedCount;
+  }
+
   if (config.spkDeletionPolicy === 'timed') {
     for (const spk of retired) {
       if (!spk.retiredAt) continue;
@@ -364,6 +375,32 @@ export async function cleanupRetiredSpks(
   }
 
   return deletedCount;
+}
+
+// ============================================================================
+// Manual Purge
+// ============================================================================
+
+/**
+ * Unconditionally deletes all retired SPK private keys for a device.
+ * This is a destructive action: FS-encrypted messages from those key periods
+ * become permanently unreadable unless cached locally.
+ *
+ * @returns Number of retired SPKs deleted.
+ */
+export async function purgeRetiredKeys(
+  identityId: string,
+  deviceId: string
+): Promise<number> {
+  const retired = await getRetiredSignedPreKeys(identityId, deviceId);
+  if (retired.length === 0) return 0;
+
+  for (const spk of retired) {
+    await deleteSignedPreKey(spk.keyId, identityId);
+    console.debug(`[PreKey] Purged retired SPK ${spk.keyId}`);
+  }
+
+  return retired.length;
 }
 
 // ============================================================================

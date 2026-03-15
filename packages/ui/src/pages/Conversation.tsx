@@ -11,7 +11,7 @@ import type { Conversation as ConversationType, PublicIdentity } from '@adieuu/s
 import { createApiClient } from '@adieuu/shared';
 import { Button } from '../components/Button';
 import { AvatarGroup } from '../components/AvatarGroup';
-import { XIcon, UsersIcon } from '../components/Icons';
+import { XIcon, UsersIcon, LockIcon } from '../components/Icons';
 import { MessageComposer } from '../components/MessageComposer';
 import { Popover } from '../components/Popover';
 import { useConversationsList } from '../hooks/useConversations';
@@ -419,6 +419,105 @@ const MessageBubble = memo(function MessageBubble({
   );
 });
 
+const FS_KEY_ROTATION_ERRORS = [
+  'SPK private key not found (may have been rotated/deleted)',
+  'Failed to unwrap session key with pre-keys (key may have been rotated/deleted)',
+] as const;
+
+const FS_KEY_ROTATION_ERROR_PREFIXES = [
+  'Pre-key private keys required to decrypt FS message',
+] as const;
+
+export function isFsKeyRotationError(error: string | undefined): boolean {
+  if (!error) return false;
+  if ((FS_KEY_ROTATION_ERRORS as readonly string[]).includes(error)) return true;
+  return FS_KEY_ROTATION_ERROR_PREFIXES.some((prefix) => error.startsWith(prefix));
+}
+
+type MessageListItem =
+  | { type: 'message'; message: DecryptedDmMessage }
+  | { type: 'fs-rotation-group'; messages: DecryptedDmMessage[] };
+
+function groupFsRotationErrors(messages: DecryptedDmMessage[]): MessageListItem[] {
+  const items: MessageListItem[] = [];
+  let currentGroup: DecryptedDmMessage[] = [];
+
+  const flushGroup = () => {
+    if (currentGroup.length > 0) {
+      items.push({ type: 'fs-rotation-group', messages: [...currentGroup] });
+      currentGroup = [];
+    }
+  };
+
+  for (const msg of messages) {
+    if (isFsKeyRotationError(msg.decryptionError)) {
+      currentGroup.push(msg);
+    } else {
+      flushGroup();
+      items.push({ type: 'message', message: msg });
+    }
+  }
+  flushGroup();
+
+  return items;
+}
+
+interface FsKeyRotationNoticeProps {
+  messages: DecryptedDmMessage[];
+}
+
+function FsKeyRotationNotice({ messages }: FsKeyRotationNoticeProps) {
+  const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="dm-fs-rotation-notice">
+      <div className="dm-fs-rotation-notice-divider">
+        <span className="dm-fs-rotation-notice-line" />
+        <span className="dm-fs-rotation-notice-badge">
+          <LockIcon className="dm-fs-rotation-notice-icon" />
+          <span>{t('messages.fs.keyRotationNotice', { count: messages.length })}</span>
+        </span>
+        <span className="dm-fs-rotation-notice-line" />
+      </div>
+      <div className="dm-fs-rotation-notice-body">
+        <p className="dm-fs-rotation-notice-explanation">
+          {t('messages.fs.keyRotationExplanation')}
+        </p>
+        <div className="dm-fs-rotation-notice-actions">
+          <Link
+            to="/identity/devices?tab=forward-secrecy"
+            className="dm-fs-rotation-notice-link"
+          >
+            {t('messages.fs.manageSettings')}
+          </Link>
+          <button
+            className="dm-fs-rotation-notice-toggle"
+            onClick={() => setExpanded((prev) => !prev)}
+          >
+            {expanded ? t('messages.fs.hideMessages') : t('messages.fs.showHiddenMessages')}
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div className="dm-fs-rotation-notice-hidden-messages">
+          {messages.map((msg) => (
+            <div key={msg.raw.id} className="dm-fs-rotation-hidden-message">
+              <LockIcon className="dm-fs-rotation-hidden-message-icon" />
+              <span className="dm-fs-rotation-hidden-message-label">
+                {t('messages.fs.messageUnavailable')}
+              </span>
+              <span className="dm-fs-rotation-hidden-message-time">
+                {formatMessageTime(msg.raw.createdAt)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface ConversationMessagesProps {
   messages: DecryptedDmMessage[];
   isLoading: boolean;
@@ -470,6 +569,8 @@ const ConversationMessages = memo(function ConversationMessages({
   // Messages come from API newest-first, reverse for display (oldest at top, newest at bottom)
   const displayMessages = useMemo(() => [...messages].reverse(), [messages]);
 
+  const groupedItems = useMemo(() => groupFsRotationErrors(displayMessages), [displayMessages]);
+
   return (
     <div className="dm-messages" ref={containerRef} onScroll={handleScroll}>
       {isLoading && messages.length === 0 && (
@@ -490,16 +591,23 @@ const ConversationMessages = memo(function ConversationMessages({
         </div>
       )}
 
-      {displayMessages.map((msg) => (
-        <MessageBubble
-          key={msg.raw.id}
-          message={msg}
-          isOwn={msg.decrypted?.fromIdentityId === currentIdentityId}
-          onDeleteForEveryone={onDeleteForEveryone}
-          onDeleteForSelf={onDeleteForSelf}
-          isDeleting={isDeleting}
-        />
-      ))}
+      {groupedItems.map((item) => {
+        if (item.type === 'fs-rotation-group') {
+          const groupKey = item.messages.map((m) => m.raw.id).join('-');
+          return <FsKeyRotationNotice key={groupKey} messages={item.messages} />;
+        }
+        const msg = item.message;
+        return (
+          <MessageBubble
+            key={msg.raw.id}
+            message={msg}
+            isOwn={msg.decrypted?.fromIdentityId === currentIdentityId}
+            onDeleteForEveryone={onDeleteForEveryone}
+            onDeleteForSelf={onDeleteForSelf}
+            isDeleting={isDeleting}
+          />
+        );
+      })}
 
       <div ref={messagesEndRef} />
     </div>

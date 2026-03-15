@@ -87,4 +87,44 @@ describe('services/localMessageStorage', () => {
     const loaded = await getFsMessageContent(messageId, 'conv-1', keyB);
     expect(loaded).toBeNull();
   });
+
+  test('returns null after cache is cleared', async () => {
+    const wrappingKey = randomBytes(32);
+    const messageId = crypto.randomUUID();
+    const content = {
+      text: 'will be lost',
+      fromIdentityId: 'identity-a',
+      fromDeviceId: 'device-a',
+      version: 1,
+    } as const;
+
+    await storeFsMessageContent(messageId, 'conv-1', content, wrappingKey);
+
+    const beforeClear = await getFsMessageContent(messageId, 'conv-1', wrappingKey);
+    expect(beforeClear).toEqual(content);
+
+    await clearFsMessageDb();
+
+    const afterClear = await getFsMessageContent(messageId, 'conv-1', wrappingKey);
+    expect(afterClear).toBeNull();
+  });
+
+  test('cached message is independent of pre-key storage', async () => {
+    const wrappingKey = randomBytes(32);
+    const messageId = crypto.randomUUID();
+    const content = {
+      text: 'cached independently',
+      fromIdentityId: 'identity-a',
+      fromDeviceId: 'device-a',
+      version: 1,
+    } as const;
+
+    await storeFsMessageContent(messageId, 'conv-1', content, wrappingKey);
+
+    // The FS message cache uses its own IndexedDB database ('adieuu-fs-message-cache'),
+    // separate from the pre-key storage database. Retrieving cached messages does not
+    // require pre-key private keys -- only the identity wrapping key.
+    const loaded = await getFsMessageContent(messageId, 'conv-1', wrappingKey);
+    expect(loaded).toEqual(content);
+  });
 });

@@ -41,6 +41,8 @@ export interface UsePreKeysResult {
   lastRotation: number | null;
   /** Trigger immediate SPK rotation (manual / panic button) */
   rotateNow: () => Promise<void>;
+  /** Delete all retired SPK private keys immediately, optionally clearing FS message cache */
+  purgeRetiredKeys: (clearCache?: boolean) => Promise<number>;
   /** Trigger OTPK replenishment check (call after decrypting OTPK messages) */
   triggerReplenishCheck: () => void;
   /** Current FS configuration for this identity */
@@ -153,6 +155,11 @@ export function usePreKeys(): UsePreKeysResult {
       const deleted = await cleanupRetiredSpks(identity.id, deviceId, currentConfig);
       if (deleted > 0) {
         console.debug(`[PreKeys] Cleaned up ${deleted} retired SPK(s)`);
+        if (currentConfig.clearCacheOnRotation) {
+          const { clearFsMessageCache } = await import('../services/localMessageStorage');
+          await clearFsMessageCache();
+          console.debug('[PreKeys] Cleared FS message cache after rotation cleanup');
+        }
       }
 
       // Also check OTPK replenishment (runs on app open and periodic checks)
@@ -246,6 +253,11 @@ export function usePreKeys(): UsePreKeysResult {
       const deleted = await cleanupRetiredSpks(identity.id, deviceId, currentConfig);
       if (deleted > 0) {
         console.debug(`[PreKeys] Cleaned up ${deleted} retired SPK(s) after manual rotation`);
+        if (currentConfig.clearCacheOnRotation) {
+          const { clearFsMessageCache } = await import('../services/localMessageStorage');
+          await clearFsMessageCache();
+          console.debug('[PreKeys] Cleared FS message cache after manual rotation cleanup');
+        }
       }
 
       // Reset the timer from now
@@ -265,6 +277,27 @@ export function usePreKeys(): UsePreKeysResult {
     }
   }, [status, identity, getSigningKey, getCurrentDeviceId, getWrappingKey, api, performRotationCheck]);
 
+  const purgeRetiredKeysAction = useCallback(async (clearCache?: boolean): Promise<number> => {
+    if (status !== 'logged_in' || !identity) return 0;
+
+    const deviceId = getCurrentDeviceId();
+    if (!deviceId) return 0;
+
+    const { purgeRetiredKeys: doPurge } = await import('../services/preKeyService');
+    const deleted = await doPurge(identity.id, deviceId);
+    if (deleted > 0) {
+      console.debug(`[PreKeys] Purged ${deleted} retired SPK(s)`);
+    }
+
+    if (clearCache) {
+      const { clearFsMessageCache } = await import('../services/localMessageStorage');
+      await clearFsMessageCache();
+      console.debug('[PreKeys] Cleared FS message cache alongside purge');
+    }
+
+    return deleted;
+  }, [status, identity, getCurrentDeviceId]);
+
   const triggerReplenishCheck = useCallback(() => {
     replenishDebouncerRef.current?.trigger();
   }, []);
@@ -273,6 +306,7 @@ export function usePreKeys(): UsePreKeysResult {
     isRotating,
     lastRotation,
     rotateNow,
+    purgeRetiredKeys: purgeRetiredKeysAction,
     triggerReplenishCheck,
     config,
     updateConfig,

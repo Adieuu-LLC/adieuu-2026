@@ -33,7 +33,6 @@ import {
   deriveConversationId,
   deriveSenderHintKey,
   deriveSenderHintNonce,
-  getSigningPublicKey,
   SESSION_KEY_SIZE,
   type CryptoProfile,
   type WrappedKey,
@@ -202,8 +201,8 @@ function serializePreKeyWrappedKey(
     wrappedSessionKey: toBase64(wk.wrappedSessionKey),
     wrappingNonce: toBase64(wk.wrappingNonce),
     preKeyType,
-    signedPreKeyId: preKeyData.signedPreKeyId,
     oneTimePreKeyId: preKeyData.oneTimePreKeyId,
+    signedPreKeyId: preKeyData.signedPreKeyId,
     oneTimeKemCiphertext: wk.otpkKemCiphertext ? toBase64(wk.otpkKemCiphertext) : undefined,
   };
 }
@@ -292,22 +291,7 @@ export function encryptDmMessage(input: EncryptMessageInput): EncryptedMessage {
     wrappedKeysBytes
   );
 
-  // Debug logging for signature creation
-  console.log('[DM Encrypt] Creating signature...');
-  console.log('[DM Encrypt] wrappedKeysJson length:', wrappedKeysJson.length);
-  console.log('[DM Encrypt] wrappedKeysJson first 100 chars:', wrappedKeysJson.slice(0, 100));
-  console.log('[DM Encrypt] wrappedKeysJson last 100 chars:', wrappedKeysJson.slice(-100));
-  console.log('[DM Encrypt] wrappedKeysBytes checksum:', Array.from(wrappedKeysBytes.slice(0, 8)).join(','), '...', Array.from(wrappedKeysBytes.slice(-8)).join(','));
-  console.log('[DM Encrypt] ciphertext length:', ciphertextBytes.length);
-  console.log('[DM Encrypt] nonce length:', nonceBytes.length);
-  console.log('[DM Encrypt] signatureData length:', signatureData.length);
-
-  // Derive public key from private key to verify consistency
-  const derivedPublicKey = getSigningPublicKey(input.signingPrivateKey);
-  console.log('[DM Encrypt] Derived signing public key (base64):', toBase64(derivedPublicKey));
-
   const signatureBytes = sign(input.signingPrivateKey, signatureData);
-  console.log('[DM Encrypt] signature (base64):', toBase64(signatureBytes));
 
   return {
     ciphertext: ciphertextB64,
@@ -349,20 +333,7 @@ export function decryptDmMessage(input: DecryptMessageInput): DecryptedMessageCo
     wrappedKeysBytes
   );
 
-  // Debug logging for signature verification
-  console.log('[DM Decrypt] Verifying signature...');
-  console.log('[DM Decrypt] wrappedKeysJson length:', wrappedKeysJson.length);
-  console.log('[DM Decrypt] wrappedKeysJson first 100 chars:', wrappedKeysJson.slice(0, 100));
-  console.log('[DM Decrypt] wrappedKeysJson last 100 chars:', wrappedKeysJson.slice(-100));
-  console.log('[DM Decrypt] wrappedKeysBytes checksum:', Array.from(wrappedKeysBytes.slice(0, 8)).join(','), '...', Array.from(wrappedKeysBytes.slice(-8)).join(','));
-  console.log('[DM Decrypt] signingPublicKey (base64):', input.senderSigningPublicKey);
-  console.log('[DM Decrypt] signature (base64):', input.signature);
-  console.log('[DM Decrypt] ciphertext length:', ciphertextBytes.length);
-  console.log('[DM Decrypt] nonce length:', nonceBytes.length);
-  console.log('[DM Decrypt] signatureData length:', signatureData.length);
-
   const isValid = verify(signingPublicKey, signatureData, signatureBytes);
-  console.log('[DM Decrypt] Signature valid:', isValid);
 
   if (!isValid) {
     throw new Error('Message signature verification failed');
