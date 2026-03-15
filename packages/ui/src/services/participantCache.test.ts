@@ -36,7 +36,8 @@ describe('Participant Cache Service', () => {
   });
 
   it('test environment provides IndexedDB', () => {
-    expect(typeof globalThis.indexedDB).toBe('object');
+    expect(globalThis.indexedDB).toBeDefined();
+    expect(globalThis.indexedDB).not.toBeNull();
   });
 
   describe('cacheParticipant / getCachedParticipant', () => {

@@ -670,6 +670,8 @@ export async function clearAllPreKeys(): Promise<void> {
       for (const keyId of allKeyIds) {
         await storageBackend.deleteKey(keyId);
       }
+    } else {
+      console.warn('[PreKeyStorage] clearAllPreKeys: listKeys not available, cannot clear SecureStorage backend');
     }
     return;
   }
@@ -678,17 +680,20 @@ export async function clearAllPreKeys(): Promise<void> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction([SPK_STORE, OTPK_STORE], 'readwrite');
 
-    const spkClear = tx.objectStore(SPK_STORE).clear();
-    const otpkClear = tx.objectStore(OTPK_STORE).clear();
+    tx.objectStore(SPK_STORE).clear();
+    tx.objectStore(OTPK_STORE).clear();
 
-    let completed = 0;
-    const onDone = () => { completed++; if (completed === 2) resolve(); };
-
-    spkClear.onerror = () => reject(new PreKeyStorageError('Failed to clear SPKs', 'CLEAR_FAILED'));
-    spkClear.onsuccess = onDone;
-    otpkClear.onerror = () => reject(new PreKeyStorageError('Failed to clear OTPKs', 'CLEAR_FAILED'));
-    otpkClear.onsuccess = onDone;
-
-    tx.oncomplete = () => db.close();
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(new PreKeyStorageError('Failed to clear pre-keys', 'CLEAR_FAILED'));
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(new PreKeyStorageError('Failed to clear pre-keys', 'CLEAR_FAILED'));
+    };
   });
 }
