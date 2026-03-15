@@ -41,8 +41,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages
-        run: pnpm build --filter @adieuu/shared --filter @adieuu/ui --filter @adieuu/tsconfig
+      - name: Build workspace apps and transitive dependencies
+        run: pnpm build --filter @adieuu/api... --filter @adieuu/web... --filter @adieuu/desktop... --filter @adieuu/chat... --filter @adieuu/mobile...
 
       - name: Type check
         run: pnpm typecheck
@@ -103,8 +103,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared packages
-        run: pnpm build --filter @adieuu/shared --filter @adieuu/tsconfig
+      - name: Build API and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/api...
 
       - name: Run API tests with coverage
         run: bun test --coverage --coverage-reporter=lcov --reporter=junit --reporter-outfile=junit.xml
@@ -161,8 +161,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared packages
-        run: pnpm build --filter @adieuu/shared --filter @adieuu/ui --filter @adieuu/tsconfig
+      - name: Build API and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/api...
 
       - name: Run security regression suite
         run: pnpm test:security
@@ -189,8 +189,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared packages
-        run: pnpm build --filter @adieuu/shared --filter @adieuu/ui --filter @adieuu/tsconfig
+      - name: Build UI/API and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/ui... --filter @adieuu/api...
 
       - name: Run forward secrecy regression suite
         run: pnpm test:fs
@@ -270,11 +270,8 @@ jobs:
           retry_wait_seconds: 30
           command: pnpm install --frozen-lockfile
 
-      - name: Build shared packages
-        run: pnpm build --filter @adieuu/shared --filter @adieuu/ui --filter @adieuu/tsconfig
-
-      - name: Build Electron app
-        run: pnpm build --filter @adieuu/desktop
+      - name: Build desktop and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/desktop...
 
       - name: Package Electron app
         run: pnpm --filter @adieuu/desktop package
