@@ -138,7 +138,7 @@ describe('keyBackupService', () => {
       }
     });
 
-    test('throws NO_KEYS when identity has no device keys', async () => {
+    test('throws NO_DATA when identity has no exportable keys', async () => {
       const wrappingSalt = generateWrappingSalt();
 
       try {
@@ -146,7 +146,7 @@ describe('keyBackupService', () => {
         expect(true).toBe(false);
       } catch (err) {
         expect(err).toBeInstanceOf(KeyBackupError);
-        expect((err as KeyBackupError).code).toBe('NO_KEYS');
+        expect((err as KeyBackupError).code).toBe('NO_DATA');
       }
     });
 

@@ -1,19 +1,25 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
-const storeSignedPreKeyMock = mock(async () => {});
-const storeOneTimePreKeysMock = mock(async () => {});
-const getActiveSignedPreKeyMock = mock(async () => null as {
-  keyId: string;
-  createdAt: string;
-} | null);
-const getRetiredSignedPreKeysMock = mock(async () => [] as Array<{
-  keyId: string;
-  retiredAt?: string;
-}>);
-const retireSignedPreKeyMock = mock(async () => {});
-const deleteSignedPreKeyMock = mock(async () => {});
+const realPreKeyStorage = await import('./preKeyStorage');
+
+const realStoreSignedPreKey = realPreKeyStorage.storeSignedPreKey;
+const realStoreOneTimePreKeys = realPreKeyStorage.storeOneTimePreKeys;
+const realGetActiveSignedPreKey = realPreKeyStorage.getActiveSignedPreKey;
+const realGetRetiredSignedPreKeys = realPreKeyStorage.getRetiredSignedPreKeys;
+const realRetireSignedPreKey = realPreKeyStorage.retireSignedPreKey;
+const realDeleteSignedPreKey = realPreKeyStorage.deleteSignedPreKey;
+
+const storeSignedPreKeyMock = mock(realStoreSignedPreKey);
+const storeOneTimePreKeysMock = mock(realStoreOneTimePreKeys);
+const getActiveSignedPreKeyMock = mock(realGetActiveSignedPreKey);
+const getRetiredSignedPreKeysMock = mock(realGetRetiredSignedPreKeys);
+const retireSignedPreKeyMock = mock(realRetireSignedPreKey);
+const deleteSignedPreKeyMock = mock(realDeleteSignedPreKey);
 
 mock.module('./preKeyStorage', () => ({
+  ...Object.fromEntries(Object.keys(realPreKeyStorage).map(
+    (k) => [k, (realPreKeyStorage as Record<string, unknown>)[k]]
+  )),
   storeSignedPreKey: storeSignedPreKeyMock,
   storeOneTimePreKeys: storeOneTimePreKeysMock,
   getActiveSignedPreKey: getActiveSignedPreKeyMock,
@@ -23,6 +29,24 @@ mock.module('./preKeyStorage', () => ({
 }));
 
 const preKeyService = await import('./preKeyService');
+
+function stubMocksForIsolation(): void {
+  storeSignedPreKeyMock.mockImplementation(async () => {});
+  storeOneTimePreKeysMock.mockImplementation(async () => {});
+  getActiveSignedPreKeyMock.mockImplementation(async () => null);
+  getRetiredSignedPreKeysMock.mockImplementation(async () => []);
+  retireSignedPreKeyMock.mockImplementation(async () => {});
+  deleteSignedPreKeyMock.mockImplementation(async () => {});
+}
+
+function restoreRealImplementations(): void {
+  storeSignedPreKeyMock.mockImplementation(realStoreSignedPreKey);
+  storeOneTimePreKeysMock.mockImplementation(realStoreOneTimePreKeys);
+  getActiveSignedPreKeyMock.mockImplementation(realGetActiveSignedPreKey);
+  getRetiredSignedPreKeysMock.mockImplementation(realGetRetiredSignedPreKeys);
+  retireSignedPreKeyMock.mockImplementation(realRetireSignedPreKey);
+  deleteSignedPreKeyMock.mockImplementation(realDeleteSignedPreKey);
+}
 
 describe('services/preKeyService', () => {
   const signingPrivateKey = new Uint8Array(32).fill(7);
@@ -35,6 +59,11 @@ describe('services/preKeyService', () => {
     getRetiredSignedPreKeysMock.mockReset();
     retireSignedPreKeyMock.mockReset();
     deleteSignedPreKeyMock.mockReset();
+    stubMocksForIsolation();
+  });
+
+  afterEach(() => {
+    restoreRealImplementations();
   });
 
   test('checkAndRotateSpk does not rotate when SPK is fresh', async () => {
