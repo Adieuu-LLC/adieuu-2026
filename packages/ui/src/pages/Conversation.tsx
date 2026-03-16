@@ -13,7 +13,7 @@ import { Button } from '../components/Button';
 import { AvatarGroup } from '../components/AvatarGroup';
 import { XIcon, UsersIcon, LockIcon } from '../components/Icons';
 import { MessageComposer } from '../components/MessageComposer';
-import { Popover } from '../components/Popover';
+import { MessageActionBar, type MessageMetadata } from '../components/MessageActionBar';
 import { useConversationsList } from '../hooks/useConversations';
 import { useConversationsContext } from '../hooks/ConversationsProvider';
 import { useIdentity } from '../hooks/useIdentity';
@@ -300,11 +300,11 @@ const MessageBubble = memo(function MessageBubble({
 }: MessageBubbleProps) {
   const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [isActionBarPopoverOpen, setIsActionBarPopoverOpen] = useState(false);
   const expiryCountdown = useExpiryCountdown(message.raw.expiresAt);
   const fsEnabledForMessage = message.raw.wrappedKeys.some((wk) => wk.preKeyType !== 'static');
 
-  const showActions = isHovered || isPopoverOpen;
+  const showActionBar = isHovered || isActionBarPopoverOpen;
 
   const handleDeleteForEveryone = useCallback(() => {
     if (onDeleteForEveryone && message.raw.id) {
@@ -318,7 +318,43 @@ const MessageBubble = memo(function MessageBubble({
     }
   }, [onDeleteForSelf, message.raw.id]);
 
-  const hasActions = (isOwn && onDeleteForEveryone) || onDeleteForSelf;
+  const hasMenuActions = (isOwn && onDeleteForEveryone) || onDeleteForSelf;
+
+  const metadata: MessageMetadata = useMemo(
+    () => ({
+      messageId: message.raw.id,
+      sentAt: message.raw.createdAt,
+      cryptoProfile: message.raw.cryptoProfile,
+      forwardSecrecy: fsEnabledForMessage,
+      expiresAt: message.raw.expiresAt,
+      conversationId: message.raw.conversationId,
+      clientMessageId: message.raw.clientMessageId,
+    }),
+    [message.raw, fsEnabledForMessage],
+  );
+
+  const menuContent = hasMenuActions ? (
+    <div className="message-action-bar-menu">
+      {isOwn && onDeleteForEveryone && (
+        <button
+          className="message-action-bar-menu-item message-action-bar-menu-item--danger"
+          onClick={handleDeleteForEveryone}
+          disabled={isDeleting}
+        >
+          {t('messages.deleteForEveryone')}
+        </button>
+      )}
+      {onDeleteForSelf && (
+        <button
+          className="message-action-bar-menu-item"
+          onClick={handleDeleteForSelf}
+          disabled={isDeleting}
+        >
+          {t('messages.deleteForMe')}
+        </button>
+      )}
+    </div>
+  ) : undefined;
 
   if (message.isDeleted) {
     return (
@@ -349,8 +385,18 @@ const MessageBubble = memo(function MessageBubble({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className={`dm-message-bubble ${isOwn ? 'dm-message-bubble--own' : ''}`}>
-        <p className="dm-message-text">{message.decrypted?.text}</p>
+      <div className="dm-message-bubble-wrapper">
+        <MessageActionBar
+          metadata={metadata}
+          menuContent={menuContent}
+          visible={showActionBar}
+          isOwn={isOwn}
+          disabled={isDeleting}
+          onPopoverOpenChange={setIsActionBarPopoverOpen}
+        />
+        <div className={`dm-message-bubble ${isOwn ? 'dm-message-bubble--own' : ''}`}>
+          <p className="dm-message-text">{message.decrypted?.text}</p>
+        </div>
       </div>
       <div className="dm-message-footer">
         <span className="dm-message-time">{formatMessageTime(message.raw.createdAt)}</span>
@@ -367,47 +413,10 @@ const MessageBubble = memo(function MessageBubble({
             {expiryCountdown}
           </span>
         )}
-        {hasActions && showActions && (
-          <Popover
-            trigger={
-              <button
-                className="dm-message-actions-btn"
-                aria-label={t('messages.actions')}
-                disabled={isDeleting}
-              >
-                <span className="dm-message-actions-icon">...</span>
-              </button>
-            }
-            positioning={{ placement: isOwn ? 'bottom-end' : 'bottom-start' }}
-            onOpenChange={setIsPopoverOpen}
-          >
-            <div className="dm-message-actions-menu">
-              {isOwn && onDeleteForEveryone && (
-                <button
-                  className="dm-message-actions-item dm-message-actions-item--danger"
-                  onClick={handleDeleteForEveryone}
-                  disabled={isDeleting}
-                >
-                  {t('messages.deleteForEveryone')}
-                </button>
-              )}
-              {onDeleteForSelf && (
-                <button
-                  className="dm-message-actions-item"
-                  onClick={handleDeleteForSelf}
-                  disabled={isDeleting}
-                >
-                  {t('messages.deleteForMe')}
-                </button>
-              )}
-            </div>
-          </Popover>
-        )}
       </div>
     </div>
   );
 }, (prevProps, nextProps) => {
-  // Custom comparison to avoid re-renders when callbacks change reference
   return (
     prevProps.message.raw.id === nextProps.message.raw.id &&
     prevProps.message.isDeleted === nextProps.message.isDeleted &&

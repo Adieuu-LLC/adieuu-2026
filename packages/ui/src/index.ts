@@ -167,6 +167,7 @@ export { AvatarGroup } from './components/AvatarGroup';
 export { ConversationListItem } from './components/ConversationListItem';
 export { SidebarConversationsList } from './components/SidebarConversationsList';
 export { MessageComposer, TTL_OPTIONS } from './components/MessageComposer';
+export { MessageActionBar } from './components/MessageActionBar';
 export { KeyStorageBanner } from './components/KeyStorageBanner';
 export { UpdateBanner } from './components/UpdateBanner';
 export { ExportKeyBackupModal } from './components/ExportKeyBackupModal';
@@ -174,6 +175,7 @@ export { ImportKeyBackupModal } from './components/ImportKeyBackupModal';
 export type { ExportKeyBackupModalProps } from './components/ExportKeyBackupModal';
 export type { ImportKeyBackupModalProps } from './components/ImportKeyBackupModal';
 export type { MessageComposerProps, SendMessageData, TtlOption } from './components/MessageComposer';
+export type { MessageActionBarProps, MessageMetadata } from './components/MessageActionBar';
 
 // ============================================================================
 // Icons
@@ -197,6 +199,7 @@ export {
   PlusIcon,
   InfoCircleIcon,
   SpacesIcon,
+  EllipsisHorizontalIcon,
 } from './components/Icons';
 
 // ============================================================================

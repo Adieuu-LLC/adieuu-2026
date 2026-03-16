@@ -5333,6 +5333,7 @@ a {
 .dm-messages {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--spacing-md);
   display: flex;
   flex-direction: column;
@@ -5359,6 +5360,10 @@ a {
 .dm-message--own {
   align-self: flex-end;
   align-items: flex-end;
+}
+
+.dm-message-bubble-wrapper {
+  position: relative;
 }
 
 .dm-message-bubble {
@@ -5443,20 +5448,48 @@ a {
   background: var(--color-bg-tertiary);
 }
 
-.dm-message-actions-btn {
+// ============================================================================
+// Message Action Bar (reusable across DMs, groups, Spaces)
+// ============================================================================
+
+.message-action-bar {
+  position: absolute;
+  top: 0;
+  left: var(--spacing-xs);
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1;
+
+  &--own {
+    left: auto;
+    right: var(--spacing-xs);
+  }
+}
+
+.message-action-bar-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 6px;
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: none;
+  border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.15s ease;
+  color: var(--color-text-secondary);
+  transition: background-color 0.15s ease, color 0.15s ease;
 
   &:hover {
-    opacity: 1;
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
   }
 
   &:disabled {
@@ -5465,21 +5498,45 @@ a {
   }
 }
 
-.dm-message-actions-icon {
-  font-size: var(--font-size-sm);
-  letter-spacing: 1px;
-  line-height: 1;
-  color: var(--color-text-secondary);
+.message-action-bar-icon {
+  width: 16px;
+  height: 16px;
 }
 
-.dm-message-actions-menu {
+.message-action-bar-info {
+  padding: var(--spacing-sm);
+  max-width: 360px;
+}
+
+.message-action-bar-info-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-xs);
+}
+
+.message-action-bar-info-label {
+  padding: 3px var(--spacing-sm) 3px 0;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  vertical-align: top;
+  font-weight: 500;
+}
+
+.message-action-bar-info-value {
+  padding: 3px 0;
+  color: var(--color-text-primary);
+  word-break: break-all;
+  font-family: var(--font-mono, monospace);
+}
+
+.message-action-bar-menu {
   display: flex;
   flex-direction: column;
   min-width: 160px;
   padding: var(--spacing-xs) 0;
 }
 
-.dm-message-actions-item {
+.message-action-bar-menu-item {
   display: block;
   width: 100%;
   padding: var(--spacing-xs) var(--spacing-md);
