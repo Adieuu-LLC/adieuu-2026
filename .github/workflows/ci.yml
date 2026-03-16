@@ -30,8 +30,6 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - uses: actions/setup-node@v6
         with:
@@ -65,8 +63,6 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - uses: actions/setup-node@v6
         with:
@@ -96,8 +92,6 @@ jobs:
           bun-version: latest
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - uses: actions/setup-node@v6
         with:
@@ -154,8 +148,6 @@ jobs:
           bun-version: latest
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - uses: actions/setup-node@v6
         with:
@@ -182,8 +174,6 @@ jobs:
           bun-version: latest
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - uses: actions/setup-node@v6
         with:
@@ -210,8 +200,6 @@ jobs:
           bun-version: latest
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - uses: actions/setup-node@v6
         with:
@@ -250,8 +238,6 @@ jobs:
       - uses: actions/checkout@v6
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - uses: actions/setup-node@v6
         with:
