@@ -253,6 +253,7 @@ jobs:
             electron-${{ runner.os }}-
 
       - name: Install dependencies
+        shell: bash
         run: |
           attempt=1
           max_attempts=3
