@@ -3,7 +3,7 @@
 [![Release](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/release.yml/badge.svg)](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/release.yml)
 [![codecov](https://codecov.io/github/Adieuu-LLC/adieuu-26/graph/badge.svg?token=2MI5WRYO9K)](https://codecov.io/github/Adieuu-LLC/adieuu-26)
 
-Cross-platform application with web, desktop (Electron), and mobile (Capacitor) targets. 
+Cross-platform application with web, desktop (Electron), and mobile (Capacitor) targets.
 
 ## Stack
 
