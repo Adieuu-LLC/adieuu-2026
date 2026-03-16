@@ -11,7 +11,7 @@ import type { Conversation as ConversationType, PublicIdentity } from '@adieuu/s
 import { createApiClient } from '@adieuu/shared';
 import { Button } from '../components/Button';
 import { AvatarGroup } from '../components/AvatarGroup';
-import { XIcon, UsersIcon, LockIcon } from '../components/Icons';
+import { XIcon, UsersIcon, SettingsIcon, LockIcon } from '../components/Icons';
 import { MessageComposer } from '../components/MessageComposer';
 import { MessageActionBar, type MessageMetadata } from '../components/MessageActionBar';
 import { useConversationsList } from '../hooks/useConversations';
@@ -58,7 +58,9 @@ interface ConversationToolbarProps {
   conversation?: ConversationType;
   otherParticipant?: PublicIdentity | null;
   showMembersSidebar: boolean;
+  showSettingsSidebar: boolean;
   onToggleMembersSidebar: () => void;
+  onToggleSettingsSidebar: () => void;
   onClose: () => void;
 }
 
@@ -66,7 +68,9 @@ function ConversationToolbar({
   conversation,
   otherParticipant,
   showMembersSidebar,
+  showSettingsSidebar,
   onToggleMembersSidebar,
+  onToggleSettingsSidebar,
   onClose,
 }: ConversationToolbarProps) {
   const { t } = useTranslation();
@@ -116,6 +120,15 @@ function ConversationToolbar({
         </div>
       </div>
       <div className="conversation-toolbar-right">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onToggleSettingsSidebar}
+          className={`conversation-toolbar-btn ${showSettingsSidebar ? 'active' : ''}`}
+          title={t('conversation.toggleSettings')}
+        >
+          <SettingsIcon />
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -225,6 +238,19 @@ function MembersSidebar({ conversation, otherParticipant }: MembersSidebarProps)
           </Link>
         ))}
       </div>
+    </div>
+  );
+}
+
+function SettingsSidebar() {
+  const { t } = useTranslation();
+
+  return (
+    <div className="conversation-settings-sidebar">
+      <div className="conversation-settings-header">
+        <h3>{t('conversation.settings')}</h3>
+      </div>
+      <div className="conversation-settings-body" />
     </div>
   );
 }
@@ -667,6 +693,7 @@ export function Conversation() {
   const { dmConversations } = useConversationsContext();
   const { isVisible, isVisibleRef } = useDocumentVisibility();
   const [showMembersSidebar, setShowMembersSidebar] = useState(true);
+  const [showSettingsSidebar, setShowSettingsSidebar] = useState(false);
   const [otherParticipant, setOtherParticipant] = useState<PublicIdentity | null>(null);
   const [otherParticipantId, setOtherParticipantId] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
@@ -801,6 +828,10 @@ export function Conversation() {
     setShowMembersSidebar((prev) => !prev);
   };
 
+  const handleToggleSettingsSidebar = () => {
+    setShowSettingsSidebar((prev) => !prev);
+  };
+
   const handleSendMessage = useCallback(async (
     text: string,
     expiresInSeconds?: number | null,
@@ -879,7 +910,9 @@ export function Conversation() {
           conversation={conversation}
           otherParticipant={effectiveOtherParticipant}
           showMembersSidebar={showMembersSidebar}
+          showSettingsSidebar={showSettingsSidebar}
           onToggleMembersSidebar={handleToggleMembersSidebar}
+          onToggleSettingsSidebar={handleToggleSettingsSidebar}
           onClose={handleClose}
         />
         <div className="conversation-body">
@@ -901,6 +934,7 @@ export function Conversation() {
               forwardSecrecyStorageKey={`adieuu-dm-fs-default-${identity.id}-${conversationId ?? ''}`}
             />
           </div>
+          {showSettingsSidebar && <SettingsSidebar />}
           {showMembersSidebar && (
             <MembersSidebar
               conversation={conversation}

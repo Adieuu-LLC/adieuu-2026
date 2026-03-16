@@ -781,6 +781,35 @@ a {
   overflow-y: auto;
 }
 
+.conversation-settings-sidebar {
+  width: 280px;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.conversation-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+
+  h3 {
+    margin: 0;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+  }
+}
+
+.conversation-settings-body {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-md);
+}
+
 .conversation-members-header {
   display: flex;
   align-items: center;

@@ -5201,6 +5201,45 @@ a {
 }
 
 // ============================================================================
+// Conversation Settings Sidebar
+// ============================================================================
+
+.conversation-settings-sidebar {
+  width: 280px;
+  height: 100%;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.conversation-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-muted);
+
+  h3 {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+}
+
+.conversation-settings-body {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-md);
+}
+
+// ============================================================================
 // Conversation Member Profile (for 1-1 DMs)
 // ============================================================================
 
@@ -5273,7 +5312,8 @@ a {
 // ============================================================================
 
 @media (max-width: $mobile-breakpoint) {
-  .conversation-members-sidebar {
+  .conversation-members-sidebar,
+  .conversation-settings-sidebar {
     position: absolute;
     right: 0;
     top: 0;
