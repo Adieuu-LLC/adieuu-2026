@@ -44,6 +44,8 @@ export interface SendMessageData {
   text: string;
   /** TTL in seconds (null for no expiry) */
   expiresInSeconds: TtlOption;
+  /** Whether forward secrecy wrapping is enabled for this message */
+  forwardSecrecy: boolean;
 }
 
 export interface MessageComposerProps {
@@ -59,6 +61,38 @@ export interface MessageComposerProps {
   className?: string;
   /** Whether to show TTL selector (default: true) */
   showTtlSelector?: boolean;
+  /** Whether to show forward secrecy toggle (default: true) */
+  showForwardSecrecyToggle?: boolean;
+  /** Default forward secrecy state when no stored preference exists */
+  forwardSecrecyDefault?: boolean;
+  /** Optional localStorage key used to persist forward secrecy preference */
+  forwardSecrecyStorageKey?: string;
+}
+
+function loadForwardSecrecyPreference(
+  storageKey: string | undefined,
+  fallback: boolean
+): boolean {
+  if (!storageKey || typeof localStorage === 'undefined') return fallback;
+  try {
+    const value = localStorage.getItem(storageKey);
+    if (value === null) return fallback;
+    return value === 'true';
+  } catch {
+    return fallback;
+  }
+}
+
+function saveForwardSecrecyPreference(
+  storageKey: string | undefined,
+  value: boolean
+): void {
+  if (!storageKey || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(storageKey, String(value));
+  } catch {
+    // Ignore storage failures (private browsing, quota, etc.).
+  }
 }
 
 export function MessageComposer({
@@ -68,10 +102,16 @@ export function MessageComposer({
   placeholder,
   className = '',
   showTtlSelector = true,
+  showForwardSecrecyToggle = true,
+  forwardSecrecyDefault = true,
+  forwardSecrecyStorageKey,
 }: MessageComposerProps) {
   const { t } = useTranslation();
   const [text, setText] = useState('');
   const [selectedTtl, setSelectedTtl] = useState<TtlOption>(null);
+  const [forwardSecrecy, setForwardSecrecy] = useState<boolean>(() =>
+    loadForwardSecrecyPreference(forwardSecrecyStorageKey, forwardSecrecyDefault)
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isDisabled = disabled || isSending;
@@ -107,13 +147,14 @@ export function MessageComposer({
     onSend({
       text: trimmedText,
       expiresInSeconds: selectedTtl,
+      forwardSecrecy,
     });
     setText('');
 
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  }, [canSend, text, selectedTtl, onSend]);
+  }, [canSend, text, selectedTtl, forwardSecrecy, onSend]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -129,6 +170,14 @@ export function MessageComposer({
     setSelectedTtl(ttl);
   }, []);
 
+  const handleForwardSecrecyToggle = useCallback(() => {
+    setForwardSecrecy((prev) => {
+      const next = !prev;
+      saveForwardSecrecyPreference(forwardSecrecyStorageKey, next);
+      return next;
+    });
+  }, [forwardSecrecyStorageKey]);
+
   const selectedTtlOption = TTL_OPTIONS.find((opt) => opt.value === selectedTtl) ?? TTL_OPTIONS[0];
 
   const remainingChars = MAX_MESSAGE_LENGTH - text.length;
@@ -136,40 +185,56 @@ export function MessageComposer({
 
   return (
     <div className={`message-composer ${className}`}>
-      {showTtlSelector && (
+      {(showTtlSelector || showForwardSecrecyToggle) && (
         <div className="message-composer-toolbar">
-          <Popover
-            trigger={
-              <button
-                type="button"
-                className={`message-composer-ttl-btn ${selectedTtl !== null ? 'message-composer-ttl-btn--active' : ''}`}
-                aria-label={t('messages.ttl.select')}
-                disabled={isDisabled}
-              >
-                <span className="message-composer-ttl-icon">&#128337;</span>
-                <span className="message-composer-ttl-label">
-                  {t(selectedTtlOption?.labelKey ?? 'messages.ttl.never')}
-                </span>
-              </button>
-            }
-            positioning={{ placement: 'top-start' }}
-          >
-            <div className="message-composer-ttl-menu">
-              <div className="message-composer-ttl-menu-header">
-                {t('messages.ttl.header')}
-              </div>
-              {TTL_OPTIONS.map((option) => (
+          {showTtlSelector && (
+            <Popover
+              trigger={
                 <button
-                  key={option.value ?? 'never'}
                   type="button"
-                  className={`message-composer-ttl-option ${selectedTtl === option.value ? 'message-composer-ttl-option--selected' : ''}`}
-                  onClick={() => handleTtlSelect(option.value)}
+                  className={`message-composer-ttl-btn ${selectedTtl !== null ? 'message-composer-ttl-btn--active' : ''}`}
+                  aria-label={t('messages.ttl.select')}
+                  disabled={isDisabled}
                 >
-                  {t(option.labelKey)}
+                  <span className="message-composer-ttl-icon">&#128337;</span>
+                  <span className="message-composer-ttl-label">
+                    {t(selectedTtlOption?.labelKey ?? 'messages.ttl.never')}
+                  </span>
                 </button>
-              ))}
-            </div>
-          </Popover>
+              }
+              positioning={{ placement: 'top-start' }}
+            >
+              <div className="message-composer-ttl-menu">
+                <div className="message-composer-ttl-menu-header">
+                  {t('messages.ttl.header')}
+                </div>
+                {TTL_OPTIONS.map((option) => (
+                  <button
+                    key={option.value ?? 'never'}
+                    type="button"
+                    className={`message-composer-ttl-option ${selectedTtl === option.value ? 'message-composer-ttl-option--selected' : ''}`}
+                    onClick={() => handleTtlSelect(option.value)}
+                  >
+                    {t(option.labelKey)}
+                  </button>
+                ))}
+              </div>
+            </Popover>
+          )}
+          {showForwardSecrecyToggle && (
+            <button
+              type="button"
+              className={`message-composer-fs-btn ${forwardSecrecy ? 'message-composer-fs-btn--active' : ''}`}
+              onClick={handleForwardSecrecyToggle}
+              aria-label={t('messages.fs.toggle')}
+              title={forwardSecrecy ? t('messages.fs.enabledHint') : t('messages.fs.disabledHint')}
+              disabled={isDisabled}
+            >
+              <span className="message-composer-fs-label">
+                {forwardSecrecy ? t('messages.fs.enabled') : t('messages.fs.disabled')}
+              </span>
+            </button>
+          )}
         </div>
       )}
       <div className="message-composer-input-wrapper">

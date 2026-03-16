@@ -13,9 +13,12 @@
     "services:up": "docker compose up -d",
     "services:down": "docker compose down",
     "services:logs": "docker compose logs -f",
+    "services:status": "docker ps --format 'table {{.Names}}\t{{.Ports}}'",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "test:force": "turbo run test --force",
+    "test:fs": "pnpm --filter @adieuu/ui test -- ./src/hooks/usePreKeys.scheduler.test.ts ./src/hooks/useDmMessages.fs-cache.test.ts ./src/services/preKeyStorage.test.ts ./src/services/preKeyService.test.ts ./src/services/localMessageStorage.test.ts && pnpm --filter @adieuu/api test -- ./src/repositories/pre-key.repository.test.ts ./src/routes/identity/pre-key.controller.test.ts",
+    "test:security": "pnpm --filter @adieuu/api test -- ./src/repositories/session.repository.test.ts ./src/repositories/block.repository.test.ts ./src/repositories/mfa.repository.test.ts ./src/services/session.service.test.ts ./src/services/rate-limit.service.test.ts ./src/services/block.service.test.ts ./src/services/mfa.service.test.ts && pnpm --filter @adieuu/api test -- ./src/routes/blocks/controller.test.ts ./src/routes/mfa/controller.test.ts",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules"
   },

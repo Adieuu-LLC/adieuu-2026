@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
 mock.module('../../config', () => ({
@@ -133,10 +133,12 @@ const mockMessage = {
   nonce: 'nonce-base64',
   wrappedKeys: [{
     identityId: mockRecipientId.toHexString(),
+    deviceId: 'device-2',
     ephemeralPublicKey: 'ephemeral-key',
     kemCiphertext: 'kem-ct',
     wrappedSessionKey: 'wrapped-key',
     wrappingNonce: 'wrap-nonce',
+    preKeyType: 'static' as const,
   }],
   signature: 'signature-base64',
   cryptoProfile: 'default' as const,
@@ -269,6 +271,10 @@ function createMockContext(options: {
 }
 
 describe('DM Controller', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     mockFindByConversationId.mockReset();
     mockGetOrCreate.mockReset();
@@ -390,10 +396,12 @@ describe('DM Controller', () => {
       nonce: 'nonce-value',
       wrappedKeys: [{
         identityId: mockRecipientId.toHexString(),
+        deviceId: 'device-2',
         ephemeralPublicKey: 'ephemeral-key',
         kemCiphertext: 'kem-ct',
         wrappedSessionKey: 'wrapped-key',
         wrappingNonce: 'wrap-nonce',
+        preKeyType: 'static' as const,
       }],
       signature: 'signature-value',
       cryptoProfile: 'default',

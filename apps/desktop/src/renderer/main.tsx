@@ -2,7 +2,7 @@ import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import { initI18n } from '@adieuu/ui/i18n';
-import { App, PlatformProvider, AuthProvider, IdentityProvider, ToastProvider, type AppConfig, setDeviceKeyStorageBackend, migrateIndexedDbToBackend } from '@adieuu/ui';
+import { App, PlatformProvider, AuthProvider, IdentityProvider, ToastProvider, type AppConfig, setDeviceKeyStorageBackend, setPreKeyStorageBackend, migrateIndexedDbToBackend } from '@adieuu/ui';
 import { desktopCapabilities } from './platform';
 import { API_BASE_URL, CHAT_WS_URL } from './config';
 import { WindowTitleBar } from './components/WindowTitleBar';
@@ -15,6 +15,7 @@ initI18n();
 // Use TEE-backed secure storage for device keys instead of IndexedDB.
 // Must be called before any identity/login operations.
 setDeviceKeyStorageBackend(desktopCapabilities.secureStorage);
+setPreKeyStorageBackend(desktopCapabilities.secureStorage);
 migrateIndexedDbToBackend().then((count: number) => {
   if (count > 0) {
     console.info(`[Desktop] Migrated ${count} device key record(s) from IndexedDB to secure storage`);

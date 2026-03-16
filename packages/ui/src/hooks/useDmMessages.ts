@@ -6,8 +6,8 @@
  */
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { createApiClient, type DmMessage, type DmMessageTombstone, type DmConversation } from '@adieuu/shared';
-import { deriveConversationId, type CryptoProfile, fromBase64 } from '@adieuu/crypto';
+import { createApiClient, type DmMessage, type DmMessageTombstone, type DmConversation, type ClaimedDevicePreKeys } from '@adieuu/shared';
+import { deriveConversationId, verifySignedPreKey, type CryptoProfile, type SignedPreKeyPublic, type OneTimePreKeyPublic, fromBase64 } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
 import {
@@ -18,6 +18,8 @@ import {
   decryptSenderHint,
   type DecryptedMessageContent,
   type RecipientPublicKeys,
+  type PreKeyRecipientData,
+  type PreKeyPrivateKeys,
 } from '../services/dmMessageService';
 import {
   getStoredDeviceKeys,
@@ -25,10 +27,23 @@ import {
   type DecryptedDeviceKeys,
 } from '../services/deviceKeyStorage';
 import {
+  findAndDecryptSignedPreKey,
+  findAndDecryptOneTimePreKey,
+  deleteOneTimePreKey,
+} from '../services/preKeyStorage';
+import {
+  getFsMessageContent,
+  storeFsMessageContent,
+} from '../services/localMessageStorage';
+import {
   getCachedParticipant,
   cacheParticipant,
 } from '../services/participantCache';
 import { encryptLastReadId } from '../services/readStateService';
+import {
+  maybeGetFsCachedMessage,
+  persistFsMessageAndMaybeDeleteOtpk,
+} from './useDmMessages.fs-cache';
 
 // ============================================================================
 // Helpers
@@ -78,6 +93,8 @@ export interface SendDmMessageInput {
   expiresInSeconds?: number;
   /** Optional reply to message ID */
   replyToId?: string;
+  /** Whether to use forward secrecy (pre-key wrapping) for this message. Defaults to true. */
+  forwardSecrecy?: boolean;
 }
 
 export interface SendDmMessageResult {
@@ -210,7 +227,10 @@ export function useSendDmMessage(): UseSendDmMessageResult {
         const conversation = convResponse.data.conversation;
         const cryptoProfile = conversation.activeCryptoProfile as CryptoProfile;
 
-        // 2. Get recipient's public keys (all devices)
+        const fsEnabled = input.forwardSecrecy ?? true;
+
+        // 2. Get recipient's public keys (all devices) -- needed for static
+        // fallback and for devices without pre-keys
         const recipientKeysResponse = await api.identity.getPublicKeys(input.toIdentityId);
         if (!recipientKeysResponse.success || !recipientKeysResponse.data) {
           const errMsg = recipientKeysResponse.error?.message ?? 'Failed to get recipient keys';
@@ -229,6 +249,21 @@ export function useSendDmMessage(): UseSendDmMessageResult {
           });
         }
 
+        // 2c. If FS enabled, claim pre-keys for recipient devices
+        let claimedPreKeys: ClaimedDevicePreKeys[] | undefined;
+        if (fsEnabled) {
+          try {
+            const claimResponse = await api.identity.claimPreKeys(input.toIdentityId);
+            if (claimResponse.success && claimResponse.data) {
+              claimedPreKeys = claimResponse.data.devices;
+            } else {
+              console.warn('[DM] Pre-key claim returned no data, falling back to static wrapping');
+            }
+          } catch (err) {
+            console.warn('[DM] Failed to claim pre-keys, falling back to static wrapping', err);
+          }
+        }
+
         // 3. Get sender's own device keys for encryption (so sender can read own messages)
         const senderKeysResponse = await api.identity.getPublicKeys(identity.id);
         if (!senderKeysResponse.success || !senderKeysResponse.data) {
@@ -240,14 +275,50 @@ export function useSendDmMessage(): UseSendDmMessageResult {
         // 4. Build recipient keys list (all recipient devices + all sender devices)
         const recipientKeys: Array<{
           identityId: string;
-          deviceId?: string;
+          deviceId: string;
           publicKeys: RecipientPublicKeys;
+          preKeyData?: PreKeyRecipientData;
         }> = [];
 
-        // Add recipient devices
+        // Add recipient devices -- use pre-key wrapping where available
+        const recipientSigningPubKey = recipientKeysResponse.data.signingPublicKey
+          ? fromBase64(recipientKeysResponse.data.signingPublicKey)
+          : undefined;
+
         for (const device of recipientKeysResponse.data.devices) {
-          // Skip devices without KEM key (old devices not supporting E2E)
           if (!device.kemPublicKey) continue;
+
+          let preKeyData: PreKeyRecipientData | undefined;
+
+          if (claimedPreKeys && recipientSigningPubKey) {
+            const claimed = claimedPreKeys.find((c) => c.deviceId === device.deviceId);
+            if (claimed?.signedPreKey) {
+              const spkPublic: SignedPreKeyPublic = {
+                keyId: claimed.signedPreKey.keyId,
+                ecdhPublicKey: fromBase64(claimed.signedPreKey.ecdhPublicKey),
+                kemPublicKey: fromBase64(claimed.signedPreKey.kemPublicKey),
+                signature: fromBase64(claimed.signedPreKey.signature),
+              };
+
+              if (verifySignedPreKey(spkPublic, recipientSigningPubKey)) {
+                preKeyData = {
+                  signedPreKey: spkPublic,
+                  signedPreKeyId: claimed.signedPreKey.keyId,
+                };
+                if (claimed.oneTimePreKey) {
+                  const otpkPublic: OneTimePreKeyPublic = {
+                    keyId: claimed.oneTimePreKey.keyId,
+                    ecdhPublicKey: fromBase64(claimed.oneTimePreKey.ecdhPublicKey),
+                    kemPublicKey: fromBase64(claimed.oneTimePreKey.kemPublicKey),
+                  };
+                  preKeyData.oneTimePreKey = otpkPublic;
+                  preKeyData.oneTimePreKeyId = claimed.oneTimePreKey.keyId;
+                }
+              } else {
+                console.warn(`[DM] SPK signature verification failed for device ${device.deviceId}, using static wrapping`);
+              }
+            }
+          }
 
           recipientKeys.push({
             identityId: input.toIdentityId,
@@ -257,12 +328,12 @@ export function useSendDmMessage(): UseSendDmMessageResult {
               kem: fromBase64(device.kemPublicKey),
               profile: cryptoProfile,
             },
+            preKeyData,
           });
         }
 
-        // Add sender devices (for multi-device read)
+        // Add sender devices (always static wrapping -- sender doesn't consume own OTPKs)
         for (const device of senderKeysResponse.data.devices) {
-          // Skip devices without KEM key (old devices not supporting E2E)
           if (!device.kemPublicKey) continue;
 
           recipientKeys.push({
@@ -448,7 +519,8 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
   const decryptMessages = useCallback(
     async (
       rawMessages: (DmMessage | DmMessageTombstone)[],
-      deviceKeys: DecryptedDeviceKeys
+      deviceKeys: DecryptedDeviceKeys,
+      wrappingKey: Uint8Array
     ): Promise<DecryptedDmMessage[]> => {
       const results: DecryptedDmMessage[] = [];
 
@@ -523,6 +595,86 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
             continue;
           }
 
+          // Look up pre-key private keys if this message uses FS wrapping
+          let preKeyPrivateKeys: PreKeyPrivateKeys | undefined;
+          const targetWrappedKey = msg.wrappedKeys.find(
+            (wk) => wk.identityId === identity!.id && wk.deviceId === deviceKeys.deviceId
+          ) ?? msg.wrappedKeys.find(
+            (wk) => wk.identityId === identity!.id
+          );
+          const isFsWrapped = Boolean(
+            targetWrappedKey?.preKeyType && targetWrappedKey.preKeyType !== 'static'
+          );
+
+          if (isFsWrapped && msg.id) {
+            const cached = await maybeGetFsCachedMessage({
+              isFsWrapped,
+              messageId: msg.id,
+              conversationId: msg.conversationId,
+              wrappingKey,
+              getFsMessageContentFn: getFsMessageContent,
+            });
+            if (cached) {
+              results.push({ raw: msg, decrypted: cached });
+              continue;
+            }
+          }
+
+          if (isFsWrapped) {
+            if (!targetWrappedKey) {
+              results.push({
+                raw: msg,
+                decrypted: null,
+                decryptionError: 'FS wrapped key not found for this recipient',
+              });
+              continue;
+            }
+
+            if (!targetWrappedKey.signedPreKeyId) {
+              results.push({
+                raw: msg,
+                decrypted: null,
+                decryptionError: 'FS message missing signedPreKeyId',
+              });
+              continue;
+            }
+
+            const spkKeys = await findAndDecryptSignedPreKey(
+              targetWrappedKey.signedPreKeyId,
+              identity!.id,
+              wrappingKey
+            );
+
+            if (!spkKeys) {
+              results.push({
+                raw: msg,
+                decrypted: null,
+                decryptionError: 'SPK private key not found (may have been rotated/deleted)',
+              });
+              continue;
+            }
+
+            preKeyPrivateKeys = {
+              spkEcdhPrivateKey: spkKeys.ecdhPrivateKey,
+              spkKemPrivateKey: spkKeys.kemPrivateKey,
+            };
+
+            if (targetWrappedKey.preKeyType === 'otpk' && targetWrappedKey.oneTimePreKeyId) {
+              const otpkKeys = await findAndDecryptOneTimePreKey(
+                targetWrappedKey.oneTimePreKeyId,
+                identity!.id,
+                wrappingKey
+              );
+
+              if (otpkKeys) {
+                preKeyPrivateKeys.otpkEcdhPrivateKey = otpkKeys.ecdhPrivateKey;
+                preKeyPrivateKeys.otpkKemPrivateKey = otpkKeys.kemPrivateKey;
+              } else {
+                console.warn(`[DM] OTPK ${targetWrappedKey.oneTimePreKeyId} not found, attempting SPK-only decrypt`);
+              }
+            }
+          }
+
           const decrypted = decryptDmMessage({
             ciphertext: msg.ciphertext,
             nonce: msg.nonce,
@@ -534,7 +686,25 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
             kemPrivateKey: deviceKeys.kemPrivateKey,
             senderSigningPublicKey,
             cryptoProfile: msg.cryptoProfile,
+            preKeyPrivateKeys,
           });
+
+          if (isFsWrapped && msg.id) {
+            await persistFsMessageAndMaybeDeleteOtpk({
+              isFsWrapped,
+              messageId: msg.id,
+              conversationId: msg.conversationId,
+              decrypted,
+              wrappingKey,
+              targetWrappedKey,
+              identityId: identity!.id,
+              storeFsMessageContentFn: storeFsMessageContent,
+              deleteOneTimePreKeyFn: deleteOneTimePreKey,
+              logWarn: (message, err) => {
+                console.warn(message, err);
+              },
+            });
+          }
 
           results.push({ raw: msg, decrypted });
         } catch (err) {
@@ -589,7 +759,7 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
           }
 
           // Decrypt messages
-          const decrypted = await decryptMessages(response.data.messages, deviceKeys);
+          const decrypted = await decryptMessages(response.data.messages, deviceKeys, wrappingKey);
 
           if (append) {
             setMessages((prev) => [...prev, ...decrypted]);
@@ -645,7 +815,7 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
         if (!storedKeys) return;
         const deviceKeys = await decryptDeviceKeys(storedKeys, wrappingKey);
 
-        const [decrypted] = await decryptMessages([rawMessage], deviceKeys);
+        const [decrypted] = await decryptMessages([rawMessage], deviceKeys, wrappingKey);
         if (decrypted) {
           setMessages((prev) => {
             if (prev.some((m) => m.raw.id === rawMessage.id)) return prev;

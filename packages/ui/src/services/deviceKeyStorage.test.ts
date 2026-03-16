@@ -15,47 +15,29 @@ import {
 } from './deviceKeyStorage';
 import { randomBytes, toBase64, fromBase64 } from '@adieuu/crypto';
 
-/**
- * These tests require a browser environment with IndexedDB and Web Crypto.
- * When running in Node.js/Bun without browser APIs, tests will be skipped.
- *
- * In a real test environment, you would use:
- * - happy-dom or jsdom for DOM APIs
- * - fake-indexeddb for IndexedDB
- * - @peculiar/webcrypto for Web Crypto
- */
-
-// Check if we have the required browser APIs
-const hasIndexedDB = typeof globalThis.indexedDB !== 'undefined';
-const hasCrypto = typeof globalThis.crypto?.subtle !== 'undefined';
-const canRunTests = hasIndexedDB && hasCrypto;
-
-const describeIfBrowser = canRunTests ? describe : describe.skip;
-
-describeIfBrowser('services/deviceKeyStorage', () => {
+describe('services/deviceKeyStorage', () => {
   // Generate a wrapping key for tests
   const generateWrappingKey = (): Uint8Array => randomBytes(32);
 
   beforeEach(async () => {
-    // Clear the database before each test
-    if (hasIndexedDB) {
-      try {
-        await clearAllDeviceKeys();
-      } catch {
-        // Database might not exist yet
-      }
+    try {
+      await clearAllDeviceKeys();
+    } catch {
+      // Database might not exist yet.
     }
   });
 
   afterEach(async () => {
-    // Clean up after tests
-    if (hasIndexedDB) {
-      try {
-        await clearAllDeviceKeys();
-      } catch {
-        // Ignore cleanup errors
-      }
+    try {
+      await clearAllDeviceKeys();
+    } catch {
+      // Ignore cleanup errors.
     }
+  });
+
+  test('test environment provides IndexedDB and WebCrypto', () => {
+    expect(typeof globalThis.indexedDB).toBe('object');
+    expect(typeof globalThis.crypto?.subtle).toBe('object');
   });
 
   describe('storeDeviceKeys', () => {
@@ -482,21 +464,6 @@ describeIfBrowser('services/deviceKeyStorage', () => {
       expect(error.message).toBe('test message');
       expect(error.code).toBe('TEST_CODE');
       expect(error.name).toBe('DeviceKeyStorageError');
-    });
-  });
-});
-
-// Tests that can run without browser APIs
-describe('services/deviceKeyStorage (unit)', () => {
-  describe('DeviceKeyStorageError', () => {
-    test('is instanceof Error', () => {
-      const error = new DeviceKeyStorageError('test', 'TEST_CODE');
-      expect(error).toBeInstanceOf(Error);
-    });
-
-    test('preserves error code', () => {
-      const error = new DeviceKeyStorageError('message', 'MY_ERROR_CODE');
-      expect(error.code).toBe('MY_ERROR_CODE');
     });
   });
 });

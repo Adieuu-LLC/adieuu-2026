@@ -1,11 +1,3 @@
-/**
- * Tests for participant cache service.
- *
- * Note: These tests require IndexedDB which is available in browser
- * environments. In non-browser environments (like Bun), these tests
- * will be skipped.
- */
-
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import {
   getCachedParticipant,
@@ -18,11 +10,9 @@ import {
   type ParticipantCacheEntry,
 } from './participantCache';
 
-const hasIndexedDB = typeof indexedDB !== 'undefined';
-const describeWithIndexedDB = hasIndexedDB ? describe : describe.skip;
-
-describeWithIndexedDB('Participant Cache Service', () => {
+describe('Participant Cache Service', () => {
   const myIdentityId = '507f1f77bcf86cd799439011';
+  const otherMyIdentityId = '507f1f77bcf86cd799439099';
   const otherIdentityId = '507f1f77bcf86cd799439012';
   const conversationId = 'abc123def456abc123def456abc123def456abc123def456abc123def456abc1';
   const signingPublicKey = 'SGVsbG8gV29ybGQhIQ==';
@@ -37,10 +27,17 @@ describeWithIndexedDB('Participant Cache Service', () => {
 
   beforeEach(async () => {
     await clearParticipantCache(myIdentityId);
+    await clearParticipantCache(otherMyIdentityId);
   });
 
   afterEach(async () => {
     await clearParticipantCache(myIdentityId);
+    await clearParticipantCache(otherMyIdentityId);
+  });
+
+  it('test environment provides IndexedDB', () => {
+    expect(globalThis.indexedDB).toBeDefined();
+    expect(globalThis.indexedDB).not.toBeNull();
   });
 
   describe('cacheParticipant / getCachedParticipant', () => {
@@ -75,8 +72,6 @@ describeWithIndexedDB('Participant Cache Service', () => {
     });
 
     it('should isolate entries by identity', async () => {
-      const otherMyIdentityId = '507f1f77bcf86cd799439099';
-
       await cacheParticipant(testEntry);
 
       const retrievedSameIdentity = await getCachedParticipant(myIdentityId, conversationId);
@@ -143,6 +138,23 @@ describeWithIndexedDB('Participant Cache Service', () => {
       const all = await getAllCachedParticipants(myIdentityId);
       expect(all.length).toBe(0);
     });
+
+    it('should not clear entries owned by other identities', async () => {
+      const otherEntry: ParticipantCacheEntry = {
+        ...testEntry,
+        myIdentityId: otherMyIdentityId,
+        conversationId: 'fff456abc123def456abc123def456abc123def456abc123def456abc123def4',
+      };
+
+      await cacheParticipant(testEntry);
+      await cacheParticipant(otherEntry);
+      await clearParticipantCache(myIdentityId);
+
+      expect(await getAllCachedParticipants(myIdentityId)).toEqual([]);
+      const remainingOther = await getAllCachedParticipants(otherMyIdentityId);
+      expect(remainingOther.length).toBe(1);
+      expect(remainingOther[0]?.conversationId).toBe(otherEntry.conversationId);
+    });
   });
 
   describe('findConversationByParticipant', () => {
@@ -173,16 +185,5 @@ describeWithIndexedDB('Participant Cache Service', () => {
     it('should not throw when entry does not exist', async () => {
       await updateCachedSigningKey(myIdentityId, 'nonexistent', 'key');
     });
-  });
-});
-
-describe('Participant Cache Service (without IndexedDB)', () => {
-  it('should handle missing IndexedDB gracefully', async () => {
-    if (hasIndexedDB) {
-      return;
-    }
-
-    const result = await getCachedParticipant('test', 'test');
-    expect(result).toBeNull();
   });
 });

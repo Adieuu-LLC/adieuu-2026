@@ -208,6 +208,195 @@ Alice (2 devices) → Bob (3 devices)
 - Recipient's all devices CAN read received messages
 - No sync protocol needed - server delivers to all devices
 
+### 3.4 Forward Secrecy (Partial)
+
+DMs support optional partial forward secrecy via X3DH-style pre-key exchange. This is a stepping stone toward full forward secrecy (Double Ratchet, tentatively planned for v2). The design provides forward secrecy at the pre-key granularity: compromising a device's long-term keys does not reveal messages encrypted under already-deleted pre-keys.
+
+#### 3.4.1 Pre-Key Types
+
+Each device maintains two classes of pre-keys uploaded to the server:
+
+```
+DEVICE PRE-KEY BUNDLE
+=====================
+
+Signed Pre-Key (SPK):
+  - X25519 + ML-KEM key pair, signed by identity Ed25519 key
+  - Rotated periodically (configurable)
+  - Old SPK private keys retained until pending messages are drained
+  - Exactly one active SPK per device at any time
+
+One-Time Pre-Keys (OTPK):
+  - X25519 + ML-KEM key pairs (unsigned)
+  - Consumed once per sender session (server deletes after claim)
+  - Uploaded in batches, replenished when supply is low
+  - Provide per-message forward secrecy when available
+```
+
+#### 3.4.2 Key Exchange Flow
+
+When a sender encrypts a DM with forward secrecy enabled:
+
+```
+SENDER                          SERVER                        RECIPIENT
+------                          ------                        ---------
+
+1. Claim pre-keys
+   for each recipient device
+         |
+         +------ claimPreKeys ------->
+                                      2. Return SPK + OTPK
+                                         (OTPK consumed atomically;
+                                          SPK returned if no OTPK)
+         <----------------------------+
+         |
+3. For each device:
+   a. DH1 = X25519(ephemeral, SPK.ecdh)
+   b. KEM1 = ML-KEM.Encapsulate(SPK.kem)
+   c. If OTPK available:
+      DH2 = X25519(ephemeral, OTPK.ecdh)
+      KEM2 = ML-KEM.Encapsulate(OTPK.kem)
+   d. wrapping_key = HKDF(DH1 || KEM1 [|| DH2 || KEM2])
+   e. wrapped_key = AES-GCM(wrapping_key, sessionKey)
+         |
+4. Send message with
+   preKeyType, signedPreKeyId,
+   oneTimePreKeyId (if used),
+   wrapped keys
+         |
+         +------ sendMessage -------->
+                                      5. Deliver to recipient
+                                         |
+                                         +---------------------->
+                                                                 6. Look up SPK/OTPK
+                                                                    private keys locally
+                                                                 7. Reverse key exchange
+                                                                 8. Unwrap session key
+                                                                 9. Decrypt message
+                                                                10. Delete OTPK private
+                                                                    key (if used)
+```
+
+#### 3.4.3 Per-Message Forward Secrecy Toggle
+
+Forward secrecy is sender-controlled on a per-message basis. Each wrapped key includes a `preKeyType` field:
+
+| `preKeyType` | Key Exchange | Server History | Local Storage |
+|--------------|-------------|----------------|---------------|
+| `'static'` | Static device keys (current behavior) | Re-decryptable anytime | Optional |
+| `'spk'` | Signed pre-key only | Not re-decryptable after SPK deletion | Required |
+| `'otpk'` | Signed pre-key + one-time pre-key | Not re-decryptable after OTPK deletion | Required |
+
+The sender toggles forward secrecy in the message composer. When FS is off, messages use static device keys and remain re-decryptable from the server indefinitely (useful for message history on lower-powered devices). When FS is on, messages are decrypted once and stored locally; the pre-key private keys are eventually deleted, making server-stored ciphertext undecryptable.
+
+**Metadata consideration:** An observer with server access can distinguish FS-enabled from FS-disabled messages via the `preKeyType` field. This was evaluated and accepted as a low-impact trade-off:
+- All message content is E2E encrypted regardless of `preKeyType`
+- The threat model where this matters (attacker has server access + device keys) is narrow
+- Hiding the distinction would require double-wrapping (static + pre-key) every message, increasing payload size -- a meaningful cost for multi-device conversations
+- The `preKeyType` field is necessary for recipients to know which decryption path to use
+
+#### 3.4.4 SPK Rotation
+
+SPK rotation is driven by both a periodic timer and an on-app-open check, ensuring rotation happens whether the app stays open or is opened after a long idle period.
+
+**Rotation tiers (user-configurable):**
+
+| Level | Rotation Interval | Max Retained SPKs | Hard-Delete Cap | Description |
+|-------|-------------------|-------------------|-----------------|-------------|
+| Standard | 24h | 5 | 7 days | Balanced security/convenience |
+| High | 4h | 8 | 48h | Recommended for desktop |
+| Maximum | 1h | 12 | 24h | High-threat-model users |
+
+**Manual rotation:** Users can trigger immediate SPK rotation from security settings (e.g., if they suspect compromise). This calls the same rotation function as the automatic path, bypassing the time check.
+
+**Rotation mechanics:**
+1. Generate new SPK, upload public half to server
+2. Mark old SPK as "retired" locally (keep private key)
+3. Schedule timer for next rotation (also check on next app open)
+
+#### 3.4.5 SPK Private Key Deletion Policy
+
+Users can choose how aggressively old SPK private keys are deleted via a deletion policy setting:
+
+**`after-sync` (default, recommended):** Pending-message-aware deletion. Old SPK private keys are retained until all messages encrypted under them have been decrypted. This avoids making unread messages permanently undecryptable for users who go offline.
+
+```
+AFTER-SYNC DELETION FLOW
+=========================
+
+1. SPK rotated -> old SPK marked "retired" locally
+2. Messages arrive encrypted under old SPK
+3. Client syncs and decrypts all pending messages
+4. After sync: check each retired SPK
+   - If no more pending messages reference this SPK -> delete private key
+   - If messages still pending -> retain
+5. Safety caps prevent unbounded retention:
+   - Max retained retired SPKs (per tier table above)
+   - Hard-delete cap: oldest retired SPK deleted regardless, after N days
+   - Prevents accumulation on abandoned/lost devices
+```
+
+**`timed` (stricter):** Pure timer-based deletion. Old SPK private keys are deleted after a fixed interval following retirement, regardless of whether pending messages remain. This provides a tighter forward secrecy window but means messages arriving after the deletion window are permanently unreadable.
+
+```
+TIMED DELETION FLOW
+===================
+
+1. SPK rotated -> old SPK marked "retired" with timestamp
+2. Deletion timer = rotation interval of current security tier
+   (e.g., 24h for Standard, 4h for High, 1h for Maximum)
+3. After timer expires: delete retired SPK private key unconditionally
+4. Any messages still encrypted under the deleted SPK become unrecoverable
+```
+
+**Properties of each policy:**
+
+| Property | `after-sync` | `timed` |
+|----------|-------------|---------|
+| Unread messages at risk | No (until safety cap) | Yes, after timer expires |
+| Forward secrecy window | Bounded by sync + safety cap | Bounded by timer |
+| Suitable for | Most users | High-threat-model users who accept the trade-off |
+| Safety caps still apply | Yes | N/A (timer is the primary mechanism) |
+
+This ensures:
+- Default: users never lose messages due to being offline; forward secrecy is eventual
+- Opt-in strict mode: tighter forward secrecy window for users who prioritize it over message availability
+- Both modes: abandoned devices are bounded by safety caps
+
+#### 3.4.6 OTPK Management
+
+**Batch sizes by platform:**
+
+| Platform | OTPK Batch Size | Rationale |
+|----------|----------------|-----------|
+| Desktop | 50 | Durable local storage (safeStorage/TEE) |
+| Web | 5-10 | IndexedDB is volatile (cache clears, private browsing) |
+| Mobile | 50 | Secure enclave / Keystore |
+
+**Replenishment:** After decrypting a message that consumed an OTPK, the client checks remaining OTPK count via `getPreKeyCount()`. If below a threshold (e.g., <10 on desktop, <3 on web), a fresh batch is generated and uploaded.
+
+**OTPK private key lifecycle:**
+1. Generated and stored locally
+2. Public half uploaded to server
+3. Server delivers public half to sender on `claimPreKeys()`
+4. Server deletes the OTPK record (atomic, one-time use)
+5. Recipient decrypts message using OTPK private key
+6. Recipient deletes OTPK private key from local storage
+
+#### 3.4.7 Backward Compatibility
+
+The `preKeyType` field on `SerializedWrappedKey` enables graceful coexistence:
+- Old clients that don't support pre-keys send `preKeyType: 'static'` (or omit it; server defaults to `'static'`)
+- New clients check `preKeyType` to choose the decryption path
+- A conversation can contain a mix of static and FS-protected messages
+- No migration or flag day required
+
+#### 3.4.8 New Device Considerations
+
+Forward-secret messages cannot be re-decrypted from the server on a new device (the pre-key private keys only existed on the original device). Users setting up a new device have two options:
+- **Transfer local message database** from old device (extends existing key import/export flow)
+- **Accept that FS-protected message history starts fresh** on the new device (non-FS messages remain accessible via static device keys)
+
 ---
 
 ## 4. Group Chats (< 50 members)
@@ -1921,13 +2110,17 @@ apps/
 | File content analysis | Files encrypted client-side, server sees only blobs |
 | File metadata leakage | Filename, MIME, dimensions all encrypted |
 | Chunk reordering attack | Merkle tree verification on large files |
+| Past message compromise (DMs) | Partial forward secrecy via pre-key exchange (Section 3.4); deleted pre-key private keys make old ciphertext undecryptable |
 
 ### 12.2 Accepted Risks
 
 | Risk | Rationale |
 |------|-----------|
 | Active XSS can USE keys | Cannot prevent without OS-level isolation |
-| No forward secrecy | Complexity trade-off; consider Double Ratchet in v2 |
+| FS/non-FS distinction visible in metadata | `preKeyType` field is necessary for decryption routing; all content remains E2E encrypted regardless; threat model is narrow (Section 3.4.3) |
+| Partial (not full) forward secrecy | X3DH-style pre-key exchange without Double Ratchet; forward secrecy granularity is per-SPK-rotation rather than per-message; Double Ratchet planned for v2 |
+| FS-protected messages lost on new device | By design; local DB transfer or fresh start are the only options; this is the inherent trade-off of forward secrecy (Section 3.4.8) |
+| Web app pre-key storage is volatile | IndexedDB can be cleared by user action or browser policy; mitigated by smaller OTPK batches (5-10) and encouraging desktop/mobile for sensitive use |
 | Metadata visible to server | From/to IDs, timestamps visible; content is not |
 | Kicked Space members retain old cipher | Use RBAC for access control; rotate epoch only if entropy leaked |
 | Entropy can be shared | Social trust model; same as sharing a password |
@@ -1935,11 +2128,12 @@ apps/
 
 ### 12.3 Future Enhancements
 
-- [ ] Double Ratchet for forward secrecy (v2)
+- [ ] Double Ratchet for full per-message forward secrecy (v2)
 - [ ] Screenshot detection (platform-dependent)
 - [ ] Safety numbers / key verification UI
 - [ ] Key rotation reminders
 - [ ] CNSA Suite 2.0 profile support (ML-KEM-1024, ML-DSA-87, AES-256-GCM, SHA-384)
+- [ ] Local message database export/import for new device migration (extends key import/export)
 
 ---
 

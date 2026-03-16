@@ -43,6 +43,11 @@ import {
   revokeIdentitySessionCtrl,
   revokeAllOtherIdentitySessionsCtrl,
 } from './controller';
+import {
+  uploadPreKeysCtrl,
+  claimPreKeysCtrl,
+  getPreKeyCountCtrl,
+} from './pre-key.controller';
 
 const router = new Router();
 
@@ -391,6 +396,72 @@ router.delete('/identity/:id/devices/:deviceId', async (ctx) => {
  */
 router.patch('/identity/:id/devices/:deviceId', async (ctx) => {
   return await updateDeviceCtrl(ctx);
+});
+
+// ============================================================================
+// Pre-Keys (Forward Secrecy)
+// ============================================================================
+
+/**
+ * POST /identity/:id/devices/:deviceId/pre-keys - Upload pre-keys
+ *
+ * Upload signed pre-key and/or one-time pre-keys for a device.
+ * Signed pre-keys provide medium-term forward secrecy (rotated periodically).
+ * One-time pre-keys provide per-message forward secrecy (consumed once).
+ *
+ * @route POST /api/identity/:id/devices/:deviceId/pre-keys
+ *
+ * @requestBody
+ * - `signedPreKey` (object, optional): Signed pre-key with keyId, ecdhPublicKey, kemPublicKey, signature
+ * - `oneTimePreKeys` (array, optional): Batch of one-time pre-keys (max 200)
+ * - `signedPreKeyExpiresInDays` (number, optional): SPK expiry in days (default: 7, max: 90)
+ *
+ * @returns 200 OK with counts of stored keys
+ * @returns 400 Bad Request if validation fails or OTPK capacity reached
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to upload for another identity
+ * @returns 404 Not Found if device doesn't exist
+ */
+router.post('/identity/:id/devices/:deviceId/pre-keys', async (ctx) => {
+  return await uploadPreKeysCtrl(ctx);
+});
+
+/**
+ * POST /identity/:id/pre-keys/claim - Claim pre-keys for sending
+ *
+ * Claims one one-time pre-key per device (atomically consumed).
+ * Also returns the active signed pre-key for each device.
+ * Any authenticated identity can claim (needed for sending DMs).
+ *
+ * @route POST /api/identity/:id/pre-keys/claim
+ *
+ * @requestBody
+ * - `deviceIds` (string[], optional): Specific devices to claim for (default: all)
+ *
+ * @returns 200 OK with claimed pre-keys per device
+ * @returns 400 Bad Request if no matching devices
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 404 Not Found if identity doesn't exist or has no E2E keys
+ */
+router.post('/identity/:id/pre-keys/claim', async (ctx) => {
+  return await claimPreKeysCtrl(ctx);
+});
+
+/**
+ * GET /identity/:id/devices/:deviceId/pre-keys/count - Get pre-key counts
+ *
+ * Returns remaining pre-key counts for a device.
+ * Used by the device to decide when to upload more pre-keys.
+ *
+ * @route GET /api/identity/:id/devices/:deviceId/pre-keys/count
+ *
+ * @returns 200 OK with signed pre-key info and OTPK count
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to query another identity
+ * @returns 404 Not Found if device doesn't exist
+ */
+router.get('/identity/:id/devices/:deviceId/pre-keys/count', async (ctx) => {
+  return await getPreKeyCountCtrl(ctx);
 });
 
 // ============================================================================

@@ -17,22 +17,38 @@ import type { BaseDocument } from './base';
 import type { CryptoProfile } from './identity';
 
 /**
+ * Which key exchange mode was used for wrapping.
+ * - 'otpk': Signed pre-key + one-time pre-key (best forward secrecy)
+ * - 'spk': Signed pre-key only (medium-term forward secrecy, OTPKs exhausted)
+ * - 'static': Static device key (no forward secrecy, fallback only)
+ */
+export type PreKeyType = 'otpk' | 'spk' | 'static';
+
+/**
  * Serialized wrapped key for a recipient device.
  * All binary fields are base64-encoded for storage.
  */
 export interface SerializedWrappedKey {
   /** Identity ID this key is wrapped for */
   identityId: string;
-  /** Device ID within the identity (optional - if not set, try all devices) */
-  deviceId?: string;
+  /** Device ID within the identity */
+  deviceId: string;
   /** Ephemeral X25519 public key used for wrapping (base64) */
   ephemeralPublicKey: string;
-  /** ML-KEM ciphertext (base64) */
+  /** ML-KEM ciphertext for signed pre-key or static device key (base64) */
   kemCiphertext: string;
   /** AES-GCM wrapped session key (base64) */
   wrappedSessionKey: string;
   /** Nonce used for AES-GCM wrapping (base64) */
   wrappingNonce: string;
+  /** Which key exchange mode was used */
+  preKeyType: PreKeyType;
+  /** ID of the one-time pre-key consumed (when preKeyType is 'otpk') */
+  oneTimePreKeyId?: string;
+  /** ID of the signed pre-key used (when preKeyType is 'otpk' or 'spk') */
+  signedPreKeyId?: string;
+  /** ML-KEM ciphertext for the one-time pre-key (when preKeyType is 'otpk', base64) */
+  oneTimeKemCiphertext?: string;
 }
 
 /**

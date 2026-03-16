@@ -1,7 +1,9 @@
 # Adieuu
+[![CI](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/ci.yml/badge.svg)](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/ci.yml)
+[![Release](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/release.yml/badge.svg)](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/release.yml)
 [![codecov](https://codecov.io/github/Adieuu-LLC/adieuu-26/graph/badge.svg?token=2MI5WRYO9K)](https://codecov.io/github/Adieuu-LLC/adieuu-26)
 
-Cross-platform application with web, desktop (Electron), and mobile (Capacitor) targets. 
+Cross-platform application with web, desktop (Electron), and mobile (Capacitor) targets.
 
 ## Stack
 
@@ -69,7 +71,23 @@ See [apps/mobile/README.md](apps/mobile/README.md) for iOS/Android setup.
 
 ## CI/CD
 
-This project is designed for GitHub Actions deployment to AWS. See `.github/workflows/` for pipeline configurations (to be added).
+GitHub Actions runs lint/typecheck, API tests, and required regression gates before build/release paths proceed.
+
+Key regression commands:
+- `pnpm test:fs` (forward secrecy regression suite)
+- `pnpm test:security` (security/privacy regression suite)
+
+### Required PR checks
+
+The following GitHub Actions jobs should be green before merge:
+- `lint-and-typecheck`
+- `test-api`
+- `test-fs`
+- `test-security`
+
+Local pre-PR verification:
+- `pnpm test:fs`
+- `pnpm test:security`
 
 ### Deployment Targets
 

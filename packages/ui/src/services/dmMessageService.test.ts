@@ -13,13 +13,20 @@ import {
   type EncryptMessageInput,
   type DecryptMessageInput,
   type RecipientPublicKeys,
+  type PreKeyRecipientData,
+  type PreKeyPrivateKeys,
 } from './dmMessageService';
 import {
   generateSigningKeyPair,
   generateECDHKeyPair,
   generateKEMKeyPair,
+  generateSignedPreKey,
+  generateOneTimePreKeys,
   toBase64,
+  type SignedPreKeyPublic,
+  type OneTimePreKeyPublic,
 } from '@adieuu/crypto';
+import { z } from '@adieuu/shared/schemas';
 
 describe('DM Message Service', () => {
   const aliceSigningKeys = generateSigningKeyPair();
@@ -92,10 +99,12 @@ describe('DM Message Service', () => {
         recipientKeys: [
           {
             identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
             publicKeys: bobPublicKeys,
           },
           {
             identityId: aliceIdentityId,
+            deviceId: 'alice-device-1',
             publicKeys: alicePublicKeys,
           },
         ],
@@ -107,6 +116,208 @@ describe('DM Message Service', () => {
       expect(result.wrappedKeys).toHaveLength(2);
       expect(result.wrappedKeys.map((wk) => wk.identityId)).toContain(bobIdentityId);
       expect(result.wrappedKeys.map((wk) => wk.identityId)).toContain(aliceIdentityId);
+    });
+  });
+
+  describe('encryptDmMessage with pre-key wrapping (forward secrecy)', () => {
+    const bobSpk = generateSignedPreKey(bobSigningKeys.privateKey, 'default');
+    const bobOtpks = generateOneTimePreKeys(2, 'default');
+
+    const bobSpkPublic: SignedPreKeyPublic = {
+      keyId: bobSpk.keyId,
+      ecdhPublicKey: bobSpk.ecdh.publicKey,
+      kemPublicKey: bobSpk.kem.publicKey,
+      signature: bobSpk.signature,
+    };
+
+    const bobOtpkPublic: OneTimePreKeyPublic = {
+      keyId: bobOtpks[0]!.keyId,
+      ecdhPublicKey: bobOtpks[0]!.ecdh.publicKey,
+      kemPublicKey: bobOtpks[0]!.kem.publicKey,
+    };
+
+    it('should produce preKeyType "spk" when using SPK only', () => {
+      const preKeyData: PreKeyRecipientData = {
+        signedPreKey: bobSpkPublic,
+        signedPreKeyId: bobSpk.keyId,
+      };
+
+      const input: EncryptMessageInput = {
+        text: 'FS message (SPK only)',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData,
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      };
+
+      const result = encryptDmMessage(input);
+
+      expect(result.wrappedKeys).toHaveLength(1);
+      const wk = result.wrappedKeys[0]!;
+      expect(wk.preKeyType).toBe('spk');
+      expect(wk.signedPreKeyId).toBe(bobSpk.keyId);
+      expect(wk.oneTimePreKeyId).toBeUndefined();
+      expect(wk.oneTimeKemCiphertext).toBeUndefined();
+      expect(wk.deviceId).toBe('bob-device-1');
+    });
+
+    it('should produce preKeyType "otpk" when using SPK + OTPK', () => {
+      const preKeyData: PreKeyRecipientData = {
+        signedPreKey: bobSpkPublic,
+        signedPreKeyId: bobSpk.keyId,
+        oneTimePreKey: bobOtpkPublic,
+        oneTimePreKeyId: bobOtpks[0]!.keyId,
+      };
+
+      const input: EncryptMessageInput = {
+        text: 'FS message (SPK + OTPK)',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData,
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      };
+
+      const result = encryptDmMessage(input);
+
+      expect(result.wrappedKeys).toHaveLength(1);
+      const wk = result.wrappedKeys[0]!;
+      expect(wk.preKeyType).toBe('otpk');
+      expect(wk.signedPreKeyId).toBe(bobSpk.keyId);
+      expect(wk.oneTimePreKeyId).toBe(bobOtpks[0]!.keyId);
+      expect(wk.oneTimeKemCiphertext).toBeDefined();
+      expect(wk.oneTimeKemCiphertext!.length).toBeGreaterThan(0);
+    });
+
+    it('should support mixed wrapping (pre-key for recipient, static for sender)', () => {
+      const preKeyData: PreKeyRecipientData = {
+        signedPreKey: bobSpkPublic,
+        signedPreKeyId: bobSpk.keyId,
+        oneTimePreKey: bobOtpkPublic,
+        oneTimePreKeyId: bobOtpks[0]!.keyId,
+      };
+
+      const input: EncryptMessageInput = {
+        text: 'Mixed wrapping message',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData,
+          },
+          {
+            identityId: aliceIdentityId,
+            deviceId: 'alice-device-1',
+            publicKeys: {
+              ecdh: aliceEcdhKeys.publicKey,
+              kem: aliceKemKeys.publicKey,
+              profile: 'default',
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      };
+
+      const result = encryptDmMessage(input);
+
+      expect(result.wrappedKeys).toHaveLength(2);
+
+      const bobWk = result.wrappedKeys.find((wk) => wk.identityId === bobIdentityId)!;
+      expect(bobWk.preKeyType).toBe('otpk');
+      expect(bobWk.signedPreKeyId).toBe(bobSpk.keyId);
+      expect(bobWk.oneTimePreKeyId).toBe(bobOtpks[0]!.keyId);
+      expect(bobWk.oneTimeKemCiphertext).toBeDefined();
+
+      const aliceWk = result.wrappedKeys.find((wk) => wk.identityId === aliceIdentityId)!;
+      expect(aliceWk.preKeyType).toBe('static');
+      expect(aliceWk.signedPreKeyId).toBeUndefined();
+      expect(aliceWk.oneTimePreKeyId).toBeUndefined();
+      expect(aliceWk.oneTimeKemCiphertext).toBeUndefined();
+    });
+
+    it('should produce different ephemeral keys for each pre-key wrapped recipient', () => {
+      const carolSigningKeys = generateSigningKeyPair();
+      const carolSpk = generateSignedPreKey(carolSigningKeys.privateKey, 'default');
+      const carolEcdhKeys = generateECDHKeyPair();
+      const carolKemKeys = generateKEMKeyPair('default');
+
+      const input: EncryptMessageInput = {
+        text: 'Multi-recipient FS',
+        fromIdentityId: aliceIdentityId,
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: bobSpkPublic,
+              signedPreKeyId: bobSpk.keyId,
+            },
+          },
+          {
+            identityId: '507f1f77bcf86cd799439013',
+            deviceId: 'carol-device-1',
+            publicKeys: {
+              ecdh: carolEcdhKeys.publicKey,
+              kem: carolKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: {
+                keyId: carolSpk.keyId,
+                ecdhPublicKey: carolSpk.ecdh.publicKey,
+                kemPublicKey: carolSpk.kem.publicKey,
+                signature: carolSpk.signature,
+              },
+              signedPreKeyId: carolSpk.keyId,
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      };
+
+      const result = encryptDmMessage(input);
+
+      expect(result.wrappedKeys).toHaveLength(2);
+      expect(result.wrappedKeys[0]!.ephemeralPublicKey).not.toBe(
+        result.wrappedKeys[1]!.ephemeralPublicKey
+      );
     });
   });
 
@@ -174,6 +385,7 @@ describe('DM Message Service', () => {
         recipientKeys: [
           {
             identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
             publicKeys: bobPublicKeys,
           },
         ],
@@ -211,6 +423,7 @@ describe('DM Message Service', () => {
         recipientKeys: [
           {
             identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
             publicKeys: bobPublicKeys,
           },
         ],
@@ -248,6 +461,7 @@ describe('DM Message Service', () => {
         recipientKeys: [
           {
             identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
             publicKeys: bobPublicKeys,
           },
         ],
@@ -268,6 +482,695 @@ describe('DM Message Service', () => {
       };
 
       expect(() => decryptDmMessage(decryptInput)).toThrow('Message not encrypted for this identity/device');
+    });
+  });
+
+  describe('decryptDmMessage with pre-key wrapping (forward secrecy)', () => {
+    const bobSpk = generateSignedPreKey(bobSigningKeys.privateKey, 'default');
+    const bobOtpks = generateOneTimePreKeys(2, 'default');
+
+    const bobSpkPublic: SignedPreKeyPublic = {
+      keyId: bobSpk.keyId,
+      ecdhPublicKey: bobSpk.ecdh.publicKey,
+      kemPublicKey: bobSpk.kem.publicKey,
+      signature: bobSpk.signature,
+    };
+
+    const bobOtpkPublic: OneTimePreKeyPublic = {
+      keyId: bobOtpks[0]!.keyId,
+      ecdhPublicKey: bobOtpks[0]!.ecdh.publicKey,
+      kemPublicKey: bobOtpks[0]!.kem.publicKey,
+    };
+
+    it('should encrypt and decrypt round-trip with SPK only', () => {
+      const originalText = 'FS message with SPK only';
+
+      const encrypted = encryptDmMessage({
+        text: originalText,
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: bobSpkPublic,
+              signedPreKeyId: bobSpk.keyId,
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      });
+
+      expect(encrypted.wrappedKeys[0]!.preKeyType).toBe('spk');
+
+      const preKeyPrivateKeys: PreKeyPrivateKeys = {
+        spkEcdhPrivateKey: bobSpk.ecdh.privateKey,
+        spkKemPrivateKey: bobSpk.kem.privateKey,
+      };
+
+      const decrypted = decryptDmMessage({
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        wrappedKeys: encrypted.wrappedKeys,
+        signature: encrypted.signature,
+        recipientIdentityId: bobIdentityId,
+        recipientDeviceId: 'bob-device-1',
+        ecdhPrivateKey: bobEcdhKeys.privateKey,
+        kemPrivateKey: bobKemKeys.privateKey,
+        senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+        cryptoProfile: 'default',
+        preKeyPrivateKeys,
+      });
+
+      expect(decrypted.text).toBe(originalText);
+      expect(decrypted.fromIdentityId).toBe(aliceIdentityId);
+      expect(decrypted.fromDeviceId).toBe('alice-device-1');
+    });
+
+    it('should encrypt and decrypt round-trip with SPK + OTPK', () => {
+      const originalText = 'FS message with SPK + OTPK';
+
+      const encrypted = encryptDmMessage({
+        text: originalText,
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: bobSpkPublic,
+              signedPreKeyId: bobSpk.keyId,
+              oneTimePreKey: bobOtpkPublic,
+              oneTimePreKeyId: bobOtpks[0]!.keyId,
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      });
+
+      expect(encrypted.wrappedKeys[0]!.preKeyType).toBe('otpk');
+
+      const preKeyPrivateKeys: PreKeyPrivateKeys = {
+        spkEcdhPrivateKey: bobSpk.ecdh.privateKey,
+        spkKemPrivateKey: bobSpk.kem.privateKey,
+        otpkEcdhPrivateKey: bobOtpks[0]!.ecdh.privateKey,
+        otpkKemPrivateKey: bobOtpks[0]!.kem.privateKey,
+      };
+
+      const decrypted = decryptDmMessage({
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        wrappedKeys: encrypted.wrappedKeys,
+        signature: encrypted.signature,
+        recipientIdentityId: bobIdentityId,
+        recipientDeviceId: 'bob-device-1',
+        ecdhPrivateKey: bobEcdhKeys.privateKey,
+        kemPrivateKey: bobKemKeys.privateKey,
+        senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+        cryptoProfile: 'default',
+        preKeyPrivateKeys,
+      });
+
+      expect(decrypted.text).toBe(originalText);
+      expect(decrypted.fromIdentityId).toBe(aliceIdentityId);
+    });
+
+    it('should decrypt mixed wrapping (FS for recipient, static for sender)', () => {
+      const originalText = 'Mixed wrapping round-trip';
+
+      const encrypted = encryptDmMessage({
+        text: originalText,
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: bobSpkPublic,
+              signedPreKeyId: bobSpk.keyId,
+            },
+          },
+          {
+            identityId: aliceIdentityId,
+            deviceId: 'alice-device-1',
+            publicKeys: {
+              ecdh: aliceEcdhKeys.publicKey,
+              kem: aliceKemKeys.publicKey,
+              profile: 'default',
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      });
+
+      // Bob decrypts with pre-key private keys
+      const bobDecrypted = decryptDmMessage({
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        wrappedKeys: encrypted.wrappedKeys,
+        signature: encrypted.signature,
+        recipientIdentityId: bobIdentityId,
+        recipientDeviceId: 'bob-device-1',
+        ecdhPrivateKey: bobEcdhKeys.privateKey,
+        kemPrivateKey: bobKemKeys.privateKey,
+        senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+        cryptoProfile: 'default',
+        preKeyPrivateKeys: {
+          spkEcdhPrivateKey: bobSpk.ecdh.privateKey,
+          spkKemPrivateKey: bobSpk.kem.privateKey,
+        },
+      });
+
+      expect(bobDecrypted.text).toBe(originalText);
+
+      // Alice decrypts with static device keys (no preKeyPrivateKeys)
+      const aliceDecrypted = decryptDmMessage({
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        wrappedKeys: encrypted.wrappedKeys,
+        signature: encrypted.signature,
+        recipientIdentityId: aliceIdentityId,
+        recipientDeviceId: 'alice-device-1',
+        ecdhPrivateKey: aliceEcdhKeys.privateKey,
+        kemPrivateKey: aliceKemKeys.privateKey,
+        senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+        cryptoProfile: 'default',
+      });
+
+      expect(aliceDecrypted.text).toBe(originalText);
+    });
+
+    it('should fail to decrypt FS message without pre-key private keys', () => {
+      const encrypted = encryptDmMessage({
+        text: 'FS message',
+        fromIdentityId: aliceIdentityId,
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: bobSpkPublic,
+              signedPreKeyId: bobSpk.keyId,
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+      });
+
+      expect(() =>
+        decryptDmMessage({
+          ciphertext: encrypted.ciphertext,
+          nonce: encrypted.nonce,
+          wrappedKeys: encrypted.wrappedKeys,
+          signature: encrypted.signature,
+          recipientIdentityId: bobIdentityId,
+          recipientDeviceId: 'bob-device-1',
+          ecdhPrivateKey: bobEcdhKeys.privateKey,
+          kemPrivateKey: bobKemKeys.privateKey,
+          senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+        })
+      ).toThrow('Pre-key private keys required');
+    });
+
+    it('should fail to decrypt FS message with wrong pre-key private keys', () => {
+      const wrongSpk = generateSignedPreKey(bobSigningKeys.privateKey, 'default');
+
+      const encrypted = encryptDmMessage({
+        text: 'FS message',
+        fromIdentityId: aliceIdentityId,
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: bobSpkPublic,
+              signedPreKeyId: bobSpk.keyId,
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+      });
+
+      expect(() =>
+        decryptDmMessage({
+          ciphertext: encrypted.ciphertext,
+          nonce: encrypted.nonce,
+          wrappedKeys: encrypted.wrappedKeys,
+          signature: encrypted.signature,
+          recipientIdentityId: bobIdentityId,
+          recipientDeviceId: 'bob-device-1',
+          ecdhPrivateKey: bobEcdhKeys.privateKey,
+          kemPrivateKey: bobKemKeys.privateKey,
+          senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+          preKeyPrivateKeys: {
+            spkEcdhPrivateKey: wrongSpk.ecdh.privateKey,
+            spkKemPrivateKey: wrongSpk.kem.privateKey,
+          },
+        })
+      ).toThrow('Failed to unwrap session key with pre-keys');
+    });
+  });
+
+  describe('signature stability through API round-trip (Zod parsing)', () => {
+    // This schema mirrors the WrappedKeySchema in apps/api/src/routes/dm/controller.ts.
+    // Zod v3 .parse() creates a new object with properties in schema definition order,
+    // which can reorder properties relative to the input object.
+    const WrappedKeySchema = z.object({
+      identityId: z.string().length(24),
+      deviceId: z.string(),
+      ephemeralPublicKey: z.string().min(1),
+      kemCiphertext: z.string().min(1),
+      wrappedSessionKey: z.string().min(1),
+      wrappingNonce: z.string().min(1),
+      preKeyType: z.enum(['otpk', 'spk', 'static']),
+      oneTimePreKeyId: z.string().uuid().optional(),
+      signedPreKeyId: z.string().uuid().optional(),
+      oneTimeKemCiphertext: z.string().min(1).optional(),
+    });
+
+    const bobSpk = generateSignedPreKey(bobSigningKeys.privateKey, 'default');
+    const bobOtpks = generateOneTimePreKeys(2, 'default');
+
+    const bobSpkPublic: SignedPreKeyPublic = {
+      keyId: bobSpk.keyId,
+      ecdhPublicKey: bobSpk.ecdh.publicKey,
+      kemPublicKey: bobSpk.kem.publicKey,
+      signature: bobSpk.signature,
+    };
+
+    const bobOtpkPublic: OneTimePreKeyPublic = {
+      keyId: bobOtpks[0]!.keyId,
+      ecdhPublicKey: bobOtpks[0]!.ecdh.publicKey,
+      kemPublicKey: bobOtpks[0]!.kem.publicKey,
+    };
+
+    it('should verify signature after Zod round-trip with OTPK wrapping', () => {
+      const encrypted = encryptDmMessage({
+        text: 'FS message through API',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: bobSpkPublic,
+              signedPreKeyId: bobSpk.keyId,
+              oneTimePreKey: bobOtpkPublic,
+              oneTimePreKeyId: bobOtpks[0]!.keyId,
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      });
+
+      // Simulate API round-trip: Zod parses the wrappedKeys, potentially reordering properties
+      const zodParsedWrappedKeys = encrypted.wrappedKeys.map((wk) =>
+        WrappedKeySchema.parse(wk)
+      );
+
+      const preKeyPrivateKeys: PreKeyPrivateKeys = {
+        spkEcdhPrivateKey: bobSpk.ecdh.privateKey,
+        spkKemPrivateKey: bobSpk.kem.privateKey,
+        otpkEcdhPrivateKey: bobOtpks[0]!.ecdh.privateKey,
+        otpkKemPrivateKey: bobOtpks[0]!.kem.privateKey,
+      };
+
+      const decrypted = decryptDmMessage({
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        wrappedKeys: zodParsedWrappedKeys,
+        signature: encrypted.signature,
+        recipientIdentityId: bobIdentityId,
+        recipientDeviceId: 'bob-device-1',
+        ecdhPrivateKey: bobEcdhKeys.privateKey,
+        kemPrivateKey: bobKemKeys.privateKey,
+        senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+        cryptoProfile: 'default',
+        preKeyPrivateKeys,
+      });
+
+      expect(decrypted.text).toBe('FS message through API');
+      expect(decrypted.fromIdentityId).toBe(aliceIdentityId);
+    });
+
+    it('should verify signature after Zod round-trip with SPK-only wrapping', () => {
+      const encrypted = encryptDmMessage({
+        text: 'SPK-only through API',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: bobSpkPublic,
+              signedPreKeyId: bobSpk.keyId,
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      });
+
+      const zodParsedWrappedKeys = encrypted.wrappedKeys.map((wk) =>
+        WrappedKeySchema.parse(wk)
+      );
+
+      const preKeyPrivateKeys: PreKeyPrivateKeys = {
+        spkEcdhPrivateKey: bobSpk.ecdh.privateKey,
+        spkKemPrivateKey: bobSpk.kem.privateKey,
+      };
+
+      const decrypted = decryptDmMessage({
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        wrappedKeys: zodParsedWrappedKeys,
+        signature: encrypted.signature,
+        recipientIdentityId: bobIdentityId,
+        recipientDeviceId: 'bob-device-1',
+        ecdhPrivateKey: bobEcdhKeys.privateKey,
+        kemPrivateKey: bobKemKeys.privateKey,
+        senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+        cryptoProfile: 'default',
+        preKeyPrivateKeys,
+      });
+
+      expect(decrypted.text).toBe('SPK-only through API');
+      expect(decrypted.fromIdentityId).toBe(aliceIdentityId);
+    });
+
+    it('should verify signature after Zod round-trip with static wrapping', () => {
+      const encrypted = encryptDmMessage({
+        text: 'Static through API',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      });
+
+      const zodParsedWrappedKeys = encrypted.wrappedKeys.map((wk) =>
+        WrappedKeySchema.parse(wk)
+      );
+
+      const decrypted = decryptDmMessage({
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        wrappedKeys: zodParsedWrappedKeys,
+        signature: encrypted.signature,
+        recipientIdentityId: bobIdentityId,
+        recipientDeviceId: 'bob-device-1',
+        ecdhPrivateKey: bobEcdhKeys.privateKey,
+        kemPrivateKey: bobKemKeys.privateKey,
+        senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+        cryptoProfile: 'default',
+      });
+
+      expect(decrypted.text).toBe('Static through API');
+      expect(decrypted.fromIdentityId).toBe(aliceIdentityId);
+    });
+
+    it('should verify signature after Zod round-trip with mixed wrapping', () => {
+      const encrypted = encryptDmMessage({
+        text: 'Mixed wrapping through API',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: bobSpkPublic,
+              signedPreKeyId: bobSpk.keyId,
+              oneTimePreKey: bobOtpkPublic,
+              oneTimePreKeyId: bobOtpks[0]!.keyId,
+            },
+          },
+          {
+            identityId: aliceIdentityId,
+            deviceId: 'alice-device-1',
+            publicKeys: {
+              ecdh: aliceEcdhKeys.publicKey,
+              kem: aliceKemKeys.publicKey,
+              profile: 'default',
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      });
+
+      const zodParsedWrappedKeys = encrypted.wrappedKeys.map((wk) =>
+        WrappedKeySchema.parse(wk)
+      );
+
+      // Bob decrypts (FS path)
+      const bobDecrypted = decryptDmMessage({
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        wrappedKeys: zodParsedWrappedKeys,
+        signature: encrypted.signature,
+        recipientIdentityId: bobIdentityId,
+        recipientDeviceId: 'bob-device-1',
+        ecdhPrivateKey: bobEcdhKeys.privateKey,
+        kemPrivateKey: bobKemKeys.privateKey,
+        senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+        cryptoProfile: 'default',
+        preKeyPrivateKeys: {
+          spkEcdhPrivateKey: bobSpk.ecdh.privateKey,
+          spkKemPrivateKey: bobSpk.kem.privateKey,
+          otpkEcdhPrivateKey: bobOtpks[0]!.ecdh.privateKey,
+          otpkKemPrivateKey: bobOtpks[0]!.kem.privateKey,
+        },
+      });
+
+      expect(bobDecrypted.text).toBe('Mixed wrapping through API');
+
+      // Alice decrypts (static path)
+      const aliceDecrypted = decryptDmMessage({
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        wrappedKeys: zodParsedWrappedKeys,
+        signature: encrypted.signature,
+        recipientIdentityId: aliceIdentityId,
+        recipientDeviceId: 'alice-device-1',
+        ecdhPrivateKey: aliceEcdhKeys.privateKey,
+        kemPrivateKey: aliceKemKeys.privateKey,
+        senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+        cryptoProfile: 'default',
+      });
+
+      expect(aliceDecrypted.text).toBe('Mixed wrapping through API');
+    });
+  });
+
+  describe('forward secrecy guarantee: key deletion makes messages undecryptable', () => {
+    const bobSpk = generateSignedPreKey(bobSigningKeys.privateKey, 'default');
+    const bobOtpks = generateOneTimePreKeys(2, 'default');
+
+    const bobSpkPublic: SignedPreKeyPublic = {
+      keyId: bobSpk.keyId,
+      ecdhPublicKey: bobSpk.ecdh.publicKey,
+      kemPublicKey: bobSpk.kem.publicKey,
+      signature: bobSpk.signature,
+    };
+
+    const bobOtpkPublic: OneTimePreKeyPublic = {
+      keyId: bobOtpks[0]!.keyId,
+      ecdhPublicKey: bobOtpks[0]!.ecdh.publicKey,
+      kemPublicKey: bobOtpks[0]!.kem.publicKey,
+    };
+
+    it('should fail to decrypt after SPK private key deletion (simulated rotation)', () => {
+      const encrypted = encryptDmMessage({
+        text: 'FS message before rotation',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: bobSpkPublic,
+              signedPreKeyId: bobSpk.keyId,
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      });
+
+      // Simulate key rotation: generate a completely new SPK (old private keys are gone)
+      const rotatedSpk = generateSignedPreKey(bobSigningKeys.privateKey, 'default');
+
+      expect(() =>
+        decryptDmMessage({
+          ciphertext: encrypted.ciphertext,
+          nonce: encrypted.nonce,
+          wrappedKeys: encrypted.wrappedKeys,
+          signature: encrypted.signature,
+          recipientIdentityId: bobIdentityId,
+          recipientDeviceId: 'bob-device-1',
+          ecdhPrivateKey: bobEcdhKeys.privateKey,
+          kemPrivateKey: bobKemKeys.privateKey,
+          senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+          cryptoProfile: 'default',
+          preKeyPrivateKeys: {
+            spkEcdhPrivateKey: rotatedSpk.ecdh.privateKey,
+            spkKemPrivateKey: rotatedSpk.kem.privateKey,
+          },
+        })
+      ).toThrow('Failed to unwrap session key with pre-keys');
+    });
+
+    it('should fail to decrypt OTPK message when OTPK private keys are missing', () => {
+      const encrypted = encryptDmMessage({
+        text: 'FS message with OTPK',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+            preKeyData: {
+              signedPreKey: bobSpkPublic,
+              signedPreKeyId: bobSpk.keyId,
+              oneTimePreKey: bobOtpkPublic,
+              oneTimePreKeyId: bobOtpks[0]!.keyId,
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      });
+
+      // Attempt decrypt with correct SPK but without OTPK private keys (deleted after first use)
+      expect(() =>
+        decryptDmMessage({
+          ciphertext: encrypted.ciphertext,
+          nonce: encrypted.nonce,
+          wrappedKeys: encrypted.wrappedKeys,
+          signature: encrypted.signature,
+          recipientIdentityId: bobIdentityId,
+          recipientDeviceId: 'bob-device-1',
+          ecdhPrivateKey: bobEcdhKeys.privateKey,
+          kemPrivateKey: bobKemKeys.privateKey,
+          senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+          cryptoProfile: 'default',
+          preKeyPrivateKeys: {
+            spkEcdhPrivateKey: bobSpk.ecdh.privateKey,
+            spkKemPrivateKey: bobSpk.kem.privateKey,
+          },
+        })
+      ).toThrow('Failed to unwrap session key with pre-keys');
+    });
+
+    it('should always decrypt static messages regardless of pre-key state', () => {
+      const encrypted = encryptDmMessage({
+        text: 'Static message survives rotation',
+        fromIdentityId: aliceIdentityId,
+        fromDeviceId: 'alice-device-1',
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: {
+              ecdh: bobEcdhKeys.publicKey,
+              kem: bobKemKeys.publicKey,
+              profile: 'default',
+            },
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+        cryptoProfile: 'default',
+      });
+
+      expect(encrypted.wrappedKeys[0]!.preKeyType).toBe('static');
+
+      // Decrypt works with static device keys even if pre-keys have been rotated/deleted
+      const decrypted = decryptDmMessage({
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        wrappedKeys: encrypted.wrappedKeys,
+        signature: encrypted.signature,
+        recipientIdentityId: bobIdentityId,
+        recipientDeviceId: 'bob-device-1',
+        ecdhPrivateKey: bobEcdhKeys.privateKey,
+        kemPrivateKey: bobKemKeys.privateKey,
+        senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+        cryptoProfile: 'default',
+      });
+
+      expect(decrypted.text).toBe('Static message survives rotation');
+      expect(decrypted.fromIdentityId).toBe(aliceIdentityId);
     });
   });
 

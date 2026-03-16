@@ -20,6 +20,7 @@ import {
   getOrCreateWrappingSalt,
   hasSecureStorageBackend,
 } from '../services/deviceKeyStorage';
+import { generateAndUploadPreKeys } from '../services/preKeyService';
 
 // ============================================================================
 // Identity State Types
@@ -169,7 +170,7 @@ function clearWebDeviceKeys(webDev: DecryptedWebDevice): void {
  * Internal hook that manages identity state.
  */
 function useIdentityState(): IdentityContextValue {
-  const { apiBaseUrl } = useAppConfig();
+  const { apiBaseUrl, platform } = useAppConfig();
   const { status: authStatus, session } = useAuth();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -464,6 +465,21 @@ function useIdentityState(): IdentityContextValue {
         };
       }
 
+      // Generate and upload pre-keys for forward secrecy
+      try {
+        await generateAndUploadPreKeys({
+          identityId: createdIdentity.id,
+          deviceId: e2eResult.device.deviceId,
+          signingPrivateKey: e2eResult.signingPrivateKey,
+          wrappingKey,
+          platform,
+        }, api.identity);
+        console.debug('[Identity] createIdentity: pre-keys generated and uploaded');
+      } catch (err) {
+        // Non-fatal: device works without pre-keys, FS just won't be available until next attempt
+        console.warn('[Identity] createIdentity: pre-key upload failed (non-fatal):', err);
+      }
+
       // Cache keys in memory
       wrappingKeyRef.current = wrappingKey;
       wrappingSaltRef.current = salt;
@@ -487,7 +503,7 @@ function useIdentityState(): IdentityContextValue {
         identity: createdIdentity,
       };
     },
-    [api]
+    [api, platform]
   );
 
   const loginToIdentity = useCallback(
@@ -796,6 +812,23 @@ function useIdentityState(): IdentityContextValue {
         currentDeviceIdRef.current = deviceId;
         console.debug('[Identity] loginToIdentity: all keys cached in memory');
 
+        // Generate and upload pre-keys for new devices (forward secrecy)
+        if (isNewDevice && signingPrivateKey && deviceId) {
+          try {
+            await generateAndUploadPreKeys({
+              identityId: loggedInIdentity.id,
+              deviceId,
+              signingPrivateKey,
+              wrappingKey,
+              platform,
+            }, api.identity);
+            console.debug('[Identity] loginToIdentity: pre-keys generated and uploaded for new device');
+          } catch (err) {
+            // Non-fatal: device works without pre-keys, FS just won't be available until next attempt
+            console.warn('[Identity] loginToIdentity: pre-key upload failed (non-fatal):', err);
+          }
+        }
+
         onStatus?.('complete');
 
         setState((prev) => ({
@@ -818,7 +851,7 @@ function useIdentityState(): IdentityContextValue {
         error: 'Unexpected response',
       };
     },
-    [api]
+    [api, platform]
   );
 
   const unlockIdentity = useCallback(

@@ -10,19 +10,12 @@ mock.module('../../config', () => ({
     redis: { url: 'redis://localhost:6379' },
     security: {
       sessionSecret: 'test-secret',
+      otpSecret: 'test-otp-secret',
     },
     cookie: {
       domain: '',
     },
   },
-}));
-
-// Mock crypto utilities
-mock.module('../../utils/crypto', () => ({
-  generateSecureToken: mock(() => 'test-token'),
-  hashIdentifier: mock((id: string) => `hashed:${id}`),
-  hmacSign: mock((data: string) => `sig:${data}`),
-  hmacVerify: mock(() => true),
 }));
 
 // Test identity data

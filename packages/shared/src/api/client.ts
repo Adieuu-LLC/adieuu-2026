@@ -1079,6 +1079,50 @@ export class IdentityApi {
     );
   }
 
+  // ==========================================================================
+  // Pre-Keys (Forward Secrecy)
+  // ==========================================================================
+
+  /**
+   * Upload pre-keys for a device (signed pre-key and/or one-time pre-keys).
+   */
+  async uploadPreKeys(
+    identityId: string,
+    deviceId: string,
+    params: UploadPreKeysParams
+  ): Promise<ApiResponse<{ storedSignedPreKey: boolean; storedOneTimePreKeys: number }>> {
+    return this.client.post(
+      `/api/identity/${encodeURIComponent(identityId)}/devices/${encodeURIComponent(deviceId)}/pre-keys`,
+      params
+    );
+  }
+
+  /**
+   * Claim pre-keys for all (or specified) devices of an identity.
+   * Used by senders before encrypting a message.
+   */
+  async claimPreKeys(
+    identityId: string,
+    params?: ClaimPreKeysParams
+  ): Promise<ApiResponse<{ devices: ClaimedDevicePreKeys[] }>> {
+    return this.client.post(
+      `/api/identity/${encodeURIComponent(identityId)}/pre-keys/claim`,
+      params ?? {}
+    );
+  }
+
+  /**
+   * Get remaining pre-key counts for a device.
+   */
+  async getPreKeyCount(
+    identityId: string,
+    deviceId: string
+  ): Promise<ApiResponse<PreKeyCountResponse>> {
+    return this.client.get(
+      `/api/identity/${encodeURIComponent(identityId)}/devices/${encodeURIComponent(deviceId)}/pre-keys/count`
+    );
+  }
+
   /**
    * List all identity sessions.
    *
@@ -1468,16 +1512,97 @@ export interface Conversation {
 // ============================================================================
 
 /**
+ * Which key exchange mode was used for wrapping.
+ * - 'otpk': Signed pre-key + one-time pre-key (best forward secrecy)
+ * - 'spk': Signed pre-key only (medium-term forward secrecy)
+ * - 'static': Static device key (no forward secrecy, fallback only)
+ */
+export type PreKeyType = 'otpk' | 'spk' | 'static';
+
+/**
  * Serialized wrapped key for message encryption.
  */
 export interface SerializedWrappedKey {
   identityId: string;
-  deviceId?: string;
+  deviceId: string;
   ephemeralPublicKey: string;
   kemCiphertext: string;
   wrappedSessionKey: string;
   wrappingNonce: string;
+  preKeyType: PreKeyType;
+  oneTimePreKeyId?: string;
+  signedPreKeyId?: string;
+  oneTimeKemCiphertext?: string;
 }
+
+// ============================================================================
+// Pre-Key Types
+// ============================================================================
+
+/**
+ * Public signed pre-key (returned when claiming).
+ */
+export interface PublicSignedPreKey {
+  keyId: string;
+  ecdhPublicKey: string;
+  kemPublicKey: string;
+  signature: string;
+}
+
+/**
+ * Public one-time pre-key (returned when claiming).
+ */
+export interface PublicOneTimePreKey {
+  keyId: string;
+  ecdhPublicKey: string;
+  kemPublicKey: string;
+}
+
+/**
+ * Claimed pre-keys for a single device.
+ */
+export interface ClaimedDevicePreKeys {
+  deviceId: string;
+  signedPreKey: PublicSignedPreKey | null;
+  oneTimePreKey: PublicOneTimePreKey | null;
+}
+
+/**
+ * Parameters for uploading pre-keys.
+ */
+export interface UploadPreKeysParams {
+  signedPreKey?: {
+    keyId: string;
+    ecdhPublicKey: string;
+    kemPublicKey: string;
+    signature: string;
+  };
+  oneTimePreKeys?: Array<{
+    keyId: string;
+    ecdhPublicKey: string;
+    kemPublicKey: string;
+  }>;
+  signedPreKeyExpiresInDays?: number;
+}
+
+/**
+ * Parameters for claiming pre-keys.
+ */
+export interface ClaimPreKeysParams {
+  deviceIds?: string[];
+}
+
+/**
+ * Response from the pre-key count endpoint.
+ */
+export interface PreKeyCountResponse {
+  signedPreKey: { keyId: string; expiresAt: string | null } | null;
+  oneTimePreKeysRemaining: number;
+}
+
+// ============================================================================
+// DM Types
+// ============================================================================
 
 /**
  * DM conversation response.

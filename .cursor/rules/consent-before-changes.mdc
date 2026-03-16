@@ -18,3 +18,6 @@ This applies to:
 - Any modification to the codebase
 
 Only after receiving clear consent (e.g., "yes", "do it", "go ahead", "implement option A") should you proceed with changes.
+
+# Security and End-User Privacy Are Always Paramount
+We take the security and privacy of our users very seriously. If directions are ever given that have security implications (such that they may adversely affect existing privacy or security patterns, for example), notify the user and get their consent before continuing.
