@@ -663,9 +663,9 @@ export async function getKeyBundleCtrl(ctx: RouteContext): Promise<Response> {
   const bundleId = deriveBundleId(identity.ident);
   
   // Debug logging for bundle retrieval
-  console.log('[Get Bundle] Identity ID:', identity._id.toHexString());
-  console.log('[Get Bundle] Identity ident:', identity.ident);
-  console.log('[Get Bundle] Derived bundle ID:', bundleId);
+  // console.log('[Get Bundle] Identity ID:', identity._id.toHexString());
+  // console.log('[Get Bundle] Identity ident:', identity.ident);
+  // console.log('[Get Bundle] Derived bundle ID:', bundleId);
 
   const bundle = await keyBundleRepo.findByBundleId(bundleId);
   if (!bundle) {
