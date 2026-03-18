@@ -250,7 +250,11 @@ function SettingsSidebar() {
       <div className="conversation-settings-header">
         <h3>{t('conversation.settings')}</h3>
       </div>
-      <div className="conversation-settings-body" />
+      <div className="conversation-settings-body">
+        <div className="sidebar-coming-soon">
+          <p>{t('conversation.settingsComingSoon')}</p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -825,11 +829,17 @@ export function Conversation() {
   };
 
   const handleToggleMembersSidebar = () => {
-    setShowMembersSidebar((prev) => !prev);
+    setShowMembersSidebar((prev) => {
+      if (!prev) setShowSettingsSidebar(false);
+      return !prev;
+    });
   };
 
   const handleToggleSettingsSidebar = () => {
-    setShowSettingsSidebar((prev) => !prev);
+    setShowSettingsSidebar((prev) => {
+      if (!prev) setShowMembersSidebar(false);
+      return !prev;
+    });
   };
 
   const handleSendMessage = useCallback(async (

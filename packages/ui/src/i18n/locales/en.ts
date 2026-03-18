@@ -73,6 +73,7 @@ export const en = {
     members: 'Members',
     profile: 'Profile',
     settings: 'Settings',
+    settingsComingSoon: 'Conversation settings coming soon, including crypto profile customization and more.',
     viewProfile: 'View Profile',
     messagesPlaceholder: 'Messages will appear here.',
     noMessages: 'No messages yet. Say hi to {{name}}!',
