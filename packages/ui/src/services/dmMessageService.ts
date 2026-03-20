@@ -59,6 +59,10 @@ export interface RecipientPublicKeys {
 /**
  * Decrypted message content structure.
  * This is what the user sees after decryption.
+ *
+ * Version history:
+ *   v1: text-only messages
+ *   v2: adds optional attachmentIds for referencing dm_attachments records
  */
 export interface DecryptedMessageContent {
   /** The plaintext message */
@@ -67,6 +71,13 @@ export interface DecryptedMessageContent {
   fromIdentityId: string;
   /** Sender's device ID (if included in message) */
   fromDeviceId?: string;
+  /**
+   * References to dm_attachments records (v2+).
+   * Actual attachment content/metadata lives in a separate encrypted collection
+   * so the server can answer "which messages have attachments?" without
+   * knowing their types or contents.
+   */
+  attachmentIds?: string[];
   /** Message version for forward compatibility */
   version: number;
 }
@@ -237,12 +248,12 @@ function deserializeWrappedKey(swk: SerializedWrappedKey): WrappedKey {
 export function encryptDmMessage(input: EncryptMessageInput): EncryptedMessage {
   const profile = input.cryptoProfile ?? 'default';
 
-  // 1. Create message content
+  // 1. Create message content (v2: supports attachmentIds)
   const content: DecryptedMessageContent = {
     text: input.text,
     fromIdentityId: input.fromIdentityId,
     fromDeviceId: input.fromDeviceId,
-    version: 1,
+    version: 2,
   };
   const plaintext = toBytes(JSON.stringify(content));
 
@@ -423,12 +434,15 @@ export function decryptDmMessage(input: DecryptMessageInput): DecryptedMessageCo
     throw new Error('Failed to parse decrypted message content');
   }
 
-  // Validate required fields
-  if (!content.text || typeof content.text !== 'string') {
+  // Validate required fields (compatible with v1 and v2 payloads)
+  if (typeof content.text !== 'string') {
     throw new Error('Invalid message content: missing text');
   }
   if (!content.fromIdentityId || typeof content.fromIdentityId !== 'string') {
     throw new Error('Invalid message content: missing fromIdentityId');
+  }
+  if (content.attachmentIds !== undefined && !Array.isArray(content.attachmentIds)) {
+    throw new Error('Invalid message content: attachmentIds must be an array');
   }
 
   return content;

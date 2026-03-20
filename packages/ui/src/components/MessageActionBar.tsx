@@ -7,7 +7,8 @@ import { type ReactNode, useState, useCallback, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Popover } from './Popover';
 import { Tooltip } from './Tooltip';
-import { InfoCircleIcon, EllipsisHorizontalIcon } from './Icons';
+import { InfoCircleIcon, EllipsisHorizontalIcon, SmilePlusIcon } from './Icons';
+import { EmojiPicker } from './EmojiPicker';
 
 // ============================================================================
 // Types
@@ -36,6 +37,8 @@ export interface MessageActionBarProps {
   disabled?: boolean;
   /** Called when any popover in the bar opens or closes */
   onPopoverOpenChange?: (open: boolean) => void;
+  /** Called when user selects an emoji to react with */
+  onReact?: (emoji: string) => void;
 }
 
 // ============================================================================
@@ -91,34 +94,73 @@ export const MessageActionBar = memo(function MessageActionBar({
   isOwn,
   disabled,
   onPopoverOpenChange,
+  onReact,
 }: MessageActionBarProps) {
   const { t } = useTranslation();
   const [infoOpen, setInfoOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reactionOpen, setReactionOpen] = useState(false);
 
   const handleInfoOpenChange = useCallback(
     (open: boolean) => {
       setInfoOpen(open);
-      onPopoverOpenChange?.(open || menuOpen);
+      onPopoverOpenChange?.(open || menuOpen || reactionOpen);
     },
-    [menuOpen, onPopoverOpenChange],
+    [menuOpen, reactionOpen, onPopoverOpenChange],
   );
 
   const handleMenuOpenChange = useCallback(
     (open: boolean) => {
       setMenuOpen(open);
-      onPopoverOpenChange?.(open || infoOpen);
+      onPopoverOpenChange?.(open || infoOpen || reactionOpen);
     },
-    [infoOpen, onPopoverOpenChange],
+    [infoOpen, reactionOpen, onPopoverOpenChange],
   );
 
-  const isAnyPopoverOpen = infoOpen || menuOpen;
+  const handleReactionOpenChange = useCallback(
+    (open: boolean) => {
+      setReactionOpen(open);
+      onPopoverOpenChange?.(open || infoOpen || menuOpen);
+    },
+    [infoOpen, menuOpen, onPopoverOpenChange],
+  );
+
+  const handleEmojiSelect = useCallback(
+    (emoji: string) => {
+      onReact?.(emoji);
+      setReactionOpen(false);
+    },
+    [onReact],
+  );
+
+  const isAnyPopoverOpen = infoOpen || menuOpen || reactionOpen;
   if (!visible && !isAnyPopoverOpen) return null;
 
   return (
     <div
       className={`message-action-bar ${isOwn ? 'message-action-bar--own' : ''}`}
     >
+      {onReact && (
+        <Popover
+          trigger={
+            <button
+              className="message-action-bar-btn"
+              aria-label={t('messages.emoji.react')}
+              disabled={disabled}
+            >
+              <Tooltip content={t('messages.emoji.react')} position="top">
+                <SmilePlusIcon className="message-action-bar-icon" />
+              </Tooltip>
+            </button>
+          }
+          positioning={{ placement: isOwn ? 'bottom-end' : 'bottom-start' }}
+          onOpenChange={handleReactionOpenChange}
+          className="emoji-picker-popover"
+        >
+          <EmojiPicker onEmojiSelect={handleEmojiSelect} compact />
+        </Popover>
+      )}
+
       <Popover
         trigger={
           <button

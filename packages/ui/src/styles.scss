@@ -5489,6 +5489,111 @@ a {
 }
 
 // ============================================================================
+// Emoji-only messages
+// ============================================================================
+
+.dm-message-emoji-only {
+  margin: 0;
+  font-size: 2.5rem;
+  line-height: 1.2;
+}
+
+// ============================================================================
+// Message Reactions
+// ============================================================================
+
+.dm-message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--spacing-xxs);
+}
+
+.dm-message-reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-hover);
+  }
+}
+
+.dm-message-reaction--own {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+
+  &:hover {
+    background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  }
+}
+
+.dm-message-reaction-emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.dm-message-reaction-count {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+// ============================================================================
+// Emoji Picker
+// ============================================================================
+
+.emoji-picker-container {
+  em-emoji-picker {
+    --em-rgb-background: var(--color-bg-elevated-rgb, 30, 30, 30);
+    --em-rgb-input: var(--color-bg-tertiary-rgb, 40, 40, 40);
+    --em-rgb-color: var(--color-text-rgb, 230, 230, 230);
+  }
+}
+
+.emoji-picker-popover {
+  padding: 0;
+  overflow: hidden;
+}
+
+.message-composer-emoji-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
+
+  &:hover:not(:disabled) {
+    color: var(--color-text);
+    background: var(--color-bg-hover);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.message-composer-emoji-icon {
+  width: 20px;
+  height: 20px;
+}
+
+// ============================================================================
 // Message Action Bar (reusable across DMs, groups, Spaces)
 // ============================================================================
 

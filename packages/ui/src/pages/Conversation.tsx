@@ -18,6 +18,7 @@ import { useConversationsList } from '../hooks/useConversations';
 import { useConversationsContext } from '../hooks/ConversationsProvider';
 import { useIdentity } from '../hooks/useIdentity';
 import { useDmMessages, useSendDmMessage, type DecryptedDmMessage } from '../hooks/useDmMessages';
+import { type GroupedReaction } from '../hooks/useDmReactions';
 import { useDmSubscription, type DmNewMessageEvent, type DmDeletedEvent } from '../hooks/useDmSubscription';
 import { useDeleteMessage } from '../hooks/useDeleteMessage';
 import { useDocumentVisibility } from '../hooks/useDocumentVisibility';
@@ -313,12 +314,57 @@ function useExpiryCountdown(expiresAt: string | undefined): string | null {
   return remaining;
 }
 
+/**
+ * Regex matching sequences of emoji characters (including skin tone modifiers,
+ * ZWJ sequences, and keycap sequences). Whitespace between emojis is allowed.
+ */
+const EMOJI_ONLY_REGEX = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Regional_Indicator}{2}|[\u200D\uFE0F]|\s)+$/u;
+const MAX_EMOJI_ONLY_LENGTH = 12;
+
+function isEmojiOnlyMessage(text: string | undefined): boolean {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (trimmed.length === 0 || trimmed.length > MAX_EMOJI_ONLY_LENGTH) return false;
+  return EMOJI_ONLY_REGEX.test(trimmed);
+}
+
+interface ReactionBarProps {
+  reactions: GroupedReaction[];
+  onReactionClick: (emoji: string, includesMe: boolean, reactionIds: string[]) => void;
+}
+
+const ReactionBar = memo(function ReactionBar({
+  reactions,
+  onReactionClick,
+}: ReactionBarProps) {
+  if (reactions.length === 0) return null;
+
+  return (
+    <div className="dm-message-reactions">
+      {reactions.map((reaction) => (
+        <button
+          key={reaction.emoji}
+          className={`dm-message-reaction ${reaction.includesMe ? 'dm-message-reaction--own' : ''}`}
+          onClick={() => onReactionClick(reaction.emoji, reaction.includesMe, reaction.reactionIds)}
+          title={`${reaction.emoji} ${reaction.count}`}
+        >
+          <span className="dm-message-reaction-emoji">{reaction.emoji}</span>
+          <span className="dm-message-reaction-count">{reaction.count}</span>
+        </button>
+      ))}
+    </div>
+  );
+});
+
 interface MessageBubbleProps {
   message: DecryptedDmMessage;
   isOwn: boolean;
   onDeleteForEveryone?: (messageId: string) => void;
   onDeleteForSelf?: (messageId: string) => void;
   isDeleting?: boolean;
+  onReact?: (emoji: string) => void;
+  reactions?: GroupedReaction[];
+  onReactionClick?: (emoji: string, includesMe: boolean, reactionIds: string[]) => void;
 }
 
 const MessageBubble = memo(function MessageBubble({
@@ -327,6 +373,9 @@ const MessageBubble = memo(function MessageBubble({
   onDeleteForEveryone,
   onDeleteForSelf,
   isDeleting,
+  onReact,
+  reactions = [],
+  onReactionClick,
 }: MessageBubbleProps) {
   const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
@@ -409,6 +458,22 @@ const MessageBubble = memo(function MessageBubble({
     );
   }
 
+  const emojiOnly = isEmojiOnlyMessage(message.decrypted?.text);
+
+  const handleReact = useCallback(
+    (emoji: string) => {
+      onReact?.(emoji);
+    },
+    [onReact],
+  );
+
+  const handleReactionClick = useCallback(
+    (emoji: string, includesMe: boolean, reactionIds: string[]) => {
+      onReactionClick?.(emoji, includesMe, reactionIds);
+    },
+    [onReactionClick],
+  );
+
   return (
     <div
       className={`dm-message ${isOwn ? 'dm-message--own' : ''}`}
@@ -423,11 +488,19 @@ const MessageBubble = memo(function MessageBubble({
           isOwn={isOwn}
           disabled={isDeleting}
           onPopoverOpenChange={setIsActionBarPopoverOpen}
+          onReact={handleReact}
         />
-        <div className={`dm-message-bubble ${isOwn ? 'dm-message-bubble--own' : ''}`}>
-          <p className="dm-message-text">{message.decrypted?.text}</p>
-        </div>
+        {emojiOnly ? (
+          <p className="dm-message-emoji-only">{message.decrypted?.text}</p>
+        ) : (
+          <div className={`dm-message-bubble ${isOwn ? 'dm-message-bubble--own' : ''}`}>
+            <p className="dm-message-text">{message.decrypted?.text}</p>
+          </div>
+        )}
       </div>
+      {reactions.length > 0 && (
+        <ReactionBar reactions={reactions} onReactionClick={handleReactionClick} />
+      )}
       <div className="dm-message-footer">
         <span className="dm-message-time">{formatMessageTime(message.raw.createdAt)}</span>
         {isOwn && (
@@ -454,7 +527,8 @@ const MessageBubble = memo(function MessageBubble({
     prevProps.message.decryptionError === nextProps.message.decryptionError &&
     prevProps.message.raw.expiresAt === nextProps.message.raw.expiresAt &&
     prevProps.isOwn === nextProps.isOwn &&
-    prevProps.isDeleting === nextProps.isDeleting
+    prevProps.isDeleting === nextProps.isDeleting &&
+    prevProps.reactions === nextProps.reactions
   );
 });
 

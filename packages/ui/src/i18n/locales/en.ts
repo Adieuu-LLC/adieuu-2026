@@ -38,7 +38,7 @@ export const en = {
   sidebar: {
     main: 'Main',
     account: 'Account',
-    identity: 'Identity',
+    identity: 'Alias',
     comingSoon: '{{feature}} coming soon.',
     tabs: {
       friends: 'Friends',
@@ -140,6 +140,14 @@ export const en = {
       showHiddenMessages: 'Show hidden messages',
       hideMessages: 'Hide messages',
       messageUnavailable: 'Message no longer available',
+    },
+    emoji: {
+      select: 'Insert emoji',
+      react: 'Add reaction',
+    },
+    reactions: {
+      addReaction: 'Add reaction',
+      removeReaction: 'Remove reaction',
     },
     newMessage: 'New message',
     newMessageDescription: 'Sent you a message',
@@ -264,10 +272,10 @@ export const en = {
 
   // Identity
   identity: {
-    title: 'Anonymous Identity',
+    title: 'Anonymous Alias',
     notLoggedIn: 'Not logged in',
-    loginButton: 'Identity',
-    createButton: 'Create Identity',
+    loginButton: 'Alias',
+    createButton: 'Create Alias',
     logoutButton: 'Logout',
     loggedInAs: 'Logged in as',
     // Menu items for identity flyout
@@ -294,7 +302,7 @@ export const en = {
     // Devices page
     devices: {
       title: 'Devices',
-      subtitle: 'Manage devices that have access to your identity. Each device has its own encryption keys.',
+      subtitle: 'Manage devices that have access to your alias. Each device has its own encryption keys.',
       tabs: {
         devices: 'Devices',
         sessions: 'Sessions',
@@ -314,7 +322,7 @@ export const en = {
       importKeyBackup: 'Import Backup',
       export: {
         title: 'Export Backup',
-        description: 'Create an encrypted backup of your identity data. You will need the export password to restore this backup later.',
+        description: 'Create an encrypted backup of your alias data. You will need the export password to restore this backup later.',
         includeLabel: 'Include in backup',
         contentDevices: 'Device Keys',
         contentCiphers: 'Ciphers',
@@ -329,7 +337,7 @@ export const en = {
         errorPasswordMismatch: 'Passwords do not match.',
         errorPasswordTooShort: 'Password must be at least {{min}} characters.',
         errorNothingSelected: 'Select at least one data type to export.',
-        errorNoData: 'No data found to export for this identity.',
+        errorNoData: 'No data found to export for this alias.',
         errorFailed: 'Failed to export backup.',
       },
       import: {
@@ -339,9 +347,9 @@ export const en = {
         pickFileHint: 'Select a .adieuu-keys file',
         passwordLabel: 'Export Password',
         passwordPlaceholder: 'Enter the export password',
-        passphraseNeeded: 'Your identity passphrase is needed to re-encrypt the imported data for this device.',
-        passphraseLabel: 'Identity Passphrase',
-        passphrasePlaceholder: 'Enter your identity passphrase',
+        passphraseNeeded: 'Your alias passphrase is needed to re-encrypt the imported data for this device.',
+        passphraseLabel: 'Alias Passphrase',
+        passphrasePlaceholder: 'Enter your alias passphrase',
         submit: 'Decrypt & Import',
         importing: 'Decrypting and importing...',
         summaryDevices: '{{count}} device key(s)',
@@ -351,7 +359,7 @@ export const en = {
         mergeDescription: '{{count}} of {{total}} items in this backup already exist on this device.',
         mergeSkip: 'Skip existing',
         mergeReplace: 'Replace existing',
-        identityMismatch: 'This backup is for a different identity. Sign in to the correct identity and try again.',
+        identityMismatch: 'This backup is for a different alias. Sign in to the correct alias and try again.',
         errorWrongPassword: 'Incorrect export password. The backup could not be decrypted.',
         errorCorruptFile: 'The backup file is damaged or not a valid Adieuu backup.',
         errorUnsupportedVersion: 'This backup was created with a newer version of Adieuu. Please update.',
@@ -440,15 +448,15 @@ export const en = {
     },
     // Identity session management
     sessions: {
-      title: 'Identity Sessions',
-      description: 'These are the active sessions for your identity. You can revoke access to any session you don\'t recognize.',
+      title: 'Alias Sessions',
+      description: 'These are the active sessions for your alias. You can revoke access to any session you don\'t recognize.',
       currentSession: 'Current session',
       lastActive: 'Last active',
       created: 'Created',
       revokeSession: 'Revoke',
       revokeAllOthers: 'Revoke all other sessions',
       revokeAllConfirmTitle: 'Revoke all other sessions?',
-      revokeAllConfirmDescription: 'This will sign out all other sessions for this identity. You will remain signed in on this device.',
+      revokeAllConfirmDescription: 'This will sign out all other sessions for this alias. You will remain signed in on this device.',
       noOtherSessions: 'No other active sessions.',
       sessionRevoked: 'Session revoked successfully.',
       allSessionsRevoked: '{{count}} session(s) revoked successfully.',
@@ -456,8 +464,8 @@ export const en = {
     },
     // Create modal
     create: {
-      title: 'Create Anonymous Identity',
-      subtitle: 'Your identity is cryptographically separated from your account. No one can trace it back to you.',
+      title: 'Create Anonymous Alias',
+      subtitle: 'Your alias is cryptographically separated from your account. No one can trace it back to you.',
       passphrasePlaceholder: 'Enter a memorable passphrase',
       passphraseConfirmPlaceholder: 'Confirm your passphrase',
       passphraseHint: 'Use a sentence or phrase (8+ characters). You will need this to login.',
@@ -482,11 +490,11 @@ export const en = {
       usernameHint: 'This will be visible to others.',
       displayNamePlaceholder: 'Display name',
       displayNameHint: 'How you appear in conversations.',
-      submitButton: 'Create Identity',
+      submitButton: 'Create Alias',
       creating: 'Creating...',
-      creatingTitle: 'Creating Your Identity',
+      creatingTitle: 'Creating Your Alias',
       creatingSubtitle: 'Setting up encryption keys. This may take a moment...',
-      success: 'Identity created successfully!',
+      success: 'Alias created successfully!',
       redirecting: 'Redirecting to login...',
       errorUsernameTaken: 'This username is already taken.',
       errorMaxIdentities: 'You have reached the maximum number of identities.',
@@ -495,19 +503,19 @@ export const en = {
     },
     // Login modal
     login: {
-      title: 'Login to Identity',
-      subtitle: 'Enter your passphrase to access your anonymous identity.',
+      title: 'Login to Alias',
+      subtitle: 'Enter your passphrase to access your anonymous alias.',
       passphrasePlaceholder: 'Enter your passphrase',
       submitButton: 'Login',
       loggingIn: 'Logging in...',
       loggingInTitle: 'Logging In',
-      redirecting: 'Opening your identity...',
+      redirecting: 'Opening your alias...',
       success: 'Logged in successfully!',
       errorInvalid: 'Invalid passphrase. Please try again.',
       errorLocked: 'Too many failed attempts. Please try again later.',
       errorRateLimited: 'Please wait {{seconds}} seconds before trying again.',
       attemptsRemaining: '{{remaining}} attempts remaining before lockout.',
-      noIdentity: "You don't have an identity yet.",
+      noIdentity: "You don't have an alias yet.",
       createPrompt: 'Create one to get started.',
       // Login status messages
       status: {
@@ -528,14 +536,14 @@ export const en = {
       submitButton: 'Unlock',
       success: 'Unlocked!',
       errorInvalid: 'Invalid passphrase. Please try again.',
-      loginDifferent: 'Login to a different identity',
+      loginDifferent: 'Login to a different alias',
       logoutButton: 'Fully Logout',
     },
     // Delete confirmation
     delete: {
-      title: 'Delete Identity',
-      warning: 'This action cannot be undone. Your identity will be permanently deleted.',
-      confirmButton: 'Delete Identity',
+      title: 'Delete Alias',
+      warning: 'This action cannot be undone. Your alias will be permanently deleted.',
+      confirmButton: 'Delete Alias',
     },
 
     // E2E Encryption
@@ -588,12 +596,12 @@ export const en = {
       // Separate passphrase
       separatePassphrase: {
         label: 'Use separate passphrase for encryption keys',
-        hint: 'Advanced: Protect your encryption keys with a different passphrase than your identity login.',
+        hint: 'Advanced: Protect your encryption keys with a different passphrase than your alias login.',
         placeholder: 'Enter encryption passphrase',
         confirmPlaceholder: 'Confirm encryption passphrase',
         mismatch: 'Encryption passphrases do not match.',
         tooShort: 'Encryption passphrase must be at least 12 characters.',
-        sameAsIdentity: 'Encryption passphrase must be different from identity passphrase.',
+        sameAsIdentity: 'Encryption passphrase must be different from alias passphrase.',
         required: 'Both passphrases are required to access messages on new devices.',
       },
 
@@ -641,7 +649,7 @@ export const en = {
     // Profile page
     profile: {
       title: 'Profile',
-      subtitle: 'View and manage your identity profile.',
+      subtitle: 'View and manage your alias profile.',
       comingSoon: 'Profile settings coming soon.',
     },
     // Content & Social page
@@ -809,7 +817,7 @@ export const en = {
     addButton: 'Add Cipher',
     exportBackup: 'Export',
     importBackup: 'Import',
-    notLoggedIn: 'Please log in to your identity to manage ciphers.',
+    notLoggedIn: 'Please log in to your alias to manage ciphers.',
     sessionLocked: 'Your session is locked. Enter your passphrase to unlock and view your ciphers.',
 
     // Empty state

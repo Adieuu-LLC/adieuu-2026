@@ -366,7 +366,7 @@ describe('DM Message Service', () => {
       expect(decrypted.text).toBe(originalText);
       expect(decrypted.fromIdentityId).toBe(aliceIdentityId);
       expect(decrypted.fromDeviceId).toBe('alice-device-1');
-      expect(decrypted.version).toBe(1);
+      expect(decrypted.version).toBe(2);
     });
 
     it('should fail to decrypt with wrong recipient keys', () => {

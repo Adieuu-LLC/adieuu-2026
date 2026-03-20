@@ -524,6 +524,54 @@ export function EllipsisHorizontalIcon({ className }: IconProps) {
   );
 }
 
+export function SmilePlusIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M7 11.5C7.5 12.5 8.5 13 10 13C11.5 13 12.5 12.5 13 11.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="7.5" cy="8.5" r="0.75" fill="currentColor" />
+      <circle cx="12.5" cy="8.5" r="0.75" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function SmileIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M7 11.5C7.5 12.5 8.5 13 10 13C11.5 13 12.5 12.5 13 11.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="7.5" cy="8.5" r="0.75" fill="currentColor" />
+      <circle cx="12.5" cy="8.5" r="0.75" fill="currentColor" />
+      <line x1="16" y1="4" x2="20" y2="4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="18" y1="2" x2="18" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function SendIcon({ className }: IconProps) {
   return (
     <svg

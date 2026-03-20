@@ -1804,6 +1804,86 @@ export class DmApi {
 }
 
 // ============================================================================
+// DM Reaction Types
+// ============================================================================
+
+/**
+ * DM reaction response (from server).
+ * The ciphertext contains the encrypted emoji + reactor identity.
+ */
+export interface DmReaction {
+  id: string;
+  messageId: string;
+  conversationId: string;
+  toIdentityId: string;
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: SerializedWrappedKey[];
+  signature: string;
+  cryptoProfile: 'default' | 'cnsa2';
+  clientReactionId: string;
+  createdAt: string;
+}
+
+/**
+ * Parameters for sending an encrypted reaction.
+ */
+export interface SendDmReactionParams {
+  messageId: string;
+  conversationId: string;
+  toIdentityId: string;
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: SerializedWrappedKey[];
+  signature: string;
+  cryptoProfile: 'default' | 'cnsa2';
+  clientReactionId: string;
+}
+
+export class DmReactionsApi {
+  constructor(private client: ApiClient) {}
+
+  /**
+   * Add an encrypted reaction to a message.
+   */
+  async addReaction(
+    params: SendDmReactionParams
+  ): Promise<ApiResponse<{ reaction: DmReaction }>> {
+    return this.client.post(
+      `/api/dm/messages/${encodeURIComponent(params.messageId)}/reactions`,
+      params
+    );
+  }
+
+  /**
+   * Remove a reaction by ID.
+   */
+  async removeReaction(
+    reactionId: string
+  ): Promise<ApiResponse<{ success: boolean }>> {
+    return this.client.delete(`/api/dm/reactions/${encodeURIComponent(reactionId)}`);
+  }
+
+  /**
+   * Get reactions for messages in a conversation.
+   * Returns reactions for the specified message IDs.
+   */
+  async getReactions(
+    conversationId: string,
+    messageIds: string[]
+  ): Promise<ApiResponse<{ reactions: DmReaction[] }>> {
+    const params = new URLSearchParams();
+    for (const id of messageIds) {
+      params.append('messageIds', id);
+    }
+    const query = params.toString();
+    return this.client.get(
+      `/api/dm/conversations/${encodeURIComponent(conversationId)}/reactions${query ? `?${query}` : ''}`
+    );
+  }
+}
+
+// ============================================================================
 // Factory Functions
 // ============================================================================
 
@@ -1823,6 +1903,7 @@ export function createApiClient(config: ApiClientConfig) {
     blocks: new BlocksApi(client),
     notifications: new NotificationsApi(client),
     dm: new DmApi(client),
+    dmReactions: new DmReactionsApi(client),
   };
 }
 

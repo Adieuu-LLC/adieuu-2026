@@ -14,6 +14,9 @@ import { useState, useRef, useCallback, type KeyboardEvent, type ChangeEvent } f
 import { useTranslation } from 'react-i18next';
 import { Button } from './Button';
 import { Popover } from './Popover';
+import { EmojiPicker } from './EmojiPicker';
+import { SmileIcon } from './Icons';
+import { Tooltip } from './Tooltip';
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MIN_ROWS = 1;
@@ -178,6 +181,31 @@ export function MessageComposer({
     });
   }, [forwardSecrecyStorageKey]);
 
+  const handleEmojiSelect = useCallback(
+    (emoji: string) => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        setText((prev) => prev + emoji);
+        return;
+      }
+
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newText = text.slice(0, start) + emoji + text.slice(end);
+      if (newText.length <= MAX_MESSAGE_LENGTH) {
+        setText(newText);
+        requestAnimationFrame(() => {
+          const cursorPos = start + emoji.length;
+          textarea.selectionStart = cursorPos;
+          textarea.selectionEnd = cursorPos;
+          textarea.focus();
+          adjustHeight();
+        });
+      }
+    },
+    [text, adjustHeight]
+  );
+
   const selectedTtlOption = TTL_OPTIONS.find((opt) => opt.value === selectedTtl) ?? TTL_OPTIONS[0];
 
   const remainingChars = MAX_MESSAGE_LENGTH - text.length;
@@ -221,6 +249,24 @@ export function MessageComposer({
               </div>
             </Popover>
           )}
+          <Popover
+            trigger={
+              <button
+                type="button"
+                className="message-composer-emoji-btn"
+                aria-label={t('messages.emoji.select')}
+                disabled={isDisabled}
+              >
+                <Tooltip content={t('messages.emoji.select')} position="top">
+                  <SmileIcon className="message-composer-emoji-icon" />
+                </Tooltip>
+              </button>
+            }
+            positioning={{ placement: 'top-start' }}
+            className="emoji-picker-popover"
+          >
+            <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+          </Popover>
           {showForwardSecrecyToggle && (
             <button
               type="button"
