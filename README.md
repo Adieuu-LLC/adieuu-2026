@@ -71,7 +71,11 @@ See [apps/mobile/README.md](apps/mobile/README.md) for iOS/Android setup.
 
 ## CI/CD
 
-GitHub Actions runs lint/typecheck, API tests, and required regression gates before build/release paths proceed.
+GitHub Actions runs lint/typecheck, API tests, and regression suites on every run. SBOM generation runs after tests; it is best-effort (does not block merges).
+
+- **PRs** targeting `development` or `main`, or **pushes** to branches other than `main`: lint, typecheck, tests, then SBOM (no web/API/desktop artifact or package jobs).
+- **PRs** targeting `main` only: also builds web/API/desktop artifacts and packages Electron before SBOM.
+- **Pushes** to `main`: full CI including product builds; on success, the [Release](.github/workflows/release.yml) workflow runs (version bump, GitHub Release, desktop binaries, SBOM attach).
 
 Key regression commands:
 - `pnpm test:fs` (forward secrecy regression suite)
@@ -79,11 +83,12 @@ Key regression commands:
 
 ### Required PR checks
 
-The following GitHub Actions jobs should be green before merge:
+Configure branch protection so these jobs are required (adjust for `development` vs `main` if you use different rules):
 - `lint-and-typecheck`
 - `test-api`
 - `test-fs`
 - `test-security`
+- For PRs into `main`, also require `build-web`, `build-api`, and `build-desktop` (artifact + package jobs).
 
 Local pre-PR verification:
 - `pnpm test:fs`
