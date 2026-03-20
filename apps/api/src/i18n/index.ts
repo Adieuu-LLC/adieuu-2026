@@ -127,7 +127,7 @@ export function getErrorMessage(
  * const email = getEmailTemplate('otpWithMagicLink', 'en', {
  *   appName: 'Adieuu',
  *   otp: '123456',
- *   magicLink: 'https://app.adieuu.im/auth/verify?t=...',
+ *   magicLink: 'https://app.adieuu.com/auth/verify?t=...',
  *   expiresInMinutes: 10,
  * });
  * // Returns: { subject: 'Your Adieuu login code', text: '...', html: '...' }

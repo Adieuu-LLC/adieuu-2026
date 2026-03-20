@@ -4,9 +4,9 @@
   "description": "Adieuu Desktop - Secure encrypted messaging application",
   "author": {
     "name": "Adieuu Team",
-    "email": "team@adieuu.im"
+    "email": "team@adieuu.com"
   },
-  "homepage": "https://adieuu.im",
+  "homepage": "https://adieuu.com",
   "private": true,
   "main": "dist/main/main.js",
   "type": "module",
@@ -76,7 +76,7 @@
         "rpm"
       ],
       "category": "Utility",
-      "maintainer": "Adieuu Team <team@adieuu.im>"
+      "maintainer": "Adieuu Team <team@adieuu.com>"
     }
   }
 }

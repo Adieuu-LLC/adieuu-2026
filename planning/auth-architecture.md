@@ -231,7 +231,7 @@ REDIS_URL=redis://localhost:6379
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
-SES_FROM_EMAIL=noreply@adieuu.app
+SES_FROM_EMAIL=noreply@adieuu.com
 
 # TextMagic
 TEXTMAGIC_USERNAME=

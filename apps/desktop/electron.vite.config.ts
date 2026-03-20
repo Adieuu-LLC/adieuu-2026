@@ -26,6 +26,8 @@ export default defineConfig({
   },
   renderer: {
     root: 'src/renderer',
+    // Load VITE_* vars from apps/desktop/.env (not src/renderer/.env)
+    envDir: __dirname,
     publicDir: path.resolve(__dirname, '../../packages/ui/public'),
     build: {
       outDir: 'dist/renderer',
@@ -44,12 +46,9 @@ export default defineConfig({
         '@adieuu/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
       },
     },
-    // Environment variable defaults - can be overridden via .env file
+    // Inject static app version; endpoint defaults are handled in renderer config.
     define: {
       __APP_VERSION__: JSON.stringify(pkg.version),
-      'import.meta.env.VITE_API_URL': JSON.stringify(
-        process.env.VITE_API_URL ?? 'http://localhost:4000'
-      ),
     },
   },
 });

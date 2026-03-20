@@ -1544,8 +1544,8 @@ PRODUCTION ARCHITECTURE
 
 DOMAIN ROUTING:
 ───────────────
-api.adieuu.app   → REST API (Bun)
-chat.adieuu.app  → WebSocket (uWebSockets.js, load balanced)
+api.adieuu.com   → REST API (Bun)
+chat.adieuu.com  → WebSocket (uWebSockets.js, load balanced)
 ```
 
 ### 10.2 Why uWebSockets.js
@@ -1645,7 +1645,7 @@ server.ws('/ws/chat', {
 // POST /api/auth/ws-token → { token: "...", expiresIn: 30 }
 
 // Step 2: Connect with token
-// ws://chat.adieuu.app/ws/chat?token=...
+// ws://chat.adieuu.com/ws/chat?token=...
 
 upgrade: async (res, req, context) => {
   const token = new URL(req.getUrl(), 'http://x').searchParams.get('token');

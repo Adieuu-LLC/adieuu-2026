@@ -12,14 +12,14 @@
  * In development, this points to the local API server.
  * In production, this should point to the production API.
  */
-export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000';
+export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'https://api.adieuu.com';
 
 /**
  * WebSocket URL for chat service.
  * In development, this points to the local chat server.
  * In production, this should point to the production chat service.
  */
-export const CHAT_WS_URL = import.meta.env.VITE_CHAT_WS_URL ?? 'ws://localhost:9001/ws/chat';
+export const CHAT_WS_URL = import.meta.env.VITE_CHAT_WS_URL ?? 'wss://ws.adieuu.com/ws/chat';
 
 /**
  * Full configuration object for type-safe access.

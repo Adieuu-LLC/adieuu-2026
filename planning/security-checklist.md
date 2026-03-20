@@ -302,7 +302,7 @@ const SECURITY_HEADERS = {
   'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
   
   // Content Security Policy (adjust as needed)
-  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.adieuu.app",
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.adieuu.com",
   
   // HSTS (production only)
   'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',

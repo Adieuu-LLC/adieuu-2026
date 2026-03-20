@@ -1,11 +1,8 @@
 name: Release
 
 on:
-  # Run after CI completes successfully
-  workflow_run:
-    workflows: ["CI"]
+  push:
     branches: [main]
-    types: [completed]
   # Allow manual releases
   workflow_dispatch:
     inputs:
@@ -35,10 +32,6 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Only run if CI succeeded (for workflow_run) or manual trigger (workflow_dispatch)
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     outputs:
       new_version: ${{ steps.version.outputs.new_version }}
       released: ${{ steps.version.outputs.released }}
@@ -228,10 +221,6 @@ jobs:
           - os: macos-latest
             artifact-name: desktop-macos
     runs-on: ${{ matrix.os }}
-    env:
-      # Production URLs injected at build time via GitHub Secrets
-      VITE_API_URL: ${{ secrets.VITE_API_URL }}
-      VITE_CHAT_WS_URL: ${{ secrets.VITE_CHAT_WS_URL }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -256,7 +245,7 @@ jobs:
         run: pnpm build --filter @adieuu/desktop
 
       - name: Package Electron app
-        run: pnpm --filter @adieuu/desktop package
+        run: pnpm --filter @adieuu/desktop package -- --publish never
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -280,40 +269,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Download SBOMs from CI workflow when triggered automatically
-  attach-sboms-from-ci:
-    needs: release
-    if: needs.release.outputs.released == 'true' && github.event_name == 'workflow_run'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download SBOM artifacts from CI workflow
-        uses: actions/download-artifact@v4
-        with:
-          pattern: adieuu-*-*-sbom.json
-          path: sboms
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event.workflow_run.id }}
-          merge-multiple: true
-
-      - name: List downloaded SBOMs
-        run: |
-          echo "Downloaded SBOM files:"
-          find sboms -type f -name "*.json" 2>/dev/null || echo "No SBOM files found"
-
-      - name: Upload SBOMs to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ needs.release.outputs.new_version }}
-          draft: true
-          files: sboms/**/*.json
-          fail_on_unmatched_files: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Generate SBOMs when triggered manually (no prior CI run)
+  # Generate SBOMs for release and upload as workflow artifacts first.
   generate-sboms:
     needs: release
-    if: needs.release.outputs.released == 'true' && github.event_name == 'workflow_dispatch'
+    if: needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -336,7 +295,7 @@ jobs:
         continue-on-error: true
         uses: manifest-cyber/manifest-github-action@v1.6.0
         with:
-          # apiKey: ${{ secrets.MANIFEST_API_KEY }}
+          apiKey: ${{ secrets.MANIFEST_API_KEY }}
           sbomPublish: false
           path: ${{ matrix.path }}
           relationship: 'first'
@@ -347,10 +306,10 @@ jobs:
           active: true
           sbomArtifactName: 'adieuu-${{ matrix.app }}-${{ needs.release.outputs.new_version }}-sbom.json'
 
-  # Attach manually generated SBOMs to release
-  attach-sboms-manual:
+  # Attach generated SBOM artifacts to draft release.
+  attach-sboms:
     needs: [release, generate-sboms]
-    if: needs.release.outputs.released == 'true' && github.event_name == 'workflow_dispatch'
+    if: needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Download SBOM artifacts
@@ -376,7 +335,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-release:
-    needs: [release, build-and-release-desktop, attach-sboms-from-ci, attach-sboms-manual]
+    needs: [release, build-and-release-desktop, attach-sboms]
     # Run even if SBOM jobs were skipped or failed (best-effort)
     if: |
       always() &&

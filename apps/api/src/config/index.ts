@@ -214,7 +214,7 @@ export const config = {
     /** Email provider: 'ses' or 'console' */
     provider: optionalEnv('EMAIL_PROVIDER', 'ses'),
     /** From address for outgoing emails */
-    fromAddress: optionalEnv('EMAIL_FROM_ADDRESS', 'noreply@adieuu.app'),
+    fromAddress: optionalEnv('EMAIL_FROM_ADDRESS', 'noreply@adieuu.com'),
     /** AWS region for SES */
     awsRegion: optionalEnv('AWS_REGION', 'us-east-1'),
     /** AWS access key ID (optional - uses default credential chain if not set) */
@@ -245,7 +245,7 @@ export const config = {
     /**
      * Expected origins for WebAuthn requests.
      * Comma-separated list of origins to support multiple platforms.
-     * @example 'https://app.adieuu.app,capacitor://localhost,http://localhost'
+     * @example 'https://app.adieuu.com,capacitor://localhost,http://localhost'
      */
     origins: optionalEnv('WEBAUTHN_ORIGINS', 'http://localhost:5173,https://localhost').split(',').map(o => o.trim()).filter(Boolean),
   },

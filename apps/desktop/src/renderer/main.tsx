@@ -28,7 +28,7 @@ migrateIndexedDbToBackend().then((count: number) => {
 const config: AppConfig = {
   apiBaseUrl: API_BASE_URL,
   chatWsUrl: CHAT_WS_URL,
-  externalLinkBase: 'https://adieuu.app', // External links open in browser
+  externalLinkBase: 'https://adieuu.com', // External links open in browser
   platform: 'desktop',
 };
 

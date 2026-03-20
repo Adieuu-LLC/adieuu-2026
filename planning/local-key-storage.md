@@ -243,7 +243,7 @@ The WebAuthn PRF (Pseudo-Random Function) extension allows deriving a secret fro
 const credential = await navigator.credentials.create({
   publicKey: {
     challenge: crypto.getRandomValues(new Uint8Array(32)),
-    rp: { name: "Adieuu", id: "adieuu.app" },
+    rp: { name: "Adieuu", id: "adieuu.com" },
     user: {
       id: new TextEncoder().encode(userId),
       name: userEmail,
