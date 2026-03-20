@@ -234,6 +234,7 @@ jobs:
       VITE_CHAT_WS_URL: ${{ secrets.VITE_CHAT_WS_URL }}
       # Cache Electron binaries to avoid re-downloading
       ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
     steps:
       - uses: actions/checkout@v6
 
