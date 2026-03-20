@@ -258,7 +258,8 @@ jobs:
         run: pnpm build --filter @adieuu/desktop...
 
       - name: Package Electron app
-        run: pnpm --filter @adieuu/desktop package -- --publish never
+        # Use package:ci so argv is `electron-builder --publish never` (no stray `--` from pnpm).
+        run: pnpm --filter @adieuu/desktop run package:ci
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v7

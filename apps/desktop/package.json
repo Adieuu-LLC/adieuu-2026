@@ -7,6 +7,10 @@
     "email": "team@adieuu.com"
   },
   "homepage": "https://adieuu.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Adieuu-LLC/adieuu-2026.git"
+  },
   "private": true,
   "main": "dist/main/main.js",
   "type": "module",
@@ -15,6 +19,7 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package": "electron-builder",
+    "package:ci": "electron-builder --publish never",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist out"
   },
@@ -45,11 +50,6 @@
     "appId": "com.adieuu.desktop",
     "productName": "Adieuu",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
-    "publish": {
-      "provider": "github",
-      "owner": "Adieuu-LLC",
-      "repo": "adieuu-2026"
-    },
     "directories": {
       "output": "out"
     },

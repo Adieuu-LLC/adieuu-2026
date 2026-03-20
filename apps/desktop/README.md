@@ -19,6 +19,8 @@ pnpm build       # Build renderer + main
 pnpm package     # Build distributable (uses electron-builder)
 ```
 
+`package:ci` runs `electron-builder --publish never` (used in GitHub Actions). Release artifacts are uploaded by the Release workflow, not by electron-builder publish. Auto-update uses the `repository` field in this `package.json` with GitHub Releases.
+
 ## Secure Key Storage
 
 Device encryption keys are stored in a local file under the Electron `userData` directory (e.g. `~/.config/@adieuu/desktop/secure-keys/` on Linux). When OS-level encryption is available, the file contents are additionally encrypted via Electron's `safeStorage` API:

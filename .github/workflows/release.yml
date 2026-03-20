@@ -267,7 +267,7 @@ jobs:
         run: pnpm build --filter @adieuu/desktop
 
       - name: Package Electron app
-        run: pnpm --filter @adieuu/desktop package -- --publish never
+        run: pnpm --filter @adieuu/desktop run package:ci
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
