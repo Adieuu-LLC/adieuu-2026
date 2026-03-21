@@ -3,7 +3,7 @@
  * Designed for reuse across DMs, group chats, and Spaces.
  */
 
-import { type ReactNode, useState, useCallback, memo } from 'react';
+import { type ReactNode, useState, useCallback, useEffect, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Popover } from './Popover';
 import { Tooltip } from './Tooltip';
@@ -101,37 +101,28 @@ export const MessageActionBar = memo(function MessageActionBar({
   const [menuOpen, setMenuOpen] = useState(false);
   const [reactionOpen, setReactionOpen] = useState(false);
 
-  const handleInfoOpenChange = useCallback(
-    (open: boolean) => {
-      setInfoOpen(open);
-      onPopoverOpenChange?.(open || menuOpen || reactionOpen);
-    },
-    [menuOpen, reactionOpen, onPopoverOpenChange],
-  );
+  useEffect(() => {
+    onPopoverOpenChange?.(infoOpen || menuOpen || reactionOpen);
+  }, [infoOpen, menuOpen, reactionOpen, onPopoverOpenChange]);
 
-  const handleMenuOpenChange = useCallback(
-    (open: boolean) => {
-      setMenuOpen(open);
-      onPopoverOpenChange?.(open || infoOpen || reactionOpen);
-    },
-    [infoOpen, reactionOpen, onPopoverOpenChange],
-  );
+  const handleInfoOpenChange = useCallback((open: boolean) => {
+    setInfoOpen(open);
+  }, []);
 
-  const handleReactionOpenChange = useCallback(
-    (open: boolean) => {
-      setReactionOpen(open);
-      onPopoverOpenChange?.(open || infoOpen || menuOpen);
-    },
-    [infoOpen, menuOpen, onPopoverOpenChange],
-  );
+  const handleMenuOpenChange = useCallback((open: boolean) => {
+    setMenuOpen(open);
+  }, []);
+
+  const handleReactionOpenChange = useCallback((open: boolean) => {
+    setReactionOpen(open);
+  }, []);
 
   const handleEmojiSelect = useCallback(
     (emoji: string) => {
       onReact?.(emoji);
       setReactionOpen(false);
-      onPopoverOpenChange?.(infoOpen || menuOpen);
     },
-    [onReact, infoOpen, menuOpen, onPopoverOpenChange],
+    [onReact],
   );
 
   const isAnyPopoverOpen = infoOpen || menuOpen || reactionOpen;

@@ -5506,7 +5506,7 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: var(--spacing-xxs);
+  margin-top: var(--spacing-xs);
 }
 
 .dm-message-reaction {
@@ -5517,23 +5517,23 @@ a {
   border-radius: var(--radius-full);
   border: 1px solid var(--color-border);
   background: var(--color-bg-tertiary);
-  color: var(--color-text);
+  color: var(--color-text-primary);
   font-size: var(--font-size-sm);
   cursor: pointer;
   transition: background var(--transition-fast), border-color var(--transition-fast);
 
   &:hover {
     background: var(--color-bg-hover);
-    border-color: var(--color-border-hover);
+    border-color: var(--color-border-focus);
   }
 }
 
 .dm-message-reaction--own {
-  border-color: var(--color-primary);
-  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  border-color: var(--color-accent-primary);
+  background: color-mix(in srgb, var(--color-accent-primary) 15%, transparent);
 
   &:hover {
-    background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+    background: color-mix(in srgb, var(--color-accent-primary) 25%, transparent);
   }
 }
 
@@ -5578,7 +5578,7 @@ a {
   transition: color var(--transition-fast), background var(--transition-fast);
 
   &:hover:not(:disabled) {
-    color: var(--color-text);
+    color: var(--color-text-primary);
     background: var(--color-bg-hover);
   }
 
