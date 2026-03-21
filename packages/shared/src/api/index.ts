@@ -71,6 +71,10 @@ export {
   type DmMessage,
   type DmMessageTombstone,
   type SendDmMessageParams,
+  // DM Reaction types
+  DmReactionsApi,
+  type DmReaction,
+  type SendDmReactionParams,
 } from './client';
 
 export {

@@ -6,13 +6,19 @@
  */
 
 import { useEffect, useCallback } from 'react';
-import type { ChatIncomingMessage, DmMessage } from '@adieuu/shared';
+import type { ChatIncomingMessage, DmMessage, DmReaction } from '@adieuu/shared';
 import { useChatConnection } from './useChatConnection';
 
 /**
  * DM event types from the chat server.
  */
-export type DmEventType = 'dm:new' | 'dm:read' | 'dm:typing' | 'dm:deleted';
+export type DmEventType =
+  | 'dm:new'
+  | 'dm:read'
+  | 'dm:typing'
+  | 'dm:deleted'
+  | 'dm:reaction:new'
+  | 'dm:reaction:removed';
 
 /**
  * Deletion reason for dm:deleted events.
@@ -65,7 +71,32 @@ export interface DmDeletedEvent {
   };
 }
 
-export type DmEvent = DmNewMessageEvent | DmReadStateEvent | DmTypingEvent | DmDeletedEvent;
+/**
+ * Another participant (or your other device) added a reaction — payload matches API `DmReaction`.
+ */
+export interface DmReactionNewEvent {
+  type: 'dm:reaction:new';
+  payload: {
+    reaction: DmReaction;
+  };
+}
+
+export interface DmReactionRemovedEvent {
+  type: 'dm:reaction:removed';
+  payload: {
+    reactionId: string;
+    messageId: string;
+    conversationId: string;
+  };
+}
+
+export type DmEvent =
+  | DmNewMessageEvent
+  | DmReadStateEvent
+  | DmTypingEvent
+  | DmDeletedEvent
+  | DmReactionNewEvent
+  | DmReactionRemovedEvent;
 
 export interface UseDmSubscriptionOptions {
   /** Conversation ID to filter events (optional) */
@@ -78,6 +109,10 @@ export interface UseDmSubscriptionOptions {
   onTyping?: (event: DmTypingEvent) => void;
   /** Callback for message deletions */
   onDeleted?: (event: DmDeletedEvent) => void;
+  /** Callback when a reaction is added to a message in this conversation */
+  onReactionNew?: (event: DmReactionNewEvent) => void;
+  /** Callback when a reaction is removed */
+  onReactionRemoved?: (event: DmReactionRemovedEvent) => void;
   /** Callback when the WebSocket reconnects after a drop (for refetching missed messages) */
   onReconnect?: () => void;
 }
@@ -110,13 +145,20 @@ function isDmEvent(msg: ChatIncomingMessage): boolean {
  * Get the conversation ID from a DM event payload.
  */
 function getConversationId(event: DmEvent): string | undefined {
-  if (event.type === 'dm:new') {
-    return event.payload.message.conversationId;
+  switch (event.type) {
+    case 'dm:new':
+      return event.payload.message.conversationId;
+    case 'dm:deleted':
+    case 'dm:read':
+    case 'dm:typing':
+      return event.payload.conversationId;
+    case 'dm:reaction:new':
+      return event.payload.reaction.conversationId;
+    case 'dm:reaction:removed':
+      return event.payload.conversationId;
+    default:
+      return undefined;
   }
-  if (event.type === 'dm:deleted') {
-    return event.payload.conversationId;
-  }
-  return event.payload.conversationId;
 }
 
 /**
@@ -148,12 +190,21 @@ export function useDmSubscription({
   onReadStateUpdate,
   onTyping,
   onDeleted,
+  onReactionNew,
+  onReactionRemoved,
   onReconnect,
 }: UseDmSubscriptionOptions = {}): UseDmSubscriptionResult {
   const { isConnected, onMessage, onReconnect: onReconnectHandler, sendTyping } = useChatConnection();
 
   useEffect(() => {
-    if (!onNewMessage && !onReadStateUpdate && !onTyping && !onDeleted) {
+    if (
+      !onNewMessage &&
+      !onReadStateUpdate &&
+      !onTyping &&
+      !onDeleted &&
+      !onReactionNew &&
+      !onReactionRemoved
+    ) {
       return;
     }
 
@@ -182,9 +233,24 @@ export function useDmSubscription({
         case 'dm:deleted':
           onDeleted?.(event);
           break;
+        case 'dm:reaction:new':
+          onReactionNew?.(event);
+          break;
+        case 'dm:reaction:removed':
+          onReactionRemoved?.(event);
+          break;
       }
     });
-  }, [conversationId, onMessage, onNewMessage, onReadStateUpdate, onTyping, onDeleted]);
+  }, [
+    conversationId,
+    onMessage,
+    onNewMessage,
+    onReadStateUpdate,
+    onTyping,
+    onDeleted,
+    onReactionNew,
+    onReactionRemoved,
+  ]);
 
   useEffect(() => {
     if (!onReconnect) return;

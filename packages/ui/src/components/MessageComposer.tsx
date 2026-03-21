@@ -14,8 +14,16 @@ import { useState, useRef, useCallback, type KeyboardEvent, type ChangeEvent } f
 import { useTranslation } from 'react-i18next';
 import { Button } from './Button';
 import { Popover } from './Popover';
+import { EmojiPicker } from './EmojiPicker';
+import { SmileIcon } from './Icons';
+import { Tooltip } from './Tooltip';
+import {
+  MAX_MESSAGE_LENGTH,
+  appendWithMaxLength,
+  insertStringWithMaxLength,
+} from './messageComposerText';
 
-const MAX_MESSAGE_LENGTH = 4000;
+export { MAX_MESSAGE_LENGTH } from './messageComposerText';
 const MIN_ROWS = 1;
 const MAX_ROWS = 6;
 
@@ -178,6 +186,32 @@ export function MessageComposer({
     });
   }, [forwardSecrecyStorageKey]);
 
+  const handleEmojiSelect = useCallback(
+    (emoji: string) => {
+      const textarea = textareaRef.current;
+      if (!textarea) {
+        const next = appendWithMaxLength(text, emoji, MAX_MESSAGE_LENGTH);
+        if (next !== null) setText(next);
+        return;
+      }
+
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const next = insertStringWithMaxLength(text, emoji, start, end, MAX_MESSAGE_LENGTH);
+      if (next !== null) {
+        setText(next);
+        requestAnimationFrame(() => {
+          const cursorPos = start + emoji.length;
+          textarea.selectionStart = cursorPos;
+          textarea.selectionEnd = cursorPos;
+          textarea.focus();
+          adjustHeight();
+        });
+      }
+    },
+    [text, adjustHeight]
+  );
+
   const selectedTtlOption = TTL_OPTIONS.find((opt) => opt.value === selectedTtl) ?? TTL_OPTIONS[0];
 
   const remainingChars = MAX_MESSAGE_LENGTH - text.length;
@@ -221,6 +255,24 @@ export function MessageComposer({
               </div>
             </Popover>
           )}
+          <Popover
+            trigger={
+              <button
+                type="button"
+                className="message-composer-emoji-btn"
+                aria-label={t('messages.emoji.select')}
+                disabled={isDisabled}
+              >
+                <Tooltip content={t('messages.emoji.select')} position="top">
+                  <SmileIcon className="message-composer-emoji-icon" />
+                </Tooltip>
+              </button>
+            }
+            positioning={{ placement: 'top-start' }}
+            className="emoji-picker-popover"
+          >
+            <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+          </Popover>
           {showForwardSecrecyToggle && (
             <button
               type="button"

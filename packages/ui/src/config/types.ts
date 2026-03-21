@@ -72,15 +72,20 @@ export interface FileSystem {
 }
 
 /**
- * Native OS notifications.
+ * Native OS notifications (Web Notification API in browser/Electron renderer).
  */
 export interface Notifications {
   /** Request permission to show notifications */
   requestPermission(): Promise<boolean>;
   /** Check if notifications are permitted */
   hasPermission(): boolean;
-  /** Show a notification */
-  show(title: string, body: string, options?: { onClick?: () => void }): void;
+  /** Current browser/OS permission state (unsupported platforms report `denied`) */
+  getPermissionState(): NotificationPermission;
+  /**
+   * Show a notification. Prefer `tag` to replace/update an existing notification
+   * for the same conversation.
+   */
+  show(title: string, body: string, options?: { onClick?: () => void; tag?: string }): void;
 }
 
 /**

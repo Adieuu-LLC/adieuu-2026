@@ -3,11 +3,12 @@
  * Designed for reuse across DMs, group chats, and Spaces.
  */
 
-import { type ReactNode, useState, useCallback, memo } from 'react';
+import { type ReactNode, useState, useCallback, useEffect, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Popover } from './Popover';
 import { Tooltip } from './Tooltip';
-import { InfoCircleIcon, EllipsisHorizontalIcon } from './Icons';
+import { InfoCircleIcon, EllipsisHorizontalIcon, SmilePlusIcon } from './Icons';
+import { EmojiPicker } from './EmojiPicker';
 
 // ============================================================================
 // Types
@@ -36,6 +37,8 @@ export interface MessageActionBarProps {
   disabled?: boolean;
   /** Called when any popover in the bar opens or closes */
   onPopoverOpenChange?: (open: boolean) => void;
+  /** Called when user selects an emoji to react with */
+  onReact?: (emoji: string) => void;
 }
 
 // ============================================================================
@@ -91,34 +94,66 @@ export const MessageActionBar = memo(function MessageActionBar({
   isOwn,
   disabled,
   onPopoverOpenChange,
+  onReact,
 }: MessageActionBarProps) {
   const { t } = useTranslation();
   const [infoOpen, setInfoOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reactionOpen, setReactionOpen] = useState(false);
 
-  const handleInfoOpenChange = useCallback(
-    (open: boolean) => {
-      setInfoOpen(open);
-      onPopoverOpenChange?.(open || menuOpen);
+  useEffect(() => {
+    onPopoverOpenChange?.(infoOpen || menuOpen || reactionOpen);
+  }, [infoOpen, menuOpen, reactionOpen, onPopoverOpenChange]);
+
+  const handleInfoOpenChange = useCallback((open: boolean) => {
+    setInfoOpen(open);
+  }, []);
+
+  const handleMenuOpenChange = useCallback((open: boolean) => {
+    setMenuOpen(open);
+  }, []);
+
+  const handleReactionOpenChange = useCallback((open: boolean) => {
+    setReactionOpen(open);
+  }, []);
+
+  const handleEmojiSelect = useCallback(
+    (emoji: string) => {
+      onReact?.(emoji);
+      setReactionOpen(false);
     },
-    [menuOpen, onPopoverOpenChange],
+    [onReact],
   );
 
-  const handleMenuOpenChange = useCallback(
-    (open: boolean) => {
-      setMenuOpen(open);
-      onPopoverOpenChange?.(open || infoOpen);
-    },
-    [infoOpen, onPopoverOpenChange],
-  );
-
-  const isAnyPopoverOpen = infoOpen || menuOpen;
+  const isAnyPopoverOpen = infoOpen || menuOpen || reactionOpen;
   if (!visible && !isAnyPopoverOpen) return null;
 
   return (
     <div
       className={`message-action-bar ${isOwn ? 'message-action-bar--own' : ''}`}
     >
+      {onReact && (
+        <Popover
+          trigger={
+            <button
+              className="message-action-bar-btn"
+              aria-label={t('messages.emoji.react')}
+              disabled={disabled}
+            >
+              <Tooltip content={t('messages.emoji.react')} position="top">
+                <SmilePlusIcon className="message-action-bar-icon" />
+              </Tooltip>
+            </button>
+          }
+          positioning={{ placement: isOwn ? 'bottom-end' : 'bottom-start' }}
+          open={reactionOpen}
+          onOpenChange={handleReactionOpenChange}
+          className="emoji-picker-popover"
+        >
+          <EmojiPicker onEmojiSelect={handleEmojiSelect} compact />
+        </Popover>
+      )}
+
       <Popover
         trigger={
           <button
@@ -132,6 +167,7 @@ export const MessageActionBar = memo(function MessageActionBar({
           </button>
         }
         positioning={{ placement: isOwn ? 'bottom-end' : 'bottom-start' }}
+        open={infoOpen}
         onOpenChange={handleInfoOpenChange}
       >
         <InfoPopoverContent metadata={metadata} />
@@ -151,6 +187,7 @@ export const MessageActionBar = memo(function MessageActionBar({
             </button>
           }
           positioning={{ placement: isOwn ? 'bottom-end' : 'bottom-start' }}
+          open={menuOpen}
           onOpenChange={handleMenuOpenChange}
         >
           {menuContent}

@@ -33,7 +33,9 @@ export type WsMessageType =
   | 'dm:new'
   | 'dm:deleted'
   | 'dm:read'
-  | 'dm:typing';
+  | 'dm:typing'
+  | 'dm:reaction:new'
+  | 'dm:reaction:removed';
 
 /**
  * Base structure for all WebSocket messages
@@ -154,6 +156,57 @@ export interface WsDmDeletedMessage extends WsMessageBase {
 }
 
 /**
+ * Public DM reaction as emitted on the wire (matches API `PublicDmReaction`).
+ * Reactor identity is inside the encrypted payload; `createdAt` is the server timestamp.
+ */
+export interface WsDmReactionPayload {
+  id: string;
+  messageId: string;
+  conversationId: string;
+  toIdentityId: string;
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: Array<{
+    identityId: string;
+    deviceId: string;
+    ephemeralPublicKey: string;
+    kemCiphertext: string;
+    wrappedSessionKey: string;
+    wrappingNonce: string;
+    preKeyType: 'otpk' | 'spk' | 'static';
+    oneTimePreKeyId?: string;
+    signedPreKeyId?: string;
+    oneTimeKemCiphertext?: string;
+  }>;
+  signature: string;
+  cryptoProfile: 'default' | 'cnsa2';
+  clientReactionId: string;
+  createdAt: string;
+}
+
+/**
+ * DM reaction added event (from API via Redis)
+ */
+export interface WsDmReactionNewMessage extends WsMessageBase {
+  type: 'dm:reaction:new';
+  payload: {
+    reaction: WsDmReactionPayload;
+  };
+}
+
+/**
+ * DM reaction removed event (from API via Redis)
+ */
+export interface WsDmReactionRemovedMessage extends WsMessageBase {
+  type: 'dm:reaction:removed';
+  payload: {
+    reactionId: string;
+    messageId: string;
+    conversationId: string;
+  };
+}
+
+/**
  * Encrypted message payload
  */
 export interface WsEncryptedMessage extends WsMessageBase {
@@ -194,7 +247,9 @@ export type WsOutgoingMessage =
   | WsDmNewMessage
   | WsDmDeletedMessage
   | WsDmReadMessage
-  | WsDmTypingMessage;
+  | WsDmTypingMessage
+  | WsDmReactionNewMessage
+  | WsDmReactionRemovedMessage;
 
 /**
  * Redis pub/sub channel names

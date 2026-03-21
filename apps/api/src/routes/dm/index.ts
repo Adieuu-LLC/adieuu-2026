@@ -23,6 +23,11 @@ import {
   deleteMessageForEveryoneCtrl,
   deleteMessageForSelfCtrl,
 } from './controller';
+import {
+  addReactionCtrl,
+  removeReactionCtrl,
+  getReactionsCtrl,
+} from './reaction-controller';
 
 const router = new Router();
 
@@ -199,6 +204,79 @@ router.delete('/dm/messages/:messageId', async (ctx) => {
  */
 router.post('/dm/messages/:messageId/delete-for-self', async (ctx) => {
   return await deleteMessageForSelfCtrl(ctx);
+});
+
+/**
+ * POST /dm/messages/:messageId/reactions - Add an encrypted reaction
+ *
+ * Adds an E2E encrypted reaction to a message. The server validates
+ * structure but cannot read the reaction content (emoji + reactor identity).
+ *
+ * @route POST /api/dm/messages/:messageId/reactions
+ *
+ * @param messageId (string, required): The message ID to react to
+ *
+ * @requestBody
+ * - `conversationId` (string, required): Blinded conversation ID (64 hex chars)
+ * - `toIdentityId` (string, required): Other participant's identity ID
+ * - `ciphertext` (string, required): Encrypted reaction content (base64)
+ * - `nonce` (string, required): Encryption nonce (base64)
+ * - `wrappedKeys` (array, required): Wrapped session keys for each device
+ * - `signature` (string, required): Ed25519 signature (base64)
+ * - `cryptoProfile` (string, required): 'default' or 'cnsa2'
+ * - `clientReactionId` (string, required): Client-generated unique ID for deduplication
+ *
+ * @returns 201 Created with reaction info
+ * @returns 200 OK if deduplicated
+ * @returns 400 Bad Request if validation fails
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 404 Not Found if message doesn't exist
+ */
+router.post('/dm/messages/:messageId/reactions', async (ctx) => {
+  return await addReactionCtrl(ctx);
+});
+
+/**
+ * DELETE /dm/reactions/:reactionId - Remove a reaction
+ *
+ * Removes a reaction. Only the reactor can do this, verified via
+ * signature check against the requester's signing key.
+ *
+ * @route DELETE /api/dm/reactions/:reactionId
+ *
+ * @param reactionId (string, required): The reaction ID to remove
+ *
+ * @returns 200 OK with deleted: true
+ * @returns 400 Bad Request if reaction ID invalid
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if requester is not the reactor
+ * @returns 404 Not Found if reaction doesn't exist
+ */
+router.delete('/dm/reactions/:reactionId', async (ctx) => {
+  return await removeReactionCtrl(ctx);
+});
+
+/**
+ * GET /dm/conversations/:conversationId/reactions - Get reactions for messages
+ *
+ * Returns encrypted reactions for the specified message IDs.
+ *
+ * @route GET /api/dm/conversations/:conversationId/reactions
+ *
+ * @param conversationId (string, required): The blinded conversation ID
+ *
+ * @queryParam messageIds (string[], required): Message IDs to get reactions for
+ *
+ * @returns 200 OK with reactions array
+ * @returns 400 Bad Request if parameters invalid
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if `getReactionsCtrl` denies access: the session identity is not a
+ *   participant in this DM (see recipient / `validateConversationId` checks), or the first
+ *   sampled message does not belong to `conversationId` (conversation mismatch on the message
+ *   document vs the route param).
+ */
+router.get('/dm/conversations/:conversationId/reactions', async (ctx) => {
+  return await getReactionsCtrl(ctx);
 });
 
 export const dmRoutes = router;

@@ -143,19 +143,34 @@ export const desktopCapabilities: PlatformCapabilities = {
   // --------------------------------------------------------------------------
   notifications: {
     async requestPermission(): Promise<boolean> {
-      return true;
+      if (!('Notification' in window)) {
+        return false;
+      }
+      const result = await Notification.requestPermission();
+      return result === 'granted';
     },
 
     hasPermission(): boolean {
-      return true;
+      return 'Notification' in window && Notification.permission === 'granted';
     },
 
-    show(title: string, body: string, options?: { onClick?: () => void }): void {
-      if ('Notification' in window) {
-        const notification = new Notification(title, { body });
-        if (options?.onClick) {
-          notification.onclick = options.onClick;
-        }
+    getPermissionState(): NotificationPermission {
+      if (!('Notification' in window)) {
+        return 'denied';
+      }
+      return Notification.permission;
+    },
+
+    show(title: string, body: string, options?: { onClick?: () => void; tag?: string }): void {
+      if (!('Notification' in window) || Notification.permission !== 'granted') {
+        return;
+      }
+      const notification = new Notification(title, {
+        body,
+        tag: options?.tag,
+      });
+      if (options?.onClick) {
+        notification.onclick = options.onClick;
       }
     },
   },

@@ -344,6 +344,8 @@ export const Collections = {
   DM_MESSAGES: 'dm_messages',
   /** Pre-keys for forward secrecy (signed + one-time) */
   PRE_KEYS: 'pre_keys',
+  /** DM reactions (encrypted, linked to dm_messages) */
+  DM_REACTIONS: 'dm_reactions',
 } as const;
 
 /**
@@ -522,6 +524,12 @@ async function createIndexes(): Promise<void> {
     { expiresAt: 1 },
     { expireAfterSeconds: 0, partialFilterExpression: { consumed: true } }
   );
+
+  // DM reactions collection indexes
+  const dmReactions = database.collection(Collections.DM_REACTIONS);
+  await dmReactions.createIndex({ messageId: 1, createdAt: 1 });
+  await dmReactions.createIndex({ conversationId: 1, clientReactionId: 1 }, { unique: true });
+  await dmReactions.createIndex({ toIdentityId: 1, createdAt: -1 });
 
   elog.debug('MongoDB indexes created/verified');
 }

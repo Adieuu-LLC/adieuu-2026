@@ -5489,6 +5489,111 @@ a {
 }
 
 // ============================================================================
+// Emoji-only messages
+// ============================================================================
+
+.dm-message-emoji-only {
+  margin: 0;
+  font-size: 2.5rem;
+  line-height: 1.2;
+}
+
+// ============================================================================
+// Message Reactions
+// ============================================================================
+
+.dm-message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--spacing-xs);
+}
+
+.dm-message-reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-focus);
+  }
+}
+
+.dm-message-reaction--own {
+  border-color: var(--color-accent-primary);
+  background: color-mix(in srgb, var(--color-accent-primary) 15%, transparent);
+
+  &:hover {
+    background: color-mix(in srgb, var(--color-accent-primary) 25%, transparent);
+  }
+}
+
+.dm-message-reaction-emoji {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.dm-message-reaction-count {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+// ============================================================================
+// Emoji Picker
+// ============================================================================
+
+.emoji-picker-container {
+  em-emoji-picker {
+    --em-rgb-background: var(--color-bg-elevated-rgb, 30, 30, 30);
+    --em-rgb-input: var(--color-bg-tertiary-rgb, 40, 40, 40);
+    --em-rgb-color: var(--color-text-rgb, 230, 230, 230);
+  }
+}
+
+.emoji-picker-popover {
+  padding: 0;
+  overflow: hidden;
+}
+
+.message-composer-emoji-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
+
+  &:hover:not(:disabled) {
+    color: var(--color-text-primary);
+    background: var(--color-bg-hover);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.message-composer-emoji-icon {
+  width: 20px;
+  height: 20px;
+}
+
+// ============================================================================
 // Message Action Bar (reusable across DMs, groups, Spaces)
 // ============================================================================
 
@@ -6386,4 +6491,60 @@ a {
 .fs-purge-cache-checkbox {
   margin-top: var(--spacing-md);
   border-color: var(--color-border);
+}
+
+// Account > App Settings
+.app-settings-card {
+  padding: var(--spacing-lg);
+}
+
+.app-settings-section-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--spacing-sm);
+  color: var(--color-text);
+}
+
+.app-settings-section-desc {
+  margin: 0 0 var(--spacing-lg);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.app-settings-alert {
+  margin-bottom: var(--spacing-md);
+}
+
+.app-settings-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  cursor: pointer;
+
+  input[type='checkbox'] {
+    margin-top: 3px;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+}
+
+.app-settings-toggle-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.app-settings-toggle-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.app-settings-toggle-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: 1.45;
 }

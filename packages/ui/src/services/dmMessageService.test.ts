@@ -117,6 +117,69 @@ describe('DM Message Service', () => {
       expect(result.wrappedKeys.map((wk) => wk.identityId)).toContain(bobIdentityId);
       expect(result.wrappedKeys.map((wk) => wk.identityId)).toContain(aliceIdentityId);
     });
+
+    it('should reject empty or whitespace-only text without attachments', () => {
+      const bobPublicKeys: RecipientPublicKeys = {
+        ecdh: bobEcdhKeys.publicKey,
+        kem: bobKemKeys.publicKey,
+        profile: 'default',
+      };
+      const base = {
+        fromIdentityId: aliceIdentityId,
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: bobPublicKeys,
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+      };
+      expect(() => encryptDmMessage({ ...base, text: '' })).toThrow(
+        'Cannot encrypt empty message without attachments'
+      );
+      expect(() => encryptDmMessage({ ...base, text: '   ' })).toThrow(
+        'Cannot encrypt empty message without attachments'
+      );
+    });
+
+    it('should allow attachment-only messages (empty text with attachmentIds)', () => {
+      const bobPublicKeys: RecipientPublicKeys = {
+        ecdh: bobEcdhKeys.publicKey,
+        kem: bobKemKeys.publicKey,
+        profile: 'default',
+      };
+      const attachmentId = '507f1f77bcf86cd799439019';
+      const encrypted = encryptDmMessage({
+        text: '',
+        attachmentIds: [attachmentId],
+        fromIdentityId: aliceIdentityId,
+        recipientKeys: [
+          {
+            identityId: bobIdentityId,
+            deviceId: 'bob-device-1',
+            publicKeys: bobPublicKeys,
+          },
+        ],
+        signingPrivateKey: aliceSigningKeys.privateKey,
+      });
+      expect(encrypted.ciphertext.length).toBeGreaterThan(0);
+
+      const decrypted = decryptDmMessage({
+        ciphertext: encrypted.ciphertext,
+        nonce: encrypted.nonce,
+        wrappedKeys: encrypted.wrappedKeys,
+        signature: encrypted.signature,
+        recipientIdentityId: bobIdentityId,
+        recipientDeviceId: 'bob-device-1',
+        ecdhPrivateKey: bobEcdhKeys.privateKey,
+        kemPrivateKey: bobKemKeys.privateKey,
+        senderSigningPublicKey: toBase64(aliceSigningKeys.publicKey),
+        cryptoProfile: 'default',
+      });
+      expect(decrypted.text).toBe('');
+      expect(decrypted.attachmentIds).toEqual([attachmentId]);
+    });
   });
 
   describe('encryptDmMessage with pre-key wrapping (forward secrecy)', () => {
@@ -366,7 +429,7 @@ describe('DM Message Service', () => {
       expect(decrypted.text).toBe(originalText);
       expect(decrypted.fromIdentityId).toBe(aliceIdentityId);
       expect(decrypted.fromDeviceId).toBe('alice-device-1');
-      expect(decrypted.version).toBe(1);
+      expect(decrypted.version).toBe(2);
     });
 
     it('should fail to decrypt with wrong recipient keys', () => {

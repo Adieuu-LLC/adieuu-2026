@@ -59,14 +59,28 @@ export interface RecipientPublicKeys {
 /**
  * Decrypted message content structure.
  * This is what the user sees after decryption.
+ *
+ * Version history:
+ *   v1: text-only messages
+ *   v2: adds optional attachmentIds for referencing dm_attachments records
  */
 export interface DecryptedMessageContent {
-  /** The plaintext message */
+  /**
+   * Plaintext body. May be `""` only when `attachmentIds` is a non-empty array
+   * (attachment-only message). Without attachments, must be non-empty after trim.
+   */
   text: string;
   /** Sender's identity ID (verified via signature) */
   fromIdentityId: string;
   /** Sender's device ID (if included in message) */
   fromDeviceId?: string;
+  /**
+   * References to dm_attachments records (v2+).
+   * Actual attachment content/metadata lives in a separate encrypted collection
+   * so the server can answer "which messages have attachments?" without
+   * knowing their types or contents.
+   */
+  attachmentIds?: string[];
   /** Message version for forward compatibility */
   version: number;
 }
@@ -87,7 +101,10 @@ export interface PreKeyRecipientData {
  * Input for encrypting a DM message.
  */
 export interface EncryptMessageInput {
-  /** The plaintext message to encrypt */
+  /**
+   * Plaintext body. May be empty only when `attachmentIds` is non-empty
+   * (attachment-only message).
+   */
   text: string;
   /** Sender's identity ID */
   fromIdentityId: string;
@@ -108,6 +125,10 @@ export interface EncryptMessageInput {
   signingPrivateKey: Uint8Array;
   /** Crypto profile to use */
   cryptoProfile?: CryptoProfile;
+  /**
+   * v2: references to dm_attachments. When non-empty, `text` may be empty (attachment-only).
+   */
+  attachmentIds?: string[];
 }
 
 /**
@@ -237,12 +258,26 @@ function deserializeWrappedKey(swk: SerializedWrappedKey): WrappedKey {
 export function encryptDmMessage(input: EncryptMessageInput): EncryptedMessage {
   const profile = input.cryptoProfile ?? 'default';
 
-  // 1. Create message content
+  const attachmentIds = input.attachmentIds;
+  const hasAttachments =
+    Array.isArray(attachmentIds) &&
+    attachmentIds.length > 0 &&
+    attachmentIds.every((id) => typeof id === 'string' && id.trim().length > 0);
+
+  if (attachmentIds !== undefined && !Array.isArray(attachmentIds)) {
+    throw new Error('attachmentIds must be an array when provided');
+  }
+  if (!hasAttachments && input.text.trim() === '') {
+    throw new Error('Cannot encrypt empty message without attachments');
+  }
+
+  // 1. Create message content (v2: supports attachmentIds)
   const content: DecryptedMessageContent = {
     text: input.text,
     fromIdentityId: input.fromIdentityId,
     fromDeviceId: input.fromDeviceId,
-    version: 1,
+    version: 2,
+    ...(hasAttachments ? { attachmentIds } : {}),
   };
   const plaintext = toBytes(JSON.stringify(content));
 
@@ -423,10 +458,34 @@ export function decryptDmMessage(input: DecryptMessageInput): DecryptedMessageCo
     throw new Error('Failed to parse decrypted message content');
   }
 
-  // Validate required fields
-  if (!content.text || typeof content.text !== 'string') {
-    throw new Error('Invalid message content: missing text');
+  // Validate required fields (compatible with v1 and v2 payloads)
+  if (content.attachmentIds !== undefined && !Array.isArray(content.attachmentIds)) {
+    throw new Error('Invalid message content: attachmentIds must be an array');
   }
+  if (Array.isArray(content.attachmentIds)) {
+    for (const id of content.attachmentIds) {
+      if (typeof id !== 'string' || id.trim().length === 0) {
+        throw new Error('Invalid message content: attachmentIds must be non-empty strings');
+      }
+    }
+  }
+
+  const hasAttachments =
+    Array.isArray(content.attachmentIds) && content.attachmentIds.length > 0;
+
+  if (content.text === undefined) {
+    if (!hasAttachments) {
+      throw new Error('Invalid message content: missing text');
+    }
+    content.text = '';
+  } else if (typeof content.text !== 'string') {
+    throw new Error('Invalid message content: text must be a string');
+  }
+
+  if (!hasAttachments && content.text.trim() === '') {
+    throw new Error('Invalid message content: text cannot be empty without attachments');
+  }
+
   if (!content.fromIdentityId || typeof content.fromIdentityId !== 'string') {
     throw new Error('Invalid message content: missing fromIdentityId');
   }

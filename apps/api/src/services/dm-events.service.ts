@@ -10,13 +10,14 @@
 
 import { getRedis, isRedisConnected, RedisKeys } from '../db/redis';
 import type { PublicDmMessage } from '../models/dm-message';
+import type { PublicDmReaction } from '../models/dm-reaction';
 import elog from '../utils/adieuuLogger';
 import { config } from '../config';
 
 /**
  * DM event types for WebSocket communication
  */
-export type DmEventType = 'dm:new' | 'dm:deleted' | 'dm:read' | 'dm:typing';
+export type DmEventType = 'dm:new' | 'dm:deleted' | 'dm:read' | 'dm:typing' | 'dm:reaction:new' | 'dm:reaction:removed';
 
 /**
  * Base structure for DM events
@@ -77,9 +78,37 @@ export interface DmDeletedEvent extends DmEventBase {
 }
 
 /**
+ * Reaction added event
+ */
+export interface DmReactionAddedEvent extends DmEventBase {
+  type: 'dm:reaction:new';
+  payload: {
+    reaction: PublicDmReaction;
+  };
+}
+
+/**
+ * Reaction removed event
+ */
+export interface DmReactionRemovedEvent extends DmEventBase {
+  type: 'dm:reaction:removed';
+  payload: {
+    reactionId: string;
+    messageId: string;
+    conversationId: string;
+  };
+}
+
+/**
  * Union of all DM event types
  */
-export type DmEvent = DmNewMessageEvent | DmDeletedEvent | DmReadStateEvent | DmTypingEvent;
+export type DmEvent =
+  | DmNewMessageEvent
+  | DmDeletedEvent
+  | DmReadStateEvent
+  | DmTypingEvent
+  | DmReactionAddedEvent
+  | DmReactionRemovedEvent;
 
 /**
  * Publishes a DM event to Redis for delivery to a specific identity.
@@ -210,6 +239,50 @@ export async function publishMessageDeleted(
       messageId,
       conversationId,
       reason,
+    },
+  };
+
+  await publishToIdentity(recipientIdentityId, event);
+}
+
+/**
+ * Publishes a reaction added event to the recipient.
+ *
+ * @param recipientIdentityId - The identity to notify
+ * @param reaction - The public reaction representation
+ */
+export async function publishReactionAdded(
+  recipientIdentityId: string,
+  reaction: PublicDmReaction
+): Promise<void> {
+  const event: DmReactionAddedEvent = {
+    type: 'dm:reaction:new',
+    payload: { reaction },
+  };
+
+  await publishToIdentity(recipientIdentityId, event);
+}
+
+/**
+ * Publishes a reaction removed event to the recipient.
+ *
+ * @param recipientIdentityId - The identity to notify
+ * @param reactionId - The removed reaction ID
+ * @param messageId - The message the reaction was on
+ * @param conversationId - The conversation ID
+ */
+export async function publishReactionRemoved(
+  recipientIdentityId: string,
+  reactionId: string,
+  messageId: string,
+  conversationId: string
+): Promise<void> {
+  const event: DmReactionRemovedEvent = {
+    type: 'dm:reaction:removed',
+    payload: {
+      reactionId,
+      messageId,
+      conversationId,
     },
   };
 

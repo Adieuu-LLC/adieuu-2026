@@ -28,6 +28,8 @@
     "@adieuu/crypto": "workspace:*",
     "@adieuu/shared": "workspace:*",
     "@ark-ui/react": "^5.31.0",
+    "@emoji-mart/data": "^1.2.1",
+    "@emoji-mart/react": "^1.1.1",
     "@simplewebauthn/browser": "^13.2.2",
     "i18next": "^24.2.2",
     "react-i18next": "^15.4.1"

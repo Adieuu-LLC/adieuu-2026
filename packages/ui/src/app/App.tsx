@@ -75,7 +75,7 @@ function ProtectedLayoutContent() {
   // This enables automatic SPK rotation + cleanup and OTPK replenishment checks.
   usePreKeys();
 
-  // Enable toast notifications for incoming DMs when not viewing the conversation
+  // Enable toast notifications for incoming DMs when not actively reading that thread (focused + visible)
   useDmNotifications();
 
   return (
