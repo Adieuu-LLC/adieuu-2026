@@ -50,13 +50,14 @@ Replace `adieuu-staging-api` with the repository name shown in the AWS console o
 | `variables.tf` | Inputs (VPC, ECS sizing, env maps) |
 | `vpc.tf` | VPC module |
 | `ecr.tf` | ECR repositories + lifecycle |
-| `iam_ecs.tf` | ECS task execution + task roles |
+| `iam_ecs.tf` | ECS execution + task roles; optional `GetSecretValue` / `kms:Decrypt` for container secrets |
 | `security_groups.tf` | ALB and ECS task security groups |
 | `alb.tf` | ALB, target groups, listener rules |
 | `cloudwatch.tf` | Log groups for ECS |
 | `ecs.tf` | ECS cluster, task definitions, services |
-| `outputs.tf` | ALB DNS, ECR URLs, subnet IDs |
-| `terraform.tfvars.example` | **Committed** — placeholders only |
+| `elasticache.tf` | Optional ElastiCache Redis (`create_elasticache_redis`) |
+| `outputs.tf` | ALB DNS, ECR URLs, subnet IDs, optional Redis endpoint |
+| `terraform.tfvars.example` | **Committed** — placeholders; commented env/secrets templates (see [ecs-environment.md](../../docs/deployment/ecs-environment.md)) |
 | `terraform.tfvars` | **Local / private** — gitignored |
 
 ## Backend state
@@ -66,4 +67,5 @@ By default Terraform uses **local state** (`terraform.tfstate`) in this director
 ## Related documentation
 
 - [docs/deployment/aws.md](../../docs/deployment/aws.md) — architecture, what Terraform covers, secrets
+- [docs/deployment/ecs-environment.md](../../docs/deployment/ecs-environment.md) — sensitive vs non-sensitive env vars, Secrets Manager keys, `terraform.tfvars` maps
 - [docs/deployment/containers.md](../../docs/deployment/containers.md) — building API/chat images

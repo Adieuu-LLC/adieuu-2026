@@ -5,6 +5,7 @@ Self-hosted and cloud deployment notes for Adieuu.
 | Document | Description |
 |----------|-------------|
 | [AWS (ECS, VPC, edge)](./aws.md) | Target AWS architecture, Terraform vs alternatives, public-repo safety, customization |
+| [ECS environment (secrets vs tfvars)](./ecs-environment.md) | API/chat env inventory: Secrets Manager JSON keys, non-sensitive `api_environment` / `chat_environment` |
 | [Containers (Docker)](./containers.md) | Building and running API and chat images locally |
 | [Terraform (`infra/aws/terraform`)](../../infra/aws/README.md) | VPC, ECR, ALB, ECS Fargate — see `terraform output` after apply |
 
