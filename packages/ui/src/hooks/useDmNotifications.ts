@@ -2,8 +2,10 @@
  * Hook for global DM notifications.
  *
  * Listens for new DM messages and reactions across all conversations and shows
- * toast notifications when the user is not viewing the conversation.
- * Clicking the toast navigates to the conversation.
+ * toast notifications when the user is not actively reading that conversation
+ * in a focused, visible window (or when viewing another conversation).
+ * Optional native (OS) notifications are gated in Account &gt; App Settings.
+ * Clicking a toast or native alert navigates to the conversation.
  */
 
 import { useEffect, useCallback, useRef } from 'react';
@@ -13,8 +15,10 @@ import { createApiClient } from '@adieuu/shared';
 import { useChatConnection } from './useChatConnection';
 import { useIdentity } from './useIdentity';
 import { useDmReactions } from './useDmReactions';
-import { useAppConfig } from '../config';
+import { useAppConfig, usePlatformCapabilities } from '../config';
+import type { Notifications } from '../config/types';
 import { useToast } from '../components/Toast';
+import { useNativeNotificationsPreference } from './useNativeNotificationsPreference';
 import { decryptSenderHint } from '../services/dmMessageService';
 import { getCachedParticipant, cacheParticipant } from '../services/participantCache';
 import type { DmNewMessageEvent, DmReactionNewEvent } from './useDmSubscription';
@@ -25,15 +29,58 @@ interface RawWsMessage {
 }
 
 /**
+ * When the user has the conversation open in a focused, visible window, we skip
+ * duplicate in-app toasts (they already see the thread). If the window is
+ * unfocused (e.g. another app or monitor) or the tab is hidden, we still show
+ * toasts so they notice new activity.
+ */
+function shouldSuppressInAppToastForConversation(isViewingConversation: boolean): boolean {
+  if (!isViewingConversation) return false;
+  if (typeof document === 'undefined') return true;
+  return document.visibilityState === 'visible' && document.hasFocus();
+}
+
+/**
+ * Avoid stacking OS alerts on top of in-app toasts when the window is focused
+ * and the tab is visible; still show native notifications when the user is
+ * elsewhere (another app, another monitor, or a background tab).
+ */
+function shouldShowOsNotificationNow(): boolean {
+  if (typeof document === 'undefined') return false;
+  return !document.hasFocus() || document.visibilityState === 'hidden';
+}
+
+function maybeShowNativeNotification(
+  notifications: Notifications,
+  nativeEnabled: boolean,
+  title: string,
+  body: string,
+  tag: string,
+  navigate: (path: string) => void,
+  path: string
+): void {
+  if (!nativeEnabled || !notifications.hasPermission() || !shouldShowOsNotificationNow()) {
+    return;
+  }
+  notifications.show(title, body, {
+    tag,
+    onClick: () => navigate(path),
+  });
+}
+
+/**
  * Hook that shows toast notifications for new DM messages.
  *
  * Should be rendered once at the app level (e.g., in App.tsx or a layout component).
  * Shows a toast when:
  * - A new DM message arrives
  * - Someone reacts to a message (recipient sees the reaction event)
- * - The user is not currently viewing that conversation
+ * - The user is not actively reading that conversation in a focused, visible window
  *
- * Clicking the toast navigates to the conversation.
+ * Native notifications (when enabled under App Settings) mirror that alert when the
+ * window is unfocused or the tab is hidden, so messages surface on other monitors.
+ *
+ * Clicking the toast or native notification navigates to the conversation.
  *
  * @example
  * ```tsx
@@ -51,6 +98,8 @@ export function useDmNotifications(): void {
   const { status, identity } = useIdentity();
   const { onMessage } = useChatConnection();
   const toast = useToast();
+  const { notifications } = usePlatformCapabilities();
+  const nativeNotificationsEnabled = useNativeNotificationsPreference();
   const { fetchReactions } = useDmReactions();
 
   const isLoggedIn = status === 'logged_in' && identity !== null;
@@ -66,9 +115,8 @@ export function useDmNotifications(): void {
       const message = event.payload.message;
       const conversationId = message.conversationId;
 
-      // Check if user is currently viewing this conversation
       const isViewingConversation = location.pathname === `/conversation/${conversationId}`;
-      if (isViewingConversation) {
+      if (shouldSuppressInAppToastForConversation(isViewingConversation)) {
         return;
       }
 
@@ -121,12 +169,22 @@ export function useDmNotifications(): void {
         // Could not decrypt sender - still show generic notification
       }
 
-      // Show toast notification with action to navigate to conversation
-      toast.message(senderName, t('messages.newMessageDescription'), () => {
-        navigate(`/conversation/${conversationId}`);
+      const path = `/conversation/${conversationId}`;
+      const description = t('messages.newMessageDescription');
+      toast.message(senderName, description, () => {
+        navigate(path);
       });
+      maybeShowNativeNotification(
+        notifications,
+        nativeNotificationsEnabled,
+        senderName,
+        description,
+        `dm-msg-${conversationId}`,
+        navigate,
+        path
+      );
     },
-    [apiBaseUrl, location.pathname, navigate, t, toast]
+    [apiBaseUrl, location.pathname, navigate, nativeNotificationsEnabled, notifications, t, toast]
   );
 
   const handleReactionNew = useCallback(
@@ -138,7 +196,8 @@ export function useDmNotifications(): void {
       const conversationId = rawReaction.conversationId;
       const messageId = rawReaction.messageId;
 
-      if (location.pathname === `/conversation/${conversationId}`) {
+      const isViewingConversation = location.pathname === `/conversation/${conversationId}`;
+      if (shouldSuppressInAppToastForConversation(isViewingConversation)) {
         return;
       }
 
@@ -170,11 +229,31 @@ export function useDmNotifications(): void {
         // Keep generic reactorName
       }
 
-      toast.message(reactorName, t('messages.reactedToYourMessage'), () => {
-        navigate(`/conversation/${conversationId}`);
+      const path = `/conversation/${conversationId}`;
+      const description = t('messages.reactedToYourMessage');
+      toast.message(reactorName, description, () => {
+        navigate(path);
       });
+      maybeShowNativeNotification(
+        notifications,
+        nativeNotificationsEnabled,
+        reactorName,
+        description,
+        `dm-react-${conversationId}-${messageId}`,
+        navigate,
+        path
+      );
     },
-    [apiBaseUrl, fetchReactions, location.pathname, navigate, t, toast]
+    [
+      apiBaseUrl,
+      fetchReactions,
+      location.pathname,
+      navigate,
+      nativeNotificationsEnabled,
+      notifications,
+      t,
+      toast,
+    ]
   );
 
   useEffect(() => {

@@ -715,7 +715,21 @@ export const en = {
     settings: {
       title: 'App Settings',
       subtitle: 'Configure application preferences.',
-      comingSoon: 'App settings coming soon.',
+      notifications: {
+        sectionTitle: 'Notifications',
+        sectionDescription:
+          'Control system notifications for new direct messages and reactions. In-app toasts still follow your conversation focus; native alerts only appear when this window is not focused or this tab is in the background.',
+        systemToggle: 'System notifications',
+        systemHint:
+          'Uses your browser or operating system notification permission. Helps when Adieuu is open on another monitor or behind other apps.',
+        unsupported: 'System notifications are not supported in this environment.',
+        deniedBody:
+          'Notifications are blocked for this site or app. Enable them in your browser or system settings to use this option.',
+        permissionDeniedToast: 'Notification permission was not granted.',
+        permissionResetBody:
+          'Notification permission was reset. Turn this option off and on again to allow prompts, or enable notifications in your system settings.',
+        enabledToast: 'System notifications enabled.',
+      },
     },
 
     // Security

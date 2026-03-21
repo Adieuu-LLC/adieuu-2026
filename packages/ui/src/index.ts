@@ -73,6 +73,11 @@ export type {
   DmReactionRemovedEvent,
 } from './hooks/useDmSubscription';
 export { useDmNotifications } from './hooks/useDmNotifications';
+export {
+  useNativeNotificationsPreference,
+  setNativeNotificationsEnabled,
+  getNativeNotificationsEnabled,
+} from './hooks/useNativeNotificationsPreference';
 export { useDeleteMessage } from './hooks/useDeleteMessage';
 export type { DeleteMessageResult, UseDeleteMessageResult } from './hooks/useDeleteMessage';
 

@@ -6492,3 +6492,59 @@ a {
   margin-top: var(--spacing-md);
   border-color: var(--color-border);
 }
+
+// Account > App Settings
+.app-settings-card {
+  padding: var(--spacing-lg);
+}
+
+.app-settings-section-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--spacing-sm);
+  color: var(--color-text);
+}
+
+.app-settings-section-desc {
+  margin: 0 0 var(--spacing-lg);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.app-settings-alert {
+  margin-bottom: var(--spacing-md);
+}
+
+.app-settings-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  cursor: pointer;
+
+  input[type='checkbox'] {
+    margin-top: 3px;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+}
+
+.app-settings-toggle-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.app-settings-toggle-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.app-settings-toggle-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
