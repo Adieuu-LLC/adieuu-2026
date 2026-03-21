@@ -27,8 +27,71 @@ single_nat_gateway        = true
 # api_desired_count         = 1
 # chat_desired_count        = 1
 
-# Non-secret env vars only (use SSM/Secrets Manager in real deployments):
+# Non-secret env only (plain strings in the task definition). Full key list:
+# docs/deployment/ecs-environment.md
+# Do not set PORT, HOST, NODE_ENV (API) or CHAT_PORT, CHAT_HOST, NODE_ENV (chat) here — Terraform sets them.
+#
 # api_environment = {
-#   REQUIRE_DATABASE = "false"
+#   APP_NAME              = "Adieuu"
+#   CORS_ORIGINS          = "https://app.example.com"
+#   CORS_CREDENTIALS      = "true"
+#   COOKIE_DOMAIN         = ".example.com"
+#   MONGODB_DB_NAME       = "adieuu"
+#   MONGODB_MIN_POOL_SIZE = "5"
+#   MONGODB_MAX_POOL_SIZE = "20"
+#   REDIS_KEY_PREFIX      = "adieuu:"
+#   EMAIL_PROVIDER        = "ses"
+#   EMAIL_FROM_ADDRESS    = "noreply@example.com"
+#   AWS_REGION            = "us-east-1"
+#   SMS_PROVIDER          = "textmagic"
+#   SMS_FROM_NAME         = "Adieuu"
+#   WEB_APP_URL           = "https://app.example.com"
+#   WEBAUTHN_RP_ID        = "example.com"
+#   WEBAUTHN_ORIGINS      = "https://app.example.com"
+#   REQUIRE_DATABASE      = "true"
+#   INITIALIZE_COLLECTIONS = "false"
+#   RATE_LIMIT_ENABLED    = "true"
+#   # RATE_LIMIT_AUTH_REQUEST_IDENTIFIER = "3"
+#   # RATE_LIMIT_AUTH_REQUEST_IDENTIFIER_WINDOW = "900"
+#   # ...see ecs-environment.md for remaining RATE_LIMIT_* keys
 # }
-# chat_environment = {}
+#
+# chat_environment = {
+#   MONGODB_DB_NAME       = "adieuu"
+#   MONGODB_MIN_POOL_SIZE = "2"
+#   MONGODB_MAX_POOL_SIZE = "10"
+#   REDIS_KEY_PREFIX      = "adieuu:"
+#   WS_IDLE_TIMEOUT       = "120"
+#   WS_MAX_PAYLOAD_LENGTH = "1048576"
+#   WS_COMPRESSION        = "true"
+#   PRESENCE_HEARTBEAT_TTL       = "30"
+#   PRESENCE_HEARTBEAT_INTERVAL  = "15"
+#   REQUIRE_DATABASE      = "true"
+# }
+
+# Secrets Manager -> ECS (execution role gets GetSecretValue). Values are ARNs, not secret text.
+# Prefer one JSON secret per service; for a key inside JSON use :KeyName:: at the end of the ARN.
+# Typical API keys: MONGODB_URI, CSRF_SECRET, SESSION_SECRET, OTP_SECRET, AWS_ACCESS_KEY_ID,
+# AWS_SECRET_ACCESS_KEY, TEXTMAGIC_USERNAME, TEXTMAGIC_API_KEY (see ecs-environment.md).
+# Typical chat keys: MONGODB_URI (and optionally REDIS_URL if not from ElastiCache / plain env).
+#
+# api_container_secrets = {
+#   MONGODB_URI           = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:MONGODB_URI::"
+#   CSRF_SECRET           = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CSRF_SECRET::"
+#   SESSION_SECRET        = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:SESSION_SECRET::"
+#   OTP_SECRET            = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:OTP_SECRET::"
+#   AWS_ACCESS_KEY_ID     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:AWS_ACCESS_KEY_ID::"
+#   AWS_SECRET_ACCESS_KEY = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:AWS_SECRET_ACCESS_KEY::"
+#   TEXTMAGIC_USERNAME    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:TEXTMAGIC_USERNAME::"
+#   TEXTMAGIC_API_KEY     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:TEXTMAGIC_API_KEY::"
+# }
+# chat_container_secrets = {
+#   MONGODB_URI = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/chat-AbCdEf:MONGODB_URI::"
+# }
+# secretsmanager_kms_key_arns = [] # CMK ARNs if secrets use customer-managed KMS
+
+# Optional in-VPC Redis (adds cost). REDIS_URL is merged into api/chat env unless overridden.
+# create_elasticache_redis     = false
+# redis_node_type              = "cache.t4g.micro"
+# redis_engine_version         = "7.1"
+# redis_snapshot_retention_days = 0

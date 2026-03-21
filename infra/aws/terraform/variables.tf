@@ -74,13 +74,13 @@ variable "node_env" {
 
 variable "api_environment" {
   type        = map(string)
-  description = "Additional plain environment variables for the API task (secrets belong in AWS Secrets Manager / SSM, not here)."
+  description = "Non-sensitive env for the API task. Keys and reserved names: docs/deployment/ecs-environment.md. Secrets use api_container_secrets."
   default     = {}
 }
 
 variable "chat_environment" {
   type        = map(string)
-  description = "Additional plain environment variables for the chat task."
+  description = "Non-sensitive env for the chat task. Keys and reserved names: docs/deployment/ecs-environment.md. Secrets use chat_container_secrets."
   default     = {}
 }
 
@@ -130,4 +130,50 @@ variable "chat_desired_count" {
   type        = number
   description = "Desired number of chat tasks."
   default     = 1
+}
+
+# --- Secrets Manager (injected by ECS; values live in AWS, not in Terraform) ---
+
+variable "api_container_secrets" {
+  type        = map(string)
+  description = "Map of container env name -> ECS valueFrom (Secrets Manager ARN). For JSON key secrets use :KeyName:: suffix, e.g. arn:...:secret:name-AbCdEf:MY_KEY::"
+  default     = {}
+}
+
+variable "chat_container_secrets" {
+  type        = map(string)
+  description = "Same as api_container_secrets for the chat container."
+  default     = {}
+}
+
+variable "secretsmanager_kms_key_arns" {
+  type        = list(string)
+  description = "KMS key ARNs for customer-managed keys used to encrypt Secrets Manager secrets (for ecs task execution role kms:Decrypt)."
+  default     = []
+}
+
+# --- Optional ElastiCache Redis ---
+
+variable "create_elasticache_redis" {
+  type        = bool
+  description = "If true, create a single-node Redis replication group in private subnets and set REDIS_URL on both tasks (overridable via api_environment / chat_environment)."
+  default     = false
+}
+
+variable "redis_node_type" {
+  type        = string
+  description = "ElastiCache node type (e.g. cache.t4g.micro, cache.t3.micro)."
+  default     = "cache.t4g.micro"
+}
+
+variable "redis_engine_version" {
+  type        = string
+  description = "Redis engine version for ElastiCache."
+  default     = "7.1"
+}
+
+variable "redis_snapshot_retention_days" {
+  type        = number
+  description = "Number of days for Redis snapshot retention (0 disables automatic backups)."
+  default     = 0
 }

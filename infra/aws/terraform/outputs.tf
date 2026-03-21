@@ -60,3 +60,8 @@ output "http_urls" {
     chat_ready = "http://${aws_lb.main.dns_name}/ready"
   }
 }
+
+output "elasticache_redis_primary_endpoint" {
+  description = "Primary endpoint for ElastiCache Redis (when create_elasticache_redis is true). REDIS_URL is also injected into ECS env."
+  value       = var.create_elasticache_redis ? aws_elasticache_replication_group.redis[0].primary_endpoint_address : null
+}

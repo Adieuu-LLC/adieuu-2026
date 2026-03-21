@@ -24,33 +24,38 @@ resource "aws_ecs_task_definition" "api" {
   }
 
   container_definitions = jsonencode([
-    {
-      name      = "api"
-      image     = "${aws_ecr_repository.api.repository_url}:${var.api_image_tag}"
-      essential = true
-      portMappings = [
-        {
-          containerPort = 4000
-          protocol      = "tcp"
+    merge(
+      {
+        name      = "api"
+        image     = "${aws_ecr_repository.api.repository_url}:${var.api_image_tag}"
+        essential = true
+        portMappings = [
+          {
+            containerPort = 4000
+            protocol      = "tcp"
+          }
+        ]
+        logConfiguration = {
+          logDriver = "awslogs"
+          options = {
+            "awslogs-group"         = aws_cloudwatch_log_group.api.name
+            "awslogs-region"        = var.aws_region
+            "awslogs-stream-prefix" = "api"
+          }
         }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.api.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "api"
-        }
-      }
-      environment = concat(
-        [
-          { name = "PORT", value = "4000" },
-          { name = "HOST", value = "0.0.0.0" },
-          { name = "NODE_ENV", value = var.node_env }
-        ],
-        [for k, v in var.api_environment : { name = k, value = v }]
-      )
-    }
+        environment = concat(
+          [
+            { name = "PORT", value = "4000" },
+            { name = "HOST", value = "0.0.0.0" },
+            { name = "NODE_ENV", value = var.node_env }
+          ],
+          [for k in sort(keys(local.api_env_for_task)) : { name = k, value = local.api_env_for_task[k] }]
+        )
+      },
+      length(var.api_container_secrets) > 0 ? {
+        secrets = [for k, v in var.api_container_secrets : { name = k, valueFrom = v }]
+      } : {}
+    )
   ])
 
   tags = local.common_tags
@@ -71,33 +76,38 @@ resource "aws_ecs_task_definition" "chat" {
   }
 
   container_definitions = jsonencode([
-    {
-      name      = "chat"
-      image     = "${aws_ecr_repository.chat.repository_url}:${var.chat_image_tag}"
-      essential = true
-      portMappings = [
-        {
-          containerPort = 9001
-          protocol      = "tcp"
+    merge(
+      {
+        name      = "chat"
+        image     = "${aws_ecr_repository.chat.repository_url}:${var.chat_image_tag}"
+        essential = true
+        portMappings = [
+          {
+            containerPort = 9001
+            protocol      = "tcp"
+          }
+        ]
+        logConfiguration = {
+          logDriver = "awslogs"
+          options = {
+            "awslogs-group"         = aws_cloudwatch_log_group.chat.name
+            "awslogs-region"        = var.aws_region
+            "awslogs-stream-prefix" = "chat"
+          }
         }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.chat.name
-          "awslogs-region"        = var.aws_region
-          "awslogs-stream-prefix" = "chat"
-        }
-      }
-      environment = concat(
-        [
-          { name = "CHAT_PORT", value = "9001" },
-          { name = "CHAT_HOST", value = "0.0.0.0" },
-          { name = "NODE_ENV", value = var.node_env }
-        ],
-        [for k, v in var.chat_environment : { name = k, value = v }]
-      )
-    }
+        environment = concat(
+          [
+            { name = "CHAT_PORT", value = "9001" },
+            { name = "CHAT_HOST", value = "0.0.0.0" },
+            { name = "NODE_ENV", value = var.node_env }
+          ],
+          [for k in sort(keys(local.chat_env_for_task)) : { name = k, value = local.chat_env_for_task[k] }]
+        )
+      },
+      length(var.chat_container_secrets) > 0 ? {
+        secrets = [for k, v in var.chat_container_secrets : { name = k, valueFrom = v }]
+      } : {}
+    )
   ])
 
   tags = local.common_tags
