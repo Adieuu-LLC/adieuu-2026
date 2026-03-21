@@ -7,7 +7,7 @@ settings:
 overrides:
   tar: '>=7.5.9'
   minimatch: 10.2.4
-  '@develar/schema-utils': npm:schema-utils@4.3.3
+  '@develar/schema-utils': workspace:*
   ajv: 8.18.0
   ajv-keywords: 5.1.0
   ajv-formats: 2.1.1
@@ -270,6 +270,12 @@ importers:
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
+
+  packages/develar-schema-utils:
+    dependencies:
+      schema-utils:
+        specifier: 4.3.3
+        version: 4.3.3
 
   packages/shared:
     dependencies:
@@ -5416,7 +5422,7 @@ snapshots:
 
   app-builder-lib@26.8.1(dmg-builder@26.8.1)(electron-builder-squirrel-windows@26.8.1):
     dependencies:
-      '@develar/schema-utils': schema-utils@4.3.3
+      '@develar/schema-utils': link:packages/develar-schema-utils
       '@electron/asar': 3.4.1
       '@electron/fuses': 1.8.0
       '@electron/get': 3.1.0

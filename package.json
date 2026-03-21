@@ -34,7 +34,7 @@
     "overrides": {
       "tar": ">=7.5.9",
       "minimatch": "10.2.4",
-      "@develar/schema-utils": "npm:schema-utils@4.3.3",
+      "@develar/schema-utils": "workspace:*",
       "ajv": "8.18.0",
       "ajv-keywords": "5.1.0",
       "ajv-formats": "2.1.1",
