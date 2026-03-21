@@ -18,9 +18,10 @@ import {
   type VerifyAuthenticationResponseOpts,
 } from '@simplewebauthn/server';
 import type { AuthenticatorTransportFuture, RegistrationResponseJSON, AuthenticationResponseJSON } from '@simplewebauthn/server';
-import { createHash, randomBytes } from 'crypto';
+import { createHash } from 'crypto';
 import { config } from '../config';
 import { encrypt, decrypt, generateSecureToken } from '../utils/crypto';
+import { randomUniformIndex } from '../utils/randomUniformIndex';
 import {
   getTotpRepository,
   getWebAuthnRepository,
@@ -677,15 +678,13 @@ export async function getBackupCodesCount(userId: string): Promise<number> {
 
 // Helper to generate a single backup code
 function generateBackupCode(): string {
+  // 32 chars: 32 | 256 so rejection in randomUniformIndex never discards a byte (no extra RNG
+  // calls). If the alphabet changes, randomUniformIndex stays unbiased for any length 1..256.
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude confusing chars
   let code = '';
-  const bytes = randomBytes(BACKUP_CODE_LENGTH);
-
   for (let i = 0; i < BACKUP_CODE_LENGTH; i++) {
-    const byte = bytes[i];
-    if (byte !== undefined) {
-      code += chars[byte % chars.length];
-    }
+    const idx = randomUniformIndex(chars.length);
+    code += chars[idx];
   }
 
   // Format as XXXX-XXXX

@@ -12,7 +12,7 @@ Cross-platform application with web, desktop (Electron), and mobile (Capacitor) 
 | Web | Vite + React + React Router |
 | Desktop | Electron |
 | Mobile | Capacitor (iOS/Android) |
-| API | Fastify |
+| API | Bun (`Bun.serve()`) |
 | Shared | TypeScript + Zod schemas |
 
 ## Structure
@@ -20,7 +20,7 @@ Cross-platform application with web, desktop (Electron), and mobile (Capacitor) 
 ```
 apps/
   web/        # Vite + React web app
-  api/        # Fastify backend API
+  api/        # Bun HTTP API (tests: apps/api/README.md)
   desktop/    # Electron desktop shell
   mobile/     # Capacitor mobile config
 
@@ -64,6 +64,7 @@ pnpm dev:desktop # Electron app (loads web dev server)
 | `pnpm lint` | Lint all packages |
 | `pnpm typecheck` | Type-check all packages |
 | `pnpm clean` | Clean all build outputs |
+| `pnpm --filter @adieuu/api test` | API unit tests (main suite + isolated `*.edge.manual.ts` files; see [apps/api/README.md](apps/api/README.md)) |
 
 ## Mobile Development
 
