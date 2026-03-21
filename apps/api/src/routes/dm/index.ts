@@ -270,6 +270,10 @@ router.delete('/dm/reactions/:reactionId', async (ctx) => {
  * @returns 200 OK with reactions array
  * @returns 400 Bad Request if parameters invalid
  * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if `getReactionsCtrl` denies access: the session identity is not a
+ *   participant in this DM (see recipient / `validateConversationId` checks), or the first
+ *   sampled message does not belong to `conversationId` (conversation mismatch on the message
+ *   document vs the route param).
  */
 router.get('/dm/conversations/:conversationId/reactions', async (ctx) => {
   return await getReactionsCtrl(ctx);

@@ -117,7 +117,9 @@ const mockReactionDoc = {
   updatedAt: new Date(),
 };
 
-const mockFindByClientReactionId = mock(() => Promise.resolve(null));
+const mockFindByClientReactionId = mock(() =>
+  Promise.resolve(null as typeof mockReactionDoc | null)
+);
 const mockCreateReaction = mock(() => Promise.resolve(mockReactionDoc));
 const mockCountByRecipient = mock(() => Promise.resolve(0));
 const mockCountOnMessage = mock(() => Promise.resolve(0));
