@@ -1,0 +1,13 @@
+{
+  "name": "@develar/schema-utils",
+  "version": "2.6.5",
+  "private": true,
+  "description": "Shim: webpack schema-utils (Ajv 8) with the CommonJS default export shape electron-builder expects from @develar/schema-utils",
+  "main": "index.cjs",
+  "dependencies": {
+    "schema-utils": "4.3.3"
+  },
+  "scripts": {
+    "build": "node -e \"process.exit(0)\""
+  }
+}

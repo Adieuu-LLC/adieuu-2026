@@ -113,7 +113,7 @@ mock.module('otpauth', () => ({
   TOTP: MockTOTP,
 }));
 
-const generateRegistrationOptionsMock = mock(async () => ({ challenge: 'challenge' }));
+const generateRegistrationOptionsMock = mock(async () => ({ challenge: 'challenge' })) as AnyMock;
 const generateAuthenticationOptionsMock = mock(async () => ({
   challenge: 'auth-challenge',
   allowCredentials: [] as { id: string; transports: string[] }[],
@@ -973,7 +973,7 @@ describe('mfa.service', () => {
     ]);
 
     await generateWebAuthnRegistrationOptions(userId, 'u@x.com');
-    const opts = generateRegistrationOptionsMock.mock.calls[0]?.[0] as {
+    const opts = generateRegistrationOptionsMock.mock.calls[0]?.[0] as unknown as {
       excludeCredentials?: { id: string }[];
     };
     expect(opts?.excludeCredentials).toHaveLength(1);

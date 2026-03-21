@@ -19,7 +19,7 @@ describe('tryUniformIndexFromByte', () => {
     for (let b = 0; b < 256; b++) {
       const idx = tryUniformIndexFromByte(b, 32);
       expect(idx).not.toBeNull();
-      if (idx !== null) counts[idx]++;
+      if (idx !== null) counts[idx]!++;
     }
     for (const c of counts) {
       expect(c).toBe(8);

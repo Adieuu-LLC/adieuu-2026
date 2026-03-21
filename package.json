@@ -30,10 +30,16 @@
     "node": ">=25.0.0",
     "pnpm": ">=9.0.0"
   },
-  "overrides": {
-    "tar": ">=7.5.9",
-    "ajv": ">=8.18.0",
-    "@develar/schema-utils>ajv": "^6.12.6"
+  "pnpm": {
+    "overrides": {
+      "tar": ">=7.5.9",
+      "minimatch": "10.2.4",
+      "@develar/schema-utils": "workspace:*",
+      "ajv": "8.18.0",
+      "ajv-keywords": "5.1.0",
+      "ajv-formats": "2.1.1",
+      "dmg-license>ajv": "6.12.6"
+    }
   },
   "workspaces": [
     "apps/*",
