@@ -213,6 +213,9 @@ jobs:
         if: steps.version.outputs.released == 'true'
         run: |
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
+          # workflow_run checks out head_sha (detached HEAD), so there is no local "main".
+          # Create/update main at HEAD so "git push origin main" works.
+          git checkout -B main
           git add .
           git commit -m "chore(release): v${NEW_VERSION}"
           git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}"
