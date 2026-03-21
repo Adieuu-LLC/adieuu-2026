@@ -151,6 +151,10 @@ export const en = {
     },
     newMessage: 'New message',
     newMessageDescription: 'Sent you a message',
+    /** Fallback display name when reaction sender cannot be resolved */
+    someone: 'Someone',
+    /** Toast description when another user reacts to your message */
+    reactedToYourMessage: 'Reacted to your message',
   },
 
   // Search

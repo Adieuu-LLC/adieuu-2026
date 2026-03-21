@@ -1,7 +1,7 @@
 /**
  * Hook for global DM notifications.
  *
- * Listens for new DM messages across all conversations and shows
+ * Listens for new DM messages and reactions across all conversations and shows
  * toast notifications when the user is not viewing the conversation.
  * Clicking the toast navigates to the conversation.
  */
@@ -12,11 +12,12 @@ import { useTranslation } from 'react-i18next';
 import { createApiClient } from '@adieuu/shared';
 import { useChatConnection } from './useChatConnection';
 import { useIdentity } from './useIdentity';
+import { useDmReactions } from './useDmReactions';
 import { useAppConfig } from '../config';
 import { useToast } from '../components/Toast';
 import { decryptSenderHint } from '../services/dmMessageService';
 import { getCachedParticipant, cacheParticipant } from '../services/participantCache';
-import type { DmNewMessageEvent } from './useDmSubscription';
+import type { DmNewMessageEvent, DmReactionNewEvent } from './useDmSubscription';
 
 interface RawWsMessage {
   type: string;
@@ -29,6 +30,7 @@ interface RawWsMessage {
  * Should be rendered once at the app level (e.g., in App.tsx or a layout component).
  * Shows a toast when:
  * - A new DM message arrives
+ * - Someone reacts to a message (recipient sees the reaction event)
  * - The user is not currently viewing that conversation
  *
  * Clicking the toast navigates to the conversation.
@@ -49,6 +51,7 @@ export function useDmNotifications(): void {
   const { status, identity } = useIdentity();
   const { onMessage } = useChatConnection();
   const toast = useToast();
+  const { fetchReactions } = useDmReactions();
 
   const isLoggedIn = status === 'logged_in' && identity !== null;
 
@@ -126,6 +129,54 @@ export function useDmNotifications(): void {
     [apiBaseUrl, location.pathname, navigate, t, toast]
   );
 
+  const handleReactionNew = useCallback(
+    async (event: DmReactionNewEvent) => {
+      const currentIdentity = identityRef.current;
+      if (!currentIdentity) return;
+
+      const rawReaction = event.payload.reaction;
+      const conversationId = rawReaction.conversationId;
+      const messageId = rawReaction.messageId;
+
+      if (location.pathname === `/conversation/${conversationId}`) {
+        return;
+      }
+
+      const cached = await getCachedParticipant(currentIdentity.id, conversationId);
+      const otherParticipantId = cached?.otherIdentityId ?? null;
+
+      let reactorName = t('messages.someone');
+      try {
+        const decrypted = await fetchReactions(
+          conversationId,
+          [messageId],
+          otherParticipantId
+        );
+        const match = decrypted.find((d) => d.raw.id === rawReaction.id);
+        const reactorId = match?.decrypted?.fromIdentityId;
+
+        if (reactorId === currentIdentity.id) {
+          return;
+        }
+
+        if (reactorId) {
+          const api = createApiClient({ baseUrl: apiBaseUrl });
+          const response = await api.identity.getById(reactorId);
+          if (response.success && response.data) {
+            reactorName = response.data.displayName;
+          }
+        }
+      } catch {
+        // Keep generic reactorName
+      }
+
+      toast.message(reactorName, t('messages.reactedToYourMessage'), () => {
+        navigate(`/conversation/${conversationId}`);
+      });
+    },
+    [apiBaseUrl, fetchReactions, location.pathname, navigate, t, toast]
+  );
+
   useEffect(() => {
     if (!isLoggedIn) return;
 
@@ -135,6 +186,10 @@ export function useDmNotifications(): void {
         const event = raw as unknown as DmNewMessageEvent;
         handleNewMessage(event);
       }
+      if (raw.type === 'dm:reaction:new') {
+        const event = raw as unknown as DmReactionNewEvent;
+        void handleReactionNew(event);
+      }
     });
-  }, [isLoggedIn, onMessage, handleNewMessage]);
+  }, [isLoggedIn, onMessage, handleNewMessage, handleReactionNew]);
 }
