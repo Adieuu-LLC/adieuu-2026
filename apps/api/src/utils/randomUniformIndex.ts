@@ -30,7 +30,10 @@ export function randomUniformIndex(alphabetLength: number, rng: RandomBytesFn = 
     throw new RangeError('alphabetLength must be between 1 and 256');
   }
   for (;;) {
-    const [b] = rng(1);
+    const b = rng(1)[0];
+    if (b === undefined) {
+      throw new Error('randomUniformIndex: rng(1) must return a buffer of length 1');
+    }
     const idx = tryUniformIndexFromByte(b, alphabetLength);
     if (idx !== null) return idx;
   }
