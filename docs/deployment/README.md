@@ -5,6 +5,8 @@ Self-hosted and cloud deployment notes for Adieuu.
 | Document | Description |
 |----------|-------------|
 | [AWS (ECS, VPC, edge)](./aws.md) | Target AWS architecture, Terraform vs alternatives, public-repo safety, customization |
+| [Containers (Docker)](./containers.md) | Building and running API and chat images locally |
+| [Terraform (`infra/aws/terraform`)](../../infra/aws/README.md) | VPC, ECR, ALB, ECS Fargate — see `terraform output` after apply |
 
 ## Order of operations
 

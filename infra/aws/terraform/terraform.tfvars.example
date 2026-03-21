@@ -1,4 +1,4 @@
-# Copy to terraform.tfvars and customize. Do not commit real secrets.
+# Copy to terraform.tfvars and customize. Do not commit secrets.
 # cp terraform.tfvars.example terraform.tfvars
 
 aws_region   = "us-east-1"
@@ -11,3 +11,24 @@ vpc_cidr = "10.42.0.0/16"
 availability_zone_count = 2
 enable_nat_gateway        = true
 single_nat_gateway        = true
+
+# Optional — defaults are fine for a first apply:
+# log_retention_days        = 14
+# enable_container_insights = false
+# alb_ingress_cidr_blocks   = ["0.0.0.0/0"]
+# alb_idle_timeout_seconds  = 3600
+# node_env                  = "production"
+# api_image_tag             = "latest"
+# chat_image_tag            = "latest"
+# api_task_cpu              = 512
+# api_task_memory           = 1024
+# chat_task_cpu             = 512
+# chat_task_memory          = 1024
+# api_desired_count         = 1
+# chat_desired_count        = 1
+
+# Non-secret env vars only (use SSM/Secrets Manager in real deployments):
+# api_environment = {
+#   REQUIRE_DATABASE = "false"
+# }
+# chat_environment = {}

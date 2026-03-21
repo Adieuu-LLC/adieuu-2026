@@ -2,9 +2,11 @@ terraform {
   required_version = ">= 1.5.0"
 
   required_providers {
+    # Pin to 5.x until terraform-aws-modules/vpc (and our root config) are clean on
+    # provider 6.x (e.g. aws_region.name deprecation in module internals).
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.0.0, < 7.0.0"
+      version = ">= 5.0.0, < 6.0.0"
     }
   }
 

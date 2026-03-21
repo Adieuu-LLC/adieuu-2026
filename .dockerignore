@@ -1,0 +1,23 @@
+# Keep build context small; preserve all workspace package.json trees for pnpm.
+.git
+**/.git
+node_modules
+**/node_modules
+.pnpm-store
+**/.pnpm-store
+.turbo
+**/.turbo
+**/dist
+coverage
+**/coverage
+**/*.tsbuildinfo
+pnpm-debug.log
+**/.env
+**/.env.*
+!**/.env.example
+apps/desktop/out
+apps/mobile/ios
+apps/mobile/android
+**/.DS_Store
+**/test-results
+**/junit.xml

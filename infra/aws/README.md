@@ -6,7 +6,7 @@ Terraform code for Adieuu on AWS lives in `terraform/`. It is intended to be **s
 
 - [Terraform](https://www.terraform.io/downloads) `>= 1.5`
 - AWS credentials (e.g. `aws configure` or environment variables)
-- Docker images for **API** and **chat** built and pushed to **ECR** (or another registry) before wiring full ECS services
+- **Docker images** for API and chat built for **`linux/amd64`** (Fargate in this stack uses `X86_64`) and **pushed to ECR** after the repositories exist (`terraform apply` creates the repos; push tags such as `latest` or your release tag)
 
 ## Quick start
 
@@ -21,18 +21,49 @@ terraform plan
 
 Review the plan, then `terraform apply` when ready.
 
-## Files
+After apply:
 
-| File | Purpose |
-|------|---------|
-| `terraform.tfvars.example` | **Committed** — placeholder variable values only |
-| `terraform.tfvars` | **Local / private** — your real values; gitignored |
-| `*.tf` | Resource definitions (grow this directory as modules are added) |
+```bash
+terraform output
+```
+
+Use `ecr_api_repository_url` and `ecr_chat_repository_url` to tag and push images, for example:
+
+```bash
+AWS_REGION=us-east-1
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+docker tag adieuu-api:local "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/adieuu-staging-api:latest"
+docker push "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/adieuu-staging-api:latest"
+# repeat for chat with the chat repository name from terraform output / ECR console
+```
+
+Replace `adieuu-staging-api` with the repository name shown in the AWS console or `terraform output` (it follows the pattern `{project}-{environment}-api`).
+
+## Layout
+
+| File / pattern | Purpose |
+|----------------|---------|
+| `main.tf` | Data sources (caller identity, region, AZs) |
+| `locals.tf` | Naming, subnet CIDR math |
+| `variables.tf` | Inputs (VPC, ECS sizing, env maps) |
+| `vpc.tf` | VPC module |
+| `ecr.tf` | ECR repositories + lifecycle |
+| `iam_ecs.tf` | ECS task execution + task roles |
+| `security_groups.tf` | ALB and ECS task security groups |
+| `alb.tf` | ALB, target groups, listener rules |
+| `cloudwatch.tf` | Log groups for ECS |
+| `ecs.tf` | ECS cluster, task definitions, services |
+| `outputs.tf` | ALB DNS, ECR URLs, subnet IDs |
+| `terraform.tfvars.example` | **Committed** — placeholders only |
+| `terraform.tfvars` | **Local / private** — gitignored |
 
 ## Backend state
 
-By default Terraform uses **local state** (`terraform.tfstate`) in this directory — suitable for experiments. For teams, configure a **remote S3 backend** with DynamoDB locking (variables for bucket/table names can be added later). Keep state files private.
+By default Terraform uses **local state** (`terraform.tfstate`) in this directory — suitable for experiments. For teams, configure a **remote S3 backend** with DynamoDB locking in `versions.tf`. Keep state files private.
 
 ## Related documentation
 
-- [docs/deployment/aws.md](../../docs/deployment/aws.md) — architecture, scaling, edge security, Atlas peering
+- [docs/deployment/aws.md](../../docs/deployment/aws.md) — architecture, what Terraform covers, secrets
+- [docs/deployment/containers.md](../../docs/deployment/containers.md) — building API/chat images

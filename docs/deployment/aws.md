@@ -46,6 +46,17 @@ Desktop and mobile apps are **not** deployed as server workloads; they consume t
 
 The repository includes **Terraform** under `infra/aws/terraform/` as the single source of truth for AWS resources we automate here. Add CloudFormation only if you have a hard requirement.
 
+### What the Terraform stack creates
+
+- **VPC** — public and private subnets across your chosen AZs, NAT gateway(s), DNS hostnames (via the [terraform-aws-modules/vpc](https://registry.terraform.io/modules/terraform-aws-modules/vpc/aws) module).
+- **ECR** — two repositories (`api`, `chat`) with a simple “keep last 10 images” lifecycle rule.
+- **ALB** — HTTP listener on port **80** with path rules: **`/api/*`** → API target group; **`/ws/*`**, **`/ready`**, **`/health`** → chat target group; other paths return **404**. Idle timeout is set high for WebSocket-style connections. **HTTPS** is not configured in Terraform yet (add ACM + a `:443` listener when you have a certificate and domain).
+- **ECS Fargate** — one cluster, two task definitions, two services (API on port 4000, chat on 9001). Tasks use **private subnets** and **no** public IP; outbound traffic uses the NAT gateway.
+
+**Not included in this stack** (typical next steps): **ElastiCache**, **Secrets Manager / SSM** wiring into task definitions, **WAF**, **ECS autoscaling**, **HTTPS**, **Route 53**. MongoDB remains **Atlas** (or your own cluster) with URIs supplied via env or secrets.
+
+**Operational order:** run `terraform apply`, note the **ECR repository URLs** from `terraform output`, **build and push** `linux/amd64` images (to match the Fargate platform in Terraform), then add **`MONGODB_URI`**, **`REDIS_URL`**, and production **secrets** via `api_environment` / `chat_environment` for non-sensitive values only, or extend Terraform to inject **Secrets Manager** / **SSM** (recommended for secrets).
+
 ## Public repository: safety and customization
 
 - **Never commit**: real `terraform.tfvars`, `*.auto.tfvars`, `.env` with secrets, AWS keys, Atlas connection strings with passwords, Redis auth strings, session signing keys.
