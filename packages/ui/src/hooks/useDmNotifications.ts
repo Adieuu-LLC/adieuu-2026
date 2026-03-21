@@ -16,9 +16,13 @@ import { useChatConnection } from './useChatConnection';
 import { useIdentity } from './useIdentity';
 import { useDmReactions } from './useDmReactions';
 import { useAppConfig, usePlatformCapabilities } from '../config';
-import type { Notifications } from '../config/types';
 import { useToast } from '../components/Toast';
 import { useNativeNotificationsPreference } from './useNativeNotificationsPreference';
+import {
+  maybeShowNativeNotification,
+  readFocusVisibilitySnapshot,
+  shouldSuppressInAppToastForConversation,
+} from '../utils/dmNotificationRules';
 import { decryptSenderHint } from '../services/dmMessageService';
 import { getCachedParticipant, cacheParticipant } from '../services/participantCache';
 import type { DmNewMessageEvent, DmReactionNewEvent } from './useDmSubscription';
@@ -26,46 +30,6 @@ import type { DmNewMessageEvent, DmReactionNewEvent } from './useDmSubscription'
 interface RawWsMessage {
   type: string;
   payload?: unknown;
-}
-
-/**
- * When the user has the conversation open in a focused, visible window, we skip
- * duplicate in-app toasts (they already see the thread). If the window is
- * unfocused (e.g. another app or monitor) or the tab is hidden, we still show
- * toasts so they notice new activity.
- */
-function shouldSuppressInAppToastForConversation(isViewingConversation: boolean): boolean {
-  if (!isViewingConversation) return false;
-  if (typeof document === 'undefined') return true;
-  return document.visibilityState === 'visible' && document.hasFocus();
-}
-
-/**
- * Avoid stacking OS alerts on top of in-app toasts when the window is focused
- * and the tab is visible; still show native notifications when the user is
- * elsewhere (another app, another monitor, or a background tab).
- */
-function shouldShowOsNotificationNow(): boolean {
-  if (typeof document === 'undefined') return false;
-  return !document.hasFocus() || document.visibilityState === 'hidden';
-}
-
-function maybeShowNativeNotification(
-  notifications: Notifications,
-  nativeEnabled: boolean,
-  title: string,
-  body: string,
-  tag: string,
-  navigate: (path: string) => void,
-  path: string
-): void {
-  if (!nativeEnabled || !notifications.hasPermission() || !shouldShowOsNotificationNow()) {
-    return;
-  }
-  notifications.show(title, body, {
-    tag,
-    onClick: () => navigate(path),
-  });
 }
 
 /**
@@ -116,7 +80,7 @@ export function useDmNotifications(): void {
       const conversationId = message.conversationId;
 
       const isViewingConversation = location.pathname === `/conversation/${conversationId}`;
-      if (shouldSuppressInAppToastForConversation(isViewingConversation)) {
+      if (shouldSuppressInAppToastForConversation(isViewingConversation, readFocusVisibilitySnapshot())) {
         return;
       }
 
@@ -181,7 +145,8 @@ export function useDmNotifications(): void {
         description,
         `dm-msg-${conversationId}`,
         navigate,
-        path
+        path,
+        readFocusVisibilitySnapshot()
       );
     },
     [apiBaseUrl, location.pathname, navigate, nativeNotificationsEnabled, notifications, t, toast]
@@ -197,7 +162,7 @@ export function useDmNotifications(): void {
       const messageId = rawReaction.messageId;
 
       const isViewingConversation = location.pathname === `/conversation/${conversationId}`;
-      if (shouldSuppressInAppToastForConversation(isViewingConversation)) {
+      if (shouldSuppressInAppToastForConversation(isViewingConversation, readFocusVisibilitySnapshot())) {
         return;
       }
 
@@ -241,7 +206,8 @@ export function useDmNotifications(): void {
         description,
         `dm-react-${conversationId}-${messageId}`,
         navigate,
-        path
+        path,
+        readFocusVisibilitySnapshot()
       );
     },
     [

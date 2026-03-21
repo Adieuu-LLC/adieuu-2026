@@ -17,8 +17,13 @@ import { Popover } from './Popover';
 import { EmojiPicker } from './EmojiPicker';
 import { SmileIcon } from './Icons';
 import { Tooltip } from './Tooltip';
+import {
+  MAX_MESSAGE_LENGTH,
+  appendWithMaxLength,
+  insertStringWithMaxLength,
+} from './messageComposerText';
 
-const MAX_MESSAGE_LENGTH = 4000;
+export { MAX_MESSAGE_LENGTH } from './messageComposerText';
 const MIN_ROWS = 1;
 const MAX_ROWS = 6;
 
@@ -185,18 +190,16 @@ export function MessageComposer({
     (emoji: string) => {
       const textarea = textareaRef.current;
       if (!textarea) {
-        const newText = text + emoji;
-        if (newText.length <= MAX_MESSAGE_LENGTH) {
-          setText(newText);
-        }
+        const next = appendWithMaxLength(text, emoji, MAX_MESSAGE_LENGTH);
+        if (next !== null) setText(next);
         return;
       }
 
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const newText = text.slice(0, start) + emoji + text.slice(end);
-      if (newText.length <= MAX_MESSAGE_LENGTH) {
-        setText(newText);
+      const next = insertStringWithMaxLength(text, emoji, start, end, MAX_MESSAGE_LENGTH);
+      if (next !== null) {
+        setText(next);
         requestAnimationFrame(() => {
           const cursorPos = start + emoji.length;
           textarea.selectionStart = cursorPos;
