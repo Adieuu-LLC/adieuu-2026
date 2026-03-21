@@ -18,8 +18,14 @@ import { useConversationsList } from '../hooks/useConversations';
 import { useConversationsContext } from '../hooks/ConversationsProvider';
 import { useIdentity } from '../hooks/useIdentity';
 import { useDmMessages, useSendDmMessage, type DecryptedDmMessage } from '../hooks/useDmMessages';
-import { type GroupedReaction } from '../hooks/useDmReactions';
-import { useDmSubscription, type DmNewMessageEvent, type DmDeletedEvent } from '../hooks/useDmSubscription';
+import { useDmReactions, groupReactionsByMessageId, type GroupedReaction } from '../hooks/useDmReactions';
+import {
+  useDmSubscription,
+  type DmNewMessageEvent,
+  type DmDeletedEvent,
+  type DmReactionNewEvent,
+  type DmReactionRemovedEvent,
+} from '../hooks/useDmSubscription';
 import { useDeleteMessage } from '../hooks/useDeleteMessage';
 import { useDocumentVisibility } from '../hooks/useDocumentVisibility';
 import { getCachedParticipant } from '../services/participantCache';
@@ -321,6 +327,8 @@ function useExpiryCountdown(expiresAt: string | undefined): string | null {
 const EMOJI_ONLY_REGEX = /^(?:\p{Emoji_Presentation}|\p{Emoji}\uFE0F|\p{Emoji_Modifier_Base}\p{Emoji_Modifier}?|\p{Regional_Indicator}{2}|[\u200D\uFE0F]|\s)+$/u;
 const MAX_EMOJI_ONLY_LENGTH = 12;
 
+const EMPTY_REACTIONS: GroupedReaction[] = [];
+
 function isEmojiOnlyMessage(text: string | undefined): boolean {
   if (!text) return false;
   const trimmed = text.trim();
@@ -330,7 +338,12 @@ function isEmojiOnlyMessage(text: string | undefined): boolean {
 
 interface ReactionBarProps {
   reactions: GroupedReaction[];
-  onReactionClick: (emoji: string, includesMe: boolean, reactionIds: string[]) => void;
+  onReactionClick: (
+    emoji: string,
+    includesMe: boolean,
+    reactionIds: string[],
+    reactorIds: string[]
+  ) => void;
 }
 
 const ReactionBar = memo(function ReactionBar({
@@ -345,7 +358,9 @@ const ReactionBar = memo(function ReactionBar({
         <button
           key={reaction.emoji}
           className={`dm-message-reaction ${reaction.includesMe ? 'dm-message-reaction--own' : ''}`}
-          onClick={() => onReactionClick(reaction.emoji, reaction.includesMe, reaction.reactionIds)}
+          onClick={() =>
+            onReactionClick(reaction.emoji, reaction.includesMe, reaction.reactionIds, reaction.reactorIds)
+          }
           title={`${reaction.emoji} ${reaction.count}`}
         >
           <span className="dm-message-reaction-emoji">{reaction.emoji}</span>
@@ -362,9 +377,17 @@ interface MessageBubbleProps {
   onDeleteForEveryone?: (messageId: string) => void;
   onDeleteForSelf?: (messageId: string) => void;
   isDeleting?: boolean;
-  onReact?: (emoji: string) => void;
+  /** Parent supplies stable handler; bubble passes `messageId` for each row. */
+  onReact?: (messageId: string, emoji: string) => void | Promise<void>;
   reactions?: GroupedReaction[];
-  onReactionClick?: (emoji: string, includesMe: boolean, reactionIds: string[]) => void;
+  onReactionClick?: (
+    messageId: string,
+    emoji: string,
+    includesMe: boolean,
+    reactionIds: string[],
+    reactorIds: string[]
+  ) => void | Promise<void>;
+  reactionDisabled?: boolean;
 }
 
 const MessageBubble = memo(function MessageBubble({
@@ -376,6 +399,7 @@ const MessageBubble = memo(function MessageBubble({
   onReact,
   reactions = [],
   onReactionClick,
+  reactionDisabled = false,
 }: MessageBubbleProps) {
   const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
@@ -462,16 +486,18 @@ const MessageBubble = memo(function MessageBubble({
 
   const handleReact = useCallback(
     (emoji: string) => {
-      onReact?.(emoji);
+      if (!message.raw.id) return;
+      void onReact?.(message.raw.id, emoji);
     },
-    [onReact],
+    [onReact, message.raw.id],
   );
 
   const handleReactionClick = useCallback(
-    (emoji: string, includesMe: boolean, reactionIds: string[]) => {
-      onReactionClick?.(emoji, includesMe, reactionIds);
+    (emoji: string, includesMe: boolean, reactionIds: string[], reactorIds: string[]) => {
+      if (!message.raw.id) return;
+      void onReactionClick?.(message.raw.id, emoji, includesMe, reactionIds, reactorIds);
     },
-    [onReactionClick],
+    [onReactionClick, message.raw.id],
   );
 
   return (
@@ -486,9 +512,9 @@ const MessageBubble = memo(function MessageBubble({
           menuContent={menuContent}
           visible={showActionBar}
           isOwn={isOwn}
-          disabled={isDeleting}
+          disabled={isDeleting || reactionDisabled}
           onPopoverOpenChange={setIsActionBarPopoverOpen}
-          onReact={handleReact}
+          onReact={onReact ? handleReact : undefined}
         />
         {emojiOnly ? (
           <p className="dm-message-emoji-only">{message.decrypted?.text}</p>
@@ -528,6 +554,9 @@ const MessageBubble = memo(function MessageBubble({
     prevProps.message.raw.expiresAt === nextProps.message.raw.expiresAt &&
     prevProps.isOwn === nextProps.isOwn &&
     prevProps.isDeleting === nextProps.isDeleting &&
+    prevProps.reactionDisabled === nextProps.reactionDisabled &&
+    prevProps.onReact === nextProps.onReact &&
+    prevProps.onReactionClick === nextProps.onReactionClick &&
     prevProps.reactions === nextProps.reactions
   );
 });
@@ -640,6 +669,16 @@ interface ConversationMessagesProps {
   onDeleteForEveryone?: (messageId: string) => void;
   onDeleteForSelf?: (messageId: string) => void;
   isDeleting?: boolean;
+  reactionsByMessageId: Record<string, GroupedReaction[]>;
+  isReactionBusy?: boolean;
+  onMessageReact: (messageId: string, emoji: string) => void | Promise<void>;
+  onReactionBarClick: (
+    messageId: string,
+    emoji: string,
+    includesMe: boolean,
+    reactionIds: string[],
+    reactorIds: string[]
+  ) => void | Promise<void>;
 }
 
 const ConversationMessages = memo(function ConversationMessages({
@@ -651,6 +690,10 @@ const ConversationMessages = memo(function ConversationMessages({
   onDeleteForEveryone,
   onDeleteForSelf,
   isDeleting,
+  reactionsByMessageId,
+  isReactionBusy = false,
+  onMessageReact,
+  onReactionBarClick,
 }: ConversationMessagesProps) {
   const { t } = useTranslation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -718,6 +761,10 @@ const ConversationMessages = memo(function ConversationMessages({
             onDeleteForEveryone={onDeleteForEveryone}
             onDeleteForSelf={onDeleteForSelf}
             isDeleting={isDeleting}
+            onReact={onMessageReact}
+            onReactionClick={onReactionBarClick}
+            reactions={reactionsByMessageId[msg.raw.id] ?? EMPTY_REACTIONS}
+            reactionDisabled={isReactionBusy}
           />
         );
       })}
@@ -864,6 +911,130 @@ export function Conversation() {
   // Delete message hook
   const { deleteForEveryone, deleteForSelf, isDeleting } = useDeleteMessage();
 
+  const {
+    fetchReactions,
+    addReaction,
+    removeReaction,
+    isAdding: isAddingReaction,
+  } = useDmReactions();
+
+  const [reactionsByMessageId, setReactionsByMessageId] = useState<Record<string, GroupedReaction[]>>({});
+
+  const reactionRecipientId = useMemo(
+    () => otherParticipantId ?? conversation?.members[0]?.identity?.id ?? null,
+    [otherParticipantId, conversation]
+  );
+
+  const messageIdsKey = useMemo(
+    () =>
+      messages
+        .map((m) => m.raw.id)
+        .filter(Boolean)
+        .sort()
+        .join(','),
+    [messages]
+  );
+
+  const refreshReactionsForMessages = useCallback(
+    async (messageIds: string[]) => {
+      if (!conversationId || !identity?.id || messageIds.length === 0) return;
+      const decrypted = await fetchReactions(
+        conversationId,
+        messageIds,
+        reactionRecipientId
+      );
+      const grouped = groupReactionsByMessageId(decrypted, identity.id);
+      setReactionsByMessageId((prev) => {
+        const next = { ...prev };
+        for (const mid of messageIds) {
+          next[mid] = grouped[mid] ?? [];
+        }
+        return next;
+      });
+    },
+    [conversationId, identity?.id, fetchReactions, reactionRecipientId]
+  );
+
+  useEffect(() => {
+    setReactionsByMessageId({});
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !conversationId || !identity?.id) return;
+    const ids = messages.map((m) => m.raw.id).filter(Boolean);
+    if (ids.length === 0) {
+      setReactionsByMessageId({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const decrypted = await fetchReactions(conversationId, ids, reactionRecipientId);
+      if (cancelled) return;
+      setReactionsByMessageId(groupReactionsByMessageId(decrypted, identity.id));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isLoggedIn,
+    conversationId,
+    identity?.id,
+    fetchReactions,
+    messageIdsKey,
+    messages,
+    reactionRecipientId,
+  ]);
+
+  const handleMessageReact = useCallback(
+    async (messageId: string, emoji: string) => {
+      if (!conversationId || !reactionRecipientId) return;
+      const result = await addReaction({
+        messageId,
+        conversationId,
+        toIdentityId: reactionRecipientId,
+        emoji,
+      });
+      if (result.success) {
+        await refreshReactionsForMessages([messageId]);
+      }
+    },
+    [conversationId, reactionRecipientId, addReaction, refreshReactionsForMessages]
+  );
+
+  const handleReactionBarClick = useCallback(
+    async (
+      messageId: string,
+      emoji: string,
+      includesMe: boolean,
+      reactionIds: string[],
+      reactorIds: string[]
+    ) => {
+      if (!conversationId || !identity?.id || !reactionRecipientId) return;
+
+      if (includesMe) {
+        const idx = reactorIds.indexOf(identity.id);
+        const reactionId = idx >= 0 ? reactionIds[idx] : undefined;
+        if (!reactionId) return;
+        const result = await removeReaction(reactionId);
+        if (result.success) {
+          await refreshReactionsForMessages([messageId]);
+        }
+        return;
+      }
+
+      const result = await addReaction({
+        messageId,
+        conversationId,
+        toIdentityId: reactionRecipientId,
+        emoji,
+      });
+      if (result.success) {
+        await refreshReactionsForMessages([messageId]);
+      }
+    },
+    [conversationId, identity?.id, reactionRecipientId, addReaction, removeReaction, refreshReactionsForMessages]
+  );
+
   // Subscribe to real-time updates for THIS conversation only.
   // The ConversationsProvider handles global list updates separately.
   useDmSubscription({
@@ -882,6 +1053,18 @@ export function Conversation() {
         removeMessage(event.payload.messageId);
       },
       [removeMessage]
+    ),
+    onReactionNew: useCallback(
+      (event: DmReactionNewEvent) => {
+        void refreshReactionsForMessages([event.payload.reaction.messageId]);
+      },
+      [refreshReactionsForMessages]
+    ),
+    onReactionRemoved: useCallback(
+      (event: DmReactionRemovedEvent) => {
+        void refreshReactionsForMessages([event.payload.messageId]);
+      },
+      [refreshReactionsForMessages]
     ),
     onReconnect: useCallback(() => {
       refreshMessages();
@@ -1010,6 +1193,10 @@ export function Conversation() {
               onDeleteForEveryone={handleDeleteForEveryone}
               onDeleteForSelf={handleDeleteForSelf}
               isDeleting={isDeleting}
+              reactionsByMessageId={reactionsByMessageId}
+              isReactionBusy={isAddingReaction}
+              onMessageReact={handleMessageReact}
+              onReactionBarClick={handleReactionBarClick}
             />
             <ConversationInput
               onSend={handleSendMessage}

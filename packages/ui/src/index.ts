@@ -63,7 +63,15 @@ export type { UseDocumentVisibilityResult } from './hooks/useDocumentVisibility'
 export { useChatConnection, ChatConnectionProvider } from './hooks/useChatConnection';
 export type { ChatConnectionProviderProps, ChatConnectionContextValue } from './hooks/useChatConnection';
 export { useDmSubscription } from './hooks/useDmSubscription';
-export type { DmEvent, DmNewMessageEvent, DmReadStateEvent, DmTypingEvent, DmDeletedEvent } from './hooks/useDmSubscription';
+export type {
+  DmEvent,
+  DmNewMessageEvent,
+  DmReadStateEvent,
+  DmTypingEvent,
+  DmDeletedEvent,
+  DmReactionNewEvent,
+  DmReactionRemovedEvent,
+} from './hooks/useDmSubscription';
 export { useDmNotifications } from './hooks/useDmNotifications';
 export { useDeleteMessage } from './hooks/useDeleteMessage';
 export type { DeleteMessageResult, UseDeleteMessageResult } from './hooks/useDeleteMessage';

@@ -28,11 +28,16 @@ import {
 import type {
   RecipientPublicKeys,
   PreKeyRecipientData,
+  PreKeyPrivateKeys,
 } from '../services/dmMessageService';
 import {
   getStoredDeviceKeys,
   decryptDeviceKeys,
 } from '../services/deviceKeyStorage';
+import {
+  findAndDecryptSignedPreKey,
+  findAndDecryptOneTimePreKey,
+} from '../services/preKeyStorage';
 import {
   getCachedParticipant,
 } from '../services/participantCache';
@@ -67,6 +72,29 @@ interface AddReactionResult {
   error?: string;
 }
 
+/**
+ * Fetch signing public keys for both DM participants. Reactions are signed by
+ * the reactor; `toIdentityId` alone does not identify who signed.
+ */
+async function getDmParticipantSigningKeys(
+  api: ReturnType<typeof createApiClient>,
+  myIdentityId: string,
+  conversationId: string,
+  explicitOtherParticipantId?: string | null
+): Promise<string[]> {
+  const cached = await getCachedParticipant(myIdentityId, conversationId);
+  const otherId = cached?.otherIdentityId ?? explicitOtherParticipantId ?? null;
+  const ids = otherId ? [myIdentityId, otherId] : [myIdentityId];
+  const keys: string[] = [];
+  for (const id of ids) {
+    const r = await api.identity.getPublicKeys(id);
+    if (r.success && r.data?.signingPublicKey) {
+      keys.push(r.data.signingPublicKey);
+    }
+  }
+  return [...new Set(keys)];
+}
+
 // ============================================================================
 // Hook: useDmReactions
 // ============================================================================
@@ -92,7 +120,8 @@ export function useDmReactions() {
   const fetchReactions = useCallback(
     async (
       conversationId: string,
-      messageIds: string[]
+      messageIds: string[],
+      otherParticipantId?: string | null
     ): Promise<DecryptedDmReaction[]> => {
       if (status !== 'logged_in' || !identity || messageIds.length === 0) {
         return [];
@@ -117,38 +146,132 @@ export function useDmReactions() {
         return [];
       }
 
+      const participantSigningKeys = await getDmParticipantSigningKeys(
+        api,
+        identity.id,
+        conversationId,
+        otherParticipantId
+      );
+      if (participantSigningKeys.length === 0) {
+        return response.data.reactions.map((r) => ({
+          raw: r,
+          decrypted: null,
+          decryptionError: 'Could not resolve participant signing keys',
+        }));
+      }
+
       const results: DecryptedDmReaction[] = [];
 
       for (const reaction of response.data.reactions) {
         try {
-          const senderSigningPublicKey = await resolveSenderSigningKey(
-            api,
-            reaction,
-            identity.id,
-            conversationId
+          const targetWrappedKey =
+            reaction.wrappedKeys.find(
+              (wk) => wk.identityId === identity.id && wk.deviceId === deviceId
+            ) ?? reaction.wrappedKeys.find((wk) => wk.identityId === identity.id);
+
+          const isFsWrapped = Boolean(
+            targetWrappedKey?.preKeyType && targetWrappedKey.preKeyType !== 'static'
           );
 
-          if (!senderSigningPublicKey) {
+          let preKeyPrivateKeys: PreKeyPrivateKeys | undefined;
+
+          if (isFsWrapped) {
+            if (!targetWrappedKey) {
+              results.push({
+                raw: reaction,
+                decrypted: null,
+                decryptionError: 'FS wrapped key not found for this recipient',
+              });
+              continue;
+            }
+
+            if (!targetWrappedKey.signedPreKeyId) {
+              results.push({
+                raw: reaction,
+                decrypted: null,
+                decryptionError: 'FS reaction missing signedPreKeyId',
+              });
+              continue;
+            }
+
+            const spkKeys = await findAndDecryptSignedPreKey(
+              targetWrappedKey.signedPreKeyId,
+              identity.id,
+              wrappingKey
+            );
+
+            if (!spkKeys) {
+              results.push({
+                raw: reaction,
+                decrypted: null,
+                decryptionError:
+                  'SPK private key not found (may have been rotated/deleted)',
+              });
+              continue;
+            }
+
+            preKeyPrivateKeys = {
+              spkEcdhPrivateKey: spkKeys.ecdhPrivateKey,
+              spkKemPrivateKey: spkKeys.kemPrivateKey,
+            };
+
+            if (targetWrappedKey.preKeyType === 'otpk' && targetWrappedKey.oneTimePreKeyId) {
+              const otpkKeys = await findAndDecryptOneTimePreKey(
+                targetWrappedKey.oneTimePreKeyId,
+                identity.id,
+                wrappingKey
+              );
+
+              if (otpkKeys) {
+                preKeyPrivateKeys.otpkEcdhPrivateKey = otpkKeys.ecdhPrivateKey;
+                preKeyPrivateKeys.otpkKemPrivateKey = otpkKeys.kemPrivateKey;
+              } else {
+                // eslint-disable-next-line no-console
+                console.warn(
+                  `[DM] OTPK ${targetWrappedKey.oneTimePreKeyId} not found for reaction decrypt; attempting SPK-only`
+                );
+              }
+            }
+          }
+
+          let decrypted: DecryptedReactionContent | null = null;
+          let lastErr: Error | null = null;
+
+          for (const senderSigningPublicKey of participantSigningKeys) {
+            try {
+              decrypted = decryptReaction({
+                ciphertext: reaction.ciphertext,
+                nonce: reaction.nonce,
+                wrappedKeys: reaction.wrappedKeys,
+                signature: reaction.signature,
+                recipientIdentityId: identity.id,
+                recipientDeviceId: deviceId,
+                ecdhPrivateKey: deviceKeys.ecdhPrivateKey,
+                kemPrivateKey: deviceKeys.kemPrivateKey,
+                senderSigningPublicKey,
+                cryptoProfile: reaction.cryptoProfile as CryptoProfile,
+                preKeyPrivateKeys,
+              });
+              break;
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              if (msg.includes('signature verification')) {
+                lastErr = e instanceof Error ? e : new Error(msg);
+                continue;
+              }
+              throw e;
+            }
+          }
+
+          if (!decrypted) {
             results.push({
               raw: reaction,
               decrypted: null,
-              decryptionError: 'Could not resolve sender signing key',
+              decryptionError:
+                lastErr?.message ?? 'Could not verify reaction signature',
             });
             continue;
           }
-
-          const decrypted = decryptReaction({
-            ciphertext: reaction.ciphertext,
-            nonce: reaction.nonce,
-            wrappedKeys: reaction.wrappedKeys,
-            signature: reaction.signature,
-            recipientIdentityId: identity.id,
-            recipientDeviceId: getCurrentDeviceId() ?? undefined,
-            ecdhPrivateKey: deviceKeys.ecdhPrivateKey,
-            kemPrivateKey: deviceKeys.kemPrivateKey,
-            senderSigningPublicKey,
-            cryptoProfile: reaction.cryptoProfile as CryptoProfile,
-          });
 
           results.push({ raw: reaction, decrypted });
         } catch (err) {
@@ -401,36 +524,22 @@ export function groupReactions(
 }
 
 /**
- * Resolves the signing public key for a reaction's sender.
- * For reactions we sent, we use our own signing key.
- * For reactions from others, we check cached participant data or fetch from API.
+ * Groups decrypted reactions by message id, then by emoji for each message.
  */
-async function resolveSenderSigningKey(
-  api: ReturnType<typeof createApiClient>,
-  reaction: DmReaction,
-  myIdentityId: string,
-  conversationId: string
-): Promise<string | null> {
-  const otherIdentityId = reaction.toIdentityId === myIdentityId
-    ? null
-    : reaction.toIdentityId;
-
-  const cached = await getCachedParticipant(myIdentityId, conversationId);
-  if (cached?.signingPublicKey) {
-    return cached.signingPublicKey;
+export function groupReactionsByMessageId(
+  reactions: DecryptedDmReaction[],
+  currentIdentityId: string
+): Record<string, GroupedReaction[]> {
+  const byMessage = new Map<string, DecryptedDmReaction[]>();
+  for (const r of reactions) {
+    const mid = r.raw.messageId;
+    const arr = byMessage.get(mid) ?? [];
+    arr.push(r);
+    byMessage.set(mid, arr);
   }
-
-  if (otherIdentityId) {
-    const keysResponse = await api.identity.getPublicKeys(otherIdentityId);
-    if (keysResponse.success && keysResponse.data?.signingPublicKey) {
-      return keysResponse.data.signingPublicKey;
-    }
+  const out: Record<string, GroupedReaction[]> = {};
+  for (const [mid, list] of byMessage) {
+    out[mid] = groupReactions(list, currentIdentityId);
   }
-
-  const myKeysResponse = await api.identity.getPublicKeys(myIdentityId);
-  if (myKeysResponse.success && myKeysResponse.data?.signingPublicKey) {
-    return myKeysResponse.data.signingPublicKey;
-  }
-
-  return null;
+  return out;
 }

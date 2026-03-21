@@ -33,7 +33,9 @@ export type WsMessageType =
   | 'dm:new'
   | 'dm:deleted'
   | 'dm:read'
-  | 'dm:typing';
+  | 'dm:typing'
+  | 'dm:reaction:new'
+  | 'dm:reaction:removed';
 
 /**
  * Base structure for all WebSocket messages
