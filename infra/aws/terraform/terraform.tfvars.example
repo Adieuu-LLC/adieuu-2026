@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars and customize. Do not commit real secrets.
+# cp terraform.tfvars.example terraform.tfvars
+
+aws_region   = "us-east-1"
+project_name = "adieuu"
+environment  = "staging"
+
+# Must not overlap peered networks (e.g. MongoDB Atlas VPC peering).
+vpc_cidr = "10.42.0.0/16"
+
+availability_zone_count = 2
+enable_nat_gateway        = true
+single_nat_gateway        = true

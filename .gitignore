@@ -44,3 +44,16 @@ apps/mobile/android/
 
 # OS files
 Thumbs.db
+
+# Terraform (infra/aws/terraform)
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

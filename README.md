@@ -1,7 +1,7 @@
 # Adieuu
-[![CI](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/ci.yml/badge.svg)](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/ci.yml)
-[![Release](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/release.yml/badge.svg)](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/release.yml)
-[![codecov](https://codecov.io/github/Adieuu-LLC/adieuu-26/graph/badge.svg?token=2MI5WRYO9K)](https://codecov.io/github/Adieuu-LLC/adieuu-26)
+[![CI](https://github.com/Adieuu-LLC/adieuu-2026/actions/workflows/ci.yml/badge.svg)](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/ci.yml)
+[![Release](https://github.com/Adieuu-LLC/adieuu-2026/actions/workflows/release.yml/badge.svg)](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/release.yml)
+[![codecov](https://codecov.io/github/Adieuu-LLC/adieuu-2026/graph/badge.svg?token=2MI5WRYO9K)](https://codecov.io/github/Adieuu-LLC/adieuu-26)
 
 Cross-platform application with web, desktop (Electron), and mobile (Capacitor) targets.
 
@@ -95,12 +95,17 @@ Local pre-PR verification:
 - `pnpm test:fs`
 - `pnpm test:security`
 
-### Deployment Targets
+### Deployment
 
-- **Web**: AWS S3 + CloudFront (or ECS/Fargate for SSR)
-- **API**: AWS ECS/Fargate or Lambda
-- **Desktop**: GitHub Releases (auto-update via Electron)
-- **Mobile**: App Store Connect / Google Play Console
+See [docs/deployment/README.md](docs/deployment/README.md) for AWS architecture (VPC, ECS, S3/CloudFront, Atlas, WAF) and [infra/aws/README.md](infra/aws/README.md) for Terraform. Bootstrap local variables with `./scripts/deploy-wizard.sh` (never commit real secrets or `terraform.tfvars`).
+
+| Target | Typical hosting |
+|--------|-----------------|
+| **Web** | S3 + CloudFront (static Vite build) |
+| **API** | ECS Fargate + ALB |
+| **Chat (WebSockets)** | Separate ECS Fargate service + ALB |
+| **Desktop** | GitHub Releases (Electron auto-update) |
+| **Mobile** | App Store / Google Play |
 
 ## Future Considerations
 
