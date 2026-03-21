@@ -344,11 +344,14 @@ interface ReactionBarProps {
     reactionIds: string[],
     reactorIds: string[]
   ) => void;
+  /** When true, reaction chips are inert (add/remove in progress). */
+  reactionDisabled?: boolean;
 }
 
 const ReactionBar = memo(function ReactionBar({
   reactions,
   onReactionClick,
+  reactionDisabled = false,
 }: ReactionBarProps) {
   if (reactions.length === 0) return null;
 
@@ -357,10 +360,13 @@ const ReactionBar = memo(function ReactionBar({
       {reactions.map((reaction) => (
         <button
           key={reaction.emoji}
+          type="button"
           className={`dm-message-reaction ${reaction.includesMe ? 'dm-message-reaction--own' : ''}`}
-          onClick={() =>
-            onReactionClick(reaction.emoji, reaction.includesMe, reaction.reactionIds, reaction.reactorIds)
-          }
+          disabled={reactionDisabled}
+          onClick={() => {
+            if (reactionDisabled) return;
+            onReactionClick(reaction.emoji, reaction.includesMe, reaction.reactionIds, reaction.reactorIds);
+          }}
           title={`${reaction.emoji} ${reaction.count}`}
         >
           <span className="dm-message-reaction-emoji">{reaction.emoji}</span>
@@ -494,10 +500,10 @@ const MessageBubble = memo(function MessageBubble({
 
   const handleReactionClick = useCallback(
     (emoji: string, includesMe: boolean, reactionIds: string[], reactorIds: string[]) => {
-      if (!message.raw.id) return;
+      if (reactionDisabled || !message.raw.id) return;
       void onReactionClick?.(message.raw.id, emoji, includesMe, reactionIds, reactorIds);
     },
-    [onReactionClick, message.raw.id],
+    [onReactionClick, message.raw.id, reactionDisabled],
   );
 
   return (
@@ -525,7 +531,11 @@ const MessageBubble = memo(function MessageBubble({
         )}
       </div>
       {reactions.length > 0 && (
-        <ReactionBar reactions={reactions} onReactionClick={handleReactionClick} />
+        <ReactionBar
+          reactions={reactions}
+          onReactionClick={handleReactionClick}
+          reactionDisabled={reactionDisabled}
+        />
       )}
       <div className="dm-message-footer">
         <span className="dm-message-time">{formatMessageTime(message.raw.createdAt)}</span>

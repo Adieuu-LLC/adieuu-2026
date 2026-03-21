@@ -129,8 +129,9 @@ export const MessageActionBar = memo(function MessageActionBar({
     (emoji: string) => {
       onReact?.(emoji);
       setReactionOpen(false);
+      onPopoverOpenChange?.(infoOpen || menuOpen);
     },
-    [onReact],
+    [onReact, infoOpen, menuOpen, onPopoverOpenChange],
   );
 
   const isAnyPopoverOpen = infoOpen || menuOpen || reactionOpen;
@@ -154,6 +155,7 @@ export const MessageActionBar = memo(function MessageActionBar({
             </button>
           }
           positioning={{ placement: isOwn ? 'bottom-end' : 'bottom-start' }}
+          open={reactionOpen}
           onOpenChange={handleReactionOpenChange}
           className="emoji-picker-popover"
         >
@@ -174,6 +176,7 @@ export const MessageActionBar = memo(function MessageActionBar({
           </button>
         }
         positioning={{ placement: isOwn ? 'bottom-end' : 'bottom-start' }}
+        open={infoOpen}
         onOpenChange={handleInfoOpenChange}
       >
         <InfoPopoverContent metadata={metadata} />
@@ -193,6 +196,7 @@ export const MessageActionBar = memo(function MessageActionBar({
             </button>
           }
           positioning={{ placement: isOwn ? 'bottom-end' : 'bottom-start' }}
+          open={menuOpen}
           onOpenChange={handleMenuOpenChange}
         >
           {menuContent}

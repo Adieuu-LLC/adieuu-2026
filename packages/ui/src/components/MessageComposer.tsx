@@ -185,7 +185,10 @@ export function MessageComposer({
     (emoji: string) => {
       const textarea = textareaRef.current;
       if (!textarea) {
-        setText((prev) => prev + emoji);
+        const newText = text + emoji;
+        if (newText.length <= MAX_MESSAGE_LENGTH) {
+          setText(newText);
+        }
         return;
       }
 

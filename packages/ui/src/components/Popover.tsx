@@ -16,6 +16,11 @@ export interface PopoverProps {
   };
   /** CSS class name for the popover content */
   className?: string;
+  /**
+   * When set, the popover is controlled: visibility follows this value.
+   * Omit for uncontrolled mode (Ark manages open state internally).
+   */
+  open?: boolean;
   /** Callback when open state changes */
   onOpenChange?: (open: boolean) => void;
 }
@@ -38,6 +43,7 @@ export function Popover({
   children,
   positioning = { placement: 'bottom' },
   className = '',
+  open,
   onOpenChange,
 }: PopoverProps) {
   const handleOpenChange = onOpenChange
@@ -45,7 +51,11 @@ export function Popover({
     : undefined;
 
   return (
-    <ArkPopover.Root positioning={positioning} onOpenChange={handleOpenChange}>
+    <ArkPopover.Root
+      positioning={positioning}
+      {...(open !== undefined ? { open } : {})}
+      onOpenChange={handleOpenChange}
+    >
       <ArkPopover.Trigger asChild>{trigger}</ArkPopover.Trigger>
       <Portal>
         <ArkPopover.Positioner>

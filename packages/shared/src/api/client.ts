@@ -1857,10 +1857,11 @@ export class DmReactionsApi {
 
   /**
    * Remove a reaction by ID.
+   * Server returns `{ deleted: true }` on success (see DELETE /api/dm/reactions/:reactionId).
    */
   async removeReaction(
     reactionId: string
-  ): Promise<ApiResponse<{ success: boolean }>> {
+  ): Promise<ApiResponse<{ deleted: boolean }>> {
     return this.client.delete(`/api/dm/reactions/${encodeURIComponent(reactionId)}`);
   }
 

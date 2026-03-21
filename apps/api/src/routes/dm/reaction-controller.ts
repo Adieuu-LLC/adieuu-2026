@@ -254,15 +254,19 @@ export async function removeReactionCtrl(ctx: RouteContext): Promise<Response> {
     return errors.internal('Failed to remove reaction.');
   }
 
-  publishReactionRemoved(
-    reaction.toIdentityId.toHexString(),
-    reactionId,
-    reaction.messageId.toHexString(),
-    reaction.conversationId
-  ).catch((err) => {
-    // eslint-disable-next-line no-console
-    console.error('Failed to publish reaction removal event:', err);
-  });
+  // Notify both DM participants: encrypted recipient (toIdentityId) and the reactor
+  // (session identity — not stored as plaintext on the document). Multi-device sync
+  // requires the reactor's channel to receive removal as well.
+  const recipientId = reaction.toIdentityId.toHexString();
+  const reactorId = identity._id.toHexString();
+  const messageIdHex = reaction.messageId.toHexString();
+
+  for (const targetId of new Set([recipientId, reactorId])) {
+    publishReactionRemoved(targetId, reactionId, messageIdHex, reaction.conversationId).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('Failed to publish reaction removal event:', err);
+    });
+  }
 
   return success({ deleted: true }, 'Reaction removed.');
 }
