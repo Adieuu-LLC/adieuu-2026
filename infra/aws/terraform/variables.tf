@@ -152,12 +152,12 @@ variable "secretsmanager_kms_key_arns" {
   default     = []
 }
 
-# --- Optional ElastiCache Redis ---
+# --- ElastiCache (Redis-compatible; required for the default production stack) ---
 
 variable "create_elasticache_redis" {
   type        = bool
-  description = "If true, create a single-node Redis replication group in private subnets and set REDIS_URL on both tasks (overridable via api_environment / chat_environment)."
-  default     = false
+  description = "Create ElastiCache in private subnets and inject REDIS_URL for API and chat. Keep true for the supported deploy path. Set false only if you provide REDIS_URL yourself (e.g. external Redis) and omit duplicate injection."
+  default     = true
 }
 
 variable "redis_node_type" {
@@ -168,8 +168,8 @@ variable "redis_node_type" {
 
 variable "redis_engine_version" {
   type        = string
-  description = "Redis engine version for ElastiCache."
-  default     = "7.1"
+  description = "Valkey engine version for ElastiCache (default 8.2). Must exist in your region: aws elasticache describe-cache-engine-versions --engine valkey"
+  default     = "8.2"
 }
 
 variable "redis_snapshot_retention_days" {

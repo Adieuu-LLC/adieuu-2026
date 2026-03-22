@@ -5,7 +5,7 @@ This document lists **environment variables** the **API** (`apps/api`) and **cha
 - **`api_container_secrets` / `chat_container_secrets`** — Secrets Manager ARNs (`valueFrom`), typically **one JSON secret per service** with multiple keys.
 - **`api_environment` / `chat_environment`** in `terraform.tfvars` — **non-sensitive** plain strings (Terraform `environment` in the task definition).
 - **`node_env`** (Terraform variable) — sets `NODE_ENV` on both tasks (do not duplicate in `api_environment` / `chat_environment`).
-- **`create_elasticache_redis`** — when `true`, Terraform injects **`REDIS_URL`** unless you override it in `api_environment` / `chat_environment`.
+- **`create_elasticache_redis`** — defaults to **true**: Terraform provisions **Valkey** (default **`redis_engine_version` = `8.2`**) and injects **`REDIS_URL`** unless you override it in `api_environment` / `chat_environment`. Set **`create_elasticache_redis = false`** only when **`REDIS_URL`** is supplied another way (external cache).
 
 **Sources of truth in code:** `apps/api/src/config/index.ts`, `apps/chat/src/config/index.ts` (and `validateProductionConfig` in each).
 
@@ -44,7 +44,7 @@ Store strings the app must not log in git. Typical keys:
 | `TEXTMAGIC_USERNAME` | SMS in production. |
 | `TEXTMAGIC_API_KEY` | SMS in production. |
 
-Optional: put **`REDIS_URL`** here if you are **not** using Terraform ElastiCache injection and not setting it in plain `api_environment`.
+Use **`REDIS_URL`** in Secrets Manager (or plain env) **only** when Redis is **not** the Terraform-managed ElastiCache cluster — e.g. you set **`create_elasticache_redis = false`** and point **`REDIS_URL`** at an external endpoint yourself.
 
 ### Recommended JSON keys for **`chat`** secret
 
@@ -52,7 +52,7 @@ Optional: put **`REDIS_URL`** here if you are **not** using Terraform ElastiCach
 |-----|--------|
 | `MONGODB_URI` | Same DB as API (or read-only URI if you split roles). |
 
-Optional: **`REDIS_URL`** if not from ElastiCache / plain env.
+**`REDIS_URL`** belongs here only for the **external Redis** case above; with the default stack, Terraform injects it from ElastiCache.
 
 **Production validation (chat):** `NODE_ENV=production` requires non-default **`MONGODB_URI`** and **`REDIS_URL`** (not localhost defaults).
 
@@ -62,14 +62,14 @@ Optional: **`REDIS_URL`** if not from ElastiCache / plain env.
 
 Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the task definition (suitable for URLs, feature flags, rate-limit numbers, public WebAuthn config).
 
-### API (`apps/api`) — optional keys
+### API (`apps/api`) — additional non-secret keys
 
 | Variable | Purpose (short) |
 |----------|------------------|
 | `APP_NAME` | Product name in emails / labels. |
 | `CORS_ORIGINS` | Comma-separated browser origins (e.g. `https://app.example.com`). |
 | `CORS_CREDENTIALS` | `true` / `false`. |
-| `COOKIE_DOMAIN` | e.g. `.example.com` for subdomains (set via env; not in optionalEnv helper name in code but `process.env.COOKIE_DOMAIN`). |
+| `COOKIE_DOMAIN` | e.g. `.example.com` for subdomains (`process.env.COOKIE_DOMAIN` in code). |
 | `CORS_ORIGIN` | Deprecated; prefer `CORS_ORIGINS`. |
 | `MONGODB_DB_NAME` | Database name (default `adieuu`). |
 | `MONGODB_MIN_POOL_SIZE` | String integer. |
@@ -99,7 +99,7 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | `RATE_LIMIT_GLOBAL_IP` | Default `1000`. |
 | `RATE_LIMIT_GLOBAL_IP_WINDOW` | Default `60`. |
 
-### Chat (`apps/chat`) — optional keys
+### Chat (`apps/chat`) — additional non-secret keys
 
 | Variable | Purpose (short) |
 |----------|------------------|

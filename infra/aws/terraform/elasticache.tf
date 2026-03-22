@@ -1,4 +1,4 @@
-# Optional ElastiCache for Redis (same VPC private subnets as ECS). Opt-in via create_elasticache_redis.
+# ElastiCache Valkey (Redis-compatible protocol). Private subnets; REDIS_URL injected via locals.tf.
 
 resource "aws_security_group" "redis" {
   count = var.create_elasticache_redis ? 1 : 0
@@ -40,7 +40,7 @@ resource "aws_elasticache_replication_group" "redis" {
   replication_group_id = substr(replace("${var.project_name}-${var.environment}-redis", "_", "-"), 0, 40)
   description          = "Redis for ${local.name_prefix}"
 
-  engine         = "redis"
+  engine         = "valkey"
   engine_version = var.redis_engine_version
   node_type      = var.redis_node_type
   port           = 6379

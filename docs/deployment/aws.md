@@ -52,11 +52,11 @@ The repository includes **Terraform** under `infra/aws/terraform/` as the single
 - **ECR** — two repositories (`api`, `chat`) with a simple “keep last 10 images” lifecycle rule.
 - **ALB** — HTTP listener on port **80** with path rules: **`/api/*`** → API target group; **`/ws/*`**, **`/ready`**, **`/health`** → chat target group; other paths return **404**. Idle timeout is set high for WebSocket-style connections. **HTTPS** is not configured in Terraform yet (add ACM + a `:443` listener when you have a certificate and domain).
 - **ECS Fargate** — one cluster, two task definitions, two services (API on port 4000, chat on 9001). Tasks use **private subnets** and **no** public IP; outbound traffic uses the NAT gateway.
+- **ElastiCache** — in-VPC **Valkey** (default **`redis_engine_version` = `8.2`**, Redis-compatible wire protocol). Terraform injects **`REDIS_URL`** into API and chat tasks. The apps **require** a Redis-compatible cache for production (sessions, OTP, rate limits, chat pub/sub, etc.); this stack targets an ElastiCache endpoint, not `localhost`.
 
-**Also supported in Terraform (opt-in):**
+**Also configured in Terraform (typical):**
 
 - **Secrets Manager** — set `api_container_secrets` / `chat_container_secrets` to map environment variable names to **ARN-style `valueFrom`** strings (including `:JsonKey::` for JSON secrets). The **ECS task execution role** is granted `secretsmanager:GetSecretValue` (and optional `kms:Decrypt` for CMKs via `secretsmanager_kms_key_arns`). Secret **values** are not stored in Terraform state—only ARNs in your `tfvars`. Recommended keys and non-sensitive env names: [ecs-environment.md](./ecs-environment.md).
-- **ElastiCache Redis** — set `create_elasticache_redis = true` to provision a small single-node Redis in private subnets; **`REDIS_URL`** is merged into both tasks (overridable via `api_environment` / `chat_environment`).
 
 **Still not in this stack** (typical next steps): **WAF**, **ECS autoscaling**, **HTTPS listener + ACM**, **Route 53**. MongoDB remains **Atlas** (or your own cluster); supply **`MONGODB_URI`** via Secrets Manager or plain env as above.
 

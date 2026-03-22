@@ -50,9 +50,10 @@ locals {
     if !contains(["CHAT_PORT", "CHAT_HOST", "NODE_ENV"], k)
   }
 
-  # IAM policy Resource ARNs for secretsmanager (strip ECS JSON-key suffix :key:: if present)
+  # IAM policy Resource ARNs for secretsmanager (strip ECS JSON-key suffix :key:: if present).
+  # Use try(regex(...)[0]) instead of regexreplace for compatibility with older Terraform CLIs.
   secretsmanager_resource_arns = distinct([
     for v in values(merge(var.api_container_secrets, var.chat_container_secrets)) :
-    regexreplace(v, ":[^:]+::$", "")
+    try(regex("^(.+):[^:]+::$", v)[0], v)
   ])
 }

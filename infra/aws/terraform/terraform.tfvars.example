@@ -90,8 +90,8 @@ single_nat_gateway        = true
 # }
 # secretsmanager_kms_key_arns = [] # CMK ARNs if secrets use customer-managed KMS
 
-# Optional in-VPC Redis (adds cost). REDIS_URL is merged into api/chat env unless overridden.
-# create_elasticache_redis     = false
-# redis_node_type              = "cache.t4g.micro"
-# redis_engine_version         = "7.1"
+# ElastiCache Valkey 8.2 (default) — REDIS_URL injected for API + chat. Set false only with external REDIS_URL.
+# create_elasticache_redis      = true
+# redis_node_type               = "cache.t4g.micro"
+# redis_engine_version          = "8.2"
 # redis_snapshot_retention_days = 0

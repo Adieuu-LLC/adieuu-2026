@@ -55,7 +55,7 @@ Replace `adieuu-staging-api` with the repository name shown in the AWS console o
 | `alb.tf` | ALB, target groups, listener rules |
 | `cloudwatch.tf` | Log groups for ECS |
 | `ecs.tf` | ECS cluster, task definitions, services |
-| `elasticache.tf` | Optional ElastiCache Redis (`create_elasticache_redis`) |
+| `elasticache.tf` | In-VPC ElastiCache **Valkey** (`redis_engine_version`, default `8.2`); injects `REDIS_URL` for API/chat |
 | `outputs.tf` | ALB DNS, ECR URLs, subnet IDs, optional Redis endpoint |
 | `terraform.tfvars.example` | **Committed** — placeholders; commented env/secrets templates (see [ecs-environment.md](../../docs/deployment/ecs-environment.md)) |
 | `terraform.tfvars` | **Local / private** — gitignored |
