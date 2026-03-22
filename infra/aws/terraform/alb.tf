@@ -57,7 +57,29 @@ resource "aws_lb_target_group" "chat" {
   tags = merge(local.common_tags, { Name = "${local.name_prefix}-chat-tg" })
 }
 
-resource "aws_lb_listener" "http" {
+# Split so each listener has exactly one default_action shape (redirect OR fixed-response).
+# Using dynamic blocks for both triggered an invalid combination warning with the AWS provider.
+
+resource "aws_lb_listener" "http_redirect" {
+  count = local.public_dns_tls_enabled ? 1 : 0
+
+  load_balancer_arn = aws_lb.main.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+resource "aws_lb_listener" "http_only" {
+  count = local.public_dns_tls_enabled ? 0 : 1
+
   load_balancer_arn = aws_lb.main.arn
   port              = 80
   protocol          = "HTTP"
@@ -72,13 +94,66 @@ resource "aws_lb_listener" "http" {
   }
 }
 
+resource "aws_lb_listener" "https" {
+  count = local.public_dns_tls_enabled ? 1 : 0
+
+  load_balancer_arn = aws_lb.main.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = aws_acm_certificate_validation.alb[0].certificate_arn
+
+  default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "Not Found"
+      status_code  = "404"
+    }
+  }
+
+  depends_on = [aws_acm_certificate_validation.alb]
+}
+
+# Placeholder until CloudFront/S3 or an ECS service backs the web app.
+resource "aws_lb_listener_rule" "app_placeholder" {
+  count = local.public_dns_tls_enabled ? 1 : 0
+
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 5
+
+  action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "Web app is not deployed yet."
+      status_code  = "503"
+    }
+  }
+
+  condition {
+    host_header {
+      values = [var.app_domain_name]
+    }
+  }
+}
+
 resource "aws_lb_listener_rule" "chat_ws" {
-  listener_arn = aws_lb_listener.http.arn
+  listener_arn = local.public_dns_tls_enabled ? aws_lb_listener.https[0].arn : aws_lb_listener.http_only[0].arn
   priority     = 10
 
   action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.chat.arn
+  }
+
+  dynamic "condition" {
+    for_each = local.public_dns_tls_enabled ? [1] : []
+    content {
+      host_header {
+        values = [var.api_domain_name]
+      }
+    }
   }
 
   condition {
@@ -89,12 +164,21 @@ resource "aws_lb_listener_rule" "chat_ws" {
 }
 
 resource "aws_lb_listener_rule" "chat_http" {
-  listener_arn = aws_lb_listener.http.arn
+  listener_arn = local.public_dns_tls_enabled ? aws_lb_listener.https[0].arn : aws_lb_listener.http_only[0].arn
   priority     = 11
 
   action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.chat.arn
+  }
+
+  dynamic "condition" {
+    for_each = local.public_dns_tls_enabled ? [1] : []
+    content {
+      host_header {
+        values = [var.api_domain_name]
+      }
+    }
   }
 
   condition {
@@ -105,12 +189,21 @@ resource "aws_lb_listener_rule" "chat_http" {
 }
 
 resource "aws_lb_listener_rule" "api" {
-  listener_arn = aws_lb_listener.http.arn
+  listener_arn = local.public_dns_tls_enabled ? aws_lb_listener.https[0].arn : aws_lb_listener.http_only[0].arn
   priority     = 20
 
   action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.api.arn
+  }
+
+  dynamic "condition" {
+    for_each = local.public_dns_tls_enabled ? [1] : []
+    content {
+      host_header {
+        values = [var.api_domain_name]
+      }
+    }
   }
 
   condition {

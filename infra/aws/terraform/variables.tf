@@ -120,16 +120,73 @@ variable "chat_task_memory" {
   default     = 1024
 }
 
+# --- ECS service autoscaling (API + chat) ---
+
+variable "ecs_autoscaling_min_capacity" {
+  type        = number
+  description = "Minimum tasks per ECS service (API and chat)."
+  default     = 1
+}
+
+variable "ecs_autoscaling_max_capacity" {
+  type        = number
+  description = "Maximum tasks per ECS service (API and chat)."
+  default     = 3
+
+  validation {
+    condition     = var.ecs_autoscaling_max_capacity >= var.ecs_autoscaling_min_capacity
+    error_message = "ecs_autoscaling_max_capacity must be >= ecs_autoscaling_min_capacity."
+  }
+}
+
+variable "ecs_autoscaling_cpu_target" {
+  type        = number
+  description = "Target tracking average CPU percent for ECS services (both API and chat)."
+  default     = 70
+
+  validation {
+    condition     = var.ecs_autoscaling_cpu_target > 0 && var.ecs_autoscaling_cpu_target <= 100
+    error_message = "ecs_autoscaling_cpu_target must be between 1 and 100."
+  }
+}
+
+variable "ecs_autoscaling_memory_target" {
+  type        = number
+  description = "Target tracking average memory percent for ECS services (both API and chat)."
+  default     = 80
+
+  validation {
+    condition     = var.ecs_autoscaling_memory_target > 0 && var.ecs_autoscaling_memory_target <= 100
+    error_message = "ecs_autoscaling_memory_target must be between 1 and 100."
+  }
+}
+
 variable "api_desired_count" {
   type        = number
-  description = "Desired number of API tasks."
+  description = "Initial desired API tasks; must stay within ecs autoscaling min/max. After apply, desired count is managed by autoscaling (Terraform ignores drift)."
   default     = 1
+
+  validation {
+    condition = (
+      var.api_desired_count >= var.ecs_autoscaling_min_capacity &&
+      var.api_desired_count <= var.ecs_autoscaling_max_capacity
+    )
+    error_message = "api_desired_count must be between ecs_autoscaling_min_capacity and ecs_autoscaling_max_capacity."
+  }
 }
 
 variable "chat_desired_count" {
   type        = number
-  description = "Desired number of chat tasks."
+  description = "Initial desired chat tasks; must stay within ecs autoscaling min/max. After apply, desired count is managed by autoscaling (Terraform ignores drift)."
   default     = 1
+
+  validation {
+    condition = (
+      var.chat_desired_count >= var.ecs_autoscaling_min_capacity &&
+      var.chat_desired_count <= var.ecs_autoscaling_max_capacity
+    )
+    error_message = "chat_desired_count must be between ecs_autoscaling_min_capacity and ecs_autoscaling_max_capacity."
+  }
 }
 
 # --- Secrets Manager (injected by ECS; values live in AWS, not in Terraform) ---
@@ -176,4 +233,135 @@ variable "redis_snapshot_retention_days" {
   type        = number
   description = "Number of days for Redis snapshot retention (0 disables automatic backups)."
   default     = 0
+}
+
+# --- Public DNS + TLS (optional) ---
+# When route53_zone_name is non-empty, local.public_dns_tls_enabled is true: Terraform manages
+# ACM certificates, Route53 records for api/app, HTTPS on the ALB, and (in this stack) CloudFront/WAF
+# as configured. When empty, the ALB is reachable only via its *.elb.amazonaws.com name on HTTP.
+
+variable "route53_zone_name" {
+  type        = string
+  description = "Name of the existing public Route 53 hosted zone (e.g. adieuu.com). Non-empty turns on public_dns_tls_enabled. Terraform only adds records it owns (ACM validation, api/app aliases); it does not change apex, MX, TXT, or other existing records."
+  default     = ""
+}
+
+variable "api_domain_name" {
+  type        = string
+  description = "FQDN for the API (must sit under route53_zone_name). Used for ALB ACM DNS validation, api alias, and Host-based routing. WebSockets: wss://<this>/ws/..."
+  default     = "api.adieuu.com"
+}
+
+variable "app_domain_name" {
+  type        = string
+  description = "FQDN for the web app (must sit under route53_zone_name). Used for CloudFront ACM (us-east-1), app alias, and CloudFront alternate domain name."
+  default     = "app.adieuu.com"
+}
+
+variable "enable_waf" {
+  type        = bool
+  description = "When true and public_dns_tls_enabled is true, attach managed WAF web ACLs to the ALB and CloudFront distribution."
+  default     = false
+}
+
+# CloudFront flat-rate pricing (subscription not yet in Terraform AWS provider — use console after apply).
+variable "cloudfront_pricing_model" {
+  type        = string
+  description = <<-EOT
+    CloudFront billing model. Use pay_as_you_go for standard per-request/GB pricing.
+    Use flat_rate_* to opt into AWS flat-rate tiers (Free / Pro / Business / Premium): Terraform creates
+    the distribution for PAYG first; you subscribe in the CloudFront console (Manage plan) because the
+    Terraform provider cannot call the Pricing Plan Manager API yet (see terraform-provider-aws #45450).
+    Flat-rate plans include a CloudFront-managed WAF — set enable_waf = false to avoid a duplicate CLOUDFRONT WAF, or keep enable_waf = true only for the ALB (regional ACL).
+  EOT
+  default     = "pay_as_you_go"
+
+  validation {
+    condition = contains([
+      "pay_as_you_go",
+      "flat_rate_free",
+      "flat_rate_pro",
+      "flat_rate_business",
+      "flat_rate_premium",
+    ], var.cloudfront_pricing_model)
+    error_message = "cloudfront_pricing_model must be one of: pay_as_you_go, flat_rate_free, flat_rate_pro, flat_rate_business, flat_rate_premium."
+  }
+
+  validation {
+    condition = (
+      var.cloudfront_pricing_model == "pay_as_you_go" ||
+      trimspace(var.route53_zone_name) != ""
+    )
+    error_message = "Flat-rate CloudFront pricing requires route53_zone_name so the distribution exists."
+  }
+}
+
+variable "cloudfront_pricing_plan_web_acl_arn" {
+  type        = string
+  description = <<-EOT
+    After subscribing this distribution to a flat-rate plan in the AWS console, set this to the Web ACL
+    ARN shown on the distribution (often CreatedByCloudFront-...) so Terraform keeps web_acl_id in sync.
+    Leave empty before subscribing; required after subscribe if you manage this stack with Terraform, or
+    the next apply may remove the association.
+  EOT
+  default     = ""
+}
+
+# --- VPC endpoints + operational alarms ---
+
+variable "enable_vpc_interface_endpoints" {
+  type        = bool
+  description = "Create interface VPC endpoints (ECR, Logs, Secrets Manager, STS, KMS) and an S3 gateway endpoint so private subnets can reach AWS APIs with less NAT dependency."
+  default     = true
+}
+
+variable "alarm_notification_email" {
+  type        = string
+  description = "Optional email address to subscribe to the operational alarms SNS topic (must confirm subscription)."
+  default     = ""
+  sensitive   = true
+}
+
+# --- MongoDB Atlas VPC peering (optional) ---
+
+variable "enable_mongodb_atlas_peering" {
+  type        = bool
+  description = "Create Atlas network container + VPC peering to this VPC, accept peering in AWS, add private routes, enable DNS resolution. Cluster must be M10+ (or dedicated) in the same region; CIDR must not overlap var.vpc_cidr."
+  default     = false
+
+  validation {
+    condition = (
+      !var.enable_mongodb_atlas_peering || (
+        length(trimspace(var.atlas_project_id)) > 0 &&
+        length(trimspace(var.atlas_network_cidr_block)) > 0
+      )
+    )
+    error_message = "When enable_mongodb_atlas_peering is true, set atlas_project_id and atlas_network_cidr_block (non-overlapping RFC1918 /24–/21)."
+  }
+}
+
+variable "atlas_project_id" {
+  type        = string
+  description = "MongoDB Atlas project ID (cloud.mongodb.com → Project Settings)."
+  default     = ""
+}
+
+variable "atlas_network_cidr_block" {
+  type        = string
+  description = "RFC1918 CIDR for the Atlas network container in this region (/24–/21). Must not overlap vpc_cidr. If a container already exists in the project, import it instead of changing this."
+  default     = ""
+}
+
+variable "atlas_api_public_key" {
+  type        = string
+  description = "MongoDB Atlas programmatic API public key (Organization → Access Manager). Can use env MONGODB_ATLAS_PUBLIC_KEY instead."
+  default     = ""
+  sensitive   = true
+}
+
+variable "atlas_api_private_key" {
+  type        = string
+  description = "MongoDB Atlas programmatic API private key. Can use env MONGODB_ATLAS_PRIVATE_KEY instead."
+  default     = ""
+  sensitive   = true
 }

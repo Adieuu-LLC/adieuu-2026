@@ -1,6 +1,27 @@
 locals {
   name_prefix = "${var.project_name}-${var.environment}"
 
+  # True when var.route53_zone_name is set: enable ACM, Route53 records for api/app hostnames,
+  # HTTPS on the ALB (and related resources such as CloudFront/WAF when defined in this stack).
+  # False means the ALB is only addressed by its AWS DNS name over HTTP (no cert, no Route53 in Terraform).
+  public_dns_tls_enabled = trimspace(var.route53_zone_name) != ""
+
+  route53_zone_root = local.public_dns_tls_enabled ? trimsuffix(var.route53_zone_name, ".") : ""
+  route53_zone_fqdn = local.public_dns_tls_enabled ? "${local.route53_zone_root}." : ""
+
+  # Relative record names inside the public zone (e.g. api, app).
+  api_route53_record_name = local.public_dns_tls_enabled ? replace(var.api_domain_name, ".${local.route53_zone_root}", "") : ""
+  app_route53_record_name = local.public_dns_tls_enabled ? replace(var.app_domain_name, ".${local.route53_zone_root}", "") : ""
+
+  # MongoDB Atlas API region format for network_container (e.g. US_EAST_1).
+  atlas_region_name = upper(replace(var.aws_region, "-", "_"))
+
+  # CloudFront: pay-as-you-go vs flat-rate plan (subscription is console/API; see variables.tf).
+  cloudfront_flat_rate_enabled = var.cloudfront_pricing_model != "pay_as_you_go"
+
+  # REGIONAL CDN WAF managed by Terraform. Flat-rate plans attach a CloudFront-managed WAF; do not create a second CLOUDFRONT-scoped ACL.
+  cdn_waf_from_terraform = local.public_dns_tls_enabled && var.enable_waf && !local.cloudfront_flat_rate_enabled
+
   az_names = slice(
     data.aws_availability_zones.available.names,
     0,

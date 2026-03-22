@@ -52,11 +52,18 @@ Replace `adieuu-staging-api` with the repository name shown in the AWS console o
 | `ecr.tf` | ECR repositories + lifecycle |
 | `iam_ecs.tf` | ECS execution + task roles; optional `GetSecretValue` / `kms:Decrypt` for container secrets |
 | `security_groups.tf` | ALB and ECS task security groups |
-| `alb.tf` | ALB, target groups, listener rules |
+| `alb.tf` | ALB, target groups, listener rules (HTTP + HTTPS when custom domain) |
+| `dns.tf` | Route 53 aliases + ACM DNS validation (API + app certs) |
+| `cloudfront.tf` | S3 web bucket (OAC) + CloudFront for `app_domain_name` |
+| `waf.tf` | WAFv2 for ALB + CloudFront (`enable_waf`) |
 | `cloudwatch.tf` | Log groups for ECS |
 | `ecs.tf` | ECS cluster, task definitions, services |
 | `elasticache.tf` | In-VPC ElastiCache **Valkey** (`redis_engine_version`, default `8.2`); injects `REDIS_URL` for API/chat |
-| `outputs.tf` | ALB DNS, ECR URLs, subnet IDs, optional Redis endpoint |
+| `ecs_autoscaling.tf` | Application Auto Scaling for API + chat (CPU/memory target tracking) |
+| `vpc_endpoints.tf` | Interface VPC endpoints (ECR, logs, secrets, STS, KMS) + S3 gateway (optional via `enable_vpc_interface_endpoints`) |
+| `alarms.tf` | SNS + CloudWatch alarms (ALB/ECS/ElastiCache) |
+| `atlas_peering.tf` | Optional MongoDB Atlas network container + VPC peering, routes, DNS resolution on the peering |
+| `outputs.tf` | ALB DNS, ECR URLs, subnet IDs, optional Redis endpoint, SNS topic for alarms |
 | `terraform.tfvars.example` | **Committed** — placeholders; commented env/secrets templates (see [ecs-environment.md](../../docs/deployment/ecs-environment.md)) |
 | `terraform.tfvars` | **Local / private** — gitignored |
 

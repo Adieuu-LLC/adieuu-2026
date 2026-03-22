@@ -137,7 +137,14 @@ resource "aws_ecs_service" "api" {
 
   health_check_grace_period_seconds = 60
 
-  depends_on = [aws_lb_listener.http]
+  depends_on = [
+    aws_lb_listener.http_redirect,
+    aws_lb_listener.http_only,
+  ]
+
+  lifecycle {
+    ignore_changes = [desired_count]
+  }
 
   tags = local.common_tags
 }
@@ -166,7 +173,14 @@ resource "aws_ecs_service" "chat" {
 
   health_check_grace_period_seconds = 120
 
-  depends_on = [aws_lb_listener.http]
+  depends_on = [
+    aws_lb_listener.http_redirect,
+    aws_lb_listener.http_only,
+  ]
+
+  lifecycle {
+    ignore_changes = [desired_count]
+  }
 
   tags = local.common_tags
 }

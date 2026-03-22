@@ -5,8 +5,42 @@ aws_region   = "us-east-1"
 project_name = "adieuu"
 environment  = "staging"
 
+# Public DNS + TLS (optional). Non-empty route53_zone_name sets locals.public_dns_tls_enabled:
+# ACM, HTTPS on the ALB, Route53 for api/app (and CloudFront/WAF if defined in this stack). Does not
+# change apex, MX, TXT, or other existing records.
+# route53_zone_name = "adieuu.com"
+# api_domain_name   = "api.adieuu.com"
+# app_domain_name   = "app.adieuu.com"
+#
+# CloudFront: pay_as_you_go (default) or flat_rate_free | flat_rate_pro | flat_rate_business | flat_rate_premium.
+# Flat-rate subscription is done in the AWS console after apply (Manage plan); then set cloudfront_pricing_plan_web_acl_arn.
+# cloudfront_pricing_model           = "pay_as_you_go"
+# cloudfront_pricing_plan_web_acl_arn = "" # set after console subscribe to the plan-managed WAF ARN
+
+# ECS autoscaling (API + chat): min/max and target tracking on CPU/memory. Initial desired_count must stay in range;
+# after apply, desired count is managed by autoscaling (Terraform ignores drift on desired_count).
+# ecs_autoscaling_min_capacity    = 1
+# ecs_autoscaling_max_capacity    = 3
+# ecs_autoscaling_cpu_target      = 70
+# ecs_autoscaling_memory_target   = 80
+
+# Private VPC endpoints (ECR, Logs, Secrets Manager, STS, KMS) + S3 gateway — reduces NAT usage for AWS APIs.
+# enable_vpc_interface_endpoints = true
+
+# Operational alarms → SNS (confirm the email subscription after first apply).
+# alarm_notification_email = "ops@example.com"
+
 # Must not overlap peered networks (e.g. MongoDB Atlas VPC peering).
 vpc_cidr = "10.42.0.0/16"
+
+# MongoDB Atlas VPC peering (optional). Requires Terraform Atlas API keys (Organization → Access Manager).
+# Prefer env MONGODB_ATLAS_PUBLIC_KEY / MONGODB_ATLAS_PRIVATE_KEY over tfvars for secrets.
+# Cluster must be M10+ (or dedicated) in the same region; atlas_network_cidr_block must not overlap vpc_cidr.
+# enable_mongodb_atlas_peering = false
+# atlas_project_id = "your-atlas-project-id"
+# atlas_network_cidr_block = "10.43.0.0/16"
+# atlas_api_public_key  = ""
+# atlas_api_private_key = ""
 
 availability_zone_count = 2
 enable_nat_gateway        = true

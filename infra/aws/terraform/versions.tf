@@ -8,6 +8,14 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 5.0.0, < 6.0.0"
     }
+    mongodbatlas = {
+      source  = "mongodb/mongodbatlas"
+      version = ">= 1.14.0, < 2.0.0"
+    }
+    time = {
+      source  = "hashicorp/time"
+      version = ">= 0.9.0, < 1.0.0"
+    }
   }
 
   # Uncomment and set after creating the bucket (recommended for teams):
@@ -30,4 +38,25 @@ provider "aws" {
       ManagedBy   = "terraform"
     }
   }
+}
+
+# CloudFront TLS certs and CLOUDFRONT-scoped WAF must use us-east-1 per AWS.
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+
+  default_tags {
+    tags = {
+      Project     = var.project_name
+      Environment = var.environment
+      ManagedBy   = "terraform"
+    }
+  }
+}
+
+# MongoDB Atlas API (VPC peering). Keys can be set via atlas_api_* variables or
+# MONGODB_ATLAS_PUBLIC_KEY / MONGODB_ATLAS_PRIVATE_KEY in the environment.
+provider "mongodbatlas" {
+  public_key  = var.atlas_api_public_key
+  private_key = var.atlas_api_private_key
 }
