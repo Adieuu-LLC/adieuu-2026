@@ -307,6 +307,26 @@ variable "cloudfront_pricing_plan_web_acl_arn" {
   default     = ""
 }
 
+# --- GitHub Actions deploy (OIDC) ---
+
+variable "enable_github_actions_deploy_role" {
+  type        = bool
+  description = "Create IAM role for GitHub Actions (OIDC) to deploy web (S3+CloudFront) and containers (ECR push + ECS force-new-deployment)."
+  default     = true
+}
+
+variable "github_actions_repository" {
+  type        = string
+  description = "GitHub repository allowed to assume the deploy role (org/repo). Must match the repo running workflows."
+  default     = "Adieuu-LLC/adieuu-2026"
+}
+
+variable "github_oidc_provider_arn" {
+  type        = string
+  description = "Optional IAM OIDC provider ARN for GitHub (token.actions.githubusercontent.com). If empty, Terraform creates the provider in this account. If the provider already exists (e.g. from another stack), set this to that ARN to avoid duplicate creation."
+  default     = ""
+}
+
 # --- VPC endpoints + operational alarms ---
 
 variable "enable_vpc_interface_endpoints" {

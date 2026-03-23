@@ -101,6 +101,26 @@ output "cloudfront_distribution_id" {
   value       = local.public_dns_tls_enabled ? aws_cloudfront_distribution.web[0].id : null
 }
 
+output "web_s3_bucket_name" {
+  description = "S3 bucket for the Vite web build when public DNS/TLS is enabled; null otherwise."
+  value       = local.public_dns_tls_enabled ? aws_s3_bucket.web[0].id : null
+}
+
+output "github_actions_deploy_role_arn" {
+  description = "IAM role ARN for GitHub Actions OIDC (set as repository secret AWS_DEPLOY_ROLE_ARN_ADIEUU). Null when enable_github_actions_deploy_role is false."
+  value       = var.enable_github_actions_deploy_role ? aws_iam_role.github_actions_deploy[0].arn : null
+}
+
+output "ecs_service_api_name" {
+  description = "ECS service name for the API (for deploy workflows)."
+  value       = aws_ecs_service.api.name
+}
+
+output "ecs_service_chat_name" {
+  description = "ECS service name for chat (for deploy workflows)."
+  value       = aws_ecs_service.chat.name
+}
+
 output "cloudfront_pricing_model" {
   description = "Configured CloudFront pricing model (pay_as_you_go or flat_rate_*)."
   value       = var.cloudfront_pricing_model

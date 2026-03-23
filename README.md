@@ -76,7 +76,7 @@ GitHub Actions runs lint/typecheck, API tests, and regression suites on every ru
 
 - **PRs** targeting `development` or `main`, or **pushes** to branches other than `main`: lint, typecheck, tests, then SBOM (no web/API/desktop artifact or package jobs).
 - **PRs** targeting `main` only: also builds web/API/desktop artifacts and packages Electron before SBOM.
-- **Pushes** to `main`: full CI including product builds; on success, the [Release](.github/workflows/release.yml) workflow runs (version bump, GitHub Release, desktop binaries, SBOM attach).
+- **Pushes** to `main`: full CI including product builds; on success, the [Release](.github/workflows/release.yml) workflow runs (version bump, GitHub Release, desktop binaries, SBOM attach). The [Deploy AWS](.github/workflows/deploy-aws.yml) workflow also runs on `main` (path-filtered) to sync the web app to S3, invalidate CloudFront, and push API/chat images to ECR with ECS rollout.
 
 Key regression commands:
 - `pnpm test:fs` (forward secrecy regression suite)
@@ -97,7 +97,7 @@ Local pre-PR verification:
 
 ### Deployment
 
-See [docs/deployment/README.md](docs/deployment/README.md) for AWS architecture (VPC, ECS, S3/CloudFront, Atlas, WAF) and [infra/aws/README.md](infra/aws/README.md) for Terraform. Bootstrap local variables with `./scripts/deploy-wizard.sh` (never commit real secrets or `terraform.tfvars`).
+See [docs/deployment/README.md](docs/deployment/README.md) for AWS architecture (VPC, ECS, S3/CloudFront, Atlas, WAF) and [infra/aws/README.md](infra/aws/README.md) for Terraform. Bootstrap local variables with `./scripts/deploy-wizard.sh` (never commit real secrets or `terraform.tfvars`). Wire GitHub (OIDC role, secrets, variables) using [docs/deployment/github-actions-aws.md](docs/deployment/github-actions-aws.md).
 
 | Target | Typical hosting |
 |--------|-----------------|

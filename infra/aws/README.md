@@ -27,7 +27,9 @@ After apply:
 terraform output
 ```
 
-Use `ecr_api_repository_url` and `ecr_chat_repository_url` to tag and push images, for example:
+CI deploys: copy `github_actions_deploy_role_arn` into the GitHub repository secret `AWS_DEPLOY_ROLE_ARN_ADIEUU`, and set the repository variables described in [docs/deployment/github-actions-aws.md](../../docs/deployment/github-actions-aws.md).
+
+Use `ecr_api_repository_url` and `ecr_chat_repository_url` to tag and push images manually, for example:
 
 ```bash
 AWS_REGION=us-east-1
@@ -63,6 +65,7 @@ Replace `adieuu-staging-api` with the repository name shown in the AWS console o
 | `vpc_endpoints.tf` | Interface VPC endpoints (ECR, logs, secrets, STS, KMS) + S3 gateway (optional via `enable_vpc_interface_endpoints`) |
 | `alarms.tf` | SNS + CloudWatch alarms (ALB/ECS/ElastiCache) |
 | `atlas_peering.tf` | Optional MongoDB Atlas network container + VPC peering, routes, DNS resolution on the peering |
+| `iam_github_actions_deploy.tf` | GitHub OIDC IAM role (S3/CloudFront + ECR + ECS) for CI deploys; see [github-actions-aws.md](../../docs/deployment/github-actions-aws.md) |
 | `outputs.tf` | ALB DNS, ECR URLs, subnet IDs, optional Redis endpoint, SNS topic for alarms |
 | `terraform.tfvars.example` | **Committed** — placeholders; commented env/secrets templates (see [ecs-environment.md](../../docs/deployment/ecs-environment.md)) |
 | `terraform.tfvars` | **Local / private** — gitignored |

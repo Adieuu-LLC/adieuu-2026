@@ -1,0 +1,187 @@
+name: Deploy AWS
+
+# Pushes to main after merge (CI should be green from the PR). Path filters avoid
+# unrelated deploys. Use workflow_dispatch to redeploy everything manually.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-aws-main
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  NODE_VERSION: '25'
+  PNPM_VERSION: '9'
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.set.outputs.web }}
+      api: ${{ steps.set.outputs.api }}
+      chat: ${{ steps.set.outputs.chat }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            web:
+              - 'apps/web/**'
+              - 'packages/shared/**'
+              - 'packages/ui/**'
+            api:
+              - 'apps/api/**'
+              - 'packages/crypto/**'
+              - 'packages/shared/**'
+            chat:
+              - 'apps/chat/**'
+            root:
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
+              - 'turbo.json'
+
+      - name: Resolve deploy targets
+        id: set
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "web=true" >> "$GITHUB_OUTPUT"
+            echo "api=true" >> "$GITHUB_OUTPUT"
+            echo "chat=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          W="${{ steps.filter.outputs.web }}"
+          A="${{ steps.filter.outputs.api }}"
+          C="${{ steps.filter.outputs.chat }}"
+          R="${{ steps.filter.outputs.root }}"
+          if [ "$R" = "true" ]; then
+            echo "web=true" >> "$GITHUB_OUTPUT"
+            echo "api=true" >> "$GITHUB_OUTPUT"
+            echo "chat=true" >> "$GITHUB_OUTPUT"
+          else
+            [ "$W" = "true" ] && echo "web=true" >> "$GITHUB_OUTPUT" || echo "web=false" >> "$GITHUB_OUTPUT"
+            [ "$A" = "true" ] && echo "api=true" >> "$GITHUB_OUTPUT" || echo "api=false" >> "$GITHUB_OUTPUT"
+            [ "$C" = "true" ] && echo "chat=true" >> "$GITHUB_OUTPUT" || echo "chat=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy-web:
+    needs: changes
+    if: |
+      needs.changes.outputs.web == 'true' &&
+      vars.DEPLOY_WEB_S3_BUCKET_ADIEUU != '' &&
+      vars.DEPLOY_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web
+        run: pnpm build --filter @adieuu/web...
+
+      - name: Sync to S3
+        run: aws s3 sync apps/web/dist "s3://${{ vars.DEPLOY_WEB_S3_BUCKET_ADIEUU }}/" --delete
+
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.DEPLOY_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU }}" \
+            --paths "/*"
+
+  deploy-api:
+    needs: changes
+    if: |
+      needs.changes.outputs.api == 'true' &&
+      vars.DEPLOY_ECR_API_REPOSITORY_URL_ADIEUU != '' &&
+      vars.DEPLOY_ECS_CLUSTER_NAME_ADIEUU != '' &&
+      vars.DEPLOY_ECS_SERVICE_API_ADIEUU != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push API image
+        run: |
+          IMG="${{ vars.DEPLOY_ECR_API_REPOSITORY_URL_ADIEUU }}"
+          docker build --platform linux/amd64 -f apps/api/Dockerfile -t "api:${{ github.sha }}" .
+          docker tag "api:${{ github.sha }}" "${IMG}:${{ github.sha }}"
+          docker tag "api:${{ github.sha }}" "${IMG}:latest"
+          docker push "${IMG}:${{ github.sha }}"
+          docker push "${IMG}:latest"
+
+      - name: Force ECS deployment
+        run: |
+          aws ecs update-service \
+            --cluster "${{ vars.DEPLOY_ECS_CLUSTER_NAME_ADIEUU }}" \
+            --service "${{ vars.DEPLOY_ECS_SERVICE_API_ADIEUU }}" \
+            --force-new-deployment \
+            --region "${{ env.AWS_REGION }}"
+
+  deploy-chat:
+    needs: changes
+    if: |
+      needs.changes.outputs.chat == 'true' &&
+      vars.DEPLOY_ECR_CHAT_REPOSITORY_URL_ADIEUU != '' &&
+      vars.DEPLOY_ECS_CLUSTER_NAME_ADIEUU != '' &&
+      vars.DEPLOY_ECS_SERVICE_CHAT_ADIEUU != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push chat image
+        run: |
+          IMG="${{ vars.DEPLOY_ECR_CHAT_REPOSITORY_URL_ADIEUU }}"
+          docker build --platform linux/amd64 -f apps/chat/Dockerfile -t "chat:${{ github.sha }}" .
+          docker tag "chat:${{ github.sha }}" "${IMG}:${{ github.sha }}"
+          docker tag "chat:${{ github.sha }}" "${IMG}:latest"
+          docker push "${IMG}:${{ github.sha }}"
+          docker push "${IMG}:latest"
+
+      - name: Force ECS deployment
+        run: |
+          aws ecs update-service \
+            --cluster "${{ vars.DEPLOY_ECS_CLUSTER_NAME_ADIEUU }}" \
+            --service "${{ vars.DEPLOY_ECS_SERVICE_CHAT_ADIEUU }}" \
+            --force-new-deployment \
+            --region "${{ env.AWS_REGION }}"

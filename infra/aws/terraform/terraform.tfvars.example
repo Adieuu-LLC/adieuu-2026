@@ -124,6 +124,12 @@ single_nat_gateway        = true
 # }
 # secretsmanager_kms_key_arns = [] # CMK ARNs if secrets use customer-managed KMS
 
+# GitHub Actions AWS deploy (OIDC role). See docs/deployment/github-actions-aws.md
+# enable_github_actions_deploy_role = true
+# github_actions_repository       = "Adieuu-LLC/adieuu-2026"
+# If GitHub OIDC already exists in this account (e.g. marketing), set its ARN and Terraform will not create a second:
+# github_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
+
 # ElastiCache Valkey 8.2 (default) — REDIS_URL injected for API + chat. Set false only with external REDIS_URL.
 # create_elasticache_redis      = true
 # redis_node_type               = "cache.t4g.micro"
