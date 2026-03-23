@@ -8,9 +8,10 @@ terraform {
       source  = "hashicorp/aws"
       version = ">= 5.0.0, < 6.0.0"
     }
+    # 2.x is current; see https://registry.terraform.io/providers/mongodb/mongodbatlas/latest/docs/guides/2.0.0-upgrade-guide
     mongodbatlas = {
       source  = "mongodb/mongodbatlas"
-      version = ">= 1.14.0, < 2.0.0"
+      version = ">= 2.0.0, < 3.0.0"
     }
     time = {
       source  = "hashicorp/time"

@@ -54,10 +54,29 @@ variable "enable_container_insights" {
   default     = false
 }
 
-variable "alb_ingress_cidr_blocks" {
+variable "public_allowed_cidr_blocks" {
   type        = list(string)
-  description = "CIDR blocks allowed to reach the ALB on ports 80 and 443."
+  description = <<-EOT
+    IPv4 and/or IPv6 CIDRs allowed to reach public endpoints: ALB (80/443) via security group,
+    same CIDRs enforced in WAF on the ALB and CloudFront when enable_waf is true (block requests
+    whose source IP is not in these sets). Use ["0.0.0.0/0"] or ["::/0"] for open internet.
+    You may use a bare IPv4 (e.g. 203.0.113.10) or bare IPv6 host address; Terraform appends /32 or /128.
+    When restricting, include at least one IPv4 CIDR so the ALB security group can allow ingress
+    (IPv6-only lists are not supported for the ALB SG in this stack). CI and AWS APIs are unaffected.
+  EOT
   default     = ["0.0.0.0/0"]
+
+  validation {
+    condition     = length(var.public_allowed_cidr_blocks) > 0
+    error_message = "public_allowed_cidr_blocks must contain at least one CIDR."
+  }
+
+  validation {
+    condition = alltrue([
+      for c in var.public_allowed_cidr_blocks : length(trimspace(c)) > 0
+    ])
+    error_message = "Each entry in public_allowed_cidr_blocks must be a non-empty string."
+  }
 }
 
 variable "alb_idle_timeout_seconds" {
@@ -323,7 +342,12 @@ variable "github_actions_repository" {
 
 variable "github_oidc_provider_arn" {
   type        = string
-  description = "Optional IAM OIDC provider ARN for GitHub (token.actions.githubusercontent.com). If empty, Terraform creates the provider in this account. If the provider already exists (e.g. from another stack), set this to that ARN to avoid duplicate creation."
+  description = <<-EOT
+    Optional IAM OIDC provider ARN for GitHub (token.actions.githubusercontent.com). If empty, Terraform creates the provider in this account.
+    If the provider already exists (e.g. from another stack), set this to that ARN to avoid duplicate creation.
+    If Terraform previously created the provider here and you set this to the same account's provider ARN, the plan will try to destroy the managed resource — run
+    terraform state rm 'aws_iam_openid_connect_provider.github[0]' once so the real provider is no longer tracked (it stays in AWS).
+  EOT
   default     = ""
 }
 

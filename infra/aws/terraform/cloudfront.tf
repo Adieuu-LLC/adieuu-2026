@@ -89,6 +89,18 @@ resource "aws_cloudfront_distribution" "web" {
 
   depends_on = [aws_acm_certificate_validation.cloudfront]
 
+  lifecycle {
+    precondition {
+      condition = (
+        !local.public_dns_tls_enabled ||
+        !local.public_ingress_restricted ||
+        var.enable_waf ||
+        local.cloudfront_flat_rate_enabled
+      )
+      error_message = "A restricted public_allowed_cidr_blocks list applies to CloudFront: set enable_waf=true so Terraform can attach WAF IP allowlist rules (PAYG), or use a flat-rate CloudFront plan and add the same CIDRs to the plan-managed CloudFront WAF in the AWS console."
+    }
+  }
+
   tags = merge(local.common_tags, {
     CloudFrontPricingModel = var.cloudfront_pricing_model
   })

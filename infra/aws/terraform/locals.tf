@@ -22,6 +22,27 @@ locals {
   # REGIONAL CDN WAF managed by Terraform. Flat-rate plans attach a CloudFront-managed WAF; do not create a second CLOUDFRONT-scoped ACL.
   cdn_waf_from_terraform = local.public_dns_tls_enabled && var.enable_waf && !local.cloudfront_flat_rate_enabled
 
+  # Bare host IPs become /32 (IPv4) or /128 (IPv6) so AWS SG and WAF accept them.
+  public_allowed_cidr_blocks_normalized = [
+    for c in var.public_allowed_cidr_blocks : (
+      strcontains(trimspace(c), "/") ? trimspace(c) : (
+        strcontains(trimspace(c), ":") ? "${trimspace(c)}/128" : "${trimspace(c)}/32"
+      )
+    )
+  ]
+
+  # Split for ALB SG (IPv4) vs WAF IP sets (IPv4 + IPv6). IPv6-only allowlists are not supported for the ALB security group without VPC IPv6 / dualstack.
+  public_allowed_cidr_blocks_v4 = [for c in local.public_allowed_cidr_blocks_normalized : c if !strcontains(c, ":")]
+  public_allowed_cidr_blocks_v6 = [for c in local.public_allowed_cidr_blocks_normalized : c if strcontains(c, ":")]
+
+  # Narrower than full-internet open (WAF adds block-if-not-in-allowlist when true).
+  public_ingress_restricted = !(
+    length(local.public_allowed_cidr_blocks_normalized) == 1 && (
+      local.public_allowed_cidr_blocks_normalized[0] == "0.0.0.0/0" ||
+      local.public_allowed_cidr_blocks_normalized[0] == "::/0"
+    )
+  )
+
   az_names = slice(
     data.aws_availability_zones.available.names,
     0,
