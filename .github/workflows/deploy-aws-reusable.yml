@@ -24,7 +24,6 @@ permissions:
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   NODE_VERSION: '25'
-  PNPM_VERSION: '9'
 
 jobs:
   changes:
@@ -70,8 +69,6 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
       - uses: actions/setup-node@v6
         with:
