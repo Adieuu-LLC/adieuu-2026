@@ -158,7 +158,11 @@ export const config = {
     /**
      * Allowed origins for cross-origin requests.
      * Comma-separated list of origins, or '*' for all origins (dev only).
+     * One `*` is allowed in the host for subdomain matching, e.g. `https://*.example.com`
+     * matches `https://app.example.com` (see `utils/corsOrigins.ts`). Non-default ports
+     * and LAN IPs need exact entries (e.g. `http://192.168.1.10:3000`).
      * @example 'http://localhost:3000,http://localhost:5173'
+     * @example 'https://app.example.com,https://*.example.com'
      */
     origins: optionalEnv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173'),
     /** Whether to allow credentials (cookies, auth headers) */

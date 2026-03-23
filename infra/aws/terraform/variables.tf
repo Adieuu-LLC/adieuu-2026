@@ -97,6 +97,16 @@ variable "api_environment" {
   default     = {}
 }
 
+variable "cors_additional_origins" {
+  type        = list(string)
+  description = <<-EOT
+    Extra browser origins merged into the API task CORS_ORIGINS (after splitting api_environment.CORS_ORIGINS
+    if present, else defaulting to https://<app_domain_name> when route53_zone_name is set).
+    Use for localhost, staging, or LAN URLs without editing the whole CORS_ORIGINS string.
+  EOT
+  default     = []
+}
+
 variable "chat_environment" {
   type        = map(string)
   description = "Non-sensitive env for the chat task. Keys and reserved names: docs/deployment/ecs-environment.md. Secrets use chat_container_secrets."

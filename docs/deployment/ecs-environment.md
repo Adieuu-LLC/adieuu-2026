@@ -67,7 +67,7 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | Variable | Purpose (short) |
 |----------|------------------|
 | `APP_NAME` | Product name in emails / labels. |
-| `CORS_ORIGINS` | Comma-separated browser origins (e.g. `https://app.example.com`). |
+| `CORS_ORIGINS` | Comma-separated browser origins (e.g. `https://app.example.com`). Entries can include one `*` in the host for subdomains, e.g. `https://*.example.com` (see `apps/api/src/utils/corsOrigins.ts`). Non-default ports and LAN IPs need exact origins. Self-hosted or custom web origins: add each `https://` origin here (or use Terraform `cors_additional_origins`; see `infra/aws/terraform/variables.tf`). |
 | `CORS_CREDENTIALS` | `true` / `false`. |
 | `COOKIE_DOMAIN` | e.g. `.example.com` for subdomains (`process.env.COOKIE_DOMAIN` in code). |
 | `CORS_ORIGIN` | Deprecated; prefer `CORS_ORIGINS`. |
@@ -82,7 +82,7 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | `SMS_FROM_NAME` | SMS sender label. |
 | `WEB_APP_URL` | Public web app URL for links (`https://...`). |
 | `WEBAUTHN_RP_ID` | Passkeys RP ID (hostname, no scheme). |
-| `WEBAUTHN_ORIGINS` | Comma-separated allowed WebAuthn origins. |
+| `WEBAUTHN_ORIGINS` | Comma-separated allowed WebAuthn origins (concrete URLs; patterns are not applied here—add each origin your clients use). |
 | `REQUIRE_DATABASE` | `true` to fail startup if DB unreachable. |
 | `INITIALIZE_COLLECTIONS` | `true` to create collections on boot (use carefully in prod). |
 | `RATE_LIMIT_ENABLED` | `true` / `false`. |
@@ -123,6 +123,10 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 - **`api_container_secrets`** / **`chat_container_secrets`** — map of **env var name → full `valueFrom` ARN** (including `:JsonKey::` for JSON secrets).
 
 After changing **Secrets Manager** values, **replace ECS tasks** (new deployment) so containers pick up new data — same as changing Terraform env.
+
+### Self-hosting and configurable web/desktop URLs
+
+When clients call the API from **arbitrary** origins (user-configured service URLs, LAN IPs, or extra web builds), each browser `Origin` must be allowed: add exact origins (or `https://*.yourdomain.com` patterns) to `CORS_ORIGINS` / `cors_additional_origins`, and list the same concrete origins in **`WEBAUTHN_ORIGINS`** for passkeys. Cookies may need **`COOKIE_DOMAIN`** / **`SameSite`** review when the web UI and API are on different sites.
 
 ---
 

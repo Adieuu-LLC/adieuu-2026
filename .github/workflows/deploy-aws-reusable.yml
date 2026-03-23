@@ -79,7 +79,20 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build web
-        run: pnpm build --filter @adieuu/web...
+        env:
+          # Public API/WebSocket URLs for the browser bundle (cross-origin to app hostname).
+          VITE_API_BASE_URL: ${{ vars.DEPLOY_WEB_VITE_API_BASE_URL_ADIEUU }}
+          VITE_CHAT_WS_URL: ${{ vars.DEPLOY_WEB_VITE_CHAT_WS_URL_ADIEUU }}
+        run: |
+          if [ -z "${VITE_API_BASE_URL:-}" ]; then
+            echo "::error::Set Actions variable DEPLOY_WEB_VITE_API_BASE_URL_ADIEUU (e.g. https://api.example.com)"
+            exit 1
+          fi
+          if [ -z "${VITE_CHAT_WS_URL:-}" ]; then
+            echo "::error::Set Actions variable DEPLOY_WEB_VITE_CHAT_WS_URL_ADIEUU (e.g. wss://api.example.com/ws/chat)"
+            exit 1
+          fi
+          pnpm build --filter @adieuu/web...
 
       - name: Sync to S3
         run: aws s3 sync apps/web/dist "s3://${{ vars.DEPLOY_WEB_S3_BUCKET_ADIEUU }}/" --delete

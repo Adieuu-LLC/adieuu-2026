@@ -34,6 +34,11 @@
 
 import type { Middleware, RouteContext } from '../router';
 import { config } from '../config';
+import {
+  corsOriginsNeedVaryHeader,
+  parseCorsOriginsList,
+  resolveCorsAllowedOrigin,
+} from '../utils/corsOrigins';
 
 /**
  * CORS middleware configuration options.
@@ -94,43 +99,12 @@ function parseOrigins(originsInput: string | string[]): string[] {
   if (Array.isArray(originsInput)) {
     return originsInput.map((o) => o.trim()).filter(Boolean);
   }
-  
-  // Handle wildcard
+
   if (originsInput === '*') {
     return ['*'];
   }
-  
-  // Split comma-separated string
-  return originsInput
-    .split(',')
-    .map((o) => o.trim())
-    .filter(Boolean);
-}
 
-/**
- * Checks if the request origin is allowed.
- * 
- * @param requestOrigin - The Origin header from the request
- * @param allowedOrigins - Array of allowed origins
- * @returns The origin to use in the response header, or null if not allowed
- */
-function getAllowedOrigin(requestOrigin: string | null, allowedOrigins: string[]): string | null {
-  // Wildcard allows any origin
-  if (allowedOrigins.includes('*')) {
-    return requestOrigin ?? '*';
-  }
-  
-  // No origin header (same-origin request or non-browser client)
-  if (!requestOrigin) {
-    return allowedOrigins[0] ?? null;
-  }
-  
-  // Check if request origin is in allowed list
-  if (allowedOrigins.includes(requestOrigin)) {
-    return requestOrigin;
-  }
-  
-  return null;
+  return parseCorsOriginsList(originsInput);
 }
 
 /**
@@ -176,19 +150,16 @@ export function cors(options: CorsOptions = {}): Middleware {
     // Get the request origin
     const requestOrigin = ctx.request.headers.get('Origin');
     
-    // Determine which origin to allow
-    const allowedOrigin = getAllowedOrigin(requestOrigin, allowedOrigins);
-    
+    const allowedOrigin = resolveCorsAllowedOrigin(requestOrigin, allowedOrigins);
+
     if (allowedOrigin) {
       headers.set('Access-Control-Allow-Origin', allowedOrigin);
-      
-      // Only set credentials header if not using wildcard
+
       if (credentials && allowedOrigin !== '*') {
         headers.set('Access-Control-Allow-Credentials', 'true');
       }
-      
-      // Vary on Origin to ensure proper caching
-      if (allowedOrigins.length > 1 || allowedOrigins.includes('*')) {
+
+      if (corsOriginsNeedVaryHeader(allowedOrigins)) {
         headers.append('Vary', 'Origin');
       }
     }

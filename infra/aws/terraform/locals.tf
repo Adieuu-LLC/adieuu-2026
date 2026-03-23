@@ -66,12 +66,25 @@ locals {
   tg_api_name  = substr("${local.name_prefix}-api", 0, 32)
   tg_chat_name = substr("${local.name_prefix}-chat", 0, 32)
 
+  # CORS: merge explicit CORS_ORIGINS from api_environment, or default app URL when public DNS is enabled,
+  # then append cors_additional_origins (distinct). Final value overwrites api_environment.CORS_ORIGINS.
+  cors_from_env = lookup(var.api_environment, "CORS_ORIGINS", "")
+
+  cors_base_origins = length(trimspace(local.cors_from_env)) > 0 ? [
+    for o in split(",", local.cors_from_env) : trimspace(o) if length(trimspace(o)) > 0
+  ] : (
+    local.public_dns_tls_enabled ? ["https://${var.app_domain_name}"] : []
+  )
+
+  cors_origins_merged = distinct(concat(local.cors_base_origins, var.cors_additional_origins))
+
   # Plain env maps (user tfvars last so they can override injected REDIS_URL)
   api_env_merged = merge(
     var.create_elasticache_redis ? {
       REDIS_URL = "redis://${aws_elasticache_replication_group.redis[0].primary_endpoint_address}:6379"
     } : {},
-    var.api_environment
+    var.api_environment,
+    length(local.cors_origins_merged) > 0 ? { CORS_ORIGINS = join(",", local.cors_origins_merged) } : {},
   )
 
   chat_env_merged = merge(

@@ -61,6 +61,9 @@ single_nat_gateway        = true
 # api_desired_count         = 1
 # chat_desired_count        = 1
 
+# Optional: merged into API CORS_ORIGINS (with api_environment.CORS_ORIGINS or default https://<app_domain_name>).
+# cors_additional_origins = ["http://localhost:3000", "https://staging.app.example.com"]
+
 # Non-secret env only (plain strings in the task definition). Full key list:
 # docs/deployment/ecs-environment.md
 # Do not set PORT, HOST, NODE_ENV (API) or CHAT_PORT, CHAT_HOST, NODE_ENV (chat) here — Terraform sets them.

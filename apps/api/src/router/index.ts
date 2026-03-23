@@ -7,35 +7,11 @@ import { localizedErrors } from '../utils/response';
 import { parseAcceptLanguage, type Locale } from '../i18n';
 import { config } from '../config';
 import elog from '../utils/adieuuLogger';
-
-/**
- * Parses allowed origins from config string.
- */
-function parseAllowedOrigins(): string[] {
-  const originsStr = config.cors.origins;
-  if (originsStr === '*') return ['*'];
-  return originsStr.split(',').map((o) => o.trim()).filter(Boolean);
-}
-
-/**
- * Gets the Access-Control-Allow-Origin value for a request.
- */
-function getCorsOrigin(requestOrigin: string | null): string {
-  const allowedOrigins = parseAllowedOrigins();
-  
-  // Wildcard allows any origin
-  if (allowedOrigins.includes('*')) {
-    return requestOrigin ?? '*';
-  }
-  
-  // Check if request origin is allowed
-  if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
-    return requestOrigin;
-  }
-  
-  // Default to first allowed origin
-  return allowedOrigins[0] ?? 'http://localhost:3000';
-}
+import {
+  corsOriginsNeedVaryHeader,
+  parseCorsOriginsList,
+  resolveCorsAllowedOrigin,
+} from '../utils/corsOrigins';
 
 /**
  * Creates a ContextErrors object bound to a specific locale.
@@ -242,26 +218,26 @@ export class Router {
       // Handle CORS preflight
       if (method === 'OPTIONS') {
         const requestOrigin = request.headers.get('Origin');
-        const corsOrigin = getCorsOrigin(requestOrigin);
+        const allowed = parseCorsOriginsList(config.cors.origins);
+        const resolved = resolveCorsAllowedOrigin(requestOrigin, allowed);
+        const corsOrigin = resolved ?? allowed[0] ?? 'http://localhost:3000';
         const allowCredentials = config.cors.credentials && corsOrigin !== '*';
-        
+
         const headers: Record<string, string> = {
           'Access-Control-Allow-Origin': corsOrigin,
           'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type, X-CSRF-Token, X-Request-ID, Authorization',
           'Access-Control-Max-Age': '86400',
         };
-        
+
         if (allowCredentials) {
           headers['Access-Control-Allow-Credentials'] = 'true';
         }
-        
-        // Vary on Origin for proper caching when multiple origins are allowed
-        const allowedOrigins = parseAllowedOrigins();
-        if (allowedOrigins.length > 1 || allowedOrigins.includes('*')) {
+
+        if (corsOriginsNeedVaryHeader(allowed)) {
           headers['Vary'] = 'Origin';
         }
-        
+
         return new Response(null, { status: 204, headers });
       }
 

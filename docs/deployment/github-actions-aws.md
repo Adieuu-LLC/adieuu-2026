@@ -27,6 +27,8 @@ Copy from `terraform output` (non-secret; using variables keeps them out of work
 | `AWS_REGION` | `aws_region` (optional; workflow defaults to `us-east-1`) |
 | `DEPLOY_WEB_S3_BUCKET_ADIEUU` | `web_s3_bucket_name` (requires public DNS + TLS / CloudFront stack) |
 | `DEPLOY_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU` | `cloudfront_distribution_id` |
+| `DEPLOY_WEB_VITE_API_BASE_URL_ADIEUU` | Not from Terraform: public API origin for the Vite build, e.g. `https://api.adieuu.com` (align with `api_domain_name` and API `CORS_ORIGINS`). |
+| `DEPLOY_WEB_VITE_CHAT_WS_URL_ADIEUU` | Not from Terraform: chat WebSocket URL for the web build, e.g. `wss://api.adieuu.com/ws/chat` (ALB routes `/ws/*` on the API host). |
 | `DEPLOY_ECR_API_REPOSITORY_URL_ADIEUU` | `ecr_api_repository_url` |
 | `DEPLOY_ECR_CHAT_REPOSITORY_URL_ADIEUU` | `ecr_chat_repository_url` |
 | `DEPLOY_ECS_CLUSTER_NAME_ADIEUU` | `ecs_cluster_name` |
