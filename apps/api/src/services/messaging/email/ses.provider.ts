@@ -315,9 +315,12 @@ export class SesEmailProvider implements IEmailProvider {
    */
   private async hmac(key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayBuffer> {
     const encoder = new TextEncoder();
+    // Normalize: TS lib types Uint8Array as ArrayBufferLike-backed; importKey expects ArrayBuffer-backed views (copy when needed).
+    const keyMaterial =
+      key instanceof ArrayBuffer ? key : new Uint8Array(key);
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
-      key,
+      keyMaterial,
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['sign']

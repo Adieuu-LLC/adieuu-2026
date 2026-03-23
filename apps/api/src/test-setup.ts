@@ -10,6 +10,7 @@ import { mock } from 'bun:test';
 // Mock the config module with test values
 mock.module('./config', () => ({
   config: {
+    env: 'test',
     webAppUrl: 'https://app.example.com',
     security: {
       otpSecret: 'test-otp-secret-32-bytes-long!!',
@@ -23,6 +24,14 @@ mock.module('./config', () => ({
     redis: {
       host: 'localhost',
       port: 6379,
+    },
+    /** Present so any early import of messaging/email does not see undefined config.email */
+    email: {
+      provider: 'console',
+      fromAddress: 'noreply@test.example.com',
+      awsRegion: 'us-east-1',
+      awsAccessKeyId: undefined,
+      awsSecretAccessKey: undefined,
     },
   },
 }));

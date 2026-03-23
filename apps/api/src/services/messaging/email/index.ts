@@ -48,6 +48,14 @@ export { ConsoleEmailProvider } from './console.provider';
 let emailProvider: IEmailProvider | null = null;
 
 /**
+ * Clears the cached email provider (tests only).
+ * @internal
+ */
+export function resetEmailProviderForTests(): void {
+  emailProvider = null;
+}
+
+/**
  * Gets the configured email provider instance
  *
  * Uses lazy initialization and caches the provider for subsequent calls.

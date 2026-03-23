@@ -44,6 +44,7 @@ jobs:
     outputs:
       new_version: ${{ steps.version.outputs.new_version }}
       released: ${{ steps.version.outputs.released }}
+      deploy_aws: ${{ steps.decide_deploy_aws.outputs.deploy || 'false' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -171,12 +172,28 @@ jobs:
             echo "Tag v${NEW_VERSION} already exists, skipping release"
             echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
             echo "released=false" >> $GITHUB_OUTPUT
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
           echo "released=true" >> $GITHUB_OUTPUT
+          echo "tag_exists=false" >> $GITHUB_OUTPUT
           echo "New version: $NEW_VERSION"
+
+      - name: Decide AWS deploy
+        id: decide_deploy_aws
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          if [ "${{ steps.version.outputs.released }}" = "true" ]; then
+            echo "deploy=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          if [ "${{ steps.version.outputs.tag_exists }}" = "true" ]; then
+            echo "deploy=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "deploy=false" >> $GITHUB_OUTPUT
 
       - name: Update package versions
         if: steps.version.outputs.released == 'true'
@@ -231,6 +248,12 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-aws:
+    needs: release
+    if: needs.release.outputs.deploy_aws == 'true'
+    uses: ./.github/workflows/deploy-aws-reusable.yml
+    secrets: inherit
 
   build-and-release-desktop:
     needs: release

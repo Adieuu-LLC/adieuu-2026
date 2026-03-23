@@ -1,7 +1,7 @@
 # Adieuu
 [![CI](https://github.com/Adieuu-LLC/adieuu-2026/actions/workflows/ci.yml/badge.svg)](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/ci.yml)
 [![Release](https://github.com/Adieuu-LLC/adieuu-2026/actions/workflows/release.yml/badge.svg)](https://github.com/Adieuu-LLC/adieuu-26/actions/workflows/release.yml)
-[![codecov](https://codecov.io/github/Adieuu-LLC/adieuu-2026/graph/badge.svg?token=2MI5WRYO9K)](https://codecov.io/github/Adieuu-LLC/adieuu-26)
+[![codecov](https://codecov.io/github/Adieuu-LLC/adieuu-2026/graph/badge.svg?token=2MI5WRYO9K)](https://codecov.io/github/Adieuu-LLC/adieuu-2026)
 
 Cross-platform application with web, desktop (Electron), and mobile (Capacitor) targets.
 
@@ -76,7 +76,7 @@ GitHub Actions runs lint/typecheck, API tests, and regression suites on every ru
 
 - **PRs** targeting `development` or `main`, or **pushes** to branches other than `main`: lint, typecheck, tests, then SBOM (no web/API/desktop artifact or package jobs).
 - **PRs** targeting `main` only: also builds web/API/desktop artifacts and packages Electron before SBOM.
-- **Pushes** to `main`: full CI including product builds; on success, the [Release](.github/workflows/release.yml) workflow runs (version bump, GitHub Release, desktop binaries, SBOM attach). The [Deploy AWS](.github/workflows/deploy-aws.yml) workflow also runs on `main` (path-filtered) to sync the web app to S3, invalidate CloudFront, and push API/chat images to ECR with ECS rollout.
+- **Pushes** to `main`: full CI including product builds; on success, the [Release](.github/workflows/release.yml) workflow runs (version bump, AWS deploy from `main`, GitHub Release, desktop binaries, SBOM attach). Manual AWS redeploys: [Deploy AWS](.github/workflows/deploy-aws.yml) (`workflow_dispatch`).
 
 Key regression commands:
 - `pnpm test:fs` (forward secrecy regression suite)

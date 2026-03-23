@@ -1,6 +1,8 @@
 # GitHub Actions: AWS deploy (main)
 
-Production deploys from this repository use the [Deploy AWS](../../.github/workflows/deploy-aws.yml) workflow: **push to `main`** (path-filtered) or **`workflow_dispatch`** (full redeploy).
+Production deploys are **invoked from the [Release](../../.github/workflows/release.yml) workflow** (job `deploy-aws`) so they run **once per merge**, **after** the `release` job finishes: either the **version bump is on `main`** (`released=true`) or we still ship **without** a new tag when the tag already exists (`tag_exists` path). That matches **web `package.json` / `version.json`** to the commit on **`main`**, avoids racing the release bump, and avoids a **second** deploy from the follow-up CI run on `chore(release):` commits.
+
+Manual redeploys use [Deploy AWS](../../.github/workflows/deploy-aws.yml) (**`workflow_dispatch`** only), which calls the reusable workflow [deploy-aws-reusable.yml](../../.github/workflows/deploy-aws-reusable.yml) and deploys **current `main`** (full web + API + chat when variables are set).
 
 ## Prerequisites
 
@@ -31,11 +33,12 @@ Copy from `terraform output` (non-secret; using variables keeps them out of work
 | `DEPLOY_ECS_SERVICE_API_ADIEUU` | `ecs_service_api_name` |
 | `DEPLOY_ECS_SERVICE_CHAT_ADIEUU` | `ecs_service_chat_name` |
 
-If `DEPLOY_WEB_S3_BUCKET_ADIEU` or `DEPLOY_CLOUDFRONT_DISTRIBUTION_ID` is unset, the web deploy job is skipped (e.g. stack without `route53_zone_name`). Container jobs are skipped if their ECR/ECS variables are incomplete.
+If `DEPLOY_WEB_S3_BUCKET_ADIEUU` or `DEPLOY_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU` is unset, the web deploy job is skipped (e.g. stack without `route53_zone_name`). Container jobs are skipped if their ECR/ECS variables are incomplete.
 
 ## Behavior
 
-- **Paths** — Web changes under `apps/web/`, `packages/shared/`, `packages/ui/`. API under `apps/api/`, `packages/crypto/`, `packages/shared/`. Chat under `apps/chat/`. Changes to `pnpm-lock.yaml`, root `package.json`, `pnpm-workspace.yaml`, or `turbo.json` trigger **all** deploys.
+- **Order** — Automatic deploys run **inside the Release workflow** after the **`release`** job (not in parallel with the version bump). They do **not** use path filters: each deploy builds **full** web + API + chat from **`main`** at that moment so release-only commits (version bumps across `package.json` files) still produce correct images and `version.json`.
+- **When deploy runs** — `deploy_aws` is true if **`released`** is true (new version pushed) **or** if the new tag **already existed** (`tag_exists`): we still deploy the merged code at **`main`**. Release skips (chore commit, stale CI) set `deploy_aws` to false.
 - **Images** — Each service is tagged with the commit SHA and `latest`; ECR moves `latest` to the new digest on push. ECS uses **`force-new-deployment`** so tasks pull the updated `latest` image.
 - **Branch** — The IAM role trust policy allows only `refs/heads/main` for the configured repository.
 
