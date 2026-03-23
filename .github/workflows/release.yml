@@ -252,6 +252,10 @@ jobs:
   deploy-aws:
     needs: release
     if: needs.release.outputs.deploy_aws == 'true'
+    # Reusable workflow uses OIDC for AWS; caller must grant id-token: write (default is none).
+    permissions:
+      id-token: write
+      contents: read
     uses: ./.github/workflows/deploy-aws-reusable.yml
     secrets: inherit
 
