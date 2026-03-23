@@ -134,6 +134,9 @@ router.post('/auth/request', async (ctx) => {
       headers.set('Retry-After', result.retryAfterSeconds.toString());
       return new Response(response.body, { status: 429, headers });
     }
+    if (result.error === 'not_allowed') {
+      return ctx.errors.signInRestricted();
+    }
     return ctx.errors.badRequest();
   }
 
@@ -205,6 +208,9 @@ router.post('/auth/verify', async (ctx) => {
   const result = await verifyOtpHandler({ identifier, code }, clientIp, userAgent);
 
   if (!result.success) {
+    if (result.error === 'not_allowed') {
+      return ctx.errors.signInRestricted();
+    }
     if (result.error === 'backoff' && result.retryAfterSeconds) {
       const response = ctx.errors.rateLimited();
       const headers = new Headers(response.headers);

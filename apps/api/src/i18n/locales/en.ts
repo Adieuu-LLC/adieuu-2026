@@ -218,5 +218,6 @@ If you didn't make this change, please contact our support team immediately.`,
     sessionExpired: 'Your session has expired. Please sign in again.',
     payloadTooLarge: 'Request too large. Please reduce the size of your request.',
     alreadyOwned: 'This is already attached to another Adieuu account. You may have signed up with it previously.',
+    signInRestricted: 'Sign-in is not available for this account.',
   },
 };

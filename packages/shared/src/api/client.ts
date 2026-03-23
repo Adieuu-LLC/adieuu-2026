@@ -261,7 +261,7 @@ export class AuthApi {
    * Request an OTP for passwordless authentication.
    *
    * @param params - The identifier (email/phone) and delivery type
-   * @returns Success response (always returns success to prevent enumeration)
+   * @returns Success when a code may be sent; **403** if the platform auth allowlist blocks this identifier.
    */
   async requestOtp(params: RequestOtpParams): Promise<ApiResponse<void>> {
     return this.client.post('/api/auth/request', params);
@@ -274,7 +274,7 @@ export class AuthApi {
    * returns MFA challenge data if MFA is enabled.
    *
    * @param params - The identifier and OTP code
-   * @returns Success with optional MFA challenge, or error on failure
+   * @returns Success with optional MFA challenge, or error on failure; **403** if the platform auth allowlist blocks this identifier.
    */
   async verifyOtp(params: VerifyOtpParams): Promise<ApiResponse<VerifyOtpResponse>> {
     return this.client.post('/api/auth/verify', params);

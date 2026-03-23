@@ -164,7 +164,16 @@ mock.module('../../utils/timing', () => ({
   addJitter: mockAddJitter,
 }));
 
-import { requestOtp, getClientIp, type RequestOtpInput } from './controller';
+const mockIsAuthIdentifierAllowed = mock(() => Promise.resolve(true));
+
+mock.module('../../services/platform-settings.service', () => ({
+  isAuthIdentifierAllowed: mockIsAuthIdentifierAllowed,
+  isPlatformAdmin: mock(() => Promise.resolve(false)),
+  upsertPlatformSetting: mock(() => Promise.resolve()),
+  coercePlatformSettingValue: mock(() => ({})),
+}));
+
+import { requestOtp, getClientIp, verifyOtpHandler, type RequestOtpInput } from './controller';
 
 describe('auth controller', () => {
   beforeEach(() => {
@@ -174,6 +183,8 @@ describe('auth controller', () => {
     mockSendEmail.mockClear();
     mockSendSms.mockClear();
     mockAddJitter.mockClear();
+    mockIsAuthIdentifierAllowed.mockClear();
+    mockIsAuthIdentifierAllowed.mockImplementation(() => Promise.resolve(true));
 
     // Reset to default successful behavior
     mockCreateOtp.mockImplementation(() => Promise.resolve('123456'));
@@ -277,6 +288,22 @@ describe('auth controller', () => {
         await requestOtp(input, '192.168.1.1');
 
         expect(mockAddJitter).toHaveBeenCalled();
+      });
+
+      test('returns not_allowed when platform auth allowlist rejects identifier', async () => {
+        mockIsAuthIdentifierAllowed.mockImplementation(() => Promise.resolve(false));
+        const input: RequestOtpInput = {
+          identifier: 'user@example.com',
+          type: 'email',
+        };
+
+        const result = await requestOtp(input, '192.168.1.1');
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe('not_allowed');
+        }
+        expect(mockCreateOtp).not.toHaveBeenCalled();
       });
 
       test('always returns success even when OTP creation fails (anti-enumeration)', async () => {
@@ -520,6 +547,22 @@ describe('auth controller', () => {
 
       const ip = getClientIp(request);
       expect(ip).toBe('203.0.113.1');
+    });
+  });
+
+  describe('verifyOtpHandler', () => {
+    test('returns not_allowed when platform auth allowlist rejects identifier', async () => {
+      mockIsAuthIdentifierAllowed.mockImplementation(() => Promise.resolve(false));
+
+      const result = await verifyOtpHandler(
+        { identifier: 'user@example.com', code: '123456' },
+        '192.168.1.1'
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('not_allowed');
+      }
     });
   });
 });

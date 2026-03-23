@@ -395,6 +395,12 @@ export const RedisKeys = {
    * ```
    */
   identityChannel: (identityId: string) => `identity:${identityId}`,
+
+  /**
+   * Cached JSON blob for auth allowlist state (enforced + email/phone sets).
+   * Invalidated on any platform_settings write.
+   */
+  platformAuthAllowlistCache: () => 'platform_setting_cache:auth_allowlist',
 } as const;
 
 /**

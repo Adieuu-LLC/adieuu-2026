@@ -86,6 +86,8 @@ describe('i18n', () => {
         'accountLocked',
         'sessionExpired',
         'payloadTooLarge',
+        'alreadyOwned',
+        'signInRestricted',
       ] as const;
 
       for (const key of keys) {

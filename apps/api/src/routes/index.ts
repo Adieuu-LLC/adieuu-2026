@@ -17,6 +17,7 @@ import { identityRoutes } from './identity';
 import { friendsRoutes } from './friends';
 import { notificationRoutes } from './notifications';
 import { dmRoutes } from './dm';
+import { adminRoutes } from './admin';
 
 /**
  * Registers all application routes with the main router.
@@ -31,6 +32,7 @@ import { dmRoutes } from './dm';
  * - `/api/friends` - Friend requests and friendships endpoints
  * - `/api/notifications` - Notification management endpoints
  * - `/api/dm` - Direct message conversations and encrypted messages
+ * - `/api/admin/platform-settings` - Platform configuration (session + admin list)
  *
  * @param app - The main application router instance to register routes on
  *
@@ -67,4 +69,7 @@ export function registerRoutes(app: Router): void {
 
   // DM routes at /api
   app.merge(dmRoutes, '/api');
+
+  // Platform admin (session + admin list)
+  app.merge(adminRoutes, '/api');
 }

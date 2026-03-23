@@ -4,6 +4,7 @@ import {
   success,
   error,
   errors,
+  localizedErrors,
   type ApiSuccessResponse,
   type ApiErrorResponse,
 } from './response';
@@ -410,6 +411,18 @@ describe('response utilities', () => {
         expect(body.error.message).toBeDefined();
         expect(body.meta?.timestamp).toBeDefined();
       }
+    });
+  });
+
+  describe('localizedErrors.signInRestricted', () => {
+    test('returns 403 with SIGN_IN_RESTRICTED code and localized message', async () => {
+      const response = localizedErrors.signInRestricted('en');
+      expect(response.status).toBe(403);
+      const body = await response.json() as ApiErrorResponse;
+      expect(body.success).toBe(false);
+      expect(body.error.code).toBe('SIGN_IN_RESTRICTED');
+      expect(body.error.message).toBe('Sign-in is not available for this account.');
+      expect(body.meta?.timestamp).toBeDefined();
     });
   });
 });

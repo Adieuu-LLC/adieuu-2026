@@ -84,7 +84,8 @@ export type ErrorKey =
   | 'sessionExpired'
   | 'payloadTooLarge'
   // Contact already attached to another account (revealed AFTER OTP verification)
-  | 'alreadyOwned';
+  | 'alreadyOwned'
+  | 'signInRestricted';
 
 /**
  * Structure of a locale translation file.

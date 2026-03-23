@@ -346,6 +346,8 @@ export const Collections = {
   PRE_KEYS: 'pre_keys',
   /** DM reactions (encrypted, linked to dm_messages) */
   DM_REACTIONS: 'dm_reactions',
+  /** Key-value platform configuration (typed values per key) */
+  PLATFORM_SETTINGS: 'platform_settings',
 } as const;
 
 /**
@@ -530,6 +532,10 @@ async function createIndexes(): Promise<void> {
   await dmReactions.createIndex({ messageId: 1, createdAt: 1 });
   await dmReactions.createIndex({ conversationId: 1, clientReactionId: 1 }, { unique: true });
   await dmReactions.createIndex({ toIdentityId: 1, createdAt: -1 });
+
+  // Platform settings — one row per key
+  const platformSettings = database.collection(Collections.PLATFORM_SETTINGS);
+  await platformSettings.createIndex({ key: 1 }, { unique: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

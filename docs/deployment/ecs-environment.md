@@ -99,6 +99,8 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | `RATE_LIMIT_GLOBAL_IP` | Default `1000`. |
 | `RATE_LIMIT_GLOBAL_IP_WINDOW` | Default `60`. |
 
+**Platform settings (MongoDB, not env):** The API stores typed configuration in the `platform_settings` collection (see `apps/api/src/constants/platform-settings-keys.ts`). There are **no extra ECS environment variables** for this. Auth allowlist and admin account list are edited via **`/api/admin/platform-settings`** (session cookie + user id in `platform-admin-account-list`). Seed the first admin ObjectIds in MongoDB (or Atlas) before calling those routes.
+
 ### Chat (`apps/chat`) — additional non-secret keys
 
 | Variable | Purpose (short) |

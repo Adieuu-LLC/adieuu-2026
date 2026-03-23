@@ -427,4 +427,8 @@ export const localizedErrors = {
    */
   alreadyOwned: (locale?: Locale) =>
     localizedError('alreadyOwned', 'ALREADY_OWNED', 409, locale),
+
+  /** 403 - Sign-in restricted (e.g. platform auth allowlist) */
+  signInRestricted: (locale?: Locale) =>
+    localizedError('signInRestricted', 'SIGN_IN_RESTRICTED', 403, locale),
 } as const;

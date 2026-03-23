@@ -41,6 +41,7 @@ import { sanitizeString } from '../../utils/sanitize';
 import { hashIdentifier, hashIp, encrypt, generateSecureToken } from '../../utils/crypto';
 import { addJitter } from '../../utils/timing';
 import { config } from '../../config';
+import { isAuthIdentifierAllowed } from '../../services/platform-settings.service';
 import { getEmailTemplate, getSmsMessage, type Locale, DEFAULT_LOCALE } from '../../i18n';
 import { getRedis, isRedisConnected } from '../../db';
 import elog from '../../utils/adieuuLogger';
@@ -91,7 +92,12 @@ export interface RequestOtpInput {
  */
 export type RequestOtpResult =
   | { success: true }
-  | { success: false; error: 'validation' | 'rate_limited' | 'account_locked'; rateLimitResult?: RateLimitResult; retryAfterSeconds?: number };
+  | {
+      success: false;
+      error: 'validation' | 'rate_limited' | 'account_locked' | 'not_allowed';
+      rateLimitResult?: RateLimitResult;
+      retryAfterSeconds?: number;
+    };
 
 /**
  * Requests an OTP for passwordless authentication.
@@ -173,6 +179,12 @@ export async function requestOtp(
     });
     await addJitter();
     return { success: false, error: 'account_locked', retryAfterSeconds };
+  }
+
+  const authAllowed = await isAuthIdentifierAllowed(sanitizedIdentifier.value, type);
+  if (!authAllowed) {
+    await addJitter();
+    return { success: false, error: 'not_allowed' };
   }
 
   // Check rate limits
@@ -364,7 +376,14 @@ export type VerifyOtpHandlerResult =
   }
   | {
     success: false;
-    error: 'invalid' | 'expired' | 'max_attempts' | 'backoff' | 'rate_limited' | 'account_locked';
+    error:
+      | 'invalid'
+      | 'expired'
+      | 'max_attempts'
+      | 'backoff'
+      | 'rate_limited'
+      | 'account_locked'
+      | 'not_allowed';
     retryAfterSeconds?: number;
   };
 
@@ -491,6 +510,13 @@ export async function verifyOtpHandler(
   const sanitizedIp = sanitizeString(clientIp, 'ip');
   const identifierHash = hashIdentifier(sanitizedIdentifier.value);
   const ipHash = hashIp(sanitizedIp.value);
+
+  const deliveryChannel: 'email' | 'sms' = identifierType === 'email' ? 'email' : 'sms';
+  const verifyAllowed = await isAuthIdentifierAllowed(sanitizedIdentifier.value, deliveryChannel);
+  if (!verifyAllowed) {
+    await addJitter();
+    return { success: false, error: 'not_allowed' };
+  }
 
   // Check if account is locked
   const userRepo = getUserRepository();

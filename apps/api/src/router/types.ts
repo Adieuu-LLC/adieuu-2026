@@ -46,6 +46,8 @@ export interface ContextErrors {
    * Only use AFTER OTP verification proves ownership - safe to reveal.
    */
   alreadyOwned: () => Response;
+  /** Sign-in not allowed (e.g. auth allowlist). */
+  signInRestricted: () => Response;
 }
 
 export interface RouteContext {

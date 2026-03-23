@@ -46,6 +46,7 @@ function createContextErrors(locale: Locale): ContextErrors {
     sessionExpired: () => localizedErrors.sessionExpired(locale),
     payloadTooLarge: () => localizedErrors.payloadTooLarge(locale),
     alreadyOwned: () => localizedErrors.alreadyOwned(locale),
+    signInRestricted: () => localizedErrors.signInRestricted(locale),
   };
 }
 
