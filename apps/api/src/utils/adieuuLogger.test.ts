@@ -211,6 +211,24 @@ describe('adieuuLogger', () => {
       expect(parsed.userId).toBe('123');
       expect(parsed.action).toBe('login');
     });
+
+    test('multiple string arguments are concatenated into message', () => {
+      adieuuLogger.warn('foo', 'bar');
+
+      const output = capturedOutput.join('').trim();
+      const parsed = JSON.parse(output);
+      expect(parsed.message).toBe('foo bar');
+    });
+
+    test('error log with context string and Error includes stack and message', () => {
+      const err = new Error('boom');
+      adieuuLogger.error('Error sanitizing email', 'user@x.com', err);
+
+      const output = capturedOutput.join('').trim();
+      const parsed = JSON.parse(output);
+      expect(parsed.message).toBe('Error sanitizing email user@x.com boom');
+      expect(parsed.stack).toContain('Error: boom');
+    });
   });
 
   describe('edge cases', () => {

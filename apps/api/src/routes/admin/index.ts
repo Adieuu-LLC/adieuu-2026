@@ -48,6 +48,14 @@ function normalizeAdminIdentifier(raw: string): string {
   return sanitizeString(trimmed, 'phone').value;
 }
 
+function isoFromDocDate(doc: PlatformSettingsDocument, field: 'createdAt' | 'updatedAt'): string {
+  const d = doc[field];
+  if (d instanceof Date && !Number.isNaN(d.getTime())) {
+    return d.toISOString();
+  }
+  return doc._id.getTimestamp().toISOString();
+}
+
 function toPublicSetting(doc: PlatformSettingsDocument) {
   let value: unknown = doc.value;
   if (doc.valueType === 'objectIdArray' && Array.isArray(doc.value)) {
@@ -59,8 +67,8 @@ function toPublicSetting(doc: PlatformSettingsDocument) {
     valueType: doc.valueType,
     value,
     lastUpdatedBy: doc.lastUpdatedBy,
-    updatedAt: doc.updatedAt.toISOString(),
-    createdAt: doc.createdAt.toISOString(),
+    updatedAt: isoFromDocDate(doc, 'updatedAt'),
+    createdAt: isoFromDocDate(doc, 'createdAt'),
   };
 }
 

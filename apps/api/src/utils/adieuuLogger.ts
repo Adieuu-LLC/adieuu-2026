@@ -37,24 +37,54 @@ import { createLogger, transports, format } from 'winston';
 import Transport from 'winston-transport';
 
 /**
- * Custom format to flatten metadata objects into the log entry.
- * 
- * Ensures objects passed as the second argument to log methods are
- * included in the JSON output at the top level rather than nested.
- * Winston stores additional args in Symbol(splat).
- * 
+ * Custom format to fold Winston `splat` arguments into the log entry.
+ *
+ * Merges every plain object argument into top-level JSON fields; appends
+ * primitives and arrays to the message (space-separated). Error instances get
+ * a stack when `format.errors` did not already attach one.
+ *
  * @internal
  */
 const flattenMeta = format((info) => {
-  // If there's a metadata object, spread it into the log entry
-  // Winston stores additional args in Symbol(splat)
-  const splat = info[Symbol.for('splat') as unknown as string] as unknown[];
-  if (splat && Array.isArray(splat) && splat.length > 0) {
-    const meta = splat[0];
-    if (meta && typeof meta === 'object' && !Array.isArray(meta)) {
-      Object.assign(info, meta);
-    }
+  // Winston stores additional args in Symbol(splat). Merge every object into the
+  // entry; append primitives (and non-plain values) to the message like
+  // console.log. For Error instances, attach stack when format.errors did not
+  // already (e.g. elog.error('msg', context, err)).
+  const splat = info[Symbol.for('splat') as unknown as string] as unknown[] | undefined;
+  if (!splat || !Array.isArray(splat) || splat.length === 0) {
+    return info;
   }
+
+  const initialMessage =
+    typeof info.message === 'string' ? info.message : String(info.message);
+  const messageParts: string[] = [];
+
+  for (const arg of splat) {
+    if (arg === undefined || arg === null) {
+      continue;
+    }
+    if (arg instanceof Error) {
+      if (!info.stack) {
+        info.stack = arg.stack;
+      }
+      const msgStr =
+        typeof info.message === 'string' ? info.message : String(info.message);
+      if (!msgStr.includes(arg.message)) {
+        messageParts.push(arg.message);
+      }
+      continue;
+    }
+    if (typeof arg === 'object' && !Array.isArray(arg)) {
+      Object.assign(info, arg);
+      continue;
+    }
+    messageParts.push(String(arg));
+  }
+
+  if (messageParts.length > 0) {
+    info.message = [initialMessage, ...messageParts].join(' ');
+  }
+
   return info;
 });
 
