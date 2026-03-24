@@ -85,7 +85,10 @@ function useAuthState(): AuthContextValue {
       if (response.success && response.data) {
         setState({
           status: 'authenticated',
-          session: response.data,
+          session: {
+            ...response.data,
+            isPlatformAdmin: response.data.isPlatformAdmin ?? false,
+          },
         });
       } else {
         setState({

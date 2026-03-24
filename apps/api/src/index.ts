@@ -8,6 +8,7 @@ import { securityHeaders, requestId, cors } from './middleware';
 import { registerRoutes } from './routes';
 import { initializeDatabases, closeDatabases } from './db';
 import { config, validateProductionConfig } from './config';
+import { ensureAdminAccountListPlatformSettingExists } from './services/platform-settings.service';
 import { elog } from './utils';
 
 // Validate production configuration
@@ -30,6 +31,15 @@ registerRoutes(app);
 async function start(): Promise<void> {
   // Initialize database connections
   await initializeDatabases();
+
+  try {
+    await ensureAdminAccountListPlatformSettingExists();
+  } catch (error) {
+    elog.warn('Could not ensure platform admin list setting exists', { error });
+    if (config.features.requireDatabase) {
+      throw error;
+    }
+  }
 
   // Start HTTP server
   const server = Bun.serve({

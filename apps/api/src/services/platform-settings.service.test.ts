@@ -41,6 +41,8 @@ mock.module('../db/redis', () => ({
 
 import {
   coercePlatformSettingValue,
+  ensureAdminAccountListPlatformSettingExists,
+  ensureAuthAllowlistPlatformSettingsExist,
   isAuthIdentifierAllowed,
   isPlatformAdmin,
   upsertPlatformSetting,
@@ -187,6 +189,21 @@ describe('isPlatformAdmin', () => {
     expect(await isPlatformAdmin(adminId.toHexString())).toBe(true);
   });
 
+  test('returns true when user id is stored as a hex string in the list', async () => {
+    const adminId = new ObjectId();
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key === PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST) {
+        return Promise.resolve({
+          valueType: 'objectIdArray',
+          value: [adminId.toHexString()],
+        });
+      }
+      return Promise.resolve(null);
+    });
+    expect(await isPlatformAdmin(adminId)).toBe(true);
+    expect(await isPlatformAdmin(adminId.toHexString().toUpperCase())).toBe(true);
+  });
+
   test('returns false when user id is not in list', async () => {
     const adminId = new ObjectId();
     mockFindByKey.mockImplementation((key: string) => {
@@ -229,5 +246,105 @@ describe('upsertPlatformSetting', () => {
     expect(mockUpsertByKey).toHaveBeenCalled();
     const arg = mockUpsertByKey.mock.calls[0]?.[0] as { value: string[] };
     expect(arg.value).toEqual(['user@example.com']);
+  });
+});
+
+describe('ensureAuthAllowlistPlatformSettingsExist', () => {
+  beforeEach(() => {
+    mockFindByKey.mockReset();
+    mockUpsertByKey.mockReset();
+    mockUpsertByKey.mockImplementation(() =>
+      Promise.resolve({
+        _id: new ObjectId(),
+        key: PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_EMAIL,
+        description: '',
+        valueType: 'stringArray',
+        value: [],
+        lastUpdatedBy: 'u',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+    );
+  });
+
+  test('creates all three allowlist settings when missing', async () => {
+    mockFindByKey.mockImplementation(() => Promise.resolve(null));
+
+    await ensureAuthAllowlistPlatformSettingsExist('admin-user-id');
+
+    expect(mockUpsertByKey).toHaveBeenCalledTimes(3);
+  });
+
+  test('does not upsert when every allowlist key already exists', async () => {
+    mockFindByKey.mockImplementation(() =>
+      Promise.resolve({
+        _id: new ObjectId(),
+        key: 'x',
+        description: '',
+        valueType: 'boolean',
+        value: false,
+        lastUpdatedBy: 'u',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+    );
+
+    await ensureAuthAllowlistPlatformSettingsExist('admin-user-id');
+
+    expect(mockUpsertByKey).not.toHaveBeenCalled();
+  });
+});
+
+describe('ensureAdminAccountListPlatformSettingExists', () => {
+  beforeEach(() => {
+    mockFindByKey.mockReset();
+    mockUpsertByKey.mockReset();
+    mockUpsertByKey.mockImplementation(() =>
+      Promise.resolve({
+        _id: new ObjectId(),
+        key: PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST,
+        description: '',
+        valueType: 'objectIdArray',
+        value: [],
+        lastUpdatedBy: 'system',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+    );
+  });
+
+  test('upserts empty objectIdArray when admin list setting is missing', async () => {
+    mockFindByKey.mockImplementation(() => Promise.resolve(null));
+
+    await ensureAdminAccountListPlatformSettingExists();
+
+    expect(mockUpsertByKey).toHaveBeenCalledTimes(1);
+    const arg = mockUpsertByKey.mock.calls[0]?.[0] as {
+      key: string;
+      valueType: string;
+      value: unknown;
+    };
+    expect(arg.key).toBe(PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST);
+    expect(arg.valueType).toBe('objectIdArray');
+    expect(arg.value).toEqual([]);
+  });
+
+  test('does not upsert when admin list setting already exists', async () => {
+    mockFindByKey.mockImplementation(() =>
+      Promise.resolve({
+        _id: new ObjectId(),
+        key: PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST,
+        description: '',
+        valueType: 'objectIdArray',
+        value: [],
+        lastUpdatedBy: 'u',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+    );
+
+    await ensureAdminAccountListPlatformSettingExists();
+
+    expect(mockUpsertByKey).not.toHaveBeenCalled();
   });
 });

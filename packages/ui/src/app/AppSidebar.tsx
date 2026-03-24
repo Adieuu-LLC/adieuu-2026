@@ -13,7 +13,7 @@ import { SidebarFriendsList } from '../components/SidebarFriendsList';
 import { SidebarConversationsList } from '../components/SidebarConversationsList';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
-import { HomeIcon, InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon, MessageIcon, SpacesIcon } from '../components/Icons';
+import { HomeIcon, InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon, MessageIcon, SpacesIcon, ShieldIcon } from '../components/Icons';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
 import { useConversationsContext } from '../hooks/ConversationsProvider';
@@ -347,8 +347,27 @@ function SidebarNavContent() {
  * Footer content component that has access to sidebar context.
  */
 function SidebarFooterContent() {
+  const { t } = useTranslation();
+  const { session } = useAuth();
+  const location = useLocation();
+  const { closeMobile } = useSidebar();
+  const showAdmin = session?.isPlatformAdmin === true;
+  const isAdminActive = location.pathname.startsWith('/admin');
+
   return (
     <div className="sidebar-footer-stack">
+      {showAdmin && (
+        <div className="sidebar-admin-row">
+          <Link
+            to="/admin"
+            className={`sidebar-admin-link sidebar-admin-link-btn${isAdminActive ? ' sidebar-admin-link-active' : ''}`}
+            onClick={closeMobile}
+          >
+            <ShieldIcon />
+            <span>{t('admin.nav.link')}</span>
+          </Link>
+        </div>
+      )}
       {/* Identity Menu with Flyout */}
       <div className="sidebar-identity-section">
         <div className="sidebar-identity-row">

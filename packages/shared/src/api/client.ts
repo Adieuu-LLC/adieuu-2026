@@ -176,6 +176,8 @@ export interface SessionInfo {
   identityCount: number;
   /** Maximum number of identities allowed */
   maxIdentities: number;
+  /** Whether this user can access platform admin APIs and UI */
+  isPlatformAdmin: boolean;
 }
 
 /**
@@ -1885,6 +1887,98 @@ export class DmReactionsApi {
 }
 
 // ============================================================================
+// Admin (platform) API
+// ============================================================================
+
+/** Canonical platform setting keys (must match API `platform_settings.key`). */
+export const PLATFORM_SETTING_KEYS = {
+  AUTH_ALLOWLIST_ENFORCED: 'platform-auth-allowlist-enforced',
+  AUTH_ALLOWLIST_EMAIL: 'platform-auth-allowlist-email',
+  AUTH_ALLOWLIST_PHONE: 'platform-auth-allowlist-phone',
+  ADMIN_ACCOUNT_LIST: 'platform-admin-account-list',
+} as const;
+
+export type PlatformSettingKey = (typeof PLATFORM_SETTING_KEYS)[keyof typeof PLATFORM_SETTING_KEYS];
+
+export interface AdminMetrics {
+  totalUsers: number;
+  totalIdentities: number;
+  activeIdentities15m: number;
+  activeIdentities24h: number;
+}
+
+export type PlatformSettingValueType =
+  | 'boolean'
+  | 'string'
+  | 'number'
+  | 'stringArray'
+  | 'objectIdArray';
+
+export interface PublicPlatformSetting {
+  key: string;
+  description?: string;
+  valueType: PlatformSettingValueType;
+  value: unknown;
+  lastUpdatedBy?: string;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface PutPlatformSettingBody {
+  valueType: PlatformSettingValueType;
+  value: unknown;
+  description?: string;
+}
+
+export interface PlatformAdminRow {
+  userId: string;
+  email?: string;
+  phone?: string;
+  displayName?: string;
+  /** True when the user id is listed but no longer exists in the database */
+  stale?: boolean;
+}
+
+export class AdminApi {
+  constructor(private client: ApiClient) {}
+
+  async getMetrics(): Promise<ApiResponse<AdminMetrics>> {
+    return this.client.get('/api/admin/metrics');
+  }
+
+  async getPlatformSettings(): Promise<ApiResponse<PublicPlatformSetting[]>> {
+    return this.client.get('/api/admin/platform-settings');
+  }
+
+  async getPlatformSetting(key: string): Promise<ApiResponse<PublicPlatformSetting>> {
+    return this.client.get(`/api/admin/platform-settings/${encodeURIComponent(key)}`);
+  }
+
+  async putPlatformSetting(
+    key: string,
+    body: PutPlatformSettingBody
+  ): Promise<ApiResponse<PublicPlatformSetting>> {
+    return this.client.put(`/api/admin/platform-settings/${encodeURIComponent(key)}`, body);
+  }
+
+  async listPlatformAdmins(): Promise<ApiResponse<{ admins: PlatformAdminRow[] }>> {
+    return this.client.get('/api/admin/platform-admins');
+  }
+
+  async addPlatformAdmin(params: {
+    identifier: string;
+  }): Promise<ApiResponse<{ admins: PlatformAdminRow[] }>> {
+    return this.client.post('/api/admin/platform-admins', params);
+  }
+
+  async removePlatformAdmin(
+    userId: string
+  ): Promise<ApiResponse<{ admins: PlatformAdminRow[] }>> {
+    return this.client.delete(`/api/admin/platform-admins/${encodeURIComponent(userId)}`);
+  }
+}
+
+// ============================================================================
 // Factory Functions
 // ============================================================================
 
@@ -1905,6 +1999,7 @@ export function createApiClient(config: ApiClientConfig) {
     notifications: new NotificationsApi(client),
     dm: new DmApi(client),
     dmReactions: new DmReactionsApi(client),
+    admin: new AdminApi(client),
   };
 }
 

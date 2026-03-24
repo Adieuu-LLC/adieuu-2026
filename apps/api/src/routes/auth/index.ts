@@ -17,6 +17,7 @@ import { Router } from '../../router';
 import { success } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
 import { MAX_IDENTITIES_PER_USER } from '../../services/identity.service';
+import { isPlatformAdmin } from '../../services/platform-settings.service';
 import { getUserRepository } from '../../repositories/user.repository';
 import {
   requestOtp,
@@ -276,10 +277,12 @@ router.get('/auth/session', async (ctx) => {
 
   // Fetch user to get identity count
   let identityCount = 0;
+  let isPlatformAdminUser = false;
   if (session.userId) {
     const userRepo = getUserRepository();
     const user = await userRepo.findById(session.userId);
     identityCount = user?.identityCount ?? 0;
+    isPlatformAdminUser = await isPlatformAdmin(session.userId);
   }
 
   // Return non-sensitive session info for the UI
@@ -289,6 +292,7 @@ router.get('/auth/session', async (ctx) => {
     // Identity info for UI state management
     identityCount,
     maxIdentities: MAX_IDENTITIES_PER_USER,
+    isPlatformAdmin: isPlatformAdminUser,
   });
 });
 

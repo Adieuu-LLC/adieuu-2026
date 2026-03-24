@@ -1,7 +1,8 @@
-import { ObjectId } from "mongodb";
+import { ObjectId } from 'mongodb';
 
 /**
- * Validates that a string is a valid MongoDB ObjectId
+ * Returns true if `id` is a 24-character hex string that {@link ObjectId} accepts.
+ * Use when validating route params, stored IDs, or mixed string/ObjectId values.
  */
 export function isValidObjectId(id: string): boolean {
   if (!id || id.length !== 24) return false;

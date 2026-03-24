@@ -31,6 +31,13 @@ import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { WebSecurityBanner } from '../components/WebSecurityBanner';
 import { UpdateBanner } from '../components/UpdateBanner';
 import { AppSidebar } from './AppSidebar';
+import {
+  AdminAuthAllowlist,
+  AdminDashboard,
+  AdminGate,
+  AdminLayout,
+  AdminPlatformAdmins,
+} from '../pages/admin';
 
 /**
  * Protected route wrapper - redirects to login if not authenticated.
@@ -167,6 +174,16 @@ export function App() {
         <Route path="/identity/privacy" element={<IdentityPrivacy />} />
         <Route path="/identity/devices" element={<IdentityDevices />} />
         <Route path="/identity/ciphers" element={<IdentityCiphers />} />
+
+        {/* Platform admin (nested layout + guard) */}
+        <Route element={<AdminGate />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="platform-admins" element={<AdminPlatformAdmins />} />
+            <Route path="auth-allowlist" element={<AdminAuthAllowlist />} />
+          </Route>
+        </Route>
       </Route>
 
       {/* Utility Routes (no auth required) */}

@@ -10,6 +10,7 @@ import type {
   PlatformSettingValue,
   PlatformSettingValueType,
 } from '../models/platform-settings';
+import { isValidObjectId } from '../utils/isValidObjectId';
 import { sanitizeString } from '../utils/sanitize';
 import { getRedis, isRedisConnected } from '../db';
 import { RedisKeys } from '../db/redis';
@@ -130,30 +131,40 @@ export async function isAuthIdentifierAllowed(
 export async function isPlatformAdmin(userId: string | ObjectId): Promise<boolean> {
   const repo = getPlatformSettingsRepository();
   const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST);
-  if (!doc || doc.valueType !== 'objectIdArray' || !Array.isArray(doc.value)) {
+
+  if (!doc) {
+    elog.warn('No platform admin list found.');
     return false;
   }
 
-  const want = typeof userId === 'string' ? userId.toLowerCase() : userId.toHexString().toLowerCase();
+  if (doc.valueType !== 'objectIdArray' || !Array.isArray(doc.value)) {
+    elog.warn('Platform admin list found, but appears invalid. Make sure it is an array of ObjectIds');
+    return false;
+  }
 
-  for (const v of doc.value) {
-    if (v instanceof ObjectId) {
-      if (v.toHexString().toLowerCase() === want) return true;
-    } else if (v && typeof v === 'object' && '_id' in v) {
-      // driver-specific ObjectId
+  const currentUserId = typeof userId === 'string' ? userId.toLowerCase() : userId.toHexString().toLowerCase();
+
+  for (const adminlistEntry of doc.value) {
+    if (adminlistEntry instanceof ObjectId) {
+      if (adminlistEntry.toHexString().toLowerCase() === currentUserId) return true;
+      continue;
+    }
+    if (typeof adminlistEntry === 'string') {
+      if (isValidObjectId(adminlistEntry) && adminlistEntry.toLowerCase() === currentUserId) {
+        return true;
+      }
+      continue;
+    }
+    if (adminlistEntry && typeof adminlistEntry === 'object' && '_id' in adminlistEntry) {
       try {
-        const oid = v as ObjectId;
-        if (oid.toHexString().toLowerCase() === want) return true;
+        const oid = adminlistEntry as ObjectId;
+        if (oid.toHexString().toLowerCase() === currentUserId) return true;
       } catch {
-        /* ignore */
+        elog.warn('Invalid ObjectId in platform admin list', { value: adminlistEntry });
       }
     }
   }
   return false;
-}
-
-function isValidObjectIdHex(s: string): boolean {
-  return /^[a-fA-F0-9]{24}$/.test(s);
 }
 
 /**
@@ -190,7 +201,7 @@ export function coercePlatformSettingValue(
       }
       const out: ObjectId[] = [];
       for (const item of raw) {
-        if (typeof item !== 'string' || !isValidObjectIdHex(item)) {
+        if (typeof item !== 'string' || !isValidObjectId(item)) {
           throw new Error('value must be an array of 24-character hex ObjectId strings');
         }
         out.push(new ObjectId(item));
@@ -242,4 +253,77 @@ export async function upsertPlatformSetting(
 
   await repo.upsertByKey(input);
   await invalidateAuthAllowlistCache();
+}
+
+const AUTH_ALLOWLIST_SETTING_DEFAULTS: ReadonlyArray<{
+  key: string;
+  valueType: PlatformSettingValueType;
+  value: PlatformSettingValue;
+  description: string;
+}> = [
+  {
+    key: PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_ENFORCED,
+    valueType: 'boolean',
+    value: false,
+    description: 'Whether sign-in OTP is restricted to the email/phone allowlists',
+  },
+  {
+    key: PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_EMAIL,
+    valueType: 'stringArray',
+    value: [],
+    description: 'Email addresses allowed to sign in when allowlist is enforced',
+  },
+  {
+    key: PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_PHONE,
+    valueType: 'stringArray',
+    value: [],
+    description: 'E.164 phone numbers allowed to sign in when allowlist is enforced',
+  },
+];
+
+/**
+ * Creates default `platform_settings` documents for auth allowlist keys when missing.
+ * Idempotent: only inserts rows that do not exist.
+ */
+export async function ensureAuthAllowlistPlatformSettingsExist(lastUpdatedBy: string): Promise<void> {
+  const repo = getPlatformSettingsRepository();
+
+  for (const def of AUTH_ALLOWLIST_SETTING_DEFAULTS) {
+    const existing = await repo.findByKey(def.key);
+    if (!existing) {
+      await upsertPlatformSetting({
+        key: def.key,
+        description: def.description,
+        valueType: def.valueType,
+        value: def.value,
+        lastUpdatedBy,
+      });
+    }
+  }
+}
+
+/** Actor id used when inserting default rows during server bootstrap (no user session). */
+export const PLATFORM_SETTING_BOOTSTRAP_ACTOR = 'system';
+
+/**
+ * Ensures the platform admin account list setting exists with an empty list.
+ * Call once after MongoDB is available (e.g. server startup). Idempotent.
+ */
+export async function ensureAdminAccountListPlatformSettingExists(): Promise<void> {
+  const repo = getPlatformSettingsRepository();
+  const key = PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST;
+  const existing = await repo.findByKey(key);
+  if (existing) {
+    return;
+  }
+
+  await upsertPlatformSetting({
+    key,
+    description: 'Platform administrator user IDs',
+    valueType: 'objectIdArray',
+    value: [],
+    lastUpdatedBy: PLATFORM_SETTING_BOOTSTRAP_ACTOR,
+  });
+
+  elog.info('Created default platform admin list setting', { key });
 }

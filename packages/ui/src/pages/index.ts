@@ -26,3 +26,12 @@ export {
 
 // Utility pages
 export { ServiceStatus } from './ServiceStatus';
+
+// Admin
+export {
+  AdminGate,
+  AdminLayout,
+  AdminDashboard,
+  AdminPlatformAdmins,
+  AdminAuthAllowlist,
+} from './admin';
