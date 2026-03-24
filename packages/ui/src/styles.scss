@@ -20,6 +20,8 @@ $z-content: 1;
 $z-sidebar: 10;
 $z-mobile-overlay: 15;
 $z-hamburger: 20;
+// Drawer must sit above overlay + hamburger so sidebar (incl. logo) receives clicks
+$z-sidebar-mobile-open: 25;
 
 // ============================================================================
 // CSS Custom Properties (Theme Variables)
@@ -250,6 +252,7 @@ body {
 
 // Sidebar Header - Logo area
 .sidebar-header {
+  position: relative;
   padding: var(--spacing-lg);
   border-bottom: 1px solid var(--color-border-muted);
   flex-shrink: 0;
@@ -257,9 +260,22 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 72px;
+  // Keep scaled logo hover from painting over the collapse toggle (narrow rail)
+  overflow: hidden;
 
   .sidebar-collapsed & {
     padding: var(--spacing-md);
+  }
+
+  // Full-header hit target for home link (logo alone is a small target)
+  .app-logo-link {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    // Electron: header may use -webkit-app-region: drag; link must stay clickable
+    -webkit-app-region: no-drag;
   }
 }
 
@@ -271,6 +287,155 @@ body {
   &-img {
     display: block;
     width: auto;
+  }
+}
+
+.app-logo-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  --logo-primary: #e0e8f0;
+  --logo-secondary: #20d0e8;
+
+  .app-logo-img {
+    transform-origin: center center;
+    transition: transform 0.2s ease;
+  }
+
+  .app-logo-img path {
+    transition: fill 0.2s ease;
+  }
+
+  &:hover {
+    --logo-primary: #20d0e8;
+    --logo-secondary: #e0e8f0;
+
+    .app-logo-img {
+      transform: scale(1.05);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-focus-ring, var(--color-primary));
+    outline-offset: 2px;
+    border-radius: var(--radius-sm, 4px);
+  }
+}
+
+// Home onboarding checklist
+.onboarding-checklist {
+  margin-top: var(--spacing-lg);
+  padding: var(--spacing-lg);
+}
+
+.onboarding-checklist-header {
+  margin-bottom: var(--spacing-lg);
+}
+
+.onboarding-checklist-title {
+  margin: 0 0 var(--spacing-xs);
+  font-size: var(--font-size-xl);
+  color: var(--color-text-primary);
+}
+
+.onboarding-checklist-subtitle {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.onboarding-checklist-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.onboarding-checklist-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.onboarding-checklist-item {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: flex-start;
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--color-border-subtle, var(--color-border));
+  background: var(--color-surface-elevated, transparent);
+}
+
+.onboarding-checklist-item-done {
+  opacity: 0.85;
+}
+
+.onboarding-checklist-item-disabled {
+  opacity: 0.7;
+}
+
+.onboarding-check-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-text-tertiary);
+
+  &-done {
+    color: var(--color-success, #22c55e);
+  }
+}
+
+.onboarding-checklist-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.onboarding-checklist-item-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+}
+
+.onboarding-checklist-item-title {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.onboarding-checklist-badge {
+  font-size: var(--font-size-xs);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-surface-muted, rgba(128, 128, 128, 0.2));
+  color: var(--color-text-secondary);
+}
+
+.onboarding-checklist-item-description {
+  margin: 0 0 var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+
+.onboarding-checklist-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+
+  a.btn {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
@@ -319,7 +484,8 @@ body {
   cursor: pointer;
   color: var(--color-text-secondary);
   transition: all var(--transition-fast);
-  z-index: var(--z-sticky);
+  // Above logo hover transform / nav layers so the handle stays visible and clickable
+  z-index: var(--z-fixed);
 
   &:hover {
     background: var(--color-bg-hover);
@@ -412,6 +578,8 @@ body {
     // Force expanded width on mobile when open
     &.sidebar-mobile-open {
       width: min(80vw, $sidebar-width-max);
+      // Above overlay and hamburger so nav + logo receive clicks (not dimmer / menu button)
+      z-index: $z-sidebar-mobile-open;
     }
   }
 
@@ -421,6 +589,7 @@ body {
 
     &.sidebar-mobile-open {
       transform: translateX(0);
+      z-index: $z-sidebar-mobile-open;
     }
   }
 
@@ -733,6 +902,13 @@ body {
     transform: translateX(0);
   }
 
+  // Tour: logout step targets a flyout item; keep menu open without hover
+  body.tour-account-flyout-open .sidebar-account-flyout-wrapper & {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+  }
+
   &-content {
     background: var(--color-bg-secondary);
     border: 1px solid var(--color-border);
@@ -743,6 +919,10 @@ body {
 }
 
 .sidebar-account-flyout-wrapper:hover .sidebar-account-chevron {
+  transform: translateX(2px);
+}
+
+body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-chevron {
   transform: translateX(2px);
 }
 
@@ -802,7 +982,8 @@ body {
   .sidebar-account-label,
   .sidebar-account-chevron,
   .sidebar-identity-label,
-  .sidebar-identity-chevron {
+  .sidebar-identity-chevron,
+  .sidebar-admin-label {
     display: none;
   }
 
@@ -810,6 +991,12 @@ body {
   .sidebar-identity-btn {
     justify-content: center;
     padding: var(--spacing-sm);
+  }
+
+  .sidebar-admin-link {
+    justify-content: center;
+    padding: var(--spacing-sm);
+    gap: 0;
   }
 
   .sidebar-identity-section {
@@ -4458,6 +4645,7 @@ a {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sidebar-tab-panel-hidden {

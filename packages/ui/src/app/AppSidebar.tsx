@@ -13,7 +13,7 @@ import { SidebarFriendsList } from '../components/SidebarFriendsList';
 import { SidebarConversationsList } from '../components/SidebarConversationsList';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
-import { HomeIcon, InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon, MessageIcon, SpacesIcon, ShieldIcon } from '../components/Icons';
+import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon, MessageIcon, SpacesIcon, ShieldIcon } from '../components/Icons';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
 import { useConversationsContext } from '../hooks/ConversationsProvider';
@@ -85,6 +85,7 @@ function AccountFlyout() {
             type="button"
             onClick={handleLogout}
             className="sidebar-flyout-item sidebar-flyout-item-logout"
+            data-tour="logout"
           >
             <LogoutIcon />
             {t('nav.logout')}
@@ -301,17 +302,10 @@ function SidebarNavContent() {
 
   return (
     <>
-      <div className="sidebar-search-section">
+      <div className="sidebar-search-section" data-tour="search">
         <SidebarSearch />
       </div>
       <SidebarSection label={t('sidebar.main')}>
-        <Link to="/" style={{ textDecoration: 'none' }} onClick={closeMobile}>
-          <SidebarItem
-            icon={<HomeIcon />}
-            label={t('nav.home')}
-            isActive={isActive('/')}
-          />
-        </Link>
         <Link to="/about" style={{ textDecoration: 'none' }} onClick={closeMobile}>
           <SidebarItem
             icon={<InfoIcon />}
@@ -321,7 +315,7 @@ function SidebarNavContent() {
         </Link>
       </SidebarSection>
 
-      <div className="sidebar-tabs-section">
+      <div className="sidebar-tabs-section" data-tour="sidebar-tabs">
         <SidebarTabs
           tabs={tabs}
           activeTab={activeTab}
@@ -364,7 +358,7 @@ function SidebarFooterContent() {
             onClick={closeMobile}
           >
             <ShieldIcon />
-            <span>{t('admin.nav.link')}</span>
+            <span className="sidebar-admin-label">{t('admin.nav.link')}</span>
           </Link>
         </div>
       )}
@@ -390,9 +384,14 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ onExpandedChange }: AppSidebarProps) {
+  const { t } = useTranslation();
   return (
     <Sidebar
-      header={<Logo size="sm" />}
+      header={
+        <Link to="/" className="app-logo-link" aria-label={t('nav.home')}>
+          <Logo size="sm" />
+        </Link>
+      }
       footer={<SidebarFooterContent />}
       onExpandedChange={onExpandedChange}
     >

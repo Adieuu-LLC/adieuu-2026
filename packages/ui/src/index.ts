@@ -247,6 +247,7 @@ export type {
 export type {
   TourStep,
   TourStepAction,
+  TourStepEffect,
   TourRootProps,
   TourApi,
 } from './components/Tour';

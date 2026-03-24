@@ -807,6 +807,80 @@ export const en = {
         description: "We collect only what's necessary. Your data is yours.",
       },
     },
+    onboarding: {
+      title: 'Get started',
+      subtitle:
+        'Adieuu has two sign-ins: your account (email or phone) and your Alias (your public identity). Complete the steps below to secure your account and start messaging.',
+      loading: 'Loading your progress...',
+      badgeComingSoon: 'Coming soon',
+      items: {
+        tour: {
+          title: 'Take the tour',
+          description: 'See where search, your Alias, account settings, and more live in the app.',
+          action: 'Start tour',
+          actionRetake: 'Retake tour',
+        },
+        mfa: {
+          title: 'Add multi-factor authentication (MFA)',
+          description: 'Protect your account with an authenticator app or passkey.',
+          action: 'Go to security',
+        },
+        verify: {
+          title: 'Verify your email or phone',
+          description: 'Confirm your contact method so we can reach you if needed.',
+          action: 'Account overview',
+        },
+        alias: {
+          title: 'Create your first Alias',
+          description: 'Your Alias is how others find you. It is separate from your account login for privacy.',
+          action: 'Alias settings',
+        },
+        age: {
+          title: 'Verify your age',
+          description: 'Age verification will be available here soon.',
+        },
+      },
+    },
+  },
+
+  // Guided tour (product walkthrough)
+  tour: {
+    steps: {
+      welcome: {
+        title: 'Welcome to Adieuu{{platform}}!',
+        descriptionWeb:
+          'You sign in to your Adieuu account first (email or phone). Then you open your Alias to use messaging and social features. Your Alias is separate from your account login for privacy. Let us show you around.',
+        descriptionDesktop:
+          'You sign in to your Adieuu account first (email or phone). Then you open your Alias to use messaging and social features. Your Alias is separate from your account login for privacy. Let us show you around.',
+        descriptionMobile:
+          'You sign in to your Adieuu account first (email or phone). Then you open your Alias to use messaging and social features. Your Alias is separate from your account login for privacy. Let us show you around.',
+      },
+      search: {
+        title: 'Search',
+        description:
+          'Search for people by display name or username. Pick a result to open their profile, or press Enter to see all matches on the search page.',
+      },
+      sidebarTabs: {
+        title: 'Friends and conversations',
+        description:
+          'Switch between Friends, Conversations, and Spaces. Your friends list and direct messages live here.',
+      },
+      identity: {
+        title: 'Your Alias',
+        description:
+          'Use this control to log in to your Alias, switch Aliases, or manage Alias settings. Messaging and social features use your Alias, not your account email or phone.',
+      },
+      account: {
+        title: 'Account',
+        description:
+          'Manage your profile, security (including MFA), app settings, and sign out of your account here.',
+      },
+      logout: {
+        title: 'Sign out',
+        description:
+          'When you are done, sign out of your account from this menu. Your session ends securely.',
+      },
+    },
   },
 
   // Auth pages

@@ -96,7 +96,8 @@ $title-bar-height: 32px;
 .sidebar-header {
   -webkit-app-region: drag;
 
-  .auth-logo {
+  .auth-logo,
+  .app-logo-link {
     -webkit-app-region: no-drag;
   }
 }

@@ -40,6 +40,11 @@ export interface TourStep {
   actions?: TourStepAction[];
   /** Custom content to render instead of description */
   content?: ReactNode;
+  /**
+   * Run when entering this step (Zag tour). For tooltip/dialog steps you must call `show()`
+   * after any async prep. Return a cleanup function when leaving the step.
+   */
+  effect?: TourStepEffect;
 }
 
 export interface TourStepAction {
@@ -48,6 +53,19 @@ export interface TourStepAction {
   /** Action type - determines behavior */
   action: 'prev' | 'next' | 'dismiss' | 'skip';
 }
+
+/**
+ * Zag tour step effect. For non-wait steps you must call `show()` so the step becomes active.
+ * Return a cleanup function to run when leaving the step.
+ */
+export type TourStepEffect = (args: {
+  next: () => void;
+  goto: (id: string) => void;
+  dismiss: () => void;
+  show: () => void;
+  update: (data: Record<string, unknown>) => void;
+  target?: () => HTMLElement | null;
+}) => void | (() => void);
 
 export interface TourProviderProps {
   /** Array of steps to show in the tour */
@@ -181,6 +199,7 @@ type StepDetails = {
   placement?: TourStep['placement'];
   actions?: TourStepAction[];
   content?: ReactNode;
+  effect?: TourStepEffect;
 };
 
 /**
@@ -227,6 +246,7 @@ export function createTourSteps(steps: TourStep[]): StepDetails[] {
       placement: step.placement ?? 'bottom',
       actions,
       content: step.content,
+      ...(step.effect ? { effect: step.effect } : {}),
     };
   });
 }
