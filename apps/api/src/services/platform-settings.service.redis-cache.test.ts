@@ -95,11 +95,12 @@ describe('loadAuthAllowlistState with Redis', () => {
     await isAuthIdentifierAllowed('any@example.com', 'email');
 
     expect(mockFindByKey).toHaveBeenCalledTimes(3);
-    expect(mockRedisSet).toHaveBeenCalled();
-    const setArgs = mockRedisSet.mock.calls[0];
-    expect(setArgs?.[0]).toBe('platform_setting_cache:auth_allowlist');
-    expect(setArgs?.[2]).toBe('EX');
-    expect(setArgs?.[3]).toBe(45);
+    expect(mockRedisSet).toHaveBeenCalledWith(
+      'platform_setting_cache:auth_allowlist',
+      expect.any(String),
+      'EX',
+      45
+    );
   });
 });
 
@@ -132,6 +133,6 @@ describe('upsertPlatformSetting cache invalidation with Redis', () => {
     });
 
     expect(mockRedisDel).toHaveBeenCalledTimes(1);
-    expect(mockRedisDel.mock.calls[0]?.[0]).toBe('platform_setting_cache:auth_allowlist');
+    expect(mockRedisDel).toHaveBeenCalledWith('platform_setting_cache:auth_allowlist');
   });
 });

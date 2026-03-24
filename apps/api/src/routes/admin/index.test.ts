@@ -13,7 +13,7 @@ const mockFindAll = mock(() => Promise.resolve([] as unknown[]));
 const mockFindByKey = mock((_key: string) => Promise.resolve(null as unknown));
 const mockUserCount = mock(() => Promise.resolve(0));
 const mockIdentityCount = mock(() => Promise.resolve(0));
-const mockUserFindById = mock(() => Promise.resolve(null as unknown));
+const mockUserFindById = mock((_id?: unknown) => Promise.resolve(null as unknown));
 const mockFindByIdentifier = mock(() => Promise.resolve(null as unknown));
 
 mock.module('../../config', () => ({
@@ -265,8 +265,10 @@ describe('admin platform-settings routes', () => {
     };
     expect(body.success).toBe(true);
     expect(body.data.admins).toHaveLength(1);
-    expect(body.data.admins[0].userId).toBe(otherId.toHexString());
-    expect(body.data.admins[0].email).toBe('u@example.com');
+    const firstAdmin = body.data.admins[0];
+    expect(firstAdmin).toBeDefined();
+    expect(firstAdmin!.userId).toBe(otherId.toHexString());
+    expect(firstAdmin!.email).toBe('u@example.com');
   });
 
   test('POST /api/admin/platform-admins returns 404 when user not found', async () => {

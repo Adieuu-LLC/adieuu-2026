@@ -421,7 +421,9 @@ describe('response utilities', () => {
       const body = await response.json() as ApiErrorResponse;
       expect(body.success).toBe(false);
       expect(body.error.code).toBe('SIGN_IN_RESTRICTED');
-      expect(body.error.message).toBe('Sign-in is not available for this account.');
+      expect(body.error.message).toBe(
+        'Sign-in is restricted to an allowlist. This is temporary. IYKYK.'
+      );
       expect(body.meta?.timestamp).toBeDefined();
     });
   });

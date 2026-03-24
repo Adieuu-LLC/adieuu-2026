@@ -193,7 +193,7 @@ router.post('/admin/platform-admins', async (ctx) => {
   const userRepo = getUserRepository();
   const user = await userRepo.findByIdentifier(identifier);
   if (!user) {
-    return ctx.errors.notFound('User not found');
+    return ctx.errors.notFound();
   }
 
   const repo = getPlatformSettingsRepository();
@@ -252,7 +252,7 @@ router.delete('/admin/platform-admins/:userId', async (ctx) => {
     .filter((hex) => hex !== removeId.toHexString());
 
   if (nextHex.length === existing.length) {
-    return ctx.errors.notFound('User not found');
+    return ctx.errors.notFound();
   }
 
   try {

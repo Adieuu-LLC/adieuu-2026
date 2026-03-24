@@ -1,14 +1,15 @@
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import { PLATFORM_SETTING_KEYS } from '../constants/platform-settings-keys';
+import type { PlatformSettingsDocument } from '../models/platform-settings';
 
 const mockFindByKey = mock((key: string) => Promise.resolve(null as unknown));
-const mockUpsertByKey = mock(() =>
+const mockUpsertByKey = mock((): Promise<PlatformSettingsDocument> =>
   Promise.resolve({
     _id: new ObjectId(),
     key: 'x',
     description: '',
-    valueType: 'stringArray' as const,
+    valueType: 'stringArray',
     value: [],
     lastUpdatedBy: 'u',
     createdAt: new Date(),
@@ -244,7 +245,8 @@ describe('upsertPlatformSetting', () => {
     });
 
     expect(mockUpsertByKey).toHaveBeenCalled();
-    const arg = mockUpsertByKey.mock.calls[0]?.[0] as { value: string[] };
+    const firstUpsert = mockUpsertByKey.mock.calls[0] as unknown as [unknown];
+    const arg = firstUpsert[0] as { value: string[] };
     expect(arg.value).toEqual(['user@example.com']);
   });
 });
@@ -319,7 +321,8 @@ describe('ensureAdminAccountListPlatformSettingExists', () => {
     await ensureAdminAccountListPlatformSettingExists();
 
     expect(mockUpsertByKey).toHaveBeenCalledTimes(1);
-    const arg = mockUpsertByKey.mock.calls[0]?.[0] as {
+    const firstUpsert = mockUpsertByKey.mock.calls[0] as unknown as [unknown];
+    const arg = firstUpsert[0] as {
       key: string;
       valueType: string;
       value: unknown;
