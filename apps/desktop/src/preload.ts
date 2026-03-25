@@ -50,7 +50,7 @@ contextBridge.exposeInMainWorld('electron', {
 
   // IPC communication (add as needed)
   invoke: (channel: string, ...args: unknown[]) => {
-    const allowedChannels = ['get-app-version', 'open-external', 'install-update'];
+    const allowedChannels = ['get-app-version', 'open-external', 'install-update', 'get-pending-deep-link'];
     if (allowedChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);
     }
@@ -58,7 +58,7 @@ contextBridge.exposeInMainWorld('electron', {
   },
 
   on: (channel: string, callback: (...args: unknown[]) => void) => {
-    const allowedChannels = ['update-available', 'download-progress', 'update-downloaded'];
+    const allowedChannels = ['update-available', 'download-progress', 'update-downloaded', 'deep-link'];
     if (allowedChannels.includes(channel)) {
       ipcRenderer.on(channel, (_, ...args) => callback(...args));
     }

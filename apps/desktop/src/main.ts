@@ -28,6 +28,42 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 // ============================================================================
+// Single-instance lock + deep link handling
+//
+// Only one instance of the app should run at a time. When a second launch
+// occurs (e.g. the user clicks an adieuu:// link while the app is running),
+// the URL is forwarded to the existing instance via second-instance (Win/Linux)
+// or open-url (macOS).
+// ============================================================================
+
+let pendingDeepLinkPath: string | null = null;
+
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+}
+
+app.on('second-instance', (_event, argv) => {
+  const url = argv.find((arg) => arg.startsWith(`${CUSTOM_SCHEME}://`));
+  if (url) {
+    const routePath = extractDeepLinkPath(url);
+    mainWindow?.webContents.send('deep-link', routePath);
+  }
+  focusMainWindow();
+});
+
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  const routePath = extractDeepLinkPath(url);
+  if (mainWindow?.webContents) {
+    mainWindow.webContents.send('deep-link', routePath);
+    focusMainWindow();
+  } else {
+    pendingDeepLinkPath = routePath;
+  }
+});
+
+// ============================================================================
 // Linux password store detection (must run before app.whenReady)
 // ============================================================================
 
@@ -158,6 +194,13 @@ app.whenReady().then(() => {
     setupProductionCors();
   }
   app.setAsDefaultProtocolClient(CUSTOM_SCHEME);
+
+  // Check launch args for a deep link URL (cold start on Windows/Linux)
+  const launchUrl = process.argv.find((arg) => arg.startsWith(`${CUSTOM_SCHEME}://`));
+  if (launchUrl) {
+    pendingDeepLinkPath = extractDeepLinkPath(launchUrl);
+  }
+
   createWindow();
   initAutoUpdater();
 });
@@ -196,6 +239,30 @@ app.on('web-contents-created', (_, contents) => {
     }
   });
 });
+
+// ============================================================================
+// Deep link helpers
+// ============================================================================
+
+/**
+ * Extracts the SPA route path from a deep link URL.
+ *
+ * Example: adieuu://open/conversation/abc123 -> /conversation/abc123
+ */
+function extractDeepLinkPath(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.pathname || '/';
+  } catch {
+    return '/';
+  }
+}
+
+function focusMainWindow(): void {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.focus();
+}
 
 // ============================================================================
 // Custom protocol handler (adieuu://app -> dist/renderer)
@@ -382,6 +449,13 @@ ipcMain.handle('install-update', () => {
     return;
   }
   autoUpdater.quitAndInstall();
+});
+
+// Deep link IPC
+ipcMain.handle('get-pending-deep-link', () => {
+  const link = pendingDeepLinkPath;
+  pendingDeepLinkPath = null;
+  return link;
 });
 
 // Window control IPC handlers

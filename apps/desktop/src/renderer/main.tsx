@@ -6,6 +6,7 @@ import { App, PlatformProvider, AuthProvider, IdentityProvider, ThemeProvider, T
 import { desktopCapabilities } from './platform';
 import { API_BASE_URL, CHAT_WS_URL } from './config';
 import { WindowTitleBar } from './components/WindowTitleBar';
+import { DeepLinkHandler } from './components/DeepLinkHandler';
 import '@adieuu/ui/styles.scss';
 import './index.scss';
 
@@ -51,6 +52,7 @@ function DesktopApp() {
   return (
     <>
       <WindowTitleBar />
+      <DeepLinkHandler />
       <PlatformProvider config={config} capabilities={desktopCapabilities}>
         <AuthProvider>
           <IdentityProvider>
