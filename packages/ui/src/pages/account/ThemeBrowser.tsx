@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
+import { Tooltip } from '../../components/Tooltip';
+import { ThemeColorPreviewModal } from '../../components/ThemeColorPreviewModal';
 import { useToast } from '../../components/Toast';
 import { useTheme } from '../../hooks/useTheme';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -18,13 +20,19 @@ import { createApiClient, type CommunityTheme } from '@adieuu/shared';
 import { validateThemeDefinition } from '../../utils/themeSanitizer';
 
 const SEARCH_DEBOUNCE_MS = 400;
+const DESC_MAX_LENGTH = 150;
+
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max).trimEnd() + '\u2026';
+}
 
 export function ThemeBrowser() {
   const { t } = useTranslation();
   const toast = useToast();
   const { apiBaseUrl } = useAppConfig();
-  const { setAccountTheme, saveCustomTheme, activeTheme } = useTheme();
-  const { status: identityStatus } = useIdentity();
+  const { setAccountTheme, setIdentityTheme, identityThemeId, saveCustomTheme, activeTheme } = useTheme();
+  const { status: identityStatus, identity } = useIdentity();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
@@ -36,6 +44,8 @@ export function ThemeBrowser() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const limit = 20;
+
+  const [previewTheme, setPreviewTheme] = useState<CommunityTheme | null>(null);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -90,26 +100,46 @@ export function ThemeBrowser() {
     setPage(1);
   }, [search]);
 
-  const handleUseTheme = useCallback(async (ct: CommunityTheme) => {
+  const saveAndApply = useCallback(async (ct: CommunityTheme) => {
     const result = validateThemeDefinition(ct.theme);
     if (!result.ok) {
       toast.error(result.error);
-      return;
+      return null;
     }
-    const themeWithAuthor = {
+    return {
       ...result.theme,
       author: ct.authorUsername || undefined,
     };
-    await saveCustomTheme(themeWithAuthor);
-    await setAccountTheme(themeWithAuthor);
+  }, [toast]);
+
+  const handleSetAccountTheme = useCallback(async (ct: CommunityTheme) => {
+    const validated = await saveAndApply(ct);
+    if (!validated) return;
+    await saveCustomTheme(validated);
+    await setAccountTheme(validated);
     toast.success(t('account.appearance.themeSavedToCollection'));
-  }, [saveCustomTheme, setAccountTheme, toast, t]);
+    void api.themes.get(ct.id);
+  }, [api, saveAndApply, saveCustomTheme, setAccountTheme, toast, t]);
+
+  const handleSetIdentityTheme = useCallback(async (ct: CommunityTheme) => {
+    const validated = await saveAndApply(ct);
+    if (!validated) return;
+    await saveCustomTheme(validated);
+    await setIdentityTheme(validated);
+    toast.success(t('account.appearance.themeSetAsIdentity'));
+    void api.themes.get(ct.id);
+  }, [api, saveAndApply, saveCustomTheme, setIdentityTheme, toast, t]);
 
   const handleUpvote = useCallback(async (e: React.MouseEvent, ct: CommunityTheme) => {
     e.stopPropagation();
 
     if (identityStatus !== 'logged_in') {
       toast.error(t('account.appearance.upvoteError'));
+      return;
+    }
+
+    if (identity && ct.authorIdentityId === identity.id) {
+      toast.info(t('account.appearance.upvoteSelfError'));
       return;
     }
 
@@ -128,11 +158,18 @@ export function ThemeBrowser() {
               : theme
           ),
         );
+      } else if (!resp.success) {
+        const code = resp.error?.code;
+        if (code === 'FORBIDDEN') {
+          toast.info(t('account.appearance.upvoteSelfError'));
+        } else {
+          toast.error(resp.error?.message ?? t('account.appearance.upvoteError'));
+        }
       }
     } catch {
       toast.error(t('account.appearance.upvoteError'));
     }
-  }, [api, identityStatus, toast, t]);
+  }, [api, identity, identityStatus, toast, t]);
 
   const handleShareTheme = useCallback(async () => {
     if (!activeTheme || identityStatus !== 'logged_in') return;
@@ -211,7 +248,7 @@ export function ThemeBrowser() {
           </Card>
         )}
 
-        {/* Theme Grid */}
+        {/* Theme Results */}
         {loading ? (
           <div className="theme-browser-loading">
             <Spinner />
@@ -222,39 +259,95 @@ export function ThemeBrowser() {
           </Card>
         ) : (
           <>
-            <div className="theme-preset-grid theme-browser-grid">
+            <div className="theme-result-list">
               {themes.map((ct) => (
-                <div key={ct.id} className="theme-preset-card theme-community-card">
-                  <button
-                    type="button"
-                    className="theme-preset-card-inner"
-                    onClick={() => void handleUseTheme(ct)}
-                  >
-                    <div className="theme-preset-swatches">
-                      <span className="theme-swatch" style={{ background: ct.theme.colors.bgPrimary }} />
-                      <span className="theme-swatch" style={{ background: ct.theme.colors.accentPrimary }} />
-                      <span className="theme-swatch" style={{ background: ct.theme.colors.textPrimary }} />
-                      <span className="theme-swatch" style={{ background: ct.theme.colors.bgSecondary }} />
+                <div key={ct.id} className="theme-result-row">
+                  {/* 2x2 colour swatch */}
+                  <div className="theme-result-swatches">
+                    <span className="theme-result-swatch" style={{ background: ct.theme.colors.bgPrimary }} />
+                    <span className="theme-result-swatch" style={{ background: ct.theme.colors.accentPrimary }} />
+                    <span className="theme-result-swatch" style={{ background: ct.theme.colors.textPrimary }} />
+                    <span className="theme-result-swatch" style={{ background: ct.theme.colors.bgSecondary }} />
+                  </div>
+
+                  {/* Info */}
+                  <div className="theme-result-info">
+                    <div className="theme-result-header">
+                      <span className="theme-result-name">{ct.name}</span>
+                      <span className="theme-result-author">
+                        {t('account.appearance.authorLabel', { author: ct.authorUsername })}
+                      </span>
                     </div>
-                    <span className="theme-preset-name">{ct.name}</span>
-                    <span className="theme-preset-meta">
-                      {t('account.appearance.authorLabel', { author: ct.authorUsername })}
-                    </span>
-                    <span className="theme-preset-meta">
+                    {ct.description ? (
+                      <p
+                        className="theme-result-desc"
+                        title={ct.description.length > DESC_MAX_LENGTH ? ct.description : undefined}
+                      >
+                        {truncate(ct.description, DESC_MAX_LENGTH)}
+                      </p>
+                    ) : null}
+                    <span className="theme-result-stats">
                       {ct.downloads ?? 0} {t('account.appearance.downloads')}
                       {' \u00b7 '}
                       {ct.upvotes ?? 0} {t('account.appearance.upvotes')}
                     </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="theme-upvote-btn"
-                    onClick={(e) => void handleUpvote(e, ct)}
-                    title={t('account.appearance.upvoteButton')}
-                  >
-                    <UpvoteIcon />
-                    <span className="theme-upvote-count">{ct.upvotes ?? 0}</span>
-                  </button>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="theme-result-actions">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPreviewTheme(ct)}
+                      title={t('account.appearance.previewColors')}
+                    >
+                      <EyeIcon />
+                    </Button>
+
+                    {identityStatus === 'logged_in' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleSetIdentityTheme(ct)}
+                        title={t('account.appearance.setIdentityTheme')}
+                      >
+                        <IdentityIcon />
+                      </Button>
+                    )}
+
+                    {identityThemeId ? (
+                      <Tooltip content={t('account.appearance.accountThemeOverrideHint')} position="left">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void handleSetAccountTheme(ct)}
+                          title={t('account.appearance.setAccountTheme')}
+                        >
+                          <AccountIcon />
+                        </Button>
+                      </Tooltip>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void handleSetAccountTheme(ct)}
+                        title={t('account.appearance.setAccountTheme')}
+                      >
+                        <AccountIcon />
+                      </Button>
+                    )}
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => void handleUpvote(e, ct)}
+                      title={t('account.appearance.upvoteButton')}
+                      className="theme-result-upvote-btn"
+                    >
+                      <UpvoteIcon />
+                      <span className="theme-upvote-count">{ct.upvotes ?? 0}</span>
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -271,7 +364,11 @@ export function ThemeBrowser() {
                   {t('account.appearance.prevPage')}
                 </Button>
                 <span className="theme-browser-page-info">
-                  {page} / {totalPages}
+                  {t('account.appearance.paginationInfo', {
+                    start: (page - 1) * limit + 1,
+                    end: Math.min(page * limit, total),
+                    total,
+                  })}
                 </span>
                 <Button
                   variant="secondary"
@@ -285,6 +382,16 @@ export function ThemeBrowser() {
             )}
           </>
         )}
+
+        {/* Colour Preview Modal */}
+        {previewTheme && (
+          <ThemeColorPreviewModal
+            open={!!previewTheme}
+            onOpenChange={(open) => { if (!open) setPreviewTheme(null); }}
+            title={t('account.appearance.previewModalTitle', { name: previewTheme.name })}
+            colors={previewTheme.theme.colors}
+          />
+        )}
       </div>
     </div>
   );
@@ -295,6 +402,34 @@ function UpvoteIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 19V5" />
       <polyline points="5 12 12 5 19 12" />
+    </svg>
+  );
+}
+
+function EyeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function IdentityIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  );
+}
+
+function AccountIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <path d="M3 9h18" />
+      <path d="M9 21V9" />
     </svg>
   );
 }

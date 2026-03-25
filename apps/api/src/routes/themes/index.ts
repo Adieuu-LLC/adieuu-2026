@@ -201,6 +201,10 @@ router.post('/themes/:id/upvote', async (ctx) => {
     return ctx.errors.notFound();
   }
 
+  if (theme.authorIdentityId.equals(identity._id)) {
+    return ctx.errors.forbidden();
+  }
+
   const added = await repo.upvote(id, identity._id);
 
   return success({ upvoted: added, upvotes: added ? theme.upvotes + 1 : theme.upvotes });

@@ -832,8 +832,11 @@ export const en = {
       upvoteSuccess: 'Thanks for the upvote.',
       upvoteAlready: 'You have already upvoted this theme.',
       upvoteError: 'Could not upvote. Ensure you are logged into an Alias.',
+      upvoteSelfError: 'You cannot upvote your own theme.',
       themeSavedToCollection: 'Theme added to your collection and applied.',
+      themeSetAsIdentity: 'Theme applied as alias theme.',
       noThemes: 'No community themes found.',
+      paginationInfo: 'Showing {{start}}-{{end}} of {{total}}',
       prevPage: 'Previous',
       nextPage: 'Next',
       sharePrompt: 'Share "{{name}}" with the community?',
@@ -841,6 +844,11 @@ export const en = {
       themeShared: 'Theme shared with the community.',
       shareError: 'Could not share the theme. Ensure you are logged into an Alias.',
       authorLabel: 'by {{author}}',
+      previewColors: 'Preview colours',
+      previewModalTitle: 'Theme Colours -- {{name}}',
+      setAccountTheme: 'Set as account theme',
+      setIdentityTheme: 'Set as alias theme',
+      accountThemeOverrideHint: 'An alias theme override is active; this will be applied but overridden until the override is removed.',
     },
 
     // Security
