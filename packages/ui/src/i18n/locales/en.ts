@@ -719,10 +719,10 @@ export const en = {
       phoneUnchanged: 'Enter a different phone number to change it.',
     },
 
-    // App Settings
+    // Notification settings (Account)
     settings: {
-      title: 'App Settings',
-      subtitle: 'Configure application preferences.',
+      title: 'Notification Settings',
+      subtitle: 'Configure system notifications, sounds, and related preferences.',
       notifications: {
         sectionTitle: 'Notifications',
         sectionDescription:
@@ -896,7 +896,7 @@ export const en = {
       account: {
         title: 'Account',
         description:
-          'Manage your profile, security (including MFA), app settings, and sign out of your account here.',
+          'Manage your profile, security (including MFA), notification settings, and sign out of your account here.',
       },
       logout: {
         title: 'Sign out',

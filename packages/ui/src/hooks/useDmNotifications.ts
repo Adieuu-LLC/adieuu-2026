@@ -4,7 +4,7 @@
  * Listens for new DM messages and reactions across all conversations and shows
  * toast notifications when the user is not actively reading that conversation
  * in a focused, visible window (or when viewing another conversation).
- * Optional native (OS) notifications are gated in Account &gt; App Settings.
+ * Optional native (OS) notifications are gated in Account &gt; Notification Settings.
  * Clicking a toast or native alert navigates to the conversation.
  */
 
@@ -43,7 +43,7 @@ interface RawWsMessage {
  * - Someone reacts to a message (recipient sees the reaction event)
  * - The user is not actively reading that conversation in a focused, visible window
  *
- * Native notifications (when enabled under App Settings) mirror that alert when the
+ * Native notifications (when enabled under Notification Settings) mirror that alert when the
  * window is unfocused or the tab is hidden, so messages surface on other monitors.
  *
  * Clicking the toast or native notification navigates to the conversation.
