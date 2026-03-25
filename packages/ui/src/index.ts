@@ -174,6 +174,11 @@ export { ToastProvider, useToast } from './components/Toast';
 export { SidebarSearch } from './components/SidebarSearch';
 export { NotificationSoundSelect } from './components/NotificationSoundSelect';
 export type { NotificationSoundSelectProps, NotificationSoundSelectLabels } from './components/NotificationSoundSelect';
+export {
+  BUILTIN_NOTIFICATION_SOUNDS,
+  DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID,
+} from './constants/builtinNotificationSounds';
+export type { BuiltinNotificationSoundId } from './constants/builtinNotificationSounds';
 export { IdentityCard, IdentityCardCompact } from './components/IdentityCard';
 export { HoverCard } from './components/HoverCard';
 export { SidebarTabs } from './components/SidebarTabs';

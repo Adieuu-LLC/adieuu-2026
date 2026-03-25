@@ -4,9 +4,14 @@
  */
 
 import { useSyncExternalStore } from 'react';
+import {
+  BUILTIN_NOTIFICATION_SOUND_ID_SET,
+  DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID,
+  LEGACY_NOTIFICATION_SOUND_ID_MAP,
+} from '../constants/builtinNotificationSounds';
+import type { BuiltinNotificationSoundId } from '../constants/builtinNotificationSounds';
 
-export const NOTIFICATION_SOUND_IDS = ['gentle', 'bell', 'pop', 'none', 'custom'] as const;
-export type NotificationSoundId = (typeof NOTIFICATION_SOUND_IDS)[number];
+export type NotificationSoundId = BuiltinNotificationSoundId | 'none' | 'custom';
 
 const STORAGE_KEY_ENABLED = 'adieuu.app.notificationSoundEnabled';
 const STORAGE_KEY_SOUND_ID = 'adieuu.app.notificationSoundId';
@@ -21,8 +26,15 @@ function emit(): void {
   }
 }
 
+function normalizeStoredSoundId(raw: string | null): string | null {
+  if (raw === null) return null;
+  return LEGACY_NOTIFICATION_SOUND_ID_MAP[raw] ?? raw;
+}
+
 function isValidSoundId(value: string | null): value is NotificationSoundId {
-  return value !== null && (NOTIFICATION_SOUND_IDS as readonly string[]).includes(value);
+  if (value === null) return false;
+  if (value === 'none' || value === 'custom') return true;
+  return BUILTIN_NOTIFICATION_SOUND_ID_SET.has(value);
 }
 
 export function getNotificationSoundEnabled(): boolean {
@@ -47,13 +59,13 @@ export function setNotificationSoundEnabled(value: boolean): void {
 }
 
 export function getNotificationSoundId(): NotificationSoundId {
-  if (typeof localStorage === 'undefined') return 'gentle';
+  if (typeof localStorage === 'undefined') return DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID;
   try {
-    const v = localStorage.getItem(STORAGE_KEY_SOUND_ID);
+    const v = normalizeStoredSoundId(localStorage.getItem(STORAGE_KEY_SOUND_ID));
     if (isValidSoundId(v)) return v;
-    return 'gentle';
+    return DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID;
   } catch {
-    return 'gentle';
+    return DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID;
   }
 }
 
@@ -172,7 +184,7 @@ function getSnapshot(): NotificationSoundPreferenceSnapshot {
 
 const SERVER_SNAPSHOT: NotificationSoundPreferenceSnapshot = {
   enabled: true,
-  soundId: 'gentle',
+  soundId: DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID,
   customPath: null,
   suppressWhenFocused: true,
 };

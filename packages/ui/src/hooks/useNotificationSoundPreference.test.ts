@@ -58,13 +58,20 @@ describe('notification sound preference (localStorage)', () => {
     expect(getNotificationSoundEnabled()).toBe(true);
   });
 
-  it('defaults sound id to gentle', () => {
-    expect(getNotificationSoundId()).toBe('gentle');
+  it('defaults sound id to the default built-in preset', () => {
+    expect(getNotificationSoundId()).toBe('sax');
   });
 
   it('persists sound id', () => {
-    setNotificationSoundId('bell');
-    expect(getNotificationSoundId()).toBe('bell');
+    setNotificationSoundId('ding');
+    expect(getNotificationSoundId()).toBe('ding');
+  });
+
+  it('maps legacy stored ids to current built-in ids', () => {
+    localStorage.setItem('adieuu.app.notificationSoundId', 'gentle');
+    expect(getNotificationSoundId()).toBe('chime');
+    localStorage.setItem('adieuu.app.notificationSoundId', 'bell');
+    expect(getNotificationSoundId()).toBe('ding');
   });
 
   it('defaults custom path to null', () => {

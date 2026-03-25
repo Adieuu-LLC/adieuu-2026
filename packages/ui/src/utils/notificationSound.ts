@@ -5,17 +5,13 @@
 
 import type { NotificationSoundId } from '../hooks/useNotificationSoundPreference';
 import {
+  getBuiltinNotificationSoundSrc,
+  isBuiltinNotificationSoundId,
+} from '../constants/builtinNotificationSounds';
+import {
   shouldSuppressInAppToastForConversation,
   type FocusVisibilitySnapshot,
 } from './dmNotificationRules';
-
-const BUILTIN_PREFIX = '/sounds/';
-
-const builtInFile: Record<Exclude<NotificationSoundId, 'none' | 'custom'>, string> = {
-  gentle: `${BUILTIN_PREFIX}gentle.mp3`,
-  bell: `${BUILTIN_PREFIX}bell.mp3`,
-  pop: `${BUILTIN_PREFIX}pop.mp3`,
-};
 
 let cachedBuiltinKey: string | null = null;
 let cachedBuiltinAudio: HTMLAudioElement | null = null;
@@ -57,7 +53,7 @@ export function shouldPlayNotificationSound(
 }
 
 function getBuiltinSrc(id: Exclude<NotificationSoundId, 'none' | 'custom'>): string {
-  return builtInFile[id];
+  return getBuiltinNotificationSoundSrc(id);
 }
 
 async function playBuiltin(id: Exclude<NotificationSoundId, 'none' | 'custom'>): Promise<void> {
@@ -148,7 +144,7 @@ export async function playNotificationSound(options: PlayNotificationSoundOption
     return;
   }
 
-  if (soundId === 'gentle' || soundId === 'bell' || soundId === 'pop') {
+  if (isBuiltinNotificationSoundId(soundId)) {
     await playBuiltin(soundId);
   }
 }
@@ -168,7 +164,7 @@ export async function previewNotificationSound(options: {
     await playCustom(customPath, loadCustomSound);
     return;
   }
-  if (soundId === 'gentle' || soundId === 'bell' || soundId === 'pop') {
+  if (isBuiltinNotificationSoundId(soundId)) {
     await playBuiltin(soundId);
   }
 }

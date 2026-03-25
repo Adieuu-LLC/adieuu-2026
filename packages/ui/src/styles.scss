@@ -6973,6 +6973,12 @@ a {
   }
 }
 
+.app-settings-sound-select-item-text {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
 .app-settings-sound-select-item-indicator {
   color: var(--color-accent-primary);
   display: flex;

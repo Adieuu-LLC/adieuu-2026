@@ -10,6 +10,10 @@ import {
   setNativeNotificationsEnabled,
 } from '../../hooks/useNativeNotificationsPreference';
 import {
+  BUILTIN_NOTIFICATION_SOUNDS,
+  DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID,
+} from '../../constants/builtinNotificationSounds';
+import {
   useNotificationSoundPreference,
   setNotificationSoundEnabled,
   setNotificationSoundId,
@@ -42,7 +46,7 @@ export function AccountSettings() {
 
   useEffect(() => {
     if (!hasCustomSoundPicker && soundPref.soundId === 'custom') {
-      setNotificationSoundId('gentle');
+      setNotificationSoundId(DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID);
     }
   }, [hasCustomSoundPicker, soundPref.soundId]);
 
@@ -135,13 +139,19 @@ export function AccountSettings() {
 
   const soundSelectLabels = useMemo(
     () => ({
-      gentle: t('account.settings.notifications.soundGentle'),
-      bell: t('account.settings.notifications.soundBell'),
-      pop: t('account.settings.notifications.soundPop'),
       none: t('account.settings.notifications.soundNone'),
       custom: t('account.settings.notifications.soundCustom'),
     }),
     [t]
+  );
+
+  const builtinSoundSelectItems = useMemo(
+    () =>
+      BUILTIN_NOTIFICATION_SOUNDS.map((s) => ({
+        value: s.id,
+        label: s.displayName,
+      })),
+    []
   );
 
   return (
@@ -217,6 +227,7 @@ export function AccountSettings() {
                 value={soundPref.soundId}
                 disabled={!soundPref.enabled}
                 hasCustomSoundPicker={hasCustomSoundPicker}
+                builtinItems={builtinSoundSelectItems}
                 labels={soundSelectLabels}
                 onValueChange={handleSoundIdChange}
                 labelId="notification-sound-preset-label"

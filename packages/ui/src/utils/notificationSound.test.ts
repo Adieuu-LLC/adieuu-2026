@@ -7,7 +7,7 @@ describe('shouldPlayNotificationSound', () => {
 
   it('returns false when disabled', () => {
     expect(
-      shouldPlayNotificationSound(false, 'gentle', null, true, false, unfocused)
+      shouldPlayNotificationSound(false, 'chime', null, true, false, unfocused)
     ).toBe(false);
   });
 
@@ -23,21 +23,21 @@ describe('shouldPlayNotificationSound', () => {
     ).toBe(false);
   });
 
-  it('returns true for gentle when unfocused', () => {
+  it('returns true for built-in preset when unfocused', () => {
     expect(
-      shouldPlayNotificationSound(true, 'gentle', null, true, false, unfocused)
+      shouldPlayNotificationSound(true, 'chime', null, true, false, unfocused)
     ).toBe(true);
   });
 
   it('suppresses when viewing focused conversation and suppressWhenFocused is true', () => {
     expect(
-      shouldPlayNotificationSound(true, 'gentle', null, true, true, visibleFocused)
+      shouldPlayNotificationSound(true, 'chime', null, true, true, visibleFocused)
     ).toBe(false);
   });
 
   it('plays when suppressWhenFocused is false even if viewing focused conversation', () => {
     expect(
-      shouldPlayNotificationSound(true, 'gentle', null, false, true, visibleFocused)
+      shouldPlayNotificationSound(true, 'chime', null, false, true, visibleFocused)
     ).toBe(true);
   });
 
