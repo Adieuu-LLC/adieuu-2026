@@ -12,6 +12,7 @@ import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
 import { Tooltip } from '../../components/Tooltip';
 import { ThemeColorPreviewModal } from '../../components/ThemeColorPreviewModal';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useToast } from '../../components/Toast';
 import { useTheme } from '../../hooks/useTheme';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -47,6 +48,8 @@ export function ThemeBrowser() {
   const limit = 20;
 
   const [previewTheme, setPreviewTheme] = useState<CommunityTheme | null>(null);
+  const [unshareTarget, setUnshareTarget] = useState<CommunityTheme | null>(null);
+  const [unsharing, setUnsharing] = useState(false);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -205,6 +208,25 @@ export function ThemeBrowser() {
     }
   }, [activeTheme, identityStatus, api, toast, t, fetchThemes]);
 
+  const handleUnshare = useCallback(async () => {
+    if (!unshareTarget) return;
+    setUnsharing(true);
+    try {
+      const resp = await api.themes.delete(unshareTarget.id);
+      if (resp.success) {
+        toast.success(t('account.appearance.unshareSuccess'));
+        setUnshareTarget(null);
+        void fetchThemes();
+      } else {
+        toast.error(resp.error?.message ?? t('account.appearance.unshareError'));
+      }
+    } catch {
+      toast.error(t('account.appearance.unshareError'));
+    } finally {
+      setUnsharing(false);
+    }
+  }, [api, unshareTarget, toast, t, fetchThemes]);
+
   const totalPages = Math.ceil(total / limit);
 
   return (
@@ -360,6 +382,18 @@ export function ThemeBrowser() {
                       <UpvoteIcon />
                       <span className="theme-upvote-count">{ct.upvotes ?? 0}</span>
                     </Button>
+
+                    {identity && ct.authorIdentityId === identity.id && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setUnshareTarget(ct)}
+                        title={t('account.appearance.unshareButton')}
+                        className="theme-result-unshare-btn"
+                      >
+                        <TrashIcon />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -405,6 +439,18 @@ export function ThemeBrowser() {
             colors={previewTheme.theme.colors}
           />
         )}
+
+        {/* Unshare Confirmation */}
+        <ConfirmDialog
+          open={!!unshareTarget}
+          onOpenChange={(open) => { if (!open) setUnshareTarget(null); }}
+          title={t('account.appearance.unshareConfirmTitle')}
+          description={t('account.appearance.unshareConfirmDesc', { name: unshareTarget?.name ?? '' })}
+          confirmLabel={t('account.appearance.unshareButton')}
+          variant="danger"
+          loading={unsharing}
+          onConfirm={() => void handleUnshare()}
+        />
       </div>
     </div>
   );
@@ -443,6 +489,18 @@ function AccountIcon() {
       <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
       <path d="M3 9h18" />
       <path d="M9 21V9" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
     </svg>
   );
 }

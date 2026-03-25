@@ -7643,6 +7643,10 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.theme-result-unshare-btn:hover {
+  color: var(--color-error);
+}
+
 // Preview modal
 
 .theme-preview-modal {
