@@ -294,6 +294,7 @@ export const en = {
       friends: 'Friends',
       contentSocial: 'Content & Social',
       privacy: 'Privacy',
+      appearance: 'Appearance',
       ciphers: 'Ciphers',
       devices: 'Devices',
     },
@@ -680,6 +681,24 @@ export const en = {
       typingIndicators: 'Typing Indicators',
       lastSeen: 'Last Seen',
     },
+    // Appearance page (identity-scoped)
+    appearance: {
+      title: 'Alias Appearance',
+      subtitle: 'Customise the look and feel for your alias "{{alias}}".',
+      overrideTitle: 'Theme Override',
+      overrideDescription:
+        'Enable a distinct theme for this alias so you can tell at a glance which identity is active.',
+      enableOverride: 'Enable Override',
+      disableOverride: 'Disable Override',
+      overrideEnabled: 'Alias theme override enabled.',
+      overrideDisabled: 'Alias theme override removed. Inheriting account settings.',
+      inheriting: 'This alias is inheriting <accountLink>appearance settings from your account</accountLink>.',
+      themeApplied: 'Theme applied to this alias.',
+      themeSaved: 'Custom theme saved and applied to this alias.',
+      themeDeleted: 'Custom theme deleted.',
+      importFailed: 'Failed to import theme',
+      importSuccess: 'Theme imported and applied to this alias.',
+    },
   },
 
   // Account pages
@@ -762,6 +781,10 @@ export const en = {
     appearance: {
       title: 'Appearance',
       subtitle: 'Customise your theme, colours, and visual preferences.',
+      aliasOverrideHint:
+        'These settings apply by default. Your alias can optionally <aliasLink>override them</aliasLink>.',
+      identityOverrideNotice:
+        'Your alias is currently overriding these settings. Changes here will be saved but won\'t be visible until the <aliasLink>alias override</aliasLink> is disabled.',
 
       presetsTitle: 'Preset Themes',
       presetsDescription: 'Choose from our curated collection of themes.',

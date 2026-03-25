@@ -1,4 +1,5 @@
 // Identity pages
+export { IdentityAppearance } from './Appearance';
 export { IdentityCiphers } from './Ciphers';
 export { IdentityContentSocial } from './ContentSocial';
 export { Devices as IdentityDevices } from './Devices';

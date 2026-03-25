@@ -14,6 +14,7 @@ import {
   ThemeBrowser,
 } from '../pages/account';
 import {
+  IdentityAppearance,
   IdentityCiphers,
   IdentityContentSocial,
   IdentityDevices,
@@ -175,6 +176,7 @@ export function App() {
         <Route path="/identity/profile" element={<IdentityProfile />} />
         <Route path="/identity/friends" element={<IdentityFriends />} />
         <Route path="/identity/content" element={<IdentityContentSocial />} />
+        <Route path="/identity/appearance" element={<IdentityAppearance />} />
         <Route path="/identity/privacy" element={<IdentityPrivacy />} />
         <Route path="/identity/devices" element={<IdentityDevices />} />
         <Route path="/identity/ciphers" element={<IdentityCiphers />} />

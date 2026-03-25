@@ -6,13 +6,13 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
+import { Alert } from '../../components/Alert';
 import { useToast } from '../../components/Toast';
 import { useTheme } from '../../hooks/useTheme';
-import { useIdentity } from '../../hooks/useIdentity';
 import { DEFAULT_THEME_ID } from '../../constants/builtinThemes';
 import { sanitizeImportedTheme } from '../../utils/themeSanitizer';
 import type { ThemeDefinition, ThemeColorTokens } from '@adieuu/shared';
@@ -86,15 +86,12 @@ export function AccountAppearance() {
     identityThemeId,
     builtinThemes,
     setAccountTheme,
-    setIdentityTheme,
     previewTheme,
     cancelPreview,
-    isPreviewing,
     saveCustomTheme,
     removeCustomTheme,
     customThemes,
   } = useTheme();
-  const { status: identityStatus, identity } = useIdentity();
 
   const [editMode, setEditMode] = useState(false);
   const [editColors, setEditColors] = useState<ThemeColorTokens | null>(null);
@@ -102,16 +99,25 @@ export function AccountAppearance() {
   const [saveDesc, setSaveDesc] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const currentThemeId = identityThemeId ?? accountThemeId ?? DEFAULT_THEME_ID;
+  const currentThemeId = accountThemeId ?? DEFAULT_THEME_ID;
+  const hasIdentityOverride = identityThemeId !== null;
+
+  const accountTheme = useMemo(() => {
+    const id = currentThemeId;
+    const builtin = builtinThemes.find((b) => b.theme.id === id);
+    if (builtin) return builtin.theme;
+    return customThemes.find((ct) => ct.id === id) ?? null;
+  }, [currentThemeId, builtinThemes, customThemes]);
 
   const startEditing = useCallback(() => {
-    if (activeTheme) {
-      setEditColors({ ...activeTheme.colors });
-      setSaveName(activeTheme.name);
-      setSaveDesc(activeTheme.description);
+    const base = accountTheme ?? activeTheme;
+    if (base) {
+      setEditColors({ ...base.colors });
+      setSaveName(base.name);
+      setSaveDesc(base.description);
     }
     setEditMode(true);
-  }, [activeTheme]);
+  }, [accountTheme, activeTheme]);
 
   const stopEditing = useCallback(() => {
     setEditMode(false);
@@ -170,32 +176,21 @@ export function AccountAppearance() {
     toast.success(t('account.appearance.themeDeleted'));
   }, [removeCustomTheme, currentThemeId, setAccountTheme, toast, t]);
 
-  const handleSetIdentityTheme = useCallback(async () => {
-    if (activeTheme) {
-      await setIdentityTheme(activeTheme.id);
-      toast.success(t('account.appearance.identityThemeSet'));
-    }
-  }, [activeTheme, setIdentityTheme, toast, t]);
-
-  const handleClearIdentityTheme = useCallback(async () => {
-    await setIdentityTheme(null);
-    toast.success(t('account.appearance.identityThemeCleared'));
-  }, [setIdentityTheme, toast, t]);
-
   // ---- Export ----
   const handleExport = useCallback(() => {
-    if (!activeTheme) return;
-    const json = JSON.stringify(activeTheme, null, 2);
+    const theme = accountTheme ?? activeTheme;
+    if (!theme) return;
+    const json = JSON.stringify(theme, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${activeTheme.name.toLowerCase().replace(/\s+/g, '-')}.adieuu-theme.json`;
+    a.download = `${theme.name.toLowerCase().replace(/\s+/g, '-')}.adieuu-theme.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [activeTheme]);
+  }, [accountTheme, activeTheme]);
 
   // ---- Import ----
   const handleImport = useCallback(() => {
@@ -240,6 +235,12 @@ export function AccountAppearance() {
             <div>
               <h1 className="page-title">{t('account.appearance.title')}</h1>
               <p className="page-subtitle">{t('account.appearance.subtitle')}</p>
+              <p className="page-subtitle" style={{ marginTop: '0.25rem' }}>
+                <Trans
+                  i18nKey="account.appearance.aliasOverrideHint"
+                  components={{ aliasLink: <Link to="/identity/appearance" /> }}
+                />
+              </p>
             </div>
             <div className="page-header-actions">
               <Link to="/account/appearance/community" style={{ textDecoration: 'none' }}>
@@ -250,6 +251,15 @@ export function AccountAppearance() {
             </div>
           </div>
         </div>
+
+        {hasIdentityOverride && (
+          <Alert variant="info" className="slide-up" style={{ marginBottom: '1.5rem' }}>
+            <Trans
+              i18nKey="account.appearance.identityOverrideNotice"
+              components={{ aliasLink: <Link to="/identity/appearance" /> }}
+            />
+          </Alert>
+        )}
 
         {/* Preset Themes */}
         <Card variant="elevated" className="slide-up app-settings-card">
@@ -398,7 +408,7 @@ export function AccountAppearance() {
           <h2 className="app-settings-section-title">{t('account.appearance.importExportTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.appearance.importExportDescription')}</p>
           <div className="theme-import-export-row">
-            <Button variant="secondary" size="sm" onClick={handleExport} disabled={!activeTheme}>
+            <Button variant="secondary" size="sm" onClick={handleExport} disabled={!accountTheme && !activeTheme}>
               <ExportIcon />
               {t('account.appearance.exportTheme')}
             </Button>
@@ -416,31 +426,6 @@ export function AccountAppearance() {
           </div>
         </Card>
 
-        {/* Per-identity override */}
-        {identityStatus === 'logged_in' && identity && (
-          <Card variant="elevated" className="slide-up app-settings-card">
-            <h2 className="app-settings-section-title">{t('account.appearance.identityThemeTitle')}</h2>
-            <p className="app-settings-section-desc">
-              {t('account.appearance.identityThemeDescription', { alias: identity.displayName })}
-            </p>
-            <div className="theme-identity-row">
-              {identityThemeId ? (
-                <>
-                  <span className="theme-identity-active">
-                    {t('account.appearance.identityThemeActive', { name: activeTheme?.name ?? identityThemeId })}
-                  </span>
-                  <Button variant="secondary" size="sm" onClick={() => void handleClearIdentityTheme()}>
-                    {t('account.appearance.identityThemeClear')}
-                  </Button>
-                </>
-              ) : (
-                <Button variant="primary" size="sm" onClick={() => void handleSetIdentityTheme()}>
-                  {t('account.appearance.identityThemeSet')}
-                </Button>
-              )}
-            </div>
-          </Card>
-        )}
       </div>
     </div>
   );

@@ -229,6 +229,9 @@ function IdentityFlyout() {
           <Link to="/identity/privacy" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/privacy') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('identity.menu.privacy')}
           </Link>
+          <Link to="/identity/appearance" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/appearance') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('identity.menu.appearance')}
+          </Link>
           <Link to="/identity/ciphers" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/ciphers') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('identity.menu.ciphers')}
           </Link>
