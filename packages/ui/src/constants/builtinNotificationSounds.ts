@@ -65,7 +65,7 @@ export const BUILTIN_NOTIFICATION_SOUNDS = [
 
 export type BuiltinNotificationSoundId = (typeof BUILTIN_NOTIFICATION_SOUNDS)[number]['id'];
 
-export const DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId = 'sax';
+export const DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId = 'win-low';
 
 const builtinIdToFilename = new Map<string, string>(
   BUILTIN_NOTIFICATION_SOUNDS.map((s) => [s.id, s.filename])

@@ -59,7 +59,7 @@ describe('notification sound preference (localStorage)', () => {
   });
 
   it('defaults sound id to the default built-in preset', () => {
-    expect(getNotificationSoundId()).toBe('sax');
+    expect(getNotificationSoundId()).toBe('win-low');
   });
 
   it('persists sound id', () => {
