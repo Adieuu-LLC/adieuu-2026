@@ -13,12 +13,16 @@ import type {
   CreateCommunityThemeInput,
 } from '../models/community-theme';
 
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export interface ThemeListOptions {
   page: number;
   limit: number;
   search?: string;
   tag?: string;
-  sort: 'newest' | 'downloads';
+  sort: 'newest' | 'downloads' | 'upvotes';
 }
 
 export class CommunityThemeRepository {
@@ -35,7 +39,7 @@ export class CommunityThemeRepository {
     const filter: Filter<CommunityThemeDocument> = { removedByAdmin: { $ne: true } };
 
     if (options.search) {
-      filter.name = { $regex: options.search, $options: 'i' };
+      filter.name = { $regex: escapeRegex(options.search), $options: 'i' };
     }
     if (options.tag) {
       filter.tags = options.tag;
@@ -43,7 +47,9 @@ export class CommunityThemeRepository {
 
     const sortSpec: Sort = options.sort === 'downloads'
       ? { downloads: -1, createdAt: -1 }
-      : { createdAt: -1 };
+      : options.sort === 'upvotes'
+        ? { upvotes: -1, createdAt: -1 }
+        : { createdAt: -1 };
 
     const skip = (options.page - 1) * options.limit;
 
@@ -59,6 +65,8 @@ export class CommunityThemeRepository {
     const doc = withTimestamps({
       ...input,
       downloads: 0,
+      upvotes: 0,
+      upvotedBy: [],
       reported: false,
       removedByAdmin: false,
     });
@@ -76,6 +84,15 @@ export class CommunityThemeRepository {
   async incrementDownloads(id: string | ObjectId): Promise<void> {
     const oid = id instanceof ObjectId ? id : new ObjectId(id);
     await this.collection.updateOne({ _id: oid }, { $inc: { downloads: 1 } });
+  }
+
+  async upvote(id: string | ObjectId, identityId: ObjectId): Promise<boolean> {
+    const oid = id instanceof ObjectId ? id : new ObjectId(id);
+    const result = await this.collection.updateOne(
+      { _id: oid, upvotedBy: { $ne: identityId } },
+      { $addToSet: { upvotedBy: identityId }, $inc: { upvotes: 1 } },
+    );
+    return result.modifiedCount > 0;
   }
 
   async markReported(id: string | ObjectId): Promise<void> {

@@ -278,6 +278,13 @@ export function IdentityAppearance() {
                 {t('identity.appearance.subtitle', { alias: identity?.displayName })}
               </p>
             </div>
+            <div className="page-header-actions">
+              <Link to="/account/appearance/community" style={{ textDecoration: 'none' }}>
+                <Button variant="secondary" size="sm">
+                  {t('account.appearance.communityTitle')}
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
 
@@ -357,6 +364,11 @@ export function IdentityAppearance() {
                           <span className="theme-swatch" style={{ background: ct.colors.bgSecondary }} />
                         </div>
                         <span className="theme-preset-name">{ct.name}</span>
+                        {ct.author && (
+                          <span className="theme-preset-meta">
+                            {t('account.appearance.authorLabel', { author: ct.author })}
+                          </span>
+                        )}
                       </button>
                       <Button
                         variant="ghost"

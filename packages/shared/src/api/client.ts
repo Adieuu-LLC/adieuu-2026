@@ -2001,7 +2001,7 @@ export interface ThemeListParams {
   limit?: number;
   search?: string;
   tag?: string;
-  sort?: 'newest' | 'downloads';
+  sort?: 'newest' | 'downloads' | 'upvotes';
 }
 
 export interface ThemeListResponse {
@@ -2054,6 +2054,13 @@ export class ThemesApi {
    */
   async delete(id: string): Promise<ApiResponse<void>> {
     return this.client.delete(`/api/themes/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * Upvote a community theme. Requires identity session. Idempotent.
+   */
+  async upvote(id: string): Promise<ApiResponse<{ upvoted: boolean; upvotes: number }>> {
+    return this.client.post(`/api/themes/${encodeURIComponent(id)}/upvote`, {});
   }
 
   /**

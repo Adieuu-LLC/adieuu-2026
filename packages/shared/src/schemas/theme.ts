@@ -93,6 +93,7 @@ export const ThemeDefinitionSchema = z.object({
   description: z.string().max(200).default(''),
   version: z.number().int().min(1),
   colors: ThemeColorTokensSchema,
+  author: z.string().max(50).optional(),
 });
 
 /**
@@ -117,6 +118,7 @@ export const ThemeMetaSchema = z.object({
   authorIdentityId: z.string().optional(),
   authorUsername: z.string().optional(),
   downloads: z.number().optional(),
+  upvotes: z.number().optional(),
   tags: z.array(z.string().max(20)).max(5).optional(),
   createdAt: z.string(),
 });

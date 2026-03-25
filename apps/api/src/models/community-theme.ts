@@ -19,6 +19,8 @@ export interface CommunityThemeDocument extends BaseDocument {
   theme: StoredThemeDefinition;
   tags: string[];
   downloads: number;
+  upvotes: number;
+  upvotedBy: ObjectId[];
   reported: boolean;
   removedByAdmin: boolean;
 }
@@ -42,6 +44,7 @@ export interface PublicCommunityTheme {
   theme: StoredThemeDefinition;
   tags: string[];
   downloads: number;
+  upvotes: number;
   createdAt: string;
 }
 
@@ -56,6 +59,7 @@ export function toPublicCommunityTheme(doc: CommunityThemeDocument): PublicCommu
     theme: doc.theme,
     tags: doc.tags,
     downloads: doc.downloads,
+    upvotes: doc.upvotes ?? 0,
     createdAt: doc.createdAt.toISOString(),
   };
 }

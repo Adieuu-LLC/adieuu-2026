@@ -824,7 +824,15 @@ export const en = {
       searchButton: 'Search',
       sortNewest: 'Newest',
       sortPopular: 'Most downloaded',
+      sortUpvoted: 'Most upvoted',
       downloads: 'downloads',
+      upvotes: 'upvotes',
+      upvoteButton: 'Upvote',
+      upvoted: 'Upvoted',
+      upvoteSuccess: 'Thanks for the upvote.',
+      upvoteAlready: 'You have already upvoted this theme.',
+      upvoteError: 'Could not upvote. Ensure you are logged into an Alias.',
+      themeSavedToCollection: 'Theme added to your collection and applied.',
       noThemes: 'No community themes found.',
       prevPage: 'Previous',
       nextPage: 'Next',
@@ -832,6 +840,7 @@ export const en = {
       shareButton: 'Share Theme',
       themeShared: 'Theme shared with the community.',
       shareError: 'Could not share the theme. Ensure you are logged into an Alias.',
+      authorLabel: 'by {{author}}',
     },
 
     // Security

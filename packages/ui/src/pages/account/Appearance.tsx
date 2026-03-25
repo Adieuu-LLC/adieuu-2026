@@ -306,6 +306,11 @@ export function AccountAppearance() {
                       <span className="theme-swatch" style={{ background: ct.colors.bgSecondary }} />
                     </div>
                     <span className="theme-preset-name">{ct.name}</span>
+                    {ct.author && (
+                      <span className="theme-preset-meta">
+                        {t('account.appearance.authorLabel', { author: ct.author })}
+                      </span>
+                    )}
                   </button>
                   <Button
                     variant="ghost"

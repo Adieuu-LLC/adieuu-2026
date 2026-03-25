@@ -6788,6 +6788,10 @@ a {
   padding: var(--spacing-lg);
 }
 
+.app-settings-card + .app-settings-card {
+  margin-top: var(--spacing-lg);
+}
+
 .app-settings-section-title {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
@@ -7544,6 +7548,36 @@ body {
 .theme-identity-active {
   font-size: var(--font-size-sm);
   color: var(--color-accent-primary);
+}
+
+.theme-community-card {
+  position: relative;
+}
+
+.theme-upvote-btn {
+  position: absolute;
+  top: var(--spacing-xs);
+  right: var(--spacing-xs);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease;
+
+  &:hover {
+    color: var(--color-accent-primary);
+    border-color: var(--color-accent-primary);
+  }
+}
+
+.theme-upvote-count {
+  font-variant-numeric: tabular-nums;
 }
 
 // Community browser

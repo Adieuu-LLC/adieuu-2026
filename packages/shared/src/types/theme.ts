@@ -102,6 +102,8 @@ export interface ThemeDefinition {
   description: string;
   version: number;
   colors: ThemeColorTokens;
+  /** Original author, preserved when saving a community theme locally. */
+  author?: string;
 }
 
 /** Labels that can be applied to a theme for provenance. */
@@ -119,6 +121,7 @@ export interface ThemeMeta {
   authorIdentityId?: string;
   authorUsername?: string;
   downloads?: number;
+  upvotes?: number;
   tags?: string[];
   createdAt: string;
 }

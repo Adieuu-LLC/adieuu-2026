@@ -42,10 +42,13 @@ router.get('/themes', async (ctx) => {
   const url = new URL(ctx.request.url, 'http://localhost');
   const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
   const limit = Math.min(50, Math.max(1, Number(url.searchParams.get('limit')) || 20));
-  const search = url.searchParams.get('search') ?? undefined;
-  const tag = url.searchParams.get('tag') ?? undefined;
+  const rawSearch = url.searchParams.get('search');
+  const search = rawSearch && rawSearch.length <= 100 ? rawSearch : undefined;
+  const rawTag = url.searchParams.get('tag');
+  const tag = rawTag && rawTag.length <= 30 ? rawTag : undefined;
   const sortParam = url.searchParams.get('sort');
-  const sort: 'newest' | 'downloads' = sortParam === 'downloads' ? 'downloads' : 'newest';
+  const sort: 'newest' | 'downloads' | 'upvotes' =
+    sortParam === 'downloads' ? 'downloads' : sortParam === 'upvotes' ? 'upvotes' : 'newest';
 
   const repo = getCommunityThemeRepository();
   const { themes, total } = await repo.list({ page, limit, search, tag, sort });
@@ -121,13 +124,15 @@ router.post('/themes', async (ctx) => {
 
   const { name, description, theme, tags } = parseResult.data;
 
+  const sanitisedTheme = { ...theme, author: identity.username };
+
   const repo = getCommunityThemeRepository();
   const doc = await repo.create({
     name,
     description: description ?? '',
     authorIdentityId: identity._id,
     authorUsername: identity.username,
-    theme,
+    theme: sanitisedTheme,
     tags: tags ?? [],
   });
 
@@ -164,6 +169,41 @@ router.delete('/themes/:id', async (ctx) => {
   }
 
   return success(undefined, 'Theme deleted.');
+});
+
+/**
+ * POST /themes/:id/upvote - Upvote a community theme.
+ *
+ * Requires identity session. Each identity can only upvote a theme once;
+ * subsequent calls are idempotent.
+ *
+ * @route POST /api/themes/:id/upvote
+ */
+router.post('/themes/:id/upvote', async (ctx) => {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  const { id } = ctx.params;
+  if (!id || !ObjectId.isValid(id)) {
+    return ctx.errors.badRequest();
+  }
+
+  const repo = getCommunityThemeRepository();
+  const theme = await repo.findById(id);
+  if (!theme) {
+    return ctx.errors.notFound();
+  }
+
+  const added = await repo.upvote(id, identity._id);
+
+  return success({ upvoted: added, upvotes: added ? theme.upvotes + 1 : theme.upvotes });
 });
 
 /**
