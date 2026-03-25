@@ -113,6 +113,39 @@ resource "aws_wafv2_web_acl" "alb" {
     }
   }
 
+  # Block bodies larger than api_max_request_body_bytes (matches ECS MAX_REQUEST_BODY_BYTES + Bun router).
+  # SizeRestrictions_BODY in CommonRuleSet uses a ~8 KiB cap; we count that rule and enforce our limit here instead.
+  rule {
+    name     = "block-request-body-over-max"
+    priority = 8
+
+    action {
+      block {}
+    }
+
+    statement {
+      size_constraint_statement {
+        comparison_operator = "GT"
+        size                = var.api_max_request_body_bytes
+        field_to_match {
+          body {
+            oversize_handling = "CONTINUE"
+          }
+        }
+        text_transformation {
+          priority = 0
+          type     = "NONE"
+        }
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name_prefix}-alb-body-over-max"
+      sampled_requests_enabled   = true
+    }
+  }
+
   rule {
     name     = "AWSManagedRulesCommonRuleSet"
     priority = 10
@@ -125,6 +158,15 @@ resource "aws_wafv2_web_acl" "alb" {
       managed_rule_group_statement {
         name        = "AWSManagedRulesCommonRuleSet"
         vendor_name = "AWS"
+
+        # E2E crypto payloads (e.g. POST /api/identity/:id/e2e/initialize) exceed the
+        # managed rule ~8 KiB body limit; we enforce api_max_request_body_bytes via block-request-body-over-max instead.
+        rule_action_override {
+          action_to_use {
+            count {}
+          }
+          name = "SizeRestrictions_BODY"
+        }
       }
     }
 

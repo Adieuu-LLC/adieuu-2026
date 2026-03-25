@@ -85,13 +85,17 @@ describe('i18n', () => {
         'tooManyAttempts',
         'accountLocked',
         'sessionExpired',
+        'payloadTooLargeGeneric',
         'payloadTooLarge',
         'alreadyOwned',
         'signInRestricted',
       ] as const;
 
       for (const key of keys) {
-        const message = getErrorMessage(key);
+        const message =
+          key === 'payloadTooLarge'
+            ? getErrorMessage(key, 'en', { maxKb: '100.0', maxBytes: 102400 })
+            : getErrorMessage(key);
         expect(typeof message).toBe('string');
         expect(message.length).toBeGreaterThan(0);
       }

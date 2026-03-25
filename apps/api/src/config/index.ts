@@ -22,6 +22,8 @@
  * ```
  */
 
+import { DEFAULT_MAX_REQUEST_BODY_BYTES } from '../constants/http';
+
 /**
  * Retrieves a required environment variable.
  * 
@@ -152,6 +154,12 @@ export const config = {
   port: optionalEnvInt('PORT', 4000),
   /** HTTP server host/interface to bind to */
   host: optionalEnv('HOST', '0.0.0.0'),
+
+  /**
+   * Maximum request body size in bytes (JSON and raw body).
+   * In AWS, Terraform sets `MAX_REQUEST_BODY_BYTES` from `api_max_request_body_bytes` (must match ALB WAF).
+   */
+  maxRequestBodyBytes: optionalEnvInt('MAX_REQUEST_BODY_BYTES', DEFAULT_MAX_REQUEST_BODY_BYTES),
 
   /** CORS configuration */
   cors: {

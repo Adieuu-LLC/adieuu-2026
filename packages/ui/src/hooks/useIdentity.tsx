@@ -1,6 +1,11 @@
 import { useState, useCallback, useEffect, createContext, useContext, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { createApiClient, type PublicIdentity } from '@adieuu/shared';
+import {
+  createApiClient,
+  type PublicIdentity,
+  DEFAULT_MAX_REQUEST_BODY_BYTES,
+  jsonUtf8ByteLength,
+} from '@adieuu/shared';
 import { deriveEntropyWrappingKey, toBase64, clearBytes, getSigningPublicKey } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
 import { useAuth } from './useAuth';
@@ -59,7 +64,7 @@ export interface CreateIdentityResult {
   success: boolean;
   identity?: PublicIdentity;
   error?: string;
-  errorCode?: 'USERNAME_TAKEN' | 'MAX_IDENTITIES' | 'VALIDATION_ERROR' | 'E2E_INIT_FAILED';
+  errorCode?: 'USERNAME_TAKEN' | 'MAX_IDENTITIES' | 'VALIDATION_ERROR' | 'E2E_INIT_FAILED' | 'PAYLOAD_TOO_LARGE';
 }
 
 export interface LoginIdentityResult {
@@ -389,15 +394,28 @@ function useIdentityState(): IdentityContextValue {
         };
       }
 
-      // Upload E2E keys to server (web device keys are in the bundle but NOT registered as a device yet)
+      // Upload E2E keys to server (web device keys are in the bundle but NOT registered as a device yet).
+      // Preflight below applies to apps/web and apps/desktop (shared IdentityProvider / App).
       console.debug('[Identity] createIdentity: uploading E2E keys to server...');
       try {
-        const initResponse = await api.identity.initializeE2E(createdIdentity.id, {
+        const initBody = {
           signingPublicKey: e2eResult.signingPublicKey,
-          preferredCryptoProfile: 'default',
+          preferredCryptoProfile: 'default' as const,
           device: e2eResult.device,
           bundle: e2eResult.encryptedBundle,
-        });
+        };
+        const initBytes = jsonUtf8ByteLength(initBody);
+        if (initBytes > DEFAULT_MAX_REQUEST_BODY_BYTES) {
+          clearBytes(e2eResult.signingPrivateKey);
+          clearBytes(e2eResult.devicePrivateKeys.ecdh);
+          clearBytes(e2eResult.devicePrivateKeys.kem);
+          return {
+            success: false,
+            error: `Encryption setup payload is too large (${(initBytes / 1024).toFixed(1)} KiB; max ${(DEFAULT_MAX_REQUEST_BODY_BYTES / 1024).toFixed(0)} KiB).`,
+            errorCode: 'PAYLOAD_TOO_LARGE',
+          };
+        }
+        const initResponse = await api.identity.initializeE2E(createdIdentity.id, initBody);
 
         if (!initResponse.success) {
           console.error('[Identity] createIdentity: failed to upload E2E keys:', initResponse.error);

@@ -6,7 +6,15 @@
  */
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { createApiClient, type DmMessage, type DmMessageTombstone, type DmConversation, type ClaimedDevicePreKeys } from '@adieuu/shared';
+import {
+  createApiClient,
+  type DmMessage,
+  type DmMessageTombstone,
+  type DmConversation,
+  type ClaimedDevicePreKeys,
+  DEFAULT_MAX_REQUEST_BODY_BYTES,
+  jsonUtf8ByteLength,
+} from '@adieuu/shared';
 import { deriveConversationId, verifySignedPreKey, type CryptoProfile, type SignedPreKeyPublic, type OneTimePreKeyPublic, fromBase64 } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
@@ -368,8 +376,9 @@ export function useSendDmMessage(): UseSendDmMessageResult {
           cryptoProfile
         );
 
-        // 8. Send to API
-        const sendResponse = await api.dm.sendMessage({
+        // 8. Send to API (preflight: UTF-8 JSON size must match server router / WAF limit).
+        // apps/web and apps/desktop both use this hook via the shared App shell — no separate desktop path.
+        const sendPayload = {
           conversationId: conversation.conversationId,
           toIdentityId: input.toIdentityId,
           encryptedSenderId: encryptedSenderIdValue,
@@ -381,7 +390,15 @@ export function useSendDmMessage(): UseSendDmMessageResult {
           clientMessageId,
           expiresInSeconds: input.expiresInSeconds,
           replyToId: input.replyToId,
-        });
+        };
+        const payloadBytes = jsonUtf8ByteLength(sendPayload);
+        if (payloadBytes > DEFAULT_MAX_REQUEST_BODY_BYTES) {
+          const errMsg = `Message is too large to send (${(payloadBytes / 1024).toFixed(1)} KiB; max ${(DEFAULT_MAX_REQUEST_BODY_BYTES / 1024).toFixed(0)} KiB). Try a shorter message or fewer devices.`;
+          setError(errMsg);
+          return { success: false, error: errMsg };
+        }
+
+        const sendResponse = await api.dm.sendMessage(sendPayload);
 
         if (!sendResponse.success || !sendResponse.data) {
           const errMsg = sendResponse.error?.message ?? 'Failed to send message';

@@ -74,6 +74,10 @@ export interface ApiErrorResponse {
     code: string;
     /** Human-readable error message */
     message: string;
+    /** Optional structured fields (e.g. maxBytes for PAYLOAD_TOO_LARGE) */
+    details?: {
+      maxBytes?: number;
+    };
   };
   /** Response metadata */
   meta?: {
@@ -160,13 +164,15 @@ export function success<T>(data?: T, message?: string, status = 200): Response {
 export function error(
   code: string,
   message: string,
-  status = 400
+  status = 400,
+  details?: ApiErrorResponse['error']['details']
 ): Response {
   const body: ApiErrorResponse = {
     success: false,
     error: {
       code,
       message,
+      ...(details && Object.keys(details).length > 0 ? { details } : {}),
     },
     meta: {
       timestamp: new Date().toISOString(),
@@ -415,9 +421,20 @@ export const localizedErrors = {
   sessionExpired: (locale?: Locale) =>
     localizedError('sessionExpired', 'SESSION_EXPIRED', 401, locale),
 
-  /** 413 - Payload too large */
-  payloadTooLarge: (locale?: Locale) =>
-    localizedError('payloadTooLarge', 'PAYLOAD_TOO_LARGE', 413, locale),
+  /**
+   * 413 - Payload too large
+   * @param maxBytes - When set, message includes the limit and `error.details.maxBytes` is set for clients.
+   */
+  payloadTooLarge: (locale?: Locale, maxBytes?: number) => {
+    if (maxBytes === undefined) {
+      return localizedError('payloadTooLargeGeneric', 'PAYLOAD_TOO_LARGE', 413, locale);
+    }
+    const message = getErrorMessage('payloadTooLarge', locale, {
+      maxKb: (maxBytes / 1024).toFixed(1),
+      maxBytes,
+    });
+    return error('PAYLOAD_TOO_LARGE', message, 413, { maxBytes });
+  },
 
   /**
    * 409 - Contact already owned by another account

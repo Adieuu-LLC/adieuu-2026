@@ -216,7 +216,9 @@ If you didn't make this change, please contact our support team immediately.`,
     // NOT for OTP verification failures (which use the generic messages above)
     accountLocked: 'Account temporarily locked. Please try again later.',
     sessionExpired: 'Your session has expired. Please sign in again.',
-    payloadTooLarge: 'Request too large. Please reduce the size of your request.',
+    payloadTooLargeGeneric: 'Request too large. Please reduce the size of your request.',
+    payloadTooLarge:
+      'Request body exceeds the maximum size ({{maxKb}} KiB, {{maxBytes}} bytes). Shorten the message or reduce the number of recipient devices.',
     alreadyOwned: 'This is already attached to another Adieuu account. You may have signed up with it previously.',
     signInRestricted: 'Sign-in is restricted to an allowlist. This is temporary. IYKYK.',
   },

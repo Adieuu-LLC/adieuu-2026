@@ -91,6 +91,21 @@ variable "node_env" {
   default     = "production"
 }
 
+variable "api_max_request_body_bytes" {
+  type        = number
+  description = <<-EOT
+    Maximum HTTP request body size in bytes for the API. Must match the default in packages/shared (DEFAULT_MAX_REQUEST_BODY_BYTES)
+    when using the default. Injected as MAX_REQUEST_BODY_BYTES on the API task and
+    used by the ALB WAF rule block-request-body-over-max (when enable_waf is true).
+  EOT
+  default     = 102400
+
+  validation {
+    condition     = var.api_max_request_body_bytes >= 8192 && var.api_max_request_body_bytes <= 16777216
+    error_message = "Use 8192–16777216 bytes (8 KiB–16 MiB)."
+  }
+}
+
 variable "api_environment" {
   type        = map(string)
   description = "Non-sensitive env for the API task. Keys and reserved names: docs/deployment/ecs-environment.md. Secrets use api_container_secrets."

@@ -82,6 +82,7 @@ export type ErrorKey =
   // Account-level errors (for notifications, not API responses)
   | 'accountLocked'
   | 'sessionExpired'
+  | 'payloadTooLargeGeneric'
   | 'payloadTooLarge'
   // Contact already attached to another account (revealed AFTER OTP verification)
   | 'alreadyOwned'

@@ -13,6 +13,10 @@ export type ApiResponse<T> = {
   error?: {
     code: string;
     message: string;
+    /** Structured hints (e.g. PAYLOAD_TOO_LARGE → maxBytes) */
+    details?: {
+      maxBytes?: number;
+    };
   };
 };
 

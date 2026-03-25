@@ -15,7 +15,7 @@ import { elog } from './utils';
 validateProductionConfig();
 
 // Create router
-const app = new Router();
+const app = new Router({ maxBodySize: config.maxRequestBodyBytes });
 
 // Register middleware
 app.use(requestId());

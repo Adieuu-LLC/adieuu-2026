@@ -16,6 +16,12 @@ This document lists **environment variables** the **API** (`apps/api`) and **cha
 | API: `PORT`, `HOST`, `NODE_ENV` | Set by the ECS task definition (`PORT`/`HOST` match the container; `NODE_ENV` from Terraform `node_env`). |
 | Chat: `CHAT_PORT`, `CHAT_HOST`, `NODE_ENV` | Same pattern for the chat container. |
 
+**Terraform-injected for the API (merged after `api_environment`; do not duplicate in `api_environment`):**
+
+| Variable | Reason |
+|----------|--------|
+| `MAX_REQUEST_BODY_BYTES` | Set from Terraform `api_max_request_body_bytes` (default `102400`, 100 KiB; same as `DEFAULT_MAX_REQUEST_BODY_BYTES` in `@adieuu/shared`). Aligns the Bun router with the ALB WAF rule `block-request-body-over-max`. Change the limit via `api_max_request_body_bytes` in `terraform.tfvars`, not by setting this key in `api_environment`. |
+
 If you add these keys to the maps anyway, they are **ignored** when building the task definition so ECS does not receive duplicate names.
 
 ---

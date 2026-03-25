@@ -2,6 +2,7 @@
  * Simple router for Bun.serve
  */
 
+import { DEFAULT_MAX_REQUEST_BODY_BYTES } from '../constants/http';
 import type { HttpMethod, Route, RouteHandler, RouteContext, ContextErrors, Middleware, RouterOptions } from './types';
 import { localizedErrors } from '../utils/response';
 import { parseAcceptLanguage, type Locale } from '../i18n';
@@ -21,7 +22,7 @@ import {
  * For OTP verification, use `verificationFailed()` which returns identical
  * responses for all failure types to prevent enumeration attacks.
  */
-function createContextErrors(locale: Locale): ContextErrors {
+function createContextErrors(locale: Locale, maxBodySize: number): ContextErrors {
   // Anti-enumeration: verificationFailed is used for ALL OTP verification errors
   const verificationFailed = () => localizedErrors.verificationFailed(locale);
 
@@ -44,7 +45,7 @@ function createContextErrors(locale: Locale): ContextErrors {
     tooManyAttempts: verificationFailed,
     accountLocked: () => localizedErrors.accountLocked(locale),
     sessionExpired: () => localizedErrors.sessionExpired(locale),
-    payloadTooLarge: () => localizedErrors.payloadTooLarge(locale),
+    payloadTooLarge: () => localizedErrors.payloadTooLarge(locale, maxBodySize),
     alreadyOwned: () => localizedErrors.alreadyOwned(locale),
     signInRestricted: () => localizedErrors.signInRestricted(locale),
   };
@@ -101,13 +102,6 @@ function generateRequestId(): string {
 }
 
 /**
- * Default maximum request body size in bytes.
- * Set to 1MB which is generous for JSON text content in a chat app.
- * Individual routes can override this if needed.
- */
-const DEFAULT_MAX_BODY_SIZE = 1024 * 1024; // 1MB
-
-/**
  * Maximum body size for large content (e.g., message composition with attachments metadata).
  * Use sparingly - most routes should use the default.
  */
@@ -121,7 +115,7 @@ export class Router {
 
   constructor(options: RouterOptions = {}) {
     this.prefix = options.prefix ?? '';
-    this.maxBodySize = options.maxBodySize ?? DEFAULT_MAX_BODY_SIZE;
+    this.maxBodySize = options.maxBodySize ?? DEFAULT_MAX_REQUEST_BODY_BYTES;
   }
 
   /**
@@ -244,7 +238,7 @@ export class Router {
 
       // Parse locale from Accept-Language for localized error messages
       const locale = parseAcceptLanguage(request.headers.get('Accept-Language'));
-      const contextErrors = createContextErrors(locale);
+      const contextErrors = createContextErrors(locale, this.maxBodySize);
 
       // Find matching route
       const match = this.findRoute(method, path);
@@ -271,7 +265,7 @@ export class Router {
           try {
             // Read body with size limit (handles chunked encoding where Content-Length may be absent)
             const text = await request.text();
-            if (text.length > this.maxBodySize) {
+            if (Buffer.byteLength(text, 'utf8') > this.maxBodySize) {
               return contextErrors.payloadTooLarge();
             }
             // Only parse if there's actual content (empty body is valid for some requests)

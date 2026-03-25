@@ -72,7 +72,7 @@ locals {
 
   cors_base_origins = length(trimspace(local.cors_from_env)) > 0 ? [
     for o in split(",", local.cors_from_env) : trimspace(o) if length(trimspace(o)) > 0
-  ] : (
+    ] : (
     local.public_dns_tls_enabled ? ["https://${var.app_domain_name}"] : []
   )
 
@@ -84,6 +84,7 @@ locals {
       REDIS_URL = "redis://${aws_elasticache_replication_group.redis[0].primary_endpoint_address}:6379"
     } : {},
     var.api_environment,
+    { MAX_REQUEST_BODY_BYTES = tostring(var.api_max_request_body_bytes) },
     length(local.cors_origins_merged) > 0 ? { CORS_ORIGINS = join(",", local.cors_origins_merged) } : {},
   )
 
