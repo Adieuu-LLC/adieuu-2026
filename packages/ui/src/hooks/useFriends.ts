@@ -239,6 +239,18 @@ export interface UseFriendsListResult {
 }
 
 /**
+ * Returns true when two Friend[] arrays have the same identity IDs in the same
+ * order. Used to skip state updates on background polls when nothing changed.
+ */
+function friendsEqual(a: Friend[], b: Friend[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]!.identity.id !== b[i]!.identity.id) return false;
+  }
+  return true;
+}
+
+/**
  * Hook for fetching and paginating the friends list.
  */
 export function useFriendsList({
@@ -256,6 +268,7 @@ export function useFriendsList({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cursorRef = useRef<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const isLoggedIn = identityStatus === 'logged_in';
 
@@ -263,19 +276,25 @@ export function useFriendsList({
     if (!isLoggedIn) {
       setFriends([]);
       setTotal(0);
+      hasLoadedRef.current = false;
       return;
     }
 
-    setIsLoading(true);
+    // Only show loading spinner on the initial fetch, not background polls
+    if (!hasLoadedRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
     cursorRef.current = null;
 
     try {
       const response = await api.friends.getFriends(limit, undefined, search);
       if (response.success && response.data) {
-        setFriends(response.data.friends);
+        const next = response.data.friends;
+        setFriends((prev) => (friendsEqual(prev, next) ? prev : next));
         setTotal(response.data.total);
         cursorRef.current = response.data.cursor;
+        hasLoadedRef.current = true;
       } else {
         setError(response.error?.message ?? 'Failed to load friends');
       }
@@ -323,12 +342,17 @@ export function useFriendsList({
   };
 }
 
+export interface UseFriendRequestsOptions {
+  /** Polling interval in ms. When set, periodically refreshes requests. */
+  pollInterval?: number;
+}
+
 export interface UseFriendRequestsResult {
   /** Incoming requests */
   incoming: IncomingFriendRequest[];
   /** Sent requests */
   sent: SentFriendRequest[];
-  /** Whether loading */
+  /** Whether loading (only true on initial fetch) */
   isLoading: boolean;
   /** Error message if failed */
   error: string | null;
@@ -342,10 +366,28 @@ export interface UseFriendRequestsResult {
   cancel: (requestId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
+function incomingRequestsEqual(a: IncomingFriendRequest[], b: IncomingFriendRequest[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]!.id !== b[i]!.id) return false;
+  }
+  return true;
+}
+
+function sentRequestsEqual(a: SentFriendRequest[], b: SentFriendRequest[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]!.id !== b[i]!.id) return false;
+  }
+  return true;
+}
+
 /**
  * Hook for managing incoming and sent friend requests.
  */
-export function useFriendRequests(): UseFriendRequestsResult {
+export function useFriendRequests({
+  pollInterval,
+}: UseFriendRequestsOptions = {}): UseFriendRequestsResult {
   const { apiBaseUrl } = useAppConfig();
   const { status: identityStatus } = useIdentity();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -354,6 +396,7 @@ export function useFriendRequests(): UseFriendRequestsResult {
   const [sent, setSent] = useState<SentFriendRequest[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const isLoggedIn = identityStatus === 'logged_in';
 
@@ -361,10 +404,13 @@ export function useFriendRequests(): UseFriendRequestsResult {
     if (!isLoggedIn) {
       setIncoming([]);
       setSent([]);
+      hasLoadedRef.current = false;
       return;
     }
 
-    setIsLoading(true);
+    if (!hasLoadedRef.current) {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
@@ -374,11 +420,16 @@ export function useFriendRequests(): UseFriendRequestsResult {
       ]);
 
       if (incomingRes.success && incomingRes.data) {
-        setIncoming(incomingRes.data.requests);
+        setIncoming((prev) =>
+          incomingRequestsEqual(prev, incomingRes.data!.requests) ? prev : incomingRes.data!.requests,
+        );
       }
       if (sentRes.success && sentRes.data) {
-        setSent(sentRes.data.requests);
+        setSent((prev) =>
+          sentRequestsEqual(prev, sentRes.data!.requests) ? prev : sentRes.data!.requests,
+        );
       }
+      hasLoadedRef.current = true;
     } catch {
       setError('Failed to load friend requests');
     } finally {
@@ -439,6 +490,8 @@ export function useFriendRequests(): UseFriendRequestsResult {
       refresh();
     }
   }, [isLoggedIn, refresh]);
+
+  usePolling(refresh, pollInterval, isLoggedIn);
 
   return {
     incoming,

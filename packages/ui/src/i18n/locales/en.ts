@@ -50,6 +50,12 @@ export const en = {
       error: 'Failed to load friends.',
       empty: 'No friends yet.',
       findFriends: 'Find friends',
+      requests: {
+        count_one: '{{count}} friend request',
+        count_other: '{{count}} friend requests',
+        accept: 'Accept',
+        decline: 'Decline',
+      },
     },
     conversations: {
       loginRequired: 'Log in to see your conversations.',
