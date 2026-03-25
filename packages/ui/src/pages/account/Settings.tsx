@@ -235,7 +235,11 @@ export function AccountSettings() {
               <button
                 type="button"
                 className="btn btn-secondary app-settings-sound-preview"
-                disabled={!soundPref.enabled || soundPref.soundId === 'none'}
+                disabled={
+                  soundPref.soundId === 'none' ||
+                  (soundPref.soundId === 'custom' &&
+                    (!soundPref.customPath || !audio?.loadSoundFromPath))
+                }
                 onClick={() => void handlePreviewSound()}
               >
                 {t('account.settings.notifications.soundPreview')}

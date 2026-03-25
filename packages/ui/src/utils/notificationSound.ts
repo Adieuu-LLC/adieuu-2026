@@ -20,6 +20,11 @@ let cachedCustomPath: string | null = null;
 let cachedCustomUrl: string | null = null;
 let cachedCustomAudio: HTMLAudioElement | null = null;
 
+/** Decoded custom file for Web Audio playback (reliable after async IPC). */
+let cachedCustomDecoded: { path: string; buffer: AudioBuffer } | null = null;
+
+let sharedAudioContext: AudioContext | null = null;
+
 function revokeCustomUrl(): void {
   if (cachedCustomUrl) {
     URL.revokeObjectURL(cachedCustomUrl);
@@ -27,6 +32,43 @@ function revokeCustomUrl(): void {
   }
   cachedCustomAudio = null;
   cachedCustomPath = null;
+}
+
+/** Resume AudioContext before any async work so playback stays allowed after IPC. */
+async function ensureAudioContextRunning(): Promise<AudioContext | null> {
+  if (typeof AudioContext === 'undefined') {
+    return null;
+  }
+  if (!sharedAudioContext) {
+    sharedAudioContext = new AudioContext();
+  }
+  if (sharedAudioContext.state === 'suspended') {
+    try {
+      await sharedAudioContext.resume();
+    } catch {
+      return sharedAudioContext;
+    }
+  }
+  return sharedAudioContext;
+}
+
+function playDecodedBuffer(ctx: AudioContext, buffer: AudioBuffer): void {
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+  source.start(0);
+}
+
+/** MIME hint so Chromium can decode blob URLs for HTMLAudioElement (required for many formats). */
+function mimeTypeForAudioPath(filePath: string): string {
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith('.mp3')) return 'audio/mpeg';
+  if (lower.endsWith('.wav')) return 'audio/wav';
+  if (lower.endsWith('.ogg') || lower.endsWith('.oga')) return 'audio/ogg';
+  if (lower.endsWith('.m4a')) return 'audio/mp4';
+  if (lower.endsWith('.flac')) return 'audio/flac';
+  if (lower.endsWith('.opus')) return 'audio/ogg';
+  return 'audio/*';
 }
 
 /**
@@ -72,30 +114,62 @@ async function playBuiltin(id: Exclude<NotificationSoundId, 'none' | 'custom'>):
   }
 }
 
+/**
+ * Fallback when decodeAudioData fails (codec) or AudioContext is unavailable: blob URL + <audio>.
+ */
+async function playCustomHtmlAudio(path: string, buf: ArrayBuffer): Promise<void> {
+  revokeCustomUrl();
+  cachedCustomDecoded = null;
+  cachedCustomPath = path;
+  const blob = new Blob([new Uint8Array(buf)], { type: mimeTypeForAudioPath(path) });
+  cachedCustomUrl = URL.createObjectURL(blob);
+  const audioEl = new Audio(cachedCustomUrl);
+  audioEl.preload = 'auto';
+  cachedCustomAudio = audioEl;
+  await new Promise<void>((resolve) => {
+    const finish = () => resolve();
+    audioEl.addEventListener('canplaythrough', finish, { once: true });
+    audioEl.addEventListener('error', finish, { once: true });
+    audioEl.load();
+  });
+  try {
+    audioEl.currentTime = 0;
+    await audioEl.play();
+  } catch {
+    // Autoplay policy or decode error
+  }
+}
+
 async function playCustom(
   path: string,
   loadCustomSound: (p: string) => Promise<ArrayBuffer | null>
 ): Promise<void> {
-  if (cachedCustomPath !== path) {
+  const ctx = await ensureAudioContextRunning();
+
+  if (cachedCustomDecoded?.path === path && ctx) {
+    playDecodedBuffer(ctx, cachedCustomDecoded.buffer);
+    return;
+  }
+
+  const buf = await loadCustomSound(path);
+  if (!buf || buf.byteLength === 0) {
     revokeCustomUrl();
-    cachedCustomPath = path;
-    const buf = await loadCustomSound(path);
-    if (!buf || buf.byteLength === 0) {
-      revokeCustomUrl();
+    cachedCustomDecoded = null;
+    return;
+  }
+
+  if (ctx) {
+    try {
+      const audioBuffer = await ctx.decodeAudioData(buf.slice(0));
+      cachedCustomDecoded = { path, buffer: audioBuffer };
+      playDecodedBuffer(ctx, audioBuffer);
       return;
+    } catch {
+      // decodeAudioData unsupported for this container/codec — try <audio>
     }
-    const blob = new Blob([buf]);
-    cachedCustomUrl = URL.createObjectURL(blob);
-    cachedCustomAudio = new Audio(cachedCustomUrl);
-    cachedCustomAudio.preload = 'auto';
   }
-  if (!cachedCustomAudio) return;
-  try {
-    cachedCustomAudio.currentTime = 0;
-    await cachedCustomAudio.play();
-  } catch {
-    // Ignore playback errors
-  }
+
+  await playCustomHtmlAudio(path, buf);
 }
 
 export interface PlayNotificationSoundOptions {
@@ -169,7 +243,8 @@ export async function previewNotificationSound(options: {
   }
 }
 
-/** Clears cached custom blob URL (e.g. when user picks a new file). */
+/** Clears cached custom audio (e.g. when user picks a new file). */
 export function invalidateNotificationSoundCustomCache(): void {
   revokeCustomUrl();
+  cachedCustomDecoded = null;
 }

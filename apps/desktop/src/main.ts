@@ -97,6 +97,8 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Allow notification / preview sounds after async IPC (Chromium otherwise treats play() as autoplay).
+      autoplayPolicy: 'no-user-gesture-required',
     },
     // macOS: use native traffic lights with hidden title bar
     // Windows/Linux: fully frameless for custom window controls
