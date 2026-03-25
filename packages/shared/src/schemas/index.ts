@@ -34,5 +34,16 @@ export const LoginResponseSchema = z.object({
   expiresIn: z.number(),
 });
 
+// Theme schemas
+export {
+  CssColorValueSchema,
+  ThemeColorTokensSchema,
+  ThemeDefinitionSchema,
+  ThemeImportSchema,
+  ThemeMetaSchema,
+  UserThemePreferencesSchema,
+  CommunityThemeUploadSchema,
+} from './theme';
+
 // Re-export zod for convenience
 export { z };

@@ -48,6 +48,11 @@ import {
   claimPreKeysCtrl,
   getPreKeyCountCtrl,
 } from './pre-key.controller';
+import { success } from '../../utils/response';
+import {
+  getIdentitySessionIdFromRequest,
+  getIdentityFromSession,
+} from '../../services/identity.service';
 
 const router = new Router();
 
@@ -535,6 +540,91 @@ router.delete('/identity/:id/sessions', async (ctx) => {
  */
 router.get('/identity/:id', async (ctx) => {
   return await getIdentityByIdCtrl(ctx);
+});
+
+// ============================================================================
+// Identity Encrypted Preferences (Theme, etc.)
+// ============================================================================
+
+import { getIdentityPreferencesRepository } from '../../repositories/identity-preferences.repository';
+import { z } from '@adieuu/shared/schemas';
+
+const EncryptedPrefsBodySchema = z.object({
+  prefsId: z.string().min(1).max(200),
+  encryptedData: z.string().min(1).max(10_000),
+  nonce: z.string().min(1).max(100),
+  schemeVersion: z.number().int().min(1).default(1),
+});
+
+/**
+ * GET /identity/me/preferences - Get encrypted identity preferences blob.
+ *
+ * Returns the opaque ciphertext. Decryption happens client-side.
+ * Requires both user session and identity session.
+ *
+ * @route GET /api/identity/me/preferences
+ * @query prefsId - The derived preferences ID
+ */
+router.get('/identity/me/preferences', async (ctx) => {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  const url = new URL(ctx.request.url, 'http://localhost');
+  const prefsId = url.searchParams.get('prefsId');
+  if (!prefsId) {
+    return ctx.errors.badRequest();
+  }
+
+  const repo = getIdentityPreferencesRepository();
+  const doc = await repo.findByPrefsId(prefsId);
+
+  if (!doc) {
+    return success(null);
+  }
+
+  return success({
+    prefsId: doc.prefsId,
+    encryptedData: doc.encryptedData,
+    nonce: doc.nonce,
+    schemeVersion: doc.schemeVersion,
+  });
+});
+
+/**
+ * PUT /identity/me/preferences - Store encrypted identity preferences blob.
+ *
+ * Accepts opaque ciphertext. Server does not decrypt or validate the content.
+ * Requires both user session and identity session.
+ *
+ * @route PUT /api/identity/me/preferences
+ */
+router.put('/identity/me/preferences', async (ctx) => {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  const parseResult = EncryptedPrefsBodySchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const repo = getIdentityPreferencesRepository();
+  await repo.upsert(parseResult.data.prefsId, parseResult.data);
+
+  return success(undefined, 'Identity preferences stored.');
 });
 
 export const identityRoutes = router;

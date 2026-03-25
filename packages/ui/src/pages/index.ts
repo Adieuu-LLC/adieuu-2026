@@ -12,6 +12,8 @@ export {
   AccountOverview,
   AccountSecurity,
   AccountSettings,
+  AccountAppearance,
+  ThemeBrowser,
 } from './account';
 
 // Identity pages

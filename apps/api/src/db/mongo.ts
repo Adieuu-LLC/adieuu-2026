@@ -348,6 +348,12 @@ export const Collections = {
   DM_REACTIONS: 'dm_reactions',
   /** Key-value platform configuration (typed values per key) */
   PLATFORM_SETTINGS: 'platform_settings',
+  /** User appearance/theme preferences (one per user) */
+  USER_PREFERENCES: 'user_preferences',
+  /** Community-shared themes */
+  COMMUNITY_THEMES: 'community_themes',
+  /** E2E-encrypted identity preferences (theme, etc.) */
+  IDENTITY_ENCRYPTED_PREFS: 'identity_encrypted_prefs',
 } as const;
 
 /**
@@ -536,6 +542,25 @@ async function createIndexes(): Promise<void> {
   // Platform settings — one row per key
   const platformSettings = database.collection(Collections.PLATFORM_SETTINGS);
   await platformSettings.createIndex({ key: 1 }, { unique: true });
+
+  // User preferences — one document per user
+  const userPreferences = database.collection(Collections.USER_PREFERENCES);
+  await userPreferences.createIndex({ userId: 1 }, { unique: true });
+
+  // Community themes
+  const communityThemes = database.collection(Collections.COMMUNITY_THEMES);
+  await communityThemes.createIndex({ authorIdentityId: 1 });
+  await communityThemes.createIndex({ downloads: -1 });
+  await communityThemes.createIndex({ tags: 1 });
+  await communityThemes.createIndex({ createdAt: -1 });
+  await communityThemes.createIndex(
+    { name: 'text' },
+    { default_language: 'english' }
+  );
+
+  // Identity encrypted preferences — one per identity (keyed by prefsId)
+  const identityEncryptedPrefs = database.collection(Collections.IDENTITY_ENCRYPTED_PREFS);
+  await identityEncryptedPrefs.createIndex({ prefsId: 1 }, { unique: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

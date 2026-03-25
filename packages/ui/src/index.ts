@@ -12,6 +12,8 @@ export {
   AccountOverview,
   AccountSecurity,
   AccountSettings,
+  AccountAppearance,
+  ThemeBrowser,
   IdentityCiphers,
   IdentityContentSocial,
   IdentityDevices,
@@ -51,6 +53,8 @@ export type {
 
 export { useAuth, AuthProvider } from './hooks/useAuth';
 export { useIdentity, IdentityProvider } from './hooks/useIdentity';
+export { useTheme, ThemeProvider } from './hooks/useTheme';
+export type { ThemeContextValue, ThemeProviderProps } from './hooks/useTheme';
 export { useTourContext, TourProvider } from './hooks/useTourContext';
 export { useIdentitySearch } from './hooks/useIdentitySearch';
 export { useConversationsList } from './hooks/useConversations';

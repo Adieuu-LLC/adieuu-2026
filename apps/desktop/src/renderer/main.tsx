@@ -2,7 +2,7 @@ import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import { initI18n } from '@adieuu/ui/i18n';
-import { App, PlatformProvider, AuthProvider, IdentityProvider, ToastProvider, type AppConfig, setDeviceKeyStorageBackend, setPreKeyStorageBackend, migrateIndexedDbToBackend } from '@adieuu/ui';
+import { App, PlatformProvider, AuthProvider, IdentityProvider, ThemeProvider, ToastProvider, type AppConfig, setDeviceKeyStorageBackend, setPreKeyStorageBackend, migrateIndexedDbToBackend } from '@adieuu/ui';
 import { desktopCapabilities } from './platform';
 import { API_BASE_URL, CHAT_WS_URL } from './config';
 import { WindowTitleBar } from './components/WindowTitleBar';
@@ -54,9 +54,11 @@ function DesktopApp() {
       <PlatformProvider config={config} capabilities={desktopCapabilities}>
         <AuthProvider>
           <IdentityProvider>
-            <ToastProvider>
-              <App />
-            </ToastProvider>
+            <ThemeProvider>
+              <ToastProvider>
+                <App />
+              </ToastProvider>
+            </ThemeProvider>
           </IdentityProvider>
         </AuthProvider>
       </PlatformProvider>

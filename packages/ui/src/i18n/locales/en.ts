@@ -758,6 +758,59 @@ export const en = {
       },
     },
 
+    // Appearance / Theme
+    appearance: {
+      title: 'Appearance',
+      subtitle: 'Customise your theme, colours, and visual preferences.',
+
+      presetsTitle: 'Preset Themes',
+      presetsDescription: 'Choose from our curated collection of themes.',
+      official: 'Official',
+      customThemesTitle: 'Your Custom Themes',
+
+      editorTitle: 'Theme Editor',
+      editorDescription: 'Fine-tune every colour to make the app truly yours.',
+      customise: 'Customise',
+      cancel: 'Cancel',
+      themeName: 'Theme name',
+      themeDescription: 'Description (optional)',
+      saveTheme: 'Save Theme',
+      deleteTheme: 'Delete',
+      themeSaved: 'Theme saved.',
+      themeApplied: 'Theme applied.',
+      themeDeleted: 'Theme deleted.',
+
+      importExportTitle: 'Import & Export',
+      importExportDescription: 'Export your current theme as a file, or import a theme from someone else. Imported themes are validated and sanitised for your safety.',
+      exportTheme: 'Export Theme',
+      importTheme: 'Import Theme',
+      importSuccess: 'Theme imported and applied.',
+      importFailed: 'Import failed',
+
+      identityThemeTitle: 'Alias Theme Override',
+      identityThemeDescription: 'Set a distinct theme for your alias "{{alias}}" so you can tell at a glance which identity is active.',
+      identityThemeSet: 'Use current theme for this Alias',
+      identityThemeActive: 'Active theme: {{name}}',
+      identityThemeClear: 'Clear override',
+      identityThemeCleared: 'Alias theme override removed.',
+
+      communityTitle: 'Community Themes',
+      communitySubtitle: 'Browse themes shared by other users.',
+      communityLoadError: 'Could not load community themes.',
+      searchPlaceholder: 'Search themes...',
+      searchButton: 'Search',
+      sortNewest: 'Newest',
+      sortPopular: 'Most downloaded',
+      downloads: 'downloads',
+      noThemes: 'No community themes found.',
+      prevPage: 'Previous',
+      nextPage: 'Next',
+      sharePrompt: 'Share "{{name}}" with the community?',
+      shareButton: 'Share Theme',
+      themeShared: 'Theme shared with the community.',
+      shareError: 'Could not share the theme. Ensure you are logged into an Alias.',
+    },
+
     // Security
     security: {
       title: 'Security',

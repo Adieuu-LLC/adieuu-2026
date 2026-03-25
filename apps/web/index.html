@@ -6,6 +6,9 @@
     <title>Adieuu</title>
   </head>
   <body>
+    <script>
+      (function(){try{var r=localStorage.getItem("adieuu.theme.active");if(!r)return;var t=JSON.parse(r);if(!t||!t.colors)return;var d=document.documentElement,m={"bgPrimary":"--color-bg-primary","bgSecondary":"--color-bg-secondary","bgTertiary":"--color-bg-tertiary","bgElevated":"--color-bg-elevated","bgHover":"--color-bg-hover","bgActive":"--color-bg-active","textPrimary":"--color-text-primary","textSecondary":"--color-text-secondary","textMuted":"--color-text-muted","textInverse":"--color-text-inverse","accentPrimary":"--color-accent-primary","accentPrimaryHover":"--color-accent-primary-hover","accentPrimaryActive":"--color-accent-primary-active","accentSecondary":"--color-accent-secondary","accentGlow":"--color-accent-glow","border":"--color-border","borderMuted":"--color-border-muted","borderFocus":"--color-border-focus","success":"--color-success","successBg":"--color-success-bg","warning":"--color-warning","warningBg":"--color-warning-bg","error":"--color-error","errorBg":"--color-error-bg","info":"--color-info","infoBg":"--color-info-bg","danger":"--color-danger","logoPrimary":"--logo-primary","logoSecondary":"--logo-secondary"};for(var k in t.colors){if(m[k])d.style.setProperty(m[k],t.colors[k])}}catch(e){}})();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

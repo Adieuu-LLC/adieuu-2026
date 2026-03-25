@@ -10,6 +10,8 @@ import {
   AccountOverview,
   AccountSecurity,
   AccountSettings,
+  AccountAppearance,
+  ThemeBrowser,
 } from '../pages/account';
 import {
   IdentityCiphers,
@@ -165,6 +167,8 @@ export function App() {
         <Route path="/account/security" element={<Navigate to="/account/security/authentication" replace />} />
         <Route path="/account/security/:tab" element={<AccountSecurity />} />
         <Route path="/account/settings" element={<AccountSettings />} />
+        <Route path="/account/appearance" element={<AccountAppearance />} />
+        <Route path="/account/appearance/community" element={<ThemeBrowser />} />
 
         {/* Identity Routes */}
         <Route path="/identity" element={<Navigate to="/identity/profile" replace />} />

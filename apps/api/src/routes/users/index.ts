@@ -19,7 +19,8 @@ import {
 } from './controller';
 import { getSessionFromRequest } from '../../services/session.service';
 import { getClientIp } from '../auth/controller';
-import { z } from '@adieuu/shared/schemas';
+import { z, UserThemePreferencesSchema } from '@adieuu/shared/schemas';
+import { getUserPreferencesRepository } from '../../repositories/user-preferences.repository';
 
 const router = new Router();
 
@@ -314,6 +315,63 @@ router.get('/users/:id', async (ctx) => {
   }
 
   return success(result.user);
+});
+
+// ============================================================================
+// User Preferences (Theme / Appearance)
+// ============================================================================
+
+/**
+ * GET /users/me/preferences - Get the current user's theme preferences.
+ *
+ * @route GET /api/users/me/preferences
+ *
+ * @returns 200 OK with preferences (or empty object if none saved)
+ * @returns 401 Unauthorized if not authenticated
+ */
+router.get('/users/me/preferences', async (ctx) => {
+  const session = await getSessionFromRequest(ctx.request);
+  if (!session?.userId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const repo = getUserPreferencesRepository();
+  const prefs = await repo.findByUserId(session.userId);
+
+  return success({
+    themeId: prefs?.themeId,
+    customThemes: prefs?.customThemes ?? [],
+  });
+});
+
+/**
+ * PUT /users/me/preferences - Update the current user's theme preferences.
+ *
+ * @route PUT /api/users/me/preferences
+ *
+ * @requestBody
+ * - `themeId` (string, optional): Selected theme ID
+ * - `customThemes` (array, optional): User's custom theme definitions
+ *
+ * @returns 200 OK on success
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 400 Bad Request if validation fails
+ */
+router.put('/users/me/preferences', async (ctx) => {
+  const session = await getSessionFromRequest(ctx.request);
+  if (!session?.userId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const parseResult = UserThemePreferencesSchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const repo = getUserPreferencesRepository();
+  await repo.upsert(session.userId, parseResult.data);
+
+  return success(undefined, 'Preferences updated.');
 });
 
 export const userRoutes = router;

@@ -13,7 +13,7 @@ import { SidebarFriendsList } from '../components/SidebarFriendsList';
 import { SidebarConversationsList } from '../components/SidebarConversationsList';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
-import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon, MessageIcon, SpacesIcon, ShieldIcon } from '../components/Icons';
+import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon, MessageIcon, SpacesIcon, ShieldIcon, PaletteIcon } from '../components/Icons';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
 import { useConversationsContext } from '../hooks/ConversationsProvider';
@@ -79,6 +79,9 @@ function AccountFlyout() {
           </Link>
           <Link to="/account/settings" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/settings') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('account.settings.title')}
+          </Link>
+          <Link to="/account/appearance" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/account/appearance') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('account.appearance.title')}
           </Link>
           <div className="sidebar-flyout-divider" />
           <button

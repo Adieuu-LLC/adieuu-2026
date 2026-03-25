@@ -297,8 +297,6 @@ body {
   text-decoration: none;
   color: inherit;
   cursor: pointer;
-  --logo-primary: #e0e8f0;
-  --logo-secondary: #20d0e8;
 
   .app-logo-img {
     transform-origin: center center;
@@ -310,8 +308,8 @@ body {
   }
 
   &:hover {
-    --logo-primary: #20d0e8;
-    --logo-secondary: #e0e8f0;
+    --logo-primary: var(--logo-secondary, #20d0e8);
+    --logo-secondary: var(--logo-primary, #e0e8f0);
 
     .app-logo-img {
       transform: scale(1.05);
@@ -7323,4 +7321,291 @@ a {
     flex-direction: row;
     flex-wrap: wrap;
   }
+}
+
+// ============================================================================
+// Theme System (Appearance Page)
+// ============================================================================
+
+body {
+  transition: background-color 300ms ease, color 300ms ease;
+}
+
+.theme-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.theme-preset-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  border: 2px solid var(--color-border-muted);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  position: relative;
+  text-align: center;
+
+  &:hover {
+    border-color: var(--color-border);
+  }
+
+  &--active {
+    border-color: var(--color-accent-primary);
+    box-shadow: var(--shadow-glow);
+  }
+}
+
+.theme-preset-card-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  width: 100%;
+}
+
+.theme-preset-swatches {
+  display: flex;
+  gap: 4px;
+  margin-bottom: var(--spacing-xs);
+}
+
+.theme-swatch {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-muted);
+}
+
+.theme-preset-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.theme-preset-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-accent-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.theme-preset-meta {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.theme-preset-delete {
+  position: absolute;
+  top: var(--spacing-xs);
+  right: var(--spacing-xs);
+  padding: 2px 6px;
+  font-size: var(--font-size-xs);
+  line-height: 1;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+
+  &:hover {
+    color: var(--color-error);
+  }
+}
+
+.app-settings-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+}
+
+.theme-editor {
+  margin-top: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.theme-editor-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+
+.theme-editor-category-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--spacing-sm);
+}
+
+.theme-editor-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.theme-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.theme-editor-field-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.theme-editor-field-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.theme-editor-color-input {
+  width: 36px;
+  height: 36px;
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  cursor: pointer;
+}
+
+.theme-editor-text-input {
+  flex: 1;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+}
+
+.theme-editor-field-hint {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.theme-editor-save {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  align-items: center;
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.theme-editor-name-input,
+.theme-editor-desc-input {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.theme-editor-name-input {
+  width: 200px;
+}
+
+.theme-editor-desc-input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.theme-import-export-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
+}
+
+.theme-identity-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.theme-identity-active {
+  font-size: var(--font-size-sm);
+  color: var(--color-accent-primary);
+}
+
+// Community browser
+.theme-browser-controls {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.theme-browser-search {
+  flex: 1;
+  min-width: 200px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.theme-browser-sort {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.theme-browser-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-2xl);
+}
+
+.theme-browser-empty {
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: var(--spacing-xl);
+}
+
+.theme-browser-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+
+.theme-browser-page-info {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.theme-share-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.theme-share-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
 }

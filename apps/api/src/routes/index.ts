@@ -18,6 +18,7 @@ import { friendsRoutes } from './friends';
 import { notificationRoutes } from './notifications';
 import { dmRoutes } from './dm';
 import { adminRoutes } from './admin';
+import { themeRoutes } from './themes';
 
 /**
  * Registers all application routes with the main router.
@@ -72,4 +73,7 @@ export function registerRoutes(app: Router): void {
 
   // Platform admin (session + admin list)
   app.merge(adminRoutes, '/api');
+
+  // Community themes (public browse + identity-auth upload)
+  app.merge(themeRoutes, '/api');
 }

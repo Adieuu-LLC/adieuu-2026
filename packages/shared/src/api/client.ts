@@ -656,6 +656,20 @@ export class UsersApi {
   async verifyPhone(params: VerifyPhoneParams): Promise<ApiResponse<UserProfile>> {
     return this.client.post('/api/users/me/phone/verify', params);
   }
+
+  /**
+   * Get the current user's theme and appearance preferences.
+   */
+  async getPreferences(): Promise<ApiResponse<{ themeId?: string; customThemes?: import('../types/theme').ThemeDefinition[] }>> {
+    return this.client.get('/api/users/me/preferences');
+  }
+
+  /**
+   * Update the current user's theme and appearance preferences.
+   */
+  async updatePreferences(prefs: { themeId?: string; customThemes?: import('../types/theme').ThemeDefinition[] }): Promise<ApiResponse<void>> {
+    return this.client.put('/api/users/me/preferences', prefs);
+  }
 }
 
 // ============================================================================
@@ -1979,6 +1993,78 @@ export class AdminApi {
 }
 
 // ============================================================================
+// Themes API Methods (Community Themes)
+// ============================================================================
+
+export interface ThemeListParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  tag?: string;
+  sort?: 'newest' | 'downloads';
+}
+
+export interface ThemeListResponse {
+  themes: import('../types/theme').CommunityTheme[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export class ThemesApi {
+  constructor(private client: ApiClient) { }
+
+  /**
+   * List community themes with optional search/filter.
+   * Public endpoint -- no auth required.
+   */
+  async list(params?: ThemeListParams): Promise<ApiResponse<ThemeListResponse>> {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.search) qs.set('search', params.search);
+    if (params?.tag) qs.set('tag', params.tag);
+    if (params?.sort) qs.set('sort', params.sort);
+    const query = qs.toString();
+    return this.client.get(`/api/themes${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * Get a single community theme by ID.
+   * Public endpoint -- no auth required.
+   */
+  async get(id: string): Promise<ApiResponse<import('../types/theme').CommunityTheme>> {
+    return this.client.get(`/api/themes/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * Upload/share a theme publicly. Requires identity session.
+   */
+  async create(data: {
+    name: string;
+    description?: string;
+    theme: import('../types/theme').ThemeDefinition;
+    tags?: string[];
+  }): Promise<ApiResponse<import('../types/theme').CommunityTheme>> {
+    return this.client.post('/api/themes', data);
+  }
+
+  /**
+   * Delete a community theme. Requires identity session; must be the author.
+   */
+  async delete(id: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/themes/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * Report a community theme. Requires identity session.
+   */
+  async report(id: string): Promise<ApiResponse<void>> {
+    return this.client.post(`/api/themes/${encodeURIComponent(id)}/report`, {});
+  }
+}
+
+// ============================================================================
 // Factory Functions
 // ============================================================================
 
@@ -2000,6 +2086,7 @@ export function createApiClient(config: ApiClientConfig) {
     dm: new DmApi(client),
     dmReactions: new DmReactionsApi(client),
     admin: new AdminApi(client),
+    themes: new ThemesApi(client),
   };
 }
 

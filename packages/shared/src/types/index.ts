@@ -5,6 +5,17 @@ import type { z } from 'zod';
 import type { UserSchema, ApiResponseSchema } from '../schemas';
 import type { PublicIdentity } from '../api/client';
 
+export type {
+  ThemeColorTokens,
+  ThemeDefinition,
+  ThemeLabel,
+  ThemeMeta,
+  CommunityTheme,
+  UserThemePreferences,
+} from './theme';
+
+export { TOKEN_TO_CSS_VAR, THEME_TOKEN_KEYS } from './theme';
+
 // Infer types from schemas for single source of truth
 export type User = z.infer<typeof UserSchema>;
 export type ApiResponse<T> = {
