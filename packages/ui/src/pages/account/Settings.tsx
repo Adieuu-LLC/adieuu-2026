@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '../../components/Card';
 import { Alert } from '../../components/Alert';
+import { NotificationSoundSelect } from '../../components/NotificationSoundSelect';
 import { usePlatformCapabilities, usePlatformFeatures } from '../../config';
 import { useToast } from '../../components/Toast';
 import {
@@ -132,6 +133,17 @@ export function AccountSettings() {
     });
   }, [audio, soundPref.customPath, soundPref.soundId]);
 
+  const soundSelectLabels = useMemo(
+    () => ({
+      gentle: t('account.settings.notifications.soundGentle'),
+      bell: t('account.settings.notifications.soundBell'),
+      pop: t('account.settings.notifications.soundPop'),
+      none: t('account.settings.notifications.soundNone'),
+      custom: t('account.settings.notifications.soundCustom'),
+    }),
+    [t]
+  );
+
   return (
     <div className="page-content">
       <div className="container">
@@ -197,25 +209,18 @@ export function AccountSettings() {
           </label>
 
           <div className="app-settings-sound-row">
-            <label className="app-settings-sound-select-label" htmlFor="notification-sound-select">
+            <div id="notification-sound-preset-label" className="app-settings-sound-select-label">
               {t('account.settings.notifications.soundSelectLabel')}
-            </label>
+            </div>
             <div className="app-settings-sound-row-controls">
-              <select
-                id="notification-sound-select"
-                className="app-settings-sound-select"
+              <NotificationSoundSelect
                 value={soundPref.soundId}
                 disabled={!soundPref.enabled}
-                onChange={(e) => handleSoundIdChange(e.target.value)}
-              >
-                <option value="gentle">{t('account.settings.notifications.soundGentle')}</option>
-                <option value="bell">{t('account.settings.notifications.soundBell')}</option>
-                <option value="pop">{t('account.settings.notifications.soundPop')}</option>
-                <option value="none">{t('account.settings.notifications.soundNone')}</option>
-                {hasCustomSoundPicker ? (
-                  <option value="custom">{t('account.settings.notifications.soundCustom')}</option>
-                ) : null}
-              </select>
+                hasCustomSoundPicker={hasCustomSoundPicker}
+                labels={soundSelectLabels}
+                onValueChange={handleSoundIdChange}
+                labelId="notification-sound-preset-label"
+              />
               <button
                 type="button"
                 className="btn btn-secondary app-settings-sound-preview"

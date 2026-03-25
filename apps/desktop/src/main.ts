@@ -291,26 +291,32 @@ function isAllowedAudioPath(filePath: string): boolean {
 }
 
 ipcMain.handle('audio:pick-sound-file', async () => {
-  const parent = BrowserWindow.getFocusedWindow() ?? mainWindow;
-  const dialogOptions = {
+  // Prefer the main app window so the dialog is modal to it. On Linux, using
+  // getFocusedWindow() can attach to DevTools or another window and break GTK/portal dialogs.
+  const parent = mainWindow ?? BrowserWindow.getFocusedWindow();
+  const dialogOptions: Electron.OpenDialogOptions = {
     title: 'Choose notification sound',
-    properties: ['openFile' as const],
-    filters: [
-      { name: 'Audio', extensions: ['mp3', 'ogg', 'wav', 'm4a', 'flac', 'opus', 'oga'] },
-      { name: 'All Files', extensions: ['*'] },
-    ],
+    properties: ['openFile'],
+    // Only real extensions — `extensions: ['*']` ("All Files") is invalid per Electron and
+    // commonly prevents GTK file dialogs from opening on Linux.
+    filters: [{ name: 'Audio', extensions: ['mp3', 'ogg', 'wav', 'm4a', 'flac', 'opus', 'oga'] }],
   };
-  const result = parent
-    ? await dialog.showOpenDialog(parent, dialogOptions)
-    : await dialog.showOpenDialog(dialogOptions);
-  if (result.canceled || !result.filePaths[0]) {
+  try {
+    const result = parent
+      ? await dialog.showOpenDialog(parent, dialogOptions)
+      : await dialog.showOpenDialog(dialogOptions);
+    if (result.canceled || !result.filePaths[0]) {
+      return null;
+    }
+    const filePath = result.filePaths[0];
+    if (!isAllowedAudioPath(filePath)) {
+      return null;
+    }
+    return { name: path.basename(filePath), path: filePath };
+  } catch (err) {
+    console.error('[audio:pick-sound-file] dialog failed:', err);
     return null;
   }
-  const filePath = result.filePaths[0];
-  if (!isAllowedAudioPath(filePath)) {
-    return null;
-  }
-  return { name: path.basename(filePath), path: filePath };
 });
 
 ipcMain.handle('audio:load-sound-file', async (_event, filePath: unknown) => {

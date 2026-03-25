@@ -172,6 +172,8 @@ export { Avatar } from './components/Avatar';
 export { Tooltip } from './components/Tooltip';
 export { ToastProvider, useToast } from './components/Toast';
 export { SidebarSearch } from './components/SidebarSearch';
+export { NotificationSoundSelect } from './components/NotificationSoundSelect';
+export type { NotificationSoundSelectProps, NotificationSoundSelectLabels } from './components/NotificationSoundSelect';
 export { IdentityCard, IdentityCardCompact } from './components/IdentityCard';
 export { HoverCard } from './components/HoverCard';
 export { SidebarTabs } from './components/SidebarTabs';
