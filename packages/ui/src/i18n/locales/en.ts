@@ -843,6 +843,8 @@ export const en = {
       shareButton: 'Share Theme',
       themeShared: 'Theme shared with the community.',
       shareError: 'Could not share the theme. Ensure you are logged into an Alias.',
+      shareBlockedPreset: 'This theme matches a built-in preset and cannot be shared.',
+      shareBlockedDuplicate: 'You have already shared a theme with these colours.',
       authorLabel: 'by {{author}}',
       previewColors: 'Preview colours',
       previewModalTitle: 'Theme Colours -- {{name}}',

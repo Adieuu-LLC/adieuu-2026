@@ -10,6 +10,7 @@ import { ObjectId } from 'mongodb';
 import { Router } from '../../router';
 import { success } from '../../utils/response';
 import { z, CommunityThemeUploadSchema } from '@adieuu/shared/schemas';
+import { computeColorChecksum } from '@adieuu/shared';
 import { getCommunityThemeRepository } from '../../repositories/community-theme.repository';
 import { toPublicCommunityTheme } from '../../models/community-theme';
 import {
@@ -25,6 +26,15 @@ const THEME_UPLOAD_RATE_CONFIG = {
   limit: 5,
   windowSeconds: 60 * 60, // 1 hour
 };
+
+/** Pre-computed SHA-256 checksums of built-in preset theme colours. */
+const BUILTIN_CHECKSUMS = new Set([
+  '08115fe0f979e002004eeee7a02bc7f4bae8ed74e59bba9a338a63e333817346', // midnight
+  '652c443ae234ef3765eb277ec2b95f43cbe7e048993aa94b82d6ea21d8903834', // daylight
+  '9265bb720887db34db2efb93dc4a9a21d230518f263e5e6e82c3bb2e9cb583ed', // ember
+  '9672f39d347898d40485184a2148d5a58eb975842a325ac64df94c6ba28aacf7', // verdant
+  '8b2676056db3376c1b91e4c083e055219df3848f7e1079cb9927c34d7dbeed1f', // royal
+]);
 
 /**
  * GET /themes - List community themes with optional search/filter.
@@ -124,9 +134,21 @@ router.post('/themes', async (ctx) => {
 
   const { name, description, theme, tags } = parseResult.data;
 
-  const sanitisedTheme = { ...theme, author: identity.username };
+  const colorChecksum = await computeColorChecksum(theme.colors);
+
+  if (BUILTIN_CHECKSUMS.has(colorChecksum)) {
+    return ctx.errors.conflict();
+  }
 
   const repo = getCommunityThemeRepository();
+
+  const alreadyShared = await repo.existsByChecksumAndAuthor(colorChecksum, identity._id);
+  if (alreadyShared) {
+    return ctx.errors.conflict();
+  }
+
+  const sanitisedTheme = { ...theme, author: identity.username };
+
   const doc = await repo.create({
     name,
     description: description ?? '',
@@ -134,6 +156,7 @@ router.post('/themes', async (ctx) => {
     authorUsername: identity.username,
     theme: sanitisedTheme,
     tags: tags ?? [],
+    colorChecksum,
   });
 
   return success(toPublicCommunityTheme(doc));

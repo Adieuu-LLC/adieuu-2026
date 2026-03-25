@@ -4,3 +4,4 @@ export * from './types';
 export * from './schemas';
 export * from './api';
 export * from './utils/jsonUtf8';
+export * from './utils/themeChecksum';

@@ -16,8 +16,9 @@ import { useToast } from '../../components/Toast';
 import { useTheme } from '../../hooks/useTheme';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAppConfig } from '../../config';
-import { createApiClient, type CommunityTheme } from '@adieuu/shared';
+import { createApiClient, computeColorChecksum, type CommunityTheme } from '@adieuu/shared';
 import { validateThemeDefinition } from '../../utils/themeSanitizer';
+import { BUILTIN_THEMES } from '../../constants/builtinThemes';
 
 const SEARCH_DEBOUNCE_MS = 400;
 const DESC_MAX_LENGTH = 150;
@@ -175,6 +176,16 @@ export function ThemeBrowser() {
     if (!activeTheme || identityStatus !== 'logged_in') return;
 
     try {
+      const checksum = await computeColorChecksum(activeTheme.colors);
+
+      const builtinChecksums = await Promise.all(
+        BUILTIN_THEMES.map((bt) => computeColorChecksum(bt.theme.colors)),
+      );
+      if (builtinChecksums.includes(checksum)) {
+        toast.warning(t('account.appearance.shareBlockedPreset'));
+        return;
+      }
+
       const resp = await api.themes.create({
         name: activeTheme.name,
         description: activeTheme.description,
@@ -184,6 +195,8 @@ export function ThemeBrowser() {
       if (resp.success) {
         toast.success(t('account.appearance.themeShared'));
         void fetchThemes();
+      } else if (resp.error?.code === 'CONFLICT') {
+        toast.warning(t('account.appearance.shareBlockedDuplicate'));
       } else {
         toast.error(resp.error?.message ?? t('account.appearance.shareError'));
       }

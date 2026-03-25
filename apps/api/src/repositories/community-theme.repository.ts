@@ -109,6 +109,14 @@ export class CommunityThemeRepository {
     return result.modifiedCount > 0;
   }
 
+  async existsByChecksumAndAuthor(colorChecksum: string, authorIdentityId: ObjectId): Promise<boolean> {
+    const doc = await this.collection.findOne(
+      { colorChecksum, authorIdentityId, removedByAdmin: { $ne: true } },
+      { projection: { _id: 1 } },
+    );
+    return doc !== null;
+  }
+
   async countByAuthor(authorIdentityId: ObjectId): Promise<number> {
     return this.collection.countDocuments({ authorIdentityId, removedByAdmin: { $ne: true } });
   }

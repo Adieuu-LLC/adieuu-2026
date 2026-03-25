@@ -18,6 +18,7 @@ export interface CommunityThemeDocument extends BaseDocument {
   authorUsername: string;
   theme: StoredThemeDefinition;
   tags: string[];
+  colorChecksum: string;
   downloads: number;
   upvotes: number;
   upvotedBy: ObjectId[];
@@ -32,6 +33,7 @@ export interface CreateCommunityThemeInput {
   authorUsername: string;
   theme: StoredThemeDefinition;
   tags: string[];
+  colorChecksum: string;
 }
 
 export interface PublicCommunityTheme {

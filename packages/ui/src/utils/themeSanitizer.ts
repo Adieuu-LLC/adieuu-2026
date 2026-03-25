@@ -9,7 +9,7 @@
  */
 
 import { ThemeImportSchema, ThemeDefinitionSchema } from '@adieuu/shared/schemas';
-import type { ThemeDefinition } from '@adieuu/shared';
+import { THEME_TOKEN_KEYS, type ThemeDefinition, type ThemeColorTokens } from '@adieuu/shared';
 
 const MAX_IMPORT_FILE_SIZE = 100 * 1024; // 100 KB
 
@@ -36,6 +36,36 @@ const FORBIDDEN_SUBSTRINGS = [
 export type SanitizeResult =
   | { ok: true; theme: ThemeDefinition }
   | { ok: false; error: string };
+
+/**
+ * Rebuild a colours object with keys in THEME_TOKEN_KEYS order,
+ * stripping any extraneous keys. Ensures consistent checksums
+ * regardless of the original key ordering.
+ */
+function normalizeColors(colors: Record<string, string>): ThemeColorTokens {
+  const out = {} as Record<string, string>;
+  for (const key of THEME_TOKEN_KEYS) {
+    if (key in colors) {
+      out[key] = colors[key];
+    }
+  }
+  return out as unknown as ThemeColorTokens;
+}
+
+/**
+ * Strip a validated theme down to only the fields needed for
+ * a ThemeDefinition, with colours in canonical key order.
+ */
+function normalizeTheme(theme: ThemeDefinition): ThemeDefinition {
+  return {
+    id: theme.id,
+    name: theme.name,
+    description: theme.description ?? '',
+    version: theme.version,
+    colors: normalizeColors(theme.colors as unknown as Record<string, string>),
+    ...(theme.author ? { author: theme.author } : {}),
+  };
+}
 
 /**
  * Checks a single CSS colour value for forbidden patterns.
@@ -94,13 +124,13 @@ export function sanitizeImportedTheme(raw: string): SanitizeResult {
     }
   }
 
-  return { ok: true, theme: theme as ThemeDefinition };
+  return { ok: true, theme: normalizeTheme(theme as ThemeDefinition) };
 }
 
 /**
  * Validates a ThemeDefinition from a trusted-ish source (e.g. community download).
  * Less strict than import (allows the standard schema, not .strict()), but still
- * re-checks every colour value.
+ * re-checks every colour value. Output is normalised (canonical key order, no extras).
  */
 export function validateThemeDefinition(data: unknown): SanitizeResult {
   const result = ThemeDefinitionSchema.safeParse(data);
@@ -120,5 +150,5 @@ export function validateThemeDefinition(data: unknown): SanitizeResult {
     }
   }
 
-  return { ok: true, theme: theme as ThemeDefinition };
+  return { ok: true, theme: normalizeTheme(theme as ThemeDefinition) };
 }
