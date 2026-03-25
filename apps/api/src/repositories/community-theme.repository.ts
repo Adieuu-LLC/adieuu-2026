@@ -62,17 +62,21 @@ export class CommunityThemeRepository {
   }
 
   async create(input: CreateCommunityThemeInput): Promise<CommunityThemeDocument> {
-    const doc = withTimestamps({
-      ...input,
-      downloads: 0,
-      upvotes: 0,
-      upvotedBy: [],
-      reported: false,
-      removedByAdmin: false,
-    });
+    const _id = new ObjectId();
+    const doc: CommunityThemeDocument = {
+      _id,
+      ...withTimestamps({
+        ...input,
+        downloads: 0,
+        upvotes: 0,
+        upvotedBy: [] as ObjectId[],
+        reported: false,
+        removedByAdmin: false,
+      }),
+    };
 
-    const result = await this.collection.insertOne(doc as CommunityThemeDocument);
-    return { ...doc, _id: result.insertedId } as CommunityThemeDocument;
+    await this.collection.insertOne(doc);
+    return doc;
   }
 
   async deleteByIdAndAuthor(id: string | ObjectId, authorIdentityId: ObjectId): Promise<boolean> {

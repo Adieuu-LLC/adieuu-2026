@@ -46,7 +46,10 @@ function normalizeColors(colors: Record<string, string>): ThemeColorTokens {
   const out = {} as Record<string, string>;
   for (const key of THEME_TOKEN_KEYS) {
     if (key in colors) {
-      out[key] = colors[key];
+      const value = colors[key];
+      if (value !== undefined) {
+        out[key] = value;
+      }
     }
   }
   return out as unknown as ThemeColorTokens;
