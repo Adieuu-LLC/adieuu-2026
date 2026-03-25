@@ -521,6 +521,8 @@ export const en = {
       attemptsRemaining: '{{remaining}} attempts remaining before lockout.',
       noIdentity: "You don't have an alias yet.",
       createPrompt: 'Create one to get started.',
+      /** Shown on login when user already has at least one alias but may create another */
+      createAnotherPrompt: 'Create a new alias',
       // Login status messages
       status: {
         authenticating: 'Verifying passphrase...',

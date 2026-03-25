@@ -26,7 +26,9 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   const { info: toastInfo } = useToast();
   const { createIdentity, loginToIdentity, unlockIdentity, logoutFromIdentity, hasIdentity, canCreateMore } = useIdentity();
 
-  const [view, setView] = useState<ModalView>(unlockMode ? 'unlock' : (hasIdentity ? 'login' : 'choose'));
+  const [view, setView] = useState<ModalView>(
+    unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose'
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
   const handleClose = () => {
     resetForm();
-    setView(unlockMode ? 'unlock' : (hasIdentity ? 'login' : 'choose'));
+    setView(unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose');
     onClose();
   };
 
@@ -124,7 +126,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
         handleClose();
       }, 500);
     } else {
-      // Go back to login view to show error
+      // Go back to login view to show error (not choose — user was submitting login)
       setView('login');
       if (result.errorCode === 'LOCKED_OUT') {
         setError(t('identity.login.errorLocked'));
@@ -161,6 +163,17 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
       }, 500);
     } else {
       setError(result.error || t('identity.unlock.errorInvalid'));
+    }
+  };
+
+  /** Must await server logout before closing; otherwise locked UI can reopen until the cookie clears. */
+  const handleFullyLogout = async () => {
+    setLoading(true);
+    try {
+      await logoutFromIdentity();
+      handleClose();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -329,12 +342,20 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
               </div>
             </form>
 
-            {!hasIdentity && canCreateMore && (
+            {canCreateMore && (
               <div className="identity-modal-footer">
-                <p>{t('identity.login.noIdentity')}</p>
-                <Button variant="ghost" size="sm" onClick={() => setView('create')}>
-                  {t('identity.login.createPrompt')}
-                </Button>
+                {!hasIdentity ? (
+                  <>
+                    <p>{t('identity.login.noIdentity')}</p>
+                    <Button variant="ghost" size="sm" onClick={() => setView('create')}>
+                      {t('identity.login.createPrompt')}
+                    </Button>
+                  </>
+                ) : (
+                  <Button variant="ghost" size="sm" onClick={() => setView('create')}>
+                    {t('identity.login.createAnotherPrompt')}
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -379,11 +400,16 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
             </form>
 
             <div className="identity-modal-footer">
-              <Button variant="ghost" size="sm" onClick={() => setView('login')}>
+              <Button variant="ghost" size="sm" disabled={loading} onClick={() => setView('login')}>
                 {t('identity.unlock.loginDifferent')}
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => { logoutFromIdentity(); handleClose(); }}>
-                {t('identity.unlock.logoutButton')}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={loading}
+                onClick={() => void handleFullyLogout()}
+              >
+                {loading ? <Spinner size="sm" /> : t('identity.unlock.logoutButton')}
               </Button>
             </div>
           </div>
