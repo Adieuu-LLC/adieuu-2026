@@ -1,6 +1,6 @@
 {
   "name": "@adieuu/desktop",
-  "version": "0.1.30",
+  "version": "0.1.31",
   "description": "Adieuu Desktop - Secure encrypted messaging application",
   "author": {
     "name": "Adieuu Team",
@@ -57,7 +57,9 @@
     "protocols": [
       {
         "name": "Adieuu",
-        "schemes": ["adieuu"]
+        "schemes": [
+          "adieuu"
+        ]
       }
     ],
     "files": [
