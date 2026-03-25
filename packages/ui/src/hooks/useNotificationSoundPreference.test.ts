@@ -8,6 +8,8 @@ import {
   setNotificationSoundCustomPath,
   getNotificationSoundSuppressWhenFocused,
   setNotificationSoundSuppressWhenFocused,
+  getNotificationSoundVolume,
+  setNotificationSoundVolume,
 } from './useNotificationSoundPreference';
 
 class MemoryStorage implements Storage {
@@ -92,5 +94,20 @@ describe('notification sound preference (localStorage)', () => {
   it('persists suppress when focused', () => {
     setNotificationSoundSuppressWhenFocused(false);
     expect(getNotificationSoundSuppressWhenFocused()).toBe(false);
+  });
+
+  it('defaults notification sound volume to 100%', () => {
+    expect(getNotificationSoundVolume()).toBe(1);
+  });
+
+  it('persists notification sound volume', () => {
+    setNotificationSoundVolume(0.5);
+    expect(getNotificationSoundVolume()).toBe(0.5);
+    setNotificationSoundVolume(1);
+    expect(getNotificationSoundVolume()).toBe(1);
+    setNotificationSoundVolume(2);
+    expect(getNotificationSoundVolume()).toBe(2);
+    setNotificationSoundVolume(1.5);
+    expect(getNotificationSoundVolume()).toBe(1.5);
   });
 });

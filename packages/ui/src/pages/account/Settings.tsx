@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '../../components/Card';
 import { Alert } from '../../components/Alert';
@@ -19,6 +19,8 @@ import {
   setNotificationSoundId,
   setNotificationSoundCustomPath,
   setNotificationSoundSuppressWhenFocused,
+  setNotificationSoundVolume,
+  MAX_NOTIFICATION_GAIN,
   type NotificationSoundId,
 } from '../../hooks/useNotificationSoundPreference';
 import {
@@ -134,8 +136,13 @@ export function AccountSettings() {
       soundId: soundPref.soundId,
       customPath: soundPref.customPath,
       loadCustomSound: audio?.loadSoundFromPath,
+      volume: soundPref.volume,
     });
-  }, [audio, soundPref.customPath, soundPref.soundId]);
+  }, [audio, soundPref.customPath, soundPref.soundId, soundPref.volume]);
+
+  const handleVolumeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setNotificationSoundVolume(Number(e.target.value) / 100);
+  }, []);
 
   const soundSelectLabels = useMemo(
     () => ({
@@ -245,6 +252,33 @@ export function AccountSettings() {
                 {t('account.settings.notifications.soundPreview')}
               </button>
             </div>
+          </div>
+
+          <div className="app-settings-sound-volume">
+            <label htmlFor="notification-sound-volume" className="app-settings-sound-volume-label">
+              {t('account.settings.notifications.soundVolumeLabel')}
+            </label>
+            <div className="app-settings-sound-volume-row">
+              <input
+                id="notification-sound-volume"
+                type="range"
+                className="app-settings-sound-volume-slider"
+                min={0}
+                max={Math.round(MAX_NOTIFICATION_GAIN * 100)}
+                step={1}
+                value={Math.round(soundPref.volume * 100)}
+                disabled={soundPref.soundId === 'none'}
+                onChange={handleVolumeChange}
+                aria-valuemin={0}
+                aria-valuemax={Math.round(MAX_NOTIFICATION_GAIN * 100)}
+                aria-valuenow={Math.round(soundPref.volume * 100)}
+                aria-valuetext={`${Math.round(soundPref.volume * 100)}%`}
+              />
+              <span className="app-settings-sound-volume-value" aria-hidden>
+                {Math.round(soundPref.volume * 100)}%
+              </span>
+            </div>
+            <p className="app-settings-sound-volume-hint">{t('account.settings.notifications.soundVolumeHint')}</p>
           </div>
 
           {hasCustomSoundPicker && soundPref.soundId === 'custom' && (

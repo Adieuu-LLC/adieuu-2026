@@ -3,7 +3,7 @@
  * No network; custom audio is loaded only via platform capabilities on desktop.
  */
 
-import type { NotificationSoundId } from '../hooks/useNotificationSoundPreference';
+import { MAX_NOTIFICATION_GAIN, type NotificationSoundId } from '../hooks/useNotificationSoundPreference';
 import {
   getBuiltinNotificationSoundSrc,
   isBuiltinNotificationSoundId,
@@ -13,8 +13,8 @@ import {
   type FocusVisibilitySnapshot,
 } from './dmNotificationRules';
 
-let cachedBuiltinKey: string | null = null;
-let cachedBuiltinAudio: HTMLAudioElement | null = null;
+/** Decoded built-in asset (Web Audio gain can exceed 1; fetch+decode avoids HTMLAudio volume cap). */
+let cachedBuiltinDecoded: { src: string; buffer: AudioBuffer } | null = null;
 
 let cachedCustomPath: string | null = null;
 let cachedCustomUrl: string | null = null;
@@ -52,10 +52,14 @@ async function ensureAudioContextRunning(): Promise<AudioContext | null> {
   return sharedAudioContext;
 }
 
-function playDecodedBuffer(ctx: AudioContext, buffer: AudioBuffer): void {
+/** `gain` is 0–MAX_NOTIFICATION_GAIN (200% max). */
+function playDecodedBuffer(ctx: AudioContext, buffer: AudioBuffer, gain: number): void {
   const source = ctx.createBufferSource();
   source.buffer = buffer;
-  source.connect(ctx.destination);
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = gain;
+  source.connect(gainNode);
+  gainNode.connect(ctx.destination);
   source.start(0);
 }
 
@@ -98,26 +102,39 @@ function getBuiltinSrc(id: Exclude<NotificationSoundId, 'none' | 'custom'>): str
   return getBuiltinNotificationSoundSrc(id);
 }
 
-async function playBuiltin(id: Exclude<NotificationSoundId, 'none' | 'custom'>): Promise<void> {
+async function playBuiltin(
+  id: Exclude<NotificationSoundId, 'none' | 'custom'>,
+  gain: number
+): Promise<void> {
   const src = getBuiltinSrc(id);
-  const key = `builtin:${src}`;
-  if (cachedBuiltinKey !== key || !cachedBuiltinAudio) {
-    cachedBuiltinKey = key;
-    cachedBuiltinAudio = new Audio(src);
-    cachedBuiltinAudio.preload = 'auto';
+  const ctx = await ensureAudioContextRunning();
+  if (ctx) {
+    try {
+      if (cachedBuiltinDecoded?.src !== src) {
+        const res = await fetch(src);
+        if (!res.ok) return;
+        const ab = await res.arrayBuffer();
+        cachedBuiltinDecoded = { src, buffer: await ctx.decodeAudioData(ab) };
+      }
+      playDecodedBuffer(ctx, cachedBuiltinDecoded.buffer, gain);
+    } catch {
+      // Missing asset or decode failure
+    }
+    return;
   }
   try {
-    cachedBuiltinAudio.currentTime = 0;
-    await cachedBuiltinAudio.play();
+    const audio = new Audio(src);
+    audio.volume = Math.min(1, gain);
+    await audio.play();
   } catch {
-    // Autoplay policy or missing asset; ignore
+    // Autoplay or missing asset
   }
 }
 
 /**
  * Fallback when decodeAudioData fails (codec) or AudioContext is unavailable: blob URL + <audio>.
  */
-async function playCustomHtmlAudio(path: string, buf: ArrayBuffer): Promise<void> {
+async function playCustomHtmlAudio(path: string, buf: ArrayBuffer, gain: number): Promise<void> {
   revokeCustomUrl();
   cachedCustomDecoded = null;
   cachedCustomPath = path;
@@ -126,6 +143,30 @@ async function playCustomHtmlAudio(path: string, buf: ArrayBuffer): Promise<void
   const audioEl = new Audio(cachedCustomUrl);
   audioEl.preload = 'auto';
   cachedCustomAudio = audioEl;
+
+  const ctx = await ensureAudioContextRunning();
+  if (ctx && gain > 1) {
+    await new Promise<void>((resolve) => {
+      const finish = () => resolve();
+      audioEl.addEventListener('canplaythrough', finish, { once: true });
+      audioEl.addEventListener('error', finish, { once: true });
+      audioEl.load();
+    });
+    try {
+      const source = ctx.createMediaElementSource(audioEl);
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = gain;
+      source.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      audioEl.currentTime = 0;
+      await audioEl.play();
+    } catch {
+      // Autoplay or graph error
+    }
+    return;
+  }
+
+  audioEl.volume = Math.min(1, gain);
   await new Promise<void>((resolve) => {
     const finish = () => resolve();
     audioEl.addEventListener('canplaythrough', finish, { once: true });
@@ -142,12 +183,13 @@ async function playCustomHtmlAudio(path: string, buf: ArrayBuffer): Promise<void
 
 async function playCustom(
   path: string,
-  loadCustomSound: (p: string) => Promise<ArrayBuffer | null>
+  loadCustomSound: (p: string) => Promise<ArrayBuffer | null>,
+  volume: number
 ): Promise<void> {
   const ctx = await ensureAudioContextRunning();
 
   if (cachedCustomDecoded?.path === path && ctx) {
-    playDecodedBuffer(ctx, cachedCustomDecoded.buffer);
+    playDecodedBuffer(ctx, cachedCustomDecoded.buffer, volume);
     return;
   }
 
@@ -162,14 +204,14 @@ async function playCustom(
     try {
       const audioBuffer = await ctx.decodeAudioData(buf.slice(0));
       cachedCustomDecoded = { path, buffer: audioBuffer };
-      playDecodedBuffer(ctx, audioBuffer);
+      playDecodedBuffer(ctx, audioBuffer, volume);
       return;
     } catch {
       // decodeAudioData unsupported for this container/codec — try <audio>
     }
   }
 
-  await playCustomHtmlAudio(path, buf);
+  await playCustomHtmlAudio(path, buf, volume);
 }
 
 export interface PlayNotificationSoundOptions {
@@ -179,6 +221,8 @@ export interface PlayNotificationSoundOptions {
   suppressWhenFocused: boolean;
   isViewingConversation: boolean;
   snapshot: FocusVisibilitySnapshot | null;
+  /** Notification sound gain (0–2 = 0–200%); only affects this playback path. */
+  volume: number;
   /** Required when soundId is 'custom' and path is set */
   loadCustomSound?: (path: string) => Promise<ArrayBuffer | null>;
 }
@@ -195,6 +239,7 @@ export async function playNotificationSound(options: PlayNotificationSoundOption
     isViewingConversation,
     snapshot,
     loadCustomSound,
+    volume,
   } = options;
 
   if (
@@ -210,16 +255,23 @@ export async function playNotificationSound(options: PlayNotificationSoundOption
     return;
   }
 
+  const v = Number.isFinite(volume)
+    ? Math.min(MAX_NOTIFICATION_GAIN, Math.max(0, volume))
+    : 1;
+  if (v <= 0) {
+    return;
+  }
+
   if (soundId === 'custom') {
     if (!customPath || !loadCustomSound) {
       return;
     }
-    await playCustom(customPath, loadCustomSound);
+    await playCustom(customPath, loadCustomSound, v);
     return;
   }
 
   if (isBuiltinNotificationSoundId(soundId)) {
-    await playBuiltin(soundId);
+    await playBuiltin(soundId, v);
   }
 }
 
@@ -230,16 +282,22 @@ export async function previewNotificationSound(options: {
   soundId: NotificationSoundId;
   customPath: string | null;
   loadCustomSound?: (path: string) => Promise<ArrayBuffer | null>;
+  /** Notification sound gain (0–2). */
+  volume: number;
 }): Promise<void> {
-  const { soundId, customPath, loadCustomSound } = options;
+  const { soundId, customPath, loadCustomSound, volume } = options;
   if (soundId === 'none') return;
+  const v = Number.isFinite(volume)
+    ? Math.min(MAX_NOTIFICATION_GAIN, Math.max(0, volume))
+    : 1;
+  if (v <= 0) return;
   if (soundId === 'custom') {
     if (!customPath || !loadCustomSound) return;
-    await playCustom(customPath, loadCustomSound);
+    await playCustom(customPath, loadCustomSound, v);
     return;
   }
   if (isBuiltinNotificationSoundId(soundId)) {
-    await playBuiltin(soundId);
+    await playBuiltin(soundId, v);
   }
 }
 

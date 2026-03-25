@@ -17,6 +17,17 @@ const STORAGE_KEY_ENABLED = 'adieuu.app.notificationSoundEnabled';
 const STORAGE_KEY_SOUND_ID = 'adieuu.app.notificationSoundId';
 const STORAGE_KEY_CUSTOM_PATH = 'adieuu.app.notificationSoundCustomPath';
 const STORAGE_KEY_SUPPRESS_FOCUSED = 'adieuu.app.notificationSoundSuppressWhenFocused';
+const STORAGE_KEY_VOLUME = 'adieuu.app.notificationSoundVolume';
+
+const DEFAULT_VOLUME = 1;
+
+/** Gain multiplier 0 (silent) through 2 (200% / +6 dB nominal). Exported for UI + playback clamp. */
+export const MAX_NOTIFICATION_GAIN = 2;
+
+function clampNotificationGain(n: number): number {
+  if (!Number.isFinite(n)) return DEFAULT_VOLUME;
+  return Math.min(MAX_NOTIFICATION_GAIN, Math.max(0, n));
+}
 
 const listeners = new Set<() => void>();
 
@@ -124,6 +135,38 @@ export function setNotificationSoundSuppressWhenFocused(value: boolean): void {
   emit();
 }
 
+/**
+ * Notification sound gain (0–2, i.e. 0–200%). Applies only to DM notification sounds, not other app audio.
+ * Persisted as an integer 0–200 (percentage of unity gain; 100 = 100%, 200 = 200% boost).
+ */
+export function getNotificationSoundVolume(): number {
+  if (typeof localStorage === 'undefined') return DEFAULT_VOLUME;
+  try {
+    const v = localStorage.getItem(STORAGE_KEY_VOLUME);
+    if (v === null) return DEFAULT_VOLUME;
+    if (v.includes('.')) {
+      const f = parseFloat(v);
+      return Number.isFinite(f) ? clampNotificationGain(f) : DEFAULT_VOLUME;
+    }
+    const units = parseInt(v, 10);
+    if (!Number.isFinite(units)) return DEFAULT_VOLUME;
+    return clampNotificationGain(units / 100);
+  } catch {
+    return DEFAULT_VOLUME;
+  }
+}
+
+export function setNotificationSoundVolume(gain: number): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const units = Math.round(clampNotificationGain(gain) * 100);
+    localStorage.setItem(STORAGE_KEY_VOLUME, String(units));
+  } catch {
+    return;
+  }
+  emit();
+}
+
 function subscribeNotificationSoundPreference(onStoreChange: () => void): () => void {
   listeners.add(onStoreChange);
   const onStorage = (e: StorageEvent) => {
@@ -132,6 +175,7 @@ function subscribeNotificationSoundPreference(onStoreChange: () => void): () => 
       e.key === STORAGE_KEY_SOUND_ID ||
       e.key === STORAGE_KEY_CUSTOM_PATH ||
       e.key === STORAGE_KEY_SUPPRESS_FOCUSED ||
+      e.key === STORAGE_KEY_VOLUME ||
       e.key === null
     ) {
       onStoreChange();
@@ -149,6 +193,8 @@ export interface NotificationSoundPreferenceSnapshot {
   soundId: NotificationSoundId;
   customPath: string | null;
   suppressWhenFocused: boolean;
+  /** Gain for notification sounds only (0–2, i.e. 0–200%). */
+  volume: number;
 }
 
 /**
@@ -162,13 +208,15 @@ function getSnapshot(): NotificationSoundPreferenceSnapshot {
   const soundId = getNotificationSoundId();
   const customPath = getNotificationSoundCustomPath();
   const suppressWhenFocused = getNotificationSoundSuppressWhenFocused();
+  const volume = getNotificationSoundVolume();
 
   if (
     cachedClientSnapshot &&
     cachedClientSnapshot.enabled === enabled &&
     cachedClientSnapshot.soundId === soundId &&
     cachedClientSnapshot.customPath === customPath &&
-    cachedClientSnapshot.suppressWhenFocused === suppressWhenFocused
+    cachedClientSnapshot.suppressWhenFocused === suppressWhenFocused &&
+    cachedClientSnapshot.volume === volume
   ) {
     return cachedClientSnapshot;
   }
@@ -178,6 +226,7 @@ function getSnapshot(): NotificationSoundPreferenceSnapshot {
     soundId,
     customPath,
     suppressWhenFocused,
+    volume,
   };
   return cachedClientSnapshot;
 }
@@ -187,6 +236,7 @@ const SERVER_SNAPSHOT: NotificationSoundPreferenceSnapshot = {
   soundId: DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID,
   customPath: null,
   suppressWhenFocused: true,
+  volume: DEFAULT_VOLUME,
 };
 
 export function useNotificationSoundPreference(): NotificationSoundPreferenceSnapshot {

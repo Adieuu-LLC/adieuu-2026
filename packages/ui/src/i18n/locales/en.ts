@@ -744,6 +744,9 @@ export const en = {
         soundHint: 'When enabled, a sound plays according to the options below.',
         soundSelectLabel: 'Sound',
         soundPreview: 'Preview',
+        soundVolumeLabel: 'Notification sound volume',
+        soundVolumeHint:
+          'Applies only to direct message and reaction notification sounds, not other audio in the app. Values above 100% boost gain (may clip on some files or systems).',
         soundNone: 'None',
         soundCustom: 'Custom file…',
         soundCustomFile: 'Custom sound',

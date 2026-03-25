@@ -164,6 +164,7 @@ export function useDmNotifications(): void {
         suppressWhenFocused: soundPrefRef.current.suppressWhenFocused,
         isViewingConversation,
         snapshot,
+        volume: soundPrefRef.current.volume,
         loadCustomSound:
           soundPrefRef.current.soundId === 'custom' && audioRef.current?.loadSoundFromPath
             ? (p) => audioRef.current!.loadSoundFromPath(p)
@@ -238,6 +239,7 @@ export function useDmNotifications(): void {
         suppressWhenFocused: soundPrefRef.current.suppressWhenFocused,
         isViewingConversation,
         snapshot,
+        volume: soundPrefRef.current.volume,
         loadCustomSound:
           soundPrefRef.current.soundId === 'custom' && audioRef.current?.loadSoundFromPath
             ? (p) => audioRef.current!.loadSoundFromPath(p)

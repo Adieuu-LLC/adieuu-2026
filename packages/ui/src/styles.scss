@@ -6820,6 +6820,7 @@ a {
     height: 18px;
     flex-shrink: 0;
     cursor: pointer;
+    accent-color: var(--color-accent-primary);
   }
 }
 
@@ -6987,6 +6988,54 @@ a {
 
 .app-settings-sound-preview {
   flex-shrink: 0;
+}
+
+.app-settings-sound-volume {
+  margin-bottom: var(--spacing-lg);
+}
+
+.app-settings-sound-volume-label {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  margin-bottom: var(--spacing-sm);
+}
+
+.app-settings-sound-volume-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.app-settings-sound-volume-slider {
+  flex: 1;
+  min-width: 0;
+  height: 6px;
+  border-radius: var(--radius-sm);
+  accent-color: var(--color-accent-primary);
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.app-settings-sound-volume-value {
+  flex-shrink: 0;
+  min-width: 3.25rem;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.app-settings-sound-volume-hint {
+  margin: var(--spacing-sm) 0 0;
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text-muted);
 }
 
 .app-settings-custom-sound {
