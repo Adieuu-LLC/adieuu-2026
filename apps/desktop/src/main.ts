@@ -1,10 +1,31 @@
-import { app, BrowserWindow, shell, ipcMain, dialog, session } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog, session, protocol, net } from 'electron';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import fs from 'fs/promises';
 import { execSync } from 'child_process';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
 import { registerSecureStorageIpc } from './ipc/secureStorage';
+
+// ============================================================================
+// Custom protocol scheme (must be registered before app 'ready' fires)
+// ============================================================================
+
+const CUSTOM_SCHEME = 'adieuu';
+const CUSTOM_SCHEME_ORIGIN = `${CUSTOM_SCHEME}://app`;
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: CUSTOM_SCHEME,
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+]);
 
 // ============================================================================
 // Linux password store detection (must run before app.whenReady)
@@ -88,6 +109,7 @@ const isMac = process.platform === 'darwin';
 
 const PRODUCTION_API_ORIGINS = ['https://api.adieuu.com', 'https://ws.adieuu.com'];
 const PRODUCTION_APP_ORIGIN = 'https://app.adieuu.com';
+const RENDERER_DIR = path.resolve(__dirname, '../renderer');
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
@@ -123,21 +145,19 @@ async function createWindow() {
   });
 
   if (isDev) {
-    // In dev, load from electron-vite renderer dev server
     const rendererUrl = process.env.ELECTRON_RENDERER_URL || 'http://localhost:5173';
     await mainWindow.loadURL(rendererUrl);
-    // Uncomment to open dev tools on startup:
-    // mainWindow.webContents.openDevTools();
   } else {
-    // In production, load from built renderer
-    await mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    await mainWindow.loadURL(`${CUSTOM_SCHEME_ORIGIN}/`);
   }
 }
 
 app.whenReady().then(() => {
   if (!isDev) {
+    registerProtocolHandler();
     setupProductionCors();
   }
+  app.setAsDefaultProtocolClient(CUSTOM_SCHEME);
   createWindow();
   initAutoUpdater();
 });
@@ -158,6 +178,11 @@ app.on('activate', () => {
 app.on('web-contents-created', (_, contents) => {
   contents.on('will-navigate', (event, navigationUrl) => {
     const parsedUrl = new URL(navigationUrl);
+
+    if (parsedUrl.protocol === `${CUSTOM_SCHEME}:`) {
+      return;
+    }
+
     const allowedHostnames = isDev
       ? ['localhost', '127.0.0.1']
       : ['localhost', '127.0.0.1', 'adieuu.com'];
@@ -173,16 +198,43 @@ app.on('web-contents-created', (_, contents) => {
 });
 
 // ============================================================================
-// Production CORS bridge (file:// -> api.adieuu.com)
+// Custom protocol handler (adieuu://app -> dist/renderer)
 //
-// In production the renderer loads from file://, so Chromium sends
-// Origin: null on every fetch. The API only allows https://app.adieuu.com
-// in its CORS policy, which means responses are blocked by the browser.
+// Serves the built renderer files from the adieuu:// scheme, giving the
+// renderer a proper origin instead of file:// (which sends Origin: null).
+// ============================================================================
+
+function registerProtocolHandler(): void {
+  protocol.handle(CUSTOM_SCHEME, (request) => {
+    const url = new URL(request.url);
+    let filePath = decodeURIComponent(url.pathname);
+    if (filePath === '/' || filePath === '') {
+      filePath = '/index.html';
+    }
+
+    const resolved = path.resolve(path.join(RENDERER_DIR, filePath));
+
+    if (!resolved.startsWith(RENDERER_DIR)) {
+      return new Response('Forbidden', { status: 403 });
+    }
+
+    return net.fetch(pathToFileURL(resolved).href);
+  });
+}
+
+// ============================================================================
+// Production CORS + cookie bridge (adieuu://app -> api.adieuu.com)
 //
-// We fix this at the Electron network layer:
+// The renderer loads from adieuu://app, which is a different site to
+// https://api.adieuu.com. The API's CORS policy only allows
+// https://app.adieuu.com, and SameSite=Lax cookies are not sent on
+// cross-site fetch() requests.
+//
+// We fix both at the Electron network layer:
 //   1. Rewrite the outgoing Origin so the server recognises the request.
-//   2. Rewrite the incoming Access-Control-Allow-Origin so Chromium
-//      accepts the response for the file:// (null) origin.
+//   2. Inject session cookies that SameSite=Lax would otherwise withhold.
+//   3. Rewrite the incoming Access-Control-Allow-Origin so Chromium
+//      accepts the response for the adieuu://app origin.
 // ============================================================================
 
 function setupProductionCors(): void {
@@ -190,10 +242,24 @@ function setupProductionCors(): void {
 
   session.defaultSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
     const headers = { ...details.requestHeaders };
-    if (!headers['Origin'] || headers['Origin'] === 'null') {
+
+    if (headers['Origin'] === CUSTOM_SCHEME_ORIGIN) {
       headers['Origin'] = PRODUCTION_APP_ORIGIN;
     }
-    callback({ requestHeaders: headers });
+
+    // SameSite=Lax prevents Chromium from attaching cookies on cross-site
+    // fetch() calls. Read them from the jar and inject manually.
+    session.defaultSession.cookies
+      .get({ url: details.url })
+      .then((cookies) => {
+        if (cookies.length > 0) {
+          headers['Cookie'] = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+        }
+        callback({ requestHeaders: headers });
+      })
+      .catch(() => {
+        callback({ requestHeaders: headers });
+      });
   });
 
   session.defaultSession.webRequest.onHeadersReceived(filter, (details, callback) => {
@@ -208,9 +274,9 @@ function setupProductionCors(): void {
     );
 
     if (acaoKey) {
-      headers[acaoKey] = ['null'];
+      headers[acaoKey] = [CUSTOM_SCHEME_ORIGIN];
     } else {
-      headers['Access-Control-Allow-Origin'] = ['null'];
+      headers['Access-Control-Allow-Origin'] = [CUSTOM_SCHEME_ORIGIN];
       headers['Access-Control-Allow-Credentials'] = ['true'];
     }
 

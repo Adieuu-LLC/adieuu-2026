@@ -54,6 +54,12 @@
     "directories": {
       "output": "out"
     },
+    "protocols": [
+      {
+        "name": "Adieuu",
+        "schemes": ["adieuu"]
+      }
+    ],
     "files": [
       "dist/**/*"
     ],

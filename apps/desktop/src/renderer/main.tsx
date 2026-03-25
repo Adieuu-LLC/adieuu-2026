@@ -69,7 +69,7 @@ function DesktopApp() {
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error('Root element not found');
 
-// Use HashRouter for Electron (file:// protocol doesn't support BrowserRouter)
+// HashRouter works cleanly with the adieuu:// custom protocol scheme
 createRoot(rootElement).render(
   <StrictMode>
     <HashRouter>
