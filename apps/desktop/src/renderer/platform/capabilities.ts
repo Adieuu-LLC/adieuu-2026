@@ -139,6 +139,21 @@ export const desktopCapabilities: PlatformCapabilities = {
   },
 
   // --------------------------------------------------------------------------
+  // Notification sounds (pick path + read bytes in main process)
+  // --------------------------------------------------------------------------
+  audio: {
+    async pickSoundFile(): Promise<{ name: string; path: string } | null> {
+      return window.electron.audio.pickSoundFile();
+    },
+    async loadSoundFromPath(filePath: string): Promise<ArrayBuffer | null> {
+      const base64 = await window.electron.audio.loadSoundFile(filePath);
+      if (!base64) return null;
+      const u8 = base64ToUint8(base64);
+      return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+    },
+  },
+
+  // --------------------------------------------------------------------------
   // Notifications (Electron native notifications)
   // --------------------------------------------------------------------------
   notifications: {
@@ -186,5 +201,6 @@ export const desktopCapabilities: PlatformCapabilities = {
       window.electron?.platform === 'darwin' || window.electron?.platform === 'win32',
     hasNativeWindowControls: true,
     hasDeepLinking: true,
+    hasCustomSoundPicker: true,
   },
 };

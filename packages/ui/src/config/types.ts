@@ -72,6 +72,17 @@ export interface FileSystem {
 }
 
 /**
+ * Optional audio helpers for notification sounds (desktop: native file dialog + read from path).
+ * Web omits this; built-in sounds use static URLs only.
+ */
+export interface AudioCapabilities {
+  /** Open a native file picker for an audio file; returns absolute path (never uploaded). */
+  pickSoundFile(): Promise<{ name: string; path: string } | null>;
+  /** Read bytes from an absolute path on disk (validated in main process). */
+  loadSoundFromPath(path: string): Promise<ArrayBuffer | null>;
+}
+
+/**
  * Native OS notifications (Web Notification API in browser/Electron renderer).
  */
 export interface Notifications {
@@ -104,6 +115,8 @@ export interface PlatformFeatures {
   hasNativeWindowControls: boolean;
   /** True if deep linking is supported */
   hasDeepLinking: boolean;
+  /** True if the user can pick a custom notification sound from disk (desktop only) */
+  hasCustomSoundPicker: boolean;
 }
 
 /**
@@ -114,6 +127,8 @@ export interface PlatformCapabilities {
   secureStorage: SecureStorage;
   fileSystem: FileSystem;
   notifications: Notifications;
+  /** Present when native sound file pick/load is available (Electron). */
+  audio?: AudioCapabilities;
   features: PlatformFeatures;
 }
 

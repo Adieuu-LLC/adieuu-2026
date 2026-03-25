@@ -737,6 +737,24 @@ export const en = {
         permissionResetBody:
           'Notification permission was reset. Turn this option off and on again to allow prompts, or enable notifications in your system settings.',
         enabledToast: 'System notifications enabled.',
+        soundSectionTitle: 'Notification sound',
+        soundSectionDescription:
+          'Play a sound for new direct messages and reactions. Built-in sounds are included with the app. On the desktop app you can use an audio file from your computer; it stays on your device and is never uploaded.',
+        soundToggle: 'Notification sound',
+        soundHint: 'When enabled, a sound plays according to the options below.',
+        soundSelectLabel: 'Sound',
+        soundPreview: 'Preview',
+        soundGentle: 'Gentle chime',
+        soundBell: 'Bell',
+        soundPop: 'Pop',
+        soundNone: 'None',
+        soundCustom: 'Custom file…',
+        soundCustomFile: 'Custom sound',
+        soundBrowse: 'Browse…',
+        soundFileMissing: 'The selected sound file could not be read. Choose another file or pick a built-in sound.',
+        soundSuppressFocused: 'Suppress sound when this conversation is focused',
+        soundSuppressFocusedHint:
+          'When on, no sound plays while you are actively viewing that chat in a focused window (same as in-app toasts). Turn off to always hear a sound.',
       },
     },
 

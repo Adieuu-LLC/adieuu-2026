@@ -18,11 +18,13 @@ import { useDmReactions } from './useDmReactions';
 import { useAppConfig, usePlatformCapabilities } from '../config';
 import { useToast } from '../components/Toast';
 import { useNativeNotificationsPreference } from './useNativeNotificationsPreference';
+import { useNotificationSoundPreference } from './useNotificationSoundPreference';
 import {
   maybeShowNativeNotification,
   readFocusVisibilitySnapshot,
   shouldSuppressInAppToastForConversation,
 } from '../utils/dmNotificationRules';
+import { playNotificationSound } from '../utils/notificationSound';
 import { decryptSenderHint } from '../services/dmMessageService';
 import { getCachedParticipant, cacheParticipant } from '../services/participantCache';
 import type { DmNewMessageEvent, DmReactionNewEvent } from './useDmSubscription';
@@ -62,14 +64,20 @@ export function useDmNotifications(): void {
   const { status, identity } = useIdentity();
   const { onMessage } = useChatConnection();
   const toast = useToast();
-  const { notifications } = usePlatformCapabilities();
+  const { notifications, audio } = usePlatformCapabilities();
   const nativeNotificationsEnabled = useNativeNotificationsPreference();
+  const soundPref = useNotificationSoundPreference();
   const { fetchReactions } = useDmReactions();
 
   const isLoggedIn = status === 'logged_in' && identity !== null;
 
   const identityRef = useRef(identity);
   identityRef.current = identity;
+
+  const soundPrefRef = useRef(soundPref);
+  soundPrefRef.current = soundPref;
+  const audioRef = useRef(audio);
+  audioRef.current = audio;
 
   const handleNewMessage = useCallback(
     async (event: DmNewMessageEvent) => {
@@ -135,6 +143,7 @@ export function useDmNotifications(): void {
 
       const path = `/conversation/${conversationId}`;
       const description = t('messages.newMessageDescription');
+      const snapshot = readFocusVisibilitySnapshot();
       toast.message(senderName, description, () => {
         navigate(path);
       });
@@ -146,8 +155,20 @@ export function useDmNotifications(): void {
         `dm-msg-${conversationId}`,
         navigate,
         path,
-        readFocusVisibilitySnapshot()
+        snapshot
       );
+      void playNotificationSound({
+        enabled: soundPrefRef.current.enabled,
+        soundId: soundPrefRef.current.soundId,
+        customPath: soundPrefRef.current.customPath,
+        suppressWhenFocused: soundPrefRef.current.suppressWhenFocused,
+        isViewingConversation,
+        snapshot,
+        loadCustomSound:
+          soundPrefRef.current.soundId === 'custom' && audioRef.current?.loadSoundFromPath
+            ? (p) => audioRef.current!.loadSoundFromPath(p)
+            : undefined,
+      });
     },
     [apiBaseUrl, location.pathname, navigate, nativeNotificationsEnabled, notifications, t, toast]
   );
@@ -196,6 +217,7 @@ export function useDmNotifications(): void {
 
       const path = `/conversation/${conversationId}`;
       const description = t('messages.reactedToYourMessage');
+      const snapshot = readFocusVisibilitySnapshot();
       toast.message(reactorName, description, () => {
         navigate(path);
       });
@@ -207,8 +229,20 @@ export function useDmNotifications(): void {
         `dm-react-${conversationId}-${messageId}`,
         navigate,
         path,
-        readFocusVisibilitySnapshot()
+        snapshot
       );
+      void playNotificationSound({
+        enabled: soundPrefRef.current.enabled,
+        soundId: soundPrefRef.current.soundId,
+        customPath: soundPrefRef.current.customPath,
+        suppressWhenFocused: soundPrefRef.current.suppressWhenFocused,
+        isViewingConversation,
+        snapshot,
+        loadCustomSound:
+          soundPrefRef.current.soundId === 'custom' && audioRef.current?.loadSoundFromPath
+            ? (p) => audioRef.current!.loadSoundFromPath(p)
+            : undefined,
+      });
     },
     [
       apiBaseUrl,

@@ -1,5 +1,6 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
 import path from 'path';
+import fs from 'fs/promises';
 import { execSync } from 'child_process';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
@@ -276,4 +277,53 @@ ipcMain.handle('window:close', () => {
 
 ipcMain.handle('window:isMaximized', () => {
   return mainWindow?.isMaximized() ?? false;
+});
+
+// ============================================================================
+// Notification sound (local file path only; never uploaded)
+// ============================================================================
+
+const AUDIO_EXTENSIONS = new Set(['.mp3', '.ogg', '.wav', '.m4a', '.flac', '.oga', '.opus']);
+
+function isAllowedAudioPath(filePath: string): boolean {
+  const ext = path.extname(filePath).toLowerCase();
+  return AUDIO_EXTENSIONS.has(ext);
+}
+
+ipcMain.handle('audio:pick-sound-file', async () => {
+  const parent = BrowserWindow.getFocusedWindow() ?? mainWindow;
+  const dialogOptions = {
+    title: 'Choose notification sound',
+    properties: ['openFile' as const],
+    filters: [
+      { name: 'Audio', extensions: ['mp3', 'ogg', 'wav', 'm4a', 'flac', 'opus', 'oga'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  };
+  const result = parent
+    ? await dialog.showOpenDialog(parent, dialogOptions)
+    : await dialog.showOpenDialog(dialogOptions);
+  if (result.canceled || !result.filePaths[0]) {
+    return null;
+  }
+  const filePath = result.filePaths[0];
+  if (!isAllowedAudioPath(filePath)) {
+    return null;
+  }
+  return { name: path.basename(filePath), path: filePath };
+});
+
+ipcMain.handle('audio:load-sound-file', async (_event, filePath: unknown) => {
+  if (typeof filePath !== 'string' || filePath.length === 0) {
+    return null;
+  }
+  if (!isAllowedAudioPath(filePath)) {
+    return null;
+  }
+  try {
+    const buf = await fs.readFile(filePath);
+    return buf.toString('base64');
+  } catch {
+    return null;
+  }
 });

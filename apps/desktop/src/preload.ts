@@ -40,6 +40,14 @@ contextBridge.exposeInMainWorld('electron', {
       }>,
   },
 
+  // Local notification sound file (path on disk; load via main process only)
+  audio: {
+    pickSoundFile: () =>
+      ipcRenderer.invoke('audio:pick-sound-file') as Promise<{ name: string; path: string } | null>,
+    loadSoundFile: (filePath: string) =>
+      ipcRenderer.invoke('audio:load-sound-file', filePath) as Promise<string | null>,
+  },
+
   // IPC communication (add as needed)
   invoke: (channel: string, ...args: unknown[]) => {
     const allowedChannels = ['get-app-version', 'open-external', 'install-update'];
@@ -85,6 +93,10 @@ declare global {
           teeFailed: boolean;
           lastError: string | null;
         }>;
+      };
+      audio: {
+        pickSoundFile: () => Promise<{ name: string; path: string } | null>;
+        loadSoundFile: (filePath: string) => Promise<string | null>;
       };
       invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
       on: (channel: string, callback: (...args: unknown[]) => void) => void;

@@ -18,4 +18,5 @@ export type {
   StorageStatus,
   FileSystem,
   Notifications,
+  AudioCapabilities,
 } from './types';

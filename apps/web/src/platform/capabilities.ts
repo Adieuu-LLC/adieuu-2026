@@ -218,5 +218,6 @@ export const webCapabilities: PlatformCapabilities = {
     hasBiometrics: 'PublicKeyCredential' in window, // WebAuthn support
     hasNativeWindowControls: false, // Browser controls the window
     hasDeepLinking: true, // URL-based routing
+    hasCustomSoundPicker: false,
   },
 };

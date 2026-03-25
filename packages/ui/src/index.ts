@@ -41,6 +41,7 @@ export type {
   StorageStatus,
   FileSystem,
   Notifications,
+  AudioCapabilities,
   PlatformProviderProps,
 } from './config';
 
