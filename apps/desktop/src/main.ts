@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog, session } from 'electron';
 import path from 'path';
 import fs from 'fs/promises';
 import { execSync } from 'child_process';
@@ -86,6 +86,9 @@ let mainWindow: BrowserWindow | null = null;
 const isDev = process.env.NODE_ENV === 'development';
 const isMac = process.platform === 'darwin';
 
+const PRODUCTION_API_ORIGINS = ['https://api.adieuu.com', 'https://ws.adieuu.com'];
+const PRODUCTION_APP_ORIGIN = 'https://app.adieuu.com';
+
 async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -132,6 +135,9 @@ async function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (!isDev) {
+    setupProductionCors();
+  }
   createWindow();
   initAutoUpdater();
 });
@@ -152,13 +158,65 @@ app.on('activate', () => {
 app.on('web-contents-created', (_, contents) => {
   contents.on('will-navigate', (event, navigationUrl) => {
     const parsedUrl = new URL(navigationUrl);
-    const allowedOrigins = ['localhost', '127.0.0.1'];
+    const allowedHostnames = isDev
+      ? ['localhost', '127.0.0.1']
+      : ['localhost', '127.0.0.1', 'adieuu.com'];
 
-    if (!allowedOrigins.some((origin) => parsedUrl.hostname.includes(origin))) {
+    const allowed = allowedHostnames.some(
+      (h) => parsedUrl.hostname === h || parsedUrl.hostname.endsWith(`.${h}`),
+    );
+
+    if (!allowed) {
       event.preventDefault();
     }
   });
 });
+
+// ============================================================================
+// Production CORS bridge (file:// -> api.adieuu.com)
+//
+// In production the renderer loads from file://, so Chromium sends
+// Origin: null on every fetch. The API only allows https://app.adieuu.com
+// in its CORS policy, which means responses are blocked by the browser.
+//
+// We fix this at the Electron network layer:
+//   1. Rewrite the outgoing Origin so the server recognises the request.
+//   2. Rewrite the incoming Access-Control-Allow-Origin so Chromium
+//      accepts the response for the file:// (null) origin.
+// ============================================================================
+
+function setupProductionCors(): void {
+  const filter = { urls: PRODUCTION_API_ORIGINS.map((o) => `${o}/*`) };
+
+  session.defaultSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
+    const headers = { ...details.requestHeaders };
+    if (!headers['Origin'] || headers['Origin'] === 'null') {
+      headers['Origin'] = PRODUCTION_APP_ORIGIN;
+    }
+    callback({ requestHeaders: headers });
+  });
+
+  session.defaultSession.webRequest.onHeadersReceived(filter, (details, callback) => {
+    const headers = { ...details.responseHeaders };
+    if (!headers) {
+      callback({});
+      return;
+    }
+
+    const acaoKey = Object.keys(headers).find(
+      (k) => k.toLowerCase() === 'access-control-allow-origin',
+    );
+
+    if (acaoKey) {
+      headers[acaoKey] = ['null'];
+    } else {
+      headers['Access-Control-Allow-Origin'] = ['null'];
+      headers['Access-Control-Allow-Credentials'] = ['true'];
+    }
+
+    callback({ responseHeaders: headers });
+  });
+}
 
 // Secure storage IPC (safeStorage + local file)
 registerSecureStorageIpc();
