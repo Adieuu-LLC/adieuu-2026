@@ -961,6 +961,12 @@ export const en = {
           description: 'Your Alias is how others find you. It is separate from your account login for privacy.',
           action: 'Alias settings',
         },
+        appearance: {
+          title: 'Personalise your appearance',
+          description: 'Choose a preset theme, customise colours, or explore community themes.',
+          action: 'Start tour',
+          actionRetake: 'Retake tour',
+        },
         age: {
           title: 'Verify your age',
           description: 'Age verification will be available here soon.',
@@ -1006,6 +1012,57 @@ export const en = {
         description:
           'When you are done, sign out of your account from this menu. Your session ends securely.',
       },
+    },
+    appearance: {
+      welcome: {
+        title: 'Personalise Adieuu',
+        description: 'Let us show you how to customise the look and feel of Adieuu to match your style.',
+      },
+      nav: {
+        title: 'Finding Appearance',
+        description: 'Open your account menu and select Appearance to access theme settings.',
+      },
+      presets: {
+        title: 'Preset themes',
+        description: 'Choose from several built-in themes. Click one to apply it instantly.',
+      },
+      editor: {
+        title: 'Customise colours',
+        description: 'Open the theme editor to tweak individual colours with the colour picker. You can fine-tune backgrounds, text, accents, and more.',
+      },
+      communityLink: {
+        title: 'Community marketplace',
+        description: 'Head to the Community Themes page to browse themes shared by other users.',
+      },
+      communitySearch: {
+        title: 'Search themes',
+        description: 'Use the search bar to find community themes by name, description, or tag. Results update as you type.',
+      },
+      btnPreview: {
+        title: 'Preview colours',
+        description: 'Click the eye icon to open a full preview of every colour in this theme before committing to it.',
+      },
+      btnIdentity: {
+        title: 'Set as Alias theme',
+        description: 'This icon applies the theme only to your current Alias session, giving each Alias its own look. You can further customise per-Alias themes from the Appearance page under your Identity settings.',
+      },
+      btnIdentityHint: {
+        title: 'Per-Alias themes',
+        description: 'If you are signed in to one of your Aliases, you will also see an icon here to apply a theme only to that Alias. This is great for creating visual separation when you own multiple Aliases. You can also manage per-Alias themes from the Appearance page under your Identity settings.',
+      },
+      btnAccount: {
+        title: 'Set as Account theme',
+        description: 'Apply this theme as your account-wide default. If an Alias override is active, a tooltip will remind you.',
+      },
+      btnUpvote: {
+        title: 'Upvote',
+        description: 'Like a theme? Give it an upvote so others can find it more easily. You cannot upvote your own themes.',
+      },
+    },
+    resumeToast: {
+      title: 'Tour paused',
+      description: 'You closed the tour early. Pick up where you left off whenever you are ready.',
+      action: 'Resume tour',
     },
   },
 

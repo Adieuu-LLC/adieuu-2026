@@ -247,6 +247,7 @@ export function ThemeBrowser() {
             <input
               type="text"
               className="theme-browser-search"
+              data-tour="community-search"
               placeholder={t('account.appearance.searchPlaceholder')}
               value={search}
               onChange={(e) => handleSearchInput(e.target.value)}
@@ -295,8 +296,8 @@ export function ThemeBrowser() {
         ) : (
           <>
             <div className="theme-result-list">
-              {themes.map((ct) => (
-                <div key={ct.id} className="theme-result-row">
+              {themes.map((ct, idx) => (
+                <div key={ct.id} className="theme-result-row" {...(idx === 0 ? { 'data-tour': 'community-first-row' } : {})}>
                   {/* 2x2 colour swatch */}
                   <div className="theme-result-swatches">
                     <span className="theme-result-swatch" style={{ background: ct.theme.colors.bgPrimary }} />
@@ -335,6 +336,7 @@ export function ThemeBrowser() {
                       size="sm"
                       onClick={() => setPreviewTheme(ct)}
                       title={t('account.appearance.previewColors')}
+                      {...(idx === 0 ? { 'data-tour': 'community-btn-preview' } : {})}
                     >
                       <EyeIcon />
                     </Button>
@@ -345,6 +347,7 @@ export function ThemeBrowser() {
                         size="sm"
                         onClick={() => void handleSetIdentityTheme(ct)}
                         title={t('account.appearance.setIdentityTheme')}
+                        {...(idx === 0 ? { 'data-tour': 'community-btn-identity' } : {})}
                       >
                         <IdentityIcon />
                       </Button>
@@ -357,6 +360,7 @@ export function ThemeBrowser() {
                           size="sm"
                           onClick={() => void handleSetAccountTheme(ct)}
                           title={t('account.appearance.setAccountTheme')}
+                          {...(idx === 0 ? { 'data-tour': 'community-btn-account' } : {})}
                         >
                           <AccountIcon />
                         </Button>
@@ -367,6 +371,7 @@ export function ThemeBrowser() {
                         size="sm"
                         onClick={() => void handleSetAccountTheme(ct)}
                         title={t('account.appearance.setAccountTheme')}
+                        {...(idx === 0 ? { 'data-tour': 'community-btn-account' } : {})}
                       >
                         <AccountIcon />
                       </Button>
@@ -378,6 +383,7 @@ export function ThemeBrowser() {
                       onClick={(e) => void handleUpvote(e, ct)}
                       title={t('account.appearance.upvoteButton')}
                       className="theme-result-upvote-btn"
+                      {...(idx === 0 ? { 'data-tour': 'community-btn-upvote' } : {})}
                     >
                       <UpvoteIcon />
                       <span className="theme-upvote-count">{ct.upvotes ?? 0}</span>

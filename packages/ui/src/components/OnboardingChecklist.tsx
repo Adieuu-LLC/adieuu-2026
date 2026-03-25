@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Card } from './Card';
 import { Button } from './Button';
 import { Spinner } from './Spinner';
-import { useTourContext } from '../hooks/useTourContext';
+import { useTourContext, useAppearanceTour } from '../hooks/useTourContext';
 import { useOnboardingStatus } from '../hooks/useOnboardingStatus';
 
 function CheckIcon({ done }: { done: boolean }) {
@@ -34,6 +34,7 @@ function CheckIcon({ done }: { done: boolean }) {
 export function OnboardingChecklist() {
   const { t } = useTranslation();
   const tour = useTourContext();
+  const appearanceTour = useAppearanceTour();
   const { items, loading } = useOnboardingStatus();
 
   return (
@@ -54,7 +55,7 @@ export function OnboardingChecklist() {
             const title = t(`home.onboarding.items.${item.id}.title`);
             const description = t(`home.onboarding.items.${item.id}.description`);
             const showActions =
-              !item.disabled && (item.id === 'tour' || !item.completed);
+              !item.disabled && (item.id === 'tour' || item.id === 'appearance' || !item.completed);
 
             return (
               <li
@@ -93,6 +94,13 @@ export function OnboardingChecklist() {
                         <Link to="/identity/profile" className="btn btn-secondary btn-sm">
                           {t('home.onboarding.items.alias.action')}
                         </Link>
+                      )}
+                      {item.id === 'appearance' && (
+                        <Button variant="secondary" size="sm" type="button" onClick={() => appearanceTour.start()}>
+                          {item.completed
+                            ? t('home.onboarding.items.appearance.actionRetake')
+                            : t('home.onboarding.items.appearance.action')}
+                        </Button>
                       )}
                     </div>
                   )}

@@ -242,7 +242,7 @@ export function AccountAppearance() {
                 />
               </p>
             </div>
-            <div className="page-header-actions">
+            <div className="page-header-actions" data-tour="appearance-community-link">
               <Link to="/account/appearance/community" style={{ textDecoration: 'none' }}>
                 <Button variant="secondary" size="sm">
                   {t('account.appearance.communityTitle')}
@@ -262,7 +262,7 @@ export function AccountAppearance() {
         )}
 
         {/* Preset Themes */}
-        <Card variant="elevated" className="slide-up app-settings-card">
+        <Card variant="elevated" className="slide-up app-settings-card" data-tour="appearance-presets">
           <h2 className="app-settings-section-title">{t('account.appearance.presetsTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.appearance.presetsDescription')}</p>
 
@@ -329,7 +329,7 @@ export function AccountAppearance() {
 
         {/* Theme Editor */}
         <Card variant="elevated" className="slide-up app-settings-card">
-          <div className="app-settings-section-header">
+          <div className="app-settings-section-header" data-tour="appearance-editor">
             <div>
               <h2 className="app-settings-section-title">{t('account.appearance.editorTitle')}</h2>
               <p className="app-settings-section-desc">{t('account.appearance.editorDescription')}</p>

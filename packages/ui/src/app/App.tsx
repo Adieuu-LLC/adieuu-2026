@@ -24,7 +24,7 @@ import {
 } from '../pages/identity';
 import { ServiceStatus } from '../pages/ServiceStatus';
 import { useAuth } from '../hooks/useAuth';
-import { TourProvider, useTourContext } from '../hooks/useTourContext';
+import { TourProvider, useTourContext, useAppearanceTour } from '../hooks/useTourContext';
 import { CipherStoreProvider } from '../hooks/useCipherStore';
 import { ChatConnectionProvider } from '../hooks/useChatConnection';
 import { ConversationsProvider } from '../hooks/ConversationsProvider';
@@ -80,6 +80,7 @@ function ProtectedLayout() {
  */
 function ProtectedLayoutContent() {
   const tour = useTourContext();
+  const appearanceTour = useAppearanceTour();
 
   // Mount pre-key lifecycle management once for authenticated app runtime.
   // This enables automatic SPK rotation + cleanup and OTPK replenishment checks.
@@ -91,6 +92,7 @@ function ProtectedLayoutContent() {
   return (
     <>
       <TourRoot tour={tour} />
+      <TourRoot tour={appearanceTour} />
       <AppLayout sidebar={<AppSidebar />}>
         <UpdateBanner />
         <KeyStorageBanner />
