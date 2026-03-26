@@ -13,7 +13,8 @@ import { SidebarFriendsList } from '../components/SidebarFriendsList';
 import { SidebarConversationsList } from '../components/SidebarConversationsList';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
-import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon, MessageIcon, SpacesIcon, ShieldIcon, PaletteIcon } from '../components/Icons';
+import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, UsersIcon, MessageIcon, SpacesIcon, ShieldIcon, PaletteIcon, DownloadIcon } from '../components/Icons';
+import { useAppConfig } from '../config';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
 import { useConversationsContext } from '../hooks/ConversationsProvider';
@@ -348,11 +349,14 @@ function SidebarNavContent() {
  */
 function SidebarFooterContent() {
   const { t } = useTranslation();
+  const { platform } = useAppConfig();
   const { session } = useAuth();
   const location = useLocation();
   const { closeMobile } = useSidebar();
   const showAdmin = session?.isPlatformAdmin === true;
   const isAdminActive = location.pathname.startsWith('/admin');
+  const isDownloadActive = location.pathname === '/download';
+  const showDesktopAppLink = platform === 'web';
 
   return (
     <div className="sidebar-footer-stack">
@@ -365,6 +369,18 @@ function SidebarFooterContent() {
           >
             <ShieldIcon />
             <span className="sidebar-admin-label">{t('admin.nav.link')}</span>
+          </Link>
+        </div>
+      )}
+      {showDesktopAppLink && (
+        <div className="sidebar-desktop-row">
+          <Link
+            to="/download"
+            className={`sidebar-desktop-link${isDownloadActive ? ' sidebar-desktop-link-active' : ''}`}
+            onClick={closeMobile}
+          >
+            <DownloadIcon />
+            <span className="sidebar-desktop-label">{t('nav.getDesktopApp')}</span>
           </Link>
         </div>
       )}

@@ -3,6 +3,7 @@ import { AppLayout } from '../components/AppLayout';
 import { TourRoot } from '../components/Tour';
 import { Home } from '../pages/Home';
 import { About } from '../pages/About';
+import { Download } from '../pages/Download';
 import { Search } from '../pages/Search';
 import { Conversation } from '../pages/Conversation';
 import { Login, Verify, MfaVerify } from '../pages/auth';
@@ -161,6 +162,7 @@ export function App() {
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
+        <Route path="/download" element={<Download />} />
         <Route path="/search" element={<Search />} />
         <Route path="/conversation/:id" element={<Conversation />} />
 

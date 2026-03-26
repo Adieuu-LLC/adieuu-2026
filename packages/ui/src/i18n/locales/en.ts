@@ -28,6 +28,7 @@ export const en = {
   nav: {
     home: 'Home',
     about: 'About',
+    getDesktopApp: 'Get desktop app',
     account: 'Account',
     logout: 'Logout',
     expandSidebar: 'Expand sidebar',
@@ -913,6 +914,37 @@ export const en = {
     securityText: 'All messages are encrypted using industry-standard cryptographic algorithms. Our passwordless authentication system eliminates the risk of password breaches while providing a seamless user experience.',
     desktopTitle: 'Desktop App',
     desktopText: 'The Adieuu desktop app is built with Electron, providing a native experience on Windows, macOS, and Linux. It shares the same secure codebase as our web application, ensuring consistent security across all platforms.',
+  },
+
+  download: {
+    title: 'Download the desktop app',
+    subtitle:
+      'Use Adieuu as a native app on Windows, macOS, or Linux. Same privacy and encryption as the browser, with a better fit for daily use.',
+    benefitsTitle: 'Why use the desktop app',
+    benefitNotifications:
+      'Notifications can work even when the app is not in the foreground, so you are less likely to miss messages.',
+    benefitSounds:
+      'Choose your own notification sound and use custom audio files from your device.',
+    benefitNative:
+      'Native integration with your operating system: dock or taskbar presence, window management, and a familiar desktop workflow.',
+    benefitReliableAudio:
+      'Sound playback is less subject to browser autoplay rules, so notifications are more reliable.',
+    benefitKeyStorage:
+      'Cryptographic keys can be stored in your OS keychain (e.g. Windows Credential Manager, macOS Keychain), not only in browser storage.',
+    benefitDedicatedWindow:
+      'A dedicated window keeps Adieuu separate from dozens of browser tabs.',
+    limitationsTitle: 'Browser limitations',
+    limitationTab:
+      'In the browser, real-time alerts and sounds generally work only while the tab is open. Closing the tab stops the connection.',
+    limitationAutoplay:
+      'Browsers may block or delay sounds until you have interacted with the page, which can make notification sounds feel inconsistent.',
+    limitationIndexedDb:
+      'Browser storage can be cleared when you clear site data or cache, which can affect local keys.',
+    limitationNoTray:
+      'There is no system tray or dock icon in the browser; the desktop app can sit in the tray for quick access.',
+    linksTitle: 'Downloads',
+    linksPlaceholder: 'Direct download links for each platform will appear here soon.',
+    versionLabel: 'Latest release version: {{version}}',
   },
 
   // Home page

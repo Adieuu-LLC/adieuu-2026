@@ -981,7 +981,8 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
   .sidebar-account-chevron,
   .sidebar-identity-label,
   .sidebar-identity-chevron,
-  .sidebar-admin-label {
+  .sidebar-admin-label,
+  .sidebar-desktop-label {
     display: none;
   }
 
@@ -992,6 +993,12 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
   }
 
   .sidebar-admin-link {
+    justify-content: center;
+    padding: var(--spacing-sm);
+    gap: 0;
+  }
+
+  .sidebar-desktop-link {
     justify-content: center;
     padding: var(--spacing-sm);
     gap: 0;
@@ -7082,6 +7089,46 @@ a {
   line-height: var(--line-height-relaxed);
 }
 
+// Download desktop app page
+.download-page-card {
+  margin-bottom: var(--spacing-lg);
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+
+.download-page-card-title {
+  margin-top: 0;
+  margin-bottom: var(--spacing-md);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
+.download-page-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+
+  li + li {
+    margin-top: var(--spacing-sm);
+  }
+}
+
+.download-page-placeholder {
+  margin: 0 0 var(--spacing-md);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
+.download-page-version {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
 // Platform admin
 .sidebar-admin-row {
   width: 100%;
@@ -7108,6 +7155,42 @@ a {
   }
 
   &.sidebar-admin-link-active {
+    background: var(--color-surface-elevated);
+    border-color: var(--color-border);
+  }
+
+  svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.sidebar-desktop-row {
+  width: 100%;
+  margin-bottom: var(--spacing-sm);
+}
+
+.sidebar-desktop-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+
+  &.sidebar-desktop-link-active {
     background: var(--color-surface-elevated);
     border-color: var(--color-border);
   }
