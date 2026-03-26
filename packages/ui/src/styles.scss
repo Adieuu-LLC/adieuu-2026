@@ -7069,6 +7069,19 @@ a {
   white-space: nowrap;
 }
 
+.app-settings-test-notification {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.app-settings-test-notification-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
+
 // Platform admin
 .sidebar-admin-row {
   width: 100%;

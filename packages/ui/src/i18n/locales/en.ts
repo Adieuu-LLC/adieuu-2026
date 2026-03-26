@@ -775,6 +775,13 @@ export const en = {
         soundSuppressFocused: 'Suppress sound when this conversation is focused',
         soundSuppressFocusedHint:
           'When on, no sound plays while you are actively viewing that chat in a focused window (same as in-app toasts). Turn off to always hear a sound.',
+        testNotification: 'Send test notification',
+        testNotificationHint:
+          'Fires a system notification and plays your selected sound so you can verify everything is working.',
+        testNotificationTitle: 'Adieuu test notification',
+        testNotificationBody: 'If you can see this and hear the sound, notifications are working properly.',
+        testNotificationSuccess: 'Test notification sent.',
+        testNotificationNoPermission: 'System notifications are not enabled or permission is missing.',
       },
     },
 

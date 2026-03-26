@@ -74,6 +74,9 @@ export function useDmNotifications(): void {
   const identityRef = useRef(identity);
   identityRef.current = identity;
 
+  const locationRef = useRef(location);
+  locationRef.current = location;
+
   const soundPrefRef = useRef(soundPref);
   soundPrefRef.current = soundPref;
   const audioRef = useRef(audio);
@@ -86,13 +89,13 @@ export function useDmNotifications(): void {
 
       const message = event.payload.message;
       const conversationId = message.conversationId;
+      const conversationPath = `/conversation/${conversationId}`;
 
-      const isViewingConversation = location.pathname === `/conversation/${conversationId}`;
+      const isViewingConversation = locationRef.current.pathname === conversationPath;
       if (shouldSuppressInAppToastForConversation(isViewingConversation, readFocusVisibilitySnapshot())) {
         return;
       }
 
-      // Try to get sender info for the toast
       let senderName = t('messages.newMessage');
       try {
         const senderId = decryptSenderHint(
@@ -102,12 +105,10 @@ export function useDmNotifications(): void {
           message.cryptoProfile
         );
 
-        // Don't show notification for our own messages
         if (senderId === currentIdentity.id) {
           return;
         }
 
-        // Try to get sender name from cache or API
         const cached = await getCachedParticipant(currentIdentity.id, conversationId);
         if (cached && cached.otherIdentityId === senderId) {
           const api = createApiClient({ baseUrl: apiBaseUrl });
@@ -125,7 +126,6 @@ export function useDmNotifications(): void {
           if (identityResponse.success && identityResponse.data) {
             senderName = identityResponse.data.displayName;
             
-            // Cache for future use
             if (keysResponse.success && keysResponse.data?.signingPublicKey) {
               await cacheParticipant({
                 myIdentityId: currentIdentity.id,
@@ -141,11 +141,16 @@ export function useDmNotifications(): void {
         // Could not decrypt sender - still show generic notification
       }
 
-      const path = `/conversation/${conversationId}`;
-      const description = t('messages.newMessageDescription');
+      // Re-check route after async work; the user may have navigated during API calls
+      const currentIsViewing = locationRef.current.pathname === conversationPath;
       const snapshot = readFocusVisibilitySnapshot();
+      if (shouldSuppressInAppToastForConversation(currentIsViewing, snapshot)) {
+        return;
+      }
+
+      const description = t('messages.newMessageDescription');
       toast.message(senderName, description, () => {
-        navigate(path);
+        navigate(conversationPath);
       });
       maybeShowNativeNotification(
         notifications,
@@ -154,7 +159,7 @@ export function useDmNotifications(): void {
         description,
         `dm-msg-${conversationId}`,
         navigate,
-        path,
+        conversationPath,
         snapshot
       );
       void playNotificationSound({
@@ -162,7 +167,7 @@ export function useDmNotifications(): void {
         soundId: soundPrefRef.current.soundId,
         customPath: soundPrefRef.current.customPath,
         suppressWhenFocused: soundPrefRef.current.suppressWhenFocused,
-        isViewingConversation,
+        isViewingConversation: currentIsViewing,
         snapshot,
         volume: soundPrefRef.current.volume,
         loadCustomSound:
@@ -171,7 +176,7 @@ export function useDmNotifications(): void {
             : undefined,
       });
     },
-    [apiBaseUrl, location.pathname, navigate, nativeNotificationsEnabled, notifications, t, toast]
+    [apiBaseUrl, navigate, nativeNotificationsEnabled, notifications, t, toast]
   );
 
   const handleReactionNew = useCallback(
@@ -182,8 +187,9 @@ export function useDmNotifications(): void {
       const rawReaction = event.payload.reaction;
       const conversationId = rawReaction.conversationId;
       const messageId = rawReaction.messageId;
+      const conversationPath = `/conversation/${conversationId}`;
 
-      const isViewingConversation = location.pathname === `/conversation/${conversationId}`;
+      const isViewingConversation = locationRef.current.pathname === conversationPath;
       if (shouldSuppressInAppToastForConversation(isViewingConversation, readFocusVisibilitySnapshot())) {
         return;
       }
@@ -216,11 +222,16 @@ export function useDmNotifications(): void {
         // Keep generic reactorName
       }
 
-      const path = `/conversation/${conversationId}`;
-      const description = t('messages.reactedToYourMessage');
+      // Re-check route after async work; the user may have navigated during API calls
+      const currentIsViewing = locationRef.current.pathname === conversationPath;
       const snapshot = readFocusVisibilitySnapshot();
+      if (shouldSuppressInAppToastForConversation(currentIsViewing, snapshot)) {
+        return;
+      }
+
+      const description = t('messages.reactedToYourMessage');
       toast.message(reactorName, description, () => {
-        navigate(path);
+        navigate(conversationPath);
       });
       maybeShowNativeNotification(
         notifications,
@@ -229,7 +240,7 @@ export function useDmNotifications(): void {
         description,
         `dm-react-${conversationId}-${messageId}`,
         navigate,
-        path,
+        conversationPath,
         snapshot
       );
       void playNotificationSound({
@@ -237,7 +248,7 @@ export function useDmNotifications(): void {
         soundId: soundPrefRef.current.soundId,
         customPath: soundPrefRef.current.customPath,
         suppressWhenFocused: soundPrefRef.current.suppressWhenFocused,
-        isViewingConversation,
+        isViewingConversation: currentIsViewing,
         snapshot,
         volume: soundPrefRef.current.volume,
         loadCustomSound:
@@ -249,7 +260,6 @@ export function useDmNotifications(): void {
     [
       apiBaseUrl,
       fetchReactions,
-      location.pathname,
       navigate,
       nativeNotificationsEnabled,
       notifications,
@@ -265,7 +275,7 @@ export function useDmNotifications(): void {
       const raw = msg as unknown as RawWsMessage;
       if (raw.type === 'dm:new') {
         const event = raw as unknown as DmNewMessageEvent;
-        handleNewMessage(event);
+        void handleNewMessage(event);
       }
       if (raw.type === 'dm:reaction:new') {
         const event = raw as unknown as DmReactionNewEvent;

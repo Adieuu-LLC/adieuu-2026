@@ -26,6 +26,7 @@ import {
 import {
   previewNotificationSound,
   invalidateNotificationSoundCustomCache,
+  ensureAudioContextRunning,
 } from '../../utils/notificationSound';
 
 function basenameFromPath(p: string): string {
@@ -90,6 +91,7 @@ export function AccountSettings() {
         }
         setNativeNotificationsEnabled(true);
         toast.success(t('account.settings.notifications.enabledToast'));
+        void ensureAudioContextRunning();
       } finally {
         setBusy(false);
       }
@@ -97,8 +99,32 @@ export function AccountSettings() {
     [notifications, supportsNotifications, t, toast]
   );
 
+  const handleTestNotification = useCallback(async () => {
+    if (!supportsNotifications || !nativeEnabled || !notifications.hasPermission()) {
+      toast.error(t('account.settings.notifications.testNotificationNoPermission'));
+      return;
+    }
+    notifications.show(
+      t('account.settings.notifications.testNotificationTitle'),
+      t('account.settings.notifications.testNotificationBody'),
+      { tag: 'test-notification' }
+    );
+    if (soundPref.enabled && soundPref.soundId !== 'none') {
+      await previewNotificationSound({
+        soundId: soundPref.soundId,
+        customPath: soundPref.customPath,
+        loadCustomSound: audio?.loadSoundFromPath,
+        volume: soundPref.volume,
+      });
+    }
+    toast.success(t('account.settings.notifications.testNotificationSuccess'));
+  }, [audio, nativeEnabled, notifications, soundPref, supportsNotifications, t, toast]);
+
   const handleSoundEnabledChange = useCallback((checked: boolean) => {
     setNotificationSoundEnabled(checked);
+    if (checked) {
+      void ensureAudioContextRunning();
+    }
   }, []);
 
   const handleSoundIdChange = useCallback(
@@ -205,6 +231,20 @@ export function AccountSettings() {
                   </span>
                 </span>
               </label>
+
+              <div className="app-settings-test-notification">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={!nativeEnabled || !notifications.hasPermission()}
+                  onClick={() => void handleTestNotification()}
+                >
+                  {t('account.settings.notifications.testNotification')}
+                </button>
+                <span className="app-settings-test-notification-hint">
+                  {t('account.settings.notifications.testNotificationHint')}
+                </span>
+              </div>
             </>
           )}
         </Card>
