@@ -347,7 +347,63 @@ function setupProductionCors(): void {
       headers['Access-Control-Allow-Credentials'] = ['true'];
     }
 
+    const setCookieKey = Object.keys(headers).find(
+      (k) => k.toLowerCase() === 'set-cookie',
+    );
+    if (setCookieKey) {
+      for (const raw of headers[setCookieKey] ?? []) {
+        persistCookie(details.url, raw);
+      }
+    }
+
     callback({ responseHeaders: headers });
+  });
+}
+
+/**
+ * Parses a raw Set-Cookie header and stores it in the default session
+ * cookie jar. Chromium may silently discard cross-site Set-Cookie headers
+ * when the page origin is a custom scheme; this ensures they are persisted
+ * so the onBeforeSendHeaders bridge can re-inject them on later requests.
+ */
+function persistCookie(url: string, raw: string): void {
+  const parts = raw.split(';').map((p) => p.trim());
+  const nameValue = parts[0];
+  if (!nameValue) return;
+  const attrs = parts.slice(1);
+  const eqIdx = nameValue.indexOf('=');
+  if (eqIdx < 0) return;
+
+  const name = nameValue.substring(0, eqIdx);
+  const value = nameValue.substring(eqIdx + 1);
+
+  const cookie: Electron.CookiesSetDetails = { url, name, value };
+
+  for (const attr of attrs) {
+    const lower = attr.toLowerCase();
+    if (lower === 'secure') {
+      cookie.secure = true;
+    } else if (lower === 'httponly') {
+      cookie.httpOnly = true;
+    } else if (lower.startsWith('path=')) {
+      cookie.path = attr.substring(5);
+    } else if (lower.startsWith('domain=')) {
+      cookie.domain = attr.substring(7);
+    } else if (lower.startsWith('max-age=')) {
+      const seconds = parseInt(attr.substring(8), 10);
+      if (!isNaN(seconds)) {
+        cookie.expirationDate = Math.floor(Date.now() / 1000) + seconds;
+      }
+    } else if (lower.startsWith('samesite=')) {
+      const val = attr.substring(9).toLowerCase();
+      if (val === 'lax') cookie.sameSite = 'lax';
+      else if (val === 'strict') cookie.sameSite = 'strict';
+      else if (val === 'none') cookie.sameSite = 'no_restriction';
+    }
+  }
+
+  session.defaultSession.cookies.set(cookie).catch((err) => {
+    console.warn('[CookieBridge] Failed to persist cookie:', name, err);
   });
 }
 
