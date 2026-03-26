@@ -86,6 +86,9 @@
       ],
       "category": "Utility",
       "maintainer": "Adieuu Team <team@adieuu.com>"
+    },
+    "rpm": {
+      "fpm": ["--rpm-rpmbuild-define", "_build_id_links none"]
     }
   }
 }
