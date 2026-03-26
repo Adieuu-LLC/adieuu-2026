@@ -1,6 +1,6 @@
 {
   "name": "@adieuu/desktop",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "description": "Adieuu Desktop - Secure encrypted messaging application",
   "author": {
     "name": "Adieuu Team",
@@ -88,7 +88,10 @@
       "maintainer": "Adieuu Team <team@adieuu.com>"
     },
     "rpm": {
-      "fpm": ["--rpm-rpmbuild-define", "_build_id_links none"]
+      "fpm": [
+        "--rpm-rpmbuild-define",
+        "_build_id_links none"
+      ]
     }
   }
 }
