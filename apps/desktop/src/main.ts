@@ -488,6 +488,21 @@ async function initAutoUpdater() {
   // (which includes OS, architecture, and Electron version).
   autoUpdater.requestHeaders = { 'User-Agent': 'Adieuu-Desktop-Updater' };
 
+  // Allow overriding the update server URL for local testing. When set,
+  // electron-updater fetches manifests and binaries from this URL instead
+  // of the production downloads.adieuu.com endpoint.
+  // Usage: ADIEUU_UPDATE_SERVER_URL=http://localhost:8089 pnpm --filter @adieuu/desktop dev
+  if (process.env.ADIEUU_UPDATE_SERVER_URL) {
+    autoUpdater.setFeedURL({
+      provider: 'generic',
+      url: process.env.ADIEUU_UPDATE_SERVER_URL,
+    });
+    console.info(
+      '[AutoUpdater] Feed URL overridden:',
+      process.env.ADIEUU_UPDATE_SERVER_URL,
+    );
+  }
+
   autoUpdater.on('update-available', (info) => {
     console.info('[AutoUpdater] Update available:', info.version);
     mainWindow?.webContents.send('update-available', {
