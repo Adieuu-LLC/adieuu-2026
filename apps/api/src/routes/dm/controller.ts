@@ -182,6 +182,7 @@ export async function getOrCreateConversationCtrl(ctx: RouteContext): Promise<Re
 
   const conversation = await conversationRepo.getOrCreate({
     conversationId,
+    participants: [identity._id, toIdentityObjectId],
     activeCryptoProfile,
     initiatedByHash,
   });
@@ -286,6 +287,7 @@ export async function sendMessageCtrl(ctx: RouteContext): Promise<Response> {
     );
     conversation = await conversationRepo.getOrCreate({
       conversationId,
+      participants: [identity._id, toIdentityObjectId],
       activeCryptoProfile: cryptoProfile,
       initiatedByHash,
     });
@@ -298,6 +300,7 @@ export async function sendMessageCtrl(ctx: RouteContext): Promise<Response> {
 
   const message = await messageRepo.createMessage({
     conversationId,
+    fromIdentityId: identity._id,
     toIdentityId: toIdentityObjectId,
     encryptedSenderId: sanitizedEncryptedSenderId.value,
     ciphertext,
@@ -437,6 +440,7 @@ export async function getConversationCtrl(ctx: RouteContext): Promise<Response> 
  */
 interface ConversationListItem {
   conversationId: string;
+  participants: string[];
   activeCryptoProfile: CryptoProfile;
   readState: Array<{
     participantHash: string;
@@ -452,7 +456,7 @@ interface ConversationListItem {
 /**
  * GET /dm/conversations - List all conversations for the current identity
  *
- * Returns conversations where the identity has received messages.
+ * Returns conversations where the identity is a participant.
  * Includes conversation metadata, read state, and last message timestamp.
  */
 export async function getConversationsCtrl(ctx: RouteContext): Promise<Response> {
@@ -469,11 +473,13 @@ export async function getConversationsCtrl(ctx: RouteContext): Promise<Response>
   const messageRepo = getDmMessageRepository();
   const conversationRepo = getDmConversationRepository();
 
-  const conversationIds = await messageRepo.getConversationIdsForIdentity(identity._id);
+  const conversationDocs = await conversationRepo.findConversationsForIdentity(identity._id);
 
-  if (conversationIds.length === 0) {
+  if (conversationDocs.length === 0) {
     return success({ conversations: [] });
   }
+
+  const conversationIds = conversationDocs.map((c) => c.conversationId);
 
   const latestMessages = await messageRepo.getLatestMessagePerConversation(
     conversationIds,
@@ -482,19 +488,19 @@ export async function getConversationsCtrl(ctx: RouteContext): Promise<Response>
 
   const conversations: ConversationListItem[] = [];
 
-  for (const convId of conversationIds) {
-    const conversationDoc = await conversationRepo.findByConversationId(convId);
-    const latestMsg = latestMessages.get(convId);
+  for (const conversationDoc of conversationDocs) {
+    const latestMsg = latestMessages.get(conversationDoc.conversationId);
 
-    const readState = (conversationDoc?.readState ?? []).map((entry) => ({
+    const readState = (conversationDoc.readState ?? []).map((entry) => ({
       participantHash: entry.participantHash,
       encryptedLastReadId: entry.encryptedLastReadId,
       updatedAt: entry.updatedAt.toISOString(),
     }));
 
     conversations.push({
-      conversationId: convId,
-      activeCryptoProfile: conversationDoc?.activeCryptoProfile ?? 'default',
+      conversationId: conversationDoc.conversationId,
+      participants: (conversationDoc.participants ?? []).map((p) => p.toHexString()),
+      activeCryptoProfile: conversationDoc.activeCryptoProfile,
       readState,
       lastMessageAt: latestMsg ? latestMsg.createdAt.toISOString() : null,
       lastMessageId: latestMsg ? latestMsg._id.toHexString() : null,
@@ -583,23 +589,18 @@ export async function updateReadStateCtrl(ctx: RouteContext): Promise<Response> 
   }
 
   // Best-effort: notify the other participant of our read state for read receipts.
-  // We find the other participant by looking at a message we sent (toIdentityId != us).
-  const messageRepo = getDmMessageRepository();
-  try {
-    const sentMessage = await messageRepo.findSentMessage(
+  const otherParticipant = (existingConversation.participants ?? []).find(
+    (p) => !p.equals(identity._id)
+  );
+  if (otherParticipant) {
+    publishReadStateUpdate(
+      otherParticipant.toHexString(),
       sanitizedConvId.value,
-      identity._id
-    );
-    if (sentMessage) {
-      await publishReadStateUpdate(
-        sentMessage.toIdentityId.toHexString(),
-        sanitizedConvId.value,
-        identity._id.toHexString(),
-        sanitizedEncryptedId.value
-      );
-    }
-  } catch {
-    // Non-critical: read receipts are best-effort
+      identity._id.toHexString(),
+      sanitizedEncryptedId.value
+    ).catch(() => {
+      // Non-critical: read receipts are best-effort
+    });
   }
 
   return success({

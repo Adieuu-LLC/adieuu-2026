@@ -28,6 +28,7 @@ import {
 } from '../hooks/useDmSubscription';
 import { useDeleteMessage } from '../hooks/useDeleteMessage';
 import { useDocumentVisibility } from '../hooks/useDocumentVisibility';
+import { useToast } from '../components/Toast';
 import { getCachedParticipant } from '../services/participantCache';
 import { useAppConfig } from '../config';
 
@@ -827,6 +828,9 @@ export function Conversation() {
   const { conversations, isLoading: conversationsLoading, markConversationRead } = useConversationsList();
   const { dmConversations } = useConversationsContext();
   const { isVisible, isVisibleRef } = useDocumentVisibility();
+  const { warning: toastWarning } = useToast();
+  const toastWarningRef = useRef(toastWarning);
+  toastWarningRef.current = toastWarning;
   const [showMembersSidebar, setShowMembersSidebar] = useState(true);
   const [showSettingsSidebar, setShowSettingsSidebar] = useState(false);
   const [otherParticipant, setOtherParticipant] = useState<PublicIdentity | null>(null);
@@ -853,11 +857,13 @@ export function Conversation() {
       return;
     }
 
+    let cancelled = false;
+
     const init = async () => {
       setIsInitializing(true);
       const api = createApiClient({ baseUrl: apiBaseUrl });
 
-      // If conversation exists in list, use that
+      // 1. Prefer the already-resolved conversation list (unified)
       if (conversation && conversation.members[0]?.identity) {
         setOtherParticipant(conversation.members[0].identity);
         setOtherParticipantId(conversation.members[0].identity.id);
@@ -865,42 +871,50 @@ export function Conversation() {
         return;
       }
 
-      // Try participant cache
+      // 2. Use participants from dmConversations (populated from API)
+      const dmConv = dmConversations.find((c) => c.conversationId === conversationId);
+      if (dmConv?.otherParticipant) {
+        setOtherParticipant(dmConv.otherParticipant);
+        setOtherParticipantId(dmConv.otherParticipant.id);
+        setIsInitializing(false);
+        return;
+      }
+
+      // 3. Fallback: participant cache (for pre-migration conversations)
       try {
         const cached = await getCachedParticipant(identity.id, conversationId);
-        if (cached) {
+        if (!cancelled && cached) {
           setOtherParticipantId(cached.otherIdentityId);
-
-          // Fetch full identity info
           const response = await api.identity.getById(cached.otherIdentityId);
-          if (response.success && response.data) {
+          if (!cancelled && response.success && response.data) {
             setOtherParticipant(response.data);
             setIsInitializing(false);
             return;
           }
         }
-      } catch (err) {
-        console.error('Failed to get participant from cache:', err);
+      } catch {
+        // Non-critical
       }
 
-      // For new conversations, use recipient ID from URL
+      // 4. For new conversations, use recipient ID from URL
       if (recipientIdFromUrl) {
         setOtherParticipantId(recipientIdFromUrl);
         try {
           const response = await api.identity.getById(recipientIdFromUrl);
-          if (response.success && response.data) {
+          if (!cancelled && response.success && response.data) {
             setOtherParticipant(response.data);
           }
-        } catch (err) {
-          console.error('Failed to fetch recipient info:', err);
+        } catch {
+          // Non-critical
         }
       }
 
-      setIsInitializing(false);
+      if (!cancelled) setIsInitializing(false);
     };
 
     init();
-  }, [apiBaseUrl, conversation, conversationId, identity, isLoggedIn, recipientIdFromUrl]);
+    return () => { cancelled = true; };
+  }, [apiBaseUrl, conversation, conversationId, dmConversations, identity, isLoggedIn, recipientIdFromUrl]);
 
   // Fetch messages
   const {
@@ -914,6 +928,9 @@ export function Conversation() {
     conversationId: conversationId ?? '',
     immediate: !!conversationId && isLoggedIn,
   });
+
+  const refreshMessagesRef = useRef(refreshMessages);
+  refreshMessagesRef.current = refreshMessages;
 
   // Send message hook
   const { sendMessage, isSending, error: sendError } = useSendDmMessage();
@@ -1051,12 +1068,17 @@ export function Conversation() {
     conversationId: conversationId ?? undefined,
     onNewMessage: useCallback(
       (event: DmNewMessageEvent) => {
-        appendNewMessage(event.payload.message);
+        void appendNewMessage(event.payload.message).then((ok) => {
+          if (!ok) {
+            toastWarningRef.current(t('messages.realtimeAppendFailed'));
+            refreshMessagesRef.current();
+          }
+        });
         if (conversationId && isVisibleRef.current) {
           markConversationRead(conversationId, event.payload.message.id, cryptoProfile);
         }
       },
-      [appendNewMessage, conversationId, cryptoProfile, isVisibleRef, markConversationRead]
+      [appendNewMessage, conversationId, cryptoProfile, isVisibleRef, markConversationRead, t]
     ),
     onDeleted: useCallback(
       (event: DmDeletedEvent) => {

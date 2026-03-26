@@ -24,7 +24,6 @@ const mockCollection = {
   })) as AnyMock,
   insertOne: mock(() => Promise.resolve({ insertedId: new ObjectId() })) as AnyMock,
   updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })) as AnyMock,
-  distinct: mock(() => Promise.resolve([])) as AnyMock,
   aggregate: mock(() => ({
     toArray: mock(() => Promise.resolve([])),
   })) as AnyMock,
@@ -50,6 +49,7 @@ describe('DmMessageRepository', () => {
   const mockMessage = {
     _id: mockMessageId,
     conversationId: mockConversationId,
+    fromIdentityId: new ObjectId(),
     toIdentityId: mockIdentityId,
     encryptedSenderId: 'encrypted-sender-base64',
     ciphertext: 'encrypted-content-base64',
@@ -71,7 +71,6 @@ describe('DmMessageRepository', () => {
     mockCollection.find.mockReset();
     mockCollection.insertOne.mockReset();
     mockCollection.updateOne.mockReset();
-    mockCollection.distinct.mockReset();
     mockCollection.aggregate.mockReset();
 
     mockCollection.findOne.mockImplementation(() => Promise.resolve(null));
@@ -128,30 +127,6 @@ describe('DmMessageRepository', () => {
       const result = await repo.deleteForEveryone(new ObjectId(), mockIdentityId);
 
       expect(result).toBe(false);
-    });
-  });
-
-  describe('findSentMessage', () => {
-    test('queries for messages sent by identity (toIdentityId != senderIdentityId)', async () => {
-      const senderId = new ObjectId();
-      mockCollection.findOne.mockImplementation(() => Promise.resolve(mockMessage));
-
-      const result = await repo.findSentMessage(mockConversationId, senderId);
-
-      expect(result).toEqual(mockMessage);
-      expect(mockCollection.findOne).toHaveBeenCalledWith({
-        conversationId: mockConversationId,
-        toIdentityId: { $ne: senderId },
-      });
-    });
-
-    test('returns null when no sent messages found', async () => {
-      const senderId = new ObjectId();
-      mockCollection.findOne.mockImplementation(() => Promise.resolve(null));
-
-      const result = await repo.findSentMessage(mockConversationId, senderId);
-
-      expect(result).toBeNull();
     });
   });
 

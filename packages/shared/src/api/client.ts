@@ -1626,6 +1626,7 @@ export interface PreKeyCountResponse {
 export interface DmConversation {
   id: string;
   conversationId: string;
+  participants: string[];
   activeCryptoProfile: 'default' | 'cnsa2';
   createdAt: string;
   updatedAt: string;
@@ -1646,6 +1647,7 @@ export interface DmReadStateEntry {
  */
 export interface DmConversationListItem {
   conversationId: string;
+  participants: string[];
   activeCryptoProfile: 'default' | 'cnsa2';
   readState: DmReadStateEntry[];
   lastMessageAt: string | null;
@@ -1660,6 +1662,7 @@ export interface DmConversationListItem {
 export interface DmMessage {
   id: string;
   conversationId: string;
+  fromIdentityId: string;
   toIdentityId: string;
   encryptedSenderId: string;
   ciphertext: string;

@@ -57,11 +57,16 @@ contextBridge.exposeInMainWorld('electron', {
     throw new Error(`Channel "${channel}" is not allowed`);
   },
 
-  on: (channel: string, callback: (...args: unknown[]) => void) => {
+  on: (channel: string, callback: (...args: unknown[]) => void): (() => void) => {
     const allowedChannels = ['update-available', 'download-progress', 'update-downloaded', 'deep-link'];
     if (allowedChannels.includes(channel)) {
-      ipcRenderer.on(channel, (_, ...args) => callback(...args));
+      const wrapper = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args);
+      ipcRenderer.on(channel, wrapper);
+      return () => {
+        ipcRenderer.removeListener(channel, wrapper);
+      };
     }
+    return () => {};
   },
 });
 
@@ -99,7 +104,7 @@ declare global {
         loadSoundFile: (filePath: string) => Promise<string | null>;
       };
       invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
-      on: (channel: string, callback: (...args: unknown[]) => void) => void;
+      on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
     };
   }
 }

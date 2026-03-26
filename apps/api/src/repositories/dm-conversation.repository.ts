@@ -8,6 +8,7 @@
  * @module repositories/dm-conversation
  */
 
+import type { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type {
@@ -23,6 +24,7 @@ import type { CryptoProfile } from '../models/identity';
  */
 export interface IDmConversationRepository {
   findByConversationId(conversationId: string): Promise<DmConversationDocument | null>;
+  findConversationsForIdentity(identityId: ObjectId): Promise<DmConversationDocument[]>;
   getOrCreate(input: CreateDmConversationInput): Promise<DmConversationDocument>;
   updateCryptoProfile(
     conversationId: string,
@@ -55,6 +57,15 @@ export class DmConversationRepository
   }
 
   /**
+   * Find all conversations that include a given identity as a participant.
+   */
+  async findConversationsForIdentity(identityId: ObjectId): Promise<DmConversationDocument[]> {
+    return await this.collection
+      .find({ participants: identityId })
+      .toArray() as DmConversationDocument[];
+  }
+
+  /**
    * Get an existing conversation or create a new one.
    * Idempotent - safe to call multiple times with same input.
    */
@@ -72,6 +83,7 @@ export class DmConversationRepository
 
     const doc = await this.create({
       conversationId: input.conversationId,
+      participants: input.participants,
       activeCryptoProfile: input.activeCryptoProfile,
       profileHistory: [initialHistory],
       readState: [],

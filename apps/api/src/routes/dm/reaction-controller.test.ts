@@ -79,6 +79,7 @@ const wrappedKeyStatic = {
 const mockMessage = {
   _id: mockMessageId,
   conversationId: validConversationId,
+  fromIdentityId: mockIdentityId,
   toIdentityId: mockRecipientId,
   encryptedSenderId: 'encrypted-sender-id-base64',
   ciphertext: 'encrypted-content-base64',

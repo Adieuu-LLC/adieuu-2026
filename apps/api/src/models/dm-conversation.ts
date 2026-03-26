@@ -57,7 +57,7 @@ export interface ReadStateEntry {
  *
  * Privacy notes:
  * - `conversationId` is a blinded hash that doesn't reveal participants
- * - No participant list is stored - derived client-side from conversationId
+ * - `participants` stores plaintext identity IDs for query efficiency
  * - Profile changes are tracked for audit but don't expose participants
  */
 export interface DmConversationDocument extends BaseDocument {
@@ -66,6 +66,9 @@ export interface DmConversationDocument extends BaseDocument {
    * Computed as: SHA3-256(sort([identityA, identityB]) || "dm-v1")
    */
   conversationId: string;
+
+  /** Plaintext participant identity IDs for query efficiency */
+  participants: ObjectId[];
 
   /**
    * Current active crypto profile for this conversation.
@@ -92,6 +95,7 @@ export interface DmConversationDocument extends BaseDocument {
  */
 export interface CreateDmConversationInput {
   conversationId: string;
+  participants: ObjectId[];
   activeCryptoProfile: CryptoProfile;
   /** Hashed participant identifier of the initiator */
   initiatedByHash: string;
@@ -113,6 +117,7 @@ export interface PublicReadStateEntry {
 export interface PublicDmConversation {
   id: string;
   conversationId: string;
+  participants: string[];
   activeCryptoProfile: CryptoProfile;
   readState: PublicReadStateEntry[];
   createdAt: string;
@@ -132,6 +137,7 @@ export function toPublicDmConversation(doc: DmConversationDocument): PublicDmCon
   return {
     id: doc._id.toHexString(),
     conversationId: doc.conversationId,
+    participants: (doc.participants ?? []).map((p) => p.toHexString()),
     activeCryptoProfile: doc.activeCryptoProfile,
     readState,
     createdAt: doc.createdAt.toISOString(),

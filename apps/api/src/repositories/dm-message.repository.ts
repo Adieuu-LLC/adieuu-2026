@@ -42,23 +42,14 @@ export interface IDmMessageRepository {
     conversationId: string,
     clientMessageId: string
   ): Promise<DmMessageDocument | null>;
-  findSentMessage(
-    conversationId: string,
-    senderIdentityId: ObjectId
-  ): Promise<DmMessageDocument | null>;
   createMessage(input: CreateDmMessageInput): Promise<DmMessageDocument>;
   getMessagesByConversation(
     conversationId: string,
     requestingIdentityId: ObjectId,
     options?: MessagePaginationOptions
   ): Promise<PaginatedMessagesResult>;
-  getMessagesForIdentity(
-    identityId: ObjectId,
-    options?: MessagePaginationOptions
-  ): Promise<PaginatedMessagesResult>;
   deleteForEveryone(messageId: ObjectId, senderIdentityId: ObjectId): Promise<boolean>;
   deleteForSelf(messageId: ObjectId, identityId: ObjectId): Promise<boolean>;
-  getConversationIdsForIdentity(identityId: ObjectId): Promise<string[]>;
   getLatestMessagePerConversation(
     conversationIds: string[],
     identityId: ObjectId
@@ -95,27 +86,12 @@ export class DmMessageRepository
   }
 
   /**
-   * Find a message sent by a specific identity in a conversation.
-   * Used to resolve the other participant (via toIdentityId) for read receipts.
-   * Since the sender is encrypted, we find messages where toIdentityId != senderIdentityId
-   * (i.e. messages the identity sent TO someone else).
-   */
-  async findSentMessage(
-    conversationId: string,
-    senderIdentityId: ObjectId
-  ): Promise<DmMessageDocument | null> {
-    return await this.findOne({
-      conversationId,
-      toIdentityId: { $ne: senderIdentityId },
-    });
-  }
-
-  /**
    * Create a new encrypted message.
    */
   async createMessage(input: CreateDmMessageInput): Promise<DmMessageDocument> {
     const doc = await this.create({
       conversationId: input.conversationId,
+      fromIdentityId: input.fromIdentityId,
       toIdentityId: input.toIdentityId,
       encryptedSenderId: input.encryptedSenderId,
       ciphertext: input.ciphertext,
@@ -149,49 +125,6 @@ export class DmMessageRepository
       conversationId,
       deletedForEveryone: false,
       deletedFor: { $ne: requestingIdentityId },
-    };
-
-    if (cursor) {
-      filter._id = direction === 'older' ? { $lt: cursor } : { $gt: cursor };
-    }
-
-    const sortDirection = direction === 'older' ? -1 : 1;
-
-    const messages = await this.collection
-      .find(filter)
-      .sort({ _id: sortDirection })
-      .limit(limit + 1)
-      .toArray() as DmMessageDocument[];
-
-    const hasMore = messages.length > limit;
-    if (hasMore) {
-      messages.pop();
-    }
-
-    const lastMessage = messages[messages.length - 1];
-    const nextCursor = lastMessage ? lastMessage._id.toHexString() : null;
-
-    return {
-      messages,
-      cursor: nextCursor,
-      hasMore,
-    };
-  }
-
-  /**
-   * Get all messages where the identity is the recipient.
-   * Used for discovering conversations.
-   */
-  async getMessagesForIdentity(
-    identityId: ObjectId,
-    options: MessagePaginationOptions = {}
-  ): Promise<PaginatedMessagesResult> {
-    const { limit = 50, cursor, direction = 'older' } = options;
-
-    const filter: Filter<DmMessageDocument> = {
-      toIdentityId: identityId,
-      deletedForEveryone: false,
-      deletedFor: { $ne: identityId },
     };
 
     if (cursor) {
@@ -259,20 +192,6 @@ export class DmMessageRepository
     );
 
     return result.modifiedCount === 1;
-  }
-
-  /**
-   * Get distinct conversation IDs for an identity.
-   * Used for listing conversations.
-   */
-  async getConversationIdsForIdentity(identityId: ObjectId): Promise<string[]> {
-    const conversationIds = await this.collection.distinct('conversationId', {
-      toIdentityId: identityId,
-      deletedForEveryone: false,
-      deletedFor: { $ne: identityId },
-    });
-
-    return conversationIds as string[];
   }
 
   /**

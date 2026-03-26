@@ -20,11 +20,6 @@ import {
   decryptLastReadId,
   hasUnreadMessages,
 } from '../services/readStateService';
-import {
-  getCachedParticipant,
-  cacheParticipant,
-} from '../services/participantCache';
-import { decryptSenderHint } from '../services/dmMessageService';
 
 /**
  * Extended DM conversation with decrypted data.
@@ -120,70 +115,23 @@ export function useDmConversationsList({
               conv.activeCryptoProfile
             );
           } catch {
-            // If decryption fails, treat as unread
             lastReadMessageId = null;
           }
         }
 
-        // Try to get participant from cache
-        const cached = await getCachedParticipant(identity.id, conv.conversationId);
-        if (cached) {
-          // Fetch full participant info from API
-          const participantResponse = await api.identity.getById(cached.otherIdentityId);
-          if (participantResponse.success && participantResponse.data) {
-            otherParticipant = participantResponse.data;
-          }
-        } else if (conv.lastMessageEncryptedSenderId && conv.lastMessageClientMessageId) {
-          // No cache - try to discover participant from the last message's sender hint
+        // Resolve the other participant from the participants list
+        const otherIdentityId = (conv.participants ?? []).find((p) => p !== identity.id);
+        if (otherIdentityId) {
           try {
-            const senderId = decryptSenderHint(
-              conv.conversationId,
-              conv.lastMessageEncryptedSenderId,
-              conv.lastMessageClientMessageId,
-              conv.activeCryptoProfile
-            );
-
-            // Determine who the other participant is
-            // If sender is us, the other participant is the toIdentityId (need to fetch from message)
-            // If sender is not us, the other participant is the sender
-            let otherIdentityId: string;
-            if (senderId === identity.id) {
-              // We sent the last message - we need the recipient, but we don't have it here
-              // Skip for now - the cache will be populated when the conversation is opened
-              otherIdentityId = '';
-            } else {
-              // Someone else sent the last message - they are the other participant
-              otherIdentityId = senderId;
+            const participantResponse = await api.identity.getById(otherIdentityId);
+            if (participantResponse.success && participantResponse.data) {
+              otherParticipant = participantResponse.data;
             }
-
-            if (otherIdentityId) {
-              // Fetch participant info and signing key in parallel
-              const [participantResponse, keysResponse] = await Promise.all([
-                api.identity.getById(otherIdentityId),
-                api.identity.getPublicKeys(otherIdentityId),
-              ]);
-
-              if (participantResponse.success && participantResponse.data) {
-                otherParticipant = participantResponse.data;
-                // Cache for future use if we have the signing key
-                if (keysResponse.success && keysResponse.data?.signingPublicKey) {
-                  await cacheParticipant({
-                    myIdentityId: identity.id,
-                    conversationId: conv.conversationId,
-                    otherIdentityId,
-                    signingPublicKey: keysResponse.data.signingPublicKey,
-                    cachedAt: Date.now(),
-                  });
-                }
-              }
-            }
-          } catch (err) {
-            // Decryption failed - can happen if we don't have the right keys
-            console.warn('Failed to decrypt sender hint for conversation:', conv.conversationId, err);
+          } catch {
+            // Non-critical: participant will display as unknown
           }
         }
 
-        // Compute unread status
         const hasUnread = hasUnreadMessages(conv.lastMessageId, lastReadMessageId);
 
         processedConversations.push({

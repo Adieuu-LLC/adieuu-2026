@@ -5,8 +5,8 @@
  * Messages are end-to-end encrypted - the server only sees ciphertext.
  *
  * Privacy notes:
- * - `fromIdentityId` is NOT stored - revealed only after decryption
- * - `toIdentityId` IS stored (needed for delivery queries)
+ * - `fromIdentityId` is stored in plaintext for delivery and participant resolution
+ * - `toIdentityId` is stored in plaintext for delivery queries
  * - Combined with blinded `conversationId`, pattern analysis is needed to correlate
  *
  * @module models/dm-message
@@ -61,6 +61,9 @@ export interface DmMessageDocument extends BaseDocument {
   /** Blinded conversation ID */
   conversationId: string;
 
+  /** Sender identity ID - stored for participant resolution and delivery */
+  fromIdentityId: ObjectId;
+
   /** Recipient identity ID - needed for delivery/queries */
   toIdentityId: ObjectId;
 
@@ -111,6 +114,7 @@ export interface DmMessageDocument extends BaseDocument {
  */
 export interface CreateDmMessageInput {
   conversationId: string;
+  fromIdentityId: ObjectId;
   toIdentityId: ObjectId;
   encryptedSenderId: string;
   ciphertext: string;
@@ -131,6 +135,7 @@ export interface CreateDmMessageInput {
 export interface PublicDmMessage {
   id: string;
   conversationId: string;
+  fromIdentityId: string;
   toIdentityId: string;
   encryptedSenderId: string;
   ciphertext: string;
@@ -182,6 +187,7 @@ export function toPublicDmMessage(
   return {
     id: doc._id.toHexString(),
     conversationId: doc.conversationId,
+    fromIdentityId: doc.fromIdentityId.toHexString(),
     toIdentityId: doc.toIdentityId.toHexString(),
     encryptedSenderId: doc.encryptedSenderId,
     ciphertext: doc.ciphertext,

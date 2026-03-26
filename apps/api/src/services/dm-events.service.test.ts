@@ -39,6 +39,7 @@ describe('DM Events Service', () => {
     const mockMessage: PublicDmMessage = {
       id: 'msg-123',
       conversationId: 'a'.repeat(64),
+      fromIdentityId: 'sender-id',
       toIdentityId: 'recipient-id',
       encryptedSenderId: 'encrypted-sender-base64',
       ciphertext: 'encrypted-content',

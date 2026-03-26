@@ -173,7 +173,7 @@ export interface UseDmMessagesResult {
   /** Refresh messages from the beginning */
   refresh: () => Promise<void>;
   /** Decrypt and prepend a single new message (skips duplicates) */
-  appendNewMessage: (rawMessage: DmMessage) => Promise<void>;
+  appendNewMessage: (rawMessage: DmMessage) => Promise<boolean>;
   /** Remove a message from the local list by ID */
   removeMessage: (messageId: string) => void;
 }
@@ -819,17 +819,34 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
     await fetchMessages(cursor, true);
   }, [cursor, hasMore, isLoading, fetchMessages]);
 
+  const conversationIdRef = useRef(options.conversationId);
+  conversationIdRef.current = options.conversationId;
+
   const appendNewMessage = useCallback(
-    async (rawMessage: DmMessage) => {
-      if (status !== 'logged_in' || !identity) return;
+    async (rawMessage: DmMessage): Promise<boolean> => {
+      if (rawMessage.conversationId !== conversationIdRef.current) {
+        console.warn('[DM] appendNewMessage: skipped — message belongs to a different conversation');
+        return false;
+      }
+
+      if (status !== 'logged_in' || !identity) {
+        console.warn('[DM] appendNewMessage: skipped — not logged in or no identity');
+        return false;
+      }
 
       const wrappingKey = getWrappingKey();
       const deviceId = getCurrentDeviceId();
-      if (!wrappingKey || !deviceId) return;
+      if (!wrappingKey || !deviceId) {
+        console.warn('[DM] appendNewMessage: skipped — wrapping key or device ID unavailable');
+        return false;
+      }
 
       try {
         const storedKeys = await getStoredDeviceKeys(deviceId, identity.id);
-        if (!storedKeys) return;
+        if (!storedKeys) {
+          console.warn('[DM] appendNewMessage: skipped — device keys not found in storage');
+          return false;
+        }
         const deviceKeys = await decryptDeviceKeys(storedKeys, wrappingKey);
 
         const [decrypted] = await decryptMessages([rawMessage], deviceKeys, wrappingKey);
@@ -838,9 +855,13 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
             if (prev.some((m) => m.raw.id === rawMessage.id)) return prev;
             return [decrypted, ...prev];
           });
+          return true;
         }
-      } catch {
-        // Decryption failed silently; message will appear on next full refresh
+        console.warn('[DM] appendNewMessage: decryptMessages returned no result');
+        return false;
+      } catch (err) {
+        console.warn('[DM] appendNewMessage: decryption failed', err);
+        return false;
       }
     },
     [status, identity, getWrappingKey, getCurrentDeviceId, decryptMessages]
@@ -859,9 +880,13 @@ export function useDmMessages(options: UseDmMessagesOptions): UseDmMessagesResul
     }
   }, [options.immediate, status, identity, fetchMessages]);
 
-  // Reset hasFetched when conversation changes
+  // Clear state and reset hasFetched when conversation changes
   useEffect(() => {
     hasFetchedRef.current = false;
+    setMessages([]);
+    setCursor(null);
+    setHasMore(true);
+    setError(null);
   }, [options.conversationId]);
 
   // Filter out expired messages and track expiration tick

@@ -94,6 +94,7 @@ const mockConversationId = new ObjectId();
 const mockConversation = {
   _id: mockConversationId,
   conversationId: 'a'.repeat(64),
+  participants: [mockIdentityId, mockRecipientId],
   activeCryptoProfile: 'default' as const,
   profileHistory: [{
     profile: 'default' as const,
@@ -110,6 +111,7 @@ const mockConversation = {
 };
 
 const mockFindByConversationId = mock(() => Promise.resolve(null));
+const mockFindConversationsForIdentity = mock(() => Promise.resolve([mockConversation]));
 const mockGetOrCreate = mock(() => Promise.resolve(mockConversation));
 const mockUpdateCryptoProfile = mock(() => Promise.resolve(mockConversation));
 const mockUpdateReadState = mock(() => Promise.resolve(mockConversation));
@@ -117,6 +119,7 @@ const mockUpdateReadState = mock(() => Promise.resolve(mockConversation));
 mock.module('../../repositories/dm-conversation.repository', () => ({
   getDmConversationRepository: () => ({
     findByConversationId: mockFindByConversationId,
+    findConversationsForIdentity: mockFindConversationsForIdentity,
     getOrCreate: mockGetOrCreate,
     updateCryptoProfile: mockUpdateCryptoProfile,
     updateReadState: mockUpdateReadState,
@@ -127,6 +130,7 @@ const mockMessageId = new ObjectId();
 const mockMessage = {
   _id: mockMessageId,
   conversationId: 'a'.repeat(64),
+  fromIdentityId: mockIdentityId,
   toIdentityId: mockRecipientId,
   encryptedSenderId: 'encrypted-sender-id-base64',
   ciphertext: 'encrypted-content-base64',
@@ -156,14 +160,12 @@ const mockGetMessagesByConversation = mock(() => Promise.resolve({
   cursor: null,
   hasMore: false,
 }));
-const mockGetConversationIdsForIdentity = mock(() => Promise.resolve(['a'.repeat(64)]));
 const mockGetLatestMessagePerConversation = mock(() => {
   const map = new Map<string, typeof mockMessage>();
   map.set('a'.repeat(64), mockMessage);
   return Promise.resolve(map);
 });
 const mockFindMessageById = mock(() => Promise.resolve(mockMessage as typeof mockMessage | null));
-const mockFindSentMessage = mock(() => Promise.resolve(mockMessage as typeof mockMessage | null));
 const mockDeleteForEveryone = mock(() => Promise.resolve(true));
 const mockDeleteForSelf = mock(() => Promise.resolve(true));
 
@@ -172,10 +174,8 @@ mock.module('../../repositories/dm-message.repository', () => ({
     findByClientMessageId: mockFindByClientMessageId,
     createMessage: mockCreateMessage,
     getMessagesByConversation: mockGetMessagesByConversation,
-    getConversationIdsForIdentity: mockGetConversationIdsForIdentity,
     getLatestMessagePerConversation: mockGetLatestMessagePerConversation,
     findById: mockFindMessageById,
-    findSentMessage: mockFindSentMessage,
     deleteForEveryone: mockDeleteForEveryone,
     deleteForSelf: mockDeleteForSelf,
   }),
@@ -277,20 +277,20 @@ describe('DM Controller', () => {
 
   beforeEach(() => {
     mockFindByConversationId.mockReset();
+    mockFindConversationsForIdentity.mockReset();
     mockGetOrCreate.mockReset();
     mockUpdateReadState.mockReset();
     mockFindByClientMessageId.mockReset();
     mockCreateMessage.mockReset();
     mockGetMessagesByConversation.mockReset();
-    mockGetConversationIdsForIdentity.mockReset();
     mockGetLatestMessagePerConversation.mockReset();
     mockFindById.mockReset();
-    mockFindSentMessage.mockReset();
     mockPublishReadStateUpdate.mockReset();
     mockPublishNewMessage.mockReset();
     mockPublishMessageDeleted.mockReset();
 
     mockFindByConversationId.mockImplementation(() => Promise.resolve(null));
+    mockFindConversationsForIdentity.mockImplementation(() => Promise.resolve([mockConversation]));
     mockGetOrCreate.mockImplementation(() => Promise.resolve(mockConversation));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUpdateReadState.mockImplementation(() => Promise.resolve(mockConversation as any));
@@ -301,7 +301,6 @@ describe('DM Controller', () => {
       cursor: null,
       hasMore: false,
     }));
-    mockGetConversationIdsForIdentity.mockImplementation(() => Promise.resolve(['a'.repeat(64)]));
     mockGetLatestMessagePerConversation.mockImplementation(() => {
       const map = new Map();
       map.set('a'.repeat(64), mockMessage);
@@ -313,7 +312,6 @@ describe('DM Controller', () => {
       }
       return Promise.resolve(null);
     });
-    mockFindSentMessage.mockImplementation(() => Promise.resolve(mockMessage));
     mockPublishReadStateUpdate.mockImplementation(() => Promise.resolve());
     mockPublishNewMessage.mockImplementation(() => Promise.resolve());
     mockPublishMessageDeleted.mockImplementation(() => Promise.resolve());
@@ -379,6 +377,23 @@ describe('DM Controller', () => {
       const json = await response.json() as { success: boolean; data: { conversation: unknown } };
       expect(json.success).toBe(true);
       expect(json.data.conversation).toBeDefined();
+    });
+
+    test('passes participants array with both identity IDs to getOrCreate', async () => {
+      const ctx = createMockContext({
+        method: 'POST',
+        path: '/dm/conversations',
+        body: { toIdentityId: mockRecipientId.toHexString() },
+      });
+
+      await getOrCreateConversationCtrl(ctx);
+
+      expect(mockGetOrCreate).toHaveBeenCalledTimes(1);
+      const callArgs = mockGetOrCreate.mock.calls[0] as unknown as [{ participants: ObjectId[] }];
+      const participants = callArgs[0].participants;
+      expect(participants).toHaveLength(2);
+      expect(participants[0]!.equals(mockIdentityId)).toBe(true);
+      expect(participants[1]!.equals(mockRecipientId)).toBe(true);
     });
   });
 
@@ -468,6 +483,53 @@ describe('DM Controller', () => {
       const json = await response.json() as { success: boolean; data: { message: unknown } };
       expect(json.success).toBe(true);
       expect(json.data.message).toBeDefined();
+    });
+
+    test('passes fromIdentityId as the authenticated sender identity', async () => {
+      const ctx = createMockContext({
+        method: 'POST',
+        path: '/dm/messages',
+        body: validMessageBody,
+      });
+
+      await sendMessageCtrl(ctx);
+
+      expect(mockCreateMessage).toHaveBeenCalledTimes(1);
+      const callArgs = mockCreateMessage.mock.calls[0] as unknown as [{ fromIdentityId: ObjectId }];
+      expect(callArgs[0].fromIdentityId.equals(mockIdentityId)).toBe(true);
+    });
+
+    test('creates conversation with participants when conversation does not exist', async () => {
+      mockFindByConversationId.mockImplementation(() => Promise.resolve(null));
+
+      const ctx = createMockContext({
+        method: 'POST',
+        path: '/dm/messages',
+        body: validMessageBody,
+      });
+
+      await sendMessageCtrl(ctx);
+
+      expect(mockGetOrCreate).toHaveBeenCalledTimes(1);
+      const callArgs = mockGetOrCreate.mock.calls[0] as unknown as [{ participants: ObjectId[] }];
+      const participants = callArgs[0].participants;
+      expect(participants).toHaveLength(2);
+      expect(participants[0]!.equals(mockIdentityId)).toBe(true);
+      expect(participants[1]!.equals(mockRecipientId)).toBe(true);
+    });
+
+    test('response message includes fromIdentityId', async () => {
+      const ctx = createMockContext({
+        method: 'POST',
+        path: '/dm/messages',
+        body: validMessageBody,
+      });
+
+      const response = await sendMessageCtrl(ctx);
+      expect(response.status).toBe(201);
+
+      const json = await response.json() as { data: { message: { fromIdentityId: string } } };
+      expect(json.data.message.fromIdentityId).toBe(mockIdentityId.toHexString());
     });
 
     test('deduplicates message with same clientMessageId', async () => {
@@ -617,7 +679,7 @@ describe('DM Controller', () => {
     });
 
     test('returns empty array when no conversations', async () => {
-      mockGetConversationIdsForIdentity.mockImplementation(() => Promise.resolve([]));
+      mockFindConversationsForIdentity.mockImplementation(() => Promise.resolve([]));
 
       const ctx = createMockContext({
         method: 'GET',
@@ -633,9 +695,6 @@ describe('DM Controller', () => {
     });
 
     test('returns conversations list successfully', async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mockFindByConversationId.mockImplementation(() => Promise.resolve(mockConversation as any));
-
       const ctx = createMockContext({
         method: 'GET',
         path: '/dm/conversations',
@@ -644,14 +703,42 @@ describe('DM Controller', () => {
       const response = await getConversationsCtrl(ctx);
       expect(response.status).toBe(200);
 
-      const json = await response.json() as { success: boolean; data: { conversations: { conversationId: string; lastMessageAt: string | null }[] } };
+      const json = await response.json() as { success: boolean; data: { conversations: { conversationId: string; participants: string[]; lastMessageAt: string | null }[] } };
       expect(json.success).toBe(true);
       expect(json.data.conversations).toBeInstanceOf(Array);
       expect(json.data.conversations.length).toBe(1);
       const firstConversation = json.data.conversations[0];
       expect(firstConversation).toBeDefined();
       expect(firstConversation!.conversationId).toBe('a'.repeat(64));
+      expect(firstConversation!.participants).toBeInstanceOf(Array);
       expect(firstConversation!.lastMessageAt).toBeDefined();
+    });
+
+    test('uses findConversationsForIdentity with the authenticated identity', async () => {
+      const ctx = createMockContext({
+        method: 'GET',
+        path: '/dm/conversations',
+      });
+
+      await getConversationsCtrl(ctx);
+
+      expect(mockFindConversationsForIdentity).toHaveBeenCalledTimes(1);
+      const callArgs = mockFindConversationsForIdentity.mock.calls[0] as unknown as [ObjectId];
+      expect(callArgs[0].equals(mockIdentityId)).toBe(true);
+    });
+
+    test('returns correct participant hex strings in response', async () => {
+      const ctx = createMockContext({
+        method: 'GET',
+        path: '/dm/conversations',
+      });
+
+      const response = await getConversationsCtrl(ctx);
+      const json = await response.json() as { data: { conversations: { participants: string[] }[] } };
+      const participants = json.data.conversations[0]!.participants;
+
+      expect(participants).toContain(mockIdentityId.toHexString());
+      expect(participants).toContain(mockRecipientId.toHexString());
     });
   });
 
@@ -729,10 +816,9 @@ describe('DM Controller', () => {
       expect(json.data.conversation.readState).toBeInstanceOf(Array);
     });
 
-    test('publishes dm:read event to the other participant', async () => {
+    test('publishes dm:read event to the other participant via conversation.participants', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockFindByConversationId.mockImplementation(() => Promise.resolve(mockConversation as any));
-      mockFindSentMessage.mockImplementation(() => Promise.resolve(mockMessage));
 
       const ctx = createMockContext({
         method: 'PUT',
@@ -744,7 +830,8 @@ describe('DM Controller', () => {
       const response = await updateReadStateCtrl(ctx);
       expect(response.status).toBe(200);
 
-      expect(mockFindSentMessage).toHaveBeenCalledTimes(1);
+      // Wait for fire-and-forget publish
+      await new Promise((r) => setTimeout(r, 50));
       expect(mockPublishReadStateUpdate).toHaveBeenCalledTimes(1);
       const publishCall = mockPublishReadStateUpdate.mock.calls[0] as unknown as [string, string, string, string];
       expect(publishCall[0]).toBe(mockRecipientId.toHexString());
@@ -754,10 +841,13 @@ describe('DM Controller', () => {
       expect(publishCall[3]!.length).toBeGreaterThan(0);
     });
 
-    test('succeeds even when no sent message found for read receipt', async () => {
+    test('skips read receipt publish when participants array is empty', async () => {
+      const conversationWithoutParticipants = {
+        ...mockConversation,
+        participants: [],
+      };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      mockFindByConversationId.mockImplementation(() => Promise.resolve(mockConversation as any));
-      mockFindSentMessage.mockImplementation(() => Promise.resolve(null));
+      mockFindByConversationId.mockImplementation(() => Promise.resolve(conversationWithoutParticipants as any));
 
       const ctx = createMockContext({
         method: 'PUT',
@@ -768,13 +858,14 @@ describe('DM Controller', () => {
 
       const response = await updateReadStateCtrl(ctx);
       expect(response.status).toBe(200);
+
+      await new Promise((r) => setTimeout(r, 50));
       expect(mockPublishReadStateUpdate).not.toHaveBeenCalled();
     });
 
     test('succeeds even when publishing read receipt fails', async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockFindByConversationId.mockImplementation(() => Promise.resolve(mockConversation as any));
-      mockFindSentMessage.mockImplementation(() => Promise.resolve(mockMessage));
       mockPublishReadStateUpdate.mockImplementation(() => Promise.reject(new Error('Redis error')));
 
       const ctx = createMockContext({

@@ -158,6 +158,7 @@ export const en = {
     },
     newMessage: 'New message',
     newMessageDescription: 'Sent you a message',
+    realtimeAppendFailed: 'A new message could not be decrypted in real time. Refreshing the conversation.',
     /** Fallback display name when reaction sender cannot be resolved */
     someone: 'Someone',
     /** Toast description when another user reacts to your message */

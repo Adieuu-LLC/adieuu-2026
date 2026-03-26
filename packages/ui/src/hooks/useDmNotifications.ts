@@ -26,7 +26,7 @@ import {
 } from '../utils/dmNotificationRules';
 import { playNotificationSound } from '../utils/notificationSound';
 import { decryptSenderHint } from '../services/dmMessageService';
-import { getCachedParticipant, cacheParticipant } from '../services/participantCache';
+import { getCachedParticipant } from '../services/participantCache';
 import type { DmNewMessageEvent, DmReactionNewEvent } from './useDmSubscription';
 
 interface RawWsMessage {
@@ -98,47 +98,28 @@ export function useDmNotifications(): void {
 
       let senderName = t('messages.newMessage');
       try {
-        const senderId = decryptSenderHint(
-          conversationId,
-          message.encryptedSenderId,
-          message.clientMessageId,
-          message.cryptoProfile
-        );
+        // Prefer plaintext fromIdentityId; fall back to sender hint for pre-migration messages
+        let senderId = message.fromIdentityId;
+        if (!senderId) {
+          senderId = decryptSenderHint(
+            conversationId,
+            message.encryptedSenderId,
+            message.clientMessageId,
+            message.cryptoProfile
+          );
+        }
 
         if (senderId === currentIdentity.id) {
           return;
         }
 
-        const cached = await getCachedParticipant(currentIdentity.id, conversationId);
-        if (cached && cached.otherIdentityId === senderId) {
-          const api = createApiClient({ baseUrl: apiBaseUrl });
-          const response = await api.identity.getById(senderId);
-          if (response.success && response.data) {
-            senderName = response.data.displayName;
-          }
-        } else {
-          const api = createApiClient({ baseUrl: apiBaseUrl });
-          const [identityResponse, keysResponse] = await Promise.all([
-            api.identity.getById(senderId),
-            api.identity.getPublicKeys(senderId),
-          ]);
-
-          if (identityResponse.success && identityResponse.data) {
-            senderName = identityResponse.data.displayName;
-            
-            if (keysResponse.success && keysResponse.data?.signingPublicKey) {
-              await cacheParticipant({
-                myIdentityId: currentIdentity.id,
-                conversationId,
-                otherIdentityId: senderId,
-                signingPublicKey: keysResponse.data.signingPublicKey,
-                cachedAt: Date.now(),
-              });
-            }
-          }
+        const api = createApiClient({ baseUrl: apiBaseUrl });
+        const response = await api.identity.getById(senderId);
+        if (response.success && response.data) {
+          senderName = response.data.displayName;
         }
       } catch {
-        // Could not decrypt sender - still show generic notification
+        // Could not resolve sender - still show generic notification
       }
 
       // Re-check route after async work; the user may have navigated during API calls
