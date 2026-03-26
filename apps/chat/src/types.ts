@@ -25,17 +25,9 @@ export type TypedWebSocket = uWS.WebSocket<WsUserData>;
 export type WsMessageType =
   | 'ping'
   | 'pong'
-  | 'message'
-  | 'typing'
   | 'presence'
   | 'ack'
-  | 'error'
-  | 'dm:new'
-  | 'dm:deleted'
-  | 'dm:read'
-  | 'dm:typing'
-  | 'dm:reaction:new'
-  | 'dm:reaction:removed';
+  | 'error';
 
 /**
  * Base structure for all WebSocket messages
@@ -77,163 +69,10 @@ export interface WsAckMessage extends WsMessageBase {
 }
 
 /**
- * Typing indicator message
- */
-export interface WsTypingMessage extends WsMessageBase {
-  type: 'typing';
-  payload: {
-    conversationId: string;
-    isTyping: boolean;
-  };
-}
-
-/**
- * New DM message event (from API via Redis)
- */
-export interface WsDmNewMessage extends WsMessageBase {
-  type: 'dm:new';
-  payload: {
-    message: {
-      id: string;
-      conversationId: string;
-      toIdentityId: string;
-      encryptedSenderId: string;
-      ciphertext: string;
-      nonce: string;
-      wrappedKeys: Array<{
-        identityId: string;
-        deviceId?: string;
-        ephemeralPublicKey: string;
-        kemCiphertext: string;
-        wrappedSessionKey: string;
-        wrappingNonce: string;
-      }>;
-      signature: string;
-      cryptoProfile: 'default' | 'cnsa2';
-      clientMessageId: string;
-      createdAt: string;
-      expiresAt?: string;
-      replyToId?: string;
-      threadRootId?: string;
-    };
-  };
-}
-
-/**
- * DM read state update event (from API via Redis)
- */
-export interface WsDmReadMessage extends WsMessageBase {
-  type: 'dm:read';
-  payload: {
-    conversationId: string;
-    identityId: string;
-    encryptedLastReadId: string;
-  };
-}
-
-/**
- * DM typing indicator event (from API via Redis)
- */
-export interface WsDmTypingMessage extends WsMessageBase {
-  type: 'dm:typing';
-  payload: {
-    conversationId: string;
-    identityId: string;
-    isTyping: boolean;
-  };
-}
-
-/**
- * DM message deleted event (from API via Redis)
- */
-export interface WsDmDeletedMessage extends WsMessageBase {
-  type: 'dm:deleted';
-  payload: {
-    messageId: string;
-    conversationId: string;
-    reason: 'deleted_for_everyone' | 'deleted_for_self' | 'expired';
-  };
-}
-
-/**
- * Public DM reaction as emitted on the wire (matches API `PublicDmReaction`).
- * Reactor identity is inside the encrypted payload; `createdAt` is the server timestamp.
- */
-export interface WsDmReactionPayload {
-  id: string;
-  messageId: string;
-  conversationId: string;
-  toIdentityId: string;
-  ciphertext: string;
-  nonce: string;
-  wrappedKeys: Array<{
-    identityId: string;
-    deviceId: string;
-    ephemeralPublicKey: string;
-    kemCiphertext: string;
-    wrappedSessionKey: string;
-    wrappingNonce: string;
-    preKeyType: 'otpk' | 'spk' | 'static';
-    oneTimePreKeyId?: string;
-    signedPreKeyId?: string;
-    oneTimeKemCiphertext?: string;
-  }>;
-  signature: string;
-  cryptoProfile: 'default' | 'cnsa2';
-  clientReactionId: string;
-  createdAt: string;
-}
-
-/**
- * DM reaction added event (from API via Redis)
- */
-export interface WsDmReactionNewMessage extends WsMessageBase {
-  type: 'dm:reaction:new';
-  payload: {
-    reaction: WsDmReactionPayload;
-  };
-}
-
-/**
- * DM reaction removed event (from API via Redis)
- */
-export interface WsDmReactionRemovedMessage extends WsMessageBase {
-  type: 'dm:reaction:removed';
-  payload: {
-    reactionId: string;
-    messageId: string;
-    conversationId: string;
-  };
-}
-
-/**
- * Encrypted message payload
- */
-export interface WsEncryptedMessage extends WsMessageBase {
-  type: 'message';
-  payload: {
-    conversationId: string;
-    toIdentityId: string;
-    ciphertext: string;
-    nonce: string;
-    wrappedKeys: Array<{
-      identityId: string;
-      ephemeralPublicKey: string;
-      kemCiphertext: string;
-      wrappedSessionKey: string;
-    }>;
-    signature: string;
-    clientMessageId: string;
-  };
-}
-
-/**
  * Union of all incoming message types
  */
 export type WsIncomingMessage =
-  | WsPingMessage
-  | WsTypingMessage
-  | WsEncryptedMessage;
+  | WsPingMessage;
 
 /**
  * Union of all outgoing message types
@@ -241,22 +80,13 @@ export type WsIncomingMessage =
 export type WsOutgoingMessage =
   | WsPongMessage
   | WsErrorMessage
-  | WsAckMessage
-  | WsTypingMessage
-  | WsEncryptedMessage
-  | WsDmNewMessage
-  | WsDmDeletedMessage
-  | WsDmReadMessage
-  | WsDmTypingMessage
-  | WsDmReactionNewMessage
-  | WsDmReactionRemovedMessage;
+  | WsAckMessage;
 
 /**
  * Redis pub/sub channel names
  */
 export const RedisChannels = {
   identity: (identityId: string) => `identity:${identityId}`,
-  pushQueue: 'push:queue',
 } as const;
 
 /**

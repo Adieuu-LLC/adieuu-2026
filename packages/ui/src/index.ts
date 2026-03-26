@@ -15,9 +15,7 @@ export {
   AccountAppearance,
   ThemeBrowser,
   IdentityCiphers,
-  IdentityContentSocial,
   IdentityDevices,
-  IdentityFriends,
   IdentityPrivacy,
   IdentityProfile,
 } from './pages';
@@ -57,34 +55,13 @@ export { useTheme, ThemeProvider } from './hooks/useTheme';
 export type { ThemeContextValue, ThemeProviderProps } from './hooks/useTheme';
 export { useTourContext, TourProvider } from './hooks/useTourContext';
 export { useIdentitySearch } from './hooks/useIdentitySearch';
-export { useConversationsList } from './hooks/useConversations';
-export { useDmConversationsList } from './hooks/useDmConversationsList';
-export type { DmConversationWithParticipant } from './hooks/useDmConversationsList';
-export { useMarkAsRead } from './hooks/useMarkAsRead';
-export { ConversationsProvider, useConversationsContext } from './hooks/ConversationsProvider';
-export type { ConversationsContextValue, ConversationsProviderProps } from './hooks/ConversationsProvider';
 export { useDocumentVisibility } from './hooks/useDocumentVisibility';
 export type { UseDocumentVisibilityResult } from './hooks/useDocumentVisibility';
-export { useChatConnection, ChatConnectionProvider } from './hooks/useChatConnection';
-export type { ChatConnectionProviderProps, ChatConnectionContextValue } from './hooks/useChatConnection';
-export { useDmSubscription } from './hooks/useDmSubscription';
-export type {
-  DmEvent,
-  DmNewMessageEvent,
-  DmReadStateEvent,
-  DmTypingEvent,
-  DmDeletedEvent,
-  DmReactionNewEvent,
-  DmReactionRemovedEvent,
-} from './hooks/useDmSubscription';
-export { useDmNotifications } from './hooks/useDmNotifications';
 export {
   useNativeNotificationsPreference,
   setNativeNotificationsEnabled,
   getNativeNotificationsEnabled,
 } from './hooks/useNativeNotificationsPreference';
-export { useDeleteMessage } from './hooks/useDeleteMessage';
-export type { DeleteMessageResult, UseDeleteMessageResult } from './hooks/useDeleteMessage';
 
 export type {
   AuthStatus,
@@ -105,26 +82,7 @@ export type {
   UseIdentitySearchOptions,
   UseIdentitySearchResult,
 } from './hooks/useIdentitySearch';
-export type {
-  UseConversationsListOptions,
-  UseConversationsListResult,
-} from './hooks/useConversations';
-export {
-  useSendDmMessage,
-  useDmConversation,
-  useDmMessages,
-  deriveConversationId,
-} from './hooks/useDmMessages';
-export type {
-  SendDmMessageInput,
-  SendDmMessageResult,
-  DecryptedDmMessage,
-  UseSendDmMessageResult,
-  UseDmConversationResult,
-  UseDmMessagesOptions,
-  UseDmMessagesResult,
-} from './hooks/useDmMessages';
-export type { DecryptedMessageContent } from './services/dmMessageService';
+
 export { setDeviceKeyStorageBackend, migrateIndexedDbToBackend } from './services/deviceKeyStorage';
 export { setPreKeyStorageBackend } from './services/preKeyStorage';
 export { usePreKeys } from './hooks/usePreKeys';
@@ -186,21 +144,13 @@ export type { BuiltinNotificationSoundId } from './constants/builtinNotification
 export { IdentityCard, IdentityCardCompact } from './components/IdentityCard';
 export { HoverCard } from './components/HoverCard';
 export { SidebarTabs } from './components/SidebarTabs';
-export { FriendListItem } from './components/FriendListItem';
-export { SidebarFriendsList } from './components/SidebarFriendsList';
 export { AvatarGroup } from './components/AvatarGroup';
-export { ConversationListItem } from './components/ConversationListItem';
-export { SidebarConversationsList } from './components/SidebarConversationsList';
-export { MessageComposer, TTL_OPTIONS } from './components/MessageComposer';
-export { MessageActionBar } from './components/MessageActionBar';
 export { KeyStorageBanner } from './components/KeyStorageBanner';
 export { UpdateBanner } from './components/UpdateBanner';
 export { ExportKeyBackupModal } from './components/ExportKeyBackupModal';
 export { ImportKeyBackupModal } from './components/ImportKeyBackupModal';
 export type { ExportKeyBackupModalProps } from './components/ExportKeyBackupModal';
 export type { ImportKeyBackupModalProps } from './components/ImportKeyBackupModal';
-export type { MessageComposerProps, SendMessageData, TtlOption } from './components/MessageComposer';
-export type { MessageActionBarProps, MessageMetadata } from './components/MessageActionBar';
 
 // ============================================================================
 // Icons
@@ -270,6 +220,4 @@ export type { SidebarSearchProps } from './components/SidebarSearch';
 export type { IdentityCardProps } from './components/IdentityCard';
 export type { HoverCardProps } from './components/HoverCard';
 export type { SidebarTab, SidebarTabsProps } from './components/SidebarTabs';
-export type { FriendListItemProps } from './components/FriendListItem';
 export type { AvatarGroupProps } from './components/AvatarGroup';
-export type { ConversationListItemProps } from './components/ConversationListItem';

@@ -15,8 +15,6 @@
 import { ObjectId } from 'mongodb';
 import { getBlockRepository } from '../repositories/block.repository';
 import { getIdentityRepository } from '../repositories/identity.repository';
-import { getFriendshipRepository } from '../repositories/friendship.repository';
-import { getFriendRequestRepository } from '../repositories/friend-request.repository';
 import type { PublicBlock } from '../models/block';
 import { toPublicBlock } from '../models/block';
 import { toPublicIdentity, type PublicIdentity } from '../models/identity';
@@ -85,10 +83,6 @@ async function withMinimumTime<T>(
 /**
  * Block an identity
  *
- * Side effects:
- * - Removes any existing friendship (both directions)
- * - Cancels/ignores any pending friend requests between the identities
- *
  * @param blockerIdentityId - The identity initiating the block
  * @param blockedIdentityId - The identity to block
  */
@@ -143,24 +137,6 @@ export async function blockIdentity(
       blockerIdentityId: blockerObjId,
       blockedIdentityId: blockedObjId,
     });
-
-    // Remove any existing friendship (both directions)
-    try {
-      const friendshipRepo = getFriendshipRepository();
-      await friendshipRepo.removeFriendship(blockerObjId, blockedObjId);
-    } catch {
-      // Friendship repository might not exist yet during initial implementation
-      elog.debug('Friendship removal skipped (repository may not exist)');
-    }
-
-    // Cancel/ignore any pending friend requests between the identities
-    try {
-      const friendRequestRepo = getFriendRequestRepository();
-      await friendRequestRepo.cancelOrIgnoreBetween(blockerObjId, blockedObjId);
-    } catch {
-      // Friend request repository might not exist yet during initial implementation
-      elog.debug('Friend request cleanup skipped (repository may not exist)');
-    }
 
     elog.info('Identity blocked', {
       blockerIdentityId: blockerHex,

@@ -8,10 +8,14 @@ import {
   getBuiltinNotificationSoundSrc,
   isBuiltinNotificationSoundId,
 } from '../constants/builtinNotificationSounds';
-import {
-  shouldSuppressInAppToastForConversation,
-  type FocusVisibilitySnapshot,
-} from './dmNotificationRules';
+
+/**
+ * Snapshot of document focus and visibility state at the time of a notification event.
+ */
+export interface FocusVisibilitySnapshot {
+  hasFocus: boolean;
+  visibilityState: DocumentVisibilityState;
+}
 
 /** Decoded built-in asset (Web Audio gain can exceed 1; fetch+decode avoids HTMLAudio volume cap). */
 let cachedBuiltinDecoded: { src: string; buffer: AudioBuffer } | null = null;
@@ -94,7 +98,7 @@ export function shouldPlayNotificationSound(
   soundId: NotificationSoundId,
   customPath: string | null,
   suppressWhenFocused: boolean,
-  isViewingConversation: boolean,
+  _isViewingConversation: boolean,
   snapshot: FocusVisibilitySnapshot | null
 ): boolean {
   if (!enabled || soundId === 'none') {
@@ -103,7 +107,7 @@ export function shouldPlayNotificationSound(
   if (soundId === 'custom' && (!customPath || customPath.length === 0)) {
     return false;
   }
-  if (suppressWhenFocused && shouldSuppressInAppToastForConversation(isViewingConversation, snapshot)) {
+  if (suppressWhenFocused && snapshot?.hasFocus && snapshot?.visibilityState === 'visible') {
     return false;
   }
   return true;

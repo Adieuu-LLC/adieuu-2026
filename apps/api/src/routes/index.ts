@@ -14,9 +14,7 @@ import { userRoutes } from './users';
 import { authRoutes } from './auth';
 import mfaRoutes from './mfa';
 import { identityRoutes } from './identity';
-import { friendsRoutes } from './friends';
 import { notificationRoutes } from './notifications';
-import { dmRoutes } from './dm';
 import { adminRoutes } from './admin';
 import { themeRoutes } from './themes';
 
@@ -30,9 +28,7 @@ import { themeRoutes } from './themes';
  * - `/api/users` - User management endpoints
  * - `/api/mfa` - Multi-factor authentication endpoints
  * - `/api/identity` - Anonymous identity management and blocklist endpoints
- * - `/api/friends` - Friend requests and friendships endpoints
  * - `/api/notifications` - Notification management endpoints
- * - `/api/dm` - Direct message conversations and encrypted messages
  * - `/api/admin/platform-settings` - Platform configuration (session + admin list)
  *
  * @param app - The main application router instance to register routes on
@@ -62,14 +58,8 @@ export function registerRoutes(app: Router): void {
   // Identity routes at /api (includes blocklist)
   app.merge(identityRoutes, '/api');
 
-  // Friend routes at /api
-  app.merge(friendsRoutes, '/api');
-
   // Notification routes at /api
   app.merge(notificationRoutes, '/api');
-
-  // DM routes at /api
-  app.merge(dmRoutes, '/api');
 
   // Platform admin (session + admin list)
   app.merge(adminRoutes, '/api');

@@ -1,6 +1,6 @@
 /**
  * Notification model
- * Represents notifications for friend requests, messages, and other events
+ * Represents notifications for various identity-scoped events.
  *
  * PRIVACY NOTE: Notifications must never leak User identity.
  * All notification data is tied to Identity, not User.
@@ -10,43 +10,16 @@ import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
 
 /**
- * Notification types
+ * Notification type identifier.
+ * Concrete values will be defined as features are implemented.
  */
-export type NotificationType =
-  | 'friend_request_received'
-  | 'friend_request_accepted'
-  | 'friendship_established'
-  | 'message_received'
-  | 'mention';
+export type NotificationType = string;
 
 /**
- * Friend request notification data (denormalized for efficiency)
+ * Notification data payload (varies by type).
+ * Concrete fields will be added as notification types are defined.
  */
-export interface FriendRequestNotificationData {
-  requestId: string;
-  fromIdentityId: string;
-  fromDisplayName: string;
-  fromUsername: string;
-  fromAvatarUrl?: string;
-}
-
-/**
- * Friendship established notification data (denormalized for efficiency)
- */
-export interface FriendshipEstablishedNotificationData {
-  friendIdentityId: string;
-  friendDisplayName: string;
-  friendUsername: string;
-  friendAvatarUrl?: string;
-}
-
-/**
- * Union type for notification data payloads
- */
-export type NotificationData =
-  | FriendRequestNotificationData
-  | FriendshipEstablishedNotificationData
-  | Record<string, unknown>;
+export type NotificationData = Record<string, unknown>;
 
 /**
  * Notification document stored in MongoDB

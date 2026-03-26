@@ -10,8 +10,4 @@ export * from './mfa';
 export * from './identity';
 export * from './identity-session';
 export * from './block';
-export * from './friend-request';
-export * from './friendship';
 export * from './notification';
-export * from './dm-conversation';
-export * from './dm-message';

@@ -3,7 +3,6 @@ export { Home } from './Home';
 export { About } from './About';
 export { Download } from './Download';
 export { Search } from './Search';
-export { Conversation } from './Conversation';
 
 // Auth pages
 export { Login, Verify } from './auth';
@@ -19,10 +18,9 @@ export {
 
 // Identity pages
 export {
+  IdentityAppearance,
   IdentityCiphers,
-  IdentityContentSocial,
   IdentityDevices,
-  IdentityFriends,
   IdentityPrivacy,
   IdentityProfile,
 } from './identity';

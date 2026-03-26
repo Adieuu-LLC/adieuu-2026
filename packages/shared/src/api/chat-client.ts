@@ -12,8 +12,6 @@
 export type ChatMessageType =
   | 'ping'
   | 'pong'
-  | 'message'
-  | 'typing'
   | 'presence'
   | 'ack'
   | 'error';
@@ -42,28 +40,13 @@ export interface ChatAckMessage extends ChatMessageBase {
   id: string;
 }
 
-export interface ChatTypingMessage extends ChatMessageBase {
-  type: 'typing';
-  payload: {
-    conversationId: string;
-    isTyping: boolean;
-  };
-}
-
-export interface ChatTypingNotification extends ChatMessageBase {
-  type: 'typing';
-  from: string;
-}
-
 export type ChatIncomingMessage =
   | ChatPongMessage
   | ChatErrorMessage
-  | ChatAckMessage
-  | ChatTypingNotification;
+  | ChatAckMessage;
 
 export type ChatOutgoingMessage =
-  | ChatPingMessage
-  | ChatTypingMessage;
+  | ChatPingMessage;
 
 export type ChatConnectionState =
   | 'disconnected'
@@ -212,16 +195,6 @@ export class ChatClient {
     } catch {
       return false;
     }
-  }
-
-  /**
-   * Send a typing indicator
-   */
-  sendTyping(conversationId: string, isTyping: boolean): boolean {
-    return this.send({
-      type: 'typing',
-      payload: { conversationId, isTyping },
-    });
   }
 
   /**

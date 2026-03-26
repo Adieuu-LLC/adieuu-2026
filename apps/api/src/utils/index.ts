@@ -39,7 +39,6 @@ export * from './crypto';
 export * from './timing';
 export * from './identity-hash';
 export * from './isValidObjectId';
-export * from './conversation';
 
 /**
  * Re-export the logger as both named exports.

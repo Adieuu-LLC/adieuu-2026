@@ -18,28 +18,12 @@ const mockIdentityRepo = {
   findByIdentityId: mock(() => Promise.resolve(null)) as AnyMock,
 };
 
-const mockFriendshipRepo = {
-  removeFriendship: mock(() => Promise.resolve()) as AnyMock,
-};
-
-const mockFriendRequestRepo = {
-  cancelOrIgnoreBetween: mock(() => Promise.resolve()) as AnyMock,
-};
-
 mock.module('../repositories/block.repository', () => ({
   getBlockRepository: () => mockBlockRepo,
 }));
 
 mock.module('../repositories/identity.repository', () => ({
   getIdentityRepository: () => mockIdentityRepo,
-}));
-
-mock.module('../repositories/friendship.repository', () => ({
-  getFriendshipRepository: () => mockFriendshipRepo,
-}));
-
-mock.module('../repositories/friend-request.repository', () => ({
-  getFriendRequestRepository: () => mockFriendRequestRepo,
 }));
 
 mock.module('../models/identity', () => ({
@@ -75,8 +59,6 @@ describe('block.service', () => {
     mockBlockRepo.isBlockedByEither.mockReset();
 
     mockIdentityRepo.findByIdentityId.mockReset();
-    mockFriendshipRepo.removeFriendship.mockReset();
-    mockFriendRequestRepo.cancelOrIgnoreBetween.mockReset();
 
     mockBlockRepo.findBlock.mockResolvedValue(null);
     mockBlockRepo.create.mockResolvedValue(null);
@@ -86,8 +68,6 @@ describe('block.service', () => {
     mockBlockRepo.isBlockedByEither.mockResolvedValue(false);
 
     mockIdentityRepo.findByIdentityId.mockResolvedValue(null);
-    mockFriendshipRepo.removeFriendship.mockResolvedValue(undefined);
-    mockFriendRequestRepo.cancelOrIgnoreBetween.mockResolvedValue(undefined);
   });
 
   test('blockIdentity rejects self-block attempts', async () => {
@@ -105,7 +85,7 @@ describe('block.service', () => {
     expect(mockBlockRepo.create).not.toHaveBeenCalled();
   });
 
-  test('blockIdentity creates block and triggers friendship/request cleanup', async () => {
+  test('blockIdentity creates block successfully', async () => {
     mockIdentityRepo.findByIdentityId.mockResolvedValue({
       _id: identityB,
       username: 'bob',
@@ -114,8 +94,6 @@ describe('block.service', () => {
     const result = await blockIdentity(identityA, identityB);
     expect(result.success).toBe(true);
     expect(mockBlockRepo.create).toHaveBeenCalledTimes(1);
-    expect(mockFriendshipRepo.removeFriendship).toHaveBeenCalledWith(identityA, identityB);
-    expect(mockFriendRequestRepo.cancelOrIgnoreBetween).toHaveBeenCalledWith(identityA, identityB);
   });
 
   test('unblockIdentity returns BLOCK_NOT_FOUND when no block exists', async () => {

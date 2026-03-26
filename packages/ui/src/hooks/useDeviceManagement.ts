@@ -16,7 +16,6 @@ import { createApiClient, type PublicDevice } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
 import { deleteAllDeviceKeysForIdentity } from '../services/deviceKeyStorage';
-import { clearParticipantCache } from '../services/participantCache';
 
 /**
  * Activity tracking preference.
@@ -307,9 +306,6 @@ export function useDeviceManagement() {
     try {
       // Clear device keys from IndexedDB
       await deleteAllDeviceKeysForIdentity(identity.id);
-
-      // Clear participant cache
-      await clearParticipantCache(identity.id);
 
       // Clear device ID from localStorage
       if (typeof localStorage !== 'undefined') {

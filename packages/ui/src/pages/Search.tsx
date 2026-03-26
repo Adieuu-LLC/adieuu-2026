@@ -4,19 +4,15 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { deriveConversationId } from '@adieuu/crypto';
 import { useIdentitySearch } from '../hooks/useIdentitySearch';
-import { useIdentity } from '../hooks/useIdentity';
 import { IdentityCard } from '../components/IdentityCard';
 import { Input } from '../components/Input';
 import { SearchIcon } from '../components/Icons';
 
 export function Search() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const { identity } = useIdentity();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') ?? '';
 
@@ -58,13 +54,6 @@ export function Search() {
     },
     [inputValue, search, setSearchParams]
   );
-
-  const handleMessage = useCallback((targetIdentity: { id: string; displayName: string }) => {
-    if (!identity) return;
-    const conversationId = deriveConversationId(identity.id, targetIdentity.id);
-    // Pass recipient ID for new conversations where we don't have cache/list data yet
-    navigate(`/conversation/${conversationId}?recipient=${targetIdentity.id}`);
-  }, [identity, navigate]);
 
   return (
     <div className="page-content">
@@ -112,12 +101,10 @@ export function Search() {
                 {t('search.resultsCount', { count: results.length })}
               </p>
               <div className="search-results-grid">
-                {results.map((identity) => (
+                {results.map((result) => (
                   <IdentityCard
-                    key={identity.id}
-                    identity={identity}
-                    showActions={true}
-                    onMessage={handleMessage}
+                    key={result.id}
+                    identity={result}
                   />
                 ))}
               </div>

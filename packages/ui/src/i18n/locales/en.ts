@@ -42,127 +42,8 @@ export const en = {
     identity: 'Alias',
     comingSoon: '{{feature}} coming soon.',
     tabs: {
-      friends: 'Friends',
-      conversations: 'Conversations',
       spaces: 'Spaces',
     },
-    friends: {
-      loginRequired: 'Log in to see your friends.',
-      error: 'Failed to load friends.',
-      empty: 'No friends yet.',
-      findFriends: 'Find friends',
-      requests: {
-        count_one: '{{count}} friend request',
-        count_other: '{{count}} friend requests',
-        accept: 'Accept',
-        decline: 'Decline',
-      },
-    },
-    conversations: {
-      loginRequired: 'Log in to see your conversations.',
-      error: 'Failed to load conversations.',
-      empty: 'No conversations yet.',
-    },
-  },
-
-  // Conversation Page
-  conversation: {
-    loginRequired: 'Log in to view this conversation.',
-    notFound: 'Conversation not found.',
-    goHome: 'Go Home',
-    unknown: 'Unknown',
-    memberCount: '{{count}} members',
-    memberCount_one: '1 member',
-    memberCount_other: '{{count}} members',
-    toggleMembers: 'Toggle members',
-    toggleSettings: 'Toggle settings',
-    close: 'Close conversation',
-    members: 'Members',
-    profile: 'Profile',
-    settings: 'Settings',
-    settingsComingSoon: 'Conversation settings coming soon, including crypto profile customization and more.',
-    viewProfile: 'View Profile',
-    messagesPlaceholder: 'Messages will appear here.',
-    noMessages: 'No messages yet. Say hi to {{name}}!',
-    inputPlaceholder: 'Type a message...',
-    send: 'Send',
-  },
-
-  // Messages (MessageList component)
-  messages: {
-    loading: 'Loading messages...',
-    noMessages: 'No messages yet.',
-    startConversation: 'Start the conversation by sending a message.',
-    loadMore: 'Load more',
-    decryptionFailed: 'Could not decrypt message',
-    deleted: 'This message was deleted.',
-    actions: 'Message actions',
-    moreOptions: 'More options',
-    messageInfo: 'Message info',
-    deleteForEveryone: 'Delete for everyone',
-    deleteForMe: 'Delete for me',
-    info: {
-      messageId: 'Message ID',
-      sentAt: 'Sent at',
-      cryptoProfile: 'Crypto profile',
-      forwardSecrecy: 'Forward secrecy',
-      expiresAt: 'Expires at',
-      conversationId: 'Conversation ID',
-      enabled: 'Enabled',
-      disabled: 'Disabled',
-      clientMessageId: 'Client message ID',
-    },
-    expiresIn: 'Expires in',
-    composerPlaceholder: 'Type a message...',
-    composerAriaLabel: 'Message input',
-    send: 'Send',
-    ttl: {
-      select: 'Set message expiry',
-      header: 'Message expires after',
-      never: 'Never',
-      '30s': '30 seconds',
-      '60s': '1 minute',
-      '3m': '3 minutes',
-      '5m': '5 minutes',
-      '10m': '10 minutes',
-      '30m': '30 minutes',
-      '1h': '1 hour',
-      '6h': '6 hours',
-      '1d': '1 day',
-      '3d': '3 days',
-      '1w': '1 week',
-    },
-    fs: {
-      toggle: 'Toggle forward secrecy',
-      enabled: 'FS: On',
-      disabled: 'FS: Off',
-      enabledShort: 'FS',
-      disabledShort: 'No FS',
-      enabledHint: 'Forward secrecy enabled for this message',
-      disabledHint: 'Forward secrecy disabled (static key wrapping)',
-      keyRotationNotice: '{{count}} message is no longer readable',
-      keyRotationNotice_other: '{{count}} messages are no longer readable',
-      keyRotationExplanation: 'Your encryption keys have been rotated. This is expected behavior from forward secrecy.',
-      manageSettings: 'Manage settings',
-      showHiddenMessages: 'Show hidden messages',
-      hideMessages: 'Hide messages',
-      messageUnavailable: 'Message no longer available',
-    },
-    emoji: {
-      select: 'Insert emoji',
-      react: 'Add reaction',
-    },
-    reactions: {
-      addReaction: 'Add reaction',
-      removeReaction: 'Remove reaction',
-    },
-    newMessage: 'New message',
-    newMessageDescription: 'Sent you a message',
-    realtimeAppendFailed: 'A new message could not be decrypted in real time. Refreshing the conversation.',
-    /** Fallback display name when reaction sender cannot be resolved */
-    someone: 'Someone',
-    /** Toast description when another user reacts to your message */
-    reactedToYourMessage: 'Reacted to your message',
   },
 
   // Search
@@ -179,59 +60,6 @@ export const en = {
     resultsCount_other: '{{count}} results found',
     actions: {
       viewProfile: 'View Profile',
-      message: 'Message',
-      addFriend: 'Add Friend',
-      signInToAddFriend: 'Sign in to add friend',
-    },
-  },
-
-  // Friends
-  friends: {
-    title: 'Friends',
-    subtitle: 'Manage your friends and friend requests.',
-    noFriends: 'No friends yet.',
-    noFriendsHint: 'Send friend requests to connect with people.',
-    friendsSince: 'Friends since {{date}}',
-    // Actions
-    actions: {
-      addFriend: 'Add Friend',
-      cancelRequest: 'Cancel Request',
-      requestSent: 'Request Sent',
-      acceptRequest: 'Accept',
-      ignoreRequest: 'Ignore',
-      removeFriend: 'Remove Friend',
-      friends: 'Friends',
-      signInToAddFriend: 'Sign in to add friend',
-    },
-    // Friend requests
-    requests: {
-      title: 'Friend Requests',
-      incoming: 'Incoming',
-      sent: 'Sent',
-      noIncoming: 'No incoming requests.',
-      noSent: 'No sent requests.',
-      accept: 'Accept',
-      ignore: 'Ignore',
-      cancel: 'Cancel',
-    },
-    // Messages
-    messages: {
-      requestSent: 'Friend request sent.',
-      requestCancelled: 'Friend request cancelled.',
-      requestAccepted: 'Friend request accepted.',
-      requestIgnored: 'Friend request ignored.',
-      friendRemoved: 'Friend removed.',
-      alreadyFriends: 'You are already friends.',
-      mutualAdd: 'You are now friends!',
-    },
-    // Errors
-    errors: {
-      sendFailed: 'Failed to send friend request.',
-      cancelFailed: 'Failed to cancel friend request.',
-      acceptFailed: 'Failed to accept friend request.',
-      ignoreFailed: 'Failed to ignore friend request.',
-      removeFailed: 'Failed to remove friend.',
-      burstLimit: 'Please wait before sending more requests.',
     },
   },
 
@@ -242,14 +70,6 @@ export const en = {
     noNotifications: 'No notifications.',
     markAllRead: 'Mark all as read',
     clearAll: 'Clear all',
-    // Notification types
-    types: {
-      friend_request_received: '{{name}} sent you a friend request',
-      friend_request_accepted: '{{name}} accepted your friend request',
-      friendship_established: 'You are now friends with {{name}}',
-      message_received: '{{name}} sent you a message',
-      mention: '{{name}} mentioned you',
-    },
     // Time formatting
     time: {
       justNow: 'Just now',
@@ -259,12 +79,6 @@ export const en = {
     },
     // Toast notifications
     toast: {
-      friendRequestTitle: 'Friend Request',
-      friendRequestDescription: '{{name}} sent you a friend request',
-      friendAcceptedTitle: 'Friend Request Accepted',
-      friendAcceptedDescription: '{{name}} accepted your friend request',
-      friendshipTitle: 'New Friend',
-      friendshipDescription: 'You are now friends with {{name}}',
       newNotificationTitle: 'New Notification',
       newNotificationDescription: 'You have a new notification',
     },
@@ -293,8 +107,6 @@ export const en = {
     // Menu items for identity flyout
     menu: {
       profile: 'Profile',
-      friends: 'Friends',
-      contentSocial: 'Content & Social',
       privacy: 'Privacy',
       appearance: 'Appearance',
       ciphers: 'Ciphers',
@@ -302,10 +114,7 @@ export const en = {
     },
     // Actions for identity interactions
     actions: {
-      message: 'Message',
       viewProfile: 'View Profile',
-      addFriend: 'Add Friend',
-      removeFriend: 'Remove Friend',
     },
     // Device management
     device: {
@@ -667,12 +476,6 @@ export const en = {
       title: 'Profile',
       subtitle: 'View and manage your alias profile.',
       comingSoon: 'Profile settings coming soon.',
-    },
-    // Content & Social page
-    contentSocial: {
-      title: 'Content & Social',
-      subtitle: 'Manage your content and social settings.',
-      comingSoon: 'Content & Social settings coming soon.',
     },
     // Privacy page (identity-scoped)
     privacy: {

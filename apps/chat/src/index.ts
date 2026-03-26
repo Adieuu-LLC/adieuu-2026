@@ -148,15 +148,6 @@ function createApp(): uWS.TemplatedApp {
           break;
         }
 
-        case 'typing':
-        case 'message': {
-          logger.debug('Message received (handler not implemented)', {
-            type: message.type,
-            identityId: userData.identityId.substring(0, 8) + '...',
-          });
-          break;
-        }
-
         default: {
           const errorResponse: WsErrorMessage = {
             type: 'error',

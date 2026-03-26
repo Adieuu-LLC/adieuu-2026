@@ -55,34 +55,20 @@ export {
   type RegisterDeviceParams,
   type UpdateKeyBundleParams,
   type PublicIdentitySession,
-  // Friends types
-  type Friend,
-  type FriendshipStatus,
-  type IncomingFriendRequest,
-  type SentFriendRequest,
   // Blocked types
   type BlockedIdentity,
   // Pre-key types
-  type PreKeyType,
   type PublicSignedPreKey,
   type PublicOneTimePreKey,
   type ClaimedDevicePreKeys,
   type UploadPreKeysParams,
   type ClaimPreKeysParams,
   type PreKeyCountResponse,
-  // DM types
-  DmApi,
-  type SerializedWrappedKey,
-  type DmConversation,
-  type DmConversationListItem,
-  type DmReadStateEntry,
-  type DmMessage,
-  type DmMessageTombstone,
-  type SendDmMessageParams,
-  // DM Reaction types
-  DmReactionsApi,
-  type DmReaction,
-  type SendDmReactionParams,
+  // Notification types
+  type NotificationType,
+  type NotificationData,
+  type Notification,
+  type NotificationCounts,
 } from './client';
 
 export {
@@ -98,6 +84,4 @@ export {
   type ChatPongMessage,
   type ChatErrorMessage,
   type ChatAckMessage,
-  type ChatTypingMessage,
-  type ChatTypingNotification,
 } from './chat-client';
