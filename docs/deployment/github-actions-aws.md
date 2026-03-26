@@ -37,6 +37,17 @@ Copy from `terraform output` (non-secret; using variables keeps them out of work
 
 If `DEPLOY_WEB_S3_BUCKET_ADIEUU` or `DEPLOY_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU` is unset, the web deploy job is skipped (e.g. stack without `route53_zone_name`). Container jobs are skipped if their ECR/ECS variables are incomplete.
 
+### Downloads bucket (optional; after Terraform)
+
+When the **dedicated downloads** stack exists (`downloads.adieuu.com` — S3 + CloudFront for desktop update mirror and SBOMs), add variables from `terraform output` and wire the [release workflow](../../.github/workflows/release.yml) mirror job. See [desktop-updates-s3-cf.md](./desktop-updates-s3-cf.md).
+
+| Variable | Terraform output (planned) |
+|----------|----------------------------|
+| `DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU` | `downloads_s3_bucket_name` (name TBD in Terraform) |
+| `DEPLOY_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU` | `downloads_cloudfront_distribution_id` |
+
+GitHub Releases remain the **source of truth**; the bucket is an additional public mirror.
+
 ## Behavior
 
 - **Order** — Automatic deploys run **inside the Release workflow** after the **`release`** job (not in parallel with the version bump). They do **not** use path filters: each deploy builds **full** web + API + chat from **`main`** at that moment so release-only commits (version bumps across `package.json` files) still produce correct images and `version.json`.
