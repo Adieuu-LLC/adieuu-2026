@@ -303,7 +303,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.release.outputs.new_version }}
-          # Keep as draft until all artifacts are uploaded
           draft: true
           files: |
             apps/desktop/out/*.exe
@@ -320,6 +319,14 @@ jobs:
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload desktop artifacts for S3 mirror
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact-name }}
+          path: apps/desktop/out/
+          retention-days: 1
+          if-no-files-found: warn
 
   # Generate SBOMs for release and upload as workflow artifacts first.
   generate-sboms:
@@ -385,6 +392,157 @@ jobs:
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Sync desktop artifacts + SBOMs to S3 downloads bucket and manifests to
+  # the private manifest bucket. Runs only when the downloads stack variables
+  # are configured (otherwise skipped gracefully).
+  sync-downloads-mirror:
+    needs: [release, build-and-release-desktop, attach-sboms]
+    if: |
+      always() &&
+      needs.release.outputs.released == 'true' &&
+      needs.build-and-release-desktop.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Check downloads stack variables
+        id: check_vars
+        run: |
+          if [ -z "${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}" ] || \
+             [ -z "${{ vars.DEPLOY_RELEASE_MANIFESTS_S3_BUCKET_ADIEUU }}" ] || \
+             [ -z "${{ vars.DEPLOY_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU }}" ]; then
+            echo "Downloads stack variables not set, skipping S3 mirror sync."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download desktop artifacts
+        if: steps.check_vars.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: desktop-artifacts
+          merge-multiple: true
+
+      - name: Download SBOM artifacts
+        if: steps.check_vars.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: adieuu-*-*-sbom.json
+          path: sboms
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Configure AWS credentials
+        if: steps.check_vars.outputs.skip != 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Sync binaries to S3 downloads bucket
+        if: steps.check_vars.outputs.skip != 'true'
+        run: |
+          VERSION="v${{ needs.release.outputs.new_version }}"
+          BUCKET="${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}"
+
+          echo "Syncing desktop binaries to s3://${BUCKET}..."
+
+          # latest/ channel for auto-update (exclude manifest yml files)
+          aws s3 sync desktop-artifacts/ "s3://${BUCKET}/latest/" \
+            --exclude "latest.yml" \
+            --exclude "latest-mac.yml" \
+            --exclude "latest-linux.yml" \
+            --exclude "*.blockmap" \
+            --size-only
+
+          # Blockmaps go to latest/ too (needed by electron-updater for delta)
+          aws s3 sync desktop-artifacts/ "s3://${BUCKET}/latest/" \
+            --include "*.blockmap" \
+            --exclude "*" \
+            --size-only
+
+          # Immutable versioned copy
+          aws s3 sync desktop-artifacts/ "s3://${BUCKET}/${VERSION}/desktop/" \
+            --exclude "latest.yml" \
+            --exclude "latest-mac.yml" \
+            --exclude "latest-linux.yml"
+
+      - name: Sync manifests to private manifest bucket
+        if: steps.check_vars.outputs.skip != 'true'
+        run: |
+          MANIFESTS_BUCKET="${{ vars.DEPLOY_RELEASE_MANIFESTS_S3_BUCKET_ADIEUU }}"
+
+          for f in latest.yml latest-mac.yml latest-linux.yml; do
+            if [ -f "desktop-artifacts/${f}" ]; then
+              echo "Uploading manifest: ${f}"
+              aws s3 cp "desktop-artifacts/${f}" "s3://${MANIFESTS_BUCKET}/${f}"
+            fi
+          done
+
+      - name: Sync SBOMs to downloads bucket
+        if: steps.check_vars.outputs.skip != 'true'
+        run: |
+          VERSION="v${{ needs.release.outputs.new_version }}"
+          BUCKET="${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}"
+
+          if [ -d sboms ] && [ "$(find sboms -name '*.json' 2>/dev/null | head -1)" ]; then
+            echo "Syncing SBOMs to s3://${BUCKET}/${VERSION}/sbom/"
+            aws s3 sync sboms/ "s3://${BUCKET}/${VERSION}/sbom/"
+          else
+            echo "No SBOM files found, skipping."
+          fi
+
+      - name: Generate and upload releases.json
+        if: steps.check_vars.outputs.skip != 'true'
+        run: |
+          VERSION="${{ needs.release.outputs.new_version }}"
+          BUCKET="${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}"
+          BASE_URL="https://${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU && 'downloads.adieuu.com' || 'downloads.adieuu.com' }}"
+
+          # Download existing releases.json (if any) and append the new version
+          aws s3 cp "s3://${BUCKET}/releases.json" existing-releases.json 2>/dev/null || echo '[]' > existing-releases.json
+
+          node -e "
+            const fs = require('fs');
+            const existing = JSON.parse(fs.readFileSync('existing-releases.json', 'utf8'));
+            const entries = Array.isArray(existing) ? existing : [];
+
+            // Avoid duplicate entries for the same version
+            const filtered = entries.filter(e => e.version !== '${VERSION}');
+
+            const newEntry = {
+              version: '${VERSION}',
+              date: new Date().toISOString(),
+              downloads: {
+                base: '${BASE_URL}/v${VERSION}/desktop/',
+                sbom: '${BASE_URL}/v${VERSION}/sbom/',
+              },
+              github: 'https://github.com/Adieuu-LLC/adieuu-2026/releases/tag/v${VERSION}',
+            };
+
+            filtered.unshift(newEntry);
+
+            // Keep last 50 releases
+            const trimmed = filtered.slice(0, 50);
+            fs.writeFileSync('releases.json', JSON.stringify(trimmed, null, 2));
+          "
+
+          aws s3 cp releases.json "s3://${BUCKET}/releases.json" \
+            --content-type "application/json"
+
+      - name: Invalidate CloudFront
+        if: steps.check_vars.outputs.skip != 'true'
+        run: |
+          VERSION="v${{ needs.release.outputs.new_version }}"
+          DISTRIBUTION_ID="${{ vars.DEPLOY_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU }}"
+
+          aws cloudfront create-invalidation \
+            --distribution-id "${DISTRIBUTION_ID}" \
+            --paths "/latest/*" "/${VERSION}/*" "/releases.json"
 
   publish-release:
     needs: [release, build-and-release-desktop, attach-sboms]

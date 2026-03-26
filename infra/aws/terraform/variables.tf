@@ -302,6 +302,26 @@ variable "app_domain_name" {
   default     = "app.adieuu.com"
 }
 
+variable "downloads_domain_name" {
+  type        = string
+  description = "FQDN for the desktop update mirror and public downloads (must sit under route53_zone_name). Used for CloudFront ACM (us-east-1), downloads alias, and CloudFront alternate domain name."
+  default     = "downloads.adieuu.com"
+}
+
+variable "enable_downloads_stack" {
+  type        = bool
+  description = "Create S3 + CloudFront infrastructure for desktop update mirror and public downloads (downloads.<domain>). Requires route53_zone_name to be set (public_dns_tls_enabled)."
+  default     = false
+
+  validation {
+    condition = (
+      !var.enable_downloads_stack ||
+      trimspace(var.route53_zone_name) != ""
+    )
+    error_message = "enable_downloads_stack requires route53_zone_name so DNS and TLS can be provisioned."
+  }
+}
+
 variable "enable_waf" {
   type        = bool
   description = "When true and public_dns_tls_enabled is true, attach managed WAF web ACLs to the ALB and CloudFront distribution."

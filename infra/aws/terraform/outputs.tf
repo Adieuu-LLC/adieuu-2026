@@ -121,6 +121,26 @@ output "ecs_service_chat_name" {
   value       = aws_ecs_service.chat.name
 }
 
+output "downloads_s3_bucket_name" {
+  description = "S3 bucket for desktop binaries and SBOMs when downloads stack is enabled; null otherwise."
+  value       = local.downloads_enabled ? aws_s3_bucket.downloads[0].id : null
+}
+
+output "release_manifests_s3_bucket_name" {
+  description = "Private S3 bucket for release manifests (latest*.yml) when downloads stack is enabled; null otherwise."
+  value       = local.downloads_enabled ? aws_s3_bucket.release_manifests[0].id : null
+}
+
+output "downloads_cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for the downloads mirror when downloads stack is enabled; null otherwise."
+  value       = local.downloads_enabled ? aws_cloudfront_distribution.downloads[0].id : null
+}
+
+output "downloads_base_url" {
+  description = "Base URL for the downloads mirror (https://downloads.<domain>) when downloads stack is enabled; null otherwise."
+  value       = local.downloads_enabled ? "https://${var.downloads_domain_name}" : null
+}
+
 output "cloudfront_pricing_model" {
   description = "Configured CloudFront pricing model (pay_as_you_go or flat_rate_*)."
   value       = var.cloudfront_pricing_model

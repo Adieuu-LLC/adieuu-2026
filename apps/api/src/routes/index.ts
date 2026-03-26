@@ -17,6 +17,7 @@ import { identityRoutes } from './identity';
 import { notificationRoutes } from './notifications';
 import { adminRoutes } from './admin';
 import { themeRoutes } from './themes';
+import { releaseRoutes } from './releases';
 
 /**
  * Registers all application routes with the main router.
@@ -66,4 +67,7 @@ export function registerRoutes(app: Router): void {
 
   // Community themes (public browse + identity-auth upload)
   app.merge(themeRoutes, '/api');
+
+  // Release manifests (desktop update mirror, served via CloudFront ALB origin)
+  app.merge(releaseRoutes, '/api');
 }

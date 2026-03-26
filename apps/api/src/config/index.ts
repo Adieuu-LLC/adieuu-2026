@@ -262,6 +262,12 @@ export const config = {
     origins: optionalEnv('WEBAUTHN_ORIGINS', 'http://localhost:5173,https://localhost').split(',').map(o => o.trim()).filter(Boolean),
   },
 
+  /** Release manifest serving (downloads stack) */
+  releaseManifests: {
+    s3Bucket: process.env.RELEASE_MANIFESTS_S3_BUCKET ?? '',
+    awsRegion: optionalEnv('AWS_REGION', 'us-east-1'),
+  },
+
   /** Feature flags for conditional functionality */
   features: {
     /** 

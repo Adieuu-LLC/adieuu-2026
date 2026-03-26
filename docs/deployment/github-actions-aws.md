@@ -37,16 +37,19 @@ Copy from `terraform output` (non-secret; using variables keeps them out of work
 
 If `DEPLOY_WEB_S3_BUCKET_ADIEUU` or `DEPLOY_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU` is unset, the web deploy job is skipped (e.g. stack without `route53_zone_name`). Container jobs are skipped if their ECR/ECS variables are incomplete.
 
-### Downloads bucket (optional; after Terraform)
+### Downloads stack (optional; after Terraform with `enable_downloads_stack = true`)
 
-When the **dedicated downloads** stack exists (`downloads.adieuu.com` — S3 + CloudFront for desktop update mirror and SBOMs), add variables from `terraform output` and wire the [release workflow](../../.github/workflows/release.yml) mirror job. See [desktop-updates-s3-cf.md](./desktop-updates-s3-cf.md).
+When the **dedicated downloads** stack exists (`downloads.adieuu.com` -- dual-origin S3 + CloudFront for desktop update mirror, SBOMs, and `releases.json`), add variables from `terraform output`. The [release workflow](../../.github/workflows/release.yml) `sync-downloads-mirror` job uses these to sync desktop artifacts, manifests, and SBOMs. If the variables are unset, the job is skipped gracefully.
 
-| Variable | Terraform output (planned) |
-|----------|----------------------------|
-| `DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU` | `downloads_s3_bucket_name` (name TBD in Terraform) |
+See [desktop-updates-s3-cf.md](./desktop-updates-s3-cf.md) for the full architecture (dual-origin CloudFront with private manifest bucket).
+
+| Variable | Terraform output |
+|----------|------------------|
+| `DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU` | `downloads_s3_bucket_name` |
+| `DEPLOY_RELEASE_MANIFESTS_S3_BUCKET_ADIEUU` | `release_manifests_s3_bucket_name` |
 | `DEPLOY_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU` | `downloads_cloudfront_distribution_id` |
 
-GitHub Releases remain the **source of truth**; the bucket is an additional public mirror.
+GitHub Releases remain the **source of truth**; the downloads stack is an additional public mirror.
 
 ## Behavior
 

@@ -92,6 +92,10 @@
         "--rpm-rpmbuild-define",
         "_build_id_links none"
       ]
+    },
+    "publish": {
+      "provider": "generic",
+      "url": "https://downloads.adieuu.com/latest/"
     }
   }
 }
