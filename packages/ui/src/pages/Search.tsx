@@ -7,6 +7,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useIdentitySearch } from '../hooks/useIdentitySearch';
+import { useIdentity } from '../hooks/useIdentity';
+import { useFriends } from '../hooks/useFriends';
 import { IdentityCard } from '../components/IdentityCard';
 import { Input } from '../components/Input';
 import { SearchIcon } from '../components/Icons';
@@ -15,6 +17,9 @@ export function Search() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get('q') ?? '';
+  const { identity, status: identityStatus } = useIdentity();
+  const { sendRequest, getFriendshipStatus } = useFriends();
+  const isIdentityLoggedIn = identityStatus === 'logged_in' && identity;
 
   const [inputValue, setInputValue] = useState(initialQuery);
   const { results, isLoading, error, search, query } = useIdentitySearch({
@@ -105,6 +110,10 @@ export function Search() {
                   <IdentityCard
                     key={result.id}
                     identity={result}
+                    showFriendAction={!!isIdentityLoggedIn}
+                    onSendFriendRequest={sendRequest}
+                    onGetFriendshipStatus={getFriendshipStatus}
+                    selfIdentityId={identity?.id}
                   />
                 ))}
               </div>

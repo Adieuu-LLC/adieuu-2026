@@ -57,6 +57,12 @@ export {
   type PublicIdentitySession,
   // Blocked types
   type BlockedIdentity,
+  // Friends types
+  FriendsApi,
+  type FriendshipStatus,
+  type PublicFriendRequest,
+  type FriendInfo,
+  type IncomingFriendRequestInfo,
   // Pre-key types
   type PublicSignedPreKey,
   type PublicOneTimePreKey,
@@ -96,4 +102,7 @@ export {
   type ChatPongMessage,
   type ChatErrorMessage,
   type ChatAckMessage,
+  type ChatFriendRequestReceivedMessage,
+  type ChatFriendRequestAcceptedMessage,
+  type ChatFriendRemovedMessage,
 } from './chat-client';

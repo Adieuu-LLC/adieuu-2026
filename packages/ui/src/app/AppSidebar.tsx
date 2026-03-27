@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -10,10 +10,11 @@ import {
 import { SidebarSearch } from '../components/SidebarSearch';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
-import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, ShieldIcon, PaletteIcon, DownloadIcon } from '../components/Icons';
+import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, ShieldIcon, PaletteIcon, DownloadIcon, UsersIcon, CheckIcon, XIcon, SearchIcon } from '../components/Icons';
 import { useAppConfig } from '../config';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
+import { useFriends } from '../hooks/useFriends';
 import { IdentityModal } from './IdentityModal';
 
 /**
@@ -245,6 +246,219 @@ function IdentityFlyout() {
 }
 
 /**
+ * Friends flyout menu that appears on hover in the sidebar main section.
+ * Shows a searchable list of friends with pending requests at the top.
+ * Only visible when an identity session is active.
+ */
+function FriendsFlyout() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { isExpanded, closeMobile } = useSidebar();
+  const { status: identityStatus } = useIdentity();
+  const {
+    friends,
+    incomingRequests,
+    incomingRequestCount,
+    acceptRequest,
+    ignoreRequest,
+    searchFriends,
+  } = useFriends();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<typeof friends>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isIdentityLoggedIn = identityStatus === 'logged_in';
+
+  const handleSearch = useCallback(
+    (value: string) => {
+      setSearchQuery(value);
+
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+      }
+
+      if (!value.trim() || value.trim().length < 2) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+
+      setIsSearching(true);
+      searchTimerRef.current = setTimeout(async () => {
+        const results = await searchFriends(value.trim());
+        setSearchResults(results);
+        setIsSearching(false);
+      }, 300);
+    },
+    [searchFriends]
+  );
+
+  const handleAccept = useCallback(
+    async (requestId: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      await acceptRequest(requestId);
+    },
+    [acceptRequest]
+  );
+
+  const handleIgnore = useCallback(
+    async (requestId: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      await ignoreRequest(requestId);
+    },
+    [ignoreRequest]
+  );
+
+  const handleNavToProfile = useCallback(
+    (identityId: string) => {
+      closeMobile();
+      navigate(`/identity/${identityId}`);
+    },
+    [closeMobile, navigate]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, []);
+
+  if (!isIdentityLoggedIn) return null;
+
+  const displayedFriends = searchQuery.trim().length >= 2 ? searchResults : friends;
+  const hasRequests = incomingRequestCount > 0;
+
+  const buttonLabel = hasRequests
+    ? t('nav.friendRequests', { count: incomingRequestCount })
+    : t('nav.friends');
+
+  return (
+    <div className="sidebar-friends-flyout-wrapper">
+      <SidebarItem
+        icon={<UsersIcon />}
+        label={buttonLabel}
+      />
+      <div className={`sidebar-friends-flyout ${!isExpanded ? 'sidebar-friends-flyout-collapsed' : ''}`}>
+        <div className="sidebar-friends-flyout-content">
+          <div className="sidebar-friends-flyout-search">
+            <span className="sidebar-friends-flyout-search-icon"><SearchIcon /></span>
+            <input
+              type="text"
+              className="sidebar-friends-flyout-search-input"
+              placeholder={t('friends.searchPlaceholder')}
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+            />
+            {isSearching && <span className="spinner spinner-sm" />}
+          </div>
+
+          <div className="sidebar-friends-flyout-list">
+            {/* Pending requests */}
+            {incomingRequests.length > 0 && !searchQuery && (
+              <div className="sidebar-friends-flyout-section">
+                <span className="sidebar-friends-flyout-section-label">
+                  {t('friends.incomingRequests')}
+                </span>
+                {incomingRequests.map((req) => (
+                  <div key={req.request.id} className="sidebar-friends-flyout-item sidebar-friends-flyout-item-request">
+                    <button
+                      type="button"
+                      className="sidebar-friends-flyout-item-info"
+                      onClick={() => handleNavToProfile(req.fromIdentity.id)}
+                    >
+                      <div className="sidebar-friends-flyout-item-avatar">
+                        {req.fromIdentity.avatarUrl ? (
+                          <img src={req.fromIdentity.avatarUrl} alt="" className="sidebar-friends-flyout-item-avatar-img" />
+                        ) : (
+                          <span className="sidebar-friends-flyout-item-avatar-placeholder">
+                            {req.fromIdentity.displayName.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="sidebar-friends-flyout-item-text">
+                        <span className="sidebar-friends-flyout-item-name">{req.fromIdentity.displayName}</span>
+                        <span className="sidebar-friends-flyout-item-username">@{req.fromIdentity.username}</span>
+                      </div>
+                    </button>
+                    <div className="sidebar-friends-flyout-item-actions">
+                      <button
+                        type="button"
+                        className="sidebar-friends-flyout-action-btn sidebar-friends-flyout-action-accept"
+                        onClick={(e) => handleAccept(req.request.id, e)}
+                        title={t('friends.accept')}
+                      >
+                        <CheckIcon />
+                      </button>
+                      <button
+                        type="button"
+                        className="sidebar-friends-flyout-action-btn sidebar-friends-flyout-action-ignore"
+                        onClick={(e) => handleIgnore(req.request.id, e)}
+                        title={t('friends.ignore')}
+                      >
+                        <XIcon />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Friends list */}
+            {displayedFriends.length > 0 && (
+              <div className="sidebar-friends-flyout-section">
+                {incomingRequests.length > 0 && !searchQuery && (
+                  <span className="sidebar-friends-flyout-section-label">
+                    {t('friends.title')}
+                  </span>
+                )}
+                {displayedFriends.map((friend) => (
+                  <button
+                    key={friend.identity.id}
+                    type="button"
+                    className="sidebar-friends-flyout-item"
+                    onClick={() => handleNavToProfile(friend.identity.id)}
+                  >
+                    <div className="sidebar-friends-flyout-item-avatar">
+                      {friend.identity.avatarUrl ? (
+                        <img src={friend.identity.avatarUrl} alt="" className="sidebar-friends-flyout-item-avatar-img" />
+                      ) : (
+                        <span className="sidebar-friends-flyout-item-avatar-placeholder">
+                          {friend.identity.displayName.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="sidebar-friends-flyout-item-text">
+                      <span className="sidebar-friends-flyout-item-name">{friend.identity.displayName}</span>
+                      <span className="sidebar-friends-flyout-item-username">@{friend.identity.username}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Empty states */}
+            {displayedFriends.length === 0 && incomingRequests.length === 0 && !searchQuery && (
+              <div className="sidebar-friends-flyout-empty">
+                {t('friends.noFriends')}
+              </div>
+            )}
+            {displayedFriends.length === 0 && searchQuery.trim().length >= 2 && !isSearching && (
+              <div className="sidebar-friends-flyout-empty">
+                {t('search.noResults')}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Navigation content component that has access to sidebar context.
  */
 function SidebarNavContent() {
@@ -267,6 +481,7 @@ function SidebarNavContent() {
             isActive={isActive('/about')}
           />
         </Link>
+        <FriendsFlyout />
       </SidebarSection>
     </>
   );

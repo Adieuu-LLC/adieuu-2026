@@ -19,6 +19,7 @@ import { adminRoutes } from './admin';
 import { themeRoutes } from './themes';
 import { releaseRoutes } from './releases';
 import { uploadRoutes } from './uploads';
+import { friendRoutes } from './friends';
 
 /**
  * Registers all application routes with the main router.
@@ -74,4 +75,7 @@ export function registerRoutes(app: Router): void {
 
   // Media uploads (presigned S3 URLs, processing status, Lambda callbacks)
   app.merge(uploadRoutes, '/api');
+
+  // Friends and friend requests
+  app.merge(friendRoutes, '/api');
 }

@@ -14,7 +14,10 @@ export type ChatMessageType =
   | 'pong'
   | 'presence'
   | 'ack'
-  | 'error';
+  | 'error'
+  | 'friend_request_received'
+  | 'friend_request_accepted'
+  | 'friend_removed';
 
 export interface ChatMessageBase {
   type: ChatMessageType;
@@ -40,10 +43,46 @@ export interface ChatAckMessage extends ChatMessageBase {
   id: string;
 }
 
+export interface ChatFriendRequestReceivedMessage extends ChatMessageBase {
+  type: 'friend_request_received';
+  data: {
+    requestId: string;
+    fromIdentity: {
+      id: string;
+      username: string;
+      displayName: string;
+      avatarUrl?: string;
+    };
+  };
+}
+
+export interface ChatFriendRequestAcceptedMessage extends ChatMessageBase {
+  type: 'friend_request_accepted';
+  data: {
+    requestId: string;
+    byIdentity: {
+      id: string;
+      username: string;
+      displayName: string;
+      avatarUrl?: string;
+    };
+  };
+}
+
+export interface ChatFriendRemovedMessage extends ChatMessageBase {
+  type: 'friend_removed';
+  data: {
+    identityId: string;
+  };
+}
+
 export type ChatIncomingMessage =
   | ChatPongMessage
   | ChatErrorMessage
-  | ChatAckMessage;
+  | ChatAckMessage
+  | ChatFriendRequestReceivedMessage
+  | ChatFriendRequestAcceptedMessage
+  | ChatFriendRemovedMessage;
 
 export type ChatOutgoingMessage =
   | ChatPingMessage;

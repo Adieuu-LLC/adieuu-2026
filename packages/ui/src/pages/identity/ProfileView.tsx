@@ -7,16 +7,19 @@
  * link to the editor page.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   createApiClient,
   type PublicIdentity,
+  type FriendshipStatus,
 } from '@adieuu/shared';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
+import { UsersIcon, PlusIcon, XIcon } from '../../components/Icons';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useFriends } from '../../hooks/useFriends';
 import { useAppConfig } from '../../config';
 
 type LoadingState = 'loading' | 'loaded' | 'not_found' | 'error';
@@ -27,12 +30,21 @@ export function IdentityProfileView() {
   const { identity: selfIdentity } = useIdentity();
   const { apiBaseUrl } = useAppConfig();
 
+  const {
+    sendRequest,
+    removeFriend,
+    getFriendshipStatus: getFriendStatus,
+  } = useFriends();
+
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
   const [profile, setProfile] = useState<PublicIdentity | null>(null);
   const [loadState, setLoadState] = useState<LoadingState>('loading');
+  const [friendStatus, setFriendStatus] = useState<FriendshipStatus>('none');
+  const [friendActionLoading, setFriendActionLoading] = useState(false);
 
   const isSelf = selfIdentity?.id === id;
+  const isIdentityLoggedIn = selfIdentity != null;
 
   useEffect(() => {
     if (!id) {
@@ -67,6 +79,32 @@ export function IdentityProfileView() {
       cancelled = true;
     };
   }, [id, api]);
+
+  useEffect(() => {
+    if (!id || isSelf || !isIdentityLoggedIn) return;
+
+    let cancelled = false;
+    getFriendStatus(id).then((status) => {
+      if (!cancelled) setFriendStatus(status);
+    });
+    return () => { cancelled = true; };
+  }, [id, isSelf, isIdentityLoggedIn, getFriendStatus]);
+
+  const handleAddFriend = useCallback(async () => {
+    if (!id || friendActionLoading) return;
+    setFriendActionLoading(true);
+    const ok = await sendRequest(id);
+    if (ok) setFriendStatus('pending_outgoing');
+    setFriendActionLoading(false);
+  }, [id, sendRequest, friendActionLoading]);
+
+  const handleRemoveFriend = useCallback(async () => {
+    if (!id || friendActionLoading) return;
+    setFriendActionLoading(true);
+    const ok = await removeFriend(id);
+    if (ok) setFriendStatus('none');
+    setFriendActionLoading(false);
+  }, [id, removeFriend, friendActionLoading]);
 
   if (loadState === 'loading') {
     return (
@@ -164,6 +202,37 @@ export function IdentityProfileView() {
                     {t('identity.profileView.editProfile')}
                   </Button>
                 </Link>
+              )}
+              {!isSelf && isIdentityLoggedIn && (
+                <div className="profile-view-friend-actions">
+                  {friendStatus === 'none' && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleAddFriend}
+                      disabled={friendActionLoading}
+                    >
+                      <PlusIcon />
+                      {t('friends.addFriend')}
+                    </Button>
+                  )}
+                  {(friendStatus === 'pending_outgoing' || friendStatus === 'pending_incoming') && (
+                    <Button variant="ghost" size="sm" disabled>
+                      {t('friends.pending')}
+                    </Button>
+                  )}
+                  {friendStatus === 'friends' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveFriend}
+                      disabled={friendActionLoading}
+                    >
+                      <XIcon />
+                      {t('friends.removeFriend')}
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
 

@@ -9,8 +9,10 @@ import { useTranslation } from 'react-i18next';
 import { Combobox, Portal, createListCollection } from '@ark-ui/react';
 import type { PublicIdentity } from '@adieuu/shared';
 import { useIdentitySearch } from '../hooks/useIdentitySearch';
+import { useIdentity } from '../hooks/useIdentity';
+import { useFriends } from '../hooks/useFriends';
 import { useSidebar } from './Sidebar';
-import { SearchIcon } from './Icons';
+import { SearchIcon, PlusIcon } from './Icons';
 
 export interface SidebarSearchProps {
   /** Called when an identity is selected */
@@ -22,6 +24,18 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
   const navigate = useNavigate();
   const { isExpanded, closeMobile } = useSidebar();
   const { results, isLoading, search, clear, query } = useIdentitySearch();
+  const { identity: selfIdentity, status: identityStatus } = useIdentity();
+  const { sendRequest } = useFriends();
+  const isIdentityLoggedIn = identityStatus === 'logged_in' && selfIdentity;
+
+  const handleAddFriend = useCallback(
+    async (e: React.MouseEvent, identityId: string) => {
+      e.stopPropagation();
+      e.preventDefault();
+      await sendRequest(identityId);
+    },
+    [sendRequest]
+  );
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
@@ -155,6 +169,16 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
                       @{identity.username}
                     </span>
                   </div>
+                  {isIdentityLoggedIn && identity.id !== selfIdentity?.id && (
+                    <button
+                      type="button"
+                      className="sidebar-search-item-add-friend"
+                      onClick={(e) => handleAddFriend(e, identity.id)}
+                      title={t('friends.addFriend')}
+                    >
+                      <PlusIcon />
+                    </button>
+                  )}
                 </Combobox.Item>
               ))}
 

@@ -18,6 +18,7 @@ import { getIdentityRepository } from '../repositories/identity.repository';
 import type { PublicBlock } from '../models/block';
 import { toPublicBlock } from '../models/block';
 import { toPublicIdentity, type PublicIdentity } from '../models/identity';
+import { cleanupFriendData } from './friend.service';
 import elog from '../utils/adieuuLogger';
 import { constantTimeCompare } from '../utils/crypto';
 
@@ -137,6 +138,9 @@ export async function blockIdentity(
       blockerIdentityId: blockerObjId,
       blockedIdentityId: blockedObjId,
     });
+
+    // Remove any existing friendship and pending friend requests
+    await cleanupFriendData(blockerObjId, blockedObjId);
 
     elog.info('Identity blocked', {
       blockerIdentityId: blockerHex,

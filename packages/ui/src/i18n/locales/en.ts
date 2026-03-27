@@ -33,6 +33,10 @@ export const en = {
     logout: 'Logout',
     expandSidebar: 'Expand sidebar',
     collapseSidebar: 'Collapse sidebar',
+    friends: 'Friends',
+    friendRequests: '{{count}} Friend Request(s)',
+    friendRequests_one: '1 Friend Request',
+    friendRequests_other: '{{count}} Friend Requests',
   },
 
   // Sidebar sections
@@ -61,6 +65,25 @@ export const en = {
     actions: {
       viewProfile: 'View Profile',
     },
+  },
+
+  // Friends
+  friends: {
+    title: 'Friends',
+    noFriends: 'No friends yet.',
+    searchPlaceholder: 'Search friends...',
+    addFriend: 'Add Friend',
+    removeFriend: 'Remove Friend',
+    pending: 'Pending',
+    alreadyFriends: 'Friends',
+    requestSent: 'Friend request sent.',
+    requestAccepted: 'Friend request accepted.',
+    requestIgnored: 'Friend request ignored.',
+    friendRemoved: 'Friend removed.',
+    incomingRequests: 'Friend Requests',
+    accept: 'Accept',
+    ignore: 'Ignore',
+    cancel: 'Cancel Request',
   },
 
   // Notifications
