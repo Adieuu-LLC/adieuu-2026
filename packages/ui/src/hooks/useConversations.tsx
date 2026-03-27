@@ -30,6 +30,7 @@ import {
   type ChatIncomingMessage,
   type SendMessageParams,
   type ClaimedDevicePreKeys,
+  type SerializedWrappedKey,
 } from '@adieuu/shared';
 import { useIdentity } from './useIdentity';
 import { useAppConfig } from '../config';
@@ -44,6 +45,10 @@ import {
   getDeviceKeysForIdentity,
   decryptDeviceKeys,
 } from '../services/deviceKeyStorage';
+import {
+  findAndDecryptSignedPreKey,
+  findAndDecryptOneTimePreKey,
+} from '../services/preKeyStorage';
 
 // ============================================================================
 // Types
@@ -303,27 +308,39 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       try {
         const resp = await api.conversations.getMessages(conversationId, 50, cursor);
         if (resp.data) {
-          // Get device private keys for decryption
           let ecdhPrivateKey: Uint8Array | null = null;
           let kemPrivateKey: Uint8Array | null = null;
 
           const deviceId = getCurrentDeviceId();
           const wrappingKey = getWrappingKey();
+
+          if (!deviceId) {
+            console.warn('[Conversations] decrypt: no deviceId available');
+          }
+          if (!wrappingKey) {
+            console.warn('[Conversations] decrypt: no wrappingKey available');
+          }
+
           if (deviceId && wrappingKey) {
             try {
               const storedKeys = await getDeviceKeysForIdentity(identity.id);
+              if (storedKeys.length === 0) {
+                console.warn('[Conversations] decrypt: no stored device keys for identity', identity.id);
+              }
               const myDeviceKeys = storedKeys.find((k) => k.deviceId === deviceId);
-              if (myDeviceKeys) {
+              if (!myDeviceKeys) {
+                console.warn('[Conversations] decrypt: no stored key matches deviceId', deviceId,
+                  'available:', storedKeys.map((k) => k.deviceId));
+              } else {
                 const decrypted = await decryptDeviceKeys(myDeviceKeys, wrappingKey);
                 ecdhPrivateKey = decrypted.ecdhPrivateKey;
                 kemPrivateKey = decrypted.kemPrivateKey;
               }
             } catch (err) {
-              console.error('[Conversations] Failed to load device keys for decryption:', err);
+              console.error('[Conversations] decrypt: failed to load device keys:', err);
             }
           }
 
-          // Ensure we have signing keys for all senders
           const senderIds = [...new Set(resp.data.messages.map((m) => m.fromIdentityId))];
           const missingSenderKeys = senderIds.filter(
             (id) => !signingKeyCache.current[id]
@@ -335,49 +352,130 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                   const keysResp = await api.identity.getPublicKeys(sid);
                   if (keysResp.data) {
                     signingKeyCache.current[sid] = keysResp.data.signingPublicKey;
+                  } else {
+                    console.warn('[Conversations] decrypt: getPublicKeys returned no data for', sid);
                   }
-                } catch {
-                  // Signing key unavailable for this sender
+                } catch (err) {
+                  console.warn('[Conversations] decrypt: failed to fetch signing key for', sid, err);
                 }
               })
             );
           }
 
-          // Also resolve any missing sender profiles for display
           resolveParticipants(senderIds);
 
-          const newMessages: DisplayMessage[] = resp.data.messages.map((m) => {
-            if (m.deleted) {
-              return { ...m, decryptedContent: undefined, signatureVerified: undefined };
-            }
+          // Cache for decrypted pre-key private keys (avoid redundant
+          // IndexedDB lookups when multiple messages use the same SPK).
+          const spkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
+          const otpkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
 
-            if (!ecdhPrivateKey || !kemPrivateKey) {
-              return { ...m, decryptionError: 'Device keys unavailable' };
-            }
+          const newMessages: DisplayMessage[] = await Promise.all(
+            resp.data.messages.map(async (m): Promise<DisplayMessage> => {
+              if (m.deleted) {
+                return { ...m, decryptedContent: undefined, signatureVerified: undefined };
+              }
 
-            const senderSigningKey = signingKeyCache.current[m.fromIdentityId];
-            if (!senderSigningKey) {
-              return { ...m, decryptionError: 'Sender signing key unavailable' };
-            }
+              if (!ecdhPrivateKey || !kemPrivateKey) {
+                return { ...m, decryptionError: 'Device keys unavailable' };
+              }
 
-            try {
-              const result = decryptMessage(
-                m,
-                identity.id,
-                ecdhPrivateKey,
-                kemPrivateKey,
-                senderSigningKey
+              const senderSigningKey = signingKeyCache.current[m.fromIdentityId];
+              if (!senderSigningKey) {
+                return { ...m, decryptionError: 'Sender signing key unavailable' };
+              }
+
+              if (!m.wrappedKeys || m.wrappedKeys.length === 0) {
+                return { ...m, decryptionError: 'No wrapped keys on message' };
+              }
+
+              const myWrappedKey = m.wrappedKeys.find(
+                (wk: SerializedWrappedKey) => wk.identityId === identity.id
               );
-              return {
-                ...m,
-                decryptedContent: result.plaintext,
-                signatureVerified: result.verified,
-              };
-            } catch (err) {
-              console.error('[Conversations] Failed to decrypt message:', m.id, err);
-              return { ...m, decryptionError: String(err) };
-            }
-          });
+              if (!myWrappedKey) {
+                return { ...m, decryptionError: `No wrapped key for identity ${identity.id.slice(0, 8)}...` };
+              }
+
+              // Resolve pre-key private keys when the message used forward secrecy
+              let preKeyPrivateKeys: {
+                spkEcdhPrivate?: Uint8Array;
+                spkKemPrivate?: Uint8Array;
+                otpkEcdhPrivate?: Uint8Array;
+                otpkKemPrivate?: Uint8Array;
+              } | undefined;
+
+              if (
+                (myWrappedKey.preKeyType === 'spk' || myWrappedKey.preKeyType === 'otpk') &&
+                myWrappedKey.signedPreKeyId &&
+                wrappingKey
+              ) {
+                try {
+                  let spkKeys = spkCache.get(myWrappedKey.signedPreKeyId);
+                  if (!spkKeys) {
+                    const decryptedSpk = await findAndDecryptSignedPreKey(
+                      myWrappedKey.signedPreKeyId,
+                      identity.id,
+                      wrappingKey
+                    );
+                    if (decryptedSpk) {
+                      spkKeys = { ecdh: decryptedSpk.ecdhPrivateKey, kem: decryptedSpk.kemPrivateKey };
+                      spkCache.set(myWrappedKey.signedPreKeyId, spkKeys);
+                    }
+                  }
+
+                  if (!spkKeys) {
+                    return { ...m, decryptionError: `SPK ${myWrappedKey.signedPreKeyId.slice(0, 8)}... not found locally` };
+                  }
+
+                  preKeyPrivateKeys = {
+                    spkEcdhPrivate: spkKeys.ecdh,
+                    spkKemPrivate: spkKeys.kem,
+                  };
+
+                  if (myWrappedKey.preKeyType === 'otpk' && myWrappedKey.oneTimePreKeyId) {
+                    let otpkKeys = otpkCache.get(myWrappedKey.oneTimePreKeyId);
+                    if (!otpkKeys) {
+                      const decryptedOtpk = await findAndDecryptOneTimePreKey(
+                        myWrappedKey.oneTimePreKeyId,
+                        identity.id,
+                        wrappingKey
+                      );
+                      if (decryptedOtpk) {
+                        otpkKeys = { ecdh: decryptedOtpk.ecdhPrivateKey, kem: decryptedOtpk.kemPrivateKey };
+                        otpkCache.set(myWrappedKey.oneTimePreKeyId, otpkKeys);
+                      }
+                    }
+
+                    if (otpkKeys) {
+                      preKeyPrivateKeys.otpkEcdhPrivate = otpkKeys.ecdh;
+                      preKeyPrivateKeys.otpkKemPrivate = otpkKeys.kem;
+                    }
+                  }
+                } catch (err) {
+                  console.error('[Conversations] decrypt: pre-key lookup failed for message', m.id, err);
+                  return { ...m, decryptionError: `Pre-key lookup failed: ${String(err)}` };
+                }
+              }
+
+              try {
+                const result = decryptMessage(
+                  m,
+                  identity.id,
+                  ecdhPrivateKey,
+                  kemPrivateKey,
+                  senderSigningKey,
+                  preKeyPrivateKeys
+                );
+                return {
+                  ...m,
+                  decryptedContent: result.plaintext,
+                  signatureVerified: result.verified,
+                };
+              } catch (err) {
+                console.error('[Conversations] decrypt: failed for message', m.id, err);
+                return { ...m, decryptionError: String(err) };
+              }
+            })
+          );
 
           setMessagesState((prev) => {
             const existing = prev[conversationId]?.messages ?? [];

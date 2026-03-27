@@ -113,7 +113,11 @@ export function encryptMessage(
   const wrappedKeys: SerializedWrappedKey[] = [];
 
   for (const recipient of recipients) {
-    const profile = recipient.preferredCryptoProfile || senderCryptoProfile;
+    // Use the sender's profile for wrapping so that message.cryptoProfile
+    // can be used consistently during both wrapping and unwrapping.
+    // Without per-wrapped-key profile storage, a mismatch here would
+    // cause silent decryption failures.
+    const profile = senderCryptoProfile;
 
     for (const device of recipient.devices) {
       const devicePreKeys = recipient.preKeys?.find(
@@ -159,10 +163,15 @@ export function encryptMessage(
             : undefined,
         });
       } else {
+        if (!device.kemPublicKey) {
+          console.warn('[Crypto] Skipping device without kemPublicKey:', device.deviceId);
+          continue;
+        }
+
         const recipientPublicKeys: CryptoIdentityPublicKeys = {
           signing: fromBase64(recipient.signingPublicKey),
           ecdh: fromBase64(device.ecdhPublicKey),
-          kem: fromBase64(device.kemPublicKey!),
+          kem: fromBase64(device.kemPublicKey),
           profile,
         };
 

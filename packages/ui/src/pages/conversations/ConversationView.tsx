@@ -108,8 +108,8 @@ function MessageBubble({
     );
   }
 
-  const content = message.decryptedContent ?? message.ciphertext ?? '';
-  const isEncrypted = !message.decryptedContent && message.ciphertext;
+  const content = message.decryptedContent ?? '';
+  const hasDecryptionError = !message.decryptedContent && !message.deleted;
 
   return (
     <div
@@ -126,9 +126,10 @@ function MessageBubble({
           />
         )}
         <div className={`dm-message-bubble${isOwn ? ' dm-message-bubble--own' : ''}`}>
-          {isEncrypted ? (
-            <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}>
-              [Encrypted]
+          {hasDecryptionError ? (
+            <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}
+              title={message.decryptionError ?? 'Unable to decrypt'}>
+              [Encrypted{message.decryptionError ? `: ${message.decryptionError}` : ''}]
             </p>
           ) : (
             <p className="dm-message-text">{content}</p>
