@@ -174,10 +174,6 @@ export function useMediaUpload(options: UseMediaUploadOptions): UseMediaUploadRe
 
         const putResponse = await fetch(uploadUrl, {
           method: 'PUT',
-          headers: {
-            'Content-Type': file.type,
-            'Content-Length': String(file.size),
-          },
           body: file,
           signal: abort.signal,
         });

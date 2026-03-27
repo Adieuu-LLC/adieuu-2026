@@ -476,13 +476,8 @@ function scheduleUpdateChecks(intervalMinutes: number): void {
 }
 
 async function initAutoUpdater() {
-  if (isDev) {
-    simulateUpdateFlow();
-    return;
-  }
-
   autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoInstallOnAppQuit = !isDev;
 
   // Privacy: use a generic User-Agent instead of the detailed default
   // (which includes OS, architecture, and Electron version).
@@ -511,6 +506,10 @@ async function initAutoUpdater() {
     });
   });
 
+  autoUpdater.on('update-not-available', () => {
+    mainWindow?.webContents.send('update-not-available');
+  });
+
   autoUpdater.on('download-progress', (progress) => {
     mainWindow?.webContents.send('download-progress', {
       percent: progress.percent,
@@ -528,7 +527,13 @@ async function initAutoUpdater() {
 
   autoUpdater.on('error', (err) => {
     console.error('[AutoUpdater] Error:', err.message);
+    mainWindow?.webContents.send('update-error', { message: err.message });
   });
+
+  if (isDev && !process.env.ADIEUU_UPDATE_SERVER_URL) {
+    console.info('[AutoUpdater] Dev mode without ADIEUU_UPDATE_SERVER_URL; auto-check disabled.');
+    return;
+  }
 
   const prefs = await readUpdatePreferences();
 
@@ -538,42 +543,6 @@ async function initAutoUpdater() {
     });
     scheduleUpdateChecks(prefs.checkIntervalMinutes);
   }
-}
-
-/**
- * Simulates the update lifecycle in dev mode so the banner UI can be tested.
- * Fires update-available after 5s, download-progress ticks for 3s, then
- * update-downloaded. install-update just logs instead of quitting.
- */
-function simulateUpdateFlow() {
-  const fakeVersion = '99.0.0';
-  console.info('[AutoUpdater] Dev mode: simulating update flow in 5s');
-
-  setTimeout(() => {
-    console.info('[AutoUpdater] Dev: update-available');
-    mainWindow?.webContents.send('update-available', {
-      version: fakeVersion,
-      releaseNotes: 'Simulated update for development testing.',
-    });
-
-    let percent = 0;
-    const progressInterval = setInterval(() => {
-      percent += 25;
-      mainWindow?.webContents.send('download-progress', {
-        percent,
-        transferred: percent * 1_000_000,
-        total: 100_000_000,
-      });
-
-      if (percent >= 100) {
-        clearInterval(progressInterval);
-        console.info('[AutoUpdater] Dev: update-downloaded');
-        mainWindow?.webContents.send('update-downloaded', {
-          version: fakeVersion,
-        });
-      }
-    }, 750);
-  }, 5000);
 }
 
 ipcMain.handle('install-update', () => {
@@ -601,24 +570,24 @@ ipcMain.handle('set-update-preferences', async (_event, prefs: Partial<UpdatePre
   };
   await writeUpdatePreferences(updated);
 
-  if (!isDev) {
-    if (updated.autoCheckEnabled) {
-      scheduleUpdateChecks(updated.checkIntervalMinutes);
-    } else if (updateCheckTimer) {
-      clearInterval(updateCheckTimer);
-      updateCheckTimer = null;
-    }
+  if (updated.autoCheckEnabled) {
+    scheduleUpdateChecks(updated.checkIntervalMinutes);
+  } else if (updateCheckTimer) {
+    clearInterval(updateCheckTimer);
+    updateCheckTimer = null;
   }
 
   return updated;
 });
 
 ipcMain.handle('check-for-updates', async () => {
-  if (isDev) {
-    console.info('[AutoUpdater] Dev mode: manual check-for-updates (no-op)');
-    return;
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Update check failed';
+    console.error('[AutoUpdater] Manual check failed:', message);
+    mainWindow?.webContents.send('update-error', { message });
   }
-  await autoUpdater.checkForUpdates();
 });
 
 // Deep link IPC

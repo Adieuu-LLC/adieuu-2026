@@ -8626,3 +8626,32 @@ body {
     margin-bottom: 0;
   }
 }
+
+// Account Overview: update section
+.account-update-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.account-update-version {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.account-update-message {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.account-update-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.account-status-error {
+  color: var(--color-error);
+}

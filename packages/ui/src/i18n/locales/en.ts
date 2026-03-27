@@ -583,6 +583,16 @@ export const en = {
       phoneNotVerifiedTooltip: 'Phone not yet verified. Add and verify to use this as login.',
       emailUnchanged: 'Enter a different email address to change it.',
       phoneUnchanged: 'Enter a different phone number to change it.',
+      // Desktop updates
+      updates: 'Updates',
+      currentVersion: 'Current Version',
+      checkForUpdates: 'Check for Updates',
+      checking: 'Checking...',
+      upToDate: 'You are running the latest version.',
+      updateAvailable: 'A new version is available and downloading.',
+      updateReady: 'Update downloaded. Restart to apply.',
+      updateError: 'Could not check for updates. Try again later.',
+      restartToUpdate: 'Restart',
     },
 
     // Notification settings (Account)

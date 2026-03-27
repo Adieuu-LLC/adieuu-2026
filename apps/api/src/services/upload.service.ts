@@ -36,7 +36,11 @@ let s3Client: S3Client | null = null;
 
 function getS3Client(): S3Client {
   if (!s3Client) {
-    s3Client = new S3Client({ region: config.s3.region });
+    s3Client = new S3Client({
+      region: config.s3.region,
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
+    });
   }
   return s3Client;
 }
@@ -151,7 +155,6 @@ export async function requestUpload(
     Bucket: config.s3.mediaBucket,
     Key: s3Key,
     ContentType: input.contentType,
-    ContentLength: input.contentLength,
     Metadata: {
       'media-id': mediaId,
       purpose: input.purpose,

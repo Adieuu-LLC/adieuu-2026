@@ -13,9 +13,12 @@ const POLL_INTERVAL_MS = 60_000;
 
 export type UpdateStatus =
   | 'idle'
+  | 'checking'
   | 'available'
   | 'downloading'
   | 'ready'
+  | 'up-to-date'
+  | 'error'
   | 'dismissed';
 
 export interface UseUpdateCheckResult {
@@ -25,22 +28,13 @@ export interface UseUpdateCheckResult {
   dismiss: () => void;
   /** Apply the update (reload on web, quit-and-install on desktop) */
   applyUpdate: () => void;
+  /** Manually trigger an update check (desktop only) */
+  checkForUpdates: () => void;
 }
 
 /**
  * Detects when a new app version is available and provides controls
  * to dismiss or apply the update.
- *
- * @example
- * ```tsx
- * function UpdateBanner() {
- *   const { status, dismiss, applyUpdate } = useUpdateCheck();
- *   if (status === 'available') {
- *     return <Banner onRefresh={applyUpdate} onDismiss={dismiss} />;
- *   }
- *   return null;
- * }
- * ```
  */
 export function useUpdateCheck(): UseUpdateCheckResult {
   const platform = usePlatform();
@@ -86,31 +80,44 @@ export function useUpdateCheck(): UseUpdateCheckResult {
   }, [platform]);
 
   // -- Desktop: listen for electron-updater IPC events --
-  // Registered once; uses statusRef to avoid stale closure reads.
   useEffect(() => {
     if (platform !== 'desktop') return;
 
     const electron = (window as Window & { electron?: {
-      on: (channel: string, cb: (...args: unknown[]) => void) => void;
+      on: (channel: string, cb: (...args: unknown[]) => void) => () => void;
     } }).electron;
 
     if (!electron) return;
 
-    electron.on('update-available', () => {
+    const cleanups: (() => void)[] = [];
+
+    cleanups.push(electron.on('update-available', () => {
       if (statusRef.current !== 'dismissed') {
         setStatus('downloading');
       }
-    });
+    }));
 
-    electron.on('download-progress', () => {
+    cleanups.push(electron.on('update-not-available', () => {
+      setStatus('up-to-date');
+    }));
+
+    cleanups.push(electron.on('download-progress', () => {
       if (statusRef.current !== 'dismissed') {
         setStatus('downloading');
       }
-    });
+    }));
 
-    electron.on('update-downloaded', () => {
+    cleanups.push(electron.on('update-downloaded', () => {
       setStatus('ready');
-    });
+    }));
+
+    cleanups.push(electron.on('update-error', () => {
+      setStatus('error');
+    }));
+
+    return () => {
+      cleanups.forEach((fn) => fn());
+    };
   }, [platform]);
 
   const dismiss = useCallback(() => {
@@ -132,5 +139,18 @@ export function useUpdateCheck(): UseUpdateCheckResult {
     }
   }, [platform]);
 
-  return { status, dismiss, applyUpdate };
+  const checkForUpdates = useCallback(() => {
+    if (platform !== 'desktop') return;
+
+    const electron = (window as Window & { electron?: {
+      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
+    } }).electron;
+
+    if (!electron) return;
+
+    setStatus('checking');
+    electron.invoke('check-for-updates');
+  }, [platform]);
+
+  return { status, dismiss, applyUpdate, checkForUpdates };
 }

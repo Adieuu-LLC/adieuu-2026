@@ -61,7 +61,7 @@ contextBridge.exposeInMainWorld('electron', {
   },
 
   on: (channel: string, callback: (...args: unknown[]) => void): (() => void) => {
-    const allowedChannels = ['update-available', 'download-progress', 'update-downloaded', 'deep-link'];
+    const allowedChannels = ['update-available', 'update-not-available', 'download-progress', 'update-downloaded', 'update-error', 'deep-link'];
     if (allowedChannels.includes(channel)) {
       const wrapper = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args);
       ipcRenderer.on(channel, wrapper);
