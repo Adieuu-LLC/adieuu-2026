@@ -338,14 +338,16 @@ export const Collections = {
   NOTIFICATIONS: 'notifications',
   /** Encrypted signing key bundles for E2E encryption */
   KEY_BUNDLES: 'key_bundles',
-  /** DM conversations (1-1 messaging) */
-  DM_CONVERSATIONS: 'dm_conversations',
-  /** DM messages (encrypted) */
-  DM_MESSAGES: 'dm_messages',
+  /** Conversations (DM and group) */
+  CONVERSATIONS: 'conversations',
+  /** Encrypted messages */
+  MESSAGES: 'messages',
+  /** Group conversation invites (opt-in approval flow) */
+  GROUP_INVITES: 'group_invites',
   /** Pre-keys for forward secrecy (signed + one-time) */
   PRE_KEYS: 'pre_keys',
-  /** DM reactions (encrypted, linked to dm_messages) */
-  DM_REACTIONS: 'dm_reactions',
+  /** Reactions (encrypted, linked to messages -- future) */
+  REACTIONS: 'reactions',
   /** Key-value platform configuration (typed values per key) */
   PLATFORM_SETTINGS: 'platform_settings',
   /** User appearance/theme preferences (one per user) */
@@ -511,16 +513,22 @@ async function createIndexes(): Promise<void> {
   const keyBundles = database.collection(Collections.KEY_BUNDLES);
   await keyBundles.createIndex({ bundleId: 1 }, { unique: true });
 
-  // DM conversations collection indexes
-  const dmConversations = database.collection(Collections.DM_CONVERSATIONS);
-  await dmConversations.createIndex({ conversationId: 1 }, { unique: true });
-  await dmConversations.createIndex({ participants: 1 });
+  // Conversations collection indexes
+  const conversations = database.collection(Collections.CONVERSATIONS);
+  await conversations.createIndex({ participants: 1 });
+  await conversations.createIndex({ type: 1, participants: 1 });
+  await conversations.createIndex({ lastMessageAt: -1 });
 
-  // DM messages collection indexes
-  const dmMessages = database.collection(Collections.DM_MESSAGES);
-  await dmMessages.createIndex({ conversationId: 1, createdAt: -1 });
-  await dmMessages.createIndex({ conversationId: 1, clientMessageId: 1 }, { unique: true });
-  await dmMessages.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
+  // Messages collection indexes
+  const messages = database.collection(Collections.MESSAGES);
+  await messages.createIndex({ conversationId: 1, createdAt: -1 });
+  await messages.createIndex({ conversationId: 1, clientMessageId: 1 }, { unique: true });
+  await messages.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
+
+  // Group invites collection indexes
+  const groupInvites = database.collection(Collections.GROUP_INVITES);
+  await groupInvites.createIndex({ invitedIdentityId: 1, status: 1 });
+  await groupInvites.createIndex({ conversationId: 1 });
 
   // Pre-keys collection indexes
   const preKeys = database.collection(Collections.PRE_KEYS);
@@ -535,11 +543,10 @@ async function createIndexes(): Promise<void> {
     { expireAfterSeconds: 0, partialFilterExpression: { consumed: true } }
   );
 
-  // DM reactions collection indexes
-  const dmReactions = database.collection(Collections.DM_REACTIONS);
-  await dmReactions.createIndex({ messageId: 1, createdAt: 1 });
-  await dmReactions.createIndex({ conversationId: 1, clientReactionId: 1 }, { unique: true });
-  await dmReactions.createIndex({ toIdentityId: 1, createdAt: -1 });
+  // Reactions collection indexes (future -- kept for schema readiness)
+  const reactions = database.collection(Collections.REACTIONS);
+  await reactions.createIndex({ messageId: 1, createdAt: 1 });
+  await reactions.createIndex({ conversationId: 1, clientReactionId: 1 }, { unique: true });
 
   // Platform settings — one row per key
   const platformSettings = database.collection(Collections.PLATFORM_SETTINGS);

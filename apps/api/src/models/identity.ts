@@ -131,6 +131,9 @@ export interface IdentityDocument extends BaseDocument {
 
   /** Registered devices for E2E encryption */
   devices?: IdentityDevice[];
+
+  /** When true, adding this identity to a group requires their explicit approval */
+  requireGroupApproval?: boolean;
 }
 
 /**

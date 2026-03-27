@@ -1851,6 +1851,191 @@ export class UploadApi {
 }
 
 // ============================================================================
+// Conversations API Types
+// ============================================================================
+
+export type ConversationType = 'dm' | 'group';
+
+export type PreKeyType = 'static' | 'spk' | 'otpk';
+
+export type MessageCryptoProfile = 'default' | 'cnsa2';
+
+export interface PublicConversation {
+  id: string;
+  type: ConversationType;
+  participants: string[];
+  createdBy: string;
+  encryptedName?: string;
+  nameNonce?: string;
+  lastMessageAt?: string;
+  lastMessageId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SerializedWrappedKey {
+  identityId: string;
+  ephemeralPublicKey: string;
+  kemCiphertext: string;
+  wrappedSessionKey: string;
+  wrappingNonce: string;
+  preKeyType: PreKeyType;
+  signedPreKeyId?: string;
+  oneTimePreKeyId?: string;
+  spkKemCiphertext?: string;
+  otpkKemCiphertext?: string;
+}
+
+export interface PublicMessage {
+  id: string;
+  conversationId: string;
+  fromIdentityId: string;
+  ciphertext?: string;
+  nonce?: string;
+  wrappedKeys?: SerializedWrappedKey[];
+  signature?: string;
+  cryptoProfile: MessageCryptoProfile;
+  clientMessageId: string;
+  expiresAt?: string;
+  deleted: boolean;
+  createdAt: string;
+}
+
+export interface PublicGroupInvite {
+  id: string;
+  conversationId: string;
+  invitedIdentityId: string;
+  invitedByIdentityId: string;
+  status: string;
+  groupName?: string;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface SendMessageParams {
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: SerializedWrappedKey[];
+  signature: string;
+  cryptoProfile: MessageCryptoProfile;
+  clientMessageId: string;
+  expiresInSeconds?: number;
+}
+
+export class ConversationsApi {
+  constructor(private client: ApiClient) {}
+
+  async create(params: {
+    type: ConversationType;
+    participants: string[];
+    encryptedName?: string;
+    nameNonce?: string;
+  }): Promise<ApiResponse<PublicConversation>> {
+    return this.client.post('/api/conversations', params);
+  }
+
+  async list(
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ conversations: PublicConversation[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(`/api/conversations${query ? `?${query}` : ''}`);
+  }
+
+  async get(conversationId: string): Promise<ApiResponse<PublicConversation>> {
+    return this.client.get(`/api/conversations/${encodeURIComponent(conversationId)}`);
+  }
+
+  async updateName(
+    conversationId: string,
+    encryptedName: string,
+    nameNonce: string
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.patch(
+      `/api/conversations/${encodeURIComponent(conversationId)}`,
+      { encryptedName, nameNonce }
+    );
+  }
+
+  async sendMessage(
+    conversationId: string,
+    params: SendMessageParams
+  ): Promise<ApiResponse<PublicMessage>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/messages`,
+      params
+    );
+  }
+
+  async getMessages(
+    conversationId: string,
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ messages: PublicMessage[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(
+      `/api/conversations/${encodeURIComponent(conversationId)}/messages${query ? `?${query}` : ''}`
+    );
+  }
+
+  async addMember(
+    conversationId: string,
+    identityId: string
+  ): Promise<ApiResponse<PublicConversation | PublicGroupInvite>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/members`,
+      { identityId }
+    );
+  }
+
+  async removeMember(
+    conversationId: string,
+    identityId: string
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.delete(
+      `/api/conversations/${encodeURIComponent(conversationId)}/members/${encodeURIComponent(identityId)}`
+    );
+  }
+
+  async leave(conversationId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/conversations/${encodeURIComponent(conversationId)}/leave`
+    );
+  }
+
+  async listInvites(
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ invites: PublicGroupInvite[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(`/api/conversations/invites${query ? `?${query}` : ''}`);
+  }
+
+  async acceptInvite(inviteId: string): Promise<ApiResponse<PublicGroupInvite>> {
+    return this.client.post(
+      `/api/conversations/invites/${encodeURIComponent(inviteId)}/accept`,
+      {}
+    );
+  }
+
+  async declineInvite(inviteId: string): Promise<ApiResponse<PublicGroupInvite>> {
+    return this.client.post(
+      `/api/conversations/invites/${encodeURIComponent(inviteId)}/decline`,
+      {}
+    );
+  }
+}
+
+// ============================================================================
 // Factory Functions
 // ============================================================================
 
@@ -1872,6 +2057,7 @@ export function createApiClient(config: ApiClientConfig) {
     admin: new AdminApi(client),
     themes: new ThemesApi(client),
     uploads: new UploadApi(client),
+    conversations: new ConversationsApi(client),
   };
 }
 

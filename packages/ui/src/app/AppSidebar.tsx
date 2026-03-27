@@ -11,13 +11,14 @@ import { SidebarSearch } from '../components/SidebarSearch';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, ShieldIcon, PaletteIcon, DownloadIcon, UsersIcon, CheckIcon, XIcon, SearchIcon } from '../components/Icons';
+import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, ShieldIcon, PaletteIcon, DownloadIcon, UsersIcon, CheckIcon, XIcon, SearchIcon, MessageIcon, PlusIcon } from '../components/Icons';
 import { HoverCard } from '../components/HoverCard';
 import { useAppConfig } from '../config';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
 import { useFriends } from '../hooks/useFriends';
 import { IdentityModal } from './IdentityModal';
+import { useConversations, type DecryptedConversation } from '../hooks/useConversations';
 import type { PublicIdentity } from '@adieuu/shared';
 
 /**
@@ -657,6 +658,126 @@ function SidebarLogo() {
 }
 
 /**
+ * Renders a single conversation list item in the sidebar.
+ */
+function ConversationListItem({ conversation }: { conversation: DecryptedConversation }) {
+  const { identity } = useIdentity();
+  const { activeConversationId, setActiveConversation } = useConversations();
+  const navigate = useNavigate();
+  const { closeMobile } = useSidebar();
+
+  const isActive = activeConversationId === conversation.id;
+
+  const displayName = conversation.type === 'group'
+    ? (conversation.decryptedName ?? 'Group')
+    : conversation.participants
+        .filter((p) => p !== identity?.id)
+        .join(', ');
+
+  const handleClick = () => {
+    setActiveConversation(conversation.id);
+    navigate(`/conversations/${conversation.id}`);
+    closeMobile();
+  };
+
+  return (
+    <button
+      type="button"
+      className={`sidebar-conversation-item${isActive ? ' sidebar-conversation-item-active' : ''}`}
+      onClick={handleClick}
+    >
+      <div className="sidebar-conversation-item-icon">
+        <MessageIcon />
+      </div>
+      <div className="sidebar-conversation-item-text">
+        <span className="sidebar-conversation-item-name">{displayName}</span>
+      </div>
+      {conversation.unreadCount > 0 && (
+        <span className="sidebar-conversation-item-badge">{conversation.unreadCount}</span>
+      )}
+    </button>
+  );
+}
+
+/**
+ * Conversations section in the sidebar with Conversations/Spaces tabs.
+ */
+function ConversationsSidebarSection() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { conversations, invites, loading } = useConversations();
+  const { isExpanded } = useSidebar();
+  const [activeTab, setActiveTab] = useState<'conversations' | 'spaces'>('conversations');
+
+  const handleNewConversation = () => {
+    navigate('/conversations/new');
+  };
+
+  return (
+    <SidebarSection label={t('sidebar.conversations', 'Conversations')}>
+      {isExpanded && (
+        <div className="sidebar-conversations-tabs">
+          <button
+            type="button"
+            className={`sidebar-conversations-tab${activeTab === 'conversations' ? ' sidebar-conversations-tab-active' : ''}`}
+            onClick={() => setActiveTab('conversations')}
+          >
+            {t('sidebar.conversationsTab', 'Conversations')}
+            {invites.length > 0 && (
+              <span className="sidebar-conversations-tab-badge">{invites.length}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            className={`sidebar-conversations-tab${activeTab === 'spaces' ? ' sidebar-conversations-tab-active' : ''}`}
+            onClick={() => setActiveTab('spaces')}
+          >
+            {t('sidebar.spacesTab', 'Spaces')}
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'conversations' && (
+        <>
+          <button
+            type="button"
+            className="sidebar-new-conversation-btn"
+            onClick={handleNewConversation}
+          >
+            <PlusIcon />
+            {isExpanded && <span>{t('sidebar.newConversation', 'New Conversation')}</span>}
+          </button>
+
+          {loading && conversations.length === 0 && (
+            <div className="sidebar-conversations-loading">
+              <span className="spinner spinner-sm" />
+            </div>
+          )}
+
+          <div className="sidebar-conversations-list">
+            {conversations.map((conv) => (
+              <ConversationListItem key={conv.id} conversation={conv} />
+            ))}
+
+            {!loading && conversations.length === 0 && (
+              <div className="sidebar-conversations-empty">
+                {t('sidebar.noConversations', 'No conversations yet')}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {activeTab === 'spaces' && (
+        <div className="sidebar-conversations-empty">
+          {t('sidebar.spacesComingSoon', 'Spaces coming soon')}
+        </div>
+      )}
+    </SidebarSection>
+  );
+}
+
+/**
  * Navigation content component that has access to sidebar context.
  */
 function SidebarNavContent({
@@ -690,6 +811,7 @@ function SidebarNavContent({
           onToggle={onToggleFriendsPanel}
         />
       </SidebarSection>
+      <ConversationsSidebarSection />
     </>
   );
 }

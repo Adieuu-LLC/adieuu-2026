@@ -99,8 +99,9 @@ describe('friend-request.repository', () => {
 
   test('findIncoming filters by toIdentityId and status=pending', async () => {
     const repo = new FriendRequestRepository();
+    const now = new Date();
     const docs = [
-      { _id: new ObjectId(), fromIdentityId: identityB, toIdentityId: identityA, status: 'pending' as const },
+      { _id: new ObjectId(), fromIdentityId: identityB, toIdentityId: identityA, status: 'pending' as const, createdAt: now, updatedAt: now },
     ];
     mockCollection.find.mockImplementation(() => ({
       sort: () => ({
@@ -229,7 +230,8 @@ describe('friend-request.repository', () => {
 
   test('findPendingBetween queries both directions with status=pending', async () => {
     const repo = new FriendRequestRepository();
-    const doc = { _id: new ObjectId(), fromIdentityId: identityB, toIdentityId: identityA, status: 'pending' as const };
+    const now = new Date();
+    const doc = { _id: new ObjectId(), fromIdentityId: identityB, toIdentityId: identityA, status: 'pending' as const, createdAt: now, updatedAt: now };
     mockCollection.findOne.mockResolvedValue(doc);
 
     const result = await repo.findPendingBetween(identityA, identityB);

@@ -21,7 +21,7 @@ const mockRequestRepo = {
 
 const mockFriendshipRepo = {
   areFriends: mock(() => Promise.resolve(false)) as AnyMock,
-  create: mock(() => Promise.resolve()) as AnyMock,
+  createMutual: mock(() => Promise.resolve()) as AnyMock,
   remove: mock(() => Promise.resolve(false)) as AnyMock,
   getFriends: mock(() => Promise.resolve([])) as AnyMock,
   searchFriends: mock(() => Promise.resolve([])) as AnyMock,
@@ -149,7 +149,7 @@ describe('friend.service', () => {
     mockRequestRepo.deleteByPair.mockReset();
 
     mockFriendshipRepo.areFriends.mockReset();
-    mockFriendshipRepo.create.mockReset();
+    mockFriendshipRepo.createMutual.mockReset();
     mockFriendshipRepo.remove.mockReset();
     mockFriendshipRepo.getFriends.mockReset();
     mockFriendshipRepo.searchFriends.mockReset();
@@ -178,7 +178,7 @@ describe('friend.service', () => {
     mockRequestRepo.deleteByPair.mockResolvedValue(0);
 
     mockFriendshipRepo.areFriends.mockResolvedValue(false);
-    mockFriendshipRepo.create.mockResolvedValue(undefined);
+    mockFriendshipRepo.createMutual.mockResolvedValue(undefined);
     mockFriendshipRepo.remove.mockResolvedValue(false);
     mockFriendshipRepo.getFriends.mockResolvedValue([]);
     mockFriendshipRepo.searchFriends.mockResolvedValue([]);
@@ -298,7 +298,7 @@ describe('friend.service', () => {
     const result = await acceptFriendRequest(request._id, request.toIdentityId);
     expect(result.success).toBe(true);
     expect(mockRequestRepo.updateStatus).toHaveBeenCalledWith(request._id, 'accepted');
-    expect(mockFriendshipRepo.create).toHaveBeenCalledWith(request.fromIdentityId, request.toIdentityId);
+    expect(mockFriendshipRepo.createMutual).toHaveBeenCalledWith(request.fromIdentityId, request.toIdentityId);
     expect(createNotificationMock).toHaveBeenCalledTimes(1);
     expect(publishMock).toHaveBeenCalledTimes(1);
   });

@@ -20,6 +20,7 @@ import { themeRoutes } from './themes';
 import { releaseRoutes } from './releases';
 import { uploadRoutes } from './uploads';
 import { friendRoutes } from './friends';
+import { conversationRoutes } from './conversations';
 
 /**
  * Registers all application routes with the main router.
@@ -33,6 +34,7 @@ import { friendRoutes } from './friends';
  * - `/api/identity` - Anonymous identity management and blocklist endpoints
  * - `/api/notifications` - Notification management endpoints
  * - `/api/admin/platform-settings` - Platform configuration (session + admin list)
+ * - `/api/conversations` - DM and group conversation messaging
  *
  * @param app - The main application router instance to register routes on
  *
@@ -78,4 +80,7 @@ export function registerRoutes(app: Router): void {
 
   // Friends and friend requests
   app.merge(friendRoutes, '/api');
+
+  // DM and group conversations
+  app.merge(conversationRoutes, '/api');
 }

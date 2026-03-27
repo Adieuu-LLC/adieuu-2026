@@ -17,7 +17,12 @@ export type ChatMessageType =
   | 'error'
   | 'friend_request_received'
   | 'friend_request_accepted'
-  | 'friend_removed';
+  | 'friend_removed'
+  | 'conversation_created'
+  | 'conversation_updated'
+  | 'conversation_message'
+  | 'group_invite_received'
+  | 'group_invite_accepted';
 
 export interface ChatMessageBase {
   type: ChatMessageType;
@@ -76,13 +81,79 @@ export interface ChatFriendRemovedMessage extends ChatMessageBase {
   };
 }
 
+export interface ChatConversationCreatedMessage extends ChatMessageBase {
+  type: 'conversation_created';
+  data: {
+    conversation: {
+      id: string;
+      type: 'dm' | 'group';
+      participants: string[];
+      createdBy: string;
+      encryptedName?: string;
+      nameNonce?: string;
+      createdAt: string;
+      updatedAt: string;
+    };
+  };
+}
+
+export interface ChatConversationUpdatedMessage extends ChatMessageBase {
+  type: 'conversation_updated';
+  data: {
+    conversationId: string;
+    action: 'member_added' | 'member_removed' | 'member_left' | 'removed' | 'renamed';
+    identityId?: string;
+  };
+}
+
+export interface ChatConversationMessageMessage extends ChatMessageBase {
+  type: 'conversation_message';
+  data: {
+    conversationId: string;
+    messageId: string;
+    fromIdentityId: string;
+    createdAt: string;
+  };
+}
+
+export interface ChatGroupInviteReceivedMessage extends ChatMessageBase {
+  type: 'group_invite_received';
+  data: {
+    invite: {
+      id: string;
+      conversationId: string;
+      invitedIdentityId: string;
+      invitedByIdentityId: string;
+      status: string;
+      groupName?: string;
+      memberCount: number;
+      createdAt: string;
+    };
+  };
+}
+
+export interface ChatGroupInviteAcceptedMessage extends ChatMessageBase {
+  type: 'group_invite_accepted';
+  data: {
+    conversationId: string;
+    identityId: string;
+    username?: string;
+    displayName?: string;
+  };
+}
+
 export type ChatIncomingMessage =
   | ChatPongMessage
   | ChatErrorMessage
   | ChatAckMessage
   | ChatFriendRequestReceivedMessage
   | ChatFriendRequestAcceptedMessage
-  | ChatFriendRemovedMessage;
+  | ChatFriendRemovedMessage
+  | ChatConversationCreatedMessage
+  | ChatConversationUpdatedMessage
+  | ChatConversationMessageMessage
+  | ChatGroupInviteReceivedMessage
+  | ChatGroupInviteAcceptedMessage;
 
 export type ChatOutgoingMessage =
   | ChatPingMessage;

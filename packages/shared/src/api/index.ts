@@ -87,6 +87,16 @@ export {
   type RequestUploadParams,
   type RequestUploadResponse,
   type UploadStatusResponse,
+  // Conversation types
+  ConversationsApi,
+  type ConversationType,
+  type PreKeyType,
+  type MessageCryptoProfile,
+  type PublicConversation,
+  type SerializedWrappedKey,
+  type PublicMessage,
+  type PublicGroupInvite,
+  type SendMessageParams,
 } from './client';
 
 export {
@@ -105,4 +115,9 @@ export {
   type ChatFriendRequestReceivedMessage,
   type ChatFriendRequestAcceptedMessage,
   type ChatFriendRemovedMessage,
+  type ChatConversationCreatedMessage,
+  type ChatConversationUpdatedMessage,
+  type ChatConversationMessageMessage,
+  type ChatGroupInviteReceivedMessage,
+  type ChatGroupInviteAcceptedMessage,
 } from './chat-client';

@@ -13,3 +13,6 @@ export * from './block';
 export * from './friend-request';
 export * from './friendship';
 export * from './notification';
+export * from './conversation';
+export * from './message';
+export * from './group-invite';

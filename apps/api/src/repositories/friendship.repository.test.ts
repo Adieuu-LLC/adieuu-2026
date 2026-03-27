@@ -100,9 +100,9 @@ describe('friendship.repository', () => {
     expect(result).toBe(false);
   });
 
-  test('create inserts two documents (one per direction)', async () => {
+  test('createMutual inserts two documents (one per direction)', async () => {
     const repo = new FriendshipRepository();
-    await repo.create(identityA, identityB);
+    await repo.createMutual(identityA, identityB);
 
     expect(mockCollection.insertMany).toHaveBeenCalledTimes(1);
     const insertedDocs = mockCollection.insertMany.mock.calls[0]![0] as Array<Record<string, unknown>>;
@@ -143,8 +143,9 @@ describe('friendship.repository', () => {
   test('getFriends filters by identityId with cursor-based pagination', async () => {
     const repo = new FriendshipRepository();
     const cursor = new ObjectId();
+    const now = new Date();
     const docs = [
-      { _id: new ObjectId(), identityId: identityA, friendIdentityId: identityB },
+      { _id: new ObjectId(), identityId: identityA, friendIdentityId: identityB, createdAt: now, updatedAt: now },
     ];
     mockCollection.find.mockImplementation(() => ({
       sort: () => ({
@@ -193,9 +194,12 @@ describe('friendship.repository', () => {
 
   test('searchFriends queries with $in filter', async () => {
     const repo = new FriendshipRepository();
-    const friendIds = [new ObjectId(), new ObjectId()];
+    const friendId1 = new ObjectId();
+    const friendId2 = new ObjectId();
+    const friendIds = [friendId1, friendId2];
+    const now = new Date();
     const docs = [
-      { _id: new ObjectId(), identityId: identityA, friendIdentityId: friendIds[0] },
+      { _id: new ObjectId(), identityId: identityA, friendIdentityId: friendId1, createdAt: now, updatedAt: now },
     ];
     mockCollection.find.mockImplementation(() => ({
       sort: () => ({ limit: () => ({ toArray: async () => docs }) }),

@@ -217,7 +217,7 @@ export async function acceptFriendRequest(
   await requestRepo.updateStatus(reqObjId, 'accepted');
 
   // Create mutual friendship
-  await friendshipRepo.create(request.fromIdentityId, request.toIdentityId);
+  await friendshipRepo.createMutual(request.fromIdentityId, request.toIdentityId);
 
   // Notify the sender that their request was accepted
   const accepterIdentity = await identityRepo.findByIdentityId(identityObjId);

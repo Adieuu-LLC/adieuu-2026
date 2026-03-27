@@ -39,7 +39,7 @@ const getFriendsMock = mock(async () => ({
   friends: [] as FriendInfo[],
   cursor: null as string | null,
 }));
-const searchFriendsMock = mock(async () => [] as FriendInfo[]);
+const searchFriendsMock = mock(async (_id: unknown, _q: string, _limit?: number) => [] as FriendInfo[]);
 const getIncomingRequestsMock = mock(async () => ({
   requests: [] as IncomingFriendRequestInfo[],
   cursor: null as string | null,
@@ -407,7 +407,7 @@ describe('friends routes', () => {
       cookies: AUTH_COOKIE,
     }));
     expect(response.status).toBe(200);
-    const body = await response.json();
+    const body = (await response.json()) as { data: { count: number } };
     expect(body.data.count).toBe(3);
   });
 
@@ -530,7 +530,7 @@ describe('friends routes', () => {
       cookies: AUTH_COOKIE,
     }));
     expect(response.status).toBe(200);
-    const body = await response.json();
+    const body = (await response.json()) as { data: { status: string } };
     expect(body.data.status).toBe('friends');
   });
 });

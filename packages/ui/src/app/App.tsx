@@ -22,10 +22,12 @@ import {
   IdentityProfileView,
 } from '../pages/identity';
 import { ServiceStatus } from '../pages/ServiceStatus';
+import { ConversationView, NewConversation } from '../pages/conversations';
 import { useAuth } from '../hooks/useAuth';
 import { TourProvider, useTourContext, useAppearanceTour } from '../hooks/useTourContext';
 import { CipherStoreProvider } from '../hooks/useCipherStore';
 import { FriendsProvider } from '../hooks/useFriends';
+import { ConversationsProvider } from '../hooks/useConversations';
 import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { WebSecurityBanner } from '../components/WebSecurityBanner';
@@ -62,7 +64,9 @@ function ProtectedLayout() {
     <TourProvider>
       <CipherStoreProvider>
         <FriendsProvider>
-          <ProtectedLayoutContent />
+          <ConversationsProvider>
+            <ProtectedLayoutContent />
+          </ConversationsProvider>
         </FriendsProvider>
       </CipherStoreProvider>
     </TourProvider>
@@ -175,6 +179,10 @@ export function App() {
 
         {/* Public identity profile view (must be after static /identity/* routes) */}
         <Route path="/identity/:id" element={<IdentityProfileView />} />
+
+        {/* Conversation Routes */}
+        <Route path="/conversations/new" element={<NewConversation />} />
+        <Route path="/conversations/:id" element={<ConversationView />} />
 
         {/* Platform admin (nested layout + guard) */}
         <Route element={<AdminGate />}>

@@ -9,7 +9,7 @@
  * leak User identity.
  */
 
-import { ObjectId } from 'mongodb';
+import { type OptionalUnlessRequiredId, ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import { withTimestamps } from '../models/base';
@@ -20,7 +20,7 @@ import type { FriendshipDocument } from '../models/friendship';
  */
 export interface IFriendshipRepository {
   areFriends(identityA: ObjectId, identityB: ObjectId): Promise<boolean>;
-  create(identityA: ObjectId, identityB: ObjectId): Promise<void>;
+  createMutual(identityA: ObjectId, identityB: ObjectId): Promise<void>;
   remove(identityA: ObjectId, identityB: ObjectId): Promise<boolean>;
   getFriends(identityId: ObjectId, limit?: number, cursor?: ObjectId): Promise<FriendshipDocument[]>;
   searchFriends(identityId: ObjectId, friendIdentityIds: ObjectId[]): Promise<FriendshipDocument[]>;
@@ -49,15 +49,13 @@ export class FriendshipRepository
   }
 
   /**
-   * Create a mutual friendship (inserts two documents)
+   * Create a mutual friendship (inserts two documents, one per direction)
    */
-  async create(identityA: ObjectId, identityB: ObjectId): Promise<void> {
-    const now = new Date();
-
+  async createMutual(identityA: ObjectId, identityB: ObjectId): Promise<void> {
     await this.collection.insertMany([
       withTimestamps({ identityId: identityA, friendIdentityId: identityB }),
       withTimestamps({ identityId: identityB, friendIdentityId: identityA }),
-    ] as Array<Omit<FriendshipDocument, '_id'>>);
+    ] as OptionalUnlessRequiredId<FriendshipDocument>[]);
   }
 
   /**
