@@ -69,6 +69,18 @@ export {
   type NotificationData,
   type Notification,
   type NotificationCounts,
+  // Profile types
+  type ProfileVisibility,
+  type ProfilePrivacySettings,
+  type ProfileColors,
+  type UpdateProfileParams,
+  // Upload types
+  UploadApi,
+  type UploadPurpose,
+  type UploadStatus,
+  type RequestUploadParams,
+  type RequestUploadResponse,
+  type UploadStatusResponse,
 } from './client';
 
 export {

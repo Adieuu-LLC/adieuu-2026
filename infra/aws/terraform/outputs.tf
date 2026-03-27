@@ -141,6 +141,26 @@ output "downloads_base_url" {
   value       = local.downloads_enabled ? "https://${var.downloads_domain_name}" : null
 }
 
+output "media_s3_bucket_name" {
+  description = "S3 bucket for user-uploaded media when media stack is enabled; null otherwise."
+  value       = local.media_enabled ? aws_s3_bucket.media[0].id : null
+}
+
+output "media_cloudfront_distribution_id" {
+  description = "CloudFront distribution ID for the media CDN when media stack is enabled; null otherwise."
+  value       = local.media_enabled ? aws_cloudfront_distribution.media[0].id : null
+}
+
+output "media_cdn_url" {
+  description = "Base URL for the media CDN (https://media.<domain>) when media stack is enabled; null otherwise."
+  value       = local.media_enabled ? "https://${var.media_domain_name}" : null
+}
+
+output "media_processor_lambda_name" {
+  description = "Lambda function name for the media processor when media stack is enabled; null otherwise."
+  value       = local.media_enabled ? aws_lambda_function.media_processor[0].function_name : null
+}
+
 output "cloudfront_pricing_model" {
   description = "Configured CloudFront pricing model (pay_as_you_go or flat_rate_*)."
   value       = var.cloudfront_pricing_model

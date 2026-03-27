@@ -9,6 +9,43 @@
 
 import type { BaseDocument } from './base';
 
+/**
+ * Visibility level for profile fields.
+ * - 'public':  visible to everyone
+ * - 'friends': visible only to mutual friends
+ * - 'private': visible only to the profile owner
+ */
+export type ProfileVisibility = 'public' | 'friends' | 'private';
+
+/**
+ * Per-field privacy settings for the identity profile.
+ * Defaults to 'public' for all fields when not set.
+ */
+export interface ProfilePrivacySettings {
+  avatar: ProfileVisibility;
+  banner: ProfileVisibility;
+  bio: ProfileVisibility;
+  lastActiveAt: ProfileVisibility;
+  profileColors: ProfileVisibility;
+}
+
+/**
+ * Customisable profile accent colours.
+ */
+export interface ProfileColors {
+  primary?: string;
+  secondary?: string;
+  accent?: string;
+}
+
+export const DEFAULT_PRIVACY_SETTINGS: ProfilePrivacySettings = {
+  avatar: 'public',
+  banner: 'public',
+  bio: 'public',
+  lastActiveAt: 'public',
+  profileColors: 'public',
+};
+
 /** Prefix for deleted identity idents (followed by objectId) */
 export const DELETED_IDENT_PREFIX = '_deleted_';
 
@@ -74,6 +111,15 @@ export interface IdentityDocument extends BaseDocument {
   /** URL to avatar image */
   avatarUrl?: string;
 
+  /** URL to banner image */
+  bannerUrl?: string;
+
+  /** Customisable profile accent colours (hex strings) */
+  profileColors?: ProfileColors;
+
+  /** Per-field privacy settings */
+  privacySettings?: ProfilePrivacySettings;
+
   /** Last time this identity was active */
   lastActiveAt: Date;
 
@@ -109,6 +155,9 @@ export interface UpdateIdentityInput {
   displayName?: string;
   bio?: string;
   avatarUrl?: string;
+  bannerUrl?: string;
+  profileColors?: ProfileColors;
+  privacySettings?: ProfilePrivacySettings;
   lastActiveAt?: Date;
   preferredCryptoProfile?: CryptoProfile;
   signingPublicKey?: string;
@@ -125,6 +174,9 @@ export interface PublicIdentity {
   displayName: string;
   bio?: string;
   avatarUrl?: string;
+  bannerUrl?: string;
+  profileColors?: ProfileColors;
+  privacySettings?: ProfilePrivacySettings;
   createdAt: string;
   lastActiveAt: string;
   /** Whether this identity has been deleted */
@@ -169,6 +221,9 @@ export function toPublicIdentity(doc: IdentityDocument): PublicIdentity {
     displayName: doc.displayName,
     bio: doc.bio,
     avatarUrl: doc.avatarUrl,
+    bannerUrl: doc.bannerUrl,
+    profileColors: doc.profileColors,
+    privacySettings: doc.privacySettings,
     createdAt: doc.createdAt.toISOString(),
     lastActiveAt: doc.lastActiveAt.toISOString(),
     isDeleted: isDeletedIdent(doc.ident),

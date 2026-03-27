@@ -18,6 +18,7 @@ import { notificationRoutes } from './notifications';
 import { adminRoutes } from './admin';
 import { themeRoutes } from './themes';
 import { releaseRoutes } from './releases';
+import { uploadRoutes } from './uploads';
 
 /**
  * Registers all application routes with the main router.
@@ -70,4 +71,7 @@ export function registerRoutes(app: Router): void {
 
   // Release manifests (desktop update mirror, served via CloudFront ALB origin)
   app.merge(releaseRoutes, '/api');
+
+  // Media uploads (presigned S3 URLs, processing status, Lambda callbacks)
+  app.merge(uploadRoutes, '/api');
 }

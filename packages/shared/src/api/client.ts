@@ -682,6 +682,31 @@ export class UsersApi {
 export type CryptoProfile = 'default' | 'cnsa2';
 
 /**
+ * Visibility level for profile fields.
+ */
+export type ProfileVisibility = 'public' | 'friends' | 'private';
+
+/**
+ * Per-field privacy settings for identity profiles.
+ */
+export interface ProfilePrivacySettings {
+  avatar: ProfileVisibility;
+  banner: ProfileVisibility;
+  bio: ProfileVisibility;
+  lastActiveAt: ProfileVisibility;
+  profileColors: ProfileVisibility;
+}
+
+/**
+ * Customisable profile accent colours.
+ */
+export interface ProfileColors {
+  primary?: string;
+  secondary?: string;
+  accent?: string;
+}
+
+/**
  * Public identity info (safe for clients).
  */
 export interface PublicIdentity {
@@ -695,6 +720,12 @@ export interface PublicIdentity {
   bio?: string;
   /** URL to avatar image */
   avatarUrl?: string;
+  /** URL to banner image */
+  bannerUrl?: string;
+  /** Profile accent colours */
+  profileColors?: ProfileColors;
+  /** Per-field privacy settings (only visible to self) */
+  privacySettings?: ProfilePrivacySettings;
   /** When the identity was created */
   createdAt: string;
   /** Last time this identity was active */
@@ -1183,6 +1214,31 @@ export class IdentityApi {
       `/api/identity/${encodeURIComponent(identityId)}/sessions`
     );
   }
+
+  // ==========================================================================
+  // Profile
+  // ==========================================================================
+
+  /**
+   * Update own profile (display name, bio, avatar, banner, colours, privacy).
+   */
+  async updateProfile(
+    params: UpdateProfileParams
+  ): Promise<ApiResponse<PublicIdentity>> {
+    return this.client.patch('/api/identity/me/profile', params);
+  }
+
+  /**
+   * Get a privacy-filtered profile for an identity.
+   *
+   * Fields are filtered server-side based on the viewer's relationship
+   * to the profile owner (self, friend, or stranger).
+   */
+  async getProfile(identityId: string): Promise<ApiResponse<PublicIdentity>> {
+    return this.client.get(
+      `/api/identity/${encodeURIComponent(identityId)}/profile`
+    );
+  }
 }
 
 // ============================================================================
@@ -1569,6 +1625,89 @@ export class ThemesApi {
 }
 
 // ============================================================================
+// Profile Update Types
+// ============================================================================
+
+/**
+ * Parameters for updating an identity profile.
+ */
+export interface UpdateProfileParams {
+  displayName?: string;
+  bio?: string;
+  avatarMediaId?: string;
+  bannerMediaId?: string;
+  removeAvatar?: boolean;
+  removeBanner?: boolean;
+  profileColors?: {
+    primary?: string | null;
+    secondary?: string | null;
+    accent?: string | null;
+  };
+  privacySettings?: Partial<ProfilePrivacySettings>;
+}
+
+// ============================================================================
+// Upload API Types
+// ============================================================================
+
+export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media';
+
+export type UploadStatus = 'pending' | 'uploaded' | 'processing' | 'ready' | 'rejected' | 'failed';
+
+export interface RequestUploadParams {
+  purpose: UploadPurpose;
+  contentType: string;
+  contentLength: number;
+}
+
+export interface RequestUploadResponse {
+  mediaId: string;
+  uploadUrl: string;
+  expiresIn: number;
+}
+
+export interface UploadStatusResponse {
+  mediaId: string;
+  status: UploadStatus;
+  cdnUrl: string | null;
+  rejectionReason: string | null;
+}
+
+export class UploadApi {
+  constructor(private client: ApiClient) {}
+
+  /**
+   * Request a presigned S3 upload URL.
+   */
+  async requestUpload(
+    params: RequestUploadParams
+  ): Promise<ApiResponse<RequestUploadResponse>> {
+    return this.client.post('/api/uploads/request', params);
+  }
+
+  /**
+   * Notify the server that a file upload is complete.
+   */
+  async completeUpload(mediaId: string): Promise<ApiResponse<void>> {
+    return this.client.post(
+      `/api/uploads/${encodeURIComponent(mediaId)}/complete`,
+      {}
+    );
+  }
+
+  /**
+   * Check the processing status of an upload.
+   */
+  async getStatus(
+    mediaId: string
+  ): Promise<ApiResponse<UploadStatusResponse>> {
+    return this.client.get(
+      `/api/uploads/${encodeURIComponent(mediaId)}/status`
+    );
+  }
+}
+
+// ============================================================================
 // Factory Functions
 // ============================================================================
 
@@ -1588,6 +1727,7 @@ export function createApiClient(config: ApiClientConfig) {
     notifications: new NotificationsApi(client),
     admin: new AdminApi(client),
     themes: new ThemesApi(client),
+    uploads: new UploadApi(client),
   };
 }
 

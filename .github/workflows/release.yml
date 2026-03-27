@@ -501,7 +501,7 @@ jobs:
         run: |
           VERSION="${{ needs.release.outputs.new_version }}"
           BUCKET="${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}"
-          BASE_URL="https://${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU && 'downloads.adieuu.com' || 'downloads.adieuu.com' }}"
+          BASE_URL="https://${{ vars.DEPLOY_DOWNLOADS_DOMAIN_ADIEUU || 'downloads.adieuu.com' }}"
 
           # Download existing releases.json (if any) and append the new version
           aws s3 cp "s3://${BUCKET}/releases.json" existing-releases.json 2>/dev/null || echo '[]' > existing-releases.json

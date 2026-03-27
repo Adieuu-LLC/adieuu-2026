@@ -354,6 +354,8 @@ export const Collections = {
   COMMUNITY_THEMES: 'community_themes',
   /** E2E-encrypted identity preferences (theme, etc.) */
   IDENTITY_ENCRYPTED_PREFS: 'identity_encrypted_prefs',
+  /** Media upload tracking (presigned URLs, processing status) */
+  MEDIA_UPLOADS: 'media_uploads',
 } as const;
 
 /**
@@ -561,6 +563,16 @@ async function createIndexes(): Promise<void> {
   // Identity encrypted preferences — one per identity (keyed by prefsId)
   const identityEncryptedPrefs = database.collection(Collections.IDENTITY_ENCRYPTED_PREFS);
   await identityEncryptedPrefs.createIndex({ prefsId: 1 }, { unique: true });
+
+  // Media uploads — tracks presigned URL lifecycle and processing status
+  const mediaUploads = database.collection(Collections.MEDIA_UPLOADS);
+  await mediaUploads.createIndex({ mediaId: 1 }, { unique: true });
+  await mediaUploads.createIndex({ identityId: 1, createdAt: -1 });
+  await mediaUploads.createIndex({ status: 1 });
+  await mediaUploads.createIndex(
+    { createdAt: 1 },
+    { expireAfterSeconds: 24 * 60 * 60, partialFilterExpression: { status: 'pending' } }
+  );
 
   elog.debug('MongoDB indexes created/verified');
 }

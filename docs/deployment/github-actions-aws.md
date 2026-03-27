@@ -48,6 +48,7 @@ See [desktop-updates-s3-cf.md](./desktop-updates-s3-cf.md) for the full architec
 | `DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU` | `downloads_s3_bucket_name` |
 | `DEPLOY_RELEASE_MANIFESTS_S3_BUCKET_ADIEUU` | `release_manifests_s3_bucket_name` |
 | `DEPLOY_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU` | `downloads_cloudfront_distribution_id` |
+| `DEPLOY_DOWNLOADS_DOMAIN_ADIEUU` | Domain only from `downloads_base_url`, e.g. `downloads.adieuu.com`. Used in `releases.json` download URLs. Falls back to `downloads.adieuu.com` if unset. |
 
 GitHub Releases remain the **source of truth**; the downloads stack is an additional public mirror.
 

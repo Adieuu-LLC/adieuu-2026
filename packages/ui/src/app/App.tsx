@@ -19,6 +19,7 @@ import {
   IdentityDevices,
   IdentityPrivacy,
   IdentityProfile,
+  IdentityProfileView,
 } from '../pages/identity';
 import { ServiceStatus } from '../pages/ServiceStatus';
 import { useAuth } from '../hooks/useAuth';
@@ -168,6 +169,9 @@ export function App() {
         <Route path="/identity/privacy" element={<IdentityPrivacy />} />
         <Route path="/identity/devices" element={<IdentityDevices />} />
         <Route path="/identity/ciphers" element={<IdentityCiphers />} />
+
+        {/* Public identity profile view (must be after static /identity/* routes) */}
+        <Route path="/identity/:id" element={<IdentityProfileView />} />
 
         {/* Platform admin (nested layout + guard) */}
         <Route element={<AdminGate />}>

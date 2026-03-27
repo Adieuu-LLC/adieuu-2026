@@ -371,6 +371,58 @@ variable "cloudfront_pricing_plan_web_acl_arn" {
   default     = ""
 }
 
+# --- Media uploads (S3 + CloudFront + Lambda image processor) ---
+
+variable "enable_media_stack" {
+  type        = bool
+  description = "Create S3 + CloudFront + Lambda infrastructure for user-uploaded media (avatars, banners, attachments). Requires route53_zone_name to be set (public_dns_tls_enabled)."
+  default     = false
+
+  validation {
+    condition = (
+      !var.enable_media_stack ||
+      trimspace(var.route53_zone_name) != ""
+    )
+    error_message = "enable_media_stack requires route53_zone_name so DNS and TLS can be provisioned."
+  }
+}
+
+variable "media_domain_name" {
+  type        = string
+  description = "FQDN for the media CDN (must sit under route53_zone_name). Used for CloudFront ACM (us-east-1), media alias, and CloudFront alternate domain name."
+  default     = "media.adieuu.com"
+}
+
+variable "enable_media_content_moderation" {
+  type        = bool
+  description = "Enable Amazon Rekognition content moderation (CSAM, violence, etc.) in the media processor Lambda. Adds rekognition:DetectModerationLabels permission."
+  default     = true
+}
+
+variable "media_moderation_confidence_threshold" {
+  type        = number
+  description = "Minimum confidence percentage (0-100) for Rekognition moderation labels to trigger rejection."
+  default     = 75
+
+  validation {
+    condition     = var.media_moderation_confidence_threshold >= 0 && var.media_moderation_confidence_threshold <= 100
+    error_message = "media_moderation_confidence_threshold must be between 0 and 100."
+  }
+}
+
+variable "media_processor_in_vpc" {
+  type        = bool
+  description = "Place the media processor Lambda in the VPC private subnets. Required if the Lambda needs to reach VPC-internal resources (e.g. ElastiCache). Adds NAT gateway dependency for S3/Rekognition access."
+  default     = false
+}
+
+variable "media_processor_secret" {
+  type        = string
+  description = "Shared secret for the media processor Lambda to authenticate callbacks to the API. Set a strong random value in production."
+  default     = "dev-media-processor-secret"
+  sensitive   = true
+}
+
 # --- GitHub Actions deploy (OIDC) ---
 
 variable "enable_github_actions_deploy_role" {

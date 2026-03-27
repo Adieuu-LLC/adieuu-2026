@@ -48,6 +48,10 @@ import {
   claimPreKeysCtrl,
   getPreKeyCountCtrl,
 } from './pre-key.controller';
+import {
+  updateProfileCtrl,
+  getProfileCtrl,
+} from './profile.controller';
 import { success } from '../../utils/response';
 import {
   getIdentitySessionIdFromRequest,
@@ -522,7 +526,55 @@ router.delete('/identity/:id/sessions', async (ctx) => {
 });
 
 // ============================================================================
-// Identity Profile (parameterized - must be last)
+// Identity Profile Management
+// ============================================================================
+
+/**
+ * PATCH /identity/me/profile - Update own profile
+ *
+ * Updates profile fields including displayName, bio, avatar, banner,
+ * profileColors, and privacySettings. Avatar/banner updates accept a
+ * mediaId from the upload service.
+ *
+ * @route PATCH /api/identity/me/profile
+ *
+ * @requestBody
+ * - `displayName` (string, optional): 1-50 characters
+ * - `bio` (string, optional): max 160 characters
+ * - `avatarMediaId` (string, optional): mediaId from upload service
+ * - `bannerMediaId` (string, optional): mediaId from upload service
+ * - `removeAvatar` (boolean, optional): remove current avatar
+ * - `removeBanner` (boolean, optional): remove current banner
+ * - `profileColors` (object, optional): { primary?, secondary?, accent? } hex strings
+ * - `privacySettings` (object, optional): per-field visibility (public/friends/private)
+ *
+ * @returns 200 OK with updated identity profile
+ * @returns 400 Bad Request if validation fails
+ * @returns 401 Unauthorized if not authenticated
+ */
+router.patch('/identity/me/profile', async (ctx) => {
+  return await updateProfileCtrl(ctx);
+});
+
+/**
+ * GET /identity/:id/profile - Get privacy-filtered profile
+ *
+ * Returns the identity's profile with fields filtered according to
+ * the viewer's relationship (self, friend, or stranger).
+ *
+ * @route GET /api/identity/:id/profile
+ *
+ * @param id (string, required): Identity ID
+ *
+ * @returns 200 OK with filtered profile
+ * @returns 404 Not Found if identity doesn't exist
+ */
+router.get('/identity/:id/profile', async (ctx) => {
+  return await getProfileCtrl(ctx);
+});
+
+// ============================================================================
+// Identity by ID (parameterized - must be last)
 // ============================================================================
 
 /**
