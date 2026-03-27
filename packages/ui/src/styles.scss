@@ -1265,8 +1265,7 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
   flex-shrink: 0;
 }
 
-.sidebar-friends-panel-action-btn {
-  // Reset Button component sizing for icon-only use
+.sidebar-friends-panel-action-btn.btn {
   min-width: 0;
   width: 24px;
   height: 24px;
@@ -1283,12 +1282,12 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
   }
 }
 
-.sidebar-friends-panel-action-accept:hover {
+.sidebar-friends-panel-action-accept.btn:hover {
   color: var(--color-success);
   border-color: var(--color-success);
 }
 
-.sidebar-friends-panel-action-ignore:hover {
+.sidebar-friends-panel-action-ignore.btn:hover {
   color: var(--color-error);
   border-color: var(--color-error);
 }

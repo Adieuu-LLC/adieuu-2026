@@ -86,6 +86,12 @@ mock.module('../db', () => ({
   },
 }));
 
+mock.module('../config', () => ({
+  config: {
+    redis: { keyPrefix: 'adieuu:' },
+  },
+}));
+
 mock.module('../utils/adieuuLogger', () => ({
   default: {
     info: () => {},

@@ -21,6 +21,7 @@ import { createNotification } from './notification.service';
 import { toPublicFriendRequest, type PublicFriendRequest } from '../models/friend-request';
 import { toPublicIdentity, type PublicIdentity } from '../models/identity';
 import { getRedis, isRedisConnected, RedisKeys } from '../db';
+import { config } from '../config';
 import elog from '../utils/adieuuLogger';
 
 /**
@@ -78,12 +79,23 @@ async function publishFriendEvent(
   recipientIdentityId: string,
   event: Record<string, unknown>
 ): Promise<void> {
-  if (!isRedisConnected()) return;
+  if (!isRedisConnected()) {
+    elog.warn('Skipping friend event publish: Redis not connected', {
+      recipientIdentityId,
+      eventType: event.type,
+    });
+    return;
+  }
 
   try {
     const redis = getRedis();
-    const channel = RedisKeys.identityChannel(recipientIdentityId);
-    await redis.publish(channel, JSON.stringify(event));
+    const channel = `${config.redis.keyPrefix}${RedisKeys.identityChannel(recipientIdentityId)}`;
+    const subscriberCount = await redis.publish(channel, JSON.stringify(event));
+    elog.info('Published friend event', {
+      channel,
+      eventType: event.type,
+      subscriberCount,
+    });
   } catch (error) {
     elog.warn('Failed to publish friend event via Redis', { error, recipientIdentityId });
   }
