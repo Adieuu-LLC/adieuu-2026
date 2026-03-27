@@ -84,6 +84,9 @@ export const en = {
     accept: 'Accept',
     ignore: 'Ignore',
     cancel: 'Cancel Request',
+    close: 'Close',
+    viewProfile: 'View Profile',
+    remove: 'Remove',
   },
 
   // Notifications

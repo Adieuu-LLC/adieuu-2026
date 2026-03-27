@@ -40,6 +40,8 @@ export interface SidebarProps {
   children: ReactNode;
   header?: ReactNode;
   footer?: ReactNode;
+  /** Optional panel rendered inside the aside but outside the scrollable nav area */
+  panel?: ReactNode;
   defaultExpanded?: boolean;
   /** Sidebar position - left or right side of the screen */
   orientation?: SidebarOrientation;
@@ -51,6 +53,7 @@ export function Sidebar({
   children, 
   header, 
   footer, 
+  panel,
   defaultExpanded = true,
   orientation = 'left',
   onExpandedChange,
@@ -174,6 +177,8 @@ export function Sidebar({
         <nav className="sidebar-nav">{children}</nav>
         
         {footer && <div className="sidebar-footer">{footer}</div>}
+
+        {panel}
         
         <button
           className="sidebar-toggle"

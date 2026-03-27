@@ -1078,65 +1078,58 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
 }
 
 // ============================================================================
-// Friends Flyout (Sidebar)
+// Friends Panel (Secondary Sidebar)
 // ============================================================================
 
-.sidebar-friends-flyout-wrapper {
-  position: relative;
-}
-
-.sidebar-friends-flyout {
+.sidebar-friends-panel {
   position: absolute;
   left: 100%;
   top: 0;
-  margin-left: var(--spacing-sm);
-  min-width: 280px;
-  max-width: 340px;
-  max-height: 420px;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  opacity: 0;
-  visibility: hidden;
-  transform: translateX(-8px);
-  transition:
-    opacity var(--transition-fast),
-    visibility var(--transition-fast),
-    transform var(--transition-fast);
-  z-index: var(--z-dropdown);
+  height: 100%;
+  width: min(200px, 80vw);
+  background: var(--color-bg-secondary);
+  border-left: 1px solid var(--color-border);
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.2);
+  z-index: calc(#{$z-sidebar} + 1);
   display: flex;
   flex-direction: column;
+  animation: sidebar-friends-panel-slide-in var(--transition-normal) ease-out;
+}
 
-  .sidebar-friends-flyout-wrapper:hover & {
+@keyframes sidebar-friends-panel-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
     opacity: 1;
-    visibility: visible;
     transform: translateX(0);
   }
-
-  &-collapsed {
-    margin-left: var(--spacing-xs);
-  }
 }
 
-.sidebar-friends-flyout-content {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.sidebar-friends-flyout-search {
+.sidebar-friends-panel-header {
   display: flex;
   align-items: center;
-  gap: var(--spacing-xs);
+  justify-content: space-between;
   padding: var(--spacing-sm) var(--spacing-md);
-  border-bottom: 1px solid var(--color-border-muted);
+  flex-shrink: 0;
 }
 
-.sidebar-friends-flyout-search-icon {
-  color: var(--color-text-tertiary);
+.sidebar-friends-panel-title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.sidebar-friends-panel-close {
+  // Reset Button component sizing for icon-only use
+  min-width: 0;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   display: flex;
-  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
 
   svg {
     width: 14px;
@@ -1144,27 +1137,26 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
   }
 }
 
-.sidebar-friends-flyout-search-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-primary);
-  outline: none;
-  font-family: var(--font-sans);
+.sidebar-friends-panel-search {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  flex-shrink: 0;
 
-  &::placeholder {
-    color: var(--color-text-tertiary);
+  .input-wrapper {
+    margin: 0;
+  }
+
+  .sidebar-friends-panel-search-input {
+    background: var(--color-bg-tertiary);
   }
 }
 
-.sidebar-friends-flyout-list {
+.sidebar-friends-panel-list {
   overflow-y: auto;
   flex: 1;
   padding: var(--spacing-xs);
 }
 
-.sidebar-friends-flyout-section {
+.sidebar-friends-panel-section {
   &:not(:last-child) {
     margin-bottom: var(--spacing-xs);
     padding-bottom: var(--spacing-xs);
@@ -1172,17 +1164,17 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
   }
 }
 
-.sidebar-friends-flyout-section-label {
+.sidebar-friends-panel-section-label {
   display: block;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: var(--spacing-xs) var(--spacing-sm);
 }
 
-.sidebar-friends-flyout-item {
+.sidebar-friends-panel-item {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
@@ -1201,11 +1193,11 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
   }
 }
 
-.sidebar-friends-flyout-item-request {
+.sidebar-friends-panel-item-request {
   cursor: default;
 }
 
-.sidebar-friends-flyout-item-info {
+.sidebar-friends-panel-item-info {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
@@ -1217,11 +1209,12 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
   padding: 0;
   font-family: var(--font-sans);
   text-align: left;
+  color: inherit;
 }
 
-.sidebar-friends-flyout-item-avatar {
-  width: 28px;
-  height: 28px;
+.sidebar-friends-panel-item-avatar {
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
@@ -1231,25 +1224,25 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
   justify-content: center;
 }
 
-.sidebar-friends-flyout-item-avatar-img {
+.sidebar-friends-panel-item-avatar-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.sidebar-friends-flyout-item-avatar-placeholder {
+.sidebar-friends-panel-item-avatar-placeholder {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
 }
 
-.sidebar-friends-flyout-item-text {
+.sidebar-friends-panel-item-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
 
-.sidebar-friends-flyout-item-name {
+.sidebar-friends-panel-item-name {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
@@ -1258,59 +1251,64 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
   text-overflow: ellipsis;
 }
 
-.sidebar-friends-flyout-item-username {
+.sidebar-friends-panel-item-username {
   font-size: var(--font-size-xs);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.sidebar-friends-flyout-item-actions {
+.sidebar-friends-panel-item-actions {
   display: flex;
   gap: var(--spacing-xs);
   flex-shrink: 0;
 }
 
-.sidebar-friends-flyout-action-btn {
+.sidebar-friends-panel-action-btn {
+  // Reset Button component sizing for icon-only use
+  min-width: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
-  background: var(--color-bg-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
   color: var(--color-text-secondary);
-  padding: 0;
 
   svg {
     width: 12px;
     height: 12px;
   }
-
-  &:hover {
-    background: var(--color-bg-hover);
-  }
 }
 
-.sidebar-friends-flyout-action-accept:hover {
+.sidebar-friends-panel-action-accept:hover {
   color: var(--color-success);
   border-color: var(--color-success);
 }
 
-.sidebar-friends-flyout-action-ignore:hover {
+.sidebar-friends-panel-action-ignore:hover {
   color: var(--color-error);
   border-color: var(--color-error);
 }
 
-.sidebar-friends-flyout-empty {
-  padding: var(--spacing-md);
+.sidebar-friends-panel-empty {
+  padding: var(--spacing-lg) var(--spacing-md);
   text-align: center;
   font-size: var(--font-size-sm);
-  color: var(--color-text-tertiary);
+  color: var(--color-text-muted);
+}
+
+// Mobile: panel takes full viewport width
+@media (max-width: $mobile-breakpoint) {
+  .sidebar-friends-panel {
+    position: fixed;
+    left: 0;
+    width: 100vw;
+    border-left: none;
+    z-index: calc(#{$z-sidebar-mobile-open} + 1);
+  }
 }
 
 // Add friend button in sidebar search results
