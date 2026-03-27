@@ -26,6 +26,7 @@ import {
   type PublicConversation,
   type PublicMessage,
   type PublicGroupInvite,
+  type PublicIdentity,
   type ChatIncomingMessage,
   type SendMessageParams,
   type ClaimedDevicePreKeys,
@@ -38,7 +39,6 @@ import {
   encryptGroupName,
   decryptGroupName,
   type RecipientKeys,
-  type DecryptedMessage,
 } from '../services/conversationCryptoService';
 import {
   getDeviceKeysForIdentity,
@@ -72,6 +72,7 @@ interface ConversationsContextValue {
   activeMessages: DisplayMessage[];
   activeMessagesCursor: string | null;
   invites: PublicGroupInvite[];
+  participantProfiles: Record<string, PublicIdentity>;
 
   loading: boolean;
   messagesLoading: boolean;
@@ -93,6 +94,11 @@ interface ConversationsContextValue {
     expiresInSeconds?: number
   ) => Promise<PublicMessage | null>;
   loadMoreMessages: () => Promise<void>;
+  deleteMessage: (
+    conversationId: string,
+    messageId: string,
+    forEveryone: boolean
+  ) => Promise<boolean>;
 
   // Group management
   addMember: (conversationId: string, identityId: string) => Promise<boolean>;
@@ -134,6 +140,63 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const [sending, setSending] = useState(false);
 
   const chatClientRef = useRef<ChatClient | null>(null);
+
+  const [participantProfiles, setParticipantProfiles] = useState<Record<string, PublicIdentity>>({});
+  const signingKeyCache = useRef<Record<string, string>>({});
+  const resolvedProfileIds = useRef<Set<string>>(new Set());
+
+  // -------------------------------------------------------------------------
+  // Participant identity resolution
+  // -------------------------------------------------------------------------
+
+  /**
+   * Resolves participant IDs to PublicIdentity profiles and caches
+   * their signing public keys for message decryption/verification.
+   *
+   * Uses a ref-based "already requested" set rather than depending on
+   * participantProfiles state, so this callback's identity is stable
+   * and doesn't cause cascading re-renders/reconnections.
+   */
+  const resolveParticipants = useCallback(
+    async (ids: string[]) => {
+      const missing = ids.filter((id) => !resolvedProfileIds.current.has(id));
+      if (missing.length === 0) return;
+
+      for (const id of missing) resolvedProfileIds.current.add(id);
+
+      const fetched: Record<string, PublicIdentity> = {};
+
+      await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const resp = await api.identity.getProfile(id);
+            if (resp.data) {
+              fetched[id] = resp.data;
+            }
+          } catch {
+            // Skip unreachable identities -- allow retry later
+            resolvedProfileIds.current.delete(id);
+          }
+
+          try {
+            if (!signingKeyCache.current[id]) {
+              const keysResp = await api.identity.getPublicKeys(id);
+              if (keysResp.data) {
+                signingKeyCache.current[id] = keysResp.data.signingPublicKey;
+              }
+            }
+          } catch {
+            // Signing keys unavailable
+          }
+        })
+      );
+
+      if (Object.keys(fetched).length > 0) {
+        setParticipantProfiles((prev) => ({ ...prev, ...fetched }));
+      }
+    },
+    [api]
+  );
 
   // -------------------------------------------------------------------------
   // Helpers
@@ -210,14 +273,20 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     try {
       const resp = await api.conversations.list(100);
       if (resp.data?.conversations) {
-        setConversations(resp.data.conversations.map(toDecrypted));
+        const decrypted = resp.data.conversations.map(toDecrypted);
+        setConversations(decrypted);
+
+        const allParticipantIds = [
+          ...new Set(decrypted.flatMap((c) => c.participants)),
+        ];
+        resolveParticipants(allParticipantIds);
       }
     } catch {
       // Silent failure
     } finally {
       setLoading(false);
     }
-  }, [isLoggedIn, api, toDecrypted]);
+  }, [isLoggedIn, api, toDecrypted, resolveParticipants]);
 
   const fetchMessages = useCallback(
     async (conversationId: string, cursor?: string) => {
@@ -234,11 +303,80 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       try {
         const resp = await api.conversations.getMessages(conversationId, 50, cursor);
         if (resp.data) {
+          // Get device private keys for decryption
+          let ecdhPrivateKey: Uint8Array | null = null;
+          let kemPrivateKey: Uint8Array | null = null;
+
+          const deviceId = getCurrentDeviceId();
+          const wrappingKey = getWrappingKey();
+          if (deviceId && wrappingKey) {
+            try {
+              const storedKeys = await getDeviceKeysForIdentity(identity.id);
+              const myDeviceKeys = storedKeys.find((k) => k.deviceId === deviceId);
+              if (myDeviceKeys) {
+                const decrypted = await decryptDeviceKeys(myDeviceKeys, wrappingKey);
+                ecdhPrivateKey = decrypted.ecdhPrivateKey;
+                kemPrivateKey = decrypted.kemPrivateKey;
+              }
+            } catch (err) {
+              console.error('[Conversations] Failed to load device keys for decryption:', err);
+            }
+          }
+
+          // Ensure we have signing keys for all senders
+          const senderIds = [...new Set(resp.data.messages.map((m) => m.fromIdentityId))];
+          const missingSenderKeys = senderIds.filter(
+            (id) => !signingKeyCache.current[id]
+          );
+          if (missingSenderKeys.length > 0) {
+            await Promise.all(
+              missingSenderKeys.map(async (sid) => {
+                try {
+                  const keysResp = await api.identity.getPublicKeys(sid);
+                  if (keysResp.data) {
+                    signingKeyCache.current[sid] = keysResp.data.signingPublicKey;
+                  }
+                } catch {
+                  // Signing key unavailable for this sender
+                }
+              })
+            );
+          }
+
+          // Also resolve any missing sender profiles for display
+          resolveParticipants(senderIds);
+
           const newMessages: DisplayMessage[] = resp.data.messages.map((m) => {
             if (m.deleted) {
               return { ...m, decryptedContent: undefined, signatureVerified: undefined };
             }
-            return { ...m };
+
+            if (!ecdhPrivateKey || !kemPrivateKey) {
+              return { ...m, decryptionError: 'Device keys unavailable' };
+            }
+
+            const senderSigningKey = signingKeyCache.current[m.fromIdentityId];
+            if (!senderSigningKey) {
+              return { ...m, decryptionError: 'Sender signing key unavailable' };
+            }
+
+            try {
+              const result = decryptMessage(
+                m,
+                identity.id,
+                ecdhPrivateKey,
+                kemPrivateKey,
+                senderSigningKey
+              );
+              return {
+                ...m,
+                decryptedContent: result.plaintext,
+                signatureVerified: result.verified,
+              };
+            } catch (err) {
+              console.error('[Conversations] Failed to decrypt message:', m.id, err);
+              return { ...m, decryptionError: String(err) };
+            }
           });
 
           setMessagesState((prev) => {
@@ -264,7 +402,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         }));
       }
     },
-    [isLoggedIn, identity, api]
+    [isLoggedIn, identity, api, getCurrentDeviceId, getWrappingKey, resolveParticipants]
   );
 
   const fetchInvites = useCallback(async () => {
@@ -541,6 +679,43 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   );
 
   // -------------------------------------------------------------------------
+  // Message deletion
+  // -------------------------------------------------------------------------
+
+  const deleteMessage = useCallback(
+    async (conversationId: string, messageId: string, forEveryone: boolean): Promise<boolean> => {
+      try {
+        const resp = forEveryone
+          ? await api.conversations.deleteMessageForEveryone(conversationId, messageId)
+          : await api.conversations.deleteMessageForSelf(conversationId, messageId);
+
+        if (resp.success) {
+          setMessagesState((prev) => {
+            const state = prev[conversationId];
+            if (!state) return prev;
+            return {
+              ...prev,
+              [conversationId]: {
+                ...state,
+                messages: state.messages.map((m) =>
+                  m.id === messageId
+                    ? { ...m, deleted: true, decryptedContent: undefined, ciphertext: undefined }
+                    : m
+                ),
+              },
+            };
+          });
+          return true;
+        }
+      } catch {
+        // Error
+      }
+      return false;
+    },
+    [api]
+  );
+
+  // -------------------------------------------------------------------------
   // Invites
   // -------------------------------------------------------------------------
 
@@ -581,10 +756,23 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   // WebSocket events
   // -------------------------------------------------------------------------
 
+  // Stable refs so the WS effect doesn't reconnect when callbacks change
+  const activeConversationIdRef = useRef(activeConversationId);
+  activeConversationIdRef.current = activeConversationId;
+
+  const fetchConversationsRef = useRef(fetchConversations);
+  fetchConversationsRef.current = fetchConversations;
+
+  const fetchMessagesRef = useRef(fetchMessages);
+  fetchMessagesRef.current = fetchMessages;
+
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
   useEffect(() => {
     if (!isLoggedIn || !chatWsUrl) return;
 
-    const config = { wsUrl: chatWsUrl };
+    const wsConfig = { wsUrl: chatWsUrl };
 
     const handleMessage = (message: ChatIncomingMessage) => {
       switch (message.type) {
@@ -615,20 +803,20 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           const { conversationId, action } = message.data;
           if (action === 'removed') {
             setConversations((prev) => prev.filter((c) => c.id !== conversationId));
-            if (activeConversationId === conversationId) {
-              setActiveConversationId(null);
-            }
+            setActiveConversationId((prev) =>
+              prev === conversationId ? null : prev
+            );
           } else {
-            fetchConversations();
+            fetchConversationsRef.current();
           }
           break;
         }
 
         case 'conversation_message': {
           const { conversationId, messageId } = message.data;
+          const activeId = activeConversationIdRef.current;
 
-          // Increment unread count if not the active conversation
-          if (conversationId !== activeConversationId) {
+          if (conversationId !== activeId) {
             setConversations((prev) =>
               prev.map((c) =>
                 c.id === conversationId ? { ...c, unreadCount: c.unreadCount + 1 } : c
@@ -636,18 +824,36 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             );
           }
 
-          // Fetch the new message if this is the active conversation
-          if (conversationId === activeConversationId) {
-            fetchMessages(conversationId);
+          if (conversationId === activeId) {
+            fetchMessagesRef.current(conversationId);
           }
 
-          // Bubble conversation to top
           setConversations((prev) => {
             const idx = prev.findIndex((c) => c.id === conversationId);
             if (idx <= 0) return prev;
             const conv = prev[idx]!;
             const rest = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
             return [{ ...conv, lastMessageAt: message.data.createdAt, lastMessageId: messageId }, ...rest];
+          });
+          break;
+        }
+
+        case 'conversation_message_deleted': {
+          const { conversationId, messageId } = message.data;
+          setMessagesState((prev) => {
+            const state = prev[conversationId];
+            if (!state) return prev;
+            return {
+              ...prev,
+              [conversationId]: {
+                ...state,
+                messages: state.messages.map((m) =>
+                  m.id === messageId
+                    ? { ...m, deleted: true, decryptedContent: undefined, ciphertext: undefined }
+                    : m
+                ),
+              },
+            };
           });
           break;
         }
@@ -662,17 +868,17 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         }
 
         case 'group_invite_accepted': {
-          fetchConversations();
+          fetchConversationsRef.current();
           break;
         }
       }
     };
 
-    const client = new ChatClient(config, {
+    const client = new ChatClient(wsConfig, {
       onMessage: handleMessage,
       onStateChange: (state) => {
         if (state === 'connected') {
-          refresh();
+          refreshRef.current();
         }
       },
     });
@@ -684,7 +890,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       client.disconnect();
       chatClientRef.current = null;
     };
-  }, [isLoggedIn, chatWsUrl, activeConversationId, fetchConversations, fetchMessages, refresh]);
+  }, [isLoggedIn, chatWsUrl]);
 
   // Initial data fetch
   useEffect(() => {
@@ -710,6 +916,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     activeMessages: activeState?.messages ?? [],
     activeMessagesCursor: activeState?.cursor ?? null,
     invites,
+    participantProfiles,
     loading,
     messagesLoading: activeState?.loading ?? false,
     sending,
@@ -718,6 +925,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     createGroup,
     sendTextMessage,
     loadMoreMessages,
+    deleteMessage,
     addMember,
     removeMember,
     leaveGroup,

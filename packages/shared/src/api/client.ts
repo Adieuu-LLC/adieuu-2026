@@ -1984,6 +1984,24 @@ export class ConversationsApi {
     );
   }
 
+  async deleteMessageForSelf(
+    conversationId: string,
+    messageId: string
+  ): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}`
+    );
+  }
+
+  async deleteMessageForEveryone(
+    conversationId: string,
+    messageId: string
+  ): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/everyone`
+    );
+  }
+
   async addMember(
     conversationId: string,
     identityId: string

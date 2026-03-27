@@ -8,10 +8,11 @@ import {
   useSidebar,
 } from '../components/Sidebar';
 import { SidebarSearch } from '../components/SidebarSearch';
+import { SidebarTabs, type SidebarTab } from '../components/SidebarTabs';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, ShieldIcon, PaletteIcon, DownloadIcon, UsersIcon, CheckIcon, XIcon, SearchIcon, MessageIcon, PlusIcon } from '../components/Icons';
+import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, ShieldIcon, PaletteIcon, DownloadIcon, UsersIcon, CheckIcon, XIcon, SearchIcon, MessageIcon, PlusIcon, SpacesIcon } from '../components/Icons';
 import { HoverCard } from '../components/HoverCard';
 import { useAppConfig } from '../config';
 import { useAuth } from '../hooks/useAuth';
@@ -659,10 +660,11 @@ function SidebarLogo() {
 
 /**
  * Renders a single conversation list item in the sidebar.
+ * Uses the existing .conversation-list-item CSS pattern.
  */
 function ConversationListItem({ conversation }: { conversation: DecryptedConversation }) {
   const { identity } = useIdentity();
-  const { activeConversationId, setActiveConversation } = useConversations();
+  const { activeConversationId, setActiveConversation, participantProfiles } = useConversations();
   const navigate = useNavigate();
   const { closeMobile } = useSidebar();
 
@@ -672,7 +674,13 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
     ? (conversation.decryptedName ?? 'Group')
     : conversation.participants
         .filter((p) => p !== identity?.id)
+        .map((p) => {
+          const profile = participantProfiles[p];
+          return profile?.displayName ?? profile?.username ?? p;
+        })
         .join(', ');
+
+  const initial = displayName.charAt(0).toUpperCase();
 
   const handleClick = () => {
     setActiveConversation(conversation.id);
@@ -683,17 +691,22 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
   return (
     <button
       type="button"
-      className={`sidebar-conversation-item${isActive ? ' sidebar-conversation-item-active' : ''}`}
+      className={`conversation-list-item${isActive ? ' conversation-list-item-active' : ''}`}
       onClick={handleClick}
     >
-      <div className="sidebar-conversation-item-icon">
-        <MessageIcon />
+      <div className="conversation-list-item-avatar">
+        <span className="conversation-list-item-avatar-placeholder">{initial}</span>
       </div>
-      <div className="sidebar-conversation-item-text">
-        <span className="sidebar-conversation-item-name">{displayName}</span>
+      <div className="conversation-list-item-info">
+        <span className="conversation-list-item-title">{displayName}</span>
+        {conversation.type === 'group' && (
+          <span className="conversation-list-item-members">
+            {conversation.participants.length} members
+          </span>
+        )}
       </div>
       {conversation.unreadCount > 0 && (
-        <span className="sidebar-conversation-item-badge">{conversation.unreadCount}</span>
+        <span className="conversation-list-item-badge">{conversation.unreadCount}</span>
       )}
     </button>
   );
@@ -701,79 +714,74 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
 
 /**
  * Conversations section in the sidebar with Conversations/Spaces tabs.
+ * Uses the SidebarTabs component for polished icon tabs.
  */
 function ConversationsSidebarSection() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { conversations, invites, loading } = useConversations();
-  const { isExpanded } = useSidebar();
-  const [activeTab, setActiveTab] = useState<'conversations' | 'spaces'>('conversations');
+  const { closeMobile } = useSidebar();
+  const [activeTab, setActiveTab] = useState('conversations');
+
+  const tabs: SidebarTab[] = [
+    {
+      id: 'conversations',
+      icon: <MessageIcon />,
+      label: t('sidebar.conversationsTab', 'Conversations'),
+      badge: invites.length,
+    },
+    {
+      id: 'spaces',
+      icon: <SpacesIcon />,
+      label: t('sidebar.spacesTab', 'Spaces'),
+    },
+  ];
 
   const handleNewConversation = () => {
     navigate('/conversations/new');
+    closeMobile();
   };
 
   return (
-    <SidebarSection label={t('sidebar.conversations', 'Conversations')}>
-      {isExpanded && (
-        <div className="sidebar-conversations-tabs">
-          <button
-            type="button"
-            className={`sidebar-conversations-tab${activeTab === 'conversations' ? ' sidebar-conversations-tab-active' : ''}`}
-            onClick={() => setActiveTab('conversations')}
-          >
-            {t('sidebar.conversationsTab', 'Conversations')}
-            {invites.length > 0 && (
-              <span className="sidebar-conversations-tab-badge">{invites.length}</span>
-            )}
-          </button>
-          <button
-            type="button"
-            className={`sidebar-conversations-tab${activeTab === 'spaces' ? ' sidebar-conversations-tab-active' : ''}`}
-            onClick={() => setActiveTab('spaces')}
-          >
-            {t('sidebar.spacesTab', 'Spaces')}
-          </button>
-        </div>
-      )}
+    <div className="sidebar-tabs-section">
+      <SidebarTabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {activeTab === 'conversations' && (
-        <>
-          <button
-            type="button"
-            className="sidebar-new-conversation-btn"
-            onClick={handleNewConversation}
-          >
-            <PlusIcon />
-            {isExpanded && <span>{t('sidebar.newConversation', 'New Conversation')}</span>}
-          </button>
+      <div className="sidebar-tab-content">
+        {activeTab === 'conversations' && (
+          <>
+            <SidebarItem
+              icon={<PlusIcon />}
+              label={t('sidebar.newConversation', 'New Conversation')}
+              onClick={handleNewConversation}
+            />
 
-          {loading && conversations.length === 0 && (
-            <div className="sidebar-conversations-loading">
-              <span className="spinner spinner-sm" />
-            </div>
-          )}
-
-          <div className="sidebar-conversations-list">
-            {conversations.map((conv) => (
-              <ConversationListItem key={conv.id} conversation={conv} />
-            ))}
-
-            {!loading && conversations.length === 0 && (
-              <div className="sidebar-conversations-empty">
-                {t('sidebar.noConversations', 'No conversations yet')}
+            {loading && conversations.length === 0 && (
+              <div className="sidebar-conversations-loading">
+                <span className="spinner spinner-sm" />
               </div>
             )}
-          </div>
-        </>
-      )}
 
-      {activeTab === 'spaces' && (
-        <div className="sidebar-conversations-empty">
-          {t('sidebar.spacesComingSoon', 'Spaces coming soon')}
-        </div>
-      )}
-    </SidebarSection>
+            <div className="sidebar-conversations-list">
+              {conversations.map((conv) => (
+                <ConversationListItem key={conv.id} conversation={conv} />
+              ))}
+
+              {!loading && conversations.length === 0 && (
+                <div className="sidebar-conversations-empty">
+                  {t('sidebar.noConversations', 'No conversations yet')}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {activeTab === 'spaces' && (
+          <div className="sidebar-conversations-empty">
+            {t('sidebar.spacesComingSoon', 'Spaces coming soon')}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

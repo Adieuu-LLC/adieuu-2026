@@ -21,6 +21,8 @@ import {
   listConversations,
   sendMessage,
   getMessages,
+  deleteMessageForSelf,
+  deleteMessageForEveryone,
   addGroupMember,
   removeGroupMember,
   leaveConversation,
@@ -307,6 +309,69 @@ router.get('/conversations/:id/messages', async (ctx) => {
     messages,
     cursor: nextCursor,
   });
+});
+
+/**
+ * DELETE /conversations/:id/messages/:messageId - Delete a message for self
+ */
+router.delete('/conversations/:id/messages/:messageId', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id, messageId } = ctx.params;
+
+  const sanitizedConv = sanitizeString(id ?? '', 'general');
+  if (!sanitizedConv.value || !isValidObjectId(sanitizedConv.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const sanitizedMsg = sanitizeString(messageId ?? '', 'general');
+  if (!sanitizedMsg.value || !isValidObjectId(sanitizedMsg.value)) {
+    return errors.badRequest('Invalid message ID.');
+  }
+
+  const result = await deleteMessageForSelf(sanitizedConv.value, sanitizedMsg.value, identity._id);
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'MESSAGE_NOT_FOUND') return errors.notFound('Message not found.');
+    return errors.badRequest(result.error ?? 'Failed to delete message.');
+  }
+
+  return success(undefined, 'Message deleted for you.');
+});
+
+/**
+ * DELETE /conversations/:id/messages/:messageId/everyone - Delete a message for everyone (sender only)
+ */
+router.delete('/conversations/:id/messages/:messageId/everyone', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id, messageId } = ctx.params;
+
+  const sanitizedConv = sanitizeString(id ?? '', 'general');
+  if (!sanitizedConv.value || !isValidObjectId(sanitizedConv.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const sanitizedMsg = sanitizeString(messageId ?? '', 'general');
+  if (!sanitizedMsg.value || !isValidObjectId(sanitizedMsg.value)) {
+    return errors.badRequest('Invalid message ID.');
+  }
+
+  const result = await deleteMessageForEveryone(sanitizedConv.value, sanitizedMsg.value, identity._id);
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'MESSAGE_NOT_FOUND') return errors.notFound('Message not found.');
+    if (result.errorCode === 'NOT_SENDER') return ctx.errors.unauthorized();
+    return errors.badRequest(result.error ?? 'Failed to delete message.');
+  }
+
+  return success(undefined, 'Message deleted for everyone.');
 });
 
 // ---------------------------------------------------------------------------

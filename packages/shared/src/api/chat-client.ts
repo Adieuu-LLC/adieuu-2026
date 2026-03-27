@@ -22,7 +22,8 @@ export type ChatMessageType =
   | 'conversation_updated'
   | 'conversation_message'
   | 'group_invite_received'
-  | 'group_invite_accepted';
+  | 'group_invite_accepted'
+  | 'conversation_message_deleted';
 
 export interface ChatMessageBase {
   type: ChatMessageType;
@@ -142,6 +143,16 @@ export interface ChatGroupInviteAcceptedMessage extends ChatMessageBase {
   };
 }
 
+export interface ChatConversationMessageDeletedMessage extends ChatMessageBase {
+  type: 'conversation_message_deleted';
+  data: {
+    conversationId: string;
+    messageId: string;
+    deletedBy: string;
+    forEveryone: boolean;
+  };
+}
+
 export type ChatIncomingMessage =
   | ChatPongMessage
   | ChatErrorMessage
@@ -153,7 +164,8 @@ export type ChatIncomingMessage =
   | ChatConversationUpdatedMessage
   | ChatConversationMessageMessage
   | ChatGroupInviteReceivedMessage
-  | ChatGroupInviteAcceptedMessage;
+  | ChatGroupInviteAcceptedMessage
+  | ChatConversationMessageDeletedMessage;
 
 export type ChatOutgoingMessage =
   | ChatPingMessage;

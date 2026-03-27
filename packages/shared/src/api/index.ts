@@ -120,4 +120,5 @@ export {
   type ChatConversationMessageMessage,
   type ChatGroupInviteReceivedMessage,
   type ChatGroupInviteAcceptedMessage,
+  type ChatConversationMessageDeletedMessage,
 } from './chat-client';

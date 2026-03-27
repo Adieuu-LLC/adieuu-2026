@@ -522,6 +522,102 @@ export async function getMessages(
   };
 }
 
+/**
+ * Delete a message for the requesting identity only.
+ * The message remains visible to other participants.
+ */
+export async function deleteMessageForSelf(
+  conversationId: string | ObjectId,
+  messageId: string | ObjectId,
+  requesterIdentityId: string | ObjectId
+): Promise<MessageResult> {
+  const conversationRepo = getConversationRepository();
+  const messageRepo = getMessageRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const msgObjId =
+    messageId instanceof ObjectId ? messageId : new ObjectId(messageId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  const isParticipant = conversation.participants.some((p) => p.equals(requesterObjId));
+  if (!isParticipant) {
+    return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  const message = await messageRepo.findById(msgObjId);
+  if (!message || !message.conversationId.equals(convObjId)) {
+    return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+
+  await messageRepo.markDeletedForIdentity(msgObjId, requesterObjId);
+
+  return { success: true, message: toPublicMessage(message, requesterObjId) };
+}
+
+/**
+ * Delete a message for all participants (sender only).
+ * Replaces content with a tombstone and notifies all members.
+ */
+export async function deleteMessageForEveryone(
+  conversationId: string | ObjectId,
+  messageId: string | ObjectId,
+  requesterIdentityId: string | ObjectId
+): Promise<MessageResult> {
+  const conversationRepo = getConversationRepository();
+  const messageRepo = getMessageRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const msgObjId =
+    messageId instanceof ObjectId ? messageId : new ObjectId(messageId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  const isParticipant = conversation.participants.some((p) => p.equals(requesterObjId));
+  if (!isParticipant) {
+    return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  const message = await messageRepo.findById(msgObjId);
+  if (!message || !message.conversationId.equals(convObjId)) {
+    return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+
+  if (!message.fromIdentityId.equals(requesterObjId)) {
+    return { success: false, error: 'Only the sender can delete for everyone', errorCode: 'NOT_SENDER' };
+  }
+
+  await messageRepo.markDeletedForEveryone(msgObjId);
+
+  await publishToParticipants(conversation.participants, requesterObjId, {
+    type: 'conversation_message_deleted',
+    data: {
+      conversationId: convObjId.toHexString(),
+      messageId: msgObjId.toHexString(),
+      deletedBy: requesterObjId.toHexString(),
+      forEveryone: true,
+    },
+  });
+
+  return { success: true };
+}
+
 // ---------------------------------------------------------------------------
 // Group management
 // ---------------------------------------------------------------------------
