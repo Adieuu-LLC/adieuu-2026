@@ -55,6 +55,8 @@ export { useTheme, ThemeProvider } from './hooks/useTheme';
 export type { ThemeContextValue, ThemeProviderProps } from './hooks/useTheme';
 export { useTourContext, TourProvider } from './hooks/useTourContext';
 export { useIdentitySearch } from './hooks/useIdentitySearch';
+export { useChatSocket, ChatSocketProvider } from './hooks/useChatSocket';
+export type { ChatSocketContextValue, ChatSocketProviderProps, ChatMessageHandler, ChatStateHandler } from './hooks/useChatSocket';
 export { useFriends, FriendsProvider } from './hooks/useFriends';
 export type { FriendsContextValue, FriendsProviderProps } from './hooks/useFriends';
 export { useDocumentVisibility } from './hooks/useDocumentVisibility';

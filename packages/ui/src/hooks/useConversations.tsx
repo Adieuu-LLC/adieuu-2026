@@ -22,7 +22,6 @@ import {
 } from 'react';
 import {
   createApiClient,
-  ChatClient,
   type PublicConversation,
   type PublicMessage,
   type PublicGroupInvite,
@@ -32,8 +31,14 @@ import {
   type ClaimedDevicePreKeys,
   type SerializedWrappedKey,
 } from '@adieuu/shared';
+import { useTranslation } from 'react-i18next';
 import { useIdentity } from './useIdentity';
-import { useAppConfig } from '../config';
+import { useChatSocket } from './useChatSocket';
+import { useAppConfig, usePlatformCapabilities } from '../config';
+import { useToast } from '../components/Toast';
+import { useNotificationSoundPreference } from './useNotificationSoundPreference';
+import { getNativeNotificationsEnabled } from './useNativeNotificationsPreference';
+import { playNotificationSound, type FocusVisibilitySnapshot } from '../utils/notificationSound';
 import {
   encryptMessage,
   decryptMessage,
@@ -131,7 +136,12 @@ interface ConversationsProviderProps {
 export function ConversationsProvider({ children }: ConversationsProviderProps) {
   const { status: identityStatus, identity, getSigningKey, getCurrentDeviceId, getWrappingKey } =
     useIdentity();
-  const { apiBaseUrl, chatWsUrl } = useAppConfig();
+  const { apiBaseUrl } = useAppConfig();
+  const { subscribe, onStateChange } = useChatSocket();
+  const { t } = useTranslation();
+  const toast = useToast();
+  const { notifications, audio } = usePlatformCapabilities();
+  const soundPref = useNotificationSoundPreference();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const isLoggedIn = identityStatus === 'logged_in' && !!identity;
@@ -143,8 +153,6 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const [invites, setInvites] = useState<PublicGroupInvite[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-
-  const chatClientRef = useRef<ChatClient | null>(null);
 
   const [participantProfiles, setParticipantProfiles] = useState<Record<string, PublicIdentity>>({});
   const signingKeyCache = useRef<Record<string, string>>({});
@@ -851,10 +859,40 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   );
 
   // -------------------------------------------------------------------------
-  // WebSocket events
+  // Notifications
   // -------------------------------------------------------------------------
 
-  // Stable refs so the WS effect doesn't reconnect when callbacks change
+  const fireNotification = useCallback(
+    (title: string, body: string, isViewingConvo = false) => {
+      toast.info(title, body);
+
+      const snapshot: FocusVisibilitySnapshot = {
+        hasFocus: document.hasFocus(),
+        visibilityState: document.visibilityState,
+      };
+
+      void playNotificationSound({
+        enabled: soundPref.enabled,
+        soundId: soundPref.soundId,
+        customPath: soundPref.customPath,
+        suppressWhenFocused: soundPref.suppressWhenFocused,
+        isViewingConversation: isViewingConvo,
+        snapshot,
+        volume: soundPref.volume,
+        loadCustomSound: audio?.loadSoundFromPath,
+      });
+
+      if (getNativeNotificationsEnabled() && notifications.hasPermission()) {
+        notifications.show(title, body, { tag: 'conversation-event' });
+      }
+    },
+    [toast, soundPref, audio, notifications]
+  );
+
+  // -------------------------------------------------------------------------
+  // WebSocket events (via shared ChatSocket)
+  // -------------------------------------------------------------------------
+
   const activeConversationIdRef = useRef(activeConversationId);
   activeConversationIdRef.current = activeConversationId;
 
@@ -867,12 +905,19 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
 
+  const fireNotificationRef = useRef(fireNotification);
+  fireNotificationRef.current = fireNotification;
+
+  const participantProfilesRef = useRef(participantProfiles);
+  participantProfilesRef.current = participantProfiles;
+
+  const tRef = useRef(t);
+  tRef.current = t;
+
   useEffect(() => {
-    if (!isLoggedIn || !chatWsUrl) return;
+    if (!isLoggedIn) return;
 
-    const wsConfig = { wsUrl: chatWsUrl };
-
-    const handleMessage = (message: ChatIncomingMessage) => {
+    const unsubMessage = subscribe((message: ChatIncomingMessage) => {
       switch (message.type) {
         case 'conversation_created': {
           const conv = message.data.conversation;
@@ -894,6 +939,16 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             };
             return [decrypted, ...prev];
           });
+
+          const profiles = participantProfilesRef.current;
+          const creatorProfile = profiles[conv.createdBy];
+          const creatorName = creatorProfile?.displayName ?? creatorProfile?.username;
+          fireNotificationRef.current(
+            tRef.current('conversations.notifications.newConversation', { defaultValue: 'New conversation' }),
+            creatorName
+              ? tRef.current('conversations.notifications.newConversationBody', { name: creatorName, defaultValue: `${creatorName} started a conversation` })
+              : tRef.current('conversations.notifications.newConversationGeneric', { defaultValue: 'Someone started a conversation with you' })
+          );
           break;
         }
 
@@ -911,10 +966,11 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         }
 
         case 'conversation_message': {
-          const { conversationId, messageId } = message.data;
+          const { conversationId, messageId, fromIdentityId } = message.data;
           const activeId = activeConversationIdRef.current;
+          const isViewing = conversationId === activeId;
 
-          if (conversationId !== activeId) {
+          if (!isViewing) {
             setConversations((prev) =>
               prev.map((c) =>
                 c.id === conversationId ? { ...c, unreadCount: c.unreadCount + 1 } : c
@@ -922,17 +978,29 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             );
           }
 
-          if (conversationId === activeId) {
+          if (isViewing) {
             fetchMessagesRef.current(conversationId);
           }
 
           setConversations((prev) => {
             const idx = prev.findIndex((c) => c.id === conversationId);
-            if (idx <= 0) return prev;
+            if (idx === -1) return prev;
             const conv = prev[idx]!;
+            const updated = { ...conv, lastMessageAt: message.data.createdAt, lastMessageId: messageId };
             const rest = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
-            return [{ ...conv, lastMessageAt: message.data.createdAt, lastMessageId: messageId }, ...rest];
+            return [updated, ...rest];
           });
+
+          const profiles = participantProfilesRef.current;
+          const senderProfile = profiles[fromIdentityId];
+          const senderName = senderProfile?.displayName ?? senderProfile?.username;
+          fireNotificationRef.current(
+            tRef.current('conversations.notifications.newMessage', { defaultValue: 'New message' }),
+            senderName
+              ? tRef.current('conversations.notifications.newMessageBody', { name: senderName, defaultValue: `Message from ${senderName}` })
+              : tRef.current('conversations.notifications.newMessageGeneric', { defaultValue: 'You received a new message' }),
+            isViewing
+          );
           break;
         }
 
@@ -962,6 +1030,13 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             if (prev.some((i) => i.id === invite.id)) return prev;
             return [invite, ...prev];
           });
+
+          fireNotificationRef.current(
+            tRef.current('conversations.notifications.groupInvite', { defaultValue: 'Group invitation' }),
+            invite.groupName
+              ? tRef.current('conversations.notifications.groupInviteBody', { name: invite.groupName, defaultValue: `You've been invited to ${invite.groupName}` })
+              : tRef.current('conversations.notifications.groupInviteGeneric', { defaultValue: 'You\'ve been invited to a group' })
+          );
           break;
         }
 
@@ -970,25 +1045,19 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           break;
         }
       }
-    };
-
-    const client = new ChatClient(wsConfig, {
-      onMessage: handleMessage,
-      onStateChange: (state) => {
-        if (state === 'connected') {
-          refreshRef.current();
-        }
-      },
     });
 
-    chatClientRef.current = client;
-    client.connect();
+    const unsubState = onStateChange((state) => {
+      if (state === 'connected') {
+        refreshRef.current();
+      }
+    });
 
     return () => {
-      client.disconnect();
-      chatClientRef.current = null;
+      unsubMessage();
+      unsubState();
     };
-  }, [isLoggedIn, chatWsUrl]);
+  }, [isLoggedIn, subscribe, onStateChange]);
 
   // Initial data fetch
   useEffect(() => {

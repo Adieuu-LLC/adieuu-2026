@@ -26,6 +26,7 @@ import { ConversationView, NewConversation } from '../pages/conversations';
 import { useAuth } from '../hooks/useAuth';
 import { TourProvider, useTourContext, useAppearanceTour } from '../hooks/useTourContext';
 import { CipherStoreProvider } from '../hooks/useCipherStore';
+import { ChatSocketProvider } from '../hooks/useChatSocket';
 import { FriendsProvider } from '../hooks/useFriends';
 import { ConversationsProvider } from '../hooks/useConversations';
 import { usePreKeys } from '../hooks/usePreKeys';
@@ -63,11 +64,13 @@ function ProtectedLayout() {
   return (
     <TourProvider>
       <CipherStoreProvider>
-        <FriendsProvider>
-          <ConversationsProvider>
-            <ProtectedLayoutContent />
-          </ConversationsProvider>
-        </FriendsProvider>
+        <ChatSocketProvider>
+          <FriendsProvider>
+            <ConversationsProvider>
+              <ProtectedLayoutContent />
+            </ConversationsProvider>
+          </FriendsProvider>
+        </ChatSocketProvider>
       </CipherStoreProvider>
     </TourProvider>
   );

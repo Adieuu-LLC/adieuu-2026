@@ -22,12 +22,11 @@ import {
   type IncomingFriendRequestInfo,
   type FriendshipStatus,
   type ChatIncomingMessage,
-  type ChatClientConfig,
-  ChatClient,
 } from '@adieuu/shared';
 import { useTranslation } from 'react-i18next';
 import { useAppConfig, usePlatformCapabilities } from '../config';
 import { useIdentity } from './useIdentity';
+import { useChatSocket } from './useChatSocket';
 import { useToast } from '../components/Toast';
 import { useNotificationSoundPreference } from './useNotificationSoundPreference';
 import { getNativeNotificationsEnabled } from './useNativeNotificationsPreference';
@@ -77,8 +76,9 @@ export interface FriendsProviderProps {
 }
 
 export function FriendsProvider({ children }: FriendsProviderProps) {
-  const { apiBaseUrl, chatWsUrl } = useAppConfig();
+  const { apiBaseUrl } = useAppConfig();
   const { status: identityStatus, identity } = useIdentity();
+  const { subscribe, onStateChange } = useChatSocket();
   const { t } = useTranslation();
   const toast = useToast();
   const { notifications, audio } = usePlatformCapabilities();
@@ -89,7 +89,6 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
   const [incomingRequestCount, setIncomingRequestCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
-  const chatClientRef = useRef<ChatClient | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isIdentityLoggedIn = identityStatus === 'logged_in' && identity;
 
@@ -242,81 +241,84 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
   }, [api]);
 
   // --------------------------------------------------------------------------
-  // WebSocket listener
+  // WebSocket listener (via shared ChatSocket)
   // --------------------------------------------------------------------------
 
+  const fetchIncomingRequestsRef = useRef(fetchIncomingRequests);
+  fetchIncomingRequestsRef.current = fetchIncomingRequests;
+  const fetchFriendsRef = useRef(fetchFriends);
+  fetchFriendsRef.current = fetchFriends;
+  const fetchRequestCountRef = useRef(fetchRequestCount);
+  fetchRequestCountRef.current = fetchRequestCount;
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  const fireNotificationRef = useRef(fireNotification);
+  fireNotificationRef.current = fireNotification;
+  const tRef = useRef(t);
+  tRef.current = t;
+
   useEffect(() => {
-    if (!isIdentityLoggedIn || !chatWsUrl) return;
+    if (!isIdentityLoggedIn) return;
 
-    const client = new ChatClient(
-      { wsUrl: chatWsUrl, heartbeatInterval: 30_000, maxReconnectAttempts: Infinity } as ChatClientConfig,
-      {
-        onMessage: (message: ChatIncomingMessage) => {
-          switch (message.type) {
-            case 'friend_request_received': {
-              const msg = message as Extract<ChatIncomingMessage, { type: 'friend_request_received' }>;
-              fetchIncomingRequests();
-              const senderName = msg.data.fromIdentity?.displayName ?? msg.data.fromIdentity?.username;
-              if (senderName) {
-                fireNotification(
-                  t('friends.notifications.requestReceived'),
-                  t('friends.notifications.requestReceivedBody', { name: senderName })
-                );
-              }
-              break;
-            }
-            case 'friend_request_accepted': {
-              const msg = message as Extract<ChatIncomingMessage, { type: 'friend_request_accepted' }>;
-              fetchFriends();
-              const accepterName = msg.data.byIdentity?.displayName ?? msg.data.byIdentity?.username;
-              if (accepterName) {
-                fireNotification(
-                  t('friends.notifications.requestAccepted'),
-                  t('friends.notifications.requestAcceptedBody', { name: accepterName })
-                );
-              }
-              break;
-            }
-            case 'friend_removed': {
-              const msg = message as Extract<ChatIncomingMessage, { type: 'friend_removed' }>;
-              setFriends((prev) =>
-                prev.filter((f) => f.identity.id !== msg.data.identityId)
-              );
-              break;
-            }
+    const unsubMessage = subscribe((message: ChatIncomingMessage) => {
+      switch (message.type) {
+        case 'friend_request_received': {
+          const msg = message as Extract<ChatIncomingMessage, { type: 'friend_request_received' }>;
+          fetchIncomingRequestsRef.current();
+          const senderName = msg.data.fromIdentity?.displayName ?? msg.data.fromIdentity?.username;
+          if (senderName) {
+            fireNotificationRef.current(
+              tRef.current('friends.notifications.requestReceived'),
+              tRef.current('friends.notifications.requestReceivedBody', { name: senderName })
+            );
           }
-        },
-        onStateChange: (state) => {
-          if (state === 'disconnected' || state === 'reconnecting') {
-            // Start fallback polling when WS is down
-            if (!pollTimerRef.current) {
-              pollTimerRef.current = setInterval(fetchRequestCount, POLL_INTERVAL_MS);
-            }
-          } else if (state === 'connected') {
-            // Stop polling when WS reconnects
-            if (pollTimerRef.current) {
-              clearInterval(pollTimerRef.current);
-              pollTimerRef.current = null;
-            }
-            // Refresh data after reconnection
-            refresh();
+          break;
+        }
+        case 'friend_request_accepted': {
+          const msg = message as Extract<ChatIncomingMessage, { type: 'friend_request_accepted' }>;
+          fetchFriendsRef.current();
+          const accepterName = msg.data.byIdentity?.displayName ?? msg.data.byIdentity?.username;
+          if (accepterName) {
+            fireNotificationRef.current(
+              tRef.current('friends.notifications.requestAccepted'),
+              tRef.current('friends.notifications.requestAcceptedBody', { name: accepterName })
+            );
           }
-        },
+          break;
+        }
+        case 'friend_removed': {
+          const msg = message as Extract<ChatIncomingMessage, { type: 'friend_removed' }>;
+          setFriends((prev) =>
+            prev.filter((f) => f.identity.id !== msg.data.identityId)
+          );
+          break;
+        }
       }
-    );
+    });
 
-    chatClientRef.current = client;
-    client.connect();
+    const unsubState = onStateChange((state) => {
+      if (state === 'disconnected' || state === 'reconnecting') {
+        if (!pollTimerRef.current) {
+          pollTimerRef.current = setInterval(() => fetchRequestCountRef.current(), POLL_INTERVAL_MS);
+        }
+      } else if (state === 'connected') {
+        if (pollTimerRef.current) {
+          clearInterval(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
+        refreshRef.current();
+      }
+    });
 
     return () => {
-      client.disconnect();
-      chatClientRef.current = null;
+      unsubMessage();
+      unsubState();
       if (pollTimerRef.current) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
       }
     };
-  }, [isIdentityLoggedIn, chatWsUrl, fetchIncomingRequests, fetchFriends, fetchRequestCount, refresh, fireNotification, t]);
+  }, [isIdentityLoggedIn, subscribe, onStateChange]);
 
   // --------------------------------------------------------------------------
   // Initial load
