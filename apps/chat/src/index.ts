@@ -168,7 +168,7 @@ function createApp(): uWS.TemplatedApp {
         reason: reason || undefined,
         connectedForMs: Date.now() - userData.connectedAt,
       });
-      await unregisterConnection(userData.identityId);
+      await unregisterConnection(userData.identityId, ws);
     },
   });
 
