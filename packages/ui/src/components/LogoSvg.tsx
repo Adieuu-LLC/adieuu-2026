@@ -4,6 +4,8 @@ export interface LogoSvgProps {
   width?: number | string;
   height?: number | string;
   className?: string;
+  /** 'full' shows the complete wordmark; 'icon' shows only the chat-bubble mark */
+  variant?: 'full' | 'icon';
 }
 
 export function LogoSvg({
@@ -12,11 +14,14 @@ export function LogoSvg({
   width,
   height,
   className,
+  variant = 'full',
 }: LogoSvgProps) {
+  const viewBox = variant === 'icon' ? '489 27 298 228' : '0 0 785 254';
+
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 785 254"
+      viewBox={viewBox}
       width={width}
       height={height}
       className={className}

@@ -4,6 +4,8 @@ export interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
   primaryColor?: string;
   secondaryColor?: string;
+  /** 'full' shows the complete wordmark; 'icon' shows only the chat-bubble mark */
+  variant?: 'full' | 'icon';
 }
 
 const sizes = {
@@ -12,7 +14,7 @@ const sizes = {
   lg: { height: 48 },
 };
 
-export function Logo({ size = 'md', primaryColor, secondaryColor }: LogoProps) {
+export function Logo({ size = 'md', primaryColor, secondaryColor, variant = 'full' }: LogoProps) {
   const { height } = sizes[size];
 
   return (
@@ -22,6 +24,7 @@ export function Logo({ size = 'md', primaryColor, secondaryColor }: LogoProps) {
         primaryColor={primaryColor}
         secondaryColor={secondaryColor}
         className="app-logo-img"
+        variant={variant}
       />
     </div>
   );

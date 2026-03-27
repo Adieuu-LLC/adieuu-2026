@@ -641,6 +641,22 @@ function FriendsPanel({
 }
 
 /**
+ * Logo that switches between the full wordmark and the icon-only chat-bubble
+ * mark depending on whether the sidebar is expanded or collapsed.
+ * Must be rendered inside the SidebarContext provider.
+ */
+function SidebarLogo() {
+  const { t } = useTranslation();
+  const { isExpanded } = useSidebar();
+
+  return (
+    <Link to="/" className="app-logo-link" aria-label={t('nav.home')}>
+      <Logo size="sm" variant={isExpanded ? 'full' : 'icon'} />
+    </Link>
+  );
+}
+
+/**
  * Navigation content component that has access to sidebar context.
  */
 function SidebarNavContent({
@@ -740,7 +756,6 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ onExpandedChange }: AppSidebarProps) {
-  const { t } = useTranslation();
   const [isFriendsPanelOpen, setFriendsPanelOpen] = useState(false);
 
   const handleToggleFriendsPanel = useCallback(() => {
@@ -753,11 +768,7 @@ export function AppSidebar({ onExpandedChange }: AppSidebarProps) {
 
   return (
     <Sidebar
-      header={
-        <Link to="/" className="app-logo-link" aria-label={t('nav.home')}>
-          <Logo size="sm" />
-        </Link>
-      }
+      header={<SidebarLogo />}
       footer={<SidebarFooterContent />}
       panel={
         <FriendsPanel
