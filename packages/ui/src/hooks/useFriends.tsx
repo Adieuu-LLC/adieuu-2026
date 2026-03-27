@@ -25,8 +25,13 @@ import {
   type ChatClientConfig,
   ChatClient,
 } from '@adieuu/shared';
-import { useAppConfig } from '../config';
+import { useTranslation } from 'react-i18next';
+import { useAppConfig, usePlatformCapabilities } from '../config';
 import { useIdentity } from './useIdentity';
+import { useToast } from '../components/Toast';
+import { useNotificationSoundPreference } from './useNotificationSoundPreference';
+import { getNativeNotificationsEnabled } from './useNativeNotificationsPreference';
+import { playNotificationSound, type FocusVisibilitySnapshot } from '../utils/notificationSound';
 
 // ============================================================================
 // Types
@@ -74,6 +79,10 @@ export interface FriendsProviderProps {
 export function FriendsProvider({ children }: FriendsProviderProps) {
   const { apiBaseUrl, chatWsUrl } = useAppConfig();
   const { status: identityStatus, identity } = useIdentity();
+  const { t } = useTranslation();
+  const toast = useToast();
+  const { notifications, audio } = usePlatformCapabilities();
+  const soundPref = useNotificationSoundPreference();
 
   const [friends, setFriends] = useState<FriendInfo[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<IncomingFriendRequestInfo[]>([]);
@@ -85,6 +94,33 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
   const isIdentityLoggedIn = identityStatus === 'logged_in' && identity;
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+
+  const fireNotification = useCallback(
+    (title: string, body: string) => {
+      toast.info(title, body);
+
+      const snapshot: FocusVisibilitySnapshot = {
+        hasFocus: document.hasFocus(),
+        visibilityState: document.visibilityState,
+      };
+
+      void playNotificationSound({
+        enabled: soundPref.enabled,
+        soundId: soundPref.soundId,
+        customPath: soundPref.customPath,
+        suppressWhenFocused: soundPref.suppressWhenFocused,
+        isViewingConversation: false,
+        snapshot,
+        volume: soundPref.volume,
+        loadCustomSound: audio?.loadSoundFromPath,
+      });
+
+      if (getNativeNotificationsEnabled() && notifications.hasPermission()) {
+        notifications.show(title, body, { tag: 'friend-event' });
+      }
+    },
+    [toast, soundPref, audio, notifications]
+  );
 
   // --------------------------------------------------------------------------
   // Data fetching
@@ -217,14 +253,30 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
       {
         onMessage: (message: ChatIncomingMessage) => {
           switch (message.type) {
-            case 'friend_request_received':
-              // Refresh incoming requests to get the full data
+            case 'friend_request_received': {
+              const msg = message as Extract<ChatIncomingMessage, { type: 'friend_request_received' }>;
               fetchIncomingRequests();
+              const senderName = msg.data.fromIdentity?.displayName ?? msg.data.fromIdentity?.username;
+              if (senderName) {
+                fireNotification(
+                  t('friends.notifications.requestReceived'),
+                  t('friends.notifications.requestReceivedBody', { name: senderName })
+                );
+              }
               break;
-            case 'friend_request_accepted':
-              // Refresh friends list
+            }
+            case 'friend_request_accepted': {
+              const msg = message as Extract<ChatIncomingMessage, { type: 'friend_request_accepted' }>;
               fetchFriends();
+              const accepterName = msg.data.byIdentity?.displayName ?? msg.data.byIdentity?.username;
+              if (accepterName) {
+                fireNotification(
+                  t('friends.notifications.requestAccepted'),
+                  t('friends.notifications.requestAcceptedBody', { name: accepterName })
+                );
+              }
               break;
+            }
             case 'friend_removed': {
               const msg = message as Extract<ChatIncomingMessage, { type: 'friend_removed' }>;
               setFriends((prev) =>
@@ -264,7 +316,7 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
         pollTimerRef.current = null;
       }
     };
-  }, [isIdentityLoggedIn, chatWsUrl, fetchIncomingRequests, fetchFriends, fetchRequestCount, refresh]);
+  }, [isIdentityLoggedIn, chatWsUrl, fetchIncomingRequests, fetchFriends, fetchRequestCount, refresh, fireNotification, t]);
 
   // --------------------------------------------------------------------------
   // Initial load

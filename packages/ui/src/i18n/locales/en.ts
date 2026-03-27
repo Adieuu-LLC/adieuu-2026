@@ -87,6 +87,12 @@ export const en = {
     close: 'Close',
     viewProfile: 'View Profile',
     remove: 'Remove',
+    notifications: {
+      requestReceived: 'Friend Request',
+      requestReceivedBody: '{{name}} sent you a friend request.',
+      requestAccepted: 'Friend Request Accepted',
+      requestAcceptedBody: '{{name}} accepted your friend request.',
+    },
   },
 
   // Notifications
