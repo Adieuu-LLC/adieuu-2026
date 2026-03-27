@@ -4364,6 +4364,11 @@ a {
 .sidebar-search-section {
   padding: var(--spacing-sm) var(--spacing-md);
   margin-bottom: var(--spacing-sm);
+
+  .sidebar-collapsed & {
+    padding: var(--spacing-sm) 0;
+    margin-bottom: 0;
+  }
 }
 
 .sidebar-search {
@@ -4438,6 +4443,7 @@ a {
   svg {
     width: 20px;
     height: 20px;
+    flex-shrink: 0;
   }
 }
 

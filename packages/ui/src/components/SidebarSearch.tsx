@@ -3,7 +3,7 @@
  * Uses Ark UI Combobox for accessible autocomplete functionality.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Combobox, Portal, createListCollection } from '@ark-ui/react';
@@ -22,7 +22,9 @@ export interface SidebarSearchProps {
 export function SidebarSearch({ onSelect }: SidebarSearchProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { isExpanded, closeMobile } = useSidebar();
+  const { isExpanded, setExpanded, closeMobile } = useSidebar();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pendingFocus, setPendingFocus] = useState(false);
   const { results, isLoading, search, clear, query } = useIdentitySearch();
   const { identity: selfIdentity, status: identityStatus } = useIdentity();
   const { sendRequest } = useFriends();
@@ -94,12 +96,24 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
     [query, closeMobile, clear, navigate]
   );
 
+  useEffect(() => {
+    if (pendingFocus && isExpanded) {
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+      setPendingFocus(false);
+    }
+  }, [pendingFocus, isExpanded]);
+
   if (!isExpanded) {
     return (
       <button
         type="button"
         className="sidebar-search-collapsed"
-        onClick={() => navigate('/search')}
+        onClick={() => {
+          setExpanded(true);
+          setPendingFocus(true);
+        }}
         title={t('search.title')}
         aria-label={t('search.title')}
       >
@@ -126,6 +140,7 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
             <SearchIcon />
           </span>
           <Combobox.Input
+            ref={inputRef}
             className="sidebar-search-input"
             placeholder={t('search.placeholder')}
             onKeyDown={handleKeyDown}
