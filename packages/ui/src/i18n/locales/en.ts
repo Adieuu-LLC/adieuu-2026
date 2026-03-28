@@ -37,6 +37,9 @@ export const en = {
     friendRequests: '{{count}} Friend Request(s)',
     friendRequests_one: '1 Friend Request',
     friendRequests_other: '{{count}} Friend Requests',
+    chatInvitations: '{{count}} Chat Invitation(s)',
+    chatInvitations_one: '1 Chat Invitation',
+    chatInvitations_other: '{{count}} Chat Invitations',
   },
 
   // Sidebar sections
@@ -1272,6 +1275,24 @@ export const en = {
       memberLeft: '{{name}} has left the conversation',
       adminPromoted: '{{actor}} made {{name}} an admin',
       adminPromotedSimple: '{{name}} is now an admin',
+    },
+
+    invites: {
+      panelTitle: 'Chat Invitations',
+      group: 'Group',
+      invitedBy: 'From {{name}}',
+      invitedByLabel: 'Invited by',
+      memberCount: '{{count}} members',
+      memberCount_one: '1 member',
+      memberCount_other: '{{count}} members',
+      accept: 'Accept',
+      decline: 'Decline',
+      noInvites: 'No pending invitations',
+      previewMemberCount: '{{count}} members',
+      previewMemberCount_one: '1 member',
+      previewMemberCount_other: '{{count}} members',
+      previewMembers: 'Members',
+      previewUnavailable: 'Preview unavailable',
     },
 
     notifications: {

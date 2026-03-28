@@ -25,6 +25,7 @@ import {
   type PublicConversation,
   type PublicMessage,
   type PublicGroupInvite,
+  type GroupInvitePreview,
   type PublicIdentity,
   type ChatIncomingMessage,
   type SendMessageParams,
@@ -125,6 +126,7 @@ interface ConversationsContextValue {
   // Invites
   acceptInvite: (inviteId: string) => Promise<boolean>;
   declineInvite: (inviteId: string) => Promise<boolean>;
+  getInvitePreview: (inviteId: string) => Promise<GroupInvitePreview | null>;
 
   refresh: () => Promise<void>;
 }
@@ -937,6 +939,27 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     [api]
   );
 
+  const invitePreviewCache = useRef<Record<string, GroupInvitePreview>>({});
+
+  const getInvitePreview = useCallback(
+    async (inviteId: string): Promise<GroupInvitePreview | null> => {
+      if (invitePreviewCache.current[inviteId]) {
+        return invitePreviewCache.current[inviteId];
+      }
+      try {
+        const resp = await api.conversations.getInvitePreview(inviteId);
+        if (resp.data) {
+          invitePreviewCache.current[inviteId] = resp.data;
+          return resp.data;
+        }
+      } catch {
+        // Error
+      }
+      return null;
+    },
+    [api]
+  );
+
   // -------------------------------------------------------------------------
   // Notifications
   // -------------------------------------------------------------------------
@@ -1214,6 +1237,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     terminateGroup,
     acceptInvite,
     declineInvite,
+    getInvitePreview,
     refresh,
   };
 

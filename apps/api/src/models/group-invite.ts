@@ -76,3 +76,28 @@ export function toPublicGroupInvite(doc: GroupInviteDocument): PublicGroupInvite
     createdAt: doc.createdAt.toISOString(),
   };
 }
+
+/**
+ * Member preview for a group invite (safe to send to invited identity)
+ */
+export interface GroupInvitePreviewMember {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  isAdmin: boolean;
+}
+
+/**
+ * Group preview returned for a pending invite.
+ * Only accessible to the invited identity while the invite is pending.
+ */
+export interface GroupInvitePreview {
+  inviteId: string;
+  conversationId: string;
+  groupName?: string;
+  memberCount: number;
+  members: GroupInvitePreviewMember[];
+  invitedBy: GroupInvitePreviewMember;
+  createdAt: string;
+}

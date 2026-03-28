@@ -1928,6 +1928,24 @@ export interface PublicGroupInvite {
   createdAt: string;
 }
 
+export interface GroupInvitePreviewMember {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  isAdmin: boolean;
+}
+
+export interface GroupInvitePreview {
+  inviteId: string;
+  conversationId: string;
+  groupName?: string;
+  memberCount: number;
+  members: GroupInvitePreviewMember[];
+  invitedBy: GroupInvitePreviewMember;
+  createdAt: string;
+}
+
 export interface SendMessageParams {
   ciphertext: string;
   nonce: string;
@@ -2085,6 +2103,12 @@ export class ConversationsApi {
     return this.client.post(
       `/api/conversations/invites/${encodeURIComponent(inviteId)}/decline`,
       {}
+    );
+  }
+
+  async getInvitePreview(inviteId: string): Promise<ApiResponse<GroupInvitePreview>> {
+    return this.client.get(
+      `/api/conversations/invites/${encodeURIComponent(inviteId)}/preview`
     );
   }
 }

@@ -30,6 +30,7 @@ import {
   acceptGroupInvite,
   declineGroupInvite,
   listGroupInvites,
+  getGroupInvitePreview,
   promoteToAdmin,
   terminateGroup,
 } from '../../services/conversation.service';
@@ -593,6 +594,31 @@ router.get('/conversations/invites', async (ctx) => {
     invites: result.invites,
     cursor: result.cursor,
   });
+});
+
+/**
+ * GET /conversations/invites/:id/preview - Preview group details for a pending invite
+ */
+router.get('/conversations/invites/:id/preview', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid invite ID.');
+  }
+
+  const result = await getGroupInvitePreview(sanitized.value, identity._id);
+
+  if (!result.success) {
+    if (result.errorCode === 'INVITE_NOT_FOUND') return errors.notFound('Invite not found.');
+    if (result.errorCode === 'NOT_AUTHORIZED') return ctx.errors.unauthorized();
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    return errors.badRequest(result.error ?? 'Failed to get invite preview.');
+  }
+
+  return success(result.preview);
 });
 
 /**

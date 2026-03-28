@@ -35,6 +35,8 @@ import {
 import {
   toPublicGroupInvite,
   type PublicGroupInvite,
+  type GroupInvitePreview,
+  type GroupInvitePreviewMember,
 } from '../models/group-invite';
 import { toPublicIdentity } from '../models/identity';
 import { getRedis, isRedisConnected, RedisKeys } from '../db';
@@ -86,6 +88,16 @@ export interface GroupInviteResult {
     | 'NOT_AUTHORIZED'
     | 'ALREADY_MEMBER'
     | 'INVITE_EXISTS';
+}
+
+export interface GroupInvitePreviewResult {
+  success: boolean;
+  preview?: GroupInvitePreview;
+  error?: string;
+  errorCode?:
+    | 'INVITE_NOT_FOUND'
+    | 'NOT_AUTHORIZED'
+    | 'CONVERSATION_NOT_FOUND';
 }
 
 // ---------------------------------------------------------------------------
@@ -1244,6 +1256,79 @@ export async function listGroupInvites(
         ? result[result.length - 1]!._id.toHexString()
         : null,
   };
+}
+
+/**
+ * Get a preview of the group for a pending invite.
+ * Only the invited identity may access this while the invite is pending.
+ * Returns member list with admin badges so the invitee can make an informed decision.
+ */
+export async function getGroupInvitePreview(
+  inviteId: string | ObjectId,
+  identityId: string | ObjectId
+): Promise<GroupInvitePreviewResult> {
+  const groupInviteRepo = getGroupInviteRepository();
+  const conversationRepo = getConversationRepository();
+  const identityRepo = getIdentityRepository();
+
+  const inviteObjId =
+    inviteId instanceof ObjectId ? inviteId : new ObjectId(inviteId as string);
+  const identityObjId =
+    identityId instanceof ObjectId ? identityId : new ObjectId(identityId as string);
+
+  const invite = await groupInviteRepo.findById(inviteObjId);
+  if (!invite || invite.status !== 'pending') {
+    return { success: false, error: 'Invite not found', errorCode: 'INVITE_NOT_FOUND' };
+  }
+
+  if (!invite.invitedIdentityId.equals(identityObjId)) {
+    return { success: false, error: 'Not authorized', errorCode: 'NOT_AUTHORIZED' };
+  }
+
+  const conversation = await conversationRepo.findById(invite.conversationId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  const memberDocs = await Promise.all(
+    conversation.participants.map((pid) => identityRepo.findByIdentityId(pid))
+  );
+
+  const members: GroupInvitePreviewMember[] = [];
+  for (let i = 0; i < conversation.participants.length; i++) {
+    const pid = conversation.participants[i]!;
+    const doc = memberDocs[i];
+    if (!doc) continue;
+
+    const pub = toPublicIdentity(doc);
+    members.push({
+      id: pub.id,
+      username: pub.username,
+      displayName: pub.displayName,
+      avatarUrl: pub.avatarUrl,
+      isAdmin: isGroupAdmin(conversation, pid),
+    });
+  }
+
+  const inviterMember = members.find((m) => m.id === invite.invitedByIdentityId.toHexString());
+  const invitedBy: GroupInvitePreviewMember = inviterMember ?? {
+    id: invite.invitedByIdentityId.toHexString(),
+    username: 'unknown',
+    displayName: 'Unknown',
+    isAdmin: false,
+  };
+
+  const preview: GroupInvitePreview = {
+    inviteId: inviteObjId.toHexString(),
+    conversationId: invite.conversationId.toHexString(),
+    groupName: invite.groupName,
+    memberCount: conversation.participants.length,
+    members,
+    invitedBy,
+    createdAt: invite.createdAt.toISOString(),
+  };
+
+  return { success: true, preview };
 }
 
 // ---------------------------------------------------------------------------

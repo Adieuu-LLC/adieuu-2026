@@ -98,6 +98,8 @@ export {
   type SerializedWrappedKey,
   type PublicMessage,
   type PublicGroupInvite,
+  type GroupInvitePreview,
+  type GroupInvitePreviewMember,
   type SendMessageParams,
 } from './client';
 
