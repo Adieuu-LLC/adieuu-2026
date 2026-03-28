@@ -322,7 +322,7 @@ router.get('/conversations/:id', async (ctx) => {
 });
 
 /**
- * PATCH /conversations/:id - Update group name (creator only)
+ * PATCH /conversations/:id - Update group name (admin only)
  */
 router.patch('/conversations/:id', async (ctx) => {
   const identity = await requireIdentity(ctx.request);
@@ -346,7 +346,7 @@ router.patch('/conversations/:id', async (ctx) => {
 
   if (!result.success) {
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
-    if (result.errorCode === 'NOT_CREATOR') return ctx.errors.unauthorized();
+    if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
     return errors.badRequest(result.error ?? 'Failed to update group name.');
   }
 

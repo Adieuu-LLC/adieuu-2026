@@ -6627,7 +6627,25 @@ a {
 .conversation-settings-body {
   display: flex;
   flex-direction: column;
+  gap: var(--spacing-md);
   padding: var(--spacing-md);
+}
+
+.conversation-settings-rename {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+
+  &-row {
+    display: flex;
+    gap: var(--spacing-xs);
+    align-items: flex-start;
+
+    input {
+      flex: 1;
+      min-width: 0;
+    }
+  }
 }
 
 // ============================================================================

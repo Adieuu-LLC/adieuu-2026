@@ -483,6 +483,32 @@ export function saveFsConfig(identityId: string, config: ForwardSecrecyConfig): 
 }
 
 // ============================================================================
+// Message Artifacts Preference (localStorage, per-identity)
+// ============================================================================
+
+const SHOW_ARTIFACTS_KEY_PREFIX = 'adieuu-show-artifacts-';
+
+/**
+ * Loads whether the user wants to see message artifacts (deleted,
+ * undecryptable, FS-expired messages). Returns false when not set.
+ */
+export function loadShowMessageArtifacts(identityId: string): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    const stored = localStorage.getItem(SHOW_ARTIFACTS_KEY_PREFIX + identityId);
+    if (stored !== null) return JSON.parse(stored) as boolean;
+  } catch {
+    // Ignore parse errors
+  }
+  return false;
+}
+
+export function saveShowMessageArtifacts(identityId: string, enabled: boolean): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(SHOW_ARTIFACTS_KEY_PREFIX + identityId, JSON.stringify(enabled));
+}
+
+// ============================================================================
 // Per-Conversation FS Default (localStorage, per-conversation)
 // ============================================================================
 

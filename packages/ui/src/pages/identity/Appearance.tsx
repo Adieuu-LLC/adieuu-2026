@@ -19,6 +19,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useIdentity } from '../../hooks/useIdentity';
 import { DEFAULT_THEME_ID } from '../../constants/builtinThemes';
 import { sanitizeImportedTheme } from '../../utils/themeSanitizer';
+import { loadShowMessageArtifacts, saveShowMessageArtifacts } from '../../services/preKeyService';
 import type { ThemeDefinition, ThemeColorTokens } from '@adieuu/shared';
 import { TOKEN_TO_CSS_VAR } from '@adieuu/shared';
 
@@ -100,6 +101,17 @@ export function IdentityAppearance() {
 
   const overrideEnabled = identityThemeId !== null;
   const currentThemeId = identityThemeId ?? accountThemeId ?? DEFAULT_THEME_ID;
+
+  const [showArtifacts, setShowArtifacts] = useState(
+    () => identity ? loadShowMessageArtifacts(identity.id) : false
+  );
+
+  const handleArtifactsToggle = useCallback((enabled: boolean) => {
+    setShowArtifacts(enabled);
+    if (identity) {
+      saveShowMessageArtifacts(identity.id, enabled);
+    }
+  }, [identity]);
 
   const [editMode, setEditMode] = useState(false);
   const [editColors, setEditColors] = useState<ThemeColorTokens | null>(null);
@@ -491,6 +503,31 @@ export function IdentityAppearance() {
             </Card>
           </>
         )}
+
+        {/* Message Display Preferences */}
+        <Card variant="elevated" className="slide-up app-settings-card">
+          <h2 className="app-settings-section-title">
+            {t('identity.appearance.messageDisplayTitle', 'Message Display')}
+          </h2>
+          <p className="app-settings-section-desc">
+            {t('identity.appearance.messageDisplayDescription', 'Control how messages are displayed in your conversations.')}
+          </p>
+          <label className="app-settings-toggle">
+            <input
+              type="checkbox"
+              checked={showArtifacts}
+              onChange={(e) => handleArtifactsToggle(e.target.checked)}
+            />
+            <span className="app-settings-toggle-label">
+              <span className="app-settings-toggle-title">
+                {t('identity.appearance.showArtifactsTitle', 'Show Message Artifacts')}
+              </span>
+              <span className="app-settings-toggle-hint">
+                {t('identity.appearance.showArtifactsHint', 'When enabled, deleted messages, expired forward secrecy messages, and messages that could not be decrypted are shown in conversations. When disabled, these artifacts are hidden for a cleaner view. This is a local display preference only and does not affect message storage.')}
+              </span>
+            </span>
+          </label>
+        </Card>
       </div>
     </div>
   );

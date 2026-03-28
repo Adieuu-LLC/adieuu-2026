@@ -1076,6 +1076,30 @@ export async function updateGroupName(
 
   const updated = await conversationRepo.updateEncryptedName(convObjId, encryptedName, nameNonce);
 
+  const identityRepo = getIdentityRepository();
+  const requesterIdentity = await identityRepo.findByIdentityId(requesterObjId);
+  const requesterPublic = requesterIdentity ? toPublicIdentity(requesterIdentity) : null;
+
+  const messageRepo = getMessageRepository();
+  const systemMsg = await messageRepo.createMessage({
+    conversationId: convObjId,
+    fromIdentityId: requesterObjId,
+    messageType: 'system',
+    systemEvent: {
+      type: 'group_renamed',
+      identityId: requesterObjId.toHexString(),
+      displayName: requesterPublic?.displayName ?? requesterPublic?.username,
+      actorIdentityId: requesterObjId.toHexString(),
+      actorDisplayName: requesterPublic?.displayName ?? requesterPublic?.username,
+    },
+    ciphertext: '',
+    nonce: '',
+    wrappedKeys: [],
+    signature: '',
+    cryptoProfile: 'default',
+    clientMessageId: `sys-group-renamed-${Date.now()}`,
+  });
+
   await publishToParticipants(conversation.participants, requesterObjId, {
     type: 'conversation_updated',
     data: {
@@ -1086,6 +1110,15 @@ export async function updateGroupName(
 
   for (const participantId of conversation.participants) {
     if (participantId.equals(requesterObjId)) continue;
+    await publishConversationEvent(participantId.toHexString(), {
+      type: 'conversation_message',
+      data: {
+        conversationId: convObjId.toHexString(),
+        messageId: systemMsg._id.toHexString(),
+        fromIdentityId: requesterObjId.toHexString(),
+        createdAt: systemMsg.createdAt.toISOString(),
+      },
+    });
     await createNotification(participantId, 'group_renamed', {
       conversationId: convObjId.toHexString(),
     });

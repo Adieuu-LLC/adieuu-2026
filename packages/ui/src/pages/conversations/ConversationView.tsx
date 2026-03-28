@@ -14,7 +14,7 @@ import { useConversations, type DisplayMessage } from '../../hooks/useConversati
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
 import { usePreKeys } from '../../hooks/usePreKeys';
-import { loadConversationFsDefault, saveConversationFsDefault, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
+import { loadConversationFsDefault, saveConversationFsDefault, loadShowMessageArtifacts, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -132,6 +132,17 @@ function SystemMessageRow({ event }: { event: SystemEvent }) {
         : t('conversations.systemMessage.adminPromotedSimple', {
             name,
             defaultValue: `${name} is now an admin`,
+          });
+      break;
+    case 'group_renamed':
+      text = actorName
+        ? t('conversations.systemMessage.groupRenamed', {
+            actor: actorName,
+            defaultValue: `${actorName} renamed the group`,
+          })
+        : t('conversations.systemMessage.groupRenamedSimple', {
+            name,
+            defaultValue: `${name} renamed the group`,
           });
       break;
     default:
@@ -422,6 +433,7 @@ export function ConversationView() {
     promoteToAdmin,
     terminateGroup,
     deleteMessage,
+    renameGroup,
   } = useConversations();
 
   const [messageText, setMessageText] = useState('');
@@ -437,6 +449,8 @@ export function ConversationView() {
   const [inviteMemberOpen, setInviteMemberOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [deletingGroup, setDeletingGroup] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [renaming, setRenaming] = useState(false);
 
   // FS state: per-conversation override -> global default
   const resolveDefaultFs = useCallback(() => {
@@ -465,6 +479,14 @@ export function ConversationView() {
     saveConversationFsDefault(id, enabled);
     setUseFs(enabled);
   }, [id]);
+
+  const handleRename = useCallback(async () => {
+    if (!id || !renameValue.trim() || renaming) return;
+    setRenaming(true);
+    await renameGroup(id, renameValue.trim());
+    setRenameValue('');
+    setRenaming(false);
+  }, [id, renameValue, renaming, renameGroup]);
 
   const conversation = conversations.find((c) => c.id === id);
 
@@ -625,7 +647,17 @@ export function ConversationView() {
   const isCurrentUserAdmin = !!(identity?.id && conversation.admins?.includes(identity.id));
   const isSoleMember = conversation.participants.length <= 1;
 
-  const reversedMessages = [...activeMessages].reverse();
+  const showArtifacts = identity ? loadShowMessageArtifacts(identity.id) : false;
+
+  const reversedMessages = [...activeMessages]
+    .reverse()
+    .filter((msg) => {
+      if (showArtifacts) return true;
+      if (msg.messageType === 'system') return true;
+      if (msg.deleted) return false;
+      if (!msg.decryptedContent && msg.decryptionError) return false;
+      return true;
+    });
 
   return (
     <div className="conversation-page">
@@ -753,6 +785,32 @@ export function ConversationView() {
                 <h3>{t('conversations.settings', 'Settings')}</h3>
               </div>
               <div className="conversation-settings-body">
+                {conversation.type === 'group' && isCurrentUserAdmin && (
+                  <div className="conversation-settings-rename">
+                    <span className="app-settings-toggle-title">
+                      {t('conversations.settingsRenameTitle', 'Group Name')}
+                    </span>
+                    <div className="conversation-settings-rename-row">
+                      <Input
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        placeholder={conversation.decryptedName ?? t('conversations.settingsRenamePlaceholder', 'Enter new name...')}
+                        disabled={renaming}
+                      />
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleRename}
+                        disabled={!renameValue.trim() || renaming}
+                      >
+                        {renaming
+                          ? <span className="spinner spinner-sm" />
+                          : t('conversations.settingsRenameSave', 'Save')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 <label className="app-settings-toggle">
                   <input
                     type="checkbox"

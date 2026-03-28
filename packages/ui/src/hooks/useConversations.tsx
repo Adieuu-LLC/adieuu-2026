@@ -328,16 +328,18 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   }, [isLoggedIn, api, toDecrypted, resolveParticipants]);
 
   const fetchMessages = useCallback(
-    async (conversationId: string, cursor?: string) => {
+    async (conversationId: string, cursor?: string, silent?: boolean) => {
       if (!isLoggedIn || !identity) return;
 
-      setMessagesState((prev) => ({
-        ...prev,
-        [conversationId]: {
-          ...(prev[conversationId] ?? { messages: [], cursor: null, loading: true }),
-          loading: true,
-        },
-      }));
+      if (!silent) {
+        setMessagesState((prev) => ({
+          ...prev,
+          [conversationId]: {
+            ...(prev[conversationId] ?? { messages: [], cursor: null, loading: true }),
+            loading: true,
+          },
+        }));
+      }
 
       try {
         const resp = await api.conversations.getMessages(conversationId, 50, cursor);
@@ -528,6 +530,14 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               },
             };
           });
+
+          if (conversationId === activeConversationIdRef.current) {
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === conversationId ? { ...c, unreadCount: 0 } : c
+              )
+            );
+          }
         }
       } catch {
         setMessagesState((prev) => ({
@@ -1158,7 +1168,12 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           }
 
           if (isViewing) {
-            fetchMessagesRef.current(conversationId);
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === conversationId ? { ...c, unreadCount: 0 } : c
+              )
+            );
+            fetchMessagesRef.current(conversationId, undefined, true);
           }
 
           setConversations((prev) => {

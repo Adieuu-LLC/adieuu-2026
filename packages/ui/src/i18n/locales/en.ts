@@ -605,6 +605,10 @@ export const en = {
       themeDeleted: 'Custom theme deleted.',
       importFailed: 'Failed to import theme',
       importSuccess: 'Theme imported and applied to this alias.',
+      messageDisplayTitle: 'Message Display',
+      messageDisplayDescription: 'Control how messages are displayed in your conversations.',
+      showArtifactsTitle: 'Show Message Artifacts',
+      showArtifactsHint: 'When enabled, deleted messages, expired forward secrecy messages, and messages that could not be decrypted are shown in conversations. When disabled, these artifacts are hidden for a cleaner view. This is a local display preference only and does not affect message storage.',
     },
   },
 
@@ -1256,6 +1260,12 @@ export const en = {
       confirmBtn: 'Delete',
     },
 
+    settingsFs: 'Forward Secrecy',
+    settingsFsHint: 'Default messages in this conversation to use forward secrecy. Messages without FS remain end-to-end encrypted but persist in history.',
+    settingsRenameTitle: 'Group Name',
+    settingsRenamePlaceholder: 'Enter new name...',
+    settingsRenameSave: 'Save',
+
     adminTransfer: {
       title: 'Choose a new admin',
       description: 'You are the last admin. Choose who should take over before you leave.',
@@ -1275,6 +1285,8 @@ export const en = {
       memberLeft: '{{name}} has left the conversation',
       adminPromoted: '{{actor}} made {{name}} an admin',
       adminPromotedSimple: '{{name}} is now an admin',
+      groupRenamed: '{{actor}} renamed the group',
+      groupRenamedSimple: '{{name}} renamed the group',
     },
 
     invites: {
