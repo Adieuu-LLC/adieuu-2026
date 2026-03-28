@@ -263,6 +263,9 @@ jobs:
   build-and-release-desktop:
     needs: release
     if: needs.release.outputs.released == 'true'
+    permissions:
+      id-token: write
+      contents: write
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -321,13 +324,64 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload desktop artifacts for S3 mirror
-        uses: actions/upload-artifact@v4
+      - name: Check downloads stack variables
+        id: check_downloads
+        shell: bash
+        run: |
+          if [ -z "${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}" ] || \
+             [ -z "${{ vars.DEPLOY_RELEASE_MANIFESTS_S3_BUCKET_ADIEUU }}" ] || \
+             [ -z "${{ vars.DEPLOY_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU }}" ]; then
+            echo "Downloads stack variables not set, skipping S3 push."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials
+        if: steps.check_downloads.outputs.skip != 'true'
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          name: ${{ matrix.artifact-name }}
-          path: apps/desktop/out/
-          retention-days: 1
-          if-no-files-found: warn
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Push binaries to S3 downloads bucket
+        if: steps.check_downloads.outputs.skip != 'true'
+        shell: bash
+        run: |
+          VERSION="v${{ needs.release.outputs.new_version }}"
+          BUCKET="${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}"
+          OUT="apps/desktop/out"
+
+          shopt -s nullglob
+
+          for f in "$OUT"/*.exe "$OUT"/*.dmg "$OUT"/*.zip "$OUT"/*.AppImage "$OUT"/*.deb "$OUT"/*.rpm; do
+            echo "Uploading $(basename "$f") -> latest/"
+            aws s3 cp "$f" "s3://${BUCKET}/latest/$(basename "$f")" --no-progress
+          done
+
+          for f in "$OUT"/*.blockmap; do
+            echo "Uploading $(basename "$f") -> latest/"
+            aws s3 cp "$f" "s3://${BUCKET}/latest/$(basename "$f")" --no-progress
+          done
+
+          for f in "$OUT"/*.exe "$OUT"/*.dmg "$OUT"/*.zip "$OUT"/*.AppImage "$OUT"/*.deb "$OUT"/*.rpm "$OUT"/*.blockmap; do
+            echo "Uploading $(basename "$f") -> ${VERSION}/desktop/"
+            aws s3 cp "$f" "s3://${BUCKET}/${VERSION}/desktop/$(basename "$f")" --no-progress
+          done
+
+      - name: Push manifest to private bucket
+        if: steps.check_downloads.outputs.skip != 'true'
+        shell: bash
+        run: |
+          MANIFESTS_BUCKET="${{ vars.DEPLOY_RELEASE_MANIFESTS_S3_BUCKET_ADIEUU }}"
+          OUT="apps/desktop/out"
+
+          for f in latest.yml latest-mac.yml latest-linux.yml; do
+            if [ -f "${OUT}/${f}" ]; then
+              echo "Uploading manifest: ${f}"
+              aws s3 cp "${OUT}/${f}" "s3://${MANIFESTS_BUCKET}/${f}" --no-progress
+            fi
+          done
 
   # Generate SBOMs for release and upload as workflow artifacts first.
   generate-sboms:
@@ -394,9 +448,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # Sync desktop artifacts + SBOMs to S3 downloads bucket and manifests to
-  # the private manifest bucket. Runs only when the downloads stack variables
-  # are configured (otherwise skipped gracefully).
+  # Finalize downloads mirror: sync SBOMs, generate releases.json, and
+  # invalidate CloudFront. Desktop binaries and manifests are pushed directly
+  # by each build-and-release-desktop matrix runner.
   sync-downloads-mirror:
     needs: [release, build-and-release-desktop, attach-sboms]
     if: |
@@ -420,14 +474,6 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Download desktop artifacts
-        if: steps.check_vars.outputs.skip != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          pattern: desktop-*
-          path: desktop-artifacts
-          merge-multiple: true
-
       - name: Download SBOM artifacts
         if: steps.check_vars.outputs.skip != 'true'
         uses: actions/download-artifact@v4
@@ -443,46 +489,6 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
-
-      - name: Sync binaries to S3 downloads bucket
-        if: steps.check_vars.outputs.skip != 'true'
-        run: |
-          VERSION="v${{ needs.release.outputs.new_version }}"
-          BUCKET="${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}"
-
-          echo "Syncing desktop binaries to s3://${BUCKET}..."
-
-          # latest/ channel for auto-update (exclude manifest yml files)
-          aws s3 sync desktop-artifacts/ "s3://${BUCKET}/latest/" \
-            --exclude "latest.yml" \
-            --exclude "latest-mac.yml" \
-            --exclude "latest-linux.yml" \
-            --exclude "*.blockmap" \
-            --size-only
-
-          # Blockmaps go to latest/ too (needed by electron-updater for delta)
-          aws s3 sync desktop-artifacts/ "s3://${BUCKET}/latest/" \
-            --include "*.blockmap" \
-            --exclude "*" \
-            --size-only
-
-          # Immutable versioned copy
-          aws s3 sync desktop-artifacts/ "s3://${BUCKET}/${VERSION}/desktop/" \
-            --exclude "latest.yml" \
-            --exclude "latest-mac.yml" \
-            --exclude "latest-linux.yml"
-
-      - name: Sync manifests to private manifest bucket
-        if: steps.check_vars.outputs.skip != 'true'
-        run: |
-          MANIFESTS_BUCKET="${{ vars.DEPLOY_RELEASE_MANIFESTS_S3_BUCKET_ADIEUU }}"
-
-          for f in latest.yml latest-mac.yml latest-linux.yml; do
-            if [ -f "desktop-artifacts/${f}" ]; then
-              echo "Uploading manifest: ${f}"
-              aws s3 cp "desktop-artifacts/${f}" "s3://${MANIFESTS_BUCKET}/${f}"
-            fi
-          done
 
       - name: Sync SBOMs to downloads bucket
         if: steps.check_vars.outputs.skip != 'true'
