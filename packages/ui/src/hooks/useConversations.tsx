@@ -31,6 +31,7 @@ import {
   type SendMessageParams,
   type ClaimedDevicePreKeys,
   type SerializedWrappedKey,
+  type FormerMember,
 } from '@adieuu/shared';
 import { useTranslation } from 'react-i18next';
 import { useIdentity } from './useIdentity';
@@ -127,6 +128,9 @@ interface ConversationsContextValue {
   acceptInvite: (inviteId: string) => Promise<boolean>;
   declineInvite: (inviteId: string) => Promise<boolean>;
   getInvitePreview: (inviteId: string) => Promise<GroupInvitePreview | null>;
+
+  // Former members
+  getFormerMembers: (conversationId: string) => Promise<FormerMember[]>;
 
   refresh: () => Promise<void>;
 }
@@ -961,6 +965,25 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   );
 
   // -------------------------------------------------------------------------
+  // Former members
+  // -------------------------------------------------------------------------
+
+  const getFormerMembers = useCallback(
+    async (conversationId: string): Promise<FormerMember[]> => {
+      try {
+        const resp = await api.conversations.getFormerMembers(conversationId);
+        if (resp.data) {
+          return resp.data;
+        }
+      } catch {
+        // Error
+      }
+      return [];
+    },
+    [api]
+  );
+
+  // -------------------------------------------------------------------------
   // Notifications
   // -------------------------------------------------------------------------
 
@@ -1060,7 +1083,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         }
 
         case 'conversation_updated': {
-          const { conversationId, action } = message.data;
+          const { conversationId, action, identityId: eventIdentityId } = message.data;
           if (action === 'removed') {
             setConversations((prev) => prev.filter((c) => c.id !== conversationId));
             setActiveConversationId((prev) =>
@@ -1068,6 +1091,55 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             );
           } else {
             fetchConversationsRef.current();
+          }
+
+          if (action === 'member_added' && eventIdentityId) {
+            void resolveParticipantsRef.current([eventIdentityId]).then((freshProfiles) => {
+              const profiles = { ...participantProfilesRef.current, ...freshProfiles };
+              const profile = profiles[eventIdentityId];
+              const name = profile?.displayName ?? profile?.username;
+              fireNotificationRef.current(
+                tRef.current('conversations.notifications.memberAdded', { defaultValue: 'Member added' }),
+                name
+                  ? tRef.current('conversations.notifications.memberAddedBody', { name, defaultValue: `${name} was added to the group` })
+                  : tRef.current('conversations.notifications.memberAddedGeneric', { defaultValue: 'A new member was added to the group' })
+              );
+            });
+          } else if (action === 'member_left' && eventIdentityId) {
+            const profiles = participantProfilesRef.current;
+            const profile = profiles[eventIdentityId];
+            const name = profile?.displayName ?? profile?.username;
+            fireNotificationRef.current(
+              tRef.current('conversations.notifications.memberLeft', { defaultValue: 'Member left' }),
+              name
+                ? tRef.current('conversations.notifications.memberLeftBody', { name, defaultValue: `${name} left the group` })
+                : tRef.current('conversations.notifications.memberLeftGeneric', { defaultValue: 'A member left the group' })
+            );
+          } else if (action === 'member_removed' && eventIdentityId) {
+            const profiles = participantProfilesRef.current;
+            const profile = profiles[eventIdentityId];
+            const name = profile?.displayName ?? profile?.username;
+            fireNotificationRef.current(
+              tRef.current('conversations.notifications.memberRemoved', { defaultValue: 'Member removed' }),
+              name
+                ? tRef.current('conversations.notifications.memberRemovedBody', { name, defaultValue: `${name} was removed from the group` })
+                : tRef.current('conversations.notifications.memberRemovedGeneric', { defaultValue: 'A member was removed from the group' })
+            );
+          } else if (action === 'renamed') {
+            fireNotificationRef.current(
+              tRef.current('conversations.notifications.groupRenamed', { defaultValue: 'Group renamed' }),
+              tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' })
+            );
+          } else if (action === 'admin_promoted' && eventIdentityId) {
+            const profiles = participantProfilesRef.current;
+            const profile = profiles[eventIdentityId];
+            const name = profile?.displayName ?? profile?.username;
+            fireNotificationRef.current(
+              tRef.current('conversations.notifications.adminPromoted', { defaultValue: 'New admin' }),
+              name
+                ? tRef.current('conversations.notifications.adminPromotedBody', { name, defaultValue: `${name} was promoted to admin` })
+                : tRef.current('conversations.notifications.adminPromotedGeneric', { defaultValue: 'A member was promoted to admin' })
+            );
           }
           break;
         }
@@ -1140,17 +1212,36 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
           void resolveParticipantsRef.current([invite.invitedByIdentityId]);
 
-          fireNotificationRef.current(
-            tRef.current('conversations.notifications.groupInvite', { defaultValue: 'Group invitation' }),
-            invite.groupName
-              ? tRef.current('conversations.notifications.groupInviteBody', { name: invite.groupName, defaultValue: `You've been invited to ${invite.groupName}` })
-              : tRef.current('conversations.notifications.groupInviteGeneric', { defaultValue: 'You\'ve been invited to a group' })
-          );
+          void resolveParticipantsRef.current([invite.invitedByIdentityId]).then((freshProfiles) => {
+            const profiles = { ...participantProfilesRef.current, ...freshProfiles };
+            const inviterProfile = profiles[invite.invitedByIdentityId];
+            const inviterDisplayName = inviterProfile?.displayName ?? inviterProfile?.username;
+            const body = invite.hasGroupName
+              ? tRef.current('conversations.notifications.groupInviteNameHidden', { defaultValue: "You've been invited to a group (name hidden until you join)" })
+              : inviterDisplayName
+                ? tRef.current('conversations.notifications.groupInviteFromBody', {
+                    name: inviterDisplayName,
+                    count: invite.memberCount - 1,
+                    defaultValue: `${inviterDisplayName} + ${invite.memberCount - 1} others invited you`,
+                  })
+                : tRef.current('conversations.notifications.groupInviteGeneric', { defaultValue: "You've been invited to a group" });
+            fireNotificationRef.current(
+              tRef.current('conversations.notifications.groupInvite', { defaultValue: 'Group invitation' }),
+              body
+            );
+          });
           break;
         }
 
         case 'group_invite_accepted': {
           fetchConversationsRef.current();
+          const joinerName = message.data.displayName ?? message.data.username;
+          fireNotificationRef.current(
+            tRef.current('conversations.notifications.memberJoined', { defaultValue: 'Member joined' }),
+            joinerName
+              ? tRef.current('conversations.notifications.memberJoinedBody', { name: joinerName, defaultValue: `${joinerName} joined the group` })
+              : tRef.current('conversations.notifications.memberJoinedGeneric', { defaultValue: 'A new member joined the group' })
+          );
           break;
         }
 
@@ -1238,6 +1329,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     acceptInvite,
     declineInvite,
     getInvitePreview,
+    getFormerMembers,
     refresh,
   };
 

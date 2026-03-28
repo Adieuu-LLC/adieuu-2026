@@ -1924,6 +1924,7 @@ export interface PublicGroupInvite {
   invitedByIdentityId: string;
   status: string;
   groupName?: string;
+  hasGroupName?: boolean;
   memberCount: number;
   createdAt: string;
 }
@@ -1940,10 +1941,19 @@ export interface GroupInvitePreview {
   inviteId: string;
   conversationId: string;
   groupName?: string;
+  hasGroupName?: boolean;
   memberCount: number;
   members: GroupInvitePreviewMember[];
+  invitedMembers: GroupInvitePreviewMember[];
   invitedBy: GroupInvitePreviewMember;
   createdAt: string;
+}
+
+export interface FormerMember {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
 }
 
 export interface SendMessageParams {
@@ -2052,6 +2062,14 @@ export class ConversationsApi {
   ): Promise<ApiResponse<PublicConversation>> {
     return this.client.delete(
       `/api/conversations/${encodeURIComponent(conversationId)}/members/${encodeURIComponent(identityId)}`
+    );
+  }
+
+  async getFormerMembers(
+    conversationId: string
+  ): Promise<ApiResponse<FormerMember[]>> {
+    return this.client.get(
+      `/api/conversations/${encodeURIComponent(conversationId)}/former-members`
     );
   }
 

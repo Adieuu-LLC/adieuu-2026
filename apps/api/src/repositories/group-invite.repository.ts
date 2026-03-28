@@ -26,6 +26,9 @@ export interface IGroupInviteRepository {
     conversationId: ObjectId,
     identityId: ObjectId
   ): Promise<GroupInviteDocument | null>;
+  findAllPendingForConversation(
+    conversationId: ObjectId
+  ): Promise<GroupInviteDocument[]>;
   updateStatus(
     inviteId: ObjectId,
     status: GroupInviteStatus
@@ -92,6 +95,18 @@ export class GroupInviteRepository
   }
 
   /**
+   * Find all pending invites for a conversation (for preview: show who else is invited).
+   */
+  async findAllPendingForConversation(
+    conversationId: ObjectId
+  ): Promise<GroupInviteDocument[]> {
+    return await this.collection
+      .find({ conversationId, status: 'pending' })
+      .sort({ _id: -1 })
+      .toArray() as GroupInviteDocument[];
+  }
+
+  /**
    * Update an invite's status (accept or decline).
    */
   async updateStatus(
@@ -109,6 +124,17 @@ export class GroupInviteRepository
       invitedIdentityId: identityId,
       status: 'pending',
     });
+  }
+
+  /**
+   * Find accepted invites for a conversation (for identifying former members who left).
+   */
+  async findAcceptedForConversation(
+    conversationId: ObjectId
+  ): Promise<GroupInviteDocument[]> {
+    return await this.collection
+      .find({ conversationId, status: 'accepted' })
+      .toArray() as GroupInviteDocument[];
   }
 
   /**

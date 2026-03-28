@@ -669,6 +669,7 @@ function ChatInvitationsSidebarButton({
       label={buttonLabel}
       onClick={onToggle}
       isActive={isOpen}
+      className="sidebar-chat-invitations-btn"
     />
   );
 }
@@ -719,7 +720,9 @@ function InviteGroupHoverCard({
         <>
           <div className="invite-group-hover-card-header">
             <span className="invite-group-hover-card-name">
-              {preview.groupName || t('conversations.invites.group', 'Group')}
+              {preview.hasGroupName
+                ? t('conversations.invites.groupNameHidden', 'Group Name Hidden')
+                : t('conversations.invites.group', 'Group')}
             </span>
             <span className="invite-group-hover-card-count">
               {t('conversations.invites.previewMemberCount', {
@@ -772,6 +775,42 @@ function InviteGroupHoverCard({
               ))}
             </div>
           </div>
+          {preview.invitedMembers.length > 0 && (
+            <div className="invite-group-hover-card-members">
+              <span className="invite-group-hover-card-members-label">
+                {t('conversations.invites.alsoInvited', 'Also Invited')}
+              </span>
+              <div className="invite-group-hover-card-members-list">
+                {preview.invitedMembers.slice(0, 5).map((member: GroupInvitePreviewMember) => (
+                  <div key={member.id} className="invite-group-hover-card-member">
+                    <div className="invite-group-hover-card-member-avatar">
+                      {member.avatarUrl ? (
+                        <img src={member.avatarUrl} alt="" className="invite-group-hover-card-member-avatar-img" />
+                      ) : (
+                        <span className="invite-group-hover-card-member-avatar-placeholder">
+                          {member.displayName.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <span className="invite-group-hover-card-member-name">
+                      {member.displayName}
+                    </span>
+                    <span className="invite-group-hover-card-member-username">
+                      @{member.username}
+                    </span>
+                  </div>
+                ))}
+                {preview.invitedMembers.length > 5 && (
+                  <div className="invite-group-hover-card-overflow">
+                    {t('conversations.invites.othersInvited', {
+                      count: preview.invitedMembers.length - 5,
+                      defaultValue: `+${preview.invitedMembers.length - 5} others invited`,
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
       {!loading && !preview && (
@@ -870,12 +909,22 @@ function ChatInvitationsPanel({
           const inviterName = inviterProfile?.displayName ?? inviterProfile?.username;
           const isProcessing = processingInvite === invite.id;
 
+          const displayName = invite.hasGroupName
+            ? t('conversations.invites.groupNameHidden', 'Group Name Hidden')
+            : inviterName
+              ? t('conversations.invites.inviterAndOthers', {
+                  name: inviterName,
+                  count: invite.memberCount - 1,
+                  defaultValue: `${inviterName} + ${invite.memberCount - 1} others`,
+                })
+              : t('conversations.invites.group', 'Group');
+
           return (
             <InviteGroupHoverCard key={invite.id} invite={invite}>
               <div className="sidebar-invitations-panel-item">
                 <div className="sidebar-invitations-panel-item-info">
                   <span className="sidebar-invitations-panel-item-name">
-                    {invite.groupName || t('conversations.invites.group', 'Group')}
+                    {displayName}
                   </span>
                   <span className="sidebar-invitations-panel-item-meta">
                     {inviterName
@@ -997,7 +1046,13 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
  * Conversations section in the sidebar with Conversations/Spaces tabs.
  * Uses the SidebarTabs component for polished icon tabs.
  */
-function ConversationsSidebarSection() {
+function ConversationsSidebarSection({
+  isChatInvitesPanelOpen,
+  onToggleChatInvitesPanel,
+}: {
+  isChatInvitesPanelOpen: boolean;
+  onToggleChatInvitesPanel: () => void;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { conversations, loading } = useConversations();
@@ -1034,6 +1089,10 @@ function ConversationsSidebarSection() {
       <div className="sidebar-tab-content">
         {activeTab === 'conversations' && (
           <>
+            <ChatInvitationsSidebarButton
+              isOpen={isChatInvitesPanelOpen}
+              onToggle={onToggleChatInvitesPanel}
+            />
             <SidebarItem
               icon={<Icon name="plus" />}
               label={t('sidebar.newConversation', 'New Conversation')}
@@ -1107,12 +1166,11 @@ function SidebarNavContent({
           isOpen={isFriendsPanelOpen}
           onToggle={onToggleFriendsPanel}
         />
-        <ChatInvitationsSidebarButton
-          isOpen={isChatInvitesPanelOpen}
-          onToggle={onToggleChatInvitesPanel}
-        />
       </SidebarSection>
-      <ConversationsSidebarSection />
+      <ConversationsSidebarSection
+        isChatInvitesPanelOpen={isChatInvitesPanelOpen}
+        onToggleChatInvitesPanel={onToggleChatInvitesPanel}
+      />
     </>
   );
 }

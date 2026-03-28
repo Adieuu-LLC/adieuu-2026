@@ -342,6 +342,7 @@ export async function createConversation(
         conversationId: conversation._id,
         invitedIdentityId: inviteId,
         invitedByIdentityId: creatorObjId,
+        hasGroupName: !!(encryptedName && nameNonce),
         memberCount: initialParticipants.length,
       });
 
@@ -722,6 +723,7 @@ export async function addGroupMember(
       conversationId: convObjId,
       invitedIdentityId: newMemberObjId,
       invitedByIdentityId: requesterObjId,
+      hasGroupName: !!(conversation.encryptedName && conversation.nameNonce),
       memberCount: conversation.participants.length,
     });
 
@@ -1318,12 +1320,36 @@ export async function getGroupInvitePreview(
     isAdmin: false,
   };
 
+  // Fetch other pending invites for this conversation (excluding the current user)
+  const allPendingInvites = await groupInviteRepo.findAllPendingForConversation(invite.conversationId);
+  const otherInvites = allPendingInvites.filter(
+    (i) => !i.invitedIdentityId.equals(identityObjId)
+  );
+  const invitedDocs = await Promise.all(
+    otherInvites.map((i) => identityRepo.findByIdentityId(i.invitedIdentityId))
+  );
+  const invitedMembers: GroupInvitePreviewMember[] = [];
+  for (let i = 0; i < otherInvites.length; i++) {
+    const doc = invitedDocs[i];
+    if (!doc) continue;
+    const pub = toPublicIdentity(doc);
+    invitedMembers.push({
+      id: pub.id,
+      username: pub.username,
+      displayName: pub.displayName,
+      avatarUrl: pub.avatarUrl,
+      isAdmin: false,
+    });
+  }
+
   const preview: GroupInvitePreview = {
     inviteId: inviteObjId.toHexString(),
     conversationId: invite.conversationId.toHexString(),
     groupName: invite.groupName,
+    hasGroupName: invite.hasGroupName ?? !!(conversation.encryptedName && conversation.nameNonce),
     memberCount: conversation.participants.length,
     members,
+    invitedMembers,
     invitedBy,
     createdAt: invite.createdAt.toISOString(),
   };
@@ -1538,4 +1564,81 @@ async function resolveAdminTransfer(
 
   // Default: oldest member (first in participants array)
   return remainingParticipants[0] ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Former members
+// ---------------------------------------------------------------------------
+
+export interface FormerMember {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+}
+
+export interface FormerMembersResult {
+  success: boolean;
+  formerMembers?: FormerMember[];
+  error?: string;
+  errorCode?: 'CONVERSATION_NOT_FOUND' | 'NOT_AUTHORIZED' | 'NOT_GROUP';
+}
+
+/**
+ * Get identities who previously accepted an invite to a group but are
+ * no longer participants (i.e. they left or were removed).
+ * Only group admins may call this.
+ */
+export async function getFormerMembers(
+  conversationId: string | ObjectId,
+  requesterIdentityId: string | ObjectId
+): Promise<FormerMembersResult> {
+  const conversationRepo = getConversationRepository();
+  const groupInviteRepo = getGroupInviteRepository();
+  const identityRepo = getIdentityRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+  if (conversation.type !== 'group') {
+    return { success: false, error: 'Not a group conversation', errorCode: 'NOT_GROUP' };
+  }
+  if (!isGroupAdmin(conversation, requesterObjId)) {
+    return { success: false, error: 'Not authorized', errorCode: 'NOT_AUTHORIZED' };
+  }
+
+  const acceptedInvites = await groupInviteRepo.findAcceptedForConversation(convObjId);
+  const currentParticipantSet = new Set(conversation.participants.map((p) => p.toHexString()));
+
+  const formerIds = acceptedInvites
+    .map((i) => i.invitedIdentityId)
+    .filter((id) => !currentParticipantSet.has(id.toHexString()));
+
+  const uniqueFormerIds = [...new Map(formerIds.map((id) => [id.toHexString(), id])).values()];
+
+  const formerDocs = await Promise.all(
+    uniqueFormerIds.map((id) => identityRepo.findByIdentityId(id))
+  );
+
+  const formerMembers: FormerMember[] = [];
+  for (const doc of formerDocs) {
+    if (!doc) continue;
+    const pub = toPublicIdentity(doc);
+    formerMembers.push({
+      id: pub.id,
+      username: pub.username,
+      displayName: pub.displayName,
+      avatarUrl: pub.avatarUrl,
+    });
+  }
+
+  return { success: true, formerMembers };
 }

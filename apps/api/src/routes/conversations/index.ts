@@ -33,6 +33,7 @@ import {
   getGroupInvitePreview,
   promoteToAdmin,
   terminateGroup,
+  getFormerMembers,
 } from '../../services/conversation.service';
 import { z } from '@adieuu/shared/schemas';
 import { isValidObjectId } from '../../utils';
@@ -475,6 +476,31 @@ router.delete('/conversations/:id/members/:identityId', async (ctx) => {
   }
 
   return success(result.conversation, 'Member removed.');
+});
+
+/**
+ * GET /conversations/:id/former-members - List former members who left (admin only)
+ */
+router.get('/conversations/:id/former-members', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const result = await getFormerMembers(sanitized.value, identity._id);
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_AUTHORIZED') return ctx.errors.unauthorized();
+    if (result.errorCode === 'NOT_GROUP') return errors.badRequest('Not a group conversation.');
+    return errors.badRequest(result.error ?? 'Failed to get former members.');
+  }
+
+  return success(result.formerMembers);
 });
 
 /**

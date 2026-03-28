@@ -101,6 +101,7 @@ export {
   type GroupInvitePreview,
   type GroupInvitePreviewMember,
   type SendMessageParams,
+  type FormerMember,
 } from './client';
 
 export {

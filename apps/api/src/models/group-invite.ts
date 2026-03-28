@@ -32,6 +32,9 @@ export interface GroupInviteDocument extends BaseDocument {
   /** Group name at time of invite (plaintext snippet for the invite UI) */
   groupName?: string;
 
+  /** Whether the group has a name (without revealing the name itself) */
+  hasGroupName?: boolean;
+
   /** Number of members at time of invite */
   memberCount: number;
 }
@@ -44,6 +47,7 @@ export interface CreateGroupInviteInput {
   invitedIdentityId: ObjectId;
   invitedByIdentityId: ObjectId;
   groupName?: string;
+  hasGroupName?: boolean;
   memberCount: number;
 }
 
@@ -57,6 +61,7 @@ export interface PublicGroupInvite {
   invitedByIdentityId: string;
   status: GroupInviteStatus;
   groupName?: string;
+  hasGroupName?: boolean;
   memberCount: number;
   createdAt: string;
 }
@@ -72,6 +77,7 @@ export function toPublicGroupInvite(doc: GroupInviteDocument): PublicGroupInvite
     invitedByIdentityId: doc.invitedByIdentityId.toHexString(),
     status: doc.status,
     groupName: doc.groupName,
+    hasGroupName: doc.hasGroupName,
     memberCount: doc.memberCount,
     createdAt: doc.createdAt.toISOString(),
   };
@@ -96,8 +102,10 @@ export interface GroupInvitePreview {
   inviteId: string;
   conversationId: string;
   groupName?: string;
+  hasGroupName?: boolean;
   memberCount: number;
   members: GroupInvitePreviewMember[];
+  invitedMembers: GroupInvitePreviewMember[];
   invitedBy: GroupInvitePreviewMember;
   createdAt: string;
 }

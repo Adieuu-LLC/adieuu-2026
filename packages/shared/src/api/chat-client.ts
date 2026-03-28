@@ -143,6 +143,7 @@ export interface ChatGroupInviteReceivedMessage extends ChatMessageBase {
       invitedByIdentityId: string;
       status: string;
       groupName?: string;
+      hasGroupName?: boolean;
       memberCount: number;
       createdAt: string;
     };
