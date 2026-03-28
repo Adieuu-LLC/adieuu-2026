@@ -427,6 +427,7 @@ export function ConversationView() {
   const [messageText, setMessageText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -477,11 +478,18 @@ export function ConversationView() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeMessages.length]);
 
+  useEffect(() => {
+    if (!sending) {
+      inputRef.current?.focus();
+    }
+  }, [sending]);
+
   const handleSend = useCallback(async () => {
     if (!id || !messageText.trim() || sending) return;
     const text = messageText.trim();
     setMessageText('');
     await sendTextMessage(id, text, { useForwardSecrecy: useFs });
+    inputRef.current?.focus();
   }, [id, messageText, sending, sendTextMessage, useFs]);
 
   const handleKeyDown = useCallback(
@@ -726,6 +734,7 @@ export function ConversationView() {
                 FS
               </button>
               <textarea
+                ref={inputRef}
                 className="conversation-input-field"
                 placeholder={t('conversations.messagePlaceholder', 'Type a message...')}
                 value={messageText}
