@@ -30,6 +30,8 @@ import {
   acceptGroupInvite,
   declineGroupInvite,
   listGroupInvites,
+  promoteToAdmin,
+  terminateGroup,
 } from '../../services/conversation.service';
 import { z } from '@adieuu/shared/schemas';
 import { isValidObjectId } from '../../utils';
@@ -82,6 +84,15 @@ const SendMessageSchema = z.object({
 const AddMemberSchema = z.object({
   identityId: z.string().length(24),
 });
+
+const PromoteAdminSchema = z.object({
+  identityId: z.string().length(24),
+});
+
+const LeaveSchema = z.object({
+  transferAdminTo: z.string().length(24).optional(),
+  transferStrategy: z.enum(['oldest', 'most_active']).optional(),
+}).optional();
 
 const UpdateNameSchema = z.object({
   encryptedName: z.string().min(1).max(500),
@@ -466,9 +477,9 @@ router.delete('/conversations/:id/members/:identityId', async (ctx) => {
 });
 
 /**
- * DELETE /conversations/:id/leave - Leave a group conversation
+ * POST /conversations/:id/leave - Leave a group conversation
  */
-router.delete('/conversations/:id/leave', async (ctx) => {
+router.post('/conversations/:id/leave', async (ctx) => {
   const identity = await requireIdentity(ctx.request);
   if (!identity) return ctx.errors.unauthorized();
 
@@ -478,7 +489,10 @@ router.delete('/conversations/:id/leave', async (ctx) => {
     return errors.badRequest('Invalid conversation ID.');
   }
 
-  const result = await leaveConversation(sanitized.value, identity._id);
+  const parseResult = LeaveSchema.safeParse(ctx.body);
+  const options = parseResult.success ? parseResult.data : undefined;
+
+  const result = await leaveConversation(sanitized.value, identity._id, options ?? undefined);
 
   if (!result.success) {
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Group conversation not found.');
@@ -487,6 +501,64 @@ router.delete('/conversations/:id/leave', async (ctx) => {
   }
 
   return success(undefined, 'Left conversation.');
+});
+
+/**
+ * POST /conversations/:id/admins - Promote a member to admin
+ */
+router.post('/conversations/:id/admins', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const parseResult = PromoteAdminSchema.safeParse(ctx.body);
+  if (!parseResult.success) return ctx.errors.validationFailed();
+
+  const memberSanitized = sanitizeString(parseResult.data.identityId, 'general');
+  if (!memberSanitized.value || !isValidObjectId(memberSanitized.value)) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+
+  const result = await promoteToAdmin(sanitized.value, identity._id, memberSanitized.value);
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Group conversation not found.');
+    if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
+    if (result.errorCode === 'NOT_PARTICIPANT') return errors.badRequest('Not a group member.');
+    if (result.errorCode === 'ALREADY_ADMIN') return errors.badRequest('Already an admin.');
+    return errors.badRequest(result.error ?? 'Failed to promote to admin.');
+  }
+
+  return success(result.conversation, 'Member promoted to admin.');
+});
+
+/**
+ * DELETE /conversations/:id - Terminate (delete) a group conversation
+ */
+router.delete('/conversations/:id', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const result = await terminateGroup(sanitized.value, identity._id);
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Group conversation not found.');
+    if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
+    return errors.badRequest(result.error ?? 'Failed to delete group.');
+  }
+
+  return success(undefined, 'Group deleted.');
 });
 
 // ---------------------------------------------------------------------------

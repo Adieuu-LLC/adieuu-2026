@@ -28,6 +28,8 @@ export interface IConversationRepository {
   ): Promise<ConversationDocument[]>;
   addParticipant(conversationId: ObjectId, identityId: ObjectId): Promise<boolean>;
   removeParticipant(conversationId: ObjectId, identityId: ObjectId): Promise<boolean>;
+  addAdmin(conversationId: ObjectId, identityId: ObjectId): Promise<boolean>;
+  removeAdmin(conversationId: ObjectId, identityId: ObjectId): Promise<boolean>;
   updateLastMessage(
     conversationId: ObjectId,
     messageId: ObjectId,
@@ -125,6 +127,40 @@ export class ConversationRepository
       { _id: conversationId },
       {
         $pull: { participants: identityId },
+        $set: { updatedAt: new Date() },
+      }
+    );
+    return result.modifiedCount === 1;
+  }
+
+  /**
+   * Add an admin to a group conversation.
+   */
+  async addAdmin(
+    conversationId: ObjectId,
+    identityId: ObjectId
+  ): Promise<boolean> {
+    const result = await this.collection.updateOne(
+      { _id: conversationId },
+      {
+        $addToSet: { admins: identityId },
+        $set: { updatedAt: new Date() },
+      }
+    );
+    return result.modifiedCount === 1;
+  }
+
+  /**
+   * Remove an admin from a group conversation.
+   */
+  async removeAdmin(
+    conversationId: ObjectId,
+    identityId: ObjectId
+  ): Promise<boolean> {
+    const result = await this.collection.updateOne(
+      { _id: conversationId },
+      {
+        $pull: { admins: identityId },
         $set: { updatedAt: new Date() },
       }
     );

@@ -26,6 +26,8 @@ export interface IMessageRepository {
   ): Promise<MessageDocument | null>;
   markDeletedForEveryone(messageId: ObjectId): Promise<boolean>;
   markDeletedForIdentity(messageId: ObjectId, identityId: ObjectId): Promise<boolean>;
+  deleteByConversation(conversationId: ObjectId): Promise<number>;
+  countByParticipant(conversationId: ObjectId, identityId: ObjectId): Promise<number>;
 }
 
 export class MessageRepository
@@ -117,6 +119,29 @@ export class MessageRepository
       }
     );
     return result.modifiedCount === 1;
+  }
+
+  /**
+   * Hard-delete all messages in a conversation (for group cleanup/termination).
+   */
+  async deleteByConversation(conversationId: ObjectId): Promise<number> {
+    const result = await this.collection.deleteMany({ conversationId });
+    return result.deletedCount;
+  }
+
+  /**
+   * Count messages sent by an identity in a conversation (for "most active" resolution).
+   * Excludes system messages from the count.
+   */
+  async countByParticipant(
+    conversationId: ObjectId,
+    identityId: ObjectId
+  ): Promise<number> {
+    return await this.collection.countDocuments({
+      conversationId,
+      fromIdentityId: identityId,
+      messageType: { $ne: 'system' },
+    } as Parameters<typeof this.collection.countDocuments>[0]);
   }
 }
 

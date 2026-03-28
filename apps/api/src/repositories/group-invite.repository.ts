@@ -31,6 +31,7 @@ export interface IGroupInviteRepository {
     status: GroupInviteStatus
   ): Promise<GroupInviteDocument | null>;
   countPendingForIdentity(identityId: ObjectId): Promise<number>;
+  deleteByConversation(conversationId: ObjectId): Promise<number>;
 }
 
 export class GroupInviteRepository
@@ -108,6 +109,14 @@ export class GroupInviteRepository
       invitedIdentityId: identityId,
       status: 'pending',
     });
+  }
+
+  /**
+   * Delete all invites for a conversation (for group cleanup/termination).
+   */
+  async deleteByConversation(conversationId: ObjectId): Promise<number> {
+    const result = await this.collection.deleteMany({ conversationId });
+    return result.deletedCount;
   }
 }
 

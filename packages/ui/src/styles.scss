@@ -4921,8 +4921,9 @@ a {
 .sidebar-tab-content {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .sidebar-tab-panel-hidden {
@@ -5430,8 +5431,10 @@ a {
 .sidebar-invites-section {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   gap: var(--spacing-xs);
   padding: var(--spacing-xs) var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border-muted);
 }
 
 .sidebar-invites-label {
@@ -5513,6 +5516,10 @@ a {
 .sidebar-conversations-list {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   gap: var(--spacing-xs);
   padding: var(--spacing-xs) 0;
 }
@@ -5894,6 +5901,16 @@ a {
   }
 }
 
+.conversation-member-item-link {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  text-decoration: none;
+  color: inherit;
+  flex: 1;
+  min-width: 0;
+}
+
 .conversation-member-avatar {
   width: 32px;
   height: 32px;
@@ -5936,6 +5953,168 @@ a {
 .conversation-member-username {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
+}
+
+.conversation-member-admin-badge {
+  display: inline-block;
+  margin-left: var(--spacing-xs);
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 12%, transparent);
+  border-radius: var(--radius-sm);
+  vertical-align: middle;
+}
+
+.conversation-member-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+
+  .conversation-member-item:hover & {
+    opacity: 1;
+  }
+}
+
+.conversation-member-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  &--danger:hover {
+    background: color-mix(in srgb, var(--color-error) 12%, transparent);
+    color: var(--color-error);
+  }
+}
+
+.conversation-member-action-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.conversation-toolbar-btn--danger {
+  color: var(--color-error) !important;
+
+  &:hover {
+    background: color-mix(in srgb, var(--color-error) 10%, transparent) !important;
+  }
+}
+
+// ============================================================================
+// Admin Transfer Dialog
+// ============================================================================
+
+.admin-transfer-dialog {
+  max-width: 440px;
+}
+
+.admin-transfer-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-sm);
+}
+
+.admin-transfer-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast);
+
+  &:hover {
+    border-color: var(--color-border-emphasis);
+    background: var(--color-bg-hover);
+  }
+
+  input[type='radio'] {
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
+  &:has(input:checked) {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+  }
+}
+
+.admin-transfer-option-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-transfer-option-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.admin-transfer-option-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.admin-transfer-member-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: var(--spacing-xs);
+  margin-left: calc(var(--spacing-sm) + 16px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.admin-transfer-member-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+
+  input[type='radio'] {
+    flex-shrink: 0;
+  }
+}
+
+.admin-transfer-member-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.admin-transfer-member-username {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-left: var(--spacing-xs);
 }
 
 // ============================================================================

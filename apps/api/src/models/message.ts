@@ -35,6 +35,8 @@ export interface SystemEvent {
   type: string;
   identityId: string;
   displayName?: string;
+  actorIdentityId?: string;
+  actorDisplayName?: string;
 }
 
 /**

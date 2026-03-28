@@ -518,6 +518,7 @@ async function createIndexes(): Promise<void> {
   await conversations.createIndex({ participants: 1 });
   await conversations.createIndex({ type: 1, participants: 1 });
   await conversations.createIndex({ lastMessageAt: -1 });
+  await conversations.createIndex({ admins: 1 });
 
   // Messages collection indexes
   const messages = database.collection(Collections.MESSAGES);

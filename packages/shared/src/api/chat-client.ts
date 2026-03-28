@@ -23,7 +23,8 @@ export type ChatMessageType =
   | 'conversation_message'
   | 'group_invite_received'
   | 'group_invite_accepted'
-  | 'conversation_message_deleted';
+  | 'conversation_message_deleted'
+  | 'group_terminated';
 
 export interface ChatMessageBase {
   type: ChatMessageType;
@@ -90,6 +91,7 @@ export interface ChatConversationCreatedMessage extends ChatMessageBase {
       type: 'dm' | 'group';
       participants: string[];
       createdBy: string;
+      admins: string[];
       encryptedName?: string;
       nameNonce?: string;
       createdAt: string;
@@ -102,8 +104,22 @@ export interface ChatConversationUpdatedMessage extends ChatMessageBase {
   type: 'conversation_updated';
   data: {
     conversationId: string;
-    action: 'member_added' | 'member_removed' | 'member_left' | 'removed' | 'renamed';
+    action: 'member_added' | 'member_removed' | 'member_left' | 'removed' | 'renamed' | 'admin_promoted';
     identityId?: string;
+  };
+}
+
+export interface ChatGroupTerminatedMessage extends ChatMessageBase {
+  type: 'group_terminated';
+  data: {
+    conversationId: string;
+    terminatedBy: {
+      id: string;
+      username?: string;
+      displayName?: string;
+    };
+    encryptedName?: string;
+    nameNonce?: string;
   };
 }
 
@@ -165,7 +181,8 @@ export type ChatIncomingMessage =
   | ChatConversationMessageMessage
   | ChatGroupInviteReceivedMessage
   | ChatGroupInviteAcceptedMessage
-  | ChatConversationMessageDeletedMessage;
+  | ChatConversationMessageDeletedMessage
+  | ChatGroupTerminatedMessage;
 
 export type ChatOutgoingMessage =
   | ChatPingMessage;

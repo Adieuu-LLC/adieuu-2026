@@ -14,6 +14,8 @@ import { useIdentity } from '../../hooks/useIdentity';
 import { usePreKeys } from '../../hooks/usePreKeys';
 import { loadConversationFsDefault, saveConversationFsDefault, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
 import { Button } from '../../components/Button';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { AdminTransferDialog } from '../../components/AdminTransferDialog';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { Icon } from '../../icons/Icon';
 import type { SystemEvent } from '@adieuu/shared';
@@ -89,6 +91,7 @@ function useExpiryCountdown(expiresAt?: string): string | null {
 function SystemMessageRow({ event }: { event: SystemEvent }) {
   const { t } = useTranslation();
   const name = event.displayName ?? event.identityId.slice(0, 8);
+  const actorName = event.actorDisplayName ?? event.actorIdentityId?.slice(0, 8);
 
   let text: string;
   switch (event.type) {
@@ -98,11 +101,35 @@ function SystemMessageRow({ event }: { event: SystemEvent }) {
         defaultValue: `${name} has joined the conversation`,
       });
       break;
+    case 'member_invited':
+      text = actorName
+        ? t('conversations.systemMessage.memberInvited', {
+            actor: actorName,
+            name,
+            defaultValue: `${actorName} invited ${name} to the group`,
+          })
+        : t('conversations.systemMessage.memberJoined', {
+            name,
+            defaultValue: `${name} has joined the conversation`,
+          });
+      break;
     case 'member_left':
       text = t('conversations.systemMessage.memberLeft', {
         name,
         defaultValue: `${name} has left the conversation`,
       });
+      break;
+    case 'admin_promoted':
+      text = actorName
+        ? t('conversations.systemMessage.adminPromoted', {
+            actor: actorName,
+            name,
+            defaultValue: `${actorName} made ${name} an admin`,
+          })
+        : t('conversations.systemMessage.adminPromotedSimple', {
+            name,
+            defaultValue: `${name} is now an admin`,
+          });
       break;
     default:
       text = event.type;
@@ -222,6 +249,9 @@ export function ConversationView() {
     sendTextMessage,
     loadMoreMessages,
     leaveGroup,
+    removeMember,
+    promoteToAdmin,
+    terminateGroup,
     deleteMessage,
   } = useConversations();
 
@@ -230,6 +260,12 @@ export function ConversationView() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [adminTransferOpen, setAdminTransferOpen] = useState(false);
+  const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
 
   // FS state: per-conversation override -> global default
   const resolveDefaultFs = useCallback(() => {
@@ -296,11 +332,64 @@ export function ConversationView() {
     }
   }, [activeMessagesCursor, messagesLoading, loadMoreMessages]);
 
-  const handleLeave = useCallback(async () => {
+  const handleLeaveClick = useCallback(() => {
+    if (!conversation) return;
+    const isAdmin = identity?.id && conversation.admins.includes(identity.id);
+    const otherAdmins = conversation.admins.filter((a) => a !== identity?.id);
+    const isSoleMember = conversation.participants.length <= 1;
+
+    if (isAdmin && otherAdmins.length === 0 && !isSoleMember) {
+      setAdminTransferOpen(true);
+    } else {
+      setLeaveConfirmOpen(true);
+    }
+  }, [conversation, identity?.id]);
+
+  const handleLeaveConfirm = useCallback(async () => {
     if (!id) return;
+    setLeaving(true);
     const left = await leaveGroup(id);
+    setLeaving(false);
+    setLeaveConfirmOpen(false);
     if (left) navigate('/');
   }, [id, leaveGroup, navigate]);
+
+  const handleAdminTransferLeave = useCallback(
+    async (options: { transferAdminTo?: string; transferStrategy?: 'oldest' | 'most_active' }) => {
+      if (!id) return;
+      setLeaving(true);
+      const left = await leaveGroup(id, options);
+      setLeaving(false);
+      setAdminTransferOpen(false);
+      if (left) navigate('/');
+    },
+    [id, leaveGroup, navigate]
+  );
+
+  const handleDeleteGroup = useCallback(async () => {
+    if (!id) return;
+    setDeletingGroup(true);
+    const deleted = await terminateGroup(id);
+    setDeletingGroup(false);
+    setDeleteGroupOpen(false);
+    if (deleted) navigate('/');
+  }, [id, terminateGroup, navigate]);
+
+  const handlePromoteToAdmin = useCallback(
+    async (memberId: string) => {
+      if (!id) return;
+      await promoteToAdmin(id, memberId);
+    },
+    [id, promoteToAdmin]
+  );
+
+  const handleRemoveMember = useCallback(
+    async (memberId: string) => {
+      if (!id) return;
+      await removeMember(id, memberId);
+    },
+    [id, removeMember]
+  );
 
   const handleDeleteMessage = useCallback(
     (messageId: string, forEveryone: boolean) => {
@@ -355,6 +444,9 @@ export function ConversationView() {
     ? `${conversation.participants.length} ${t('conversations.members', 'members')}`
     : t('conversations.directMessage', 'Direct message');
 
+  const isCurrentUserAdmin = !!(identity?.id && conversation.admins?.includes(identity.id));
+  const isSoleMember = conversation.participants.length <= 1;
+
   const reversedMessages = [...activeMessages].reverse();
 
   return (
@@ -390,8 +482,18 @@ export function ConversationView() {
             >
               {t('conversations.members', 'Members')}
             </Button>
+            {conversation.type === 'group' && isCurrentUserAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="conversation-toolbar-btn conversation-toolbar-btn--danger"
+                onClick={() => setDeleteGroupOpen(true)}
+              >
+                {t('conversations.deleteGroup', 'Delete Group')}
+              </Button>
+            )}
             {conversation.type === 'group' && (
-              <Button variant="ghost" size="sm" onClick={handleLeave}>
+              <Button variant="ghost" size="sm" onClick={handleLeaveClick}>
                 {t('conversations.leave', 'Leave')}
               </Button>
             )}
@@ -511,31 +613,62 @@ export function ConversationView() {
               <div className="conversation-members-list">
                 {conversation.participants.map((participantId) => {
                   const profile = participantProfiles[participantId];
-                  const name = participantId === identity?.id
+                  const isSelf = participantId === identity?.id;
+                  const name = isSelf
                     ? t('conversations.you', 'You')
                     : (profile?.displayName ?? profile?.username ?? participantId);
                   const initial = name.charAt(0).toUpperCase();
+                  const isMemberAdmin = conversation.admins?.includes(participantId);
 
                   return (
-                    <Link
-                      key={participantId}
-                      to={`/identity/${participantId}`}
-                      className="conversation-member-item"
-                    >
-                      <div className="conversation-member-avatar">
-                        {profile?.avatarUrl ? (
-                          <img src={profile.avatarUrl} alt="" className="conversation-member-avatar-img" />
-                        ) : (
-                          <span className="conversation-member-avatar-placeholder">{initial}</span>
-                        )}
-                      </div>
-                      <div className="conversation-member-info">
-                        <span className="conversation-member-name">{name}</span>
-                        {profile?.username && participantId !== identity?.id && (
-                          <span className="conversation-member-username">@{profile.username}</span>
-                        )}
-                      </div>
-                    </Link>
+                    <div key={participantId} className="conversation-member-item">
+                      <Link to={`/identity/${participantId}`} className="conversation-member-item-link">
+                        <div className="conversation-member-avatar">
+                          {profile?.avatarUrl ? (
+                            <img src={profile.avatarUrl} alt="" className="conversation-member-avatar-img" />
+                          ) : (
+                            <span className="conversation-member-avatar-placeholder">{initial}</span>
+                          )}
+                        </div>
+                        <div className="conversation-member-info">
+                          <span className="conversation-member-name">
+                            {name}
+                            {isMemberAdmin && (
+                              <span className="conversation-member-admin-badge">
+                                {t('conversations.admin', 'Admin')}
+                              </span>
+                            )}
+                          </span>
+                          {profile?.username && !isSelf && (
+                            <span className="conversation-member-username">@{profile.username}</span>
+                          )}
+                        </div>
+                      </Link>
+                      {isCurrentUserAdmin && !isSelf && conversation.type === 'group' && (
+                        <div className="conversation-member-actions">
+                          {!isMemberAdmin && (
+                            <button
+                              type="button"
+                              className="conversation-member-action-btn"
+                              onClick={() => void handlePromoteToAdmin(participantId)}
+                              title={t('conversations.makeAdmin', 'Make Admin')}
+                            >
+                              <Icon name="shield" className="conversation-member-action-icon" />
+                            </button>
+                          )}
+                          {!isMemberAdmin && (
+                            <button
+                              type="button"
+                              className="conversation-member-action-btn conversation-member-action-btn--danger"
+                              onClick={() => void handleRemoveMember(participantId)}
+                              title={t('conversations.removeMember', 'Remove')}
+                            >
+                              <Icon name="x" className="conversation-member-action-icon" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -543,6 +676,52 @@ export function ConversationView() {
           )}
         </div>
       </div>
+
+      {/* Leave confirmation dialog */}
+      <ConfirmDialog
+        open={leaveConfirmOpen}
+        onOpenChange={setLeaveConfirmOpen}
+        title={t('conversations.leaveGroup.title', 'Leave group?')}
+        description={
+          isSoleMember
+            ? t('conversations.leaveGroup.lastMember', 'You are the last member. The group and all messages will be permanently deleted.')
+            : t('conversations.leaveGroup.confirm', "You won't be able to rejoin without a new invite.")
+        }
+        confirmLabel={t('conversations.leaveGroup.confirmBtn', 'Leave')}
+        variant={isSoleMember ? 'danger' : 'warning'}
+        loading={leaving}
+        onConfirm={handleLeaveConfirm}
+      />
+
+      {/* Admin transfer dialog */}
+      {conversation.type === 'group' && (
+        <AdminTransferDialog
+          open={adminTransferOpen}
+          onOpenChange={setAdminTransferOpen}
+          members={conversation.participants
+            .filter((p) => p !== identity?.id)
+            .map((p) => ({
+              id: p,
+              displayName: participantProfiles[p]?.displayName,
+              username: participantProfiles[p]?.username,
+            }))}
+          loading={leaving}
+          onConfirm={handleAdminTransferLeave}
+          onSkip={() => void handleAdminTransferLeave({ transferStrategy: 'oldest' })}
+        />
+      )}
+
+      {/* Delete group confirmation dialog */}
+      <ConfirmDialog
+        open={deleteGroupOpen}
+        onOpenChange={setDeleteGroupOpen}
+        title={t('conversations.deleteGroup.title', 'Delete group?')}
+        description={t('conversations.deleteGroup.confirm', 'This will permanently delete the group and all messages for everyone.')}
+        confirmLabel={t('conversations.deleteGroup.confirmBtn', 'Delete')}
+        variant="danger"
+        loading={deletingGroup}
+        onConfirm={handleDeleteGroup}
+      />
     </div>
   );
 }

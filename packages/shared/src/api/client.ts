@@ -1869,6 +1869,8 @@ export interface SystemEvent {
   type: string;
   identityId: string;
   displayName?: string;
+  actorIdentityId?: string;
+  actorDisplayName?: string;
 }
 
 export interface PublicConversation {
@@ -1876,6 +1878,7 @@ export interface PublicConversation {
   type: ConversationType;
   participants: string[];
   createdBy: string;
+  admins: string[];
   encryptedName?: string;
   nameNonce?: string;
   lastMessageAt?: string;
@@ -2034,9 +2037,29 @@ export class ConversationsApi {
     );
   }
 
-  async leave(conversationId: string): Promise<ApiResponse<void>> {
+  async leave(
+    conversationId: string,
+    options?: { transferAdminTo?: string; transferStrategy?: 'oldest' | 'most_active' }
+  ): Promise<ApiResponse<void>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/leave`,
+      options ?? {}
+    );
+  }
+
+  async promoteToAdmin(
+    conversationId: string,
+    identityId: string
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/admins`,
+      { identityId }
+    );
+  }
+
+  async terminateGroup(conversationId: string): Promise<ApiResponse<void>> {
     return this.client.delete(
-      `/api/conversations/${encodeURIComponent(conversationId)}/leave`
+      `/api/conversations/${encodeURIComponent(conversationId)}`
     );
   }
 

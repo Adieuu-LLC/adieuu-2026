@@ -1224,6 +1224,62 @@ export const en = {
       loadError: 'Failed to load settings.',
     },
   },
+
+  // Conversations
+  conversations: {
+    group: 'Group',
+    members: 'Members',
+    directMessage: 'Direct message',
+    settings: 'Settings',
+    leave: 'Leave',
+    you: 'You',
+    admin: 'Admin',
+    makeAdmin: 'Make Admin',
+    removeMember: 'Remove',
+    notFound: 'Conversation not found',
+    backHome: 'Back to home',
+    deleteGroup: 'Delete Group',
+
+    leaveGroup: {
+      title: 'Leave group?',
+      confirm: "You won't be able to rejoin without a new invite.",
+      lastMember: 'You are the last member. The group and all messages will be permanently deleted.',
+      confirmBtn: 'Leave',
+    },
+
+    deleteGroupDialog: {
+      title: 'Delete group?',
+      confirm: 'This will permanently delete the group and all messages for everyone.',
+      confirmBtn: 'Delete',
+    },
+
+    adminTransfer: {
+      title: 'Choose a new admin',
+      description: 'You are the last admin. Choose who should take over before you leave.',
+      oldest: 'Oldest member',
+      oldestHint: 'The member who joined earliest',
+      mostActive: 'Most active member',
+      mostActiveHint: 'The member who sent the most messages',
+      manual: 'Choose a member',
+      manualHint: 'Select a specific member to promote',
+      skip: 'Skip',
+      leave: 'Leave',
+    },
+
+    systemMessage: {
+      memberJoined: '{{name}} has joined the conversation',
+      memberInvited: '{{actor}} invited {{name}} to the group',
+      memberLeft: '{{name}} has left the conversation',
+      adminPromoted: '{{actor}} made {{name}} an admin',
+      adminPromotedSimple: '{{name}} is now an admin',
+    },
+
+    notifications: {
+      groupInvite: 'Group invitation',
+      groupTerminated: 'Group deleted',
+      groupTerminatedBody: '{{name}} deleted the group',
+    },
+  },
 } as const;
 
 export type TranslationKeys = typeof en;

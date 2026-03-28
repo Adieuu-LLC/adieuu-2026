@@ -114,8 +114,13 @@ interface ConversationsContextValue {
   // Group management
   addMember: (conversationId: string, identityId: string) => Promise<boolean>;
   removeMember: (conversationId: string, identityId: string) => Promise<boolean>;
-  leaveGroup: (conversationId: string) => Promise<boolean>;
+  leaveGroup: (
+    conversationId: string,
+    options?: { transferAdminTo?: string; transferStrategy?: 'oldest' | 'most_active' }
+  ) => Promise<boolean>;
   renameGroup: (conversationId: string, newName: string) => Promise<boolean>;
+  promoteToAdmin: (conversationId: string, identityId: string) => Promise<boolean>;
+  terminateGroup: (conversationId: string) => Promise<boolean>;
 
   // Invites
   acceptInvite: (inviteId: string) => Promise<boolean>;
@@ -537,11 +542,18 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       const resp = await api.conversations.listInvites();
       if (resp.data?.invites) {
         setInvites(resp.data.invites);
+
+        const inviterIds = [
+          ...new Set(resp.data.invites.map((i) => i.invitedByIdentityId)),
+        ];
+        if (inviterIds.length > 0) {
+          resolveParticipants(inviterIds);
+        }
       }
-    } catch {
-      // Silent failure
+    } catch (err) {
+      console.error('[useConversations] fetchInvites failed', err);
     }
-  }, [isLoggedIn, api]);
+  }, [isLoggedIn, api, resolveParticipants]);
 
   const refresh = useCallback(async () => {
     await Promise.all([fetchConversations(), fetchInvites()]);
@@ -768,9 +780,47 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   );
 
   const leaveGroup = useCallback(
+    async (
+      conversationId: string,
+      options?: { transferAdminTo?: string; transferStrategy?: 'oldest' | 'most_active' }
+    ): Promise<boolean> => {
+      try {
+        const resp = await api.conversations.leave(conversationId, options);
+        if (resp.success) {
+          setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+          if (activeConversationId === conversationId) {
+            setActiveConversationId(null);
+          }
+          return true;
+        }
+      } catch {
+        // Error
+      }
+      return false;
+    },
+    [api, activeConversationId]
+  );
+
+  const promoteToAdmin = useCallback(
+    async (conversationId: string, identityId: string): Promise<boolean> => {
+      try {
+        const resp = await api.conversations.promoteToAdmin(conversationId, identityId);
+        if (resp.success) {
+          await fetchConversations();
+          return true;
+        }
+      } catch {
+        // Error
+      }
+      return false;
+    },
+    [api, fetchConversations]
+  );
+
+  const terminateGroup = useCallback(
     async (conversationId: string): Promise<boolean> => {
       try {
-        const resp = await api.conversations.leave(conversationId);
+        const resp = await api.conversations.terminateGroup(conversationId);
         if (resp.success) {
           setConversations((prev) => prev.filter((c) => c.id !== conversationId));
           if (activeConversationId === conversationId) {
@@ -1065,6 +1115,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             return [invite, ...prev];
           });
 
+          void resolveParticipantsRef.current([invite.invitedByIdentityId]);
+
           fireNotificationRef.current(
             tRef.current('conversations.notifications.groupInvite', { defaultValue: 'Group invitation' }),
             invite.groupName
@@ -1076,6 +1128,24 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
         case 'group_invite_accepted': {
           fetchConversationsRef.current();
+          break;
+        }
+
+        case 'group_terminated': {
+          const { conversationId, terminatedBy } = message.data;
+          setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+          setActiveConversationId((prev) =>
+            prev === conversationId ? null : prev
+          );
+
+          const adminName = terminatedBy.displayName ?? terminatedBy.username ?? terminatedBy.id.slice(0, 8);
+          fireNotificationRef.current(
+            tRef.current('conversations.notifications.groupTerminated', { defaultValue: 'Group deleted' }),
+            tRef.current('conversations.notifications.groupTerminatedBody', {
+              name: adminName,
+              defaultValue: `${adminName} deleted the group`,
+            })
+          );
           break;
         }
       }
@@ -1093,17 +1163,26 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     };
   }, [isLoggedIn, subscribe, onStateChange]);
 
-  // Initial data fetch
+  // Clear state on definitive logout (isLoggedIn going true -> false).
+  const wasLoggedInRef = useRef(isLoggedIn);
   useEffect(() => {
-    if (isLoggedIn) {
-      refresh();
-    } else {
+    if (!isLoggedIn && wasLoggedInRef.current) {
       setConversations([]);
       setMessagesState({});
       setInvites([]);
       setActiveConversationId(null);
     }
-  }, [isLoggedIn, refresh]);
+    wasLoggedInRef.current = isLoggedIn;
+  }, [isLoggedIn]);
+
+  // Initial data fetch -- only depends on isLoggedIn to avoid
+  // re-firing when the refresh callback reference changes.
+  useEffect(() => {
+    if (isLoggedIn) {
+      refreshRef.current();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
 
   // -------------------------------------------------------------------------
   // Context value
@@ -1131,6 +1210,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     removeMember,
     leaveGroup,
     renameGroup,
+    promoteToAdmin,
+    terminateGroup,
     acceptInvite,
     declineInvite,
     refresh,

@@ -29,6 +29,9 @@ export interface ConversationDocument extends BaseDocument {
   /** Identity that created the conversation */
   createdBy: ObjectId;
 
+  /** Identities with admin privileges (groups only). Defaults to [createdBy]. */
+  admins: ObjectId[];
+
   /**
    * Encrypted group name (groups only).
    * Encrypted with HKDF(conversationId, "adieuu-conv-name-v1").
@@ -53,6 +56,7 @@ export interface CreateConversationInput {
   type: ConversationType;
   participants: ObjectId[];
   createdBy: ObjectId;
+  admins?: ObjectId[];
   encryptedName?: string;
   nameNonce?: string;
 }
@@ -65,6 +69,7 @@ export interface PublicConversation {
   type: ConversationType;
   participants: string[];
   createdBy: string;
+  admins: string[];
   encryptedName?: string;
   nameNonce?: string;
   lastMessageAt?: string;
@@ -82,6 +87,7 @@ export function toPublicConversation(doc: ConversationDocument): PublicConversat
     type: doc.type,
     participants: doc.participants.map((p) => p.toHexString()),
     createdBy: doc.createdBy.toHexString(),
+    admins: (doc.admins ?? []).map((a) => a.toHexString()),
     encryptedName: doc.encryptedName,
     nameNonce: doc.nameNonce,
     lastMessageAt: doc.lastMessageAt?.toISOString(),
