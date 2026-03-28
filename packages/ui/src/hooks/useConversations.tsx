@@ -68,6 +68,7 @@ export interface DisplayMessage extends PublicMessage {
   decryptedContent?: string;
   signatureVerified?: boolean;
   decryptionError?: string;
+  forwardSecrecy?: boolean;
 }
 
 interface ConversationMessagesState {
@@ -495,6 +496,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                   ...m,
                   decryptedContent: result.plaintext,
                   signatureVerified: result.verified,
+                  forwardSecrecy: myWrappedKey.preKeyType !== 'static',
                 };
               } catch (err) {
                 console.error('[Conversations] decrypt: failed for message', m.id, err);
@@ -693,6 +695,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             ...resp.data,
             decryptedContent: plaintext,
             signatureVerified: true,
+            forwardSecrecy: useFs,
           };
 
           setMessagesState((prev) => ({

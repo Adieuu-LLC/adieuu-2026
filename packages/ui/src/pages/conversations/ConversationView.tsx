@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
 import { useIdentity } from '../../hooks/useIdentity';
 import { usePreKeys } from '../../hooks/usePreKeys';
-import { loadConversationFsDefault, saveConversationFsDefault } from '../../services/preKeyService';
+import { loadConversationFsDefault, saveConversationFsDefault, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
 import { Button } from '../../components/Button';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { TrashIcon } from '../../components/Icons';
@@ -115,15 +115,27 @@ function SystemMessageRow({ event }: { event: SystemEvent }) {
   );
 }
 
+function formatRotationInterval(ms: number): string {
+  const hours = ms / (1000 * 60 * 60);
+  if (hours < 24) return `${hours}h`;
+  const days = hours / 24;
+  if (days < 14) return `${days}d`;
+  if (days < 60) return `${Math.round(days / 7)}w`;
+  return `${Math.round(days / 30)}mo`;
+}
+
 function MessageBubble({
   message,
   isOwn,
   onDelete,
+  fsInfo,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
   onDelete: (messageId: string, forEveryone: boolean) => void;
+  fsInfo: { rotationLabel: string; readableWindow: string; tooltip: string };
 }) {
+  const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
   const countdown = useExpiryCountdown(message.expiresAt);
 
@@ -173,6 +185,17 @@ function MessageBubble({
         <span className="dm-message-time">
           {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
+        {message.forwardSecrecy !== undefined && (
+          <span
+            className={`dm-message-fs-indicator${message.forwardSecrecy ? ' dm-message-fs-indicator--active' : ''}`}
+            title={message.forwardSecrecy
+              ? fsInfo.tooltip
+              : t('conversations.fsIndicatorOff', 'No forward secrecy. This message remains readable as long as your device keys exist.')
+            }
+          >
+            {message.forwardSecrecy ? `FS ${fsInfo.readableWindow}` : 'No FS'}
+          </span>
+        )}
         {countdown && (
           <span className="dm-message-expiry">{countdown}</span>
         )}
@@ -296,6 +319,29 @@ export function ConversationView() {
     );
   }
 
+  const levelConfig = SECURITY_LEVEL_CONFIG[fsConfig.securityLevel];
+  const rotationLabel = formatRotationInterval(levelConfig.spkRotationIntervalMs);
+  const hardDeleteLabel = formatRotationInterval(levelConfig.hardDeleteCapMs);
+
+  const fsInfo = (() => {
+    const policy = fsConfig.spkDeletionPolicy;
+    let readableWindow: string;
+    let tooltip: string;
+
+    if (policy === 'immediate') {
+      readableWindow = rotationLabel;
+      tooltip = `Forward secrecy enabled. Keys rotate every ${rotationLabel} and are deleted immediately. Message becomes unreadable after key rotation${fsConfig.clearCacheOnRotation ? ' (local cache is also cleared)' : ' unless locally cached'}.`;
+    } else if (policy === 'timed') {
+      readableWindow = rotationLabel;
+      tooltip = `Forward secrecy enabled. Keys rotate every ${rotationLabel} and retired keys are deleted on the same timer. Readable for up to ~${rotationLabel} after key rotation${fsConfig.clearCacheOnRotation ? ' (local cache is also cleared)' : ' unless locally cached'}.`;
+    } else {
+      readableWindow = hardDeleteLabel;
+      tooltip = `Forward secrecy enabled. Keys rotate every ${rotationLabel}. Retired keys are kept for up to ${hardDeleteLabel} before deletion. Readable for up to ~${hardDeleteLabel}${fsConfig.clearCacheOnRotation ? ' (local cache is also cleared on rotation)' : ''}.`;
+    }
+
+    return { rotationLabel, readableWindow, tooltip };
+  })();
+
   const resolveDisplayName = (pid: string) => {
     const profile = participantProfiles[pid];
     return profile?.displayName ?? profile?.username ?? pid;
@@ -379,6 +425,7 @@ export function ConversationView() {
                       message={msg}
                       isOwn={msg.fromIdentityId === identity?.id}
                       onDelete={handleDeleteMessage}
+                      fsInfo={fsInfo}
                     />
                   )
                 )}
