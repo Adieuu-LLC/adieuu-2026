@@ -215,12 +215,15 @@ jobs:
           - os: ubuntu-latest
             artifact-name: desktop-linux
             artifact-path: apps/desktop/out/*.AppImage
+            eb-args: --linux AppImage
           - os: windows-latest
             artifact-name: desktop-windows
             artifact-path: apps/desktop/out/*.exe
+            eb-args: --win nsis
           - os: macos-latest
             artifact-name: desktop-macos
             artifact-path: apps/desktop/out/*.dmg
+            eb-args: --mac dmg
     runs-on: ${{ matrix.os }}
     needs: [lint-and-typecheck, test-security, test-fs]
     env:
@@ -262,8 +265,7 @@ jobs:
         run: pnpm build --filter @adieuu/desktop...
 
       - name: Package Electron app
-        # Use package:ci so argv is `electron-builder --publish never` (no stray `--` from pnpm).
-        run: pnpm --filter @adieuu/desktop run package:ci
+        run: pnpm --filter @adieuu/desktop exec electron-builder --publish never ${{ matrix.eb-args }}
 
       - name: Upload desktop artifact
         uses: actions/upload-artifact@v7

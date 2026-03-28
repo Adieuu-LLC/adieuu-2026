@@ -277,6 +277,8 @@ jobs:
           - os: macos-latest
             artifact-name: desktop-macos
     runs-on: ${{ matrix.os }}
+    env:
+      ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
     steps:
       - uses: actions/checkout@v4
         with:
@@ -290,6 +292,14 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+
+      - name: Cache Electron binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ELECTRON_CACHE }}
+          key: electron-${{ runner.os }}-${{ hashFiles('apps/desktop/package.json') }}
+          restore-keys: |
+            electron-${{ runner.os }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
