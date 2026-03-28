@@ -6184,6 +6184,7 @@ a {
 .conversation-messages {
   flex: 1;
   min-height: calc(100vh - 60px);
+  min-height: 0;
   overflow-y: auto;
   padding: var(--spacing-md);
   padding-bottom: 72px;

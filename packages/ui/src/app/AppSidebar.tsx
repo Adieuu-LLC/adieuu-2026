@@ -834,19 +834,27 @@ function ChatInvitationsPanel({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const { invites, acceptInvite, declineInvite, participantProfiles } = useConversations();
+  const { invites, acceptInvite, declineInvite, participantProfiles, setActiveConversation } = useConversations();
+  const navigate = useNavigate();
+  const { closeMobile } = useSidebar();
   const [processingInvite, setProcessingInvite] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const handleAccept = useCallback(
-    async (inviteId: string, e: React.MouseEvent) => {
+    async (inviteId: string, conversationId: string, e: React.MouseEvent) => {
       e.stopPropagation();
       e.preventDefault();
       setProcessingInvite(inviteId);
-      await acceptInvite(inviteId);
+      const accepted = await acceptInvite(inviteId);
       setProcessingInvite(null);
+      if (accepted) {
+        setActiveConversation(conversationId);
+        navigate(`/conversations/${conversationId}`);
+        onClose();
+        closeMobile();
+      }
     },
-    [acceptInvite]
+    [acceptInvite, setActiveConversation, navigate, onClose, closeMobile]
   );
 
   const handleDecline = useCallback(
@@ -946,7 +954,7 @@ function ChatInvitationsPanel({
                     variant="ghost"
                     size="sm"
                     className="sidebar-invite-action-btn sidebar-invite-action-accept"
-                    onClick={(e) => void handleAccept(invite.id, e)}
+                    onClick={(e) => void handleAccept(invite.id, invite.conversationId, e)}
                     disabled={isProcessing}
                     title={t('conversations.invites.accept', 'Accept')}
                   >
