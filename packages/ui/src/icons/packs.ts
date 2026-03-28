@@ -51,9 +51,9 @@ export const ICON_PACKS: IconPackDefinition[] = [
 
 export type IconPackId = (typeof ICON_PACKS)[number]['id'];
 
-export const DEFAULT_ICON_PACK_ID: IconPackId = 'sharp-solid';
+export const DEFAULT_ICON_PACK_ID: IconPackId = 'sharp-duotone-solid';
 
-export const FALLBACK_PREFIX: IconPrefix = 'fass' as IconPrefix;
+export const FALLBACK_PREFIX: IconPrefix = 'fasds' as IconPrefix;
 
 export function getIconPack(id: string): IconPackDefinition | undefined {
   return ICON_PACKS.find((p) => p.id === id);

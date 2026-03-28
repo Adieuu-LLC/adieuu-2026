@@ -17,7 +17,7 @@ import { useIconPack } from '../../hooks/useIconPack';
 import { DEFAULT_THEME_ID } from '../../constants/builtinThemes';
 import { sanitizeImportedTheme } from '../../utils/themeSanitizer';
 import { Icon } from '../../icons/Icon';
-import { ICON_PACKS } from '../../icons/packs';
+import { ICON_PACKS, DEFAULT_ICON_PACK_ID } from '../../icons/packs';
 import type { IconPackId } from '../../icons/packs';
 import type { ThemeDefinition, ThemeColorTokens } from '@adieuu/shared';
 import { TOKEN_TO_CSS_VAR } from '@adieuu/shared';
@@ -376,6 +376,9 @@ export function AccountAppearance() {
                     >
                       <span className="icon-pack-card-label">
                         {family === 'Curated' ? pack.label : pack.weight}
+                        {pack.id === DEFAULT_ICON_PACK_ID && (
+                          <span className="icon-pack-card-default">{t('account.appearance.iconPackDefault')}</span>
+                        )}
                       </span>
                       <div className="icon-pack-card-preview">
                         <Icon name="home" packOverride={pack.id} />

@@ -727,6 +727,7 @@ export const en = {
       iconPackTitle: 'Icon Pack',
       iconPackDescription: 'Choose your preferred icon style. Pro+ packs have a curated set of icons; any missing icons will fall back to Sharp Solid.',
       iconPackApplied: 'Icon pack applied.',
+      iconPackDefault: 'Default',
 
       importExportTitle: 'Import & Export',
       importExportDescription: 'Export your current theme as a file, or import a theme from someone else. Imported themes are validated and sanitised for your safety.',
