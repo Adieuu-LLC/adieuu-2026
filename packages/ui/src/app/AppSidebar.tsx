@@ -1005,18 +1005,16 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
   const { closeMobile } = useSidebar();
 
   const isActive = activeConversationId === conversation.id;
+  const otherParticipants = conversation.participants.filter((p) => p !== identity?.id);
+
+  const resolveDisplayName = (pid: string) => {
+    const profile = participantProfiles[pid];
+    return profile?.displayName ?? profile?.username ?? pid;
+  };
 
   const displayName = conversation.type === 'group'
     ? (conversation.decryptedName ?? 'Group')
-    : conversation.participants
-        .filter((p) => p !== identity?.id)
-        .map((p) => {
-          const profile = participantProfiles[p];
-          return profile?.displayName ?? profile?.username ?? p;
-        })
-        .join(', ');
-
-  const initial = displayName.charAt(0).toUpperCase();
+    : otherParticipants.map(resolveDisplayName).join(', ');
 
   const handleClick = () => {
     setActiveConversation(conversation.id);
@@ -1024,15 +1022,29 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
     closeMobile();
   };
 
+  const avatarMembers = otherParticipants.slice(0, 3);
+
   return (
     <button
       type="button"
       className={`conversation-list-item${isActive ? ' conversation-list-item-active' : ''}`}
       onClick={handleClick}
     >
-      <div className="conversation-list-item-avatar">
-        <span className="conversation-list-item-avatar-placeholder">{initial}</span>
-      </div>
+      {conversation.type === 'group' && avatarMembers.length > 1 ? (
+        <div className="conversation-list-item-avatar-stack">
+          {avatarMembers.map((pid) => (
+            <span key={pid} className="conversation-list-item-avatar-stack-item">
+              {resolveDisplayName(pid).charAt(0).toUpperCase()}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div className="conversation-list-item-avatar">
+          <span className="conversation-list-item-avatar-placeholder">
+            {displayName.charAt(0).toUpperCase()}
+          </span>
+        </div>
+      )}
       <div className="conversation-list-item-info">
         <span className="conversation-list-item-title">{displayName}</span>
         {conversation.type === 'group' && (

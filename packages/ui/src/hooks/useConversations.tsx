@@ -1304,6 +1304,15 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]);
 
+  // If the active conversation was set before login (e.g. hard refresh on
+  // /conversations/:id), fetchMessages would have bailed. Retry once
+  // isLoggedIn becomes true and there's still no messages state.
+  useEffect(() => {
+    if (isLoggedIn && activeConversationId && !messagesState[activeConversationId]) {
+      fetchMessages(activeConversationId);
+    }
+  }, [isLoggedIn, activeConversationId, messagesState, fetchMessages]);
+
   // -------------------------------------------------------------------------
   // Context value
   // -------------------------------------------------------------------------

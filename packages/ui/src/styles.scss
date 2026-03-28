@@ -5446,20 +5446,33 @@ a {
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-xs) var(--spacing-sm);
+  width: 100%;
+  background: transparent;
+  border: none;
   border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: background-color var(--transition-fast);
+  color: var(--color-text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-sm);
+  text-align: left;
   text-decoration: none;
-  color: inherit;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 
   &:hover {
     background: var(--color-bg-hover);
+    color: var(--color-text-primary);
   }
 
   &-active {
     background: var(--color-bg-active);
+    color: var(--color-accent-primary);
 
     .conversation-list-item-title {
+      color: var(--color-accent-primary);
+    }
+
+    &:hover {
+      background: var(--color-bg-active);
       color: var(--color-accent-primary);
     }
   }
@@ -5485,6 +5498,46 @@ a {
       font-size: var(--font-size-xs);
       font-weight: var(--font-weight-semibold);
       color: var(--color-text-muted);
+    }
+  }
+
+  &-avatar-stack {
+    position: relative;
+    width: 36px;
+    height: 32px;
+    flex-shrink: 0;
+
+    .conversation-list-item-avatar-stack-item {
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--color-bg-tertiary);
+      border: 2px solid var(--color-bg-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text-muted);
+
+      &:nth-child(1) {
+        top: 0;
+        left: 0;
+        z-index: 3;
+      }
+
+      &:nth-child(2) {
+        top: 4px;
+        left: 10px;
+        z-index: 2;
+      }
+
+      &:nth-child(3) {
+        top: 10px;
+        left: 2px;
+        z-index: 1;
+      }
     }
   }
 
@@ -5529,6 +5582,11 @@ a {
 .sidebar-collapsed .conversation-list-item {
   justify-content: center;
   padding: var(--spacing-xs);
+
+  &-avatar-stack {
+    width: 32px;
+    height: 32px;
+  }
 
   &-badge {
     position: absolute;
@@ -5977,14 +6035,16 @@ a {
   flex-direction: column;
   height: 100%;
   width: 100%;
+  overflow: hidden;
   background: var(--color-bg-primary);
 }
 
 .conversation-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   width: 100%;
+  overflow: hidden;
 }
 
 .conversation-loading,
@@ -6114,6 +6174,7 @@ a {
   min-width: 0;
   min-height: 0;
   height: 100%;
+  position: relative;
 }
 
 // ============================================================================
@@ -6125,6 +6186,7 @@ a {
   min-height: 0;
   overflow-y: auto;
   padding: var(--spacing-md);
+  padding-bottom: 72px;
 
   &-empty {
     display: flex;
@@ -6141,17 +6203,22 @@ a {
 }
 
 // ============================================================================
-// Conversation Input
+// Conversation Composer (floating at bottom of message area)
 // ============================================================================
 
-.conversation-input {
+.conversation-composer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
-  border-top: 1px solid var(--color-border);
   background: var(--color-bg-secondary);
-  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
 
   &-field {
     flex: 1;
@@ -6163,7 +6230,8 @@ a {
     font-size: var(--font-size-sm);
     font-family: var(--font-sans);
     outline: none;
-    transition: border-color var(--transition-fast);
+    resize: none;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 
     &::placeholder {
       color: var(--color-text-muted);
@@ -6171,6 +6239,7 @@ a {
 
     &:focus {
       border-color: var(--color-border-focus);
+      box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 99, 102, 241), 0.15);
     }
 
     &:disabled {

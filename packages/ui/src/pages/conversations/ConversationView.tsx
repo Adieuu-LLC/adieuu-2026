@@ -721,7 +721,7 @@ export function ConversationView() {
             </div>
 
             {/* Composer */}
-            <div className="conversation-input">
+            <div className="conversation-composer">
               <button
                 type="button"
                 className={`conversation-fs-toggle${useFs ? ' conversation-fs-toggle--active' : ''}`}
@@ -735,7 +735,7 @@ export function ConversationView() {
               </button>
               <textarea
                 ref={inputRef}
-                className="conversation-input-field"
+                className="conversation-composer-field"
                 placeholder={t('conversations.messagePlaceholder', 'Type a message...')}
                 value={messageText}
                 onChange={(e) => setMessageText(e.target.value)}
@@ -743,14 +743,6 @@ export function ConversationView() {
                 rows={1}
                 disabled={sending}
               />
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleSend}
-                disabled={!messageText.trim() || sending}
-              >
-                {sending ? <span className="spinner spinner-sm" /> : t('conversations.send', 'Send')}
-              </Button>
             </div>
           </div>
 
