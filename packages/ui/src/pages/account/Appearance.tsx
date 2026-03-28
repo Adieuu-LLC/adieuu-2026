@@ -21,6 +21,8 @@ import { ICON_PACKS, DEFAULT_ICON_PACK_ID } from '../../icons/packs';
 import type { IconPackId } from '../../icons/packs';
 import type { ThemeDefinition, ThemeColorTokens } from '@adieuu/shared';
 import { TOKEN_TO_CSS_VAR } from '@adieuu/shared';
+import { i18n, availableLanguages } from '../../i18n';
+import type { LanguageCode } from '../../i18n';
 
 type ColorCategory = 'backgrounds' | 'text' | 'accents' | 'borders' | 'status' | 'branding';
 
@@ -103,7 +105,12 @@ export function AccountAppearance() {
   const [editColors, setEditColors] = useState<ThemeColorTokens | null>(null);
   const [saveName, setSaveName] = useState('');
   const [saveDesc, setSaveDesc] = useState('');
+  const [iconPackOpen, setIconPackOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLanguageChange = useCallback((code: LanguageCode) => {
+    void i18n.changeLanguage(code);
+  }, []);
 
   const currentThemeId = accountThemeId ?? DEFAULT_THEME_ID;
   const hasIdentityOverride = identityThemeId !== null;
@@ -291,6 +298,35 @@ export function AccountAppearance() {
           </Alert>
         )}
 
+        {/* Language */}
+        <Card variant="elevated" className="slide-up app-settings-card">
+          <h2 className="app-settings-section-title">{t('account.appearance.languageTitle')}</h2>
+          <p className="app-settings-section-desc">{t('account.appearance.languageDescription')}</p>
+          <div className="app-settings-language-row">
+            <label htmlFor="language-select" className="app-settings-language-label">
+              {t('account.appearance.languageLabel')}
+            </label>
+            <select
+              id="language-select"
+              className="app-settings-language-select"
+              value={i18n.language}
+              onChange={(e) => handleLanguageChange(e.target.value as LanguageCode)}
+            >
+              {availableLanguages.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.nativeName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="app-settings-section-hint">
+            <Trans
+              i18nKey="account.appearance.languageContributeHint"
+              components={{ mailLink: <a href="mailto:say@adieuu.com" /> }}
+            />
+          </p>
+        </Card>
+
         {/* Preset Themes */}
         <Card variant="elevated" className="slide-up app-settings-card" data-tour="appearance-presets">
           <h2 className="app-settings-section-title">{t('account.appearance.presetsTitle')}</h2>
@@ -356,44 +392,6 @@ export function AccountAppearance() {
             </div>
           </Card>
         )}
-
-        {/* Icon Pack */}
-        <Card variant="elevated" className="slide-up app-settings-card">
-          <h2 className="app-settings-section-title">{t('account.appearance.iconPackTitle')}</h2>
-          <p className="app-settings-section-desc">{t('account.appearance.iconPackDescription')}</p>
-
-          <div className="icon-pack-families">
-            {Array.from(iconPackFamilies.entries()).map(([family, packs]) => (
-              <div key={family} className="icon-pack-family">
-                <h3 className="icon-pack-family-name">{family}</h3>
-                <div className="icon-pack-grid">
-                  {packs.map((pack) => (
-                    <button
-                      key={pack.id}
-                      type="button"
-                      className={`icon-pack-card${packId === pack.id ? ' icon-pack-card--active' : ''}`}
-                      onClick={() => void handleSelectIconPack(pack.id as IconPackId)}
-                    >
-                      <span className="icon-pack-card-label">
-                        {family === 'Curated' ? pack.label : pack.weight}
-                        {pack.id === DEFAULT_ICON_PACK_ID && (
-                          <span className="icon-pack-card-default">{t('account.appearance.iconPackDefault')}</span>
-                        )}
-                      </span>
-                      <div className="icon-pack-card-preview">
-                        <Icon name="home" packOverride={pack.id} />
-                        <Icon name="message" packOverride={pack.id} />
-                        <Icon name="settings" packOverride={pack.id} />
-                        <Icon name="search" packOverride={pack.id} />
-                        <Icon name="bell" packOverride={pack.id} />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
 
         {/* Theme Editor */}
         <Card variant="elevated" className="slide-up app-settings-card">
@@ -472,6 +470,59 @@ export function AccountAppearance() {
                   {t('account.appearance.saveTheme')}
                 </Button>
               </div>
+            </div>
+          )}
+        </Card>
+
+        {/* Icon Pack (collapsible) */}
+        <Card variant="elevated" className="slide-up app-settings-card">
+          <button
+            type="button"
+            className="app-settings-section-header app-settings-section-header--collapsible"
+            onClick={() => setIconPackOpen((prev) => !prev)}
+            aria-expanded={iconPackOpen}
+          >
+            <div>
+              <h2 className="app-settings-section-title">{t('account.appearance.iconPackTitle')}</h2>
+              <p className="app-settings-section-desc">{t('account.appearance.iconPackDescription')}</p>
+            </div>
+            <Icon
+              name={iconPackOpen ? 'chevronUp' : 'chevronDown'}
+              className="app-settings-section-chevron"
+            />
+          </button>
+
+          {iconPackOpen && (
+            <div className="icon-pack-families">
+              {Array.from(iconPackFamilies.entries()).map(([family, packs]) => (
+                <div key={family} className="icon-pack-family">
+                  <h3 className="icon-pack-family-name">{family}</h3>
+                  <div className="icon-pack-grid">
+                    {packs.map((pack) => (
+                      <button
+                        key={pack.id}
+                        type="button"
+                        className={`icon-pack-card${packId === pack.id ? ' icon-pack-card--active' : ''}`}
+                        onClick={() => void handleSelectIconPack(pack.id as IconPackId)}
+                      >
+                        <span className="icon-pack-card-label">
+                          {family === 'Curated' ? pack.label : pack.weight}
+                          {pack.id === DEFAULT_ICON_PACK_ID && (
+                            <span className="icon-pack-card-default">{t('account.appearance.iconPackDefault')}</span>
+                          )}
+                        </span>
+                        <div className="icon-pack-card-preview">
+                          <Icon name="home" packOverride={pack.id} />
+                          <Icon name="message" packOverride={pack.id} />
+                          <Icon name="settings" packOverride={pack.id} />
+                          <Icon name="search" packOverride={pack.id} />
+                          <Icon name="bell" packOverride={pack.id} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </Card>

@@ -8211,6 +8211,75 @@ body {
   gap: var(--spacing-md);
 }
 
+.app-settings-section-header--collapsible {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  align-items: center;
+
+  &:hover .app-settings-section-chevron,
+  &:focus-visible .app-settings-section-chevron {
+    color: var(--color-text-primary);
+  }
+}
+
+.app-settings-section-chevron {
+  flex-shrink: 0;
+  font-size: 1.125rem;
+  color: var(--color-text-muted);
+  transition: color 0.15s ease;
+}
+
+.app-settings-section-hint {
+  margin-top: var(--spacing-sm);
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+
+  a {
+    color: var(--color-accent-primary);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.app-settings-language-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+}
+
+.app-settings-language-label {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.app-settings-language-select {
+  padding: 0.375rem 0.625rem;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-size: 0.875rem;
+  min-width: 10rem;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 1px;
+  }
+}
+
 .theme-editor {
   margin-top: var(--spacing-lg);
   display: flex;

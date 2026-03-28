@@ -725,7 +725,7 @@ export const en = {
       themeDeleted: 'Theme deleted.',
 
       iconPackTitle: 'Icon Pack',
-      iconPackDescription: 'Choose your preferred icon style. Pro+ packs have a curated set of icons; any missing icons will fall back to Sharp Solid.',
+      iconPackDescription: 'Choose your preferred icon style. Curated packs tend to have a smaller set of icons; any missing icons will fall back to Sharp Solid.',
       iconPackApplied: 'Icon pack applied.',
       iconPackDefault: 'Default',
 
@@ -742,6 +742,11 @@ export const en = {
       identityThemeActive: 'Active theme: {{name}}',
       identityThemeClear: 'Clear override',
       identityThemeCleared: 'Alias theme override removed.',
+
+      languageTitle: 'Language',
+      languageDescription: 'Choose your preferred language. More languages coming soon.',
+      languageLabel: 'Display language',
+      languageContributeHint: 'Want to help translate Adieuu into your language? Drop us a line at <mailLink>say@adieuu.com</mailLink>.',
 
       communityTitle: 'Community Themes',
       communitySubtitle: 'Browse themes shared by other users.',
