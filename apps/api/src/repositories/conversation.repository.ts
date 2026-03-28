@@ -9,7 +9,6 @@
 import { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
-import { withTimestamps } from '../models/base';
 import type {
   ConversationDocument,
   CreateConversationInput,
