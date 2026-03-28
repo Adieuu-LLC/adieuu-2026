@@ -171,9 +171,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
    * and doesn't cause cascading re-renders/reconnections.
    */
   const resolveParticipants = useCallback(
-    async (ids: string[]) => {
+    async (ids: string[]): Promise<Record<string, PublicIdentity>> => {
       const missing = ids.filter((id) => !resolvedProfileIds.current.has(id));
-      if (missing.length === 0) return;
+      if (missing.length === 0) return {};
 
       for (const id of missing) resolvedProfileIds.current.add(id);
 
@@ -207,6 +207,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       if (Object.keys(fetched).length > 0) {
         setParticipantProfiles((prev) => ({ ...prev, ...fetched }));
       }
+
+      return fetched;
     },
     [api]
   );
@@ -924,6 +926,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const fireNotificationRef = useRef(fireNotification);
   fireNotificationRef.current = fireNotification;
 
+  const resolveParticipantsRef = useRef(resolveParticipants);
+  resolveParticipantsRef.current = resolveParticipants;
+
   const participantProfilesRef = useRef(participantProfiles);
   participantProfilesRef.current = participantProfiles;
 
@@ -956,15 +961,17 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             return [decrypted, ...prev];
           });
 
-          const profiles = participantProfilesRef.current;
-          const creatorProfile = profiles[conv.createdBy];
-          const creatorName = creatorProfile?.displayName ?? creatorProfile?.username;
-          fireNotificationRef.current(
-            tRef.current('conversations.notifications.newConversation', { defaultValue: 'New conversation' }),
-            creatorName
-              ? tRef.current('conversations.notifications.newConversationBody', { name: creatorName, defaultValue: `${creatorName} started a conversation` })
-              : tRef.current('conversations.notifications.newConversationGeneric', { defaultValue: 'Someone started a conversation with you' })
-          );
+          void resolveParticipantsRef.current(conv.participants).then((freshProfiles) => {
+            const profiles = { ...participantProfilesRef.current, ...freshProfiles };
+            const creatorProfile = profiles[conv.createdBy];
+            const creatorName = creatorProfile?.displayName ?? creatorProfile?.username;
+            fireNotificationRef.current(
+              tRef.current('conversations.notifications.newConversation', { defaultValue: 'New conversation' }),
+              creatorName
+                ? tRef.current('conversations.notifications.newConversationBody', { name: creatorName, defaultValue: `${creatorName} started a conversation` })
+                : tRef.current('conversations.notifications.newConversationGeneric', { defaultValue: 'Someone started a conversation with you' })
+            );
+          });
           break;
         }
 
