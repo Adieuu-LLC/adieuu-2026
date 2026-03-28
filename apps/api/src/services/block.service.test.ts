@@ -33,6 +33,22 @@ mock.module('../models/identity', () => ({
   }),
 }));
 
+const mockFriendshipRepo = {
+  remove: mock(() => Promise.resolve(false)) as AnyMock,
+};
+
+const mockFriendRequestRepo = {
+  deleteByPair: mock(() => Promise.resolve()) as AnyMock,
+};
+
+mock.module('../repositories/friendship.repository', () => ({
+  getFriendshipRepository: () => mockFriendshipRepo,
+}));
+
+mock.module('../repositories/friend-request.repository', () => ({
+  getFriendRequestRepository: () => mockFriendRequestRepo,
+}));
+
 import {
   blockIdentity,
   unblockIdentity,
