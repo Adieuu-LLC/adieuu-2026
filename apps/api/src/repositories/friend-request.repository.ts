@@ -1,34 +1,33 @@
 /**
- * Friend Request repository
+ * Friend request repository
  * Data access layer for friend request operations with MongoDB persistence
  *
- * PRIVACY NOTES:
- * - Ignored requests appear as "pending" to sender
- * - Never expose ignored status to the sender
+ * PRIVACY NOTE: Ignored requests are invisible to the sender.
+ * Never expose ignore status to the requesting identity.
  */
 
-import { ObjectId, type Filter } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type {
   FriendRequestDocument,
-  CreateFriendRequestInput,
   FriendRequestStatus,
+  CreateFriendRequestInput,
 } from '../models/friend-request';
-import { withUpdatedAt } from '../models/base';
 
 /**
  * Friend request repository interface
  */
 export interface IFriendRequestRepository {
   findById(id: string | ObjectId): Promise<FriendRequestDocument | null>;
-  findByParties(fromId: ObjectId, toId: ObjectId): Promise<FriendRequestDocument | null>;
-  findPendingBetween(identityA: ObjectId, identityB: ObjectId): Promise<FriendRequestDocument | null>;
+  findPending(fromIdentityId: ObjectId, toIdentityId: ObjectId): Promise<FriendRequestDocument | null>;
+  findIncoming(identityId: ObjectId, limit?: number, cursor?: ObjectId): Promise<FriendRequestDocument[]>;
+  findOutgoing(identityId: ObjectId, limit?: number, cursor?: ObjectId): Promise<FriendRequestDocument[]>;
   create(input: CreateFriendRequestInput): Promise<FriendRequestDocument>;
   updateStatus(id: ObjectId, status: FriendRequestStatus): Promise<FriendRequestDocument | null>;
-  getIncomingRequests(identityId: ObjectId, status?: FriendRequestStatus, limit?: number, cursor?: ObjectId): Promise<FriendRequestDocument[]>;
-  getSentRequests(identityId: ObjectId, limit?: number, cursor?: ObjectId): Promise<FriendRequestDocument[]>;
-  cancelOrIgnoreBetween(identityA: ObjectId, identityB: ObjectId): Promise<void>;
+  countIncoming(identityId: ObjectId): Promise<number>;
+  deleteById(id: string | ObjectId): Promise<boolean>;
+  deleteByPair(identityA: ObjectId, identityB: ObjectId): Promise<number>;
 }
 
 /**
@@ -42,39 +41,65 @@ export class FriendRequestRepository
   }
 
   /**
-   * Find a friend request by ID
+   * Find a pending request between two identities (in either direction)
    */
-  async findById(id: string | ObjectId): Promise<FriendRequestDocument | null> {
-    return await super.findById(id);
-  }
-
-  /**
-   * Find a friend request between two specific identities in one direction
-   */
-  async findByParties(
-    fromId: ObjectId,
-    toId: ObjectId
+  async findPending(
+    fromIdentityId: ObjectId,
+    toIdentityId: ObjectId
   ): Promise<FriendRequestDocument | null> {
     return await this.findOne({
-      fromIdentityId: fromId,
-      toIdentityId: toId,
+      fromIdentityId,
+      toIdentityId,
+      status: 'pending',
     });
   }
 
   /**
-   * Find any pending request between two identities (either direction)
-   * Used for mutual-add detection
+   * Find pending incoming requests for an identity
    */
-  async findPendingBetween(
-    identityA: ObjectId,
-    identityB: ObjectId
-  ): Promise<FriendRequestDocument | null> {
-    return await this.findOne({
-      $or: [
-        { fromIdentityId: identityA, toIdentityId: identityB, status: 'pending' },
-        { fromIdentityId: identityB, toIdentityId: identityA, status: 'pending' },
-      ],
-    });
+  async findIncoming(
+    identityId: ObjectId,
+    limit = 50,
+    cursor?: ObjectId
+  ): Promise<FriendRequestDocument[]> {
+    const filter: Record<string, unknown> = {
+      toIdentityId: identityId,
+      status: 'pending',
+    };
+
+    if (cursor) {
+      filter._id = { $lt: cursor };
+    }
+
+    return await this.collection
+      .find(filter)
+      .sort({ _id: -1 })
+      .limit(limit)
+      .toArray() as FriendRequestDocument[];
+  }
+
+  /**
+   * Find pending outgoing requests for an identity
+   */
+  async findOutgoing(
+    identityId: ObjectId,
+    limit = 50,
+    cursor?: ObjectId
+  ): Promise<FriendRequestDocument[]> {
+    const filter: Record<string, unknown> = {
+      fromIdentityId: identityId,
+      status: 'pending',
+    };
+
+    if (cursor) {
+      filter._id = { $lt: cursor };
+    }
+
+    return await this.collection
+      .find(filter)
+      .sort({ _id: -1 })
+      .limit(limit)
+      .toArray() as FriendRequestDocument[];
   }
 
   /**
@@ -84,7 +109,7 @@ export class FriendRequestRepository
     const doc: Omit<FriendRequestDocument, '_id' | 'createdAt' | 'updatedAt'> = {
       fromIdentityId: input.fromIdentityId,
       toIdentityId: input.toIdentityId,
-      status: input.status ?? 'pending',
+      status: 'pending',
     };
 
     return await super.create(doc);
@@ -97,133 +122,46 @@ export class FriendRequestRepository
     id: ObjectId,
     status: FriendRequestStatus
   ): Promise<FriendRequestDocument | null> {
-    const updateDoc = withUpdatedAt({
-      status,
-      respondedAt: status !== 'pending' ? new Date() : undefined,
-    });
-
-    const result = await this.collection.findOneAndUpdate(
-      { _id: id },
-      { $set: updateDoc },
-      { returnDocument: 'after' }
-    );
-
-    return result as FriendRequestDocument | null;
+    return await this.updateById(id, { status } as Partial<Omit<FriendRequestDocument, '_id' | 'createdAt'>>);
   }
 
   /**
-   * Get incoming friend requests for an identity
-   * Note: Only returns pending requests by default (ignored requests are hidden from recipient too)
+   * Count pending incoming requests for an identity
    */
-  async getIncomingRequests(
-    identityId: ObjectId,
-    status: FriendRequestStatus = 'pending',
-    limit = 20,
-    cursor?: ObjectId
-  ): Promise<FriendRequestDocument[]> {
-    const filter: Filter<FriendRequestDocument> = {
+  async countIncoming(identityId: ObjectId): Promise<number> {
+    return await this.count({
       toIdentityId: identityId,
-      status,
-    };
-
-    if (cursor) {
-      filter._id = { $lt: cursor };
-    }
-
-    return await this.collection
-      .find(filter)
-      .sort({ _id: -1 })
-      .limit(limit)
-      .toArray() as FriendRequestDocument[];
+      status: 'pending',
+    });
   }
 
   /**
-   * Get sent friend requests for an identity
-   * Note: Returns pending and ignored requests (but ignored appears as pending to sender)
+   * Delete all friend requests between two identities (both directions)
    */
-  async getSentRequests(
-    identityId: ObjectId,
-    limit = 20,
-    cursor?: ObjectId
-  ): Promise<FriendRequestDocument[]> {
-    const filter: Filter<FriendRequestDocument> = {
-      fromIdentityId: identityId,
-      status: { $in: ['pending', 'ignored'] },
-    };
-
-    if (cursor) {
-      filter._id = { $lt: cursor };
-    }
-
-    return await this.collection
-      .find(filter)
-      .sort({ _id: -1 })
-      .limit(limit)
-      .toArray() as FriendRequestDocument[];
+  async deleteByPair(identityA: ObjectId, identityB: ObjectId): Promise<number> {
+    const result = await this.collection.deleteMany({
+      $or: [
+        { fromIdentityId: identityA, toIdentityId: identityB },
+        { fromIdentityId: identityB, toIdentityId: identityA },
+      ],
+    });
+    return result.deletedCount;
   }
 
   /**
-   * Cancel or ignore all pending requests between two identities
-   * Used when one identity blocks the other
+   * Find any pending request between two identities in either direction
    */
-  async cancelOrIgnoreBetween(
+  async findPendingBetween(
     identityA: ObjectId,
     identityB: ObjectId
-  ): Promise<void> {
-    const now = new Date();
-
-    // Cancel requests sent by A to B
-    await this.collection.updateMany(
-      {
-        fromIdentityId: identityA,
-        toIdentityId: identityB,
-        status: 'pending',
-      },
-      {
-        $set: {
-          status: 'cancelled',
-          updatedAt: now,
-          respondedAt: now,
-        },
-      }
-    );
-
-    // Ignore requests sent by B to A
-    await this.collection.updateMany(
-      {
-        fromIdentityId: identityB,
-        toIdentityId: identityA,
-        status: 'pending',
-      },
-      {
-        $set: {
-          status: 'ignored',
-          updatedAt: now,
-          respondedAt: now,
-        },
-      }
-    );
-  }
-
-  /**
-   * Check if a request already exists between two identities
-   */
-  async existsBetween(
-    fromId: ObjectId,
-    toId: ObjectId,
-    excludeStatuses?: FriendRequestStatus[]
-  ): Promise<boolean> {
-    const filter: Filter<FriendRequestDocument> = {
-      fromIdentityId: fromId,
-      toIdentityId: toId,
-    };
-
-    if (excludeStatuses && excludeStatuses.length > 0) {
-      filter.status = { $nin: excludeStatuses };
-    }
-
-    const count = await this.count(filter);
-    return count > 0;
+  ): Promise<FriendRequestDocument | null> {
+    return await this.findOne({
+      $or: [
+        { fromIdentityId: identityA, toIdentityId: identityB },
+        { fromIdentityId: identityB, toIdentityId: identityA },
+      ],
+      status: 'pending',
+    });
   }
 }
 

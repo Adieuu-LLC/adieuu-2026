@@ -9,9 +9,12 @@ COPY --from=oven/bun:1.2 /usr/local/bin/bun /usr/local/bin/bun
 # corepack is not always present on slim images or cross-platform builds (e.g. linux/amd64 from ARM).
 RUN npm install -g pnpm@9.15.4
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY packages ./packages
 COPY apps ./apps
+
+ARG FONTAWESOME_TOKEN
+ENV FONTAWESOME_TOKEN=${FONTAWESOME_TOKEN}
 
 # Install devDependencies (turbo, typescript, etc.); do not set NODE_ENV=production here.
 RUN pnpm install --frozen-lockfile

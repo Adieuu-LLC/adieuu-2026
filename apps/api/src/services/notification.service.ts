@@ -12,18 +12,12 @@
 
 import { ObjectId } from 'mongodb';
 import { getNotificationRepository } from '../repositories/notification.repository';
-import { getIdentityRepository } from '../repositories/identity.repository';
 import type {
-  NotificationDocument,
   NotificationType,
   NotificationData,
-  FriendRequestNotificationData,
-  FriendshipEstablishedNotificationData,
   PublicNotification,
 } from '../models/notification';
 import { toPublicNotification } from '../models/notification';
-import { toPublicIdentity } from '../models/identity';
-import elog from '../utils/adieuuLogger';
 
 /**
  * Create notification result
@@ -52,102 +46,23 @@ export interface NotificationCounts {
 }
 
 /**
- * Create a friend request received notification
+ * Create a generic notification for an identity.
  */
-export async function createFriendRequestNotification(
+export async function createNotification(
   recipientIdentityId: string | ObjectId,
-  requestId: string,
-  fromIdentityId: string | ObjectId
+  type: NotificationType,
+  data: NotificationData
 ): Promise<CreateNotificationResult> {
   const notificationRepo = getNotificationRepository();
-  const identityRepo = getIdentityRepository();
 
   const recipientObjId = recipientIdentityId instanceof ObjectId
     ? recipientIdentityId
     : new ObjectId(recipientIdentityId);
 
-  const fromObjId = fromIdentityId instanceof ObjectId
-    ? fromIdentityId
-    : new ObjectId(fromIdentityId);
-
-  // Get sender's identity info for denormalized data
-  const senderIdentity = await identityRepo.findByIdentityId(fromObjId);
-  if (!senderIdentity) {
-    return {
-      success: false,
-      error: 'Sender identity not found',
-    };
-  }
-
-  const data: FriendRequestNotificationData = {
-    requestId,
-    fromIdentityId: fromObjId.toHexString(),
-    fromDisplayName: senderIdentity.displayName,
-    fromUsername: senderIdentity.username,
-    fromAvatarUrl: senderIdentity.avatarUrl,
-  };
-
   const notification = await notificationRepo.create({
     recipientIdentityId: recipientObjId,
-    type: 'friend_request_received',
+    type,
     data,
-  });
-
-  elog.debug('Friend request notification created', {
-    recipientId: recipientObjId.toHexString(),
-    requestId,
-  });
-
-  return {
-    success: true,
-    notification: toPublicNotification(notification),
-  };
-}
-
-/**
- * Create a friendship established notification
- * Sent to both parties when they become friends
- */
-export async function createFriendshipEstablishedNotification(
-  recipientIdentityId: string | ObjectId,
-  friendIdentityId: string | ObjectId
-): Promise<CreateNotificationResult> {
-  const notificationRepo = getNotificationRepository();
-  const identityRepo = getIdentityRepository();
-
-  const recipientObjId = recipientIdentityId instanceof ObjectId
-    ? recipientIdentityId
-    : new ObjectId(recipientIdentityId);
-
-  const friendObjId = friendIdentityId instanceof ObjectId
-    ? friendIdentityId
-    : new ObjectId(friendIdentityId);
-
-  // Get friend's identity info for denormalized data
-  const friendIdentity = await identityRepo.findByIdentityId(friendObjId);
-  if (!friendIdentity) {
-    return {
-      success: false,
-      error: 'Friend identity not found',
-    };
-  }
-
-  const data: FriendshipEstablishedNotificationData = {
-    friendIdentityId: friendObjId.toHexString(),
-    friendDisplayName: friendIdentity.displayName,
-    friendUsername: friendIdentity.username,
-    friendAvatarUrl: friendIdentity.avatarUrl,
-  };
-
-  const notification = await notificationRepo.create({
-    recipientIdentityId: recipientObjId,
-    type: 'friendship_established',
-    data,
-  });
-
-  elog.debug('Friendship established notification created', {
-    recipientId: recipientObjId.toHexString(),
-    friendId: friendObjId.toHexString(),
   });
 
   return {
@@ -177,29 +92,20 @@ export async function getNotifications(
 
   const { limit = 50, cursor, since, unreadOnly, types } = options;
 
-  // Parse cursor
   const cursorObjId = cursor ? new ObjectId(cursor) : undefined;
-
-  // Parse since date
   const sinceDate = since ? new Date(since) : undefined;
-
-  // Parse types
-  const validTypes = types?.filter((t): t is NotificationType =>
-    ['friend_request_received', 'friend_request_accepted', 'friendship_established', 'message_received', 'mention'].includes(t)
-  );
 
   const notifications = await notificationRepo.getNotifications(identityObjId, {
     limit: limit + 1,
     cursor: cursorObjId,
     since: sinceDate,
     unreadOnly,
-    types: validTypes,
+    types,
   });
 
   const hasMore = notifications.length > limit;
   const resultNotifications = hasMore ? notifications.slice(0, limit) : notifications;
 
-  // Get unread count
   const unreadCount = await notificationRepo.countUnread(identityObjId);
 
   const nextCursor = hasMore && resultNotifications.length > 0
@@ -231,7 +137,6 @@ export async function markNotificationsAsRead(
   if (notificationIds === 'all') {
     markedCount = await notificationRepo.markAllAsRead(identityObjId);
   } else {
-    // Validate that all notifications belong to this identity
     const notificationObjIds = notificationIds.map((id) => new ObjectId(id));
     const ownedNotifications = await notificationRepo.findByIdsForIdentity(
       notificationObjIds,
@@ -267,7 +172,6 @@ export async function markNotificationsAsUnread(
   if (notificationIds === 'all') {
     markedCount = await notificationRepo.markAllAsUnread(identityObjId);
   } else {
-    // Validate that all notifications belong to this identity
     const notificationObjIds = notificationIds.map((id) => new ObjectId(id));
     const ownedNotifications = await notificationRepo.findByIdsForIdentity(
       notificationObjIds,
@@ -303,7 +207,6 @@ export async function deleteNotifications(
   if (notificationIds === 'all') {
     deletedCount = await notificationRepo.deleteAllForIdentity(identityObjId);
   } else {
-    // Validate that all notifications belong to this identity
     const notificationObjIds = notificationIds.map((id) => new ObjectId(id));
     const ownedNotifications = await notificationRepo.findByIdsForIdentity(
       notificationObjIds,

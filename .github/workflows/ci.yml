@@ -18,6 +18,7 @@ env:
   NODE_VERSION: '25'
   PNPM_VERSION: '9'
   TURBO_TELEMETRY_DISABLED: 1
+  FONTAWESOME_TOKEN: ${{ secrets.FONTAWESOME_TOKEN }}
 
 jobs:
   lint-and-typecheck:

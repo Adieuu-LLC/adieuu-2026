@@ -21,6 +21,8 @@ export interface HoverCardProps {
   openDelay?: number;
   /** Delay before hiding the hover card (ms) */
   closeDelay?: number;
+  /** Called when the hover card opens or closes */
+  onOpenChange?: (details: { open: boolean }) => void;
 }
 
 /**
@@ -47,12 +49,14 @@ export function HoverCard({
   className = '',
   openDelay = 200,
   closeDelay = 300,
+  onOpenChange,
 }: HoverCardProps) {
   return (
     <ArkHoverCard.Root
       positioning={positioning}
       openDelay={openDelay}
       closeDelay={closeDelay}
+      onOpenChange={onOpenChange}
     >
       <ArkHoverCard.Trigger asChild>{trigger}</ArkHoverCard.Trigger>
       <Portal>

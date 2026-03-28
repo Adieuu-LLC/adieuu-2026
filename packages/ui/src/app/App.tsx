@@ -3,8 +3,8 @@ import { AppLayout } from '../components/AppLayout';
 import { TourRoot } from '../components/Tour';
 import { Home } from '../pages/Home';
 import { About } from '../pages/About';
+import { Download } from '../pages/Download';
 import { Search } from '../pages/Search';
-import { Conversation } from '../pages/Conversation';
 import { Login, Verify, MfaVerify } from '../pages/auth';
 import {
   AccountOverview,
@@ -16,19 +16,19 @@ import {
 import {
   IdentityAppearance,
   IdentityCiphers,
-  IdentityContentSocial,
   IdentityDevices,
-  IdentityFriends,
   IdentityPrivacy,
   IdentityProfile,
+  IdentityProfileView,
 } from '../pages/identity';
 import { ServiceStatus } from '../pages/ServiceStatus';
+import { ConversationView, NewConversation } from '../pages/conversations';
 import { useAuth } from '../hooks/useAuth';
 import { TourProvider, useTourContext, useAppearanceTour } from '../hooks/useTourContext';
 import { CipherStoreProvider } from '../hooks/useCipherStore';
-import { ChatConnectionProvider } from '../hooks/useChatConnection';
-import { ConversationsProvider } from '../hooks/ConversationsProvider';
-import { useDmNotifications } from '../hooks/useDmNotifications';
+import { ChatSocketProvider } from '../hooks/useChatSocket';
+import { FriendsProvider } from '../hooks/useFriends';
+import { ConversationsProvider } from '../hooks/useConversations';
 import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { WebSecurityBanner } from '../components/WebSecurityBanner';
@@ -64,11 +64,13 @@ function ProtectedLayout() {
   return (
     <TourProvider>
       <CipherStoreProvider>
-        <ChatConnectionProvider>
-          <ConversationsProvider>
-            <ProtectedLayoutContent />
-          </ConversationsProvider>
-        </ChatConnectionProvider>
+        <ChatSocketProvider>
+          <FriendsProvider>
+            <ConversationsProvider>
+              <ProtectedLayoutContent />
+            </ConversationsProvider>
+          </FriendsProvider>
+        </ChatSocketProvider>
       </CipherStoreProvider>
     </TourProvider>
   );
@@ -85,9 +87,6 @@ function ProtectedLayoutContent() {
   // Mount pre-key lifecycle management once for authenticated app runtime.
   // This enables automatic SPK rotation + cleanup and OTPK replenishment checks.
   usePreKeys();
-
-  // Enable toast notifications for incoming DMs when not actively reading that thread (focused + visible)
-  useDmNotifications();
 
   return (
     <>
@@ -161,8 +160,8 @@ export function App() {
       <Route element={<ProtectedLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
+        <Route path="/download" element={<Download />} />
         <Route path="/search" element={<Search />} />
-        <Route path="/conversation/:id" element={<Conversation />} />
 
         {/* Account Routes */}
         <Route path="/account" element={<Navigate to="/account/overview" replace />} />
@@ -176,12 +175,17 @@ export function App() {
         {/* Identity Routes */}
         <Route path="/identity" element={<Navigate to="/identity/profile" replace />} />
         <Route path="/identity/profile" element={<IdentityProfile />} />
-        <Route path="/identity/friends" element={<IdentityFriends />} />
-        <Route path="/identity/content" element={<IdentityContentSocial />} />
         <Route path="/identity/appearance" element={<IdentityAppearance />} />
         <Route path="/identity/privacy" element={<IdentityPrivacy />} />
         <Route path="/identity/devices" element={<IdentityDevices />} />
         <Route path="/identity/ciphers" element={<IdentityCiphers />} />
+
+        {/* Public identity profile view (must be after static /identity/* routes) */}
+        <Route path="/identity/:id" element={<IdentityProfileView />} />
+
+        {/* Conversation Routes */}
+        <Route path="/conversations/new" element={<NewConversation />} />
+        <Route path="/conversations/:id" element={<ConversationView />} />
 
         {/* Platform admin (nested layout + guard) */}
         <Route element={<AdminGate />}>

@@ -16,6 +16,22 @@ locals {
   # MongoDB Atlas API region format for network_container (e.g. US_EAST_1).
   atlas_region_name = upper(replace(var.aws_region, "-", "_"))
 
+  # Downloads stack: dedicated S3 + CloudFront for desktop update mirror.
+  downloads_enabled             = var.enable_downloads_stack && local.public_dns_tls_enabled
+  downloads_route53_record_name = local.downloads_enabled ? replace(var.downloads_domain_name, ".${local.route53_zone_root}", "") : ""
+
+  # Media stack: S3 + CloudFront for user-uploaded media (avatars, banners, attachments).
+  media_enabled             = var.enable_media_stack && local.public_dns_tls_enabled
+  media_route53_record_name = local.media_enabled ? replace(var.media_domain_name, ".${local.route53_zone_root}", "") : ""
+  media_lambda_vpc_enabled  = local.media_enabled && var.media_processor_in_vpc
+  media_api_callback_url    = local.media_enabled ? "https://${var.api_domain_name}/api/uploads/process-callback" : ""
+
+  # CORS origins for presigned PUT uploads to the media bucket.
+  media_cors_origins = local.media_enabled ? distinct(concat(
+    ["https://${var.app_domain_name}"],
+    var.cors_additional_origins
+  )) : []
+
   # CloudFront: pay-as-you-go vs flat-rate plan (subscription is console/API; see variables.tf).
   cloudfront_flat_rate_enabled = var.cloudfront_pricing_model != "pay_as_you_go"
 
@@ -86,6 +102,12 @@ locals {
     var.api_environment,
     { MAX_REQUEST_BODY_BYTES = tostring(var.api_max_request_body_bytes) },
     length(local.cors_origins_merged) > 0 ? { CORS_ORIGINS = join(",", local.cors_origins_merged) } : {},
+    local.downloads_enabled ? { RELEASE_MANIFESTS_S3_BUCKET = aws_s3_bucket.release_manifests[0].id } : {},
+    local.media_enabled ? {
+      MEDIA_S3_BUCKET  = aws_s3_bucket.media[0].id
+      MEDIA_S3_REGION  = var.aws_region
+      MEDIA_CDN_URL    = "https://${var.media_domain_name}"
+    } : {},
   )
 
   chat_env_merged = merge(

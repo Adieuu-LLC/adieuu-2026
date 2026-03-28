@@ -1,20 +1,18 @@
 /**
- * Friend Request model
- * Represents a pending, accepted, ignored, or cancelled friend request between identities
+ * Friend request model
+ * Represents a pending, accepted, or ignored friend request between two identities.
  *
- * PRIVACY NOTES:
- * - Ignored requests appear as "pending" to the sender indefinitely
- * - No timing side-channels should reveal if a request was ignored vs pending
- * - Friend requests do not expire
+ * PRIVACY NOTE: Friend requests are identity-scoped.
+ * Ignored requests are silent -- the sender receives no indication.
  */
 
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
 
 /**
- * Friend request status
+ * Possible statuses for a friend request
  */
-export type FriendRequestStatus = 'pending' | 'accepted' | 'ignored' | 'cancelled';
+export type FriendRequestStatus = 'pending' | 'accepted' | 'ignored';
 
 /**
  * Friend request document stored in MongoDB
@@ -28,61 +26,36 @@ export interface FriendRequestDocument extends BaseDocument {
 
   /** Current status of the request */
   status: FriendRequestStatus;
-
-  /** When the recipient responded (if applicable) */
-  respondedAt?: Date;
 }
 
 /**
- * Friend request creation input
+ * Friend request creation input (without system-generated fields)
  */
 export interface CreateFriendRequestInput {
   fromIdentityId: ObjectId;
   toIdentityId: ObjectId;
-  status?: FriendRequestStatus;
 }
 
 /**
- * Public friend request representation for the sender
- * Note: status is always shown as "pending" even if ignored (privacy protection)
+ * Public friend request representation (safe to send to client)
  */
-export interface PublicSentFriendRequest {
-  id: string;
-  toIdentityId: string;
-  /** Always "pending" to sender - cannot distinguish ignored from pending */
-  status: 'pending';
-  createdAt: string;
-}
-
-/**
- * Public friend request representation for the recipient
- */
-export interface PublicReceivedFriendRequest {
+export interface PublicFriendRequest {
   id: string;
   fromIdentityId: string;
+  toIdentityId: string;
+  status: FriendRequestStatus;
   createdAt: string;
 }
 
 /**
- * Convert a FriendRequestDocument to PublicSentFriendRequest
- * Privacy: status is always "pending" to sender (ignored appears as pending)
+ * Convert a FriendRequestDocument to PublicFriendRequest (safe for client)
  */
-export function toPublicSentFriendRequest(doc: FriendRequestDocument): PublicSentFriendRequest {
-  return {
-    id: doc._id.toHexString(),
-    toIdentityId: doc.toIdentityId.toHexString(),
-    status: 'pending',
-    createdAt: doc.createdAt.toISOString(),
-  };
-}
-
-/**
- * Convert a FriendRequestDocument to PublicReceivedFriendRequest
- */
-export function toPublicReceivedFriendRequest(doc: FriendRequestDocument): PublicReceivedFriendRequest {
+export function toPublicFriendRequest(doc: FriendRequestDocument): PublicFriendRequest {
   return {
     id: doc._id.toHexString(),
     fromIdentityId: doc.fromIdentityId.toHexString(),
+    toIdentityId: doc.toIdentityId.toHexString(),
+    status: doc.status,
     createdAt: doc.createdAt.toISOString(),
   };
 }

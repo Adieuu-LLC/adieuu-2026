@@ -23,11 +23,13 @@ export function DeepLinkHandler() {
       })
       .catch(() => {});
 
-    window.electron.on('deep-link', (routePath) => {
+    const unsubscribe = window.electron.on('deep-link', (routePath) => {
       if (typeof routePath === 'string') {
         navigate(routePath);
       }
     });
+
+    return unsubscribe;
   }, [navigate]);
 
   return null;

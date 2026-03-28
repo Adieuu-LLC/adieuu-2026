@@ -29,36 +29,53 @@ import {
 // ============================================================================
 
 export type Platform = 'desktop' | 'web' | 'mobile';
-export type SecurityLevel = 'standard' | 'high' | 'maximum';
+export type SecurityLevel = 'very_lax' | 'lax' | 'standard' | 'medium' | 'high' | 'maximum';
 export type SpkDeletionPolicy = 'after-sync' | 'timed' | 'immediate';
 
 export interface ForwardSecrecyConfig {
+  enabled: boolean;
   securityLevel: SecurityLevel;
   spkDeletionPolicy: SpkDeletionPolicy;
   clearCacheOnRotation: boolean;
 }
 
 export const DEFAULT_FS_CONFIG: ForwardSecrecyConfig = {
+  enabled: true,
   securityLevel: 'standard',
   spkDeletionPolicy: 'after-sync',
   clearCacheOnRotation: false,
 };
 
 export const SECURITY_LEVEL_CONFIG = {
+  very_lax: {
+    spkRotationIntervalMs: 30 * 24 * 60 * 60 * 1000, // 30 days
+    maxRetiredSpks: 3,
+    hardDeleteCapMs: 60 * 24 * 60 * 60 * 1000,       // 60 days
+  },
+  lax: {
+    spkRotationIntervalMs: 14 * 24 * 60 * 60 * 1000, // 14 days
+    maxRetiredSpks: 3,
+    hardDeleteCapMs: 30 * 24 * 60 * 60 * 1000,       // 30 days
+  },
   standard: {
-    spkRotationIntervalMs: 24 * 60 * 60 * 1000,    // 24h
+    spkRotationIntervalMs: 7 * 24 * 60 * 60 * 1000,  // 7 days
     maxRetiredSpks: 5,
-    hardDeleteCapMs: 7 * 24 * 60 * 60 * 1000,      // 7 days
+    hardDeleteCapMs: 14 * 24 * 60 * 60 * 1000,       // 14 days
+  },
+  medium: {
+    spkRotationIntervalMs: 24 * 60 * 60 * 1000,      // 24h
+    maxRetiredSpks: 5,
+    hardDeleteCapMs: 7 * 24 * 60 * 60 * 1000,        // 7 days
   },
   high: {
-    spkRotationIntervalMs: 4 * 60 * 60 * 1000,     // 4h
+    spkRotationIntervalMs: 4 * 60 * 60 * 1000,       // 4h
     maxRetiredSpks: 8,
-    hardDeleteCapMs: 48 * 60 * 60 * 1000,           // 48h
+    hardDeleteCapMs: 48 * 60 * 60 * 1000,             // 48h
   },
   maximum: {
-    spkRotationIntervalMs: 1 * 60 * 60 * 1000,     // 1h
+    spkRotationIntervalMs: 1 * 60 * 60 * 1000,       // 1h
     maxRetiredSpks: 12,
-    hardDeleteCapMs: 24 * 60 * 60 * 1000,           // 24h
+    hardDeleteCapMs: 24 * 60 * 60 * 1000,             // 24h
   },
 } as const;
 
@@ -463,4 +480,64 @@ export function loadFsConfig(identityId: string): ForwardSecrecyConfig {
 export function saveFsConfig(identityId: string, config: ForwardSecrecyConfig): void {
   if (typeof localStorage === 'undefined') return;
   localStorage.setItem(FS_CONFIG_KEY_PREFIX + identityId, JSON.stringify(config));
+}
+
+// ============================================================================
+// Message Artifacts Preference (localStorage, per-identity)
+// ============================================================================
+
+const SHOW_ARTIFACTS_KEY_PREFIX = 'adieuu-show-artifacts-';
+
+/**
+ * Loads whether the user wants to see message artifacts (deleted,
+ * undecryptable, FS-expired messages). Returns false when not set.
+ */
+export function loadShowMessageArtifacts(identityId: string): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    const stored = localStorage.getItem(SHOW_ARTIFACTS_KEY_PREFIX + identityId);
+    if (stored !== null) return JSON.parse(stored) as boolean;
+  } catch {
+    // Ignore parse errors
+  }
+  return false;
+}
+
+export function saveShowMessageArtifacts(identityId: string, enabled: boolean): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(SHOW_ARTIFACTS_KEY_PREFIX + identityId, JSON.stringify(enabled));
+}
+
+// ============================================================================
+// Per-Conversation FS Default (localStorage, per-conversation)
+// ============================================================================
+
+const CONV_FS_CONFIG_KEY_PREFIX = 'adieuu-conv-fs-';
+
+/**
+ * Loads the per-conversation forward secrecy override.
+ * Returns `null` when no override is set (falls through to global default).
+ */
+export function loadConversationFsDefault(conversationId: string): boolean | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem(CONV_FS_CONFIG_KEY_PREFIX + conversationId);
+    if (stored !== null) return JSON.parse(stored) as boolean;
+  } catch {
+    // Ignore parse errors
+  }
+  return null;
+}
+
+/**
+ * Saves a per-conversation forward secrecy override.
+ * Pass `null` to remove the override (revert to global default).
+ */
+export function saveConversationFsDefault(conversationId: string, enabled: boolean | null): void {
+  if (typeof localStorage === 'undefined') return;
+  if (enabled === null) {
+    localStorage.removeItem(CONV_FS_CONFIG_KEY_PREFIX + conversationId);
+  } else {
+    localStorage.setItem(CONV_FS_CONFIG_KEY_PREFIX + conversationId, JSON.stringify(enabled));
+  }
 }

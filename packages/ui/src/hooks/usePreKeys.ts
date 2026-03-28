@@ -155,11 +155,6 @@ export function usePreKeys(): UsePreKeysResult {
       const deleted = await cleanupRetiredSpks(identity.id, deviceId, currentConfig);
       if (deleted > 0) {
         console.debug(`[PreKeys] Cleaned up ${deleted} retired SPK(s)`);
-        if (currentConfig.clearCacheOnRotation) {
-          const { clearFsMessageCache } = await import('../services/localMessageStorage');
-          await clearFsMessageCache();
-          console.debug('[PreKeys] Cleared FS message cache after rotation cleanup');
-        }
       }
 
       // Also check OTPK replenishment (runs on app open and periodic checks)
@@ -253,11 +248,6 @@ export function usePreKeys(): UsePreKeysResult {
       const deleted = await cleanupRetiredSpks(identity.id, deviceId, currentConfig);
       if (deleted > 0) {
         console.debug(`[PreKeys] Cleaned up ${deleted} retired SPK(s) after manual rotation`);
-        if (currentConfig.clearCacheOnRotation) {
-          const { clearFsMessageCache } = await import('../services/localMessageStorage');
-          await clearFsMessageCache();
-          console.debug('[PreKeys] Cleared FS message cache after manual rotation cleanup');
-        }
       }
 
       // Reset the timer from now
@@ -290,9 +280,7 @@ export function usePreKeys(): UsePreKeysResult {
     }
 
     if (clearCache) {
-      const { clearFsMessageCache } = await import('../services/localMessageStorage');
-      await clearFsMessageCache();
-      console.debug('[PreKeys] Cleared FS message cache alongside purge');
+      console.debug('[PreKeys] Cache clearing requested alongside purge (no message cache to clear)');
     }
 
     return deleted;

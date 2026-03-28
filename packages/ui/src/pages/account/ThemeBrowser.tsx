@@ -13,6 +13,7 @@ import { Spinner } from '../../components/Spinner';
 import { Tooltip } from '../../components/Tooltip';
 import { ThemeColorPreviewModal } from '../../components/ThemeColorPreviewModal';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { Icon } from '../../icons/Icon';
 import { useToast } from '../../components/Toast';
 import { useTheme } from '../../hooks/useTheme';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -338,7 +339,7 @@ export function ThemeBrowser() {
                       title={t('account.appearance.previewColors')}
                       {...(idx === 0 ? { 'data-tour': 'community-btn-preview' } : {})}
                     >
-                      <EyeIcon />
+                      <Icon name="eye" />
                     </Button>
 
                     {identityStatus === 'logged_in' && (
@@ -349,7 +350,7 @@ export function ThemeBrowser() {
                         title={t('account.appearance.setIdentityTheme')}
                         {...(idx === 0 ? { 'data-tour': 'community-btn-identity' } : {})}
                       >
-                        <IdentityIcon />
+                        <Icon name="mask" />
                       </Button>
                     )}
 
@@ -362,7 +363,7 @@ export function ThemeBrowser() {
                           title={t('account.appearance.setAccountTheme')}
                           {...(idx === 0 ? { 'data-tour': 'community-btn-account' } : {})}
                         >
-                          <AccountIcon />
+                          <Icon name="user" />
                         </Button>
                       </Tooltip>
                     ) : (
@@ -373,7 +374,7 @@ export function ThemeBrowser() {
                         title={t('account.appearance.setAccountTheme')}
                         {...(idx === 0 ? { 'data-tour': 'community-btn-account' } : {})}
                       >
-                        <AccountIcon />
+                        <Icon name="user" />
                       </Button>
                     )}
 
@@ -385,7 +386,7 @@ export function ThemeBrowser() {
                       className="theme-result-upvote-btn"
                       {...(idx === 0 ? { 'data-tour': 'community-btn-upvote' } : {})}
                     >
-                      <UpvoteIcon />
+                      <Icon name="thumbsUp" size="xs" />
                       <span className="theme-upvote-count">{ct.upvotes ?? 0}</span>
                     </Button>
 
@@ -397,7 +398,7 @@ export function ThemeBrowser() {
                         title={t('account.appearance.unshareButton')}
                         className="theme-result-unshare-btn"
                       >
-                        <TrashIcon />
+                        <Icon name="trash" />
                       </Button>
                     )}
                   </div>
@@ -462,51 +463,3 @@ export function ThemeBrowser() {
   );
 }
 
-function UpvoteIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 19V5" />
-      <polyline points="5 12 12 5 19 12" />
-    </svg>
-  );
-}
-
-function EyeIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
-    </svg>
-  );
-}
-
-function IdentityIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
-  );
-}
-
-function AccountIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-      <path d="M3 9h18" />
-      <path d="M9 21V9" />
-    </svg>
-  );
-}
-
-function TrashIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-      <path d="M10 11v6" />
-      <path d="M14 11v6" />
-      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-    </svg>
-  );
-}

@@ -3,7 +3,6 @@
 
 import type { z } from 'zod';
 import type { UserSchema, ApiResponseSchema } from '../schemas';
-import type { PublicIdentity } from '../api/client';
 
 export type {
   ThemeColorTokens,
@@ -38,23 +37,3 @@ export type Platform = 'web' | 'desktop' | 'mobile';
 export type Prettify<T> = {
   [K in keyof T]: T[K];
 } & {};
-
-// Conversation member
-export interface ConversationMember {
-  identity: PublicIdentity;
-  joinedAt: string;
-}
-
-// Conversation types
-export type ConversationType = 'direct' | 'group';
-
-// Conversation
-export interface Conversation {
-  id: string;
-  type: ConversationType;
-  members: ConversationMember[];
-  customTitle?: string;
-  lastMessageAt: string;
-  unreadCount: number;
-  createdAt: string;
-}

@@ -1,0 +1,56 @@
+/**
+ * Maps semantic app icon names to FontAwesome icon names.
+ *
+ * Consumers use the keys (e.g. `"home"`, `"message"`); the Icon component
+ * resolves them to the corresponding FA identifier at render time.
+ */
+
+export const APP_ICON_NAMES = {
+  home: 'house',
+  message: 'message',
+  users: 'users',
+  settings: 'gear',
+  info: 'circle-info',
+  download: 'download',
+  logout: 'right-from-bracket',
+  shield: 'shield-check',
+  key: 'key',
+  bell: 'bell',
+  search: 'magnifying-glass',
+  user: 'user',
+  palette: 'palette',
+  lock: 'lock',
+  mask: 'mask',
+  plus: 'plus',
+  check: 'check',
+  clock: 'clock',
+  x: 'xmark',
+  spaces: 'grid-2',
+  ellipsis: 'ellipsis',
+  smile: 'face-smile',
+  smilePlus: 'face-smile-plus',
+  send: 'paper-plane',
+  trash: 'trash',
+  fileExport: 'file-export',
+  fileImport: 'file-import',
+  chevronDown: 'chevron-down',
+  chevronRight: 'chevron-right',
+  chevronUp: 'chevron-up',
+  camera: 'camera',
+  image: 'image',
+  globe: 'globe',
+  desktop: 'desktop',
+  bars: 'bars',
+  eye: 'eye',
+  thumbsUp: 'thumbs-up',
+  warning: 'triangle-exclamation',
+  success: 'circle-check',
+  error: 'circle-xmark',
+  badgeCheck: 'badge-check',
+  fileArrowDown: 'file-arrow-down',
+  fileArrowUp: 'file-arrow-up',
+  arrowLeft: 'arrow-left',
+  circle: 'circle',
+} as const;
+
+export type AppIconName = keyof typeof APP_ICON_NAMES;

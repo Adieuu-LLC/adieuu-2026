@@ -14,6 +14,7 @@ export interface UserPreferencesDocument extends BaseDocument {
   userId: ObjectId;
   themeId?: string;
   customThemes?: StoredThemeDefinition[];
+  iconPackId?: string;
 }
 
 /**
@@ -32,9 +33,11 @@ export interface CreateUserPreferencesInput {
   userId: ObjectId;
   themeId?: string;
   customThemes?: StoredThemeDefinition[];
+  iconPackId?: string;
 }
 
 export interface UpdateUserPreferencesInput {
   themeId?: string;
   customThemes?: StoredThemeDefinition[];
+  iconPackId?: string;
 }

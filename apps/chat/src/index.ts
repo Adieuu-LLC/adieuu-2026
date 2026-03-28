@@ -148,15 +148,6 @@ function createApp(): uWS.TemplatedApp {
           break;
         }
 
-        case 'typing':
-        case 'message': {
-          logger.debug('Message received (handler not implemented)', {
-            type: message.type,
-            identityId: userData.identityId.substring(0, 8) + '...',
-          });
-          break;
-        }
-
         default: {
           const errorResponse: WsErrorMessage = {
             type: 'error',
@@ -177,7 +168,7 @@ function createApp(): uWS.TemplatedApp {
         reason: reason || undefined,
         connectedForMs: Date.now() - userData.connectedAt,
       });
-      await unregisterConnection(userData.identityId);
+      await unregisterConnection(userData.identityId, ws);
     },
   });
 

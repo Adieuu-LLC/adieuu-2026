@@ -48,3 +48,23 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
     )
   })
 }
+
+# ECS task role: read release manifests from the private S3 bucket (downloads stack).
+resource "aws_iam_role_policy" "ecs_task_release_manifests" {
+  count = local.downloads_enabled ? 1 : 0
+
+  name = "${local.name_prefix}-task-release-manifests"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ReadReleaseManifests"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = ["${aws_s3_bucket.release_manifests[0].arn}/*"]
+      }
+    ]
+  })
+}

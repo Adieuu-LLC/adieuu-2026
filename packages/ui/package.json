@@ -14,6 +14,10 @@
     "./i18n": {
       "types": "./dist/i18n/index.d.ts",
       "import": "./dist/i18n/index.js"
+    },
+    "./icons/registry": {
+      "types": "./dist/icons/registry.d.ts",
+      "import": "./dist/icons/registry.js"
     }
   },
   "scripts": {
@@ -28,8 +32,11 @@
     "@adieuu/crypto": "workspace:*",
     "@adieuu/shared": "workspace:*",
     "@ark-ui/react": "^5.31.0",
+    "@awesome.me/kit-888aad49e1": "^1.0.2",
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
+    "@fortawesome/fontawesome-svg-core": "^7.2.0",
+    "@fortawesome/react-fontawesome": "^3.3.0",
     "@simplewebauthn/browser": "^13.2.2",
     "i18next": "^24.2.2",
     "react-i18next": "^15.4.1",

@@ -11,7 +11,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Checkbox, Dialog, Portal, RadioGroup } from '@ark-ui/react';
+import { Dialog, Portal, RadioGroup } from '@ark-ui/react';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
@@ -23,9 +23,9 @@ import { ImportKeyBackupModal } from '../../components/ImportKeyBackupModal';
 import { createApiClient, type PublicIdentitySession } from '@adieuu/shared';
 import { useDeviceManagement, type DeviceWithStatus, type ActivityTrackingMode, type ActivityInterval } from '../../hooks/useDeviceManagement';
 import { useIdentity } from '../../hooks/useIdentity';
-import { usePreKeys } from '../../hooks/usePreKeys';
 import { useAppConfig } from '../../config';
 import { useToast } from '../../components/Toast';
+import { Icon } from '../../icons/Icon';
 
 /**
  * Format relative time for last active display.
@@ -67,7 +67,7 @@ function DeviceItem({
     <div className={`session-item ${device.isCurrentDevice ? 'session-item-current' : ''}`}>
       <div className="session-info">
         <div className="session-device">
-          {isSharedWebDevice ? <GlobeIcon /> : <DeviceIcon />}
+          {isSharedWebDevice ? <Icon name="globe" /> : <Icon name="desktop" />}
           <span>{isSharedWebDevice ? t('identity.e2e.webDeviceRevocation.label') : device.name}</span>
           {device.isCurrentDevice && (
             <span className="session-current-badge">
@@ -415,270 +415,6 @@ function ActivityPreferences() {
   );
 }
 
-/**
- * Forward secrecy settings for SPK rotation and key deletion policy.
- */
-function ForwardSecrecySettings() {
-  const { t } = useTranslation();
-  const { config, updateConfig, rotateNow, purgeRetiredKeys, isRotating, lastRotation } = usePreKeys();
-  const { success: toastSuccess, error: toastError } = useToast();
-
-  const [immediateConfirmOpen, setImmediateConfirmOpen] = useState(false);
-  const [clearCacheConfirmOpen, setClearCacheConfirmOpen] = useState(false);
-  const [purgeConfirmOpen, setPurgeConfirmOpen] = useState(false);
-  const [purgeClearCache, setPurgeClearCache] = useState(false);
-  const [isPurging, setIsPurging] = useState(false);
-
-  const handleSecurityLevelChange = (details: { value: string | null }) => {
-    if (!details.value) return;
-    updateConfig({ securityLevel: details.value as 'standard' | 'high' | 'maximum' });
-    toastSuccess(t('identity.devices.forwardSecrecy.securityUpdated'));
-  };
-
-  const handleDeletionPolicyChange = (details: { value: string | null }) => {
-    if (!details.value) return;
-    if (details.value === 'immediate') {
-      setImmediateConfirmOpen(true);
-      return;
-    }
-    updateConfig({ spkDeletionPolicy: details.value as 'after-sync' | 'timed' | 'immediate' });
-    toastSuccess(t('identity.devices.forwardSecrecy.deletionUpdated'));
-  };
-
-  const handleConfirmImmediate = () => {
-    updateConfig({ spkDeletionPolicy: 'immediate' });
-    setImmediateConfirmOpen(false);
-    toastSuccess(t('identity.devices.forwardSecrecy.deletionUpdated'));
-  };
-
-  const handleClearCacheToggle = (next: boolean) => {
-    if (next) {
-      setClearCacheConfirmOpen(true);
-    } else {
-      updateConfig({ clearCacheOnRotation: false });
-      toastSuccess(t('identity.devices.forwardSecrecy.clearCacheUpdated'));
-    }
-  };
-
-  const handleConfirmClearCache = () => {
-    updateConfig({ clearCacheOnRotation: true });
-    setClearCacheConfirmOpen(false);
-    toastSuccess(t('identity.devices.forwardSecrecy.clearCacheUpdated'));
-  };
-
-  const handleRotateNow = async () => {
-    try {
-      await rotateNow();
-      toastSuccess(t('identity.devices.forwardSecrecy.rotateSuccess'));
-    } catch (err) {
-      toastError(
-        t('identity.devices.forwardSecrecy.rotateErrorTitle'),
-        err instanceof Error ? err.message : t('identity.devices.forwardSecrecy.rotateErrorBody')
-      );
-    }
-  };
-
-  const handlePurgeRetiredKeys = async () => {
-    setIsPurging(true);
-    try {
-      const deleted = await purgeRetiredKeys(purgeClearCache);
-      setPurgeConfirmOpen(false);
-      setPurgeClearCache(false);
-      if (deleted > 0) {
-        toastSuccess(t('identity.devices.forwardSecrecy.purgeSuccess', { count: deleted }));
-      } else {
-        toastSuccess(t('identity.devices.forwardSecrecy.purgeNone'));
-      }
-    } catch (err) {
-      toastError(
-        t('identity.devices.forwardSecrecy.purgeErrorTitle'),
-        err instanceof Error ? err.message : t('identity.devices.forwardSecrecy.purgeErrorBody')
-      );
-    } finally {
-      setIsPurging(false);
-    }
-  };
-
-  return (
-    <div className="activity-settings">
-      <div className="sessions-header">
-        <div className="sessions-header-text">
-          <h3>{t('identity.devices.forwardSecrecy.title')}</h3>
-          <p>{t('identity.devices.forwardSecrecy.description')}</p>
-        </div>
-      </div>
-
-      <div className="activity-section">
-        <h4 className="activity-radio-title">{t('identity.devices.forwardSecrecy.securityLevelTitle')}</h4>
-        <RadioGroup.Root
-          value={config.securityLevel}
-          onValueChange={handleSecurityLevelChange}
-          className="activity-radio-group"
-        >
-          <RadioGroup.Item value="standard" className="activity-radio-item">
-            <RadioGroup.ItemControl className="activity-radio-control" />
-            <RadioGroup.ItemText className="activity-radio-text">
-              <span className="activity-radio-title">{t('identity.devices.forwardSecrecy.security.standard.title')}</span>
-              <span className="activity-radio-description">{t('identity.devices.forwardSecrecy.security.standard.description')}</span>
-            </RadioGroup.ItemText>
-            <RadioGroup.ItemHiddenInput />
-          </RadioGroup.Item>
-          <RadioGroup.Item value="high" className="activity-radio-item">
-            <RadioGroup.ItemControl className="activity-radio-control" />
-            <RadioGroup.ItemText className="activity-radio-text">
-              <span className="activity-radio-title">{t('identity.devices.forwardSecrecy.security.high.title')}</span>
-              <span className="activity-radio-description">{t('identity.devices.forwardSecrecy.security.high.description')}</span>
-            </RadioGroup.ItemText>
-            <RadioGroup.ItemHiddenInput />
-          </RadioGroup.Item>
-          <RadioGroup.Item value="maximum" className="activity-radio-item">
-            <RadioGroup.ItemControl className="activity-radio-control" />
-            <RadioGroup.ItemText className="activity-radio-text">
-              <span className="activity-radio-title">{t('identity.devices.forwardSecrecy.security.maximum.title')}</span>
-              <span className="activity-radio-description">{t('identity.devices.forwardSecrecy.security.maximum.description')}</span>
-            </RadioGroup.ItemText>
-            <RadioGroup.ItemHiddenInput />
-          </RadioGroup.Item>
-        </RadioGroup.Root>
-      </div>
-
-      <div className="activity-section">
-        <h4 className="activity-radio-title">{t('identity.devices.forwardSecrecy.deletionPolicyTitle')}</h4>
-        <RadioGroup.Root
-          value={config.spkDeletionPolicy}
-          onValueChange={handleDeletionPolicyChange}
-          className="activity-radio-group"
-        >
-          <RadioGroup.Item value="after-sync" className="activity-radio-item">
-            <RadioGroup.ItemControl className="activity-radio-control" />
-            <RadioGroup.ItemText className="activity-radio-text">
-              <span className="activity-radio-title">{t('identity.devices.forwardSecrecy.deletion.afterSync.title')}</span>
-              <span className="activity-radio-description">{t('identity.devices.forwardSecrecy.deletion.afterSync.description')}</span>
-            </RadioGroup.ItemText>
-            <RadioGroup.ItemHiddenInput />
-          </RadioGroup.Item>
-          <RadioGroup.Item value="timed" className="activity-radio-item">
-            <RadioGroup.ItemControl className="activity-radio-control" />
-            <RadioGroup.ItemText className="activity-radio-text">
-              <span className="activity-radio-title">{t('identity.devices.forwardSecrecy.deletion.timed.title')}</span>
-              <span className="activity-radio-description">{t('identity.devices.forwardSecrecy.deletion.timed.description')}</span>
-            </RadioGroup.ItemText>
-            <RadioGroup.ItemHiddenInput />
-          </RadioGroup.Item>
-          <RadioGroup.Item value="immediate" className="activity-radio-item">
-            <RadioGroup.ItemControl className="activity-radio-control" />
-            <RadioGroup.ItemText className="activity-radio-text">
-              <span className="activity-radio-title">{t('identity.devices.forwardSecrecy.deletion.immediate.title')}</span>
-              <span className="activity-radio-description">{t('identity.devices.forwardSecrecy.deletion.immediate.description')}</span>
-            </RadioGroup.ItemText>
-            <RadioGroup.ItemHiddenInput />
-          </RadioGroup.Item>
-        </RadioGroup.Root>
-
-        <Checkbox.Root
-          checked={config.clearCacheOnRotation}
-          onCheckedChange={(e) => handleClearCacheToggle(e.checked === true)}
-          className="fs-cache-clear-checkbox"
-        >
-          <Checkbox.Control className="fs-checkbox-control" />
-          <Checkbox.Label className="fs-checkbox-label">
-            <span className="fs-checkbox-title">{t('identity.devices.forwardSecrecy.clearCacheOnRotation')}</span>
-            <span className="fs-checkbox-hint">{t('identity.devices.forwardSecrecy.clearCacheOnRotationHint')}</span>
-          </Checkbox.Label>
-          <Checkbox.HiddenInput />
-        </Checkbox.Root>
-      </div>
-
-      <div className="activity-section">
-        <div className="sessions-header">
-          <div className="sessions-header-text">
-            <h4>{t('identity.devices.forwardSecrecy.manualRotationTitle')}</h4>
-            <p>
-              {lastRotation
-                ? t('identity.devices.forwardSecrecy.lastRotatedAt', {
-                    date: new Date(lastRotation).toLocaleString(),
-                  })
-                : t('identity.devices.forwardSecrecy.lastRotatedUnknown')}
-            </p>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleRotateNow}
-            disabled={isRotating}
-          >
-            {isRotating ? <Spinner size="sm" /> : t('identity.devices.forwardSecrecy.rotateNow')}
-          </Button>
-        </div>
-      </div>
-
-      <div className="activity-section">
-        <div className="sessions-header">
-          <div className="sessions-header-text">
-            <h4>{t('identity.devices.forwardSecrecy.purgeTitle')}</h4>
-            <p>{t('identity.devices.forwardSecrecy.purgeDescription')}</p>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setPurgeConfirmOpen(true)}
-          >
-            {t('identity.devices.forwardSecrecy.purgeButton')}
-          </Button>
-        </div>
-      </div>
-
-      <ConfirmDialog
-        open={immediateConfirmOpen}
-        onOpenChange={setImmediateConfirmOpen}
-        title={t('identity.devices.forwardSecrecy.deletion.immediateConfirmTitle')}
-        description={t('identity.devices.forwardSecrecy.deletion.immediateConfirmBody')}
-        confirmLabel={t('identity.devices.forwardSecrecy.deletion.immediateConfirmAction')}
-        variant="warning"
-        onConfirm={handleConfirmImmediate}
-      />
-
-      <ConfirmDialog
-        open={clearCacheConfirmOpen}
-        onOpenChange={setClearCacheConfirmOpen}
-        title={t('identity.devices.forwardSecrecy.clearCacheConfirmTitle')}
-        description={t('identity.devices.forwardSecrecy.clearCacheConfirmBody')}
-        confirmLabel={t('identity.devices.forwardSecrecy.clearCacheConfirmAction')}
-        variant="warning"
-        onConfirm={handleConfirmClearCache}
-      />
-
-      <ConfirmDialog
-        open={purgeConfirmOpen}
-        onOpenChange={(open) => {
-          setPurgeConfirmOpen(open);
-          if (!open) setPurgeClearCache(false);
-        }}
-        title={t('identity.devices.forwardSecrecy.purgeConfirmTitle')}
-        confirmLabel={t('identity.devices.forwardSecrecy.purgeConfirmAction')}
-        variant="danger"
-        loading={isPurging}
-        onConfirm={handlePurgeRetiredKeys}
-      >
-        <p className="confirm-dialog-description">
-          {t('identity.devices.forwardSecrecy.purgeConfirmBody')}
-        </p>
-        <Checkbox.Root
-          checked={purgeClearCache}
-          onCheckedChange={(e) => setPurgeClearCache(e.checked === true)}
-          className="fs-cache-clear-checkbox fs-purge-cache-checkbox"
-        >
-          <Checkbox.Control className="fs-checkbox-control" />
-          <Checkbox.Label className="fs-checkbox-label">
-            {t('identity.devices.forwardSecrecy.purgeConfirmClearCache')}
-          </Checkbox.Label>
-          <Checkbox.HiddenInput />
-        </Checkbox.Root>
-      </ConfirmDialog>
-    </div>
-  );
-}
-
 function parseUserAgent(userAgent?: string): string {
   if (!userAgent) return 'Unknown device';
 
@@ -1012,9 +748,6 @@ export function Devices() {
             <TabTrigger value="activity">
               {t('identity.devices.tabs.activity', 'Activity')}
             </TabTrigger>
-            <TabTrigger value="forward-secrecy">
-              {t('identity.devices.tabs.forwardSecrecy', 'Forward Secrecy')}
-            </TabTrigger>
           </TabList>
 
           <TabContent value="devices">
@@ -1073,7 +806,7 @@ export function Devices() {
                   size="sm"
                   onClick={() => setExportDialogOpen(true)}
                 >
-                  <KeyBackupIcon />
+                  <Icon name="fileArrowDown" />
                   {t('identity.devices.exportKeyBackup', 'Export Key Backup')}
                 </Button>
                 <Button
@@ -1081,7 +814,7 @@ export function Devices() {
                   size="sm"
                   onClick={() => setImportDialogOpen(true)}
                 >
-                  <KeyImportIcon />
+                  <Icon name="fileArrowUp" />
                   {t('identity.devices.importKeyBackup', 'Import Key Backup')}
                 </Button>
               </div>
@@ -1100,11 +833,6 @@ export function Devices() {
             </Card>
           </TabContent>
 
-          <TabContent value="forward-secrecy">
-            <Card variant="elevated">
-              <ForwardSecrecySettings />
-            </Card>
-          </TabContent>
         </Tabs>
       </div>
 
@@ -1170,50 +898,6 @@ export function Devices() {
         onSuccess={handleImportSuccess}
       />
     </div>
-  );
-}
-
-/** Globe icon SVG for shared web device */
-function GlobeIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.5rem', flexShrink: 0 }}>
-      <circle cx="12" cy="12" r="10" />
-      <line x1="2" y1="12" x2="22" y2="12" />
-      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-    </svg>
-  );
-}
-
-/** Device icon SVG */
-function DeviceIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.5rem', flexShrink: 0 }}>
-      <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-      <line x1="8" y1="21" x2="16" y2="21" />
-      <line x1="12" y1="17" x2="12" y2="21" />
-    </svg>
-  );
-}
-
-/** Download / export icon */
-function KeyBackupIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.375rem', flexShrink: 0 }}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  );
-}
-
-/** Upload / import icon */
-function KeyImportIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.375rem', flexShrink: 0 }}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
   );
 }
 

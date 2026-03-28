@@ -95,7 +95,7 @@ describe('services/preKeyService', () => {
   });
 
   test('checkAndRotateSpk rotates when SPK is overdue', async () => {
-    const createdAt = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(); // 48h old
+    const createdAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(); // 8 days old (standard = 7d)
     getActiveSignedPreKeyMock
       .mockResolvedValueOnce({ keyId: 'spk-old', createdAt })
       .mockResolvedValueOnce({ keyId: 'spk-old', createdAt });

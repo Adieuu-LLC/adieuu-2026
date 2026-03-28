@@ -27,6 +27,7 @@ export default defineConfig({
       // In dev mode, resolve @adieuu/ui to source files for instant HMR
       // More specific paths MUST come before less specific ones
       '@adieuu/ui/styles.scss': path.resolve(__dirname, '../../packages/ui/src/styles.scss'),
+      '@adieuu/ui/icons/registry': path.resolve(__dirname, '../../packages/ui/src/icons/registry.ts'),
       '@adieuu/ui/i18n': path.resolve(__dirname, '../../packages/ui/src/i18n/index.ts'),
       '@adieuu/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
     },

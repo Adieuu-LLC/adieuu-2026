@@ -50,18 +50,26 @@ contextBridge.exposeInMainWorld('electron', {
 
   // IPC communication (add as needed)
   invoke: (channel: string, ...args: unknown[]) => {
-    const allowedChannels = ['get-app-version', 'open-external', 'install-update', 'get-pending-deep-link'];
+    const allowedChannels = [
+      'get-app-version', 'open-external', 'install-update', 'get-pending-deep-link',
+      'get-update-preferences', 'set-update-preferences', 'check-for-updates',
+    ];
     if (allowedChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);
     }
     throw new Error(`Channel "${channel}" is not allowed`);
   },
 
-  on: (channel: string, callback: (...args: unknown[]) => void) => {
-    const allowedChannels = ['update-available', 'download-progress', 'update-downloaded', 'deep-link'];
+  on: (channel: string, callback: (...args: unknown[]) => void): (() => void) => {
+    const allowedChannels = ['update-available', 'update-not-available', 'download-progress', 'update-downloaded', 'update-error', 'deep-link'];
     if (allowedChannels.includes(channel)) {
-      ipcRenderer.on(channel, (_, ...args) => callback(...args));
+      const wrapper = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args);
+      ipcRenderer.on(channel, wrapper);
+      return () => {
+        ipcRenderer.removeListener(channel, wrapper);
+      };
     }
+    return () => {};
   },
 });
 
@@ -99,7 +107,7 @@ declare global {
         loadSoundFile: (filePath: string) => Promise<string | null>;
       };
       invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
-      on: (channel: string, callback: (...args: unknown[]) => void) => void;
+      on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
     };
   }
 }

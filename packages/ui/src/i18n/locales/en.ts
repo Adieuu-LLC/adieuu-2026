@@ -28,10 +28,18 @@ export const en = {
   nav: {
     home: 'Home',
     about: 'About',
+    getDesktopApp: 'Get desktop app',
     account: 'Account',
     logout: 'Logout',
     expandSidebar: 'Expand sidebar',
     collapseSidebar: 'Collapse sidebar',
+    friends: 'Friends',
+    friendRequests: '{{count}} Friend Request(s)',
+    friendRequests_one: '1 Friend Request',
+    friendRequests_other: '{{count}} Friend Requests',
+    chatInvitations: '{{count}} Chat Invitation(s)',
+    chatInvitations_one: '1 Chat Invitation',
+    chatInvitations_other: '{{count}} Chat Invitations',
   },
 
   // Sidebar sections
@@ -41,126 +49,8 @@ export const en = {
     identity: 'Alias',
     comingSoon: '{{feature}} coming soon.',
     tabs: {
-      friends: 'Friends',
-      conversations: 'Conversations',
       spaces: 'Spaces',
     },
-    friends: {
-      loginRequired: 'Log in to see your friends.',
-      error: 'Failed to load friends.',
-      empty: 'No friends yet.',
-      findFriends: 'Find friends',
-      requests: {
-        count_one: '{{count}} friend request',
-        count_other: '{{count}} friend requests',
-        accept: 'Accept',
-        decline: 'Decline',
-      },
-    },
-    conversations: {
-      loginRequired: 'Log in to see your conversations.',
-      error: 'Failed to load conversations.',
-      empty: 'No conversations yet.',
-    },
-  },
-
-  // Conversation Page
-  conversation: {
-    loginRequired: 'Log in to view this conversation.',
-    notFound: 'Conversation not found.',
-    goHome: 'Go Home',
-    unknown: 'Unknown',
-    memberCount: '{{count}} members',
-    memberCount_one: '1 member',
-    memberCount_other: '{{count}} members',
-    toggleMembers: 'Toggle members',
-    toggleSettings: 'Toggle settings',
-    close: 'Close conversation',
-    members: 'Members',
-    profile: 'Profile',
-    settings: 'Settings',
-    settingsComingSoon: 'Conversation settings coming soon, including crypto profile customization and more.',
-    viewProfile: 'View Profile',
-    messagesPlaceholder: 'Messages will appear here.',
-    noMessages: 'No messages yet. Say hi to {{name}}!',
-    inputPlaceholder: 'Type a message...',
-    send: 'Send',
-  },
-
-  // Messages (MessageList component)
-  messages: {
-    loading: 'Loading messages...',
-    noMessages: 'No messages yet.',
-    startConversation: 'Start the conversation by sending a message.',
-    loadMore: 'Load more',
-    decryptionFailed: 'Could not decrypt message',
-    deleted: 'This message was deleted.',
-    actions: 'Message actions',
-    moreOptions: 'More options',
-    messageInfo: 'Message info',
-    deleteForEveryone: 'Delete for everyone',
-    deleteForMe: 'Delete for me',
-    info: {
-      messageId: 'Message ID',
-      sentAt: 'Sent at',
-      cryptoProfile: 'Crypto profile',
-      forwardSecrecy: 'Forward secrecy',
-      expiresAt: 'Expires at',
-      conversationId: 'Conversation ID',
-      enabled: 'Enabled',
-      disabled: 'Disabled',
-      clientMessageId: 'Client message ID',
-    },
-    expiresIn: 'Expires in',
-    composerPlaceholder: 'Type a message...',
-    composerAriaLabel: 'Message input',
-    send: 'Send',
-    ttl: {
-      select: 'Set message expiry',
-      header: 'Message expires after',
-      never: 'Never',
-      '30s': '30 seconds',
-      '60s': '1 minute',
-      '3m': '3 minutes',
-      '5m': '5 minutes',
-      '10m': '10 minutes',
-      '30m': '30 minutes',
-      '1h': '1 hour',
-      '6h': '6 hours',
-      '1d': '1 day',
-      '3d': '3 days',
-      '1w': '1 week',
-    },
-    fs: {
-      toggle: 'Toggle forward secrecy',
-      enabled: 'FS: On',
-      disabled: 'FS: Off',
-      enabledShort: 'FS',
-      disabledShort: 'No FS',
-      enabledHint: 'Forward secrecy enabled for this message',
-      disabledHint: 'Forward secrecy disabled (static key wrapping)',
-      keyRotationNotice: '{{count}} message is no longer readable',
-      keyRotationNotice_other: '{{count}} messages are no longer readable',
-      keyRotationExplanation: 'Your encryption keys have been rotated. This is expected behavior from forward secrecy.',
-      manageSettings: 'Manage settings',
-      showHiddenMessages: 'Show hidden messages',
-      hideMessages: 'Hide messages',
-      messageUnavailable: 'Message no longer available',
-    },
-    emoji: {
-      select: 'Insert emoji',
-      react: 'Add reaction',
-    },
-    reactions: {
-      addReaction: 'Add reaction',
-      removeReaction: 'Remove reaction',
-    },
-    newMessage: 'New message',
-    newMessageDescription: 'Sent you a message',
-    /** Fallback display name when reaction sender cannot be resolved */
-    someone: 'Someone',
-    /** Toast description when another user reacts to your message */
-    reactedToYourMessage: 'Reacted to your message',
   },
 
   // Search
@@ -177,59 +67,34 @@ export const en = {
     resultsCount_other: '{{count}} results found',
     actions: {
       viewProfile: 'View Profile',
-      message: 'Message',
-      addFriend: 'Add Friend',
-      signInToAddFriend: 'Sign in to add friend',
     },
   },
 
   // Friends
   friends: {
     title: 'Friends',
-    subtitle: 'Manage your friends and friend requests.',
     noFriends: 'No friends yet.',
-    noFriendsHint: 'Send friend requests to connect with people.',
-    friendsSince: 'Friends since {{date}}',
-    // Actions
-    actions: {
-      addFriend: 'Add Friend',
-      cancelRequest: 'Cancel Request',
-      requestSent: 'Request Sent',
-      acceptRequest: 'Accept',
-      ignoreRequest: 'Ignore',
-      removeFriend: 'Remove Friend',
-      friends: 'Friends',
-      signInToAddFriend: 'Sign in to add friend',
-    },
-    // Friend requests
-    requests: {
-      title: 'Friend Requests',
-      incoming: 'Incoming',
-      sent: 'Sent',
-      noIncoming: 'No incoming requests.',
-      noSent: 'No sent requests.',
-      accept: 'Accept',
-      ignore: 'Ignore',
-      cancel: 'Cancel',
-    },
-    // Messages
-    messages: {
-      requestSent: 'Friend request sent.',
-      requestCancelled: 'Friend request cancelled.',
-      requestAccepted: 'Friend request accepted.',
-      requestIgnored: 'Friend request ignored.',
-      friendRemoved: 'Friend removed.',
-      alreadyFriends: 'You are already friends.',
-      mutualAdd: 'You are now friends!',
-    },
-    // Errors
-    errors: {
-      sendFailed: 'Failed to send friend request.',
-      cancelFailed: 'Failed to cancel friend request.',
-      acceptFailed: 'Failed to accept friend request.',
-      ignoreFailed: 'Failed to ignore friend request.',
-      removeFailed: 'Failed to remove friend.',
-      burstLimit: 'Please wait before sending more requests.',
+    searchPlaceholder: 'Search friends...',
+    addFriend: 'Add Friend',
+    removeFriend: 'Remove Friend',
+    pending: 'Pending',
+    alreadyFriends: 'Friends',
+    requestSent: 'Friend request sent.',
+    requestAccepted: 'Friend request accepted.',
+    requestIgnored: 'Friend request ignored.',
+    friendRemoved: 'Friend removed.',
+    incomingRequests: 'Friend Requests',
+    accept: 'Accept',
+    ignore: 'Ignore',
+    cancel: 'Cancel Request',
+    close: 'Close',
+    viewProfile: 'View Profile',
+    remove: 'Remove',
+    notifications: {
+      requestReceived: 'Friend Request',
+      requestReceivedBody: '{{name}} sent you a friend request.',
+      requestAccepted: 'Friend Request Accepted',
+      requestAcceptedBody: '{{name}} accepted your friend request.',
     },
   },
 
@@ -240,14 +105,6 @@ export const en = {
     noNotifications: 'No notifications.',
     markAllRead: 'Mark all as read',
     clearAll: 'Clear all',
-    // Notification types
-    types: {
-      friend_request_received: '{{name}} sent you a friend request',
-      friend_request_accepted: '{{name}} accepted your friend request',
-      friendship_established: 'You are now friends with {{name}}',
-      message_received: '{{name}} sent you a message',
-      mention: '{{name}} mentioned you',
-    },
     // Time formatting
     time: {
       justNow: 'Just now',
@@ -257,12 +114,6 @@ export const en = {
     },
     // Toast notifications
     toast: {
-      friendRequestTitle: 'Friend Request',
-      friendRequestDescription: '{{name}} sent you a friend request',
-      friendAcceptedTitle: 'Friend Request Accepted',
-      friendAcceptedDescription: '{{name}} accepted your friend request',
-      friendshipTitle: 'New Friend',
-      friendshipDescription: 'You are now friends with {{name}}',
       newNotificationTitle: 'New Notification',
       newNotificationDescription: 'You have a new notification',
     },
@@ -291,8 +142,6 @@ export const en = {
     // Menu items for identity flyout
     menu: {
       profile: 'Profile',
-      friends: 'Friends',
-      contentSocial: 'Content & Social',
       privacy: 'Privacy',
       appearance: 'Appearance',
       ciphers: 'Ciphers',
@@ -300,10 +149,7 @@ export const en = {
     },
     // Actions for identity interactions
     actions: {
-      message: 'Message',
       viewProfile: 'View Profile',
-      addFriend: 'Add Friend',
-      removeFriend: 'Remove Friend',
     },
     // Device management
     device: {
@@ -318,7 +164,6 @@ export const en = {
         devices: 'Devices',
         sessions: 'Sessions',
         activity: 'Activity',
-        forwardSecrecy: 'Forward Secrecy',
       },
       yourDevices: 'Your Devices',
       noDevices: 'No devices found.',
@@ -380,6 +225,9 @@ export const en = {
       forwardSecrecy: {
         title: 'Forward Secrecy',
         description: 'Control pre-key rotation and deletion behavior for DM forward secrecy.',
+        enabledTitle: 'Enable Forward Secrecy by default',
+        enabledHint: 'When enabled, all new messages use forward secrecy unless overridden per-conversation or per-message. Messages sent without forward secrecy remain end-to-end encrypted but persist in history.',
+        enabledUpdated: 'Forward secrecy default updated.',
         securityLevelTitle: 'Security Level',
         deletionPolicyTitle: 'Signed Pre-Key Deletion Policy',
         manualRotationTitle: 'Manual Rotation',
@@ -392,8 +240,20 @@ export const en = {
         lastRotatedAt: 'Last rotated: {{date}}',
         lastRotatedUnknown: 'No manual rotation this session.',
         security: {
+          very_lax: {
+            title: 'Very Lax',
+            description: 'Rotate every 30 days. Longest message history window.',
+          },
+          lax: {
+            title: 'Lax',
+            description: 'Rotate every 2 weeks.',
+          },
           standard: {
             title: 'Standard',
+            description: 'Rotate every 7 days.',
+          },
+          medium: {
+            title: 'Medium',
             description: 'Rotate every 24 hours.',
           },
           high: {
@@ -402,7 +262,7 @@ export const en = {
           },
           maximum: {
             title: 'Maximum',
-            description: 'Rotate every hour.',
+            description: 'Rotate every hour. Tightest forward secrecy.',
           },
         },
         deletion: {
@@ -664,23 +524,69 @@ export const en = {
     profile: {
       title: 'Profile',
       subtitle: 'View and manage your alias profile.',
-      comingSoon: 'Profile settings coming soon.',
+      displayName: 'Display Name',
+      displayNamePlaceholder: 'Enter a display name',
+      bio: 'Bio',
+      bioPlaceholder: 'Tell people a bit about yourself',
+      bioCharCount: '{{count}}/{{max}}',
+      avatar: 'Avatar',
+      banner: 'Banner',
+      profileColors: 'Profile Colours',
+      colorPrimary: 'Primary',
+      colorSecondary: 'Secondary',
+      colorAccent: 'Accent',
+      privacySettings: 'Privacy Settings',
+      privacyLabel: '{{field}} visibility',
+      privacyPublic: 'Public',
+      privacyFriends: 'Friends',
+      privacyPrivate: 'Only me',
+      save: 'Save changes',
+      saving: 'Saving...',
+      saved: 'Profile updated.',
+      uploadAvatar: 'Upload avatar',
+      uploadBanner: 'Upload banner',
+      removeAvatar: 'Remove avatar',
+      removeBanner: 'Remove banner',
+      changeAvatar: 'Change avatar',
+      changeBanner: 'Change banner',
+      uploadHint: 'Click or drag to upload',
+      uploadProcessing: 'Processing...',
+      uploadError: 'Upload failed: {{error}}',
+      preview: 'Preview',
+      previewAs: 'Preview as',
+      previewPublic: 'Stranger',
+      previewFriend: 'Friend',
+      previewSelf: 'You',
+      noChanges: 'No changes to save.',
     },
-    // Content & Social page
-    contentSocial: {
-      title: 'Content & Social',
-      subtitle: 'Manage your content and social settings.',
-      comingSoon: 'Content & Social settings coming soon.',
+    // Public profile view (read-only)
+    profileView: {
+      notFound: 'This alias could not be found.',
+      error: 'Something went wrong loading this profile. Please try again.',
+      editProfile: 'Edit profile',
+      lastActive: 'Last active {{date}}',
+      joined: 'Joined {{date}}',
     },
     // Privacy page (identity-scoped)
     privacy: {
       title: 'Privacy',
       subtitle: 'Control your privacy settings and who can interact with you.',
+      tabs: {
+        general: 'General',
+        forwardSecrecy: 'Forward Secrecy',
+      },
       blockedUsers: 'Blocked Users',
       profileVisibility: 'Profile Visibility',
       readReceipts: 'Read Receipts',
       typingIndicators: 'Typing Indicators',
       lastSeen: 'Last Seen',
+      conversationsTitle: 'Conversations',
+      conversationsDescription: 'Control how others can add you to group conversations.',
+      groupApprovalTitle: 'Require group approval',
+      groupApprovalHint: 'When enabled, you must approve before being added to group conversations. You will receive an invitation you can accept or decline.',
+      groupApprovalEnabled: 'Group approval is now required.',
+      groupApprovalDisabled: 'Group approval is no longer required.',
+      groupApprovalError: 'Failed to update setting. Please try again.',
     },
     // Appearance page (identity-scoped)
     appearance: {
@@ -699,6 +605,10 @@ export const en = {
       themeDeleted: 'Custom theme deleted.',
       importFailed: 'Failed to import theme',
       importSuccess: 'Theme imported and applied to this alias.',
+      messageDisplayTitle: 'Message Display',
+      messageDisplayDescription: 'Control how messages are displayed in your conversations.',
+      showArtifactsTitle: 'Show Message Artifacts',
+      showArtifactsHint: 'When enabled, deleted messages, expired forward secrecy messages, and messages that could not be decrypted are shown in conversations. When disabled, these artifacts are hidden for a cleaner view. This is a local display preference only and does not affect message storage.',
     },
   },
 
@@ -737,6 +647,16 @@ export const en = {
       phoneNotVerifiedTooltip: 'Phone not yet verified. Add and verify to use this as login.',
       emailUnchanged: 'Enter a different email address to change it.',
       phoneUnchanged: 'Enter a different phone number to change it.',
+      // Desktop updates
+      updates: 'Updates',
+      currentVersion: 'Current Version',
+      checkForUpdates: 'Check for Updates',
+      checking: 'Checking...',
+      upToDate: 'You are running the latest version.',
+      updateAvailable: 'A new version is available and downloading.',
+      updateReady: 'Update downloaded. Restart to apply.',
+      updateError: 'Could not check for updates. Try again later.',
+      restartToUpdate: 'Restart',
     },
 
     // Notification settings (Account)
@@ -775,6 +695,13 @@ export const en = {
         soundSuppressFocused: 'Suppress sound when this conversation is focused',
         soundSuppressFocusedHint:
           'When on, no sound plays while you are actively viewing that chat in a focused window (same as in-app toasts). Turn off to always hear a sound.',
+        testNotification: 'Send test notification',
+        testNotificationHint:
+          'Fires a system notification and plays your selected sound so you can verify everything is working.',
+        testNotificationTitle: 'Adieuu test notification',
+        testNotificationBody: 'If you can see this and hear the sound, notifications are working properly.',
+        testNotificationSuccess: 'Test notification sent.',
+        testNotificationNoPermission: 'System notifications are not enabled or permission is missing.',
       },
     },
 
@@ -804,6 +731,11 @@ export const en = {
       themeApplied: 'Theme applied.',
       themeDeleted: 'Theme deleted.',
 
+      iconPackTitle: 'Icon Pack',
+      iconPackDescription: 'Choose your preferred icon style. Curated packs tend to have a smaller set of icons; any missing icons will fall back to Sharp Solid.',
+      iconPackApplied: 'Icon pack applied.',
+      iconPackDefault: 'Default',
+
       importExportTitle: 'Import & Export',
       importExportDescription: 'Export your current theme as a file, or import a theme from someone else. Imported themes are validated and sanitised for your safety.',
       exportTheme: 'Export Theme',
@@ -817,6 +749,11 @@ export const en = {
       identityThemeActive: 'Active theme: {{name}}',
       identityThemeClear: 'Clear override',
       identityThemeCleared: 'Alias theme override removed.',
+
+      languageTitle: 'Language',
+      languageDescription: 'Choose your preferred language. More languages coming soon.',
+      languageLabel: 'Display language',
+      languageContributeHint: 'Want to help translate Adieuu into your language? Drop us a line at <mailLink>say@adieuu.com</mailLink>.',
 
       communityTitle: 'Community Themes',
       communitySubtitle: 'Browse themes shared by other users.',
@@ -906,6 +843,37 @@ export const en = {
     securityText: 'All messages are encrypted using industry-standard cryptographic algorithms. Our passwordless authentication system eliminates the risk of password breaches while providing a seamless user experience.',
     desktopTitle: 'Desktop App',
     desktopText: 'The Adieuu desktop app is built with Electron, providing a native experience on Windows, macOS, and Linux. It shares the same secure codebase as our web application, ensuring consistent security across all platforms.',
+  },
+
+  download: {
+    title: 'Download the desktop app',
+    subtitle:
+      'Use Adieuu as a native app on Windows, macOS, or Linux. Same privacy and encryption as the browser, with a better fit for daily use.',
+    benefitsTitle: 'Why use the desktop app',
+    benefitNotifications:
+      'Notifications can work even when the app is not in the foreground, so you are less likely to miss messages.',
+    benefitSounds:
+      'Choose your own notification sound and use custom audio files from your device.',
+    benefitNative:
+      'Native integration with your operating system: dock or taskbar presence, window management, and a familiar desktop workflow.',
+    benefitReliableAudio:
+      'Sound playback is less subject to browser autoplay rules, so notifications are more reliable.',
+    benefitKeyStorage:
+      'Cryptographic keys can be stored in your OS keychain (e.g. Windows Credential Manager, macOS Keychain), not only in browser storage.',
+    benefitDedicatedWindow:
+      'A dedicated window keeps Adieuu separate from dozens of browser tabs.',
+    limitationsTitle: 'Browser limitations',
+    limitationTab:
+      'In the browser, real-time alerts and sounds generally work only while the tab is open. Closing the tab stops the connection.',
+    limitationAutoplay:
+      'Browsers may block or delay sounds until you have interacted with the page, which can make notification sounds feel inconsistent.',
+    limitationIndexedDb:
+      'Browser storage can be cleared when you clear site data or cache, which can affect local keys.',
+    limitationNoTray:
+      'There is no system tray or dock icon in the browser; the desktop app can sit in the tray for quick access.',
+    linksTitle: 'Downloads',
+    linksPlaceholder: 'Direct download links for each platform will appear here soon.',
+    versionLabel: 'Latest release version: {{version}}',
   },
 
   // Home page
@@ -1261,6 +1229,125 @@ export const en = {
       save: 'Save allowlist settings',
       saveError: 'Failed to save settings.',
       loadError: 'Failed to load settings.',
+    },
+  },
+
+  // Conversations
+  conversations: {
+    group: 'Group',
+    members: 'Members',
+    directMessage: 'Direct message',
+    settings: 'Settings',
+    leave: 'Leave',
+    you: 'You',
+    admin: 'Admin',
+    makeAdmin: 'Make Admin',
+    removeMember: 'Remove',
+    notFound: 'Conversation not found',
+    backHome: 'Back to home',
+    deleteGroup: 'Delete Group',
+
+    leaveGroup: {
+      title: 'Leave group?',
+      confirm: "You won't be able to rejoin without a new invite.",
+      lastMember: 'You are the last member. The group and all messages will be permanently deleted.',
+      confirmBtn: 'Leave',
+    },
+
+    deleteGroupDialog: {
+      title: 'Delete group?',
+      confirm: 'This will permanently delete the group and all messages for everyone.',
+      confirmBtn: 'Delete',
+    },
+
+    settingsFs: 'Forward Secrecy',
+    settingsFsHint: 'Default messages in this conversation to use forward secrecy. Messages without FS remain end-to-end encrypted but persist in history.',
+    settingsRenameTitle: 'Group Name',
+    settingsRenamePlaceholder: 'Enter new name...',
+    settingsRenameSave: 'Save',
+
+    adminTransfer: {
+      title: 'Choose a new admin',
+      description: 'You are the last admin. Choose who should take over before you leave.',
+      oldest: 'Oldest member',
+      oldestHint: 'The member who joined earliest',
+      mostActive: 'Most active member',
+      mostActiveHint: 'The member who sent the most messages',
+      manual: 'Choose a member',
+      manualHint: 'Select a specific member to promote',
+      skip: 'Skip',
+      leave: 'Leave',
+    },
+
+    systemMessage: {
+      memberJoined: '{{name}} has joined the conversation',
+      memberInvited: '{{actor}} invited {{name}} to the group',
+      memberLeft: '{{name}} has left the conversation',
+      adminPromoted: '{{actor}} made {{name}} an admin',
+      adminPromotedSimple: '{{name}} is now an admin',
+      groupRenamed: '{{actor}} renamed the group',
+      groupRenamedSimple: '{{name}} renamed the group',
+    },
+
+    invites: {
+      panelTitle: 'Chat Invitations',
+      group: 'Group',
+      groupNameHidden: 'Group Name Hidden',
+      inviterAndOthers: '{{name}} + {{count}} others',
+      inviterAndOthers_one: '{{name}} + 1 other',
+      inviterAndOthers_other: '{{name}} + {{count}} others',
+      inviterGroup: "{{name}}'s Group",
+      invitedBy: 'From {{name}}',
+      invitedByLabel: 'Invited by',
+      memberCount: '{{count}} members',
+      memberCount_one: '1 member',
+      memberCount_other: '{{count}} members',
+      accept: 'Accept',
+      decline: 'Decline',
+      noInvites: 'No pending invitations',
+      previewMemberCount: '{{count}} members',
+      previewMemberCount_one: '1 member',
+      previewMemberCount_other: '{{count}} members',
+      previewMembers: 'Members',
+      previewUnavailable: 'Preview unavailable',
+      alsoInvited: 'Also Invited',
+      othersInvited: '+{{count}} others invited',
+      othersInvited_one: '+1 other invited',
+      othersInvited_other: '+{{count}} others invited',
+    },
+
+    inviteMember: {
+      title: 'Invite Member',
+      button: 'Invite Member',
+      invite: 'Invite',
+      privacyNote:
+        'Invitees will be able to see current and invited member lists, but the group name will be hidden until they join.',
+      previouslyLeft: 'Previously left',
+      noEligible: 'No friends available to invite',
+    },
+
+    notifications: {
+      groupInvite: 'Group invitation',
+      groupInviteNameHidden:
+        "You've been invited to a group (name hidden until you join)",
+      groupInviteFromBody: '{{name}} + {{count}} others invited you',
+      groupInviteFromBody_one: '{{name}} + 1 other invited you',
+      groupInviteFromBody_other: '{{name}} + {{count}} others invited you',
+      groupInviteFromSolo: '{{name}} is inviting you',
+      groupTerminated: 'Group deleted',
+      groupTerminatedBody: '{{name}} deleted the group',
+      memberJoined: 'Member joined',
+      memberJoinedBody: '{{name}} joined the group',
+      memberAdded: 'Member added',
+      memberAddedBody: '{{name}} was added to the group',
+      memberLeft: 'Member left',
+      memberLeftBody: '{{name}} left the group',
+      memberRemoved: 'Member removed',
+      memberRemovedBody: '{{name}} was removed from the group',
+      groupRenamed: 'Group renamed',
+      groupRenamedBody: 'The group name was updated',
+      adminPromoted: 'New admin',
+      adminPromotedBody: '{{name}} was promoted to admin',
     },
   },
 } as const;

@@ -412,18 +412,91 @@ registerSecureStorageIpc();
 
 // ============================================================================
 // Auto-updater (electron-updater)
+//
+// Privacy: update checks hit downloads.adieuu.com via CloudFront. To
+// minimise data exposure we (a) use a generic User-Agent, (b) send no
+// custom analytics headers, (c) let the user configure the check interval
+// and opt out entirely. CloudFront access logging is disabled on the
+// downloads distribution. Each check exposes the client IP at the edge
+// and standard HTTP headers -- no account or user ID is transmitted.
 // ============================================================================
 
-const UPDATE_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+const MIN_CHECK_INTERVAL_MINUTES = 60;
+const DEFAULT_CHECK_INTERVAL_MINUTES = 60;
+const UPDATE_PREFS_FILE = 'update-preferences.json';
 
-function initAutoUpdater() {
-  if (isDev) {
-    simulateUpdateFlow();
-    return;
+interface UpdatePreferences {
+  autoCheckEnabled: boolean;
+  checkIntervalMinutes: number;
+}
+
+const DEFAULT_UPDATE_PREFS: UpdatePreferences = {
+  autoCheckEnabled: true,
+  checkIntervalMinutes: DEFAULT_CHECK_INTERVAL_MINUTES,
+};
+
+async function readUpdatePreferences(): Promise<UpdatePreferences> {
+  try {
+    const filePath = path.join(app.getPath('userData'), UPDATE_PREFS_FILE);
+    const raw = await fs.readFile(filePath, 'utf-8');
+    const parsed = JSON.parse(raw) as Partial<UpdatePreferences>;
+    return {
+      autoCheckEnabled: typeof parsed.autoCheckEnabled === 'boolean'
+        ? parsed.autoCheckEnabled
+        : DEFAULT_UPDATE_PREFS.autoCheckEnabled,
+      checkIntervalMinutes: typeof parsed.checkIntervalMinutes === 'number'
+          && parsed.checkIntervalMinutes >= MIN_CHECK_INTERVAL_MINUTES
+        ? parsed.checkIntervalMinutes
+        : DEFAULT_UPDATE_PREFS.checkIntervalMinutes,
+    };
+  } catch {
+    return { ...DEFAULT_UPDATE_PREFS };
+  }
+}
+
+async function writeUpdatePreferences(prefs: UpdatePreferences): Promise<void> {
+  const filePath = path.join(app.getPath('userData'), UPDATE_PREFS_FILE);
+  await fs.writeFile(filePath, JSON.stringify(prefs, null, 2), 'utf-8');
+}
+
+let updateCheckTimer: ReturnType<typeof setInterval> | null = null;
+
+function scheduleUpdateChecks(intervalMinutes: number): void {
+  if (updateCheckTimer) {
+    clearInterval(updateCheckTimer);
+    updateCheckTimer = null;
   }
 
+  const ms = Math.max(intervalMinutes, MIN_CHECK_INTERVAL_MINUTES) * 60 * 1000;
+  updateCheckTimer = setInterval(() => {
+    autoUpdater.checkForUpdates().catch((err: unknown) => {
+      console.error('[AutoUpdater] Periodic check failed:', err);
+    });
+  }, ms);
+}
+
+async function initAutoUpdater() {
   autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoInstallOnAppQuit = !isDev;
+
+  // Privacy: use a generic User-Agent instead of the detailed default
+  // (which includes OS, architecture, and Electron version).
+  autoUpdater.requestHeaders = { 'User-Agent': 'Adieuu-Desktop-Updater' };
+
+  // Allow overriding the update server URL for local testing. When set,
+  // electron-updater fetches manifests and binaries from this URL instead
+  // of the production downloads.adieuu.com endpoint.
+  // Usage: ADIEUU_UPDATE_SERVER_URL=http://localhost:8089 pnpm --filter @adieuu/desktop dev
+  if (process.env.ADIEUU_UPDATE_SERVER_URL) {
+    autoUpdater.setFeedURL({
+      provider: 'generic',
+      url: process.env.ADIEUU_UPDATE_SERVER_URL,
+    });
+    console.info(
+      '[AutoUpdater] Feed URL overridden:',
+      process.env.ADIEUU_UPDATE_SERVER_URL,
+    );
+  }
 
   autoUpdater.on('update-available', (info) => {
     console.info('[AutoUpdater] Update available:', info.version);
@@ -431,6 +504,10 @@ function initAutoUpdater() {
       version: info.version,
       releaseNotes: info.releaseNotes,
     });
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    mainWindow?.webContents.send('update-not-available');
   });
 
   autoUpdater.on('download-progress', (progress) => {
@@ -450,53 +527,22 @@ function initAutoUpdater() {
 
   autoUpdater.on('error', (err) => {
     console.error('[AutoUpdater] Error:', err.message);
+    mainWindow?.webContents.send('update-error', { message: err.message });
   });
 
-  autoUpdater.checkForUpdates().catch((err: unknown) => {
-    console.error('[AutoUpdater] Initial check failed:', err);
-  });
+  if (isDev && !process.env.ADIEUU_UPDATE_SERVER_URL) {
+    console.info('[AutoUpdater] Dev mode without ADIEUU_UPDATE_SERVER_URL; auto-check disabled.');
+    return;
+  }
 
-  setInterval(() => {
+  const prefs = await readUpdatePreferences();
+
+  if (prefs.autoCheckEnabled) {
     autoUpdater.checkForUpdates().catch((err: unknown) => {
-      console.error('[AutoUpdater] Periodic check failed:', err);
+      console.error('[AutoUpdater] Initial check failed:', err);
     });
-  }, UPDATE_CHECK_INTERVAL_MS);
-}
-
-/**
- * Simulates the update lifecycle in dev mode so the banner UI can be tested.
- * Fires update-available after 5s, download-progress ticks for 3s, then
- * update-downloaded. install-update just logs instead of quitting.
- */
-function simulateUpdateFlow() {
-  const fakeVersion = '99.0.0';
-  console.info('[AutoUpdater] Dev mode: simulating update flow in 5s');
-
-  setTimeout(() => {
-    console.info('[AutoUpdater] Dev: update-available');
-    mainWindow?.webContents.send('update-available', {
-      version: fakeVersion,
-      releaseNotes: 'Simulated update for development testing.',
-    });
-
-    let percent = 0;
-    const progressInterval = setInterval(() => {
-      percent += 25;
-      mainWindow?.webContents.send('download-progress', {
-        percent,
-        transferred: percent * 1_000_000,
-        total: 100_000_000,
-      });
-
-      if (percent >= 100) {
-        clearInterval(progressInterval);
-        console.info('[AutoUpdater] Dev: update-downloaded');
-        mainWindow?.webContents.send('update-downloaded', {
-          version: fakeVersion,
-        });
-      }
-    }, 750);
-  }, 5000);
+    scheduleUpdateChecks(prefs.checkIntervalMinutes);
+  }
 }
 
 ipcMain.handle('install-update', () => {
@@ -505,6 +551,43 @@ ipcMain.handle('install-update', () => {
     return;
   }
   autoUpdater.quitAndInstall();
+});
+
+ipcMain.handle('get-update-preferences', async () => {
+  return readUpdatePreferences();
+});
+
+ipcMain.handle('set-update-preferences', async (_event, prefs: Partial<UpdatePreferences>) => {
+  const current = await readUpdatePreferences();
+  const updated: UpdatePreferences = {
+    autoCheckEnabled: typeof prefs.autoCheckEnabled === 'boolean'
+      ? prefs.autoCheckEnabled
+      : current.autoCheckEnabled,
+    checkIntervalMinutes: typeof prefs.checkIntervalMinutes === 'number'
+        && prefs.checkIntervalMinutes >= MIN_CHECK_INTERVAL_MINUTES
+      ? prefs.checkIntervalMinutes
+      : current.checkIntervalMinutes,
+  };
+  await writeUpdatePreferences(updated);
+
+  if (updated.autoCheckEnabled) {
+    scheduleUpdateChecks(updated.checkIntervalMinutes);
+  } else if (updateCheckTimer) {
+    clearInterval(updateCheckTimer);
+    updateCheckTimer = null;
+  }
+
+  return updated;
+});
+
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Update check failed';
+    console.error('[AutoUpdater] Manual check failed:', message);
+    mainWindow?.webContents.send('update-error', { message });
+  }
 });
 
 // Deep link IPC

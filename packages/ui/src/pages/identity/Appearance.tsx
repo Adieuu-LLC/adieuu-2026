@@ -13,11 +13,13 @@ import { Link } from 'react-router-dom';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Alert } from '../../components/Alert';
+import { Icon } from '../../icons/Icon';
 import { useToast } from '../../components/Toast';
 import { useTheme } from '../../hooks/useTheme';
 import { useIdentity } from '../../hooks/useIdentity';
 import { DEFAULT_THEME_ID } from '../../constants/builtinThemes';
 import { sanitizeImportedTheme } from '../../utils/themeSanitizer';
+import { loadShowMessageArtifacts, saveShowMessageArtifacts } from '../../services/preKeyService';
 import type { ThemeDefinition, ThemeColorTokens } from '@adieuu/shared';
 import { TOKEN_TO_CSS_VAR } from '@adieuu/shared';
 
@@ -99,6 +101,17 @@ export function IdentityAppearance() {
 
   const overrideEnabled = identityThemeId !== null;
   const currentThemeId = identityThemeId ?? accountThemeId ?? DEFAULT_THEME_ID;
+
+  const [showArtifacts, setShowArtifacts] = useState(
+    () => identity ? loadShowMessageArtifacts(identity.id) : false
+  );
+
+  const handleArtifactsToggle = useCallback((enabled: boolean) => {
+    setShowArtifacts(enabled);
+    if (identity) {
+      saveShowMessageArtifacts(identity.id, enabled);
+    }
+  }, [identity]);
 
   const [editMode, setEditMode] = useState(false);
   const [editColors, setEditColors] = useState<ThemeColorTokens | null>(null);
@@ -472,11 +485,11 @@ export function IdentityAppearance() {
               <p className="app-settings-section-desc">{t('account.appearance.importExportDescription')}</p>
               <div className="theme-import-export-row">
                 <Button variant="secondary" size="sm" onClick={handleExport} disabled={!activeTheme}>
-                  <ExportIcon />
+                  <Icon name="fileExport" style={{ marginRight: '0.375rem', flexShrink: 0 }} />
                   {t('account.appearance.exportTheme')}
                 </Button>
                 <Button variant="secondary" size="sm" onClick={handleImport}>
-                  <ImportIcon />
+                  <Icon name="fileImport" style={{ marginRight: '0.375rem', flexShrink: 0 }} />
                   {t('account.appearance.importTheme')}
                 </Button>
                 <input
@@ -490,27 +503,32 @@ export function IdentityAppearance() {
             </Card>
           </>
         )}
+
+        {/* Message Display Preferences */}
+        <Card variant="elevated" className="slide-up app-settings-card">
+          <h2 className="app-settings-section-title">
+            {t('identity.appearance.messageDisplayTitle', 'Message Display')}
+          </h2>
+          <p className="app-settings-section-desc">
+            {t('identity.appearance.messageDisplayDescription', 'Control how messages are displayed in your conversations.')}
+          </p>
+          <label className="app-settings-toggle">
+            <input
+              type="checkbox"
+              checked={showArtifacts}
+              onChange={(e) => handleArtifactsToggle(e.target.checked)}
+            />
+            <span className="app-settings-toggle-label">
+              <span className="app-settings-toggle-title">
+                {t('identity.appearance.showArtifactsTitle', 'Show Message Artifacts')}
+              </span>
+              <span className="app-settings-toggle-hint">
+                {t('identity.appearance.showArtifactsHint', 'When enabled, deleted messages, expired forward secrecy messages, and messages that could not be decrypted are shown in conversations. When disabled, these artifacts are hidden for a cleaner view. This is a local display preference only and does not affect message storage.')}
+              </span>
+            </span>
+          </label>
+        </Card>
       </div>
     </div>
-  );
-}
-
-function ExportIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.375rem', flexShrink: 0 }}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  );
-}
-
-function ImportIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.375rem', flexShrink: 0 }}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
   );
 }

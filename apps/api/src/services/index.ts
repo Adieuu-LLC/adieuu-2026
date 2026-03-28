@@ -28,4 +28,3 @@ export * from './rate-limit.service';
 export * from './session.service';
 export * from './messaging';
 export * from './identity.service';
-export * from './dm-events.service';

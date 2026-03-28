@@ -669,11 +669,11 @@ export async function getKeyBundleCtrl(ctx: RouteContext): Promise<Response> {
 
   const bundle = await keyBundleRepo.findByBundleId(bundleId);
   if (!bundle) {
-    console.log('[Get Bundle] Bundle not found!');
+    // console.log('[Get Bundle] Bundle not found!');
     return errors.notFound('Key bundle not found.');
   }
   
-  console.log('[Get Bundle] Bundle found, salt length:', bundle.salt.length);
+  // console.log('[Get Bundle] Bundle found, salt length:', bundle.salt.length);
 
   return success({
     encryptedBundle: bundle.encryptedBundle,

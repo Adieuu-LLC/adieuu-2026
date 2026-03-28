@@ -2,7 +2,8 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { initI18n } from '@adieuu/ui/i18n';
-import { App, PlatformProvider, AuthProvider, IdentityProvider, ThemeProvider, ToastProvider, type AppConfig } from '@adieuu/ui';
+import { App, PlatformProvider, AuthProvider, IdentityProvider, ThemeProvider, IconPackProvider, ToastProvider, type AppConfig } from '@adieuu/ui';
+import '@adieuu/ui/icons/registry';
 import { webCapabilities } from './platform';
 import '@adieuu/ui/styles.scss';
 import './index.scss';
@@ -35,9 +36,11 @@ createRoot(rootElement).render(
         <AuthProvider>
           <IdentityProvider>
             <ThemeProvider>
-              <ToastProvider>
-                <App />
-              </ToastProvider>
+              <IconPackProvider>
+                <ToastProvider>
+                  <App />
+                </ToastProvider>
+              </IconPackProvider>
             </ThemeProvider>
           </IdentityProvider>
         </AuthProvider>

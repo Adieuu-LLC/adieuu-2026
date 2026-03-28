@@ -11,6 +11,8 @@ import { useToast } from '../../components/Toast';
 import { createApiClient, type UserProfile } from '@adieuu/shared';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppConfig } from '../../config';
+import { usePlatform } from '../../hooks/usePlatform';
+import { useUpdateCheck } from '../../hooks/useUpdateCheck';
 
 type EditMode = 'none' | 'email' | 'phone';
 type VerifyMode = 'none' | 'email' | 'phone';
@@ -30,6 +32,8 @@ export function AccountOverview() {
   const { session } = useAuth();
   const { apiBaseUrl } = useAppConfig();
   const toast = useToast();
+  const platform = usePlatform();
+  const { status: updateStatus, checkForUpdates, applyUpdate } = useUpdateCheck();
 
   // Create API client using configured base URL
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -517,6 +521,61 @@ export function AccountOverview() {
             </div>
           </div>
         </Card>
+
+        {platform === 'desktop' && (
+          <Card variant="elevated" className="slide-up" style={{ marginTop: 'var(--spacing-lg)' }}>
+            <div className="account-overview">
+              <div className="account-details">
+                <div className="account-detail-row">
+                  <span className="account-detail-label">{t('account.overview.updates')}</span>
+                  <div className="account-detail-content">
+                    <div className="account-update-section">
+                      <div className="account-update-version">
+                        <span className="account-detail-label">{t('account.overview.currentVersion')}</span>
+                        <span className="account-detail-value">
+                          {typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '—'}
+                        </span>
+                      </div>
+
+                      {updateStatus === 'up-to-date' && (
+                        <p className="account-update-message account-status-good">{t('account.overview.upToDate')}</p>
+                      )}
+                      {(updateStatus === 'available' || updateStatus === 'downloading') && (
+                        <p className="account-update-message">{t('account.overview.updateAvailable')}</p>
+                      )}
+                      {updateStatus === 'ready' && (
+                        <p className="account-update-message">{t('account.overview.updateReady')}</p>
+                      )}
+                      {updateStatus === 'error' && (
+                        <p className="account-update-message account-status-error">{t('account.overview.updateError')}</p>
+                      )}
+
+                      <div className="account-update-actions">
+                        {updateStatus === 'ready' ? (
+                          <Button onClick={applyUpdate} className="btn btn-primary btn-sm">
+                            {t('account.overview.restartToUpdate')}
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={checkForUpdates}
+                            className="btn btn-secondary btn-sm"
+                            disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
+                          >
+                            {updateStatus === 'checking' ? (
+                              <><Spinner size="sm" /> {t('account.overview.checking')}</>
+                            ) : (
+                              t('account.overview.checkForUpdates')
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );

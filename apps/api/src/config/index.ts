@@ -247,6 +247,23 @@ export const config = {
     fromName: optionalEnv('SMS_FROM_NAME', 'Adieuu'),
   },
 
+  /** S3 configuration for media uploads */
+  s3: {
+    /** S3 bucket for user-uploaded media (injected by Terraform as MEDIA_S3_BUCKET) */
+    mediaBucket: process.env.MEDIA_S3_BUCKET || '',
+    /** AWS region for the media bucket */
+    region: optionalEnv('MEDIA_S3_REGION', optionalEnv('AWS_REGION', 'us-east-1')),
+  },
+
+  /** CDN configuration for serving processed media */
+  cdn: {
+    /** Base URL for the media CDN (e.g. https://media.adieuu.com) */
+    mediaBaseUrl: process.env.MEDIA_CDN_URL || '',
+  },
+
+  /** Shared secret for Lambda media processor callbacks */
+  mediaProcessorSecret: optionalEnv('MEDIA_PROCESSOR_SECRET', 'dev-media-processor-secret'),
+
   /** Web application URL for magic links and redirects */
   webAppUrl: optionalEnv('WEB_APP_URL', 'http://localhost:3000'),
 
@@ -260,6 +277,12 @@ export const config = {
      * @example 'https://app.adieuu.com,capacitor://localhost,http://localhost'
      */
     origins: optionalEnv('WEBAUTHN_ORIGINS', 'http://localhost:5173,https://localhost').split(',').map(o => o.trim()).filter(Boolean),
+  },
+
+  /** Release manifest serving (downloads stack) */
+  releaseManifests: {
+    s3Bucket: process.env.RELEASE_MANIFESTS_S3_BUCKET ?? '',
+    awsRegion: optionalEnv('AWS_REGION', 'us-east-1'),
   },
 
   /** Feature flags for conditional functionality */

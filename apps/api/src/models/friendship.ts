@@ -1,28 +1,16 @@
 /**
  * Friendship model
- * Represents an established friendship between two identities
+ * Represents an established friendship between two identities.
  *
- * NOTE: Two records are created per friendship (A→B and B→A) to enable
- * efficient "get my friends" queries without complex aggregation.
+ * Denormalised: each mutual friendship produces two documents
+ * (one per direction) for efficient querying from either side.
+ *
+ * PRIVACY NOTE: Friendships are identity-scoped and never
+ * leak User identity.
  */
 
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
-
-/**
- * How the friendship was established
- */
-export type FriendshipSource = 'request_accepted' | 'mutual_add';
-
-/**
- * Friendship metadata
- */
-export interface FriendshipMetadata {
-  /** How the friendship was created */
-  source: FriendshipSource;
-  /** Original request ID (if from request) */
-  requestId?: ObjectId;
-}
 
 /**
  * Friendship document stored in MongoDB
@@ -31,34 +19,32 @@ export interface FriendshipDocument extends BaseDocument {
   /** The identity whose friends list this record belongs to */
   identityId: ObjectId;
 
-  /** The friend's identity */
+  /** The friend's identity ID */
   friendIdentityId: ObjectId;
-
-  /** Friendship metadata */
-  metadata: FriendshipMetadata;
 }
 
 /**
- * Friendship creation input
+ * Friendship creation input (without system-generated fields)
  */
 export interface CreateFriendshipInput {
   identityId: ObjectId;
   friendIdentityId: ObjectId;
-  metadata: FriendshipMetadata;
 }
 
 /**
  * Public friendship representation (safe to send to client)
  */
-export interface PublicFriendship {
+export interface PublicFriend {
+  /** The friend's identity ID */
   friendIdentityId: string;
+  /** When the friendship was established */
   friendsSince: string;
 }
 
 /**
- * Convert a FriendshipDocument to PublicFriendship
+ * Convert a FriendshipDocument to PublicFriend (safe for client)
  */
-export function toPublicFriendship(doc: FriendshipDocument): PublicFriendship {
+export function toPublicFriend(doc: FriendshipDocument): PublicFriend {
   return {
     friendIdentityId: doc.friendIdentityId.toHexString(),
     friendsSince: doc.createdAt.toISOString(),

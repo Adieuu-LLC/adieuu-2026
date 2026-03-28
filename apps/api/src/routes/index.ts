@@ -14,11 +14,13 @@ import { userRoutes } from './users';
 import { authRoutes } from './auth';
 import mfaRoutes from './mfa';
 import { identityRoutes } from './identity';
-import { friendsRoutes } from './friends';
 import { notificationRoutes } from './notifications';
-import { dmRoutes } from './dm';
 import { adminRoutes } from './admin';
 import { themeRoutes } from './themes';
+import { releaseRoutes } from './releases';
+import { uploadRoutes } from './uploads';
+import { friendRoutes } from './friends';
+import { conversationRoutes } from './conversations';
 
 /**
  * Registers all application routes with the main router.
@@ -30,10 +32,9 @@ import { themeRoutes } from './themes';
  * - `/api/users` - User management endpoints
  * - `/api/mfa` - Multi-factor authentication endpoints
  * - `/api/identity` - Anonymous identity management and blocklist endpoints
- * - `/api/friends` - Friend requests and friendships endpoints
  * - `/api/notifications` - Notification management endpoints
- * - `/api/dm` - Direct message conversations and encrypted messages
  * - `/api/admin/platform-settings` - Platform configuration (session + admin list)
+ * - `/api/conversations` - DM and group conversation messaging
  *
  * @param app - The main application router instance to register routes on
  *
@@ -62,18 +63,24 @@ export function registerRoutes(app: Router): void {
   // Identity routes at /api (includes blocklist)
   app.merge(identityRoutes, '/api');
 
-  // Friend routes at /api
-  app.merge(friendsRoutes, '/api');
-
   // Notification routes at /api
   app.merge(notificationRoutes, '/api');
-
-  // DM routes at /api
-  app.merge(dmRoutes, '/api');
 
   // Platform admin (session + admin list)
   app.merge(adminRoutes, '/api');
 
   // Community themes (public browse + identity-auth upload)
   app.merge(themeRoutes, '/api');
+
+  // Release manifests (desktop update mirror, served via CloudFront ALB origin)
+  app.merge(releaseRoutes, '/api');
+
+  // Media uploads (presigned S3 URLs, processing status, Lambda callbacks)
+  app.merge(uploadRoutes, '/api');
+
+  // Friends and friend requests
+  app.merge(friendRoutes, '/api');
+
+  // DM and group conversations
+  app.merge(conversationRoutes, '/api');
 }

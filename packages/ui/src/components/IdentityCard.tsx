@@ -3,24 +3,26 @@
  * Used in search results and other identity listings.
  */
 
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import type { PublicIdentity } from '@adieuu/shared';
+import type { PublicIdentity, FriendshipStatus } from '@adieuu/shared';
 import { Button } from './Button';
-import { Tooltip } from './Tooltip';
-import { MessageIcon, UserIcon, PlusIcon, CheckIcon, ClockIcon, XIcon } from './Icons';
-import { useIdentity } from '../hooks/useIdentity';
-import { useFriendshipStatus } from '../hooks/useFriends';
+import { Icon } from '../icons/Icon';
 
 export interface IdentityCardProps {
   /** The identity to display */
   identity: PublicIdentity;
   /** Whether to show action buttons */
   showActions?: boolean;
-  /** Whether to enable friend actions (fetches friendship status) */
-  enableFriendActions?: boolean;
-  /** Callback when "Message" is clicked */
-  onMessage?: (identity: PublicIdentity) => void;
+  /** Whether to show the friend action button */
+  showFriendAction?: boolean;
+  /** Function to send a friend request */
+  onSendFriendRequest?: (identityId: string) => Promise<boolean>;
+  /** Function to get friendship status */
+  onGetFriendshipStatus?: (identityId: string) => Promise<FriendshipStatus>;
+  /** The current identity's ID (to hide actions for self) */
+  selfIdentityId?: string;
   /** Additional CSS class name */
   className?: string;
 }
@@ -31,27 +33,35 @@ export interface IdentityCardProps {
 export function IdentityCard({
   identity,
   showActions = true,
-  enableFriendActions = true,
-  onMessage,
+  showFriendAction = false,
+  onSendFriendRequest,
+  onGetFriendshipStatus,
+  selfIdentityId,
   className = '',
 }: IdentityCardProps) {
   const { t } = useTranslation();
-  const { status: identityStatus, identity: currentIdentity } = useIdentity();
+  const [friendStatus, setFriendStatus] = useState<FriendshipStatus>('none');
+  const [isSending, setIsSending] = useState(false);
 
-  const isIdentityLoggedIn = identityStatus === 'logged_in';
-  const isSelf = currentIdentity?.id === identity.id;
+  const isSelf = selfIdentityId === identity.id;
 
-  const {
-    status: friendshipStatus,
-    isLoading: friendshipLoading,
-    sendRequest,
-    cancelRequest,
-    acceptRequest,
-    removeFriend,
-  } = useFriendshipStatus({
-    identityId: identity.id,
-    immediate: isIdentityLoggedIn && enableFriendActions && !isSelf,
-  });
+  useEffect(() => {
+    if (!showFriendAction || !onGetFriendshipStatus || isSelf) return;
+
+    let cancelled = false;
+    onGetFriendshipStatus(identity.id).then((status) => {
+      if (!cancelled) setFriendStatus(status);
+    });
+    return () => { cancelled = true; };
+  }, [identity.id, showFriendAction, onGetFriendshipStatus, isSelf]);
+
+  const handleSendRequest = useCallback(async () => {
+    if (!onSendFriendRequest || isSending) return;
+    setIsSending(true);
+    const ok = await onSendFriendRequest(identity.id);
+    if (ok) setFriendStatus('pending_outgoing');
+    setIsSending(false);
+  }, [onSendFriendRequest, identity.id, isSending]);
 
   const initials = identity.displayName
     .split(' ')
@@ -60,96 +70,12 @@ export function IdentityCard({
     .join('')
     .toUpperCase();
 
-  const handleFriendAction = async () => {
-    console.log('[IdentityCard] handleFriendAction called', {
-      friendshipStatus,
-      identityId: identity.id,
-      isIdentityLoggedIn,
-    });
-    
-    let result;
-    if (!friendshipStatus) {
-      console.log('[IdentityCard] Calling sendRequest (status null)');
-      result = await sendRequest();
-    } else if (friendshipStatus.status === 'none') {
-      console.log('[IdentityCard] Calling sendRequest (status none)');
-      result = await sendRequest();
-    } else if (friendshipStatus.status === 'request_sent') {
-      console.log('[IdentityCard] Calling cancelRequest');
-      result = await cancelRequest();
-    } else if (friendshipStatus.status === 'request_received') {
-      console.log('[IdentityCard] Calling acceptRequest');
-      result = await acceptRequest();
-    } else if (friendshipStatus.status === 'friends') {
-      console.log('[IdentityCard] Calling removeFriend');
-      result = await removeFriend();
-    }
-    
-    console.log('[IdentityCard] Action result:', result);
-  };
-
-  const renderFriendButton = () => {
-    if (isSelf) return null;
-
-    if (!isIdentityLoggedIn) {
-      return (
-        <Tooltip content={t('friends.actions.signInToAddFriend')} position="top">
-          <Button variant="primary" size="sm" disabled aria-disabled="true">
-            <PlusIcon />
-            {t('friends.actions.addFriend')}
-          </Button>
-        </Tooltip>
-      );
-    }
-
-    // Only show loading spinner while actively loading, not when status is null due to error
-    if (friendshipLoading) {
-      return (
-        <Button variant="secondary" size="sm" disabled>
-          <span className="spinner spinner-sm" />
-        </Button>
-      );
-    }
-
-    // Treat null status (error or not fetched) as 'none' so button is usable
-    const effectiveStatus = friendshipStatus?.status ?? 'none';
-
-    switch (effectiveStatus) {
-      case 'friends':
-        return (
-          <Tooltip content={t('friends.actions.removeFriend')} position="top">
-            <Button variant="secondary" size="sm" onClick={handleFriendAction} disabled={friendshipLoading}>
-              <CheckIcon />
-              {t('friends.actions.friends')}
-            </Button>
-          </Tooltip>
-        );
-      case 'request_sent':
-        return (
-          <Tooltip content={t('friends.actions.cancelRequest')} position="top">
-            <Button variant="secondary" size="sm" onClick={handleFriendAction} disabled={friendshipLoading}>
-              <ClockIcon />
-              {t('friends.actions.requestSent')}
-            </Button>
-          </Tooltip>
-        );
-      case 'request_received':
-        return (
-          <Button variant="primary" size="sm" onClick={handleFriendAction} disabled={friendshipLoading}>
-            <CheckIcon />
-            {t('friends.actions.acceptRequest')}
-          </Button>
-        );
-      case 'none':
-      default:
-        return (
-          <Button variant="primary" size="sm" onClick={handleFriendAction} disabled={friendshipLoading}>
-            <PlusIcon />
-            {t('friends.actions.addFriend')}
-          </Button>
-        );
-    }
-  };
+  const friendActionLabel =
+    friendStatus === 'friends'
+      ? t('friends.alreadyFriends')
+      : friendStatus === 'pending_outgoing' || friendStatus === 'pending_incoming'
+        ? t('friends.pending')
+        : t('friends.addFriend');
 
   return (
     <div className={`identity-card ${className}`.trim()}>
@@ -179,21 +105,21 @@ export function IdentityCard({
         <div className="identity-card-actions">
           <Link to={`/identity/${identity.id}`} className="identity-card-action-link">
             <Button variant="secondary" size="sm">
-              <UserIcon />
+              <Icon name="user" />
               {t('search.actions.viewProfile')}
             </Button>
           </Link>
-          {onMessage && (
+          {showFriendAction && !isSelf && (
             <Button
-              variant="secondary"
+              variant={friendStatus === 'none' ? 'primary' : 'ghost'}
               size="sm"
-              onClick={() => onMessage(identity)}
+              onClick={handleSendRequest}
+              disabled={friendStatus !== 'none' || isSending}
             >
-              <MessageIcon />
-              {t('search.actions.message')}
+              {friendStatus === 'friends' ? <Icon name="users" /> : <Icon name="plus" />}
+              {friendActionLabel}
             </Button>
           )}
-          {enableFriendActions && renderFriendButton()}
         </div>
       )}
     </div>

@@ -3,14 +3,16 @@
  * Uses Ark UI Combobox for accessible autocomplete functionality.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Combobox, Portal, createListCollection } from '@ark-ui/react';
 import type { PublicIdentity } from '@adieuu/shared';
 import { useIdentitySearch } from '../hooks/useIdentitySearch';
+import { useIdentity } from '../hooks/useIdentity';
+import { useFriends } from '../hooks/useFriends';
 import { useSidebar } from './Sidebar';
-import { SearchIcon } from './Icons';
+import { Icon } from '../icons/Icon';
 
 export interface SidebarSearchProps {
   /** Called when an identity is selected */
@@ -20,8 +22,22 @@ export interface SidebarSearchProps {
 export function SidebarSearch({ onSelect }: SidebarSearchProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { isExpanded, closeMobile } = useSidebar();
+  const { isExpanded, setExpanded, closeMobile } = useSidebar();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pendingFocus, setPendingFocus] = useState(false);
   const { results, isLoading, search, clear, query } = useIdentitySearch();
+  const { identity: selfIdentity, status: identityStatus } = useIdentity();
+  const { sendRequest } = useFriends();
+  const isIdentityLoggedIn = identityStatus === 'logged_in' && selfIdentity;
+
+  const handleAddFriend = useCallback(
+    async (e: React.MouseEvent, identityId: string) => {
+      e.stopPropagation();
+      e.preventDefault();
+      await sendRequest(identityId);
+    },
+    [sendRequest]
+  );
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
@@ -80,16 +96,28 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
     [query, closeMobile, clear, navigate]
   );
 
+  useEffect(() => {
+    if (pendingFocus && isExpanded) {
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+      setPendingFocus(false);
+    }
+  }, [pendingFocus, isExpanded]);
+
   if (!isExpanded) {
     return (
       <button
         type="button"
         className="sidebar-search-collapsed"
-        onClick={() => navigate('/search')}
+        onClick={() => {
+          setExpanded(true);
+          setPendingFocus(true);
+        }}
         title={t('search.title')}
         aria-label={t('search.title')}
       >
-        <SearchIcon />
+        <Icon name="search" />
       </button>
     );
   }
@@ -109,9 +137,10 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
       >
         <Combobox.Control className="sidebar-search-control">
           <span className="sidebar-search-icon">
-            <SearchIcon />
+            <Icon name="search" />
           </span>
           <Combobox.Input
+            ref={inputRef}
             className="sidebar-search-input"
             placeholder={t('search.placeholder')}
             onKeyDown={handleKeyDown}
@@ -155,6 +184,16 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
                       @{identity.username}
                     </span>
                   </div>
+                  {isIdentityLoggedIn && identity.id !== selfIdentity?.id && (
+                    <button
+                      type="button"
+                      className="sidebar-search-item-add-friend"
+                      onClick={(e) => handleAddFriend(e, identity.id)}
+                      title={t('friends.addFriend')}
+                    >
+                      <Icon name="plus" />
+                    </button>
+                  )}
                 </Combobox.Item>
               ))}
 

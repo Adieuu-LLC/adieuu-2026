@@ -132,6 +132,74 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       resources = [aws_cloudfront_distribution.web[0].arn]
     }
   }
+
+  # --- Downloads stack (desktop update mirror) ---
+
+  dynamic "statement" {
+    for_each = local.downloads_enabled ? [1] : []
+    content {
+      sid    = "S3Downloads"
+      effect = "Allow"
+      actions = [
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+      ]
+      resources = [aws_s3_bucket.downloads[0].arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.downloads_enabled ? [1] : []
+    content {
+      sid    = "S3DownloadsObjects"
+      effect = "Allow"
+      actions = [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+      ]
+      resources = ["${aws_s3_bucket.downloads[0].arn}/*"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.downloads_enabled ? [1] : []
+    content {
+      sid    = "S3ReleaseManifests"
+      effect = "Allow"
+      actions = [
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+      ]
+      resources = [aws_s3_bucket.release_manifests[0].arn]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.downloads_enabled ? [1] : []
+    content {
+      sid    = "S3ReleaseManifestsObjects"
+      effect = "Allow"
+      actions = [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+      ]
+      resources = ["${aws_s3_bucket.release_manifests[0].arn}/*"]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = local.downloads_enabled ? [1] : []
+    content {
+      sid    = "CloudFrontInvalidateDownloads"
+      effect = "Allow"
+      actions = [
+        "cloudfront:CreateInvalidation",
+      ]
+      resources = [aws_cloudfront_distribution.downloads[0].arn]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "github_actions_deploy" {

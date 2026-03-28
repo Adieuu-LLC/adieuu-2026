@@ -12,6 +12,7 @@ import { ImportKeyBackupModal } from '../../components/ImportKeyBackupModal';
 import { useToast } from '../../components/Toast';
 import { useCipherStore, createTextEntropy, type DecryptedCipher } from '../../hooks/useCipherStore';
 import { useIdentity } from '../../hooks/useIdentity';
+import { Icon } from '../../icons/Icon';
 import type { EntropyPiece } from '@adieuu/crypto';
 
 // ============================================================================
@@ -975,7 +976,7 @@ export function IdentityCiphers() {
                 size="sm"
                 onClick={() => setExportDialogOpen(true)}
               >
-                <BackupExportIcon />
+                <Icon name="fileArrowDown" />
                 {t('ciphers.exportBackup', 'Export')}
               </Button>
               <Button
@@ -983,7 +984,7 @@ export function IdentityCiphers() {
                 size="sm"
                 onClick={() => setImportDialogOpen(true)}
               >
-                <BackupImportIcon />
+                <Icon name="fileArrowUp" />
                 {t('ciphers.importBackup', 'Import')}
               </Button>
               <Button onClick={() => setAddModalOpen(true)} className="btn btn-primary btn-md">
@@ -1085,25 +1086,5 @@ export function IdentityCiphers() {
         onSuccess={handleImportSuccess}
       />
     </div>
-  );
-}
-
-function BackupExportIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.375rem', flexShrink: 0 }}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  );
-}
-
-function BackupImportIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.375rem', flexShrink: 0 }}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
   );
 }

@@ -126,6 +126,7 @@ export const ThemeMetaSchema = z.object({
 export const UserThemePreferencesSchema = z.object({
   themeId: z.string().optional(),
   customThemes: z.array(ThemeDefinitionSchema).optional(),
+  iconPackId: z.string().max(50).optional(),
 });
 
 export const CommunityThemeUploadSchema = z.object({

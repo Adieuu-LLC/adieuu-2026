@@ -7,7 +7,7 @@ import { Alert } from '../components/Alert';
 import { Spinner } from '../components/Spinner';
 import { Popover } from '../components/Popover';
 import { useToast } from '../components/Toast';
-import { MaskIcon, PlusIcon, LockIcon, InfoCircleIcon } from '../components/Icons';
+import { Icon } from '../icons/Icon';
 import { useIdentity, type LoginStatus, type WebDeviceChoice } from '../hooks/useIdentity';
 import { WebDeviceChoiceModal } from '../components/WebDeviceChoiceModal';
 
@@ -269,7 +269,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
         {view === 'choose' && (
           <div className="identity-modal-content">
             <div className="identity-modal-header">
-              <MaskIcon className="identity-modal-icon" />
+              <Icon name="mask" className="identity-modal-icon" />
               <h2>{t('identity.title')}</h2>
               <p>{t('identity.create.subtitle')}</p>
             </div>
@@ -278,7 +278,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
               {/* Show login button if user has at least one identity */}
               {hasIdentity && (
                 <Button variant="primary" size="lg" onClick={() => setView('login')}>
-                  <LockIcon />
+                  <Icon name="lock" />
                   {t('identity.loginButton')}
                 </Button>
               )}
@@ -290,7 +290,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
                   size="lg"
                   onClick={() => setView('create')}
                 >
-                  <PlusIcon />
+                  <Icon name="plus" />
                   {t('identity.createButton')}
                 </Button>
               )}
@@ -301,7 +301,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
         {view === 'login' && (
           <div className="identity-modal-content">
             <div className="identity-modal-header">
-              <MaskIcon className="identity-modal-icon" />
+              <Icon name="mask" className="identity-modal-icon" />
               <h2>{t('identity.login.title')}</h2>
               <p>{t('identity.login.subtitle')}</p>
             </div>
@@ -364,7 +364,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
         {view === 'unlock' && (
           <div className="identity-modal-content">
             <div className="identity-modal-header">
-              <LockIcon className="identity-modal-icon" />
+              <Icon name="lock" className="identity-modal-icon" />
               <h2>{t('identity.unlock.title')}</h2>
               <p>{t('identity.unlock.subtitle')}</p>
             </div>
@@ -418,7 +418,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
         {view === 'create' && (
           <div className="identity-modal-content">
             <div className="identity-modal-header">
-              <MaskIcon className="identity-modal-icon" />
+              <Icon name="mask" className="identity-modal-icon" />
               <h2>{t('identity.create.title')}</h2>
               <p>{t('identity.create.subtitle')}</p>
             </div>
@@ -452,7 +452,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
                         className="passphrase-info-btn"
                         aria-label="Passphrase tips"
                       >
-                        <InfoCircleIcon />
+                        <Icon name="info" />
                       </button>
                     }
                     positioning={{ placement: 'bottom-end' }}

@@ -660,14 +660,14 @@ export class UsersApi {
   /**
    * Get the current user's theme and appearance preferences.
    */
-  async getPreferences(): Promise<ApiResponse<{ themeId?: string; customThemes?: import('../types/theme').ThemeDefinition[] }>> {
+  async getPreferences(): Promise<ApiResponse<{ themeId?: string; customThemes?: import('../types/theme').ThemeDefinition[]; iconPackId?: string }>> {
     return this.client.get('/api/users/me/preferences');
   }
 
   /**
    * Update the current user's theme and appearance preferences.
    */
-  async updatePreferences(prefs: { themeId?: string; customThemes?: import('../types/theme').ThemeDefinition[] }): Promise<ApiResponse<void>> {
+  async updatePreferences(prefs: { themeId?: string; customThemes?: import('../types/theme').ThemeDefinition[]; iconPackId?: string }): Promise<ApiResponse<void>> {
     return this.client.put('/api/users/me/preferences', prefs);
   }
 }
@@ -680,6 +680,31 @@ export class UsersApi {
  * Crypto profile type for E2E encryption.
  */
 export type CryptoProfile = 'default' | 'cnsa2';
+
+/**
+ * Visibility level for profile fields.
+ */
+export type ProfileVisibility = 'public' | 'friends' | 'private';
+
+/**
+ * Per-field privacy settings for identity profiles.
+ */
+export interface ProfilePrivacySettings {
+  avatar: ProfileVisibility;
+  banner: ProfileVisibility;
+  bio: ProfileVisibility;
+  lastActiveAt: ProfileVisibility;
+  profileColors: ProfileVisibility;
+}
+
+/**
+ * Customisable profile accent colours.
+ */
+export interface ProfileColors {
+  primary?: string;
+  secondary?: string;
+  accent?: string;
+}
 
 /**
  * Public identity info (safe for clients).
@@ -695,6 +720,12 @@ export interface PublicIdentity {
   bio?: string;
   /** URL to avatar image */
   avatarUrl?: string;
+  /** URL to banner image */
+  bannerUrl?: string;
+  /** Profile accent colours */
+  profileColors?: ProfileColors;
+  /** Per-field privacy settings (only visible to self) */
+  privacySettings?: ProfilePrivacySettings;
   /** When the identity was created */
   createdAt: string;
   /** Last time this identity was active */
@@ -707,6 +738,8 @@ export interface PublicIdentity {
   hasE2EKeys?: boolean;
   /** Number of registered devices */
   deviceCount?: number;
+  /** Whether adding this identity to a group requires their explicit approval */
+  requireGroupApproval?: boolean;
 }
 
 /**
@@ -1183,151 +1216,30 @@ export class IdentityApi {
       `/api/identity/${encodeURIComponent(identityId)}/sessions`
     );
   }
-}
 
-// ============================================================================
-// Friends API Types
-// ============================================================================
-
-/**
- * Friend request response
- */
-export interface SendFriendRequestResponse {
-  requestId: string;
-  status: 'pending' | 'accepted';
-  message: string;
-}
-
-/**
- * Incoming friend request with sender info
- */
-export interface IncomingFriendRequest {
-  id: string;
-  fromIdentity: PublicIdentity;
-  createdAt: string;
-}
-
-/**
- * Sent friend request with recipient info
- */
-export interface SentFriendRequest {
-  id: string;
-  toIdentity: PublicIdentity;
-  status: 'pending';
-  createdAt: string;
-}
-
-/**
- * Friend with relationship info
- */
-export interface Friend {
-  identity: PublicIdentity;
-  friendsSince: string;
-}
-
-/**
- * Friendship status between two identities
- */
-export interface FriendshipStatus {
-  status: 'friends' | 'request_sent' | 'request_received' | 'none';
-  friendsSince?: string;
-  requestId?: string;
-}
-
-/**
- * Paginated list response
- */
-export interface PaginatedResponse<T> {
-  cursor: string | null;
-}
-
-export class FriendsApi {
-  constructor(private client: ApiClient) {}
+  // ==========================================================================
+  // Profile
+  // ==========================================================================
 
   /**
-   * Send a friend request to another identity.
+   * Update own profile (display name, bio, avatar, banner, colours, privacy).
    */
-  async sendRequest(toIdentityId: string): Promise<ApiResponse<SendFriendRequestResponse>> {
-    return this.client.post('/api/friends/request', { toIdentityId });
+  async updateProfile(
+    params: UpdateProfileParams
+  ): Promise<ApiResponse<PublicIdentity>> {
+    return this.client.patch('/api/identity/me/profile', params);
   }
 
   /**
-   * Get incoming friend requests.
+   * Get a privacy-filtered profile for an identity.
+   *
+   * Fields are filtered server-side based on the viewer's relationship
+   * to the profile owner (self, friend, or stranger).
    */
-  async getIncomingRequests(
-    limit?: number,
-    cursor?: string
-  ): Promise<ApiResponse<{ requests: IncomingFriendRequest[]; cursor: string | null }>> {
-    const params = new URLSearchParams();
-    if (limit) params.set('limit', limit.toString());
-    if (cursor) params.set('cursor', cursor);
-    const query = params.toString();
-    return this.client.get(`/api/friends/requests/incoming${query ? `?${query}` : ''}`);
-  }
-
-  /**
-   * Get sent friend requests.
-   */
-  async getSentRequests(
-    limit?: number,
-    cursor?: string
-  ): Promise<ApiResponse<{ requests: SentFriendRequest[]; cursor: string | null }>> {
-    const params = new URLSearchParams();
-    if (limit) params.set('limit', limit.toString());
-    if (cursor) params.set('cursor', cursor);
-    const query = params.toString();
-    return this.client.get(`/api/friends/requests/sent${query ? `?${query}` : ''}`);
-  }
-
-  /**
-   * Accept a friend request.
-   */
-  async acceptRequest(requestId: string): Promise<ApiResponse<{ friend: PublicIdentity }>> {
-    return this.client.post(`/api/friends/request/${encodeURIComponent(requestId)}/accept`);
-  }
-
-  /**
-   * Ignore a friend request.
-   */
-  async ignoreRequest(requestId: string): Promise<ApiResponse<void>> {
-    return this.client.post(`/api/friends/request/${encodeURIComponent(requestId)}/ignore`);
-  }
-
-  /**
-   * Cancel a sent friend request.
-   */
-  async cancelRequest(requestId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/friends/request/${encodeURIComponent(requestId)}`);
-  }
-
-  /**
-   * Get friends list.
-   */
-  async getFriends(
-    limit?: number,
-    cursor?: string,
-    search?: string
-  ): Promise<ApiResponse<{ friends: Friend[]; cursor: string | null; total: number }>> {
-    const params = new URLSearchParams();
-    if (limit) params.set('limit', limit.toString());
-    if (cursor) params.set('cursor', cursor);
-    if (search) params.set('search', search);
-    const query = params.toString();
-    return this.client.get(`/api/friends${query ? `?${query}` : ''}`);
-  }
-
-  /**
-   * Check friendship status with another identity.
-   */
-  async getStatus(identityId: string): Promise<ApiResponse<FriendshipStatus>> {
-    return this.client.get(`/api/friends/status/${encodeURIComponent(identityId)}`);
-  }
-
-  /**
-   * Remove a friend.
-   */
-  async removeFriend(identityId: string): Promise<ApiResponse<void>> {
-    return this.client.delete(`/api/friends/${encodeURIComponent(identityId)}`);
+  async getProfile(identityId: string): Promise<ApiResponse<PublicIdentity>> {
+    return this.client.get(
+      `/api/identity/${encodeURIComponent(identityId)}/profile`
+    );
   }
 }
 
@@ -1395,28 +1307,16 @@ export class BlocksApi {
 // ============================================================================
 
 /**
- * Notification types
+ * Notification type identifier.
+ * Concrete values will be defined as features are implemented.
  */
-export type NotificationType =
-  | 'friend_request_received'
-  | 'friend_request_accepted'
-  | 'friendship_established'
-  | 'message_received'
-  | 'mention';
+export type NotificationType = string;
 
 /**
- * Notification data (varies by type)
+ * Notification data (varies by type).
+ * Concrete fields will be added as notification types are defined.
  */
 export interface NotificationData {
-  requestId?: string;
-  fromIdentityId?: string;
-  fromDisplayName?: string;
-  fromUsername?: string;
-  fromAvatarUrl?: string;
-  friendIdentityId?: string;
-  friendDisplayName?: string;
-  friendUsername?: string;
-  friendAvatarUrl?: string;
   [key: string]: unknown;
 }
 
@@ -1490,65 +1390,146 @@ export class NotificationsApi {
 }
 
 // ============================================================================
-// Conversation Types
+// Friends API Types
 // ============================================================================
 
 /**
- * Member of a conversation with their identity info.
+ * Friendship status between two identities
  */
-export interface ConversationMember {
-  identity: PublicIdentity;
-  joinedAt: string;
-}
+export type FriendshipStatus = 'none' | 'friends' | 'pending_incoming' | 'pending_outgoing';
 
 /**
- * Conversation type - direct (1-1) or group (1-many).
+ * Public friend request
  */
-export type ConversationType = 'direct' | 'group';
-
-/**
- * Conversation with members and metadata.
- * Note: customTitle is per-identity (each user can label conversations differently).
- */
-export interface Conversation {
+export interface PublicFriendRequest {
   id: string;
-  type: ConversationType;
-  members: ConversationMember[];
-  /** User's custom label for this conversation (optional, per-identity) */
-  customTitle?: string;
-  /** Timestamp of the last message */
-  lastMessageAt: string;
-  /** Number of unread messages for the current identity */
-  unreadCount: number;
+  fromIdentityId: string;
+  toIdentityId: string;
+  status: 'pending' | 'accepted' | 'ignored';
   createdAt: string;
 }
 
-// ============================================================================
-// DM (Direct Messaging) API
-// ============================================================================
+/**
+ * Friend info with denormalised identity data
+ */
+export interface FriendInfo {
+  identity: PublicIdentity;
+  friendsSince: string;
+}
 
 /**
- * Which key exchange mode was used for wrapping.
- * - 'otpk': Signed pre-key + one-time pre-key (best forward secrecy)
- * - 'spk': Signed pre-key only (medium-term forward secrecy)
- * - 'static': Static device key (no forward secrecy, fallback only)
+ * Incoming friend request with sender identity info
  */
-export type PreKeyType = 'otpk' | 'spk' | 'static';
+export interface IncomingFriendRequestInfo {
+  request: PublicFriendRequest;
+  fromIdentity: PublicIdentity;
+}
 
-/**
- * Serialized wrapped key for message encryption.
- */
-export interface SerializedWrappedKey {
-  identityId: string;
-  deviceId: string;
-  ephemeralPublicKey: string;
-  kemCiphertext: string;
-  wrappedSessionKey: string;
-  wrappingNonce: string;
-  preKeyType: PreKeyType;
-  oneTimePreKeyId?: string;
-  signedPreKeyId?: string;
-  oneTimeKemCiphertext?: string;
+export class FriendsApi {
+  constructor(private client: ApiClient) {}
+
+  /**
+   * Send a friend request.
+   */
+  async sendRequest(identityId: string): Promise<ApiResponse<PublicFriendRequest>> {
+    return this.client.post('/api/friends/requests', { identityId });
+  }
+
+  /**
+   * Accept a friend request.
+   */
+  async acceptRequest(requestId: string): Promise<ApiResponse<PublicFriendRequest>> {
+    return this.client.post(`/api/friends/requests/${encodeURIComponent(requestId)}/accept`, {});
+  }
+
+  /**
+   * Ignore a friend request.
+   */
+  async ignoreRequest(requestId: string): Promise<ApiResponse<void>> {
+    return this.client.post(`/api/friends/requests/${encodeURIComponent(requestId)}/ignore`, {});
+  }
+
+  /**
+   * Cancel an outgoing friend request.
+   */
+  async cancelRequest(requestId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/friends/requests/${encodeURIComponent(requestId)}`);
+  }
+
+  /**
+   * Get incoming friend requests.
+   */
+  async getIncomingRequests(
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ requests: IncomingFriendRequestInfo[]; count: number; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(`/api/friends/requests/incoming${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * Get outgoing friend requests.
+   */
+  async getOutgoingRequests(
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ requests: PublicFriendRequest[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(`/api/friends/requests/outgoing${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * Get pending incoming request count.
+   */
+  async getIncomingRequestCount(): Promise<ApiResponse<{ count: number }>> {
+    return this.client.get('/api/friends/requests/count');
+  }
+
+  /**
+   * Get friends list (paginated).
+   */
+  async getFriends(
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ friends: FriendInfo[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(`/api/friends${query ? `?${query}` : ''}`);
+  }
+
+  /**
+   * Search friends by username/displayName.
+   */
+  async searchFriends(
+    query: string,
+    limit?: number
+  ): Promise<ApiResponse<{ friends: FriendInfo[] }>> {
+    const params = new URLSearchParams({ q: query });
+    if (limit) params.set('limit', limit.toString());
+    return this.client.get(`/api/friends/search?${params.toString()}`);
+  }
+
+  /**
+   * Remove a friend.
+   */
+  async removeFriend(identityId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(`/api/friends/${encodeURIComponent(identityId)}`);
+  }
+
+  /**
+   * Get friendship status with an identity.
+   */
+  async getFriendshipStatus(identityId: string): Promise<ApiResponse<{ status: FriendshipStatus }>> {
+    return this.client.get(`/api/friends/status/${encodeURIComponent(identityId)}`);
+  }
 }
 
 // ============================================================================
@@ -1616,289 +1597,6 @@ export interface PreKeyCountResponse {
   oneTimePreKeysRemaining: number;
 }
 
-// ============================================================================
-// DM Types
-// ============================================================================
-
-/**
- * DM conversation response.
- */
-export interface DmConversation {
-  id: string;
-  conversationId: string;
-  activeCryptoProfile: 'default' | 'cnsa2';
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
- * Read state entry for a participant in a conversation.
- */
-export interface DmReadStateEntry {
-  /** Hashed participant identifier (64-char hex) */
-  participantHash: string;
-  encryptedLastReadId: string;
-  updatedAt: string;
-}
-
-/**
- * DM conversation list item (returned from getConversations).
- */
-export interface DmConversationListItem {
-  conversationId: string;
-  activeCryptoProfile: 'default' | 'cnsa2';
-  readState: DmReadStateEntry[];
-  lastMessageAt: string | null;
-  lastMessageId: string | null;
-  lastMessageEncryptedSenderId: string | null;
-  lastMessageClientMessageId: string | null;
-}
-
-/**
- * DM message response.
- */
-export interface DmMessage {
-  id: string;
-  conversationId: string;
-  toIdentityId: string;
-  encryptedSenderId: string;
-  ciphertext: string;
-  nonce: string;
-  wrappedKeys: SerializedWrappedKey[];
-  signature: string;
-  cryptoProfile: 'default' | 'cnsa2';
-  clientMessageId: string;
-  createdAt: string;
-  expiresAt?: string;
-  replyToId?: string;
-  threadRootId?: string;
-  deleted?: boolean;
-}
-
-/**
- * DM message tombstone (returned when message is deleted).
- */
-export interface DmMessageTombstone {
-  id: string;
-  conversationId: string;
-  deleted: true;
-  createdAt: string;
-}
-
-/**
- * Parameters for sending a DM message.
- */
-export interface SendDmMessageParams {
-  conversationId: string;
-  toIdentityId: string;
-  encryptedSenderId: string;
-  ciphertext: string;
-  nonce: string;
-  wrappedKeys: SerializedWrappedKey[];
-  signature: string;
-  cryptoProfile: 'default' | 'cnsa2';
-  clientMessageId: string;
-  expiresInSeconds?: number;
-  replyToId?: string;
-  threadRootId?: string;
-}
-
-export class DmApi {
-  constructor(private client: ApiClient) {}
-
-  /**
-   * Get or create a DM conversation with another identity.
-   */
-  async getOrCreateConversation(
-    toIdentityId: string
-  ): Promise<ApiResponse<{ conversation: DmConversation }>> {
-    return this.client.post('/api/dm/conversations', { toIdentityId });
-  }
-
-  /**
-   * Get a DM conversation by its blinded conversation ID.
-   */
-  async getConversation(
-    conversationId: string
-  ): Promise<ApiResponse<{ conversation: DmConversation }>> {
-    return this.client.get(`/api/dm/conversations/${encodeURIComponent(conversationId)}`);
-  }
-
-  /**
-   * Send an encrypted DM message.
-   */
-  async sendMessage(
-    params: SendDmMessageParams
-  ): Promise<ApiResponse<{ message: DmMessage }>> {
-    return this.client.post('/api/dm/messages', params);
-  }
-
-  /**
-   * Get messages for a conversation with pagination.
-   */
-  async getMessages(
-    conversationId: string,
-    options?: {
-      limit?: number;
-      cursor?: string;
-      direction?: 'older' | 'newer';
-    }
-  ): Promise<ApiResponse<{
-    messages: (DmMessage | DmMessageTombstone)[];
-    cursor: string | null;
-    hasMore: boolean;
-  }>> {
-    const params = new URLSearchParams();
-    if (options?.limit) params.set('limit', options.limit.toString());
-    if (options?.cursor) params.set('cursor', options.cursor);
-    if (options?.direction) params.set('direction', options.direction);
-    const query = params.toString();
-    return this.client.get(
-      `/api/dm/conversations/${encodeURIComponent(conversationId)}/messages${query ? `?${query}` : ''}`
-    );
-  }
-
-  /**
-   * Get all conversations for the current identity.
-   *
-   * Returns conversations sorted by last message time (most recent first).
-   * Includes encrypted read state for unread computation.
-   */
-  async getConversations(): Promise<ApiResponse<{
-    conversations: DmConversationListItem[];
-  }>> {
-    return this.client.get('/api/dm/conversations');
-  }
-
-  /**
-   * Update the read state for a conversation.
-   *
-   * The encrypted read state is opaque to the server - it cannot
-   * determine which message was actually read.
-   *
-   * @param conversationId - The blinded conversation ID
-   * @param encryptedLastReadId - Base64-encoded encrypted last read message ID
-   */
-  async updateReadState(
-    conversationId: string,
-    encryptedLastReadId: string
-  ): Promise<ApiResponse<{ success: boolean }>> {
-    return this.client.put(
-      `/api/dm/conversations/${encodeURIComponent(conversationId)}/read-state`,
-      { encryptedLastReadId }
-    );
-  }
-
-  /**
-   * Delete a message for everyone in the conversation.
-   *
-   * Only the original sender can delete a message for everyone.
-   * The server verifies this by checking the message signature
-   * against the requester's signing key.
-   *
-   * @param messageId - The message ID to delete
-   */
-  async deleteForEveryone(
-    messageId: string
-  ): Promise<ApiResponse<{ success: boolean }>> {
-    return this.client.delete(`/api/dm/messages/${encodeURIComponent(messageId)}`);
-  }
-
-  /**
-   * Delete a message only for the current identity.
-   *
-   * The message remains visible to other participants.
-   * This is useful for cleaning up messages without affecting others.
-   *
-   * @param messageId - The message ID to delete for self
-   */
-  async deleteForSelf(
-    messageId: string
-  ): Promise<ApiResponse<{ success: boolean }>> {
-    return this.client.post(`/api/dm/messages/${encodeURIComponent(messageId)}/delete-for-self`, {});
-  }
-}
-
-// ============================================================================
-// DM Reaction Types
-// ============================================================================
-
-/**
- * DM reaction response (from server).
- * The ciphertext contains the encrypted emoji + reactor identity.
- */
-export interface DmReaction {
-  id: string;
-  messageId: string;
-  conversationId: string;
-  toIdentityId: string;
-  ciphertext: string;
-  nonce: string;
-  wrappedKeys: SerializedWrappedKey[];
-  signature: string;
-  cryptoProfile: 'default' | 'cnsa2';
-  clientReactionId: string;
-  createdAt: string;
-}
-
-/**
- * Parameters for sending an encrypted reaction.
- */
-export interface SendDmReactionParams {
-  messageId: string;
-  conversationId: string;
-  toIdentityId: string;
-  ciphertext: string;
-  nonce: string;
-  wrappedKeys: SerializedWrappedKey[];
-  signature: string;
-  cryptoProfile: 'default' | 'cnsa2';
-  clientReactionId: string;
-}
-
-export class DmReactionsApi {
-  constructor(private client: ApiClient) {}
-
-  /**
-   * Add an encrypted reaction to a message.
-   */
-  async addReaction(
-    params: SendDmReactionParams
-  ): Promise<ApiResponse<{ reaction: DmReaction }>> {
-    return this.client.post(
-      `/api/dm/messages/${encodeURIComponent(params.messageId)}/reactions`,
-      params
-    );
-  }
-
-  /**
-   * Remove a reaction by ID.
-   * Server returns `{ deleted: true }` on success (see DELETE /api/dm/reactions/:reactionId).
-   */
-  async removeReaction(
-    reactionId: string
-  ): Promise<ApiResponse<{ deleted: boolean }>> {
-    return this.client.delete(`/api/dm/reactions/${encodeURIComponent(reactionId)}`);
-  }
-
-  /**
-   * Get reactions for messages in a conversation.
-   * Returns reactions for the specified message IDs.
-   */
-  async getReactions(
-    conversationId: string,
-    messageIds: string[]
-  ): Promise<ApiResponse<{ reactions: DmReaction[] }>> {
-    const params = new URLSearchParams();
-    for (const id of messageIds) {
-      params.append('messageIds', id);
-    }
-    const query = params.toString();
-    return this.client.get(
-      `/api/dm/conversations/${encodeURIComponent(conversationId)}/reactions${query ? `?${query}` : ''}`
-    );
-  }
-}
 
 // ============================================================================
 // Admin (platform) API
@@ -2072,6 +1770,368 @@ export class ThemesApi {
 }
 
 // ============================================================================
+// Profile Update Types
+// ============================================================================
+
+/**
+ * Parameters for updating an identity profile.
+ */
+export interface UpdateProfileParams {
+  displayName?: string;
+  bio?: string;
+  avatarMediaId?: string;
+  bannerMediaId?: string;
+  removeAvatar?: boolean;
+  removeBanner?: boolean;
+  profileColors?: {
+    primary?: string | null;
+    secondary?: string | null;
+    accent?: string | null;
+  };
+  privacySettings?: Partial<ProfilePrivacySettings>;
+  requireGroupApproval?: boolean;
+}
+
+// ============================================================================
+// Upload API Types
+// ============================================================================
+
+export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media';
+
+export type UploadStatus = 'pending' | 'uploaded' | 'processing' | 'ready' | 'rejected' | 'failed';
+
+export interface RequestUploadParams {
+  purpose: UploadPurpose;
+  contentType: string;
+  contentLength: number;
+}
+
+export interface RequestUploadResponse {
+  mediaId: string;
+  uploadUrl: string;
+  expiresIn: number;
+}
+
+export interface UploadStatusResponse {
+  mediaId: string;
+  status: UploadStatus;
+  cdnUrl: string | null;
+  rejectionReason: string | null;
+}
+
+export class UploadApi {
+  constructor(private client: ApiClient) {}
+
+  /**
+   * Request a presigned S3 upload URL.
+   */
+  async requestUpload(
+    params: RequestUploadParams
+  ): Promise<ApiResponse<RequestUploadResponse>> {
+    return this.client.post('/api/uploads/request', params);
+  }
+
+  /**
+   * Notify the server that a file upload is complete.
+   */
+  async completeUpload(mediaId: string): Promise<ApiResponse<void>> {
+    return this.client.post(
+      `/api/uploads/${encodeURIComponent(mediaId)}/complete`,
+      {}
+    );
+  }
+
+  /**
+   * Check the processing status of an upload.
+   */
+  async getStatus(
+    mediaId: string
+  ): Promise<ApiResponse<UploadStatusResponse>> {
+    return this.client.get(
+      `/api/uploads/${encodeURIComponent(mediaId)}/status`
+    );
+  }
+}
+
+// ============================================================================
+// Conversations API Types
+// ============================================================================
+
+export type ConversationType = 'dm' | 'group';
+
+export type PreKeyType = 'static' | 'spk' | 'otpk';
+
+export type MessageCryptoProfile = 'default' | 'cnsa2';
+
+export type MessageType = 'user' | 'system';
+
+export interface SystemEvent {
+  type: string;
+  identityId: string;
+  displayName?: string;
+  actorIdentityId?: string;
+  actorDisplayName?: string;
+}
+
+export interface PublicConversation {
+  id: string;
+  type: ConversationType;
+  participants: string[];
+  createdBy: string;
+  admins: string[];
+  encryptedName?: string;
+  nameNonce?: string;
+  lastMessageAt?: string;
+  lastMessageId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SerializedWrappedKey {
+  identityId: string;
+  ephemeralPublicKey: string;
+  kemCiphertext: string;
+  wrappedSessionKey: string;
+  wrappingNonce: string;
+  preKeyType: PreKeyType;
+  signedPreKeyId?: string;
+  oneTimePreKeyId?: string;
+  spkKemCiphertext?: string;
+  otpkKemCiphertext?: string;
+}
+
+export interface PublicMessage {
+  id: string;
+  conversationId: string;
+  fromIdentityId: string;
+  messageType?: MessageType;
+  systemEvent?: SystemEvent;
+  ciphertext?: string;
+  nonce?: string;
+  wrappedKeys?: SerializedWrappedKey[];
+  signature?: string;
+  cryptoProfile: MessageCryptoProfile;
+  clientMessageId: string;
+  expiresAt?: string;
+  deleted: boolean;
+  createdAt: string;
+}
+
+export interface PublicGroupInvite {
+  id: string;
+  conversationId: string;
+  invitedIdentityId: string;
+  invitedByIdentityId: string;
+  status: string;
+  groupName?: string;
+  hasGroupName?: boolean;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface GroupInvitePreviewMember {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  isAdmin: boolean;
+}
+
+export interface GroupInvitePreview {
+  inviteId: string;
+  conversationId: string;
+  groupName?: string;
+  hasGroupName?: boolean;
+  memberCount: number;
+  members: GroupInvitePreviewMember[];
+  invitedMembers: GroupInvitePreviewMember[];
+  invitedBy: GroupInvitePreviewMember;
+  createdAt: string;
+}
+
+export interface FormerMember {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+}
+
+export interface SendMessageParams {
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: SerializedWrappedKey[];
+  signature: string;
+  cryptoProfile: MessageCryptoProfile;
+  clientMessageId: string;
+  expiresInSeconds?: number;
+}
+
+export class ConversationsApi {
+  constructor(private client: ApiClient) {}
+
+  async create(params: {
+    type: ConversationType;
+    participants: string[];
+    encryptedName?: string;
+    nameNonce?: string;
+  }): Promise<ApiResponse<PublicConversation>> {
+    return this.client.post('/api/conversations', params);
+  }
+
+  async list(
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ conversations: PublicConversation[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(`/api/conversations${query ? `?${query}` : ''}`);
+  }
+
+  async get(conversationId: string): Promise<ApiResponse<PublicConversation>> {
+    return this.client.get(`/api/conversations/${encodeURIComponent(conversationId)}`);
+  }
+
+  async updateName(
+    conversationId: string,
+    encryptedName: string,
+    nameNonce: string
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.patch(
+      `/api/conversations/${encodeURIComponent(conversationId)}`,
+      { encryptedName, nameNonce }
+    );
+  }
+
+  async sendMessage(
+    conversationId: string,
+    params: SendMessageParams
+  ): Promise<ApiResponse<PublicMessage>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/messages`,
+      params
+    );
+  }
+
+  async getMessages(
+    conversationId: string,
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ messages: PublicMessage[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(
+      `/api/conversations/${encodeURIComponent(conversationId)}/messages${query ? `?${query}` : ''}`
+    );
+  }
+
+  async deleteMessageForSelf(
+    conversationId: string,
+    messageId: string
+  ): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}`
+    );
+  }
+
+  async deleteMessageForEveryone(
+    conversationId: string,
+    messageId: string
+  ): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/everyone`
+    );
+  }
+
+  async addMember(
+    conversationId: string,
+    identityId: string
+  ): Promise<ApiResponse<PublicConversation | PublicGroupInvite>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/members`,
+      { identityId }
+    );
+  }
+
+  async removeMember(
+    conversationId: string,
+    identityId: string
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.delete(
+      `/api/conversations/${encodeURIComponent(conversationId)}/members/${encodeURIComponent(identityId)}`
+    );
+  }
+
+  async getFormerMembers(
+    conversationId: string
+  ): Promise<ApiResponse<FormerMember[]>> {
+    return this.client.get(
+      `/api/conversations/${encodeURIComponent(conversationId)}/former-members`
+    );
+  }
+
+  async leave(
+    conversationId: string,
+    options?: { transferAdminTo?: string; transferStrategy?: 'oldest' | 'most_active' }
+  ): Promise<ApiResponse<void>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/leave`,
+      options ?? {}
+    );
+  }
+
+  async promoteToAdmin(
+    conversationId: string,
+    identityId: string
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/admins`,
+      { identityId }
+    );
+  }
+
+  async terminateGroup(conversationId: string): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/conversations/${encodeURIComponent(conversationId)}`
+    );
+  }
+
+  async listInvites(
+    limit?: number,
+    cursor?: string
+  ): Promise<ApiResponse<{ invites: PublicGroupInvite[]; cursor: string | null }>> {
+    const params = new URLSearchParams();
+    if (limit) params.set('limit', limit.toString());
+    if (cursor) params.set('cursor', cursor);
+    const query = params.toString();
+    return this.client.get(`/api/conversations/invites${query ? `?${query}` : ''}`);
+  }
+
+  async acceptInvite(inviteId: string): Promise<ApiResponse<PublicGroupInvite>> {
+    return this.client.post(
+      `/api/conversations/invites/${encodeURIComponent(inviteId)}/accept`,
+      {}
+    );
+  }
+
+  async declineInvite(inviteId: string): Promise<ApiResponse<PublicGroupInvite>> {
+    return this.client.post(
+      `/api/conversations/invites/${encodeURIComponent(inviteId)}/decline`,
+      {}
+    );
+  }
+
+  async getInvitePreview(inviteId: string): Promise<ApiResponse<GroupInvitePreview>> {
+    return this.client.get(
+      `/api/conversations/invites/${encodeURIComponent(inviteId)}/preview`
+    );
+  }
+}
+
+// ============================================================================
 // Factory Functions
 // ============================================================================
 
@@ -2087,13 +2147,13 @@ export function createApiClient(config: ApiClientConfig) {
     users: new UsersApi(client),
     mfa: new MfaApi(client),
     identity: new IdentityApi(client),
-    friends: new FriendsApi(client),
     blocks: new BlocksApi(client),
+    friends: new FriendsApi(client),
     notifications: new NotificationsApi(client),
-    dm: new DmApi(client),
-    dmReactions: new DmReactionsApi(client),
     admin: new AdminApi(client),
     themes: new ThemesApi(client),
+    uploads: new UploadApi(client),
+    conversations: new ConversationsApi(client),
   };
 }
 

@@ -8,10 +8,14 @@ import {
   getBuiltinNotificationSoundSrc,
   isBuiltinNotificationSoundId,
 } from '../constants/builtinNotificationSounds';
-import {
-  shouldSuppressInAppToastForConversation,
-  type FocusVisibilitySnapshot,
-} from './dmNotificationRules';
+
+/**
+ * Snapshot of document focus and visibility state at the time of a notification event.
+ */
+export interface FocusVisibilitySnapshot {
+  hasFocus: boolean;
+  visibilityState: DocumentVisibilityState;
+}
 
 /** Decoded built-in asset (Web Audio gain can exceed 1; fetch+decode avoids HTMLAudio volume cap). */
 let cachedBuiltinDecoded: { src: string; buffer: AudioBuffer } | null = null;
@@ -25,6 +29,11 @@ let cachedCustomDecoded: { path: string; buffer: AudioBuffer } | null = null;
 
 let sharedAudioContext: AudioContext | null = null;
 
+/** Serialises custom sound playback so concurrent calls don't corrupt shared cache. */
+let customPlaybackChain: Promise<void> = Promise.resolve();
+
+const AUDIO_LOAD_TIMEOUT_MS = 5000;
+
 function revokeCustomUrl(): void {
   if (cachedCustomUrl) {
     URL.revokeObjectURL(cachedCustomUrl);
@@ -34,8 +43,13 @@ function revokeCustomUrl(): void {
   cachedCustomPath = null;
 }
 
-/** Resume AudioContext before any async work so playback stays allowed after IPC. */
-async function ensureAudioContextRunning(): Promise<AudioContext | null> {
+/**
+ * Resume (or create) the shared AudioContext.
+ *
+ * Call during a user gesture (e.g. settings toggle click) to satisfy browser
+ * autoplay policy before WS-driven playback needs it.
+ */
+export async function ensureAudioContextRunning(): Promise<AudioContext | null> {
   if (typeof AudioContext === 'undefined') {
     return null;
   }
@@ -45,7 +59,8 @@ async function ensureAudioContextRunning(): Promise<AudioContext | null> {
   if (sharedAudioContext.state === 'suspended') {
     try {
       await sharedAudioContext.resume();
-    } catch {
+    } catch (err) {
+      console.warn('[notificationSound] AudioContext.resume() failed:', err);
       return sharedAudioContext;
     }
   }
@@ -83,7 +98,7 @@ export function shouldPlayNotificationSound(
   soundId: NotificationSoundId,
   customPath: string | null,
   suppressWhenFocused: boolean,
-  isViewingConversation: boolean,
+  _isViewingConversation: boolean,
   snapshot: FocusVisibilitySnapshot | null
 ): boolean {
   if (!enabled || soundId === 'none') {
@@ -92,7 +107,7 @@ export function shouldPlayNotificationSound(
   if (soundId === 'custom' && (!customPath || customPath.length === 0)) {
     return false;
   }
-  if (suppressWhenFocused && shouldSuppressInAppToastForConversation(isViewingConversation, snapshot)) {
+  if (suppressWhenFocused && snapshot?.hasFocus && snapshot?.visibilityState === 'visible') {
     return false;
   }
   return true;
@@ -112,22 +127,29 @@ async function playBuiltin(
     try {
       if (cachedBuiltinDecoded?.src !== src) {
         const res = await fetch(src);
-        if (!res.ok) return;
-        const ab = await res.arrayBuffer();
-        cachedBuiltinDecoded = { src, buffer: await ctx.decodeAudioData(ab) };
+        if (!res.ok) {
+          console.warn(`[notificationSound] Built-in sound fetch failed: ${res.status} ${src}`);
+          // Fall through to HTMLAudio fallback below
+        } else {
+          const ab = await res.arrayBuffer();
+          cachedBuiltinDecoded = { src, buffer: await ctx.decodeAudioData(ab) };
+          playDecodedBuffer(ctx, cachedBuiltinDecoded.buffer, gain);
+          return;
+        }
+      } else {
+        playDecodedBuffer(ctx, cachedBuiltinDecoded.buffer, gain);
+        return;
       }
-      playDecodedBuffer(ctx, cachedBuiltinDecoded.buffer, gain);
-    } catch {
-      // Missing asset or decode failure
+    } catch (err) {
+      console.warn('[notificationSound] Web Audio playback failed for built-in sound:', err);
     }
-    return;
   }
   try {
     const audio = new Audio(src);
     audio.volume = Math.min(1, gain);
     await audio.play();
-  } catch {
-    // Autoplay or missing asset
+  } catch (err) {
+    console.warn('[notificationSound] HTMLAudio fallback failed for built-in sound:', err);
   }
 }
 
@@ -146,12 +168,7 @@ async function playCustomHtmlAudio(path: string, buf: ArrayBuffer, gain: number)
 
   const ctx = await ensureAudioContextRunning();
   if (ctx && gain > 1) {
-    await new Promise<void>((resolve) => {
-      const finish = () => resolve();
-      audioEl.addEventListener('canplaythrough', finish, { once: true });
-      audioEl.addEventListener('error', finish, { once: true });
-      audioEl.load();
-    });
+    await waitForAudioReady(audioEl);
     try {
       const source = ctx.createMediaElementSource(audioEl);
       const gainNode = ctx.createGain();
@@ -160,28 +177,43 @@ async function playCustomHtmlAudio(path: string, buf: ArrayBuffer, gain: number)
       gainNode.connect(ctx.destination);
       audioEl.currentTime = 0;
       await audioEl.play();
-    } catch {
-      // Autoplay or graph error
+    } catch (err) {
+      console.warn('[notificationSound] Web Audio graph playback failed for custom sound:', err);
     }
     return;
   }
 
   audioEl.volume = Math.min(1, gain);
-  await new Promise<void>((resolve) => {
-    const finish = () => resolve();
+  await waitForAudioReady(audioEl);
+  try {
+    audioEl.currentTime = 0;
+    await audioEl.play();
+  } catch (err) {
+    console.warn('[notificationSound] HTMLAudio playback failed for custom sound:', err);
+  }
+}
+
+/** Waits for an audio element to be ready, with a timeout to prevent indefinite hangs. */
+function waitForAudioReady(audioEl: HTMLAudioElement): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      console.warn('[notificationSound] Audio load timed out after', AUDIO_LOAD_TIMEOUT_MS, 'ms');
+      finish();
+    }, AUDIO_LOAD_TIMEOUT_MS);
     audioEl.addEventListener('canplaythrough', finish, { once: true });
     audioEl.addEventListener('error', finish, { once: true });
     audioEl.load();
   });
-  try {
-    audioEl.currentTime = 0;
-    await audioEl.play();
-  } catch {
-    // Autoplay policy or decode error
-  }
 }
 
-async function playCustom(
+async function playCustomUnserialized(
   path: string,
   loadCustomSound: (p: string) => Promise<ArrayBuffer | null>,
   volume: number
@@ -195,6 +227,7 @@ async function playCustom(
 
   const buf = await loadCustomSound(path);
   if (!buf || buf.byteLength === 0) {
+    console.warn('[notificationSound] Custom sound file is empty or could not be loaded:', path);
     revokeCustomUrl();
     cachedCustomDecoded = null;
     return;
@@ -206,12 +239,28 @@ async function playCustom(
       cachedCustomDecoded = { path, buffer: audioBuffer };
       playDecodedBuffer(ctx, audioBuffer, volume);
       return;
-    } catch {
-      // decodeAudioData unsupported for this container/codec — try <audio>
+    } catch (err) {
+      console.warn('[notificationSound] decodeAudioData failed, falling back to HTMLAudio:', err);
     }
   }
 
   await playCustomHtmlAudio(path, buf, volume);
+}
+
+async function playCustom(
+  path: string,
+  loadCustomSound: (p: string) => Promise<ArrayBuffer | null>,
+  volume: number
+): Promise<void> {
+  const previous = customPlaybackChain;
+  let release: () => void;
+  customPlaybackChain = new Promise<void>((r) => { release = r; });
+  await previous;
+  try {
+    await playCustomUnserialized(path, loadCustomSound, volume);
+  } finally {
+    release!();
+  }
 }
 
 export interface PlayNotificationSoundOptions {

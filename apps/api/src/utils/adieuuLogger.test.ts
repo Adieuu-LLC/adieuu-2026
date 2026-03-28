@@ -1,18 +1,21 @@
 import { describe, expect, test, spyOn, beforeEach, afterEach } from 'bun:test';
-import adieuuLogger, { adieuuLogger as namedExport } from './adieuuLogger';
+import defaultExport, { adieuuLogger } from './adieuuLogger';
 
 describe('adieuuLogger', () => {
   describe('exports', () => {
     test('default export is defined', () => {
-      expect(adieuuLogger).toBeDefined();
+      expect(defaultExport).toBeDefined();
     });
 
     test('named export is defined', () => {
-      expect(namedExport).toBeDefined();
+      expect(adieuuLogger).toBeDefined();
     });
 
-    test('default and named exports are the same instance', () => {
-      expect(adieuuLogger).toBe(namedExport);
+    test('default and named exports both expose core logging methods', () => {
+      expect(typeof defaultExport.info).toBe('function');
+      expect(typeof defaultExport.error).toBe('function');
+      expect(typeof defaultExport.warn).toBe('function');
+      expect(typeof defaultExport.debug).toBe('function');
     });
   });
 

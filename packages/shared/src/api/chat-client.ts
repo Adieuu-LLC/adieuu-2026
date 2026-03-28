@@ -12,11 +12,19 @@
 export type ChatMessageType =
   | 'ping'
   | 'pong'
-  | 'message'
-  | 'typing'
   | 'presence'
   | 'ack'
-  | 'error';
+  | 'error'
+  | 'friend_request_received'
+  | 'friend_request_accepted'
+  | 'friend_removed'
+  | 'conversation_created'
+  | 'conversation_updated'
+  | 'conversation_message'
+  | 'group_invite_received'
+  | 'group_invite_accepted'
+  | 'conversation_message_deleted'
+  | 'group_terminated';
 
 export interface ChatMessageBase {
   type: ChatMessageType;
@@ -42,28 +50,143 @@ export interface ChatAckMessage extends ChatMessageBase {
   id: string;
 }
 
-export interface ChatTypingMessage extends ChatMessageBase {
-  type: 'typing';
-  payload: {
-    conversationId: string;
-    isTyping: boolean;
+export interface ChatFriendRequestReceivedMessage extends ChatMessageBase {
+  type: 'friend_request_received';
+  data: {
+    requestId: string;
+    fromIdentity: {
+      id: string;
+      username: string;
+      displayName: string;
+      avatarUrl?: string;
+    };
   };
 }
 
-export interface ChatTypingNotification extends ChatMessageBase {
-  type: 'typing';
-  from: string;
+export interface ChatFriendRequestAcceptedMessage extends ChatMessageBase {
+  type: 'friend_request_accepted';
+  data: {
+    requestId: string;
+    byIdentity: {
+      id: string;
+      username: string;
+      displayName: string;
+      avatarUrl?: string;
+    };
+  };
+}
+
+export interface ChatFriendRemovedMessage extends ChatMessageBase {
+  type: 'friend_removed';
+  data: {
+    identityId: string;
+  };
+}
+
+export interface ChatConversationCreatedMessage extends ChatMessageBase {
+  type: 'conversation_created';
+  data: {
+    conversation: {
+      id: string;
+      type: 'dm' | 'group';
+      participants: string[];
+      createdBy: string;
+      admins: string[];
+      encryptedName?: string;
+      nameNonce?: string;
+      createdAt: string;
+      updatedAt: string;
+    };
+  };
+}
+
+export interface ChatConversationUpdatedMessage extends ChatMessageBase {
+  type: 'conversation_updated';
+  data: {
+    conversationId: string;
+    action: 'member_added' | 'member_removed' | 'member_left' | 'removed' | 'renamed' | 'admin_promoted';
+    identityId?: string;
+  };
+}
+
+export interface ChatGroupTerminatedMessage extends ChatMessageBase {
+  type: 'group_terminated';
+  data: {
+    conversationId: string;
+    terminatedBy: {
+      id: string;
+      username?: string;
+      displayName?: string;
+    };
+    encryptedName?: string;
+    nameNonce?: string;
+  };
+}
+
+export interface ChatConversationMessageMessage extends ChatMessageBase {
+  type: 'conversation_message';
+  data: {
+    conversationId: string;
+    messageId: string;
+    fromIdentityId: string;
+    createdAt: string;
+  };
+}
+
+export interface ChatGroupInviteReceivedMessage extends ChatMessageBase {
+  type: 'group_invite_received';
+  data: {
+    invite: {
+      id: string;
+      conversationId: string;
+      invitedIdentityId: string;
+      invitedByIdentityId: string;
+      status: string;
+      groupName?: string;
+      hasGroupName?: boolean;
+      memberCount: number;
+      createdAt: string;
+    };
+  };
+}
+
+export interface ChatGroupInviteAcceptedMessage extends ChatMessageBase {
+  type: 'group_invite_accepted';
+  data: {
+    conversationId: string;
+    identityId: string;
+    username?: string;
+    displayName?: string;
+  };
+}
+
+export interface ChatConversationMessageDeletedMessage extends ChatMessageBase {
+  type: 'conversation_message_deleted';
+  data: {
+    conversationId: string;
+    messageId: string;
+    deletedBy: string;
+    forEveryone: boolean;
+  };
 }
 
 export type ChatIncomingMessage =
   | ChatPongMessage
   | ChatErrorMessage
   | ChatAckMessage
-  | ChatTypingNotification;
+  | ChatFriendRequestReceivedMessage
+  | ChatFriendRequestAcceptedMessage
+  | ChatFriendRemovedMessage
+  | ChatConversationCreatedMessage
+  | ChatConversationUpdatedMessage
+  | ChatConversationMessageMessage
+  | ChatGroupInviteReceivedMessage
+  | ChatGroupInviteAcceptedMessage
+  | ChatConversationMessageDeletedMessage
+  | ChatGroupTerminatedMessage;
 
 export type ChatOutgoingMessage =
-  | ChatPingMessage
-  | ChatTypingMessage;
+  | ChatPingMessage;
 
 export type ChatConnectionState =
   | 'disconnected'
@@ -82,6 +205,10 @@ export interface ChatClientConfig {
   reconnectDelay?: number;
   /** Maximum reconnect attempts (default: Infinity) */
   maxReconnectAttempts?: number;
+  /** Max time to wait for a connection to open before retrying (default: 10000) */
+  connectTimeout?: number;
+  /** Max time to wait for a pong after sending a ping (default: 10000) */
+  pongTimeout?: number;
 }
 
 export interface ChatClientEvents {
@@ -101,6 +228,8 @@ export class ChatClient {
   private state: ChatConnectionState = 'disconnected';
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+  private pongTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private intentionalClose = false;
 
@@ -111,6 +240,8 @@ export class ChatClient {
       heartbeatInterval: config.heartbeatInterval ?? 15000,
       reconnectDelay: config.reconnectDelay ?? 1000,
       maxReconnectAttempts: config.maxReconnectAttempts ?? Infinity,
+      connectTimeout: config.connectTimeout ?? 10000,
+      pongTimeout: config.pongTimeout ?? 10000,
     };
     this.events = events;
   }
@@ -154,14 +285,19 @@ export class ChatClient {
       return;
     }
 
+    this.startConnectTimeout();
+
     this.ws.onopen = () => {
+      this.clearConnectTimeout();
       this.reconnectAttempts = 0;
       this.setState('connected');
       this.startHeartbeat();
     };
 
     this.ws.onclose = (event) => {
+      this.clearConnectTimeout();
       this.stopHeartbeat();
+      this.clearPongTimeout();
       this.ws = null;
 
       if (!this.intentionalClose) {
@@ -188,6 +324,8 @@ export class ChatClient {
     this.intentionalClose = true;
     this.stopHeartbeat();
     this.clearReconnectTimer();
+    this.clearConnectTimeout();
+    this.clearPongTimeout();
     this.reconnectAttempts = 0;
 
     if (this.ws) {
@@ -196,6 +334,25 @@ export class ChatClient {
     }
 
     this.setState('disconnected');
+  }
+
+  /**
+   * Force an immediate reconnection attempt.
+   * Tears down any existing socket, resets backoff, and connects fresh.
+   * No-op if the client was intentionally disconnected.
+   */
+  forceReconnect(): void {
+    if (this.intentionalClose) {
+      return;
+    }
+
+    this.clearReconnectTimer();
+    this.clearConnectTimeout();
+    this.clearPongTimeout();
+    this.stopHeartbeat();
+    this.detachAndCloseSocket();
+    this.reconnectAttempts = 0;
+    this.connect();
   }
 
   /**
@@ -212,16 +369,6 @@ export class ChatClient {
     } catch {
       return false;
     }
-  }
-
-  /**
-   * Send a typing indicator
-   */
-  sendTyping(conversationId: string, isTyping: boolean): boolean {
-    return this.send({
-      type: 'typing',
-      payload: { conversationId, isTyping },
-    });
   }
 
   /**
@@ -257,6 +404,11 @@ export class ChatClient {
     try {
       const text = typeof data === 'string' ? data : new TextDecoder().decode(data as ArrayBuffer);
       const message = JSON.parse(text) as ChatIncomingMessage;
+
+      if (message.type === 'pong') {
+        this.clearPongTimeout();
+      }
+
       this.events.onMessage?.(message);
     } catch {
       this.handleError(new Error('Failed to parse message'));
@@ -270,7 +422,9 @@ export class ChatClient {
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
-      this.send({ type: 'ping' });
+      if (this.send({ type: 'ping' })) {
+        this.startPongTimeout();
+      }
     }, this.config.heartbeatInterval);
   }
 
@@ -280,6 +434,66 @@ export class ChatClient {
       this.heartbeatTimer = null;
     }
   }
+
+  /**
+   * Closes the current socket and detaches all event handlers so that
+   * stale callbacks from an abandoned socket never interfere with a
+   * subsequent connection attempt.
+   */
+  private detachAndCloseSocket(): void {
+    if (!this.ws) return;
+
+    const ws = this.ws;
+    ws.onopen = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.onmessage = null;
+    this.ws = null;
+    try { ws.close(); } catch { /* best-effort */ }
+  }
+
+  // -- Connect timeout ------------------------------------------------------
+
+  private startConnectTimeout(): void {
+    this.clearConnectTimeout();
+    this.connectTimeoutTimer = setTimeout(() => {
+      if (this.ws && this.state !== 'connected') {
+        this.handleError(new Error('Connection timed out'));
+        this.detachAndCloseSocket();
+        this.scheduleReconnect();
+      }
+    }, this.config.connectTimeout);
+  }
+
+  private clearConnectTimeout(): void {
+    if (this.connectTimeoutTimer) {
+      clearTimeout(this.connectTimeoutTimer);
+      this.connectTimeoutTimer = null;
+    }
+  }
+
+  // -- Pong timeout ----------------------------------------------------------
+
+  private startPongTimeout(): void {
+    this.clearPongTimeout();
+    this.pongTimeoutTimer = setTimeout(() => {
+      if (this.ws && this.state === 'connected') {
+        this.handleError(new Error('Heartbeat timeout: no pong received'));
+        this.detachAndCloseSocket();
+        this.stopHeartbeat();
+        this.scheduleReconnect();
+      }
+    }, this.config.pongTimeout);
+  }
+
+  private clearPongTimeout(): void {
+    if (this.pongTimeoutTimer) {
+      clearTimeout(this.pongTimeoutTimer);
+      this.pongTimeoutTimer = null;
+    }
+  }
+
+  // -- Reconnect scheduling --------------------------------------------------
 
   private scheduleReconnect(): void {
     if (this.intentionalClose) {

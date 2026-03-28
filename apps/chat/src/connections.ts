@@ -91,14 +91,15 @@ export function initializeMessageHandler(): void {
 }
 
 /**
- * Subscribes to Redis channel for an identity
+ * Subscribes to Redis channel for an identity.
+ *
+ * Redis SUBSCRIBE is idempotent -- calling it on an already-subscribed
+ * channel is a no-op at the protocol level, so we always issue the
+ * command to guarantee the subscription is active even after races
+ * between close/open events.
  */
 async function subscribeToIdentity(identityId: string): Promise<void> {
   const channel = RedisChannels.identity(identityId);
-
-  if (subscriptions.has(channel)) {
-    return;
-  }
 
   if (!isRedisConnected()) {
     logger.warn('Cannot subscribe - Redis not connected', { identityId });
@@ -141,7 +142,11 @@ async function unsubscribeFromIdentity(identityId: string): Promise<void> {
 }
 
 /**
- * Registers a new WebSocket connection
+ * Registers a new WebSocket connection.
+ *
+ * If a previous connection exists for this identity it is silently
+ * replaced -- the old socket stays open until the browser closes it,
+ * but Redis messages will be routed to the new socket.
  */
 export async function registerConnection(
   identityId: string,
@@ -171,9 +176,25 @@ export async function registerConnection(
 }
 
 /**
- * Unregisters a WebSocket connection
+ * Unregisters a WebSocket connection.
+ *
+ * Accepts the socket being closed so we can verify it is still the
+ * active connection for this identity.  If a newer socket has already
+ * replaced it (e.g. rapid reconnect, StrictMode double-mount) the
+ * unregistration is skipped to avoid tearing down the live connection.
  */
-export async function unregisterConnection(identityId: string): Promise<void> {
+export async function unregisterConnection(
+  identityId: string,
+  ws: TypedWebSocket
+): Promise<void> {
+  const current = connections.get(identityId);
+  if (current !== ws) {
+    logger.debug('Skipping unregister - connection already replaced', {
+      identityId: identityId.substring(0, 8) + '...',
+    });
+    return;
+  }
+
   connections.delete(identityId);
   await unsubscribeFromIdentity(identityId);
 
