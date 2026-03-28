@@ -11,6 +11,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
 import { useIdentity } from '../../hooks/useIdentity';
+import { usePreKeys } from '../../hooks/usePreKeys';
+import { loadConversationFsDefault, saveConversationFsDefault } from '../../services/preKeyService';
 import { Button } from '../../components/Button';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { TrashIcon } from '../../components/Icons';
@@ -184,6 +186,7 @@ export function ConversationView() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { identity } = useIdentity();
+  const { config: fsConfig } = usePreKeys();
   const {
     conversations,
     activeConversationId,
@@ -203,6 +206,35 @@ export function ConversationView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [showMembers, setShowMembers] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // FS state: per-conversation override -> global default
+  const resolveDefaultFs = useCallback(() => {
+    if (!id) return fsConfig.enabled;
+    const convOverride = loadConversationFsDefault(id);
+    return convOverride ?? fsConfig.enabled;
+  }, [id, fsConfig.enabled]);
+
+  const [useFs, setUseFs] = useState(resolveDefaultFs);
+  const [convFsOverride, setConvFsOverride] = useState<boolean | null>(() =>
+    id ? loadConversationFsDefault(id) : null
+  );
+
+  // Reset FS state when conversation changes
+  useEffect(() => {
+    if (id) {
+      const override = loadConversationFsDefault(id);
+      setConvFsOverride(override);
+      setUseFs(override ?? fsConfig.enabled);
+    }
+  }, [id, fsConfig.enabled]);
+
+  const handleConvFsToggle = useCallback((enabled: boolean) => {
+    if (!id) return;
+    setConvFsOverride(enabled);
+    saveConversationFsDefault(id, enabled);
+    setUseFs(enabled);
+  }, [id]);
 
   const conversation = conversations.find((c) => c.id === id);
 
@@ -220,8 +252,8 @@ export function ConversationView() {
     if (!id || !messageText.trim() || sending) return;
     const text = messageText.trim();
     setMessageText('');
-    await sendTextMessage(id, text);
-  }, [id, messageText, sending, sendTextMessage]);
+    await sendTextMessage(id, text, { useForwardSecrecy: useFs });
+  }, [id, messageText, sending, sendTextMessage, useFs]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -299,6 +331,14 @@ export function ConversationView() {
             <Button
               variant="ghost"
               size="sm"
+              className={`conversation-toolbar-btn${showSettings ? ' active' : ''}`}
+              onClick={() => setShowSettings((v) => !v)}
+            >
+              {t('conversations.settings', 'Settings')}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               className={`conversation-toolbar-btn${showMembers ? ' active' : ''}`}
               onClick={() => setShowMembers((v) => !v)}
             >
@@ -355,6 +395,17 @@ export function ConversationView() {
 
             {/* Composer */}
             <div className="conversation-input">
+              <button
+                type="button"
+                className={`conversation-fs-toggle${useFs ? ' conversation-fs-toggle--active' : ''}`}
+                onClick={() => setUseFs((v) => !v)}
+                title={useFs
+                  ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
+                  : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
+                }
+              >
+                FS
+              </button>
               <textarea
                 className="conversation-input-field"
                 placeholder={t('conversations.messagePlaceholder', 'Type a message...')}
@@ -374,6 +425,32 @@ export function ConversationView() {
               </Button>
             </div>
           </div>
+
+          {/* Settings sidebar */}
+          {showSettings && (
+            <div className="conversation-settings-sidebar">
+              <div className="conversation-settings-header">
+                <h3>{t('conversations.settings', 'Settings')}</h3>
+              </div>
+              <div className="conversation-settings-body">
+                <label className="app-settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={convFsOverride ?? fsConfig.enabled}
+                    onChange={(e) => handleConvFsToggle(e.target.checked)}
+                  />
+                  <span className="app-settings-toggle-label">
+                    <span className="app-settings-toggle-title">
+                      {t('conversations.settingsFs', 'Forward Secrecy')}
+                    </span>
+                    <span className="app-settings-toggle-hint">
+                      {t('conversations.settingsFsHint', 'Default messages in this conversation to use forward secrecy. Messages without FS remain end-to-end encrypted but persist in history.')}
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* Members sidebar */}
           {showMembers && (

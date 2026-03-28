@@ -161,7 +161,6 @@ export const en = {
         devices: 'Devices',
         sessions: 'Sessions',
         activity: 'Activity',
-        forwardSecrecy: 'Forward Secrecy',
       },
       yourDevices: 'Your Devices',
       noDevices: 'No devices found.',
@@ -223,6 +222,9 @@ export const en = {
       forwardSecrecy: {
         title: 'Forward Secrecy',
         description: 'Control pre-key rotation and deletion behavior for DM forward secrecy.',
+        enabledTitle: 'Enable Forward Secrecy by default',
+        enabledHint: 'When enabled, all new messages use forward secrecy unless overridden per-conversation or per-message. Messages sent without forward secrecy remain end-to-end encrypted but persist in history.',
+        enabledUpdated: 'Forward secrecy default updated.',
         securityLevelTitle: 'Security Level',
         deletionPolicyTitle: 'Signed Pre-Key Deletion Policy',
         manualRotationTitle: 'Manual Rotation',
@@ -235,8 +237,20 @@ export const en = {
         lastRotatedAt: 'Last rotated: {{date}}',
         lastRotatedUnknown: 'No manual rotation this session.',
         security: {
+          very_lax: {
+            title: 'Very Lax',
+            description: 'Rotate every 30 days. Longest message history window.',
+          },
+          lax: {
+            title: 'Lax',
+            description: 'Rotate every 2 weeks.',
+          },
           standard: {
             title: 'Standard',
+            description: 'Rotate every 7 days.',
+          },
+          medium: {
+            title: 'Medium',
             description: 'Rotate every 24 hours.',
           },
           high: {
@@ -245,7 +259,7 @@ export const en = {
           },
           maximum: {
             title: 'Maximum',
-            description: 'Rotate every hour.',
+            description: 'Rotate every hour. Tightest forward secrecy.',
           },
         },
         deletion: {
@@ -554,6 +568,10 @@ export const en = {
     privacy: {
       title: 'Privacy',
       subtitle: 'Control your privacy settings and who can interact with you.',
+      tabs: {
+        general: 'General',
+        forwardSecrecy: 'Forward Secrecy',
+      },
       blockedUsers: 'Blocked Users',
       profileVisibility: 'Profile Visibility',
       readReceipts: 'Read Receipts',

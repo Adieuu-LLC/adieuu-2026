@@ -101,7 +101,7 @@ interface ConversationsContextValue {
   sendTextMessage: (
     conversationId: string,
     plaintext: string,
-    expiresInSeconds?: number
+    options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean }
   ) => Promise<PublicMessage | null>;
   loadMoreMessages: () => Promise<void>;
   deleteMessage: (
@@ -241,9 +241,12 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   /**
    * Fetch recipient keys (identity public keys + pre-keys) for all participants
    * in a conversation, needed for encrypting outbound messages.
+   *
+   * When `useForwardSecrecy` is false, pre-key claiming is skipped entirely
+   * and all devices use static key wrapping. E2EE is still maintained.
    */
   const fetchRecipientKeys = useCallback(
-    async (participantIds: string[]): Promise<RecipientKeys[]> => {
+    async (participantIds: string[], useForwardSecrecy = true): Promise<RecipientKeys[]> => {
       const recipients: RecipientKeys[] = [];
 
       for (const pid of participantIds) {
@@ -252,13 +255,15 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           if (!keysResp.data) continue;
 
           let preKeys: ClaimedDevicePreKeys[] = [];
-          try {
-            const claimResp = await api.identity.claimPreKeys(pid);
-            if (claimResp.data?.devices) {
-              preKeys = claimResp.data.devices;
+          if (useForwardSecrecy) {
+            try {
+              const claimResp = await api.identity.claimPreKeys(pid);
+              if (claimResp.data?.devices) {
+                preKeys = claimResp.data.devices;
+              }
+            } catch {
+              // Pre-keys unavailable -- will use static key wrapping
             }
-          } catch {
-            // Pre-keys unavailable -- will use static key wrapping
           }
 
           recipients.push({
@@ -643,19 +648,22 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     async (
       conversationId: string,
       plaintext: string,
-      expiresInSeconds?: number
+      options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean }
     ): Promise<PublicMessage | null> => {
       if (!isLoggedIn || !identity) return null;
 
       const conversation = conversations.find((c) => c.id === conversationId);
       if (!conversation) return null;
 
+      const useFs = options?.useForwardSecrecy ?? true;
+      const expiresInSeconds = options?.expiresInSeconds;
+
       setSending(true);
       try {
         const signingKey = getSigningKey();
         if (!signingKey) throw new Error('No signing key available');
 
-        const recipients = await fetchRecipientKeys(conversation.participants);
+        const recipients = await fetchRecipientKeys(conversation.participants, useFs);
         if (recipients.length === 0) throw new Error('No recipient keys available');
 
         const cryptoProfile = identity.preferredCryptoProfile ?? 'default';
