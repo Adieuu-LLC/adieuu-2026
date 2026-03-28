@@ -12,7 +12,7 @@ import { useConversations } from '../../hooks/useConversations';
 import { useFriends } from '../../hooks/useFriends';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
-import { SearchIcon, CheckIcon } from '../../components/Icons';
+import { Icon } from '../../icons/Icon';
 
 export function NewConversation() {
   const { t } = useTranslation();
@@ -85,7 +85,7 @@ export function NewConversation() {
       <div className="new-conversation-search">
         <Input
           inputSize="sm"
-          leftIcon={<SearchIcon />}
+          leftIcon={<Icon name="search" />}
           placeholder={t('conversations.searchFriendsPlaceholder', 'Search friends...')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -125,7 +125,7 @@ export function NewConversation() {
               </div>
               {isSelected && (
                 <span className="new-conversation-item-check">
-                  <CheckIcon />
+                  <Icon name="check" />
                 </span>
               )}
             </button>

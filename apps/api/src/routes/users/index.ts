@@ -341,6 +341,7 @@ router.get('/users/me/preferences', async (ctx) => {
   return success({
     themeId: prefs?.themeId,
     customThemes: prefs?.customThemes ?? [],
+    iconPackId: prefs?.iconPackId,
   });
 });
 

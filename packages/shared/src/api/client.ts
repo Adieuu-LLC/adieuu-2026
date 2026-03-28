@@ -660,14 +660,14 @@ export class UsersApi {
   /**
    * Get the current user's theme and appearance preferences.
    */
-  async getPreferences(): Promise<ApiResponse<{ themeId?: string; customThemes?: import('../types/theme').ThemeDefinition[] }>> {
+  async getPreferences(): Promise<ApiResponse<{ themeId?: string; customThemes?: import('../types/theme').ThemeDefinition[]; iconPackId?: string }>> {
     return this.client.get('/api/users/me/preferences');
   }
 
   /**
    * Update the current user's theme and appearance preferences.
    */
-  async updatePreferences(prefs: { themeId?: string; customThemes?: import('../types/theme').ThemeDefinition[] }): Promise<ApiResponse<void>> {
+  async updatePreferences(prefs: { themeId?: string; customThemes?: import('../types/theme').ThemeDefinition[]; iconPackId?: string }): Promise<ApiResponse<void>> {
     return this.client.put('/api/users/me/preferences', prefs);
   }
 }

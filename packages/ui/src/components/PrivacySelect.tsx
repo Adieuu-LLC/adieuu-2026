@@ -9,6 +9,7 @@ import { useMemo } from 'react';
 import { Select, Portal, createListCollection } from '@ark-ui/react';
 import { useTranslation } from 'react-i18next';
 import type { ProfileVisibility } from '@adieuu/shared';
+import { Icon } from '../icons/Icon';
 
 export interface PrivacySelectProps {
   value: ProfileVisibility;
@@ -59,7 +60,7 @@ export function PrivacySelect({ value, onChange, label, disabled }: PrivacySelec
             {selectedLabel ? t(selectedLabel.labelKey) : ''}
           </Select.ValueText>
           <Select.Indicator className="privacy-select-indicator">
-            <ChevronIcon />
+            <Icon name="chevronDown" size="xs" />
           </Select.Indicator>
         </Select.Trigger>
       </Select.Control>
@@ -71,7 +72,7 @@ export function PrivacySelect({ value, onChange, label, disabled }: PrivacySelec
               <Select.Item key={item.value} item={item} className="privacy-select-item">
                 <Select.ItemText>{item.label}</Select.ItemText>
                 <Select.ItemIndicator className="privacy-select-item-indicator">
-                  <CheckIcon />
+                  <Icon name="check" size="xs" />
                 </Select.ItemIndicator>
               </Select.Item>
             ))}
@@ -82,18 +83,3 @@ export function PrivacySelect({ value, onChange, label, disabled }: PrivacySelec
   );
 }
 
-function ChevronIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <polyline points="6 9 12 15 18 9" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}

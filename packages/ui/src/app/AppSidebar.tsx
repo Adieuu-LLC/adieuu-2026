@@ -12,7 +12,7 @@ import { SidebarTabs, type SidebarTab } from '../components/SidebarTabs';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
-import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, ShieldIcon, PaletteIcon, DownloadIcon, UsersIcon, CheckIcon, XIcon, SearchIcon, MessageIcon, PlusIcon, SpacesIcon } from '../components/Icons';
+import { Icon } from '../icons/Icon';
 import { HoverCard } from '../components/HoverCard';
 import { ChatConnectionBanner } from '../components/ChatConnectionBanner';
 import { useAppConfig } from '../config';
@@ -54,7 +54,7 @@ function AccountFlyout() {
         size="sm"
         className={`sidebar-account-btn ${isAccountActive ? 'sidebar-account-btn-active' : ''}`}
       >
-        <UserIcon />
+        <Icon name="user" />
         <span className="sidebar-account-label">{t('nav.account')}</span>
         <svg
           width="12"
@@ -94,7 +94,7 @@ function AccountFlyout() {
             className="sidebar-flyout-item sidebar-flyout-item-logout"
             data-tour="logout"
           >
-            <LogoutIcon />
+            <Icon name="logout" />
             {t('nav.logout')}
           </button>
         </div>
@@ -152,7 +152,7 @@ function IdentityFlyout() {
           className="sidebar-identity-btn sidebar-identity-btn-locked"
           data-tour="identity"
         >
-          <MaskIcon />
+          <Icon name="mask" />
           <span className="sidebar-identity-label">{t('identity.unlock.title')}</span>
         </Button>
         <IdentityModal
@@ -175,7 +175,7 @@ function IdentityFlyout() {
           className="sidebar-identity-btn"
           data-tour="identity"
         >
-          <MaskIcon />
+          <Icon name="mask" />
           <span className="sidebar-identity-label">{t('identity.loginButton')}</span>
         </Button>
         <IdentityModal
@@ -194,7 +194,7 @@ function IdentityFlyout() {
         size="sm"
         className={`sidebar-identity-btn ${isIdentityActive ? 'sidebar-identity-btn-active' : ''}`}
       >
-        <MaskIcon />
+        <Icon name="mask" />
         <span className="sidebar-identity-label">
           {identity.displayName}
         </span>
@@ -242,7 +242,7 @@ function IdentityFlyout() {
             onClick={handleIdentityLogout}
             className="sidebar-flyout-item sidebar-flyout-item-logout"
           >
-            <LogoutIcon />
+            <Icon name="logout" />
             {t('identity.logoutButton')}
           </button>
         </div>
@@ -276,7 +276,7 @@ function FriendsSidebarButton({
 
   return (
     <SidebarItem
-      icon={<UsersIcon />}
+      icon={<Icon name="users" />}
       label={buttonLabel}
       onClick={onToggle}
       isActive={isOpen}
@@ -487,14 +487,14 @@ function FriendsPanel({
           onClick={onClose}
           aria-label={t('friends.close')}
         >
-          <XIcon />
+          <Icon name="x" />
         </Button>
       </div>
 
       <div className="sidebar-friends-panel-search">
         <Input
           inputSize="sm"
-          leftIcon={<SearchIcon />}
+          leftIcon={<Icon name="search" />}
           rightIcon={isSearching ? <span className="spinner spinner-sm" /> : undefined}
           placeholder={t('friends.searchPlaceholder')}
           value={searchQuery}
@@ -521,7 +521,7 @@ function FriendsPanel({
                       size="sm"
                       onClick={(e) => handleAccept(req.request.id, e)}
                     >
-                      <CheckIcon />
+                      <Icon name="check" />
                       {t('friends.accept')}
                     </Button>
                     <Button
@@ -529,7 +529,7 @@ function FriendsPanel({
                       size="sm"
                       onClick={(e) => handleIgnore(req.request.id, e)}
                     >
-                      <XIcon />
+                      <Icon name="x" />
                       {t('friends.ignore')}
                     </Button>
                   </>
@@ -563,7 +563,7 @@ function FriendsPanel({
                       onClick={(e) => handleAccept(req.request.id, e)}
                       title={t('friends.accept')}
                     >
-                      <CheckIcon />
+                      <Icon name="check" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -572,7 +572,7 @@ function FriendsPanel({
                       onClick={(e) => handleIgnore(req.request.id, e)}
                       title={t('friends.ignore')}
                     >
-                      <XIcon />
+                      <Icon name="x" />
                     </Button>
                   </div>
                 </div>
@@ -599,7 +599,7 @@ function FriendsPanel({
                     size="sm"
                     onClick={(e) => handleRemoveFriend(friend.identity.id, e)}
                   >
-                    <XIcon />
+                    <Icon name="x" />
                     {t('friends.remove')}
                   </Button>
                 }
@@ -742,13 +742,13 @@ function ConversationsSidebarSection() {
   const tabs: SidebarTab[] = [
     {
       id: 'conversations',
-      icon: <MessageIcon />,
+      icon: <Icon name="message" />,
       label: t('sidebar.conversationsTab', 'Conversations'),
       badge: totalUnread + invites.length,
     },
     {
       id: 'spaces',
-      icon: <SpacesIcon />,
+      icon: <Icon name="spaces" />,
       label: t('sidebar.spacesTab', 'Spaces'),
     },
   ];
@@ -768,7 +768,7 @@ function ConversationsSidebarSection() {
         {activeTab === 'conversations' && (
           <>
             <SidebarItem
-              icon={<PlusIcon />}
+              icon={<Icon name="plus" />}
               label={t('sidebar.newConversation', 'New Conversation')}
               onClick={handleNewConversation}
             />
@@ -804,7 +804,7 @@ function ConversationsSidebarSection() {
                           disabled={isProcessing}
                           title={t('conversations.invites.accept', 'Accept')}
                         >
-                          {isProcessing ? <span className="spinner spinner-sm" /> : <CheckIcon />}
+                          {isProcessing ? <span className="spinner spinner-sm" /> : <Icon name="check" />}
                         </Button>
                         <Button
                           variant="ghost"
@@ -814,7 +814,7 @@ function ConversationsSidebarSection() {
                           disabled={isProcessing}
                           title={t('conversations.invites.decline', 'Decline')}
                         >
-                          <XIcon />
+                          <Icon name="x" />
                         </Button>
                       </div>
                     </div>
@@ -877,7 +877,7 @@ function SidebarNavContent({
       <SidebarSection label={t('sidebar.main')}>
         <Link to="/about" style={{ textDecoration: 'none' }} onClick={closeMobile}>
           <SidebarItem
-            icon={<InfoIcon />}
+            icon={<Icon name="info" />}
             label={t('nav.about')}
             isActive={isActive('/about')}
           />
@@ -915,7 +915,7 @@ function SidebarFooterContent() {
             className={`sidebar-admin-link sidebar-admin-link-btn${isAdminActive ? ' sidebar-admin-link-active' : ''}`}
             onClick={closeMobile}
           >
-            <ShieldIcon />
+            <Icon name="shield" />
             <span className="sidebar-admin-label">{t('admin.nav.link')}</span>
           </Link>
         </div>
@@ -927,7 +927,7 @@ function SidebarFooterContent() {
             className={`sidebar-desktop-link${isDownloadActive ? ' sidebar-desktop-link-active' : ''}`}
             onClick={closeMobile}
           >
-            <DownloadIcon />
+            <Icon name="download" />
             <span className="sidebar-desktop-label">{t('nav.getDesktopApp')}</span>
           </Link>
         </div>

@@ -12,7 +12,7 @@ import { useIdentitySearch } from '../hooks/useIdentitySearch';
 import { useIdentity } from '../hooks/useIdentity';
 import { useFriends } from '../hooks/useFriends';
 import { useSidebar } from './Sidebar';
-import { SearchIcon, PlusIcon } from './Icons';
+import { Icon } from '../icons/Icon';
 
 export interface SidebarSearchProps {
   /** Called when an identity is selected */
@@ -117,7 +117,7 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
         title={t('search.title')}
         aria-label={t('search.title')}
       >
-        <SearchIcon />
+        <Icon name="search" />
       </button>
     );
   }
@@ -137,7 +137,7 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
       >
         <Combobox.Control className="sidebar-search-control">
           <span className="sidebar-search-icon">
-            <SearchIcon />
+            <Icon name="search" />
           </span>
           <Combobox.Input
             ref={inputRef}
@@ -191,7 +191,7 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
                       onClick={(e) => handleAddFriend(e, identity.id)}
                       title={t('friends.addFriend')}
                     >
-                      <PlusIcon />
+                      <Icon name="plus" />
                     </button>
                   )}
                 </Combobox.Item>

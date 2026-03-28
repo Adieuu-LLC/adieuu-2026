@@ -17,7 +17,7 @@ import {
 } from '@adieuu/shared';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
-import { UsersIcon, PlusIcon, XIcon } from '../../components/Icons';
+import { Icon } from '../../icons/Icon';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
 import { useAppConfig } from '../../config';
@@ -212,7 +212,7 @@ export function IdentityProfileView() {
                       onClick={handleAddFriend}
                       disabled={friendActionLoading}
                     >
-                      <PlusIcon />
+                      <Icon name="plus" />
                       {t('friends.addFriend')}
                     </Button>
                   )}
@@ -228,7 +228,7 @@ export function IdentityProfileView() {
                       onClick={handleRemoveFriend}
                       disabled={friendActionLoading}
                     >
-                      <XIcon />
+                      <Icon name="x" />
                       {t('friends.removeFriend')}
                     </Button>
                   )}

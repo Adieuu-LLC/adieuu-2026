@@ -53,6 +53,8 @@ export { useAuth, AuthProvider } from './hooks/useAuth';
 export { useIdentity, IdentityProvider } from './hooks/useIdentity';
 export { useTheme, ThemeProvider } from './hooks/useTheme';
 export type { ThemeContextValue, ThemeProviderProps } from './hooks/useTheme';
+export { useIconPack, IconPackProvider } from './hooks/useIconPack';
+export type { IconPackContextValue, IconPackProviderProps } from './hooks/useIconPack';
 export { useTourContext, TourProvider } from './hooks/useTourContext';
 export { useIdentitySearch } from './hooks/useIdentitySearch';
 export { useChatSocket, ChatSocketProvider } from './hooks/useChatSocket';
@@ -160,26 +162,11 @@ export type { ImportKeyBackupModalProps } from './components/ImportKeyBackupModa
 // Icons
 // ============================================================================
 
-export {
-  HomeIcon,
-  MessageIcon,
-  UsersIcon,
-  SettingsIcon,
-  InfoIcon,
-  LogoutIcon,
-  ShieldIcon,
-  KeyIcon,
-  BellIcon,
-  SearchIcon,
-  UserIcon,
-  PaletteIcon,
-  LockIcon,
-  MaskIcon,
-  PlusIcon,
-  InfoCircleIcon,
-  SpacesIcon,
-  EllipsisHorizontalIcon,
-} from './components/Icons';
+export { Icon } from './icons/Icon';
+export type { IconProps, AppIconName } from './icons/Icon';
+export { APP_ICON_NAMES } from './icons/appIcons';
+export { ICON_PACKS, DEFAULT_ICON_PACK_ID, getIconPack } from './icons/packs';
+export type { IconPackDefinition, IconPackId } from './icons/packs';
 
 // ============================================================================
 // Utility Hooks

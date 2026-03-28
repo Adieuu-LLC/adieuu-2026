@@ -11,7 +11,7 @@ import { useIdentity } from '../hooks/useIdentity';
 import { useFriends } from '../hooks/useFriends';
 import { IdentityCard } from '../components/IdentityCard';
 import { Input } from '../components/Input';
-import { SearchIcon } from '../components/Icons';
+import { Icon } from '../icons/Icon';
 
 export function Search() {
   const { t } = useTranslation();
@@ -74,7 +74,7 @@ export function Search() {
             value={inputValue}
             onChange={handleInputChange}
             placeholder={t('search.placeholder')}
-            leftIcon={<SearchIcon />}
+            leftIcon={<Icon name="search" />}
             inputSize="lg"
             autoFocus
           />

@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Alert } from '../../components/Alert';
+import { Icon } from '../../icons/Icon';
 import { useToast } from '../../components/Toast';
 import { useTheme } from '../../hooks/useTheme';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -472,11 +473,11 @@ export function IdentityAppearance() {
               <p className="app-settings-section-desc">{t('account.appearance.importExportDescription')}</p>
               <div className="theme-import-export-row">
                 <Button variant="secondary" size="sm" onClick={handleExport} disabled={!activeTheme}>
-                  <ExportIcon />
+                  <Icon name="fileExport" style={{ marginRight: '0.375rem', flexShrink: 0 }} />
                   {t('account.appearance.exportTheme')}
                 </Button>
                 <Button variant="secondary" size="sm" onClick={handleImport}>
-                  <ImportIcon />
+                  <Icon name="fileImport" style={{ marginRight: '0.375rem', flexShrink: 0 }} />
                   {t('account.appearance.importTheme')}
                 </Button>
                 <input
@@ -492,25 +493,5 @@ export function IdentityAppearance() {
         )}
       </div>
     </div>
-  );
-}
-
-function ExportIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.375rem', flexShrink: 0 }}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </svg>
-  );
-}
-
-function ImportIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '0.375rem', flexShrink: 0 }}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </svg>
   );
 }

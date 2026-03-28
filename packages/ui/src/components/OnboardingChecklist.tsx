@@ -5,28 +5,15 @@ import { Button } from './Button';
 import { Spinner } from './Spinner';
 import { useTourContext, useAppearanceTour } from '../hooks/useTourContext';
 import { useOnboardingStatus } from '../hooks/useOnboardingStatus';
+import { Icon } from '../icons/Icon';
 
-function CheckIcon({ done }: { done: boolean }) {
+function OnboardingCheckMark({ done }: { done: boolean }) {
   return (
     <span
       className={`onboarding-check-icon ${done ? 'onboarding-check-icon-done' : 'onboarding-check-icon-todo'}`}
       aria-hidden
     >
-      {done ? (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path
-            d="M20 6L9 17l-5-5"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      ) : (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-        </svg>
-      )}
+      <Icon name={done ? 'check' : 'circle'} />
     </span>
   );
 }
@@ -62,7 +49,7 @@ export function OnboardingChecklist() {
                 key={item.id}
                 className={`onboarding-checklist-item ${item.completed ? 'onboarding-checklist-item-done' : ''} ${item.disabled ? 'onboarding-checklist-item-disabled' : ''}`}
               >
-                <CheckIcon done={item.completed} />
+                <OnboardingCheckMark done={item.completed} />
                 <div className="onboarding-checklist-item-body">
                   <div className="onboarding-checklist-item-heading">
                     <span className="onboarding-checklist-item-title">{title}</span>

@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import type { PublicIdentity, FriendshipStatus } from '@adieuu/shared';
 import { Button } from './Button';
-import { UserIcon, UsersIcon, PlusIcon } from './Icons';
+import { Icon } from '../icons/Icon';
 
 export interface IdentityCardProps {
   /** The identity to display */
@@ -105,7 +105,7 @@ export function IdentityCard({
         <div className="identity-card-actions">
           <Link to={`/identity/${identity.id}`} className="identity-card-action-link">
             <Button variant="secondary" size="sm">
-              <UserIcon />
+              <Icon name="user" />
               {t('search.actions.viewProfile')}
             </Button>
           </Link>
@@ -116,7 +116,7 @@ export function IdentityCard({
               onClick={handleSendRequest}
               disabled={friendStatus !== 'none' || isSending}
             >
-              {friendStatus === 'friends' ? <UsersIcon /> : <PlusIcon />}
+              {friendStatus === 'friends' ? <Icon name="users" /> : <Icon name="plus" />}
               {friendActionLabel}
             </Button>
           )}

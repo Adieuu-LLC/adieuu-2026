@@ -6,6 +6,7 @@ import {
   type UseTourReturn,
   type TourStepDetails,
 } from '@ark-ui/react';
+import { Icon } from '../icons/Icon';
 
 /**
  * Step definition for the Tour component.
@@ -140,7 +141,7 @@ export function TourRoot({ tour, lazyMount = true, unmountOnExit = true }: TourR
           <div className="tour-header">
             <ArkTour.Title className="tour-title" />
             <ArkTour.CloseTrigger className="tour-close-trigger" aria-label="Close tour">
-              <CloseIcon />
+              <Icon name="x" />
             </ArkTour.CloseTrigger>
           </div>
 
@@ -167,25 +168,6 @@ export function TourRoot({ tour, lazyMount = true, unmountOnExit = true }: TourR
         </ArkTour.Content>
       </ArkTour.Positioner>
     </ArkTour.Root>
-  );
-}
-
-/** Close icon for the tour close button */
-function CloseIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
   );
 }
 

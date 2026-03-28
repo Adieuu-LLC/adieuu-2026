@@ -9,6 +9,7 @@
 import { useRef, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMediaUpload, type MediaUploadState } from '../hooks/useMediaUpload';
+import { Icon } from '../icons/Icon';
 
 const AVATAR_ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -94,7 +95,7 @@ export function AvatarUpload({
           />
         ) : (
           <div className="avatar-upload-placeholder" style={{ width: size, height: size }}>
-            <CameraIcon />
+            <Icon name="camera" />
           </div>
         )}
 
@@ -121,7 +122,7 @@ export function AvatarUpload({
 
         {!isWorking && (
           <div className="avatar-upload-hover-overlay">
-            <CameraIcon />
+            <Icon name="camera" />
           </div>
         )}
       </button>
@@ -133,7 +134,7 @@ export function AvatarUpload({
           onClick={handleRemove}
           aria-label={t('identity.profile.removeAvatar')}
         >
-          <CloseIcon />
+          <Icon name="x" />
         </button>
       )}
 
@@ -147,23 +148,5 @@ export function AvatarUpload({
         hidden
       />
     </div>
-  );
-}
-
-function CameraIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-      <circle cx="12" cy="13" r="4" />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <line x1="18" y1="6" x2="6" y2="18" />
-      <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
   );
 }

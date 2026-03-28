@@ -15,7 +15,7 @@ import { usePreKeys } from '../../hooks/usePreKeys';
 import { loadConversationFsDefault, saveConversationFsDefault, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
 import { Button } from '../../components/Button';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
-import { TrashIcon } from '../../components/Icons';
+import { Icon } from '../../icons/Icon';
 import type { SystemEvent } from '@adieuu/shared';
 
 function MessageActionBar({
@@ -35,7 +35,7 @@ function MessageActionBar({
         onClick={onDeleteForSelf}
         title="Delete for me"
       >
-        <TrashIcon className="message-action-bar-icon" />
+        <Icon name="trash" className="message-action-bar-icon" />
       </button>
       {isOwn && (
         <button
@@ -44,7 +44,7 @@ function MessageActionBar({
           onClick={onDeleteForEveryone}
           title="Delete for everyone"
         >
-          <TrashIcon className="message-action-bar-icon" style={{ color: 'var(--color-error)' }} />
+          <Icon name="trash" className="message-action-bar-icon" style={{ color: 'var(--color-error)' }} />
         </button>
       )}
     </div>
