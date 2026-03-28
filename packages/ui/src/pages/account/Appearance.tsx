@@ -232,12 +232,21 @@ export function AccountAppearance() {
 
   const iconPackFamilies = useMemo(() => {
     const families = new Map<string, typeof ICON_PACKS>();
+    const order = ['Sharp', 'Classic', 'DuoTone', 'Sharp DuoTone', 'Curated'];
     for (const pack of ICON_PACKS) {
       const list = families.get(pack.family) ?? [];
       list.push(pack);
       families.set(pack.family, list);
     }
-    return families;
+    const sorted = new Map<string, typeof ICON_PACKS>();
+    for (const key of order) {
+      const packs = families.get(key);
+      if (packs) sorted.set(key, packs);
+    }
+    for (const [key, packs] of families) {
+      if (!sorted.has(key)) sorted.set(key, packs);
+    }
+    return sorted;
   }, []);
 
   const fieldsByCategory = useMemo(() => {
@@ -365,13 +374,15 @@ export function AccountAppearance() {
                       className={`icon-pack-card${packId === pack.id ? ' icon-pack-card--active' : ''}`}
                       onClick={() => void handleSelectIconPack(pack.id as IconPackId)}
                     >
-                      <span className="icon-pack-card-label">{pack.weight}</span>
+                      <span className="icon-pack-card-label">
+                        {family === 'Curated' ? pack.label : pack.weight}
+                      </span>
                       <div className="icon-pack-card-preview">
-                        <Icon name="home" />
-                        <Icon name="message" />
-                        <Icon name="settings" />
-                        <Icon name="search" />
-                        <Icon name="bell" />
+                        <Icon name="home" packOverride={pack.id} />
+                        <Icon name="message" packOverride={pack.id} />
+                        <Icon name="settings" packOverride={pack.id} />
+                        <Icon name="search" packOverride={pack.id} />
+                        <Icon name="bell" packOverride={pack.id} />
                       </div>
                     </button>
                   ))}

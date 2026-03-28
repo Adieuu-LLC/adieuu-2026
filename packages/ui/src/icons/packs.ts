@@ -40,13 +40,13 @@ export const ICON_PACKS: IconPackDefinition[] = [
   { id: 'sharp-duotone-light', family: 'Sharp DuoTone', weight: 'Light', label: 'Sharp DuoTone Light', prefix: 'fasdl' as IconPrefix },
   { id: 'sharp-duotone-thin', family: 'Sharp DuoTone', weight: 'Thin', label: 'Sharp DuoTone Thin', prefix: 'fasdt' as IconPrefix },
 
-  // Pro+ packs (single weight each)
-  { id: 'chisel-regular', family: 'Chisel', weight: 'Regular', label: 'Chisel', prefix: 'facr' as IconPrefix },
-  { id: 'etch-solid', family: 'Etch', weight: 'Solid', label: 'Etch', prefix: 'faes' as IconPrefix },
-  { id: 'graphite-thin', family: 'Graphite', weight: 'Thin', label: 'Graphite', prefix: 'fagt' as IconPrefix },
-  { id: 'jelly-regular', family: 'Jelly', weight: 'Regular', label: 'Jelly', prefix: 'fajr' as IconPrefix },
-  { id: 'utility-semibold', family: 'Utility', weight: 'Semibold', label: 'Utility', prefix: 'fausb' as IconPrefix },
-  { id: 'whiteboard-semibold', family: 'Whiteboard', weight: 'Semibold', label: 'Whiteboard', prefix: 'fawsb' as IconPrefix },
+  // Pro+ curated packs (single weight each)
+  { id: 'chisel-regular', family: 'Curated', weight: 'Regular', label: 'Chisel Regular', prefix: 'facr' as IconPrefix },
+  { id: 'etch-solid', family: 'Curated', weight: 'Solid', label: 'Etch Solid', prefix: 'faes' as IconPrefix },
+  { id: 'graphite-thin', family: 'Curated', weight: 'Thin', label: 'Graphite Thin', prefix: 'fagt' as IconPrefix },
+  { id: 'jelly-regular', family: 'Curated', weight: 'Regular', label: 'Jelly Regular', prefix: 'fajr' as IconPrefix },
+  { id: 'utility-semibold', family: 'Curated', weight: 'Semibold', label: 'Utility Semibold', prefix: 'fausb' as IconPrefix },
+  { id: 'whiteboard-semibold', family: 'Curated', weight: 'Semibold', label: 'Whiteboard Semibold', prefix: 'fawsb' as IconPrefix },
 ];
 
 export type IconPackId = (typeof ICON_PACKS)[number]['id'];

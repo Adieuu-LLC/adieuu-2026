@@ -22,13 +22,16 @@ export interface IconProps {
   size?: SizeProp;
   title?: string;
   fixedWidth?: boolean;
+  /** Render with a specific pack instead of the user's current selection. */
+  packOverride?: string;
 }
 
-export function Icon({ name, className, style, size, title, fixedWidth }: IconProps) {
-  const { packId } = useIconPack();
+export function Icon({ name, className, style, size, title, fixedWidth = true, packOverride }: IconProps) {
+  const { packId: contextPackId } = useIconPack();
   const faName = APP_ICON_NAMES[name] as IconName;
 
-  const pack = getIconPack(packId);
+  const resolvedPackId = packOverride ?? contextPackId;
+  const pack = getIconPack(resolvedPackId);
   const prefix: IconPrefix = pack?.prefix ?? FALLBACK_PREFIX;
 
   let def = findIconDefinition({ prefix, iconName: faName });
