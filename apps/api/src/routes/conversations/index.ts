@@ -184,6 +184,119 @@ router.get('/conversations', async (ctx) => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Group invite routes
+// Registered before /conversations/:id to prevent the parameterised route
+// from swallowing literal "/conversations/invites" requests.
+// ---------------------------------------------------------------------------
+
+/**
+ * GET /conversations/invites - List pending group invites
+ */
+router.get('/conversations/invites', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const limitParam = ctx.query.get('limit');
+  const cursor = ctx.query.get('cursor');
+
+  let limit = limitParam ? parseInt(limitParam, 10) : 50;
+  if (isNaN(limit) || limit < 1) limit = 50;
+  if (limit > 100) limit = 100;
+
+  let validCursor: string | undefined;
+  if (cursor) {
+    const sanitized = sanitizeString(cursor, 'general');
+    if (sanitized.value && isValidObjectId(sanitized.value)) {
+      validCursor = sanitized.value;
+    }
+  }
+
+  const result = await listGroupInvites(identity._id, limit, validCursor);
+
+  return success({
+    invites: result.invites,
+    cursor: result.cursor,
+  });
+});
+
+/**
+ * GET /conversations/invites/:id/preview - Preview group details for a pending invite
+ */
+router.get('/conversations/invites/:id/preview', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid invite ID.');
+  }
+
+  const result = await getGroupInvitePreview(sanitized.value, identity._id);
+
+  if (!result.success) {
+    if (result.errorCode === 'INVITE_NOT_FOUND') return errors.notFound('Invite not found.');
+    if (result.errorCode === 'NOT_AUTHORIZED') return ctx.errors.unauthorized();
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    return errors.badRequest(result.error ?? 'Failed to get invite preview.');
+  }
+
+  return success(result.preview);
+});
+
+/**
+ * POST /conversations/invites/:id/accept - Accept a group invite
+ */
+router.post('/conversations/invites/:id/accept', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid invite ID.');
+  }
+
+  const result = await acceptGroupInvite(sanitized.value, identity._id);
+
+  if (!result.success) {
+    if (result.errorCode === 'INVITE_NOT_FOUND') return errors.notFound('Invite not found.');
+    if (result.errorCode === 'NOT_AUTHORIZED') return ctx.errors.unauthorized();
+    return errors.badRequest(result.error ?? 'Failed to accept invite.');
+  }
+
+  return success(result.invite, 'Invite accepted.');
+});
+
+/**
+ * POST /conversations/invites/:id/decline - Decline a group invite
+ */
+router.post('/conversations/invites/:id/decline', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid invite ID.');
+  }
+
+  const result = await declineGroupInvite(sanitized.value, identity._id);
+
+  if (!result.success) {
+    if (result.errorCode === 'INVITE_NOT_FOUND') return errors.notFound('Invite not found.');
+    if (result.errorCode === 'NOT_AUTHORIZED') return ctx.errors.unauthorized();
+    return errors.badRequest(result.error ?? 'Failed to decline invite.');
+  }
+
+  return success(result.invite, 'Invite declined.');
+});
+
+// ---------------------------------------------------------------------------
+// Single conversation routes (parameterised :id — must come after literal paths)
+// ---------------------------------------------------------------------------
+
 /**
  * GET /conversations/:id - Get a single conversation
  */
@@ -586,113 +699,6 @@ router.delete('/conversations/:id', async (ctx) => {
   }
 
   return success(undefined, 'Group deleted.');
-});
-
-// ---------------------------------------------------------------------------
-// Group invite routes
-// ---------------------------------------------------------------------------
-
-/**
- * GET /conversations/invites - List pending group invites
- */
-router.get('/conversations/invites', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
-
-  const limitParam = ctx.query.get('limit');
-  const cursor = ctx.query.get('cursor');
-
-  let limit = limitParam ? parseInt(limitParam, 10) : 50;
-  if (isNaN(limit) || limit < 1) limit = 50;
-  if (limit > 100) limit = 100;
-
-  let validCursor: string | undefined;
-  if (cursor) {
-    const sanitized = sanitizeString(cursor, 'general');
-    if (sanitized.value && isValidObjectId(sanitized.value)) {
-      validCursor = sanitized.value;
-    }
-  }
-
-  const result = await listGroupInvites(identity._id, limit, validCursor);
-
-  return success({
-    invites: result.invites,
-    cursor: result.cursor,
-  });
-});
-
-/**
- * GET /conversations/invites/:id/preview - Preview group details for a pending invite
- */
-router.get('/conversations/invites/:id/preview', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
-
-  const { id } = ctx.params;
-  const sanitized = sanitizeString(id ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid invite ID.');
-  }
-
-  const result = await getGroupInvitePreview(sanitized.value, identity._id);
-
-  if (!result.success) {
-    if (result.errorCode === 'INVITE_NOT_FOUND') return errors.notFound('Invite not found.');
-    if (result.errorCode === 'NOT_AUTHORIZED') return ctx.errors.unauthorized();
-    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
-    return errors.badRequest(result.error ?? 'Failed to get invite preview.');
-  }
-
-  return success(result.preview);
-});
-
-/**
- * POST /conversations/invites/:id/accept - Accept a group invite
- */
-router.post('/conversations/invites/:id/accept', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
-
-  const { id } = ctx.params;
-  const sanitized = sanitizeString(id ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid invite ID.');
-  }
-
-  const result = await acceptGroupInvite(sanitized.value, identity._id);
-
-  if (!result.success) {
-    if (result.errorCode === 'INVITE_NOT_FOUND') return errors.notFound('Invite not found.');
-    if (result.errorCode === 'NOT_AUTHORIZED') return ctx.errors.unauthorized();
-    return errors.badRequest(result.error ?? 'Failed to accept invite.');
-  }
-
-  return success(result.invite, 'Invite accepted.');
-});
-
-/**
- * POST /conversations/invites/:id/decline - Decline a group invite
- */
-router.post('/conversations/invites/:id/decline', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
-
-  const { id } = ctx.params;
-  const sanitized = sanitizeString(id ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid invite ID.');
-  }
-
-  const result = await declineGroupInvite(sanitized.value, identity._id);
-
-  if (!result.success) {
-    if (result.errorCode === 'INVITE_NOT_FOUND') return errors.notFound('Invite not found.');
-    if (result.errorCode === 'NOT_AUTHORIZED') return ctx.errors.unauthorized();
-    return errors.badRequest(result.error ?? 'Failed to decline invite.');
-  }
-
-  return success(result.invite, 'Invite declined.');
 });
 
 export const conversationRoutes = router;

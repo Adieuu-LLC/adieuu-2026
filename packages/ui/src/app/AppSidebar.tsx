@@ -909,14 +909,20 @@ function ChatInvitationsPanel({
           const inviterName = inviterProfile?.displayName ?? inviterProfile?.username;
           const isProcessing = processingInvite === invite.id;
 
+          const othersCount = invite.memberCount - 1;
           const displayName = invite.hasGroupName
             ? t('conversations.invites.groupNameHidden', 'Group Name Hidden')
             : inviterName
-              ? t('conversations.invites.inviterAndOthers', {
-                  name: inviterName,
-                  count: invite.memberCount - 1,
-                  defaultValue: `${inviterName} + ${invite.memberCount - 1} others`,
-                })
+              ? (othersCount > 0
+                ? t('conversations.invites.inviterAndOthers', {
+                    name: inviterName,
+                    count: othersCount,
+                    defaultValue: `${inviterName} + ${othersCount} others`,
+                  })
+                : t('conversations.invites.inviterGroup', {
+                    name: inviterName,
+                    defaultValue: `${inviterName}'s Group`,
+                  }))
               : t('conversations.invites.group', 'Group');
 
           return (

@@ -1216,14 +1216,20 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             const profiles = { ...participantProfilesRef.current, ...freshProfiles };
             const inviterProfile = profiles[invite.invitedByIdentityId];
             const inviterDisplayName = inviterProfile?.displayName ?? inviterProfile?.username;
+            const othersCount = invite.memberCount - 1;
             const body = invite.hasGroupName
               ? tRef.current('conversations.notifications.groupInviteNameHidden', { defaultValue: "You've been invited to a group (name hidden until you join)" })
               : inviterDisplayName
-                ? tRef.current('conversations.notifications.groupInviteFromBody', {
-                    name: inviterDisplayName,
-                    count: invite.memberCount - 1,
-                    defaultValue: `${inviterDisplayName} + ${invite.memberCount - 1} others invited you`,
-                  })
+                ? (othersCount > 0
+                  ? tRef.current('conversations.notifications.groupInviteFromBody', {
+                      name: inviterDisplayName,
+                      count: othersCount,
+                      defaultValue: `${inviterDisplayName} + ${othersCount} others invited you`,
+                    })
+                  : tRef.current('conversations.notifications.groupInviteFromSolo', {
+                      name: inviterDisplayName,
+                      defaultValue: `${inviterDisplayName} is inviting you`,
+                    }))
                 : tRef.current('conversations.notifications.groupInviteGeneric', { defaultValue: "You've been invited to a group" });
             fireNotificationRef.current(
               tRef.current('conversations.notifications.groupInvite', { defaultValue: 'Group invitation' }),
