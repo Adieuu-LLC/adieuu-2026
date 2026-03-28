@@ -187,6 +187,10 @@ export interface ChatClientConfig {
   reconnectDelay?: number;
   /** Maximum reconnect attempts (default: Infinity) */
   maxReconnectAttempts?: number;
+  /** Max time to wait for a connection to open before retrying (default: 10000) */
+  connectTimeout?: number;
+  /** Max time to wait for a pong after sending a ping (default: 10000) */
+  pongTimeout?: number;
 }
 
 export interface ChatClientEvents {
@@ -206,6 +210,8 @@ export class ChatClient {
   private state: ChatConnectionState = 'disconnected';
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
+  private pongTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private intentionalClose = false;
 
@@ -216,6 +222,8 @@ export class ChatClient {
       heartbeatInterval: config.heartbeatInterval ?? 15000,
       reconnectDelay: config.reconnectDelay ?? 1000,
       maxReconnectAttempts: config.maxReconnectAttempts ?? Infinity,
+      connectTimeout: config.connectTimeout ?? 10000,
+      pongTimeout: config.pongTimeout ?? 10000,
     };
     this.events = events;
   }
@@ -259,14 +267,19 @@ export class ChatClient {
       return;
     }
 
+    this.startConnectTimeout();
+
     this.ws.onopen = () => {
+      this.clearConnectTimeout();
       this.reconnectAttempts = 0;
       this.setState('connected');
       this.startHeartbeat();
     };
 
     this.ws.onclose = (event) => {
+      this.clearConnectTimeout();
       this.stopHeartbeat();
+      this.clearPongTimeout();
       this.ws = null;
 
       if (!this.intentionalClose) {
@@ -293,6 +306,8 @@ export class ChatClient {
     this.intentionalClose = true;
     this.stopHeartbeat();
     this.clearReconnectTimer();
+    this.clearConnectTimeout();
+    this.clearPongTimeout();
     this.reconnectAttempts = 0;
 
     if (this.ws) {
@@ -301,6 +316,25 @@ export class ChatClient {
     }
 
     this.setState('disconnected');
+  }
+
+  /**
+   * Force an immediate reconnection attempt.
+   * Tears down any existing socket, resets backoff, and connects fresh.
+   * No-op if the client was intentionally disconnected.
+   */
+  forceReconnect(): void {
+    if (this.intentionalClose) {
+      return;
+    }
+
+    this.clearReconnectTimer();
+    this.clearConnectTimeout();
+    this.clearPongTimeout();
+    this.stopHeartbeat();
+    this.detachAndCloseSocket();
+    this.reconnectAttempts = 0;
+    this.connect();
   }
 
   /**
@@ -352,6 +386,11 @@ export class ChatClient {
     try {
       const text = typeof data === 'string' ? data : new TextDecoder().decode(data as ArrayBuffer);
       const message = JSON.parse(text) as ChatIncomingMessage;
+
+      if (message.type === 'pong') {
+        this.clearPongTimeout();
+      }
+
       this.events.onMessage?.(message);
     } catch {
       this.handleError(new Error('Failed to parse message'));
@@ -365,7 +404,9 @@ export class ChatClient {
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
-      this.send({ type: 'ping' });
+      if (this.send({ type: 'ping' })) {
+        this.startPongTimeout();
+      }
     }, this.config.heartbeatInterval);
   }
 
@@ -375,6 +416,66 @@ export class ChatClient {
       this.heartbeatTimer = null;
     }
   }
+
+  /**
+   * Closes the current socket and detaches all event handlers so that
+   * stale callbacks from an abandoned socket never interfere with a
+   * subsequent connection attempt.
+   */
+  private detachAndCloseSocket(): void {
+    if (!this.ws) return;
+
+    const ws = this.ws;
+    ws.onopen = null;
+    ws.onclose = null;
+    ws.onerror = null;
+    ws.onmessage = null;
+    this.ws = null;
+    try { ws.close(); } catch { /* best-effort */ }
+  }
+
+  // -- Connect timeout ------------------------------------------------------
+
+  private startConnectTimeout(): void {
+    this.clearConnectTimeout();
+    this.connectTimeoutTimer = setTimeout(() => {
+      if (this.ws && this.state !== 'connected') {
+        this.handleError(new Error('Connection timed out'));
+        this.detachAndCloseSocket();
+        this.scheduleReconnect();
+      }
+    }, this.config.connectTimeout);
+  }
+
+  private clearConnectTimeout(): void {
+    if (this.connectTimeoutTimer) {
+      clearTimeout(this.connectTimeoutTimer);
+      this.connectTimeoutTimer = null;
+    }
+  }
+
+  // -- Pong timeout ----------------------------------------------------------
+
+  private startPongTimeout(): void {
+    this.clearPongTimeout();
+    this.pongTimeoutTimer = setTimeout(() => {
+      if (this.ws && this.state === 'connected') {
+        this.handleError(new Error('Heartbeat timeout: no pong received'));
+        this.detachAndCloseSocket();
+        this.stopHeartbeat();
+        this.scheduleReconnect();
+      }
+    }, this.config.pongTimeout);
+  }
+
+  private clearPongTimeout(): void {
+    if (this.pongTimeoutTimer) {
+      clearTimeout(this.pongTimeoutTimer);
+      this.pongTimeoutTimer = null;
+    }
+  }
+
+  // -- Reconnect scheduling --------------------------------------------------
 
   private scheduleReconnect(): void {
     if (this.intentionalClose) {

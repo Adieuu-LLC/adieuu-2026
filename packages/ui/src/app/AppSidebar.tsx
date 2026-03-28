@@ -14,6 +14,7 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { InfoIcon, UserIcon, LogoutIcon, MaskIcon, ShieldIcon, PaletteIcon, DownloadIcon, UsersIcon, CheckIcon, XIcon, SearchIcon, MessageIcon, PlusIcon, SpacesIcon } from '../components/Icons';
 import { HoverCard } from '../components/HoverCard';
+import { ChatConnectionBanner } from '../components/ChatConnectionBanner';
 import { useAppConfig } from '../config';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
@@ -760,6 +761,8 @@ function ConversationsSidebarSection() {
   return (
     <div className="sidebar-tabs-section">
       <SidebarTabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+
+      <ChatConnectionBanner />
 
       <div className="sidebar-tab-content">
         {activeTab === 'conversations' && (

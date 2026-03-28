@@ -105,6 +105,8 @@ export function ChatSocketProvider({ children }: ChatSocketProviderProps) {
     const config: ChatClientConfig = {
       wsUrl: chatWsUrl,
       heartbeatInterval: 30_000,
+      connectTimeout: 10_000,
+      pongTimeout: 10_000,
       maxReconnectAttempts: Infinity,
     };
 
@@ -134,7 +136,24 @@ export function ChatSocketProvider({ children }: ChatSocketProviderProps) {
     clientRef.current = client;
     client.connect();
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && client.getState() !== 'connected') {
+        client.forceReconnect();
+      }
+    };
+
+    const handleOnline = () => {
+      if (client.getState() !== 'connected') {
+        client.forceReconnect();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
       client.disconnect();
       clientRef.current = null;
     };

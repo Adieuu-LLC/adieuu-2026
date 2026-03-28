@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
 import { useIdentity } from '../../hooks/useIdentity';
 import { Button } from '../../components/Button';
+import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { TrashIcon } from '../../components/Icons';
 import type { SystemEvent } from '@adieuu/shared';
 
@@ -310,6 +311,8 @@ export function ConversationView() {
             )}
           </div>
         </div>
+
+        <ChatConnectionBanner />
 
         {/* Body */}
         <div className="conversation-body">
