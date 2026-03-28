@@ -738,6 +738,8 @@ export interface PublicIdentity {
   hasE2EKeys?: boolean;
   /** Number of registered devices */
   deviceCount?: number;
+  /** Whether adding this identity to a group requires their explicit approval */
+  requireGroupApproval?: boolean;
 }
 
 /**
@@ -1787,6 +1789,7 @@ export interface UpdateProfileParams {
     accent?: string | null;
   };
   privacySettings?: Partial<ProfilePrivacySettings>;
+  requireGroupApproval?: boolean;
 }
 
 // ============================================================================
@@ -1860,6 +1863,14 @@ export type PreKeyType = 'static' | 'spk' | 'otpk';
 
 export type MessageCryptoProfile = 'default' | 'cnsa2';
 
+export type MessageType = 'user' | 'system';
+
+export interface SystemEvent {
+  type: string;
+  identityId: string;
+  displayName?: string;
+}
+
 export interface PublicConversation {
   id: string;
   type: ConversationType;
@@ -1890,6 +1901,8 @@ export interface PublicMessage {
   id: string;
   conversationId: string;
   fromIdentityId: string;
+  messageType?: MessageType;
+  systemEvent?: SystemEvent;
   ciphertext?: string;
   nonce?: string;
   wrappedKeys?: SerializedWrappedKey[];

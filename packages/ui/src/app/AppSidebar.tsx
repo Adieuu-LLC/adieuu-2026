@@ -719,9 +719,22 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
 function ConversationsSidebarSection() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { conversations, invites, loading } = useConversations();
+  const { conversations, invites, loading, acceptInvite, declineInvite, participantProfiles } = useConversations();
   const { closeMobile } = useSidebar();
   const [activeTab, setActiveTab] = useState('conversations');
+  const [processingInvite, setProcessingInvite] = useState<string | null>(null);
+
+  const handleAcceptInvite = useCallback(async (inviteId: string) => {
+    setProcessingInvite(inviteId);
+    await acceptInvite(inviteId);
+    setProcessingInvite(null);
+  }, [acceptInvite]);
+
+  const handleDeclineInvite = useCallback(async (inviteId: string) => {
+    setProcessingInvite(inviteId);
+    await declineInvite(inviteId);
+    setProcessingInvite(null);
+  }, [declineInvite]);
 
   const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
 
@@ -756,6 +769,56 @@ function ConversationsSidebarSection() {
               label={t('sidebar.newConversation', 'New Conversation')}
               onClick={handleNewConversation}
             />
+
+            {invites.length > 0 && (
+              <div className="sidebar-invites-section">
+                <span className="sidebar-invites-label">
+                  {t('conversations.invites.title', 'Pending Invites')}
+                </span>
+                {invites.map((invite) => {
+                  const inviterProfile = participantProfiles[invite.invitedByIdentityId];
+                  const inviterName = inviterProfile?.displayName ?? inviterProfile?.username;
+                  const isProcessing = processingInvite === invite.id;
+
+                  return (
+                    <div key={invite.id} className="sidebar-invite-item">
+                      <div className="sidebar-invite-item-info">
+                        <span className="sidebar-invite-item-name">
+                          {invite.groupName || t('conversations.invites.group', 'Group')}
+                        </span>
+                        <span className="sidebar-invite-item-meta">
+                          {inviterName
+                            ? t('conversations.invites.invitedBy', { name: inviterName, defaultValue: `From ${inviterName}` })
+                            : t('conversations.invites.memberCount', { count: invite.memberCount, defaultValue: `${invite.memberCount} members` })}
+                        </span>
+                      </div>
+                      <div className="sidebar-invite-item-actions">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="sidebar-invite-action-btn sidebar-invite-action-accept"
+                          onClick={() => void handleAcceptInvite(invite.id)}
+                          disabled={isProcessing}
+                          title={t('conversations.invites.accept', 'Accept')}
+                        >
+                          {isProcessing ? <span className="spinner spinner-sm" /> : <CheckIcon />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="sidebar-invite-action-btn sidebar-invite-action-decline"
+                          onClick={() => void handleDeclineInvite(invite.id)}
+                          disabled={isProcessing}
+                          title={t('conversations.invites.decline', 'Decline')}
+                        >
+                          <XIcon />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {loading && conversations.length === 0 && (
               <div className="sidebar-conversations-loading">

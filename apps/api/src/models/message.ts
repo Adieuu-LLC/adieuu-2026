@@ -22,6 +22,22 @@ import type { CryptoProfile } from './identity';
 export type PreKeyType = 'static' | 'spk' | 'otpk';
 
 /**
+ * Message type discriminator.
+ * - 'user': Standard E2E encrypted user message (default)
+ * - 'system': Server-generated event (e.g. member joined), not encrypted
+ */
+export type MessageType = 'user' | 'system';
+
+/**
+ * Structured data for system messages (not encrypted).
+ */
+export interface SystemEvent {
+  type: string;
+  identityId: string;
+  displayName?: string;
+}
+
+/**
  * Serialised wrapped session key for a single device.
  * The session key is wrapped with a per-device hybrid key exchange.
  */
@@ -58,6 +74,12 @@ export interface MessageDocument extends BaseDocument {
   /** Sender identity (plaintext for lookups and signature verification) */
   fromIdentityId: ObjectId;
 
+  /** Distinguishes user messages from system events (defaults to 'user') */
+  messageType?: MessageType;
+
+  /** Structured data for system messages */
+  systemEvent?: SystemEvent;
+
   /** ChaCha20-Poly1305 encrypted message content (base64) */
   ciphertext: string;
 
@@ -92,6 +114,8 @@ export interface MessageDocument extends BaseDocument {
 export interface CreateMessageInput {
   conversationId: ObjectId;
   fromIdentityId: ObjectId;
+  messageType?: MessageType;
+  systemEvent?: SystemEvent;
   ciphertext: string;
   nonce: string;
   wrappedKeys: SerializedWrappedKey[];
@@ -109,6 +133,8 @@ export interface PublicMessage {
   id: string;
   conversationId: string;
   fromIdentityId: string;
+  messageType?: MessageType;
+  systemEvent?: SystemEvent;
   ciphertext?: string;
   nonce?: string;
   wrappedKeys?: SerializedWrappedKey[];
@@ -139,6 +165,8 @@ export function toPublicMessage(
       id: doc._id.toHexString(),
       conversationId: doc.conversationId.toHexString(),
       fromIdentityId: doc.fromIdentityId.toHexString(),
+      messageType: doc.messageType,
+      systemEvent: doc.systemEvent,
       cryptoProfile: doc.cryptoProfile,
       clientMessageId: doc.clientMessageId,
       deleted: true,
@@ -150,6 +178,8 @@ export function toPublicMessage(
     id: doc._id.toHexString(),
     conversationId: doc.conversationId.toHexString(),
     fromIdentityId: doc.fromIdentityId.toHexString(),
+    messageType: doc.messageType,
+    systemEvent: doc.systemEvent,
     ciphertext: doc.ciphertext,
     nonce: doc.nonce,
     wrappedKeys: doc.wrappedKeys,

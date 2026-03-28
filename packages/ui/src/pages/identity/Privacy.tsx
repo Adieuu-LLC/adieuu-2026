@@ -1,20 +1,53 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { createApiClient } from '@adieuu/shared';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Avatar } from '../../components/Avatar';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useBlocks } from '../../hooks/useBlocks';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useAppConfig } from '../../config';
+import { useToast } from '../../components/Toast';
 
 export function IdentityPrivacy() {
   const { t } = useTranslation();
-  const { status: identityStatus } = useIdentity();
+  const { status: identityStatus, identity, refreshIdentitySession } = useIdentity();
+  const { apiBaseUrl } = useAppConfig();
+  const toast = useToast();
+  const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const { blocked, isLoading, hasMore, loadMore, unblock } = useBlocks();
   const [unblockingId, setUnblockingId] = useState<string | null>(null);
   const [confirmUnblock, setConfirmUnblock] = useState<string | null>(null);
+  const [savingApproval, setSavingApproval] = useState(false);
 
   const isLoggedIn = identityStatus === 'logged_in';
+
+  const handleGroupApprovalChange = useCallback(
+    async (checked: boolean) => {
+      setSavingApproval(true);
+      try {
+        const resp = await api.identity.updateProfile({ requireGroupApproval: checked });
+        if (resp.success) {
+          await refreshIdentitySession?.();
+          toast.success(
+            t('identity.privacy.groupApprovalTitle'),
+            checked
+              ? t('identity.privacy.groupApprovalEnabled')
+              : t('identity.privacy.groupApprovalDisabled')
+          );
+        }
+      } catch {
+        toast.error(
+          t('identity.privacy.groupApprovalTitle'),
+          t('identity.privacy.groupApprovalError')
+        );
+      } finally {
+        setSavingApproval(false);
+      }
+    },
+    [api, refreshIdentitySession, toast, t]
+  );
 
   const handleUnblock = async (identityId: string) => {
     setUnblockingId(identityId);
@@ -32,6 +65,34 @@ export function IdentityPrivacy() {
             {t('identity.privacy.subtitle')}
           </p>
         </div>
+
+        <Card variant="elevated" className="slide-up app-settings-card">
+          <h2 className="app-settings-section-title">{t('identity.privacy.conversationsTitle')}</h2>
+          <p className="app-settings-section-desc">{t('identity.privacy.conversationsDescription')}</p>
+
+          {!isLoggedIn ? (
+            <p style={{ color: 'var(--color-text-secondary)', margin: '1rem 0 0' }}>
+              {t('ciphers.notLoggedIn')}
+            </p>
+          ) : (
+            <label className="app-settings-toggle">
+              <input
+                type="checkbox"
+                checked={identity?.requireGroupApproval ?? false}
+                disabled={savingApproval}
+                onChange={(e) => void handleGroupApprovalChange(e.target.checked)}
+              />
+              <span className="app-settings-toggle-label">
+                <span className="app-settings-toggle-title">
+                  {t('identity.privacy.groupApprovalTitle')}
+                </span>
+                <span className="app-settings-toggle-hint">
+                  {t('identity.privacy.groupApprovalHint')}
+                </span>
+              </span>
+            </label>
+          )}
+        </Card>
 
         <Card variant="elevated" className="slide-up">
           <h2 className="card-section-title">{t('blocked.title')}</h2>

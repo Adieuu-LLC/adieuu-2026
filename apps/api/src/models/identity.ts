@@ -165,6 +165,7 @@ export interface UpdateIdentityInput {
   preferredCryptoProfile?: CryptoProfile;
   signingPublicKey?: string;
   devices?: IdentityDevice[];
+  requireGroupApproval?: boolean;
 }
 
 /**
@@ -190,6 +191,8 @@ export interface PublicIdentity {
   hasE2EKeys?: boolean;
   /** Number of registered devices */
   deviceCount?: number;
+  /** Whether adding this identity to a group requires their explicit approval */
+  requireGroupApproval?: boolean;
 }
 
 /**
@@ -233,6 +236,7 @@ export function toPublicIdentity(doc: IdentityDocument): PublicIdentity {
     preferredCryptoProfile: doc.preferredCryptoProfile,
     hasE2EKeys: !!doc.signingPublicKey,
     deviceCount: doc.devices?.length ?? 0,
+    requireGroupApproval: doc.requireGroupApproval ?? false,
   };
 }
 

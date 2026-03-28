@@ -559,6 +559,13 @@ export const en = {
       readReceipts: 'Read Receipts',
       typingIndicators: 'Typing Indicators',
       lastSeen: 'Last Seen',
+      conversationsTitle: 'Conversations',
+      conversationsDescription: 'Control how others can add you to group conversations.',
+      groupApprovalTitle: 'Require group approval',
+      groupApprovalHint: 'When enabled, you must approve before being added to group conversations. You will receive an invitation you can accept or decline.',
+      groupApprovalEnabled: 'Group approval is now required.',
+      groupApprovalDisabled: 'Group approval is no longer required.',
+      groupApprovalError: 'Failed to update setting. Please try again.',
     },
     // Appearance page (identity-scoped)
     appearance: {

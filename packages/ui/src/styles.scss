@@ -5424,6 +5424,89 @@ a {
 }
 
 // ============================================================================
+// Sidebar Group Invites
+// ============================================================================
+
+.sidebar-invites-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+}
+
+.sidebar-invites-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: var(--spacing-xs) var(--spacing-sm);
+}
+
+.sidebar-invite-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border);
+}
+
+.sidebar-invite-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-invite-item-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-invite-item-meta {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-invite-item-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
+.sidebar-invite-action-btn {
+  padding: var(--spacing-xs) !important;
+  min-width: unset !important;
+}
+
+.sidebar-invite-action-accept {
+  color: var(--color-success) !important;
+
+  &:hover {
+    background: color-mix(in srgb, var(--color-success) 15%, transparent) !important;
+  }
+}
+
+.sidebar-invite-action-decline {
+  color: var(--color-text-muted) !important;
+
+  &:hover {
+    color: var(--color-error) !important;
+    background: color-mix(in srgb, var(--color-error) 15%, transparent) !important;
+  }
+}
+
+// ============================================================================
 // Sidebar Conversations List
 // ============================================================================
 
@@ -6109,6 +6192,28 @@ a {
   justify-content: center;
   height: 100%;
   color: var(--color-text-secondary);
+}
+
+.dm-system-message {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) 0;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-border);
+  }
+}
+
+.dm-system-message-text {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .dm-message {

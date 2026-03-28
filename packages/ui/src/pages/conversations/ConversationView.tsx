@@ -13,6 +13,7 @@ import { useConversations, type DisplayMessage } from '../../hooks/useConversati
 import { useIdentity } from '../../hooks/useIdentity';
 import { Button } from '../../components/Button';
 import { TrashIcon } from '../../components/Icons';
+import type { SystemEvent } from '@adieuu/shared';
 
 function MessageActionBar({
   isOwn,
@@ -80,6 +81,35 @@ function useExpiryCountdown(expiresAt?: string): string | null {
   }, [expiresAt]);
 
   return remaining;
+}
+
+function SystemMessageRow({ event }: { event: SystemEvent }) {
+  const { t } = useTranslation();
+  const name = event.displayName ?? event.identityId.slice(0, 8);
+
+  let text: string;
+  switch (event.type) {
+    case 'member_joined':
+      text = t('conversations.systemMessage.memberJoined', {
+        name,
+        defaultValue: `${name} has joined the conversation`,
+      });
+      break;
+    case 'member_left':
+      text = t('conversations.systemMessage.memberLeft', {
+        name,
+        defaultValue: `${name} has left the conversation`,
+      });
+      break;
+    default:
+      text = event.type;
+  }
+
+  return (
+    <div className="dm-system-message">
+      <span className="dm-system-message-text">{text}</span>
+    </div>
+  );
 }
 
 function MessageBubble({
@@ -297,14 +327,18 @@ export function ConversationView() {
               )}
 
               <div className="dm-messages">
-                {reversedMessages.map((msg) => (
-                  <MessageBubble
-                    key={msg.id}
-                    message={msg}
-                    isOwn={msg.fromIdentityId === identity?.id}
-                    onDelete={handleDeleteMessage}
-                  />
-                ))}
+                {reversedMessages.map((msg) =>
+                  msg.messageType === 'system' && msg.systemEvent ? (
+                    <SystemMessageRow key={msg.id} event={msg.systemEvent} />
+                  ) : (
+                    <MessageBubble
+                      key={msg.id}
+                      message={msg}
+                      isOwn={msg.fromIdentityId === identity?.id}
+                      onDelete={handleDeleteMessage}
+                    />
+                  )
+                )}
               </div>
 
               {reversedMessages.length === 0 && !messagesLoading && (

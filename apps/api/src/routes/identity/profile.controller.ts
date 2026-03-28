@@ -59,6 +59,7 @@ const UpdateProfileSchema = z.object({
       profileColors: ProfileVisibilityEnum.optional(),
     })
     .optional(),
+  requireGroupApproval: z.boolean().optional(),
 });
 
 /**
@@ -225,6 +226,10 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
         data.privacySettings.profileColors ?? current.profileColors,
     };
     update.privacySettings = merged;
+  }
+
+  if (data.requireGroupApproval !== undefined) {
+    update.requireGroupApproval = data.requireGroupApproval;
   }
 
   if (Object.keys(update).length === 0) {

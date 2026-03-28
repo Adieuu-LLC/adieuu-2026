@@ -722,6 +722,26 @@ export async function addGroupMember(
   const updated = await conversationRepo.findById(convObjId);
   const publicConv = updated ? toPublicConversation(updated) : undefined;
 
+  // Persist a system message marking where this member joined
+  const messageRepo = getMessageRepository();
+  const newMemberPublic = toPublicIdentity(newMember);
+  const systemMsg = await messageRepo.createMessage({
+    conversationId: convObjId,
+    fromIdentityId: newMemberObjId,
+    messageType: 'system',
+    systemEvent: {
+      type: 'member_joined',
+      identityId: newMemberObjId.toHexString(),
+      displayName: newMemberPublic.displayName,
+    },
+    ciphertext: '',
+    nonce: '',
+    wrappedKeys: [],
+    signature: '',
+    cryptoProfile: 'default',
+    clientMessageId: crypto.randomUUID(),
+  });
+
   // Notify all existing members about the new member
   await publishToParticipants(conversation.participants, requesterObjId, {
     type: 'conversation_updated',
@@ -732,6 +752,20 @@ export async function addGroupMember(
     },
   });
 
+  // Send system message event to all existing members
+  for (const participantId of conversation.participants) {
+    if (participantId.equals(newMemberObjId)) continue;
+    await publishConversationEvent(participantId.toHexString(), {
+      type: 'conversation_message',
+      data: {
+        conversationId: convObjId.toHexString(),
+        messageId: systemMsg._id.toHexString(),
+        fromIdentityId: newMemberObjId.toHexString(),
+        createdAt: systemMsg.createdAt.toISOString(),
+      },
+    });
+  }
+
   // Notify the new member
   if (publicConv) {
     await publishConversationEvent(newMemberObjId.toHexString(), {
@@ -740,7 +774,6 @@ export async function addGroupMember(
     });
   }
 
-  const newMemberPublic = toPublicIdentity(newMember);
   for (const participantId of conversation.participants) {
     if (participantId.equals(requesterObjId)) continue;
     await createNotification(participantId, 'group_member_added', {
@@ -969,6 +1002,25 @@ export async function acceptGroupInvite(
     const joiner = await identityRepo.findByIdentityId(identityObjId);
     const joinerPublic = joiner ? toPublicIdentity(joiner) : null;
 
+    // Persist a system message marking where this member joined
+    const messageRepo = getMessageRepository();
+    const systemMsg = await messageRepo.createMessage({
+      conversationId: invite.conversationId,
+      fromIdentityId: identityObjId,
+      messageType: 'system',
+      systemEvent: {
+        type: 'member_joined',
+        identityId: identityObjId.toHexString(),
+        displayName: joinerPublic?.displayName,
+      },
+      ciphertext: '',
+      nonce: '',
+      wrappedKeys: [],
+      signature: '',
+      cryptoProfile: 'default',
+      clientMessageId: crypto.randomUUID(),
+    });
+
     for (const participantId of conversation.participants) {
       if (participantId.equals(identityObjId)) continue;
 
@@ -979,6 +1031,16 @@ export async function acceptGroupInvite(
           identityId: identityObjId.toHexString(),
           username: joinerPublic?.username,
           displayName: joinerPublic?.displayName,
+        },
+      });
+
+      await publishConversationEvent(participantId.toHexString(), {
+        type: 'conversation_message',
+        data: {
+          conversationId: invite.conversationId.toHexString(),
+          messageId: systemMsg._id.toHexString(),
+          fromIdentityId: identityObjId.toHexString(),
+          createdAt: systemMsg.createdAt.toISOString(),
         },
       });
 

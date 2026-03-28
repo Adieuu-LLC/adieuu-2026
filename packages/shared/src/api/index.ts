@@ -92,6 +92,8 @@ export {
   type ConversationType,
   type PreKeyType,
   type MessageCryptoProfile,
+  type MessageType,
+  type SystemEvent,
   type PublicConversation,
   type SerializedWrappedKey,
   type PublicMessage,

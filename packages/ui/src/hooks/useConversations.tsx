@@ -390,6 +390,10 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 return { ...m, decryptedContent: undefined, signatureVerified: undefined };
               }
 
+              if (m.messageType === 'system') {
+                return { ...m, decryptedContent: undefined, signatureVerified: undefined };
+              }
+
               if (!ecdhPrivateKey || !kemPrivateKey) {
                 return { ...m, decryptionError: 'Device keys unavailable' };
               }
