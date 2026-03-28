@@ -723,12 +723,14 @@ function ConversationsSidebarSection() {
   const { closeMobile } = useSidebar();
   const [activeTab, setActiveTab] = useState('conversations');
 
+  const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
+
   const tabs: SidebarTab[] = [
     {
       id: 'conversations',
       icon: <MessageIcon />,
       label: t('sidebar.conversationsTab', 'Conversations'),
-      badge: invites.length,
+      badge: totalUnread + invites.length,
     },
     {
       id: 'spaces',

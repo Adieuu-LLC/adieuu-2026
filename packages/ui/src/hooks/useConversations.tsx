@@ -287,7 +287,14 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       const resp = await api.conversations.list(100);
       if (resp.data?.conversations) {
         const decrypted = resp.data.conversations.map(toDecrypted);
-        setConversations(decrypted);
+
+        setConversations((prev) => {
+          const prevUnread = new Map(prev.map((c) => [c.id, c.unreadCount]));
+          return decrypted.map((c) => ({
+            ...c,
+            unreadCount: prevUnread.get(c.id) ?? c.unreadCount,
+          }));
+        });
 
         const allParticipantIds = [
           ...new Set(decrypted.flatMap((c) => c.participants)),
@@ -534,8 +541,13 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const setActiveConversation = useCallback(
     (id: string | null) => {
       setActiveConversationId(id);
-      if (id && !messagesState[id]) {
-        fetchMessages(id);
+      if (id) {
+        setConversations((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
+        );
+        if (!messagesState[id]) {
+          fetchMessages(id);
+        }
       }
     },
     [messagesState, fetchMessages]
