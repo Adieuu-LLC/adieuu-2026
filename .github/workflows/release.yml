@@ -22,6 +22,7 @@ on:
 env:
   NODE_VERSION: '25'
   PNPM_VERSION: '9'
+  FONTAWESOME_TOKEN: ${{ secrets.FONTAWESOME_TOKEN }}
 
 concurrency:
   # Only one release at a time

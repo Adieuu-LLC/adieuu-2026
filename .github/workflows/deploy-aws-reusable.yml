@@ -24,6 +24,7 @@ permissions:
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   NODE_VERSION: '25'
+  FONTAWESOME_TOKEN: ${{ secrets.FONTAWESOME_TOKEN }}
 
 jobs:
   changes:
@@ -129,7 +130,9 @@ jobs:
           DEPLOY_SHA: ${{ needs.changes.outputs.deploy_sha }}
         run: |
           IMG="${{ vars.DEPLOY_ECR_API_REPOSITORY_URL_ADIEUU }}"
-          docker build --platform linux/amd64 -f apps/api/Dockerfile -t "api:${DEPLOY_SHA}" .
+          docker build --platform linux/amd64 -f apps/api/Dockerfile \
+            --build-arg FONTAWESOME_TOKEN="${FONTAWESOME_TOKEN}" \
+            -t "api:${DEPLOY_SHA}" .
           docker tag "api:${DEPLOY_SHA}" "${IMG}:${DEPLOY_SHA}"
           docker tag "api:${DEPLOY_SHA}" "${IMG}:latest"
           docker push "${IMG}:${DEPLOY_SHA}"
@@ -169,7 +172,9 @@ jobs:
           DEPLOY_SHA: ${{ needs.changes.outputs.deploy_sha }}
         run: |
           IMG="${{ vars.DEPLOY_ECR_CHAT_REPOSITORY_URL_ADIEUU }}"
-          docker build --platform linux/amd64 -f apps/chat/Dockerfile -t "chat:${DEPLOY_SHA}" .
+          docker build --platform linux/amd64 -f apps/chat/Dockerfile \
+            --build-arg FONTAWESOME_TOKEN="${FONTAWESOME_TOKEN}" \
+            -t "chat:${DEPLOY_SHA}" .
           docker tag "chat:${DEPLOY_SHA}" "${IMG}:${DEPLOY_SHA}"
           docker tag "chat:${DEPLOY_SHA}" "${IMG}:latest"
           docker push "${IMG}:${DEPLOY_SHA}"

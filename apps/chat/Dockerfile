@@ -13,9 +13,12 @@ RUN apt-get update \
 # corepack is not always present on slim images or cross-platform builds (e.g. linux/amd64 from ARM).
 RUN npm install -g pnpm@9.15.4
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY packages ./packages
 COPY apps ./apps
+
+ARG FONTAWESOME_TOKEN
+ENV FONTAWESOME_TOKEN=${FONTAWESOME_TOKEN}
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm exec turbo run build --filter=@adieuu/chat
