@@ -92,13 +92,15 @@
           "from": "build/linux/com.adieuu.desktop.metainfo.xml",
           "to": "."
         }
-      ],
-      "fpm": [
-        "--after-install", "build/linux/after-install.sh",
-        "--after-remove", "build/linux/after-remove.sh"
       ]
     },
+    "deb": {
+      "afterInstall": "build/linux/after-install.sh",
+      "afterRemove": "build/linux/after-remove.sh"
+    },
     "rpm": {
+      "afterInstall": "build/linux/after-install.sh",
+      "afterRemove": "build/linux/after-remove.sh",
       "fpm": [
         "--rpm-rpmbuild-define",
         "_build_id_links none"

@@ -107,13 +107,5 @@ See [docs/deployment/README.md](docs/deployment/README.md) for AWS architecture 
 | **Desktop** | GitHub Releases (Electron auto-update) |
 | **Mobile** | App Store / Google Play |
 
-## Future Considerations
-
-- [ ] Consider migrating from Electron to Tauri for smaller binaries
-- [ ] Add tRPC for end-to-end type safety
-- [ ] Add Prisma + PostgreSQL for database
-- [ ] Add authentication (OAuth/OIDC + PKCE)
-
-
 ## Licensing
 This project is Source Available. It is licensed under the Polyform Non-Commercial License 1.0.0. Personal use and self-hosting are permitted; commercial use and redistribution are prohibited.
