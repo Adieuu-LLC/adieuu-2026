@@ -455,6 +455,7 @@ export const en = {
       // App update notification (banner)
       updateBanner: {
         message: 'A new version of Adieuu is available.',
+        download: 'Download',
         refresh: 'Refresh',
         restart: 'Restart Now',
         later: 'Later',
@@ -650,13 +651,19 @@ export const en = {
       // Desktop updates
       updates: 'Updates',
       currentVersion: 'Current Version',
+      newVersionAvailable: 'New Version',
       checkForUpdates: 'Check for Updates',
       checking: 'Checking...',
       upToDate: 'You are running the latest version.',
-      updateAvailable: 'A new version is available and downloading.',
+      updateAvailable: 'A new version is available.',
+      updateAvailableVersion: 'Version {{version}} is available.',
+      downloadUpdate: 'Download',
+      downloading: 'Downloading update...',
       updateReady: 'Update downloaded. Restart to apply.',
       updateError: 'Could not check for updates. Try again later.',
       restartToUpdate: 'Restart',
+      autoDownload: 'Automatically download updates',
+      autoDownloadDescription: 'When enabled, updates are downloaded in the background as soon as they are found.',
     },
 
     // Notification settings (Account)
@@ -872,8 +879,24 @@ export const en = {
     limitationNoTray:
       'There is no system tray or dock icon in the browser; the desktop app can sit in the tray for quick access.',
     linksTitle: 'Downloads',
-    linksPlaceholder: 'Direct download links for each platform will appear here soon.',
-    versionLabel: 'Latest release version: {{version}}',
+    linksLoading: 'Loading available downloads...',
+    linksError: 'Could not load downloads. Please try again later.',
+    linksRetry: 'Retry',
+    linksNone: 'No downloads are available yet.',
+    versionLabel: 'Latest release: v{{version}}',
+    releaseDate: 'Released {{date}}',
+    recommendedForYou: 'Recommended for your system',
+    osWindows: 'Windows',
+    osMac: 'macOS',
+    osLinux: 'Linux',
+    formatNsis: 'Installer (.exe)',
+    formatDmg: 'Disk Image (.dmg)',
+    formatZip: 'Archive (.zip)',
+    formatAppImage: 'AppImage',
+    formatDeb: 'Debian (.deb)',
+    formatRpm: 'RPM (.rpm)',
+    viewOnGitHub: 'View on GitHub',
+    viewSboms: 'Software Bill of Materials (SBOM)',
   },
 
   // Home page

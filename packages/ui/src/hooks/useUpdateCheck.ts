@@ -3,6 +3,8 @@
  *
  * On web: polls /version.json and compares against the build-time version.
  * On desktop: listens for electron-updater IPC events from the main process.
+ *   Supports a two-prompt flow (available -> download -> ready -> restart)
+ *   when auto-download is disabled, or a single-prompt flow when enabled.
  * On mobile: no-op (updates are handled by app stores).
  */
 
@@ -24,12 +26,16 @@ export type UpdateStatus =
 export interface UseUpdateCheckResult {
   /** Current update status */
   status: UpdateStatus;
+  /** Version string of the available/downloaded update (desktop only) */
+  newVersion: string | null;
   /** Dismiss the update notification until next version change or page load */
   dismiss: () => void;
   /** Apply the update (reload on web, quit-and-install on desktop) */
   applyUpdate: () => void;
   /** Manually trigger an update check (desktop only) */
   checkForUpdates: () => void;
+  /** Start downloading the available update (desktop only, when auto-download is off) */
+  downloadUpdate: () => void;
 }
 
 /**
@@ -39,6 +45,7 @@ export interface UseUpdateCheckResult {
 export function useUpdateCheck(): UseUpdateCheckResult {
   const platform = usePlatform();
   const [status, setStatus] = useState<UpdateStatus>('idle');
+  const [newVersion, setNewVersion] = useState<string | null>(null);
   const statusRef = useRef(status);
   statusRef.current = status;
   const dismissedVersionRef = useRef<string | null>(null);
@@ -91,9 +98,17 @@ export function useUpdateCheck(): UseUpdateCheckResult {
 
     const cleanups: (() => void)[] = [];
 
-    cleanups.push(electron.on('update-available', () => {
+    cleanups.push(electron.on('update-available', (...args: unknown[]) => {
+      const payload = args[0] as { version?: string; autoDownloading?: boolean } | undefined;
+      if (payload?.version) {
+        setNewVersion(payload.version);
+      }
       if (statusRef.current !== 'dismissed') {
-        setStatus('downloading');
+        if (payload?.autoDownloading) {
+          setStatus('downloading');
+        } else {
+          setStatus('available');
+        }
       }
     }));
 
@@ -152,5 +167,18 @@ export function useUpdateCheck(): UseUpdateCheckResult {
     electron.invoke('check-for-updates');
   }, [platform]);
 
-  return { status, dismiss, applyUpdate, checkForUpdates };
+  const downloadUpdate = useCallback(() => {
+    if (platform !== 'desktop') return;
+
+    const electron = (window as Window & { electron?: {
+      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
+    } }).electron;
+
+    if (!electron) return;
+
+    setStatus('downloading');
+    electron.invoke('download-update');
+  }, [platform]);
+
+  return { status, newVersion, dismiss, applyUpdate, checkForUpdates, downloadUpdate };
 }

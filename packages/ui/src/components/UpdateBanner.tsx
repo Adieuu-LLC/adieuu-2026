@@ -8,30 +8,37 @@ import { usePlatform } from '../hooks/usePlatform';
  * Non-intrusive banner shown when an app update is available.
  *
  * On web: prompts the user to refresh the page.
- * On desktop: shows download progress and prompts to restart when ready.
+ * On desktop: supports a two-prompt flow -- download first, then restart.
  */
 export function UpdateBanner() {
   const { t } = useTranslation();
   const platform = usePlatform();
-  const { status, dismiss, applyUpdate } = useUpdateCheck();
+  const { status, dismiss, applyUpdate, downloadUpdate } = useUpdateCheck();
 
-  if (status === 'idle' || status === 'dismissed') return null;
+  if (status === 'idle' || status === 'dismissed' || status === 'up-to-date' || status === 'checking') return null;
 
   const isDesktop = platform === 'desktop';
 
   let message: string;
   let actionLabel: string | null = null;
+  let onAction: (() => void) | null = null;
 
   if (status === 'downloading') {
     message = t('identity.e2e.updateBanner.downloading');
   } else if (status === 'ready') {
     message = t('identity.e2e.updateBanner.ready');
     actionLabel = t('identity.e2e.updateBanner.restart');
+    onAction = applyUpdate;
+  } else if (status === 'available' && isDesktop) {
+    message = t('identity.e2e.updateBanner.message');
+    actionLabel = t('identity.e2e.updateBanner.download');
+    onAction = downloadUpdate;
   } else {
     message = t('identity.e2e.updateBanner.message');
     actionLabel = isDesktop
       ? t('identity.e2e.updateBanner.restart')
       : t('identity.e2e.updateBanner.refresh');
+    onAction = applyUpdate;
   }
 
   return (
@@ -40,8 +47,8 @@ export function UpdateBanner() {
         <div className="key-storage-banner-content">
           <span>{message}</span>
           <div className="update-banner-actions">
-            {actionLabel && (
-              <Button variant="ghost" size="sm" onClick={applyUpdate}>
+            {actionLabel && onAction && (
+              <Button variant="ghost" size="sm" onClick={onAction}>
                 {actionLabel}
               </Button>
             )}

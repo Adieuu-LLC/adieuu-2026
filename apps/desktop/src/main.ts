@@ -427,11 +427,13 @@ const UPDATE_PREFS_FILE = 'update-preferences.json';
 
 interface UpdatePreferences {
   autoCheckEnabled: boolean;
+  autoDownloadEnabled: boolean;
   checkIntervalMinutes: number;
 }
 
 const DEFAULT_UPDATE_PREFS: UpdatePreferences = {
   autoCheckEnabled: true,
+  autoDownloadEnabled: false,
   checkIntervalMinutes: DEFAULT_CHECK_INTERVAL_MINUTES,
 };
 
@@ -444,6 +446,9 @@ async function readUpdatePreferences(): Promise<UpdatePreferences> {
       autoCheckEnabled: typeof parsed.autoCheckEnabled === 'boolean'
         ? parsed.autoCheckEnabled
         : DEFAULT_UPDATE_PREFS.autoCheckEnabled,
+      autoDownloadEnabled: typeof parsed.autoDownloadEnabled === 'boolean'
+        ? parsed.autoDownloadEnabled
+        : DEFAULT_UPDATE_PREFS.autoDownloadEnabled,
       checkIntervalMinutes: typeof parsed.checkIntervalMinutes === 'number'
           && parsed.checkIntervalMinutes >= MIN_CHECK_INTERVAL_MINUTES
         ? parsed.checkIntervalMinutes
@@ -476,7 +481,8 @@ function scheduleUpdateChecks(intervalMinutes: number): void {
 }
 
 async function initAutoUpdater() {
-  autoUpdater.autoDownload = true;
+  const initPrefs = await readUpdatePreferences();
+  autoUpdater.autoDownload = initPrefs.autoDownloadEnabled;
   autoUpdater.autoInstallOnAppQuit = !isDev;
 
   // Privacy: use a generic User-Agent instead of the detailed default
@@ -503,6 +509,7 @@ async function initAutoUpdater() {
     mainWindow?.webContents.send('update-available', {
       version: info.version,
       releaseNotes: info.releaseNotes,
+      autoDownloading: autoUpdater.autoDownload,
     });
   });
 
@@ -535,15 +542,23 @@ async function initAutoUpdater() {
     return;
   }
 
-  const prefs = await readUpdatePreferences();
-
-  if (prefs.autoCheckEnabled) {
+  if (initPrefs.autoCheckEnabled) {
     autoUpdater.checkForUpdates().catch((err: unknown) => {
       console.error('[AutoUpdater] Initial check failed:', err);
     });
-    scheduleUpdateChecks(prefs.checkIntervalMinutes);
+    scheduleUpdateChecks(initPrefs.checkIntervalMinutes);
   }
 }
+
+ipcMain.handle('download-update', async () => {
+  try {
+    await autoUpdater.downloadUpdate();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Download failed';
+    console.error('[AutoUpdater] Download failed:', message);
+    mainWindow?.webContents.send('update-error', { message });
+  }
+});
 
 ipcMain.handle('install-update', () => {
   if (isDev) {
@@ -563,12 +578,17 @@ ipcMain.handle('set-update-preferences', async (_event, prefs: Partial<UpdatePre
     autoCheckEnabled: typeof prefs.autoCheckEnabled === 'boolean'
       ? prefs.autoCheckEnabled
       : current.autoCheckEnabled,
+    autoDownloadEnabled: typeof prefs.autoDownloadEnabled === 'boolean'
+      ? prefs.autoDownloadEnabled
+      : current.autoDownloadEnabled,
     checkIntervalMinutes: typeof prefs.checkIntervalMinutes === 'number'
         && prefs.checkIntervalMinutes >= MIN_CHECK_INTERVAL_MINUTES
       ? prefs.checkIntervalMinutes
       : current.checkIntervalMinutes,
   };
   await writeUpdatePreferences(updated);
+
+  autoUpdater.autoDownload = updated.autoDownloadEnabled;
 
   if (updated.autoCheckEnabled) {
     scheduleUpdateChecks(updated.checkIntervalMinutes);

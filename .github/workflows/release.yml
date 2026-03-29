@@ -520,6 +520,10 @@ jobs:
           BUCKET="${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}"
           BASE_URL="https://${{ vars.DEPLOY_DOWNLOADS_DOMAIN_ADIEUU || 'downloads.adieuu.com' }}"
 
+          # Enumerate actual files uploaded to the versioned desktop prefix
+          aws s3 ls "s3://${BUCKET}/v${VERSION}/desktop/" \
+            | awk '{print $NF}' > desktop-files.txt 2>/dev/null || true
+
           # Download existing releases.json (if any) and append the new version
           aws s3 cp "s3://${BUCKET}/releases.json" existing-releases.json 2>/dev/null || echo '[]' > existing-releases.json
 
@@ -527,6 +531,43 @@ jobs:
             const fs = require('fs');
             const existing = JSON.parse(fs.readFileSync('existing-releases.json', 'utf8'));
             const entries = Array.isArray(existing) ? existing : [];
+            const fileList = fs.readFileSync('desktop-files.txt', 'utf8')
+              .split('\n').map(l => l.trim()).filter(Boolean);
+
+            const baseUrl = '${BASE_URL}/v${VERSION}/desktop';
+            const skipExts = new Set(['.blockmap', '.yml', '.yaml']);
+
+            // Classify files by OS using electron-builder artifact naming:
+            // \${productName}-\${version}-\${os}-\${arch}.\${ext}
+            const osMap = { win: 'windows', mac: 'mac', linux: 'linux' };
+            const formatMap = {
+              exe: 'nsis', dmg: 'dmg', zip: 'zip',
+              AppImage: 'AppImage', deb: 'deb', rpm: 'rpm',
+            };
+
+            const downloads = { windows: [], mac: [], linux: [] };
+
+            for (const filename of fileList) {
+              const dotIdx = filename.lastIndexOf('.');
+              if (dotIdx < 0) continue;
+              const ext = filename.substring(dotIdx);
+              if (skipExts.has(ext)) continue;
+
+              // Parse: Adieuu-0.1.33-win-x64.exe
+              const match = filename.match(/^.+-(.+?)-(.+?)\.(.+)$/);
+              if (!match) continue;
+              const [, osKey, arch, rawExt] = match;
+              const os = osMap[osKey];
+              if (!os) continue;
+              const format = formatMap[rawExt] || rawExt;
+
+              downloads[os].push({
+                filename,
+                url: baseUrl + '/' + filename,
+                arch,
+                format,
+              });
+            }
 
             // Avoid duplicate entries for the same version
             const filtered = entries.filter(e => e.version !== '${VERSION}');
@@ -534,10 +575,8 @@ jobs:
             const newEntry = {
               version: '${VERSION}',
               date: new Date().toISOString(),
-              downloads: {
-                base: '${BASE_URL}/v${VERSION}/desktop/',
-                sbom: '${BASE_URL}/v${VERSION}/sbom/',
-              },
+              downloads,
+              sboms: '${BASE_URL}/v${VERSION}/sbom/',
               github: 'https://github.com/Adieuu-LLC/adieuu-2026/releases/tag/v${VERSION}',
             };
 

@@ -175,6 +175,8 @@ export type { IconPackDefinition, IconPackId } from './icons/packs';
 export { usePlatform } from './hooks/usePlatform';
 export { useUpdateCheck } from './hooks/useUpdateCheck';
 export type { UpdateStatus, UseUpdateCheckResult } from './hooks/useUpdateCheck';
+export { useReleases } from './hooks/useReleases';
+export type { ReleaseEntry, ReleaseDownload, UseReleasesResult } from './hooks/useReleases';
 
 // ============================================================================
 // Component Types

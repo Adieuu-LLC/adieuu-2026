@@ -143,6 +143,36 @@ resource "aws_cloudfront_cache_policy" "downloads_manifests" {
 }
 
 # ---------------------------------------------------------------------------
+# Response headers policy: CORS for releases.json (fetched by the web app)
+# ---------------------------------------------------------------------------
+
+resource "aws_cloudfront_response_headers_policy" "downloads_cors" {
+  count = local.downloads_enabled ? 1 : 0
+
+  name    = "${local.name_prefix}-downloads-cors"
+  comment = "CORS headers for downloads distribution (releases.json)"
+
+  cors_config {
+    access_control_allow_credentials = false
+
+    access_control_allow_headers {
+      items = ["*"]
+    }
+
+    access_control_allow_methods {
+      items = ["GET", "HEAD"]
+    }
+
+    access_control_allow_origins {
+      items = ["https://${var.app_domain_name}"]
+    }
+
+    access_control_max_age_sec = 86400
+    origin_override            = true
+  }
+}
+
+# ---------------------------------------------------------------------------
 # CloudFront distribution (dual-origin: S3 binaries + ALB manifests)
 # ---------------------------------------------------------------------------
 
@@ -190,13 +220,14 @@ resource "aws_cloudfront_distribution" "downloads" {
 
   # Default behavior: binaries, SBOMs, releases.json -> S3.
   default_cache_behavior {
-    allowed_methods          = ["GET", "HEAD", "OPTIONS"]
-    cached_methods           = ["GET", "HEAD"]
-    target_origin_id         = "s3-downloads"
-    compress                 = true
-    viewer_protocol_policy   = "redirect-to-https"
-    cache_policy_id          = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
-    origin_request_policy_id = "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf" # Managed-CORS-S3Origin
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    target_origin_id           = "s3-downloads"
+    compress                   = true
+    viewer_protocol_policy     = "redirect-to-https"
+    cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+    origin_request_policy_id   = "88a5eaf4-2fd4-4709-b370-b4c650ea3fcf" # Managed-CORS-S3Origin
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.downloads_cors[0].id
   }
 
   # No SPA error responses: 403/404 should return actual errors for missing objects.

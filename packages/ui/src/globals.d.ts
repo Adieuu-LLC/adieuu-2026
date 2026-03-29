@@ -3,3 +3,4 @@
  * The UI package references these but each app is responsible for providing them.
  */
 declare const __APP_VERSION__: string;
+declare const __DOWNLOADS_BASE_URL__: string;
