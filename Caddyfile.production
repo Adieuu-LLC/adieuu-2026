@@ -10,7 +10,7 @@
 # Environment variables required:
 #   - COOKIE_DOMAIN=.adieuu.com (for cross-subdomain cookie sharing)
 #   - VITE_API_BASE_URL=https://api.adieuu.com (for web app build)
-#   - VITE_CHAT_WS_URL=wss://ws.adieuu.com/ws/chat (for web app build)
+#   - VITE_CHAT_WS_URL=wss://api.adieuu.com/ws/chat (for web app build; ALB routes /ws/* to chat)
 
 # API subdomain
 api.adieuu.com {

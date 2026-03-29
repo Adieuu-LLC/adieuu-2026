@@ -19,7 +19,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'https://api.adieuu.
  * In development, this points to the local chat server.
  * In production, this should point to the production chat service.
  */
-export const CHAT_WS_URL = import.meta.env.VITE_CHAT_WS_URL ?? 'wss://ws.adieuu.com/ws/chat';
+export const CHAT_WS_URL = import.meta.env.VITE_CHAT_WS_URL ?? 'wss://api.adieuu.com/ws/chat';
 
 /**
  * Full configuration object for type-safe access.
