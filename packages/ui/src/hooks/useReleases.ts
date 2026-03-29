@@ -81,7 +81,7 @@ export function useReleases(): UseReleasesResult {
     };
   }, []);
 
-  const latest = releases.length > 0 ? releases[0] : null;
+  const latest = releases.length > 0 ? releases[0] ?? null : null;
 
   return { latest, releases, loading, error };
 }

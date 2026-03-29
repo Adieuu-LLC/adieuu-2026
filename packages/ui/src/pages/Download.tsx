@@ -4,6 +4,7 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Spinner } from '../components/Spinner';
 import { Icon } from '../icons/Icon';
+import { type AppIconName } from '../icons/appIcons';
 import { useReleases, type ReleaseDownload } from '../hooks/useReleases';
 
 type OsKey = 'windows' | 'mac' | 'linux';
@@ -25,7 +26,7 @@ const FORMAT_LABELS: Record<string, string> = {
   rpm: 'formatRpm',
 };
 
-const OS_ICON: Record<OsKey, string> = {
+const OS_ICON: Record<OsKey, AppIconName> = {
   windows: 'desktop',
   mac: 'desktop',
   linux: 'desktop',
