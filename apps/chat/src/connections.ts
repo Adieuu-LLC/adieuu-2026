@@ -50,7 +50,7 @@ async function resubscribeAllChannels(): Promise<void> {
 
   try {
     await subscriber.subscribe(...channels);
-    logger.info('Re-subscribed to all channels', { channelCount: channels.length });
+    logger.info('Re-subscribed to all channels', { channelCount: channels.length, channels });
   } catch (error) {
     logger.error('Failed to re-subscribe to channels', { error });
   }
@@ -75,7 +75,7 @@ export function initializeMessageHandler(): void {
     }
 
     if (!ws) {
-      logger.debug('Redis message received but no local connection', {
+      logger.info('Redis message received but no local connection', {
         identityId: identityId.substring(0, 8) + '...',
         eventType,
         channel,
@@ -141,9 +141,10 @@ async function subscribeToIdentity(identityId: string): Promise<void> {
 
   try {
     const subscriber = getSubscriber();
-    await subscriber.subscribe(`${config.redis.keyPrefix}${channel}`);
+    const fullChannel = `${config.redis.keyPrefix}${channel}`;
+    await subscriber.subscribe(fullChannel);
     subscriptions.add(channel);
-    logger.debug('Subscribed to channel', { channel });
+    logger.info('Subscribed to channel', { channel: fullChannel });
   } catch (error) {
     logger.error('Failed to subscribe to channel', { error, channel });
   }
@@ -168,7 +169,7 @@ async function unsubscribeFromIdentity(identityId: string): Promise<void> {
     const subscriber = getSubscriber();
     await subscriber.unsubscribe(`${config.redis.keyPrefix}${channel}`);
     subscriptions.delete(channel);
-    logger.debug('Unsubscribed from channel', { channel });
+    logger.info('Unsubscribed from channel', { channel });
   } catch (error) {
     logger.error('Failed to unsubscribe from channel', { error, channel });
   }

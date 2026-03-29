@@ -119,7 +119,13 @@ async function publishConversationEvent(
   try {
     const redis = getRedis();
     const channel = `${config.redis.keyPrefix}${RedisKeys.identityChannel(recipientIdentityId)}`;
-    await redis.publish(channel, JSON.stringify(event));
+    const receivers = await redis.publish(channel, JSON.stringify(event));
+    elog.info('Published conversation event to Redis', {
+      channel,
+      eventType: event.type,
+      recipientIdentityId,
+      receivers,
+    });
   } catch (error) {
     elog.warn('Failed to publish conversation event via Redis', {
       error,

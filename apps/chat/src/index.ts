@@ -13,7 +13,7 @@
 
 import uWS from 'uWebSockets.js';
 import { config, validateProductionConfig } from './config';
-import { initializeDatabases, closeDatabases, checkRedisHealth, checkMongoHealth } from './db';
+import { initializeDatabases, closeDatabases, checkRedisHealth, checkMongoHealth, getSubscriber } from './db';
 import { extractSessionId, validateSession } from './auth';
 import {
   registerConnection,
@@ -302,10 +302,12 @@ async function start(): Promise<void> {
   setInterval(() => {
     const connectionCount = getConnectionCount();
     const subscriptionCount = getSubscriptionCount();
+    const sub = getSubscriber();
     logger.info('Chat service telemetry', {
       connections: connectionCount,
       subscriptions: subscriptionCount,
       drift: subscriptionCount - connectionCount,
+      subscriberStatus: sub.status,
     });
   }, 60000);
 
