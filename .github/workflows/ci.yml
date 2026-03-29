@@ -40,6 +40,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Turbo cache
+        uses: actions/cache@v5
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+
       - name: Build workspace apps and transitive dependencies
         run: pnpm build --filter @adieuu/api... --filter @adieuu/web... --filter @adieuu/desktop... --filter @adieuu/chat... --filter @adieuu/mobile...
 
@@ -68,6 +75,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@v5
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
 
       - name: Build API and transitive workspace dependencies
         run: pnpm build --filter @adieuu/api...
@@ -115,6 +129,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@v5
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+
       - name: Build API and transitive workspace dependencies
         run: pnpm build --filter @adieuu/api...
 
@@ -141,6 +162,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@v5
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+
       - name: Build UI/API and transitive workspace dependencies
         run: pnpm build --filter @adieuu/ui... --filter @adieuu/api...
 
@@ -164,6 +192,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@v5
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
 
       - name: Build web
         run: pnpm build --filter @adieuu/web...
@@ -196,6 +231,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@v5
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+
       - name: Build API
         run: pnpm build --filter @adieuu/api...
 
@@ -206,6 +248,42 @@ jobs:
           path: apps/api/dist
           retention-days: 15
 
+  # Build the desktop app once on Linux (electron-vite output is platform-independent JS/HTML/CSS)
+  build-desktop-dist:
+    if: ${{ (github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    runs-on: ubuntu-latest
+    needs: [lint-and-typecheck]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@v5
+        with:
+          path: node_modules/.cache/turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Build desktop and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/desktop...
+
+      - name: Upload desktop dist
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-dist
+          path: apps/desktop/dist
+          retention-days: 1
+
+  # Package the pre-built dist per platform
   build-desktop:
     if: ${{ (github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     strategy:
@@ -225,7 +303,7 @@ jobs:
             artifact-path: apps/desktop/out/*.dmg
             eb-args: --mac dmg
     runs-on: ${{ matrix.os }}
-    needs: [lint-and-typecheck, test-security, test-fs]
+    needs: [build-desktop-dist, test-security, test-fs]
     env:
       ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
     steps:
@@ -261,8 +339,11 @@ jobs:
             sleep 30
           done
 
-      - name: Build desktop and transitive workspace dependencies
-        run: pnpm build --filter @adieuu/desktop...
+      - name: Download pre-built desktop dist
+        uses: actions/download-artifact@v7
+        with:
+          name: desktop-dist
+          path: apps/desktop/dist
 
       - name: Package Electron app
         run: pnpm --filter @adieuu/desktop exec electron-builder --publish never ${{ matrix.eb-args }}

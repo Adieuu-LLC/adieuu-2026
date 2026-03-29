@@ -113,3 +113,7 @@ See [docs/deployment/README.md](docs/deployment/README.md) for AWS architecture 
 - [ ] Add tRPC for end-to-end type safety
 - [ ] Add Prisma + PostgreSQL for database
 - [ ] Add authentication (OAuth/OIDC + PKCE)
+
+
+## Licensing
+This project is Source Available. It is licensed under the Polyform Non-Commercial License 1.0.0. Personal use and self-hosting are permitted; commercial use and redistribution are prohibited.
