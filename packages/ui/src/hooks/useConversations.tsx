@@ -320,8 +320,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         ];
         resolveParticipants(allParticipantIds);
       }
-    } catch {
-      // Silent failure
+    } catch (err) {
+      console.error('[useConversations] fetchConversations failed', err);
     } finally {
       setLoading(false);
     }
@@ -539,15 +539,16 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             );
           }
         }
-      } catch {
-        setMessagesState((prev) => ({
-          ...prev,
-          [conversationId]: {
-            ...(prev[conversationId] ?? { messages: [], cursor: null, loading: false }),
-            loading: false,
-          },
-        }));
-      }
+    } catch (err) {
+      console.error('[useConversations] fetchMessages failed', { conversationId, cursor }, err);
+      setMessagesState((prev) => ({
+        ...prev,
+        [conversationId]: {
+          ...(prev[conversationId] ?? { messages: [], cursor: null, loading: false }),
+          loading: false,
+        },
+      }));
+    }
     },
     [isLoggedIn, identity, api, getCurrentDeviceId, getWrappingKey, resolveParticipants]
   );

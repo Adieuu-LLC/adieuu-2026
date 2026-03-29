@@ -576,7 +576,7 @@ jobs:
               version: '${VERSION}',
               date: new Date().toISOString(),
               downloads,
-              sboms: '${BASE_URL}/v${VERSION}/sbom/',
+              sboms: '${BASE_URL}/v${VERSION}/sbom/bom.json',
               github: 'https://github.com/Adieuu-LLC/adieuu-2026/releases/tag/v${VERSION}',
             };
 

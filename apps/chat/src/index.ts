@@ -20,12 +20,34 @@ import {
   unregisterConnection,
   updateHeartbeat,
   getConnectionCount,
+  getSubscriptionCount,
   initializeMessageHandler,
 } from './connections';
 import logger from './utils/logger';
 import type { WsUserData, WsIncomingMessage, WsPongMessage, WsErrorMessage } from './types';
 
 validateProductionConfig();
+
+/**
+ * Human-readable labels for common WebSocket close codes.
+ */
+const CLOSE_CODE_LABELS: Record<number, string> = {
+  1000: 'Normal',
+  1001: 'GoingAway',
+  1002: 'ProtocolError',
+  1003: 'UnsupportedData',
+  1005: 'NoStatusReceived',
+  1006: 'AbnormalClosure',
+  1007: 'InvalidPayload',
+  1008: 'PolicyViolation',
+  1009: 'MessageTooBig',
+  1010: 'MandatoryExtension',
+  1011: 'InternalError',
+  1012: 'ServiceRestart',
+  1013: 'TryAgainLater',
+  1014: 'BadGateway',
+  1015: 'TLSHandshake',
+};
 
 /**
  * Serializes an outgoing message
@@ -84,23 +106,29 @@ function createApp(): uWS.TemplatedApp {
         return;
       }
 
+      const upgradeStart = performance.now();
       const session = await validateSession(sessionId);
+      const validateMs = Math.round(performance.now() - upgradeStart);
 
       if (aborted.value) {
-        logger.debug('WebSocket upgrade aborted during session validation');
+        logger.warn('WebSocket upgrade aborted during session validation', { validateMs });
         return;
       }
 
       if (!session) {
         logger.warn('WebSocket upgrade rejected: invalid session', {
           sessionIdPrefix: sessionId.substring(0, 8) + '...',
+          validateMs,
         });
-        res.writeStatus('401 Unauthorized').end('Invalid session');
+        res.cork(() => {
+          res.writeStatus('401 Unauthorized').end('Invalid session');
+        });
         return;
       }
 
-      logger.debug('WebSocket upgrade accepted', {
+      logger.info('WebSocket upgrade accepted', {
         identityId: session.identityId.substring(0, 8) + '...',
+        validateMs,
       });
 
       const userData: WsUserData = {
@@ -109,13 +137,15 @@ function createApp(): uWS.TemplatedApp {
         connectedAt: Date.now(),
       };
 
-      res.upgrade(
-        userData,
-        secWebSocketKey,
-        secWebSocketProtocol,
-        secWebSocketExtensions,
-        context
-      );
+      res.cork(() => {
+        res.upgrade(
+          userData,
+          secWebSocketKey,
+          secWebSocketProtocol,
+          secWebSocketExtensions,
+          context
+        );
+      });
     },
 
     open: async (ws) => {
@@ -136,19 +166,33 @@ function createApp(): uWS.TemplatedApp {
           code: 'INVALID_MESSAGE',
           message: 'Failed to parse message',
         };
-        ws.send(serialize(errorResponse));
+        const result = ws.send(serialize(errorResponse));
+        logger.warn('Received unparseable message', {
+          identityId: userData.identityId.substring(0, 8) + '...',
+          errorSendResult: result,
+        });
         return;
       }
 
       switch (message.type) {
         case 'ping': {
           const pongResponse: WsPongMessage = { type: 'pong' };
-          ws.send(serialize(pongResponse));
+          const result = ws.send(serialize(pongResponse));
+          if (result !== 1) {
+            logger.warn('Pong send failed', {
+              identityId: userData.identityId.substring(0, 8) + '...',
+              sendResult: result,
+            });
+          }
           await updateHeartbeat(userData.identityId);
           break;
         }
 
         default: {
+          logger.warn('Unknown message type received', {
+            identityId: userData.identityId.substring(0, 8) + '...',
+            type: (message as { type: string }).type,
+          });
           const errorResponse: WsErrorMessage = {
             type: 'error',
             code: 'UNKNOWN_MESSAGE_TYPE',
@@ -159,12 +203,22 @@ function createApp(): uWS.TemplatedApp {
       }
     },
 
+    drain: (ws) => {
+      const userData = ws.getUserData();
+      logger.info('WebSocket backpressure drained', {
+        identityId: userData.identityId.substring(0, 8) + '...',
+        bufferedAmount: ws.getBufferedAmount(),
+      });
+    },
+
     close: async (ws, code, message) => {
       const userData = ws.getUserData();
       const reason = message ? Buffer.from(message).toString('utf-8') : '';
+      const codeLabel = CLOSE_CODE_LABELS[code] ?? 'Unknown';
       logger.info('WebSocket connection closed', {
         identityId: userData.identityId.substring(0, 8) + '...',
         code,
+        codeLabel,
         reason: reason || undefined,
         connectedForMs: Date.now() - userData.connectedAt,
       });
@@ -173,12 +227,15 @@ function createApp(): uWS.TemplatedApp {
   });
 
   app.get('/health', async (res, req) => {
-    res.onAborted(() => {});
+    let aborted = false;
+    res.onAborted(() => { aborted = true; });
 
     const [redisHealth, mongoHealth] = await Promise.all([
       checkRedisHealth(),
       checkMongoHealth(),
     ]);
+
+    if (aborted) return;
 
     const allHealthy = redisHealth.status === 'up' && mongoHealth.status === 'up';
 
@@ -191,10 +248,12 @@ function createApp(): uWS.TemplatedApp {
       },
     };
 
-    res
-      .writeStatus(allHealthy ? '200 OK' : '503 Service Unavailable')
-      .writeHeader('Content-Type', 'application/json')
-      .end(JSON.stringify(response));
+    res.cork(() => {
+      res
+        .writeStatus(allHealthy ? '200 OK' : '503 Service Unavailable')
+        .writeHeader('Content-Type', 'application/json')
+        .end(JSON.stringify(response));
+    });
   });
 
   app.get('/ready', (res, req) => {
@@ -241,10 +300,13 @@ async function start(): Promise<void> {
   });
 
   setInterval(() => {
-    const count = getConnectionCount();
-    if (count > 0) {
-      logger.debug('Active connections', { count });
-    }
+    const connectionCount = getConnectionCount();
+    const subscriptionCount = getSubscriptionCount();
+    logger.info('Chat service telemetry', {
+      connections: connectionCount,
+      subscriptions: subscriptionCount,
+      drift: subscriptionCount - connectionCount,
+    });
   }, 60000);
 
   const shutdown = async () => {

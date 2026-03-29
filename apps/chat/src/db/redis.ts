@@ -73,8 +73,13 @@ function createClient(name: string, onConnectionChange: (connected: boolean) => 
       onConnectionChange(false);
     });
 
-    client.on('reconnecting', () => {
-      logger.debug(`Redis ${name} reconnecting...`);
+    client.on('reconnecting', (delayMs: number) => {
+      logger.warn(`Redis ${name} reconnecting`, { delayMs });
+    });
+
+    client.on('end', () => {
+      logger.warn(`Redis ${name} connection ended (no more reconnects)`);
+      onConnectionChange(false);
     });
   });
 }

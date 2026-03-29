@@ -84,8 +84,19 @@
         "deb",
         "rpm"
       ],
-      "category": "Utility",
-      "maintainer": "Adieuu Team <team@adieuu.com>"
+      "category": "Network;InstantMessaging;",
+      "maintainer": "Adieuu Team <team@adieuu.com>",
+      "vendor": "Adieuu Team",
+      "extraFiles": [
+        {
+          "from": "build/linux/com.adieuu.desktop.metainfo.xml",
+          "to": "."
+        }
+      ],
+      "fpm": [
+        "--after-install", "build/linux/after-install.sh",
+        "--after-remove", "build/linux/after-remove.sh"
+      ]
     },
     "rpm": {
       "fpm": [

@@ -66,12 +66,45 @@ export function initializeMessageHandler(): void {
     const identityId = channel.replace(`${config.redis.keyPrefix}identity:`, '');
     const ws = connections.get(identityId);
 
-    if (ws) {
-      try {
-        ws.send(message);
-      } catch (error) {
-        logger.warn('Failed to send message to WebSocket', { error, identityId });
+    let eventType: string | undefined;
+    try {
+      const parsed = JSON.parse(message);
+      eventType = parsed?.type;
+    } catch {
+      // Best-effort parse for logging; forward the raw message regardless
+    }
+
+    if (!ws) {
+      logger.debug('Redis message received but no local connection', {
+        identityId: identityId.substring(0, 8) + '...',
+        eventType,
+        channel,
+      });
+      return;
+    }
+
+    try {
+      const sendResult = ws.send(message);
+      if (sendResult === 1) {
+        logger.info('Message delivered to WebSocket', {
+          identityId: identityId.substring(0, 8) + '...',
+          eventType,
+          byteLength: message.length,
+        });
+      } else {
+        logger.warn('Message dropped by uWS', {
+          identityId: identityId.substring(0, 8) + '...',
+          eventType,
+          sendResult,
+          byteLength: message.length,
+        });
       }
+    } catch (error) {
+      logger.error('Failed to send message to WebSocket', {
+        error,
+        identityId: identityId.substring(0, 8) + '...',
+        eventType,
+      });
     }
   };
 
@@ -152,6 +185,14 @@ export async function registerConnection(
   identityId: string,
   ws: TypedWebSocket
 ): Promise<void> {
+  const existing = connections.get(identityId);
+  if (existing) {
+    logger.warn('Replacing existing connection for identity', {
+      identityId: identityId.substring(0, 8) + '...',
+      totalConnections: connections.size,
+    });
+  }
+
   connections.set(identityId, ws);
   await subscribeToIdentity(identityId);
 
@@ -238,6 +279,13 @@ export async function updateHeartbeat(identityId: string): Promise<void> {
  */
 export function getConnectionCount(): number {
   return connections.size;
+}
+
+/**
+ * Gets the number of active Redis channel subscriptions
+ */
+export function getSubscriptionCount(): number {
+  return subscriptions.size;
 }
 
 /**

@@ -129,12 +129,24 @@ async function setSessionCache(
  * Validates an identity session and returns session data
  */
 export async function validateSession(sessionId: string): Promise<SessionData | null> {
+  const start = performance.now();
+  const sessionPrefix = sessionId.substring(0, 8) + '...';
+
   // Try cache first
   const cached = await getSessionFromCache(sessionId);
   if (cached) {
     if (cached.expiresAt < Date.now()) {
+      logger.info('Session validation: cache hit but expired', {
+        sessionId: sessionPrefix,
+        elapsedMs: Math.round(performance.now() - start),
+      });
       return null;
     }
+    logger.debug('Session validation: cache hit', {
+      sessionId: sessionPrefix,
+      identityId: cached.identityId.substring(0, 8) + '...',
+      elapsedMs: Math.round(performance.now() - start),
+    });
     return {
       identityId: cached.identityId,
       expiresAt: cached.expiresAt,
@@ -150,13 +162,29 @@ export async function validateSession(sessionId: string): Promise<SessionData | 
       revoked: false,
     });
 
+    const elapsedMs = Math.round(performance.now() - start);
+
     if (!session) {
+      logger.info('Session validation: not found in database', {
+        sessionId: sessionPrefix,
+        elapsedMs,
+      });
       return null;
     }
 
     if (session.expiresAt < new Date()) {
+      logger.info('Session validation: found but expired in database', {
+        sessionId: sessionPrefix,
+        elapsedMs,
+      });
       return null;
     }
+
+    logger.info('Session validation: cache miss, loaded from database', {
+      sessionId: sessionPrefix,
+      identityId: session.identityId.toString().substring(0, 8) + '...',
+      elapsedMs,
+    });
 
     // Populate cache
     await setSessionCache(sessionId, session);
@@ -167,7 +195,11 @@ export async function validateSession(sessionId: string): Promise<SessionData | 
       lastActivityAt: session.lastActivityAt.getTime(),
     };
   } catch (error) {
-    logger.error('Failed to validate session', { error, sessionId: sessionId.substring(0, 8) + '...' });
+    logger.error('Session validation: database query failed', {
+      error,
+      sessionId: sessionPrefix,
+      elapsedMs: Math.round(performance.now() - start),
+    });
     return null;
   }
 }
