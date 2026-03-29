@@ -276,85 +276,6 @@ jobs:
       - name: Build desktop and transitive workspace dependencies
         run: pnpm build --filter @adieuu/desktop...
 
-      - name: Upload desktop dist
-        uses: actions/upload-artifact@v7
-        with:
-          name: desktop-dist
-          path: apps/desktop/dist
-          retention-days: 1
-
-  # Package the pre-built dist per platform
-  build-desktop:
-    if: ${{ (github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        include:
-          - os: ubuntu-latest
-            artifact-name: desktop-linux
-            artifact-path: apps/desktop/out/*.AppImage
-            eb-args: --linux AppImage
-          - os: windows-latest
-            artifact-name: desktop-windows
-            artifact-path: apps/desktop/out/*.exe
-            eb-args: --win nsis
-          - os: macos-latest
-            artifact-name: desktop-macos
-            artifact-path: apps/desktop/out/*.dmg
-            eb-args: --mac dmg
-    runs-on: ${{ matrix.os }}
-    needs: [build-desktop-dist, test-security, test-fs]
-    env:
-      ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: pnpm/action-setup@v5
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
-
-      - name: Cache Electron binaries
-        uses: actions/cache@v5
-        with:
-          path: ${{ env.ELECTRON_CACHE }}
-          key: electron-${{ runner.os }}-${{ hashFiles('apps/desktop/package.json') }}
-          restore-keys: |
-            electron-${{ runner.os }}-
-
-      - name: Install dependencies
-        shell: bash
-        run: |
-          attempt=1
-          max_attempts=3
-          until pnpm install --frozen-lockfile; do
-            if [ "$attempt" -ge "$max_attempts" ]; then
-              echo "pnpm install failed after $attempt attempts"
-              exit 1
-            fi
-            echo "pnpm install failed (attempt $attempt/$max_attempts), retrying in 30s..."
-            attempt=$((attempt + 1))
-            sleep 30
-          done
-
-      - name: Download pre-built desktop dist
-        uses: actions/download-artifact@v7
-        with:
-          name: desktop-dist
-          path: apps/desktop/dist
-
-      - name: Package Electron app
-        run: pnpm --filter @adieuu/desktop exec electron-builder --publish never ${{ matrix.eb-args }}
-
-      - name: Upload desktop artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ matrix.artifact-name }}
-          path: ${{ matrix.artifact-path }}
-          retention-days: 15
-
   sbom:
     runs-on: ubuntu-latest
     needs:
@@ -364,7 +285,7 @@ jobs:
       - test-fs
       - build-web
       - build-api
-      - build-desktop
+      - build-desktop-dist
     if: |
       needs.lint-and-typecheck.result == 'success' &&
       needs.test-api.result == 'success' &&
@@ -372,7 +293,7 @@ jobs:
       needs.test-fs.result == 'success' &&
       (needs.build-web.result == 'skipped' || needs.build-web.result == 'success') &&
       (needs.build-api.result == 'skipped' || needs.build-api.result == 'success') &&
-      (needs.build-desktop.result == 'skipped' || needs.build-desktop.result == 'success')
+      (needs.build-desktop-dist.result == 'skipped' || needs.build-desktop-dist.result == 'success')
     strategy:
       fail-fast: false
       matrix:

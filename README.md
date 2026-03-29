@@ -5,6 +5,19 @@
 
 Cross-platform application with web, desktop (Electron), and mobile (Capacitor) targets.
 
+## Table of Contents
+
+- [Stack](#stack)
+- [Structure](#structure)
+- [Prerequisites](#prerequisites)
+- [Getting Started](#getting-started)
+- [Scripts](#scripts)
+- [Mobile Development](#mobile-development)
+- [CI/CD](#cicd)
+  - [Required PR checks](#required-pr-checks)
+  - [Deployment](#deployment)
+- [Licensing](#licensing)
+
 ## Stack
 
 | Target | Tech |
@@ -46,10 +59,13 @@ pnpm install
 # Build shared packages
 pnpm build --filter @adieuu/shared --filter @adieuu/ui
 
+# Start Mongo and Redis via Docker (omit if running locally)
+pnpm services:up
+
 # Start development
-pnpm dev:web    # Web app at http://localhost:3000
-pnpm dev:api    # API at http://localhost:4000
-pnpm dev:desktop # Electron app (loads web dev server)
+pnpm dev   # Starts the web-app, API, and chat service
+pnpm dev:proxy    # Starts Caddy, makes app available at https://localhost
+pnpm dev:desktop # Run the desktop app
 ```
 
 ## Scripts
@@ -67,6 +83,7 @@ pnpm dev:desktop # Electron app (loads web dev server)
 | `pnpm --filter @adieuu/api test` | API unit tests (main suite + isolated `*.edge.manual.ts` files; see [apps/api/README.md](apps/api/README.md)) |
 
 ## Mobile Development
+Mobile apps are expected around launch, but we're deferring in favor of web/desktop for now to get core featureset moving. It's very much planned/roadmapped.
 
 See [apps/mobile/README.md](apps/mobile/README.md) for iOS/Android setup.
 

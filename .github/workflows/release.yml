@@ -21,7 +21,6 @@ on:
 
 env:
   NODE_VERSION: '25'
-  PNPM_VERSION: '9'
   FONTAWESOME_TOKEN: ${{ secrets.FONTAWESOME_TOKEN }}
 
 concurrency:
@@ -47,7 +46,7 @@ jobs:
       released: ${{ steps.version.outputs.released }}
       deploy_aws: ${{ steps.decide_deploy_aws.outputs.deploy || 'false' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -77,16 +76,13 @@ jobs:
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
 
-      - uses: pnpm/action-setup@v3
+      - uses: pnpm/action-setup@v5
         if: steps.check_release.outputs.skip != 'true'
-        with:
-          version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         if: steps.check_release.outputs.skip != 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
-          # No cache needed - this job only does version bumps, not installs
 
       - name: Configure Git for signed commits
         if: steps.check_release.outputs.skip != 'true'
@@ -260,8 +256,39 @@ jobs:
     uses: ./.github/workflows/deploy-aws-reusable.yml
     secrets: inherit
 
-  build-and-release-desktop:
+  # Build the desktop app once on Linux (electron-vite output is platform-independent JS/HTML/CSS)
+  build-desktop-dist:
     needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build desktop and transitive workspace dependencies
+        run: pnpm build --filter @adieuu/desktop...
+
+      - name: Upload desktop dist
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-dist
+          path: apps/desktop/dist
+          retention-days: 1
+
+  # Package the pre-built dist per platform
+  build-and-release-desktop:
+    needs: [release, build-desktop-dist]
     if: needs.release.outputs.released == 'true'
     permissions:
       id-token: write
@@ -280,21 +307,19 @@ jobs:
     env:
       ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
-          ref: main  # Get the updated version
+          ref: main
 
-      - uses: pnpm/action-setup@v3
-        with:
-          version: ${{ env.PNPM_VERSION }}
+      - uses: pnpm/action-setup@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
       - name: Cache Electron binaries
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.ELECTRON_CACHE }}
           key: electron-${{ runner.os }}-${{ hashFiles('apps/desktop/package.json') }}
@@ -302,13 +327,25 @@ jobs:
             electron-${{ runner.os }}-
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        shell: bash
+        run: |
+          attempt=1
+          max_attempts=3
+          until pnpm install --frozen-lockfile; do
+            if [ "$attempt" -ge "$max_attempts" ]; then
+              echo "pnpm install failed after $attempt attempts"
+              exit 1
+            fi
+            echo "pnpm install failed (attempt $attempt/$max_attempts), retrying in 30s..."
+            attempt=$((attempt + 1))
+            sleep 30
+          done
 
-      - name: Build shared packages
-        run: pnpm build --filter @adieuu/shared --filter @adieuu/ui --filter @adieuu/tsconfig
-
-      - name: Build Electron app
-        run: pnpm build --filter @adieuu/desktop
+      - name: Download pre-built desktop dist
+        uses: actions/download-artifact@v7
+        with:
+          name: desktop-dist
+          path: apps/desktop/dist
 
       - name: Package Electron app
         run: pnpm --filter @adieuu/desktop run package:ci
@@ -411,7 +448,7 @@ jobs:
           - app: mobile
             path: apps/mobile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: main
 
@@ -437,7 +474,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download SBOM artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: adieuu-*-*-sbom.json
           path: sboms
@@ -486,7 +523,7 @@ jobs:
 
       - name: Download SBOM artifacts
         if: steps.check_vars.outputs.skip != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: adieuu-*-*-sbom.json
           path: sboms
