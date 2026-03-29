@@ -41,7 +41,8 @@
       "ajv": "8.18.0",
       "ajv-keywords": "5.1.0",
       "ajv-formats": "2.1.1",
-      "dmg-license>ajv": ">=6.14.0"
+      "dmg-license>ajv": ">=6.14.0",
+      "picomatch": ">=4.0.4"
     }
   },
   "workspaces": [
