@@ -1,11 +1,22 @@
 import { app, BrowserWindow, shell, ipcMain, dialog, session, protocol, net } from 'electron';
 import path from 'path';
-import { pathToFileURL } from 'url';
+import { pathToFileURL, fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 import fs from 'fs/promises';
 import { execSync } from 'child_process';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
 import { registerSecureStorageIpc } from './ipc/secureStorage';
+import { config as loadDotenv } from 'dotenv';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// dist/main -> ../../.env ; src (rare) -> ../.env — avoid loading repo-root .env by mistake
+const desktopEnvPath = __dirname.endsWith(`${path.sep}src`)
+  ? path.resolve(__dirname, '../.env')
+  : path.resolve(__dirname, '../../.env');
+if (existsSync(desktopEnvPath)) {
+  loadDotenv({ path: desktopEnvPath });
+}
 
 // ============================================================================
 // Custom protocol scheme (must be registered before app 'ready' fires)
@@ -143,8 +154,73 @@ let mainWindow: BrowserWindow | null = null;
 const isDev = process.env.NODE_ENV === 'development';
 const isMac = process.platform === 'darwin';
 
-const PRODUCTION_API_ORIGINS = ['https://api.adieuu.com', 'https://ws.adieuu.com'];
 const PRODUCTION_APP_ORIGIN = 'https://app.adieuu.com';
+
+/**
+ * Default hostnames for the cookie + CORS bridge when `ADIEUU_COOKIE_BRIDGE_HOSTS`
+ * is not set. No wildcards; add staging hosts via `ADIEUU_COOKIE_BRIDGE_EXTRA_HOSTS`
+ * or replace entirely via `ADIEUU_COOKIE_BRIDGE_HOSTS`.
+ *
+ * Each token becomes `https://<token>/*` and `wss://<token>/*` (WebSocket upgrades
+ * use `wss://`, which must be listed explicitly).
+ */
+const DEFAULT_COOKIE_BRIDGE_HOSTS = [
+  'api.adieuu.com',
+  'ws.adieuu.com',
+  'downloads.adieuu.com',
+  'media.adieuu.com',
+  'status.adieuu.com',
+] as const;
+
+function parseEnvCommaList(raw: string | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Resolves host tokens: `hostname` or `hostname:port` (no scheme, no path).
+ */
+function getCookieBridgeHostTokens(): string[] {
+  const override = process.env.ADIEUU_COOKIE_BRIDGE_HOSTS;
+  if (override !== undefined && override.trim() !== '') {
+    return parseEnvCommaList(override);
+  }
+  return [
+    ...DEFAULT_COOKIE_BRIDGE_HOSTS,
+    ...parseEnvCommaList(process.env.ADIEUU_COOKIE_BRIDGE_EXTRA_HOSTS),
+  ];
+}
+
+function tokenToBridgePatterns(token: string): string[] {
+  const t = token.trim();
+  if (!t) return [];
+  if (t.includes('://') || t.includes('/')) {
+    console.warn('[CookieBridge] Ignoring invalid host token (use host or host:port only):', t);
+    return [];
+  }
+  return [`https://${t}/*`, `wss://${t}/*`];
+}
+
+function buildCookieBridgeUrlPatterns(): string[] {
+  const patterns: string[] = [];
+  for (const token of getCookieBridgeHostTokens()) {
+    patterns.push(...tokenToBridgePatterns(token));
+  }
+  return [...new Set(patterns)];
+}
+
+/**
+ * Packaged app: always on. Dev: opt-in so Vite + localhost CORS is unchanged unless
+ * you set `ADIEUU_ENABLE_COOKIE_BRIDGE=true` (e.g. to test `wss://` against local chat).
+ */
+function shouldEnableCookieBridge(): boolean {
+  if (!isDev) return true;
+  const v = process.env.ADIEUU_ENABLE_COOKIE_BRIDGE?.toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
 const RENDERER_DIR = path.resolve(__dirname, '../renderer');
 
 async function createWindow() {
@@ -191,7 +267,9 @@ async function createWindow() {
 app.whenReady().then(() => {
   if (!isDev) {
     registerProtocolHandler();
-    setupProductionCors();
+  }
+  if (shouldEnableCookieBridge()) {
+    setupAdieuuCookieBridge();
   }
   app.setAsDefaultProtocolClient(CUSTOM_SCHEME);
 
@@ -290,22 +368,32 @@ function registerProtocolHandler(): void {
 }
 
 // ============================================================================
-// Production CORS + cookie bridge (adieuu://app -> api.adieuu.com)
+// CORS + cookie bridge (adieuu://app -> allowlisted API hosts)
 //
-// The renderer loads from adieuu://app, which is a different site to
-// https://api.adieuu.com. The API's CORS policy only allows
-// https://app.adieuu.com, and SameSite=Lax cookies are not sent on
+// The packaged renderer loads from adieuu://app, which is a different site to
+// https://api.adieuu.com (and other API hosts). The API's CORS policy only
+// allows https://app.adieuu.com, and SameSite=Lax cookies are not sent on
 // cross-site fetch() requests.
 //
 // We fix both at the Electron network layer:
 //   1. Rewrite the outgoing Origin so the server recognises the request.
 //   2. Inject session cookies that SameSite=Lax would otherwise withhold.
 //   3. Rewrite the incoming Access-Control-Allow-Origin so Chromium
-//      accepts the response for the adieuu://app origin.
+//      accepts the response for the adieuu://app origin (packaged app only).
+//
+// Host lists and dev opt-in: `ADIEUU_COOKIE_BRIDGE_HOSTS` / `EXTRA` / `ENABLE`.
 // ============================================================================
 
-function setupProductionCors(): void {
-  const filter = { urls: PRODUCTION_API_ORIGINS.map((o) => `${o}/*`) };
+function setupAdieuuCookieBridge(): void {
+  const patterns = buildCookieBridgeUrlPatterns();
+  if (patterns.length === 0) {
+    console.warn('[CookieBridge] No URL patterns; set ADIEUU_COOKIE_BRIDGE_HOSTS or ADIEUU_COOKIE_BRIDGE_EXTRA_HOSTS');
+    return;
+  }
+
+  const filter = { urls: patterns };
+  /** Dev + Vite must keep `Access-Control-Allow-Origin` for `http://localhost:5173`. */
+  const rewriteCorsForPackagedApp = !isDev;
 
   session.defaultSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
     const headers = { ...details.requestHeaders };
@@ -336,15 +424,17 @@ function setupProductionCors(): void {
       return;
     }
 
-    const acaoKey = Object.keys(headers).find(
-      (k) => k.toLowerCase() === 'access-control-allow-origin',
-    );
+    if (rewriteCorsForPackagedApp) {
+      const acaoKey = Object.keys(headers).find(
+        (k) => k.toLowerCase() === 'access-control-allow-origin',
+      );
 
-    if (acaoKey) {
-      headers[acaoKey] = [CUSTOM_SCHEME_ORIGIN];
-    } else {
-      headers['Access-Control-Allow-Origin'] = [CUSTOM_SCHEME_ORIGIN];
-      headers['Access-Control-Allow-Credentials'] = ['true'];
+      if (acaoKey) {
+        headers[acaoKey] = [CUSTOM_SCHEME_ORIGIN];
+      } else {
+        headers['Access-Control-Allow-Origin'] = [CUSTOM_SCHEME_ORIGIN];
+        headers['Access-Control-Allow-Credentials'] = ['true'];
+      }
     }
 
     const setCookieKey = Object.keys(headers).find(

@@ -21,6 +21,18 @@ pnpm package     # Build distributable (uses electron-builder)
 
 `package:ci` runs `electron-builder --publish never` (used in GitHub Actions). Release artifacts are uploaded by the Release workflow, not by electron-builder publish. Auto-update uses the `repository` field in this `package.json` with GitHub Releases.
 
+### Cookie and CORS bridge (main process)
+
+The packaged app loads the UI from `adieuu://app` while the API lives on `https://api.adieuu.com` (and related hosts). Chromium would not send `SameSite=Lax` cookies on cross-site `fetch`, and WebSocket upgrades use `wss://` (a separate URL pattern from `https://`). The main process bridges **allowlisted** `https://` and `wss://` requests: it rewrites `Origin` for the packaged shell, injects cookies from the session jar, and persists `Set-Cookie` responses.
+
+Defaults cover `api`, `ws`, `downloads`, `media`, and `status` under `adieuu.com`. You can **merge** extra hosts or **replace** the list via environment variables (see `env.example`):
+
+- `ADIEUU_COOKIE_BRIDGE_EXTRA_HOSTS` — comma-separated `hostname` or `hostname:port` merged with defaults.
+- `ADIEUU_COOKIE_BRIDGE_HOSTS` — when non-empty, replaces the default list entirely.
+- `ADIEUU_ENABLE_COOKIE_BRIDGE` — in **development** (`pnpm dev`), set to `1` or `true` to enable the bridge (e.g. test `wss://` against local chat). Packaged builds enable the bridge by default.
+
+Variables are read from `process.env` at **runtime** (the bundle does not embed them at compile time). `apps/desktop/.env` is loaded on startup when that file exists beside the main bundle. For packaged installs, set `ADIEUU_*` in the OS environment or your launcher; CI can inject the same when exercising the built binary.
+
 ## Secure Key Storage
 
 Device encryption keys are stored in a local file under the Electron `userData` directory (e.g. `~/.config/@adieuu/desktop/secure-keys/` on Linux). When OS-level encryption is available, the file contents are additionally encrypted via Electron's `safeStorage` API:

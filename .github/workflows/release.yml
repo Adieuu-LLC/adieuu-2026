@@ -276,6 +276,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Desktop main process reads ADIEUU_COOKIE_BRIDGE_* at runtime from the OS env (not compile-time).
+      # To test staging hosts in release builds, set job env here or in apps/desktop/.env — see apps/desktop/README.md.
       - name: Build desktop and transitive workspace dependencies
         run: pnpm build --filter @adieuu/desktop...
 

@@ -4,7 +4,7 @@
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": ["src/main.ts", "src/preload.ts"],
+  "include": ["src/main.ts", "src/main-env.d.ts", "src/preload.ts"],
   "references": [
     { "path": "./tsconfig.renderer.json" }
   ]

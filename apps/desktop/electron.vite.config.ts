@@ -5,6 +5,8 @@ import pkg from './package.json';
 
 export default defineConfig({
   main: {
+    // Load `.env` from apps/desktop so main-process code can read ADIEUU_* at dev time.
+    envDir: __dirname,
     build: {
       outDir: 'dist/main',
       rollupOptions: {
