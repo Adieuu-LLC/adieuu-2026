@@ -162,7 +162,9 @@ export function encryptMessage(
           otpkKemCiphertext: wrapped.otpkKemCiphertext
             ? toBase64(wrapped.otpkKemCiphertext)
             : undefined,
-          routingTag: computeRoutingTag(device.ecdhPublicKey, device.kemPublicKey),
+          routingTag: device.kemPublicKey
+            ? computeRoutingTag(device.ecdhPublicKey, device.kemPublicKey)
+            : undefined,
         });
       } else {
         if (!device.kemPublicKey) {
