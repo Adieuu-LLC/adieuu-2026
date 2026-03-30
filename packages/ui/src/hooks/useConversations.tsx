@@ -346,6 +346,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         if (resp.data) {
           let ecdhPrivateKey: Uint8Array | null = null;
           let kemPrivateKey: Uint8Array | null = null;
+          let myRoutingTag: string | undefined;
 
           const deviceId = getCurrentDeviceId();
           const wrappingKey = getWrappingKey();
@@ -371,6 +372,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 const decrypted = await decryptDeviceKeys(myDeviceKeys, wrappingKey);
                 ecdhPrivateKey = decrypted.ecdhPrivateKey;
                 kemPrivateKey = decrypted.kemPrivateKey;
+                myRoutingTag = decrypted.routingTag;
               }
             } catch (err) {
               console.error('[Conversations] decrypt: failed to load device keys:', err);
@@ -400,8 +402,6 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
           resolveParticipants(senderIds);
 
-          // Cache for decrypted pre-key private keys (avoid redundant
-          // IndexedDB lookups when multiple messages use the same SPK).
           const spkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
           const otpkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
 
@@ -428,14 +428,20 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 return { ...m, decryptionError: 'No wrapped keys on message' };
               }
 
-              const myWrappedKey = m.wrappedKeys.find(
+              // ---- Three-tier wrapped key routing ----
+              // All candidate wrapped keys for this identity
+              const candidates = m.wrappedKeys.filter(
                 (wk: SerializedWrappedKey) => wk.identityId === identity.id
               );
-              if (!myWrappedKey) {
+              if (candidates.length === 0) {
                 return { ...m, decryptionError: `No wrapped key for identity ${identity.id.slice(0, 8)}...` };
               }
 
-              // Resolve pre-key private keys when the message used forward secrecy
+              // Resolve the correct wrapped key for THIS device:
+              //   1. FS messages: match by signedPreKeyId (SPK exists locally)
+              //   2. Static messages with routingTag: match by tag
+              //   3. Fallback: try each candidate via trial decryption
+              let resolvedWrappedKey: SerializedWrappedKey | undefined;
               let preKeyPrivateKeys: {
                 spkEcdhPrivate?: Uint8Array;
                 spkKemPrivate?: Uint8Array;
@@ -443,57 +449,104 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 otpkKemPrivate?: Uint8Array;
               } | undefined;
 
-              if (
-                (myWrappedKey.preKeyType === 'spk' || myWrappedKey.preKeyType === 'otpk') &&
-                myWrappedKey.signedPreKeyId &&
-                wrappingKey
-              ) {
-                try {
-                  let spkKeys = spkCache.get(myWrappedKey.signedPreKeyId);
-                  if (!spkKeys) {
-                    const decryptedSpk = await findAndDecryptSignedPreKey(
-                      myWrappedKey.signedPreKeyId,
-                      identity.id,
-                      wrappingKey
-                    );
-                    if (decryptedSpk) {
-                      spkKeys = { ecdh: decryptedSpk.ecdhPrivateKey, kem: decryptedSpk.kemPrivateKey };
-                      spkCache.set(myWrappedKey.signedPreKeyId, spkKeys);
-                    }
-                  }
-
-                  if (!spkKeys) {
-                    return { ...m, decryptionError: `SPK ${myWrappedKey.signedPreKeyId.slice(0, 8)}... not found locally` };
-                  }
-
-                  preKeyPrivateKeys = {
-                    spkEcdhPrivate: spkKeys.ecdh,
-                    spkKemPrivate: spkKeys.kem,
-                  };
-
-                  if (myWrappedKey.preKeyType === 'otpk' && myWrappedKey.oneTimePreKeyId) {
-                    let otpkKeys = otpkCache.get(myWrappedKey.oneTimePreKeyId);
-                    if (!otpkKeys) {
-                      const decryptedOtpk = await findAndDecryptOneTimePreKey(
-                        myWrappedKey.oneTimePreKeyId,
+              // Tier 1: FS messages — match by SPK presence
+              const fsCandidates = candidates.filter(
+                (wk) => (wk.preKeyType === 'spk' || wk.preKeyType === 'otpk') && wk.signedPreKeyId
+              );
+              if (fsCandidates.length > 0 && wrappingKey) {
+                for (const candidate of fsCandidates) {
+                  try {
+                    let spkKeys = spkCache.get(candidate.signedPreKeyId!);
+                    if (!spkKeys) {
+                      const decryptedSpk = await findAndDecryptSignedPreKey(
+                        candidate.signedPreKeyId!,
                         identity.id,
                         wrappingKey
                       );
-                      if (decryptedOtpk) {
-                        otpkKeys = { ecdh: decryptedOtpk.ecdhPrivateKey, kem: decryptedOtpk.kemPrivateKey };
-                        otpkCache.set(myWrappedKey.oneTimePreKeyId, otpkKeys);
+                      if (decryptedSpk) {
+                        spkKeys = { ecdh: decryptedSpk.ecdhPrivateKey, kem: decryptedSpk.kemPrivateKey };
+                        spkCache.set(candidate.signedPreKeyId!, spkKeys);
                       }
                     }
 
-                    if (otpkKeys) {
-                      preKeyPrivateKeys.otpkEcdhPrivate = otpkKeys.ecdh;
-                      preKeyPrivateKeys.otpkKemPrivate = otpkKeys.kem;
+                    if (spkKeys) {
+                      resolvedWrappedKey = candidate;
+                      preKeyPrivateKeys = {
+                        spkEcdhPrivate: spkKeys.ecdh,
+                        spkKemPrivate: spkKeys.kem,
+                      };
+
+                      if (candidate.preKeyType === 'otpk' && candidate.oneTimePreKeyId) {
+                        let otpkKeys = otpkCache.get(candidate.oneTimePreKeyId);
+                        if (!otpkKeys) {
+                          const decryptedOtpk = await findAndDecryptOneTimePreKey(
+                            candidate.oneTimePreKeyId,
+                            identity.id,
+                            wrappingKey
+                          );
+                          if (decryptedOtpk) {
+                            otpkKeys = { ecdh: decryptedOtpk.ecdhPrivateKey, kem: decryptedOtpk.kemPrivateKey };
+                            otpkCache.set(candidate.oneTimePreKeyId, otpkKeys);
+                          }
+                        }
+                        if (otpkKeys) {
+                          preKeyPrivateKeys.otpkEcdhPrivate = otpkKeys.ecdh;
+                          preKeyPrivateKeys.otpkKemPrivate = otpkKeys.kem;
+                        }
+                      }
+                      break;
                     }
+                  } catch (err) {
+                    console.warn('[Conversations] decrypt: SPK lookup failed for candidate', candidate.signedPreKeyId, err);
                   }
-                } catch (err) {
-                  console.error('[Conversations] decrypt: pre-key lookup failed for message', m.id, err);
-                  return { ...m, decryptionError: `Pre-key lookup failed: ${String(err)}` };
                 }
+              }
+
+              // Tier 2: Static messages — match by routing tag
+              if (!resolvedWrappedKey && myRoutingTag) {
+                const staticCandidates = candidates.filter(
+                  (wk) => wk.preKeyType === 'static' && wk.routingTag
+                );
+                const tagMatch = staticCandidates.find((wk) => wk.routingTag === myRoutingTag);
+                if (tagMatch) {
+                  resolvedWrappedKey = tagMatch;
+                }
+              }
+
+              // Tier 3: Fallback — try each remaining candidate via trial decryption
+              if (!resolvedWrappedKey) {
+                for (const candidate of candidates) {
+                  if (candidate.preKeyType !== 'static') continue;
+                  try {
+                    const result = decryptMessage(
+                      m,
+                      identity.id,
+                      ecdhPrivateKey,
+                      kemPrivateKey,
+                      senderSigningKey,
+                      undefined,
+                      candidate
+                    );
+                    return {
+                      ...m,
+                      decryptedContent: result.plaintext,
+                      signatureVerified: result.verified,
+                      forwardSecrecy: false,
+                    };
+                  } catch {
+                    // Wrong device's wrapped key — try next candidate
+                  }
+                }
+
+                // No candidate worked
+                const fsAttempted = fsCandidates.length > 0;
+                const spkIds = fsCandidates.map((c) => c.signedPreKeyId?.slice(0, 8)).join(', ');
+                return {
+                  ...m,
+                  decryptionError: fsAttempted
+                    ? `SPK ${spkIds}... not found locally`
+                    : 'No matching wrapped key for this device',
+                };
               }
 
               try {
@@ -503,13 +556,14 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                   ecdhPrivateKey,
                   kemPrivateKey,
                   senderSigningKey,
-                  preKeyPrivateKeys
+                  preKeyPrivateKeys,
+                  resolvedWrappedKey
                 );
                 return {
                   ...m,
                   decryptedContent: result.plaintext,
                   signatureVerified: result.verified,
-                  forwardSecrecy: myWrappedKey.preKeyType !== 'static',
+                  forwardSecrecy: resolvedWrappedKey.preKeyType !== 'static',
                 };
               } catch (err) {
                 console.error('[Conversations] decrypt: failed for message', m.id, err);

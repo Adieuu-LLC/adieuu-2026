@@ -17,7 +17,8 @@
 
 import { x25519 } from '@noble/curves/ed25519';
 import { ml_kem768, ml_kem1024 } from '@noble/post-quantum/ml-kem';
-import { randomBytes } from '../utils';
+import { sha256 } from '@noble/hashes/sha2';
+import { randomBytes, toBase64, fromBase64, concatBytes, toBytes } from '../utils';
 import { deriveWrappingKey } from '../kdf';
 import { encrypt as symmetricEncrypt, decrypt as symmetricDecrypt } from './symmetric';
 import type {
@@ -294,4 +295,41 @@ export function findAndUnwrapSessionKey(
   }
 
   return unwrapSessionKey(wrappedKey, ecdhPrivate, kemPrivate, profile);
+}
+
+// ============================================================================
+// Routing Tag
+// ============================================================================
+
+const ROUTING_TAG_DOMAIN = 'adieuu-routing-v1';
+const ROUTING_TAG_BYTES = 6;
+
+/**
+ * Computes a key-fingerprint routing tag for a device's public keys.
+ *
+ * The tag is a truncated SHA-256 of (domain || ecdhPublicKey || kemPublicKey),
+ * returned as base64. Both sender and recipient can compute it independently:
+ * the sender from the server-provided public keys, the recipient from their
+ * own key material.
+ *
+ * Privacy: opaque to anyone without the public keys. Naturally rotates when
+ * device keys change.
+ *
+ * @param ecdhPublicKey - Device X25519 public key (raw bytes or base64)
+ * @param kemPublicKey - Device ML-KEM public key (raw bytes or base64)
+ * @returns Base64-encoded routing tag (8 characters for 6 bytes)
+ */
+export function computeRoutingTag(
+  ecdhPublicKey: Uint8Array | string,
+  kemPublicKey: Uint8Array | string
+): string {
+  const ecdh = typeof ecdhPublicKey === 'string'
+    ? fromBase64(ecdhPublicKey)
+    : ecdhPublicKey;
+  const kem = typeof kemPublicKey === 'string'
+    ? fromBase64(kemPublicKey)
+    : kemPublicKey;
+
+  const hash = sha256(concatBytes(toBytes(ROUTING_TAG_DOMAIN), ecdh, kem));
+  return toBase64(hash.slice(0, ROUTING_TAG_BYTES));
 }

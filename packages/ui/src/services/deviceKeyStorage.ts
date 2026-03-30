@@ -54,6 +54,12 @@ export interface StoredDeviceKeys {
     ciphertext: string;
     nonce: string;
   };
+  /**
+   * Key-fingerprint routing tag for multi-device wrapped key lookup.
+   * Computed at key generation time from the device's public keys.
+   * Absent on records created before this field was introduced.
+   */
+  routingTag?: string;
   /** When the keys were stored */
   createdAt: string;
 }
@@ -66,6 +72,7 @@ export interface DecryptedDeviceKeys {
   identityId: string;
   ecdhPrivateKey: Uint8Array;
   kemPrivateKey: Uint8Array;
+  routingTag?: string;
 }
 
 /**
@@ -346,7 +353,8 @@ export async function storeDeviceKeys(
   identityId: string,
   ecdhPrivateKey: Uint8Array,
   kemPrivateKey: Uint8Array,
-  wrappingKey: Uint8Array
+  wrappingKey: Uint8Array,
+  routingTag?: string
 ): Promise<void> {
   const ecdhEncrypted = await encryptWithWrappingKey(ecdhPrivateKey, wrappingKey);
   const kemEncrypted = await encryptWithWrappingKey(kemPrivateKey, wrappingKey);
@@ -359,6 +367,7 @@ export async function storeDeviceKeys(
     identityId,
     ecdhPrivateKeyEncrypted: ecdhEncrypted,
     kemPrivateKeyEncrypted: kemEncrypted,
+    routingTag,
     createdAt: new Date().toISOString(),
   };
 
@@ -556,6 +565,7 @@ export async function decryptDeviceKeys(
     identityId: stored.identityId,
     ecdhPrivateKey,
     kemPrivateKey,
+    routingTag: stored.routingTag,
   };
 }
 

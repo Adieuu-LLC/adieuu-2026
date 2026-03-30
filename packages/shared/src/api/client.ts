@@ -1898,6 +1898,12 @@ export interface SerializedWrappedKey {
   oneTimePreKeyId?: string;
   spkKemCiphertext?: string;
   otpkKemCiphertext?: string;
+  /**
+   * Key-fingerprint routing tag for O(1) wrapped key lookup on multi-device
+   * identities. Truncated SHA-256 of the recipient device's public keys.
+   * Absent on messages created before this field was introduced.
+   */
+  routingTag?: string;
 }
 
 export interface PublicMessage {

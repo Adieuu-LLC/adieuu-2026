@@ -23,6 +23,7 @@ import {
   findAndUnwrapSessionKey,
   wrapSessionKeyWithPreKeys,
   unwrapSessionKeyWithPreKeys,
+  computeRoutingTag,
   verifySignedPreKey,
   sign,
   verify,
@@ -161,6 +162,7 @@ export function encryptMessage(
           otpkKemCiphertext: wrapped.otpkKemCiphertext
             ? toBase64(wrapped.otpkKemCiphertext)
             : undefined,
+          routingTag: computeRoutingTag(device.ecdhPublicKey, device.kemPublicKey),
         });
       } else {
         if (!device.kemPublicKey) {
@@ -184,6 +186,7 @@ export function encryptMessage(
           wrappedSessionKey: toBase64(wrapped.wrappedSessionKey),
           wrappingNonce: toBase64(wrapped.wrappingNonce),
           preKeyType: 'static',
+          routingTag: computeRoutingTag(device.ecdhPublicKey, device.kemPublicKey),
         });
       }
     }
@@ -232,7 +235,8 @@ export function decryptMessage(
     spkKemPrivate?: Uint8Array;
     otpkEcdhPrivate?: Uint8Array;
     otpkKemPrivate?: Uint8Array;
-  }
+  },
+  resolvedWrappedKey?: SerializedWrappedKey
 ): DecryptedMessage {
   if (message.deleted || !message.ciphertext || !message.nonce || !message.wrappedKeys) {
     throw new Error('Cannot decrypt a deleted message');
@@ -242,9 +246,7 @@ export function decryptMessage(
   const nonce = fromBase64(message.nonce);
   const profile = message.cryptoProfile as CryptoProfile;
 
-  // Find wrapped key for our identity
-  const wrappedKeys = message.wrappedKeys!;
-  const myWrappedKey = wrappedKeys.find(
+  const myWrappedKey = resolvedWrappedKey ?? message.wrappedKeys!.find(
     (wk: SerializedWrappedKey) => wk.identityId === myIdentityId
   );
 

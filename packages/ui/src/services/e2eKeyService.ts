@@ -25,6 +25,7 @@ import {
   deriveKeyFromPassword,
   encryptChaCha20Poly1305,
   decryptChaCha20Poly1305,
+  computeRoutingTag,
   randomBytes,
   toBase64,
   fromBase64,
@@ -70,6 +71,7 @@ export interface E2EInitResult {
     name: string;
     ecdhPublicKey: string;
     kemPublicKey: string;
+    routingTag: string;
   };
   /** Signing private key for memory cache (will be cleared after use) */
   signingPrivateKey: Uint8Array;
@@ -102,6 +104,8 @@ export interface DeviceKeysResult {
   ecdhPublicKey: string;
   /** ML-KEM public key (base64) */
   kemPublicKey: string;
+  /** Key-fingerprint routing tag for multi-device wrapped key lookup */
+  routingTag: string;
   /** Private keys for local storage */
   privateKeys: {
     ecdh: Uint8Array;
@@ -258,6 +262,7 @@ export async function generateE2EKeys(input: E2EInitInput): Promise<E2EInitResul
       name: input.deviceName,
       ecdhPublicKey: toBase64(ecdhKeyPair.publicKey),
       kemPublicKey: toBase64(kemKeyPair.publicKey),
+      routingTag: computeRoutingTag(ecdhKeyPair.publicKey, kemKeyPair.publicKey),
     },
     signingPrivateKey: signingKeyPair.privateKey,
     devicePrivateKeys: {
@@ -294,11 +299,15 @@ export function generateDeviceKeys(
   const kemKeyPair = generateKEMKeyPair(cryptoProfile);
   const deviceId = crypto.randomUUID();
 
+  const ecdhPub = toBase64(ecdhKeyPair.publicKey);
+  const kemPub = toBase64(kemKeyPair.publicKey);
+
   return {
     deviceId,
     name: deviceName,
-    ecdhPublicKey: toBase64(ecdhKeyPair.publicKey),
-    kemPublicKey: toBase64(kemKeyPair.publicKey),
+    ecdhPublicKey: ecdhPub,
+    kemPublicKey: kemPub,
+    routingTag: computeRoutingTag(ecdhKeyPair.publicKey, kemKeyPair.publicKey),
     privateKeys: {
       ecdh: ecdhKeyPair.privateKey,
       kem: kemKeyPair.privateKey,

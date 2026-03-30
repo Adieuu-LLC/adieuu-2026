@@ -118,6 +118,7 @@ export {
   unwrapSessionKey,
   wrapSessionKeyForRecipients,
   findAndUnwrapSessionKey,
+  computeRoutingTag,
   SESSION_KEY_SIZE,
 } from './encrypt';
 

@@ -6,7 +6,7 @@ import {
   DEFAULT_MAX_REQUEST_BODY_BYTES,
   jsonUtf8ByteLength,
 } from '@adieuu/shared';
-import { deriveEntropyWrappingKey, toBase64, clearBytes, getSigningPublicKey } from '@adieuu/crypto';
+import { deriveEntropyWrappingKey, toBase64, clearBytes, getSigningPublicKey, computeRoutingTag } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
 import { useAuth } from './useAuth';
 import {
@@ -469,7 +469,8 @@ function useIdentityState(): IdentityContextValue {
           createdIdentity.id,
           e2eResult.devicePrivateKeys.ecdh,
           e2eResult.devicePrivateKeys.kem,
-          wrappingKey
+          wrappingKey,
+          e2eResult.device.routingTag
         );
         console.debug('[Identity] createIdentity: device keys stored');
       } catch (err) {
@@ -716,7 +717,8 @@ function useIdentityState(): IdentityContextValue {
                     loggedInIdentity.id,
                     webDev.ecdhPrivateKey,
                     webDev.kemPrivateKey,
-                    wrappingKey
+                    wrappingKey,
+                    computeRoutingTag(webDev.ecdhPublicKey, webDev.kemPublicKey)
                   );
                   console.debug('[Identity] loginToIdentity: shared web device keys cached in IndexedDB');
                 } else {
@@ -770,7 +772,8 @@ function useIdentityState(): IdentityContextValue {
                 loggedInIdentity.id,
                 newDeviceKeys.privateKeys.ecdh,
                 newDeviceKeys.privateKeys.kem,
-                wrappingKey
+                wrappingKey,
+                newDeviceKeys.routingTag
               );
               console.debug('[Identity] loginToIdentity: new device registered and keys stored');
 
@@ -970,7 +973,8 @@ function useIdentityState(): IdentityContextValue {
                 identityId,
                 webDev.ecdhPrivateKey,
                 webDev.kemPrivateKey,
-                wrappingKey
+                wrappingKey,
+                computeRoutingTag(webDev.ecdhPublicKey, webDev.kemPublicKey)
               );
               deviceKeysLoaded = true;
               console.debug('[Identity] unlockIdentity: web device keys recovered and cached');
