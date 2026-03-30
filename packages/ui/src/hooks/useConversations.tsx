@@ -638,11 +638,18 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     (id: string | null) => {
       setActiveConversationId(id);
       if (id) {
+        let hadUnread = false;
         setConversations((prev) =>
-          prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
+          prev.map((c) => {
+            if (c.id === id) {
+              hadUnread = c.unreadCount > 0;
+              return { ...c, unreadCount: 0 };
+            }
+            return c;
+          })
         );
-        if (!messagesState[id]) {
-          fetchMessages(id);
+        if (!messagesState[id] || hadUnread) {
+          fetchMessages(id, undefined, true);
         }
       }
     },
