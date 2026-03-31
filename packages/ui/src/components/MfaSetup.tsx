@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { QRCodeSVG } from 'qrcode.react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
@@ -128,9 +129,9 @@ export function TotpSetup({ onComplete, onCancel }: TotpSetupProps) {
             {t('account.security.mfa.totp.scanDescription', 'Scan this QR code with your authenticator app, or enter the key manually.')}
           </p>
           <div className="mfa-qr-container">
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(setupData.qrCodeUrl)}`}
-              alt="QR Code"
+            <QRCodeSVG
+              value={setupData.qrCodeUrl}
+              size={200}
               className="mfa-qr-code"
             />
           </div>

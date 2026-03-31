@@ -122,6 +122,18 @@ function SystemMessageRow({ event }: { event: SystemEvent }) {
         defaultValue: `${name} has left the conversation`,
       });
       break;
+    case 'member_removed':
+      text = actorName
+        ? t('conversations.systemMessage.memberRemoved', {
+            actor: actorName,
+            name,
+            defaultValue: `${actorName} removed ${name} from the group`,
+          })
+        : t('conversations.systemMessage.memberRemovedSimple', {
+            name,
+            defaultValue: `${name} was removed from the group`,
+          });
+      break;
     case 'admin_promoted':
       text = actorName
         ? t('conversations.systemMessage.adminPromoted', {

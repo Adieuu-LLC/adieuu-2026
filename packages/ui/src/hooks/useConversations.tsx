@@ -1161,8 +1161,17 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             setActiveConversationId((prev) =>
               prev === conversationId ? null : prev
             );
+
+            fireNotificationRef.current(
+              tRef.current('conversations.notifications.youWereRemoved', { defaultValue: 'Removed from group' }),
+              tRef.current('conversations.notifications.youWereRemovedBody', { defaultValue: 'You were removed from a group conversation' })
+            );
           } else {
             fetchConversationsRef.current();
+
+            if (conversationId === activeConversationIdRef.current) {
+              fetchMessagesRef.current(conversationId, undefined, true);
+            }
           }
 
           if (action === 'member_added' && eventIdentityId) {

@@ -882,6 +882,35 @@ export async function removeGroupMember(
     },
   });
 
+  // Create system message for the removal
+  const identityRepo = getIdentityRepository();
+  const messageRepo = getMessageRepository();
+  const targetIdentity = await identityRepo.findByIdentityId(targetObjId);
+  const targetPublic = targetIdentity ? toPublicIdentity(targetIdentity) : null;
+  const requesterIdentity = await identityRepo.findByIdentityId(requesterObjId);
+  const requesterPublic = requesterIdentity ? toPublicIdentity(requesterIdentity) : null;
+
+  const systemMsg = await messageRepo.createMessage({
+    conversationId: convObjId,
+    fromIdentityId: requesterObjId,
+    messageType: 'system',
+    systemEvent: {
+      type: 'member_removed',
+      identityId: targetObjId.toHexString(),
+      displayName: targetPublic?.displayName ?? targetPublic?.username,
+      actorIdentityId: requesterObjId.toHexString(),
+      actorDisplayName: requesterPublic?.displayName ?? requesterPublic?.username,
+    },
+    ciphertext: '',
+    nonce: '',
+    wrappedKeys: [],
+    signature: '',
+    cryptoProfile: 'default',
+    clientMessageId: `sys-member-removed-${Date.now()}`,
+  });
+
+  await conversationRepo.updateLastMessage(convObjId, systemMsg._id, systemMsg.createdAt);
+
   // Notify remaining members
   const remaining = conversation.participants.filter(
     (p) => !p.equals(targetObjId) && !p.equals(requesterObjId)
@@ -893,6 +922,16 @@ export async function removeGroupMember(
         conversationId: convObjId.toHexString(),
         action: 'member_removed',
         identityId: targetObjId.toHexString(),
+      },
+    });
+
+    await publishConversationEvent(memberId.toHexString(), {
+      type: 'conversation_message',
+      data: {
+        conversationId: convObjId.toHexString(),
+        messageId: systemMsg._id.toHexString(),
+        fromIdentityId: requesterObjId.toHexString(),
+        createdAt: systemMsg.createdAt.toISOString(),
       },
     });
 
@@ -987,6 +1026,16 @@ export async function leaveConversation(
               conversationId: convObjId.toHexString(),
               action: 'admin_promoted',
               identityId: newAdminId.toHexString(),
+            },
+          });
+
+          await publishConversationEvent(memberId.toHexString(), {
+            type: 'conversation_message',
+            data: {
+              conversationId: convObjId.toHexString(),
+              messageId: systemMsg._id.toHexString(),
+              fromIdentityId: newAdminId.toHexString(),
+              createdAt: systemMsg.createdAt.toISOString(),
             },
           });
         }

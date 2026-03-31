@@ -88,7 +88,7 @@ importers:
         version: 6.21.0(socks@2.8.7)
       uWebSockets.js:
         specifier: github:uNetworking/uWebSockets.js#v20.57.0
-        version: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/fcfc622a4286909593b7f390056d89e0ca3b56b9
+        version: git+https://github.com/uNetworking/uWebSockets.js.git#fcfc622a4286909593b7f390056d89e0ca3b56b9
       winston:
         specifier: ^3.19.0
         version: 3.19.0
@@ -362,6 +362,9 @@ importers:
       i18next:
         specifier: ^24.2.2
         version: 24.2.3(typescript@5.9.3)
+      qrcode.react:
+        specifier: ^4.2.0
+        version: 4.2.0(react@18.3.1)
       react-i18next:
         specifier: ^15.4.1
         version: 15.7.4(i18next@24.2.3(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
@@ -3565,6 +3568,11 @@ packages:
     resolution: {integrity: sha512-KTqnxsgGiQ6ZAzZCVlJH5eOjSnvlyEgx1m8bkRJfOhmGRqfo5KLvmAlACQkrjEtOQ4B7wF9TdSLIs9O90MX9xA==}
     engines: {node: '>=16.0.0'}
 
+  qrcode.react@4.2.0:
+    resolution: {integrity: sha512-QpgqWi8rD9DsS9EP3z7BT+5lY5SFhsqGjpgW5DY/i3mK4M9DTBNz3ErMi8BWYEfI3L0d8GIbGmcdFAS1uIRGjA==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
   quick-lru@5.1.1:
     resolution: {integrity: sha512-WuyALRjWPDGtt/wzJiadO5AXY+8hZ80hVpe6MyivgraREW751X3SbhRvG3eLKOYN+8VEvqLcf3wdnt44Z4S4SA==}
     engines: {node: '>=10'}
@@ -4147,8 +4155,8 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
-  uWebSockets.js@https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/fcfc622a4286909593b7f390056d89e0ca3b56b9:
-    resolution: {tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/fcfc622a4286909593b7f390056d89e0ca3b56b9}
+  uWebSockets.js@git+https://github.com/uNetworking/uWebSockets.js.git#fcfc622a4286909593b7f390056d89e0ca3b56b9:
+    resolution: {commit: fcfc622a4286909593b7f390056d89e0ca3b56b9, repo: https://github.com/uNetworking/uWebSockets.js.git, type: git}
     version: 20.57.0
 
   undici-types@6.21.0:
@@ -8478,6 +8486,10 @@ snapshots:
 
   pvutils@1.1.5: {}
 
+  qrcode.react@4.2.0(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+
   quick-lru@5.1.1: {}
 
   react-dom@18.3.1(react@18.3.1):
@@ -9060,7 +9072,7 @@ snapshots:
 
   typescript@5.9.3: {}
 
-  uWebSockets.js@https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/fcfc622a4286909593b7f390056d89e0ca3b56b9: {}
+  uWebSockets.js@git+https://github.com/uNetworking/uWebSockets.js.git#fcfc622a4286909593b7f390056d89e0ca3b56b9: {}
 
   undici-types@6.21.0: {}
 
