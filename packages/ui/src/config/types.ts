@@ -120,6 +120,21 @@ export interface PlatformFeatures {
 }
 
 /**
+ * Bridge for performing WebAuthn ceremonies from a context with a matching
+ * origin (e.g. a hidden BrowserWindow on `https://app.adieuu.com` when the
+ * desktop renderer loads from a custom protocol scheme).
+ *
+ * Only present on platforms where the document origin cannot satisfy the
+ * WebAuthn RP ID check directly.
+ */
+export interface WebAuthnBridge {
+  /** Perform `navigator.credentials.create` and return a RegistrationResponseJSON-shaped result. */
+  create(options: unknown): Promise<unknown>;
+  /** Perform `navigator.credentials.get` and return an AuthenticationResponseJSON-shaped result. */
+  get(options: unknown): Promise<unknown>;
+}
+
+/**
  * Combined platform capabilities interface.
  * Each platform provides its own implementation.
  */
@@ -129,6 +144,8 @@ export interface PlatformCapabilities {
   notifications: Notifications;
   /** Present when native sound file pick/load is available (Electron). */
   audio?: AudioCapabilities;
+  /** Present when WebAuthn must be delegated to a different origin context (packaged desktop). */
+  webauthn?: WebAuthnBridge;
   features: PlatformFeatures;
 }
 

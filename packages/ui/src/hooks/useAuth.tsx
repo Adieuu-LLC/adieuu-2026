@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, createContext, useContext, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { createApiClient, type SessionInfo, type PublicKeyCredentialRequestOptionsJSON } from '@adieuu/shared';
-import { useAppConfig } from '../config';
+import { useAppConfig, usePlatformCapabilities } from '../config';
 
 // ============================================================================
 // Auth State Types
@@ -68,6 +68,7 @@ export function useAuth(): AuthContextValue {
  */
 function useAuthState(): AuthContextValue {
   const { apiBaseUrl } = useAppConfig();
+  const { webauthn: webauthnBridge } = usePlatformCapabilities();
 
   // Memoize the API client to avoid recreating on every render
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -168,12 +169,16 @@ function useAuthState(): AuthContextValue {
   }, [api, refreshSession]);
 
   const completeMfaWebAuthn = useCallback(async (mfaToken: string, webauthnChallenge: PublicKeyCredentialRequestOptionsJSON) => {
-    // Import dynamically to avoid issues in non-browser environments
-    const { startAuthentication } = await import('@simplewebauthn/browser');
-
     try {
-      // Type assertion needed due to minor type differences between our simplified type and @simplewebauthn's type
-      const credential = await startAuthentication({ optionsJSON: webauthnChallenge as Parameters<typeof startAuthentication>[0]['optionsJSON'] });
+      let credential: unknown;
+
+      if (webauthnBridge) {
+        credential = await webauthnBridge.get(webauthnChallenge);
+      } else {
+        const { startAuthentication } = await import('@simplewebauthn/browser');
+        credential = await startAuthentication({ optionsJSON: webauthnChallenge as Parameters<typeof startAuthentication>[0]['optionsJSON'] });
+      }
+
       const response = await api.auth.verifyMfaWebAuthn(mfaToken, credential);
 
       if (!response.success) {
@@ -191,7 +196,7 @@ function useAuthState(): AuthContextValue {
       }
       return { success: false, error: 'WebAuthn authentication failed' };
     }
-  }, [api, refreshSession]);
+  }, [api, refreshSession, webauthnBridge]);
 
   const completeMfaBackupCode = useCallback(async (mfaToken: string, code: string) => {
     const response = await api.auth.verifyMfaBackupCode(mfaToken, code);

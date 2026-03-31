@@ -17,7 +17,7 @@ import {
   type TotpCredential,
   type WebAuthnCredential,
 } from '@adieuu/shared';
-import { useAppConfig } from '../config';
+import { useAppConfig, usePlatformCapabilities } from '../config';
 import { startRegistration } from '@simplewebauthn/browser';
 
 // ============================================================================
@@ -215,6 +215,7 @@ export function WebAuthnSetup({ onComplete, onCancel }: WebAuthnSetupProps) {
   const { t } = useTranslation();
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const { webauthn: webauthnBridge } = usePlatformCapabilities();
 
   const [step, setStep] = useState<'name' | 'register' | 'backup'>('name');
   const [name, setName] = useState('Passkey');
@@ -227,7 +228,6 @@ export function WebAuthnSetup({ onComplete, onCancel }: WebAuthnSetupProps) {
     setError(null);
 
     try {
-      // Start registration
       const startResponse = await api.mfa.startWebAuthnRegistration(name);
       if (!startResponse.success || !startResponse.data) {
         setError('Failed to start registration');
@@ -235,10 +235,10 @@ export function WebAuthnSetup({ onComplete, onCancel }: WebAuthnSetupProps) {
         return;
       }
 
-      // Call browser WebAuthn API
-      const credential = await startRegistration({ optionsJSON: startResponse.data.options as Parameters<typeof startRegistration>[0]['optionsJSON'] });
+      const credential = webauthnBridge
+        ? await webauthnBridge.create(startResponse.data.options)
+        : await startRegistration({ optionsJSON: startResponse.data.options as Parameters<typeof startRegistration>[0]['optionsJSON'] });
 
-      // Finish registration
       const finishResponse = await api.mfa.finishWebAuthnRegistration(credential, name);
       if (finishResponse.success && finishResponse.data) {
         if (finishResponse.data.backupCodes && finishResponse.data.backupCodes.length > 0) {

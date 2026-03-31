@@ -42,6 +42,7 @@ export type {
   FileSystem,
   Notifications,
   AudioCapabilities,
+  WebAuthnBridge,
   PlatformProviderProps,
 } from './config';
 

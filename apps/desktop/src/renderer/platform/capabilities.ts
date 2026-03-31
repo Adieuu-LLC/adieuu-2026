@@ -191,6 +191,16 @@ export const desktopCapabilities: PlatformCapabilities = {
   },
 
   // --------------------------------------------------------------------------
+  // WebAuthn bridge (production only — see apps/desktop/src/webauthn-bridge.ts)
+  // --------------------------------------------------------------------------
+  ...(window.electron?.webauthn ? {
+    webauthn: {
+      create: (options: unknown) => window.electron.webauthn!.create(options),
+      get: (options: unknown) => window.electron.webauthn!.get(options),
+    },
+  } : {}),
+
+  // --------------------------------------------------------------------------
   // Feature Flags
   // --------------------------------------------------------------------------
   features: {

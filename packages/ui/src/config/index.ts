@@ -19,4 +19,5 @@ export type {
   FileSystem,
   Notifications,
   AudioCapabilities,
+  WebAuthnBridge,
 } from './types';

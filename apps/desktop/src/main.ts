@@ -7,6 +7,7 @@ import { execSync } from 'child_process';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
 import { registerSecureStorageIpc } from './ipc/secureStorage';
+import { createCredential, getCredential, destroyBridgeWindow } from './webauthn-bridge';
 import { config as loadDotenv } from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -247,6 +248,10 @@ async function createWindow() {
       sandbox: true,
       // Allow notification / preview sounds after async IPC (Chromium otherwise treats play() as autoplay).
       autoplayPolicy: 'no-user-gesture-required',
+      // In production the renderer loads from adieuu://app, whose hostname
+      // does not match the WebAuthn RP ID. The preload exposes an IPC bridge
+      // so the ceremony runs in a hidden window with the correct origin.
+      additionalArguments: isDev ? [] : ['--webauthn-bridge-enabled'],
     },
     // macOS: use native traffic lights with hidden title bar
     // Windows/Linux: fully frameless for custom window controls
@@ -309,6 +314,7 @@ app.on('will-quit', () => {
     clearInterval(updateCheckTimer);
     updateCheckTimer = null;
   }
+  destroyBridgeWindow();
 });
 
 app.on('activate', () => {
@@ -521,6 +527,15 @@ function persistCookie(url: string, raw: string): void {
 
 // Secure storage IPC (safeStorage + local file)
 registerSecureStorageIpc();
+
+// WebAuthn IPC bridge (production only — see webauthn-bridge.ts)
+ipcMain.handle('webauthn:create', async (_event, optionsJSON: unknown) => {
+  return createCredential(optionsJSON);
+});
+
+ipcMain.handle('webauthn:get', async (_event, optionsJSON: unknown) => {
+  return getCredential(optionsJSON);
+});
 
 // ============================================================================
 // Auto-updater (electron-updater)
