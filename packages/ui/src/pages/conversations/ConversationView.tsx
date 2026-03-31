@@ -6,10 +6,10 @@
  * from the global stylesheet.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Dialog, Portal } from '@ark-ui/react';
+import { Dialog, Menu, Portal } from '@ark-ui/react';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
@@ -179,6 +179,63 @@ function formatRotationInterval(ms: number): string {
   return `${Math.round(days / 30)}mo`;
 }
 
+function isSameDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function formatMessageTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  if (isSameDay(date, now)) return time;
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameDay(date, yesterday)) return `Yesterday at ${time}`;
+
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays < 7) {
+    const dayName = date.toLocaleDateString([], { weekday: 'long' });
+    return `${dayName} at ${time}`;
+  }
+
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${time}`;
+  }
+
+  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} at ${time}`;
+}
+
+function formatAbsoluteTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleString([], {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short',
+  });
+}
+
+function formatDayLabel(date: Date): string {
+  const now = new Date();
+  if (isSameDay(date, now)) return 'Today';
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameDay(date, yesterday)) return 'Yesterday';
+
+  if (date.getFullYear() === now.getFullYear()) {
+    return date.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  return date.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
 function MessageBubble({
   message,
   isOwn,
@@ -202,6 +259,30 @@ function MessageBubble({
 
   const content = message.decryptedContent ?? '';
   const hasDecryptionError = !message.decryptedContent && !message.deleted;
+
+  function handleContextAction(details: { value: string }) {
+    if (details.value === 'delete-for-me') onDelete(message.id, false);
+    else if (details.value === 'delete-for-everyone') onDelete(message.id, true);
+  }
+
+  const contextMenuContent = (
+    <Portal>
+      <Menu.Positioner>
+        <Menu.Content className="dm-context-menu">
+          <Menu.Item value="delete-for-me" className="dm-context-menu-item">
+            <Icon name="trash" className="dm-context-menu-item-icon" />
+            Delete for me
+          </Menu.Item>
+          {isOwn && (
+            <Menu.Item value="delete-for-everyone" className="dm-context-menu-item dm-context-menu-item--danger">
+              <Icon name="trash" className="dm-context-menu-item-icon" />
+              Delete for everyone
+            </Menu.Item>
+          )}
+        </Menu.Content>
+      </Menu.Positioner>
+    </Portal>
+  );
 
   if (layout === 'linear') {
     const profile = isOwn ? ownProfile : senderProfile;
@@ -229,7 +310,7 @@ function MessageBubble({
       <p className="dm-message-text">{content}</p>
     );
 
-    return (
+    const messageRow = (
       <div
         className="dm-message dm-message--linear"
         onMouseEnter={() => setShowActions(true)}
@@ -255,8 +336,8 @@ function MessageBubble({
             ) : (
               <span className="dm-message-sender">{displayName}</span>
             )}
-            <span className="dm-message-time">
-              {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            <span className="dm-message-time" title={formatAbsoluteTime(message.createdAt)}>
+              {formatMessageTime(message.createdAt)}
             </span>
             {message.forwardSecrecy !== undefined && (
               <span
@@ -284,6 +365,15 @@ function MessageBubble({
         )}
       </div>
     );
+
+    if (message.deleted) return messageRow;
+
+    return (
+      <Menu.Root onSelect={handleContextAction}>
+        <Menu.ContextTrigger asChild>{messageRow}</Menu.ContextTrigger>
+        {contextMenuContent}
+      </Menu.Root>
+    );
   }
 
   const applyOwnAlignment = isOwn;
@@ -302,7 +392,7 @@ function MessageBubble({
     );
   }
 
-  return (
+  const bubbleRow = (
     <div
       className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}`}
       onMouseEnter={() => setShowActions(true)}
@@ -338,8 +428,8 @@ function MessageBubble({
         </div>
       </div>
       <div className="dm-message-footer">
-        <span className="dm-message-time">
-          {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        <span className="dm-message-time" title={formatAbsoluteTime(message.createdAt)}>
+          {formatMessageTime(message.createdAt)}
         </span>
         {message.forwardSecrecy !== undefined && (
           <span
@@ -357,6 +447,13 @@ function MessageBubble({
         )}
       </div>
     </div>
+  );
+
+  return (
+    <Menu.Root onSelect={handleContextAction}>
+      <Menu.ContextTrigger asChild>{bubbleRow}</Menu.ContextTrigger>
+      {contextMenuContent}
+    </Menu.Root>
   );
 }
 
@@ -845,22 +942,36 @@ export function ConversationView() {
               )}
 
               <div className={`dm-messages${messageLayout === 'linear' ? ' dm-messages--linear' : ''}`}>
-                {reversedMessages.map((msg) =>
-                  msg.messageType === 'system' && msg.systemEvent ? (
-                    <SystemMessageRow key={msg.id} event={msg.systemEvent} />
-                  ) : (
-                    <MessageBubble
-                      key={msg.id}
-                      message={msg}
-                      isOwn={msg.fromIdentityId === identity?.id}
-                      onDelete={handleDeleteMessage}
-                      fsInfo={fsInfo}
-                      senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
-                      ownProfile={identity ?? undefined}
-                      layout={messageLayout}
-                    />
-                  )
-                )}
+                {reversedMessages.map((msg, index) => {
+                  const currDate = new Date(msg.createdAt);
+                  const prevMsg = index > 0 ? reversedMessages[index - 1] : null;
+                  const showDaySep = !prevMsg || !isSameDay(new Date(prevMsg.createdAt), currDate);
+
+                  return (
+                    <Fragment key={msg.id}>
+                      {showDaySep && (
+                        <div className="dm-day-separator">
+                          <div className="dm-day-separator-line" />
+                          <span className="dm-day-separator-text">{formatDayLabel(currDate)}</span>
+                          <div className="dm-day-separator-line" />
+                        </div>
+                      )}
+                      {msg.messageType === 'system' && msg.systemEvent ? (
+                        <SystemMessageRow event={msg.systemEvent} />
+                      ) : (
+                        <MessageBubble
+                          message={msg}
+                          isOwn={msg.fromIdentityId === identity?.id}
+                          onDelete={handleDeleteMessage}
+                          fsInfo={fsInfo}
+                          senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
+                          ownProfile={identity ?? undefined}
+                          layout={messageLayout}
+                        />
+                      )}
+                    </Fragment>
+                  );
+                })}
               </div>
 
               {reversedMessages.length === 0 && !messagesLoading && (
