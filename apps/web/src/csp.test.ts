@@ -8,14 +8,15 @@ import { resolve } from 'node:path';
  * a deployed build.
  */
 
-let csp: string;
+let csp = '';
 
 function parseDirectives(raw: string): Map<string, string[]> {
   const directives = new Map<string, string[]>();
   for (const part of raw.split(';')) {
     const tokens = part.trim().split(/\s+/);
-    if (tokens.length === 0) continue;
-    directives.set(tokens[0], tokens.slice(1));
+    const name = tokens[0];
+    if (!name) continue;
+    directives.set(name, tokens.slice(1));
   }
   return directives;
 }
@@ -25,7 +26,7 @@ beforeAll(() => {
   const match = html.match(
     /http-equiv="Content-Security-Policy"\s+content="([^"]*)"/,
   );
-  if (!match) throw new Error('No CSP meta tag found in index.html');
+  if (!match?.[1]) throw new Error('No CSP meta tag found in index.html');
   csp = match[1];
 });
 
