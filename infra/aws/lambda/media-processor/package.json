@@ -8,13 +8,13 @@
     "package": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.mjs --format=esm --external:@aws-sdk/* --external:sharp && cd dist && zip function.zip index.mjs"
   },
   "dependencies": {
-    "@aws-sdk/client-rekognition": "^3.1018.0",
-    "@aws-sdk/client-s3": "^3.1018.0",
-    "sharp": "^0.33.0"
+    "@aws-sdk/client-rekognition": "3.1018.0",
+    "@aws-sdk/client-s3": "3.1018.0",
+    "sharp": "0.33.5"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.145",
-    "esbuild": "^0.25.0",
-    "typescript": "^5.7.3"
+    "@types/aws-lambda": "8.10.161",
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3"
   }
 }

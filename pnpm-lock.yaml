@@ -22,17 +22,17 @@ importers:
   .:
     dependencies:
       '@emoji-mart/data':
-        specifier: ^1.2.1
+        specifier: 1.2.1
         version: 1.2.1
       '@emoji-mart/react':
-        specifier: ^1.1.1
+        specifier: 1.1.1
         version: 1.1.1(emoji-mart@5.6.0)(react@18.3.1)
     devDependencies:
       turbo:
-        specifier: ^2.3.3
+        specifier: 2.8.8
         version: 2.8.8
       typescript:
-        specifier: ^5.7.3
+        specifier: 5.9.3
         version: 5.9.3
 
   apps/api:
@@ -44,75 +44,75 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@aws-sdk/client-s3':
-        specifier: ^3.1018.0
+        specifier: 3.1018.0
         version: 3.1018.0
       '@aws-sdk/s3-request-presigner':
-        specifier: ^3.1018.0
+        specifier: 3.1018.0
         version: 3.1018.0
       '@simplewebauthn/server':
-        specifier: ^13.2.2
+        specifier: 13.2.2
         version: 13.2.2
       ioredis:
-        specifier: ^5.4.2
+        specifier: 5.9.3
         version: 5.9.3
       mongodb:
-        specifier: ^6.14.2
+        specifier: 6.21.0
         version: 6.21.0(socks@2.8.7)
       otpauth:
-        specifier: ^9.5.0
+        specifier: 9.5.0
         version: 9.5.0
       winston:
-        specifier: ^3.19.0
+        specifier: 3.19.0
         version: 3.19.0
       winston-transport:
-        specifier: ^4.9.0
+        specifier: 4.9.0
         version: 4.9.0
     devDependencies:
       '@adieuu/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@types/bun':
-        specifier: ^1.3.9
+        specifier: 1.3.9
         version: 1.3.9
       typescript:
-        specifier: ^5.7.3
+        specifier: 5.9.3
         version: 5.9.3
 
   apps/chat:
     dependencies:
       ioredis:
-        specifier: ^5.4.2
+        specifier: 5.9.3
         version: 5.9.3
       mongodb:
-        specifier: ^6.14.2
+        specifier: 6.21.0
         version: 6.21.0(socks@2.8.7)
       uWebSockets.js:
         specifier: github:uNetworking/uWebSockets.js#v20.57.0
         version: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/fcfc622a4286909593b7f390056d89e0ca3b56b9
       winston:
-        specifier: ^3.19.0
+        specifier: 3.19.0
         version: 3.19.0
       winston-transport:
-        specifier: ^4.9.0
+        specifier: 4.9.0
         version: 4.9.0
     devDependencies:
       '@adieuu/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@types/node':
-        specifier: ^25.0.0
+        specifier: 25.5.0
         version: 25.5.0
       esbuild:
-        specifier: ^0.25.12
+        specifier: 0.25.12
         version: 0.25.12
       tsx:
-        specifier: ^4.19.2
+        specifier: 4.21.0
         version: 4.21.0
       typescript:
-        specifier: ^5.7.3
+        specifier: 5.9.3
         version: 5.9.3
       vitest:
-        specifier: ^3.0.5
+        specifier: 3.2.4
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(tsx@4.21.0)
 
   apps/desktop:
@@ -124,93 +124,93 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
       dotenv:
-        specifier: ^17.3.1
+        specifier: 17.3.1
         version: 17.3.1
       electron-updater:
-        specifier: ^6.8.3
+        specifier: 6.8.3
         version: 6.8.3
       i18next:
-        specifier: ^24.2.2
+        specifier: 24.2.3
         version: 24.2.3(typescript@5.9.3)
       react:
-        specifier: ^18.3.1
+        specifier: 18.3.1
         version: 18.3.1
       react-dom:
-        specifier: ^18.3.1
+        specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
       react-i18next:
-        specifier: ^15.4.1
+        specifier: 15.7.4
         version: 15.7.4(i18next@24.2.3(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       react-router-dom:
-        specifier: ^7.1.1
+        specifier: 7.13.0
         version: 7.13.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       '@adieuu/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@swc/core':
-        specifier: ^1.10.0
+        specifier: 1.15.11
         version: 1.15.11(@swc/helpers@0.5.18)
       '@types/react':
-        specifier: ^18.3.18
+        specifier: 18.3.28
         version: 18.3.28
       '@types/react-dom':
-        specifier: ^18.3.5
+        specifier: 18.3.7
         version: 18.3.7(@types/react@18.3.28)
       '@vitejs/plugin-react':
-        specifier: ^4.3.4
+        specifier: 4.7.0
         version: 4.7.0(vite@6.4.1(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(tsx@4.21.0))
       electron:
-        specifier: ^37.7.5
+        specifier: 37.10.3
         version: 37.10.3
       electron-builder:
-        specifier: ^26.8.1
+        specifier: 26.8.1
         version: 26.8.1(electron-builder-squirrel-windows@26.8.1)
       electron-builder-squirrel-windows:
         specifier: 26.8.1
         version: 26.8.1(dmg-builder@26.8.1)
       electron-vite:
-        specifier: ^5.0.0
+        specifier: 5.0.0
         version: 5.0.0(@swc/core@1.15.11(@swc/helpers@0.5.18))(vite@6.4.1(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(tsx@4.21.0))
       sass-embedded:
-        specifier: ^1.83.0
+        specifier: 1.97.3
         version: 1.97.3
       typescript:
-        specifier: ^5.7.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: ^6.0.7
+        specifier: 6.4.1
         version: 6.4.1(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(tsx@4.21.0)
 
   apps/mobile:
     dependencies:
       '@capacitor/android':
-        specifier: ^6.2.0
+        specifier: 6.2.1
         version: 6.2.1(@capacitor/core@6.2.1)
       '@capacitor/app':
-        specifier: ^6.0.2
+        specifier: 6.0.3
         version: 6.0.3(@capacitor/core@6.2.1)
       '@capacitor/core':
-        specifier: ^6.2.0
+        specifier: 6.2.1
         version: 6.2.1
       '@capacitor/haptics':
-        specifier: ^6.0.2
+        specifier: 6.0.3
         version: 6.0.3(@capacitor/core@6.2.1)
       '@capacitor/ios':
-        specifier: ^6.2.0
+        specifier: 6.2.1
         version: 6.2.1(@capacitor/core@6.2.1)
       '@capacitor/keyboard':
-        specifier: ^6.0.3
+        specifier: 6.0.4
         version: 6.0.4(@capacitor/core@6.2.1)
       '@capacitor/splash-screen':
-        specifier: ^6.0.2
+        specifier: 6.0.4
         version: 6.0.4(@capacitor/core@6.2.1)
       '@capacitor/status-bar':
-        specifier: ^6.0.2
+        specifier: 6.0.3
         version: 6.0.3(@capacitor/core@6.2.1)
     devDependencies:
       '@capacitor/cli':
-        specifier: ^6.2.0
+        specifier: 6.2.1
         version: 6.2.1
 
   apps/web:
@@ -222,94 +222,94 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
       i18next:
-        specifier: ^24.2.2
+        specifier: 24.2.3
         version: 24.2.3(typescript@5.9.3)
       react:
-        specifier: ^18.3.1
+        specifier: 18.3.1
         version: 18.3.1
       react-dom:
-        specifier: ^18.3.1
+        specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
       react-i18next:
-        specifier: ^15.4.1
+        specifier: 15.7.4
         version: 15.7.4(i18next@24.2.3(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       react-router-dom:
-        specifier: ^7.1.1
+        specifier: 7.13.0
         version: 7.13.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       '@adieuu/tsconfig':
         specifier: workspace:*
         version: link:../../packages/tsconfig
       '@types/bun':
-        specifier: ^1.3.9
+        specifier: 1.3.9
         version: 1.3.9
       '@types/react':
-        specifier: ^18.3.18
+        specifier: 18.3.28
         version: 18.3.28
       '@types/react-dom':
-        specifier: ^18.3.5
+        specifier: 18.3.7
         version: 18.3.7(@types/react@18.3.28)
       '@vitejs/plugin-react':
-        specifier: ^4.3.4
+        specifier: 4.7.0
         version: 4.7.0(vite@6.4.1(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(tsx@4.21.0))
       sass-embedded:
-        specifier: ^1.83.0
+        specifier: 1.97.3
         version: 1.97.3
       typescript:
-        specifier: ^5.7.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
-        specifier: ^6.0.7
+        specifier: 6.4.1
         version: 6.4.1(@types/node@25.5.0)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(tsx@4.21.0)
 
   infra/aws/lambda/media-processor:
     dependencies:
       '@aws-sdk/client-rekognition':
-        specifier: ^3.1018.0
+        specifier: 3.1018.0
         version: 3.1018.0
       '@aws-sdk/client-s3':
-        specifier: ^3.1018.0
+        specifier: 3.1018.0
         version: 3.1018.0
       sharp:
-        specifier: ^0.33.0
+        specifier: 0.33.5
         version: 0.33.5
     devDependencies:
       '@types/aws-lambda':
-        specifier: ^8.10.145
+        specifier: 8.10.161
         version: 8.10.161
       esbuild:
-        specifier: ^0.25.0
+        specifier: 0.25.12
         version: 0.25.12
       typescript:
-        specifier: ^5.7.3
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/crypto:
     dependencies:
       '@noble/ciphers':
-        specifier: ^1.2.1
+        specifier: 1.3.0
         version: 1.3.0
       '@noble/curves':
-        specifier: ^1.8.1
+        specifier: 1.9.7
         version: 1.9.7
       '@noble/hashes':
-        specifier: ^1.7.1
+        specifier: 1.8.0
         version: 1.8.0
       '@noble/post-quantum':
-        specifier: ^0.2.1
+        specifier: 0.2.1
         version: 0.2.1
       hash-wasm:
-        specifier: ^4.11.0
+        specifier: 4.12.0
         version: 4.12.0
     devDependencies:
       '@adieuu/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/bun':
-        specifier: ^1.3.9
+        specifier: 1.3.9
         version: 1.3.9
       typescript:
-        specifier: ^5.7.3
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/develar-schema-utils:
@@ -321,14 +321,14 @@ importers:
   packages/shared:
     dependencies:
       zod:
-        specifier: ^3.24.1
+        specifier: 3.25.76
         version: 3.25.76
     devDependencies:
       '@adieuu/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       typescript:
-        specifier: ^5.7.3
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/tsconfig: {}
@@ -342,65 +342,65 @@ importers:
         specifier: workspace:*
         version: link:../shared
       '@ark-ui/react':
-        specifier: ^5.31.0
+        specifier: 5.31.0
         version: 5.31.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@awesome.me/kit-888aad49e1':
-        specifier: ^1.0.2
+        specifier: 1.0.2
         version: 1.0.2
       '@emoji-mart/data':
-        specifier: ^1.2.1
+        specifier: 1.2.1
         version: 1.2.1
       '@emoji-mart/react':
-        specifier: ^1.1.1
+        specifier: 1.1.1
         version: 1.1.1(emoji-mart@5.6.0)(react@18.3.1)
       '@fortawesome/fontawesome-svg-core':
-        specifier: ^7.2.0
+        specifier: 7.2.0
         version: 7.2.0
       '@fortawesome/react-fontawesome':
-        specifier: ^3.3.0
+        specifier: 3.3.0
         version: 3.3.0(@fortawesome/fontawesome-svg-core@7.2.0)(react@18.3.1)
       '@simplewebauthn/browser':
-        specifier: ^13.2.2
+        specifier: 13.2.2
         version: 13.2.2
       i18next:
-        specifier: ^24.2.2
+        specifier: 24.2.3
         version: 24.2.3(typescript@5.9.3)
       qrcode.react:
-        specifier: ^4.2.0
+        specifier: 4.2.0
         version: 4.2.0(react@18.3.1)
       react-i18next:
-        specifier: ^15.4.1
+        specifier: 15.7.4
         version: 15.7.4(i18next@24.2.3(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       recharts:
-        specifier: ^2.15.0
+        specifier: 2.15.4
         version: 2.15.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       '@adieuu/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
       '@types/bun':
-        specifier: ^1.3.9
+        specifier: 1.3.9
         version: 1.3.9
       '@types/react':
-        specifier: ^18.3.18
+        specifier: 18.3.28
         version: 18.3.28
       '@types/react-dom':
-        specifier: ^18.3.5
+        specifier: 18.3.7
         version: 18.3.7(@types/react@18.3.28)
       fake-indexeddb:
-        specifier: ^6.2.5
+        specifier: 6.2.5
         version: 6.2.5
       react:
-        specifier: ^18.3.1
+        specifier: 18.3.1
         version: 18.3.1
       react-dom:
-        specifier: ^18.3.1
+        specifier: 18.3.1
         version: 18.3.1(react@18.3.1)
       react-router-dom:
-        specifier: ^7.1.1
+        specifier: 7.13.0
         version: 7.13.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       typescript:
-        specifier: ^5.7.3
+        specifier: 5.9.3
         version: 5.9.3
 
 packages:

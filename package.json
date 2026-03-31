@@ -24,8 +24,8 @@
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
-    "turbo": "^2.3.3",
-    "typescript": "^5.7.3"
+    "turbo": "2.8.8",
+    "typescript": "5.9.3"
   },
   "engines": {
     "node": ">=25.0.0",
@@ -51,7 +51,7 @@
     "packages/*"
   ],
   "dependencies": {
-    "@emoji-mart/data": "^1.2.1",
-    "@emoji-mart/react": "^1.1.1"
+    "@emoji-mart/data": "1.2.1",
+    "@emoji-mart/react": "1.1.1"
   }
 }
