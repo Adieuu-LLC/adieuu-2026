@@ -298,11 +298,14 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          # Standard: ubuntu-latest (2-core)
+          - os: ubuntu-latest-4-core
             artifact-name: desktop-linux
+          # Standard: windows-latest (2-core)
           - os: windows-latest-8-core
             artifact-name: desktop-windows
-          - os: macos-latest
+          # Standard: macos-latest (3-core Apple Silicon)
+          - os: macos-latest-xlarge
             artifact-name: desktop-macos
     runs-on: ${{ matrix.os }}
     env:
