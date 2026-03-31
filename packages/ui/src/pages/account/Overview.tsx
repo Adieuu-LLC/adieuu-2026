@@ -33,7 +33,7 @@ export function AccountOverview() {
   const { apiBaseUrl } = useAppConfig();
   const toast = useToast();
   const platform = usePlatform();
-  const { status: updateStatus, newVersion, checkForUpdates, applyUpdate, downloadUpdate } = useUpdateCheck();
+  const { status: updateStatus, newVersion, errorMessage: updateErrorMessage, checkForUpdates, applyUpdate, downloadUpdate } = useUpdateCheck();
 
   // Desktop update preferences (auto-download toggle)
   const [autoDownloadEnabled, setAutoDownloadEnabled] = useState(false);
@@ -597,7 +597,12 @@ export function AccountOverview() {
                         <p className="account-update-message">{t('account.overview.updateReady')}</p>
                       )}
                       {updateStatus === 'error' && (
-                        <p className="account-update-message account-status-error">{t('account.overview.updateError')}</p>
+                        <p className="account-update-message account-status-error">
+                          {t('account.overview.updateError')}
+                          {updateErrorMessage && (
+                            <span className="account-update-error-detail"> ({updateErrorMessage})</span>
+                          )}
+                        </p>
                       )}
 
                       <div className="account-update-actions">

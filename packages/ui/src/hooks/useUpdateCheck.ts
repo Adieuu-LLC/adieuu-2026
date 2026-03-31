@@ -28,6 +28,8 @@ export interface UseUpdateCheckResult {
   status: UpdateStatus;
   /** Version string of the available/downloaded update (desktop only) */
   newVersion: string | null;
+  /** Human-readable error detail from the main process (desktop only, when status is 'error') */
+  errorMessage: string | null;
   /** Dismiss the update notification until next version change or page load */
   dismiss: () => void;
   /** Apply the update (reload on web, quit-and-install on desktop) */
@@ -46,6 +48,7 @@ export function useUpdateCheck(): UseUpdateCheckResult {
   const platform = usePlatform();
   const [status, setStatus] = useState<UpdateStatus>('idle');
   const [newVersion, setNewVersion] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const statusRef = useRef(status);
   statusRef.current = status;
   const dismissedVersionRef = useRef<string | null>(null);
@@ -126,7 +129,9 @@ export function useUpdateCheck(): UseUpdateCheckResult {
       setStatus('ready');
     }));
 
-    cleanups.push(electron.on('update-error', () => {
+    cleanups.push(electron.on('update-error', (...args: unknown[]) => {
+      const payload = args[0] as { message?: string } | undefined;
+      setErrorMessage(payload?.message ?? null);
       setStatus('error');
     }));
 
@@ -180,5 +185,5 @@ export function useUpdateCheck(): UseUpdateCheckResult {
     electron.invoke('download-update');
   }, [platform]);
 
-  return { status, newVersion, dismiss, applyUpdate, checkForUpdates, downloadUpdate };
+  return { status, newVersion, errorMessage, dismiss, applyUpdate, checkForUpdates, downloadUpdate };
 }

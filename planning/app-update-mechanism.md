@@ -99,7 +99,11 @@ Identical to Windows: blockmap-based differential download, then the full `.app`
 
 **Note:** The DMG target (also in the build config) is for first-time manual installation. `electron-updater` uses the **zip** target for auto-updates. Both are produced by the build.
 
-### 2.5 Linux (AppImage)
+### 2.5 Linux
+
+`electron-updater` supports auto-update for all three Linux targets: AppImage, deb, and rpm. The mechanism differs per format.
+
+#### 2.5.1 AppImage
 
 **What electron-builder produces:**
 
@@ -108,14 +112,33 @@ Identical to Windows: blockmap-based differential download, then the full `.app`
 
 **Update process:**
 
-1. `electron-updater` fetches `latest-linux.yml` from the GitHub Release.
+1. `electron-updater` fetches `latest-linux.yml`.
 2. If newer, downloads the **full new AppImage**. There is no blockmap/differential support for AppImage.
 3. Replaces the old AppImage file on disk.
 4. Relaunches from the new file.
 
-AppImages are typically 60-100 MB, so this is a full download. The trade-off is simplicity -- AppImage is a single-file format with no installer.
+AppImages are typically 60-100 MB, so this is a full download. No privilege escalation is required -- the user owns the file.
 
-**Note:** deb and rpm targets do not support auto-update via electron-updater. Users who install via deb/rpm would update through their system package manager. AppImage is the recommended format for auto-updating Linux users.
+#### 2.5.2 deb (Debian/Ubuntu)
+
+**Update process:**
+
+1. `electron-updater` fetches `latest-linux.yml` and downloads the new `.deb` file.
+2. Uses privilege escalation (`pkexec` or similar) to install via `apt install`, `dpkg -i`, or equivalent.
+3. The user is prompted for their password via a GUI sudo dialog.
+4. The app restarts on the new version.
+
+#### 2.5.3 rpm (Fedora/RHEL/openSUSE)
+
+**Update process:**
+
+1. `electron-updater` fetches `latest-linux.yml` and downloads the new `.rpm` file.
+2. Detects the available package manager in priority order: `zypper`, `dnf`, `yum`, `rpm`.
+3. Uses privilege escalation (`pkexec`, `kdesudo`, or similar) to run the install command.
+4. The user is prompted for their password via a GUI sudo dialog.
+5. The app restarts on the new version.
+
+**Known issue (fixed in electron-updater 6.6.5):** Versions prior to 6.6.5 would crash if `zypper` was not installed (e.g. on Fedora, which uses `dnf`), because the package manager detection threw an exception instead of falling back. See [electron-builder#9099](https://github.com/electron-userland/electron-builder/issues/9099).
 
 ### 2.6 Platform Summary
 
@@ -124,6 +147,8 @@ AppImages are typically 60-100 MB, so this is a full download. The trade-off is 
 | Windows (NSIS) | Changed blocks only (~5-15 MB typical) | Entire app directory via silent NSIS reinstall | Yes (blockmap) |
 | macOS (zip) | Changed blocks only | Entire `.app` bundle | Yes (blockmap) |
 | Linux (AppImage) | Full AppImage (~60-100 MB) | Single AppImage file | No |
+| Linux (deb) | Full .deb package | System package via apt/dpkg | No |
+| Linux (rpm) | Full .rpm package | System package via dnf/zypper/yum | No |
 
 ### 2.7 User Experience Flow
 

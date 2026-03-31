@@ -58,7 +58,7 @@ app.on('second-instance', (_event, argv) => {
   const url = argv.find((arg) => arg.startsWith(`${CUSTOM_SCHEME}://`));
   if (url) {
     const routePath = extractDeepLinkPath(url);
-    mainWindow?.webContents.send('deep-link', routePath);
+    sendToRenderer('deep-link', routePath);
   }
   focusMainWindow();
 });
@@ -66,7 +66,7 @@ app.on('second-instance', (_event, argv) => {
 app.on('open-url', (event, url) => {
   event.preventDefault();
   const routePath = extractDeepLinkPath(url);
-  if (mainWindow?.webContents) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('deep-link', routePath);
     focusMainWindow();
   } else {
@@ -153,6 +153,17 @@ let mainWindow: BrowserWindow | null = null;
 
 const isDev = process.env.NODE_ENV === 'development';
 const isMac = process.platform === 'darwin';
+
+/**
+ * Safely sends an IPC message to the renderer. Guards against both a null
+ * reference (window not yet created or already nulled) and a destroyed
+ * native object (window closed but JS reference not yet cleared).
+ */
+function sendToRenderer(channel: string, ...args: unknown[]): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, ...args);
+  }
+}
 
 const PRODUCTION_APP_ORIGIN = 'https://app.adieuu.com';
 
@@ -245,6 +256,10 @@ async function createWindow() {
     show: false,
   });
 
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
   // Show window when ready to prevent visual flash
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
@@ -286,6 +301,13 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
+  }
+});
+
+app.on('will-quit', () => {
+  if (updateCheckTimer) {
+    clearInterval(updateCheckTimer);
+    updateCheckTimer = null;
   }
 });
 
@@ -337,7 +359,7 @@ function extractDeepLinkPath(url: string): string {
 }
 
 function focusMainWindow(): void {
-  if (!mainWindow) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.focus();
 }
@@ -596,7 +618,7 @@ async function initAutoUpdater() {
 
   autoUpdater.on('update-available', (info) => {
     console.info('[AutoUpdater] Update available:', info.version);
-    mainWindow?.webContents.send('update-available', {
+    sendToRenderer('update-available', {
       version: info.version,
       releaseNotes: info.releaseNotes,
       autoDownloading: autoUpdater.autoDownload,
@@ -604,11 +626,11 @@ async function initAutoUpdater() {
   });
 
   autoUpdater.on('update-not-available', () => {
-    mainWindow?.webContents.send('update-not-available');
+    sendToRenderer('update-not-available');
   });
 
   autoUpdater.on('download-progress', (progress) => {
-    mainWindow?.webContents.send('download-progress', {
+    sendToRenderer('download-progress', {
       percent: progress.percent,
       transferred: progress.transferred,
       total: progress.total,
@@ -617,14 +639,14 @@ async function initAutoUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     console.info('[AutoUpdater] Update downloaded:', info.version);
-    mainWindow?.webContents.send('update-downloaded', {
+    sendToRenderer('update-downloaded', {
       version: info.version,
     });
   });
 
   autoUpdater.on('error', (err) => {
     console.error('[AutoUpdater] Error:', err.message);
-    mainWindow?.webContents.send('update-error', { message: err.message });
+    sendToRenderer('update-error', { message: err.message });
   });
 
   if (isDev && !process.env.ADIEUU_UPDATE_SERVER_URL) {
@@ -646,7 +668,7 @@ ipcMain.handle('download-update', async () => {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Download failed';
     console.error('[AutoUpdater] Download failed:', message);
-    mainWindow?.webContents.send('update-error', { message });
+    sendToRenderer('update-error', { message });
   }
 });
 
@@ -696,7 +718,7 @@ ipcMain.handle('check-for-updates', async () => {
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Update check failed';
     console.error('[AutoUpdater] Manual check failed:', message);
-    mainWindow?.webContents.send('update-error', { message });
+    sendToRenderer('update-error', { message });
   }
 });
 
