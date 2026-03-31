@@ -42,7 +42,6 @@
     "@vitejs/plugin-react": "4.7.0",
     "electron": "37.10.3",
     "electron-builder": "26.8.1",
-    "electron-builder-squirrel-windows": "26.8.1",
     "electron-vite": "5.0.0",
     "sass-embedded": "1.97.3",
     "typescript": "5.9.3",
@@ -68,8 +67,7 @@
     ],
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        "nsis"
       ]
     },
     "mac": {

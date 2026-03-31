@@ -399,6 +399,8 @@ export const en = {
         loading_device: 'Loading device keys...',
         decrypting_bundle: 'Decrypting signing keys...',
         web_device_choice: 'Waiting for device choice...',
+        generating_keys: 'Generating device encryption keys...',
+        registering_device: 'Registering device...',
         complete: 'Complete!',
       },
     },

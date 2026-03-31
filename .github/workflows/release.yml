@@ -297,21 +297,28 @@ jobs:
       contents: write
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
         include:
           - os: ubuntu-latest
             artifact-name: desktop-linux
-          - os: windows-latest
+          - os: windows-latest-8-core
             artifact-name: desktop-windows
           - os: macos-latest
             artifact-name: desktop-macos
     runs-on: ${{ matrix.os }}
     env:
       ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
+      AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
+      AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
     steps:
       - uses: actions/checkout@v6
         with:
           ref: main
+          fetch-depth: 1
+
+      - name: Disable Windows Defender real-time monitoring
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
 
       - uses: pnpm/action-setup@v5
 
@@ -319,6 +326,14 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
+
+      - name: Cache pnpm store
+        uses: actions/cache@v5
+        with:
+          path: ~/.pnpm-store
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            pnpm-${{ runner.os }}-
 
       - name: Cache Electron binaries
         uses: actions/cache@v5
@@ -333,7 +348,7 @@ jobs:
         run: |
           attempt=1
           max_attempts=3
-          until pnpm install --frozen-lockfile; do
+          until pnpm install --frozen-lockfile --prefer-offline; do
             if [ "$attempt" -ge "$max_attempts" ]; then
               echo "pnpm install failed after $attempt attempts"
               exit 1
@@ -401,22 +416,18 @@ jobs:
           BUCKET="${{ vars.DEPLOY_DOWNLOADS_S3_BUCKET_ADIEUU }}"
           OUT="apps/desktop/out"
 
-          shopt -s nullglob
+          INCLUDE_FLAGS=(
+            --exclude "*"
+            --include "*.exe" --include "*.dmg" --include "*.zip"
+            --include "*.AppImage" --include "*.deb" --include "*.rpm"
+            --include "*.blockmap"
+          )
 
-          for f in "$OUT"/*.exe "$OUT"/*.dmg "$OUT"/*.zip "$OUT"/*.AppImage "$OUT"/*.deb "$OUT"/*.rpm; do
-            echo "Uploading $(basename "$f") -> latest/"
-            aws s3 cp "$f" "s3://${BUCKET}/latest/$(basename "$f")" --no-progress
-          done
+          echo "Syncing binaries -> latest/"
+          aws s3 sync "$OUT" "s3://${BUCKET}/latest/" "${INCLUDE_FLAGS[@]}" --no-progress
 
-          for f in "$OUT"/*.blockmap; do
-            echo "Uploading $(basename "$f") -> latest/"
-            aws s3 cp "$f" "s3://${BUCKET}/latest/$(basename "$f")" --no-progress
-          done
-
-          for f in "$OUT"/*.exe "$OUT"/*.dmg "$OUT"/*.zip "$OUT"/*.AppImage "$OUT"/*.deb "$OUT"/*.rpm "$OUT"/*.blockmap; do
-            echo "Uploading $(basename "$f") -> ${VERSION}/desktop/"
-            aws s3 cp "$f" "s3://${BUCKET}/${VERSION}/desktop/$(basename "$f")" --no-progress
-          done
+          echo "Syncing binaries -> ${VERSION}/desktop/"
+          aws s3 sync "$OUT" "s3://${BUCKET}/${VERSION}/desktop/" "${INCLUDE_FLAGS[@]}" --no-progress
 
       - name: Push manifest to private bucket
         if: steps.check_downloads.outputs.skip != 'true'
@@ -510,6 +521,9 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
+      AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
     steps:
       - name: Check downloads stack variables
         id: check_vars

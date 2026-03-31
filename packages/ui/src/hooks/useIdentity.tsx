@@ -15,6 +15,7 @@ import {
   decryptKeyBundle,
   getDefaultDeviceName,
   type E2EInitResult,
+  type DeviceKeysResult,
   type DecryptedWebDevice,
 } from '../services/e2eKeyService';
 import {
@@ -71,7 +72,7 @@ export interface LoginIdentityResult {
   success: boolean;
   identity?: PublicIdentity;
   error?: string;
-  errorCode?: 'INVALID_PASSPHRASE' | 'LOCKED_OUT' | 'RATE_LIMITED' | 'KEY_DERIVATION_FAILED' | 'E2E_SETUP_FAILED' | 'BUNDLE_DECRYPT_FAILED';
+  errorCode?: 'INVALID_PASSPHRASE' | 'LOCKED_OUT' | 'RATE_LIMITED' | 'KEY_DERIVATION_FAILED' | 'E2E_SETUP_FAILED' | 'BUNDLE_DECRYPT_FAILED' | 'KEY_GENERATION_FAILED' | 'DEVICE_REGISTRATION_FAILED';
   attemptNumber?: number;
   retryAfter?: number;
   /** Whether this was a new device registration (for showing first-login toast) */
@@ -86,7 +87,7 @@ export type WebDeviceChoice = 'shared' | 'individual';
 /**
  * Login status steps for progress display.
  */
-export type LoginStatus = 'authenticating' | 'deriving_keys' | 'loading_device' | 'decrypting_bundle' | 'web_device_choice' | 'complete';
+export type LoginStatus = 'authenticating' | 'deriving_keys' | 'loading_device' | 'decrypting_bundle' | 'web_device_choice' | 'generating_keys' | 'registering_device' | 'complete';
 
 /**
  * Options for loginToIdentity
@@ -741,11 +742,29 @@ function useIdentityState(): IdentityContextValue {
 
           // If deviceId was not set yet (desktop, or web user chose individual, or no webDevice in bundle)
           if (!deviceId) {
-            console.debug('[Identity] loginToIdentity: generating individual device keys...');
-            try {
-              const newDeviceKeys = generateDeviceKeys(getDefaultDeviceName(), 'default');
-              deviceId = newDeviceKeys.deviceId;
+            onStatus?.('generating_keys');
+            // Yield the main thread before heavy ML-KEM lattice computation
+            // so the browser can paint the status update and remain responsive.
+            await new Promise((resolve) => setTimeout(resolve, 0));
 
+            let newDeviceKeys: DeviceKeysResult;
+            try {
+              console.debug('[Identity] loginToIdentity: generating individual device keys...');
+              newDeviceKeys = generateDeviceKeys(getDefaultDeviceName(), 'default');
+              deviceId = newDeviceKeys.deviceId;
+            } catch (err) {
+              console.error('[Identity] loginToIdentity: failed to generate device keys:', err);
+              clearBytes(wrappingKey);
+              try { await api.identity.logout(); } catch { /* ignore */ }
+              return {
+                success: false,
+                error: 'Failed to generate device encryption keys. Your browser may not support the required cryptographic operations.',
+                errorCode: 'KEY_GENERATION_FAILED',
+              };
+            }
+
+            onStatus?.('registering_device');
+            try {
               console.debug('[Identity] loginToIdentity: registering device with server...');
               const registerResponse = await api.identity.registerDevice(loggedInIdentity.id, {
                 deviceId: newDeviceKeys.deviceId,
@@ -762,8 +781,8 @@ function useIdentityState(): IdentityContextValue {
                 try { await api.identity.logout(); } catch { /* ignore */ }
                 return {
                   success: false,
-                  error: 'Failed to register device for encryption',
-                  errorCode: 'E2E_SETUP_FAILED',
+                  error: 'Failed to register device with server. Please try again.',
+                  errorCode: 'DEVICE_REGISTRATION_FAILED',
                 };
               }
 
@@ -780,12 +799,12 @@ function useIdentityState(): IdentityContextValue {
               isNewDevice = true;
               newDeviceName = newDeviceKeys.name;
             } catch (err) {
-              console.error('[Identity] loginToIdentity: failed to setup new device:', err);
+              console.error('[Identity] loginToIdentity: failed to register/store device keys:', err);
               clearBytes(wrappingKey);
               try { await api.identity.logout(); } catch { /* ignore */ }
               return {
                 success: false,
-                error: 'Failed to setup device encryption',
+                error: 'Failed to setup device encryption. Please try again.',
                 errorCode: 'E2E_SETUP_FAILED',
               };
             }
