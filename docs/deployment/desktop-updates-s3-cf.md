@@ -102,10 +102,10 @@ Gated on `var.enable_downloads_stack` (requires `route53_zone_name`):
 
 ## CI (`release.yml`) -- additive steps
 
-1. **Keep** existing jobs: **build-and-release-desktop** -> upload to GitHub Release; **generate-sboms** / **attach-sboms** -> SBOMs on GitHub Release; **publish-release**.
-2. **Modified** `build-and-release-desktop`: each matrix runner also uploads `apps/desktop/out/` as a **workflow artifact** (via `actions/upload-artifact`) for the mirror job.
-3. **New job `sync-downloads-mirror`**:
-   - Needs: `release`, `build-and-release-desktop`, `attach-sboms`.
+1. **`package-desktop`** (matrix: linux, windows, macos) -- packages per platform using electron-builder and saves immutable artifacts. Separated from publishing so that reruns never re-package (avoiding checksum mismatches from non-deterministic builds).
+2. **`publish-desktop`** -- downloads the immutable artifacts from `package-desktop` and uploads to GitHub Release + S3. Safe to rerun on transient failures (e.g. AWS credential flakes).
+3. **`sync-downloads-mirror`**:
+   - Needs: `release`, `publish-desktop`, `attach-sboms`.
    - Skips gracefully when downloads stack variables are not configured.
    - Downloads all desktop artifacts + SBOM artifacts.
    - Syncs binaries (excluding `latest*.yml`) to `s3://$DOWNLOADS_BUCKET/latest/` and `s3://$DOWNLOADS_BUCKET/vX.Y.Z/desktop/`.
