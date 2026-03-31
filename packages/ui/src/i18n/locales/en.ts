@@ -753,7 +753,7 @@ export const en = {
       messageLayoutTitle: 'Message Layout',
       messageLayoutDescription: 'Choose how messages are arranged in conversations.',
       messageLayoutLinear: 'Linear',
-      messageLayoutLinearDesc: 'All messages left-aligned, like Discord or Slack.',
+      messageLayoutLinearDesc: 'All messages left-aligned, like most modern messengers.',
       messageLayoutBubble: 'Bubble',
       messageLayoutBubbleDesc: 'Your messages on the right, theirs on the left.',
       messageLayoutApplied: 'Message layout updated.',

@@ -7202,11 +7202,78 @@ a {
 }
 
 // ============================================================================
-// Linear layout modifier -- all messages left-aligned
+// Linear layout modifier -- Discord/Slack-style rows
 // ============================================================================
 
-.dm-messages--linear .dm-message {
-  max-width: 85%;
+.dm-messages--linear {
+  gap: 2px;
+}
+
+.dm-message--linear {
+  flex-direction: row;
+  align-items: flex-start;
+  max-width: 100%;
+  position: relative;
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: var(--radius-md);
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+
+  .message-action-bar {
+    position: absolute;
+    top: var(--spacing-xs);
+    right: var(--spacing-sm);
+    left: auto;
+    transform: none;
+  }
+}
+
+.dm-message-avatar-btn,
+.dm-message-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+  margin-right: var(--spacing-sm);
+  overflow: hidden;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.dm-message-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-full);
+}
+
+.dm-message-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.dm-message-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.dm-message-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-xs);
+  margin-bottom: 2px;
 }
 
 // ============================================================================

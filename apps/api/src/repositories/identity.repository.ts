@@ -153,6 +153,7 @@ export class IdentityRepository
       username: input.username,
       displayName: input.displayName,
       lastActiveAt: new Date(),
+      requireGroupApproval: true,
     };
 
     return await super.create(doc);

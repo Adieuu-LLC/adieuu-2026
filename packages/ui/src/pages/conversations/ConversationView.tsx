@@ -185,6 +185,7 @@ function MessageBubble({
   onDelete,
   fsInfo,
   senderProfile,
+  ownProfile,
   layout,
 }: {
   message: DisplayMessage;
@@ -192,13 +193,100 @@ function MessageBubble({
   onDelete: (messageId: string, forEveryone: boolean) => void;
   fsInfo: { rotationLabel: string; readableWindow: string; tooltip: string };
   senderProfile?: PublicIdentity;
+  ownProfile?: PublicIdentity;
   layout: 'linear' | 'bubble';
 }) {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
   const countdown = useExpiryCountdown(message.expiresAt);
 
-  const applyOwnAlignment = isOwn && layout === 'bubble';
+  const content = message.decryptedContent ?? '';
+  const hasDecryptionError = !message.decryptedContent && !message.deleted;
+
+  if (layout === 'linear') {
+    const profile = isOwn ? ownProfile : senderProfile;
+    const displayName = profile?.displayName ?? '?';
+    const avatarUrl = profile?.avatarUrl;
+
+    const avatarContent = avatarUrl ? (
+      <img src={avatarUrl} alt="" className="dm-message-avatar-img" />
+    ) : (
+      <span className="dm-message-avatar-placeholder">
+        {displayName.charAt(0).toUpperCase()}
+      </span>
+    );
+
+    const messageBody = message.deleted ? (
+      <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}>
+        Message deleted
+      </p>
+    ) : hasDecryptionError ? (
+      <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}
+        title={message.decryptionError ?? 'Unable to decrypt'}>
+        [Encrypted{message.decryptionError ? `: ${message.decryptionError}` : ''}]
+      </p>
+    ) : (
+      <p className="dm-message-text">{content}</p>
+    );
+
+    return (
+      <div
+        className="dm-message dm-message--linear"
+        onMouseEnter={() => setShowActions(true)}
+        onMouseLeave={() => setShowActions(false)}
+      >
+        {profile ? (
+          <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
+            <button type="button" className="dm-message-avatar-btn">
+              {avatarContent}
+            </button>
+          </IdentityHoverCard>
+        ) : (
+          <div className="dm-message-avatar">{avatarContent}</div>
+        )}
+        <div className="dm-message-content">
+          <div className="dm-message-header">
+            {profile ? (
+              <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
+                <button type="button" className="dm-message-sender">
+                  {displayName}
+                </button>
+              </IdentityHoverCard>
+            ) : (
+              <span className="dm-message-sender">{displayName}</span>
+            )}
+            <span className="dm-message-time">
+              {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+            {message.forwardSecrecy !== undefined && (
+              <span
+                className={`dm-message-fs-indicator${message.forwardSecrecy ? ' dm-message-fs-indicator--active' : ''}`}
+                title={message.forwardSecrecy
+                  ? fsInfo.tooltip
+                  : t('conversations.fsIndicatorOff', 'No forward secrecy. This message remains readable as long as your device keys exist.')
+                }
+              >
+                {message.forwardSecrecy ? `FS ${fsInfo.readableWindow}` : 'No FS'}
+              </span>
+            )}
+            {countdown && (
+              <span className="dm-message-expiry">{countdown}</span>
+            )}
+          </div>
+          {messageBody}
+        </div>
+        {showActions && !message.deleted && (
+          <MessageActionBar
+            isOwn={isOwn}
+            onDeleteForSelf={() => onDelete(message.id, false)}
+            onDeleteForEveryone={() => onDelete(message.id, true)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  const applyOwnAlignment = isOwn;
 
   if (message.deleted) {
     return (
@@ -213,9 +301,6 @@ function MessageBubble({
       </div>
     );
   }
-
-  const content = message.decryptedContent ?? '';
-  const hasDecryptionError = !message.decryptedContent && !message.deleted;
 
   return (
     <div
@@ -771,6 +856,7 @@ export function ConversationView() {
                       onDelete={handleDeleteMessage}
                       fsInfo={fsInfo}
                       senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
+                      ownProfile={identity ?? undefined}
                       layout={messageLayout}
                     />
                   )
