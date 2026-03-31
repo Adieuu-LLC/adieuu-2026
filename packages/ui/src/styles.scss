@@ -7102,6 +7102,22 @@ a {
   align-items: flex-end;
 }
 
+.dm-message-sender {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-accent-primary);
+  margin-bottom: var(--spacing-xxs);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
 .dm-message-bubble-wrapper {
   position: relative;
 }
@@ -7183,6 +7199,14 @@ a {
     color: var(--color-success);
     background: var(--color-success-bg);
   }
+}
+
+// ============================================================================
+// Linear layout modifier -- all messages left-aligned
+// ============================================================================
+
+.dm-messages--linear .dm-message {
+  max-width: 85%;
 }
 
 // ============================================================================

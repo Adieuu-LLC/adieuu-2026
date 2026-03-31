@@ -14,6 +14,7 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Icon } from '../icons/Icon';
 import { HoverCard } from '../components/HoverCard';
+import { IdentityHoverCard } from '../components/IdentityHoverCard';
 import { ChatConnectionBanner } from '../components/ChatConnectionBanner';
 import { useAppConfig } from '../config';
 import { useAuth } from '../hooks/useAuth';
@@ -112,7 +113,7 @@ function IdentityFlyout() {
   const { t } = useTranslation();
   const location = useLocation();
   const { isExpanded, closeMobile } = useSidebar();
-  const { status: identityStatus, identity, logoutFromIdentity } = useIdentity();
+  const { status: identityStatus, identity, logoutFromIdentity, hasIdentity } = useIdentity();
   const [identityModalOpen, setIdentityModalOpen] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
@@ -166,6 +167,10 @@ function IdentityFlyout() {
 
   // When not logged in, show a simple button to open the identity modal
   if (!isIdentityLoggedIn) {
+    const aliasButtonLabel = hasIdentity
+      ? t('identity.loginButton')
+      : t('identity.createAliasButton');
+
     return (
       <>
         <Button
@@ -176,7 +181,7 @@ function IdentityFlyout() {
           data-tour="identity"
         >
           <Icon name="mask" />
-          <span className="sidebar-identity-label">{t('identity.loginButton')}</span>
+          <span className="sidebar-identity-label">{aliasButtonLabel}</span>
         </Button>
         <IdentityModal
           isOpen={identityModalOpen}
@@ -292,52 +297,15 @@ function FriendProfileHoverCard({
   identity,
   children,
   actions,
-  onNavigate,
 }: {
   identity: PublicIdentity;
   children: React.ReactElement;
   actions: React.ReactNode;
-  onNavigate: (identityId: string) => void;
 }) {
-  const { t } = useTranslation();
-
   return (
-    <HoverCard
-      trigger={children}
-      positioning={{ placement: 'right', gutter: 8 }}
-      className="friend-hover-card"
-      openDelay={300}
-      closeDelay={200}
-    >
-      <div className="friend-hover-card-header">
-        <div className="friend-hover-card-avatar">
-          {identity.avatarUrl ? (
-            <img src={identity.avatarUrl} alt="" className="friend-hover-card-avatar-img" />
-          ) : (
-            <span className="friend-hover-card-avatar-placeholder">
-              {identity.displayName.charAt(0).toUpperCase()}
-            </span>
-          )}
-        </div>
-        <div className="friend-hover-card-info">
-          <span className="friend-hover-card-name">{identity.displayName}</span>
-          <span className="friend-hover-card-username">@{identity.username}</span>
-        </div>
-      </div>
-      {identity.bio && (
-        <p className="friend-hover-card-bio">{identity.bio}</p>
-      )}
-      <div className="friend-hover-card-actions">
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => onNavigate(identity.id)}
-        >
-          {t('friends.viewProfile')}
-        </Button>
-        {actions}
-      </div>
-    </HoverCard>
+    <IdentityHoverCard identity={identity} actions={actions}>
+      {children}
+    </IdentityHoverCard>
   );
 }
 
@@ -513,7 +481,6 @@ function FriendsPanel({
               <FriendProfileHoverCard
                 key={req.request.id}
                 identity={req.fromIdentity}
-                onNavigate={handleNavToProfile}
                 actions={
                   <>
                     <Button
@@ -592,7 +559,6 @@ function FriendsPanel({
               <FriendProfileHoverCard
                 key={friend.identity.id}
                 identity={friend.identity}
-                onNavigate={handleNavToProfile}
                 actions={
                   <Button
                     variant="ghost"

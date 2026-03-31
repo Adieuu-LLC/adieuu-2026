@@ -20,8 +20,10 @@ import { Input } from '../../components/Input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { AdminTransferDialog } from '../../components/AdminTransferDialog';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
+import { IdentityHoverCard } from '../../components/IdentityHoverCard';
 import { Icon } from '../../icons/Icon';
-import type { SystemEvent, FormerMember } from '@adieuu/shared';
+import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
+import type { SystemEvent, FormerMember, PublicIdentity } from '@adieuu/shared';
 
 function MessageActionBar({
   isOwn,
@@ -182,21 +184,27 @@ function MessageBubble({
   isOwn,
   onDelete,
   fsInfo,
+  senderProfile,
+  layout,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
   onDelete: (messageId: string, forEveryone: boolean) => void;
   fsInfo: { rotationLabel: string; readableWindow: string; tooltip: string };
+  senderProfile?: PublicIdentity;
+  layout: 'linear' | 'bubble';
 }) {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
   const countdown = useExpiryCountdown(message.expiresAt);
 
+  const applyOwnAlignment = isOwn && layout === 'bubble';
+
   if (message.deleted) {
     return (
-      <div className={`dm-message${isOwn ? ' dm-message--own' : ''}`}>
+      <div className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}`}>
         <div className="dm-message-bubble-wrapper">
-          <div className={`dm-message-bubble${isOwn ? ' dm-message-bubble--own' : ''}`}>
+          <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
             <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}>
               Message deleted
             </p>
@@ -211,10 +219,20 @@ function MessageBubble({
 
   return (
     <div
-      className={`dm-message${isOwn ? ' dm-message--own' : ''}`}
+      className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
+      {!isOwn && senderProfile && (
+        <IdentityHoverCard
+          identity={senderProfile}
+          positioning={{ placement: 'right', gutter: 8 }}
+        >
+          <button type="button" className="dm-message-sender">
+            {senderProfile.displayName}
+          </button>
+        </IdentityHoverCard>
+      )}
       <div className="dm-message-bubble-wrapper">
         {showActions && (
           <MessageActionBar
@@ -223,7 +241,7 @@ function MessageBubble({
             onDeleteForEveryone={() => onDelete(message.id, true)}
           />
         )}
-        <div className={`dm-message-bubble${isOwn ? ' dm-message-bubble--own' : ''}`}>
+        <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
           {hasDecryptionError ? (
             <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}
               title={message.decryptionError ?? 'Unable to decrypt'}>
@@ -447,6 +465,8 @@ export function ConversationView() {
     deleteMessage,
     renameGroup,
   } = useConversations();
+
+  const messageLayout = useMessageLayoutPreference();
 
   const [messageText, setMessageText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -739,7 +759,7 @@ export function ConversationView() {
                 </div>
               )}
 
-              <div className="dm-messages">
+              <div className={`dm-messages${messageLayout === 'linear' ? ' dm-messages--linear' : ''}`}>
                 {reversedMessages.map((msg) =>
                   msg.messageType === 'system' && msg.systemEvent ? (
                     <SystemMessageRow key={msg.id} event={msg.systemEvent} />
@@ -750,6 +770,8 @@ export function ConversationView() {
                       isOwn={msg.fromIdentityId === identity?.id}
                       onDelete={handleDeleteMessage}
                       fsInfo={fsInfo}
+                      senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
+                      layout={messageLayout}
                     />
                   )
                 )}

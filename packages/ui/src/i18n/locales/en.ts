@@ -135,7 +135,9 @@ export const en = {
   identity: {
     title: 'Anonymous Alias',
     notLoggedIn: 'Not logged in',
-    loginButton: 'Alias',
+    loginButton: 'Login to Alias',
+    loginToExistingButton: 'Login to Existing Alias',
+    createAliasButton: 'Create Alias',
     createButton: 'Create Alias',
     logoutButton: 'Logout',
     loggedInAs: 'Logged in as',
@@ -747,6 +749,14 @@ export const en = {
       themeSaved: 'Theme saved.',
       themeApplied: 'Theme applied.',
       themeDeleted: 'Theme deleted.',
+
+      messageLayoutTitle: 'Message Layout',
+      messageLayoutDescription: 'Choose how messages are arranged in conversations.',
+      messageLayoutLinear: 'Linear',
+      messageLayoutLinearDesc: 'All messages left-aligned, like Discord or Slack.',
+      messageLayoutBubble: 'Bubble',
+      messageLayoutBubbleDesc: 'Your messages on the right, theirs on the left.',
+      messageLayoutApplied: 'Message layout updated.',
 
       iconPackTitle: 'Icon Pack',
       iconPackDescription: 'Choose your preferred icon style. Curated packs tend to have a smaller set of icons; any missing icons will fall back to Sharp Solid.',

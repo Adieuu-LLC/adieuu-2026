@@ -8,12 +8,14 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { RadioGroup } from '@ark-ui/react';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Alert } from '../../components/Alert';
 import { useToast } from '../../components/Toast';
 import { useTheme } from '../../hooks/useTheme';
 import { useIconPack } from '../../hooks/useIconPack';
+import { useMessageLayoutPreference, setMessageLayout, type MessageLayout } from '../../hooks/useMessageLayoutPreference';
 import { DEFAULT_THEME_ID } from '../../constants/builtinThemes';
 import { sanitizeImportedTheme } from '../../utils/themeSanitizer';
 import { Icon } from '../../icons/Icon';
@@ -100,6 +102,7 @@ export function AccountAppearance() {
   } = useTheme();
 
   const { packId, setIconPack } = useIconPack();
+  const messageLayout = useMessageLayoutPreference();
 
   const [editMode, setEditMode] = useState(false);
   const [editColors, setEditColors] = useState<ThemeColorTokens | null>(null);
@@ -111,6 +114,13 @@ export function AccountAppearance() {
   const handleLanguageChange = useCallback((code: LanguageCode) => {
     void i18n.changeLanguage(code);
   }, []);
+
+  const handleMessageLayoutChange = useCallback((details: { value: string | null }) => {
+    if (!details.value) return;
+    const next = details.value as MessageLayout;
+    setMessageLayout(next);
+    toast.success(t('account.appearance.messageLayoutApplied'));
+  }, [toast, t]);
 
   const currentThemeId = accountThemeId ?? DEFAULT_THEME_ID;
   const hasIdentityOverride = identityThemeId !== null;
@@ -325,6 +335,44 @@ export function AccountAppearance() {
               components={{ mailLink: <a href="mailto:say@adieuu.com" /> }}
             />
           </p>
+        </Card>
+
+        {/* Message Layout */}
+        <Card variant="elevated" className="slide-up app-settings-card">
+          <h2 className="app-settings-section-title">{t('account.appearance.messageLayoutTitle')}</h2>
+          <p className="app-settings-section-desc">{t('account.appearance.messageLayoutDescription')}</p>
+
+          <RadioGroup.Root
+            value={messageLayout}
+            onValueChange={handleMessageLayoutChange}
+            className="activity-radio-group"
+          >
+            <RadioGroup.Item value="linear" className="activity-radio-item">
+              <RadioGroup.ItemControl className="activity-radio-control" />
+              <RadioGroup.ItemText className="activity-radio-text">
+                <span className="activity-radio-title">
+                  {t('account.appearance.messageLayoutLinear')}
+                </span>
+                <span className="activity-radio-description">
+                  {t('account.appearance.messageLayoutLinearDesc')}
+                </span>
+              </RadioGroup.ItemText>
+              <RadioGroup.ItemHiddenInput />
+            </RadioGroup.Item>
+
+            <RadioGroup.Item value="bubble" className="activity-radio-item">
+              <RadioGroup.ItemControl className="activity-radio-control" />
+              <RadioGroup.ItemText className="activity-radio-text">
+                <span className="activity-radio-title">
+                  {t('account.appearance.messageLayoutBubble')}
+                </span>
+                <span className="activity-radio-description">
+                  {t('account.appearance.messageLayoutBubbleDesc')}
+                </span>
+              </RadioGroup.ItemText>
+              <RadioGroup.ItemHiddenInput />
+            </RadioGroup.Item>
+          </RadioGroup.Root>
         </Card>
 
         {/* Preset Themes */}

@@ -69,6 +69,12 @@ export {
   setNativeNotificationsEnabled,
   getNativeNotificationsEnabled,
 } from './hooks/useNativeNotificationsPreference';
+export {
+  useMessageLayoutPreference,
+  setMessageLayout,
+  getMessageLayout,
+} from './hooks/useMessageLayoutPreference';
+export type { MessageLayout } from './hooks/useMessageLayoutPreference';
 
 export type {
   AuthStatus,
@@ -149,6 +155,7 @@ export {
 } from './constants/builtinNotificationSounds';
 export type { BuiltinNotificationSoundId } from './constants/builtinNotificationSounds';
 export { IdentityCard, IdentityCardCompact } from './components/IdentityCard';
+export { IdentityHoverCard } from './components/IdentityHoverCard';
 export { HoverCard } from './components/HoverCard';
 export { SidebarTabs } from './components/SidebarTabs';
 export { AvatarGroup } from './components/AvatarGroup';
@@ -216,6 +223,7 @@ export type { TooltipProps } from './components/Tooltip';
 export type { ToastOptions, ToastVariant, ToastContextValue, ToastProviderProps } from './components/Toast';
 export type { SidebarSearchProps } from './components/SidebarSearch';
 export type { IdentityCardProps } from './components/IdentityCard';
+export type { IdentityHoverCardProps } from './components/IdentityHoverCard';
 export type { HoverCardProps } from './components/HoverCard';
 export type { SidebarTab, SidebarTabsProps } from './components/SidebarTabs';
 export type { AvatarGroupProps } from './components/AvatarGroup';

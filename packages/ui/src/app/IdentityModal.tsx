@@ -279,7 +279,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
               {hasIdentity && (
                 <Button variant="primary" size="lg" onClick={() => setView('login')}>
                   <Icon name="lock" />
-                  {t('identity.loginButton')}
+                  {t('identity.loginToExistingButton')}
                 </Button>
               )}
 
