@@ -66,7 +66,7 @@ const UpdateProfileSchema = z.object({
  * Check if two identities are mutual friends.
  * Uses the bidirectional friendships collection (two records per friendship).
  */
-async function areFriends(
+export async function areFriends(
   identityIdA: ObjectId,
   identityIdB: ObjectId
 ): Promise<boolean> {
@@ -83,7 +83,7 @@ async function areFriends(
  *
  * Returns a copy of the profile with fields nulled out according to privacy settings.
  */
-function applyPrivacyFilter(
+export function applyPrivacyFilter(
   profile: PublicIdentity,
   doc: IdentityDocument,
   viewerRelation: 'self' | 'friend' | 'stranger'

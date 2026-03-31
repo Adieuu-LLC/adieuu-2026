@@ -39,6 +39,7 @@ import {
   type CryptoProfile,
   type IdentityDevice,
 } from '../../models/identity';
+import { applyPrivacyFilter, areFriends } from './profile.controller';
 import { getClientIp } from '../auth/controller';
 import { isValidObjectId } from '../../utils';
 import { z } from '@adieuu/shared/schemas';
@@ -85,20 +86,28 @@ export async function searchIdentitiesCtrl(ctx: RouteContext): Promise<Response>
     return errors.badRequest('Invalid limit parameter.');
   }
 
-  // Get blocked identity IDs if caller has an identity session
   let excludeIds;
+  let viewerIdentityId: string | undefined;
   const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
   if (identitySessionId) {
     const identity = await getIdentityFromSession(identitySessionId);
     if (identity) {
       excludeIds = await getBlockedIdentityIds(identity._id);
+      viewerIdentityId = identity._id.toHexString();
     }
   }
 
   const identityRepo = getIdentityRepository();
   const results = await identityRepo.search(query, limit, excludeIds);
 
-  return success(results.map(toPublicIdentity));
+  return success(
+    results.map((doc) => {
+      const profile = toPublicIdentity(doc);
+      const relation =
+        viewerIdentityId === doc._id.toHexString() ? 'self' : 'stranger';
+      return applyPrivacyFilter(profile, doc, relation);
+    })
+  );
 }
 
 export async function getIdentityByIdCtrl(ctx: RouteContext): Promise<Response> {
@@ -115,7 +124,25 @@ export async function getIdentityByIdCtrl(ctx: RouteContext): Promise<Response> 
     return errors.notFound('Identity not found.');
   }
 
-  return success(toPublicIdentity(identity));
+  const publicProfile = toPublicIdentity(identity);
+
+  let viewerRelation: 'self' | 'friend' | 'stranger' = 'stranger';
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (identitySessionId) {
+    const viewerIdentity = await getIdentityFromSession(identitySessionId);
+    if (viewerIdentity) {
+      if (viewerIdentity._id.equals(identity._id)) {
+        viewerRelation = 'self';
+      } else {
+        const friends = await areFriends(viewerIdentity._id, identity._id);
+        if (friends) {
+          viewerRelation = 'friend';
+        }
+      }
+    }
+  }
+
+  return success(applyPrivacyFilter(publicProfile, identity, viewerRelation));
 }
 
 // ============================================================================
