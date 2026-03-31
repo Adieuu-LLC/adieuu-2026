@@ -1360,12 +1360,29 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     const unsubState = onStateChange((state) => {
       if (state === 'connected') {
         refreshRef.current();
+
+        const activeId = activeConversationIdRef.current;
+        if (activeId) {
+          fetchMessagesRef.current(activeId, undefined, true);
+        }
       }
     });
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const activeId = activeConversationIdRef.current;
+        if (activeId) {
+          fetchMessagesRef.current(activeId, undefined, true);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       unsubMessage();
       unsubState();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isLoggedIn, subscribe, onStateChange]);
 

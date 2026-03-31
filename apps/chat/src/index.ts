@@ -20,6 +20,7 @@ import {
   unregisterConnection,
   updateHeartbeat,
   getConnectionCount,
+  getIdentityCount,
   getSubscriptionCount,
   initializeMessageHandler,
 } from './connections';
@@ -300,13 +301,15 @@ async function start(): Promise<void> {
   });
 
   setInterval(() => {
-    const connectionCount = getConnectionCount();
+    const socketCount = getConnectionCount();
+    const identityCount = getIdentityCount();
     const subscriptionCount = getSubscriptionCount();
     const sub = getSubscriber();
     logger.info('Chat service telemetry', {
-      connections: connectionCount,
+      sockets: socketCount,
+      identities: identityCount,
       subscriptions: subscriptionCount,
-      drift: subscriptionCount - connectionCount,
+      drift: subscriptionCount - identityCount,
       subscriberStatus: sub.status,
     });
   }, 60000);

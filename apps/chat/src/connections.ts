@@ -11,10 +11,11 @@ import logger from './utils/logger';
 import { ChatRedisKeys, RedisChannels, type TypedWebSocket } from './types';
 
 /**
- * Map of identity ID -> WebSocket connection
- * Note: For multi-device support, this would need to be Map<string, Set<TypedWebSocket>>
+ * Map of identity ID -> set of active WebSocket connections.
+ * Multiple devices / tabs for the same identity each get their own
+ * socket, and Redis messages are fanned out to every one of them.
  */
-const connections = new Map<string, TypedWebSocket>();
+const connections = new Map<string, Set<TypedWebSocket>>();
 
 /**
  * Set of subscribed Redis channels (without prefix, for re-subscription tracking)
@@ -64,7 +65,7 @@ export function initializeMessageHandler(): void {
 
   messageHandler = (channel: string, message: string) => {
     const identityId = channel.replace(`${config.redis.keyPrefix}identity:`, '');
-    const ws = connections.get(identityId);
+    const sockets = connections.get(identityId);
 
     let eventType: string | undefined;
     try {
@@ -74,7 +75,7 @@ export function initializeMessageHandler(): void {
       // Best-effort parse for logging; forward the raw message regardless
     }
 
-    if (!ws) {
+    if (!sockets || sockets.size === 0) {
       logger.info('Redis message received but no local connection', {
         identityId: identityId.substring(0, 8) + '...',
         eventType,
@@ -83,28 +84,31 @@ export function initializeMessageHandler(): void {
       return;
     }
 
-    try {
-      const sendResult = ws.send(message);
-      if (sendResult === 1) {
-        logger.info('Message delivered to WebSocket', {
+    for (const ws of sockets) {
+      try {
+        const sendResult = ws.send(message);
+        if (sendResult === 1) {
+          logger.info('Message delivered to WebSocket', {
+            identityId: identityId.substring(0, 8) + '...',
+            eventType,
+            byteLength: message.length,
+            socketCount: sockets.size,
+          });
+        } else {
+          logger.warn('Message dropped by uWS', {
+            identityId: identityId.substring(0, 8) + '...',
+            eventType,
+            sendResult,
+            byteLength: message.length,
+          });
+        }
+      } catch (error) {
+        logger.error('Failed to send message to WebSocket', {
+          error,
           identityId: identityId.substring(0, 8) + '...',
           eventType,
-          byteLength: message.length,
-        });
-      } else {
-        logger.warn('Message dropped by uWS', {
-          identityId: identityId.substring(0, 8) + '...',
-          eventType,
-          sendResult,
-          byteLength: message.length,
         });
       }
-    } catch (error) {
-      logger.error('Failed to send message to WebSocket', {
-        error,
-        identityId: identityId.substring(0, 8) + '...',
-        eventType,
-      });
     }
   };
 
@@ -178,23 +182,21 @@ async function unsubscribeFromIdentity(identityId: string): Promise<void> {
 /**
  * Registers a new WebSocket connection.
  *
- * If a previous connection exists for this identity it is silently
- * replaced -- the old socket stays open until the browser closes it,
- * but Redis messages will be routed to the new socket.
+ * Multiple sockets per identity are supported (multi-device / multi-tab).
+ * Redis subscription is idempotent, so adding a second socket for an
+ * already-subscribed identity is safe.
  */
 export async function registerConnection(
   identityId: string,
   ws: TypedWebSocket
 ): Promise<void> {
-  const existing = connections.get(identityId);
-  if (existing) {
-    logger.warn('Replacing existing connection for identity', {
-      identityId: identityId.substring(0, 8) + '...',
-      totalConnections: connections.size,
-    });
+  let sockets = connections.get(identityId);
+  if (!sockets) {
+    sockets = new Set();
+    connections.set(identityId, sockets);
   }
 
-  connections.set(identityId, ws);
+  sockets.add(ws);
   await subscribeToIdentity(identityId);
 
   // Set online presence
@@ -213,47 +215,52 @@ export async function registerConnection(
 
   logger.info('Connection registered', {
     identityId: identityId.substring(0, 8) + '...',
-    totalConnections: connections.size,
+    socketCount: sockets.size,
+    totalIdentities: connections.size,
   });
 }
 
 /**
  * Unregisters a WebSocket connection.
  *
- * Accepts the socket being closed so we can verify it is still the
- * active connection for this identity.  If a newer socket has already
- * replaced it (e.g. rapid reconnect, StrictMode double-mount) the
- * unregistration is skipped to avoid tearing down the live connection.
+ * Removes the specific socket from the identity's set. The Redis
+ * subscription and online presence are only torn down when the
+ * last socket for the identity disconnects.
  */
 export async function unregisterConnection(
   identityId: string,
   ws: TypedWebSocket
 ): Promise<void> {
-  const current = connections.get(identityId);
-  if (current !== ws) {
-    logger.debug('Skipping unregister - connection already replaced', {
+  const sockets = connections.get(identityId);
+  if (!sockets || !sockets.has(ws)) {
+    logger.debug('Skipping unregister - socket not in active set', {
       identityId: identityId.substring(0, 8) + '...',
     });
     return;
   }
 
-  connections.delete(identityId);
-  await unsubscribeFromIdentity(identityId);
+  sockets.delete(ws);
 
-  // Clear online presence and set last seen
-  if (isRedisConnected()) {
-    try {
-      const publisher = getPublisher();
-      await publisher.del(ChatRedisKeys.online(identityId));
-      await publisher.set(ChatRedisKeys.lastSeen(identityId), new Date().toISOString());
-    } catch (error) {
-      logger.warn('Failed to update presence on disconnect', { error, identityId });
+  if (sockets.size === 0) {
+    connections.delete(identityId);
+    await unsubscribeFromIdentity(identityId);
+
+    // Clear online presence and set last seen only when no sockets remain
+    if (isRedisConnected()) {
+      try {
+        const publisher = getPublisher();
+        await publisher.del(ChatRedisKeys.online(identityId));
+        await publisher.set(ChatRedisKeys.lastSeen(identityId), new Date().toISOString());
+      } catch (error) {
+        logger.warn('Failed to update presence on disconnect', { error, identityId });
+      }
     }
   }
 
   logger.info('Connection unregistered', {
     identityId: identityId.substring(0, 8) + '...',
-    totalConnections: connections.size,
+    remainingSockets: sockets.size,
+    totalIdentities: connections.size,
   });
 }
 
@@ -276,9 +283,20 @@ export async function updateHeartbeat(identityId: string): Promise<void> {
 }
 
 /**
- * Gets the number of active connections
+ * Gets the total number of active sockets across all identities.
  */
 export function getConnectionCount(): number {
+  let total = 0;
+  for (const sockets of connections.values()) {
+    total += sockets.size;
+  }
+  return total;
+}
+
+/**
+ * Gets the number of distinct connected identities.
+ */
+export function getIdentityCount(): number {
   return connections.size;
 }
 
@@ -290,9 +308,9 @@ export function getSubscriptionCount(): number {
 }
 
 /**
- * Gets a connection by identity ID
+ * Gets all sockets for an identity
  */
-export function getConnection(identityId: string): TypedWebSocket | undefined {
+export function getConnectionsForIdentity(identityId: string): Set<TypedWebSocket> | undefined {
   return connections.get(identityId);
 }
 
