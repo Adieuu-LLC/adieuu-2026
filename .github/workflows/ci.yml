@@ -47,7 +47,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: node_modules/.cache/turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: turbo-${{ runner.os }}-
 
       - name: Build workspace apps and transitive dependencies
@@ -83,7 +83,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: node_modules/.cache/turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: turbo-${{ runner.os }}-
 
       - name: Build API and transitive workspace dependencies
@@ -136,7 +136,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: node_modules/.cache/turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: turbo-${{ runner.os }}-
 
       - name: Build API and transitive workspace dependencies
@@ -169,7 +169,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: node_modules/.cache/turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: turbo-${{ runner.os }}-
 
       - name: Build UI/API and transitive workspace dependencies
@@ -200,7 +200,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: node_modules/.cache/turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: turbo-${{ runner.os }}-
 
       - name: Build web
@@ -238,7 +238,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: node_modules/.cache/turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: turbo-${{ runner.os }}-
 
       - name: Build API
@@ -273,7 +273,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: node_modules/.cache/turbo
-          key: turbo-${{ runner.os }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: turbo-${{ runner.os }}-
 
       - name: Build desktop and transitive workspace dependencies
