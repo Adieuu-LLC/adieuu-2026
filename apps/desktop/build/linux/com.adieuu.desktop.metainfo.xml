@@ -3,35 +3,21 @@
   <id>com.adieuu.desktop</id>
   <name>Adieuu</name>
   <summary>Secure encrypted messaging</summary>
-  <metadata_license>Polyform-NonCommercial-1.0.0</metadata_license>
-  <project_license>LicenseRef-proprietary=https://adieuu.com/terms</project_license>
-
-  <description>
-    <p>
-      Adieuu is an encrypted messaging application built with
-      privacy at its core. Communicate freely without compromising your
-      personal data.
-    </p>
-  </description>
-
-  <url type="homepage">https://adieuu.com</url>
-
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary</project_license>
   <developer id="com.adieuu">
     <name>Adieuu Team</name>
   </developer>
-
-  <launchable type="desktop-id">com.adieuu.desktop.desktop</launchable>
-
+  <url type="homepage">https://adieuu.com</url>
+  <description>
+    <p>
+      Adieuu is a secure, end-to-end encrypted messaging application that
+      puts your privacy first.
+    </p>
+  </description>
   <categories>
     <category>Network</category>
     <category>InstantMessaging</category>
   </categories>
-
-  <content_rating type="oars-1.1">
-    <content_attribute id="social-chat">intense</content_attribute>
-  </content_rating>
-
-  <provides>
-    <binary>adieuu</binary>
-  </provides>
+  <content_rating type="oars-1.1" />
 </component>

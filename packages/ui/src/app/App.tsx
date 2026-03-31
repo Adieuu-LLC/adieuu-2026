@@ -33,6 +33,8 @@ import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { WebSecurityBanner } from '../components/WebSecurityBanner';
 import { UpdateBanner } from '../components/UpdateBanner';
+import { UpdateOverlay } from '../components/UpdateOverlay';
+import { UpdateProvider } from '../hooks/useUpdateContext';
 import { AppSidebar } from './AppSidebar';
 import {
   AdminAuthAllowlist,
@@ -67,7 +69,9 @@ function ProtectedLayout() {
         <ChatSocketProvider>
           <FriendsProvider>
             <ConversationsProvider>
-              <ProtectedLayoutContent />
+              <UpdateProvider>
+                <ProtectedLayoutContent />
+              </UpdateProvider>
             </ConversationsProvider>
           </FriendsProvider>
         </ChatSocketProvider>
@@ -98,6 +102,7 @@ function ProtectedLayoutContent() {
         <WebSecurityBanner />
         <Outlet />
       </AppLayout>
+      <UpdateOverlay />
     </>
   );
 }

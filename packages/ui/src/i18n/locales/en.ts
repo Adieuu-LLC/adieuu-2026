@@ -455,12 +455,22 @@ export const en = {
       // App update notification (banner)
       updateBanner: {
         message: 'A new version of Adieuu is available.',
+        messageVersion: 'Adieuu {{version}} is available.',
         download: 'Download',
         refresh: 'Refresh',
         restart: 'Restart Now',
         later: 'Later',
         downloading: 'Downloading update...',
+        downloadingProgress: 'Downloading update... {{percent}}%',
+        downloadingBytes: '{{transferred}} / {{total}}',
         ready: 'Update ready -- restart to apply.',
+        installing: 'Installing update...',
+        installingVersion: 'Installing Adieuu {{version}}...',
+        pleaseWait: 'Please wait while the update is installed. The app will restart automatically.',
+        minimize: 'Minimize',
+        retryUpdate: 'Retry',
+        errorMessage: 'Update failed: {{message}}',
+        errorGeneric: 'Could not complete the update. Please try again.',
       },
 
       // Login flow

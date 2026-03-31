@@ -92,6 +92,10 @@
         {
           "from": "build/linux/com.adieuu.desktop.metainfo.xml",
           "to": "."
+        },
+        {
+          "from": "build/linux/com.adieuu.desktop.update.policy",
+          "to": "."
         }
       ]
     },

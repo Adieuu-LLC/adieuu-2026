@@ -23,6 +23,12 @@ export type UpdateStatus =
   | 'error'
   | 'dismissed';
 
+export interface DownloadProgress {
+  percent: number;
+  transferred: number;
+  total: number;
+}
+
 export interface UseUpdateCheckResult {
   /** Current update status */
   status: UpdateStatus;
@@ -30,6 +36,10 @@ export interface UseUpdateCheckResult {
   newVersion: string | null;
   /** Human-readable error detail from the main process (desktop only, when status is 'error') */
   errorMessage: string | null;
+  /** Download progress data (desktop only, when status is 'downloading') */
+  downloadProgress: DownloadProgress | null;
+  /** Whether the app is currently applying / installing the update */
+  installing: boolean;
   /** Dismiss the update notification until next version change or page load */
   dismiss: () => void;
   /** Apply the update (reload on web, quit-and-install on desktop) */
@@ -49,6 +59,8 @@ export function useUpdateCheck(): UseUpdateCheckResult {
   const [status, setStatus] = useState<UpdateStatus>('idle');
   const [newVersion, setNewVersion] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
+  const [installing, setInstalling] = useState(false);
   const statusRef = useRef(status);
   statusRef.current = status;
   const dismissedVersionRef = useRef<string | null>(null);
@@ -119,19 +131,29 @@ export function useUpdateCheck(): UseUpdateCheckResult {
       setStatus('up-to-date');
     }));
 
-    cleanups.push(electron.on('download-progress', () => {
+    cleanups.push(electron.on('download-progress', (...args: unknown[]) => {
+      const payload = args[0] as { percent?: number; transferred?: number; total?: number } | undefined;
+      if (payload) {
+        setDownloadProgress({
+          percent: payload.percent ?? 0,
+          transferred: payload.transferred ?? 0,
+          total: payload.total ?? 0,
+        });
+      }
       if (statusRef.current !== 'dismissed') {
         setStatus('downloading');
       }
     }));
 
     cleanups.push(electron.on('update-downloaded', () => {
+      setDownloadProgress(null);
       setStatus('ready');
     }));
 
     cleanups.push(electron.on('update-error', (...args: unknown[]) => {
       const payload = args[0] as { message?: string } | undefined;
       setErrorMessage(payload?.message ?? null);
+      setInstalling(false);
       setStatus('error');
     }));
 
@@ -142,6 +164,7 @@ export function useUpdateCheck(): UseUpdateCheckResult {
 
   const dismiss = useCallback(() => {
     setStatus('dismissed');
+    setInstalling(false);
     if (typeof __APP_VERSION__ !== 'undefined') {
       dismissedVersionRef.current = __APP_VERSION__;
     }
@@ -150,13 +173,26 @@ export function useUpdateCheck(): UseUpdateCheckResult {
   const applyUpdate = useCallback(() => {
     if (platform === 'web') {
       window.location.reload();
-    } else if (platform === 'desktop') {
-      const electron = (window as Window & { electron?: {
-        invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
-      } }).electron;
-
-      electron?.invoke('install-update');
+      return;
     }
+
+    if (platform !== 'desktop') return;
+
+    const electron = (window as Window & { electron?: {
+      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
+    } }).electron;
+
+    if (!electron) return;
+
+    setInstalling(true);
+
+    // Delay IPC call slightly so the overlay renders before the main process
+    // blocks on the synchronous package-manager install (spawnSync).
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        electron.invoke('install-update');
+      });
+    });
   }, [platform]);
 
   const checkForUpdates = useCallback(() => {
@@ -181,9 +217,20 @@ export function useUpdateCheck(): UseUpdateCheckResult {
 
     if (!electron) return;
 
+    setDownloadProgress(null);
     setStatus('downloading');
     electron.invoke('download-update');
   }, [platform]);
 
-  return { status, newVersion, errorMessage, dismiss, applyUpdate, checkForUpdates, downloadUpdate };
+  return {
+    status,
+    newVersion,
+    errorMessage,
+    downloadProgress,
+    installing,
+    dismiss,
+    applyUpdate,
+    checkForUpdates,
+    downloadUpdate,
+  };
 }

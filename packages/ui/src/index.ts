@@ -153,7 +153,9 @@ export { HoverCard } from './components/HoverCard';
 export { SidebarTabs } from './components/SidebarTabs';
 export { AvatarGroup } from './components/AvatarGroup';
 export { KeyStorageBanner } from './components/KeyStorageBanner';
+export { ProgressBar } from './components/ProgressBar';
 export { UpdateBanner } from './components/UpdateBanner';
+export { UpdateOverlay } from './components/UpdateOverlay';
 export { ExportKeyBackupModal } from './components/ExportKeyBackupModal';
 export { ImportKeyBackupModal } from './components/ImportKeyBackupModal';
 export type { ExportKeyBackupModalProps } from './components/ExportKeyBackupModal';
@@ -175,7 +177,9 @@ export type { IconPackDefinition, IconPackId } from './icons/packs';
 
 export { usePlatform } from './hooks/usePlatform';
 export { useUpdateCheck } from './hooks/useUpdateCheck';
-export type { UpdateStatus, UseUpdateCheckResult } from './hooks/useUpdateCheck';
+export type { UpdateStatus, UseUpdateCheckResult, DownloadProgress } from './hooks/useUpdateCheck';
+export { UpdateProvider, useUpdateContext } from './hooks/useUpdateContext';
+export type { UpdateProviderProps } from './hooks/useUpdateContext';
 export { useReleases } from './hooks/useReleases';
 export type { ReleaseEntry, ReleaseDownload, UseReleasesResult } from './hooks/useReleases';
 
@@ -215,3 +219,4 @@ export type { IdentityCardProps } from './components/IdentityCard';
 export type { HoverCardProps } from './components/HoverCard';
 export type { SidebarTab, SidebarTabsProps } from './components/SidebarTabs';
 export type { AvatarGroupProps } from './components/AvatarGroup';
+export type { ProgressBarProps } from './components/ProgressBar';

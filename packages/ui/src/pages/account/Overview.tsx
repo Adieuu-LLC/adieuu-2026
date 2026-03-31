@@ -12,7 +12,7 @@ import { createApiClient, type UserProfile } from '@adieuu/shared';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppConfig } from '../../config';
 import { usePlatform } from '../../hooks/usePlatform';
-import { useUpdateCheck } from '../../hooks/useUpdateCheck';
+import { useUpdateContext } from '../../hooks/useUpdateContext';
 
 type EditMode = 'none' | 'email' | 'phone';
 type VerifyMode = 'none' | 'email' | 'phone';
@@ -33,7 +33,7 @@ export function AccountOverview() {
   const { apiBaseUrl } = useAppConfig();
   const toast = useToast();
   const platform = usePlatform();
-  const { status: updateStatus, newVersion, errorMessage: updateErrorMessage, checkForUpdates, applyUpdate, downloadUpdate } = useUpdateCheck();
+  const { status: updateStatus, newVersion, errorMessage: updateErrorMessage, checkForUpdates, applyUpdate, downloadUpdate } = useUpdateContext();
 
   // Desktop update preferences (auto-download toggle)
   const [autoDownloadEnabled, setAutoDownloadEnabled] = useState(false);

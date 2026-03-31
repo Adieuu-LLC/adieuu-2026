@@ -140,6 +140,12 @@ AppImages are typically 60-100 MB, so this is a full download. No privilege esca
 
 **Known issue (fixed in electron-updater 6.6.5):** Versions prior to 6.6.5 would crash if `zypper` was not installed (e.g. on Fedora, which uses `dnf`), because the package manager detection threw an exception instead of falling back. See [electron-builder#9099](https://github.com/electron-userland/electron-builder/issues/9099).
 
+**Known issue (pkexec + KDE Plasma 6):** `electron-updater`'s `LinuxUpdater` unconditionally passes `--disable-internal-agent` to `pkexec`. This flag tells `pkexec` to rely entirely on an external polkit authentication agent (e.g. `polkit-kde-authentication-agent-1`). If no agent is reachable -- which can happen intermittently on KDE Plasma 6 due to agent lifecycle timing -- `pkexec` exits with code 127. This causes the update install step to fail even after the RPM has been downloaded successfully.
+
+**Mitigation:** We ship a Polkit policy file (`com.adieuu.desktop.update.policy`) in the RPM and deb packages. The `after-install.sh` script copies it to `/usr/share/polkit-1/actions/` at install time. This policy explicitly authorises the `dnf` executable for Adieuu updates with `auth_admin` (password prompt) and `allow_gui=true`, ensuring a consistent authentication dialog regardless of agent state.
+
+**Upstream:** This should be reported to [electron-builder](https://github.com/electron-userland/electron-builder) -- the `--disable-internal-agent` flag ought to be conditional on detecting a running external agent, rather than unconditional.
+
 ### 2.6 Platform Summary
 
 | Platform | Download size | What's replaced | Differential? |
@@ -152,13 +158,18 @@ AppImages are typically 60-100 MB, so this is a full download. No privilege esca
 
 ### 2.7 User Experience Flow
 
-1. App launches and checks GitHub Releases in the background.
-2. If a new version exists, downloads the update silently (differential where supported).
-3. A banner appears in the app: "Update ready -- restart to apply. [Restart Now] [Later]"
-4. "Restart Now" calls `autoUpdater.quitAndInstall()` via IPC. The app closes, the update is applied, and the app relaunches on the new version.
-5. "Later" dismisses the banner. The update is applied automatically the next time the user quits the app (`autoInstallOnAppQuit: true`).
+1. App launches and checks the update feed in the background.
+2. If a new version exists, a non-intrusive **UpdateBanner** appears with the version number and a "Download" button (or downloads silently when auto-download is enabled).
+3. During download, the banner shows a **ProgressBar** with percentage and transferred/total byte counts (e.g. "Downloading update... 67% -- 43 MB / 64 MB").
+4. When the download completes, the banner shows "Update ready -- restart to apply. [Restart Now] [Later]".
+5. "Restart Now" triggers an **UpdateOverlay** -- a full-screen blocking overlay with the Adieuu logo, a spinner, and "Installing..." text. This is rendered before the IPC call so the user sees feedback while the main process blocks on the synchronous install.
+6. The overlay is **dismissable** -- the user can minimize it back to the banner if they wish to continue using the app during install.
+7. If the install fails, the banner shows the error message with a "Retry" button.
+8. "Later" dismisses the banner. The update is applied automatically the next time the user quits the app (`autoInstallOnAppQuit: true`).
 
 There is no partial or live-patching of the running process. An app restart is always required to apply the update.
+
+All update state is shared via a single **UpdateProvider** context to avoid duplicate IPC listeners across components (banner, overlay, account overview).
 
 ### 2.8 IPC Architecture
 
