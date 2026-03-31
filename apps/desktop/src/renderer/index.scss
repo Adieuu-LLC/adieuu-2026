@@ -657,6 +657,38 @@ a {
   flex-shrink: 0;
 }
 
+// Tooltip (Ark UI)
+
+.tooltip {
+  z-index: var(--z-tooltip);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: tooltipFadeIn var(--transition-fast) ease-out;
+}
+
+.tooltip-arrow {
+  --arrow-size: 8px;
+  --arrow-background: var(--color-bg-tertiary);
+}
+
+.tooltip-arrow-tip {
+  border-top: 1px solid var(--color-border);
+  border-left: 1px solid var(--color-border);
+}
+
+@keyframes tooltipFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 // FS Key Rotation Notice
 .dm-fs-rotation-notice {
   padding: var(--spacing-md) var(--spacing-lg);

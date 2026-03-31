@@ -21,6 +21,7 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { AdminTransferDialog } from '../../components/AdminTransferDialog';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
+import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
 import type { SystemEvent, FormerMember, PublicIdentity } from '@adieuu/shared';
@@ -36,23 +37,25 @@ function MessageActionBar({
 }) {
   return (
     <div className={`message-action-bar${isOwn ? ' message-action-bar--own' : ''}`}>
-      <button
-        type="button"
-        className="message-action-bar-btn"
-        onClick={onDeleteForSelf}
-        title="Delete for me"
-      >
-        <Icon name="trash" className="message-action-bar-icon" />
-      </button>
-      {isOwn && (
+      <Tooltip content="Delete for me" position="top">
         <button
           type="button"
           className="message-action-bar-btn"
-          onClick={onDeleteForEveryone}
-          title="Delete for everyone"
+          onClick={onDeleteForSelf}
         >
-          <Icon name="trash" className="message-action-bar-icon" style={{ color: 'var(--color-error)' }} />
+          <Icon name="trash" className="message-action-bar-icon" />
         </button>
+      </Tooltip>
+      {isOwn && (
+        <Tooltip content="Delete for everyone" position="top">
+          <button
+            type="button"
+            className="message-action-bar-btn"
+            onClick={onDeleteForEveryone}
+          >
+            <Icon name="trash" className="message-action-bar-icon" style={{ color: 'var(--color-error)' }} />
+          </button>
+        </Tooltip>
       )}
     </div>
   );
@@ -302,10 +305,11 @@ function MessageBubble({
         Message deleted
       </p>
     ) : hasDecryptionError ? (
-      <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}
-        title={message.decryptionError ?? 'Unable to decrypt'}>
-        [Encrypted{message.decryptionError ? `: ${message.decryptionError}` : ''}]
-      </p>
+      <Tooltip content={message.decryptionError ?? 'Unable to decrypt'} position="bottom">
+        <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}>
+          [Encrypted{message.decryptionError ? `: ${message.decryptionError}` : ''}]
+        </p>
+      </Tooltip>
     ) : (
       <p className="dm-message-text">{content}</p>
     );
@@ -336,19 +340,25 @@ function MessageBubble({
             ) : (
               <span className="dm-message-sender">{displayName}</span>
             )}
-            <span className="dm-message-time" title={formatAbsoluteTime(message.createdAt)}>
-              {formatMessageTime(message.createdAt)}
-            </span>
+            <Tooltip content={formatAbsoluteTime(message.createdAt)} position="top">
+              <span className="dm-message-time">
+                {formatMessageTime(message.createdAt)}
+              </span>
+            </Tooltip>
             {message.forwardSecrecy !== undefined && (
-              <span
-                className={`dm-message-fs-indicator${message.forwardSecrecy ? ' dm-message-fs-indicator--active' : ''}`}
-                title={message.forwardSecrecy
+              <Tooltip
+                content={message.forwardSecrecy
                   ? fsInfo.tooltip
                   : t('conversations.fsIndicatorOff', 'No forward secrecy. This message remains readable as long as your device keys exist.')
                 }
+                position="top"
               >
-                {message.forwardSecrecy ? `FS ${fsInfo.readableWindow}` : 'No FS'}
-              </span>
+                <span
+                  className={`dm-message-fs-indicator${message.forwardSecrecy ? ' dm-message-fs-indicator--active' : ''}`}
+                >
+                  {message.forwardSecrecy ? `FS ${fsInfo.readableWindow}` : 'No FS'}
+                </span>
+              </Tooltip>
             )}
             {countdown && (
               <span className="dm-message-expiry">{countdown}</span>
@@ -418,29 +428,36 @@ function MessageBubble({
         )}
         <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
           {hasDecryptionError ? (
-            <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}
-              title={message.decryptionError ?? 'Unable to decrypt'}>
-              [Encrypted{message.decryptionError ? `: ${message.decryptionError}` : ''}]
-            </p>
+            <Tooltip content={message.decryptionError ?? 'Unable to decrypt'} position="bottom">
+              <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}>
+                [Encrypted{message.decryptionError ? `: ${message.decryptionError}` : ''}]
+              </p>
+            </Tooltip>
           ) : (
             <p className="dm-message-text">{content}</p>
           )}
         </div>
       </div>
       <div className="dm-message-footer">
-        <span className="dm-message-time" title={formatAbsoluteTime(message.createdAt)}>
-          {formatMessageTime(message.createdAt)}
-        </span>
+        <Tooltip content={formatAbsoluteTime(message.createdAt)} position="top">
+          <span className="dm-message-time">
+            {formatMessageTime(message.createdAt)}
+          </span>
+        </Tooltip>
         {message.forwardSecrecy !== undefined && (
-          <span
-            className={`dm-message-fs-indicator${message.forwardSecrecy ? ' dm-message-fs-indicator--active' : ''}`}
-            title={message.forwardSecrecy
+          <Tooltip
+            content={message.forwardSecrecy
               ? fsInfo.tooltip
               : t('conversations.fsIndicatorOff', 'No forward secrecy. This message remains readable as long as your device keys exist.')
             }
+            position="top"
           >
-            {message.forwardSecrecy ? `FS ${fsInfo.readableWindow}` : 'No FS'}
-          </span>
+            <span
+              className={`dm-message-fs-indicator${message.forwardSecrecy ? ' dm-message-fs-indicator--active' : ''}`}
+            >
+              {message.forwardSecrecy ? `FS ${fsInfo.readableWindow}` : 'No FS'}
+            </span>
+          </Tooltip>
         )}
         {countdown && (
           <span className="dm-message-expiry">{countdown}</span>
@@ -985,17 +1002,21 @@ export function ConversationView() {
 
             {/* Composer */}
             <div className="conversation-composer">
-              <button
-                type="button"
-                className={`conversation-fs-toggle${useFs ? ' conversation-fs-toggle--active' : ''}`}
-                onClick={() => setUseFs((v) => !v)}
-                title={useFs
+              <Tooltip
+                content={useFs
                   ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
                   : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
                 }
+                position="top"
               >
-                FS
-              </button>
+                <button
+                  type="button"
+                  className={`conversation-fs-toggle${useFs ? ' conversation-fs-toggle--active' : ''}`}
+                  onClick={() => setUseFs((v) => !v)}
+                >
+                  FS
+                </button>
+              </Tooltip>
               <textarea
                 ref={inputRef}
                 className="conversation-composer-field"
@@ -1120,24 +1141,26 @@ export function ConversationView() {
                       {isCurrentUserAdmin && !isSelf && conversation.type === 'group' && (
                         <div className="conversation-member-actions">
                           {!isMemberAdmin && (
-                            <button
-                              type="button"
-                              className="conversation-member-action-btn"
-                              onClick={() => void handlePromoteToAdmin(participantId)}
-                              title={t('conversations.makeAdmin', 'Make Admin')}
-                            >
-                              <Icon name="shield" className="conversation-member-action-icon" />
-                            </button>
+                            <Tooltip content={t('conversations.makeAdmin', 'Make Admin')} position="top">
+                              <button
+                                type="button"
+                                className="conversation-member-action-btn"
+                                onClick={() => void handlePromoteToAdmin(participantId)}
+                              >
+                                <Icon name="shield" className="conversation-member-action-icon" />
+                              </button>
+                            </Tooltip>
                           )}
                           {!isMemberAdmin && (
-                            <button
-                              type="button"
-                              className="conversation-member-action-btn conversation-member-action-btn--danger"
-                              onClick={() => void handleRemoveMember(participantId)}
-                              title={t('conversations.removeMember', 'Remove')}
-                            >
-                              <Icon name="x" className="conversation-member-action-icon" />
-                            </button>
+                            <Tooltip content={t('conversations.removeMember', 'Remove')} position="top">
+                              <button
+                                type="button"
+                                className="conversation-member-action-btn conversation-member-action-btn--danger"
+                                onClick={() => void handleRemoveMember(participantId)}
+                              >
+                                <Icon name="x" className="conversation-member-action-icon" />
+                              </button>
+                            </Tooltip>
                           )}
                         </div>
                       )}
