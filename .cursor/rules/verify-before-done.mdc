@@ -1,0 +1,25 @@
+---
+description: Ensure all code changes are verified with lint, typecheck, build, and test runs before considering work complete
+alwaysApply: true
+---
+
+# Verify All Changes Before Finishing
+
+After making substantive code changes, you MUST run the following verification steps before considering the work complete. Do not skip any of these.
+
+## Required Verification Commands
+
+Run these from the workspace root (or scope to affected packages as appropriate):
+
+1. **Lint**: `pnpm run lint`
+2. **Typecheck**: `pnpm run typecheck`
+3. **Build**: `pnpm run build`
+4. **Test**: `pnpm run test`
+
+For scoped changes, you may run the equivalent scripts directly in the affected packages (e.g. `pnpm run typecheck` within `apps/web`), but ensure all affected packages are checked.
+
+## Rules
+
+- Fix any errors introduced by your changes before reporting completion.
+- Pre-existing errors that are unrelated to your changes may be noted but do not need to be fixed.
+- If a verification step fails and the fix is non-trivial, inform the user and get consent before proceeding.
