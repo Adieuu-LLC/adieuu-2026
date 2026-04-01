@@ -16,7 +16,7 @@ import { Icon } from '../icons/Icon';
 import { HoverCard } from '../components/HoverCard';
 import { IdentityHoverCard } from '../components/IdentityHoverCard';
 import { ChatConnectionBanner } from '../components/ChatConnectionBanner';
-import { useAppConfig } from '../config';
+import { useAppConfig, usePlatformCapabilities } from '../config';
 import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
 import { useFriends } from '../hooks/useFriends';
@@ -1052,6 +1052,11 @@ function ConversationsSidebarSection({
   const [activeTab, setActiveTab] = useState('conversations');
 
   const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
+
+  const { appWindow } = usePlatformCapabilities();
+  useEffect(() => {
+    appWindow?.setBadgeCount(totalUnread);
+  }, [totalUnread, appWindow]);
 
   const tabs: SidebarTab[] = [
     {

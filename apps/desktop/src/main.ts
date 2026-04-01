@@ -248,6 +248,12 @@ function shouldEnableCookieBridge(): boolean {
 }
 const RENDERER_DIR = path.resolve(__dirname, '../renderer');
 
+// Icon path: packaged builds copy icon.png to resources via extraResources;
+// in dev, resolve relative to the desktop app root.
+const ICON_PATH = app.isPackaged
+  ? path.join(process.resourcesPath, 'icon.png')
+  : path.resolve(__dirname, '../../build/icon.png');
+
 async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -271,6 +277,8 @@ async function createWindow() {
     ...(isMac
       ? { titleBarStyle: 'hiddenInset' }
       : { frame: false, titleBarStyle: 'hidden' }),
+    // Window/taskbar icon (Linux/Windows; macOS uses the app bundle icon)
+    ...(isMac ? {} : { icon: ICON_PATH }),
     show: false,
   });
 
@@ -323,6 +331,13 @@ async function createWindow() {
     // Toggle fullscreen: F11
     if (!ctrlOrCmd && !input.alt && !input.shift && input.key === 'F11') {
       mainWindow.setFullScreen(!mainWindow.isFullScreen());
+      event.preventDefault();
+      return;
+    }
+
+    // Help: F1 — open help/FAQ in default browser
+    if (!ctrlOrCmd && !input.alt && !input.shift && input.key === 'F1') {
+      shell.openExternal('https://adieuu.com');
       event.preventDefault();
       return;
     }
@@ -823,6 +838,11 @@ ipcMain.handle('window:close', () => {
 
 ipcMain.handle('window:isMaximized', () => {
   return mainWindow?.isMaximized() ?? false;
+});
+
+ipcMain.handle('window:setBadgeCount', (_event, count: unknown) => {
+  if (typeof count !== 'number' || count < 0) return;
+  app.setBadgeCount(Math.round(count));
 });
 
 // ============================================================================

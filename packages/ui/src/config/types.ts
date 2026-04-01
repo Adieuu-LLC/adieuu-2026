@@ -135,6 +135,15 @@ export interface WebAuthnBridge {
 }
 
 /**
+ * Window-level operations exposed by the desktop shell (Electron).
+ * Not present on web or mobile.
+ */
+export interface AppWindowCapabilities {
+  /** Update the OS taskbar badge / dock count with the given unread total. */
+  setBadgeCount(count: number): void;
+}
+
+/**
  * Combined platform capabilities interface.
  * Each platform provides its own implementation.
  */
@@ -146,6 +155,8 @@ export interface PlatformCapabilities {
   audio?: AudioCapabilities;
   /** Present when WebAuthn must be delegated to a different origin context (packaged desktop). */
   webauthn?: WebAuthnBridge;
+  /** Present on desktop — exposes window-level OS integrations. */
+  appWindow?: AppWindowCapabilities;
   features: PlatformFeatures;
 }
 

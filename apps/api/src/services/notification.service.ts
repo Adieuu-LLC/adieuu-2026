@@ -18,6 +18,9 @@ import type {
   PublicNotification,
 } from '../models/notification';
 import { toPublicNotification } from '../models/notification';
+import { getRedis, isRedisConnected, RedisKeys } from '../db';
+import { config } from '../config';
+import elog from '../utils/adieuuLogger';
 
 /**
  * Create notification result
@@ -65,10 +68,49 @@ export async function createNotification(
     data,
   });
 
+  const publicNotification = toPublicNotification(notification);
+
+  await publishNotificationEvent(recipientObjId.toHexString(), publicNotification);
+
   return {
     success: true,
-    notification: toPublicNotification(notification),
+    notification: publicNotification,
   };
+}
+
+/**
+ * Publish a notification_created event via Redis so connected
+ * WebSocket clients can update in real time (e.g. a notification inbox).
+ */
+async function publishNotificationEvent(
+  recipientIdentityId: string,
+  notification: PublicNotification
+): Promise<void> {
+  if (!isRedisConnected()) {
+    elog.warn('Skipping notification event publish: Redis not connected', {
+      recipientIdentityId,
+      notificationType: notification.type,
+    });
+    return;
+  }
+
+  try {
+    const redis = getRedis();
+    const channel = `${config.redis.keyPrefix}${RedisKeys.identityChannel(recipientIdentityId)}`;
+    await redis.publish(
+      channel,
+      JSON.stringify({
+        type: 'notification_created',
+        data: { notification },
+      })
+    );
+  } catch (error) {
+    elog.warn('Failed to publish notification event via Redis', {
+      error,
+      recipientIdentityId,
+      notificationType: notification.type,
+    });
+  }
 }
 
 /**

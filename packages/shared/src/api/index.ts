@@ -132,4 +132,5 @@ export {
   type ChatConversationMessageDeletedMessage,
   type ChatReactionAddedMessage,
   type ChatReactionRemovedMessage,
+  type ChatNotificationCreatedMessage,
 } from './chat-client';

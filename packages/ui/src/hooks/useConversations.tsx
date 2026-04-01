@@ -834,6 +834,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         const resp = await api.conversations.addMember(conversationId, identityId);
         if (resp.success) {
           await fetchConversations();
+          if (conversationId === activeConversationIdRef.current) {
+            fetchMessagesRef.current(conversationId, undefined, true);
+          }
           return true;
         }
       } catch {
@@ -850,6 +853,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         const resp = await api.conversations.removeMember(conversationId, identityId);
         if (resp.success) {
           await fetchConversations();
+          if (conversationId === activeConversationIdRef.current) {
+            fetchMessagesRef.current(conversationId, undefined, true);
+          }
           return true;
         }
       } catch {
@@ -888,6 +894,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         const resp = await api.conversations.promoteToAdmin(conversationId, identityId);
         if (resp.success) {
           await fetchConversations();
+          if (conversationId === activeConversationIdRef.current) {
+            fetchMessagesRef.current(conversationId, undefined, true);
+          }
           return true;
         }
       } catch {
@@ -934,6 +943,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 : c
             )
           );
+          if (conversationId === activeConversationIdRef.current) {
+            fetchMessagesRef.current(conversationId, undefined, true);
+          }
           return true;
         }
       } catch {
@@ -1210,10 +1222,24 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 : tRef.current('conversations.notifications.memberRemovedGeneric', { defaultValue: 'A member was removed from the group' })
             );
           } else if (action === 'renamed') {
-            fireNotificationRef.current(
-              tRef.current('conversations.notifications.groupRenamed', { defaultValue: 'Group renamed' }),
-              tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' })
-            );
+            if (eventIdentityId) {
+              void resolveParticipantsRef.current([eventIdentityId]).then((freshProfiles) => {
+                const profiles = { ...participantProfilesRef.current, ...freshProfiles };
+                const profile = profiles[eventIdentityId];
+                const name = profile?.displayName ?? profile?.username;
+                fireNotificationRef.current(
+                  tRef.current('conversations.notifications.groupRenamed', { defaultValue: 'Group renamed' }),
+                  name
+                    ? tRef.current('conversations.notifications.groupRenamedByBody', { name, defaultValue: `${name} renamed the group` })
+                    : tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' })
+                );
+              });
+            } else {
+              fireNotificationRef.current(
+                tRef.current('conversations.notifications.groupRenamed', { defaultValue: 'Group renamed' }),
+                tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' })
+              );
+            }
           } else if (action === 'admin_promoted' && eventIdentityId) {
             const profiles = participantProfilesRef.current;
             const profile = profiles[eventIdentityId];

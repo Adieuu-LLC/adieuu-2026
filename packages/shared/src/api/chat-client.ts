@@ -26,7 +26,8 @@ export type ChatMessageType =
   | 'conversation_message_deleted'
   | 'group_terminated'
   | 'reaction_added'
-  | 'reaction_removed';
+  | 'reaction_removed'
+  | 'notification_created';
 
 export interface ChatMessageBase {
   type: ChatMessageType;
@@ -212,6 +213,19 @@ export interface ChatReactionRemovedMessage extends ChatMessageBase {
   };
 }
 
+export interface ChatNotificationCreatedMessage extends ChatMessageBase {
+  type: 'notification_created';
+  data: {
+    notification: {
+      id: string;
+      type: string;
+      data: Record<string, unknown>;
+      read: boolean;
+      createdAt: string;
+    };
+  };
+}
+
 export type ChatIncomingMessage =
   | ChatPongMessage
   | ChatErrorMessage
@@ -227,7 +241,8 @@ export type ChatIncomingMessage =
   | ChatConversationMessageDeletedMessage
   | ChatGroupTerminatedMessage
   | ChatReactionAddedMessage
-  | ChatReactionRemovedMessage;
+  | ChatReactionRemovedMessage
+  | ChatNotificationCreatedMessage;
 
 export type ChatOutgoingMessage =
   | ChatPingMessage;

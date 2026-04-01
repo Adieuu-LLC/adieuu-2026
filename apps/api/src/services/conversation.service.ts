@@ -1166,6 +1166,7 @@ export async function updateGroupName(
     data: {
       conversationId: convObjId.toHexString(),
       action: 'renamed',
+      identityId: requesterObjId.toHexString(),
     },
   });
 
