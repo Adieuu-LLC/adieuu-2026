@@ -2138,6 +2138,67 @@ export class ConversationsApi {
 }
 
 // ============================================================================
+// Reactions API
+// ============================================================================
+
+export interface PublicReaction {
+  id: string;
+  messageId: string;
+  conversationId: string;
+  fromIdentityId: string;
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: SerializedWrappedKey[];
+  signature: string;
+  cryptoProfile: MessageCryptoProfile;
+  clientReactionId: string;
+  createdAt: string;
+}
+
+export interface SendReactionParams {
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: SerializedWrappedKey[];
+  signature: string;
+  cryptoProfile: MessageCryptoProfile;
+  clientReactionId: string;
+}
+
+export class ReactionsApi {
+  constructor(private client: ApiClient) {}
+
+  async add(
+    conversationId: string,
+    messageId: string,
+    params: SendReactionParams
+  ): Promise<ApiResponse<PublicReaction>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/reactions`,
+      params
+    );
+  }
+
+  async remove(
+    conversationId: string,
+    reactionId: string
+  ): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/conversations/${encodeURIComponent(conversationId)}/reactions/${encodeURIComponent(reactionId)}`
+    );
+  }
+
+  async getForMessages(
+    conversationId: string,
+    messageIds: string[]
+  ): Promise<ApiResponse<{ reactions: PublicReaction[] }>> {
+    const query = `messageIds=${messageIds.map(encodeURIComponent).join(',')}`;
+    return this.client.get(
+      `/api/conversations/${encodeURIComponent(conversationId)}/reactions?${query}`
+    );
+  }
+}
+
+// ============================================================================
 // Factory Functions
 // ============================================================================
 
@@ -2160,6 +2221,7 @@ export function createApiClient(config: ApiClientConfig) {
     themes: new ThemesApi(client),
     uploads: new UploadApi(client),
     conversations: new ConversationsApi(client),
+    reactions: new ReactionsApi(client),
   };
 }
 

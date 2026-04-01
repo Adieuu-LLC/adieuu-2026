@@ -7525,6 +7525,125 @@ a {
   }
 }
 
+.message-action-bar-favorites {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  margin-right: 2px;
+  border-right: 1px solid var(--color-border);
+  padding-right: 4px;
+}
+
+.message-action-bar-btn--emoji {
+  font-size: 16px;
+  line-height: 1;
+  width: 26px;
+  height: 26px;
+}
+
+// ============================================================================
+// Emoji Picker Popover
+// ============================================================================
+
+.emoji-picker-popover {
+  z-index: var(--z-popover, 100);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  background: var(--color-bg-secondary);
+
+  em-emoji-picker {
+    --em-rgb-background: transparent;
+  }
+
+  &--context {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: var(--z-modal, 200);
+  }
+}
+
+.emoji-picker-popover-close {
+  position: absolute;
+  top: var(--spacing-xs);
+  right: var(--spacing-xs);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-tertiary);
+  border: none;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+}
+
+.emoji-picker-wrapper {
+  &--compact em-emoji-picker {
+    max-height: 280px;
+  }
+}
+
+// ============================================================================
+// Reaction Bar (displayed below messages)
+// ============================================================================
+
+.message-reaction-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--spacing-xs);
+}
+
+.message-reaction-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-tertiary);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  transition: background 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    background: var(--color-bg-hover);
+    border-color: var(--color-border-hover, var(--color-text-tertiary));
+  }
+
+  &--own {
+    border-color: var(--color-primary);
+    background: var(--color-primary-bg, rgba(var(--color-primary-rgb, 99, 102, 241), 0.1));
+
+    &:hover {
+      background: var(--color-primary-bg-hover, rgba(var(--color-primary-rgb, 99, 102, 241), 0.2));
+    }
+  }
+}
+
+.message-reaction-chip-emoji {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.message-reaction-chip-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  min-width: 12px;
+  text-align: center;
+}
+
 .dm-message--deleted {
   .dm-message-bubble--deleted {
     background: var(--color-bg-tertiary);

@@ -346,7 +346,7 @@ export const Collections = {
   GROUP_INVITES: 'group_invites',
   /** Pre-keys for forward secrecy (signed + one-time) */
   PRE_KEYS: 'pre_keys',
-  /** Reactions (encrypted, linked to messages -- future) */
+  /** E2E-encrypted emoji reactions linked to messages */
   REACTIONS: 'reactions',
   /** Key-value platform configuration (typed values per key) */
   PLATFORM_SETTINGS: 'platform_settings',
@@ -544,10 +544,11 @@ async function createIndexes(): Promise<void> {
     { expireAfterSeconds: 0, partialFilterExpression: { consumed: true } }
   );
 
-  // Reactions collection indexes (future -- kept for schema readiness)
+  // Reactions collection indexes
   const reactions = database.collection(Collections.REACTIONS);
   await reactions.createIndex({ messageId: 1, createdAt: 1 });
   await reactions.createIndex({ conversationId: 1, clientReactionId: 1 }, { unique: true });
+  await reactions.createIndex({ fromIdentityId: 1, messageId: 1 });
 
   // Platform settings — one row per key
   const platformSettings = database.collection(Collections.PLATFORM_SETTINGS);

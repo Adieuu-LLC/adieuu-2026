@@ -24,7 +24,9 @@ export type ChatMessageType =
   | 'group_invite_received'
   | 'group_invite_accepted'
   | 'conversation_message_deleted'
-  | 'group_terminated';
+  | 'group_terminated'
+  | 'reaction_added'
+  | 'reaction_removed';
 
 export interface ChatMessageBase {
   type: ChatMessageType;
@@ -170,6 +172,46 @@ export interface ChatConversationMessageDeletedMessage extends ChatMessageBase {
   };
 }
 
+export interface ChatReactionAddedMessage extends ChatMessageBase {
+  type: 'reaction_added';
+  data: {
+    reaction: {
+      id: string;
+      messageId: string;
+      conversationId: string;
+      fromIdentityId: string;
+      ciphertext: string;
+      nonce: string;
+      wrappedKeys: {
+        identityId: string;
+        ephemeralPublicKey: string;
+        kemCiphertext: string;
+        wrappedSessionKey: string;
+        wrappingNonce: string;
+        preKeyType: 'static' | 'spk' | 'otpk';
+        signedPreKeyId?: string;
+        oneTimePreKeyId?: string;
+        spkKemCiphertext?: string;
+        otpkKemCiphertext?: string;
+        routingTag?: string;
+      }[];
+      signature: string;
+      cryptoProfile: 'default' | 'cnsa2';
+      clientReactionId: string;
+      createdAt: string;
+    };
+  };
+}
+
+export interface ChatReactionRemovedMessage extends ChatMessageBase {
+  type: 'reaction_removed';
+  data: {
+    reactionId: string;
+    messageId: string;
+    conversationId: string;
+  };
+}
+
 export type ChatIncomingMessage =
   | ChatPongMessage
   | ChatErrorMessage
@@ -183,7 +225,9 @@ export type ChatIncomingMessage =
   | ChatGroupInviteReceivedMessage
   | ChatGroupInviteAcceptedMessage
   | ChatConversationMessageDeletedMessage
-  | ChatGroupTerminatedMessage;
+  | ChatGroupTerminatedMessage
+  | ChatReactionAddedMessage
+  | ChatReactionRemovedMessage;
 
 export type ChatOutgoingMessage =
   | ChatPingMessage;

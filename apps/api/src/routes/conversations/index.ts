@@ -701,4 +701,145 @@ router.delete('/conversations/:id', async (ctx) => {
   return success(undefined, 'Group deleted.');
 });
 
+// ---------------------------------------------------------------------------
+// Reaction routes
+// ---------------------------------------------------------------------------
+
+import {
+  addReaction,
+  removeReaction,
+  getReactionsForMessages,
+} from '../../services/reaction.service';
+
+const SendReactionSchema = z.object({
+  ciphertext: z.string().min(1).max(50_000),
+  nonce: z.string().min(1).max(100),
+  wrappedKeys: z.array(z.object({
+    identityId: z.string().length(24),
+    ephemeralPublicKey: z.string().min(1).max(200),
+    kemCiphertext: z.string().min(1).max(3000),
+    wrappedSessionKey: z.string().min(1).max(500),
+    wrappingNonce: z.string().min(1).max(100),
+    preKeyType: z.enum(['static', 'spk', 'otpk']),
+    signedPreKeyId: z.string().uuid().optional(),
+    oneTimePreKeyId: z.string().uuid().optional(),
+    spkKemCiphertext: z.string().max(3000).optional(),
+    otpkKemCiphertext: z.string().max(3000).optional(),
+  })).min(1).max(200),
+  signature: z.string().min(1).max(500),
+  cryptoProfile: z.enum(['default', 'cnsa2']),
+  clientReactionId: z.string().uuid(),
+});
+
+/**
+ * POST /conversations/:id/messages/:messageId/reactions - Add a reaction
+ */
+router.post('/conversations/:id/messages/:messageId/reactions', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id, messageId } = ctx.params;
+
+  const sanitizedConvId = sanitizeString(id ?? '', 'general');
+  if (!sanitizedConvId.value || !isValidObjectId(sanitizedConvId.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const sanitizedMsgId = sanitizeString(messageId ?? '', 'general');
+  if (!sanitizedMsgId.value || !isValidObjectId(sanitizedMsgId.value)) {
+    return errors.badRequest('Invalid message ID.');
+  }
+
+  const parseResult = SendReactionSchema.safeParse(ctx.body);
+  if (!parseResult.success) return ctx.errors.validationFailed();
+
+  const result = await addReaction(
+    identity._id.toHexString(),
+    sanitizedConvId.value,
+    sanitizedMsgId.value,
+    parseResult.data
+  );
+
+  if (!result.success) {
+    return errors.badRequest(result.error ?? 'Failed to add reaction.');
+  }
+
+  return success(result.reaction, 'Reaction added.');
+});
+
+/**
+ * DELETE /conversations/:id/reactions/:reactionId - Remove a reaction
+ */
+router.delete('/conversations/:id/reactions/:reactionId', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id, reactionId } = ctx.params;
+
+  const sanitizedConvId = sanitizeString(id ?? '', 'general');
+  if (!sanitizedConvId.value || !isValidObjectId(sanitizedConvId.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const sanitizedReactionId = sanitizeString(reactionId ?? '', 'general');
+  if (!sanitizedReactionId.value || !isValidObjectId(sanitizedReactionId.value)) {
+    return errors.badRequest('Invalid reaction ID.');
+  }
+
+  const result = await removeReaction(
+    identity._id.toHexString(),
+    sanitizedConvId.value,
+    sanitizedReactionId.value
+  );
+
+  if (!result.success) {
+    return errors.badRequest(result.error ?? 'Failed to remove reaction.');
+  }
+
+  return success(undefined, 'Reaction removed.');
+});
+
+/**
+ * GET /conversations/:id/reactions - Batch-fetch reactions for messages
+ */
+router.get('/conversations/:id/reactions', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+
+  const sanitizedConvId = sanitizeString(id ?? '', 'general');
+  if (!sanitizedConvId.value || !isValidObjectId(sanitizedConvId.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const messageIdsParam = ctx.query.get('messageIds');
+  if (!messageIdsParam) {
+    return errors.badRequest('messageIds query parameter is required.');
+  }
+
+  const messageIds = messageIdsParam.split(',').filter(Boolean);
+  if (messageIds.length === 0 || messageIds.length > 100) {
+    return errors.badRequest('Provide between 1 and 100 message IDs.');
+  }
+
+  for (const msgId of messageIds) {
+    if (!isValidObjectId(msgId)) {
+      return errors.badRequest('Invalid message ID in list.');
+    }
+  }
+
+  const result = await getReactionsForMessages(
+    identity._id.toHexString(),
+    sanitizedConvId.value,
+    messageIds
+  );
+
+  if (!result.success) {
+    return errors.badRequest(result.error ?? 'Failed to fetch reactions.');
+  }
+
+  return success({ reactions: result.reactions });
+});
+
 export const conversationRoutes = router;

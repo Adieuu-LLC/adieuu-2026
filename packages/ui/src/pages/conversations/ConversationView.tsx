@@ -9,18 +9,22 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Dialog, Menu, Portal } from '@ark-ui/react';
+import { Dialog, Menu, Portal, Popover } from '@ark-ui/react';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
 import { usePreKeys } from '../../hooks/usePreKeys';
+import { useReactions, type GroupedReaction } from '../../hooks/useReactions';
+import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
 import { loadConversationFsDefault, saveConversationFsDefault, loadShowMessageArtifacts, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
+import { convertShortcodes } from '../../utils/emojiShortcodes';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { AdminTransferDialog } from '../../components/AdminTransferDialog';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
+import { EmojiPicker } from '../../components/EmojiPicker';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
@@ -30,13 +34,53 @@ function MessageActionBar({
   isOwn,
   onDeleteForSelf,
   onDeleteForEveryone,
+  onReact,
+  favoriteEmojis,
 }: {
   isOwn: boolean;
   onDeleteForSelf: () => void;
   onDeleteForEveryone: () => void;
+  onReact: (emoji: string) => void;
+  favoriteEmojis: string[];
 }) {
   return (
     <div className={`message-action-bar${isOwn ? ' message-action-bar--own' : ''}`}>
+      {favoriteEmojis.length > 0 && (
+        <div className="message-action-bar-favorites">
+          {favoriteEmojis.map((emoji) => (
+            <Tooltip key={emoji} content={emoji} position="top">
+              <button
+                type="button"
+                className="message-action-bar-btn message-action-bar-btn--emoji"
+                onClick={() => onReact(emoji)}
+              >
+                {emoji}
+              </button>
+            </Tooltip>
+          ))}
+        </div>
+      )}
+      <Popover.Root positioning={{ placement: 'top' }}>
+        <Tooltip content="React" position="top">
+          <Popover.Trigger asChild>
+            <button type="button" className="message-action-bar-btn">
+              <Icon name="smilePlus" className="message-action-bar-icon" />
+            </button>
+          </Popover.Trigger>
+        </Tooltip>
+        <Portal>
+          <Popover.Positioner>
+            <Popover.Content className="emoji-picker-popover">
+              <EmojiPicker
+                compact
+                onEmojiSelect={(emoji) => {
+                  onReact(emoji);
+                }}
+              />
+            </Popover.Content>
+          </Popover.Positioner>
+        </Portal>
+      </Popover.Root>
       <Tooltip content="Delete for me" position="top">
         <button
           type="button"
@@ -57,6 +101,35 @@ function MessageActionBar({
           </button>
         </Tooltip>
       )}
+    </div>
+  );
+}
+
+function ReactionBar({
+  reactions,
+  onToggleReaction,
+}: {
+  reactions: GroupedReaction[];
+  onToggleReaction: (emoji: string, ownReactionId?: string) => void;
+}) {
+  if (reactions.length === 0) return null;
+
+  return (
+    <div className="message-reaction-bar">
+      {reactions.map((r) => (
+        <button
+          key={r.emoji}
+          type="button"
+          className={`message-reaction-chip${r.isOwn ? ' message-reaction-chip--own' : ''}`}
+          onClick={() => onToggleReaction(r.emoji, r.ownReactionId)}
+          title={r.isOwn ? 'Click to remove your reaction' : `React with ${r.emoji}`}
+        >
+          <span className="message-reaction-chip-emoji">{r.emoji}</span>
+          {r.count > 1 && (
+            <span className="message-reaction-chip-count">{r.count}</span>
+          )}
+        </button>
+      ))}
     </div>
   );
 }
@@ -243,6 +316,10 @@ function MessageBubble({
   message,
   isOwn,
   onDelete,
+  onReact,
+  onToggleReaction,
+  groupedReactions,
+  favoriteEmojis,
   fsInfo,
   senderProfile,
   ownProfile,
@@ -251,6 +328,10 @@ function MessageBubble({
   message: DisplayMessage;
   isOwn: boolean;
   onDelete: (messageId: string, forEveryone: boolean) => void;
+  onReact: (messageId: string, emoji: string) => void;
+  onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
+  groupedReactions: GroupedReaction[];
+  favoriteEmojis: string[];
   fsInfo: { rotationLabel: string; readableWindow: string; tooltip: string };
   senderProfile?: PublicIdentity;
   ownProfile?: PublicIdentity;
@@ -258,6 +339,7 @@ function MessageBubble({
 }) {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
+  const [showContextReactionPicker, setShowContextReactionPicker] = useState(false);
   const countdown = useExpiryCountdown(message.expiresAt);
 
   const content = message.decryptedContent ?? '';
@@ -266,12 +348,17 @@ function MessageBubble({
   function handleContextAction(details: { value: string }) {
     if (details.value === 'delete-for-me') onDelete(message.id, false);
     else if (details.value === 'delete-for-everyone') onDelete(message.id, true);
+    else if (details.value === 'react') setShowContextReactionPicker(true);
   }
 
   const contextMenuContent = (
     <Portal>
       <Menu.Positioner>
         <Menu.Content className="dm-context-menu">
+          <Menu.Item value="react" className="dm-context-menu-item">
+            <Icon name="smilePlus" className="dm-context-menu-item-icon" />
+            React
+          </Menu.Item>
           <Menu.Item value="delete-for-me" className="dm-context-menu-item">
             <Icon name="trash" className="dm-context-menu-item-icon" />
             Delete for me
@@ -285,6 +372,34 @@ function MessageBubble({
         </Menu.Content>
       </Menu.Positioner>
     </Portal>
+  );
+
+  const reactionBar = (
+    <ReactionBar
+      reactions={groupedReactions}
+      onToggleReaction={(emoji, ownReactionId) =>
+        onToggleReaction(message.id, emoji, ownReactionId)
+      }
+    />
+  );
+
+  const contextReactionPickerPopover = showContextReactionPicker && (
+    <div className="emoji-picker-popover emoji-picker-popover--context">
+      <EmojiPicker
+        compact
+        onEmojiSelect={(emoji) => {
+          onReact(message.id, emoji);
+          setShowContextReactionPicker(false);
+        }}
+      />
+      <button
+        type="button"
+        className="emoji-picker-popover-close"
+        onClick={() => setShowContextReactionPicker(false)}
+      >
+        x
+      </button>
+    </div>
   );
 
   if (layout === 'linear') {
@@ -365,12 +480,15 @@ function MessageBubble({
             )}
           </div>
           {messageBody}
+          {reactionBar}
         </div>
         {showActions && !message.deleted && (
           <MessageActionBar
             isOwn={isOwn}
             onDeleteForSelf={() => onDelete(message.id, false)}
             onDeleteForEveryone={() => onDelete(message.id, true)}
+            onReact={(emoji) => onReact(message.id, emoji)}
+            favoriteEmojis={favoriteEmojis}
           />
         )}
       </div>
@@ -379,10 +497,13 @@ function MessageBubble({
     if (message.deleted) return messageRow;
 
     return (
-      <Menu.Root onSelect={handleContextAction}>
-        <Menu.ContextTrigger asChild>{messageRow}</Menu.ContextTrigger>
-        {contextMenuContent}
-      </Menu.Root>
+      <>
+        <Menu.Root onSelect={handleContextAction}>
+          <Menu.ContextTrigger asChild>{messageRow}</Menu.ContextTrigger>
+          {contextMenuContent}
+        </Menu.Root>
+        {contextReactionPickerPopover}
+      </>
     );
   }
 
@@ -424,6 +545,8 @@ function MessageBubble({
             isOwn={isOwn}
             onDeleteForSelf={() => onDelete(message.id, false)}
             onDeleteForEveryone={() => onDelete(message.id, true)}
+            onReact={(emoji) => onReact(message.id, emoji)}
+            favoriteEmojis={favoriteEmojis}
           />
         )}
         <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
@@ -437,6 +560,7 @@ function MessageBubble({
             <p className="dm-message-text">{content}</p>
           )}
         </div>
+        {reactionBar}
       </div>
       <div className="dm-message-footer">
         <Tooltip content={formatAbsoluteTime(message.createdAt)} position="top">
@@ -467,10 +591,13 @@ function MessageBubble({
   );
 
   return (
-    <Menu.Root onSelect={handleContextAction}>
-      <Menu.ContextTrigger asChild>{bubbleRow}</Menu.ContextTrigger>
-      {contextMenuContent}
-    </Menu.Root>
+    <>
+      <Menu.Root onSelect={handleContextAction}>
+        <Menu.ContextTrigger asChild>{bubbleRow}</Menu.ContextTrigger>
+        {contextMenuContent}
+      </Menu.Root>
+      {contextReactionPickerPopover}
+    </>
   );
 }
 
@@ -667,7 +794,16 @@ export function ConversationView() {
 
   const messageLayout = useMessageLayoutPreference();
 
+  const {
+    fetchReactions,
+    addReaction,
+    removeReaction,
+    getGroupedReactions,
+  } = useReactions(id ?? null);
+  const { favorites: favoriteEmojis } = useFavoriteEmojis(identity?.id);
+
   const [messageText, setMessageText] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -739,11 +875,52 @@ export function ConversationView() {
 
   const handleSend = useCallback(async () => {
     if (!id || !messageText.trim() || sending) return;
-    const text = messageText.trim();
+    const text = convertShortcodes(messageText.trim());
     setMessageText('');
     await sendTextMessage(id, text, { useForwardSecrecy: useFs });
     inputRef.current?.focus();
   }, [id, messageText, sending, sendTextMessage, useFs]);
+
+  const handleReact = useCallback(
+    async (messageId: string, emoji: string) => {
+      if (!id || !conversation) return;
+      await addReaction(messageId, emoji, []);
+    },
+    [id, conversation, addReaction]
+  );
+
+  const handleToggleReaction = useCallback(
+    async (messageId: string, emoji: string, ownReactionId?: string) => {
+      if (ownReactionId) {
+        await removeReaction(ownReactionId, messageId);
+      } else {
+        await handleReact(messageId, emoji);
+      }
+    },
+    [removeReaction, handleReact]
+  );
+
+  const handleComposerEmojiSelect = useCallback(
+    (emoji: string) => {
+      const textarea = inputRef.current;
+      if (!textarea) {
+        setMessageText((prev) => prev + emoji);
+        return;
+      }
+      const start = textarea.selectionStart ?? messageText.length;
+      const end = textarea.selectionEnd ?? messageText.length;
+      const before = messageText.slice(0, start);
+      const after = messageText.slice(end);
+      setMessageText(before + emoji + after);
+      setShowEmojiPicker(false);
+      requestAnimationFrame(() => {
+        textarea.focus();
+        const newPos = start + emoji.length;
+        textarea.setSelectionRange(newPos, newPos);
+      });
+    },
+    [messageText]
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -980,6 +1157,10 @@ export function ConversationView() {
                           message={msg}
                           isOwn={msg.fromIdentityId === identity?.id}
                           onDelete={handleDeleteMessage}
+                          onReact={(messageId, emoji) => void handleReact(messageId, emoji)}
+                          onToggleReaction={(messageId, emoji, ownReactionId) => void handleToggleReaction(messageId, emoji, ownReactionId)}
+                          groupedReactions={getGroupedReactions(msg.id)}
+                          favoriteEmojis={favoriteEmojis}
                           fsInfo={fsInfo}
                           senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
                           ownProfile={identity ?? undefined}
@@ -1027,6 +1208,29 @@ export function ConversationView() {
                 rows={1}
                 disabled={sending}
               />
+              <Popover.Root
+                open={showEmojiPicker}
+                onOpenChange={(e) => setShowEmojiPicker(e.open)}
+                positioning={{ placement: 'top-end' }}
+              >
+                <Tooltip content={t('conversations.emojiButton', 'Emoji')} position="top">
+                  <Popover.Trigger asChild>
+                    <button
+                      type="button"
+                      className="message-composer-emoji-btn"
+                    >
+                      <Icon name="smile" className="message-composer-emoji-icon" />
+                    </button>
+                  </Popover.Trigger>
+                </Tooltip>
+                <Portal>
+                  <Popover.Positioner>
+                    <Popover.Content className="emoji-picker-popover">
+                      <EmojiPicker onEmojiSelect={handleComposerEmojiSelect} />
+                    </Popover.Content>
+                  </Popover.Positioner>
+                </Portal>
+              </Popover.Root>
             </div>
           </div>
 

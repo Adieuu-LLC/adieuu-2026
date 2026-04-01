@@ -20,10 +20,23 @@ if (existsSync(desktopEnvPath)) {
 }
 
 // ============================================================================
+// Dev-mode isolation
+//
+// When running an unpackaged (development) build, use a distinct app name and
+// protocol scheme so the dev instance is fully isolated from a production
+// installation running on the same machine. This gives each build its own
+// userData directory, single-instance lock, and deep-link protocol.
+// ============================================================================
+
+if (!app.isPackaged) {
+  app.name = 'Adieuu-Dev';
+}
+
+// ============================================================================
 // Custom protocol scheme (must be registered before app 'ready' fires)
 // ============================================================================
 
-const CUSTOM_SCHEME = 'adieuu';
+const CUSTOM_SCHEME = app.isPackaged ? 'adieuu' : 'adieuu-dev';
 const CUSTOM_SCHEME_ORIGIN = `${CUSTOM_SCHEME}://app`;
 
 protocol.registerSchemesAsPrivileged([

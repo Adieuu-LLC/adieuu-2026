@@ -102,6 +102,10 @@ export {
   type GroupInvitePreviewMember,
   type SendMessageParams,
   type FormerMember,
+  // Reaction types
+  ReactionsApi,
+  type PublicReaction,
+  type SendReactionParams,
 } from './client';
 
 export {
@@ -126,4 +130,6 @@ export {
   type ChatGroupInviteReceivedMessage,
   type ChatGroupInviteAcceptedMessage,
   type ChatConversationMessageDeletedMessage,
+  type ChatReactionAddedMessage,
+  type ChatReactionRemovedMessage,
 } from './chat-client';
