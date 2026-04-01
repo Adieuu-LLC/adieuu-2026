@@ -298,45 +298,46 @@ async function createWindow() {
   });
 
   // ---- Keyboard shortcuts --------------------------------------------------
-  // Electron's default menu accelerators can be unreliable on Linux with
-  // frame: false (e.g. Ctrl+Shift+= for zoom-in, F11 for fullscreen).
-  // Handle them explicitly via before-input-event so they work everywhere.
+  // Electron's default menu accelerators are unreliable on Linux with
+  // frame: false, so we handle them explicitly via before-input-event.
+  // We match on input.code (physical key) rather than input.key (layout-
+  // dependent character) so shortcuts work across all keyboard layouts and
+  // Linux input methods (XKB, IBus, Fcitx, etc.).
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown' || !mainWindow || mainWindow.isDestroyed()) return;
 
     const ctrlOrCmd = input.control || input.meta;
 
-    // Zoom in: Ctrl+Shift+= (produces '+') and Ctrl+NumpadAdd
-    if (ctrlOrCmd && !input.alt && input.key === '+') {
+    // Zoom in: Ctrl+= / Ctrl+Shift+= / Ctrl+NumpadAdd
+    if (ctrlOrCmd && !input.alt && (input.code === 'Equal' || input.code === 'NumpadAdd')) {
       mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() + 0.5);
       event.preventDefault();
       return;
     }
 
-    // Zoom out: Ctrl+NumpadSubtract (the regular Ctrl+- is handled by the
-    // default menu, but the numpad variant may not be)
-    if (ctrlOrCmd && !input.alt && !input.shift && input.code === 'NumpadSubtract') {
+    // Zoom out: Ctrl+- / Ctrl+NumpadSubtract
+    if (ctrlOrCmd && !input.alt && (input.code === 'Minus' || input.code === 'NumpadSubtract')) {
       mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() - 0.5);
       event.preventDefault();
       return;
     }
 
-    // Reset zoom: Ctrl+0
-    if (ctrlOrCmd && !input.alt && !input.shift && input.key === '0') {
+    // Reset zoom: Ctrl+0 / Ctrl+Numpad0
+    if (ctrlOrCmd && !input.alt && !input.shift && (input.code === 'Digit0' || input.code === 'Numpad0')) {
       mainWindow.webContents.setZoomLevel(0);
       event.preventDefault();
       return;
     }
 
     // Toggle fullscreen: F11
-    if (!ctrlOrCmd && !input.alt && !input.shift && input.key === 'F11') {
+    if (!ctrlOrCmd && !input.alt && !input.shift && input.code === 'F11') {
       mainWindow.setFullScreen(!mainWindow.isFullScreen());
       event.preventDefault();
       return;
     }
 
     // Help: F1 — open help/FAQ in default browser
-    if (!ctrlOrCmd && !input.alt && !input.shift && input.key === 'F1') {
+    if (!ctrlOrCmd && !input.alt && !input.shift && input.code === 'F1') {
       shell.openExternal('https://adieuu.com');
       event.preventDefault();
       return;
@@ -344,7 +345,7 @@ async function createWindow() {
 
     // Block DevTools in production (Ctrl+Shift+I / F12)
     if (!isDev) {
-      if ((ctrlOrCmd && input.shift && input.key === 'I') || input.key === 'F12') {
+      if ((ctrlOrCmd && input.shift && input.code === 'KeyI') || input.code === 'F12') {
         event.preventDefault();
         return;
       }
