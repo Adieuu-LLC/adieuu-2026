@@ -299,9 +299,9 @@ jobs:
         include:
           - os: ubuntu-latest-4-core
             artifact-name: packaged-desktop-linux
-          - os: windows-latest-8-core
+          - os: windows-latest-16-core
             artifact-name: packaged-desktop-windows
-          - os: macos-latest-xlarge
+          - os: macos-latest
             artifact-name: packaged-desktop-macos
     runs-on: ${{ matrix.os }}
     env:
