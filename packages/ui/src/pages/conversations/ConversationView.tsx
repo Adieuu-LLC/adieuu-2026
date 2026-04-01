@@ -780,6 +780,8 @@ export function ConversationView() {
     sending,
     participantProfiles,
     setActiveConversation,
+    setIsAtBottom,
+    markConversationRead,
     sendTextMessage,
     loadMoreMessages,
     leaveGroup,
@@ -806,6 +808,7 @@ export function ConversationView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isAtBottomLocalRef = useRef(true);
   const fetchedReactionsForRef = useRef<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -860,9 +863,29 @@ export function ConversationView() {
   useEffect(() => {
     if (id && id !== activeConversationId) {
       setActiveConversation(id);
+      isAtBottomLocalRef.current = true;
+      setIsAtBottom(true);
       fetchedReactionsForRef.current = null;
     }
-  }, [id, activeConversationId, setActiveConversation]);
+  }, [id, activeConversationId, setActiveConversation, setIsAtBottom]);
+
+  // Clear activeConversationId and scroll state when this view unmounts
+  // (e.g. navigating to About / Settings) so the WebSocket handler correctly
+  // increments unreads. React Router keeps the component mounted for
+  // conversation-to-conversation navigation (same <Route>, different param),
+  // so this only fires on a true route change away from /conversations/:id.
+  const setActiveConversationRef = useRef(setActiveConversation);
+  setActiveConversationRef.current = setActiveConversation;
+  const setIsAtBottomRef = useRef(setIsAtBottom);
+  setIsAtBottomRef.current = setIsAtBottom;
+
+  useEffect(() => {
+    return () => {
+      setActiveConversationRef.current(null);
+      isAtBottomLocalRef.current = false;
+      setIsAtBottomRef.current(false);
+    };
+  }, []);
 
   useEffect(() => {
     if (!id || activeMessages.length === 0) return;
@@ -876,7 +899,9 @@ export function ConversationView() {
   }, [id, activeMessages, fetchReactions]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isAtBottomLocalRef.current && document.hasFocus()) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [activeMessages.length]);
 
   useEffect(() => {
@@ -948,13 +973,26 @@ export function ConversationView() {
     [handleSend]
   );
 
+  const AT_BOTTOM_THRESHOLD = 80;
+
   const handleScroll = useCallback(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
+
     if (container.scrollTop === 0 && activeMessagesCursor && !messagesLoading) {
       loadMoreMessages();
     }
-  }, [activeMessagesCursor, messagesLoading, loadMoreMessages]);
+
+    const atBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight <= AT_BOTTOM_THRESHOLD;
+    const wasAtBottom = isAtBottomLocalRef.current;
+    isAtBottomLocalRef.current = atBottom;
+    setIsAtBottom(atBottom);
+
+    if (atBottom && !wasAtBottom && id) {
+      markConversationRead(id);
+    }
+  }, [activeMessagesCursor, messagesLoading, loadMoreMessages, setIsAtBottom, markConversationRead, id]);
 
   const handleLeaveClick = useCallback(() => {
     if (!conversation) return;

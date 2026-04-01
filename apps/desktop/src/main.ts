@@ -1,4 +1,5 @@
-import { app, BrowserWindow, shell, ipcMain, dialog, session, protocol, net } from 'electron';
+import { app, BrowserWindow, shell, ipcMain, dialog, session, protocol, net, nativeImage } from 'electron';
+import type { NativeImage } from 'electron';
 import path from 'path';
 import { pathToFileURL, fileURLToPath } from 'url';
 import { existsSync } from 'fs';
@@ -253,6 +254,190 @@ const RENDERER_DIR = path.resolve(__dirname, '../renderer');
 const ICON_PATH = app.isPackaged
   ? path.join(process.resourcesPath, 'icon.png')
   : path.resolve(__dirname, '../../build/icon.png');
+
+// ============================================================================
+// Taskbar badge overlay (Linux / Windows)
+//
+// app.setBadgeCount() relies on Unity Launcher API on Linux, which many DEs
+// don't support. To ensure the unread badge is always visible we composite a
+// badge pill directly onto the window icon via mainWindow.setIcon().
+// ============================================================================
+
+// Brand accent colour (--color-accent-primary: #22d3ee) in RGBA.
+const BADGE_R = 0x22;
+const BADGE_G = 0xd3;
+const BADGE_B = 0xee;
+
+// 5x7 bitmap glyphs for digits 0-9 and '+'. Each glyph is a flat array of
+// 5*7 = 35 values (0 or 1), stored row-major.
+const GLYPH_W = 5;
+const GLYPH_H = 7;
+const GLYPHS: Record<string, readonly number[]> = {
+  '0': [0,1,1,1,0, 1,0,0,0,1, 1,0,0,1,1, 1,0,1,0,1, 1,1,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+  '1': [0,0,1,0,0, 0,1,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,1,1,1,0],
+  '2': [0,1,1,1,0, 1,0,0,0,1, 0,0,0,0,1, 0,0,1,1,0, 0,1,0,0,0, 1,0,0,0,0, 1,1,1,1,1],
+  '3': [0,1,1,1,0, 1,0,0,0,1, 0,0,0,0,1, 0,0,1,1,0, 0,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+  '4': [0,0,0,1,0, 0,0,1,1,0, 0,1,0,1,0, 1,0,0,1,0, 1,1,1,1,1, 0,0,0,1,0, 0,0,0,1,0],
+  '5': [1,1,1,1,1, 1,0,0,0,0, 1,1,1,1,0, 0,0,0,0,1, 0,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+  '6': [0,1,1,1,0, 1,0,0,0,0, 1,0,0,0,0, 1,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+  '7': [1,1,1,1,1, 0,0,0,0,1, 0,0,0,1,0, 0,0,1,0,0, 0,0,1,0,0, 0,1,0,0,0, 0,1,0,0,0],
+  '8': [0,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,0],
+  '9': [0,1,1,1,0, 1,0,0,0,1, 1,0,0,0,1, 0,1,1,1,1, 0,0,0,0,1, 0,0,0,0,1, 0,1,1,1,0],
+  '+': [0,0,0,0,0, 0,0,1,0,0, 0,0,1,0,0, 0,1,1,1,0, 0,0,1,0,0, 0,0,1,0,0, 0,0,0,0,0],
+};
+
+let cachedBasePng: Buffer | null = null;
+let cachedBaseSize: { width: number; height: number } | null = null;
+
+function loadBasePng(): Buffer | null {
+  if (cachedBasePng) return cachedBasePng;
+  try {
+    const img = nativeImage.createFromPath(ICON_PATH);
+    if (img.isEmpty()) return null;
+    cachedBaseSize = img.getSize();
+    cachedBasePng = img.toPNG();
+    return cachedBasePng;
+  } catch {
+    return null;
+  }
+}
+
+function getBaseIcon(): NativeImage | null {
+  const png = loadBasePng();
+  if (!png) return null;
+  return nativeImage.createFromBuffer(png);
+}
+
+/**
+ * Renders a filled circle onto an RGBA bitmap buffer.  Uses basic distance-
+ * field anti-aliasing (1 px fringe) for smooth edges.
+ */
+function fillCircle(
+  buf: Buffer, w: number, cx: number, cy: number, r: number,
+  cr: number, cg: number, cb: number, ca: number,
+): void {
+  const x0 = Math.max(0, Math.floor(cx - r - 1));
+  const x1 = Math.min(w - 1, Math.ceil(cx + r + 1));
+  const y0 = Math.max(0, Math.floor(cy - r - 1));
+  const y1 = Math.min(Math.floor(buf.length / (w * 4)) - 1, Math.ceil(cy + r + 1));
+
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+      if (dist > r + 0.5) continue;
+      const alpha = dist > r - 0.5 ? (r + 0.5 - dist) * ca : ca;
+      if (alpha <= 0) continue;
+
+      const off = (y * w + x) * 4;
+      const srcA = alpha / 255;
+      const dstA = buf[off + 3]! / 255;
+      const outA = srcA + dstA * (1 - srcA);
+      if (outA > 0) {
+        buf[off + 0] = Math.round((cr * srcA + buf[off + 0]! * dstA * (1 - srcA)) / outA);
+        buf[off + 1] = Math.round((cg * srcA + buf[off + 1]! * dstA * (1 - srcA)) / outA);
+        buf[off + 2] = Math.round((cb * srcA + buf[off + 2]! * dstA * (1 - srcA)) / outA);
+        buf[off + 3] = Math.round(outA * 255);
+      }
+    }
+  }
+}
+
+/**
+ * Draws a single glyph character (scaled up) onto an RGBA bitmap buffer.
+ * Each source pixel becomes a `scale x scale` block; pixels with value 1
+ * are drawn fully opaque, 0 pixels are skipped.
+ */
+function drawGlyph(
+  buf: Buffer, w: number, h: number,
+  glyph: readonly number[], gx: number, gy: number, scale: number,
+  cr: number, cg: number, cb: number,
+): void {
+  for (let row = 0; row < GLYPH_H; row++) {
+    for (let col = 0; col < GLYPH_W; col++) {
+      if (!glyph[row * GLYPH_W + col]) continue;
+      for (let dy = 0; dy < scale; dy++) {
+        for (let dx = 0; dx < scale; dx++) {
+          const px = gx + col * scale + dx;
+          const py = gy + row * scale + dy;
+          if (px < 0 || px >= w || py < 0 || py >= h) continue;
+          const off = (py * w + px) * 4;
+          buf[off + 0] = cr;
+          buf[off + 1] = cg;
+          buf[off + 2] = cb;
+          buf[off + 3] = 255;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Returns a copy of the base icon with a badge pill rendered in the bottom-
+ * right corner.  If `count` is 0 the original icon is returned unchanged.
+ */
+function createBadgedIcon(count: number): NativeImage | null {
+  if (count <= 0) return getBaseIcon();
+
+  const png = loadBasePng();
+  if (!png || !cachedBaseSize) return null;
+
+  const fresh = nativeImage.createFromBuffer(png);
+  const { width: w, height: h } = cachedBaseSize;
+  const buf = Buffer.from(fresh.toBitmap());
+
+  const label = count > 99 ? '99+' : String(count);
+  const chars = label.split('');
+
+  // Scale factor: each glyph "pixel" maps to `scale` real pixels.
+  const scale = Math.max(1, Math.round(w * 0.045));
+  const charW = GLYPH_W * scale;
+  const charH = GLYPH_H * scale;
+  const gap = Math.max(1, Math.round(scale * 0.6));
+  const textW = chars.length * charW + (chars.length - 1) * gap;
+  const paddingX = Math.round(scale * 2.5);
+  const paddingY = Math.round(scale * 1.8);
+
+  const pillW = textW + paddingX * 2;
+  const pillH = charH + paddingY * 2;
+  const pillR = pillH / 2;
+  const margin = Math.round(w * 0.04);
+
+  const pillCenterX = w - margin - pillW / 2;
+  const pillCenterY = h - margin - pillH / 2;
+
+  // Draw pill background: a capsule shape (two semicircles + rect fill).
+  const leftCx = pillCenterX - pillW / 2 + pillR;
+  const rightCx = pillCenterX + pillW / 2 - pillR;
+
+  fillCircle(buf, w, leftCx, pillCenterY, pillR, BADGE_R, BADGE_G, BADGE_B, 255);
+  fillCircle(buf, w, rightCx, pillCenterY, pillR, BADGE_R, BADGE_G, BADGE_B, 255);
+
+  // Fill the rectangular region between the two semicircles.
+  const rectX0 = Math.floor(leftCx);
+  const rectX1 = Math.ceil(rightCx);
+  const rectY0 = Math.max(0, Math.round(pillCenterY - pillR));
+  const rectY1 = Math.min(h - 1, Math.round(pillCenterY + pillR));
+  for (let y = rectY0; y <= rectY1; y++) {
+    for (let x = rectX0; x <= rectX1; x++) {
+      const off = (y * w + x) * 4;
+      buf[off + 0] = BADGE_R;
+      buf[off + 1] = BADGE_G;
+      buf[off + 2] = BADGE_B;
+      buf[off + 3] = 255;
+    }
+  }
+
+  // Draw white text centred inside the pill.
+  const textX = Math.round(pillCenterX - textW / 2);
+  const textY = Math.round(pillCenterY - charH / 2);
+  for (let i = 0; i < chars.length; i++) {
+    const glyph = GLYPHS[chars[i]!];
+    if (!glyph) continue;
+    drawGlyph(buf, w, h, glyph, textX + i * (charW + gap), textY, scale, 255, 255, 255);
+  }
+
+  return nativeImage.createFromBitmap(buf, { width: w, height: h });
+}
 
 async function createWindow() {
   mainWindow = new BrowserWindow({
@@ -843,7 +1028,16 @@ ipcMain.handle('window:isMaximized', () => {
 
 ipcMain.handle('window:setBadgeCount', (_event, count: unknown) => {
   if (typeof count !== 'number' || count < 0) return;
-  app.setBadgeCount(Math.round(count));
+  const rounded = Math.round(count);
+  app.setBadgeCount(rounded);
+
+  // On Linux (and Windows), composite the badge directly onto the window icon
+  // so the unread count is visible regardless of desktop environment support
+  // for the Unity Launcher API / DDE dock count.
+  if (!isMac && mainWindow && !mainWindow.isDestroyed()) {
+    const icon = rounded > 0 ? createBadgedIcon(rounded) : getBaseIcon();
+    if (icon) mainWindow.setIcon(icon);
+  }
 });
 
 // ============================================================================

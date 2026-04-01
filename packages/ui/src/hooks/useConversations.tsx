@@ -92,6 +92,8 @@ interface ConversationsContextValue {
   sending: boolean;
 
   setActiveConversation: (id: string | null) => void;
+  setIsAtBottom: (value: boolean) => void;
+  markConversationRead: (conversationId: string) => void;
 
   // Conversation operations
   createDM: (participantId: string) => Promise<PublicConversation | null>;
@@ -588,7 +590,11 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             };
           });
 
-          if (conversationId === activeConversationIdRef.current) {
+          if (
+            conversationId === activeConversationIdRef.current &&
+            document.hasFocus() &&
+            isAtBottomRef.current
+          ) {
             setConversations((prev) =>
               prev.map((c) =>
                 c.id === conversationId ? { ...c, unreadCount: 0 } : c
@@ -1108,6 +1114,19 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const activeConversationIdRef = useRef(activeConversationId);
   activeConversationIdRef.current = activeConversationId;
 
+  const isAtBottomRef = useRef(true);
+  const setIsAtBottom = useCallback((value: boolean) => {
+    isAtBottomRef.current = value;
+  }, []);
+
+  const markConversationRead = useCallback((conversationId: string) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === conversationId && c.unreadCount > 0 ? { ...c, unreadCount: 0 } : c
+      )
+    );
+  }, []);
+
   const fetchConversationsRef = useRef(fetchConversations);
   fetchConversationsRef.current = fetchConversations;
 
@@ -1257,7 +1276,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         case 'conversation_message': {
           const { conversationId, messageId, fromIdentityId } = message.data;
           const activeId = activeConversationIdRef.current;
-          const isViewing = conversationId === activeId;
+          const isActiveConvo = conversationId === activeId;
+          const isViewing = isActiveConvo && document.hasFocus() && isAtBottomRef.current;
 
           if (!isViewing) {
             setConversations((prev) =>
@@ -1273,6 +1293,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 c.id === conversationId ? { ...c, unreadCount: 0 } : c
               )
             );
+          }
+
+          if (isActiveConvo) {
             fetchMessagesRef.current(conversationId, undefined, true);
           }
 
@@ -1397,21 +1420,22 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       }
     });
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        const activeId = activeConversationIdRef.current;
-        if (activeId) {
-          fetchMessagesRef.current(activeId, undefined, true);
-        }
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState !== 'visible') return;
+      const activeId = activeConversationIdRef.current;
+      if (activeId && isAtBottomRef.current) {
+        fetchMessagesRef.current(activeId, undefined, true);
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
 
     return () => {
       unsubMessage();
       unsubState();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
     };
   }, [isLoggedIn, subscribe, onStateChange]);
 
@@ -1462,6 +1486,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     messagesLoading: activeState?.loading ?? false,
     sending,
     setActiveConversation,
+    setIsAtBottom,
+    markConversationRead,
     createDM,
     createGroup,
     sendTextMessage,
