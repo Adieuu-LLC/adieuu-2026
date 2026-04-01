@@ -809,6 +809,7 @@ export function ConversationView() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isAtBottomLocalRef = useRef(true);
+  const shouldScrollToBottomRef = useRef(true);
   const fetchedReactionsForRef = useRef<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -864,6 +865,7 @@ export function ConversationView() {
     if (id && id !== activeConversationId) {
       setActiveConversation(id);
       isAtBottomLocalRef.current = true;
+      shouldScrollToBottomRef.current = true;
       setIsAtBottom(true);
       fetchedReactionsForRef.current = null;
     }
@@ -899,7 +901,10 @@ export function ConversationView() {
   }, [id, activeMessages, fetchReactions]);
 
   useEffect(() => {
-    if (isAtBottomLocalRef.current && document.hasFocus()) {
+    if (shouldScrollToBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      shouldScrollToBottomRef.current = false;
+    } else if (isAtBottomLocalRef.current && document.hasFocus()) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [activeMessages.length]);
