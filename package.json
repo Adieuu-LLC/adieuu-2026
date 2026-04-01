@@ -21,9 +21,14 @@
     "test:fs": "pnpm --filter @adieuu/ui test -- ./src/hooks/usePreKeys.scheduler.test.ts ./src/services/preKeyStorage.test.ts ./src/services/preKeyService.test.ts && pnpm --filter @adieuu/api test -- ./src/repositories/pre-key.repository.test.ts ./src/routes/identity/pre-key.controller.test.ts",
     "test:security": "pnpm --filter @adieuu/api test -- ./src/repositories/session.repository.test.ts ./src/repositories/block.repository.test.ts ./src/repositories/mfa.repository.test.ts ./src/services/session.service.test.ts ./src/services/rate-limit.service.test.ts ./src/services/block.service.test.ts ./src/services/mfa.service.test.ts && pnpm --filter @adieuu/api test -- ./src/routes/blocks/controller.test.ts ./src/routes/mfa/controller.test.ts",
     "typecheck": "turbo run typecheck",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rm -rf node_modules",
+    "prepare": "simple-git-hooks"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "if git diff --cached --name-only | grep -qE '(pnpm-lock\\.yaml|package\\.json|\\.npmrc)$'; then node scripts/audit-supply-chain.mjs; fi"
   },
   "devDependencies": {
+    "simple-git-hooks": "2.13.1",
     "turbo": "2.8.8",
     "typescript": "5.9.3"
   },

@@ -301,7 +301,7 @@ jobs:
             artifact-name: packaged-desktop-linux
           - os: windows-latest-16-core
             artifact-name: packaged-desktop-windows
-          - os: macos-latest
+          - os: macos-latest-large
             artifact-name: packaged-desktop-macos
     runs-on: ${{ matrix.os }}
     env:
@@ -588,7 +588,7 @@ jobs:
 
           if [ -d sboms ] && [ "$(find sboms -name '*.json' 2>/dev/null | head -1)" ]; then
             echo "Syncing SBOMs to s3://${BUCKET}/${VERSION}/sbom/"
-            aws s3 sync sboms/ "s3://${BUCKET}/${VERSION}/sbom/"
+            aws s3 sync sboms/ "s3://${BUCKET}/${VERSION}/sbom/" --exclude "*" --include "*.json"
           else
             echo "No SBOM files found, skipping."
           fi

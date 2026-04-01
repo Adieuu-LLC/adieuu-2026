@@ -1,0 +1,23 @@
+# Supply chain and security-sensitive files.
+#
+# Changes to these paths require approval from the security team.
+# The team handle below must correspond to a GitHub team in the Adieuu-LLC
+# organisation. Create it at:
+#   https://github.com/orgs/Adieuu-LLC/teams/new
+# and add members who should review dependency and infrastructure changes.
+#
+# For CODEOWNERS to be enforced, the repository must also have a branch
+# protection rule on the target branch with "Require review from Code Owners"
+# enabled.
+
+# -- Dependency manifests and lockfile --
+pnpm-lock.yaml          @Adieuu-LLC/security
+package.json            @Adieuu-LLC/security
+.npmrc                  @Adieuu-LLC/security
+pnpm-workspace.yaml     @Adieuu-LLC/security
+
+# -- CI/CD workflows --
+.github/                @Adieuu-LLC/security
+
+# -- Infrastructure --
+infra/                  @Adieuu-LLC/security
