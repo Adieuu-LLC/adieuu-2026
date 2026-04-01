@@ -289,6 +289,53 @@ async function createWindow() {
     return { action: 'deny' };
   });
 
+  // ---- Keyboard shortcuts --------------------------------------------------
+  // Electron's default menu accelerators can be unreliable on Linux with
+  // frame: false (e.g. Ctrl+Shift+= for zoom-in, F11 for fullscreen).
+  // Handle them explicitly via before-input-event so they work everywhere.
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || !mainWindow || mainWindow.isDestroyed()) return;
+
+    const ctrlOrCmd = input.control || input.meta;
+
+    // Zoom in: Ctrl+Shift+= (produces '+') and Ctrl+NumpadAdd
+    if (ctrlOrCmd && !input.alt && input.key === '+') {
+      mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() + 0.5);
+      event.preventDefault();
+      return;
+    }
+
+    // Zoom out: Ctrl+NumpadSubtract (the regular Ctrl+- is handled by the
+    // default menu, but the numpad variant may not be)
+    if (ctrlOrCmd && !input.alt && !input.shift && input.code === 'NumpadSubtract') {
+      mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() - 0.5);
+      event.preventDefault();
+      return;
+    }
+
+    // Reset zoom: Ctrl+0
+    if (ctrlOrCmd && !input.alt && !input.shift && input.key === '0') {
+      mainWindow.webContents.setZoomLevel(0);
+      event.preventDefault();
+      return;
+    }
+
+    // Toggle fullscreen: F11
+    if (!ctrlOrCmd && !input.alt && !input.shift && input.key === 'F11') {
+      mainWindow.setFullScreen(!mainWindow.isFullScreen());
+      event.preventDefault();
+      return;
+    }
+
+    // Block DevTools in production (Ctrl+Shift+I / F12)
+    if (!isDev) {
+      if ((ctrlOrCmd && input.shift && input.key === 'I') || input.key === 'F12') {
+        event.preventDefault();
+        return;
+      }
+    }
+  });
+
   if (isDev) {
     const rendererUrl = process.env.ELECTRON_RENDERER_URL || 'http://localhost:5173';
     await mainWindow.loadURL(rendererUrl);
