@@ -6,7 +6,7 @@ WORKDIR /app
 
 COPY --from=oven/bun:1.2 /usr/local/bin/bun /usr/local/bin/bun
 
-# corepack is not always present on slim images or cross-platform builds (e.g. linux/amd64 from ARM).
+# corepack is not always present on slim images or cross-platform builds.
 RUN npm install -g pnpm@9.15.4
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./

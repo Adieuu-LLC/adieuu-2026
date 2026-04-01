@@ -25,7 +25,9 @@ environment  = "staging"
 # ecs_autoscaling_memory_target   = 80
 
 # Private VPC endpoints (ECR, Logs, Secrets Manager, STS, KMS) + S3 gateway — reduces NAT usage for AWS APIs.
-# enable_vpc_interface_endpoints = true
+# At low traffic volumes the endpoint cost (~$87/mo) exceeds NAT data processing savings; enable when
+# NAT data transfer for AWS API calls alone justifies the per-endpoint-per-AZ hourly charge.
+# enable_vpc_interface_endpoints = false
 
 # Operational alarms → SNS (confirm the email subscription after first apply).
 # alarm_notification_email = "ops@example.com"
@@ -55,10 +57,10 @@ single_nat_gateway        = true
 # api_max_request_body_bytes = 102400 # API + ALB WAF max body (100 KiB; must match @adieuu/shared DEFAULT_MAX_REQUEST_BODY_BYTES)
 # api_image_tag             = "latest"
 # chat_image_tag            = "latest"
-# api_task_cpu              = 512
-# api_task_memory           = 1024
-# chat_task_cpu             = 512
-# chat_task_memory          = 1024
+# api_task_cpu              = 256
+# api_task_memory           = 512
+# chat_task_cpu             = 256
+# chat_task_memory          = 512
 # api_desired_count         = 1
 # chat_desired_count        = 1
 

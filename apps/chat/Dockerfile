@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Build from repository root: docker build -f apps/chat/Dockerfile .
-# uWebSockets.js ships native binaries; build target platform should match runtime (e.g. linux/amd64 for Fargate).
+# uWebSockets.js ships native binaries; build target platform should match runtime (e.g. linux/arm64 for Fargate Graviton).
 
 # Trixie (or newer glibc) is required: uWebSockets.js ships native binaries that need GLIBC >= 2.38 (Bookworm is too old).
 FROM node:25-trixie-slim AS builder
@@ -10,7 +10,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends git ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
-# corepack is not always present on slim images or cross-platform builds (e.g. linux/amd64 from ARM).
+# corepack is not always present on slim images or cross-platform builds.
 RUN npm install -g pnpm@9.15.4
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./

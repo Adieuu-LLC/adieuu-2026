@@ -143,25 +143,25 @@ variable "chat_image_tag" {
 variable "api_task_cpu" {
   type        = number
   description = "Fargate CPU units for the API task (e.g. 256, 512, 1024)."
-  default     = 512
+  default     = 256
 }
 
 variable "api_task_memory" {
   type        = number
   description = "Fargate memory (MiB) for the API task."
-  default     = 1024
+  default     = 512
 }
 
 variable "chat_task_cpu" {
   type        = number
   description = "Fargate CPU units for the chat task."
-  default     = 512
+  default     = 256
 }
 
 variable "chat_task_memory" {
   type        = number
   description = "Fargate memory (MiB) for the chat task."
-  default     = 1024
+  default     = 512
 }
 
 # --- ECS service autoscaling (API + chat) ---
@@ -452,8 +452,8 @@ variable "github_oidc_provider_arn" {
 
 variable "enable_vpc_interface_endpoints" {
   type        = bool
-  description = "Create interface VPC endpoints (ECR, Logs, Secrets Manager, STS, KMS) and an S3 gateway endpoint so private subnets can reach AWS APIs with less NAT dependency."
-  default     = true
+  description = "Create interface VPC endpoints (ECR, Logs, Secrets Manager, STS, KMS) and an S3 gateway endpoint so private subnets can reach AWS APIs with less NAT dependency. At low traffic the per-endpoint-per-AZ cost (~$87/mo for 6 services x 2 AZs) exceeds NAT data processing savings."
+  default     = false
 }
 
 variable "alarm_notification_email" {
