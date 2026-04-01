@@ -470,7 +470,7 @@ jobs:
 
   # Generate a monorepo-wide SBOM from the workspace root so that cdxgen can
   # resolve the full dependency tree via pnpm-lock.yaml. Per-app SBOMs are not
-  # feasible until pnpm 11 stabilises (native `pnpm sbom --filter` support);
+  # easil until pnpm 11 stabilises (native `pnpm sbom --filter` support);
   # cdxgen and syft both fail to resolve transitive deps when pointed at
   # individual workspace subdirectories (cdxgen/cdxgen#3570, anchore/syft#2574).
   generate-sboms:
@@ -497,7 +497,7 @@ jobs:
         uses: manifest-cyber/manifest-github-action@v1.6.0
         with:
           apiKey: ${{ secrets.MANIFEST_API_KEY }}
-          sbomPublish: false
+          sbomPublish: true
           path: .
           relationship: 'first'
           sbomName: 'adieuu'
