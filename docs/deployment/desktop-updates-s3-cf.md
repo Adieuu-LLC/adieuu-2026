@@ -60,7 +60,7 @@ electron-updater hits `https://downloads.adieuu.com/latest/latest.yml` -- CloudF
 |--------|---------|
 | `latest/` | **Current** channel for auto-update: blockmaps and referenced installers (generic provider base URL = `https://downloads.adieuu.com/latest/`). **Note:** `latest.yml`, `latest-mac.yml`, `latest-linux.yml` are served via API from the private manifest bucket; they are NOT in the downloads bucket. |
 | `vX.Y.Z/desktop/` | **Immutable** copy per release: full desktop `out/` payload. |
-| `vX.Y.Z/sbom/` | SBOM JSON files (e.g. `adieuu-desktop-vX.Y.Z-sbom.json`, plus api/web/mobile if desired). |
+| `vX.Y.Z/sbom/` | Monorepo-wide SBOM JSON (e.g. `adieuu-vX.Y.Z-sbom.json`). Generated from the workspace root so cdxgen can resolve the full dependency tree via `pnpm-lock.yaml`. Per-app SBOMs will be possible when pnpm 11 stabilises (`pnpm sbom --filter`). |
 | `releases.json` | Machine-readable list of all published versions with download URLs. |
 
 ## Terraform (`infra/aws/terraform/downloads.tf`)

@@ -468,27 +468,29 @@ jobs:
             fi
           done
 
-  # Generate SBOMs for release and upload as workflow artifacts first.
+  # Generate a monorepo-wide SBOM from the workspace root so that cdxgen can
+  # resolve the full dependency tree via pnpm-lock.yaml. Per-app SBOMs are not
+  # feasible until pnpm 11 stabilises (native `pnpm sbom --filter` support);
+  # cdxgen and syft both fail to resolve transitive deps when pointed at
+  # individual workspace subdirectories (cdxgen/cdxgen#3570, anchore/syft#2574).
   generate-sboms:
     needs: release
     if: needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - app: api
-            path: apps/api
-          - app: web
-            path: apps/web
-          - app: desktop
-            path: apps/desktop
-          - app: mobile
-            path: apps/mobile
     steps:
       - uses: actions/checkout@v6
         with:
           ref: main
+
+      - uses: pnpm/action-setup@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Generate SBOM
         continue-on-error: true
@@ -496,14 +498,14 @@ jobs:
         with:
           apiKey: ${{ secrets.MANIFEST_API_KEY }}
           sbomPublish: false
-          path: ${{ matrix.path }}
+          path: .
           relationship: 'first'
-          sbomName: 'adieuu-${{ matrix.app }}'
+          sbomName: 'adieuu'
           sbomVersion: '${{ needs.release.outputs.new_version }}'
           sbomGenerator: 'cdxgen'
-          asset-labels: 'adieuu,environment-${{ matrix.app }},v${{ needs.release.outputs.new_version }},oss,generated-pipeline'
+          asset-labels: 'adieuu,v${{ needs.release.outputs.new_version }},oss,generated-pipeline'
           active: true
-          sbomArtifactName: 'adieuu-${{ matrix.app }}-${{ needs.release.outputs.new_version }}-sbom.json'
+          sbomArtifactName: 'adieuu-${{ needs.release.outputs.new_version }}-sbom.json'
 
   # Attach generated SBOM artifacts to draft release.
   attach-sboms:
@@ -514,7 +516,7 @@ jobs:
       - name: Download SBOM artifacts
         uses: actions/download-artifact@v7
         with:
-          pattern: adieuu-*-*-sbom.json
+          pattern: adieuu-*-sbom.json
           path: sboms
           merge-multiple: true
 
@@ -566,7 +568,7 @@ jobs:
         if: steps.check_vars.outputs.skip != 'true'
         uses: actions/download-artifact@v7
         with:
-          pattern: adieuu-*-*-sbom.json
+          pattern: adieuu-*-sbom.json
           path: sboms
           merge-multiple: true
         continue-on-error: true
