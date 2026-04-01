@@ -1373,6 +1373,9 @@ export const en = {
       noEligible: 'No friends available to invite',
     },
 
+    newUnreads: 'New messages',
+    jumpToLatest: 'Jump to latest message',
+
     notifications: {
       groupInvite: 'Group invitation',
       groupInviteNameHidden:

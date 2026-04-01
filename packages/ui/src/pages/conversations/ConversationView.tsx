@@ -811,6 +811,7 @@ export function ConversationView() {
   const isAtBottomLocalRef = useRef(true);
   const shouldScrollToBottomRef = useRef(true);
   const fetchedReactionsForRef = useRef<string | null>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -993,11 +994,16 @@ export function ConversationView() {
     const wasAtBottom = isAtBottomLocalRef.current;
     isAtBottomLocalRef.current = atBottom;
     setIsAtBottom(atBottom);
+    setShowScrollButton(!atBottom);
 
     if (atBottom && !wasAtBottom && id) {
       markConversationRead(id);
     }
   }, [activeMessagesCursor, messagesLoading, loadMoreMessages, setIsAtBottom, markConversationRead, id]);
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
   const handleLeaveClick = useCallback(() => {
     if (!conversation) return;
@@ -1126,6 +1132,12 @@ export function ConversationView() {
       return true;
     });
 
+  const unreadCount = conversation?.unreadCount ?? 0;
+  const unreadSeparatorIndex =
+    unreadCount > 0 && unreadCount < reversedMessages.length
+      ? reversedMessages.length - unreadCount
+      : -1;
+
   return (
     <div className="conversation-page">
       <div className="conversation-container">
@@ -1202,6 +1214,15 @@ export function ConversationView() {
 
                   return (
                     <Fragment key={msg.id}>
+                      {index === unreadSeparatorIndex && (
+                        <div className="dm-unread-separator">
+                          <div className="dm-unread-separator-line" />
+                          <span className="dm-unread-separator-text">
+                            {t('conversations.newUnreads', 'New messages')}
+                          </span>
+                          <div className="dm-unread-separator-line" />
+                        </div>
+                      )}
                       {showDaySep && (
                         <div className="dm-day-separator">
                           <div className="dm-day-separator-line" />
@@ -1239,6 +1260,18 @@ export function ConversationView() {
 
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Scroll to bottom */}
+            <Tooltip content={t('conversations.jumpToLatest', 'Jump to latest message')} position="top">
+              <button
+                type="button"
+                className={`conversation-scroll-to-bottom${showScrollButton ? ' conversation-scroll-to-bottom--visible' : ''}`}
+                onClick={scrollToBottom}
+                aria-label={t('conversations.jumpToLatest', 'Jump to latest message')}
+              >
+                <Icon name="chevronDown" />
+              </button>
+            </Tooltip>
 
             {/* Composer */}
             <div className="conversation-composer">
