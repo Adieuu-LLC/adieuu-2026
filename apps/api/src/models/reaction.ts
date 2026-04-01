@@ -47,6 +47,9 @@ export interface ReactionDocument extends BaseDocument {
 
   /** Client-generated UUID for deduplication */
   clientReactionId: string;
+
+  /** Inherited from parent message for TTL cascade (MongoDB auto-deletes at this time) */
+  expiresAt?: Date;
 }
 
 /**
@@ -62,6 +65,7 @@ export interface CreateReactionInput {
   signature: string;
   cryptoProfile: CryptoProfile;
   clientReactionId: string;
+  expiresAt?: Date;
 }
 
 /**
@@ -79,6 +83,7 @@ export interface PublicReaction {
   cryptoProfile: CryptoProfile;
   clientReactionId: string;
   createdAt: string;
+  expiresAt?: string;
 }
 
 /**
@@ -97,5 +102,6 @@ export function toPublicReaction(doc: ReactionDocument): PublicReaction {
     cryptoProfile: doc.cryptoProfile,
     clientReactionId: doc.clientReactionId,
     createdAt: doc.createdAt.toISOString(),
+    ...(doc.expiresAt ? { expiresAt: doc.expiresAt.toISOString() } : {}),
   };
 }

@@ -549,6 +549,7 @@ async function createIndexes(): Promise<void> {
   await reactions.createIndex({ messageId: 1, createdAt: 1 });
   await reactions.createIndex({ conversationId: 1, clientReactionId: 1 }, { unique: true });
   await reactions.createIndex({ fromIdentityId: 1, messageId: 1 });
+  await reactions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
 
   // Platform settings — one row per key
   const platformSettings = database.collection(Collections.PLATFORM_SETTINGS);

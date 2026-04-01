@@ -883,11 +883,13 @@ export function ConversationView() {
   const handleReact = useCallback(
     async (messageId: string, emoji: string) => {
       if (!id || !conversation) return;
-      const recipients = await fetchRecipientKeys(conversation.participants, false);
+      const targetMsg = activeMessages.find((m) => m.id === messageId);
+      const useForwardSecrecy = targetMsg?.forwardSecrecy ?? false;
+      const recipients = await fetchRecipientKeys(conversation.participants, useForwardSecrecy);
       if (recipients.length === 0) return;
       await addReaction(messageId, emoji, recipients);
     },
-    [id, conversation, addReaction, fetchRecipientKeys]
+    [id, conversation, activeMessages, addReaction, fetchRecipientKeys]
   );
 
   const handleToggleReaction = useCallback(

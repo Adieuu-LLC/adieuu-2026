@@ -98,7 +98,7 @@ describe('usePreKeys.scheduler', () => {
   });
 
   test('exports stable timing constants', () => {
-    expect(PREKEY_REPLENISH_DEBOUNCE_MS).toBe(2000);
+    expect(PREKEY_REPLENISH_DEBOUNCE_MS).toBe(1000);
     expect(PREKEY_ROTATION_RETRY_MS).toBe(5 * 60 * 1000);
   });
 });

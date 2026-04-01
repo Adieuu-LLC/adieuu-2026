@@ -157,6 +157,7 @@ export async function addReaction(
     signature: reactionData.signature,
     cryptoProfile: reactionData.cryptoProfile,
     clientReactionId: reactionData.clientReactionId,
+    ...(message.expiresAt ? { expiresAt: message.expiresAt } : {}),
   };
 
   const reaction = await reactionRepo.createReaction(input);

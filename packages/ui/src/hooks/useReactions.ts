@@ -374,6 +374,16 @@ export function useReactions(conversationId: string | null) {
           };
         });
       }
+
+      if (message.type === 'conversation_message_deleted') {
+        const { messageId } = message.data;
+        setState((prev) => {
+          if (!prev.byMessage[messageId]) return prev;
+          const updated = { ...prev.byMessage };
+          delete updated[messageId];
+          return { ...prev, byMessage: updated };
+        });
+      }
     });
 
     return unsubscribe;
