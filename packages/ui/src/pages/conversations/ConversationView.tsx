@@ -61,13 +61,11 @@ function MessageActionBar({
         </div>
       )}
       <Popover.Root positioning={{ placement: 'top' }}>
-        <Tooltip content="React" position="top">
-          <Popover.Trigger asChild>
-            <button type="button" className="message-action-bar-btn">
-              <Icon name="smilePlus" className="message-action-bar-icon" />
-            </button>
-          </Popover.Trigger>
-        </Tooltip>
+        <Popover.Trigger asChild>
+          <button type="button" className="message-action-bar-btn" title="React">
+            <Icon name="smilePlus" className="message-action-bar-icon" />
+          </button>
+        </Popover.Trigger>
         <Portal>
           <Popover.Positioner>
             <Popover.Content className="emoji-picker-popover">
@@ -790,6 +788,7 @@ export function ConversationView() {
     terminateGroup,
     deleteMessage,
     renameGroup,
+    fetchRecipientKeys,
   } = useConversations();
 
   const messageLayout = useMessageLayoutPreference();
@@ -884,9 +883,11 @@ export function ConversationView() {
   const handleReact = useCallback(
     async (messageId: string, emoji: string) => {
       if (!id || !conversation) return;
-      await addReaction(messageId, emoji, []);
+      const recipients = await fetchRecipientKeys(conversation.participants, false);
+      if (recipients.length === 0) return;
+      await addReaction(messageId, emoji, recipients);
     },
-    [id, conversation, addReaction]
+    [id, conversation, addReaction, fetchRecipientKeys]
   );
 
   const handleToggleReaction = useCallback(

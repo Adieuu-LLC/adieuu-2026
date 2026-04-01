@@ -132,6 +132,9 @@ interface ConversationsContextValue {
   // Former members
   getFormerMembers: (conversationId: string) => Promise<FormerMember[]>;
 
+  // Crypto helpers (shared with useReactions etc.)
+  fetchRecipientKeys: (participantIds: string[], useForwardSecrecy?: boolean) => Promise<RecipientKeys[]>;
+
   refresh: () => Promise<void>;
 }
 
@@ -1448,6 +1451,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     declineInvite,
     getInvitePreview,
     getFormerMembers,
+    fetchRecipientKeys,
     refresh,
   };
 

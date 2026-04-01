@@ -11,6 +11,10 @@ import './index.scss';
 // Initialize i18n before rendering
 initI18n();
 
+if (import.meta.env.DEV) {
+  document.title = 'Adieuu Dev';
+}
+
 // Determine API URL - empty string for same-origin (dev), full URL for production
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '';
 
