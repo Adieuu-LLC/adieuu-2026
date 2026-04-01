@@ -1305,16 +1305,16 @@ export function ConversationView() {
                 onOpenChange={(e) => setShowEmojiPicker(e.open)}
                 positioning={{ placement: 'top-end' }}
               >
-                <Tooltip content={t('conversations.emojiButton', 'Emoji')} position="top">
-                  <Popover.Trigger asChild>
+                <Popover.Trigger asChild>
+                  <Tooltip content={t('conversations.emojiButton', 'Emoji')} position="top">
                     <button
                       type="button"
                       className="message-composer-emoji-btn"
                     >
                       <Icon name="smile" className="message-composer-emoji-icon" />
                     </button>
-                  </Popover.Trigger>
-                </Tooltip>
+                  </Tooltip>
+                </Popover.Trigger>
                 <Portal>
                   <Popover.Positioner>
                     <Popover.Content className="emoji-picker-popover">
