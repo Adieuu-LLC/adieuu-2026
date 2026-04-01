@@ -806,6 +806,7 @@ export function ConversationView() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fetchedReactionsForRef = useRef<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -859,8 +860,20 @@ export function ConversationView() {
   useEffect(() => {
     if (id && id !== activeConversationId) {
       setActiveConversation(id);
+      fetchedReactionsForRef.current = null;
     }
   }, [id, activeConversationId, setActiveConversation]);
+
+  useEffect(() => {
+    if (!id || activeMessages.length === 0) return;
+
+    const key = `${id}:${activeMessages.length}`;
+    if (fetchedReactionsForRef.current === key) return;
+    fetchedReactionsForRef.current = key;
+
+    const messageIds = activeMessages.map((m) => m.id);
+    void fetchReactions(messageIds);
+  }, [id, activeMessages, fetchReactions]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

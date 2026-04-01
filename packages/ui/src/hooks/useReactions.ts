@@ -93,22 +93,45 @@ export function useReactions(conversationId: string | null) {
     }
   }, [identity, getCurrentDeviceId, getWrappingKey]);
 
+  const signingKeyCache = useRef<Record<string, string>>({});
+
+  const resolveSigningKeys = useCallback(
+    async (identityIds: string[]): Promise<Record<string, string>> => {
+      const missing = identityIds.filter((id) => !signingKeyCache.current[id]);
+      await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const resp = await api.identity.getPublicKeys(id);
+            if (resp.data) {
+              signingKeyCache.current[id] = resp.data.signingPublicKey;
+            }
+          } catch {
+            // Signing key unavailable
+          }
+        })
+      );
+      return signingKeyCache.current;
+    },
+    [api]
+  );
+
   const decryptReactions = useCallback(
     async (
-      publicReactions: PublicReaction[],
-      participantProfiles: Record<string, { signingPublicKey?: string }>
+      publicReactions: PublicReaction[]
     ): Promise<DecryptedReaction[]> => {
       if (!identity) return [];
 
       const keys = await getPrivateKeys();
       if (!keys) return [];
 
+      const senderIds = [...new Set(publicReactions.map((r) => r.fromIdentityId))];
+      const signingKeys = await resolveSigningKeys(senderIds);
+
       const results: DecryptedReaction[] = [];
 
       for (const reaction of publicReactions) {
         try {
-          const senderProfile = participantProfiles[reaction.fromIdentityId];
-          const signingKey = senderProfile?.signingPublicKey;
+          const signingKey = signingKeys[reaction.fromIdentityId];
           if (!signingKey) continue;
 
           const decrypted = decryptReaction(
@@ -126,16 +149,13 @@ export function useReactions(conversationId: string | null) {
 
       return results;
     },
-    [identity, getPrivateKeys]
+    [identity, getPrivateKeys, resolveSigningKeys]
   );
 
   // ---- Fetch reactions for messages ----
 
   const fetchReactions = useCallback(
-    async (
-      messageIds: string[],
-      participantProfiles: Record<string, { signingPublicKey?: string }>
-    ) => {
+    async (messageIds: string[]) => {
       if (!conversationId || !identity || messageIds.length === 0) return;
 
       setState((prev) => ({ ...prev, loading: true }));
@@ -147,10 +167,7 @@ export function useReactions(conversationId: string | null) {
         );
 
         if (resp.success && resp.data?.reactions) {
-          const decrypted = await decryptReactions(
-            resp.data.reactions,
-            participantProfiles
-          );
+          const decrypted = await decryptReactions(resp.data.reactions);
 
           const byMessage: Record<string, DecryptedReaction[]> = {};
           for (const r of decrypted) {
