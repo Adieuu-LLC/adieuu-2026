@@ -37,6 +37,9 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Supply chain audit
+        run: node scripts/audit-supply-chain.mjs
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
