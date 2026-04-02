@@ -1306,14 +1306,13 @@ export function ConversationView() {
                 positioning={{ placement: 'top-end' }}
               >
                 <Popover.Trigger asChild>
-                  <Tooltip content={t('conversations.emojiButton', 'Emoji')} position="top">
-                    <button
-                      type="button"
-                      className="message-composer-emoji-btn"
-                    >
-                      <Icon name="smile" className="message-composer-emoji-icon" />
-                    </button>
-                  </Tooltip>
+                  <button
+                    type="button"
+                    className="message-composer-emoji-btn"
+                    title={t('conversations.emojiButton', 'Emoji')}
+                  >
+                    <Icon name="smile" className="message-composer-emoji-icon" />
+                  </button>
                 </Popover.Trigger>
                 <Portal>
                   <Popover.Positioner>
