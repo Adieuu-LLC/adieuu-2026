@@ -990,6 +990,7 @@ export function ConversationView() {
   const isAtBottomLocalRef = useRef(true);
   const shouldScrollToBottomRef = useRef(true);
   const fetchedReactionsForRef = useRef<string | null>(null);
+  const pendingReactionsRef = useRef<Set<string>>(new Set());
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -1096,19 +1097,33 @@ export function ConversationView() {
   const handleReact = useCallback(
     async (messageId: string, emoji: string) => {
       if (!id || !conversation) return;
-      const targetMsg = activeMessages.find((m) => m.id === messageId);
-      const useForwardSecrecy = targetMsg?.forwardSecrecy ?? false;
-      const recipients = await fetchRecipientKeys(conversation.participants, useForwardSecrecy);
-      if (recipients.length === 0) return;
-      await addReaction(messageId, emoji, recipients);
+      const key = `${messageId}:${emoji}`;
+      if (pendingReactionsRef.current.has(key)) return;
+      pendingReactionsRef.current.add(key);
+      try {
+        const targetMsg = activeMessages.find((m) => m.id === messageId);
+        const useForwardSecrecy = targetMsg?.forwardSecrecy ?? false;
+        const recipients = await fetchRecipientKeys(conversation.participants, useForwardSecrecy);
+        if (recipients.length === 0) return;
+        await addReaction(messageId, emoji, recipients);
+      } finally {
+        pendingReactionsRef.current.delete(key);
+      }
     },
     [id, conversation, activeMessages, addReaction, fetchRecipientKeys]
   );
 
   const handleToggleReaction = useCallback(
     async (messageId: string, emoji: string, ownReactionId?: string) => {
+      const key = `${messageId}:${emoji}`;
+      if (pendingReactionsRef.current.has(key)) return;
       if (ownReactionId) {
-        await removeReaction(ownReactionId, messageId);
+        pendingReactionsRef.current.add(key);
+        try {
+          await removeReaction(ownReactionId, messageId);
+        } finally {
+          pendingReactionsRef.current.delete(key);
+        }
       } else {
         await handleReact(messageId, emoji);
       }
