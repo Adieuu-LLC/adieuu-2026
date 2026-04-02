@@ -1179,7 +1179,7 @@ export class IdentityApi {
   async purgeOneTimePreKeys(
     identityId: string,
     deviceId: string
-  ): Promise<ApiResponse<{ purged: number }>> {
+  ): Promise<ApiResponse<{ purged: number; consumedKeyIds: string[] }>> {
     return this.client.delete(
       `/api/identity/${encodeURIComponent(identityId)}/devices/${encodeURIComponent(deviceId)}/pre-keys/one-time`
     );
@@ -1608,6 +1608,7 @@ export interface ClaimPreKeysParams {
 export interface PreKeyCountResponse {
   signedPreKey: { keyId: string; expiresAt: string | null } | null;
   oneTimePreKeysRemaining: number;
+  otpkDigest: string;
 }
 
 

@@ -13,6 +13,10 @@ mock.module('../config', () => ({
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
 
+const mockToArray = mock(() => Promise.resolve([])) as AnyMock;
+const mockProject = mock(() => ({ toArray: mockToArray }));
+const mockFind = mock(() => ({ project: mockProject }));
+
 const mockCollection = {
   updateMany: mock(() => Promise.resolve({ modifiedCount: 0 })) as AnyMock,
   insertOne: mock(() => Promise.resolve({ insertedId: new ObjectId() })) as AnyMock,
@@ -21,6 +25,7 @@ const mockCollection = {
   findOneAndUpdate: mock(() => Promise.resolve(null)) as AnyMock,
   countDocuments: mock(() => Promise.resolve(0)) as AnyMock,
   deleteMany: mock(() => Promise.resolve({ deletedCount: 0 })) as AnyMock,
+  find: mockFind as AnyMock,
 };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -52,6 +57,9 @@ describe('PreKeyRepository', () => {
     mockCollection.findOneAndUpdate.mockReset();
     mockCollection.countDocuments.mockReset();
     mockCollection.deleteMany.mockReset();
+    mockFind.mockReset();
+    mockProject.mockReset();
+    mockToArray.mockReset();
 
     mockCollection.updateMany.mockResolvedValue({ modifiedCount: 0 });
     mockCollection.insertOne.mockResolvedValue({ insertedId: new ObjectId() });
@@ -60,6 +68,9 @@ describe('PreKeyRepository', () => {
     mockCollection.findOneAndUpdate.mockResolvedValue(null);
     mockCollection.countDocuments.mockResolvedValue(0);
     mockCollection.deleteMany.mockResolvedValue({ deletedCount: 0 });
+    mockToArray.mockResolvedValue([]);
+    mockProject.mockReturnValue({ toArray: mockToArray });
+    mockFind.mockReturnValue({ project: mockProject });
   });
 
   test('claimOneTimePreKey uses consumed=false filter and returnDocument=before', async () => {
@@ -308,6 +319,108 @@ describe('PreKeyRepository', () => {
     expect(result?.deviceId).toBe(deviceId);
     expect(result?.signedPreKey).toBeNull();
     expect(result?.oneTimePreKey).toBeNull();
+  });
+
+  // ---- getUnconsumedOtpkDigest ----
+
+  test('getUnconsumedOtpkDigest returns stable digest for given key IDs regardless of DB order', async () => {
+    mockToArray.mockResolvedValue([
+      { keyId: 'bbb' },
+      { keyId: 'aaa' },
+      { keyId: 'ccc' },
+    ]);
+
+    const digest1 = await repo.getUnconsumedOtpkDigest(identityId, deviceId);
+
+    mockToArray.mockResolvedValue([
+      { keyId: 'ccc' },
+      { keyId: 'aaa' },
+      { keyId: 'bbb' },
+    ]);
+
+    const digest2 = await repo.getUnconsumedOtpkDigest(identityId, deviceId);
+
+    expect(digest1).toBe(digest2);
+    expect(digest1).toHaveLength(64);
+  });
+
+  test('getUnconsumedOtpkDigest returns empty sentinel when no OTPKs exist', async () => {
+    mockToArray.mockResolvedValue([]);
+
+    const digest = await repo.getUnconsumedOtpkDigest(identityId, deviceId);
+
+    expect(digest).toHaveLength(64);
+    // SHA-256 of empty string is well-known
+    expect(digest).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+  });
+
+  test('getUnconsumedOtpkDigest changes when a key is added', async () => {
+    mockToArray.mockResolvedValue([{ keyId: 'aaa' }]);
+    const digest1 = await repo.getUnconsumedOtpkDigest(identityId, deviceId);
+
+    mockToArray.mockResolvedValue([{ keyId: 'aaa' }, { keyId: 'bbb' }]);
+    const digest2 = await repo.getUnconsumedOtpkDigest(identityId, deviceId);
+
+    expect(digest1).not.toBe(digest2);
+  });
+
+  test('getUnconsumedOtpkDigest queries with correct filter and projection', async () => {
+    mockToArray.mockResolvedValue([]);
+
+    await repo.getUnconsumedOtpkDigest(identityId, deviceId);
+
+    expect(mockFind).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identityId,
+        deviceId,
+        keyType: 'one-time',
+        consumed: false,
+      })
+    );
+    expect(mockProject).toHaveBeenCalledWith({ keyId: 1, _id: 0 });
+  });
+
+  // ---- getConsumedOtpkKeyIds ----
+
+  test('getConsumedOtpkKeyIds returns consumed non-expired OTPK key IDs', async () => {
+    mockToArray.mockResolvedValue([
+      { keyId: 'consumed-1' },
+      { keyId: 'consumed-2' },
+    ]);
+
+    const ids = await repo.getConsumedOtpkKeyIds(identityId, deviceId);
+
+    expect(ids).toEqual(['consumed-1', 'consumed-2']);
+  });
+
+  test('getConsumedOtpkKeyIds returns empty array when none exist', async () => {
+    mockToArray.mockResolvedValue([]);
+
+    const ids = await repo.getConsumedOtpkKeyIds(identityId, deviceId);
+
+    expect(ids).toEqual([]);
+  });
+
+  test('getConsumedOtpkKeyIds queries with consumed=true and expiresAt > now', async () => {
+    mockToArray.mockResolvedValue([]);
+    const before = new Date();
+
+    await repo.getConsumedOtpkKeyIds(identityId, deviceId);
+
+    expect(mockFind).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identityId,
+        deviceId,
+        keyType: 'one-time',
+        consumed: true,
+        expiresAt: { $gt: expect.any(Date) },
+      })
+    );
+
+    const calls = mockFind.mock.calls as unknown as Array<[{ expiresAt: { $gt: Date } }]>;
+    const filterArg = calls[0]?.[0];
+    const expiry = filterArg?.expiresAt.$gt;
+    expect(expiry!.getTime()).toBeGreaterThanOrEqual(before.getTime());
   });
 });
 

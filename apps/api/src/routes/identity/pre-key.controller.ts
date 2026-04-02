@@ -266,9 +266,12 @@ export async function purgeOneTimePreKeysCtrl(ctx: RouteContext): Promise<Respon
   }
 
   const preKeyRepo = getPreKeyRepository();
-  const purged = await preKeyRepo.purgeUnconsumedOneTimePreKeys(identity._id, deviceId);
+  const [purged, consumedKeyIds] = await Promise.all([
+    preKeyRepo.purgeUnconsumedOneTimePreKeys(identity._id, deviceId),
+    preKeyRepo.getConsumedOtpkKeyIds(identity._id, deviceId),
+  ]);
 
-  return success({ purged });
+  return success({ purged, consumedKeyIds });
 }
 
 /**
@@ -303,16 +306,17 @@ export async function getPreKeyCountCtrl(ctx: RouteContext): Promise<Response> {
   }
 
   const preKeyRepo = getPreKeyRepository();
-  const signedPreKey = await preKeyRepo.getActiveSignedPreKey(identity._id, deviceId);
-  const oneTimePreKeysRemaining = await preKeyRepo.countUnconsumedOneTimePreKeys(
-    identity._id,
-    deviceId
-  );
+  const [signedPreKey, oneTimePreKeysRemaining, otpkDigest] = await Promise.all([
+    preKeyRepo.getActiveSignedPreKey(identity._id, deviceId),
+    preKeyRepo.countUnconsumedOneTimePreKeys(identity._id, deviceId),
+    preKeyRepo.getUnconsumedOtpkDigest(identity._id, deviceId),
+  ]);
 
   return success({
     signedPreKey: signedPreKey
       ? { keyId: signedPreKey.keyId, expiresAt: signedPreKey.expiresAt?.toISOString() ?? null }
       : null,
     oneTimePreKeysRemaining,
+    otpkDigest,
   });
 }

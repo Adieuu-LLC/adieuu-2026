@@ -31,7 +31,9 @@ import {
 import {
   findAndDecryptSignedPreKey,
   findAndDecryptOneTimePreKey,
+  deleteOneTimePreKey,
 } from '../services/preKeyStorage';
+import { notifyOtpkConsumed } from '../services/preKeyService';
 
 // ============================================================================
 // Types
@@ -136,6 +138,7 @@ export function useReactions(conversationId: string | null) {
 
       const spkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
       const otpkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
+      const deletedOtpkIds = new Set<string>();
       const results: DecryptedReaction[] = [];
 
       for (const reaction of publicReactions) {
@@ -276,6 +279,18 @@ export function useReactions(conversationId: string | null) {
             preKeyPrivateKeys,
             resolvedWrappedKey
           );
+
+          if (
+            resolvedWrappedKey.preKeyType === 'otpk' &&
+            resolvedWrappedKey.oneTimePreKeyId &&
+            !deletedOtpkIds.has(resolvedWrappedKey.oneTimePreKeyId)
+          ) {
+            deletedOtpkIds.add(resolvedWrappedKey.oneTimePreKeyId);
+            deleteOneTimePreKey(resolvedWrappedKey.oneTimePreKeyId, identity.id)
+              .catch((err) => console.error('[Reactions] OTPK cleanup failed:', err));
+            notifyOtpkConsumed();
+          }
+
           results.push(decrypted);
         } catch {
           // Skip reactions we cannot decrypt
@@ -599,6 +614,16 @@ export function useReactions(conversationId: string | null) {
                 preKeyPrivateKeys,
                 resolvedWrappedKey
               );
+            }
+
+            if (
+              resolvedWrappedKey &&
+              resolvedWrappedKey.preKeyType === 'otpk' &&
+              resolvedWrappedKey.oneTimePreKeyId
+            ) {
+              deleteOneTimePreKey(resolvedWrappedKey.oneTimePreKeyId, id)
+                .catch((err) => console.error('[Reactions] WS OTPK cleanup failed:', err));
+              notifyOtpkConsumed();
             }
 
             const result = decrypted;

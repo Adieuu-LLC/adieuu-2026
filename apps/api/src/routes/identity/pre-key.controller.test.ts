@@ -23,6 +23,9 @@ const countUnconsumedOneTimePreKeysMock = mock(async () => 0);
 const storeOneTimePreKeysMock = mock(async () => 0);
 const claimPreKeysForAllDevicesMock = mock(async (): Promise<ClaimedDevicePreKeys[]> => []);
 const getActiveSignedPreKeyMock = mock(async (): Promise<PreKeyDocument | null> => null);
+const getUnconsumedOtpkDigestMock = mock(async () => 'digest-placeholder');
+const purgeUnconsumedOneTimePreKeysMock = mock(async () => 0);
+const getConsumedOtpkKeyIdsMock = mock(async (): Promise<string[]> => []);
 
 mock.module('../../services/identity.service', () => ({
   getIdentityFromSession: getIdentityFromSessionMock,
@@ -45,6 +48,9 @@ mock.module('../../repositories/pre-key.repository', () => ({
     storeOneTimePreKeys: storeOneTimePreKeysMock,
     claimPreKeysForAllDevices: claimPreKeysForAllDevicesMock,
     getActiveSignedPreKey: getActiveSignedPreKeyMock,
+    getUnconsumedOtpkDigest: getUnconsumedOtpkDigestMock,
+    purgeUnconsumedOneTimePreKeys: purgeUnconsumedOneTimePreKeysMock,
+    getConsumedOtpkKeyIds: getConsumedOtpkKeyIdsMock,
   }),
 }));
 
@@ -71,6 +77,7 @@ import {
   uploadPreKeysCtrl,
   claimPreKeysCtrl,
   getPreKeyCountCtrl,
+  purgeOneTimePreKeysCtrl,
 } from './pre-key.controller';
 
 function makeCtx(options: {
@@ -122,6 +129,12 @@ describe('pre-key.controller', () => {
     claimPreKeysForAllDevicesMock.mockResolvedValue([]);
     getActiveSignedPreKeyMock.mockReset();
     getActiveSignedPreKeyMock.mockResolvedValue(null);
+    getUnconsumedOtpkDigestMock.mockReset();
+    getUnconsumedOtpkDigestMock.mockResolvedValue('digest-placeholder');
+    purgeUnconsumedOneTimePreKeysMock.mockReset();
+    purgeUnconsumedOneTimePreKeysMock.mockResolvedValue(0);
+    getConsumedOtpkKeyIdsMock.mockReset();
+    getConsumedOtpkKeyIdsMock.mockResolvedValue([]);
   });
 
   test('uploadPreKeys rejects invalid SPK signature', async () => {
@@ -438,6 +451,63 @@ describe('pre-key.controller', () => {
     const json = await response.json() as { data: { oneTimePreKeysRemaining: number; signedPreKey: { keyId: string } } };
     expect(json.data.oneTimePreKeysRemaining).toBe(17);
     expect(json.data.signedPreKey.keyId).toBe('spk-123');
+  });
+
+  test('getPreKeyCount includes otpkDigest in response', async () => {
+    getUnconsumedOtpkDigestMock.mockResolvedValue('abc123digest');
+    countUnconsumedOneTimePreKeysMock.mockResolvedValue(5);
+
+    const response = await getPreKeyCountCtrl(
+      makeCtx({
+        params: { id: ownerId.toHexString(), deviceId: 'device-1' },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json() as { data: { otpkDigest: string } };
+    expect(json.data.otpkDigest).toBe('abc123digest');
+    expect(getUnconsumedOtpkDigestMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('purgeOneTimePreKeys returns purged count and consumedKeyIds', async () => {
+    purgeUnconsumedOneTimePreKeysMock.mockResolvedValue(12);
+    getConsumedOtpkKeyIdsMock.mockResolvedValue(['key-1', 'key-2']);
+
+    const response = await purgeOneTimePreKeysCtrl(
+      makeCtx({
+        params: { id: ownerId.toHexString(), deviceId: 'device-1' },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json() as { data: { purged: number; consumedKeyIds: string[] } };
+    expect(json.data.purged).toBe(12);
+    expect(json.data.consumedKeyIds).toEqual(['key-1', 'key-2']);
+  });
+
+  test('purgeOneTimePreKeys returns empty consumedKeyIds when none exist', async () => {
+    purgeUnconsumedOneTimePreKeysMock.mockResolvedValue(5);
+    getConsumedOtpkKeyIdsMock.mockResolvedValue([]);
+
+    const response = await purgeOneTimePreKeysCtrl(
+      makeCtx({
+        params: { id: ownerId.toHexString(), deviceId: 'device-1' },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json() as { data: { purged: number; consumedKeyIds: string[] } };
+    expect(json.data.purged).toBe(5);
+    expect(json.data.consumedKeyIds).toEqual([]);
+  });
+
+  test('purgeOneTimePreKeys blocks non-owner access', async () => {
+    const response = await purgeOneTimePreKeysCtrl(
+      makeCtx({
+        params: { id: targetId.toHexString(), deviceId: 'device-1' },
+      })
+    );
+    expect(response.status).toBe(403);
   });
 });
 

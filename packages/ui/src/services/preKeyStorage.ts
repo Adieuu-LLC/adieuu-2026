@@ -735,6 +735,39 @@ export async function getOneTimePreKeyCount(
 // ============================================================================
 
 /**
+ * Returns the sorted key IDs of all OTPKs for a device.
+ * Used to compute a local digest for server-local consistency checking.
+ */
+export async function getOneTimePreKeyIds(
+  identityId: string,
+  deviceId: string
+): Promise<string[]> {
+  if (isBackendLost()) return [];
+
+  if (getBackend()) {
+    const blob = await getPreKeyBlob(identityId);
+    return blob.oneTimePreKeys
+      .filter((o) => o.deviceId === deviceId)
+      .map((o) => o.keyId)
+      .sort();
+  }
+
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(OTPK_STORE, 'readonly');
+    const store = tx.objectStore(OTPK_STORE);
+    const index = store.index('identity_device');
+    const request = index.getAll([identityId, deviceId]);
+    request.onerror = () => reject(new PreKeyStorageError('Failed to query OTPKs', 'RETRIEVAL_FAILED'));
+    request.onsuccess = () => {
+      const results = (request.result as StoredOneTimePreKey[]).map((o) => o.keyId).sort();
+      resolve(results);
+    };
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
  * Clears all one-time pre-keys for a specific device from the blob,
  * preserving signed pre-keys. Used during OTPK pool resynchronisation.
  *
@@ -772,6 +805,63 @@ export async function clearOneTimePreKeysForDevice(
       if (cursor) {
         const record = cursor.value as StoredOneTimePreKey;
         if (record.identityId === identityId) {
+          cursor.delete();
+          count++;
+        }
+        cursor.continue();
+      } else {
+        resolve(count);
+      }
+    };
+
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
+ * Clears all OTPKs for a device EXCEPT those whose key IDs are in
+ * `keepKeyIds`. Used during resync to preserve private keys for
+ * OTPKs that were already claimed server-side (in-flight messages).
+ *
+ * @returns Number of OTPKs removed.
+ */
+export async function clearOneTimePreKeysExcept(
+  identityId: string,
+  deviceId: string,
+  keepKeyIds: string[]
+): Promise<number> {
+  const keepSet = new Set(keepKeyIds);
+
+  if (getBackend()) {
+    return await withBlobLock(identityId, async () => {
+      const blob = await getPreKeyBlob(identityId);
+      const before = blob.oneTimePreKeys.length;
+      blob.oneTimePreKeys = blob.oneTimePreKeys.filter(
+        (o) => o.deviceId !== deviceId || keepSet.has(o.keyId)
+      );
+      const removed = before - blob.oneTimePreKeys.length;
+      if (removed > 0) {
+        await savePreKeyBlob(identityId, blob);
+      }
+      return removed;
+    });
+  }
+
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(OTPK_STORE, 'readwrite');
+    const store = tx.objectStore(OTPK_STORE);
+    const index = store.index('deviceId');
+    const cursorReq = index.openCursor(deviceId);
+    let count = 0;
+
+    cursorReq.onerror = () =>
+      reject(new PreKeyStorageError('Failed to selectively clear OTPKs for device', 'DELETE_FAILED'));
+    cursorReq.onsuccess = () => {
+      const cursor = cursorReq.result;
+      if (cursor) {
+        const record = cursor.value as StoredOneTimePreKey;
+        if (record.identityId === identityId && !keepSet.has(record.keyId)) {
           cursor.delete();
           count++;
         }

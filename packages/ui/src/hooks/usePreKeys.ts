@@ -23,6 +23,7 @@ import {
   resyncOneTimePreKeys,
   loadFsConfig,
   saveFsConfig,
+  registerOtpkResyncCallback,
   SECURITY_LEVEL_CONFIG,
   type ForwardSecrecyConfig,
   type Platform,
@@ -312,6 +313,11 @@ export function usePreKeys(): UsePreKeysResult {
       api.identity
     );
   }, [status, identity, getSigningKey, getCurrentDeviceId, getWrappingKey, api, platform]);
+
+  // Register resync callback for the consumption counter (notifyOtpkConsumed)
+  useEffect(() => {
+    registerOtpkResyncCallback(async () => { await resyncPreKeys(); });
+  }, [resyncPreKeys]);
 
   // Expose to dev console: window.__adieuu_resyncPreKeys()
   useEffect(() => {

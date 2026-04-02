@@ -22,8 +22,9 @@ import {
   getRetiredSignedPreKeys,
   retireSignedPreKey,
   deleteSignedPreKey,
-  clearOneTimePreKeysForDevice,
+  clearOneTimePreKeysExcept,
   getOneTimePreKeyCount,
+  getOneTimePreKeyIds,
 } from './preKeyStorage';
 
 // ============================================================================
@@ -290,6 +291,86 @@ export async function replenishOneTimePreKeys(
 }
 
 // ============================================================================
+// OTPK Digest (server-local consistency checking)
+// ============================================================================
+
+/**
+ * Computes a SHA-256 hex digest of sorted local OTPK key IDs for a device.
+ * Must produce the same output as the server's `getUnconsumedOtpkDigest`
+ * for an identical set of key IDs.
+ */
+export async function computeLocalOtpkDigest(
+  identityId: string,
+  deviceId: string
+): Promise<string> {
+  const ids = await getOneTimePreKeyIds(identityId, deviceId);
+  const data = new TextEncoder().encode(ids.join(','));
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  const bytes = new Uint8Array(hash);
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i]!.toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+// ============================================================================
+// OTPK Consumption Counter
+// ============================================================================
+
+export const RESYNC_AFTER_N_OTPKS = 30;
+
+const COUNTER_HMR_KEY = '__adieuu_otpkConsumedCounter__' as const;
+
+interface OtpkCounterHmrState {
+  count: number;
+  resyncCallback: (() => Promise<void>) | null;
+}
+
+function getCounterState(): OtpkCounterHmrState {
+  const g = globalThis as Record<string, unknown>;
+  if (!g[COUNTER_HMR_KEY]) {
+    g[COUNTER_HMR_KEY] = { count: 0, resyncCallback: null };
+  }
+  return g[COUNTER_HMR_KEY] as OtpkCounterHmrState;
+}
+
+/**
+ * Registers a callback to be invoked when the OTPK consumption counter
+ * reaches the threshold. Typically called by usePreKeys to wire up
+ * resyncOneTimePreKeys.
+ */
+export function registerOtpkResyncCallback(cb: () => Promise<void>): void {
+  getCounterState().resyncCallback = cb;
+}
+
+/**
+ * Increments the OTPK consumption counter. When the counter reaches
+ * `RESYNC_AFTER_N_OTPKS`, the registered callback is invoked via
+ * `queueMicrotask` to avoid firing mid-decryption-batch.
+ */
+export function notifyOtpkConsumed(): void {
+  const state = getCounterState();
+  state.count++;
+  if (state.count >= RESYNC_AFTER_N_OTPKS && state.resyncCallback) {
+    const cb = state.resyncCallback;
+    state.count = 0;
+    queueMicrotask(() => {
+      cb().catch((err) => {
+        console.error('[PreKey] Deferred OTPK resync failed:', err);
+      });
+    });
+  }
+}
+
+/**
+ * Resets the OTPK consumption counter to 0. Called after a successful resync.
+ */
+export function resetOtpkConsumedCounter(): void {
+  getCounterState().count = 0;
+}
+
+// ============================================================================
 // OTPK Re-sync (full pool reset)
 // ============================================================================
 
@@ -317,13 +398,23 @@ export async function resyncOneTimePreKeys(
   }
   console.debug(`[PreKey] Purged ${purgeResp.data?.purged ?? '?'} server OTPKs for device ${input.deviceId}`);
 
-  // 2. Clear local OTPKs from the blob (preserves SPKs)
-  const localRemoved = await clearOneTimePreKeysForDevice(input.identityId, input.deviceId);
-  console.debug(`[PreKey] Cleared ${localRemoved} local OTPKs for device ${input.deviceId}`);
+  // 2. Selective local purge: keep private keys for OTPKs the server has
+  //    already marked as consumed (in-flight messages). Their private keys
+  //    will be cleaned up via deleteOneTimePreKey after decryption.
+  const consumedKeyIds = purgeResp.data?.consumedKeyIds ?? [];
+  const localRemoved = await clearOneTimePreKeysExcept(
+    input.identityId, input.deviceId, consumedKeyIds
+  );
+  console.debug(
+    `[PreKey] Cleared ${localRemoved} local OTPKs for device ${input.deviceId}` +
+    (consumedKeyIds.length > 0 ? ` (preserved ${consumedKeyIds.length} in-flight)` : '')
+  );
 
   // 3. Generate, store, and upload a fresh batch
   const uploaded = await replenishOneTimePreKeys(input, identityApi);
   console.debug(`[PreKey] Re-sync complete: uploaded ${uploaded} fresh OTPKs for device ${input.deviceId}`);
+
+  resetOtpkConsumedCounter();
 
   return uploaded;
 }
@@ -483,9 +574,9 @@ export async function checkAndReplenishOtpks(
   const threshold = PLATFORM_OTPK_REPLENISH_THRESHOLD[input.platform];
 
   try {
-    const [countResponse, localCount] = await Promise.all([
+    const [countResponse, localDigest] = await Promise.all([
       identityApi.getPreKeyCount(input.identityId, input.deviceId),
-      getOneTimePreKeyCount(input.identityId, input.deviceId),
+      computeLocalOtpkDigest(input.identityId, input.deviceId),
     ]);
 
     if (!countResponse.success || !countResponse.data) {
@@ -494,17 +585,15 @@ export async function checkAndReplenishOtpks(
     }
 
     const serverCount = countResponse.data.oneTimePreKeysRemaining;
+    const serverDigest = countResponse.data.otpkDigest;
 
-    // Desync detection: if server holds more unconsumed OTPKs than we have
-    // locally, the server is distributing keys we can no longer decrypt with.
-    // A difference of a few keys is expected (claimed but not yet consumed
-    // from the local perspective), but a large gap indicates a lost-update
-    // race that the mutex now prevents from recurring.
-    const DESYNC_TOLERANCE = 5;
-    if (serverCount > localCount + DESYNC_TOLERANCE) {
+    // Digest-based consistency check: detects both count mismatches AND
+    // the more subtle case where counts match but key IDs differ (the
+    // bug that originally motivated resyncOneTimePreKeys).
+    if (localDigest !== serverDigest) {
       console.warn(
-        `[PreKey] OTPK desync detected: server has ${serverCount} unconsumed, ` +
-        `local blob has ${localCount}. Triggering full OTPK resync.`
+        `[PreKey] OTPK digest mismatch: server=${serverDigest.slice(0, 12)}..., ` +
+        `local=${localDigest.slice(0, 12)}... Triggering full OTPK resync.`
       );
       return await resyncOneTimePreKeys(input, identityApi);
     }

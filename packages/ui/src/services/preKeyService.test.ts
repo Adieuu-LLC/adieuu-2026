@@ -8,6 +8,8 @@ const realGetActiveSignedPreKey = realPreKeyStorage.getActiveSignedPreKey;
 const realGetRetiredSignedPreKeys = realPreKeyStorage.getRetiredSignedPreKeys;
 const realRetireSignedPreKey = realPreKeyStorage.retireSignedPreKey;
 const realDeleteSignedPreKey = realPreKeyStorage.deleteSignedPreKey;
+const realGetOneTimePreKeyIds = realPreKeyStorage.getOneTimePreKeyIds;
+const realClearOneTimePreKeysExcept = realPreKeyStorage.clearOneTimePreKeysExcept;
 
 const storeSignedPreKeyMock = mock(realStoreSignedPreKey);
 const storeOneTimePreKeysMock = mock(realStoreOneTimePreKeys);
@@ -15,6 +17,8 @@ const getActiveSignedPreKeyMock = mock(realGetActiveSignedPreKey);
 const getRetiredSignedPreKeysMock = mock(realGetRetiredSignedPreKeys);
 const retireSignedPreKeyMock = mock(realRetireSignedPreKey);
 const deleteSignedPreKeyMock = mock(realDeleteSignedPreKey);
+const getOneTimePreKeyIdsMock = mock(realGetOneTimePreKeyIds);
+const clearOneTimePreKeysExceptMock = mock(realClearOneTimePreKeysExcept);
 
 mock.module('./preKeyStorage', () => ({
   ...Object.fromEntries(Object.keys(realPreKeyStorage).map(
@@ -26,6 +30,8 @@ mock.module('./preKeyStorage', () => ({
   getRetiredSignedPreKeys: getRetiredSignedPreKeysMock,
   retireSignedPreKey: retireSignedPreKeyMock,
   deleteSignedPreKey: deleteSignedPreKeyMock,
+  getOneTimePreKeyIds: getOneTimePreKeyIdsMock,
+  clearOneTimePreKeysExcept: clearOneTimePreKeysExceptMock,
 }));
 
 const preKeyService = await import('./preKeyService');
@@ -37,6 +43,8 @@ function stubMocksForIsolation(): void {
   getRetiredSignedPreKeysMock.mockImplementation(async () => []);
   retireSignedPreKeyMock.mockImplementation(async () => {});
   deleteSignedPreKeyMock.mockImplementation(async () => {});
+  getOneTimePreKeyIdsMock.mockImplementation(async () => []);
+  clearOneTimePreKeysExceptMock.mockImplementation(async () => 0);
 }
 
 function restoreRealImplementations(): void {
@@ -46,6 +54,8 @@ function restoreRealImplementations(): void {
   getRetiredSignedPreKeysMock.mockImplementation(realGetRetiredSignedPreKeys);
   retireSignedPreKeyMock.mockImplementation(realRetireSignedPreKey);
   deleteSignedPreKeyMock.mockImplementation(realDeleteSignedPreKey);
+  getOneTimePreKeyIdsMock.mockImplementation(realGetOneTimePreKeyIds);
+  clearOneTimePreKeysExceptMock.mockImplementation(realClearOneTimePreKeysExcept);
 }
 
 describe('services/preKeyService', () => {
@@ -59,6 +69,9 @@ describe('services/preKeyService', () => {
     getRetiredSignedPreKeysMock.mockReset();
     retireSignedPreKeyMock.mockReset();
     deleteSignedPreKeyMock.mockReset();
+    getOneTimePreKeyIdsMock.mockReset();
+    clearOneTimePreKeysExceptMock.mockReset();
+    preKeyService.resetOtpkConsumedCounter();
     stubMocksForIsolation();
   });
 
@@ -175,13 +188,16 @@ describe('services/preKeyService', () => {
     expect(deleteSignedPreKeyMock).toHaveBeenNthCalledWith(3, 'spk-3', 'identity-1');
   });
 
-  test('checkAndReplenishOtpks skips when threshold is satisfied', async () => {
+  test('checkAndReplenishOtpks skips when threshold is satisfied and digests match', async () => {
+    const matchingDigest = await preKeyService.computeLocalOtpkDigest('identity-1', 'device-1');
+
     const identityApi = {
       getPreKeyCount: mock(async () => ({
         success: true,
         data: {
           signedPreKey: null,
           oneTimePreKeysRemaining: 50,
+          otpkDigest: matchingDigest,
         },
       })),
       uploadPreKeys: mock(async () => ({ success: true })),
@@ -202,13 +218,16 @@ describe('services/preKeyService', () => {
     expect(identityApi.uploadPreKeys).not.toHaveBeenCalled();
   });
 
-  test('checkAndReplenishOtpks uploads new OTPKs when below threshold', async () => {
+  test('checkAndReplenishOtpks uploads new OTPKs when below threshold and digests match', async () => {
+    const matchingDigest = await preKeyService.computeLocalOtpkDigest('identity-1', 'device-1');
+
     const identityApi = {
       getPreKeyCount: mock(async () => ({
         success: true,
         data: {
           signedPreKey: null,
           oneTimePreKeysRemaining: 2,
+          otpkDigest: matchingDigest,
         },
       })),
       uploadPreKeys: mock(async () => ({ success: true })),
@@ -229,6 +248,185 @@ describe('services/preKeyService', () => {
     expect(storeOneTimePreKeysMock).toHaveBeenCalledTimes(1);
     expect(identityApi.uploadPreKeys).toHaveBeenCalledTimes(1);
   });
+
+  test('checkAndReplenishOtpks triggers resync on digest mismatch', async () => {
+    const identityApi = {
+      getPreKeyCount: mock(async () => ({
+        success: true,
+        data: {
+          signedPreKey: null,
+          oneTimePreKeysRemaining: 50,
+          otpkDigest: 'server-digest-that-does-not-match',
+        },
+      })),
+      purgeOneTimePreKeys: mock(async () => ({
+        success: true,
+        data: { purged: 50, consumedKeyIds: [] },
+      })),
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    const uploaded = await preKeyService.checkAndReplenishOtpks(
+      {
+        identityId: 'identity-1',
+        deviceId: 'device-1',
+        signingPrivateKey,
+        wrappingKey,
+        platform: 'desktop',
+      },
+      identityApi
+    );
+
+    expect(uploaded).toBe(50); // desktop batch size (resync = purge + replenish)
+    expect(identityApi.purgeOneTimePreKeys).toHaveBeenCalledTimes(1);
+    expect(clearOneTimePreKeysExceptMock).toHaveBeenCalledTimes(1);
+  });
+
+  // ---- computeLocalOtpkDigest ----
+
+  test('computeLocalOtpkDigest returns empty sentinel when no OTPKs exist', async () => {
+    getOneTimePreKeyIdsMock.mockResolvedValue([]);
+
+    const digest = await preKeyService.computeLocalOtpkDigest('id-1', 'dev-1');
+
+    expect(digest).toHaveLength(64);
+    // SHA-256 of empty string
+    expect(digest).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+  });
+
+  test('computeLocalOtpkDigest changes when a key is added', async () => {
+    getOneTimePreKeyIdsMock.mockResolvedValue(['aaa']);
+    const digest1 = await preKeyService.computeLocalOtpkDigest('id-1', 'dev-1');
+
+    getOneTimePreKeyIdsMock.mockResolvedValue(['aaa', 'bbb']);
+    const digest2 = await preKeyService.computeLocalOtpkDigest('id-1', 'dev-1');
+
+    expect(digest1).not.toBe(digest2);
+  });
+
+  // ---- resyncOneTimePreKeys (selective purge) ----
+
+  test('resyncOneTimePreKeys passes consumedKeyIds to clearOneTimePreKeysExcept', async () => {
+    const identityApi = {
+      purgeOneTimePreKeys: mock(async () => ({
+        success: true,
+        data: { purged: 10, consumedKeyIds: ['in-flight-1', 'in-flight-2'] },
+      })),
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    await preKeyService.resyncOneTimePreKeys(
+      {
+        identityId: 'identity-1',
+        deviceId: 'device-1',
+        signingPrivateKey,
+        wrappingKey,
+        platform: 'desktop',
+      },
+      identityApi
+    );
+
+    expect(clearOneTimePreKeysExceptMock).toHaveBeenCalledWith(
+      'identity-1', 'device-1', ['in-flight-1', 'in-flight-2']
+    );
+  });
+
+  test('resyncOneTimePreKeys falls back to empty keep list when no consumedKeyIds', async () => {
+    const identityApi = {
+      purgeOneTimePreKeys: mock(async () => ({
+        success: true,
+        data: { purged: 5 },
+      })),
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    await preKeyService.resyncOneTimePreKeys(
+      {
+        identityId: 'identity-1',
+        deviceId: 'device-1',
+        signingPrivateKey,
+        wrappingKey,
+        platform: 'desktop',
+      },
+      identityApi
+    );
+
+    expect(clearOneTimePreKeysExceptMock).toHaveBeenCalledWith(
+      'identity-1', 'device-1', []
+    );
+  });
+
+  // ---- Consumption counter ----
+
+  test('notifyOtpkConsumed does not fire callback below threshold', () => {
+    const callback = mock(async () => {});
+    preKeyService.registerOtpkResyncCallback(callback);
+
+    for (let i = 0; i < preKeyService.RESYNC_AFTER_N_OTPKS - 1; i++) {
+      preKeyService.notifyOtpkConsumed();
+    }
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  test('notifyOtpkConsumed fires callback at threshold', async () => {
+    const callback = mock(async () => {});
+    preKeyService.registerOtpkResyncCallback(callback);
+
+    for (let i = 0; i < preKeyService.RESYNC_AFTER_N_OTPKS; i++) {
+      preKeyService.notifyOtpkConsumed();
+    }
+
+    // Callback is deferred via queueMicrotask
+    await new Promise((r) => queueMicrotask(r));
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  test('notifyOtpkConsumed resets counter after firing', async () => {
+    const callback = mock(async () => {});
+    preKeyService.registerOtpkResyncCallback(callback);
+
+    for (let i = 0; i < preKeyService.RESYNC_AFTER_N_OTPKS; i++) {
+      preKeyService.notifyOtpkConsumed();
+    }
+    await new Promise((r) => queueMicrotask(r));
+
+    // Counter should be reset — another N-1 calls should not fire again
+    for (let i = 0; i < preKeyService.RESYNC_AFTER_N_OTPKS - 1; i++) {
+      preKeyService.notifyOtpkConsumed();
+    }
+    await new Promise((r) => queueMicrotask(r));
+
+    expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  test('notifyOtpkConsumed is a no-op when no callback is registered', () => {
+    preKeyService.registerOtpkResyncCallback(null as unknown as () => Promise<void>);
+    expect(() => {
+      for (let i = 0; i < preKeyService.RESYNC_AFTER_N_OTPKS + 5; i++) {
+        preKeyService.notifyOtpkConsumed();
+      }
+    }).not.toThrow();
+  });
+
+  test('resetOtpkConsumedCounter resets counter independently', async () => {
+    const callback = mock(async () => {});
+    preKeyService.registerOtpkResyncCallback(callback);
+
+    for (let i = 0; i < preKeyService.RESYNC_AFTER_N_OTPKS - 1; i++) {
+      preKeyService.notifyOtpkConsumed();
+    }
+    preKeyService.resetOtpkConsumedCounter();
+
+    // One more call should NOT trigger (counter was reset)
+    preKeyService.notifyOtpkConsumed();
+    await new Promise((r) => queueMicrotask(r));
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  // ---- FS config persistence ----
 
   test('load/save FS config merges defaults and persists', () => {
     const store = new Map<string, string>();

@@ -12,6 +12,7 @@
  * @module repositories/pre-key
  */
 
+import { createHash } from 'node:crypto';
 import { type Filter, ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
@@ -33,6 +34,8 @@ export interface IPreKeyRepository {
   claimOneTimePreKey(identityId: string | ObjectId, deviceId: string): Promise<PreKeyDocument | null>;
   claimPreKeysForAllDevices(identityId: string | ObjectId, deviceIds: string[]): Promise<ClaimedDevicePreKeys[]>;
   countUnconsumedOneTimePreKeys(identityId: string | ObjectId, deviceId: string): Promise<number>;
+  getUnconsumedOtpkDigest(identityId: string | ObjectId, deviceId: string): Promise<string>;
+  getConsumedOtpkKeyIds(identityId: string | ObjectId, deviceId: string): Promise<string[]>;
   purgeUnconsumedOneTimePreKeys(identityId: string | ObjectId, deviceId: string): Promise<number>;
   deletePreKeysForDevice(identityId: string | ObjectId, deviceId: string): Promise<number>;
   deleteAllPreKeysForIdentity(identityId: string | ObjectId): Promise<number>;
@@ -208,6 +211,56 @@ export class PreKeyRepository extends BaseRepository<PreKeyDocument> implements 
       keyType: 'one-time',
       consumed: false,
     } as Filter<PreKeyDocument>);
+  }
+
+  /**
+   * Compute a SHA-256 hex digest of all unconsumed OTPK key IDs for a device.
+   * The digest is computed over lexicographically sorted key IDs joined with
+   * commas. Both client and server compute the same digest so the client can
+   * detect server-local OTPK pool divergence without transferring key IDs.
+   */
+  async getUnconsumedOtpkDigest(
+    identityId: string | ObjectId,
+    deviceId: string
+  ): Promise<string> {
+    const objectId = this.toObjectId(identityId);
+    const docs = await this.collection
+      .find({
+        identityId: objectId,
+        deviceId,
+        keyType: 'one-time',
+        consumed: false,
+      } as Filter<PreKeyDocument>)
+      .project<{ keyId: string }>({ keyId: 1, _id: 0 })
+      .toArray();
+
+    const sorted = docs.map((d) => d.keyId).sort();
+    return createHash('sha256').update(sorted.join(',')).digest('hex');
+  }
+
+  /**
+   * Returns the key IDs of consumed-but-not-yet-expired OTPKs for a device.
+   * These represent OTPKs that a sender has already claimed and may have
+   * encrypted a message with, but whose message may not yet have been
+   * delivered to the recipient.
+   */
+  async getConsumedOtpkKeyIds(
+    identityId: string | ObjectId,
+    deviceId: string
+  ): Promise<string[]> {
+    const objectId = this.toObjectId(identityId);
+    const docs = await this.collection
+      .find({
+        identityId: objectId,
+        deviceId,
+        keyType: 'one-time',
+        consumed: true,
+        expiresAt: { $gt: new Date() },
+      } as Filter<PreKeyDocument>)
+      .project<{ keyId: string }>({ keyId: 1, _id: 0 })
+      .toArray();
+
+    return docs.map((d) => d.keyId);
   }
 
   /**

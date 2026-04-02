@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { randomBytes } from '@adieuu/crypto';
 import {
   clearAllPreKeys,
+  clearOneTimePreKeysExcept,
   deleteAllPreKeysForIdentity,
   deleteOneTimePreKey,
   findAndDecryptOneTimePreKey,
   getActiveSignedPreKey,
   getOneTimePreKeyCount,
+  getOneTimePreKeyIds,
   getRetiredSignedPreKeys,
   retireSignedPreKey,
   storeOneTimePreKeys,
@@ -126,6 +128,130 @@ describe('services/preKeyStorage', () => {
 
     expect(await getActiveSignedPreKey(identityId, deviceId)).toBeNull();
     expect(await getOneTimePreKeyCount(identityId, deviceId)).toBe(0);
+  });
+
+  // ---- getOneTimePreKeyIds ----
+
+  test('getOneTimePreKeyIds returns sorted key IDs', async () => {
+    const keyC = 'cccccccc-0000-4000-8000-000000000000';
+    const keyA = 'aaaaaaaa-0000-4000-8000-000000000000';
+    const keyB = 'bbbbbbbb-0000-4000-8000-000000000000';
+
+    await storeOneTimePreKeys(
+      [
+        { keyId: keyC, ecdhPrivateKey: randomBytes(32), kemPrivateKey: randomBytes(2400) },
+        { keyId: keyA, ecdhPrivateKey: randomBytes(32), kemPrivateKey: randomBytes(2400) },
+        { keyId: keyB, ecdhPrivateKey: randomBytes(32), kemPrivateKey: randomBytes(2400) },
+      ],
+      identityId,
+      deviceId,
+      wrappingKey
+    );
+
+    const ids = await getOneTimePreKeyIds(identityId, deviceId);
+    expect(ids).toEqual([keyA, keyB, keyC]);
+  });
+
+  test('getOneTimePreKeyIds returns empty array when no OTPKs exist', async () => {
+    const ids = await getOneTimePreKeyIds(identityId, deviceId);
+    expect(ids).toEqual([]);
+  });
+
+  test('getOneTimePreKeyIds does not include OTPKs from other devices', async () => {
+    const key1 = crypto.randomUUID();
+    const key2 = crypto.randomUUID();
+
+    await storeOneTimePreKeys(
+      [{ keyId: key1, ecdhPrivateKey: randomBytes(32), kemPrivateKey: randomBytes(2400) }],
+      identityId,
+      deviceId,
+      wrappingKey
+    );
+    await storeOneTimePreKeys(
+      [{ keyId: key2, ecdhPrivateKey: randomBytes(32), kemPrivateKey: randomBytes(2400) }],
+      identityId,
+      'other-device',
+      wrappingKey
+    );
+
+    const ids = await getOneTimePreKeyIds(identityId, deviceId);
+    expect(ids).toEqual([key1]);
+  });
+
+  // ---- clearOneTimePreKeysExcept ----
+
+  test('clearOneTimePreKeysExcept keeps only specified keys', async () => {
+    const keepKey = crypto.randomUUID();
+    const removeKey = crypto.randomUUID();
+
+    await storeOneTimePreKeys(
+      [
+        { keyId: keepKey, ecdhPrivateKey: randomBytes(32), kemPrivateKey: randomBytes(2400) },
+        { keyId: removeKey, ecdhPrivateKey: randomBytes(32), kemPrivateKey: randomBytes(2400) },
+      ],
+      identityId,
+      deviceId,
+      wrappingKey
+    );
+
+    const removed = await clearOneTimePreKeysExcept(identityId, deviceId, [keepKey]);
+    expect(removed).toBe(1);
+    expect(await getOneTimePreKeyCount(identityId, deviceId)).toBe(1);
+    expect(await findAndDecryptOneTimePreKey(keepKey, identityId, wrappingKey)).not.toBeNull();
+    expect(await findAndDecryptOneTimePreKey(removeKey, identityId, wrappingKey)).toBeNull();
+  });
+
+  test('clearOneTimePreKeysExcept with empty keep list removes all', async () => {
+    await storeOneTimePreKeys(
+      [
+        { keyId: crypto.randomUUID(), ecdhPrivateKey: randomBytes(32), kemPrivateKey: randomBytes(2400) },
+        { keyId: crypto.randomUUID(), ecdhPrivateKey: randomBytes(32), kemPrivateKey: randomBytes(2400) },
+      ],
+      identityId,
+      deviceId,
+      wrappingKey
+    );
+
+    const removed = await clearOneTimePreKeysExcept(identityId, deviceId, []);
+    expect(removed).toBe(2);
+    expect(await getOneTimePreKeyCount(identityId, deviceId)).toBe(0);
+  });
+
+  test('clearOneTimePreKeysExcept with all keys in keep list removes none', async () => {
+    const key1 = crypto.randomUUID();
+    const key2 = crypto.randomUUID();
+
+    await storeOneTimePreKeys(
+      [
+        { keyId: key1, ecdhPrivateKey: randomBytes(32), kemPrivateKey: randomBytes(2400) },
+        { keyId: key2, ecdhPrivateKey: randomBytes(32), kemPrivateKey: randomBytes(2400) },
+      ],
+      identityId,
+      deviceId,
+      wrappingKey
+    );
+
+    const removed = await clearOneTimePreKeysExcept(identityId, deviceId, [key1, key2]);
+    expect(removed).toBe(0);
+    expect(await getOneTimePreKeyCount(identityId, deviceId)).toBe(2);
+  });
+
+  test('clearOneTimePreKeysExcept preserves signed pre-keys', async () => {
+    const spkId = crypto.randomUUID();
+
+    await storeSignedPreKey(spkId, identityId, deviceId, randomBytes(32), randomBytes(2400), wrappingKey);
+    await storeOneTimePreKeys(
+      [{ keyId: crypto.randomUUID(), ecdhPrivateKey: randomBytes(32), kemPrivateKey: randomBytes(2400) }],
+      identityId,
+      deviceId,
+      wrappingKey
+    );
+
+    await clearOneTimePreKeysExcept(identityId, deviceId, []);
+
+    const active = await getActiveSignedPreKey(identityId, deviceId);
+    expect(active).not.toBeNull();
+    expect(active?.keyId).toBe(spkId);
   });
 });
 

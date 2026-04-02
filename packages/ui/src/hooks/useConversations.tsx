@@ -55,7 +55,9 @@ import {
 import {
   findAndDecryptSignedPreKey,
   findAndDecryptOneTimePreKey,
+  deleteOneTimePreKey,
 } from '../services/preKeyStorage';
+import { notifyOtpkConsumed } from '../services/preKeyService';
 
 // ============================================================================
 // Types
@@ -409,6 +411,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
           const spkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
           const otpkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
+          const deletedOtpkIds = new Set<string>();
 
           const newMessages: DisplayMessage[] = await Promise.all(
             resp.data.messages.map(async (m): Promise<DisplayMessage> => {
@@ -587,6 +590,18 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                   preKeyPrivateKeys,
                   resolvedWrappedKey
                 );
+
+                if (
+                  resolvedWrappedKey.preKeyType === 'otpk' &&
+                  resolvedWrappedKey.oneTimePreKeyId &&
+                  !deletedOtpkIds.has(resolvedWrappedKey.oneTimePreKeyId)
+                ) {
+                  deletedOtpkIds.add(resolvedWrappedKey.oneTimePreKeyId);
+                  deleteOneTimePreKey(resolvedWrappedKey.oneTimePreKeyId, identity.id)
+                    .catch((err) => console.error('[Conversations] OTPK cleanup failed:', err));
+                  notifyOtpkConsumed();
+                }
+
                 return {
                   ...m,
                   decryptedContent: result.plaintext,
