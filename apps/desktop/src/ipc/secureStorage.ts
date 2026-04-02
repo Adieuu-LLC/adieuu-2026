@@ -1,4 +1,5 @@
 import { app, ipcMain, safeStorage } from 'electron';
+import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
 
@@ -15,6 +16,26 @@ function getKeyFilePath(keyId: string): string {
 
 async function ensureDir(filePath: string): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
+}
+
+/**
+ * Writes a file atomically by writing to a temp file in the same directory
+ * then renaming into place. `rename(2)` is atomic on POSIX, so an interrupted
+ * process can never leave a half-written target file.
+ */
+async function atomicWriteFile(filePath: string, content: string, mode: number): Promise<void> {
+  const tmpPath = `${filePath}.${randomUUID()}.tmp`;
+  try {
+    await fs.writeFile(tmpPath, content, { encoding: 'utf-8', mode });
+    await fs.rename(tmpPath, filePath);
+  } catch (err) {
+    try {
+      await fs.unlink(tmpPath);
+    } catch {
+      // Best-effort cleanup
+    }
+    throw err;
+  }
 }
 
 interface StorageEnvelope {
@@ -71,7 +92,7 @@ export function registerSecureStorageIpc(): void {
       }
 
       const content = JSON.stringify(envelope);
-      await fs.writeFile(filePath, content, { encoding: 'utf-8', mode: 0o600 });
+      await atomicWriteFile(filePath, content, 0o600);
     }
   );
 
@@ -91,7 +112,13 @@ export function registerSecureStorageIpc(): void {
       try {
         envelope = JSON.parse(raw) as StorageEnvelope;
       } catch {
-        throw new Error('Corrupt key storage file: invalid JSON');
+        console.warn(`[SecureStorage] Corrupt key file for "${keyId}", removing and treating as missing`);
+        try {
+          await fs.unlink(filePath);
+        } catch {
+          // Best-effort cleanup
+        }
+        return null;
       }
 
       if (envelope.tee) {

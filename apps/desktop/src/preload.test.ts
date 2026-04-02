@@ -1,30 +1,7 @@
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { mockIpcRenderer, mockContextBridge, ipcListeners } from './test/electron-mock';
 
 type Listener = (...args: unknown[]) => void;
-
-const listeners = new Map<string, Set<Listener>>();
-
-const mockIpcRenderer = {
-  invoke: mock((_channel: string, ..._args: unknown[]) => Promise.resolve()),
-  on: mock((channel: string, listener: Listener) => {
-    if (!listeners.has(channel)) {
-      listeners.set(channel, new Set());
-    }
-    listeners.get(channel)!.add(listener);
-    return mockIpcRenderer;
-  }),
-  removeListener: mock((channel: string, listener: Listener) => {
-    listeners.get(channel)?.delete(listener);
-    return mockIpcRenderer;
-  }),
-};
-
-mock.module('electron', () => ({
-  contextBridge: {
-    exposeInMainWorld: mock((_apiKey: string, _api: unknown) => {}),
-  },
-  ipcRenderer: mockIpcRenderer,
-}));
 
 function getExposedApi(): {
   on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
@@ -45,7 +22,7 @@ function getExposedApi(): {
 
 describe('preload IPC listener cleanup', () => {
   beforeEach(() => {
-    listeners.clear();
+    ipcListeners.clear();
     mockIpcRenderer.on.mockClear();
     mockIpcRenderer.removeListener.mockClear();
   });
@@ -71,11 +48,11 @@ describe('preload IPC listener cleanup', () => {
     const api = getExposedApi();
     const unsubscribe = api.on('deep-link', () => {});
 
-    expect(listeners.get('deep-link')?.size).toBe(1);
+    expect(ipcListeners.get('deep-link')?.size).toBe(1);
 
     unsubscribe();
 
-    expect(listeners.get('deep-link')?.size).toBe(0);
+    expect(ipcListeners.get('deep-link')?.size).toBe(0);
     expect(mockIpcRenderer.removeListener).toHaveBeenCalled();
   });
 
@@ -84,13 +61,13 @@ describe('preload IPC listener cleanup', () => {
     const unsub1 = api.on('deep-link', () => {});
     const unsub2 = api.on('deep-link', () => {});
 
-    expect(listeners.get('deep-link')?.size).toBe(2);
+    expect(ipcListeners.get('deep-link')?.size).toBe(2);
 
     unsub1();
-    expect(listeners.get('deep-link')?.size).toBe(1);
+    expect(ipcListeners.get('deep-link')?.size).toBe(1);
 
     unsub2();
-    expect(listeners.get('deep-link')?.size).toBe(0);
+    expect(ipcListeners.get('deep-link')?.size).toBe(0);
   });
 
   test('on() returns a no-op for disallowed channels', () => {
