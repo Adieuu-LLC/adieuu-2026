@@ -13,6 +13,7 @@ import {
   createApiClient,
   type PublicReaction,
   type ChatIncomingMessage,
+  type SerializedWrappedKey,
 } from '@adieuu/shared';
 import { useIdentity } from './useIdentity';
 import { useAppConfig } from '../config';
@@ -91,6 +92,7 @@ export function useReactions(conversationId: string | null) {
       return {
         ecdhPrivateKey: decrypted.ecdhPrivateKey,
         kemPrivateKey: decrypted.kemPrivateKey,
+        routingTag: decrypted.routingTag,
       };
     } catch {
       return null;
@@ -141,6 +143,12 @@ export function useReactions(conversationId: string | null) {
           const signingKey = signingKeys[reaction.fromIdentityId];
           if (!signingKey) continue;
 
+          const candidates = reaction.wrappedKeys.filter(
+            (wk) => wk.identityId === identity.id
+          );
+          if (candidates.length === 0) continue;
+
+          let resolvedWrappedKey: SerializedWrappedKey | undefined;
           let preKeyPrivateKeys:
             | {
                 spkEcdhPrivate?: Uint8Array;
@@ -150,55 +158,95 @@ export function useReactions(conversationId: string | null) {
               }
             | undefined;
 
-          const myWrappedKey = reaction.wrappedKeys.find(
-            (wk) => wk.identityId === identity.id
+          // Tier 1: FS candidates — match by local SPK presence
+          const fsCandidates = candidates.filter(
+            (wk) => (wk.preKeyType === 'spk' || wk.preKeyType === 'otpk') && wk.signedPreKeyId
           );
-
-          if (
-            myWrappedKey &&
-            (myWrappedKey.preKeyType === 'spk' || myWrappedKey.preKeyType === 'otpk') &&
-            myWrappedKey.signedPreKeyId &&
-            wrappingKey
-          ) {
-            let spkKeys = spkCache.get(myWrappedKey.signedPreKeyId);
-            if (!spkKeys) {
-              const decryptedSpk = await findAndDecryptSignedPreKey(
-                myWrappedKey.signedPreKeyId,
-                identity.id,
-                wrappingKey
-              );
-              if (decryptedSpk) {
-                spkKeys = { ecdh: decryptedSpk.ecdhPrivateKey, kem: decryptedSpk.kemPrivateKey };
-                spkCache.set(myWrappedKey.signedPreKeyId, spkKeys);
-              }
-            }
-
-            if (spkKeys) {
-              preKeyPrivateKeys = {
-                spkEcdhPrivate: spkKeys.ecdh,
-                spkKemPrivate: spkKeys.kem,
-              };
-
-              if (myWrappedKey.preKeyType === 'otpk' && myWrappedKey.oneTimePreKeyId) {
-                let otpkKeys = otpkCache.get(myWrappedKey.oneTimePreKeyId);
-                if (!otpkKeys) {
-                  const decryptedOtpk = await findAndDecryptOneTimePreKey(
-                    myWrappedKey.oneTimePreKeyId,
+          if (fsCandidates.length > 0 && wrappingKey) {
+            for (const candidate of fsCandidates) {
+              try {
+                let spkKeys = spkCache.get(candidate.signedPreKeyId!);
+                if (!spkKeys) {
+                  const decryptedSpk = await findAndDecryptSignedPreKey(
+                    candidate.signedPreKeyId!,
                     identity.id,
                     wrappingKey
                   );
-                  if (decryptedOtpk) {
-                    otpkKeys = { ecdh: decryptedOtpk.ecdhPrivateKey, kem: decryptedOtpk.kemPrivateKey };
-                    otpkCache.set(myWrappedKey.oneTimePreKeyId, otpkKeys);
+                  if (decryptedSpk) {
+                    spkKeys = { ecdh: decryptedSpk.ecdhPrivateKey, kem: decryptedSpk.kemPrivateKey };
+                    spkCache.set(candidate.signedPreKeyId!, spkKeys);
                   }
                 }
-                if (otpkKeys) {
-                  preKeyPrivateKeys.otpkEcdhPrivate = otpkKeys.ecdh;
-                  preKeyPrivateKeys.otpkKemPrivate = otpkKeys.kem;
+
+                if (spkKeys) {
+                  resolvedWrappedKey = candidate;
+                  preKeyPrivateKeys = {
+                    spkEcdhPrivate: spkKeys.ecdh,
+                    spkKemPrivate: spkKeys.kem,
+                  };
+
+                  if (candidate.preKeyType === 'otpk' && candidate.oneTimePreKeyId) {
+                    let otpkKeys = otpkCache.get(candidate.oneTimePreKeyId);
+                    if (!otpkKeys) {
+                      const decryptedOtpk = await findAndDecryptOneTimePreKey(
+                        candidate.oneTimePreKeyId,
+                        identity.id,
+                        wrappingKey
+                      );
+                      if (decryptedOtpk) {
+                        otpkKeys = { ecdh: decryptedOtpk.ecdhPrivateKey, kem: decryptedOtpk.kemPrivateKey };
+                        otpkCache.set(candidate.oneTimePreKeyId, otpkKeys);
+                      }
+                    }
+                    if (otpkKeys) {
+                      preKeyPrivateKeys.otpkEcdhPrivate = otpkKeys.ecdh;
+                      preKeyPrivateKeys.otpkKemPrivate = otpkKeys.kem;
+                    }
+                  }
+                  break;
                 }
+              } catch {
+                // SPK lookup failed for this candidate
               }
             }
           }
+
+          // Tier 2: Static candidates — match by routing tag
+          if (!resolvedWrappedKey && keys.routingTag) {
+            const staticCandidates = candidates.filter(
+              (wk) => wk.preKeyType === 'static' && wk.routingTag
+            );
+            const tagMatch = staticCandidates.find((wk) => wk.routingTag === keys.routingTag);
+            if (tagMatch) {
+              resolvedWrappedKey = tagMatch;
+            }
+          }
+
+          // Tier 3: Fallback — trial decryption of remaining static candidates
+          if (!resolvedWrappedKey) {
+            for (const candidate of candidates) {
+              if (candidate.preKeyType !== 'static') continue;
+              try {
+                const result = decryptReaction(
+                  reaction,
+                  identity.id,
+                  keys.ecdhPrivateKey,
+                  keys.kemPrivateKey,
+                  signingKey,
+                  undefined,
+                  candidate
+                );
+                results.push(result);
+                resolvedWrappedKey = candidate;
+                break;
+              } catch {
+                // Trial decryption failed, try next candidate
+              }
+            }
+            if (resolvedWrappedKey) continue;
+          }
+
+          if (!resolvedWrappedKey) continue;
 
           const decrypted = decryptReaction(
             reaction,
@@ -206,7 +254,8 @@ export function useReactions(conversationId: string | null) {
             keys.ecdhPrivateKey,
             keys.kemPrivateKey,
             signingKey,
-            preKeyPrivateKeys
+            preKeyPrivateKeys,
+            resolvedWrappedKey
           );
           results.push(decrypted);
         } catch {
@@ -422,6 +471,12 @@ export function useReactions(conversationId: string | null) {
             const senderSigningKey = signingKeys[reaction.fromIdentityId];
             if (!senderSigningKey) return;
 
+            const candidates = reaction.wrappedKeys.filter(
+              (wk) => wk.identityId === id
+            );
+            if (candidates.length === 0) return;
+
+            let resolvedWrappedKey: SerializedWrappedKey | undefined;
             let preKeyPrivateKeys:
               | {
                   spkEcdhPrivate?: Uint8Array;
@@ -431,59 +486,100 @@ export function useReactions(conversationId: string | null) {
                 }
               | undefined;
 
-            const myWrappedKey = reaction.wrappedKeys.find(
-              (wk) => wk.identityId === id
-            );
-
+            // Tier 1: FS candidates — match by local SPK presence
             const wrappingKey = getWrappingKey();
-            if (
-              myWrappedKey &&
-              (myWrappedKey.preKeyType === 'spk' || myWrappedKey.preKeyType === 'otpk') &&
-              myWrappedKey.signedPreKeyId &&
-              wrappingKey
-            ) {
-              const decryptedSpk = await findAndDecryptSignedPreKey(
-                myWrappedKey.signedPreKeyId,
-                id,
-                wrappingKey
-              );
-              if (decryptedSpk) {
-                preKeyPrivateKeys = {
-                  spkEcdhPrivate: decryptedSpk.ecdhPrivateKey,
-                  spkKemPrivate: decryptedSpk.kemPrivateKey,
-                };
-
-                if (myWrappedKey.preKeyType === 'otpk' && myWrappedKey.oneTimePreKeyId) {
-                  const decryptedOtpk = await findAndDecryptOneTimePreKey(
-                    myWrappedKey.oneTimePreKeyId,
+            const fsCandidates = candidates.filter(
+              (wk) => (wk.preKeyType === 'spk' || wk.preKeyType === 'otpk') && wk.signedPreKeyId
+            );
+            if (fsCandidates.length > 0 && wrappingKey) {
+              for (const candidate of fsCandidates) {
+                try {
+                  const decryptedSpk = await findAndDecryptSignedPreKey(
+                    candidate.signedPreKeyId!,
                     id,
                     wrappingKey
                   );
-                  if (decryptedOtpk) {
-                    preKeyPrivateKeys.otpkEcdhPrivate = decryptedOtpk.ecdhPrivateKey;
-                    preKeyPrivateKeys.otpkKemPrivate = decryptedOtpk.kemPrivateKey;
+                  if (decryptedSpk) {
+                    resolvedWrappedKey = candidate;
+                    preKeyPrivateKeys = {
+                      spkEcdhPrivate: decryptedSpk.ecdhPrivateKey,
+                      spkKemPrivate: decryptedSpk.kemPrivateKey,
+                    };
+
+                    if (candidate.preKeyType === 'otpk' && candidate.oneTimePreKeyId) {
+                      const decryptedOtpk = await findAndDecryptOneTimePreKey(
+                        candidate.oneTimePreKeyId,
+                        id,
+                        wrappingKey
+                      );
+                      if (decryptedOtpk) {
+                        preKeyPrivateKeys.otpkEcdhPrivate = decryptedOtpk.ecdhPrivateKey;
+                        preKeyPrivateKeys.otpkKemPrivate = decryptedOtpk.kemPrivateKey;
+                      }
+                    }
+                    break;
                   }
+                } catch {
+                  // SPK lookup failed for this candidate
                 }
               }
             }
 
-            const decrypted = decryptReaction(
-              reaction,
-              id,
-              keys.ecdhPrivateKey,
-              keys.kemPrivateKey,
-              senderSigningKey,
-              preKeyPrivateKeys
-            );
+            // Tier 2: Static candidates — match by routing tag
+            if (!resolvedWrappedKey && keys.routingTag) {
+              const staticCandidates = candidates.filter(
+                (wk) => wk.preKeyType === 'static' && wk.routingTag
+              );
+              const tagMatch = staticCandidates.find((wk) => wk.routingTag === keys.routingTag);
+              if (tagMatch) {
+                resolvedWrappedKey = tagMatch;
+              }
+            }
 
+            // Tier 3: Fallback — trial decryption of remaining static candidates
+            let decrypted: DecryptedReaction | undefined;
+            if (!resolvedWrappedKey) {
+              for (const candidate of candidates) {
+                if (candidate.preKeyType !== 'static') continue;
+                try {
+                  decrypted = decryptReaction(
+                    reaction,
+                    id,
+                    keys.ecdhPrivateKey,
+                    keys.kemPrivateKey,
+                    senderSigningKey,
+                    undefined,
+                    candidate
+                  );
+                  break;
+                } catch {
+                  // Trial decryption failed, try next candidate
+                }
+              }
+            }
+
+            if (!decrypted) {
+              if (!resolvedWrappedKey) return;
+              decrypted = decryptReaction(
+                reaction,
+                id,
+                keys.ecdhPrivateKey,
+                keys.kemPrivateKey,
+                senderSigningKey,
+                preKeyPrivateKeys,
+                resolvedWrappedKey
+              );
+            }
+
+            const result = decrypted;
             setState((prev) => {
               const existing = prev.byMessage[reaction.messageId] ?? [];
-              if (existing.some((r) => r.id === decrypted.id)) return prev;
+              if (existing.some((r) => r.id === result.id)) return prev;
               return {
                 ...prev,
                 byMessage: {
                   ...prev.byMessage,
-                  [reaction.messageId]: [...existing, decrypted],
+                  [reaction.messageId]: [...existing, result],
                 },
               };
             });

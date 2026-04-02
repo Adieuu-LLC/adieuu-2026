@@ -217,13 +217,14 @@ export function decryptReaction(
     spkKemPrivate?: Uint8Array;
     otpkEcdhPrivate?: Uint8Array;
     otpkKemPrivate?: Uint8Array;
-  }
+  },
+  resolvedWrappedKey?: SerializedWrappedKey
 ): DecryptedReaction {
   const ciphertext = fromBase64(reaction.ciphertext);
   const nonce = fromBase64(reaction.nonce);
   const profile = reaction.cryptoProfile as CryptoProfile;
 
-  const myWrappedKey = reaction.wrappedKeys.find(
+  const myWrappedKey = resolvedWrappedKey ?? reaction.wrappedKeys.find(
     (wk: SerializedWrappedKey) => wk.identityId === myIdentityId
   );
 
