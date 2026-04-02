@@ -37,31 +37,71 @@ function MessageActionBar({
   onDeleteForEveryone,
   onReact,
   favoriteEmojis,
+  onAddFavorite,
+  onRemoveFavorite,
 }: {
   isOwn: boolean;
   onDeleteForSelf: () => void;
   onDeleteForEveryone: () => void;
   onReact: (emoji: string) => void;
   favoriteEmojis: string[];
+  onAddFavorite: (emoji: string) => void;
+  onRemoveFavorite: (emoji: string) => void;
 }) {
+  const [showFavPicker, setShowFavPicker] = useState(false);
+
   return (
     <div className={`message-action-bar${isOwn ? ' message-action-bar--own' : ''}`}>
-      {favoriteEmojis.length > 0 && (
-        <div className="message-action-bar-favorites">
-          {favoriteEmojis.map((emoji) => (
-            <Tooltip key={emoji} content={emoji} position="top">
+      <div className="message-action-bar-favorites">
+        {favoriteEmojis.map((emoji) => (
+          <Tooltip key={emoji} content={`React ${emoji} \u00b7 Shift+click to remove`} position="top">
+            <button
+              type="button"
+              className="message-action-bar-btn message-action-bar-btn--emoji"
+              onClick={(e) => {
+                if (e.shiftKey) {
+                  onRemoveFavorite(emoji);
+                } else {
+                  onReact(emoji);
+                }
+              }}
+            >
+              {emoji}
+            </button>
+          </Tooltip>
+        ))}
+        {favoriteEmojis.length < 3 && (
+          <Popover.Root
+            open={showFavPicker}
+            onOpenChange={(e) => setShowFavPicker(e.open)}
+            positioning={{ placement: 'top', gutter: 4 }}
+          >
+            <Popover.Trigger asChild>
               <button
                 type="button"
-                className="message-action-bar-btn message-action-bar-btn--emoji"
-                onClick={() => onReact(emoji)}
+                className="message-action-bar-btn message-action-bar-btn--add-fav"
+                title="Add favourite reaction"
               >
-                {emoji}
+                <Icon name="plus" className="message-action-bar-icon message-action-bar-icon--sm" />
               </button>
-            </Tooltip>
-          ))}
-        </div>
-      )}
-      <Popover.Root positioning={{ placement: 'top' }}>
+            </Popover.Trigger>
+            <Portal>
+              <Popover.Positioner>
+                <Popover.Content className="emoji-picker-popover">
+                  <EmojiPicker
+                    compact
+                    onEmojiSelect={(emoji) => {
+                      onAddFavorite(emoji);
+                      setShowFavPicker(false);
+                    }}
+                  />
+                </Popover.Content>
+              </Popover.Positioner>
+            </Portal>
+          </Popover.Root>
+        )}
+      </div>
+      <Popover.Root positioning={{ placement: 'top', gutter: 4 }}>
         <Popover.Trigger asChild>
           <button type="button" className="message-action-bar-btn" title="React">
             <Icon name="smilePlus" className="message-action-bar-icon" />
@@ -357,6 +397,8 @@ const MessageBubble = memo(function MessageBubble({
   onToggleReaction,
   groupedReactions,
   favoriteEmojis,
+  onAddFavorite,
+  onRemoveFavorite,
   fsInfo,
   senderProfile,
   ownProfile,
@@ -370,6 +412,8 @@ const MessageBubble = memo(function MessageBubble({
   onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
   groupedReactions: GroupedReaction[];
   favoriteEmojis: string[];
+  onAddFavorite: (emoji: string) => void;
+  onRemoveFavorite: (emoji: string) => void;
   fsInfo: { rotationLabel: string; readableWindow: string; tooltip: string };
   senderProfile?: PublicIdentity;
   ownProfile?: PublicIdentity;
@@ -539,6 +583,8 @@ const MessageBubble = memo(function MessageBubble({
             onDeleteForEveryone={() => onDelete(message.id, true)}
             onReact={(emoji) => onReact(message.id, emoji)}
             favoriteEmojis={favoriteEmojis}
+            onAddFavorite={onAddFavorite}
+            onRemoveFavorite={onRemoveFavorite}
           />
         )}
       </div>
@@ -597,6 +643,8 @@ const MessageBubble = memo(function MessageBubble({
             onDeleteForEveryone={() => onDelete(message.id, true)}
             onReact={(emoji) => onReact(message.id, emoji)}
             favoriteEmojis={favoriteEmojis}
+            onAddFavorite={onAddFavorite}
+            onRemoveFavorite={onRemoveFavorite}
           />
         )}
         <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
@@ -998,7 +1046,7 @@ export function ConversationView() {
     removeReaction,
     getGroupedReactions,
   } = useReactions(id ?? null);
-  const { favorites: favoriteEmojis } = useFavoriteEmojis(identity?.id);
+  const { favorites: favoriteEmojis, addFavorite, removeFavorite } = useFavoriteEmojis(identity?.id);
 
   const isAtBottomLocalRef = useRef(true);
   const shouldScrollToBottomRef = useRef(true);
@@ -1449,6 +1497,8 @@ export function ConversationView() {
                         onToggleReaction={(messageId, emoji, ownReactionId) => void handleToggleReaction(messageId, emoji, ownReactionId)}
                         groupedReactions={getGroupedReactions(msg.id)}
                         favoriteEmojis={favoriteEmojis}
+                        onAddFavorite={addFavorite}
+                        onRemoveFavorite={removeFavorite}
                         fsInfo={fsInfo}
                         senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
                         ownProfile={identity ?? undefined}
