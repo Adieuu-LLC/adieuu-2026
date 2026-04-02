@@ -171,12 +171,23 @@ export async function addReaction(
   });
 
   if (!message.fromIdentityId.equals(identityObjId)) {
-    await createNotification(message.fromIdentityId, 'message_reaction', {
-      conversationId: convObjId.toHexString(),
-      messageId: msgObjId.toHexString(),
-      reactionId: reaction._id.toHexString(),
-      fromIdentityId: identityId,
-    });
+    try {
+      await createNotification(message.fromIdentityId, 'message_reaction', {
+        conversationId: convObjId.toHexString(),
+        messageId: msgObjId.toHexString(),
+        reactionId: reaction._id.toHexString(),
+        fromIdentityId: identityId,
+      });
+    } catch (error) {
+      elog.error('Failed to create reaction notification', {
+        error,
+        conversationId: convObjId.toHexString(),
+        messageId: msgObjId.toHexString(),
+        reactionId: reaction._id.toHexString(),
+        fromIdentityId: identityId,
+        recipientIdentityId: message.fromIdentityId.toHexString(),
+      });
+    }
   }
 
   return { success: true, reaction: publicReaction };

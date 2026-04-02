@@ -358,7 +358,9 @@ export function useReactions(conversationId: string | null) {
 
   const getGroupedReactions = useCallback(
     (messageId: string): GroupedReaction[] => {
-      const reactions = state.byMessage[messageId] ?? [];
+      const reactions = (state.byMessage[messageId] ?? []).filter(
+        (r) => r.verified !== false
+      );
       if (reactions.length === 0) return [];
 
       const groups = new Map<
