@@ -1363,6 +1363,8 @@ export const en = {
       othersInvited_other: '+{{count}} others invited',
     },
 
+    addMember: 'Add Member',
+
     inviteMember: {
       title: 'Invite Member',
       button: 'Invite Member',
@@ -1371,6 +1373,7 @@ export const en = {
         'Invitees will be able to see current and invited member lists, but the group name will be hidden until they join.',
       previouslyLeft: 'Previously left',
       noEligible: 'No friends available to invite',
+      createNew: 'Create New Conversation Instead',
     },
 
     newUnreads: 'New messages',

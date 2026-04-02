@@ -656,11 +656,13 @@ function InviteMemberModal({
   onOpenChange,
   conversationId,
   currentParticipants,
+  onCreateNewConversation,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   conversationId: string;
   currentParticipants: string[];
+  onCreateNewConversation: () => void;
 }) {
   const { t } = useTranslation();
   const { friends } = useFriends();
@@ -805,7 +807,18 @@ function InviteMemberModal({
               )}
             </div>
 
-            <div className="confirm-dialog-footer">
+            <div className="confirm-dialog-footer invite-member-modal-footer">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onOpenChange(false);
+                  onCreateNewConversation();
+                }}
+                disabled={!!inviting}
+              >
+                {t('conversations.inviteMember.createNew', 'Create New Conversation Instead')}
+              </Button>
               <Button variant="secondary" onClick={() => onOpenChange(false)} disabled={!!inviting}>
                 {t('common.close', 'Close')}
               </Button>
@@ -1530,6 +1543,21 @@ export function ConversationView() {
                   {conversation.participants.length}
                 </span>
               </div>
+              {conversation.type === 'dm' && (
+                <div className="conversation-members-invite-row">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="conversation-members-invite-btn"
+                    onClick={() => navigate('/conversations/new', {
+                      state: { preSelectedIds: otherParticipants },
+                    })}
+                  >
+                    <Icon name="plus" />
+                    {t('conversations.addMember', 'Add Member')}
+                  </Button>
+                </div>
+              )}
               {isCurrentUserAdmin && conversation.type === 'group' && (
                 <div className="conversation-members-invite-row">
                   <Button
@@ -1665,6 +1693,9 @@ export function ConversationView() {
           onOpenChange={setInviteMemberOpen}
           conversationId={conversation.id}
           currentParticipants={conversation.participants}
+          onCreateNewConversation={() => navigate('/conversations/new', {
+            state: { preSelectedIds: otherParticipants },
+          })}
         />
       )}
     </div>

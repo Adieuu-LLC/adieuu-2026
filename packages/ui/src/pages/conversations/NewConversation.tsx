@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConversations } from '../../hooks/useConversations';
 import { useFriends } from '../../hooks/useFriends';
@@ -14,13 +14,21 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Icon } from '../../icons/Icon';
 
+interface NewConversationLocationState {
+  preSelectedIds?: string[];
+}
+
 export function NewConversation() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const location = useLocation();
   const { createDM, createGroup } = useConversations();
   const { friends } = useFriends();
 
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const locationState = location.state as NewConversationLocationState | null;
+  const [selectedIds, setSelectedIds] = useState<string[]>(
+    () => locationState?.preSelectedIds ?? []
+  );
   const [groupName, setGroupName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [creating, setCreating] = useState(false);
