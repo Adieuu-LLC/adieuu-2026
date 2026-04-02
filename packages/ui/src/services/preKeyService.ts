@@ -81,13 +81,13 @@ export const SECURITY_LEVEL_CONFIG = {
 
 const PLATFORM_OTPK_BATCH_SIZE: Record<Platform, number> = {
   desktop: 50,
-  web: 10,
+  web: 25,
   mobile: 50,
 };
 
 export const PLATFORM_OTPK_REPLENISH_THRESHOLD: Record<Platform, number> = {
   desktop: 10,
-  web: 3,
+  web: 5,
   mobile: 10,
 };
 

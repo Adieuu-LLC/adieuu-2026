@@ -6,21 +6,26 @@
  * from the global stylesheet.
  */
 
-import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Dialog, Menu, Portal } from '@ark-ui/react';
+import { Dialog, Menu, Portal, Popover } from '@ark-ui/react';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
 import { usePreKeys } from '../../hooks/usePreKeys';
+import { useReactions, type GroupedReaction } from '../../hooks/useReactions';
+import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
 import { loadConversationFsDefault, saveConversationFsDefault, loadShowMessageArtifacts, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
+import { convertShortcodes, getShortcode } from '../../utils/emojiShortcodes';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { AdminTransferDialog } from '../../components/AdminTransferDialog';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
+import { EmojiPicker } from '../../components/EmojiPicker';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
@@ -30,13 +35,51 @@ function MessageActionBar({
   isOwn,
   onDeleteForSelf,
   onDeleteForEveryone,
+  onReact,
+  favoriteEmojis,
 }: {
   isOwn: boolean;
   onDeleteForSelf: () => void;
   onDeleteForEveryone: () => void;
+  onReact: (emoji: string) => void;
+  favoriteEmojis: string[];
 }) {
   return (
     <div className={`message-action-bar${isOwn ? ' message-action-bar--own' : ''}`}>
+      {favoriteEmojis.length > 0 && (
+        <div className="message-action-bar-favorites">
+          {favoriteEmojis.map((emoji) => (
+            <Tooltip key={emoji} content={emoji} position="top">
+              <button
+                type="button"
+                className="message-action-bar-btn message-action-bar-btn--emoji"
+                onClick={() => onReact(emoji)}
+              >
+                {emoji}
+              </button>
+            </Tooltip>
+          ))}
+        </div>
+      )}
+      <Popover.Root positioning={{ placement: 'top' }}>
+        <Popover.Trigger asChild>
+          <button type="button" className="message-action-bar-btn" title="React">
+            <Icon name="smilePlus" className="message-action-bar-icon" />
+          </button>
+        </Popover.Trigger>
+        <Portal>
+          <Popover.Positioner>
+            <Popover.Content className="emoji-picker-popover">
+              <EmojiPicker
+                compact
+                onEmojiSelect={(emoji) => {
+                  onReact(emoji);
+                }}
+              />
+            </Popover.Content>
+          </Popover.Positioner>
+        </Portal>
+      </Popover.Root>
       <Tooltip content="Delete for me" position="top">
         <button
           type="button"
@@ -57,6 +100,66 @@ function MessageActionBar({
           </button>
         </Tooltip>
       )}
+    </div>
+  );
+}
+
+function buildReactionTooltip(
+  reaction: GroupedReaction,
+  profiles: Record<string, PublicIdentity>,
+  currentIdentityId: string | undefined,
+): string {
+  const shortcode = getShortcode(reaction.emoji);
+  const MAX_NAMED = 3;
+
+  const names: string[] = [];
+  if (reaction.isOwn) names.push('You');
+
+  for (const id of reaction.fromIdentityIds) {
+    if (id === currentIdentityId) continue;
+    if (names.length >= MAX_NAMED) break;
+    const profile = profiles[id];
+    names.push(profile?.displayName ?? profile?.username ?? id.slice(0, 8));
+  }
+
+  const othersCount = reaction.count - names.length;
+  let label = names.join(', ');
+  if (othersCount > 0) label += ` + ${othersCount} other${othersCount === 1 ? '' : 's'}`;
+
+  return `${label} reacted with ${shortcode}`;
+}
+
+function ReactionBar({
+  reactions,
+  onToggleReaction,
+  participantProfiles,
+  currentIdentityId,
+}: {
+  reactions: GroupedReaction[];
+  onToggleReaction: (emoji: string, ownReactionId?: string) => void;
+  participantProfiles: Record<string, PublicIdentity>;
+  currentIdentityId: string | undefined;
+}) {
+  if (reactions.length === 0) return null;
+
+  return (
+    <div className="message-reaction-bar">
+      {reactions.map((r) => (
+        <Tooltip
+          key={r.emoji}
+          content={buildReactionTooltip(r, participantProfiles, currentIdentityId)}
+          position="top"
+        >
+          <button
+            type="button"
+            className={`message-reaction-chip${r.isOwn ? ' message-reaction-chip--own' : ''}`}
+            onClick={() => onToggleReaction(r.emoji, r.ownReactionId)}
+          >
+            <span className="message-reaction-chip-emoji">{r.emoji}</span>
+            <span className="message-reaction-chip-count">{r.count}</span>
+          </button>
+        </Tooltip>
+      ))}
     </div>
   );
 }
@@ -239,25 +342,43 @@ function formatDayLabel(date: Date): string {
   return date.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-function MessageBubble({
+type ChatItem =
+  | { type: 'day-separator'; date: Date; key: string }
+  | { type: 'unread-separator'; key: string }
+  | { type: 'message'; msg: DisplayMessage; key: string };
+
+const FIRST_ITEM_INDEX = 1_000_000;
+
+const MessageBubble = memo(function MessageBubble({
   message,
   isOwn,
   onDelete,
+  onReact,
+  onToggleReaction,
+  groupedReactions,
+  favoriteEmojis,
   fsInfo,
   senderProfile,
   ownProfile,
   layout,
+  participantProfiles,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
   onDelete: (messageId: string, forEveryone: boolean) => void;
+  onReact: (messageId: string, emoji: string) => void;
+  onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
+  groupedReactions: GroupedReaction[];
+  favoriteEmojis: string[];
   fsInfo: { rotationLabel: string; readableWindow: string; tooltip: string };
   senderProfile?: PublicIdentity;
   ownProfile?: PublicIdentity;
   layout: 'linear' | 'bubble';
+  participantProfiles: Record<string, PublicIdentity>;
 }) {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
+  const [showContextReactionPicker, setShowContextReactionPicker] = useState(false);
   const countdown = useExpiryCountdown(message.expiresAt);
 
   const content = message.decryptedContent ?? '';
@@ -266,12 +387,17 @@ function MessageBubble({
   function handleContextAction(details: { value: string }) {
     if (details.value === 'delete-for-me') onDelete(message.id, false);
     else if (details.value === 'delete-for-everyone') onDelete(message.id, true);
+    else if (details.value === 'react') setShowContextReactionPicker(true);
   }
 
   const contextMenuContent = (
     <Portal>
       <Menu.Positioner>
         <Menu.Content className="dm-context-menu">
+          <Menu.Item value="react" className="dm-context-menu-item">
+            <Icon name="smilePlus" className="dm-context-menu-item-icon" />
+            React
+          </Menu.Item>
           <Menu.Item value="delete-for-me" className="dm-context-menu-item">
             <Icon name="trash" className="dm-context-menu-item-icon" />
             Delete for me
@@ -285,6 +411,45 @@ function MessageBubble({
         </Menu.Content>
       </Menu.Positioner>
     </Portal>
+  );
+
+  const reactionBar = (
+    <ReactionBar
+      reactions={groupedReactions}
+      onToggleReaction={(emoji, ownReactionId) =>
+        onToggleReaction(message.id, emoji, ownReactionId)
+      }
+      participantProfiles={participantProfiles}
+      currentIdentityId={ownProfile?.id}
+    />
+  );
+
+  const contextReactionPickerPopover = (
+    <Popover.Root
+      open={showContextReactionPicker}
+      onOpenChange={(e) => setShowContextReactionPicker(e.open)}
+    >
+      <Portal>
+        <Popover.Positioner>
+          <Popover.Content className="emoji-picker-popover emoji-picker-popover--context">
+            <EmojiPicker
+              compact
+              onEmojiSelect={(emoji) => {
+                onReact(message.id, emoji);
+                setShowContextReactionPicker(false);
+              }}
+            />
+            <button
+              type="button"
+              className="emoji-picker-popover-close"
+              onClick={() => setShowContextReactionPicker(false)}
+            >
+              x
+            </button>
+          </Popover.Content>
+        </Popover.Positioner>
+      </Portal>
+    </Popover.Root>
   );
 
   if (layout === 'linear') {
@@ -365,12 +530,15 @@ function MessageBubble({
             )}
           </div>
           {messageBody}
+          {reactionBar}
         </div>
         {showActions && !message.deleted && (
           <MessageActionBar
             isOwn={isOwn}
             onDeleteForSelf={() => onDelete(message.id, false)}
             onDeleteForEveryone={() => onDelete(message.id, true)}
+            onReact={(emoji) => onReact(message.id, emoji)}
+            favoriteEmojis={favoriteEmojis}
           />
         )}
       </div>
@@ -379,10 +547,13 @@ function MessageBubble({
     if (message.deleted) return messageRow;
 
     return (
-      <Menu.Root onSelect={handleContextAction}>
-        <Menu.ContextTrigger asChild>{messageRow}</Menu.ContextTrigger>
-        {contextMenuContent}
-      </Menu.Root>
+      <>
+        <Menu.Root onSelect={handleContextAction}>
+          <Menu.ContextTrigger asChild>{messageRow}</Menu.ContextTrigger>
+          {contextMenuContent}
+        </Menu.Root>
+        {contextReactionPickerPopover}
+      </>
     );
   }
 
@@ -424,6 +595,8 @@ function MessageBubble({
             isOwn={isOwn}
             onDeleteForSelf={() => onDelete(message.id, false)}
             onDeleteForEveryone={() => onDelete(message.id, true)}
+            onReact={(emoji) => onReact(message.id, emoji)}
+            favoriteEmojis={favoriteEmojis}
           />
         )}
         <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
@@ -437,6 +610,7 @@ function MessageBubble({
             <p className="dm-message-text">{content}</p>
           )}
         </div>
+        {reactionBar}
       </div>
       <div className="dm-message-footer">
         <Tooltip content={formatAbsoluteTime(message.createdAt)} position="top">
@@ -467,12 +641,15 @@ function MessageBubble({
   );
 
   return (
-    <Menu.Root onSelect={handleContextAction}>
-      <Menu.ContextTrigger asChild>{bubbleRow}</Menu.ContextTrigger>
-      {contextMenuContent}
-    </Menu.Root>
+    <>
+      <Menu.Root onSelect={handleContextAction}>
+        <Menu.ContextTrigger asChild>{bubbleRow}</Menu.ContextTrigger>
+        {contextMenuContent}
+      </Menu.Root>
+      {contextReactionPickerPopover}
+    </>
   );
-}
+});
 
 function InviteMemberModal({
   open,
@@ -640,6 +817,138 @@ function InviteMemberModal({
   );
 }
 
+function MessageComposer({
+  conversationId,
+  sending,
+  sendTextMessage,
+  useFs,
+  onToggleFs,
+}: {
+  conversationId: string;
+  sending: boolean;
+  sendTextMessage: (
+    conversationId: string,
+    plaintext: string,
+    options?: { useForwardSecrecy?: boolean }
+  ) => Promise<unknown>;
+  useFs: boolean;
+  onToggleFs: () => void;
+}) {
+  const { t } = useTranslation();
+  const [messageText, setMessageText] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messageTextRef = useRef(messageText);
+  messageTextRef.current = messageText;
+
+  useEffect(() => {
+    if (!sending) {
+      inputRef.current?.focus();
+    }
+  }, [sending]);
+
+  const handleSend = useCallback(async () => {
+    const text = messageTextRef.current.trim();
+    if (!conversationId || !text || sending) return;
+    setMessageText('');
+    await sendTextMessage(conversationId, convertShortcodes(text), { useForwardSecrecy: useFs });
+    inputRef.current?.focus();
+  }, [conversationId, sending, sendTextMessage, useFs]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        void handleSend();
+      }
+    },
+    [handleSend]
+  );
+
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    const textarea = inputRef.current;
+    if (!textarea) {
+      setMessageText((prev) => prev + emoji);
+      return;
+    }
+    const current = messageTextRef.current;
+    const start = textarea.selectionStart ?? current.length;
+    const end = textarea.selectionEnd ?? current.length;
+    setMessageText(current.slice(0, start) + emoji + current.slice(end));
+    setShowEmojiPicker(false);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const newPos = start + emoji.length;
+      textarea.setSelectionRange(newPos, newPos);
+    });
+  }, []);
+
+  return (
+    <div className="conversation-composer">
+      <Tooltip
+        content={useFs
+          ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
+          : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
+        }
+        position="top"
+      >
+        <button
+          type="button"
+          className={`conversation-fs-toggle${useFs ? ' conversation-fs-toggle--active' : ''}`}
+          onClick={onToggleFs}
+        >
+          FS
+        </button>
+      </Tooltip>
+      <textarea
+        ref={inputRef}
+        className="conversation-composer-field"
+        placeholder={t('conversations.messagePlaceholder', 'Type a message...')}
+        value={messageText}
+        onChange={(e) => {
+          const raw = e.target.value;
+          const converted = convertShortcodes(raw);
+          if (converted !== raw) {
+            const cursorPos = e.target.selectionStart ?? raw.length;
+            const newCursorPos = Math.max(0, cursorPos - (raw.length - converted.length));
+            setMessageText(converted);
+            requestAnimationFrame(() => {
+              inputRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+            });
+          } else {
+            setMessageText(raw);
+          }
+        }}
+        onKeyDown={handleKeyDown}
+        rows={1}
+        disabled={sending}
+      />
+      <Popover.Root
+        open={showEmojiPicker}
+        onOpenChange={(e) => setShowEmojiPicker(e.open)}
+        positioning={{ placement: 'top-end' }}
+      >
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            className="message-composer-emoji-btn"
+            title={t('conversations.emojiButton', 'Emoji')}
+          >
+            <Icon name="smile" className="message-composer-emoji-icon" />
+          </button>
+        </Popover.Trigger>
+        <Portal>
+          <Popover.Positioner>
+            <Popover.Content className="emoji-picker-popover">
+              <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+            </Popover.Content>
+          </Popover.Positioner>
+        </Portal>
+      </Popover.Root>
+    </div>
+  );
+}
+
 export function ConversationView() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
@@ -655,6 +964,8 @@ export function ConversationView() {
     sending,
     participantProfiles,
     setActiveConversation,
+    setIsAtBottom,
+    markConversationRead,
     sendTextMessage,
     loadMoreMessages,
     leaveGroup,
@@ -663,14 +974,24 @@ export function ConversationView() {
     terminateGroup,
     deleteMessage,
     renameGroup,
+    fetchRecipientKeys,
   } = useConversations();
 
   const messageLayout = useMessageLayoutPreference();
 
-  const [messageText, setMessageText] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const {
+    fetchReactions,
+    addReaction,
+    removeReaction,
+    getGroupedReactions,
+  } = useReactions(id ?? null);
+  const { favorites: favoriteEmojis } = useFavoriteEmojis(identity?.id);
+
+  const isAtBottomLocalRef = useRef(true);
+  const shouldScrollToBottomRef = useRef(true);
+  const fetchedReactionsForRef = useRef<string | null>(null);
+  const pendingReactionsRef = useRef<Set<string>>(new Set());
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -711,6 +1032,10 @@ export function ConversationView() {
     setUseFs(enabled);
   }, [id]);
 
+  const handleToggleFs = useCallback(() => {
+    setUseFs((v) => !v);
+  }, []);
+
   const handleRename = useCallback(async () => {
     if (!id || !renameValue.trim() || renaming) return;
     setRenaming(true);
@@ -724,44 +1049,111 @@ export function ConversationView() {
   useEffect(() => {
     if (id && id !== activeConversationId) {
       setActiveConversation(id);
+      isAtBottomLocalRef.current = true;
+      shouldScrollToBottomRef.current = true;
+      setIsAtBottom(true);
+      fetchedReactionsForRef.current = null;
     }
-  }, [id, activeConversationId, setActiveConversation]);
+  }, [id, activeConversationId, setActiveConversation, setIsAtBottom]);
+
+  // Clear activeConversationId and scroll state when this view unmounts
+  // (e.g. navigating to About / Settings) so the WebSocket handler correctly
+  // increments unreads. React Router keeps the component mounted for
+  // conversation-to-conversation navigation (same <Route>, different param),
+  // so this only fires on a true route change away from /conversations/:id.
+  const setActiveConversationRef = useRef(setActiveConversation);
+  setActiveConversationRef.current = setActiveConversation;
+  const setIsAtBottomRef = useRef(setIsAtBottom);
+  setIsAtBottomRef.current = setIsAtBottom;
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    return () => {
+      setActiveConversationRef.current(null);
+      isAtBottomLocalRef.current = false;
+      setIsAtBottomRef.current(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!id || activeMessages.length === 0) return;
+
+    const key = `${id}:${activeMessages.length}`;
+    if (fetchedReactionsForRef.current === key) return;
+    fetchedReactionsForRef.current = key;
+
+    const messageIds = activeMessages.map((m) => m.id);
+    void fetchReactions(messageIds);
+  }, [id, activeMessages, fetchReactions]);
+
+  useEffect(() => {
+    if (shouldScrollToBottomRef.current) {
+      requestAnimationFrame(() => {
+        virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
+      });
+      shouldScrollToBottomRef.current = false;
+    }
   }, [activeMessages.length]);
 
-  useEffect(() => {
-    if (!sending) {
-      inputRef.current?.focus();
-    }
-  }, [sending]);
-
-  const handleSend = useCallback(async () => {
-    if (!id || !messageText.trim() || sending) return;
-    const text = messageText.trim();
-    setMessageText('');
-    await sendTextMessage(id, text, { useForwardSecrecy: useFs });
-    inputRef.current?.focus();
-  }, [id, messageText, sending, sendTextMessage, useFs]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
+  const handleReact = useCallback(
+    async (messageId: string, emoji: string) => {
+      if (!id || !conversation) return;
+      const key = `${messageId}:${emoji}`;
+      if (pendingReactionsRef.current.has(key)) return;
+      pendingReactionsRef.current.add(key);
+      try {
+        const targetMsg = activeMessages.find((m) => m.id === messageId);
+        const useForwardSecrecy = targetMsg?.forwardSecrecy ?? false;
+        const recipients = await fetchRecipientKeys(conversation.participants, useForwardSecrecy);
+        if (recipients.length === 0) return;
+        await addReaction(messageId, emoji, recipients);
+      } finally {
+        pendingReactionsRef.current.delete(key);
       }
     },
-    [handleSend]
+    [id, conversation, activeMessages, addReaction, fetchRecipientKeys]
   );
 
-  const handleScroll = useCallback(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-    if (container.scrollTop === 0 && activeMessagesCursor && !messagesLoading) {
+  const handleToggleReaction = useCallback(
+    async (messageId: string, emoji: string, ownReactionId?: string) => {
+      const key = `${messageId}:${emoji}`;
+      if (pendingReactionsRef.current.has(key)) return;
+      if (ownReactionId) {
+        pendingReactionsRef.current.add(key);
+        try {
+          await removeReaction(ownReactionId, messageId);
+        } finally {
+          pendingReactionsRef.current.delete(key);
+        }
+      } else {
+        await handleReact(messageId, emoji);
+      }
+    },
+    [removeReaction, handleReact]
+  );
+
+  const handleStartReached = useCallback(() => {
+    if (activeMessagesCursor && !messagesLoading) {
       loadMoreMessages();
     }
   }, [activeMessagesCursor, messagesLoading, loadMoreMessages]);
+
+  const handleAtBottomStateChange = useCallback(
+    (atBottom: boolean) => {
+      const wasAtBottom = isAtBottomLocalRef.current;
+      isAtBottomLocalRef.current = atBottom;
+      setIsAtBottom(atBottom);
+      setShowScrollButton(!atBottom);
+
+      if (atBottom && !wasAtBottom && id) {
+        markConversationRead(id);
+      }
+    },
+    [setIsAtBottom, markConversationRead, id]
+  );
+
+  const scrollToBottom = useCallback(() => {
+    virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
+  }, []);
 
   const handleLeaveClick = useCallback(() => {
     if (!conversation) return;
@@ -830,20 +1222,10 @@ export function ConversationView() {
     [id, deleteMessage]
   );
 
-  if (!conversation) {
-    return (
-      <div className="conversation-not-found">
-        <p>{t('conversations.notFound', 'Conversation not found')}</p>
-        <Link to="/">{t('conversations.backHome', 'Back to home')}</Link>
-      </div>
-    );
-  }
-
-  const levelConfig = SECURITY_LEVEL_CONFIG[fsConfig.securityLevel];
-  const rotationLabel = formatRotationInterval(levelConfig.spkRotationIntervalMs);
-  const hardDeleteLabel = formatRotationInterval(levelConfig.hardDeleteCapMs);
-
-  const fsInfo = (() => {
+  const fsInfo = useMemo(() => {
+    const levelConfig = SECURITY_LEVEL_CONFIG[fsConfig.securityLevel];
+    const rotationLabel = formatRotationInterval(levelConfig.spkRotationIntervalMs);
+    const hardDeleteLabel = formatRotationInterval(levelConfig.hardDeleteCapMs);
     const policy = fsConfig.spkDeletionPolicy;
     let readableWindow: string;
     let tooltip: string;
@@ -860,7 +1242,59 @@ export function ConversationView() {
     }
 
     return { rotationLabel, readableWindow, tooltip };
-  })();
+  }, [fsConfig.securityLevel, fsConfig.spkDeletionPolicy, fsConfig.clearCacheOnRotation]);
+
+  const showArtifacts = identity ? loadShowMessageArtifacts(identity.id) : false;
+
+  const reversedMessages = useMemo(() =>
+    [...activeMessages]
+      .reverse()
+      .filter((msg) => {
+        if (showArtifacts) return true;
+        if (msg.messageType === 'system') return true;
+        if (msg.deleted) return false;
+        if (!msg.decryptedContent && msg.decryptionError) return false;
+        return true;
+      }),
+    [activeMessages, showArtifacts]
+  );
+
+  const unreadCount = conversation?.unreadCount ?? 0;
+
+  const flatItems = useMemo(() => {
+    const items: ChatItem[] = [];
+    const unreadIdx =
+      unreadCount > 0 && unreadCount < reversedMessages.length
+        ? reversedMessages.length - unreadCount
+        : -1;
+
+    for (let i = 0; i < reversedMessages.length; i++) {
+      const msg = reversedMessages[i]!;
+      const currDate = new Date(msg.createdAt);
+      const prevMsg = i > 0 ? reversedMessages[i - 1] : null;
+      const showDaySep = !prevMsg || !isSameDay(new Date(prevMsg.createdAt), currDate);
+
+      if (i === unreadIdx) {
+        items.push({ type: 'unread-separator', key: '__unread__' });
+      }
+      if (showDaySep) {
+        items.push({ type: 'day-separator', date: currDate, key: `day-${msg.id}` });
+      }
+      items.push({ type: 'message', msg, key: msg.id });
+    }
+    return items;
+  }, [reversedMessages, unreadCount]);
+
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+
+  if (!conversation) {
+    return (
+      <div className="conversation-not-found">
+        <p>{t('conversations.notFound', 'Conversation not found')}</p>
+        <Link to="/">{t('conversations.backHome', 'Back to home')}</Link>
+      </div>
+    );
+  }
 
   const resolveDisplayName = (pid: string) => {
     const profile = participantProfiles[pid];
@@ -877,18 +1311,6 @@ export function ConversationView() {
 
   const isCurrentUserAdmin = !!(identity?.id && conversation.admins?.includes(identity.id));
   const isSoleMember = conversation.participants.length <= 1;
-
-  const showArtifacts = identity ? loadShowMessageArtifacts(identity.id) : false;
-
-  const reversedMessages = [...activeMessages]
-    .reverse()
-    .filter((msg) => {
-      if (showArtifacts) return true;
-      if (msg.messageType === 'system') return true;
-      if (msg.deleted) return false;
-      if (!msg.decryptedContent && msg.decryptionError) return false;
-      return true;
-    });
 
   return (
     <div className="conversation-page">
@@ -947,87 +1369,104 @@ export function ConversationView() {
         <div className="conversation-body">
           <div className="conversation-main">
             {/* Messages */}
-            <div
-              className="conversation-messages"
-              ref={messagesContainerRef}
-              onScroll={handleScroll}
-            >
-              {messagesLoading && (
-                <div className="dm-messages-loading">
-                  <span className="spinner spinner-sm" />
-                </div>
-              )}
-
-              <div className={`dm-messages${messageLayout === 'linear' ? ' dm-messages--linear' : ''}`}>
-                {reversedMessages.map((msg, index) => {
-                  const currDate = new Date(msg.createdAt);
-                  const prevMsg = index > 0 ? reversedMessages[index - 1] : null;
-                  const showDaySep = !prevMsg || !isSameDay(new Date(prevMsg.createdAt), currDate);
-
-                  return (
-                    <Fragment key={msg.id}>
-                      {showDaySep && (
-                        <div className="dm-day-separator">
-                          <div className="dm-day-separator-line" />
-                          <span className="dm-day-separator-text">{formatDayLabel(currDate)}</span>
-                          <div className="dm-day-separator-line" />
-                        </div>
-                      )}
-                      {msg.messageType === 'system' && msg.systemEvent ? (
-                        <SystemMessageRow event={msg.systemEvent} />
-                      ) : (
-                        <MessageBubble
-                          message={msg}
-                          isOwn={msg.fromIdentityId === identity?.id}
-                          onDelete={handleDeleteMessage}
-                          fsInfo={fsInfo}
-                          senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
-                          ownProfile={identity ?? undefined}
-                          layout={messageLayout}
-                        />
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </div>
-
-              {reversedMessages.length === 0 && !messagesLoading && (
+            <div className="conversation-messages">
+              {reversedMessages.length === 0 && !messagesLoading ? (
                 <div className="conversation-messages-empty">
                   <p>{t('conversations.noMessages', 'No messages yet. Say hello!')}</p>
                 </div>
+              ) : (
+                <Virtuoso
+                  ref={virtuosoRef}
+                  className={`dm-messages${messageLayout === 'linear' ? ' dm-messages--linear' : ''}`}
+                  data={flatItems}
+                  computeItemKey={(_, item) => item.key}
+                  firstItemIndex={FIRST_ITEM_INDEX - flatItems.length}
+                  initialTopMostItemIndex={flatItems.length - 1}
+                  alignToBottom
+                  followOutput={(isAtBottom) => (isAtBottom ? 'smooth' : false)}
+                  startReached={handleStartReached}
+                  atBottomStateChange={handleAtBottomStateChange}
+                  atBottomThreshold={80}
+                  overscan={{ main: 200, reverse: 200 }}
+                  defaultItemHeight={60}
+                  increaseViewportBy={{ top: 200, bottom: 200 }}
+                  components={{
+                    Header: () =>
+                      messagesLoading ? (
+                        <div className="dm-messages-loading">
+                          <span className="spinner spinner-sm" />
+                        </div>
+                      ) : null,
+                    Item: (props) => <div {...props} className="dm-messages-item" />,
+                  }}
+                  itemContent={(_, item) => {
+                    if (item.type === 'unread-separator') {
+                      return (
+                        <div className="dm-unread-separator">
+                          <div className="dm-unread-separator-line" />
+                          <span className="dm-unread-separator-text">
+                            {t('conversations.newUnreads', 'New messages')}
+                          </span>
+                          <div className="dm-unread-separator-line" />
+                        </div>
+                      );
+                    }
+
+                    if (item.type === 'day-separator') {
+                      return (
+                        <div className="dm-day-separator">
+                          <div className="dm-day-separator-line" />
+                          <span className="dm-day-separator-text">{formatDayLabel(item.date)}</span>
+                          <div className="dm-day-separator-line" />
+                        </div>
+                      );
+                    }
+
+                    const msg = item.msg;
+                    if (msg.messageType === 'system' && msg.systemEvent) {
+                      return <SystemMessageRow event={msg.systemEvent} />;
+                    }
+
+                    return (
+                      <MessageBubble
+                        message={msg}
+                        isOwn={msg.fromIdentityId === identity?.id}
+                        onDelete={handleDeleteMessage}
+                        onReact={(messageId, emoji) => void handleReact(messageId, emoji)}
+                        onToggleReaction={(messageId, emoji, ownReactionId) => void handleToggleReaction(messageId, emoji, ownReactionId)}
+                        groupedReactions={getGroupedReactions(msg.id)}
+                        favoriteEmojis={favoriteEmojis}
+                        fsInfo={fsInfo}
+                        senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
+                        ownProfile={identity ?? undefined}
+                        layout={messageLayout}
+                        participantProfiles={participantProfiles}
+                      />
+                    );
+                  }}
+                />
               )}
-
-              <div ref={messagesEndRef} />
             </div>
 
-            {/* Composer */}
-            <div className="conversation-composer">
-              <Tooltip
-                content={useFs
-                  ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
-                  : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
-                }
-                position="top"
+            {/* Scroll to bottom */}
+            <Tooltip content={t('conversations.jumpToLatest', 'Jump to latest message')} position="top">
+              <button
+                type="button"
+                className={`conversation-scroll-to-bottom${showScrollButton ? ' conversation-scroll-to-bottom--visible' : ''}`}
+                onClick={scrollToBottom}
+                aria-label={t('conversations.jumpToLatest', 'Jump to latest message')}
               >
-                <button
-                  type="button"
-                  className={`conversation-fs-toggle${useFs ? ' conversation-fs-toggle--active' : ''}`}
-                  onClick={() => setUseFs((v) => !v)}
-                >
-                  FS
-                </button>
-              </Tooltip>
-              <textarea
-                ref={inputRef}
-                className="conversation-composer-field"
-                placeholder={t('conversations.messagePlaceholder', 'Type a message...')}
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                disabled={sending}
-              />
-            </div>
+                <Icon name="chevronDown" />
+              </button>
+            </Tooltip>
+
+            <MessageComposer
+              conversationId={id!}
+              sending={sending}
+              sendTextMessage={sendTextMessage}
+              useFs={useFs}
+              onToggleFs={handleToggleFs}
+            />
           </div>
 
           {/* Settings sidebar */}

@@ -201,6 +201,15 @@ export const desktopCapabilities: PlatformCapabilities = {
   } : {}),
 
   // --------------------------------------------------------------------------
+  // App Window (OS taskbar badge, etc.)
+  // --------------------------------------------------------------------------
+  appWindow: {
+    setBadgeCount(count: number, accentColorHex?: string) {
+      window.electron.window.setBadgeCount(count, accentColorHex);
+    },
+  },
+
+  // --------------------------------------------------------------------------
   // Feature Flags
   // --------------------------------------------------------------------------
   features: {

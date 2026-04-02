@@ -225,7 +225,7 @@ describe('services/preKeyService', () => {
       identityApi
     );
 
-    expect(uploaded).toBe(10); // web batch size
+    expect(uploaded).toBe(25); // web batch size
     expect(storeOneTimePreKeysMock).toHaveBeenCalledTimes(1);
     expect(identityApi.uploadPreKeys).toHaveBeenCalledTimes(1);
   });

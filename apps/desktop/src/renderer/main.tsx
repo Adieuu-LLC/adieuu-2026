@@ -14,6 +14,10 @@ import './index.scss';
 // Initialize i18n before rendering
 initI18n();
 
+if (import.meta.env.DEV) {
+  document.title = 'Adieuu Dev';
+}
+
 // Use TEE-backed secure storage for device keys instead of IndexedDB.
 // Must be called before any identity/login operations.
 setDeviceKeyStorageBackend(desktopCapabilities.secureStorage);

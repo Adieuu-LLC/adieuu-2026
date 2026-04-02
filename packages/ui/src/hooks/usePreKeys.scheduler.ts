@@ -1,4 +1,4 @@
-export const PREKEY_REPLENISH_DEBOUNCE_MS = 2000;
+export const PREKEY_REPLENISH_DEBOUNCE_MS = 1000;
 export const PREKEY_ROTATION_RETRY_MS = 5 * 60 * 1000;
 
 type TimerHandle = ReturnType<typeof setTimeout>;

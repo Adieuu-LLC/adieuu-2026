@@ -20,6 +20,7 @@ import { useIdentity } from '../../hooks/useIdentity';
 import { DEFAULT_THEME_ID } from '../../constants/builtinThemes';
 import { sanitizeImportedTheme } from '../../utils/themeSanitizer';
 import { loadShowMessageArtifacts, saveShowMessageArtifacts } from '../../services/preKeyService';
+import { loadReactionNotificationsEnabled, saveReactionNotificationsEnabled } from '../../hooks/useReactionNotificationPreference';
 import type { ThemeDefinition, ThemeColorTokens } from '@adieuu/shared';
 import { TOKEN_TO_CSS_VAR } from '@adieuu/shared';
 
@@ -106,10 +107,21 @@ export function IdentityAppearance() {
     () => identity ? loadShowMessageArtifacts(identity.id) : false
   );
 
+  const [reactionNotifications, setReactionNotifications] = useState(
+    () => identity ? loadReactionNotificationsEnabled(identity.id) : true
+  );
+
   const handleArtifactsToggle = useCallback((enabled: boolean) => {
     setShowArtifacts(enabled);
     if (identity) {
       saveShowMessageArtifacts(identity.id, enabled);
+    }
+  }, [identity]);
+
+  const handleReactionNotificationsToggle = useCallback((enabled: boolean) => {
+    setReactionNotifications(enabled);
+    if (identity) {
+      saveReactionNotificationsEnabled(identity.id, enabled);
     }
   }, [identity]);
 
@@ -524,6 +536,21 @@ export function IdentityAppearance() {
               </span>
               <span className="app-settings-toggle-hint">
                 {t('identity.appearance.showArtifactsHint', 'When enabled, deleted messages, expired forward secrecy messages, and messages that could not be decrypted are shown in conversations. When disabled, these artifacts are hidden for a cleaner view. This is a local display preference only and does not affect message storage.')}
+              </span>
+            </span>
+          </label>
+          <label className="app-settings-toggle">
+            <input
+              type="checkbox"
+              checked={reactionNotifications}
+              onChange={(e) => handleReactionNotificationsToggle(e.target.checked)}
+            />
+            <span className="app-settings-toggle-label">
+              <span className="app-settings-toggle-title">
+                {t('identity.appearance.reactionNotificationsTitle', 'Reaction Notifications')}
+              </span>
+              <span className="app-settings-toggle-hint">
+                {t('identity.appearance.reactionNotificationsHint', 'When enabled, you will receive notifications and unread indicators when someone reacts to your messages. This only applies to reactions on messages you sent.')}
               </span>
             </span>
           </label>

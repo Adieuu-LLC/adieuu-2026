@@ -13,6 +13,7 @@ concurrency:
 permissions:
   contents: read
   actions: write
+  pull-requests: write
 
 env:
   NODE_VERSION: '25'
@@ -25,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v5
 
@@ -36,6 +39,22 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Supply chain audit
+        run: node scripts/audit-supply-chain.mjs
+
+      - name: Summarize lockfile changes
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git show origin/${{ github.base_ref }}:pnpm-lock.yaml > /tmp/base-lockfile.yaml 2>/dev/null || true
+          SUMMARY=$(node scripts/summarize-lockfile-changes.mjs --base /tmp/base-lockfile.yaml --head pnpm-lock.yaml)
+          if [ -n "$SUMMARY" ]; then
+            echo "$SUMMARY" > /tmp/lockfile-summary.md
+            gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/lockfile-summary.md --edit-last 2>/dev/null || \
+              gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/lockfile-summary.md
+          fi
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
