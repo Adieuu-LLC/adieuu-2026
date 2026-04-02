@@ -347,7 +347,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       }
 
       try {
-        const resp = await api.conversations.getMessages(conversationId, 50, cursor);
+        const resp = await api.conversations.getMessages(conversationId, 30, cursor);
         if (resp.data) {
           let ecdhPrivateKey: Uint8Array | null = null;
           let kemPrivateKey: Uint8Array | null = null;

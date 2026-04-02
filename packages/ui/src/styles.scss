@@ -6341,9 +6341,8 @@ a {
 .conversation-messages {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  // padding: var(--spacing-md);
-  padding-bottom: var(--spacing-2xl);
+  overflow: hidden;
+  position: relative;
 
   &-empty {
     display: flex;
@@ -7136,16 +7135,15 @@ a {
 // ============================================================================
 
 .dm-messages {
-  flex: 1;
-  overflow-y: auto;
+  height: 100%;
   overflow-x: hidden;
   padding-left: var(--spacing-xs);
   padding-right: var(--spacing-xs);
+  padding-bottom: var(--spacing-2xl);
+}
+
+.dm-messages-item {
   padding-top: var(--spacing-md);
-  padding-bottom: var(--spacing-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
 }
 
 .dm-messages-loading,
@@ -7295,8 +7293,8 @@ a {
 // Linear layout modifier -- Discord/Slack-style rows
 // ============================================================================
 
-.dm-messages--linear {
-  gap: var(--spacing-sm);
+.dm-messages--linear .dm-messages-item {
+  padding-top: var(--spacing-sm);
 }
 
 .dm-message--linear {

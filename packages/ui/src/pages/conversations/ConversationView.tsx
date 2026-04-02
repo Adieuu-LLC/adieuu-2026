@@ -6,10 +6,11 @@
  * from the global stylesheet.
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Menu, Portal, Popover } from '@ark-ui/react';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
@@ -340,6 +341,13 @@ function formatDayLabel(date: Date): string {
 
   return date.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
+
+type ChatItem =
+  | { type: 'day-separator'; date: Date; key: string }
+  | { type: 'unread-separator'; key: string }
+  | { type: 'message'; msg: DisplayMessage; key: string };
+
+const FIRST_ITEM_INDEX = 1_000_000;
 
 const MessageBubble = memo(function MessageBubble({
   message,
@@ -970,8 +978,6 @@ export function ConversationView() {
   } = useReactions(id ?? null);
   const { favorites: favoriteEmojis } = useFavoriteEmojis(identity?.id);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isAtBottomLocalRef = useRef(true);
   const shouldScrollToBottomRef = useRef(true);
   const fetchedReactionsForRef = useRef<string | null>(null);
@@ -1071,10 +1077,10 @@ export function ConversationView() {
 
   useEffect(() => {
     if (shouldScrollToBottomRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      requestAnimationFrame(() => {
+        virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
+      });
       shouldScrollToBottomRef.current = false;
-    } else if (isAtBottomLocalRef.current && document.hasFocus()) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [activeMessages.length]);
 
@@ -1101,30 +1107,28 @@ export function ConversationView() {
     [removeReaction, handleReact]
   );
 
-  const AT_BOTTOM_THRESHOLD = 80;
-
-  const handleScroll = useCallback(() => {
-    const container = messagesContainerRef.current;
-    if (!container) return;
-
-    if (container.scrollTop === 0 && activeMessagesCursor && !messagesLoading) {
+  const handleStartReached = useCallback(() => {
+    if (activeMessagesCursor && !messagesLoading) {
       loadMoreMessages();
     }
+  }, [activeMessagesCursor, messagesLoading, loadMoreMessages]);
 
-    const atBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight <= AT_BOTTOM_THRESHOLD;
-    const wasAtBottom = isAtBottomLocalRef.current;
-    isAtBottomLocalRef.current = atBottom;
-    setIsAtBottom(atBottom);
-    setShowScrollButton(!atBottom);
+  const handleAtBottomStateChange = useCallback(
+    (atBottom: boolean) => {
+      const wasAtBottom = isAtBottomLocalRef.current;
+      isAtBottomLocalRef.current = atBottom;
+      setIsAtBottom(atBottom);
+      setShowScrollButton(!atBottom);
 
-    if (atBottom && !wasAtBottom && id) {
-      markConversationRead(id);
-    }
-  }, [activeMessagesCursor, messagesLoading, loadMoreMessages, setIsAtBottom, markConversationRead, id]);
+      if (atBottom && !wasAtBottom && id) {
+        markConversationRead(id);
+      }
+    },
+    [setIsAtBottom, markConversationRead, id]
+  );
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
   }, []);
 
   const handleLeaveClick = useCallback(() => {
@@ -1231,6 +1235,34 @@ export function ConversationView() {
     [activeMessages, showArtifacts]
   );
 
+  const unreadCount = conversation?.unreadCount ?? 0;
+
+  const flatItems = useMemo(() => {
+    const items: ChatItem[] = [];
+    const unreadIdx =
+      unreadCount > 0 && unreadCount < reversedMessages.length
+        ? reversedMessages.length - unreadCount
+        : -1;
+
+    for (let i = 0; i < reversedMessages.length; i++) {
+      const msg = reversedMessages[i]!;
+      const currDate = new Date(msg.createdAt);
+      const prevMsg = i > 0 ? reversedMessages[i - 1] : null;
+      const showDaySep = !prevMsg || !isSameDay(new Date(prevMsg.createdAt), currDate);
+
+      if (i === unreadIdx) {
+        items.push({ type: 'unread-separator', key: '__unread__' });
+      }
+      if (showDaySep) {
+        items.push({ type: 'day-separator', date: currDate, key: `day-${msg.id}` });
+      }
+      items.push({ type: 'message', msg, key: msg.id });
+    }
+    return items;
+  }, [reversedMessages, unreadCount]);
+
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+
   if (!conversation) {
     return (
       <div className="conversation-not-found">
@@ -1255,12 +1287,6 @@ export function ConversationView() {
 
   const isCurrentUserAdmin = !!(identity?.id && conversation.admins?.includes(identity.id));
   const isSoleMember = conversation.participants.length <= 1;
-
-  const unreadCount = conversation?.unreadCount ?? 0;
-  const unreadSeparatorIndex =
-    unreadCount > 0 && unreadCount < reversedMessages.length
-      ? reversedMessages.length - unreadCount
-      : -1;
 
   return (
     <div className="conversation-page">
@@ -1319,26 +1345,39 @@ export function ConversationView() {
         <div className="conversation-body">
           <div className="conversation-main">
             {/* Messages */}
-            <div
-              className="conversation-messages"
-              ref={messagesContainerRef}
-              onScroll={handleScroll}
-            >
-              {messagesLoading && (
-                <div className="dm-messages-loading">
-                  <span className="spinner spinner-sm" />
+            <div className="conversation-messages">
+              {reversedMessages.length === 0 && !messagesLoading ? (
+                <div className="conversation-messages-empty">
+                  <p>{t('conversations.noMessages', 'No messages yet. Say hello!')}</p>
                 </div>
-              )}
-
-              <div className={`dm-messages${messageLayout === 'linear' ? ' dm-messages--linear' : ''}`}>
-                {reversedMessages.map((msg, index) => {
-                  const currDate = new Date(msg.createdAt);
-                  const prevMsg = index > 0 ? reversedMessages[index - 1] : null;
-                  const showDaySep = !prevMsg || !isSameDay(new Date(prevMsg.createdAt), currDate);
-
-                  return (
-                    <Fragment key={msg.id}>
-                      {index === unreadSeparatorIndex && (
+              ) : (
+                <Virtuoso
+                  ref={virtuosoRef}
+                  className={`dm-messages${messageLayout === 'linear' ? ' dm-messages--linear' : ''}`}
+                  data={flatItems}
+                  computeItemKey={(_, item) => item.key}
+                  firstItemIndex={FIRST_ITEM_INDEX - flatItems.length}
+                  initialTopMostItemIndex={flatItems.length - 1}
+                  alignToBottom
+                  followOutput={(isAtBottom) => (isAtBottom ? 'smooth' : false)}
+                  startReached={handleStartReached}
+                  atBottomStateChange={handleAtBottomStateChange}
+                  atBottomThreshold={80}
+                  overscan={{ main: 200, reverse: 200 }}
+                  defaultItemHeight={60}
+                  increaseViewportBy={{ top: 200, bottom: 200 }}
+                  components={{
+                    Header: () =>
+                      messagesLoading ? (
+                        <div className="dm-messages-loading">
+                          <span className="spinner spinner-sm" />
+                        </div>
+                      ) : null,
+                    Item: (props) => <div {...props} className="dm-messages-item" />,
+                  }}
+                  itemContent={(_, item) => {
+                    if (item.type === 'unread-separator') {
+                      return (
                         <div className="dm-unread-separator">
                           <div className="dm-unread-separator-line" />
                           <span className="dm-unread-separator-text">
@@ -1346,44 +1385,43 @@ export function ConversationView() {
                           </span>
                           <div className="dm-unread-separator-line" />
                         </div>
-                      )}
-                      {showDaySep && (
+                      );
+                    }
+
+                    if (item.type === 'day-separator') {
+                      return (
                         <div className="dm-day-separator">
                           <div className="dm-day-separator-line" />
-                          <span className="dm-day-separator-text">{formatDayLabel(currDate)}</span>
+                          <span className="dm-day-separator-text">{formatDayLabel(item.date)}</span>
                           <div className="dm-day-separator-line" />
                         </div>
-                      )}
-                      {msg.messageType === 'system' && msg.systemEvent ? (
-                        <SystemMessageRow event={msg.systemEvent} />
-                      ) : (
-                        <MessageBubble
-                          message={msg}
-                          isOwn={msg.fromIdentityId === identity?.id}
-                          onDelete={handleDeleteMessage}
-                          onReact={(messageId, emoji) => void handleReact(messageId, emoji)}
-                          onToggleReaction={(messageId, emoji, ownReactionId) => void handleToggleReaction(messageId, emoji, ownReactionId)}
-                          groupedReactions={getGroupedReactions(msg.id)}
-                          favoriteEmojis={favoriteEmojis}
-                          fsInfo={fsInfo}
-                          senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
-                          ownProfile={identity ?? undefined}
-                          layout={messageLayout}
-                          participantProfiles={participantProfiles}
-                        />
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </div>
+                      );
+                    }
 
-              {reversedMessages.length === 0 && !messagesLoading && (
-                <div className="conversation-messages-empty">
-                  <p>{t('conversations.noMessages', 'No messages yet. Say hello!')}</p>
-                </div>
+                    const msg = item.msg;
+                    if (msg.messageType === 'system' && msg.systemEvent) {
+                      return <SystemMessageRow event={msg.systemEvent} />;
+                    }
+
+                    return (
+                      <MessageBubble
+                        message={msg}
+                        isOwn={msg.fromIdentityId === identity?.id}
+                        onDelete={handleDeleteMessage}
+                        onReact={(messageId, emoji) => void handleReact(messageId, emoji)}
+                        onToggleReaction={(messageId, emoji, ownReactionId) => void handleToggleReaction(messageId, emoji, ownReactionId)}
+                        groupedReactions={getGroupedReactions(msg.id)}
+                        favoriteEmojis={favoriteEmojis}
+                        fsInfo={fsInfo}
+                        senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
+                        ownProfile={identity ?? undefined}
+                        layout={messageLayout}
+                        participantProfiles={participantProfiles}
+                      />
+                    );
+                  }}
+                />
               )}
-
-              <div ref={messagesEndRef} />
             </div>
 
             {/* Scroll to bottom */}
