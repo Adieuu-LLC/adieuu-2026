@@ -123,9 +123,7 @@ function ReactionBar({
           title={r.isOwn ? 'Click to remove your reaction' : `React with ${r.emoji}`}
         >
           <span className="message-reaction-chip-emoji">{r.emoji}</span>
-          {r.count > 1 && (
-            <span className="message-reaction-chip-count">{r.count}</span>
-          )}
+          <span className="message-reaction-chip-count">{r.count}</span>
         </button>
       ))}
     </div>

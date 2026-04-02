@@ -7676,7 +7676,7 @@ a {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: var(--spacing-xs);
+  margin-top: var(--spacing-sm);
 }
 
 .message-reaction-chip {
@@ -7712,7 +7712,7 @@ a {
 }
 
 .message-reaction-chip-count {
-  font-size: 11px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text-secondary);
   min-width: 12px;
@@ -8220,7 +8220,7 @@ a {
   border-radius: var(--radius-md);
   background: var(--color-bg);
   color: var(--color-text);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-lg);
   font-family: inherit;
   line-height: 1.5;
   resize: none;

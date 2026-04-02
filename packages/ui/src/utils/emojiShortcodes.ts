@@ -131,6 +131,19 @@ const textShortcutPattern = new RegExp(
   'g'
 );
 
+const EMOJI_TO_SHORTCODE: Record<string, string> = Object.fromEntries(
+  Object.entries(COLON_SHORTCODES).map(([code, emoji]) => [emoji, code])
+);
+
+/**
+ * Return the colon shortcode for a given emoji character, e.g. "👍" -> ":thumbsup:".
+ * Falls back to the emoji itself when no mapping exists.
+ */
+export function getShortcode(emoji: string): string {
+  const code = EMOJI_TO_SHORTCODE[emoji];
+  return code ? `:${code}:` : emoji;
+}
+
 const colonShortcodePattern = /:([a-z0-9_+-]+):/gi;
 
 /**
