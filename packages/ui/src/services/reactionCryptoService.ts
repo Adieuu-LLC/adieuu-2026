@@ -39,7 +39,6 @@ import {
 } from '@adieuu/crypto';
 import type {
   SerializedWrappedKey,
-  PublicReaction,
   MessageCryptoProfile,
   PublicReaction,
   PublicDevice,
