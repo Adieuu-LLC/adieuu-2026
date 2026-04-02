@@ -6,7 +6,7 @@
  * from the global stylesheet.
  */
 
-import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Menu, Portal, Popover } from '@ark-ui/react';
@@ -310,7 +310,7 @@ function formatDayLabel(date: Date): string {
   return date.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-function MessageBubble({
+const MessageBubble = memo(function MessageBubble({
   message,
   isOwn,
   onDelete,
@@ -597,7 +597,7 @@ function MessageBubble({
       {contextReactionPickerPopover}
     </>
   );
-}
+});
 
 function InviteMemberModal({
   open,
@@ -765,6 +765,125 @@ function InviteMemberModal({
   );
 }
 
+function MessageComposer({
+  conversationId,
+  sending,
+  sendTextMessage,
+  useFs,
+  onToggleFs,
+}: {
+  conversationId: string;
+  sending: boolean;
+  sendTextMessage: (
+    conversationId: string,
+    plaintext: string,
+    options?: { useForwardSecrecy?: boolean }
+  ) => Promise<unknown>;
+  useFs: boolean;
+  onToggleFs: () => void;
+}) {
+  const { t } = useTranslation();
+  const [messageText, setMessageText] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messageTextRef = useRef(messageText);
+  messageTextRef.current = messageText;
+
+  useEffect(() => {
+    if (!sending) {
+      inputRef.current?.focus();
+    }
+  }, [sending]);
+
+  const handleSend = useCallback(async () => {
+    const text = messageTextRef.current.trim();
+    if (!conversationId || !text || sending) return;
+    setMessageText('');
+    await sendTextMessage(conversationId, convertShortcodes(text), { useForwardSecrecy: useFs });
+    inputRef.current?.focus();
+  }, [conversationId, sending, sendTextMessage, useFs]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        void handleSend();
+      }
+    },
+    [handleSend]
+  );
+
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    const textarea = inputRef.current;
+    if (!textarea) {
+      setMessageText((prev) => prev + emoji);
+      return;
+    }
+    const current = messageTextRef.current;
+    const start = textarea.selectionStart ?? current.length;
+    const end = textarea.selectionEnd ?? current.length;
+    setMessageText(current.slice(0, start) + emoji + current.slice(end));
+    setShowEmojiPicker(false);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const newPos = start + emoji.length;
+      textarea.setSelectionRange(newPos, newPos);
+    });
+  }, []);
+
+  return (
+    <div className="conversation-composer">
+      <Tooltip
+        content={useFs
+          ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
+          : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
+        }
+        position="top"
+      >
+        <button
+          type="button"
+          className={`conversation-fs-toggle${useFs ? ' conversation-fs-toggle--active' : ''}`}
+          onClick={onToggleFs}
+        >
+          FS
+        </button>
+      </Tooltip>
+      <textarea
+        ref={inputRef}
+        className="conversation-composer-field"
+        placeholder={t('conversations.messagePlaceholder', 'Type a message...')}
+        value={messageText}
+        onChange={(e) => setMessageText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        rows={1}
+        disabled={sending}
+      />
+      <Popover.Root
+        open={showEmojiPicker}
+        onOpenChange={(e) => setShowEmojiPicker(e.open)}
+        positioning={{ placement: 'top-end' }}
+      >
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            className="message-composer-emoji-btn"
+            title={t('conversations.emojiButton', 'Emoji')}
+          >
+            <Icon name="smile" className="message-composer-emoji-icon" />
+          </button>
+        </Popover.Trigger>
+        <Portal>
+          <Popover.Positioner>
+            <Popover.Content className="emoji-picker-popover">
+              <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+            </Popover.Content>
+          </Popover.Positioner>
+        </Portal>
+      </Popover.Root>
+    </div>
+  );
+}
+
 export function ConversationView() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
@@ -803,11 +922,8 @@ export function ConversationView() {
   } = useReactions(id ?? null);
   const { favorites: favoriteEmojis } = useFavoriteEmojis(identity?.id);
 
-  const [messageText, setMessageText] = useState('');
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
   const isAtBottomLocalRef = useRef(true);
   const shouldScrollToBottomRef = useRef(true);
   const fetchedReactionsForRef = useRef<string | null>(null);
@@ -851,6 +967,10 @@ export function ConversationView() {
     saveConversationFsDefault(id, enabled);
     setUseFs(enabled);
   }, [id]);
+
+  const handleToggleFs = useCallback(() => {
+    setUseFs((v) => !v);
+  }, []);
 
   const handleRename = useCallback(async () => {
     if (!id || !renameValue.trim() || renaming) return;
@@ -910,20 +1030,6 @@ export function ConversationView() {
     }
   }, [activeMessages.length]);
 
-  useEffect(() => {
-    if (!sending) {
-      inputRef.current?.focus();
-    }
-  }, [sending]);
-
-  const handleSend = useCallback(async () => {
-    if (!id || !messageText.trim() || sending) return;
-    const text = convertShortcodes(messageText.trim());
-    setMessageText('');
-    await sendTextMessage(id, text, { useForwardSecrecy: useFs });
-    inputRef.current?.focus();
-  }, [id, messageText, sending, sendTextMessage, useFs]);
-
   const handleReact = useCallback(
     async (messageId: string, emoji: string) => {
       if (!id || !conversation) return;
@@ -945,38 +1051,6 @@ export function ConversationView() {
       }
     },
     [removeReaction, handleReact]
-  );
-
-  const handleComposerEmojiSelect = useCallback(
-    (emoji: string) => {
-      const textarea = inputRef.current;
-      if (!textarea) {
-        setMessageText((prev) => prev + emoji);
-        return;
-      }
-      const start = textarea.selectionStart ?? messageText.length;
-      const end = textarea.selectionEnd ?? messageText.length;
-      const before = messageText.slice(0, start);
-      const after = messageText.slice(end);
-      setMessageText(before + emoji + after);
-      setShowEmojiPicker(false);
-      requestAnimationFrame(() => {
-        textarea.focus();
-        const newPos = start + emoji.length;
-        textarea.setSelectionRange(newPos, newPos);
-      });
-    },
-    [messageText]
-  );
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-    },
-    [handleSend]
   );
 
   const AT_BOTTOM_THRESHOLD = 80;
@@ -1072,20 +1146,10 @@ export function ConversationView() {
     [id, deleteMessage]
   );
 
-  if (!conversation) {
-    return (
-      <div className="conversation-not-found">
-        <p>{t('conversations.notFound', 'Conversation not found')}</p>
-        <Link to="/">{t('conversations.backHome', 'Back to home')}</Link>
-      </div>
-    );
-  }
-
-  const levelConfig = SECURITY_LEVEL_CONFIG[fsConfig.securityLevel];
-  const rotationLabel = formatRotationInterval(levelConfig.spkRotationIntervalMs);
-  const hardDeleteLabel = formatRotationInterval(levelConfig.hardDeleteCapMs);
-
-  const fsInfo = (() => {
+  const fsInfo = useMemo(() => {
+    const levelConfig = SECURITY_LEVEL_CONFIG[fsConfig.securityLevel];
+    const rotationLabel = formatRotationInterval(levelConfig.spkRotationIntervalMs);
+    const hardDeleteLabel = formatRotationInterval(levelConfig.hardDeleteCapMs);
     const policy = fsConfig.spkDeletionPolicy;
     let readableWindow: string;
     let tooltip: string;
@@ -1102,7 +1166,31 @@ export function ConversationView() {
     }
 
     return { rotationLabel, readableWindow, tooltip };
-  })();
+  }, [fsConfig.securityLevel, fsConfig.spkDeletionPolicy, fsConfig.clearCacheOnRotation]);
+
+  const showArtifacts = identity ? loadShowMessageArtifacts(identity.id) : false;
+
+  const reversedMessages = useMemo(() =>
+    [...activeMessages]
+      .reverse()
+      .filter((msg) => {
+        if (showArtifacts) return true;
+        if (msg.messageType === 'system') return true;
+        if (msg.deleted) return false;
+        if (!msg.decryptedContent && msg.decryptionError) return false;
+        return true;
+      }),
+    [activeMessages, showArtifacts]
+  );
+
+  if (!conversation) {
+    return (
+      <div className="conversation-not-found">
+        <p>{t('conversations.notFound', 'Conversation not found')}</p>
+        <Link to="/">{t('conversations.backHome', 'Back to home')}</Link>
+      </div>
+    );
+  }
 
   const resolveDisplayName = (pid: string) => {
     const profile = participantProfiles[pid];
@@ -1119,18 +1207,6 @@ export function ConversationView() {
 
   const isCurrentUserAdmin = !!(identity?.id && conversation.admins?.includes(identity.id));
   const isSoleMember = conversation.participants.length <= 1;
-
-  const showArtifacts = identity ? loadShowMessageArtifacts(identity.id) : false;
-
-  const reversedMessages = [...activeMessages]
-    .reverse()
-    .filter((msg) => {
-      if (showArtifacts) return true;
-      if (msg.messageType === 'system') return true;
-      if (msg.deleted) return false;
-      if (!msg.decryptedContent && msg.decryptionError) return false;
-      return true;
-    });
 
   const unreadCount = conversation?.unreadCount ?? 0;
   const unreadSeparatorIndex =
@@ -1273,56 +1349,13 @@ export function ConversationView() {
               </button>
             </Tooltip>
 
-            {/* Composer */}
-            <div className="conversation-composer">
-              <Tooltip
-                content={useFs
-                  ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
-                  : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
-                }
-                position="top"
-              >
-                <button
-                  type="button"
-                  className={`conversation-fs-toggle${useFs ? ' conversation-fs-toggle--active' : ''}`}
-                  onClick={() => setUseFs((v) => !v)}
-                >
-                  FS
-                </button>
-              </Tooltip>
-              <textarea
-                ref={inputRef}
-                className="conversation-composer-field"
-                placeholder={t('conversations.messagePlaceholder', 'Type a message...')}
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                onKeyDown={handleKeyDown}
-                rows={1}
-                disabled={sending}
-              />
-              <Popover.Root
-                open={showEmojiPicker}
-                onOpenChange={(e) => setShowEmojiPicker(e.open)}
-                positioning={{ placement: 'top-end' }}
-              >
-                <Popover.Trigger asChild>
-                  <button
-                    type="button"
-                    className="message-composer-emoji-btn"
-                    title={t('conversations.emojiButton', 'Emoji')}
-                  >
-                    <Icon name="smile" className="message-composer-emoji-icon" />
-                  </button>
-                </Popover.Trigger>
-                <Portal>
-                  <Popover.Positioner>
-                    <Popover.Content className="emoji-picker-popover">
-                      <EmojiPicker onEmojiSelect={handleComposerEmojiSelect} />
-                    </Popover.Content>
-                  </Popover.Positioner>
-                </Portal>
-              </Popover.Root>
-            </div>
+            <MessageComposer
+              conversationId={id!}
+              sending={sending}
+              sendTextMessage={sendTextMessage}
+              useFs={useFs}
+              onToggleFs={handleToggleFs}
+            />
           </div>
 
           {/* Settings sidebar */}
