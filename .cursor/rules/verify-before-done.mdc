@@ -13,6 +13,8 @@ Run these from the workspace root (or scope to affected packages as appropriate)
 
 1. **Lint**: `pnpm run lint`
 2. **Typecheck**: `pnpm run typecheck`
+
+If changes include new tests or things that may affect the build:
 3. **Build**: `pnpm run build`
 4. **Test**: `pnpm run test`
 

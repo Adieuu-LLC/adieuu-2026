@@ -263,10 +263,23 @@ const ICON_PATH = app.isPackaged
 // badge pill directly onto the window icon via mainWindow.setIcon().
 // ============================================================================
 
-// Brand accent colour (--color-accent-primary: #22d3ee) in RGBA.
-const BADGE_R = 0x22;
-const BADGE_G = 0xd3;
-const BADGE_B = 0xee;
+// Default accent colour (#22d3ee) used when the renderer hasn't sent one yet.
+let badgeR = 0x22;
+let badgeG = 0xd3;
+let badgeB = 0xee;
+
+/**
+ * Parses a CSS hex colour string (e.g. "#ff00aa") into RGB components and
+ * stores them for badge rendering.  Returns true on success.
+ */
+function applyBadgeColor(hex: string): boolean {
+  const m = /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(hex);
+  if (!m) return false;
+  badgeR = parseInt(m[1]!, 16);
+  badgeG = parseInt(m[2]!, 16);
+  badgeB = parseInt(m[3]!, 16);
+  return true;
+}
 
 // 5x7 bitmap glyphs for digits 0-9 and '+'. Each glyph is a flat array of
 // 5*7 = 35 values (0 or 1), stored row-major.
@@ -309,8 +322,11 @@ function getBaseIcon(): NativeImage | null {
 }
 
 /**
- * Renders a filled circle onto an RGBA bitmap buffer.  Uses basic distance-
+ * Renders a filled circle onto a BGRA bitmap buffer.  Uses basic distance-
  * field anti-aliasing (1 px fringe) for smooth edges.
+ *
+ * Electron's NativeImage.toBitmap() returns pixels in BGRA order, so
+ * offset 0 = B, 1 = G, 2 = R, 3 = A.
  */
 function fillCircle(
   buf: Buffer, w: number, cx: number, cy: number, r: number,
@@ -333,9 +349,9 @@ function fillCircle(
       const dstA = buf[off + 3]! / 255;
       const outA = srcA + dstA * (1 - srcA);
       if (outA > 0) {
-        buf[off + 0] = Math.round((cr * srcA + buf[off + 0]! * dstA * (1 - srcA)) / outA);
+        buf[off + 0] = Math.round((cb * srcA + buf[off + 0]! * dstA * (1 - srcA)) / outA);
         buf[off + 1] = Math.round((cg * srcA + buf[off + 1]! * dstA * (1 - srcA)) / outA);
-        buf[off + 2] = Math.round((cb * srcA + buf[off + 2]! * dstA * (1 - srcA)) / outA);
+        buf[off + 2] = Math.round((cr * srcA + buf[off + 2]! * dstA * (1 - srcA)) / outA);
         buf[off + 3] = Math.round(outA * 255);
       }
     }
@@ -343,7 +359,7 @@ function fillCircle(
 }
 
 /**
- * Draws a single glyph character (scaled up) onto an RGBA bitmap buffer.
+ * Draws a single glyph character (scaled up) onto a BGRA bitmap buffer.
  * Each source pixel becomes a `scale x scale` block; pixels with value 1
  * are drawn fully opaque, 0 pixels are skipped.
  */
@@ -361,9 +377,9 @@ function drawGlyph(
           const py = gy + row * scale + dy;
           if (px < 0 || px >= w || py < 0 || py >= h) continue;
           const off = (py * w + px) * 4;
-          buf[off + 0] = cr;
+          buf[off + 0] = cb;
           buf[off + 1] = cg;
-          buf[off + 2] = cb;
+          buf[off + 2] = cr;
           buf[off + 3] = 255;
         }
       }
@@ -409,8 +425,8 @@ function createBadgedIcon(count: number): NativeImage | null {
   const leftCx = pillCenterX - pillW / 2 + pillR;
   const rightCx = pillCenterX + pillW / 2 - pillR;
 
-  fillCircle(buf, w, leftCx, pillCenterY, pillR, BADGE_R, BADGE_G, BADGE_B, 255);
-  fillCircle(buf, w, rightCx, pillCenterY, pillR, BADGE_R, BADGE_G, BADGE_B, 255);
+  fillCircle(buf, w, leftCx, pillCenterY, pillR, badgeR, badgeG, badgeB, 255);
+  fillCircle(buf, w, rightCx, pillCenterY, pillR, badgeR, badgeG, badgeB, 255);
 
   // Fill the rectangular region between the two semicircles.
   const rectX0 = Math.floor(leftCx);
@@ -420,9 +436,9 @@ function createBadgedIcon(count: number): NativeImage | null {
   for (let y = rectY0; y <= rectY1; y++) {
     for (let x = rectX0; x <= rectX1; x++) {
       const off = (y * w + x) * 4;
-      buf[off + 0] = BADGE_R;
-      buf[off + 1] = BADGE_G;
-      buf[off + 2] = BADGE_B;
+      buf[off + 0] = badgeB;
+      buf[off + 1] = badgeG;
+      buf[off + 2] = badgeR;
       buf[off + 3] = 255;
     }
   }
@@ -1026,9 +1042,14 @@ ipcMain.handle('window:isMaximized', () => {
   return mainWindow?.isMaximized() ?? false;
 });
 
-ipcMain.handle('window:setBadgeCount', (_event, count: unknown) => {
+ipcMain.handle('window:setBadgeCount', (_event, count: unknown, accentHex?: unknown) => {
   if (typeof count !== 'number' || count < 0) return;
   const rounded = Math.round(count);
+
+  if (typeof accentHex === 'string') {
+    applyBadgeColor(accentHex);
+  }
+
   app.setBadgeCount(rounded);
 
   // On Linux (and Windows), composite the badge directly onto the window icon

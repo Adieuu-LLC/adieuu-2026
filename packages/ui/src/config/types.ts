@@ -139,8 +139,9 @@ export interface WebAuthnBridge {
  * Not present on web or mobile.
  */
 export interface AppWindowCapabilities {
-  /** Update the OS taskbar badge / dock count with the given unread total. */
-  setBadgeCount(count: number): void;
+  /** Update the OS taskbar badge / dock count with the given unread total.
+   *  An optional accent colour hex (e.g. "#22d3ee") tints the badge pill. */
+  setBadgeCount(count: number, accentColorHex?: string): void;
 }
 
 /**

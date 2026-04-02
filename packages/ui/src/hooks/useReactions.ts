@@ -27,6 +27,10 @@ import {
   getDeviceKeysForIdentity,
   decryptDeviceKeys,
 } from '../services/deviceKeyStorage';
+import {
+  findAndDecryptSignedPreKey,
+  findAndDecryptOneTimePreKey,
+} from '../services/preKeyStorage';
 
 // ============================================================================
 // Types
@@ -124,9 +128,12 @@ export function useReactions(conversationId: string | null) {
       const keys = await getPrivateKeys();
       if (!keys) return [];
 
+      const wrappingKey = getWrappingKey();
       const senderIds = [...new Set(publicReactions.map((r) => r.fromIdentityId))];
       const signingKeys = await resolveSigningKeys(senderIds);
 
+      const spkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
+      const otpkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
       const results: DecryptedReaction[] = [];
 
       for (const reaction of publicReactions) {
@@ -134,12 +141,72 @@ export function useReactions(conversationId: string | null) {
           const signingKey = signingKeys[reaction.fromIdentityId];
           if (!signingKey) continue;
 
+          let preKeyPrivateKeys:
+            | {
+                spkEcdhPrivate?: Uint8Array;
+                spkKemPrivate?: Uint8Array;
+                otpkEcdhPrivate?: Uint8Array;
+                otpkKemPrivate?: Uint8Array;
+              }
+            | undefined;
+
+          const myWrappedKey = reaction.wrappedKeys.find(
+            (wk) => wk.identityId === identity.id
+          );
+
+          if (
+            myWrappedKey &&
+            (myWrappedKey.preKeyType === 'spk' || myWrappedKey.preKeyType === 'otpk') &&
+            myWrappedKey.signedPreKeyId &&
+            wrappingKey
+          ) {
+            let spkKeys = spkCache.get(myWrappedKey.signedPreKeyId);
+            if (!spkKeys) {
+              const decryptedSpk = await findAndDecryptSignedPreKey(
+                myWrappedKey.signedPreKeyId,
+                identity.id,
+                wrappingKey
+              );
+              if (decryptedSpk) {
+                spkKeys = { ecdh: decryptedSpk.ecdhPrivateKey, kem: decryptedSpk.kemPrivateKey };
+                spkCache.set(myWrappedKey.signedPreKeyId, spkKeys);
+              }
+            }
+
+            if (spkKeys) {
+              preKeyPrivateKeys = {
+                spkEcdhPrivate: spkKeys.ecdh,
+                spkKemPrivate: spkKeys.kem,
+              };
+
+              if (myWrappedKey.preKeyType === 'otpk' && myWrappedKey.oneTimePreKeyId) {
+                let otpkKeys = otpkCache.get(myWrappedKey.oneTimePreKeyId);
+                if (!otpkKeys) {
+                  const decryptedOtpk = await findAndDecryptOneTimePreKey(
+                    myWrappedKey.oneTimePreKeyId,
+                    identity.id,
+                    wrappingKey
+                  );
+                  if (decryptedOtpk) {
+                    otpkKeys = { ecdh: decryptedOtpk.ecdhPrivateKey, kem: decryptedOtpk.kemPrivateKey };
+                    otpkCache.set(myWrappedKey.oneTimePreKeyId, otpkKeys);
+                  }
+                }
+                if (otpkKeys) {
+                  preKeyPrivateKeys.otpkEcdhPrivate = otpkKeys.ecdh;
+                  preKeyPrivateKeys.otpkKemPrivate = otpkKeys.kem;
+                }
+              }
+            }
+          }
+
           const decrypted = decryptReaction(
             reaction,
             identity.id,
             keys.ecdhPrivateKey,
             keys.kemPrivateKey,
-            signingKey
+            signingKey,
+            preKeyPrivateKeys
           );
           results.push(decrypted);
         } catch {
@@ -149,7 +216,7 @@ export function useReactions(conversationId: string | null) {
 
       return results;
     },
-    [identity, getPrivateKeys, resolveSigningKeys]
+    [identity, getPrivateKeys, resolveSigningKeys, getWrappingKey]
   );
 
   // ---- Fetch reactions for messages ----
@@ -349,14 +416,62 @@ export function useReactions(conversationId: string | null) {
           if (!keys) return;
 
           try {
+            const signingKeys = await resolveSigningKeys([reaction.fromIdentityId]);
+            const senderSigningKey = signingKeys[reaction.fromIdentityId];
+            if (!senderSigningKey) return;
+
+            let preKeyPrivateKeys:
+              | {
+                  spkEcdhPrivate?: Uint8Array;
+                  spkKemPrivate?: Uint8Array;
+                  otpkEcdhPrivate?: Uint8Array;
+                  otpkKemPrivate?: Uint8Array;
+                }
+              | undefined;
+
+            const myWrappedKey = reaction.wrappedKeys.find(
+              (wk) => wk.identityId === id
+            );
+
+            const wrappingKey = getWrappingKey();
+            if (
+              myWrappedKey &&
+              (myWrappedKey.preKeyType === 'spk' || myWrappedKey.preKeyType === 'otpk') &&
+              myWrappedKey.signedPreKeyId &&
+              wrappingKey
+            ) {
+              const decryptedSpk = await findAndDecryptSignedPreKey(
+                myWrappedKey.signedPreKeyId,
+                id,
+                wrappingKey
+              );
+              if (decryptedSpk) {
+                preKeyPrivateKeys = {
+                  spkEcdhPrivate: decryptedSpk.ecdhPrivateKey,
+                  spkKemPrivate: decryptedSpk.kemPrivateKey,
+                };
+
+                if (myWrappedKey.preKeyType === 'otpk' && myWrappedKey.oneTimePreKeyId) {
+                  const decryptedOtpk = await findAndDecryptOneTimePreKey(
+                    myWrappedKey.oneTimePreKeyId,
+                    id,
+                    wrappingKey
+                  );
+                  if (decryptedOtpk) {
+                    preKeyPrivateKeys.otpkEcdhPrivate = decryptedOtpk.ecdhPrivateKey;
+                    preKeyPrivateKeys.otpkKemPrivate = decryptedOtpk.kemPrivateKey;
+                  }
+                }
+              }
+            }
+
             const decrypted = decryptReaction(
               reaction,
               id,
               keys.ecdhPrivateKey,
               keys.kemPrivateKey,
-              reaction.wrappedKeys[0]
-                ? reaction.fromIdentityId
-                : reaction.fromIdentityId
+              senderSigningKey,
+              preKeyPrivateKeys
             );
 
             setState((prev) => {
@@ -404,7 +519,7 @@ export function useReactions(conversationId: string | null) {
     });
 
     return unsubscribe;
-  }, [subscribe, getPrivateKeys]);
+  }, [subscribe, getPrivateKeys, resolveSigningKeys, getWrappingKey]);
 
   // ---- Clear on conversation change ----
 

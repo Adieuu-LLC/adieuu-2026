@@ -22,6 +22,7 @@ import { useIdentity } from '../hooks/useIdentity';
 import { useFriends } from '../hooks/useFriends';
 import { IdentityModal } from './IdentityModal';
 import { useConversations, type DecryptedConversation } from '../hooks/useConversations';
+import { useTheme } from '../hooks/useTheme';
 import type { PublicIdentity, PublicGroupInvite, GroupInvitePreview, GroupInvitePreviewMember } from '@adieuu/shared';
 
 /**
@@ -1054,9 +1055,12 @@ function ConversationsSidebarSection({
   const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
 
   const { appWindow } = usePlatformCapabilities();
+  const { activeTheme } = useTheme();
+  const accentHex = activeTheme?.colors.accentPrimary;
+
   useEffect(() => {
-    appWindow?.setBadgeCount(totalUnread);
-  }, [totalUnread, appWindow]);
+    appWindow?.setBadgeCount(totalUnread, accentHex);
+  }, [totalUnread, appWindow, accentHex]);
 
   const tabs: SidebarTab[] = [
     {
