@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('electron', {
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
     isMaximized: () => ipcRenderer.invoke('window:isMaximized') as Promise<boolean>,
+    setBadgeCount: (count: number, accentColorHex?: string) =>
+      ipcRenderer.invoke('window:setBadgeCount', count, accentColorHex),
   },
 
   // Secure storage (safeStorage + local file, managed by main process)
@@ -118,6 +120,7 @@ declare global {
         maximize: () => Promise<void>;
         close: () => Promise<void>;
         isMaximized: () => Promise<boolean>;
+        setBadgeCount: (count: number, accentColorHex?: string) => Promise<void>;
       };
       secureStorage: {
         get: (keyId: string) => Promise<string | null>;

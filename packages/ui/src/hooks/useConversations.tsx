@@ -92,6 +92,8 @@ interface ConversationsContextValue {
   sending: boolean;
 
   setActiveConversation: (id: string | null) => void;
+  setIsAtBottom: (value: boolean) => void;
+  markConversationRead: (conversationId: string) => void;
 
   // Conversation operations
   createDM: (participantId: string) => Promise<PublicConversation | null>;
@@ -131,6 +133,9 @@ interface ConversationsContextValue {
 
   // Former members
   getFormerMembers: (conversationId: string) => Promise<FormerMember[]>;
+
+  // Crypto helpers (shared with useReactions etc.)
+  fetchRecipientKeys: (participantIds: string[], useForwardSecrecy?: boolean) => Promise<RecipientKeys[]>;
 
   refresh: () => Promise<void>;
 }
@@ -342,7 +347,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       }
 
       try {
-        const resp = await api.conversations.getMessages(conversationId, 50, cursor);
+        const resp = await api.conversations.getMessages(conversationId, 30, cursor);
         if (resp.data) {
           let ecdhPrivateKey: Uint8Array | null = null;
           let kemPrivateKey: Uint8Array | null = null;
@@ -585,7 +590,11 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             };
           });
 
-          if (conversationId === activeConversationIdRef.current) {
+          if (
+            conversationId === activeConversationIdRef.current &&
+            document.hasFocus() &&
+            isAtBottomRef.current
+          ) {
             setConversations((prev) =>
               prev.map((c) =>
                 c.id === conversationId ? { ...c, unreadCount: 0 } : c
@@ -831,6 +840,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         const resp = await api.conversations.addMember(conversationId, identityId);
         if (resp.success) {
           await fetchConversations();
+          if (conversationId === activeConversationIdRef.current) {
+            fetchMessagesRef.current(conversationId, undefined, true);
+          }
           return true;
         }
       } catch {
@@ -847,6 +859,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         const resp = await api.conversations.removeMember(conversationId, identityId);
         if (resp.success) {
           await fetchConversations();
+          if (conversationId === activeConversationIdRef.current) {
+            fetchMessagesRef.current(conversationId, undefined, true);
+          }
           return true;
         }
       } catch {
@@ -885,6 +900,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         const resp = await api.conversations.promoteToAdmin(conversationId, identityId);
         if (resp.success) {
           await fetchConversations();
+          if (conversationId === activeConversationIdRef.current) {
+            fetchMessagesRef.current(conversationId, undefined, true);
+          }
           return true;
         }
       } catch {
@@ -931,6 +949,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 : c
             )
           );
+          if (conversationId === activeConversationIdRef.current) {
+            fetchMessagesRef.current(conversationId, undefined, true);
+          }
           return true;
         }
       } catch {
@@ -1093,6 +1114,19 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const activeConversationIdRef = useRef(activeConversationId);
   activeConversationIdRef.current = activeConversationId;
 
+  const isAtBottomRef = useRef(true);
+  const setIsAtBottom = useCallback((value: boolean) => {
+    isAtBottomRef.current = value;
+  }, []);
+
+  const markConversationRead = useCallback((conversationId: string) => {
+    setConversations((prev) =>
+      prev.map((c) =>
+        c.id === conversationId && c.unreadCount > 0 ? { ...c, unreadCount: 0 } : c
+      )
+    );
+  }, []);
+
   const fetchConversationsRef = useRef(fetchConversations);
   fetchConversationsRef.current = fetchConversations;
 
@@ -1207,10 +1241,24 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 : tRef.current('conversations.notifications.memberRemovedGeneric', { defaultValue: 'A member was removed from the group' })
             );
           } else if (action === 'renamed') {
-            fireNotificationRef.current(
-              tRef.current('conversations.notifications.groupRenamed', { defaultValue: 'Group renamed' }),
-              tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' })
-            );
+            if (eventIdentityId) {
+              void resolveParticipantsRef.current([eventIdentityId]).then((freshProfiles) => {
+                const profiles = { ...participantProfilesRef.current, ...freshProfiles };
+                const profile = profiles[eventIdentityId];
+                const name = profile?.displayName ?? profile?.username;
+                fireNotificationRef.current(
+                  tRef.current('conversations.notifications.groupRenamed', { defaultValue: 'Group renamed' }),
+                  name
+                    ? tRef.current('conversations.notifications.groupRenamedByBody', { name, defaultValue: `${name} renamed the group` })
+                    : tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' })
+                );
+              });
+            } else {
+              fireNotificationRef.current(
+                tRef.current('conversations.notifications.groupRenamed', { defaultValue: 'Group renamed' }),
+                tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' })
+              );
+            }
           } else if (action === 'admin_promoted' && eventIdentityId) {
             const profiles = participantProfilesRef.current;
             const profile = profiles[eventIdentityId];
@@ -1228,7 +1276,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         case 'conversation_message': {
           const { conversationId, messageId, fromIdentityId } = message.data;
           const activeId = activeConversationIdRef.current;
-          const isViewing = conversationId === activeId;
+          const isActiveConvo = conversationId === activeId;
+          const isViewing = isActiveConvo && document.hasFocus() && isAtBottomRef.current;
 
           if (!isViewing) {
             setConversations((prev) =>
@@ -1244,6 +1293,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 c.id === conversationId ? { ...c, unreadCount: 0 } : c
               )
             );
+          }
+
+          if (isActiveConvo) {
             fetchMessagesRef.current(conversationId, undefined, true);
           }
 
@@ -1368,21 +1420,22 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       }
     });
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        const activeId = activeConversationIdRef.current;
-        if (activeId) {
-          fetchMessagesRef.current(activeId, undefined, true);
-        }
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState !== 'visible') return;
+      const activeId = activeConversationIdRef.current;
+      if (activeId && isAtBottomRef.current) {
+        fetchMessagesRef.current(activeId, undefined, true);
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
 
     return () => {
       unsubMessage();
       unsubState();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
     };
   }, [isLoggedIn, subscribe, onStateChange]);
 
@@ -1433,6 +1486,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     messagesLoading: activeState?.loading ?? false,
     sending,
     setActiveConversation,
+    setIsAtBottom,
+    markConversationRead,
     createDM,
     createGroup,
     sendTextMessage,
@@ -1448,6 +1503,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     declineInvite,
     getInvitePreview,
     getFormerMembers,
+    fetchRecipientKeys,
     refresh,
   };
 

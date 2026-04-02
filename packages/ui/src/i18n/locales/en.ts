@@ -624,6 +624,8 @@ export const en = {
       messageDisplayDescription: 'Control how messages are displayed in your conversations.',
       showArtifactsTitle: 'Show Message Artifacts',
       showArtifactsHint: 'When enabled, deleted messages, expired forward secrecy messages, and messages that could not be decrypted are shown in conversations. When disabled, these artifacts are hidden for a cleaner view. This is a local display preference only and does not affect message storage.',
+      reactionNotificationsTitle: 'Reaction Notifications',
+      reactionNotificationsHint: 'When enabled, you will receive notifications and unread indicators when someone reacts to your messages. This only applies to reactions on messages you sent.',
     },
   },
 
@@ -1370,6 +1372,9 @@ export const en = {
       previouslyLeft: 'Previously left',
       noEligible: 'No friends available to invite',
     },
+
+    newUnreads: 'New messages',
+    jumpToLatest: 'Jump to latest message',
 
     notifications: {
       groupInvite: 'Group invitation',

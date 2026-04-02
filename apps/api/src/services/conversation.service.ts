@@ -19,6 +19,7 @@ import { getGroupInviteRepository } from '../repositories/group-invite.repositor
 import { getFriendshipRepository } from '../repositories/friendship.repository';
 import { getBlockRepository } from '../repositories/block.repository';
 import { getIdentityRepository } from '../repositories/identity.repository';
+import { getReactionRepository } from '../repositories/reaction.repository';
 import { createNotification } from './notification.service';
 import {
   toPublicConversation,
@@ -643,6 +644,9 @@ export async function deleteMessageForEveryone(
 
   await messageRepo.markDeletedForEveryone(msgObjId);
 
+  const reactionRepo = getReactionRepository();
+  await reactionRepo.deleteByMessage(msgObjId);
+
   await publishToParticipants(conversation.participants, requesterObjId, {
     type: 'conversation_message_deleted',
     data: {
@@ -1094,6 +1098,8 @@ export async function leaveConversation(
       });
     }
   } else {
+    const reactionRepo = getReactionRepository();
+    await reactionRepo.deleteByConversation(convObjId);
     await messageRepo.deleteByConversation(convObjId);
     await groupInviteRepo.deleteByConversation(convObjId);
     await conversationRepo.deleteById(convObjId);
@@ -1160,6 +1166,7 @@ export async function updateGroupName(
     data: {
       conversationId: convObjId.toHexString(),
       action: 'renamed',
+      identityId: requesterObjId.toHexString(),
     },
   });
 
@@ -1604,6 +1611,8 @@ export async function terminateGroup(
     }
   }
 
+  const reactionRepo = getReactionRepository();
+  await reactionRepo.deleteByConversation(convObjId);
   await messageRepo.deleteByConversation(convObjId);
   await groupInviteRepo.deleteByConversation(convObjId);
   await conversationRepo.deleteById(convObjId);
