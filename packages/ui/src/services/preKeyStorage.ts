@@ -86,14 +86,75 @@ export class PreKeyStorageError extends Error {
 // Backend Reference (shared with deviceKeyStorage)
 // ============================================================================
 
-let storageBackend: SecureStorage | null = null;
+// HMR-safe state: module-level variables are wiped when Vite hot-replaces
+// this module, but globalThis survives. We stash the runtime references there
+// so that pre-key lookups continue to work without a full page reload.
+const HMR_KEY = '__adieuu_preKeyStorage__' as const;
+
+interface PreKeyHmrState {
+  backend: SecureStorage | null;
+  backendWasSet: boolean;
+  blobLocks: Map<string, Promise<void>>;
+}
+
+function getHmrState(): PreKeyHmrState {
+  const g = globalThis as Record<string, unknown>;
+  if (!g[HMR_KEY]) {
+    g[HMR_KEY] = {
+      backend: null,
+      backendWasSet: false,
+      blobLocks: new Map<string, Promise<void>>(),
+    };
+  }
+  return g[HMR_KEY] as PreKeyHmrState;
+}
+
+function getBackend(): SecureStorage | null { return getHmrState().backend; }
 
 /**
  * Sets the storage backend for pre-keys.
  * Should be called with the same backend as deviceKeyStorage at app init.
  */
 export function setPreKeyStorageBackend(backend: SecureStorage | null): void {
-  storageBackend = backend;
+  const s = getHmrState();
+  s.backend = backend;
+  if (backend) s.backendWasSet = true;
+}
+
+/**
+ * Returns true when the backend was previously configured but the reference
+ * has been lost — typically caused by HMR re-evaluating this module while the
+ * entry-point (main.tsx) does not re-run setPreKeyStorageBackend.
+ */
+function isBackendLost(): boolean {
+  const s = getHmrState();
+  if (!s.backend && s.backendWasSet) {
+    console.error(
+      '[PreKeyStorage] storageBackend reference lost (likely HMR module re-evaluation). ' +
+      'Pre-key lookups will incorrectly fall back to IndexedDB where the keys do not exist. ' +
+      'A full page reload should restore correct behaviour.'
+    );
+    return true;
+  }
+  return false;
+}
+
+async function withBlobLock<T>(identityId: string, fn: () => Promise<T>): Promise<T> {
+  const locks = getHmrState().blobLocks;
+  const prev = locks.get(identityId) ?? Promise.resolve();
+  let releaseLock!: () => void;
+  const lockPromise = new Promise<void>((resolve) => { releaseLock = resolve; });
+  locks.set(identityId, lockPromise);
+
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    releaseLock();
+    if (locks.get(identityId) === lockPromise) {
+      locks.delete(identityId);
+    }
+  }
 }
 
 // ============================================================================
@@ -115,22 +176,45 @@ async function preKeyStoreId(identityId: string): Promise<string> {
 }
 
 async function getPreKeyBlob(identityId: string): Promise<PreKeyStoreBlob> {
-  if (!storageBackend) throw new Error('No storage backend set');
+  const backend = getBackend();
+  if (!backend) throw new Error('No storage backend set');
   const keyId = await preKeyStoreId(identityId);
-  const raw = await storageBackend.getKey(keyId);
-  if (!raw) return { signedPreKeys: [], oneTimePreKeys: [] };
-  return JSON.parse(new TextDecoder().decode(raw)) as PreKeyStoreBlob;
+  const raw = await backend.getKey(keyId);
+  if (!raw) {
+    console.debug('[PreKeyStorage] getPreKeyBlob: no blob found for identity', identityId.slice(0, 8));
+    return { signedPreKeys: [], oneTimePreKeys: [] };
+  }
+  const blob = JSON.parse(new TextDecoder().decode(raw)) as PreKeyStoreBlob;
+  console.debug(
+    '[PreKeyStorage] getPreKeyBlob: loaded',
+    blob.signedPreKeys.length, 'SPK(s),',
+    blob.oneTimePreKeys.length, 'OTPK(s) for identity',
+    identityId.slice(0, 8)
+  );
+  return blob;
 }
 
 async function savePreKeyBlob(identityId: string, blob: PreKeyStoreBlob): Promise<void> {
-  if (!storageBackend) throw new Error('No storage backend set');
+  const backend = getBackend();
+  if (!backend) throw new Error('No storage backend set');
   const keyId = await preKeyStoreId(identityId);
   if (blob.signedPreKeys.length === 0 && blob.oneTimePreKeys.length === 0) {
-    await storageBackend.deleteKey(keyId);
+    console.warn(
+      '[PreKeyStorage] savePreKeyBlob: both arrays empty — deleting blob file for identity',
+      identityId.slice(0, 8),
+      '(this may indicate a data loss bug if unexpected)'
+    );
+    await backend.deleteKey(keyId);
     return;
   }
+  console.debug(
+    '[PreKeyStorage] savePreKeyBlob: saving',
+    blob.signedPreKeys.length, 'SPK(s),',
+    blob.oneTimePreKeys.length, 'OTPK(s) for identity',
+    identityId.slice(0, 8)
+  );
   const json = JSON.stringify(blob);
-  await storageBackend.setKey(keyId, new TextEncoder().encode(json));
+  await backend.setKey(keyId, new TextEncoder().encode(json));
 }
 
 // ============================================================================
@@ -260,10 +344,12 @@ export async function storeSignedPreKey(
     createdAt: new Date().toISOString(),
   };
 
-  if (storageBackend) {
-    const blob = await getPreKeyBlob(identityId);
-    blob.signedPreKeys.push(record);
-    await savePreKeyBlob(identityId, blob);
+  if (getBackend()) {
+    await withBlobLock(identityId, async () => {
+      const blob = await getPreKeyBlob(identityId);
+      blob.signedPreKeys.push(record);
+      await savePreKeyBlob(identityId, blob);
+    });
     return;
   }
 
@@ -285,7 +371,9 @@ export async function getActiveSignedPreKey(
   identityId: string,
   deviceId: string
 ): Promise<StoredSignedPreKey | null> {
-  if (storageBackend) {
+  if (isBackendLost()) return null;
+
+  if (getBackend()) {
     const blob = await getPreKeyBlob(identityId);
     return blob.signedPreKeys.find(
       (spk) => spk.deviceId === deviceId && spk.status === 'active'
@@ -315,7 +403,9 @@ export async function getRetiredSignedPreKeys(
   identityId: string,
   deviceId: string
 ): Promise<StoredSignedPreKey[]> {
-  if (storageBackend) {
+  if (isBackendLost()) return [];
+
+  if (getBackend()) {
     const blob = await getPreKeyBlob(identityId);
     return blob.signedPreKeys
       .filter((spk) => spk.deviceId === deviceId && spk.status === 'retired')
@@ -346,14 +436,16 @@ export async function retireSignedPreKey(
   keyId: string,
   identityId: string
 ): Promise<void> {
-  if (storageBackend) {
-    const blob = await getPreKeyBlob(identityId);
-    const spk = blob.signedPreKeys.find((s) => s.keyId === keyId);
-    if (spk) {
-      spk.status = 'retired';
-      spk.retiredAt = new Date().toISOString();
-      await savePreKeyBlob(identityId, blob);
-    }
+  if (getBackend()) {
+    await withBlobLock(identityId, async () => {
+      const blob = await getPreKeyBlob(identityId);
+      const spk = blob.signedPreKeys.find((s) => s.keyId === keyId);
+      if (spk) {
+        spk.status = 'retired';
+        spk.retiredAt = new Date().toISOString();
+        await savePreKeyBlob(identityId, blob);
+      }
+    });
     return;
   }
 
@@ -410,9 +502,11 @@ export async function findAndDecryptSignedPreKey(
   identityId: string,
   wrappingKey: Uint8Array
 ): Promise<DecryptedPreKeyPair | null> {
+  if (isBackendLost()) return null;
+
   let stored: StoredSignedPreKey | undefined;
 
-  if (storageBackend) {
+  if (getBackend()) {
     const blob = await getPreKeyBlob(identityId);
     stored = blob.signedPreKeys.find((s) => s.keyId === keyId);
   } else {
@@ -438,10 +532,12 @@ export async function deleteSignedPreKey(
   keyId: string,
   identityId: string
 ): Promise<void> {
-  if (storageBackend) {
-    const blob = await getPreKeyBlob(identityId);
-    blob.signedPreKeys = blob.signedPreKeys.filter((s) => s.keyId !== keyId);
-    await savePreKeyBlob(identityId, blob);
+  if (getBackend()) {
+    await withBlobLock(identityId, async () => {
+      const blob = await getPreKeyBlob(identityId);
+      blob.signedPreKeys = blob.signedPreKeys.filter((s) => s.keyId !== keyId);
+      await savePreKeyBlob(identityId, blob);
+    });
     return;
   }
 
@@ -493,10 +589,12 @@ export async function storeOneTimePreKeys(
     });
   }
 
-  if (storageBackend) {
-    const blob = await getPreKeyBlob(identityId);
-    blob.oneTimePreKeys.push(...records);
-    await savePreKeyBlob(identityId, blob);
+  if (getBackend()) {
+    await withBlobLock(identityId, async () => {
+      const blob = await getPreKeyBlob(identityId);
+      blob.oneTimePreKeys.push(...records);
+      await savePreKeyBlob(identityId, blob);
+    });
     return;
   }
 
@@ -528,11 +626,23 @@ export async function findAndDecryptOneTimePreKey(
   identityId: string,
   wrappingKey: Uint8Array
 ): Promise<DecryptedPreKeyPair | null> {
+  if (isBackendLost()) return null;
+
   let stored: StoredOneTimePreKey | undefined;
 
-  if (storageBackend) {
+  if (getBackend()) {
     const blob = await getPreKeyBlob(identityId);
     stored = blob.oneTimePreKeys.find((o) => o.keyId === keyId);
+    if (!stored) {
+      const storedIds = blob.oneTimePreKeys.map((o) => o.keyId.slice(0, 8));
+      console.warn(
+        `[PreKeyStorage] OTPK ${keyId.slice(0, 8)} not in blob.`,
+        `Blob has ${blob.signedPreKeys.length} SPK(s) and ${blob.oneTimePreKeys.length} OTPK(s).`,
+        blob.oneTimePreKeys.length > 0
+          ? `Stored OTPK IDs: ${storedIds.join(', ')}`
+          : 'Blob contains zero OTPKs.'
+      );
+    }
   } else {
     const db = await openDatabase();
     stored = await new Promise((resolve, reject) => {
@@ -574,10 +684,12 @@ export async function deleteOneTimePreKey(
   keyId: string,
   identityId: string
 ): Promise<void> {
-  if (storageBackend) {
-    const blob = await getPreKeyBlob(identityId);
-    blob.oneTimePreKeys = blob.oneTimePreKeys.filter((o) => o.keyId !== keyId);
-    await savePreKeyBlob(identityId, blob);
+  if (getBackend()) {
+    await withBlobLock(identityId, async () => {
+      const blob = await getPreKeyBlob(identityId);
+      blob.oneTimePreKeys = blob.oneTimePreKeys.filter((o) => o.keyId !== keyId);
+      await savePreKeyBlob(identityId, blob);
+    });
     return;
   }
 
@@ -599,7 +711,9 @@ export async function getOneTimePreKeyCount(
   identityId: string,
   deviceId: string
 ): Promise<number> {
-  if (storageBackend) {
+  if (isBackendLost()) return 0;
+
+  if (getBackend()) {
     const blob = await getPreKeyBlob(identityId);
     return blob.oneTimePreKeys.filter((o) => o.deviceId === deviceId).length;
   }
@@ -621,11 +735,64 @@ export async function getOneTimePreKeyCount(
 // ============================================================================
 
 /**
+ * Clears all one-time pre-keys for a specific device from the blob,
+ * preserving signed pre-keys. Used during OTPK pool resynchronisation.
+ *
+ * @returns Number of OTPKs removed.
+ */
+export async function clearOneTimePreKeysForDevice(
+  identityId: string,
+  deviceId: string
+): Promise<number> {
+  if (getBackend()) {
+    return await withBlobLock(identityId, async () => {
+      const blob = await getPreKeyBlob(identityId);
+      const before = blob.oneTimePreKeys.length;
+      blob.oneTimePreKeys = blob.oneTimePreKeys.filter((o) => o.deviceId !== deviceId);
+      const removed = before - blob.oneTimePreKeys.length;
+      if (removed > 0) {
+        await savePreKeyBlob(identityId, blob);
+      }
+      return removed;
+    });
+  }
+
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(OTPK_STORE, 'readwrite');
+    const store = tx.objectStore(OTPK_STORE);
+    const index = store.index('deviceId');
+    const cursorReq = index.openCursor(deviceId);
+    let count = 0;
+
+    cursorReq.onerror = () =>
+      reject(new PreKeyStorageError('Failed to clear OTPKs for device', 'DELETE_FAILED'));
+    cursorReq.onsuccess = () => {
+      const cursor = cursorReq.result;
+      if (cursor) {
+        const record = cursor.value as StoredOneTimePreKey;
+        if (record.identityId === identityId) {
+          cursor.delete();
+          count++;
+        }
+        cursor.continue();
+      } else {
+        resolve(count);
+      }
+    };
+
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
  * Deletes all pre-keys (SPKs and OTPKs) for an identity.
  */
 export async function deleteAllPreKeysForIdentity(identityId: string): Promise<void> {
-  if (storageBackend) {
-    await savePreKeyBlob(identityId, { signedPreKeys: [], oneTimePreKeys: [] });
+  if (getBackend()) {
+    await withBlobLock(identityId, async () => {
+      await savePreKeyBlob(identityId, { signedPreKeys: [], oneTimePreKeys: [] });
+    });
     return;
   }
 
@@ -664,11 +831,12 @@ export async function deleteAllPreKeysForIdentity(identityId: string): Promise<v
  * Clears all pre-keys from the database.
  */
 export async function clearAllPreKeys(): Promise<void> {
-  if (storageBackend) {
-    if (storageBackend.listKeys) {
-      const allKeyIds = await storageBackend.listKeys(PREKEY_KEY_PREFIX);
+  const backend = getBackend();
+  if (backend) {
+    if (backend.listKeys) {
+      const allKeyIds = await backend.listKeys(PREKEY_KEY_PREFIX);
       for (const keyId of allKeyIds) {
-        await storageBackend.deleteKey(keyId);
+        await backend.deleteKey(keyId);
       }
     } else {
       console.warn('[PreKeyStorage] clearAllPreKeys: listKeys not available, cannot clear SecureStorage backend');

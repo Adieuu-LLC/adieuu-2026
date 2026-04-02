@@ -162,6 +162,8 @@ export function useReactions(conversationId: string | null) {
           const fsCandidates = candidates.filter(
             (wk) => (wk.preKeyType === 'spk' || wk.preKeyType === 'otpk') && wk.signedPreKeyId
           );
+          let fsSpkMissing = false;
+          let fsOtpkMissing = false;
           if (fsCandidates.length > 0 && wrappingKey) {
             for (const candidate of fsCandidates) {
               try {
@@ -179,8 +181,7 @@ export function useReactions(conversationId: string | null) {
                 }
 
                 if (spkKeys) {
-                  resolvedWrappedKey = candidate;
-                  preKeyPrivateKeys = {
+                  const candidatePreKeys: typeof preKeyPrivateKeys = {
                     spkEcdhPrivate: spkKeys.ecdh,
                     spkKemPrivate: spkKeys.kem,
                   };
@@ -199,14 +200,24 @@ export function useReactions(conversationId: string | null) {
                       }
                     }
                     if (otpkKeys) {
-                      preKeyPrivateKeys.otpkEcdhPrivate = otpkKeys.ecdh;
-                      preKeyPrivateKeys.otpkKemPrivate = otpkKeys.kem;
+                      candidatePreKeys.otpkEcdhPrivate = otpkKeys.ecdh;
+                      candidatePreKeys.otpkKemPrivate = otpkKeys.kem;
+                    } else {
+                      fsOtpkMissing = true;
+                      console.warn('[Reactions] decrypt: OTPK not found locally, skipping candidate',
+                        candidate.oneTimePreKeyId, 'spk', candidate.signedPreKeyId);
+                      continue;
                     }
                   }
+
+                  resolvedWrappedKey = candidate;
+                  preKeyPrivateKeys = candidatePreKeys;
                   break;
+                } else {
+                  fsSpkMissing = true;
                 }
-              } catch {
-                // SPK lookup failed for this candidate
+              } catch (err) {
+                console.warn('[Reactions] decrypt: pre-key lookup failed for candidate', candidate.signedPreKeyId, err);
               }
             }
           }
@@ -246,7 +257,15 @@ export function useReactions(conversationId: string | null) {
             if (resolvedWrappedKey) continue;
           }
 
-          if (!resolvedWrappedKey) continue;
+          if (!resolvedWrappedKey) {
+            if (fsCandidates.length > 0) {
+              const reason = fsOtpkMissing && !fsSpkMissing ? 'OTPK missing' :
+                fsSpkMissing ? 'SPK missing' : 'lookup error';
+              console.warn('[Reactions] decrypt: all FS candidates failed for reaction',
+                reaction.id?.slice(0, 8), `(${reason})`);
+            }
+            continue;
+          }
 
           const decrypted = decryptReaction(
             reaction,
@@ -500,8 +519,7 @@ export function useReactions(conversationId: string | null) {
                     wrappingKey
                   );
                   if (decryptedSpk) {
-                    resolvedWrappedKey = candidate;
-                    preKeyPrivateKeys = {
+                    const candidatePreKeys: typeof preKeyPrivateKeys = {
                       spkEcdhPrivate: decryptedSpk.ecdhPrivateKey,
                       spkKemPrivate: decryptedSpk.kemPrivateKey,
                     };
@@ -513,14 +531,21 @@ export function useReactions(conversationId: string | null) {
                         wrappingKey
                       );
                       if (decryptedOtpk) {
-                        preKeyPrivateKeys.otpkEcdhPrivate = decryptedOtpk.ecdhPrivateKey;
-                        preKeyPrivateKeys.otpkKemPrivate = decryptedOtpk.kemPrivateKey;
+                        candidatePreKeys.otpkEcdhPrivate = decryptedOtpk.ecdhPrivateKey;
+                        candidatePreKeys.otpkKemPrivate = decryptedOtpk.kemPrivateKey;
+                      } else {
+                        console.warn('[Reactions] WS decrypt: OTPK not found locally, skipping candidate',
+                          candidate.oneTimePreKeyId, 'spk', candidate.signedPreKeyId);
+                        continue;
                       }
                     }
+
+                    resolvedWrappedKey = candidate;
+                    preKeyPrivateKeys = candidatePreKeys;
                     break;
                   }
-                } catch {
-                  // SPK lookup failed for this candidate
+                } catch (err) {
+                  console.warn('[Reactions] WS decrypt: pre-key lookup failed for candidate', candidate.signedPreKeyId, err);
                 }
               }
             }
@@ -559,7 +584,12 @@ export function useReactions(conversationId: string | null) {
             }
 
             if (!decrypted) {
-              if (!resolvedWrappedKey) return;
+              if (!resolvedWrappedKey) {
+                if (fsCandidates.length > 0) {
+                  console.warn('[Reactions] WS decrypt: all FS candidates failed for reaction', reaction.id?.slice(0, 8));
+                }
+                return;
+              }
               decrypted = decryptReaction(
                 reaction,
                 id,

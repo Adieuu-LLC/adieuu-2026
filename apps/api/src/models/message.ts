@@ -64,6 +64,8 @@ export interface SerializedWrappedKey {
   spkKemCiphertext?: string;
   /** ML-KEM ciphertext for OTPK (when preKeyType is 'otpk', base64) */
   otpkKemCiphertext?: string;
+  /** Truncated SHA-256 routing tag for O(1) wrapped key lookup on multi-device identities */
+  routingTag?: string;
 }
 
 /**

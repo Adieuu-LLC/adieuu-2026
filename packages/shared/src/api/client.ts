@@ -1173,6 +1173,19 @@ export class IdentityApi {
   }
 
   /**
+   * Purge all unconsumed one-time pre-keys for a device on the server.
+   * Used to reset the OTPK pool when local and server state have diverged.
+   */
+  async purgeOneTimePreKeys(
+    identityId: string,
+    deviceId: string
+  ): Promise<ApiResponse<{ purged: number }>> {
+    return this.client.delete(
+      `/api/identity/${encodeURIComponent(identityId)}/devices/${encodeURIComponent(deviceId)}/pre-keys/one-time`
+    );
+  }
+
+  /**
    * List all identity sessions.
    *
    * @param identityId - Identity ID

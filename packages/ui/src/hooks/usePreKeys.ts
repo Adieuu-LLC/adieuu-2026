@@ -20,6 +20,7 @@ import {
   checkAndRotateSpk,
   checkAndReplenishOtpks,
   cleanupRetiredSpks,
+  resyncOneTimePreKeys,
   loadFsConfig,
   saveFsConfig,
   SECURITY_LEVEL_CONFIG,
@@ -45,6 +46,8 @@ export interface UsePreKeysResult {
   purgeRetiredKeys: (clearCache?: boolean) => Promise<number>;
   /** Trigger OTPK replenishment check (call after decrypting OTPK messages) */
   triggerReplenishCheck: () => void;
+  /** Full OTPK pool reset: purge server + local, regenerate + upload fresh batch */
+  resyncPreKeys: () => Promise<number>;
   /** Current FS configuration for this identity */
   config: ForwardSecrecyConfig;
   /** Update the FS configuration (persisted per-identity) */
@@ -290,12 +293,41 @@ export function usePreKeys(): UsePreKeysResult {
     replenishDebouncerRef.current?.trigger();
   }, []);
 
+  const resyncPreKeys = useCallback(async (): Promise<number> => {
+    if (status !== 'logged_in' || !identity) return 0;
+
+    const signingKey = getSigningKey();
+    const deviceId = getCurrentDeviceId();
+    const wrappingKey = getWrappingKey();
+    if (!signingKey || !deviceId || !wrappingKey) return 0;
+
+    return await resyncOneTimePreKeys(
+      {
+        identityId: identity.id,
+        deviceId,
+        signingPrivateKey: signingKey,
+        wrappingKey,
+        platform: platform as Platform,
+      },
+      api.identity
+    );
+  }, [status, identity, getSigningKey, getCurrentDeviceId, getWrappingKey, api, platform]);
+
+  // Expose to dev console: window.__adieuu_resyncPreKeys()
+  useEffect(() => {
+    (globalThis as Record<string, unknown>).__adieuu_resyncPreKeys = resyncPreKeys;
+    return () => {
+      delete (globalThis as Record<string, unknown>).__adieuu_resyncPreKeys;
+    };
+  }, [resyncPreKeys]);
+
   return {
     isRotating,
     lastRotation,
     rotateNow,
     purgeRetiredKeys: purgeRetiredKeysAction,
     triggerReplenishCheck,
+    resyncPreKeys,
     config,
     updateConfig,
   };

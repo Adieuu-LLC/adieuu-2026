@@ -234,6 +234,44 @@ export async function claimPreKeysCtrl(ctx: RouteContext): Promise<Response> {
 }
 
 /**
+ * DELETE /identity/:id/devices/:deviceId/pre-keys/one-time
+ *
+ * Purge all unconsumed one-time pre-keys for a device.
+ * Used to reset the OTPK pool when local and server state have diverged.
+ * Authenticated, owner only.
+ */
+export async function purgeOneTimePreKeysCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot purge pre-keys for another identity.');
+  }
+
+  const { deviceId } = ctx.params;
+  if (!deviceId) {
+    return errors.badRequest('Device ID is required.');
+  }
+
+  const devices = identity.devices ?? [];
+  if (!devices.some((d) => d.deviceId === deviceId)) {
+    return errors.notFound('Device not found.');
+  }
+
+  const preKeyRepo = getPreKeyRepository();
+  const purged = await preKeyRepo.purgeUnconsumedOneTimePreKeys(identity._id, deviceId);
+
+  return success({ purged });
+}
+
+/**
  * GET /identity/:id/devices/:deviceId/pre-keys/count
  *
  * Get pre-key count information for a device.

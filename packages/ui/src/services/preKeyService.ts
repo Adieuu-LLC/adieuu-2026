@@ -22,6 +22,8 @@ import {
   getRetiredSignedPreKeys,
   retireSignedPreKey,
   deleteSignedPreKey,
+  clearOneTimePreKeysForDevice,
+  getOneTimePreKeyCount,
 } from './preKeyStorage';
 
 // ============================================================================
@@ -288,6 +290,45 @@ export async function replenishOneTimePreKeys(
 }
 
 // ============================================================================
+// OTPK Re-sync (full pool reset)
+// ============================================================================
+
+/**
+ * Performs a full reset of the OTPK pool for this device: purges all
+ * unconsumed OTPKs on the server, clears all locally stored OTPK private
+ * keys, then generates and uploads a fresh batch.
+ *
+ * This is the nuclear option for resolving a server-local OTPK
+ * desynchronisation. Any in-flight messages encrypted to the old OTPKs
+ * become undecryptable, but they already were (that is the bug this fixes).
+ *
+ * @returns Number of fresh OTPKs uploaded.
+ */
+export async function resyncOneTimePreKeys(
+  input: GeneratePreKeysInput,
+  identityApi: IdentityApi
+): Promise<number> {
+  // 1. Purge unconsumed OTPKs on the server
+  const purgeResp = await identityApi.purgeOneTimePreKeys(input.identityId, input.deviceId);
+  if (!purgeResp.success) {
+    throw new Error(
+      `Server OTPK purge failed: ${purgeResp.error?.message ?? 'Unknown error'}`
+    );
+  }
+  console.debug(`[PreKey] Purged ${purgeResp.data?.purged ?? '?'} server OTPKs for device ${input.deviceId}`);
+
+  // 2. Clear local OTPKs from the blob (preserves SPKs)
+  const localRemoved = await clearOneTimePreKeysForDevice(input.identityId, input.deviceId);
+  console.debug(`[PreKey] Cleared ${localRemoved} local OTPKs for device ${input.deviceId}`);
+
+  // 3. Generate, store, and upload a fresh batch
+  const uploaded = await replenishOneTimePreKeys(input, identityApi);
+  console.debug(`[PreKey] Re-sync complete: uploaded ${uploaded} fresh OTPKs for device ${input.deviceId}`);
+
+  return uploaded;
+}
+
+// ============================================================================
 // SPK Rotation Check
 // ============================================================================
 
@@ -428,6 +469,11 @@ export async function purgeRetiredKeys(
  * Checks the server-side OTPK count and replenishes if below the
  * platform-appropriate threshold.
  *
+ * Also detects server-local OTPK desynchronisation: if the server count
+ * exceeds the local count by a significant margin (the server is holding
+ * stale OTPKs we no longer have private keys for), a full resync is
+ * triggered automatically rather than a simple replenishment.
+ *
  * @returns Number of new OTPKs uploaded, or 0 if no replenishment needed.
  */
 export async function checkAndReplenishOtpks(
@@ -437,19 +483,38 @@ export async function checkAndReplenishOtpks(
   const threshold = PLATFORM_OTPK_REPLENISH_THRESHOLD[input.platform];
 
   try {
-    const countResponse = await identityApi.getPreKeyCount(input.identityId, input.deviceId);
+    const [countResponse, localCount] = await Promise.all([
+      identityApi.getPreKeyCount(input.identityId, input.deviceId),
+      getOneTimePreKeyCount(input.identityId, input.deviceId),
+    ]);
+
     if (!countResponse.success || !countResponse.data) {
       console.warn('[PreKey] Failed to get OTPK count, skipping replenishment');
       return 0;
     }
 
-    const remaining = countResponse.data.oneTimePreKeysRemaining;
-    if (remaining >= threshold) {
-      console.debug(`[PreKey] OTPK count ${remaining} >= threshold ${threshold}, no replenishment needed`);
+    const serverCount = countResponse.data.oneTimePreKeysRemaining;
+
+    // Desync detection: if server holds more unconsumed OTPKs than we have
+    // locally, the server is distributing keys we can no longer decrypt with.
+    // A difference of a few keys is expected (claimed but not yet consumed
+    // from the local perspective), but a large gap indicates a lost-update
+    // race that the mutex now prevents from recurring.
+    const DESYNC_TOLERANCE = 5;
+    if (serverCount > localCount + DESYNC_TOLERANCE) {
+      console.warn(
+        `[PreKey] OTPK desync detected: server has ${serverCount} unconsumed, ` +
+        `local blob has ${localCount}. Triggering full OTPK resync.`
+      );
+      return await resyncOneTimePreKeys(input, identityApi);
+    }
+
+    if (serverCount >= threshold) {
+      console.debug(`[PreKey] OTPK count ${serverCount} >= threshold ${threshold}, no replenishment needed`);
       return 0;
     }
 
-    console.debug(`[PreKey] OTPK count ${remaining} < threshold ${threshold}, replenishing...`);
+    console.debug(`[PreKey] OTPK count ${serverCount} < threshold ${threshold}, replenishing...`);
     return await replenishOneTimePreKeys(input, identityApi);
   } catch (err) {
     console.error('[PreKey] OTPK replenishment check failed:', err);

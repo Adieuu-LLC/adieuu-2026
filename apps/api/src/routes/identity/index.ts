@@ -47,6 +47,7 @@ import {
   uploadPreKeysCtrl,
   claimPreKeysCtrl,
   getPreKeyCountCtrl,
+  purgeOneTimePreKeysCtrl,
 } from './pre-key.controller';
 import {
   updateProfileCtrl,
@@ -471,6 +472,24 @@ router.post('/identity/:id/pre-keys/claim', async (ctx) => {
  */
 router.get('/identity/:id/devices/:deviceId/pre-keys/count', async (ctx) => {
   return await getPreKeyCountCtrl(ctx);
+});
+
+/**
+ * DELETE /identity/:id/devices/:deviceId/pre-keys/one-time - Purge unconsumed OTPKs
+ *
+ * Deletes all unconsumed one-time pre-keys for a device, resetting the
+ * server-side pool. Used when local and server OTPK state have diverged.
+ * After purging, the client should upload a fresh batch.
+ *
+ * @route DELETE /api/identity/:id/devices/:deviceId/pre-keys/one-time
+ *
+ * @returns 200 OK with count of purged OTPKs
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to purge for another identity
+ * @returns 404 Not Found if device doesn't exist
+ */
+router.delete('/identity/:id/devices/:deviceId/pre-keys/one-time', async (ctx) => {
+  return await purgeOneTimePreKeysCtrl(ctx);
 });
 
 // ============================================================================

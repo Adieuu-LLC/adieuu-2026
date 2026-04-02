@@ -33,6 +33,7 @@ export interface IPreKeyRepository {
   claimOneTimePreKey(identityId: string | ObjectId, deviceId: string): Promise<PreKeyDocument | null>;
   claimPreKeysForAllDevices(identityId: string | ObjectId, deviceIds: string[]): Promise<ClaimedDevicePreKeys[]>;
   countUnconsumedOneTimePreKeys(identityId: string | ObjectId, deviceId: string): Promise<number>;
+  purgeUnconsumedOneTimePreKeys(identityId: string | ObjectId, deviceId: string): Promise<number>;
   deletePreKeysForDevice(identityId: string | ObjectId, deviceId: string): Promise<number>;
   deleteAllPreKeysForIdentity(identityId: string | ObjectId): Promise<number>;
 }
@@ -207,6 +208,24 @@ export class PreKeyRepository extends BaseRepository<PreKeyDocument> implements 
       keyType: 'one-time',
       consumed: false,
     } as Filter<PreKeyDocument>);
+  }
+
+  /**
+   * Delete all unconsumed one-time pre-keys for a device.
+   * Used to reset the OTPK pool when local and server state have diverged.
+   */
+  async purgeUnconsumedOneTimePreKeys(
+    identityId: string | ObjectId,
+    deviceId: string
+  ): Promise<number> {
+    const objectId = this.toObjectId(identityId);
+    const result = await this.collection.deleteMany({
+      identityId: objectId,
+      deviceId,
+      keyType: 'one-time',
+      consumed: false,
+    } as Filter<PreKeyDocument>);
+    return result.deletedCount;
   }
 
   /**

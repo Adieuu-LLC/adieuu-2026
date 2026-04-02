@@ -92,7 +92,13 @@ export class DeviceKeyStorageError extends Error {
 // SecureStorage Backend (Desktop) -- Per-Identity Files
 // ============================================================================
 
-let storageBackend: SecureStorage | null = null;
+// HMR-safe state: survives Vite hot-module replacement of this file.
+const DK_HMR_KEY = '__adieuu_deviceKeyStorage__' as const;
+
+function getDkBackend(): SecureStorage | null {
+  const g = globalThis as Record<string, unknown>;
+  return (g[DK_HMR_KEY] as SecureStorage | null | undefined) ?? null;
+}
 
 /**
  * Sets the storage backend for device keys.
@@ -104,7 +110,7 @@ let storageBackend: SecureStorage | null = null;
  * Call this once at app init before any identity/login operations.
  */
 export function setDeviceKeyStorageBackend(backend: SecureStorage | null): void {
-  storageBackend = backend;
+  (globalThis as Record<string, unknown>)[DK_HMR_KEY] = backend;
 }
 
 /**
@@ -112,7 +118,7 @@ export function setDeviceKeyStorageBackend(backend: SecureStorage | null): void 
  * When false, the app is running in web-only mode with IndexedDB.
  */
 export function hasSecureStorageBackend(): boolean {
-  return storageBackend !== null;
+  return getDkBackend() !== null;
 }
 
 function toHex(bytes: Uint8Array): string {
@@ -134,29 +140,32 @@ async function identityKeyId(identityId: string): Promise<string> {
 }
 
 async function getIdentityStore(identityId: string): Promise<StoredDeviceKeys[]> {
-  if (!storageBackend) throw new Error('No storage backend set');
+  const dkBackend = getDkBackend();
+  if (!dkBackend) throw new Error('No storage backend set');
   const keyId = await identityKeyId(identityId);
-  const raw = await storageBackend.getKey(keyId);
+  const raw = await dkBackend.getKey(keyId);
   if (!raw) return [];
   const json = new TextDecoder().decode(raw);
   return JSON.parse(json) as StoredDeviceKeys[];
 }
 
 async function saveIdentityStore(identityId: string, keys: StoredDeviceKeys[]): Promise<void> {
-  if (!storageBackend) throw new Error('No storage backend set');
+  const dkBackend = getDkBackend();
+  if (!dkBackend) throw new Error('No storage backend set');
   const keyId = await identityKeyId(identityId);
   if (keys.length === 0) {
-    await storageBackend.deleteKey(keyId);
+    await dkBackend.deleteKey(keyId);
     return;
   }
   const json = JSON.stringify(keys);
   const data = new TextEncoder().encode(json);
-  await storageBackend.setKey(keyId, data);
+  await dkBackend.setKey(keyId, data);
 }
 
 async function getAllIdentityKeyIds(): Promise<string[]> {
-  if (!storageBackend?.listKeys) return [];
-  return storageBackend.listKeys(IDENTITY_KEY_PREFIX);
+  const dkBackend = getDkBackend();
+  if (!dkBackend?.listKeys) return [];
+  return dkBackend.listKeys(IDENTITY_KEY_PREFIX);
 }
 
 /**
@@ -228,15 +237,15 @@ async function storeWrappingSaltInIndexedDb(identityId: string, salt: Uint8Array
  * On web, IndexedDB is used.
  */
 export async function getOrCreateWrappingSalt(identityId: string): Promise<Uint8Array> {
-  if (storageBackend) {
+  if (getDkBackend()) {
     const keyId = await wrappingSaltKeyId(identityId);
-    const raw = await storageBackend.getKey(keyId);
+    const raw = await getDkBackend()!.getKey(keyId);
     if (raw) {
       return fromBase64(new TextDecoder().decode(raw));
     }
 
     const salt = generateWrappingSalt();
-    await storageBackend.setKey(keyId, new TextEncoder().encode(toBase64(salt)));
+    await getDkBackend()!.setKey(keyId, new TextEncoder().encode(toBase64(salt)));
     return salt;
   }
 
@@ -371,7 +380,7 @@ export async function storeDeviceKeys(
     createdAt: new Date().toISOString(),
   };
 
-  if (storageBackend) {
+  if (getDkBackend()) {
     const keys = await getIdentityStore(identityId);
     const existingIdx = keys.findIndex((k) => k.deviceId === deviceId);
     if (existingIdx >= 0) {
@@ -411,7 +420,7 @@ export async function storeDeviceKeys(
 export async function storePreEncryptedDeviceKeys(
   record: StoredDeviceKeys
 ): Promise<void> {
-  if (storageBackend) {
+  if (getDkBackend()) {
     const keys = await getIdentityStore(record.identityId);
     const existingIdx = keys.findIndex((k) => k.deviceId === record.deviceId);
     if (existingIdx >= 0) {
@@ -452,14 +461,14 @@ export async function getStoredDeviceKeys(
   deviceId: string,
   identityId?: string
 ): Promise<StoredDeviceKeys | null> {
-  if (storageBackend) {
+  if (getDkBackend()) {
     if (identityId) {
       const keys = await getIdentityStore(identityId);
       return keys.find((k) => k.deviceId === deviceId) ?? null;
     }
     const allKeyIds = await getAllIdentityKeyIds();
     for (const keyId of allKeyIds) {
-      const raw = await storageBackend.getKey(keyId);
+      const raw = await getDkBackend()!.getKey(keyId);
       if (!raw) continue;
       const keys = JSON.parse(new TextDecoder().decode(raw)) as StoredDeviceKeys[];
       const found = keys.find((k) => k.deviceId === deviceId);
@@ -496,7 +505,7 @@ export async function getStoredDeviceKeys(
 export async function getDeviceKeysForIdentity(
   identityId: string
 ): Promise<StoredDeviceKeys[]> {
-  if (storageBackend) {
+  if (getDkBackend()) {
     return getIdentityStore(identityId);
   }
 
@@ -587,7 +596,7 @@ export async function deleteDeviceKeys(
   deviceId: string,
   identityId?: string
 ): Promise<void> {
-  if (storageBackend) {
+  if (getDkBackend()) {
     if (identityId) {
       const keys = await getIdentityStore(identityId);
       const filtered = keys.filter((k) => k.deviceId !== deviceId);
@@ -598,16 +607,16 @@ export async function deleteDeviceKeys(
     }
     const allKeyIds = await getAllIdentityKeyIds();
     for (const keyId of allKeyIds) {
-      const raw = await storageBackend.getKey(keyId);
+      const raw = await getDkBackend()!.getKey(keyId);
       if (!raw) continue;
       const keys = JSON.parse(new TextDecoder().decode(raw)) as StoredDeviceKeys[];
       const filtered = keys.filter((k) => k.deviceId !== deviceId);
       if (filtered.length !== keys.length) {
         if (filtered.length === 0) {
-          await storageBackend.deleteKey(keyId);
+          await getDkBackend()!.deleteKey(keyId);
         } else {
           const json = JSON.stringify(filtered);
-          await storageBackend.setKey(keyId, new TextEncoder().encode(json));
+          await getDkBackend()!.setKey(keyId, new TextEncoder().encode(json));
         }
         return;
       }
@@ -642,7 +651,7 @@ export async function deleteDeviceKeys(
 export async function deleteAllDeviceKeysForIdentity(
   identityId: string
 ): Promise<number> {
-  if (storageBackend) {
+  if (getDkBackend()) {
     const keys = await getIdentityStore(identityId);
     if (keys.length === 0) return 0;
     const count = keys.length;
@@ -694,10 +703,10 @@ export async function deleteAllDeviceKeysForIdentity(
  * WARNING: This removes all keys for all identities. Use with caution.
  */
 export async function clearAllDeviceKeys(): Promise<void> {
-  if (storageBackend) {
+  if (getDkBackend()) {
     const allKeyIds = await getAllIdentityKeyIds();
     for (const keyId of allKeyIds) {
-      await storageBackend.deleteKey(keyId);
+      await getDkBackend()!.deleteKey(keyId);
     }
     return;
   }
@@ -732,12 +741,12 @@ type LegacyDeviceKeyStore = Record<string, StoredDeviceKeys[]>;
  * files with hashed filenames.
  */
 async function migrateSingleBlobToPerIdentity(): Promise<number> {
-  if (!storageBackend) return 0;
+  if (!getDkBackend()) return 0;
 
-  const hasOldBlob = await storageBackend.hasKey(OLD_SINGLE_BLOB_KEY);
+  const hasOldBlob = await getDkBackend()!.hasKey(OLD_SINGLE_BLOB_KEY);
   if (!hasOldBlob) return 0;
 
-  const raw = await storageBackend.getKey(OLD_SINGLE_BLOB_KEY);
+  const raw = await getDkBackend()!.getKey(OLD_SINGLE_BLOB_KEY);
   if (!raw) return 0;
 
   let store: LegacyDeviceKeyStore;
@@ -757,7 +766,7 @@ async function migrateSingleBlobToPerIdentity(): Promise<number> {
     }
   }
 
-  await storageBackend.deleteKey(OLD_SINGLE_BLOB_KEY);
+  await getDkBackend()!.deleteKey(OLD_SINGLE_BLOB_KEY);
 
   return totalMigrated;
 }
@@ -775,9 +784,9 @@ async function migrateSingleBlobToPerIdentity(): Promise<number> {
  * @returns Number of records migrated (0 if nothing to migrate)
  */
 export async function migrateIndexedDbToBackend(): Promise<number> {
-  if (!storageBackend) return 0;
+  if (!getDkBackend()) return 0;
 
-  const markerExists = await storageBackend.hasKey(MIGRATION_MARKER_KEY);
+  const markerExists = await getDkBackend()!.hasKey(MIGRATION_MARKER_KEY);
   if (markerExists) return 0;
 
   let totalMigrated = 0;
@@ -792,7 +801,7 @@ export async function migrateIndexedDbToBackend(): Promise<number> {
       db = await openDatabase();
     } catch {
       // No IndexedDB data to migrate
-      await storageBackend.setKey(MIGRATION_MARKER_KEY, new TextEncoder().encode('done'));
+      await getDkBackend()!.setKey(MIGRATION_MARKER_KEY, new TextEncoder().encode('done'));
       return totalMigrated;
     }
 
@@ -839,7 +848,7 @@ export async function migrateIndexedDbToBackend(): Promise<number> {
   }
 
   // Write marker so we don't re-run
-  await storageBackend.setKey(MIGRATION_MARKER_KEY, new TextEncoder().encode('done'));
+  await getDkBackend()!.setKey(MIGRATION_MARKER_KEY, new TextEncoder().encode('done'));
 
   return totalMigrated;
 }

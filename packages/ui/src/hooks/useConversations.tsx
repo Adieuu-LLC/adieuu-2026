@@ -458,6 +458,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               const fsCandidates = candidates.filter(
                 (wk) => (wk.preKeyType === 'spk' || wk.preKeyType === 'otpk') && wk.signedPreKeyId
               );
+              let fsSpkMissing = false;
+              let fsOtpkMissing = false;
+              let fsLookupError = false;
               if (fsCandidates.length > 0 && wrappingKey) {
                 for (const candidate of fsCandidates) {
                   try {
@@ -475,8 +478,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                     }
 
                     if (spkKeys) {
-                      resolvedWrappedKey = candidate;
-                      preKeyPrivateKeys = {
+                      const candidatePreKeys: typeof preKeyPrivateKeys = {
                         spkEcdhPrivate: spkKeys.ecdh,
                         spkKemPrivate: spkKeys.kem,
                       };
@@ -495,14 +497,25 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                           }
                         }
                         if (otpkKeys) {
-                          preKeyPrivateKeys.otpkEcdhPrivate = otpkKeys.ecdh;
-                          preKeyPrivateKeys.otpkKemPrivate = otpkKeys.kem;
+                          candidatePreKeys.otpkEcdhPrivate = otpkKeys.ecdh;
+                          candidatePreKeys.otpkKemPrivate = otpkKeys.kem;
+                        } else {
+                          fsOtpkMissing = true;
+                          console.warn('[Conversations] decrypt: OTPK not found locally, skipping candidate',
+                            candidate.oneTimePreKeyId, 'spk', candidate.signedPreKeyId);
+                          continue;
                         }
                       }
+
+                      resolvedWrappedKey = candidate;
+                      preKeyPrivateKeys = candidatePreKeys;
                       break;
+                    } else {
+                      fsSpkMissing = true;
                     }
                   } catch (err) {
-                    console.warn('[Conversations] decrypt: SPK lookup failed for candidate', candidate.signedPreKeyId, err);
+                    fsLookupError = true;
+                    console.warn('[Conversations] decrypt: pre-key lookup failed for candidate', candidate.signedPreKeyId, err);
                   }
                 }
               }
@@ -543,15 +556,25 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                   }
                 }
 
-                // No candidate worked
-                const fsAttempted = fsCandidates.length > 0;
-                const spkIds = fsCandidates.map((c) => c.signedPreKeyId?.slice(0, 8)).join(', ');
-                return {
-                  ...m,
-                  decryptionError: fsAttempted
-                    ? `SPK ${spkIds}... not found locally`
-                    : 'No matching wrapped key for this device',
-                };
+                // No candidate worked — build an accurate error message
+                let decryptionError: string;
+                if (fsCandidates.length > 0) {
+                  const spkIds = fsCandidates.map((c) => c.signedPreKeyId?.slice(0, 8)).join(', ');
+                  if (fsOtpkMissing && !fsSpkMissing) {
+                    decryptionError = `OTPK not found locally (SPK ${spkIds} present)`;
+                  } else if (fsSpkMissing && !fsOtpkMissing) {
+                    decryptionError = `SPK ${spkIds} not found locally`;
+                  } else if (fsSpkMissing && fsOtpkMissing) {
+                    decryptionError = `SPK ${spkIds} and OTPK not found locally`;
+                  } else if (fsLookupError) {
+                    decryptionError = `Pre-key lookup failed for SPK ${spkIds}`;
+                  } else {
+                    decryptionError = `FS key resolution failed (SPK ${spkIds})`;
+                  }
+                } else {
+                  decryptionError = 'No matching wrapped key for this device';
+                }
+                return { ...m, decryptionError };
               }
 
               try {
