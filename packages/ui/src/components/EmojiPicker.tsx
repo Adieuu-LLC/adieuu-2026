@@ -6,7 +6,7 @@
  * picking and a full-size mode for the message composer.
  */
 
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback } from 'react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 

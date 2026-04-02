@@ -19,7 +19,6 @@ import {
   decrypt,
   wrapSessionKey,
   unwrapSessionKey,
-  findAndUnwrapSessionKey,
   wrapSessionKeyWithPreKeys,
   unwrapSessionKeyWithPreKeys,
   computeRoutingTag,
