@@ -17,7 +17,7 @@ import { usePreKeys } from '../../hooks/usePreKeys';
 import { useReactions, type GroupedReaction } from '../../hooks/useReactions';
 import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
 import { loadConversationFsDefault, saveConversationFsDefault, loadShowMessageArtifacts, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
-import { convertShortcodes } from '../../utils/emojiShortcodes';
+import { convertShortcodes, getShortcode } from '../../utils/emojiShortcodes';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -103,28 +103,61 @@ function MessageActionBar({
   );
 }
 
+function buildReactionTooltip(
+  reaction: GroupedReaction,
+  profiles: Record<string, PublicIdentity>,
+  currentIdentityId: string | undefined,
+): string {
+  const shortcode = getShortcode(reaction.emoji);
+  const MAX_NAMED = 3;
+
+  const names: string[] = [];
+  if (reaction.isOwn) names.push('You');
+
+  for (const id of reaction.fromIdentityIds) {
+    if (id === currentIdentityId) continue;
+    if (names.length >= MAX_NAMED) break;
+    const profile = profiles[id];
+    names.push(profile?.displayName ?? profile?.username ?? id.slice(0, 8));
+  }
+
+  const othersCount = reaction.count - names.length;
+  let label = names.join(', ');
+  if (othersCount > 0) label += ` + ${othersCount} other${othersCount === 1 ? '' : 's'}`;
+
+  return `${label} reacted with ${shortcode}`;
+}
+
 function ReactionBar({
   reactions,
   onToggleReaction,
+  participantProfiles,
+  currentIdentityId,
 }: {
   reactions: GroupedReaction[];
   onToggleReaction: (emoji: string, ownReactionId?: string) => void;
+  participantProfiles: Record<string, PublicIdentity>;
+  currentIdentityId: string | undefined;
 }) {
   if (reactions.length === 0) return null;
 
   return (
     <div className="message-reaction-bar">
       {reactions.map((r) => (
-        <button
+        <Tooltip
           key={r.emoji}
-          type="button"
-          className={`message-reaction-chip${r.isOwn ? ' message-reaction-chip--own' : ''}`}
-          onClick={() => onToggleReaction(r.emoji, r.ownReactionId)}
-          title={r.isOwn ? 'Click to remove your reaction' : `React with ${r.emoji}`}
+          content={buildReactionTooltip(r, participantProfiles, currentIdentityId)}
+          position="top"
         >
-          <span className="message-reaction-chip-emoji">{r.emoji}</span>
-          <span className="message-reaction-chip-count">{r.count}</span>
-        </button>
+          <button
+            type="button"
+            className={`message-reaction-chip${r.isOwn ? ' message-reaction-chip--own' : ''}`}
+            onClick={() => onToggleReaction(r.emoji, r.ownReactionId)}
+          >
+            <span className="message-reaction-chip-emoji">{r.emoji}</span>
+            <span className="message-reaction-chip-count">{r.count}</span>
+          </button>
+        </Tooltip>
       ))}
     </div>
   );
@@ -320,6 +353,7 @@ const MessageBubble = memo(function MessageBubble({
   senderProfile,
   ownProfile,
   layout,
+  participantProfiles,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
@@ -332,6 +366,7 @@ const MessageBubble = memo(function MessageBubble({
   senderProfile?: PublicIdentity;
   ownProfile?: PublicIdentity;
   layout: 'linear' | 'bubble';
+  participantProfiles: Record<string, PublicIdentity>;
 }) {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
@@ -376,6 +411,8 @@ const MessageBubble = memo(function MessageBubble({
       onToggleReaction={(emoji, ownReactionId) =>
         onToggleReaction(message.id, emoji, ownReactionId)
       }
+      participantProfiles={participantProfiles}
+      currentIdentityId={ownProfile?.id}
     />
   );
 
@@ -851,7 +888,20 @@ function MessageComposer({
         className="conversation-composer-field"
         placeholder={t('conversations.messagePlaceholder', 'Type a message...')}
         value={messageText}
-        onChange={(e) => setMessageText(e.target.value)}
+        onChange={(e) => {
+          const raw = e.target.value;
+          const converted = convertShortcodes(raw);
+          if (converted !== raw) {
+            const cursorPos = e.target.selectionStart ?? raw.length;
+            const newCursorPos = Math.max(0, cursorPos - (raw.length - converted.length));
+            setMessageText(converted);
+            requestAnimationFrame(() => {
+              inputRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+            });
+          } else {
+            setMessageText(raw);
+          }
+        }}
         onKeyDown={handleKeyDown}
         rows={1}
         disabled={sending}
@@ -1319,6 +1369,7 @@ export function ConversationView() {
                           senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
                           ownProfile={identity ?? undefined}
                           layout={messageLayout}
+                          participantProfiles={participantProfiles}
                         />
                       )}
                     </Fragment>

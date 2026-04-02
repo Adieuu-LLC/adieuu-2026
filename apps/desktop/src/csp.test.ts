@@ -103,18 +103,19 @@ describe('desktop app CSP', () => {
   });
 
   describe('style-src', () => {
-    it('includes Google Fonts stylesheet origin', () => {
+    it('does not reference external font services', () => {
       const directives = parseDirectives(csp);
       const styleSrc = directives.get('style-src') ?? [];
-      expect(styleSrc).toContain('https://fonts.googleapis.com');
+      expect(styleSrc).not.toContain('https://fonts.googleapis.com');
     });
   });
 
   describe('font-src', () => {
-    it('includes Google Fonts file origin', () => {
+    it('serves fonts from self only', () => {
       const directives = parseDirectives(csp);
       const fontSrc = directives.get('font-src') ?? [];
-      expect(fontSrc).toContain('https://fonts.gstatic.com');
+      expect(fontSrc).toContain("'self'");
+      expect(fontSrc).not.toContain('https://fonts.gstatic.com');
     });
   });
 
