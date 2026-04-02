@@ -280,26 +280,30 @@ export function decryptReaction(
   const plaintext = decrypt(sessionKey, ciphertext, nonce, profile);
   const content = JSON.parse(new TextDecoder().decode(plaintext)) as DecryptedReactionContent;
 
-  const sigPub = fromBase64(senderSigningPublicKey);
-  const dataToVerify = concatBytes(
-    toBytes(REACTION_SIGN_DOMAIN),
-    ciphertext,
-    nonce,
-    toBytes(JSON.stringify(reaction.wrappedKeys))
-  );
+  const identityMismatch = content.fromIdentityId !== reaction.fromIdentityId;
 
   let verified = false;
-  try {
-    verified = verify(sigPub, dataToVerify, fromBase64(reaction.signature));
-  } catch {
-    verified = false;
+  if (!identityMismatch) {
+    const sigPub = fromBase64(senderSigningPublicKey);
+    const dataToVerify = concatBytes(
+      toBytes(REACTION_SIGN_DOMAIN),
+      ciphertext,
+      nonce,
+      toBytes(JSON.stringify(reaction.wrappedKeys))
+    );
+
+    try {
+      verified = verify(sigPub, dataToVerify, fromBase64(reaction.signature));
+    } catch {
+      verified = false;
+    }
   }
 
   return {
     id: reaction.id,
     messageId: reaction.messageId,
     conversationId: reaction.conversationId,
-    fromIdentityId: content.fromIdentityId,
+    fromIdentityId: reaction.fromIdentityId,
     emoji: content.emoji,
     verified,
     createdAt: reaction.createdAt,

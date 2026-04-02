@@ -424,23 +424,32 @@ const MessageBubble = memo(function MessageBubble({
     />
   );
 
-  const contextReactionPickerPopover = showContextReactionPicker && (
-    <div className="emoji-picker-popover emoji-picker-popover--context">
-      <EmojiPicker
-        compact
-        onEmojiSelect={(emoji) => {
-          onReact(message.id, emoji);
-          setShowContextReactionPicker(false);
-        }}
-      />
-      <button
-        type="button"
-        className="emoji-picker-popover-close"
-        onClick={() => setShowContextReactionPicker(false)}
-      >
-        x
-      </button>
-    </div>
+  const contextReactionPickerPopover = (
+    <Popover.Root
+      open={showContextReactionPicker}
+      onOpenChange={(e) => setShowContextReactionPicker(e.open)}
+    >
+      <Portal>
+        <Popover.Positioner>
+          <Popover.Content className="emoji-picker-popover emoji-picker-popover--context">
+            <EmojiPicker
+              compact
+              onEmojiSelect={(emoji) => {
+                onReact(message.id, emoji);
+                setShowContextReactionPicker(false);
+              }}
+            />
+            <button
+              type="button"
+              className="emoji-picker-popover-close"
+              onClick={() => setShowContextReactionPicker(false)}
+            >
+              x
+            </button>
+          </Popover.Content>
+        </Popover.Positioner>
+      </Portal>
+    </Popover.Root>
   );
 
   if (layout === 'linear') {
