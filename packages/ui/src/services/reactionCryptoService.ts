@@ -19,7 +19,6 @@ import {
   decrypt,
   wrapSessionKey,
   unwrapSessionKey,
-  findAndUnwrapSessionKey,
   wrapSessionKeyWithPreKeys,
   unwrapSessionKeyWithPreKeys,
   computeRoutingTag,
@@ -40,10 +39,7 @@ import {
 } from '@adieuu/crypto';
 import type {
   SerializedWrappedKey,
-  MessageCryptoProfile,
   PublicReaction,
-  PublicDevice,
-  ClaimedDevicePreKeys,
 } from '@adieuu/shared';
 import type { RecipientKeys, EncryptedMessage } from './conversationCryptoService';
 
