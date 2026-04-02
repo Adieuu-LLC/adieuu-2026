@@ -40,6 +40,10 @@ import {
 import type {
   SerializedWrappedKey,
   PublicReaction,
+  MessageCryptoProfile,
+  PublicReaction,
+  PublicDevice,
+  ClaimedDevicePreKeys,
 } from '@adieuu/shared';
 import type { RecipientKeys, EncryptedMessage } from './conversationCryptoService';
 
