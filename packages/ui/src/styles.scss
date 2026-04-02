@@ -6340,6 +6340,7 @@ a {
     min-height: 0;
     overflow: hidden;
     position: relative;
+    padding-bottom: var(--spacing-2xl);
 
     &-empty {
       display: flex;
@@ -7109,7 +7110,7 @@ a {
     overflow-x: hidden;
     padding-left: var(--spacing-xs);
     padding-right: var(--spacing-xs);
-    padding-bottom: var(--spacing-2xl);
+    // padding-bottom: var(--spacing-xl);
 
     &-item {
       padding-top: var(--spacing-md);
@@ -7127,6 +7128,7 @@ a {
 
     &--linear .dm-messages-item {
       padding-top: var(--spacing-sm);
+      padding-right: 20px;
     }
   }
 
@@ -7157,6 +7159,7 @@ a {
     flex-direction: column;
     align-items: flex-start;
     max-width: 70%;
+    position: relative;
 
     &--own {
       align-self: flex-end;
@@ -7177,7 +7180,7 @@ a {
 
       .message-action-bar {
         position: absolute;
-        top: var(--spacing-xs);
+        top: -15px !important;
         right: var(--spacing-sm);
         left: auto;
         transform: none;
