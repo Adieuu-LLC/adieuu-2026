@@ -453,4 +453,290 @@ describe('services/preKeyService', () => {
     expect(loaded.securityLevel).toBe('high');
     expect(loaded.spkDeletionPolicy).toBe('timed');
   });
+
+  // ---- generateAndUploadPreKeys ----
+
+  test('generateAndUploadPreKeys stores SPK + OTPKs locally then uploads', async () => {
+    const identityApi = {
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    const result = await preKeyService.generateAndUploadPreKeys(
+      {
+        identityId: 'identity-1',
+        deviceId: 'device-1',
+        signingPrivateKey,
+        wrappingKey,
+        platform: 'web',
+      },
+      identityApi
+    );
+
+    expect(result.signedPreKeyId).toBeTruthy();
+    expect(storeSignedPreKeyMock).toHaveBeenCalledTimes(1);
+    expect(storeOneTimePreKeysMock).toHaveBeenCalledTimes(1);
+    expect(identityApi.uploadPreKeys).toHaveBeenCalledTimes(1);
+  });
+
+  test('generateAndUploadPreKeys returns signedPreKeyId and oneTimePreKeyCount', async () => {
+    const identityApi = {
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    const result = await preKeyService.generateAndUploadPreKeys(
+      {
+        identityId: 'identity-1',
+        deviceId: 'device-1',
+        signingPrivateKey,
+        wrappingKey,
+        platform: 'desktop',
+      },
+      identityApi
+    );
+
+    expect(result.signedPreKeyId).toBeTruthy();
+    expect(result.oneTimePreKeyCount).toBe(50);
+  });
+
+  test('generateAndUploadPreKeys generates 25 OTPKs on web, 50 on desktop', async () => {
+    const identityApi = {
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    const webResult = await preKeyService.generateAndUploadPreKeys(
+      { identityId: 'id-1', deviceId: 'd-1', signingPrivateKey, wrappingKey, platform: 'web' },
+      identityApi
+    );
+    expect(webResult.oneTimePreKeyCount).toBe(25);
+
+    const desktopResult = await preKeyService.generateAndUploadPreKeys(
+      { identityId: 'id-2', deviceId: 'd-2', signingPrivateKey, wrappingKey, platform: 'desktop' },
+      identityApi
+    );
+    expect(desktopResult.oneTimePreKeyCount).toBe(50);
+  });
+
+  test('generateAndUploadPreKeys throws when API upload fails', async () => {
+    const identityApi = {
+      uploadPreKeys: mock(async () => ({ success: false, error: { message: 'Server error' } })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    await expect(
+      preKeyService.generateAndUploadPreKeys(
+        { identityId: 'id-1', deviceId: 'd-1', signingPrivateKey, wrappingKey, platform: 'web' },
+        identityApi
+      )
+    ).rejects.toThrow();
+  });
+
+  // ---- rotateSignedPreKey ----
+
+  test('rotateSignedPreKey retires existing active SPK before generating new one', async () => {
+    const createdAt = new Date().toISOString();
+    getActiveSignedPreKeyMock.mockResolvedValueOnce({ keyId: 'spk-old', createdAt });
+
+    const identityApi = {
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    const newKeyId = await preKeyService.rotateSignedPreKey(
+      { identityId: 'identity-1', deviceId: 'device-1', signingPrivateKey, wrappingKey },
+      identityApi
+    );
+
+    expect(retireSignedPreKeyMock).toHaveBeenCalledWith('spk-old', 'identity-1');
+    expect(newKeyId).toBeTruthy();
+    expect(newKeyId).not.toBe('spk-old');
+  });
+
+  test('rotateSignedPreKey stores and uploads new SPK', async () => {
+    const identityApi = {
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    await preKeyService.rotateSignedPreKey(
+      { identityId: 'identity-1', deviceId: 'device-1', signingPrivateKey, wrappingKey },
+      identityApi
+    );
+
+    expect(storeSignedPreKeyMock).toHaveBeenCalledTimes(1);
+    expect(identityApi.uploadPreKeys).toHaveBeenCalledTimes(1);
+  });
+
+  test('rotateSignedPreKey handles case where no active SPK exists', async () => {
+    getActiveSignedPreKeyMock.mockResolvedValueOnce(null);
+
+    const identityApi = {
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    const newKeyId = await preKeyService.rotateSignedPreKey(
+      { identityId: 'identity-1', deviceId: 'device-1', signingPrivateKey, wrappingKey },
+      identityApi
+    );
+
+    expect(retireSignedPreKeyMock).not.toHaveBeenCalled();
+    expect(newKeyId).toBeTruthy();
+  });
+
+  test('rotateSignedPreKey returns the new keyId', async () => {
+    const identityApi = {
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    const keyId = await preKeyService.rotateSignedPreKey(
+      { identityId: 'identity-1', deviceId: 'device-1', signingPrivateKey, wrappingKey },
+      identityApi
+    );
+
+    expect(typeof keyId).toBe('string');
+    expect(keyId.length).toBeGreaterThan(0);
+  });
+
+  // ---- replenishOneTimePreKeys ----
+
+  test('replenishOneTimePreKeys generates and uploads OTPKs only', async () => {
+    const identityApi = {
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    const count = await preKeyService.replenishOneTimePreKeys(
+      { identityId: 'identity-1', deviceId: 'device-1', signingPrivateKey, wrappingKey, platform: 'web' },
+      identityApi
+    );
+
+    expect(count).toBe(25);
+    expect(storeOneTimePreKeysMock).toHaveBeenCalledTimes(1);
+    expect(storeSignedPreKeyMock).not.toHaveBeenCalled();
+    expect(identityApi.uploadPreKeys).toHaveBeenCalledTimes(1);
+  });
+
+  test('replenishOneTimePreKeys respects platform batch size', async () => {
+    const identityApi = {
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    const desktopCount = await preKeyService.replenishOneTimePreKeys(
+      { identityId: 'id-1', deviceId: 'd-1', signingPrivateKey, wrappingKey, platform: 'desktop' },
+      identityApi
+    );
+    expect(desktopCount).toBe(50);
+
+    const webCount = await preKeyService.replenishOneTimePreKeys(
+      { identityId: 'id-2', deviceId: 'd-2', signingPrivateKey, wrappingKey, platform: 'web' },
+      identityApi
+    );
+    expect(webCount).toBe(25);
+  });
+
+  test('replenishOneTimePreKeys returns count uploaded', async () => {
+    const identityApi = {
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    const count = await preKeyService.replenishOneTimePreKeys(
+      { identityId: 'identity-1', deviceId: 'device-1', signingPrivateKey, wrappingKey, platform: 'web' },
+      identityApi
+    );
+
+    expect(typeof count).toBe('number');
+    expect(count).toBeGreaterThan(0);
+  });
+
+  // ---- purgeRetiredKeys ----
+
+  test('purgeRetiredKeys deletes all retired SPKs for a device', async () => {
+    getRetiredSignedPreKeysMock.mockResolvedValueOnce([
+      { keyId: 'spk-retired-1', status: 'retired', retiredAt: new Date().toISOString() },
+      { keyId: 'spk-retired-2', status: 'retired', retiredAt: new Date().toISOString() },
+    ]);
+
+    const count = await preKeyService.purgeRetiredKeys('identity-1', 'device-1');
+
+    expect(count).toBe(2);
+    expect(deleteSignedPreKeyMock).toHaveBeenCalledTimes(2);
+    expect(deleteSignedPreKeyMock).toHaveBeenCalledWith('spk-retired-1', 'identity-1');
+    expect(deleteSignedPreKeyMock).toHaveBeenCalledWith('spk-retired-2', 'identity-1');
+  });
+
+  test('purgeRetiredKeys returns count of deleted keys', async () => {
+    getRetiredSignedPreKeysMock.mockResolvedValueOnce([
+      { keyId: 'spk-r', status: 'retired', retiredAt: new Date().toISOString() },
+    ]);
+
+    const count = await preKeyService.purgeRetiredKeys('identity-1', 'device-1');
+    expect(count).toBe(1);
+  });
+
+  test('purgeRetiredKeys no-ops when no retired keys exist', async () => {
+    getRetiredSignedPreKeysMock.mockResolvedValueOnce([]);
+
+    const count = await preKeyService.purgeRetiredKeys('identity-1', 'device-1');
+    expect(count).toBe(0);
+    expect(deleteSignedPreKeyMock).not.toHaveBeenCalled();
+  });
+
+  // ---- localStorage preference helpers ----
+
+  test('loadShowMessageArtifacts / saveShowMessageArtifacts round-trip', () => {
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => { store.set(key, value); },
+        removeItem: (key: string) => { store.delete(key); },
+      },
+      configurable: true,
+    });
+
+    preKeyService.saveShowMessageArtifacts('id-1', true);
+    expect(preKeyService.loadShowMessageArtifacts('id-1')).toBe(true);
+
+    preKeyService.saveShowMessageArtifacts('id-1', false);
+    expect(preKeyService.loadShowMessageArtifacts('id-1')).toBe(false);
+  });
+
+  test('loadShowMessageArtifacts returns false when not set', () => {
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: { getItem: (key: string) => store.get(key) ?? null, setItem: () => {}, removeItem: () => {} },
+      configurable: true,
+    });
+
+    expect(preKeyService.loadShowMessageArtifacts('unknown')).toBe(false);
+  });
+
+  test('loadConversationFsDefault / saveConversationFsDefault round-trip', () => {
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => { store.set(key, value); },
+        removeItem: (key: string) => { store.delete(key); },
+      },
+      configurable: true,
+    });
+
+    preKeyService.saveConversationFsDefault('conv-1', true);
+    expect(preKeyService.loadConversationFsDefault('conv-1')).toBe(true);
+
+    preKeyService.saveConversationFsDefault('conv-1', false);
+    expect(preKeyService.loadConversationFsDefault('conv-1')).toBe(false);
+  });
+
+  test('saveConversationFsDefault with null clears the preference', () => {
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => { store.set(key, value); },
+        removeItem: (key: string) => { store.delete(key); },
+      },
+      configurable: true,
+    });
+
+    preKeyService.saveConversationFsDefault('conv-1', true);
+    preKeyService.saveConversationFsDefault('conv-1', null);
+    expect(preKeyService.loadConversationFsDefault('conv-1')).toBeNull();
+  });
 });

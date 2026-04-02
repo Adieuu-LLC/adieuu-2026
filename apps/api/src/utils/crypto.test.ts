@@ -23,6 +23,8 @@ import {
   hmacVerify,
   encrypt,
   decrypt,
+  deriveBundleId,
+  verifyDmMessageSignature,
 } from './crypto';
 
 describe('crypto utilities', () => {
@@ -531,6 +533,112 @@ describe('crypto utilities', () => {
       const encrypted = encrypt(payload);
       const decrypted = decrypt(encrypted);
       expect(decrypted).toBe(payload);
+    });
+  });
+
+  describe('deriveBundleId', () => {
+    test('returns a hex string (SHA3-256 digest)', () => {
+      const bundleId = deriveBundleId('some-ident-hash');
+      expect(bundleId).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    test('same input produces same output (deterministic)', () => {
+      const a = deriveBundleId('deterministic-input');
+      const b = deriveBundleId('deterministic-input');
+      expect(a).toBe(b);
+    });
+
+    test('different inputs produce different outputs', () => {
+      const a = deriveBundleId('input-alpha');
+      const b = deriveBundleId('input-bravo');
+      expect(a).not.toBe(b);
+    });
+  });
+
+  describe('verifyDmMessageSignature', () => {
+    test('returns true for a valid signature', async () => {
+      const { generateSigningKeyPair, sign, toBase64, concatBytes, toBytes, fromBase64 } = await import('@adieuu/crypto');
+      const { publicKey, privateKey } = generateSigningKeyPair();
+      const ciphertext = Buffer.from('encrypted-data').toString('base64');
+      const nonce = Buffer.from('nonce-data').toString('base64');
+      const wrappedKeys = [{ identityId: 'id-1', key: 'wrapped' }];
+
+      const signatureData = concatBytes(
+        fromBase64(ciphertext), fromBase64(nonce), toBytes(JSON.stringify(wrappedKeys))
+      );
+      const signature = sign(privateKey, signatureData);
+
+      expect(
+        verifyDmMessageSignature(
+          toBase64(publicKey), ciphertext, nonce, wrappedKeys, toBase64(signature)
+        )
+      ).toBe(true);
+    });
+
+    test('returns false for tampered ciphertext', async () => {
+      const { generateSigningKeyPair, sign, toBase64, concatBytes, toBytes, fromBase64 } = await import('@adieuu/crypto');
+      const { publicKey, privateKey } = generateSigningKeyPair();
+      const ciphertext = Buffer.from('encrypted-data').toString('base64');
+      const nonce = Buffer.from('nonce-data').toString('base64');
+      const wrappedKeys = [{ identityId: 'id-1', key: 'wrapped' }];
+
+      const signatureData = concatBytes(
+        fromBase64(ciphertext), fromBase64(nonce), toBytes(JSON.stringify(wrappedKeys))
+      );
+      const signature = sign(privateKey, signatureData);
+
+      const tampered = Buffer.from('tampered-data').toString('base64');
+      expect(
+        verifyDmMessageSignature(
+          toBase64(publicKey), tampered, nonce, wrappedKeys, toBase64(signature)
+        )
+      ).toBe(false);
+    });
+
+    test('returns false for tampered nonce', async () => {
+      const { generateSigningKeyPair, sign, toBase64, concatBytes, toBytes, fromBase64 } = await import('@adieuu/crypto');
+      const { publicKey, privateKey } = generateSigningKeyPair();
+      const ciphertext = Buffer.from('encrypted-data').toString('base64');
+      const nonce = Buffer.from('nonce-data').toString('base64');
+      const wrappedKeys = [{ identityId: 'id-1', key: 'wrapped' }];
+
+      const signatureData = concatBytes(
+        fromBase64(ciphertext), fromBase64(nonce), toBytes(JSON.stringify(wrappedKeys))
+      );
+      const signature = sign(privateKey, signatureData);
+
+      const tamperedNonce = Buffer.from('wrong-nonce').toString('base64');
+      expect(
+        verifyDmMessageSignature(
+          toBase64(publicKey), ciphertext, tamperedNonce, wrappedKeys, toBase64(signature)
+        )
+      ).toBe(false);
+    });
+
+    test('returns false for an invalid public key', async () => {
+      const { generateSigningKeyPair, sign, toBase64, concatBytes, toBytes, fromBase64 } = await import('@adieuu/crypto');
+      const { publicKey, privateKey } = generateSigningKeyPair();
+      const ciphertext = Buffer.from('encrypted-data').toString('base64');
+      const nonce = Buffer.from('nonce-data').toString('base64');
+      const wrappedKeys = [{ identityId: 'id-1', key: 'wrapped' }];
+
+      const signatureData = concatBytes(
+        fromBase64(ciphertext), fromBase64(nonce), toBytes(JSON.stringify(wrappedKeys))
+      );
+      const signature = sign(privateKey, signatureData);
+
+      const { publicKey: wrongPub } = generateSigningKeyPair();
+      expect(
+        verifyDmMessageSignature(
+          toBase64(wrongPub), ciphertext, nonce, wrappedKeys, toBase64(signature)
+        )
+      ).toBe(false);
+    });
+
+    test('returns false (not throw) on malformed input', () => {
+      expect(
+        verifyDmMessageSignature('not-base64!', 'x', 'y', [], 'z')
+      ).toBe(false);
     });
   });
 });

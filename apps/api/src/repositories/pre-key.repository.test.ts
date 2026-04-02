@@ -422,5 +422,184 @@ describe('PreKeyRepository', () => {
     const expiry = filterArg?.expiresAt.$gt;
     expect(expiry!.getTime()).toBeGreaterThanOrEqual(before.getTime());
   });
+
+  // ---- storeOneTimePreKeys ----
+
+  test('storeOneTimePreKeys calls insertMany with timestamped docs', async () => {
+    mockCollection.insertMany.mockResolvedValue({ insertedCount: 2 });
+
+    await repo.storeOneTimePreKeys([
+      { identityId, deviceId, keyId: 'otpk-1', ecdhPublicKey: 'ecdh-1', kemPublicKey: 'kem-1' },
+      { identityId, deviceId, keyId: 'otpk-2', ecdhPublicKey: 'ecdh-2', kemPublicKey: 'kem-2' },
+    ]);
+
+    expect(mockCollection.insertMany).toHaveBeenCalledTimes(1);
+    const insertedDocs = mockCollection.insertMany.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(insertedDocs?.length).toBe(2);
+    expect(insertedDocs?.[0]?.keyType).toBe('one-time');
+    expect(insertedDocs?.[0]?.consumed).toBe(false);
+    expect(insertedDocs?.[0]?.createdAt).toBeInstanceOf(Date);
+    expect(insertedDocs?.[0]?.updatedAt).toBeInstanceOf(Date);
+  });
+
+  test('storeOneTimePreKeys returns inserted count', async () => {
+    mockCollection.insertMany.mockResolvedValue({ insertedCount: 3 });
+
+    const count = await repo.storeOneTimePreKeys([
+      { identityId, deviceId, keyId: 'otpk-1', ecdhPublicKey: 'ecdh', kemPublicKey: 'kem' },
+      { identityId, deviceId, keyId: 'otpk-2', ecdhPublicKey: 'ecdh', kemPublicKey: 'kem' },
+      { identityId, deviceId, keyId: 'otpk-3', ecdhPublicKey: 'ecdh', kemPublicKey: 'kem' },
+    ]);
+
+    expect(count).toBe(3);
+  });
+
+  test('storeOneTimePreKeys returns 0 for empty input array', async () => {
+    const count = await repo.storeOneTimePreKeys([]);
+    expect(count).toBe(0);
+    expect(mockCollection.insertMany).not.toHaveBeenCalled();
+  });
+
+  test('storeOneTimePreKeys adds consumed: false to each doc', async () => {
+    mockCollection.insertMany.mockResolvedValue({ insertedCount: 1 });
+
+    await repo.storeOneTimePreKeys([
+      { identityId, deviceId, keyId: 'otpk-1', ecdhPublicKey: 'ecdh', kemPublicKey: 'kem' },
+    ]);
+
+    const docs = mockCollection.insertMany.mock.calls[0]?.[0] as Array<Record<string, unknown>>;
+    expect(docs?.[0]?.consumed).toBe(false);
+    expect(docs?.[0]?.keyId).toBe('otpk-1');
+  });
+
+  // ---- getActiveSignedPreKey ----
+
+  test('getActiveSignedPreKey returns signed key with expiresAt > now', async () => {
+    const spkDoc = {
+      _id: new ObjectId(),
+      identityId,
+      deviceId,
+      keyType: 'signed',
+      keyId: 'spk-active',
+      ecdhPublicKey: 'ecdh',
+      kemPublicKey: 'kem',
+      signature: 'sig',
+      consumed: false,
+      expiresAt: new Date(Date.now() + 60_000),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    mockCollection.findOne.mockResolvedValue(spkDoc);
+
+    const result = await repo.getActiveSignedPreKey(identityId, deviceId);
+    expect(result?.keyId).toBe('spk-active');
+  });
+
+  test('getActiveSignedPreKey returns null when no active signed key exists', async () => {
+    mockCollection.findOne.mockResolvedValue(null);
+    const result = await repo.getActiveSignedPreKey(identityId, deviceId);
+    expect(result).toBeNull();
+  });
+
+  test('getActiveSignedPreKey filters by identityId, deviceId, and keyType signed', async () => {
+    mockCollection.findOne.mockResolvedValue(null);
+
+    await repo.getActiveSignedPreKey(identityId, deviceId);
+
+    expect(mockCollection.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identityId,
+        deviceId,
+        keyType: 'signed',
+      })
+    );
+  });
+
+  // ---- countUnconsumedOneTimePreKeys ----
+
+  test('countUnconsumedOneTimePreKeys returns count from countDocuments', async () => {
+    mockCollection.countDocuments.mockResolvedValue(42);
+    const count = await repo.countUnconsumedOneTimePreKeys(identityId, deviceId);
+    expect(count).toBe(42);
+  });
+
+  test('countUnconsumedOneTimePreKeys filters with consumed: false', async () => {
+    mockCollection.countDocuments.mockResolvedValue(0);
+
+    await repo.countUnconsumedOneTimePreKeys(identityId, deviceId);
+
+    expect(mockCollection.countDocuments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identityId,
+        deviceId,
+        keyType: 'one-time',
+        consumed: false,
+      })
+    );
+  });
+
+  // ---- purgeUnconsumedOneTimePreKeys ----
+
+  test('purgeUnconsumedOneTimePreKeys calls deleteMany with correct filter', async () => {
+    mockCollection.deleteMany.mockResolvedValue({ deletedCount: 10 });
+    const result = await repo.purgeUnconsumedOneTimePreKeys(identityId, deviceId);
+
+    expect(result).toBe(10);
+    expect(mockCollection.deleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identityId,
+        deviceId,
+        keyType: 'one-time',
+        consumed: false,
+      })
+    );
+  });
+
+  test('purgeUnconsumedOneTimePreKeys returns deletedCount', async () => {
+    mockCollection.deleteMany.mockResolvedValue({ deletedCount: 0 });
+    const result = await repo.purgeUnconsumedOneTimePreKeys(identityId, deviceId);
+    expect(result).toBe(0);
+  });
+
+  // ---- deletePreKeysForDevice ----
+
+  test('deletePreKeysForDevice deletes all key types for the device', async () => {
+    mockCollection.deleteMany.mockResolvedValue({ deletedCount: 5 });
+
+    const result = await repo.deletePreKeysForDevice(identityId, deviceId);
+
+    expect(result).toBe(5);
+    expect(mockCollection.deleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        identityId,
+        deviceId,
+      })
+    );
+  });
+
+  test('deletePreKeysForDevice returns deletedCount', async () => {
+    mockCollection.deleteMany.mockResolvedValue({ deletedCount: 0 });
+    const result = await repo.deletePreKeysForDevice(identityId, deviceId);
+    expect(result).toBe(0);
+  });
+
+  // ---- deleteAllPreKeysForIdentity ----
+
+  test('deleteAllPreKeysForIdentity deletes all keys across all devices', async () => {
+    mockCollection.deleteMany.mockResolvedValue({ deletedCount: 15 });
+
+    const result = await repo.deleteAllPreKeysForIdentity(identityId);
+
+    expect(result).toBe(15);
+    expect(mockCollection.deleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({ identityId })
+    );
+  });
+
+  test('deleteAllPreKeysForIdentity returns deletedCount', async () => {
+    mockCollection.deleteMany.mockResolvedValue({ deletedCount: 0 });
+    const result = await repo.deleteAllPreKeysForIdentity(identityId);
+    expect(result).toBe(0);
+  });
 });
 
