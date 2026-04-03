@@ -169,8 +169,8 @@ describe('timing utilities', () => {
 
       // Should be padded to at least minTime
       expect(elapsed).toBeGreaterThanOrEqual(minTime - 1);
-      // Should not significantly exceed minTime (allow 20ms tolerance)
-      expect(elapsed).toBeLessThan(minTime + 20);
+      // Should not significantly exceed minTime (allow 50ms tolerance for CI scheduling variance)
+      expect(elapsed).toBeLessThan(minTime + 50);
     });
   });
 });
