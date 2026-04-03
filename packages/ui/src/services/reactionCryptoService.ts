@@ -217,63 +217,68 @@ export function decryptReaction(
     otpkEcdhPrivate?: Uint8Array;
     otpkKemPrivate?: Uint8Array;
   },
-  resolvedWrappedKey?: SerializedWrappedKey
-): DecryptedReaction {
+  resolvedWrappedKey?: SerializedWrappedKey,
+  cachedSessionKey?: Uint8Array
+): DecryptedReaction & { sessionKey: Uint8Array } {
   const ciphertext = fromBase64(reaction.ciphertext);
   const nonce = fromBase64(reaction.nonce);
   const profile = reaction.cryptoProfile as CryptoProfile;
 
-  const myWrappedKey = resolvedWrappedKey ?? reaction.wrappedKeys.find(
-    (wk: SerializedWrappedKey) => wk.identityId === myIdentityId
-  );
-
-  if (!myWrappedKey) {
-    throw new Error('No wrapped key found for this identity');
-  }
-
   let sessionKey: Uint8Array;
 
-  if (myWrappedKey.preKeyType === 'spk' || myWrappedKey.preKeyType === 'otpk') {
-    if (
-      !preKeyPrivateKeys?.spkEcdhPrivate ||
-      !preKeyPrivateKeys?.spkKemPrivate
-    ) {
-      throw new Error('Pre-key private keys required to decrypt this reaction');
+  if (cachedSessionKey) {
+    sessionKey = cachedSessionKey;
+  } else {
+    const myWrappedKey = resolvedWrappedKey ?? reaction.wrappedKeys.find(
+      (wk: SerializedWrappedKey) => wk.identityId === myIdentityId
+    );
+
+    if (!myWrappedKey) {
+      throw new Error('No wrapped key found for this identity');
     }
 
-    const wrapped: PreKeyWrappedKey = {
-      ephemeralPublicKey: fromBase64(myWrappedKey.ephemeralPublicKey),
-      spkKemCiphertext: fromBase64(myWrappedKey.spkKemCiphertext || myWrappedKey.kemCiphertext),
-      otpkKemCiphertext: myWrappedKey.otpkKemCiphertext
-        ? fromBase64(myWrappedKey.otpkKemCiphertext)
-        : undefined,
-      wrappedSessionKey: fromBase64(myWrappedKey.wrappedSessionKey),
-      wrappingNonce: fromBase64(myWrappedKey.wrappingNonce),
-    };
+    if (myWrappedKey.preKeyType === 'spk' || myWrappedKey.preKeyType === 'otpk') {
+      if (
+        !preKeyPrivateKeys?.spkEcdhPrivate ||
+        !preKeyPrivateKeys?.spkKemPrivate
+      ) {
+        throw new Error('Pre-key private keys required to decrypt this reaction');
+      }
 
-    sessionKey = unwrapSessionKeyWithPreKeys(
-      wrapped,
-      preKeyPrivateKeys.spkEcdhPrivate,
-      preKeyPrivateKeys.spkKemPrivate,
-      preKeyPrivateKeys.otpkEcdhPrivate,
-      preKeyPrivateKeys.otpkKemPrivate,
-      profile
-    );
-  } else {
-    const wrappedKeyObj: WrappedKey = {
-      identityId: myWrappedKey.identityId,
-      ephemeralPublicKey: fromBase64(myWrappedKey.ephemeralPublicKey),
-      kemCiphertext: fromBase64(myWrappedKey.kemCiphertext),
-      wrappedSessionKey: fromBase64(myWrappedKey.wrappedSessionKey),
-      wrappingNonce: fromBase64(myWrappedKey.wrappingNonce),
-    };
+      const wrapped: PreKeyWrappedKey = {
+        ephemeralPublicKey: fromBase64(myWrappedKey.ephemeralPublicKey),
+        spkKemCiphertext: fromBase64(myWrappedKey.spkKemCiphertext || myWrappedKey.kemCiphertext),
+        otpkKemCiphertext: myWrappedKey.otpkKemCiphertext
+          ? fromBase64(myWrappedKey.otpkKemCiphertext)
+          : undefined,
+        wrappedSessionKey: fromBase64(myWrappedKey.wrappedSessionKey),
+        wrappingNonce: fromBase64(myWrappedKey.wrappingNonce),
+      };
 
-    sessionKey = unwrapSessionKey(
-      wrappedKeyObj,
-      ecdhPrivateKey,
-      kemPrivateKey,
-      profile
-    );
+      sessionKey = unwrapSessionKeyWithPreKeys(
+        wrapped,
+        preKeyPrivateKeys.spkEcdhPrivate,
+        preKeyPrivateKeys.spkKemPrivate,
+        preKeyPrivateKeys.otpkEcdhPrivate,
+        preKeyPrivateKeys.otpkKemPrivate,
+        profile
+      );
+    } else {
+      const wrappedKeyObj: WrappedKey = {
+        identityId: myWrappedKey.identityId,
+        ephemeralPublicKey: fromBase64(myWrappedKey.ephemeralPublicKey),
+        kemCiphertext: fromBase64(myWrappedKey.kemCiphertext),
+        wrappedSessionKey: fromBase64(myWrappedKey.wrappedSessionKey),
+        wrappingNonce: fromBase64(myWrappedKey.wrappingNonce),
+      };
+
+      sessionKey = unwrapSessionKey(
+        wrappedKeyObj,
+        ecdhPrivateKey,
+        kemPrivateKey,
+        profile
+      );
+    }
   }
 
   const plaintext = decrypt(sessionKey, ciphertext, nonce, profile);
@@ -306,5 +311,6 @@ export function decryptReaction(
     emoji: content.emoji,
     verified,
     createdAt: reaction.createdAt,
+    sessionKey,
   };
 }

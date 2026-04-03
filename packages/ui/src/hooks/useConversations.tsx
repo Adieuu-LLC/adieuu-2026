@@ -176,6 +176,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const [participantProfiles, setParticipantProfiles] = useState<Record<string, PublicIdentity>>({});
   const signingKeyCache = useRef<Record<string, string>>({});
   const resolvedProfileIds = useRef<Set<string>>(new Set());
+  const messagesStateRef = useRef(messagesState);
+  const sessionKeyCache = useRef(new Map<string, Uint8Array>());
+  useEffect(() => { messagesStateRef.current = messagesState; }, [messagesState]);
 
   // -------------------------------------------------------------------------
   // Participant identity resolution
@@ -413,14 +416,60 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           const otpkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
           const deletedOtpkIds = new Set<string>();
 
+          // Layer 1: Build a lookup of already-decrypted messages so we can
+          // skip redundant decryption (and OTPK re-lookup) on no-cursor refetches.
+          const existingById = new Map<string, DisplayMessage>();
+          if (!cursor) {
+            for (const em of messagesStateRef.current[conversationId]?.messages ?? []) {
+              if (em.decryptedContent !== undefined) {
+                existingById.set(em.id, em);
+              }
+            }
+          }
+
           const newMessages: DisplayMessage[] = await Promise.all(
             resp.data.messages.map(async (m): Promise<DisplayMessage> => {
               if (m.deleted) {
+                sessionKeyCache.current.delete(m.id);
                 return { ...m, decryptedContent: undefined, signatureVerified: undefined };
               }
 
               if (m.messageType === 'system') {
                 return { ...m, decryptedContent: undefined, signatureVerified: undefined };
+              }
+
+              // Layer 1: Preserve already-decrypted messages on refetch
+              const preserved = existingById.get(m.id);
+              if (preserved) {
+                return preserved;
+              }
+
+              // Layer 2: Try the in-memory session-key cache before key unwrapping
+              const cached = sessionKeyCache.current.get(m.id);
+              if (cached && ecdhPrivateKey && kemPrivateKey) {
+                const senderSigningKey = signingKeyCache.current[m.fromIdentityId];
+                if (senderSigningKey) {
+                  try {
+                    const result = decryptMessage(
+                      m,
+                      identity.id,
+                      ecdhPrivateKey,
+                      kemPrivateKey,
+                      senderSigningKey,
+                      undefined,
+                      undefined,
+                      cached
+                    );
+                    return {
+                      ...m,
+                      decryptedContent: result.plaintext,
+                      signatureVerified: result.verified,
+                      forwardSecrecy: true,
+                    };
+                  } catch {
+                    sessionKeyCache.current.delete(m.id);
+                  }
+                }
               }
 
               if (!ecdhPrivateKey || !kemPrivateKey) {
@@ -437,7 +486,6 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               }
 
               // ---- Three-tier wrapped key routing ----
-              // All candidate wrapped keys for this identity
               const candidates = m.wrappedKeys.filter(
                 (wk: SerializedWrappedKey) => wk.identityId === identity.id
               );
@@ -445,10 +493,6 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 return { ...m, decryptionError: `No wrapped key for identity ${identity.id.slice(0, 8)}...` };
               }
 
-              // Resolve the correct wrapped key for THIS device:
-              //   1. FS messages: match by signedPreKeyId (SPK exists locally)
-              //   2. Static messages with routingTag: match by tag
-              //   3. Fallback: try each candidate via trial decryption
               let resolvedWrappedKey: SerializedWrappedKey | undefined;
               let preKeyPrivateKeys: {
                 spkEcdhPrivate?: Uint8Array;
@@ -548,6 +592,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                       undefined,
                       candidate
                     );
+                    sessionKeyCache.current.set(m.id, result.sessionKey);
                     return {
                       ...m,
                       decryptedContent: result.plaintext,
@@ -559,12 +604,11 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                   }
                 }
 
-                // No candidate worked — build an accurate error message
                 let decryptionError: string;
                 if (fsCandidates.length > 0) {
                   const spkIds = fsCandidates.map((c) => c.signedPreKeyId?.slice(0, 8)).join(', ');
                   if (fsOtpkMissing && !fsSpkMissing) {
-                    decryptionError = `OTPK not found locally (SPK ${spkIds} present)`;
+                    decryptionError = `forward-secrecy-expired:OTPK not found locally (SPK ${spkIds} present)`;
                   } else if (fsSpkMissing && !fsOtpkMissing) {
                     decryptionError = `SPK ${spkIds} not found locally`;
                   } else if (fsSpkMissing && fsOtpkMissing) {
@@ -591,6 +635,10 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                   resolvedWrappedKey
                 );
 
+                // Layer 2: Cache the session key before deleting the OTPK
+                sessionKeyCache.current.set(m.id, result.sessionKey);
+
+                // Layer 3: Only delete the OTPK after the session key is cached
                 if (
                   resolvedWrappedKey.preKeyType === 'otpk' &&
                   resolvedWrappedKey.oneTimePreKeyId &&

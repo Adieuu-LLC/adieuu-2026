@@ -85,11 +85,11 @@ describe('desktop app CSP', () => {
       expect(connectSrc.some((v) => v.includes('s3.us-east-1.amazonaws.com'))).toBe(true);
     });
 
-    it('includes localhost dev origins', () => {
+    it('does not include localhost dev origins in the static HTML (injected at dev time by Vite plugin)', () => {
       const directives = parseDirectives(csp);
       const connectSrc = directives.get('connect-src') ?? [];
-      expect(connectSrc).toContain('http://localhost:4000');
-      expect(connectSrc).toContain('ws://localhost:9001');
+      expect(connectSrc).not.toContain('http://localhost:4000');
+      expect(connectSrc).not.toContain('ws://localhost:9001');
     });
   });
 

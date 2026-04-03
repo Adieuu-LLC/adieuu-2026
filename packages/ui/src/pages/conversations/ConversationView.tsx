@@ -427,6 +427,13 @@ const MessageBubble = memo(function MessageBubble({
 
   const content = message.decryptedContent ?? '';
   const hasDecryptionError = !message.decryptedContent && !message.deleted;
+  const isFsExpired = hasDecryptionError && message.decryptionError?.startsWith('forward-secrecy-expired:');
+  const decryptionDisplayText = isFsExpired
+    ? t('conversations.fsExpired', 'This message used a one-time key that has since been consumed. It cannot be decrypted again.')
+    : (message.decryptionError ?? t('conversations.decryptFailed', 'Unable to decrypt'));
+  const decryptionLabel = isFsExpired
+    ? t('conversations.fsExpiredLabel', 'Forward secrecy key expired')
+    : `Encrypted${message.decryptionError ? `: ${message.decryptionError}` : ''}`;
 
   function handleContextAction(details: { value: string }) {
     if (details.value === 'delete-for-me') onDelete(message.id, false);
@@ -514,9 +521,9 @@ const MessageBubble = memo(function MessageBubble({
         Message deleted
       </p>
     ) : hasDecryptionError ? (
-      <Tooltip content={message.decryptionError ?? 'Unable to decrypt'} position="bottom">
+      <Tooltip content={decryptionDisplayText} position="bottom">
         <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}>
-          [Encrypted{message.decryptionError ? `: ${message.decryptionError}` : ''}]
+          [{decryptionLabel}]
         </p>
       </Tooltip>
     ) : (
@@ -649,9 +656,9 @@ const MessageBubble = memo(function MessageBubble({
         )}
         <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
           {hasDecryptionError ? (
-            <Tooltip content={message.decryptionError ?? 'Unable to decrypt'} position="bottom">
+            <Tooltip content={decryptionDisplayText} position="bottom">
               <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}>
-                [Encrypted{message.decryptionError ? `: ${message.decryptionError}` : ''}]
+                [{decryptionLabel}]
               </p>
             </Tooltip>
           ) : (

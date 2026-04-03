@@ -78,6 +78,7 @@ export interface EncryptedMessage {
 export interface DecryptedMessage {
   plaintext: string;
   verified: boolean;
+  sessionKey: Uint8Array;
 }
 
 export interface EncryptedGroupName {
@@ -238,7 +239,8 @@ export function decryptMessage(
     otpkEcdhPrivate?: Uint8Array;
     otpkKemPrivate?: Uint8Array;
   },
-  resolvedWrappedKey?: SerializedWrappedKey
+  resolvedWrappedKey?: SerializedWrappedKey,
+  cachedSessionKey?: Uint8Array
 ): DecryptedMessage {
   if (message.deleted || !message.ciphertext || !message.nonce || !message.wrappedKeys) {
     throw new Error('Cannot decrypt a deleted message');
@@ -248,64 +250,66 @@ export function decryptMessage(
   const nonce = fromBase64(message.nonce);
   const profile = message.cryptoProfile as CryptoProfile;
 
-  const myWrappedKey = resolvedWrappedKey ?? message.wrappedKeys!.find(
-    (wk: SerializedWrappedKey) => wk.identityId === myIdentityId
-  );
-
-  if (!myWrappedKey) {
-    throw new Error('No wrapped key found for this identity');
-  }
-
   let sessionKey: Uint8Array;
 
-  if (myWrappedKey.preKeyType === 'spk' || myWrappedKey.preKeyType === 'otpk') {
-    if (
-      !preKeyPrivateKeys?.spkEcdhPrivate ||
-      !preKeyPrivateKeys?.spkKemPrivate
-    ) {
-      throw new Error('Pre-key private keys required to decrypt this message');
+  if (cachedSessionKey) {
+    sessionKey = cachedSessionKey;
+  } else {
+    const myWrappedKey = resolvedWrappedKey ?? message.wrappedKeys!.find(
+      (wk: SerializedWrappedKey) => wk.identityId === myIdentityId
+    );
+
+    if (!myWrappedKey) {
+      throw new Error('No wrapped key found for this identity');
     }
 
-    const wrapped: PreKeyWrappedKey = {
-      ephemeralPublicKey: fromBase64(myWrappedKey.ephemeralPublicKey),
-      spkKemCiphertext: fromBase64(myWrappedKey.spkKemCiphertext || myWrappedKey.kemCiphertext),
-      otpkKemCiphertext: myWrappedKey.otpkKemCiphertext
-        ? fromBase64(myWrappedKey.otpkKemCiphertext)
-        : undefined,
-      wrappedSessionKey: fromBase64(myWrappedKey.wrappedSessionKey),
-      wrappingNonce: fromBase64(myWrappedKey.wrappingNonce),
-    };
+    if (myWrappedKey.preKeyType === 'spk' || myWrappedKey.preKeyType === 'otpk') {
+      if (
+        !preKeyPrivateKeys?.spkEcdhPrivate ||
+        !preKeyPrivateKeys?.spkKemPrivate
+      ) {
+        throw new Error('Pre-key private keys required to decrypt this message');
+      }
 
-    sessionKey = unwrapSessionKeyWithPreKeys(
-      wrapped,
-      preKeyPrivateKeys.spkEcdhPrivate,
-      preKeyPrivateKeys.spkKemPrivate,
-      preKeyPrivateKeys.otpkEcdhPrivate,
-      preKeyPrivateKeys.otpkKemPrivate,
-      profile
-    );
-  } else {
-    const wrappedKeyObj: WrappedKey = {
-      identityId: myWrappedKey.identityId,
-      ephemeralPublicKey: fromBase64(myWrappedKey.ephemeralPublicKey),
-      kemCiphertext: fromBase64(myWrappedKey.kemCiphertext),
-      wrappedSessionKey: fromBase64(myWrappedKey.wrappedSessionKey),
-      wrappingNonce: fromBase64(myWrappedKey.wrappingNonce),
-    };
+      const wrapped: PreKeyWrappedKey = {
+        ephemeralPublicKey: fromBase64(myWrappedKey.ephemeralPublicKey),
+        spkKemCiphertext: fromBase64(myWrappedKey.spkKemCiphertext || myWrappedKey.kemCiphertext),
+        otpkKemCiphertext: myWrappedKey.otpkKemCiphertext
+          ? fromBase64(myWrappedKey.otpkKemCiphertext)
+          : undefined,
+        wrappedSessionKey: fromBase64(myWrappedKey.wrappedSessionKey),
+        wrappingNonce: fromBase64(myWrappedKey.wrappingNonce),
+      };
 
-    sessionKey = unwrapSessionKey(
-      wrappedKeyObj,
-      ecdhPrivateKey,
-      kemPrivateKey,
-      profile
-    );
+      sessionKey = unwrapSessionKeyWithPreKeys(
+        wrapped,
+        preKeyPrivateKeys.spkEcdhPrivate,
+        preKeyPrivateKeys.spkKemPrivate,
+        preKeyPrivateKeys.otpkEcdhPrivate,
+        preKeyPrivateKeys.otpkKemPrivate,
+        profile
+      );
+    } else {
+      const wrappedKeyObj: WrappedKey = {
+        identityId: myWrappedKey.identityId,
+        ephemeralPublicKey: fromBase64(myWrappedKey.ephemeralPublicKey),
+        kemCiphertext: fromBase64(myWrappedKey.kemCiphertext),
+        wrappedSessionKey: fromBase64(myWrappedKey.wrappedSessionKey),
+        wrappingNonce: fromBase64(myWrappedKey.wrappingNonce),
+      };
+
+      sessionKey = unwrapSessionKey(
+        wrappedKeyObj,
+        ecdhPrivateKey,
+        kemPrivateKey,
+        profile
+      );
+    }
   }
 
-  // Decrypt the message content
   const plaintext = decrypt(sessionKey, ciphertext, nonce, profile);
   const plaintextStr = new TextDecoder().decode(plaintext);
 
-  // Verify signature
   const sigPub = fromBase64(senderSigningPublicKey);
   const dataToVerify = concatBytes(
     toBytes(MESSAGE_SIGN_DOMAIN),
@@ -321,7 +325,7 @@ export function decryptMessage(
     verified = false;
   }
 
-  return { plaintext: plaintextStr, verified };
+  return { plaintext: plaintextStr, verified, sessionKey };
 }
 
 // ============================================================================

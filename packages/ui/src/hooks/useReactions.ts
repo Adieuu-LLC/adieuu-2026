@@ -77,6 +77,7 @@ export function useReactions(conversationId: string | null) {
   identityRef.current = identity;
   const conversationIdRef = useRef(conversationId);
   conversationIdRef.current = conversationId;
+  const reactionSessionKeyCache = useRef(new Map<string, Uint8Array>());
 
   // ---- Crypto helpers ----
 
@@ -145,6 +146,27 @@ export function useReactions(conversationId: string | null) {
         try {
           const signingKey = signingKeys[reaction.fromIdentityId];
           if (!signingKey) continue;
+
+          // Layer 2: Try the in-memory session-key cache first
+          const cachedKey = reactionSessionKeyCache.current.get(reaction.id);
+          if (cachedKey) {
+            try {
+              const result = decryptReaction(
+                reaction,
+                identity.id,
+                keys.ecdhPrivateKey,
+                keys.kemPrivateKey,
+                signingKey,
+                undefined,
+                undefined,
+                cachedKey
+              );
+              results.push(result);
+              continue;
+            } catch {
+              reactionSessionKeyCache.current.delete(reaction.id);
+            }
+          }
 
           const candidates = reaction.wrappedKeys.filter(
             (wk) => wk.identityId === identity.id
@@ -250,6 +272,7 @@ export function useReactions(conversationId: string | null) {
                   undefined,
                   candidate
                 );
+                reactionSessionKeyCache.current.set(reaction.id, result.sessionKey);
                 results.push(result);
                 resolvedWrappedKey = candidate;
                 break;
@@ -279,6 +302,8 @@ export function useReactions(conversationId: string | null) {
             preKeyPrivateKeys,
             resolvedWrappedKey
           );
+
+          reactionSessionKeyCache.current.set(reaction.id, decrypted.sessionKey);
 
           if (
             resolvedWrappedKey.preKeyType === 'otpk' &&
@@ -577,7 +602,7 @@ export function useReactions(conversationId: string | null) {
             }
 
             // Tier 3: Fallback — trial decryption of remaining static candidates
-            let decrypted: DecryptedReaction | undefined;
+            let decrypted: (DecryptedReaction & { sessionKey: Uint8Array }) | undefined;
             if (!resolvedWrappedKey) {
               for (const candidate of candidates) {
                 if (candidate.preKeyType !== 'static') continue;
@@ -615,6 +640,8 @@ export function useReactions(conversationId: string | null) {
                 resolvedWrappedKey
               );
             }
+
+            reactionSessionKeyCache.current.set(reaction.id, decrypted.sessionKey);
 
             if (
               resolvedWrappedKey &&
@@ -678,6 +705,7 @@ export function useReactions(conversationId: string | null) {
 
   useEffect(() => {
     setState({ byMessage: {}, loading: false });
+    reactionSessionKeyCache.current.clear();
   }, [conversationId]);
 
   return {

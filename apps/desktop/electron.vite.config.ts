@@ -37,7 +37,22 @@ export default defineConfig({
         input: path.resolve(__dirname, 'src/renderer/index.html'),
       },
     },
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        name: 'desktop-csp',
+        transformIndexHtml(html, ctx) {
+          if (ctx.server) {
+            // Dev: add localhost origins for API and WebSocket
+            return html.replace(
+              /connect-src 'self'/,
+              "connect-src 'self' http://localhost:4000 ws://localhost:9001",
+            );
+          }
+          return html;
+        },
+      },
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src/renderer'),

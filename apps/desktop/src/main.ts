@@ -492,9 +492,17 @@ async function createWindow() {
     mainWindow?.show();
   });
 
-  // Open external links in browser
+  // Open external links in browser — restrict to HTTPS to prevent abuse
+  // of dangerous OS protocol handlers (file://, smb://, ms-msdt://, etc.)
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === 'https:') {
+        shell.openExternal(url);
+      }
+    } catch {
+      // Malformed URL — silently ignore
+    }
     return { action: 'deny' };
   });
 
@@ -609,13 +617,18 @@ app.on('web-contents-created', (_, contents) => {
       return;
     }
 
-    const allowedHostnames = isDev
+    const ALLOWED_NAVIGATION_HOSTS: readonly string[] = isDev
       ? ['localhost', '127.0.0.1']
-      : ['localhost', '127.0.0.1', 'adieuu.com'];
+      : [
+          'localhost',
+          '127.0.0.1',
+          'adieuu.com',
+          'api.adieuu.com',
+          'media.adieuu.com',
+          'downloads.adieuu.com',
+        ];
 
-    const allowed = allowedHostnames.some(
-      (h) => parsedUrl.hostname === h || parsedUrl.hostname.endsWith(`.${h}`),
-    );
+    const allowed = ALLOWED_NAVIGATION_HOSTS.includes(parsedUrl.hostname);
 
     if (!allowed) {
       event.preventDefault();
@@ -893,11 +906,11 @@ async function initAutoUpdater() {
   // (which includes OS, architecture, and Electron version).
   autoUpdater.requestHeaders = { 'User-Agent': 'Adieuu-Desktop-Updater' };
 
-  // Allow overriding the update server URL for local testing. When set,
-  // electron-updater fetches manifests and binaries from this URL instead
-  // of the production downloads.adieuu.com endpoint.
+  // Allow overriding the update server URL for local testing only.
+  // Gated to dev builds to prevent production binaries from being
+  // redirected to an attacker-controlled update server via env vars.
   // Usage: ADIEUU_UPDATE_SERVER_URL=http://localhost:8089 pnpm --filter @adieuu/desktop dev
-  if (process.env.ADIEUU_UPDATE_SERVER_URL) {
+  if (isDev && process.env.ADIEUU_UPDATE_SERVER_URL) {
     autoUpdater.setFeedURL({
       provider: 'generic',
       url: process.env.ADIEUU_UPDATE_SERVER_URL,

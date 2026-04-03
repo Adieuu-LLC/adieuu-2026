@@ -82,7 +82,7 @@ contextBridge.exposeInMainWorld('electron', {
   // IPC communication (add as needed)
   invoke: (channel: string, ...args: unknown[]) => {
     const allowedChannels = [
-      'get-app-version', 'open-external', 'install-update', 'download-update',
+      'install-update', 'download-update',
       'get-pending-deep-link', 'get-update-preferences', 'set-update-preferences',
       'check-for-updates',
     ];
