@@ -572,7 +572,7 @@ const MessageBubble = memo(function MessageBubble({
                 <span
                   className={`dm-message-fs-indicator${message.forwardSecrecy ? ' dm-message-fs-indicator--active' : ''}`}
                 >
-                  {message.forwardSecrecy ? `FS ${fsInfo.readableWindow}` : 'No FS'}
+                  {message.forwardSecrecy && `FS ${fsInfo.readableWindow}`}
                 </span>
               </Tooltip>
             )}
@@ -684,7 +684,7 @@ const MessageBubble = memo(function MessageBubble({
             <span
               className={`dm-message-fs-indicator${message.forwardSecrecy ? ' dm-message-fs-indicator--active' : ''}`}
             >
-              {message.forwardSecrecy ? `FS ${fsInfo.readableWindow}` : 'No FS'}
+              {message.forwardSecrecy && `FS ${fsInfo.readableWindow}`}
             </span>
           </Tooltip>
         )}

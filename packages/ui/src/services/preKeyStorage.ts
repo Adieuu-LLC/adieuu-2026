@@ -955,3 +955,280 @@ export async function clearAllPreKeys(): Promise<void> {
     };
   });
 }
+
+// ============================================================================
+// Session Key Cache (persistent, encrypted at rest)
+//
+// Stores decrypted session keys for FS-encrypted messages so they survive
+// page refreshes and component remounts. Without this, OTPK-encrypted
+// messages become permanently unreadable after the OTPK is deleted
+// post-decrypt, because the volatile in-memory cache is the only copy.
+//
+// Session keys are encrypted with the same wrapping key used for pre-keys.
+// They can be evicted on SPK rotation when clearCacheOnRotation is enabled.
+// ============================================================================
+
+const SK_DB_NAME = 'adieuu-session-keys';
+const SK_DB_VERSION = 1;
+const SK_STORE = 'sessionKeys';
+const SK_KEY_PREFIX = 'skeys-';
+
+interface StoredSessionKey {
+  messageId: string;
+  identityId: string;
+  encryptedKey: { ciphertext: string; nonce: string };
+  signedPreKeyId?: string;
+  createdAt: string;
+}
+
+interface SessionKeyBlob {
+  sessionKeys: StoredSessionKey[];
+}
+
+function openSessionKeyDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') {
+      reject(new PreKeyStorageError('IndexedDB is not available', 'INDEXEDDB_UNAVAILABLE'));
+      return;
+    }
+
+    const request = indexedDB.open(SK_DB_NAME, SK_DB_VERSION);
+
+    request.onerror = () => {
+      reject(new PreKeyStorageError(
+        `Failed to open session key database: ${request.error?.message ?? 'Unknown error'}`,
+        'DATABASE_OPEN_FAILED'
+      ));
+    };
+
+    request.onsuccess = () => resolve(request.result);
+
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(SK_STORE)) {
+        const store = db.createObjectStore(SK_STORE, { keyPath: 'messageId' });
+        store.createIndex('identityId', 'identityId', { unique: false });
+        store.createIndex('signedPreKeyId', 'signedPreKeyId', { unique: false });
+      }
+    };
+  });
+}
+
+async function sessionKeyStoreId(identityId: string): Promise<string> {
+  const data = new TextEncoder().encode(identityId);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return `${SK_KEY_PREFIX}${toHex(new Uint8Array(hash)).slice(0, 32)}`;
+}
+
+async function getSessionKeyBlob(identityId: string): Promise<SessionKeyBlob> {
+  const backend = getBackend();
+  if (!backend) throw new Error('No storage backend set');
+  const keyId = await sessionKeyStoreId(identityId);
+  const raw = await backend.getKey(keyId);
+  if (!raw) return { sessionKeys: [] };
+  return JSON.parse(new TextDecoder().decode(raw)) as SessionKeyBlob;
+}
+
+async function saveSessionKeyBlob(identityId: string, blob: SessionKeyBlob): Promise<void> {
+  const backend = getBackend();
+  if (!backend) throw new Error('No storage backend set');
+  const keyId = await sessionKeyStoreId(identityId);
+  if (blob.sessionKeys.length === 0) {
+    await backend.deleteKey(keyId);
+    return;
+  }
+  const json = JSON.stringify(blob);
+  await backend.setKey(keyId, new TextEncoder().encode(json));
+}
+
+/**
+ * Persistently stores an encrypted session key for a message.
+ * Called after successful OTPK-based decryption, before the OTPK is deleted.
+ */
+export async function storeSessionKey(
+  messageId: string,
+  identityId: string,
+  sessionKey: Uint8Array,
+  wrappingKey: Uint8Array,
+  signedPreKeyId?: string
+): Promise<void> {
+  const encryptedKey = await encryptWithWrappingKey(sessionKey, wrappingKey);
+
+  const record: StoredSessionKey = {
+    messageId,
+    identityId,
+    encryptedKey,
+    signedPreKeyId,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (getBackend()) {
+    await withBlobLock(identityId, async () => {
+      const blob = await getSessionKeyBlob(identityId);
+      const idx = blob.sessionKeys.findIndex((s) => s.messageId === messageId);
+      if (idx >= 0) {
+        blob.sessionKeys[idx] = record;
+      } else {
+        blob.sessionKeys.push(record);
+      }
+      await saveSessionKeyBlob(identityId, blob);
+    });
+    return;
+  }
+
+  const db = await openSessionKeyDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SK_STORE, 'readwrite');
+    const store = tx.objectStore(SK_STORE);
+    const request = store.put(record);
+    request.onerror = () => reject(new PreKeyStorageError('Failed to store session key', 'STORAGE_FAILED'));
+    request.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
+ * Retrieves and decrypts a persisted session key for a message.
+ * Returns null if no session key is stored for the given message.
+ */
+export async function getPersistedSessionKey(
+  messageId: string,
+  identityId: string,
+  wrappingKey: Uint8Array
+): Promise<Uint8Array | null> {
+  if (isBackendLost()) return null;
+
+  let stored: StoredSessionKey | undefined;
+
+  if (getBackend()) {
+    const blob = await getSessionKeyBlob(identityId);
+    stored = blob.sessionKeys.find((s) => s.messageId === messageId);
+  } else {
+    const db = await openSessionKeyDatabase();
+    stored = await new Promise((resolve, reject) => {
+      const tx = db.transaction(SK_STORE, 'readonly');
+      const store = tx.objectStore(SK_STORE);
+      const request = store.get(messageId);
+      request.onerror = () => reject(new PreKeyStorageError('Failed to get session key', 'RETRIEVAL_FAILED'));
+      request.onsuccess = () => resolve(request.result as StoredSessionKey | undefined);
+      tx.oncomplete = () => db.close();
+    });
+  }
+
+  if (!stored) return null;
+
+  try {
+    return await decryptWithWrappingKey(stored.encryptedKey, wrappingKey);
+  } catch {
+    console.warn('[PreKeyStorage] Failed to decrypt persisted session key for message', messageId.slice(0, 8));
+    return null;
+  }
+}
+
+/**
+ * Removes a persisted session key for a message (e.g. when the message is deleted).
+ */
+export async function deletePersistedSessionKey(
+  messageId: string,
+  identityId: string
+): Promise<void> {
+  if (getBackend()) {
+    await withBlobLock(identityId, async () => {
+      const blob = await getSessionKeyBlob(identityId);
+      blob.sessionKeys = blob.sessionKeys.filter((s) => s.messageId !== messageId);
+      await saveSessionKeyBlob(identityId, blob);
+    });
+    return;
+  }
+
+  const db = await openSessionKeyDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SK_STORE, 'readwrite');
+    const store = tx.objectStore(SK_STORE);
+    const request = store.delete(messageId);
+    request.onerror = () => reject(new PreKeyStorageError('Failed to delete session key', 'DELETE_FAILED'));
+    request.onsuccess = () => resolve();
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
+ * Removes all persisted session keys associated with a given signed pre-key.
+ * Called when clearCacheOnRotation is enabled and an SPK is rotated,
+ * enforcing forward secrecy by evicting session keys from that key period.
+ */
+export async function deleteSessionKeysForSpk(
+  signedPreKeyId: string,
+  identityId: string
+): Promise<number> {
+  if (getBackend()) {
+    return await withBlobLock(identityId, async () => {
+      const blob = await getSessionKeyBlob(identityId);
+      const before = blob.sessionKeys.length;
+      blob.sessionKeys = blob.sessionKeys.filter((s) => s.signedPreKeyId !== signedPreKeyId);
+      const removed = before - blob.sessionKeys.length;
+      if (removed > 0) {
+        await saveSessionKeyBlob(identityId, blob);
+      }
+      return removed;
+    });
+  }
+
+  const db = await openSessionKeyDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SK_STORE, 'readwrite');
+    const store = tx.objectStore(SK_STORE);
+    const index = store.index('signedPreKeyId');
+    const cursorReq = index.openCursor(signedPreKeyId);
+    let count = 0;
+
+    cursorReq.onerror = () =>
+      reject(new PreKeyStorageError('Failed to delete session keys for SPK', 'DELETE_FAILED'));
+    cursorReq.onsuccess = () => {
+      const cursor = cursorReq.result;
+      if (cursor) {
+        cursor.delete();
+        count++;
+        cursor.continue();
+      } else {
+        resolve(count);
+      }
+    };
+
+    tx.oncomplete = () => db.close();
+  });
+}
+
+/**
+ * Removes all persisted session keys for an identity.
+ */
+export async function clearAllSessionKeys(identityId: string): Promise<void> {
+  if (getBackend()) {
+    await withBlobLock(identityId, async () => {
+      await saveSessionKeyBlob(identityId, { sessionKeys: [] });
+    });
+    return;
+  }
+
+  const db = await openSessionKeyDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(SK_STORE, 'readwrite');
+    const store = tx.objectStore(SK_STORE);
+    const index = store.index('identityId');
+    const cursorReq = index.openCursor(identityId);
+
+    cursorReq.onerror = () =>
+      reject(new PreKeyStorageError('Failed to clear session keys', 'CLEAR_FAILED'));
+    cursorReq.onsuccess = () => {
+      const cursor = cursorReq.result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+      } else {
+        resolve();
+      }
+    };
+
+    tx.oncomplete = () => db.close();
+  });
+}

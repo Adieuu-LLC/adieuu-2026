@@ -16,6 +16,11 @@ import {
   retireSignedPreKey,
   storeOneTimePreKeys,
   storeSignedPreKey,
+  storeSessionKey,
+  getPersistedSessionKey,
+  deletePersistedSessionKey,
+  deleteSessionKeysForSpk,
+  clearAllSessionKeys,
 } from './preKeyStorage';
 
 describe('services/preKeyStorage', () => {
@@ -371,6 +376,79 @@ describe('services/preKeyStorage', () => {
   test('clearOneTimePreKeysForDevice returns 0 when device has no OTPKs', async () => {
     const removed = await clearOneTimePreKeysForDevice(identityId, deviceId);
     expect(removed).toBe(0);
+  });
+});
+
+describe('services/preKeyStorage (session key cache)', () => {
+  const identityId = 'identity-sk-test';
+  const wrappingKey = randomBytes(32);
+
+  afterEach(async () => {
+    await clearAllSessionKeys(identityId);
+  });
+
+  test('stores and retrieves a session key', async () => {
+    const messageId = crypto.randomUUID();
+    const sessionKey = randomBytes(32);
+    const sessionKeyCopy = new Uint8Array(sessionKey);
+
+    await storeSessionKey(messageId, identityId, sessionKey, wrappingKey, 'spk-1');
+
+    const retrieved = await getPersistedSessionKey(messageId, identityId, wrappingKey);
+    expect(retrieved).not.toBeNull();
+    expect(new Uint8Array(retrieved!)).toEqual(sessionKeyCopy);
+  });
+
+  test('returns null for non-existent session key', async () => {
+    const result = await getPersistedSessionKey('no-such-message', identityId, wrappingKey);
+    expect(result).toBeNull();
+  });
+
+  test('deletes a session key by message ID', async () => {
+    const messageId = crypto.randomUUID();
+    await storeSessionKey(messageId, identityId, randomBytes(32), wrappingKey);
+
+    await deletePersistedSessionKey(messageId, identityId);
+
+    const result = await getPersistedSessionKey(messageId, identityId, wrappingKey);
+    expect(result).toBeNull();
+  });
+
+  test('deleteSessionKeysForSpk removes only keys for the given SPK', async () => {
+    const msgA = crypto.randomUUID();
+    const msgB = crypto.randomUUID();
+
+    await storeSessionKey(msgA, identityId, randomBytes(32), wrappingKey, 'spk-old');
+    await storeSessionKey(msgB, identityId, randomBytes(32), wrappingKey, 'spk-current');
+
+    const removed = await deleteSessionKeysForSpk('spk-old', identityId);
+    expect(removed).toBe(1);
+
+    expect(await getPersistedSessionKey(msgA, identityId, wrappingKey)).toBeNull();
+    expect(await getPersistedSessionKey(msgB, identityId, wrappingKey)).not.toBeNull();
+  });
+
+  test('clearAllSessionKeys removes all session keys for identity', async () => {
+    await storeSessionKey(crypto.randomUUID(), identityId, randomBytes(32), wrappingKey);
+    await storeSessionKey(crypto.randomUUID(), identityId, randomBytes(32), wrappingKey);
+
+    await clearAllSessionKeys(identityId);
+
+    const result = await getPersistedSessionKey(crypto.randomUUID(), identityId, wrappingKey);
+    expect(result).toBeNull();
+  });
+
+  test('upserts session key for the same message ID', async () => {
+    const messageId = crypto.randomUUID();
+    const key1 = randomBytes(32);
+    const key2 = randomBytes(32);
+    const key2Copy = new Uint8Array(key2);
+
+    await storeSessionKey(messageId, identityId, key1, wrappingKey);
+    await storeSessionKey(messageId, identityId, key2, wrappingKey);
+
+    const retrieved = await getPersistedSessionKey(messageId, identityId, wrappingKey);
+    expect(new Uint8Array(retrieved!)).toEqual(key2Copy);
   });
 });
 

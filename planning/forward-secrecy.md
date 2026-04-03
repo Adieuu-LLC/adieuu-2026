@@ -23,7 +23,7 @@ Forward secrecy is not all-or-nothing. The sender decides per-message whether to
 - **FS-off (`preKeyType: 'static'`):** Message can be re-decrypted from server at any time using static device keys. Useful for general conversation history where server-side re-readability matters (e.g., lower-powered devices, users who want persistent history).
 - **FS-on (`preKeyType: 'spk'` or `'otpk'`):** Message is decrypted once and stored locally. Pre-key private keys are eventually deleted, making the server-stored ciphertext permanently undecryptable.
 
-The toggle is implemented as a sender-side UI control in the message composer. Default is FS-on.
+The toggle is implemented as a sender-side UI control in the message composer. Default is FS-off (changed while the feature is in beta; to be revisited once late testing is complete).
 
 **Metadata trade-off:** The `preKeyType` field is visible in message metadata, meaning an observer with server access can distinguish FS from non-FS messages. This was accepted because:
 - All content is E2E encrypted regardless

@@ -35,6 +35,11 @@ import {
   rescheduleTimer,
   type DebouncedAsyncTrigger,
 } from './usePreKeys.scheduler';
+import {
+  getActiveSignedPreKey,
+  deleteSessionKeysForSpk,
+  clearAllSessionKeys,
+} from '../services/preKeyStorage';
 
 export interface UsePreKeysResult {
   /** Whether a rotation is currently in progress */
@@ -153,6 +158,17 @@ export function usePreKeys(): UsePreKeysResult {
       if (result.rotated) {
         setLastRotation(Date.now());
         console.debug(`[PreKeys] SPK rotated to ${result.newKeyId}`);
+
+        if (currentConfig.clearCacheOnRotation) {
+          const retiredSpks = await import('../services/preKeyStorage')
+            .then((m) => m.getRetiredSignedPreKeys(identity.id, deviceId));
+          for (const spk of retiredSpks) {
+            const evicted = await deleteSessionKeysForSpk(spk.keyId, identity.id);
+            if (evicted > 0) {
+              console.debug(`[PreKeys] Evicted ${evicted} persisted session key(s) for retired SPK ${spk.keyId}`);
+            }
+          }
+        }
       }
 
       // Run cleanup after rotation check
@@ -249,6 +265,18 @@ export function usePreKeys(): UsePreKeysResult {
       console.debug(`[PreKeys] Manual SPK rotation to ${newKeyId}`);
 
       const currentConfig = loadFsConfig(identity.id);
+
+      if (currentConfig.clearCacheOnRotation) {
+        const { getRetiredSignedPreKeys } = await import('../services/preKeyStorage');
+        const retiredSpks = await getRetiredSignedPreKeys(identity.id, deviceId);
+        for (const spk of retiredSpks) {
+          const evicted = await deleteSessionKeysForSpk(spk.keyId, identity.id);
+          if (evicted > 0) {
+            console.debug(`[PreKeys] Evicted ${evicted} persisted session key(s) for retired SPK ${spk.keyId}`);
+          }
+        }
+      }
+
       const deleted = await cleanupRetiredSpks(identity.id, deviceId, currentConfig);
       if (deleted > 0) {
         console.debug(`[PreKeys] Cleaned up ${deleted} retired SPK(s) after manual rotation`);
@@ -284,7 +312,8 @@ export function usePreKeys(): UsePreKeysResult {
     }
 
     if (clearCache) {
-      console.debug('[PreKeys] Cache clearing requested alongside purge (no message cache to clear)');
+      await clearAllSessionKeys(identity.id);
+      console.debug('[PreKeys] Cleared all persisted session keys alongside purge');
     }
 
     return deleted;

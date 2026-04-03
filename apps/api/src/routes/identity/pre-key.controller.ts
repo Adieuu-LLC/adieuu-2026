@@ -306,10 +306,11 @@ export async function getPreKeyCountCtrl(ctx: RouteContext): Promise<Response> {
   }
 
   const preKeyRepo = getPreKeyRepository();
-  const [signedPreKey, oneTimePreKeysRemaining, otpkDigest] = await Promise.all([
+  const [signedPreKey, oneTimePreKeysRemaining, otpkDigest, consumedOtpkKeyIds] = await Promise.all([
     preKeyRepo.getActiveSignedPreKey(identity._id, deviceId),
     preKeyRepo.countUnconsumedOneTimePreKeys(identity._id, deviceId),
     preKeyRepo.getUnconsumedOtpkDigest(identity._id, deviceId),
+    preKeyRepo.getConsumedOtpkKeyIds(identity._id, deviceId),
   ]);
 
   return success({
@@ -318,5 +319,6 @@ export async function getPreKeyCountCtrl(ctx: RouteContext): Promise<Response> {
       : null,
     oneTimePreKeysRemaining,
     otpkDigest,
+    consumedOtpkKeyIds,
   });
 }

@@ -56,6 +56,9 @@ import {
   findAndDecryptSignedPreKey,
   findAndDecryptOneTimePreKey,
   deleteOneTimePreKey,
+  storeSessionKey,
+  getPersistedSessionKey,
+  deletePersistedSessionKey,
 } from '../services/preKeyStorage';
 import { notifyOtpkConsumed } from '../services/preKeyService';
 
@@ -431,6 +434,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             resp.data.messages.map(async (m): Promise<DisplayMessage> => {
               if (m.deleted) {
                 sessionKeyCache.current.delete(m.id);
+                deletePersistedSessionKey(m.id, identity.id)
+                  .catch((err) => console.error('[Conversations] Session key cleanup failed:', err));
                 return { ...m, decryptedContent: undefined, signatureVerified: undefined };
               }
 
@@ -444,8 +449,17 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 return preserved;
               }
 
-              // Layer 2: Try the in-memory session-key cache before key unwrapping
-              const cached = sessionKeyCache.current.get(m.id);
+              // Layer 2: Try the in-memory session-key cache before key unwrapping,
+              // falling back to persistent (encrypted-at-rest) session key storage
+              // for FS messages whose OTPKs have already been deleted.
+              let cached = sessionKeyCache.current.get(m.id);
+              if (!cached && wrappingKey) {
+                const persisted = await getPersistedSessionKey(m.id, identity.id, wrappingKey);
+                if (persisted) {
+                  cached = persisted;
+                  sessionKeyCache.current.set(m.id, persisted);
+                }
+              }
               if (cached && ecdhPrivateKey && kemPrivateKey) {
                 const senderSigningKey = signingKeyCache.current[m.fromIdentityId];
                 if (senderSigningKey) {
@@ -635,8 +649,18 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                   resolvedWrappedKey
                 );
 
-                // Layer 2: Cache the session key before deleting the OTPK
+                // Layer 2: Cache the session key in memory
                 sessionKeyCache.current.set(m.id, result.sessionKey);
+
+                // Layer 2b: Persist the session key (encrypted) so it survives
+                // page refreshes and component remounts. Without this, the
+                // message becomes permanently unreadable once the OTPK is deleted.
+                if (wrappingKey && resolvedWrappedKey.preKeyType !== 'static') {
+                  storeSessionKey(
+                    m.id, identity.id, result.sessionKey, wrappingKey,
+                    resolvedWrappedKey.signedPreKeyId
+                  ).catch((err) => console.error('[Conversations] Session key persist failed:', err));
+                }
 
                 // Layer 3: Only delete the OTPK after the session key is cached
                 if (

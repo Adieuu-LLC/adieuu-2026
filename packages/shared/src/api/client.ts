@@ -1609,6 +1609,7 @@ export interface PreKeyCountResponse {
   signedPreKey: { keyId: string; expiresAt: string | null } | null;
   oneTimePreKeysRemaining: number;
   otpkDigest: string;
+  consumedOtpkKeyIds: string[];
 }
 
 

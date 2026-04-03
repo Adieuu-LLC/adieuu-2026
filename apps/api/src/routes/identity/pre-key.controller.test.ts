@@ -469,6 +469,22 @@ describe('pre-key.controller', () => {
     expect(getUnconsumedOtpkDigestMock).toHaveBeenCalledTimes(1);
   });
 
+  test('getPreKeyCount includes consumedOtpkKeyIds in response', async () => {
+    getConsumedOtpkKeyIdsMock.mockResolvedValue(['consumed-1', 'consumed-2']);
+    countUnconsumedOneTimePreKeysMock.mockResolvedValue(8);
+
+    const response = await getPreKeyCountCtrl(
+      makeCtx({
+        params: { id: ownerId.toHexString(), deviceId: 'device-1' },
+      })
+    );
+
+    expect(response.status).toBe(200);
+    const json = await response.json() as { data: { consumedOtpkKeyIds: string[] } };
+    expect(json.data.consumedOtpkKeyIds).toEqual(['consumed-1', 'consumed-2']);
+    expect(getConsumedOtpkKeyIdsMock).toHaveBeenCalledTimes(1);
+  });
+
   test('purgeOneTimePreKeys returns purged count and consumedKeyIds', async () => {
     purgeUnconsumedOneTimePreKeysMock.mockResolvedValue(12);
     getConsumedOtpkKeyIdsMock.mockResolvedValue(['key-1', 'key-2']);

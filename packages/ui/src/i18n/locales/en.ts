@@ -226,6 +226,8 @@ export const en = {
       },
       forwardSecrecy: {
         title: 'Forward Secrecy',
+        betaBadge: 'Beta',
+        betaWarning: 'Forward secrecy is in late testing. There may be bugs that cause some messages to become unreadable earlier than expected.',
         description: 'Control pre-key rotation and deletion behavior for DM forward secrecy.',
         enabledTitle: 'Enable Forward Secrecy by default',
         enabledHint: 'When enabled, all new messages use forward secrecy unless overridden per-conversation or per-message. Messages sent without forward secrecy remain end-to-end encrypted but persist in history.',
@@ -715,7 +717,7 @@ export const en = {
         soundCustomFile: 'Custom sound',
         soundBrowse: 'Browse…',
         soundFileMissing: 'The selected sound file could not be read. Choose another file or pick a built-in sound.',
-        soundSuppressFocused: 'Suppress sound when this conversation is focused',
+        soundSuppressFocused: 'Suppress sound for the focused/current conversation.',
         soundSuppressFocusedHint:
           'When on, no sound plays while you are actively viewing that chat in a focused window (same as in-app toasts). Turn off to always hear a sound.',
         testNotification: 'Send test notification',

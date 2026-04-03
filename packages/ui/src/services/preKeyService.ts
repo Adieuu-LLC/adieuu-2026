@@ -43,7 +43,7 @@ export interface ForwardSecrecyConfig {
 }
 
 export const DEFAULT_FS_CONFIG: ForwardSecrecyConfig = {
-  enabled: true,
+  enabled: false,
   securityLevel: 'standard',
   spkDeletionPolicy: 'after-sync',
   clearCacheOnRotation: false,
@@ -298,12 +298,22 @@ export async function replenishOneTimePreKeys(
  * Computes a SHA-256 hex digest of sorted local OTPK key IDs for a device.
  * Must produce the same output as the server's `getUnconsumedOtpkDigest`
  * for an identical set of key IDs.
+ *
+ * When `excludeKeyIds` is provided, those IDs are removed from the set
+ * before hashing. This allows the client to exclude OTPKs that the server
+ * has marked as consumed (and therefore excludes from its own unconsumed
+ * digest), preventing false-positive digest mismatches that would
+ * otherwise trigger unnecessary full resyncs.
  */
 export async function computeLocalOtpkDigest(
   identityId: string,
-  deviceId: string
+  deviceId: string,
+  excludeKeyIds?: ReadonlySet<string>
 ): Promise<string> {
-  const ids = await getOneTimePreKeyIds(identityId, deviceId);
+  let ids = await getOneTimePreKeyIds(identityId, deviceId);
+  if (excludeKeyIds && excludeKeyIds.size > 0) {
+    ids = ids.filter((id) => !excludeKeyIds.has(id));
+  }
   const data = new TextEncoder().encode(ids.join(','));
   const hash = await crypto.subtle.digest('SHA-256', data);
   const bytes = new Uint8Array(hash);
@@ -574,10 +584,7 @@ export async function checkAndReplenishOtpks(
   const threshold = PLATFORM_OTPK_REPLENISH_THRESHOLD[input.platform];
 
   try {
-    const [countResponse, localDigest] = await Promise.all([
-      identityApi.getPreKeyCount(input.identityId, input.deviceId),
-      computeLocalOtpkDigest(input.identityId, input.deviceId),
-    ]);
+    const countResponse = await identityApi.getPreKeyCount(input.identityId, input.deviceId);
 
     if (!countResponse.success || !countResponse.data) {
       console.warn('[PreKey] Failed to get OTPK count, skipping replenishment');
@@ -586,6 +593,15 @@ export async function checkAndReplenishOtpks(
 
     const serverCount = countResponse.data.oneTimePreKeysRemaining;
     const serverDigest = countResponse.data.otpkDigest;
+    const consumedIds = new Set(countResponse.data.consumedOtpkKeyIds ?? []);
+
+    // Compute local digest excluding OTPKs the server has already marked
+    // consumed. Without this exclusion, consumed-but-not-yet-decrypted
+    // OTPKs cause a persistent digest mismatch that triggers an infinite
+    // resync loop.
+    const localDigest = await computeLocalOtpkDigest(
+      input.identityId, input.deviceId, consumedIds
+    );
 
     // Digest-based consistency check: detects both count mismatches AND
     // the more subtle case where counts match but key IDs differ (the
@@ -593,7 +609,8 @@ export async function checkAndReplenishOtpks(
     if (localDigest !== serverDigest) {
       console.warn(
         `[PreKey] OTPK digest mismatch: server=${serverDigest.slice(0, 12)}..., ` +
-        `local=${localDigest.slice(0, 12)}... Triggering full OTPK resync.`
+        `local=${localDigest.slice(0, 12)}... (${consumedIds.size} consumed excluded) ` +
+        `Triggering full OTPK resync.`
       );
       return await resyncOneTimePreKeys(input, identityApi);
     }

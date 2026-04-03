@@ -123,6 +123,8 @@ function ForwardSecrecySettings() {
         </div>
       </div>
 
+      <p className="fs-beta-notice">{t('identity.devices.forwardSecrecy.betaWarning')}</p>
+
       <div className="activity-section">
         <label className="app-settings-toggle">
           <input
@@ -364,7 +366,8 @@ export function IdentityPrivacy() {
               {t('identity.privacy.tabs.general', 'General')}
             </TabTrigger>
             <TabTrigger value="forward-secrecy">
-              {t('identity.privacy.tabs.forwardSecrecy', 'Forward Secrecy')}
+              {t('identity.privacy.tabs.forwardSecrecy', 'Forward Secrecy')}{' '}
+              <span className="beta-badge">{t('identity.devices.forwardSecrecy.betaBadge')}</span>
             </TabTrigger>
           </TabList>
 

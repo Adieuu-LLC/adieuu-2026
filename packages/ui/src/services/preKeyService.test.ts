@@ -198,6 +198,7 @@ describe('services/preKeyService', () => {
           signedPreKey: null,
           oneTimePreKeysRemaining: 50,
           otpkDigest: matchingDigest,
+          consumedOtpkKeyIds: [],
         },
       })),
       uploadPreKeys: mock(async () => ({ success: true })),
@@ -228,6 +229,7 @@ describe('services/preKeyService', () => {
           signedPreKey: null,
           oneTimePreKeysRemaining: 2,
           otpkDigest: matchingDigest,
+          consumedOtpkKeyIds: [],
         },
       })),
       uploadPreKeys: mock(async () => ({ success: true })),
@@ -249,7 +251,7 @@ describe('services/preKeyService', () => {
     expect(identityApi.uploadPreKeys).toHaveBeenCalledTimes(1);
   });
 
-  test('checkAndReplenishOtpks triggers resync on digest mismatch', async () => {
+  test('checkAndReplenishOtpks triggers resync on genuine digest mismatch', async () => {
     const identityApi = {
       getPreKeyCount: mock(async () => ({
         success: true,
@@ -257,6 +259,7 @@ describe('services/preKeyService', () => {
           signedPreKey: null,
           oneTimePreKeysRemaining: 50,
           otpkDigest: 'server-digest-that-does-not-match',
+          consumedOtpkKeyIds: [],
         },
       })),
       purgeOneTimePreKeys: mock(async () => ({
@@ -282,6 +285,44 @@ describe('services/preKeyService', () => {
     expect(clearOneTimePreKeysExceptMock).toHaveBeenCalledTimes(1);
   });
 
+  test('checkAndReplenishOtpks excludes consumed IDs from digest, preventing false resync', async () => {
+    // Simulate: local has OTPKs [aaa, bbb, ccc], server has consumed bbb.
+    // Server unconsumed digest = hash("aaa,ccc"), so client must exclude bbb
+    // from its local digest to match.
+    getOneTimePreKeyIdsMock.mockResolvedValue(['aaa', 'bbb', 'ccc']);
+
+    const expectedDigest = await preKeyService.computeLocalOtpkDigest(
+      'identity-1', 'device-1', new Set(['bbb'])
+    );
+
+    const identityApi = {
+      getPreKeyCount: mock(async () => ({
+        success: true,
+        data: {
+          signedPreKey: null,
+          oneTimePreKeysRemaining: 50,
+          otpkDigest: expectedDigest,
+          consumedOtpkKeyIds: ['bbb'],
+        },
+      })),
+      uploadPreKeys: mock(async () => ({ success: true })),
+    } as unknown as import('@adieuu/shared').IdentityApi;
+
+    const uploaded = await preKeyService.checkAndReplenishOtpks(
+      {
+        identityId: 'identity-1',
+        deviceId: 'device-1',
+        signingPrivateKey,
+        wrappingKey,
+        platform: 'desktop',
+      },
+      identityApi
+    );
+
+    expect(uploaded).toBe(0);
+    expect(identityApi.uploadPreKeys).not.toHaveBeenCalled();
+  });
+
   // ---- computeLocalOtpkDigest ----
 
   test('computeLocalOtpkDigest returns empty sentinel when no OTPKs exist', async () => {
@@ -302,6 +343,33 @@ describe('services/preKeyService', () => {
     const digest2 = await preKeyService.computeLocalOtpkDigest('id-1', 'dev-1');
 
     expect(digest1).not.toBe(digest2);
+  });
+
+  test('computeLocalOtpkDigest excludes specified key IDs from the digest', async () => {
+    getOneTimePreKeyIdsMock.mockResolvedValue(['aaa', 'bbb', 'ccc']);
+
+    const digestAll = await preKeyService.computeLocalOtpkDigest('id-1', 'dev-1');
+    const digestExcluded = await preKeyService.computeLocalOtpkDigest(
+      'id-1', 'dev-1', new Set(['bbb'])
+    );
+
+    expect(digestAll).not.toBe(digestExcluded);
+
+    // Excluding bbb should produce the same digest as having only aaa,ccc
+    getOneTimePreKeyIdsMock.mockResolvedValue(['aaa', 'ccc']);
+    const digestWithout = await preKeyService.computeLocalOtpkDigest('id-1', 'dev-1');
+    expect(digestExcluded).toBe(digestWithout);
+  });
+
+  test('computeLocalOtpkDigest with empty exclude set matches unfiltered digest', async () => {
+    getOneTimePreKeyIdsMock.mockResolvedValue(['aaa', 'bbb']);
+
+    const digestNoExclude = await preKeyService.computeLocalOtpkDigest('id-1', 'dev-1');
+    const digestEmptyExclude = await preKeyService.computeLocalOtpkDigest(
+      'id-1', 'dev-1', new Set()
+    );
+
+    expect(digestNoExclude).toBe(digestEmptyExclude);
   });
 
   // ---- resyncOneTimePreKeys (selective purge) ----
