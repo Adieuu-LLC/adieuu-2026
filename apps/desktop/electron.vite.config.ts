@@ -2,6 +2,8 @@ import { defineConfig } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import pkg from './package.json';
+import { cspPlugin } from '../../packages/shared/src/csp/vite-plugin-csp';
+import { cspManifest, devCspExtras } from './src/csp';
 
 export default defineConfig({
   main: {
@@ -39,19 +41,7 @@ export default defineConfig({
     },
     plugins: [
       react(),
-      {
-        name: 'desktop-csp',
-        transformIndexHtml(html, ctx) {
-          if (ctx.server) {
-            // Dev: add localhost origins for API and WebSocket
-            return html.replace(
-              /connect-src 'self'/,
-              "connect-src 'self' http://localhost:4000 ws://localhost:9001",
-            );
-          }
-          return html;
-        },
-      },
+      cspPlugin({ manifests: [cspManifest], devExtras: devCspExtras }),
     ],
     resolve: {
       alias: {

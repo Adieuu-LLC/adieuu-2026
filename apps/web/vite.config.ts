@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
 import pkg from './package.json';
+import { cspPlugin } from '../../packages/shared/src/csp/vite-plugin-csp';
+import { cspManifest } from './src/csp';
 
 function versionJsonPlugin(): Plugin {
   return {
@@ -19,7 +21,11 @@ function versionJsonPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), versionJsonPlugin()],
+  plugins: [
+    react(),
+    cspPlugin({ manifests: [cspManifest] }),
+    versionJsonPlugin(),
+  ],
   publicDir: path.resolve(__dirname, '../../packages/ui/public'),
   resolve: {
     alias: {

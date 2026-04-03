@@ -29,6 +29,10 @@
     "./ciphers": {
       "types": "./dist/ciphers/index.d.ts",
       "import": "./dist/ciphers/index.js"
+    },
+    "./csp": {
+      "types": "./dist/csp.d.ts",
+      "import": "./dist/csp.js"
     }
   },
   "scripts": {

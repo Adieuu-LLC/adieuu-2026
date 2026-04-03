@@ -1,14 +1,20 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
+import { cspManifest } from './csp';
+import { serializeCsp } from '../../../packages/shared/src/csp/serialize';
+import { mergeCspManifests } from '../../../packages/shared/src/csp/merge';
 
 /**
  * Validates that the web app's Content Security Policy includes all directives
- * required by the shared UI package. Catches CSP regressions before they reach
+ * required by the shared UI package and that production builds never ship
+ * 'unsafe-inline' in script-src. Catches CSP regressions before they reach
  * a deployed build.
  */
 
 let csp = '';
+let htmlInlineScriptHashes: string[] = [];
 
 function parseDirectives(raw: string): Map<string, string[]> {
   const directives = new Map<string, string[]>();
@@ -23,16 +29,28 @@ function parseDirectives(raw: string): Map<string, string[]> {
 
 beforeAll(() => {
   const html = readFileSync(resolve(__dirname, '../index.html'), 'utf-8');
-  const match = html.match(
-    /http-equiv="Content-Security-Policy"\s+content="([^"]*)"/,
+
+  const inlineRe = /<script(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = inlineRe.exec(html)) !== null) {
+    const content = match[1] ?? '';
+    if (content.trim()) {
+      const hash = createHash('sha256').update(content, 'utf-8').digest('base64');
+      htmlInlineScriptHashes.push(`'sha256-${hash}'`);
+    }
+  }
+
+  const merged = mergeCspManifests(
+    cspManifest,
+    htmlInlineScriptHashes.length > 0
+      ? { 'script-src': htmlInlineScriptHashes }
+      : {},
   );
-  if (!match?.[1]) throw new Error('No CSP meta tag found in index.html');
-  csp = match[1];
+  csp = serializeCsp(merged);
 });
 
 describe('web app CSP', () => {
-  it('contains a CSP meta tag', () => {
-    expect(csp).toBeDefined();
+  it('produces a non-empty policy string', () => {
     expect(csp.length).toBeGreaterThan(0);
   });
 
@@ -47,6 +65,21 @@ describe('web app CSP', () => {
       const directives = parseDirectives(csp);
       const scriptSrc = directives.get('script-src') ?? [];
       expect(scriptSrc).not.toContain("'unsafe-eval'");
+    });
+
+    it("does not include 'unsafe-inline' in production", () => {
+      const directives = parseDirectives(csp);
+      const scriptSrc = directives.get('script-src') ?? [];
+      expect(scriptSrc).not.toContain("'unsafe-inline'");
+    });
+
+    it('includes a SHA-256 hash for the inline theme hydration script', () => {
+      expect(htmlInlineScriptHashes.length).toBeGreaterThan(0);
+      const directives = parseDirectives(csp);
+      const scriptSrc = directives.get('script-src') ?? [];
+      for (const hash of htmlInlineScriptHashes) {
+        expect(scriptSrc).toContain(hash);
+      }
     });
   });
 

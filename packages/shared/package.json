@@ -13,6 +13,10 @@
     "./schemas": {
       "types": "./dist/schemas/index.d.ts",
       "import": "./dist/schemas/index.js"
+    },
+    "./csp": {
+      "types": "./dist/csp/index.d.ts",
+      "import": "./dist/csp/index.js"
     }
   },
   "scripts": {

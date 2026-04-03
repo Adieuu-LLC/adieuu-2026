@@ -18,6 +18,10 @@
     "./icons/registry": {
       "types": "./dist/icons/registry.d.ts",
       "import": "./dist/icons/registry.js"
+    },
+    "./csp": {
+      "types": "./dist/csp.d.ts",
+      "import": "./dist/csp.js"
     }
   },
   "scripts": {
