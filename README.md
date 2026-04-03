@@ -4,7 +4,7 @@
 
 Cross-platform application with web, desktop (Electron), and mobile (Capacitor) targets. 
 
-## Table of Contents
+## Table of Contents 
 
 - [Stack](#stack)
 - [Structure](#structure)
