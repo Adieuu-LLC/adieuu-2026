@@ -301,6 +301,11 @@ jobs:
           - os: macos-latest-large
             artifact-name: packaged-desktop-macos
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     env:
       ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
     steps:
@@ -352,6 +357,22 @@ jobs:
 
       - name: Package Electron app
         run: pnpm --filter @adieuu/desktop run package:ci
+
+      - name: Attest desktop package provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            apps/desktop/out/*.exe
+            apps/desktop/out/*.exe.blockmap
+            apps/desktop/out/*.dmg
+            apps/desktop/out/*.zip
+            apps/desktop/out/*.zip.blockmap
+            apps/desktop/out/*.AppImage
+            apps/desktop/out/*.deb
+            apps/desktop/out/*.rpm
+            apps/desktop/out/latest.yml
+            apps/desktop/out/latest-mac.yml
+            apps/desktop/out/latest-linux.yml
 
       - name: Upload packaging output
         uses: actions/upload-artifact@v7
