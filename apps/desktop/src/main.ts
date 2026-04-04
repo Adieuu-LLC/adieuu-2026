@@ -883,6 +883,17 @@ async function writeUpdatePreferences(prefs: UpdatePreferences): Promise<void> {
 
 let updateCheckTimer: ReturnType<typeof setInterval> | null = null;
 
+/**
+ * electron-updater's BaseUpdater sets `quitAndInstallCalled` during install and
+ * does not clear it when a newer update is downloaded in the same session, so
+ * `quitAndInstall()` can no-op until the app is restarted. Reset when a fresh
+ * download completes so sequential in-app updates work on Linux (and other targets).
+ */
+function resetElectronUpdaterQuitAndInstallGuard(): void {
+  const updater = autoUpdater as unknown as { quitAndInstallCalled?: boolean };
+  updater.quitAndInstallCalled = false;
+}
+
 function scheduleUpdateChecks(intervalMinutes: number): void {
   if (updateCheckTimer) {
     clearInterval(updateCheckTimer);
@@ -943,6 +954,7 @@ async function initAutoUpdater() {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
+    resetElectronUpdaterQuitAndInstallGuard();
     console.info('[AutoUpdater] Update downloaded:', info.version);
     sendToRenderer('update-downloaded', {
       version: info.version,
