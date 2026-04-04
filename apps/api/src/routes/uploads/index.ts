@@ -196,6 +196,10 @@ const ProcessCallbackSchema = z.object({
 /**
  * POST /uploads/process-callback - Lambda processor reports result
  *
+ * @deprecated The media processor Lambda now invokes a dedicated DB writer
+ * Lambda directly. This endpoint is retained as a manual fallback and will
+ * be removed in a future release.
+ *
  * Internal endpoint authenticated with a shared secret header.
  *
  * @route POST /api/uploads/process-callback

@@ -23,9 +23,6 @@ locals {
   # Media stack: S3 + CloudFront for user-uploaded media (avatars, banners, attachments).
   media_enabled             = var.enable_media_stack && local.public_dns_tls_enabled
   media_route53_record_name = local.media_enabled ? replace(var.media_domain_name, ".${local.route53_zone_root}", "") : ""
-  media_lambda_vpc_enabled  = local.media_enabled && var.media_processor_in_vpc
-  media_api_callback_url    = local.media_enabled ? "https://${var.api_domain_name}/api/uploads/process-callback" : ""
-
   # CORS origins for presigned PUT uploads to the media bucket.
   media_cors_origins = local.media_enabled ? distinct(concat(
     ["https://${var.app_domain_name}"],

@@ -6,13 +6,16 @@
  * 2. EXIF metadata stripping (when enabled)
  * 3. Resize and compress to WebP (when resize dimensions specified)
  * 4. Write processed file to processed/ prefix
- * 5. Callback to API with result
+ * 5. Invoke the DB writer Lambda to persist the result
  *
  * Processing flags are read from the S3 object's user metadata,
  * set by the upload service when generating presigned URLs.
+ *
+ * This Lambda runs OUTSIDE the VPC (needs only public S3 + Rekognition).
+ * Database access is isolated to the DB writer Lambda for security.
  */
 
-import type { S3Event, S3EventRecord } from 'aws-lambda';
+import type { S3Event, S3EventRecord, SQSEvent } from 'aws-lambda';
 import {
   S3Client,
   GetObjectCommand,
@@ -24,9 +27,11 @@ import {
   RekognitionClient,
   DetectModerationLabelsCommand,
 } from '@aws-sdk/client-rekognition';
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 
 const s3 = new S3Client({});
 const rekognition = new RekognitionClient({});
+const lambda = new LambdaClient({});
 
 const BUCKET = process.env.MEDIA_BUCKET!;
 const CONTENT_MODERATION = process.env.CONTENT_MODERATION === 'true';
@@ -34,8 +39,7 @@ const MODERATION_CONFIDENCE = parseInt(
   process.env.MODERATION_CONFIDENCE ?? '75',
   10
 );
-const API_CALLBACK_URL = process.env.API_CALLBACK_URL!;
-const PROCESSOR_SECRET = process.env.PROCESSOR_SECRET!;
+const DB_WRITER_FUNCTION_NAME = process.env.DB_WRITER_FUNCTION_NAME!;
 
 interface ProcessingMetadata {
   mediaId: string;
@@ -73,34 +77,38 @@ function parseMetadata(
   };
 }
 
-async function notifyApi(
+async function invokeDbWriter(
   mediaId: string,
   status: 'ready' | 'rejected' | 'failed',
   processedS3Key?: string,
   rejectionReason?: string
 ): Promise<void> {
-  try {
-    const response = await fetch(API_CALLBACK_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-processor-secret': PROCESSOR_SECRET,
-      },
-      body: JSON.stringify({
-        mediaId,
-        status,
-        processedS3Key,
-        rejectionReason,
-      }),
-    });
+  const payload = JSON.stringify({
+    mediaId,
+    status,
+    processedS3Key,
+    rejectionReason,
+  });
 
-    if (!response.ok) {
+  try {
+    const result = await lambda.send(
+      new InvokeCommand({
+        FunctionName: DB_WRITER_FUNCTION_NAME,
+        InvocationType: 'RequestResponse',
+        Payload: new TextEncoder().encode(payload),
+      })
+    );
+
+    if (result.FunctionError) {
+      const responsePayload = result.Payload
+        ? new TextDecoder().decode(result.Payload)
+        : 'no payload';
       console.error(
-        `API callback failed: ${response.status} ${await response.text()}`
+        `DB writer invocation error (${result.FunctionError}): ${responsePayload}`
       );
     }
   } catch (err) {
-    console.error('API callback error:', err);
+    console.error('DB writer invocation failed:', err);
   }
 }
 
@@ -126,7 +134,6 @@ async function processRecord(record: S3EventRecord): Promise<void> {
 
   console.log(`Media ID: ${meta.mediaId}, Purpose: ${meta.purpose}`);
 
-  // Step 1: Content moderation
   if (CONTENT_MODERATION && meta.contentModeration) {
     console.log('Running content moderation...');
     try {
@@ -151,7 +158,7 @@ async function processRecord(record: S3EventRecord): Promise<void> {
 
         await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 
-        await notifyApi(
+        await invokeDbWriter(
           meta.mediaId,
           'rejected',
           undefined,
@@ -163,28 +170,25 @@ async function processRecord(record: S3EventRecord): Promise<void> {
       console.log('Content moderation passed');
     } catch (err) {
       console.error('Rekognition error:', err);
-      await notifyApi(meta.mediaId, 'failed');
+      await invokeDbWriter(meta.mediaId, 'failed');
       return;
     }
   }
 
-  // Step 2: Download the file
   const getResult = await s3.send(
     new GetObjectCommand({ Bucket: BUCKET, Key: key })
   );
   const bodyBytes = await getResult.Body!.transformToByteArray();
 
-  // Step 3: Process with sharp (EXIF strip + resize)
   let processedBuffer: Uint8Array;
   let outputContentType = 'image/webp';
 
   try {
-    // Dynamic import for sharp (Lambda layer or bundled)
     const sharp = (await import('sharp')).default;
     let pipeline = sharp(bodyBytes);
 
     if (meta.stripExif) {
-      pipeline = pipeline.rotate(); // auto-rotate from EXIF then strip
+      pipeline = pipeline.rotate();
     }
 
     if (meta.resizeMaxWidth || meta.resizeMaxHeight) {
@@ -205,11 +209,10 @@ async function processRecord(record: S3EventRecord): Promise<void> {
     );
   } catch (err) {
     console.error('Image processing error:', err);
-    await notifyApi(meta.mediaId, 'failed');
+    await invokeDbWriter(meta.mediaId, 'failed');
     return;
   }
 
-  // Step 4: Upload processed file
   const processedKey = key
     .replace(/^uploads\//, 'processed/')
     .replace(/\.[^.]+$/, '.webp');
@@ -228,33 +231,35 @@ async function processRecord(record: S3EventRecord): Promise<void> {
     console.log(`Uploaded processed file: ${processedKey}`);
   } catch (err) {
     console.error('Failed to upload processed file:', err);
-    await notifyApi(meta.mediaId, 'failed');
+    await invokeDbWriter(meta.mediaId, 'failed');
     return;
   }
 
-  // Step 5: Clean up raw upload
   try {
     await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
   } catch {
     console.warn(`Failed to delete raw upload: ${key}`);
   }
 
-  // Step 6: Notify API
-  await notifyApi(meta.mediaId, 'ready', processedKey);
+  await invokeDbWriter(meta.mediaId, 'ready', processedKey);
   console.log(`Completed processing: ${meta.mediaId}`);
 }
 
-export async function handler(event: S3Event): Promise<void> {
-  console.log(`Processing ${event.Records.length} record(s)`);
+export async function handler(event: SQSEvent): Promise<void> {
+  console.log(`Processing ${event.Records.length} SQS message(s)`);
 
-  for (const record of event.Records) {
-    try {
-      await processRecord(record);
-    } catch (err) {
-      console.error(
-        `Error processing record ${record.s3.object.key}:`,
-        err
-      );
+  for (const sqsRecord of event.Records) {
+    const s3Event: S3Event = JSON.parse(sqsRecord.body);
+
+    for (const record of s3Event.Records) {
+      try {
+        await processRecord(record);
+      } catch (err) {
+        console.error(
+          `Error processing record ${record.s3.object.key}:`,
+          err
+        );
+      }
     }
   }
 }

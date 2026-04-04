@@ -1,0 +1,18 @@
+{
+  "name": "@adieuu/media-db-writer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.mjs --format=esm --external:@aws-sdk/*",
+    "package": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.mjs --format=esm --external:@aws-sdk/* && cd dist && zip function.zip index.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "3.1018.0",
+    "mongodb": "6.21.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3"
+  }
+}

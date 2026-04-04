@@ -410,17 +410,36 @@ variable "media_moderation_confidence_threshold" {
   }
 }
 
-variable "media_processor_in_vpc" {
-  type        = bool
-  description = "Place the media processor Lambda in the VPC private subnets. Required if the Lambda needs to reach VPC-internal resources (e.g. ElastiCache). Adds NAT gateway dependency for S3/Rekognition access."
-  default     = false
+variable "media_db_mongodb_secret_arn" {
+  type        = string
+  description = "ARN of the Secrets Manager secret containing the MongoDB connection string for the media DB writer Lambda. Required when enable_media_stack is true."
+  default     = ""
+
+  validation {
+    condition = (
+      !var.enable_media_stack ||
+      length(trimspace(var.media_db_mongodb_secret_arn)) > 0
+    )
+    error_message = "media_db_mongodb_secret_arn is required when enable_media_stack is true."
+  }
 }
 
-variable "media_processor_secret" {
+variable "media_db_mongodb_db_name" {
   type        = string
-  description = "Shared secret for the media processor Lambda to authenticate callbacks to the API. Set a strong random value in production."
-  default     = "dev-media-processor-secret"
-  sensitive   = true
+  description = "MongoDB database name used by the media DB writer Lambda."
+  default     = "adieuu"
+}
+
+variable "media_db_mongodb_secret_key" {
+  type        = string
+  description = "JSON key within the Secrets Manager secret that contains the MongoDB connection string. Set to match your secret's key/value structure."
+  default     = "MONGODB_URI"
+}
+
+variable "media_db_mongodb_secret_kms_key_arn" {
+  type        = string
+  description = "Optional KMS key ARN if the media DB MongoDB secret is encrypted with a customer-managed key. Leave empty for aws/secretsmanager default key."
+  default     = ""
 }
 
 # --- GitHub Actions deploy (OIDC) ---
