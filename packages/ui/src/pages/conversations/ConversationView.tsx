@@ -9,7 +9,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Dialog, Menu, Portal, Popover } from '@ark-ui/react';
+import { Checkbox, Dialog, Menu, Portal, Popover } from '@ark-ui/react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -28,6 +28,7 @@ import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
 import { EmojiPicker } from '../../components/EmojiPicker';
 import { Tooltip } from '../../components/Tooltip';
+import { useToast } from '../../components/Toast';
 import { Icon } from '../../icons/Icon';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
 import type { SystemEvent, FormerMember, PublicIdentity } from '@adieuu/shared';
@@ -1146,6 +1147,7 @@ function MessageComposer({
   participantProfiles: Record<string, PublicIdentity>;
 }) {
   const { t } = useTranslation();
+  const { warning: toastWarning } = useToast();
   const [messageText, setMessageText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
@@ -1159,17 +1161,29 @@ function MessageComposer({
     const files = e.target.files;
     if (!files) return;
 
+    let oversized = false;
     const newAttachments: PendingAttachment[] = [];
     for (const file of Array.from(files)) {
       if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) continue;
-      if (file.size > MAX_ATTACHMENT_BYTES) continue;
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        oversized = true;
+        continue;
+      }
       if (attachments.length + newAttachments.length >= MAX_ATTACHMENTS) break;
       newAttachments.push({ file, previewUrl: URL.createObjectURL(file) });
     }
 
+    if (oversized) {
+      const maxMb = Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024));
+      toastWarning(
+        t('conversations.fileTooLarge', 'File too large'),
+        t('conversations.fileTooLargeDesc', 'Attachments must be under {{maxMb}} MB.', { maxMb })
+      );
+    }
+
     setAttachments((prev) => [...prev, ...newAttachments].slice(0, MAX_ATTACHMENTS));
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [attachments.length]);
+  }, [attachments.length, toastWarning, t]);
 
   const removeAttachment = useCallback((index: number) => {
     setAttachments((prev) => {
@@ -1223,6 +1237,58 @@ function MessageComposer({
     inputRef.current?.focus();
   }, [conversationId, sending, sendTextMessage, useFs, replyingTo, onCancelReply, onSendSucceeded, attachments]);
 
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      let oversized = false;
+      const imageFiles: File[] = [];
+      for (const item of Array.from(items)) {
+        if (!item.type.startsWith('image/') || !ACCEPTED_IMAGE_TYPES.includes(item.type)) continue;
+        const file = item.getAsFile();
+        if (!file) continue;
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          oversized = true;
+          continue;
+        }
+        imageFiles.push(file);
+      }
+
+      if (imageFiles.length === 0 && !oversized) return;
+
+      e.preventDefault();
+
+      if (oversized) {
+        const maxMb = Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024));
+        toastWarning(
+          t('conversations.fileTooLarge', 'File too large'),
+          t('conversations.fileTooLargeDesc', 'Attachments must be under {{maxMb}} MB.', { maxMb })
+        );
+      }
+
+      if (imageFiles.length === 0) return;
+
+      setAttachments((prev) => {
+        const remaining = MAX_ATTACHMENTS - prev.length;
+        if (remaining <= 0) return prev;
+        const toAdd = imageFiles.slice(0, remaining).map((file) => {
+          const ext = file.type.split('/')[1] ?? 'png';
+          const named = new File(
+            [file],
+            file.name && file.name !== 'image.png'
+              ? file.name
+              : `pasted-${Date.now()}.${ext}`,
+            { type: file.type }
+          );
+          return { file: named, previewUrl: URL.createObjectURL(named) };
+        });
+        return [...prev, ...toAdd];
+      });
+    },
+    [toastWarning, t]
+  );
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -1273,29 +1339,32 @@ function MessageComposer({
       )}
       {attachments.length > 0 && (
         <div className="conversation-composer-attachments">
-          {attachments.map((att, idx) => (
-            <div key={att.previewUrl} className="conversation-composer-attachment">
-              <img src={att.previewUrl} alt="" className="conversation-composer-attachment-thumb" />
-              <button
-                type="button"
-                className="conversation-composer-attachment-remove"
-                onClick={() => removeAttachment(idx)}
-                aria-label={t('conversations.removeAttachment', 'Remove attachment')}
-              >
-                <Icon name="x" />
-              </button>
-            </div>
-          ))}
-          <label className="conversation-composer-exif-toggle">
-            <input
-              type="checkbox"
-              checked={!stripExif}
-              onChange={(e) => setStripExif(!e.target.checked)}
-            />
-            <span className="conversation-composer-exif-label">
+          <div className="conversation-composer-attachments-thumbs">
+            {attachments.map((att, idx) => (
+              <div key={att.previewUrl} className="conversation-composer-attachment">
+                <img src={att.previewUrl} alt="" className="conversation-composer-attachment-thumb" />
+                <button
+                  type="button"
+                  className="conversation-composer-attachment-remove"
+                  onClick={() => removeAttachment(idx)}
+                  aria-label={t('conversations.removeAttachment', 'Remove attachment')}
+                >
+                  <Icon name="x" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <Checkbox.Root
+            checked={!stripExif}
+            onCheckedChange={(e) => setStripExif(e.checked !== true)}
+            className="conversation-composer-exif-toggle"
+          >
+            <Checkbox.Control className="conversation-composer-exif-control" />
+            <Checkbox.Label className="conversation-composer-exif-label">
               {t('conversations.includeMetadata', 'Include original metadata')}
-            </span>
-          </label>
+            </Checkbox.Label>
+            <Checkbox.HiddenInput />
+          </Checkbox.Root>
         </div>
       )}
       <div className="conversation-composer-row">
@@ -1355,6 +1424,7 @@ function MessageComposer({
             }
           }}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           rows={1}
           disabled={sending}
         />

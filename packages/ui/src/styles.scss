@@ -6519,6 +6519,112 @@ a {
         cursor: not-allowed;
       }
     }
+
+    &-attachments {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-secondary);
+    }
+
+    &-attachments-thumbs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-sm);
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    &-attachment {
+      position: relative;
+      width: 80px;
+      height: 80px;
+      flex-shrink: 0;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--color-border);
+      background: var(--color-bg-primary);
+    }
+
+    &-attachment-thumb {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    &-attachment-remove {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      padding: 0;
+      border: none;
+      border-radius: var(--radius-full);
+      background: rgba(0, 0, 0, 0.6);
+      color: #fff;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+
+      svg {
+        width: 12px;
+        height: 12px;
+      }
+    }
+
+    &-attachment:hover &-attachment-remove {
+      opacity: 1;
+    }
+
+    &-exif-toggle {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-sm);
+      padding-top: var(--spacing-xs);
+      cursor: pointer;
+    }
+
+    &-exif-control {
+      width: 16px;
+      height: 16px;
+      min-width: 16px;
+      border: 2px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color var(--transition-fast), background var(--transition-fast);
+
+      &[data-state='checked'] {
+        background: var(--color-primary);
+        border-color: var(--color-primary);
+
+        &::after {
+          content: '';
+          display: block;
+          width: 4px;
+          height: 8px;
+          border: solid var(--color-on-primary, #fff);
+          border-width: 0 2px 2px 0;
+          transform: rotate(45deg) translateY(-1px);
+        }
+      }
+    }
+
+    &-exif-label {
+      font-size: var(--font-size-xs);
+      color: var(--color-text-secondary);
+      user-select: none;
+    }
   }
 
   &-fs-toggle {
