@@ -18,7 +18,8 @@ import { usePreKeys } from '../../hooks/usePreKeys';
 import { useReactions, type GroupedReaction } from '../../hooks/useReactions';
 import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
 import { loadConversationFsDefault, saveConversationFsDefault, loadShowMessageArtifacts, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
-import { convertShortcodes, getShortcode } from '../../utils/emojiShortcodes';
+import { convertShortcodes } from '../../utils/emojiShortcodes';
+import { getEmojiMartShortcodeLabel } from '../../utils/emojiMartShortcode';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
@@ -108,7 +109,11 @@ function MessageActionBar({
       )}
       <div className="message-action-bar-favorites">
         {favoriteEmojis.map((emoji) => (
-          <Tooltip key={emoji} content={`React ${emoji} \u00b7 Shift+click to remove`} position="top">
+          <Tooltip
+            key={emoji}
+            content={`${getEmojiMartShortcodeLabel(emoji)} \u00b7 React \u00b7 Shift+click to remove`}
+            position="top"
+          >
             <button
               type="button"
               className="message-action-bar-btn message-action-bar-btn--emoji"
@@ -207,7 +212,7 @@ function buildReactionTooltip(
   profiles: Record<string, PublicIdentity>,
   currentIdentityId: string | undefined,
 ): string {
-  const shortcode = getShortcode(reaction.emoji);
+  const shortcode = getEmojiMartShortcodeLabel(reaction.emoji);
   const MAX_NAMED = 3;
 
   const names: string[] = [];

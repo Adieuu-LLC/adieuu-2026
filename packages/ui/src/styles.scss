@@ -7347,16 +7347,20 @@ a {
       width: 100%;
       text-align: left;
       margin: 0 0 var(--spacing-xs) 0;
-      padding: var(--spacing-xxs) 0 var(--spacing-xxs) var(--spacing-sm);
+      padding: 2px 6px;
       border: none;
       border-left: 3px solid var(--color-accent-primary);
       font-size: var(--font-size-sm);
       font-family: inherit;
+      font-style: italic;
       color: var(--color-accent-primary);
       opacity: 0.92;
       background: transparent;
       cursor: pointer;
-      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      border-radius: var(--radius-md);
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+      position: relative;
 
       &:hover {
         opacity: 1;
@@ -7879,7 +7883,7 @@ a {
 
 .emoji-picker-wrapper {
   &--compact em-emoji-picker {
-    max-height: 320px;
+    max-height: 400px;
   }
 }
 

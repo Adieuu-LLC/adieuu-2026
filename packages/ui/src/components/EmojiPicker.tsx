@@ -46,7 +46,7 @@ export function EmojiPicker({
         autoFocus={autoFocus}
         perLine={compact ? 7 : 9}
         maxFrequentRows={compact ? 1 : 4}
-        previewPosition={compact ? 'none' : 'bottom'}
+        previewPosition="bottom"
         skinTonePosition={compact ? 'none' : 'preview'}
         navPosition={compact ? 'none' : 'top'}
         searchPosition="sticky"
