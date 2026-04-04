@@ -1381,6 +1381,12 @@ export const en = {
     newUnreads: 'New messages',
     jumpToLatest: 'Jump to latest message',
 
+    reply: 'Reply',
+    cancelReply: 'Cancel reply',
+    replyOriginal: 'Original message',
+    replyDeleted: 'Message deleted',
+    replySystem: 'System message',
+
     notifications: {
       groupInvite: 'Group invitation',
       groupInviteNameHidden:

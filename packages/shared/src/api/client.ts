@@ -1936,6 +1936,8 @@ export interface PublicMessage {
   expiresAt?: string;
   deleted: boolean;
   createdAt: string;
+  /** When set, this message is a reply to another message in the same conversation */
+  replyToMessageId?: string;
 }
 
 export interface PublicGroupInvite {
@@ -1985,6 +1987,7 @@ export interface SendMessageParams {
   cryptoProfile: MessageCryptoProfile;
   clientMessageId: string;
   expiresInSeconds?: number;
+  replyToMessageId?: string;
 }
 
 export class ConversationsApi {

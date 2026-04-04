@@ -112,7 +112,7 @@ interface ConversationsContextValue {
   sendTextMessage: (
     conversationId: string,
     plaintext: string,
-    options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean }
+    options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean; replyToMessageId?: string }
   ) => Promise<PublicMessage | null>;
   loadMoreMessages: () => Promise<void>;
   deleteMessage: (
@@ -866,7 +866,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     async (
       conversationId: string,
       plaintext: string,
-      options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean }
+      options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean; replyToMessageId?: string }
     ): Promise<PublicMessage | null> => {
       if (!isLoggedIn || !identity) return null;
 
@@ -902,6 +902,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           cryptoProfile: encrypted.cryptoProfile,
           clientMessageId,
           expiresInSeconds,
+          ...(options?.replyToMessageId ? { replyToMessageId: options.replyToMessageId } : {}),
         };
 
         const resp = await api.conversations.sendMessage(conversationId, params);

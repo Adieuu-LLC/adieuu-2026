@@ -20,6 +20,10 @@ export interface IMessageRepository {
     limit: number,
     cursor?: ObjectId
   ): Promise<MessageDocument[]>;
+  findByIdInConversation(
+    conversationId: ObjectId,
+    messageId: ObjectId
+  ): Promise<MessageDocument | null>;
   findByClientMessageId(
     conversationId: ObjectId,
     clientMessageId: string
@@ -54,6 +58,13 @@ export class MessageRepository
    * Fetch messages for a conversation with cursor-based pagination.
    * Returns newest first; the client reverses for display.
    */
+  async findByIdInConversation(
+    conversationId: ObjectId,
+    messageId: ObjectId
+  ): Promise<MessageDocument | null> {
+    return await this.findOne({ _id: messageId, conversationId });
+  }
+
   async findByConversation(
     conversationId: ObjectId,
     limit = 50,

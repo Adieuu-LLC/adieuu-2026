@@ -35,6 +35,7 @@ import {
   terminateGroup,
   getFormerMembers,
 } from '../../services/conversation.service';
+import { ObjectId } from 'mongodb';
 import { z } from '@adieuu/shared/schemas';
 import { isValidObjectId } from '../../utils';
 import type { PublicMessage } from '../../models/message';
@@ -82,6 +83,7 @@ const SendMessageSchema = z.object({
   cryptoProfile: z.enum(['default', 'cnsa2']),
   clientMessageId: z.string().uuid(),
   expiresInSeconds: z.number().int().min(30).max(604800).optional(),
+  replyToMessageId: z.string().length(24).optional(),
 });
 
 const AddMemberSchema = z.object({
@@ -374,7 +376,7 @@ router.post('/conversations/:id/messages', async (ctx) => {
   const parseResult = SendMessageSchema.safeParse(ctx.body);
   if (!parseResult.success) return ctx.errors.validationFailed();
 
-  const { expiresInSeconds, ...messageInput } = parseResult.data;
+  const { expiresInSeconds, replyToMessageId, ...messageInput } = parseResult.data;
 
   const expiresAt = expiresInSeconds
     ? new Date(Date.now() + expiresInSeconds * 1000)
@@ -382,12 +384,16 @@ router.post('/conversations/:id/messages', async (ctx) => {
 
   const result = await sendMessage(sanitized.value, identity._id, {
     ...messageInput,
+    ...(replyToMessageId ? { replyToMessageId: new ObjectId(replyToMessageId) } : {}),
     expiresAt,
   });
 
   if (!result.success) {
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
     if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'INVALID_REPLY_TARGET') {
+      return errors.badRequest(result.error ?? 'The message you are replying to was not found in this conversation.');
+    }
     return errors.badRequest(result.error ?? 'Failed to send message.');
   }
 

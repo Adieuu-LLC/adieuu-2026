@@ -77,7 +77,8 @@ export interface MessageResult {
     | 'NOT_PARTICIPANT'
     | 'DUPLICATE_MESSAGE'
     | 'MESSAGE_NOT_FOUND'
-    | 'NOT_SENDER';
+    | 'NOT_SENDER'
+    | 'INVALID_REPLY_TARGET';
 }
 
 export interface GroupInviteResult {
@@ -482,8 +483,28 @@ export async function sendMessage(
     };
   }
 
+  const { replyToMessageId: replyFromInput, ...messageFields } = input;
+
+  let resolvedReplyId: ObjectId | undefined;
+  if (replyFromInput) {
+    const replyOid =
+      replyFromInput instanceof ObjectId
+        ? replyFromInput
+        : new ObjectId(String(replyFromInput));
+    const parent = await messageRepo.findByIdInConversation(convObjId, replyOid);
+    if (!parent) {
+      return {
+        success: false,
+        error: 'Reply target not found in this conversation',
+        errorCode: 'INVALID_REPLY_TARGET',
+      };
+    }
+    resolvedReplyId = replyOid;
+  }
+
   const message = await messageRepo.createMessage({
-    ...input,
+    ...messageFields,
+    ...(resolvedReplyId ? { replyToMessageId: resolvedReplyId } : {}),
     conversationId: convObjId,
     fromIdentityId: senderObjId,
   });

@@ -30,6 +30,29 @@ import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
 import type { SystemEvent, FormerMember, PublicIdentity } from '@adieuu/shared';
+import type { TFunction } from 'i18next';
+
+function buildReplySnippet(parent: DisplayMessage | undefined, t: TFunction): string {
+  if (!parent) return t('conversations.replyOriginal', 'Original message');
+  if (parent.deleted) return t('conversations.replyDeleted', 'Message deleted');
+  if (parent.messageType === 'system') return t('conversations.replySystem', 'System message');
+  const text = parent.decryptedContent?.trim();
+  if (!text) return t('conversations.replyOriginal', 'Original message');
+  const words = text.split(/\s+/).filter(Boolean);
+  const lead = words.slice(0, 6).join(' ');
+  return words.length > 6 ? `${lead}…` : lead;
+}
+
+function replyComposerLabel(
+  target: DisplayMessage,
+  profiles: Record<string, PublicIdentity>,
+  t: TFunction
+): string {
+  const p = profiles[target.fromIdentityId];
+  const name = p?.displayName ?? p?.username ?? '?';
+  const snippet = buildReplySnippet(target, t);
+  return `${name}: ${snippet}`;
+}
 
 function MessageActionBar({
   isOwn,
@@ -467,6 +490,8 @@ const MessageBubble = memo(function MessageBubble({
   ownProfile,
   layout,
   participantProfiles,
+  replyQuote,
+  onReply,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
@@ -482,6 +507,8 @@ const MessageBubble = memo(function MessageBubble({
   ownProfile?: PublicIdentity;
   layout: 'linear' | 'bubble';
   participantProfiles: Record<string, PublicIdentity>;
+  replyQuote?: { text: string; onQuoteClick: () => void } | null;
+  onReply?: () => void;
 }) {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
@@ -499,7 +526,8 @@ const MessageBubble = memo(function MessageBubble({
     : `Encrypted${message.decryptionError ? `: ${message.decryptionError}` : ''}`;
 
   function handleContextAction(details: { value: string }) {
-    if (details.value === 'delete-for-me') onDelete(message.id, false);
+    if (details.value === 'reply') onReply?.();
+    else if (details.value === 'delete-for-me') onDelete(message.id, false);
     else if (details.value === 'delete-for-everyone') onDelete(message.id, true);
     else if (details.value === 'react') setShowContextReactionPicker(true);
   }
@@ -508,6 +536,12 @@ const MessageBubble = memo(function MessageBubble({
     <Portal>
       <Menu.Positioner>
         <Menu.Content className="dm-context-menu">
+          {onReply && !message.deleted && (
+            <Menu.Item value="reply" className="dm-context-menu-item">
+              <Icon name="reply" className="dm-context-menu-item-icon" />
+              {t('conversations.reply', 'Reply')}
+            </Menu.Item>
+          )}
           <Menu.Item value="react" className="dm-context-menu-item">
             <Icon name="smilePlus" className="dm-context-menu-item-icon" />
             React
@@ -592,6 +626,20 @@ const MessageBubble = memo(function MessageBubble({
       <p className="dm-message-text">{content}</p>
     );
 
+    const replyQuoteEl =
+      replyQuote && !message.deleted ? (
+        <button
+          type="button"
+          className="dm-message-reply-quote"
+          onClick={(e) => {
+            e.stopPropagation();
+            replyQuote.onQuoteClick();
+          }}
+        >
+          {replyQuote.text}
+        </button>
+      ) : null;
+
     const messageRow = (
       <div
         className="dm-message dm-message--linear"
@@ -642,6 +690,7 @@ const MessageBubble = memo(function MessageBubble({
               <span className="dm-message-expiry">{countdown}</span>
             )}
           </div>
+          {replyQuoteEl}
           {messageBody}
           {reactionBar}
         </div>
@@ -717,6 +766,18 @@ const MessageBubble = memo(function MessageBubble({
           />
         )}
         <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
+          {replyQuote && !message.deleted && (
+            <button
+              type="button"
+              className="dm-message-reply-quote"
+              onClick={(e) => {
+                e.stopPropagation();
+                replyQuote.onQuoteClick();
+              }}
+            >
+              {replyQuote.text}
+            </button>
+          )}
           {hasDecryptionError ? (
             <Tooltip content={decryptionDisplayText} position="bottom">
               <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}>
@@ -953,16 +1014,22 @@ function MessageComposer({
   sendTextMessage,
   useFs,
   onToggleFs,
+  replyingTo,
+  onCancelReply,
+  participantProfiles,
 }: {
   conversationId: string;
   sending: boolean;
   sendTextMessage: (
     conversationId: string,
     plaintext: string,
-    options?: { useForwardSecrecy?: boolean }
+    options?: { useForwardSecrecy?: boolean; replyToMessageId?: string }
   ) => Promise<unknown>;
   useFs: boolean;
   onToggleFs: () => void;
+  replyingTo: DisplayMessage | null;
+  onCancelReply: () => void;
+  participantProfiles: Record<string, PublicIdentity>;
 }) {
   const { t } = useTranslation();
   const [messageText, setMessageText] = useState('');
@@ -981,9 +1048,13 @@ function MessageComposer({
     const text = messageTextRef.current.trim();
     if (!conversationId || !text || sending) return;
     setMessageText('');
-    await sendTextMessage(conversationId, convertShortcodes(text), { useForwardSecrecy: useFs });
+    await sendTextMessage(conversationId, convertShortcodes(text), {
+      useForwardSecrecy: useFs,
+      ...(replyingTo ? { replyToMessageId: replyingTo.id } : {}),
+    });
+    onCancelReply();
     inputRef.current?.focus();
-  }, [conversationId, sending, sendTextMessage, useFs]);
+  }, [conversationId, sending, sendTextMessage, useFs, replyingTo, onCancelReply]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -1015,66 +1086,86 @@ function MessageComposer({
 
   return (
     <div className="conversation-composer">
-      <Tooltip
-        content={useFs
-          ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
-          : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
-        }
-        position="top"
-      >
-        <button
-          type="button"
-          className={`conversation-fs-toggle${useFs ? ' conversation-fs-toggle--active' : ''}`}
-          onClick={onToggleFs}
-        >
-          FS
-        </button>
-      </Tooltip>
-      <textarea
-        ref={inputRef}
-        className="conversation-composer-field"
-        placeholder={t('conversations.messagePlaceholder', 'Type a message...')}
-        value={messageText}
-        onChange={(e) => {
-          const raw = e.target.value;
-          const converted = convertShortcodes(raw);
-          if (converted !== raw) {
-            const cursorPos = e.target.selectionStart ?? raw.length;
-            const newCursorPos = Math.max(0, cursorPos - (raw.length - converted.length));
-            setMessageText(converted);
-            requestAnimationFrame(() => {
-              inputRef.current?.setSelectionRange(newCursorPos, newCursorPos);
-            });
-          } else {
-            setMessageText(raw);
-          }
-        }}
-        onKeyDown={handleKeyDown}
-        rows={1}
-        disabled={sending}
-      />
-      <Popover.Root
-        open={showEmojiPicker}
-        onOpenChange={(e) => setShowEmojiPicker(e.open)}
-        positioning={{ placement: 'top-end' }}
-      >
-        <Popover.Trigger asChild>
+      {replyingTo && (
+        <div className="conversation-composer-reply">
+          <span
+            className="conversation-composer-reply-text"
+            title={replyComposerLabel(replyingTo, participantProfiles, t)}
+          >
+            {replyComposerLabel(replyingTo, participantProfiles, t)}
+          </span>
           <button
             type="button"
-            className="message-composer-emoji-btn"
-            title={t('conversations.emojiButton', 'Emoji')}
+            className="conversation-composer-reply-cancel"
+            onClick={onCancelReply}
+            aria-label={t('conversations.cancelReply', 'Cancel reply')}
           >
-            <Icon name="smile" className="message-composer-emoji-icon" />
+            <Icon name="x" />
           </button>
-        </Popover.Trigger>
-        <Portal>
-          <Popover.Positioner>
-            <Popover.Content className="emoji-picker-popover">
-              <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-            </Popover.Content>
-          </Popover.Positioner>
-        </Portal>
-      </Popover.Root>
+        </div>
+      )}
+      <div className="conversation-composer-row">
+        <Tooltip
+          content={useFs
+            ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
+            : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
+          }
+          position="top"
+        >
+          <button
+            type="button"
+            className={`conversation-fs-toggle${useFs ? ' conversation-fs-toggle--active' : ''}`}
+            onClick={onToggleFs}
+          >
+            FS
+          </button>
+        </Tooltip>
+        <textarea
+          ref={inputRef}
+          className="conversation-composer-field"
+          placeholder={t('conversations.messagePlaceholder', 'Type a message...')}
+          value={messageText}
+          onChange={(e) => {
+            const raw = e.target.value;
+            const converted = convertShortcodes(raw);
+            if (converted !== raw) {
+              const cursorPos = e.target.selectionStart ?? raw.length;
+              const newCursorPos = Math.max(0, cursorPos - (raw.length - converted.length));
+              setMessageText(converted);
+              requestAnimationFrame(() => {
+                inputRef.current?.setSelectionRange(newCursorPos, newCursorPos);
+              });
+            } else {
+              setMessageText(raw);
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          rows={1}
+          disabled={sending}
+        />
+        <Popover.Root
+          open={showEmojiPicker}
+          onOpenChange={(e) => setShowEmojiPicker(e.open)}
+          positioning={{ placement: 'top-end' }}
+        >
+          <Popover.Trigger asChild>
+            <button
+              type="button"
+              className="message-composer-emoji-btn"
+              title={t('conversations.emojiButton', 'Emoji')}
+            >
+              <Icon name="smile" className="message-composer-emoji-icon" />
+            </button>
+          </Popover.Trigger>
+          <Portal>
+            <Popover.Positioner>
+              <Popover.Content className="emoji-picker-popover">
+                <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+              </Popover.Content>
+            </Popover.Positioner>
+          </Portal>
+        </Popover.Root>
+      </div>
     </div>
   );
 }
@@ -1123,7 +1214,10 @@ export function ConversationView() {
   const pendingReactionsRef = useRef<Set<string>>(new Set());
   const latestVisibleMessageIdRef = useRef<string | undefined>(undefined);
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const pendingScrollToRef = useRef<string | null>(null);
+  const replyScrollLoadAttemptsRef = useRef(0);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<DisplayMessage | null>(null);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -1205,6 +1299,12 @@ export function ConversationView() {
       fetchedReactionsForRef.current = null;
     }
   }, [id, activeConversationId, setActiveConversation, setIsAtBottom]);
+
+  useEffect(() => {
+    setReplyingTo(null);
+    pendingScrollToRef.current = null;
+    replyScrollLoadAttemptsRef.current = 0;
+  }, [id]);
 
   // Clear activeConversationId and scroll state when this view unmounts
   // (e.g. navigating to About / Settings) so the WebSocket handler correctly
@@ -1407,6 +1507,14 @@ export function ConversationView() {
 
   const unreadCount = conversation?.unreadCount ?? 0;
 
+  const messagesById = useMemo(() => {
+    const m = new Map<string, DisplayMessage>();
+    for (const msg of activeMessages) {
+      m.set(msg.id, msg);
+    }
+    return m;
+  }, [activeMessages]);
+
   const flatItems = useMemo(() => {
     const items: ChatItem[] = [];
     const unreadIdx =
@@ -1430,6 +1538,43 @@ export function ConversationView() {
     }
     return items;
   }, [reversedMessages, unreadCount]);
+
+  const scrollToMessageId = useCallback((targetId: string) => {
+    replyScrollLoadAttemptsRef.current = 0;
+    const idx = flatItems.findIndex((i) => i.type === 'message' && i.msg.id === targetId);
+    if (idx >= 0) {
+      virtuosoRef.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'smooth' });
+      return;
+    }
+    pendingScrollToRef.current = targetId;
+  }, [flatItems]);
+
+  useEffect(() => {
+    if (!pendingScrollToRef.current) return;
+    const id = pendingScrollToRef.current;
+    const idx = flatItems.findIndex((i) => i.type === 'message' && i.msg.id === id);
+    if (idx >= 0) {
+      requestAnimationFrame(() => {
+        virtuosoRef.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'smooth' });
+      });
+      pendingScrollToRef.current = null;
+      replyScrollLoadAttemptsRef.current = 0;
+      return;
+    }
+    if (messagesLoading) return;
+    if (replyScrollLoadAttemptsRef.current >= 25) {
+      pendingScrollToRef.current = null;
+      replyScrollLoadAttemptsRef.current = 0;
+      return;
+    }
+    if (activeMessagesCursor) {
+      replyScrollLoadAttemptsRef.current += 1;
+      void loadMoreMessages();
+    } else {
+      pendingScrollToRef.current = null;
+      replyScrollLoadAttemptsRef.current = 0;
+    }
+  }, [activeMessages, flatItems, activeMessagesCursor, messagesLoading, loadMoreMessages]);
 
   if (!conversation) {
     return (
@@ -1591,6 +1736,15 @@ export function ConversationView() {
                         ownProfile={identity ?? undefined}
                         layout={messageLayout}
                         participantProfiles={participantProfiles}
+                        replyQuote={
+                          msg.replyToMessageId
+                            ? {
+                                text: buildReplySnippet(messagesById.get(msg.replyToMessageId), t),
+                                onQuoteClick: () => scrollToMessageId(msg.replyToMessageId!),
+                              }
+                            : null
+                        }
+                        onReply={() => setReplyingTo(msg)}
                       />
                     );
                   }}
@@ -1616,6 +1770,9 @@ export function ConversationView() {
               sendTextMessage={sendTextMessage}
               useFs={useFs}
               onToggleFs={handleToggleFs}
+              replyingTo={replyingTo}
+              onCancelReply={() => setReplyingTo(null)}
+              participantProfiles={participantProfiles}
             />
           </div>
 

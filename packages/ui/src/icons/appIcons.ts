@@ -8,6 +8,7 @@
 export const APP_ICON_NAMES = {
   home: 'house',
   message: 'message',
+  reply: 'reply',
   users: 'users',
   settings: 'gear',
   info: 'circle-info',

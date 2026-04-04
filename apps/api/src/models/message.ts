@@ -102,6 +102,12 @@ export interface MessageDocument extends BaseDocument {
   /** Client-generated UUID for deduplication */
   clientMessageId: string;
 
+  /**
+   * Optional reference to another message in this conversation (reply threading).
+   * Server stores only the id; plaintext preview is derived client-side after decrypt.
+   */
+  replyToMessageId?: ObjectId;
+
   /** TTL expiry (MongoDB auto-deletes via TTL index) */
   expiresAt?: Date;
 
@@ -127,6 +133,7 @@ export interface CreateMessageInput {
   cryptoProfile: CryptoProfile;
   clientMessageId: string;
   expiresAt?: Date;
+  replyToMessageId?: ObjectId;
 }
 
 /**
@@ -148,6 +155,8 @@ export interface PublicMessage {
   expiresAt?: string;
   deleted: boolean;
   createdAt: string;
+  /** Present when this message is a reply to another message in the same conversation */
+  replyToMessageId?: string;
 }
 
 /**
@@ -175,6 +184,9 @@ export function toPublicMessage(
       clientMessageId: doc.clientMessageId,
       deleted: true,
       createdAt: doc.createdAt.toISOString(),
+      ...(doc.replyToMessageId
+        ? { replyToMessageId: doc.replyToMessageId.toHexString() }
+        : {}),
     };
   }
 
@@ -193,5 +205,8 @@ export function toPublicMessage(
     expiresAt: doc.expiresAt?.toISOString(),
     deleted: false,
     createdAt: doc.createdAt.toISOString(),
+    ...(doc.replyToMessageId
+      ? { replyToMessageId: doc.replyToMessageId.toHexString() }
+      : {}),
   };
 }
