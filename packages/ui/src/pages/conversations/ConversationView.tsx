@@ -55,6 +55,72 @@ function replyComposerLabel(
   return `${name}: ${snippet}`;
 }
 
+/** Preview of the quoted message author for inline reply UI (avatar + name). */
+type ReplyQuoteAuthorPreview = {
+  displayName: string;
+  avatarUrl?: string;
+};
+
+function resolveQuotedAuthorPreview(
+  parent: DisplayMessage | undefined,
+  participantProfiles: Record<string, PublicIdentity>,
+  self: PublicIdentity | null | undefined
+): ReplyQuoteAuthorPreview | undefined {
+  if (!parent) return undefined;
+  const profile =
+    parent.fromIdentityId === self?.id
+      ? self ?? undefined
+      : participantProfiles[parent.fromIdentityId];
+  if (profile) {
+    return {
+      displayName: profile.displayName?.trim() || profile.username || '?',
+      avatarUrl: profile.avatarUrl,
+    };
+  }
+  return { displayName: '?' };
+}
+
+type ReplyQuotePayload = {
+  text: string;
+  onQuoteClick: () => void;
+  quotedAuthor?: ReplyQuoteAuthorPreview;
+};
+
+function ReplyQuoteButton({ replyQuote }: { replyQuote: ReplyQuotePayload }) {
+  const { text, quotedAuthor, onQuoteClick } = replyQuote;
+  const ariaLabel = quotedAuthor ? `${quotedAuthor.displayName}: ${text}` : text;
+
+  return (
+    <button
+      type="button"
+      className="dm-message-reply-quote"
+      onClick={(e) => {
+        e.stopPropagation();
+        onQuoteClick();
+      }}
+      aria-label={ariaLabel}
+    >
+      <span className="dm-message-reply-quote-inner">
+        {quotedAuthor && (
+          <>
+            <span className="dm-message-reply-quote-avatar" aria-hidden>
+              {quotedAuthor.avatarUrl ? (
+                <img src={quotedAuthor.avatarUrl} alt="" className="dm-message-reply-quote-avatar-img" />
+              ) : (
+                <span className="dm-message-reply-quote-avatar-placeholder">
+                  {quotedAuthor.displayName.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </span>
+            <span className="dm-message-reply-quote-author">{quotedAuthor.displayName}</span>
+          </>
+        )}
+        <span className="dm-message-reply-quote-snippet">{text}</span>
+      </span>
+    </button>
+  );
+}
+
 const MESSAGE_ACTION_BAR_POPOVER_POSITIONING = { placement: 'top' as const, gutter: 0 };
 
 function MessageActionBar({
@@ -548,7 +614,7 @@ const MessageBubble = memo(function MessageBubble({
   ownProfile?: PublicIdentity;
   layout: 'linear' | 'bubble';
   participantProfiles: Record<string, PublicIdentity>;
-  replyQuote?: { text: string; onQuoteClick: () => void } | null;
+  replyQuote?: ReplyQuotePayload | null;
   onReply?: () => void;
   isFlashHighlight?: boolean;
 }) {
@@ -676,18 +742,7 @@ const MessageBubble = memo(function MessageBubble({
     );
 
     const replyQuoteEl =
-      replyQuote && !message.deleted ? (
-        <button
-          type="button"
-          className="dm-message-reply-quote"
-          onClick={(e) => {
-            e.stopPropagation();
-            replyQuote.onQuoteClick();
-          }}
-        >
-          {replyQuote.text}
-        </button>
-      ) : null;
+      replyQuote && !message.deleted ? <ReplyQuoteButton replyQuote={replyQuote} /> : null;
 
     const messageRow = (
       <div
@@ -823,18 +878,7 @@ const MessageBubble = memo(function MessageBubble({
           />
         )}
         <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
-          {replyQuote && !message.deleted && (
-            <button
-              type="button"
-              className="dm-message-reply-quote"
-              onClick={(e) => {
-                e.stopPropagation();
-                replyQuote.onQuoteClick();
-              }}
-            >
-              {replyQuote.text}
-            </button>
-          )}
+          {replyQuote && !message.deleted && <ReplyQuoteButton replyQuote={replyQuote} />}
           {hasDecryptionError ? (
             <Tooltip content={decryptionDisplayText} position="bottom">
               <p className="dm-message-text" style={{ fontStyle: 'italic', opacity: 0.6 }}>
@@ -1835,6 +1879,11 @@ export function ConversationView() {
                           msg.replyToMessageId
                             ? {
                                 text: buildReplySnippet(messagesById.get(msg.replyToMessageId), t),
+                                quotedAuthor: resolveQuotedAuthorPreview(
+                                  messagesById.get(msg.replyToMessageId),
+                                  participantProfiles,
+                                  identity
+                                ),
                                 onQuoteClick: () => scrollToMessageId(msg.replyToMessageId!),
                               }
                             : null
