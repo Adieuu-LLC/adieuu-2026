@@ -82,6 +82,7 @@ const SendMessageSchema = z.object({
   signature: z.string().min(1).max(500),
   cryptoProfile: z.enum(['default', 'cnsa2']),
   clientMessageId: z.string().uuid(),
+  e2eMediaIds: z.array(z.string().min(1).max(100)).max(10).optional(),
   expiresInSeconds: z.number().int().min(30).max(604800).optional(),
   replyToMessageId: z.string().length(24).optional(),
 });

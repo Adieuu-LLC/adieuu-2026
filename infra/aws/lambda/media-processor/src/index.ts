@@ -13,6 +13,13 @@
  *
  * This Lambda runs OUTSIDE the VPC (needs only public S3 + Rekognition).
  * Database access is isolated to the DB writer Lambda for security.
+ *
+ * TODO [VIDEO SUPPORT]: When adding video moderation, this Lambda will need:
+ * - ffmpeg layer for frame extraction / transcoding
+ * - Async Rekognition pipeline: StartContentModeration -> SNS topic -> callback handler
+ * - The callback handler should update the DB via the DB writer Lambda
+ * - See AsyncModerationResult in apps/api/src/models/e2e-media.ts for the type definitions
+ * - VIDEO_MIME_TYPES in apps/api/src/models/media-upload.ts lists the accepted types
  */
 
 import type { S3Event, S3EventRecord, SQSEvent } from 'aws-lambda';
@@ -135,6 +142,9 @@ async function processRecord(record: S3EventRecord): Promise<void> {
   console.log(`Media ID: ${meta.mediaId}, Purpose: ${meta.purpose}`);
 
   if (CONTENT_MODERATION && meta.contentModeration) {
+    // TODO [VIDEO SUPPORT]: For video files, use StartContentModeration (async)
+    // instead of DetectModerationLabels (sync). Requires an SNS topic for
+    // the callback and a separate handler to process the async result.
     console.log('Running content moderation...');
     try {
       const moderationResult = await rekognition.send(

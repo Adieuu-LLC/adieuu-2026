@@ -39,6 +39,13 @@ const DM_READ_STATE_DOMAIN = 'adieuu-read-state-v1';
 const PARTICIPANT_HASH_DOMAIN = 'participant-v1';
 
 /**
+ * Domain separator for conversation media scan hash derivation.
+ * Links scan copies to E2E media without revealing the uploader's identity.
+ * Must match the server-side CONV_SCAN_DOMAIN in apps/api/src/utils/crypto.ts.
+ */
+const CONV_SCAN_DOMAIN = 'adieuu-conv-scan-v1';
+
+/**
  * Nonce size for symmetric encryption (12 bytes for ChaCha20/AES-GCM).
  */
 const NONCE_SIZE = 12;
@@ -224,6 +231,32 @@ export function deriveSenderHintNonce(clientMessageId: string): Uint8Array {
  */
 export function deriveParticipantHash(identityId: string, conversationId: string): string {
   const data = `${identityId}${conversationId}${PARTICIPANT_HASH_DOMAIN}`;
+  const hash = sha3_256(toBytes(data));
+  return toHex(hash);
+}
+
+/**
+ * Derives a scan hash for linking a conversation scan copy to its E2E media
+ * upload without revealing the uploader's identity.
+ *
+ * The scan hash is computed as: SHA3-256(identityId || e2eMediaId || "adieuu-conv-scan-v1")
+ *
+ * This is the client-side counterpart to `deriveScanHash` in the API's
+ * `utils/crypto.ts`. Both MUST use the same domain separator to produce
+ * matching hashes.
+ *
+ * @param identityId - The uploader's identity ID (hex string, 24 chars)
+ * @param e2eMediaId - The E2E media upload identifier
+ * @returns The scan hash as a hex string (64 chars)
+ *
+ * @example
+ * ```typescript
+ * const scanHash = deriveScanHash(myIdentityId, e2eMediaId);
+ * // Use scanHash to request scan upload and poll moderation status
+ * ```
+ */
+export function deriveScanHash(identityId: string, e2eMediaId: string): string {
+  const data = `${identityId}${e2eMediaId}${CONV_SCAN_DOMAIN}`;
   const hash = sha3_256(toBytes(data));
   return toHex(hash);
 }

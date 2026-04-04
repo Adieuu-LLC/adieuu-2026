@@ -19,6 +19,7 @@ import { adminRoutes } from './admin';
 import { themeRoutes } from './themes';
 import { releaseRoutes } from './releases';
 import { uploadRoutes } from './uploads';
+import { e2eUploadRoutes } from './uploads/e2e';
 import { friendRoutes } from './friends';
 import { conversationRoutes } from './conversations';
 
@@ -77,6 +78,9 @@ export function registerRoutes(app: Router): void {
 
   // Media uploads (presigned S3 URLs, processing status, Lambda callbacks)
   app.merge(uploadRoutes, '/api');
+
+  // E2E media uploads (conversation attachments with dual-upload moderation)
+  app.merge(e2eUploadRoutes, '/api');
 
   // Friends and friend requests
   app.merge(friendRoutes, '/api');

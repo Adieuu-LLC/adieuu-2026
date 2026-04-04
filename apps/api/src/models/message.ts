@@ -108,6 +108,13 @@ export interface MessageDocument extends BaseDocument {
    */
   replyToMessageId?: ObjectId;
 
+  /**
+   * E2E media IDs attached to this message (server-visible for gating and cleanup).
+   * Actual attachment metadata (dimensions, filename, etc.) lives inside the
+   * encrypted ciphertext and is invisible to the server.
+   */
+  e2eMediaIds?: string[];
+
   /** TTL expiry (MongoDB auto-deletes via TTL index) */
   expiresAt?: Date;
 
@@ -132,6 +139,7 @@ export interface CreateMessageInput {
   signature: string;
   cryptoProfile: CryptoProfile;
   clientMessageId: string;
+  e2eMediaIds?: string[];
   expiresAt?: Date;
   replyToMessageId?: ObjectId;
 }
@@ -152,6 +160,7 @@ export interface PublicMessage {
   signature?: string;
   cryptoProfile: CryptoProfile;
   clientMessageId: string;
+  e2eMediaIds?: string[];
   expiresAt?: string;
   deleted: boolean;
   createdAt: string;
@@ -202,6 +211,7 @@ export function toPublicMessage(
     signature: doc.signature,
     cryptoProfile: doc.cryptoProfile,
     clientMessageId: doc.clientMessageId,
+    ...(doc.e2eMediaIds?.length ? { e2eMediaIds: doc.e2eMediaIds } : {}),
     expiresAt: doc.expiresAt?.toISOString(),
     deleted: false,
     createdAt: doc.createdAt.toISOString(),

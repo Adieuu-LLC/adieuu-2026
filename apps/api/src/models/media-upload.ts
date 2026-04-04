@@ -5,16 +5,40 @@
  * SECURITY: Upload keys use ULIDs + random suffix to prevent URL guessing.
  * Raw uploads (uploads/ prefix) are never served publicly; only processed
  * files (processed/ prefix) are accessible via CloudFront.
+ *
+ * For conversation media, scan copies (purpose: conv_scan) are uploaded
+ * WITHOUT an identityId to prevent linkage. Instead they carry a scanHash
+ * derived from SHA3-256(identityId || e2eMediaId || domain) so the server
+ * can look up moderation status without storing who uploaded the scan copy.
  */
 
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
 
+/** Image MIME types accepted for conversation media (images only in this build). */
+export const IMAGE_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+] as const;
+
+/**
+ * Video MIME types for future support. Not accepted by upload endpoints yet.
+ * Video moderation requires the async Rekognition pipeline (StartContentModeration
+ * + SNS callback) and ffmpeg in the Lambda — scoped as a separate follow-up.
+ */
+export const VIDEO_MIME_TYPES = [
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+] as const;
+
 /**
  * Upload purpose determines allowed content types, size limits,
  * and which processing flags are applied.
  */
-export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media';
+export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media' | 'conv_media' | 'conv_scan';
 
 /**
  * Processing status of a media upload.
@@ -44,8 +68,12 @@ export interface MediaUploadDocument extends BaseDocument {
   /** Unique media identifier (ULID) */
   mediaId: string;
 
-  /** Identity that owns this upload */
-  identityId: ObjectId;
+  /**
+   * Identity that owns this upload.
+   * Omitted for conv_scan uploads to prevent linkage between scan copies
+   * and identities — see scanHash for the anonymous lookup key.
+   */
+  identityId?: ObjectId;
 
   /** Upload purpose (determines limits and processing) */
   purpose: UploadPurpose;
@@ -73,6 +101,14 @@ export interface MediaUploadDocument extends BaseDocument {
 
   /** Public CDN URL once processed and ready */
   cdnUrl?: string;
+
+  /**
+   * One-way hash linking this scan copy to an E2E media upload without
+   * revealing the uploader's identity. Derived as:
+   *   SHA3-256(identityId || e2eMediaId || "adieuu-conv-scan-v1")
+   * Present only on conv_scan uploads.
+   */
+  scanHash?: string;
 }
 
 /**
@@ -120,6 +156,23 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
     processingFlags: {
       stripExif: true,
       resize: { maxWidth: 1920, maxHeight: 1080 },
+      contentModeration: true,
+    },
+  },
+  conv_media: {
+    maxBytes: 25 * 1024 * 1024, // 25 MB
+    allowedContentTypes: [...IMAGE_MIME_TYPES],
+    processingFlags: {
+      stripExif: false,
+      contentModeration: false,
+    },
+  },
+  conv_scan: {
+    maxBytes: 2 * 1024 * 1024, // 2 MB (thumbnail only)
+    allowedContentTypes: [...IMAGE_MIME_TYPES],
+    processingFlags: {
+      stripExif: true,
+      resize: { maxWidth: 512, maxHeight: 512 },
       contentModeration: true,
     },
   },

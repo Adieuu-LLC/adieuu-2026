@@ -26,6 +26,10 @@ export class MediaUploadRepository extends BaseRepository<MediaUploadDocument> {
     return await this.findOne({ mediaId, identityId: objectId });
   }
 
+  async findByScanHash(scanHash: string): Promise<MediaUploadDocument | null> {
+    return await this.findOne({ scanHash });
+  }
+
   async updateStatus(
     mediaId: string,
     status: UploadStatus,

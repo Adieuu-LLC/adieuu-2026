@@ -412,6 +412,12 @@ export function decrypt(encrypted: string): string | null {
 const KEY_BUNDLE_DOMAIN = 'adieuu-key-bundle-v1';
 
 /**
+ * Domain separator for conversation media scan hash derivation.
+ * Links scan copies to E2E media without revealing the uploader's identity.
+ */
+const CONV_SCAN_DOMAIN = 'adieuu-conv-scan-v1';
+
+/**
  * Derives a bundle ID from an identity's ident hash.
  * 
  * The bundle ID is computed as: SHA3-256(ident || KEY_BUNDLE_DOMAIN)
@@ -429,6 +435,27 @@ const KEY_BUNDLE_DOMAIN = 'adieuu-key-bundle-v1';
  */
 export function deriveBundleId(ident: string): string {
   const data = `${ident}${KEY_BUNDLE_DOMAIN}`;
+  return createHash('sha3-256').update(data).digest('hex');
+}
+
+/**
+ * Derives a scan hash for linking a conversation scan copy to its E2E media
+ * upload without revealing the uploader's identity.
+ *
+ * The scan hash is computed as: SHA3-256(identityId || e2eMediaId || "adieuu-conv-scan-v1")
+ *
+ * Properties:
+ * - **Deterministic**: Same identity + media always produces same hash
+ * - **One-way**: Cannot reverse to get identity ID from the hash
+ * - **Unique per upload**: Same identity has different hashes for different uploads
+ * - **Verifiable**: Client can compute hash from its own identity + the e2eMediaId
+ *
+ * @param identityId - The uploader's identity ID (hex string, 24 chars)
+ * @param e2eMediaId - The E2E media upload identifier
+ * @returns The scan hash as a hex string (64 chars)
+ */
+export function deriveScanHash(identityId: string, e2eMediaId: string): string {
+  const data = `${identityId}${e2eMediaId}${CONV_SCAN_DOMAIN}`;
   return createHash('sha3-256').update(data).digest('hex');
 }
 

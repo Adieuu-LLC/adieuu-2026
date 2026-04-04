@@ -4,6 +4,12 @@
 #   - uploads/   : raw files uploaded via presigned PUT URLs (never served publicly)
 #   - processed/ : Lambda-processed files (EXIF stripped, resized, moderated) served via CloudFront
 #
+# Conversation media uses a dual-upload approach for E2E privacy with content moderation:
+#   1. E2E encrypted media goes to a separate bucket (aws_s3_bucket.e2e_media) — no Lambda, no CDN
+#   2. A cleartext thumbnail (scan copy) goes to uploads/conv_scan/ in this bucket for Rekognition
+#      moderation. The existing expire-stale-uploads lifecycle rule (1 day) acts as a safety net;
+#      the Lambda deletes scan copies immediately after the moderation verdict.
+#
 # Gated on enable_media_stack (requires public_dns_tls_enabled).
 
 # ---------------------------------------------------------------------------
@@ -662,4 +668,133 @@ resource "aws_lambda_event_source_mapping" "media_uploads" {
   batch_size                         = 1
   maximum_batching_window_in_seconds = 0
   enabled                            = true
+}
+
+# ---------------------------------------------------------------------------
+# E2E media bucket (conversation attachments, encrypted client-side)
+#
+# Stores E2E encrypted media blobs uploaded via presigned PUT. Clients fetch
+# via presigned GET and decrypt locally. No Lambda processing, no CloudFront.
+# Access is gated server-side: presigned GETs are only issued after the
+# companion scan copy passes Rekognition moderation.
+# ---------------------------------------------------------------------------
+
+resource "aws_s3_bucket" "e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = "${local.name_prefix}-e2e-media-${data.aws_caller_identity.current.account_id}"
+
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-e2e-media" })
+}
+
+resource "aws_s3_bucket_public_access_block" "e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.e2e_media[0].id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_versioning" "e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.e2e_media[0].id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.e2e_media[0].id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.e2e_media[0].id
+
+  rule {
+    id     = "abort-incomplete-multipart"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+
+  rule {
+    id     = "expire-orphaned-uploads"
+    status = "Enabled"
+
+    filter {
+      prefix = "uploads/"
+    }
+
+    expiration {
+      days = 1
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 1
+    }
+  }
+}
+
+resource "aws_s3_bucket_cors_configuration" "e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  bucket = aws_s3_bucket.e2e_media[0].id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["PUT", "GET"]
+    allowed_origins = local.media_cors_origins
+    max_age_seconds = 3600
+  }
+}
+
+# ECS task role: S3 permissions for the E2E media bucket (presigned PUT/GET + cleanup)
+resource "aws_iam_role_policy" "ecs_task_e2e_media" {
+  count = local.media_enabled ? 1 : 0
+
+  name = "${local.name_prefix}-ecs-task-e2e-media"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "E2EMediaUploads"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+        ]
+        Resource = "${aws_s3_bucket.e2e_media[0].arn}/uploads/*"
+      },
+      {
+        Sid    = "E2EMediaRead"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:DeleteObject",
+        ]
+        Resource = "${aws_s3_bucket.e2e_media[0].arn}/*"
+      },
+    ]
+  })
 }

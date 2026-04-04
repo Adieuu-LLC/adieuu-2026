@@ -209,7 +209,16 @@ export {
   deriveReadStateKey,
   deriveSenderHintNonce,
   deriveParticipantHash,
+  deriveScanHash,
 } from './dm';
+
+// Content moderation (placeholder -- no implementation in this build)
+export {
+  type PerceptualHashResult,
+  type KnownBadHashCheckResult,
+  computePerceptualHash,
+  checkKnownBadHash,
+} from './moderation';
 
 // Community Ciphers (Spaces)
 export {

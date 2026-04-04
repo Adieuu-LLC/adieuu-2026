@@ -358,6 +358,8 @@ export const Collections = {
   IDENTITY_ENCRYPTED_PREFS: 'identity_encrypted_prefs',
   /** Media upload tracking (presigned URLs, processing status) */
   MEDIA_UPLOADS: 'media_uploads',
+  /** E2E encrypted media for conversation attachments */
+  E2E_MEDIA: 'e2e_media',
 } as const;
 
 /**
@@ -579,7 +581,18 @@ async function createIndexes(): Promise<void> {
   await mediaUploads.createIndex({ mediaId: 1 }, { unique: true });
   await mediaUploads.createIndex({ identityId: 1, createdAt: -1 });
   await mediaUploads.createIndex({ status: 1 });
+  await mediaUploads.createIndex({ scanHash: 1 }, { sparse: true });
   await mediaUploads.createIndex(
+    { createdAt: 1 },
+    { expireAfterSeconds: 24 * 60 * 60, partialFilterExpression: { status: 'pending' } }
+  );
+
+  // E2E media — tracks E2E encrypted conversation media uploads
+  const e2eMedia = database.collection(Collections.E2E_MEDIA);
+  await e2eMedia.createIndex({ e2eMediaId: 1 }, { unique: true });
+  await e2eMedia.createIndex({ identityId: 1, createdAt: -1 });
+  await e2eMedia.createIndex({ scanHash: 1 });
+  await e2eMedia.createIndex(
     { createdAt: 1 },
     { expireAfterSeconds: 24 * 60 * 60, partialFilterExpression: { status: 'pending' } }
   );

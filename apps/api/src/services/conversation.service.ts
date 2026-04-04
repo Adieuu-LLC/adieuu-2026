@@ -40,6 +40,8 @@ import {
   type GroupInvitePreviewMember,
 } from '../models/group-invite';
 import { toPublicIdentity } from '../models/identity';
+import { getE2EMediaRepository } from '../repositories/e2e-media.repository';
+import { deleteE2EMedia } from './e2e-upload.service';
 import { getRedis, isRedisConnected, RedisKeys } from '../db';
 import { config } from '../config';
 import elog from '../utils/adieuuLogger';
@@ -78,7 +80,8 @@ export interface MessageResult {
     | 'DUPLICATE_MESSAGE'
     | 'MESSAGE_NOT_FOUND'
     | 'NOT_SENDER'
-    | 'INVALID_REPLY_TARGET';
+    | 'INVALID_REPLY_TARGET'
+    | 'INVALID_MEDIA';
 }
 
 export interface GroupInviteResult {
@@ -483,6 +486,24 @@ export async function sendMessage(
     };
   }
 
+  if (input.e2eMediaIds?.length) {
+    const e2eRepo = getE2EMediaRepository();
+    const mediaRecords = await e2eRepo.findManyByE2EMediaIds(input.e2eMediaIds);
+
+    if (mediaRecords.length !== input.e2eMediaIds.length) {
+      return { success: false, error: 'One or more E2E media references not found', errorCode: 'INVALID_MEDIA' as const };
+    }
+
+    for (const media of mediaRecords) {
+      if (!media.identityId.equals(senderObjId)) {
+        return { success: false, error: 'E2E media does not belong to sender', errorCode: 'INVALID_MEDIA' as const };
+      }
+      if (media.status === 'pending') {
+        return { success: false, error: 'E2E media upload has not been completed', errorCode: 'INVALID_MEDIA' as const };
+      }
+    }
+  }
+
   const { replyToMessageId: replyFromInput, ...messageFields } = input;
 
   let resolvedReplyId: ObjectId | undefined;
@@ -684,6 +705,14 @@ export async function deleteMessageForEveryone(
 
   const reactionRepo = getReactionRepository();
   await reactionRepo.deleteByMessage(msgObjId);
+
+  if (message.e2eMediaIds?.length) {
+    for (const e2eMediaId of message.e2eMediaIds) {
+      await deleteE2EMedia(e2eMediaId).catch((err) => {
+        elog.error('Failed to delete E2E media during message deletion', { e2eMediaId, err });
+      });
+    }
+  }
 
   await publishToParticipants(conversation.participants, requesterObjId, {
     type: 'conversation_message_deleted',

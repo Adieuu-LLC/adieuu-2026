@@ -87,6 +87,15 @@ export {
   type RequestUploadParams,
   type RequestUploadResponse,
   type UploadStatusResponse,
+  // E2E media upload types
+  E2EUploadApi,
+  type E2EMediaStatus,
+  type RequestE2EUploadParams,
+  type RequestE2EUploadResponse,
+  type RequestScanUploadParams,
+  type RequestScanUploadResponse,
+  type E2EMediaStatusResponse,
+  type E2EMediaDownloadResponse,
   // Conversation types
   ConversationsApi,
   type ConversationType,

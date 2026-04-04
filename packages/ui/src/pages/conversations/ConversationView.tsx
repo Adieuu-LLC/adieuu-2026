@@ -1109,6 +1109,16 @@ function InviteMemberModal({
   );
 }
 
+/** Pending attachment state in the composer. */
+interface PendingAttachment {
+  file: File;
+  previewUrl: string;
+}
+
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const MAX_ATTACHMENTS = 10;
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
 function MessageComposer({
   conversationId,
   sending,
@@ -1125,7 +1135,7 @@ function MessageComposer({
   sendTextMessage: (
     conversationId: string,
     plaintext: string,
-    options?: { useForwardSecrecy?: boolean; replyToMessageId?: string }
+    options?: { useForwardSecrecy?: boolean; replyToMessageId?: string; e2eMediaIds?: string[] }
   ) => Promise<unknown>;
   useFs: boolean;
   onToggleFs: () => void;
@@ -1138,9 +1148,43 @@ function MessageComposer({
   const { t } = useTranslation();
   const [messageText, setMessageText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [stripExif, setStripExif] = useState(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messageTextRef = useRef(messageText);
   messageTextRef.current = messageText;
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newAttachments: PendingAttachment[] = [];
+    for (const file of Array.from(files)) {
+      if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) continue;
+      if (file.size > MAX_ATTACHMENT_BYTES) continue;
+      if (attachments.length + newAttachments.length >= MAX_ATTACHMENTS) break;
+      newAttachments.push({ file, previewUrl: URL.createObjectURL(file) });
+    }
+
+    setAttachments((prev) => [...prev, ...newAttachments].slice(0, MAX_ATTACHMENTS));
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [attachments.length]);
+
+  const removeAttachment = useCallback((index: number) => {
+    setAttachments((prev) => {
+      const next = [...prev];
+      const removed = next.splice(index, 1);
+      removed.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      attachments.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+    };
+  }, []);
 
   useEffect(() => {
     if (!sending) {
@@ -1158,18 +1202,26 @@ function MessageComposer({
 
   const handleSend = useCallback(async () => {
     const text = messageTextRef.current.trim();
-    if (!conversationId || !text || sending) return;
+    if (!conversationId || (!text && attachments.length === 0) || sending) return;
     setMessageText('');
+
+    // TODO: When media upload integration is wired, upload attachments here
+    // using the useConversationMediaUpload hook, collect e2eMediaIds, and
+    // pass them to sendTextMessage. For now, send text-only.
     const sent = await sendTextMessage(conversationId, convertShortcodes(text), {
       useForwardSecrecy: useFs,
       ...(replyingTo ? { replyToMessageId: replyingTo.id } : {}),
     });
     onCancelReply();
+    setAttachments((prev) => {
+      prev.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+      return [];
+    });
     if (sent != null) {
       onSendSucceeded?.();
     }
     inputRef.current?.focus();
-  }, [conversationId, sending, sendTextMessage, useFs, replyingTo, onCancelReply, onSendSucceeded]);
+  }, [conversationId, sending, sendTextMessage, useFs, replyingTo, onCancelReply, onSendSucceeded, attachments]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -1219,6 +1271,33 @@ function MessageComposer({
           </button>
         </div>
       )}
+      {attachments.length > 0 && (
+        <div className="conversation-composer-attachments">
+          {attachments.map((att, idx) => (
+            <div key={att.previewUrl} className="conversation-composer-attachment">
+              <img src={att.previewUrl} alt="" className="conversation-composer-attachment-thumb" />
+              <button
+                type="button"
+                className="conversation-composer-attachment-remove"
+                onClick={() => removeAttachment(idx)}
+                aria-label={t('conversations.removeAttachment', 'Remove attachment')}
+              >
+                <Icon name="x" />
+              </button>
+            </div>
+          ))}
+          <label className="conversation-composer-exif-toggle">
+            <input
+              type="checkbox"
+              checked={!stripExif}
+              onChange={(e) => setStripExif(!e.target.checked)}
+            />
+            <span className="conversation-composer-exif-label">
+              {t('conversations.includeMetadata', 'Include original metadata')}
+            </span>
+          </label>
+        </div>
+      )}
       <div className="conversation-composer-row">
         <Tooltip
           content={useFs
@@ -1235,6 +1314,27 @@ function MessageComposer({
             FS
           </button>
         </Tooltip>
+        <Tooltip
+          content={t('conversations.attachMedia', 'Attach image')}
+          position="top"
+        >
+          <button
+            type="button"
+            className="conversation-attach-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending || attachments.length >= MAX_ATTACHMENTS}
+          >
+            <Icon name="image" />
+          </button>
+        </Tooltip>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ACCEPTED_IMAGE_TYPES.join(',')}
+          multiple
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+        />
         <textarea
           ref={inputRef}
           className="conversation-composer-field"

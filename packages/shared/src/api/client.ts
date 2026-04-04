@@ -1813,9 +1813,11 @@ export interface UpdateProfileParams {
 // Upload API Types
 // ============================================================================
 
-export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media';
+export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media' | 'conv_media' | 'conv_scan';
 
 export type UploadStatus = 'pending' | 'uploaded' | 'processing' | 'ready' | 'rejected' | 'failed';
+
+export type E2EMediaStatus = 'pending' | 'uploaded' | 'gated' | 'available';
 
 export interface RequestUploadParams {
   purpose: UploadPurpose;
@@ -1866,6 +1868,93 @@ export class UploadApi {
   ): Promise<ApiResponse<UploadStatusResponse>> {
     return this.client.get(
       `/api/uploads/${encodeURIComponent(mediaId)}/status`
+    );
+  }
+}
+
+// ============================================================================
+// E2E Media Upload API
+// ============================================================================
+
+export interface RequestE2EUploadParams {
+  contentType: string;
+  contentLength: number;
+  stripExif?: boolean;
+}
+
+export interface RequestE2EUploadResponse {
+  e2eMediaId: string;
+  uploadUrl: string;
+  scanHash: string;
+  expiresIn: number;
+}
+
+export interface RequestScanUploadParams {
+  scanHash: string;
+  contentType: string;
+  contentLength: number;
+}
+
+export interface RequestScanUploadResponse {
+  scanMediaId: string;
+  uploadUrl: string;
+  expiresIn: number;
+}
+
+export interface E2EMediaStatusResponse {
+  e2eMediaId: string;
+  status: E2EMediaStatus;
+  moderationStatus: string;
+  moderationReason: string | null;
+}
+
+export interface E2EMediaDownloadResponse {
+  downloadUrl: string;
+  expiresIn: number;
+}
+
+export class E2EUploadApi {
+  constructor(private client: ApiClient) {}
+
+  async requestE2EUpload(
+    params: RequestE2EUploadParams
+  ): Promise<ApiResponse<RequestE2EUploadResponse>> {
+    return this.client.post('/api/uploads/e2e/request', params);
+  }
+
+  async completeE2EUpload(e2eMediaId: string): Promise<ApiResponse<void>> {
+    return this.client.post(
+      `/api/uploads/e2e/${encodeURIComponent(e2eMediaId)}/complete`,
+      {}
+    );
+  }
+
+  async getE2EMediaStatus(
+    e2eMediaId: string
+  ): Promise<ApiResponse<E2EMediaStatusResponse>> {
+    return this.client.get(
+      `/api/uploads/e2e/${encodeURIComponent(e2eMediaId)}/status`
+    );
+  }
+
+  async getE2EMediaDownload(
+    e2eMediaId: string
+  ): Promise<ApiResponse<E2EMediaDownloadResponse>> {
+    return this.client.get(
+      `/api/uploads/e2e/${encodeURIComponent(e2eMediaId)}/download`
+    );
+  }
+
+  async requestScanUpload(
+    params: RequestScanUploadParams
+  ): Promise<ApiResponse<RequestScanUploadResponse>> {
+    return this.client.post('/api/uploads/scan/request', params);
+  }
+
+  async completeScanUpload(scanMediaId: string): Promise<ApiResponse<void>> {
+    return this.client.post(
+      `/api/uploads/scan/${encodeURIComponent(scanMediaId)}/complete`,
+      {}
     );
   }
 }
@@ -2240,6 +2329,7 @@ export function createApiClient(config: ApiClientConfig) {
     admin: new AdminApi(client),
     themes: new ThemesApi(client),
     uploads: new UploadApi(client),
+    e2eUploads: new E2EUploadApi(client),
     conversations: new ConversationsApi(client),
     reactions: new ReactionsApi(client),
   };

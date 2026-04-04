@@ -21,7 +21,8 @@ const MONGODB_SECRET_KEY = process.env.MONGODB_SECRET_KEY || 'MONGODB_URI';
 const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME!;
 const MEDIA_CDN_URL = process.env.MEDIA_CDN_URL || '';
 
-const COLLECTION_NAME = 'media_uploads';
+const MEDIA_UPLOADS_COLLECTION = 'media_uploads';
+const E2E_MEDIA_COLLECTION = 'e2e_media';
 
 const secretsManager = new SecretsManagerClient({});
 
@@ -103,11 +104,11 @@ async function getMongoClient(): Promise<MongoClient> {
   }
 
   const docCount = await db
-    .collection(COLLECTION_NAME)
+    .collection(MEDIA_UPLOADS_COLLECTION)
     .estimatedDocumentCount();
   console.log(
     `MongoDB connected and verified: database="${MONGODB_DB_NAME}", ` +
-    `collection="${COLLECTION_NAME}" (~${docCount} documents)`
+    `collection="${MEDIA_UPLOADS_COLLECTION}" (~${docCount} documents)`
   );
 
   cachedMongoClient = client;
@@ -126,7 +127,7 @@ export async function handler(event: WriterEvent): Promise<WriterResult> {
   try {
     const client = await getMongoClient();
     const db = client.db(MONGODB_DB_NAME);
-    const collection = db.collection(COLLECTION_NAME);
+    const collection = db.collection(MEDIA_UPLOADS_COLLECTION);
 
     const cdnUrl =
       status === 'ready' && processedS3Key && MEDIA_CDN_URL
@@ -142,17 +143,48 @@ export async function handler(event: WriterEvent): Promise<WriterResult> {
     if (cdnUrl !== undefined) updateFields.cdnUrl = cdnUrl;
     if (rejectionReason !== undefined) updateFields.rejectionReason = rejectionReason;
 
-    const result = await collection.updateOne(
+    const mediaDoc = await collection.findOneAndUpdate(
       { mediaId },
-      { $set: updateFields }
+      { $set: updateFields },
+      { returnDocument: 'after' }
     );
 
-    if (result.matchedCount === 0) {
+    if (!mediaDoc) {
       console.warn(`No document found for mediaId: ${mediaId}`);
       return { success: false, error: 'Upload not found' };
     }
 
     console.log(`Updated media upload: ${mediaId}, status: ${status}`);
+
+    // If this is a scan copy (conv_scan), propagate moderation status to the
+    // companion E2E media record via scanHash.
+    const scanHash = (mediaDoc as Record<string, unknown>).scanHash as string | undefined;
+    if (scanHash && (status === 'ready' || status === 'rejected')) {
+      const e2eCollection = db.collection(E2E_MEDIA_COLLECTION);
+      const moderationStatus = status === 'ready' ? 'passed' : 'rejected';
+      const e2eStatus = status === 'ready' ? 'available' : 'gated';
+
+      const e2eUpdate: Record<string, unknown> = {
+        moderationStatus,
+        status: e2eStatus,
+        updatedAt: new Date(),
+      };
+      if (rejectionReason) {
+        e2eUpdate.moderationReason = rejectionReason;
+      }
+
+      const e2eResult = await e2eCollection.updateOne(
+        { scanHash },
+        { $set: e2eUpdate }
+      );
+
+      if (e2eResult.matchedCount > 0) {
+        console.log(`Updated E2E media via scanHash: moderationStatus=${moderationStatus}`);
+      } else {
+        console.warn(`No E2E media document found for scanHash (may be orphaned scan copy)`);
+      }
+    }
+
     return { success: true };
   } catch (err) {
     console.error('DB writer error:', err);

@@ -101,9 +101,10 @@ locals {
     length(local.cors_origins_merged) > 0 ? { CORS_ORIGINS = join(",", local.cors_origins_merged) } : {},
     local.downloads_enabled ? { RELEASE_MANIFESTS_S3_BUCKET = aws_s3_bucket.release_manifests[0].id } : {},
     local.media_enabled ? {
-      MEDIA_S3_BUCKET  = aws_s3_bucket.media[0].id
-      MEDIA_S3_REGION  = var.aws_region
-      MEDIA_CDN_URL    = "https://${var.media_domain_name}"
+      MEDIA_S3_BUCKET      = aws_s3_bucket.media[0].id
+      MEDIA_S3_REGION      = var.aws_region
+      MEDIA_CDN_URL        = "https://${var.media_domain_name}"
+      E2E_MEDIA_S3_BUCKET  = aws_s3_bucket.e2e_media[0].id
     } : {},
   )
 

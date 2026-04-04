@@ -251,6 +251,8 @@ export const config = {
   s3: {
     /** S3 bucket for user-uploaded media (injected by Terraform as MEDIA_S3_BUCKET) */
     mediaBucket: process.env.MEDIA_S3_BUCKET || '',
+    /** S3 bucket for E2E encrypted conversation media (injected by Terraform as E2E_MEDIA_S3_BUCKET) */
+    e2eMediaBucket: process.env.E2E_MEDIA_S3_BUCKET || '',
     /** AWS region for the media bucket */
     region: optionalEnv('MEDIA_S3_REGION', optionalEnv('AWS_REGION', 'us-east-1')),
   },

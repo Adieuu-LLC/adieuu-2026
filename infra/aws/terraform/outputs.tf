@@ -161,6 +161,11 @@ output "media_processor_lambda_name" {
   value       = local.media_enabled ? aws_lambda_function.media_processor[0].function_name : null
 }
 
+output "e2e_media_s3_bucket_name" {
+  description = "S3 bucket for E2E encrypted conversation media when media stack is enabled; null otherwise."
+  value       = local.media_enabled ? aws_s3_bucket.e2e_media[0].id : null
+}
+
 output "cloudfront_pricing_model" {
   description = "Configured CloudFront pricing model (pay_as_you_go or flat_rate_*)."
   value       = var.cloudfront_pricing_model
