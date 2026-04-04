@@ -1059,6 +1059,8 @@ export function ConversationView() {
   const shouldScrollToBottomRef = useRef(true);
   const fetchedReactionsForRef = useRef<string | null>(null);
   const pendingReactionsRef = useRef<Set<string>>(new Set());
+  const latestVisibleMessageIdRef = useRef<string | undefined>(undefined);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -1114,6 +1116,24 @@ export function ConversationView() {
 
   const conversation = conversations.find((c) => c.id === id);
 
+  const showArtifacts = identity ? loadShowMessageArtifacts(identity.id) : false;
+
+  const reversedMessages = useMemo(
+    () =>
+      [...activeMessages]
+        .reverse()
+        .filter((msg) => {
+          if (showArtifacts) return true;
+          if (msg.messageType === 'system') return true;
+          if (msg.deleted) return false;
+          if (!msg.decryptedContent && msg.decryptionError) return false;
+          return true;
+        }),
+    [activeMessages, showArtifacts]
+  );
+
+  latestVisibleMessageIdRef.current = reversedMessages.at(-1)?.id;
+
   useEffect(() => {
     if (id && id !== activeConversationId) {
       setActiveConversation(id);
@@ -1162,6 +1182,15 @@ export function ConversationView() {
     }
   }, [activeMessages.length]);
 
+  const scrollLastRowIntoViewAfterReaction = useCallback((messageId: string) => {
+    if (messageId !== latestVisibleMessageIdRef.current) return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth', align: 'end' });
+      });
+    });
+  }, []);
+
   const handleReact = useCallback(
     async (messageId: string, emoji: string) => {
       if (!id || !conversation) return;
@@ -1174,11 +1203,12 @@ export function ConversationView() {
         const recipients = await fetchRecipientKeys(conversation.participants, useForwardSecrecy);
         if (recipients.length === 0) return;
         await addReaction(messageId, emoji, recipients);
+        scrollLastRowIntoViewAfterReaction(messageId);
       } finally {
         pendingReactionsRef.current.delete(key);
       }
     },
-    [id, conversation, activeMessages, addReaction, fetchRecipientKeys]
+    [id, conversation, activeMessages, addReaction, fetchRecipientKeys, scrollLastRowIntoViewAfterReaction]
   );
 
   const handleToggleReaction = useCallback(
@@ -1189,6 +1219,7 @@ export function ConversationView() {
         pendingReactionsRef.current.add(key);
         try {
           await removeReaction(ownReactionId, messageId);
+          scrollLastRowIntoViewAfterReaction(messageId);
         } finally {
           pendingReactionsRef.current.delete(key);
         }
@@ -1196,7 +1227,7 @@ export function ConversationView() {
         await handleReact(messageId, emoji);
       }
     },
-    [removeReaction, handleReact]
+    [removeReaction, handleReact, scrollLastRowIntoViewAfterReaction]
   );
 
   const handleStartReached = useCallback(() => {
@@ -1312,21 +1343,6 @@ export function ConversationView() {
     return { rotationLabel, readableWindow, tooltip };
   }, [fsConfig.securityLevel, fsConfig.spkDeletionPolicy, fsConfig.clearCacheOnRotation]);
 
-  const showArtifacts = identity ? loadShowMessageArtifacts(identity.id) : false;
-
-  const reversedMessages = useMemo(() =>
-    [...activeMessages]
-      .reverse()
-      .filter((msg) => {
-        if (showArtifacts) return true;
-        if (msg.messageType === 'system') return true;
-        if (msg.deleted) return false;
-        if (!msg.decryptedContent && msg.decryptionError) return false;
-        return true;
-      }),
-    [activeMessages, showArtifacts]
-  );
-
   const unreadCount = conversation?.unreadCount ?? 0;
 
   const flatItems = useMemo(() => {
@@ -1352,8 +1368,6 @@ export function ConversationView() {
     }
     return items;
   }, [reversedMessages, unreadCount]);
-
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
 
   if (!conversation) {
     return (
