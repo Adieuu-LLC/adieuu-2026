@@ -61,6 +61,7 @@ import {
   deletePersistedSessionKey,
 } from '../services/preKeyStorage';
 import { notifyOtpkConsumed } from '../services/preKeyService';
+import { loadReactionNotificationsEnabled } from './useReactionNotificationPreference';
 
 // ============================================================================
 // Types
@@ -167,6 +168,12 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const isLoggedIn = identityStatus === 'logged_in' && !!identity;
+
+  const identityRef = useRef(identity);
+  identityRef.current = identity;
+
+  /** Dedupe reaction toasts when both `reaction_added` and `notification_created` fire. */
+  const reactionNotifDedupeRef = useRef(new Set<string>());
 
   // State
   const [conversations, setConversations] = useState<DecryptedConversation[]>([]);
@@ -1261,6 +1268,15 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   useEffect(() => {
     if (!isLoggedIn) return;
 
+    const runReactionNotifOnce = (reactionId: string, fn: () => void) => {
+      if (reactionNotifDedupeRef.current.has(reactionId)) return;
+      reactionNotifDedupeRef.current.add(reactionId);
+      setTimeout(() => {
+        reactionNotifDedupeRef.current.delete(reactionId);
+      }, 60_000);
+      fn();
+    };
+
     const unsubMessage = subscribe((message: ChatIncomingMessage) => {
       switch (message.type) {
         case 'conversation_created': {
@@ -1451,6 +1467,56 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           break;
         }
 
+        case 'reaction_added': {
+          const { reaction } = message.data;
+          const selfId = identityRef.current?.id;
+          if (!selfId || reaction.fromIdentityId === selfId) break;
+          if (!loadReactionNotificationsEnabled(selfId)) break;
+
+          const convId = reaction.conversationId;
+          const stateMap = messagesStateRef.current;
+          let msgs = stateMap[convId]?.messages;
+          if (!msgs) {
+            const lower = convId.toLowerCase();
+            for (const k of Object.keys(stateMap)) {
+              if (k.toLowerCase() === lower) {
+                msgs = stateMap[k]?.messages;
+                break;
+              }
+            }
+          }
+          const targetMsg = (msgs ?? []).find((m) => m.id === reaction.messageId);
+          if (!targetMsg || targetMsg.fromIdentityId !== selfId) break;
+
+          const isViewing =
+            convId === activeConversationIdRef.current &&
+            document.hasFocus() &&
+            isAtBottomRef.current;
+
+          const fire = () => {
+            void resolveParticipantsRef.current([reaction.fromIdentityId]).then((freshProfiles) => {
+              const profiles = { ...participantProfilesRef.current, ...freshProfiles };
+              const profile = profiles[reaction.fromIdentityId];
+              const name = profile?.displayName ?? profile?.username;
+              fireNotificationRef.current(
+                tRef.current('conversations.notifications.reaction', { defaultValue: 'Reaction' }),
+                name
+                  ? tRef.current('conversations.notifications.reactionBody', {
+                      name,
+                      defaultValue: `${name} reacted to your message`,
+                    })
+                  : tRef.current('conversations.notifications.reactionGeneric', {
+                      defaultValue: 'Someone reacted to your message',
+                    }),
+                isViewing
+              );
+            });
+          };
+
+          runReactionNotifOnce(reaction.id, fire);
+          break;
+        }
+
         case 'group_invite_received': {
           const invite = message.data.invite;
           setInvites((prev) => {
@@ -1514,6 +1580,59 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               defaultValue: `${adminName} deleted the group`,
             })
           );
+          break;
+        }
+
+        case 'notification_created': {
+          const { notification } = message.data;
+          if (notification.type !== 'message_reaction') break;
+
+          const selfId = identityRef.current?.id;
+          if (!selfId || !loadReactionNotificationsEnabled(selfId)) break;
+
+          const raw = notification.data as {
+            reactionId?: string;
+            fromIdentityId?: unknown;
+            conversationId?: unknown;
+          };
+          const fromId =
+            typeof raw.fromIdentityId === 'string' ? raw.fromIdentityId : undefined;
+          const convId =
+            typeof raw.conversationId === 'string' ? raw.conversationId : undefined;
+          const reactionId =
+            typeof raw.reactionId === 'string' ? raw.reactionId : undefined;
+          if (!fromId || !convId) break;
+
+          const isViewing =
+            convId === activeConversationIdRef.current &&
+            document.hasFocus() &&
+            isAtBottomRef.current;
+
+          const fire = () => {
+            void resolveParticipantsRef.current([fromId]).then((freshProfiles) => {
+              const profiles = { ...participantProfilesRef.current, ...freshProfiles };
+              const profile = profiles[fromId];
+              const name = profile?.displayName ?? profile?.username;
+              fireNotificationRef.current(
+                tRef.current('conversations.notifications.reaction', { defaultValue: 'Reaction' }),
+                name
+                  ? tRef.current('conversations.notifications.reactionBody', {
+                      name,
+                      defaultValue: `${name} reacted to your message`,
+                    })
+                  : tRef.current('conversations.notifications.reactionGeneric', {
+                      defaultValue: 'Someone reacted to your message',
+                    }),
+                isViewing
+              );
+            });
+          };
+
+          if (reactionId) {
+            runReactionNotifOnce(reactionId, fire);
+          } else {
+            fire();
+          }
           break;
         }
       }

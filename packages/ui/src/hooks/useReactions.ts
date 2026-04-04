@@ -32,6 +32,9 @@ import {
   findAndDecryptSignedPreKey,
   findAndDecryptOneTimePreKey,
   deleteOneTimePreKey,
+  getPersistedSessionKey,
+  storeSessionKey,
+  deletePersistedSessionKey,
 } from '../services/preKeyStorage';
 import { notifyOtpkConsumed } from '../services/preKeyService';
 
@@ -51,6 +54,72 @@ export interface GroupedReaction {
 interface ReactionsState {
   byMessage: Record<string, DecryptedReaction[]>;
   loading: boolean;
+}
+
+/**
+ * Merge API-fetched reactions with existing state by reaction id.
+ * A refetch may decrypt fewer reactions (e.g. after OTPK consumption); without
+ * merging, the spread would overwrite and drop reactions only present from WS.
+ */
+function mergeReactionsByMessageId(
+  prev: Record<string, DecryptedReaction[]>,
+  fetched: Record<string, DecryptedReaction[]>
+): Record<string, DecryptedReaction[]> {
+  const merged = { ...prev };
+  for (const [messageId, fetchedList] of Object.entries(fetched)) {
+    const prevList = prev[messageId] ?? [];
+    const byId = new Map<string, DecryptedReaction>();
+    for (const r of prevList) {
+      byId.set(r.id, r);
+    }
+    for (const r of fetchedList) {
+      const existing = byId.get(r.id);
+      // Refetch may fail signature verification if wrappedKeys JSON order differs from
+      // the live WS payload; never replace a verified decrypt with an unverified one.
+      if (existing && existing.verified && !r.verified) {
+        continue;
+      }
+      byId.set(r.id, r);
+    }
+    merged[messageId] = Array.from(byId.values());
+  }
+  return merged;
+}
+
+function sameConversationRoute(
+  reactionConvId: string,
+  routeConvId: string | null
+): boolean {
+  if (!routeConvId) return false;
+  return reactionConvId.toLowerCase() === routeConvId.toLowerCase();
+}
+
+/** Storage id for reaction session keys (distinct from message ids, which share the same hex shape). */
+function reactionSessionStorageKey(reactionId: string): string {
+  return `reaction:${reactionId}`;
+}
+
+/**
+ * Persist FS reaction session keys like FS messages — otherwise OTPK deletion makes
+ * reactions unreadable after refresh (reactions use their own random session key).
+ */
+async function persistReactionFsSessionKey(
+  reactionId: string,
+  identityId: string,
+  sessionKey: Uint8Array,
+  wrappingKey: Uint8Array | null | undefined,
+  resolvedWrappedKey: SerializedWrappedKey | undefined
+): Promise<void> {
+  if (!wrappingKey || !resolvedWrappedKey || resolvedWrappedKey.preKeyType === 'static') {
+    return;
+  }
+  await storeSessionKey(
+    reactionSessionStorageKey(reactionId),
+    identityId,
+    sessionKey,
+    wrappingKey,
+    resolvedWrappedKey.signedPreKeyId
+  );
 }
 
 // ============================================================================
@@ -147,8 +216,19 @@ export function useReactions(conversationId: string | null) {
           const signingKey = signingKeys[reaction.fromIdentityId];
           if (!signingKey) continue;
 
-          // Layer 2: Try the in-memory session-key cache first
-          const cachedKey = reactionSessionKeyCache.current.get(reaction.id);
+          // Layer 2: In-memory cache, then persistent (FS reactions need this after OTPK consumption)
+          let cachedKey = reactionSessionKeyCache.current.get(reaction.id);
+          if (!cachedKey && wrappingKey) {
+            const persisted = await getPersistedSessionKey(
+              reactionSessionStorageKey(reaction.id),
+              identity.id,
+              wrappingKey
+            );
+            if (persisted) {
+              reactionSessionKeyCache.current.set(reaction.id, persisted);
+              cachedKey = persisted;
+            }
+          }
           if (cachedKey) {
             try {
               const result = decryptReaction(
@@ -165,6 +245,12 @@ export function useReactions(conversationId: string | null) {
               continue;
             } catch {
               reactionSessionKeyCache.current.delete(reaction.id);
+              void deletePersistedSessionKey(
+                reactionSessionStorageKey(reaction.id),
+                identity.id
+              ).catch((err) =>
+                console.error('[Reactions] Failed to clear bad persisted session key', err)
+              );
             }
           }
 
@@ -305,6 +391,16 @@ export function useReactions(conversationId: string | null) {
 
           reactionSessionKeyCache.current.set(reaction.id, decrypted.sessionKey);
 
+          await persistReactionFsSessionKey(
+            reaction.id,
+            identity.id,
+            decrypted.sessionKey,
+            wrappingKey,
+            resolvedWrappedKey
+          ).catch((err) =>
+            console.error('[Reactions] FS session key persist failed:', err)
+          );
+
           if (
             resolvedWrappedKey.preKeyType === 'otpk' &&
             resolvedWrappedKey.oneTimePreKeyId &&
@@ -355,7 +451,7 @@ export function useReactions(conversationId: string | null) {
           }
 
           setState((prev) => ({
-            byMessage: { ...prev.byMessage, ...byMessage },
+            byMessage: mergeReactionsByMessageId(prev.byMessage, byMessage),
             loading: false,
           }));
         } else {
@@ -441,6 +537,15 @@ export function useReactions(conversationId: string | null) {
       try {
         const resp = await api.reactions.remove(conversationId, reactionId);
         if (resp.success) {
+          reactionSessionKeyCache.current.delete(reactionId);
+          if (identity) {
+            void deletePersistedSessionKey(
+              reactionSessionStorageKey(reactionId),
+              identity.id
+            ).catch((err) =>
+              console.error('[Reactions] Session key delete on remove failed', err)
+            );
+          }
           setState((prev) => {
             const existing = prev.byMessage[messageId] ?? [];
             return {
@@ -459,7 +564,7 @@ export function useReactions(conversationId: string | null) {
 
       return false;
     },
-    [conversationId, api]
+    [conversationId, api, identity]
   );
 
   // ---- Group reactions for display ----
@@ -515,7 +620,9 @@ export function useReactions(conversationId: string | null) {
     const unsubscribe = subscribe((message: ChatIncomingMessage) => {
       if (message.type === 'reaction_added') {
         const { reaction } = message.data;
-        if (reaction.conversationId !== conversationIdRef.current) return;
+        if (!sameConversationRoute(reaction.conversationId, conversationIdRef.current)) {
+          return;
+        }
 
         const id = identityRef.current?.id;
         if (!id) return;
@@ -529,6 +636,51 @@ export function useReactions(conversationId: string | null) {
             const signingKeys = await resolveSigningKeys([reaction.fromIdentityId]);
             const senderSigningKey = signingKeys[reaction.fromIdentityId];
             if (!senderSigningKey) return;
+
+            const wrappingKeyEarly = getWrappingKey();
+            let cachedSk = reactionSessionKeyCache.current.get(reaction.id);
+            if (!cachedSk && wrappingKeyEarly) {
+              const persisted = await getPersistedSessionKey(
+                reactionSessionStorageKey(reaction.id),
+                id,
+                wrappingKeyEarly
+              );
+              if (persisted) {
+                reactionSessionKeyCache.current.set(reaction.id, persisted);
+                cachedSk = persisted;
+              }
+            }
+            if (cachedSk) {
+              try {
+                const result = decryptReaction(
+                  reaction,
+                  id,
+                  keys.ecdhPrivateKey,
+                  keys.kemPrivateKey,
+                  senderSigningKey,
+                  undefined,
+                  undefined,
+                  cachedSk
+                );
+                setState((prev) => {
+                  const existing = prev.byMessage[reaction.messageId] ?? [];
+                  if (existing.some((r) => r.id === result.id)) return prev;
+                  return {
+                    ...prev,
+                    byMessage: {
+                      ...prev.byMessage,
+                      [reaction.messageId]: [...existing, result],
+                    },
+                  };
+                });
+                return;
+              } catch {
+                reactionSessionKeyCache.current.delete(reaction.id);
+                void deletePersistedSessionKey(reactionSessionStorageKey(reaction.id), id).catch(
+                  (err) => console.error('[Reactions] WS: clear bad persisted session key', err)
+                );
+              }
+            }
 
             const candidates = reaction.wrappedKeys.filter(
               (wk) => wk.identityId === id
@@ -643,6 +795,17 @@ export function useReactions(conversationId: string | null) {
 
             reactionSessionKeyCache.current.set(reaction.id, decrypted.sessionKey);
 
+            const wrappingKeyForPersist = getWrappingKey();
+            await persistReactionFsSessionKey(
+              reaction.id,
+              id,
+              decrypted.sessionKey,
+              wrappingKeyForPersist ?? undefined,
+              resolvedWrappedKey
+            ).catch((err) =>
+              console.error('[Reactions] WS: FS session key persist failed:', err)
+            );
+
             if (
               resolvedWrappedKey &&
               resolvedWrappedKey.preKeyType === 'otpk' &&
@@ -673,7 +836,15 @@ export function useReactions(conversationId: string | null) {
 
       if (message.type === 'reaction_removed') {
         const { reactionId, messageId, conversationId: convId } = message.data;
-        if (convId !== conversationIdRef.current) return;
+        if (!sameConversationRoute(convId, conversationIdRef.current)) return;
+
+        reactionSessionKeyCache.current.delete(reactionId);
+        const sid = identityRef.current?.id;
+        if (sid) {
+          void deletePersistedSessionKey(reactionSessionStorageKey(reactionId), sid).catch((err) =>
+            console.error('[Reactions] Session key delete on reaction_removed failed', err)
+          );
+        }
 
         setState((prev) => {
           const existing = prev.byMessage[messageId] ?? [];
@@ -691,6 +862,16 @@ export function useReactions(conversationId: string | null) {
         const { messageId } = message.data;
         setState((prev) => {
           if (!prev.byMessage[messageId]) return prev;
+          const list = prev.byMessage[messageId] ?? [];
+          const sid = identityRef.current?.id;
+          if (sid) {
+            for (const r of list) {
+              reactionSessionKeyCache.current.delete(r.id);
+              void deletePersistedSessionKey(reactionSessionStorageKey(r.id), sid).catch((err) =>
+                console.error('[Reactions] Session key delete on message deleted failed', err)
+              );
+            }
+          }
           const updated = { ...prev.byMessage };
           delete updated[messageId];
           return { ...prev, byMessage: updated };

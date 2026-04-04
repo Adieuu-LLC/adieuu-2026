@@ -1403,6 +1403,9 @@ export const en = {
       groupRenamedBody: 'The group name was updated',
       adminPromoted: 'New admin',
       adminPromotedBody: '{{name}} was promoted to admin',
+      reaction: 'Reaction',
+      reactionBody: '{{name}} reacted to your message',
+      reactionGeneric: 'Someone reacted to your message',
     },
   },
 } as const;
