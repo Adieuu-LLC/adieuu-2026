@@ -118,6 +118,11 @@ $z-sidebar-mobile-open: 25;
   --color-bg-secondary: #161b22;
   --color-bg-tertiary: #21262d;
   --color-bg-elevated: #1c2128;
+  /* Comma-separated RGB for components that only accept triplets (e.g. emoji-mart) */
+  --color-bg-secondary-rgb: 22, 27, 34;
+  --color-bg-tertiary-rgb: 33, 38, 45;
+  --color-bg-elevated-rgb: 28, 33, 40;
+  --color-text-primary-rgb: 230, 237, 243;
   --color-bg-hover: rgba(56, 189, 248, 0.08);
   --color-bg-active: rgba(56, 189, 248, 0.12);
 
@@ -138,6 +143,7 @@ $z-sidebar-mobile-open: 25;
   --color-accent-primary-active: #0891b2;
   --color-accent-secondary: #38bdf8;
   --color-accent-glow: rgba(34, 211, 238, 0.15);
+  --color-accent-primary-rgb: 34, 211, 238;
 
   // Status Colors
   --color-success: #22c55e;
@@ -7640,11 +7646,13 @@ a {
 // Emoji Picker
 // ============================================================================
 
+/* emoji-mart v5 reads --rgb-* on the host inside [data-theme]; --em-rgb-* is assigned inside shadow DOM from those */
 .emoji-picker-container {
   em-emoji-picker {
-    --em-rgb-background: var(--color-bg-elevated-rgb, 30, 30, 30);
-    --em-rgb-input: var(--color-bg-tertiary-rgb, 40, 40, 40);
-    --em-rgb-color: var(--color-text-rgb, 230, 230, 230);
+    --rgb-background: var(--color-bg-elevated-rgb);
+    --rgb-input: var(--color-bg-tertiary-rgb);
+    --rgb-color: var(--color-text-primary-rgb);
+    --rgb-accent: var(--color-accent-primary-rgb);
   }
 }
 
@@ -7825,13 +7833,17 @@ a {
 
 .emoji-picker-popover {
   z-index: var(--z-popover, 100);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   overflow: hidden;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
   background: var(--color-bg-secondary);
 
   em-emoji-picker {
-    --em-rgb-background: transparent;
+    --rgb-background: var(--color-bg-secondary-rgb);
+    --rgb-input: var(--color-bg-tertiary-rgb);
+    --rgb-color: var(--color-text-primary-rgb);
+    --rgb-accent: var(--color-accent-primary-rgb);
   }
 
   &--context {

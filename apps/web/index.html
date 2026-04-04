@@ -8,7 +8,72 @@
   </head>
   <body>
     <script>
-      (function(){try{var r=localStorage.getItem("adieuu.theme.active");if(!r)return;var t=JSON.parse(r);if(!t||!t.colors)return;var d=document.documentElement,m={"bgPrimary":"--color-bg-primary","bgSecondary":"--color-bg-secondary","bgTertiary":"--color-bg-tertiary","bgElevated":"--color-bg-elevated","bgHover":"--color-bg-hover","bgActive":"--color-bg-active","textPrimary":"--color-text-primary","textSecondary":"--color-text-secondary","textMuted":"--color-text-muted","textInverse":"--color-text-inverse","accentPrimary":"--color-accent-primary","accentPrimaryHover":"--color-accent-primary-hover","accentPrimaryActive":"--color-accent-primary-active","accentSecondary":"--color-accent-secondary","accentGlow":"--color-accent-glow","border":"--color-border","borderMuted":"--color-border-muted","borderFocus":"--color-border-focus","success":"--color-success","successBg":"--color-success-bg","warning":"--color-warning","warningBg":"--color-warning-bg","error":"--color-error","errorBg":"--color-error-bg","info":"--color-info","infoBg":"--color-info-bg","danger":"--color-danger","logoPrimary":"--logo-primary","logoSecondary":"--logo-secondary"};for(var k in t.colors){if(m[k])d.style.setProperty(m[k],t.colors[k])}}catch(e){}})();
+      (function () {
+        try {
+          var r = localStorage.getItem('adieuu.theme.active');
+          if (!r) return;
+          var t = JSON.parse(r);
+          if (!t || !t.colors) return;
+          var d = document.documentElement;
+          var m = {
+            bgPrimary: '--color-bg-primary',
+            bgSecondary: '--color-bg-secondary',
+            bgTertiary: '--color-bg-tertiary',
+            bgElevated: '--color-bg-elevated',
+            bgHover: '--color-bg-hover',
+            bgActive: '--color-bg-active',
+            textPrimary: '--color-text-primary',
+            textSecondary: '--color-text-secondary',
+            textMuted: '--color-text-muted',
+            textInverse: '--color-text-inverse',
+            accentPrimary: '--color-accent-primary',
+            accentPrimaryHover: '--color-accent-primary-hover',
+            accentPrimaryActive: '--color-accent-primary-active',
+            accentSecondary: '--color-accent-secondary',
+            accentGlow: '--color-accent-glow',
+            border: '--color-border',
+            borderMuted: '--color-border-muted',
+            borderFocus: '--color-border-focus',
+            success: '--color-success',
+            successBg: '--color-success-bg',
+            warning: '--color-warning',
+            warningBg: '--color-warning-bg',
+            error: '--color-error',
+            errorBg: '--color-error-bg',
+            info: '--color-info',
+            infoBg: '--color-info-bg',
+            danger: '--color-danger',
+            logoPrimary: '--logo-primary',
+            logoSecondary: '--logo-secondary',
+          };
+          for (var k in t.colors) {
+            if (m[k]) d.style.setProperty(m[k], t.colors[k]);
+          }
+          function rgbTriplet(c) {
+            var el = document.createElement('div');
+            el.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;color:' + c;
+            document.documentElement.appendChild(el);
+            var rgb = getComputedStyle(el).color;
+            document.documentElement.removeChild(el);
+            var x = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(rgb);
+            return x ? x[1] + ', ' + x[2] + ', ' + x[3] : null;
+          }
+          var rgbKeys = [
+            ['bgSecondary', '--color-bg-secondary-rgb'],
+            ['bgTertiary', '--color-bg-tertiary-rgb'],
+            ['bgElevated', '--color-bg-elevated-rgb'],
+            ['textPrimary', '--color-text-primary-rgb'],
+            ['accentPrimary', '--color-accent-primary-rgb'],
+          ];
+          for (var i = 0; i < rgbKeys.length; i++) {
+            var v = t.colors[rgbKeys[i][0]];
+            if (v) {
+              var tr = rgbTriplet(v);
+              if (tr) d.style.setProperty(rgbKeys[i][1], tr);
+            }
+          }
+        } catch (e) {}
+      })();
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

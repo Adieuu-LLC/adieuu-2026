@@ -16,6 +16,17 @@
 
 import { TOKEN_TO_CSS_VAR, THEME_TOKEN_KEYS, type ThemeDefinition, type ThemeColorTokens } from '@adieuu/shared';
 
+import { cssColorToRgbTriplet } from './cssColorToRgbTriplet';
+
+/** emoji-mart host variables derived from theme hex (see styles.scss .emoji-picker-popover). */
+const EMOJI_MART_RGB_VARS: { key: keyof ThemeColorTokens; cssVar: string }[] = [
+  { key: 'bgSecondary', cssVar: '--color-bg-secondary-rgb' },
+  { key: 'bgTertiary', cssVar: '--color-bg-tertiary-rgb' },
+  { key: 'bgElevated', cssVar: '--color-bg-elevated-rgb' },
+  { key: 'textPrimary', cssVar: '--color-text-primary-rgb' },
+  { key: 'accentPrimary', cssVar: '--color-accent-primary-rgb' },
+];
+
 export const CACHE_KEY_ACCOUNT = 'adieuu.theme.account';
 export const CACHE_KEY_IDENTITY = 'adieuu.theme.identity';
 export const CACHE_KEY_ACTIVE = 'adieuu.theme.active';
@@ -112,6 +123,14 @@ export function applyThemeToDOM(colors: ThemeColorTokens): void {
       root.style.setProperty(cssVar, value);
     }
   }
+  for (const { key, cssVar } of EMOJI_MART_RGB_VARS) {
+    const value = colors[key];
+    if (!value) continue;
+    const triplet = cssColorToRgbTriplet(value);
+    if (triplet) {
+      root.style.setProperty(cssVar, triplet);
+    }
+  }
 }
 
 /**
@@ -122,5 +141,8 @@ export function clearThemeFromDOM(): void {
   const root = document.documentElement;
   for (const key of THEME_TOKEN_KEYS) {
     root.style.removeProperty(TOKEN_TO_CSS_VAR[key]);
+  }
+  for (const { cssVar } of EMOJI_MART_RGB_VARS) {
+    root.style.removeProperty(cssVar);
   }
 }

@@ -54,6 +54,8 @@ function replyComposerLabel(
   return `${name}: ${snippet}`;
 }
 
+const MESSAGE_ACTION_BAR_POPOVER_POSITIONING = { placement: 'top' as const, gutter: 0 };
+
 function MessageActionBar({
   isOwn,
   onDeleteForSelf,
@@ -63,6 +65,7 @@ function MessageActionBar({
   onAddFavorite,
   onRemoveFavorite,
   onReply,
+  onPopoverOpenChange,
 }: {
   isOwn: boolean;
   onDeleteForSelf: () => void;
@@ -72,9 +75,22 @@ function MessageActionBar({
   onAddFavorite: (emoji: string) => void;
   onRemoveFavorite: (emoji: string) => void;
   onReply?: () => void;
+  /** Called when the add-favourite or react emoji popover opens or closes (portaled outside the message row). */
+  onPopoverOpenChange?: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
   const [showFavPicker, setShowFavPicker] = useState(false);
+  const [reactPickerOpen, setReactPickerOpen] = useState(false);
+
+  useEffect(() => {
+    onPopoverOpenChange?.(showFavPicker || reactPickerOpen);
+  }, [showFavPicker, reactPickerOpen, onPopoverOpenChange]);
+
+  useEffect(() => {
+    return () => {
+      onPopoverOpenChange?.(false);
+    };
+  }, [onPopoverOpenChange]);
 
   return (
     <div className={`message-action-bar${isOwn ? ' message-action-bar--own' : ''}`}>
@@ -112,7 +128,7 @@ function MessageActionBar({
           <Popover.Root
             open={showFavPicker}
             onOpenChange={(e) => setShowFavPicker(e.open)}
-            positioning={{ placement: 'top', gutter: 4 }}
+            positioning={MESSAGE_ACTION_BAR_POPOVER_POSITIONING}
           >
             <Popover.Trigger asChild>
               <button
@@ -139,7 +155,11 @@ function MessageActionBar({
           </Popover.Root>
         )}
       </div>
-      <Popover.Root positioning={{ placement: 'top', gutter: 4 }}>
+      <Popover.Root
+        open={reactPickerOpen}
+        onOpenChange={(e) => setReactPickerOpen(e.open)}
+        positioning={MESSAGE_ACTION_BAR_POPOVER_POSITIONING}
+      >
         <Popover.Trigger asChild>
           <button type="button" className="message-action-bar-btn" title="React">
             <Icon name="smilePlus" className="message-action-bar-icon" />
@@ -529,6 +549,7 @@ const MessageBubble = memo(function MessageBubble({
 }) {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
+  const [actionBarPopoverOpen, setActionBarPopoverOpen] = useState(false);
   const [showContextReactionPicker, setShowContextReactionPicker] = useState(false);
   const countdown = useExpiryCountdown(message.expiresAt);
 
@@ -546,7 +567,13 @@ const MessageBubble = memo(function MessageBubble({
     if (details.value === 'reply') onReply?.();
     else if (details.value === 'delete-for-me') onDelete(message.id, false);
     else if (details.value === 'delete-for-everyone') onDelete(message.id, true);
-    else if (details.value === 'react') setShowContextReactionPicker(true);
+    else if (details.value === 'react') {
+      // Defer opening so the menu's close + pointer sequence does not immediately
+      // count as an interact-outside dismiss on the new popover (Ark/Zag default).
+      window.setTimeout(() => {
+        setShowContextReactionPicker(true);
+      }, 0);
+    }
   }
 
   const contextMenuContent = (
@@ -661,7 +688,9 @@ const MessageBubble = memo(function MessageBubble({
       <div
         className={`dm-message dm-message--linear${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
         onMouseEnter={() => setShowActions(true)}
-        onMouseLeave={() => setShowActions(false)}
+        onMouseLeave={() => {
+          if (!actionBarPopoverOpen) setShowActions(false);
+        }}
       >
         {profile ? (
           <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
@@ -721,6 +750,7 @@ const MessageBubble = memo(function MessageBubble({
             onAddFavorite={onAddFavorite}
             onRemoveFavorite={onRemoveFavorite}
             onReply={onReply}
+            onPopoverOpenChange={setActionBarPopoverOpen}
           />
         )}
       </div>
@@ -759,7 +789,9 @@ const MessageBubble = memo(function MessageBubble({
     <div
       className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
       onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
+      onMouseLeave={() => {
+        if (!actionBarPopoverOpen) setShowActions(false);
+      }}
     >
       {!isOwn && senderProfile && (
         <IdentityHoverCard
@@ -782,6 +814,7 @@ const MessageBubble = memo(function MessageBubble({
             onAddFavorite={onAddFavorite}
             onRemoveFavorite={onRemoveFavorite}
             onReply={onReply}
+            onPopoverOpenChange={setActionBarPopoverOpen}
           />
         )}
         <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
