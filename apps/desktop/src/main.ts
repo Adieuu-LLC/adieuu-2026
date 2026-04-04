@@ -167,6 +167,7 @@ function probeDbusSecretBackend(): string | undefined {
 let mainWindow: BrowserWindow | null = null;
 
 const isDev = process.env.NODE_ENV === 'development';
+let isPlatformAdminUser = false;
 const isMac = process.platform === 'darwin';
 
 /**
@@ -552,8 +553,8 @@ async function createWindow() {
       return;
     }
 
-    // Block DevTools in production (Ctrl+Shift+I / F12)
-    if (!isDev) {
+    // Block DevTools in production (Ctrl+Shift+I / F12) unless admin
+    if (!isDev && !isPlatformAdminUser) {
       if ((ctrlOrCmd && input.shift && input.code === 'KeyI') || input.code === 'F12') {
         event.preventDefault();
         return;
@@ -1044,6 +1045,12 @@ ipcMain.handle('get-pending-deep-link', () => {
   const link = pendingDeepLinkPath;
   pendingDeepLinkPath = null;
   return link;
+});
+
+// Platform admin status — lets the renderer inform the main process so we can
+// conditionally allow DevTools shortcuts for admins in production.
+ipcMain.handle('set-platform-admin', (_event, isAdmin: unknown) => {
+  isPlatformAdminUser = isAdmin === true;
 });
 
 // Window control IPC handlers

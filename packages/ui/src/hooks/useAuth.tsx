@@ -212,8 +212,17 @@ function useAuthState(): AuthContextValue {
     return { success: true };
   }, [api, refreshSession]);
 
+  // Inform the Electron main process of admin status so it can conditionally
+  // allow DevTools shortcuts in production. No-op in browser contexts.
+  useEffect(() => {
+    const electron = (window as Window & { electron?: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } }).electron;
+    electron?.invoke('set-platform-admin', state.session?.isPlatformAdmin === true);
+  }, [state.session?.isPlatformAdmin]);
+
   const logout = useCallback(async () => {
     await api.auth.logout();
+    const electron = (window as Window & { electron?: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } }).electron;
+    electron?.invoke('set-platform-admin', false);
     setState({
       status: 'unauthenticated',
       session: null,

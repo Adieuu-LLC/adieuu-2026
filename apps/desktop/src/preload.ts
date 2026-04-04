@@ -84,7 +84,7 @@ contextBridge.exposeInMainWorld('electron', {
     const allowedChannels = [
       'install-update', 'download-update',
       'get-pending-deep-link', 'get-update-preferences', 'set-update-preferences',
-      'check-for-updates',
+      'check-for-updates', 'set-platform-admin',
     ];
     if (allowedChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);
