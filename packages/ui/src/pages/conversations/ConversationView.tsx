@@ -1156,7 +1156,7 @@ export function ConversationView() {
   useEffect(() => {
     if (shouldScrollToBottomRef.current) {
       requestAnimationFrame(() => {
-        virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
+        virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth', align: 'end' });
       });
       shouldScrollToBottomRef.current = false;
     }
@@ -1220,7 +1220,7 @@ export function ConversationView() {
   );
 
   const scrollToBottom = useCallback(() => {
-    virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
+    virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth', align: 'end' });
   }, []);
 
   const handleLeaveClick = useCallback(() => {
@@ -1449,14 +1449,18 @@ export function ConversationView() {
                   data={flatItems}
                   computeItemKey={(_, item) => item.key}
                   firstItemIndex={FIRST_ITEM_INDEX - flatItems.length}
-                  initialTopMostItemIndex={flatItems.length - 1}
+                  initialTopMostItemIndex={
+                    flatItems.length > 0
+                      ? { index: flatItems.length - 1, align: 'end' }
+                      : 0
+                  }
                   alignToBottom
                   followOutput={(isAtBottom) => (isAtBottom ? 'smooth' : false)}
                   startReached={handleStartReached}
                   atBottomStateChange={handleAtBottomStateChange}
-                  atBottomThreshold={80}
+                  atBottomThreshold={12}
                   overscan={{ main: 200, reverse: 200 }}
-                  defaultItemHeight={60}
+                  defaultItemHeight={72}
                   increaseViewportBy={{ top: 200, bottom: 200 }}
                   components={{
                     Header: () =>
