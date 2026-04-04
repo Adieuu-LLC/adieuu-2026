@@ -108,6 +108,13 @@ export interface E2EMediaDocument extends BaseDocument {
   /** Whether the uploader chose to preserve EXIF metadata in the E2E version */
   stripExif: boolean;
 
+  /**
+   * TTL expiry aligned with the host message. Non-FS messages have no
+   * expiry (media lives until explicitly deleted). FS messages propagate
+   * their expiresAt so the media is cleaned up on the same schedule.
+   */
+  expiresAt?: Date;
+
   // --- Flagging/reporting placeholders (no UI/endpoints in this build) ---
 
   /** Report status for admin review */
@@ -141,6 +148,7 @@ export interface CreateE2EMediaInput {
   contentType: string;
   contentLength: number;
   stripExif: boolean;
+  expiresAt?: Date;
 }
 
 /**

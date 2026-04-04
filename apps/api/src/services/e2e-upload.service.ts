@@ -23,8 +23,11 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { config } from '../config';
+import { ObjectId } from 'mongodb';
 import { getE2EMediaRepository } from '../repositories/e2e-media.repository';
 import { getMediaUploadRepository } from '../repositories/media-upload.repository';
+import { getMessageRepository } from '../repositories/message.repository';
+import { getConversationRepository } from '../repositories/conversation.repository';
 import { deriveScanHash } from '../utils/crypto';
 import {
   UPLOAD_PURPOSE_CONFIG,
@@ -159,7 +162,6 @@ export async function requestE2EUpload(
     expiresIn: PRESIGNED_PUT_EXPIRY_SECONDS,
   });
 
-  const { ObjectId } = await import('mongodb');
   await e2eRepo.createE2EMedia({
     e2eMediaId,
     identityId: new ObjectId(input.identityId),
@@ -277,10 +279,27 @@ export async function getE2EMediaDownload(
   }
 
   const repo = getE2EMediaRepository();
-  const doc = await repo.findByE2EMediaIdAndIdentity(e2eMediaId, identityId);
+  const doc = await repo.findByE2EMediaId(e2eMediaId);
 
   if (!doc) {
     return { success: false, error: 'E2E media not found', errorCode: 'NOT_FOUND' };
+  }
+
+  const requesterObjId = new ObjectId(identityId);
+  const isUploader = doc.identityId.equals(requesterObjId);
+
+  if (!isUploader) {
+    const messageRepo = getMessageRepository();
+    const conversationId = await messageRepo.findConversationByE2EMediaId(e2eMediaId);
+    if (!conversationId) {
+      return { success: false, error: 'E2E media not found', errorCode: 'NOT_FOUND' };
+    }
+
+    const convRepo = getConversationRepository();
+    const conversation = await convRepo.findById(conversationId);
+    if (!conversation || !conversation.participants.some((p) => p.equals(requesterObjId))) {
+      return { success: false, error: 'E2E media not found', errorCode: 'NOT_FOUND' };
+    }
   }
 
   if (doc.status === 'pending') {
@@ -392,6 +411,19 @@ export async function requestScanUpload(
       success: false,
       error: 'Content length must be positive',
       errorCode: 'FILE_TOO_LARGE',
+    };
+  }
+
+  const e2eRepo = getE2EMediaRepository();
+  const recentCount = await e2eRepo.countRecentByIdentity(
+    input.identityId,
+    UPLOAD_RATE_LIMIT.windowSeconds
+  );
+  if (recentCount >= UPLOAD_RATE_LIMIT.maxRequests) {
+    return {
+      success: false,
+      error: 'Upload rate limit exceeded. Please try again later.',
+      errorCode: 'RATE_LIMITED',
     };
   }
 

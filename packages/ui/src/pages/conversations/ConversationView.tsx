@@ -33,6 +33,7 @@ import { Icon } from '../../icons/Icon';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
 import { useConversationMediaUpload, type MediaUploadResult } from '../../hooks/useConversationMediaUpload';
 import { serializePayload, mediaPayload, type MediaAttachment } from '../../services/messagePayload';
+import { stripExifMetadata } from '../../utils/imageProcessing';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
 import type { SystemEvent, FormerMember, PublicIdentity } from '@adieuu/shared';
 import type { TFunction } from 'i18next';
@@ -1250,7 +1251,8 @@ function MessageComposer({
           const att = pendingAttachments[i]!;
           updateAttachmentStatus(i, { uploadStatus: 'encrypting', uploadProgress: 5 });
 
-          const fileBytes = new Uint8Array(await att.file.arrayBuffer());
+          const fileToEncrypt = stripExif ? await stripExifMetadata(att.file) : att.file;
+          const fileBytes = new Uint8Array(await fileToEncrypt.arrayBuffer());
           const mediaKey = randomBytes(32);
           const { ciphertext, nonce } = encryptBytes(mediaKey, fileBytes);
           const encryptedBlob = new Blob([ciphertext.buffer as ArrayBuffer], { type: 'application/octet-stream' });

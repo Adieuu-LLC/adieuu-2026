@@ -532,6 +532,11 @@ export async function sendMessage(
     fromIdentityId: senderObjId,
   });
 
+  if (input.e2eMediaIds?.length && message.expiresAt) {
+    const e2eRepo = getE2EMediaRepository();
+    await e2eRepo.setExpiresAt(input.e2eMediaIds, message.expiresAt);
+  }
+
   // Update conversation lastMessage metadata
   await conversationRepo.updateLastMessage(convObjId, message._id, message.createdAt);
 

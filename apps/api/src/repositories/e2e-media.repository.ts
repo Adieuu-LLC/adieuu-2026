@@ -104,6 +104,17 @@ export class E2EMediaRepository extends BaseRepository<E2EMediaDocument> {
     } as Parameters<typeof this.count>[0]);
   }
 
+  async setExpiresAt(
+    e2eMediaIds: string[],
+    expiresAt: Date
+  ): Promise<number> {
+    const result = await this.collection.updateMany(
+      { e2eMediaId: { $in: e2eMediaIds } },
+      { $set: withUpdatedAt({ expiresAt }) }
+    );
+    return result.modifiedCount;
+  }
+
   async deleteByE2EMediaId(e2eMediaId: string): Promise<boolean> {
     const result = await this.collection.deleteOne({ e2eMediaId });
     return result.deletedCount === 1;

@@ -737,20 +737,17 @@ resource "aws_s3_bucket_lifecycle_configuration" "e2e_media" {
     }
   }
 
+  # Confirmed E2E media lives until the host message is deleted (the API
+  # calls DeleteObjectCommand at that point).  Noncurrent versions are
+  # cleaned up after 7 days so versioning doesn't accumulate indefinitely.
   rule {
-    id     = "expire-orphaned-uploads"
+    id     = "expire-noncurrent-versions"
     status = "Enabled"
 
-    filter {
-      prefix = "uploads/"
-    }
-
-    expiration {
-      days = 1
-    }
+    filter {}
 
     noncurrent_version_expiration {
-      noncurrent_days = 1
+      noncurrent_days = 7
     }
   }
 }

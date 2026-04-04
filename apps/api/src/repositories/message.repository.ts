@@ -141,6 +141,20 @@ export class MessageRepository
   }
 
   /**
+   * Find the conversation ID for a message containing a given e2eMediaId.
+   * Returns null if no message references this media.
+   */
+  async findConversationByE2EMediaId(
+    e2eMediaId: string
+  ): Promise<ObjectId | null> {
+    const doc = await this.collection.findOne(
+      { e2eMediaIds: e2eMediaId, deletedForEveryone: { $ne: true } },
+      { projection: { conversationId: 1 } }
+    );
+    return doc ? (doc as MessageDocument).conversationId : null;
+  }
+
+  /**
    * Count messages sent by an identity in a conversation (for "most active" resolution).
    * Excludes system messages from the count.
    */

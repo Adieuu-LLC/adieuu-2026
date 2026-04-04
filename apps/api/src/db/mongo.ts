@@ -591,11 +591,12 @@ async function createIndexes(): Promise<void> {
   const e2eMedia = database.collection(Collections.E2E_MEDIA);
   await e2eMedia.createIndex({ e2eMediaId: 1 }, { unique: true });
   await e2eMedia.createIndex({ identityId: 1, createdAt: -1 });
-  await e2eMedia.createIndex({ scanHash: 1 });
+  await e2eMedia.createIndex({ scanHash: 1 }, { unique: true });
   await e2eMedia.createIndex(
     { createdAt: 1 },
     { expireAfterSeconds: 24 * 60 * 60, partialFilterExpression: { status: 'pending' } }
   );
+  await e2eMedia.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
 
   elog.debug('MongoDB indexes created/verified');
 }
