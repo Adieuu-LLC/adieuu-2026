@@ -1388,6 +1388,12 @@ export const en = {
     replySystem: 'System message',
 
     notifications: {
+      newMessage: 'New message',
+      newMessageBody: 'Message from {{name}}',
+      newMessageGeneric: 'You received a new message',
+      messageReply: 'Reply to your message',
+      messageReplyBody: '{{name}} replied to your message',
+      messageReplyGeneric: 'Someone replied to your message',
       groupInvite: 'Group invitation',
       groupInviteNameHidden:
         "You've been invited to a group (name hidden until you join)",

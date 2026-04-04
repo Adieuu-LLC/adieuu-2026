@@ -133,6 +133,10 @@ export interface ChatConversationMessageMessage extends ChatMessageBase {
     messageId: string;
     fromIdentityId: string;
     createdAt: string;
+    /** Present when the new message is a reply; identifies the original message */
+    replyToMessageId?: string;
+    /** Author of the message being replied to (for reply-specific client UX) */
+    replyToMessageAuthorId?: string;
   };
 }
 

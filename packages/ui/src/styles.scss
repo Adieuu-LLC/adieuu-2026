@@ -7369,6 +7369,47 @@ a {
       }
     }
 
+    // One ease-in to full highlight, hold (no extra pulses), then ease-out.
+    // Total duration must stay in sync with FLASH_HIGHLIGHT_MS in ConversationView.tsx.
+    @keyframes dm-message-flash-pulse {
+      0% {
+        box-shadow: inset 0 0 0 0 transparent;
+      }
+      14% {
+        box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-accent-primary) 60%, transparent);
+      }
+      58% {
+        box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-accent-primary) 60%, transparent);
+      }
+      100% {
+        box-shadow: inset 0 0 0 0 transparent;
+      }
+    }
+
+    @keyframes dm-message-flash-pulse-own {
+      0% {
+        box-shadow: inset 0 0 0 0 transparent;
+      }
+      14% {
+        box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.45);
+      }
+      58% {
+        box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.45);
+      }
+      100% {
+        box-shadow: inset 0 0 0 0 transparent;
+      }
+    }
+
+    &--flash-highlight {
+      animation: dm-message-flash-pulse 2.2s ease-out 1;
+      border-radius: var(--radius-md);
+    }
+
+    &--own#{&}--flash-highlight {
+      animation: dm-message-flash-pulse-own 2.2s ease-out 1;
+    }
+
     &-time {
       font-size: var(--font-size-xs);
       color: var(--color-text-tertiary);

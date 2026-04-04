@@ -62,6 +62,7 @@ function MessageActionBar({
   favoriteEmojis,
   onAddFavorite,
   onRemoveFavorite,
+  onReply,
 }: {
   isOwn: boolean;
   onDeleteForSelf: () => void;
@@ -70,11 +71,25 @@ function MessageActionBar({
   favoriteEmojis: string[];
   onAddFavorite: (emoji: string) => void;
   onRemoveFavorite: (emoji: string) => void;
+  onReply?: () => void;
 }) {
+  const { t } = useTranslation();
   const [showFavPicker, setShowFavPicker] = useState(false);
 
   return (
     <div className={`message-action-bar${isOwn ? ' message-action-bar--own' : ''}`}>
+      {onReply && (
+        <Tooltip content={t('conversations.reply', 'Reply')} position="top">
+          <button
+            type="button"
+            className="message-action-bar-btn"
+            onClick={onReply}
+            aria-label={t('conversations.reply', 'Reply')}
+          >
+            <Icon name="reply" className="message-action-bar-icon" />
+          </button>
+        </Tooltip>
+      )}
       <div className="message-action-bar-favorites">
         {favoriteEmojis.map((emoji) => (
           <Tooltip key={emoji} content={`React ${emoji} \u00b7 Shift+click to remove`} position="top">
@@ -492,6 +507,7 @@ const MessageBubble = memo(function MessageBubble({
   participantProfiles,
   replyQuote,
   onReply,
+  isFlashHighlight,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
@@ -509,6 +525,7 @@ const MessageBubble = memo(function MessageBubble({
   participantProfiles: Record<string, PublicIdentity>;
   replyQuote?: { text: string; onQuoteClick: () => void } | null;
   onReply?: () => void;
+  isFlashHighlight?: boolean;
 }) {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
@@ -642,7 +659,7 @@ const MessageBubble = memo(function MessageBubble({
 
     const messageRow = (
       <div
-        className="dm-message dm-message--linear"
+        className={`dm-message dm-message--linear${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
@@ -703,6 +720,7 @@ const MessageBubble = memo(function MessageBubble({
             favoriteEmojis={favoriteEmojis}
             onAddFavorite={onAddFavorite}
             onRemoveFavorite={onRemoveFavorite}
+            onReply={onReply}
           />
         )}
       </div>
@@ -739,7 +757,7 @@ const MessageBubble = memo(function MessageBubble({
 
   const bubbleRow = (
     <div
-      className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}`}
+      className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
@@ -763,6 +781,7 @@ const MessageBubble = memo(function MessageBubble({
             favoriteEmojis={favoriteEmojis}
             onAddFavorite={onAddFavorite}
             onRemoveFavorite={onRemoveFavorite}
+            onReply={onReply}
           />
         )}
         <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
@@ -1016,6 +1035,7 @@ function MessageComposer({
   onToggleFs,
   replyingTo,
   onCancelReply,
+  onSendSucceeded,
   participantProfiles,
 }: {
   conversationId: string;
@@ -1029,6 +1049,8 @@ function MessageComposer({
   onToggleFs: () => void;
   replyingTo: DisplayMessage | null;
   onCancelReply: () => void;
+  /** Called after a message is accepted by the server so the list can scroll to show it. */
+  onSendSucceeded?: () => void;
   participantProfiles: Record<string, PublicIdentity>;
 }) {
   const { t } = useTranslation();
@@ -1044,17 +1066,28 @@ function MessageComposer({
     }
   }, [sending]);
 
+  useEffect(() => {
+    if (!replyingTo) return;
+    const id = window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [replyingTo]);
+
   const handleSend = useCallback(async () => {
     const text = messageTextRef.current.trim();
     if (!conversationId || !text || sending) return;
     setMessageText('');
-    await sendTextMessage(conversationId, convertShortcodes(text), {
+    const sent = await sendTextMessage(conversationId, convertShortcodes(text), {
       useForwardSecrecy: useFs,
       ...(replyingTo ? { replyToMessageId: replyingTo.id } : {}),
     });
     onCancelReply();
+    if (sent != null) {
+      onSendSucceeded?.();
+    }
     inputRef.current?.focus();
-  }, [conversationId, sending, sendTextMessage, useFs, replyingTo, onCancelReply]);
+  }, [conversationId, sending, sendTextMessage, useFs, replyingTo, onCancelReply, onSendSucceeded]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -1218,6 +1251,7 @@ export function ConversationView() {
   const replyScrollLoadAttemptsRef = useRef(0);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [replyingTo, setReplyingTo] = useState<DisplayMessage | null>(null);
+  const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -1302,6 +1336,7 @@ export function ConversationView() {
 
   useEffect(() => {
     setReplyingTo(null);
+    setFlashingMessageId(null);
     pendingScrollToRef.current = null;
     replyScrollLoadAttemptsRef.current = 0;
   }, [id]);
@@ -1539,15 +1574,29 @@ export function ConversationView() {
     return items;
   }, [reversedMessages, unreadCount]);
 
-  const scrollToMessageId = useCallback((targetId: string) => {
-    replyScrollLoadAttemptsRef.current = 0;
-    const idx = flatItems.findIndex((i) => i.type === 'message' && i.msg.id === targetId);
-    if (idx >= 0) {
-      virtuosoRef.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'smooth' });
-      return;
-    }
-    pendingScrollToRef.current = targetId;
-  }, [flatItems]);
+  /** Keep in sync with `.dm-message--flash-highlight` animation duration in styles.scss. */
+  const FLASH_HIGHLIGHT_MS = 2800;
+
+  const flashMessageHighlight = useCallback((targetId: string) => {
+    setFlashingMessageId(targetId);
+    window.setTimeout(() => {
+      setFlashingMessageId((prev) => (prev === targetId ? null : prev));
+    }, FLASH_HIGHLIGHT_MS);
+  }, []);
+
+  const scrollToMessageId = useCallback(
+    (targetId: string) => {
+      replyScrollLoadAttemptsRef.current = 0;
+      const idx = flatItems.findIndex((i) => i.type === 'message' && i.msg.id === targetId);
+      if (idx >= 0) {
+        virtuosoRef.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'smooth' });
+        window.setTimeout(() => flashMessageHighlight(targetId), 350);
+        return;
+      }
+      pendingScrollToRef.current = targetId;
+    },
+    [flatItems, flashMessageHighlight]
+  );
 
   useEffect(() => {
     if (!pendingScrollToRef.current) return;
@@ -1559,6 +1608,7 @@ export function ConversationView() {
       });
       pendingScrollToRef.current = null;
       replyScrollLoadAttemptsRef.current = 0;
+      window.setTimeout(() => flashMessageHighlight(id), 350);
       return;
     }
     if (messagesLoading) return;
@@ -1574,7 +1624,14 @@ export function ConversationView() {
       pendingScrollToRef.current = null;
       replyScrollLoadAttemptsRef.current = 0;
     }
-  }, [activeMessages, flatItems, activeMessagesCursor, messagesLoading, loadMoreMessages]);
+  }, [
+    activeMessages,
+    flatItems,
+    activeMessagesCursor,
+    messagesLoading,
+    loadMoreMessages,
+    flashMessageHighlight,
+  ]);
 
   if (!conversation) {
     return (
@@ -1745,6 +1802,7 @@ export function ConversationView() {
                             : null
                         }
                         onReply={() => setReplyingTo(msg)}
+                        isFlashHighlight={flashingMessageId === msg.id}
                       />
                     );
                   }}
@@ -1772,6 +1830,9 @@ export function ConversationView() {
               onToggleFs={handleToggleFs}
               replyingTo={replyingTo}
               onCancelReply={() => setReplyingTo(null)}
+              onSendSucceeded={() => {
+                shouldScrollToBottomRef.current = true;
+              }}
               participantProfiles={participantProfiles}
             />
           </div>

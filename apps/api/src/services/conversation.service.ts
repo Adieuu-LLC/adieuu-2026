@@ -486,6 +486,7 @@ export async function sendMessage(
   const { replyToMessageId: replyFromInput, ...messageFields } = input;
 
   let resolvedReplyId: ObjectId | undefined;
+  let replyTargetAuthorId: ObjectId | undefined;
   if (replyFromInput) {
     const replyOid =
       replyFromInput instanceof ObjectId
@@ -499,6 +500,7 @@ export async function sendMessage(
         errorCode: 'INVALID_REPLY_TARGET',
       };
     }
+    replyTargetAuthorId = parent.fromIdentityId;
     resolvedReplyId = replyOid;
   }
 
@@ -522,17 +524,32 @@ export async function sendMessage(
       messageId: message._id.toHexString(),
       fromIdentityId: senderObjId.toHexString(),
       createdAt: message.createdAt.toISOString(),
+      ...(resolvedReplyId && replyTargetAuthorId
+        ? {
+            replyToMessageId: resolvedReplyId.toHexString(),
+            replyToMessageAuthorId: replyTargetAuthorId.toHexString(),
+          }
+        : {}),
     },
   });
 
   // Create persistent notifications for other participants
   for (const participantId of conversation.participants) {
     if (participantId.equals(senderObjId)) continue;
-    await createNotification(participantId, 'conversation_message', {
-      conversationId: convObjId.toHexString(),
-      messageId: message._id.toHexString(),
-      fromIdentityId: senderObjId.toHexString(),
-    });
+    if (replyTargetAuthorId && participantId.equals(replyTargetAuthorId)) {
+      await createNotification(participantId, 'conversation_message_reply', {
+        conversationId: convObjId.toHexString(),
+        messageId: message._id.toHexString(),
+        fromIdentityId: senderObjId.toHexString(),
+        replyToMessageId: resolvedReplyId!.toHexString(),
+      });
+    } else {
+      await createNotification(participantId, 'conversation_message', {
+        conversationId: convObjId.toHexString(),
+        messageId: message._id.toHexString(),
+        fromIdentityId: senderObjId.toHexString(),
+      });
+    }
   }
 
   return { success: true, message: publicMessage };

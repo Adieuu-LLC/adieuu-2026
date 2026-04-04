@@ -1401,7 +1401,13 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         }
 
         case 'conversation_message': {
-          const { conversationId, messageId, fromIdentityId } = message.data;
+          const {
+            conversationId,
+            messageId,
+            fromIdentityId,
+            replyToMessageId,
+            replyToMessageAuthorId,
+          } = message.data;
           const activeId = activeConversationIdRef.current;
           const isActiveConvo = conversationId === activeId;
           const isViewing = isActiveConvo && document.hasFocus() && isAtBottomRef.current;
@@ -1438,13 +1444,34 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           const profiles = participantProfilesRef.current;
           const senderProfile = profiles[fromIdentityId];
           const senderName = senderProfile?.displayName ?? senderProfile?.username;
-          fireNotificationRef.current(
-            tRef.current('conversations.notifications.newMessage', { defaultValue: 'New message' }),
-            senderName
-              ? tRef.current('conversations.notifications.newMessageBody', { name: senderName, defaultValue: `Message from ${senderName}` })
-              : tRef.current('conversations.notifications.newMessageGeneric', { defaultValue: 'You received a new message' }),
-            isViewing
-          );
+          const selfId = identityRef.current?.id;
+          const isReplyToMe =
+            !!replyToMessageId &&
+            typeof replyToMessageAuthorId === 'string' &&
+            replyToMessageAuthorId === selfId;
+
+          if (isReplyToMe) {
+            fireNotificationRef.current(
+              tRef.current('conversations.notifications.messageReply', { defaultValue: 'Reply to your message' }),
+              senderName
+                ? tRef.current('conversations.notifications.messageReplyBody', {
+                    name: senderName,
+                    defaultValue: `${senderName} replied to your message`,
+                  })
+                : tRef.current('conversations.notifications.messageReplyGeneric', {
+                    defaultValue: 'Someone replied to your message',
+                  }),
+              isViewing
+            );
+          } else {
+            fireNotificationRef.current(
+              tRef.current('conversations.notifications.newMessage', { defaultValue: 'New message' }),
+              senderName
+                ? tRef.current('conversations.notifications.newMessageBody', { name: senderName, defaultValue: `Message from ${senderName}` })
+                : tRef.current('conversations.notifications.newMessageGeneric', { defaultValue: 'You received a new message' }),
+              isViewing
+            );
+          }
           break;
         }
 
