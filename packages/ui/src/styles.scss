@@ -7747,6 +7747,68 @@ a {
 // Message (continued) - Reaction Bar
 // ============================================================================
 
+@keyframes message-reaction-chip-splash-up {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent-primary) 40%, transparent);
+  }
+
+  45% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-accent-primary) 18%, transparent);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes message-reaction-chip-splash-down {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-text-tertiary) 25%, transparent);
+  }
+
+  50% {
+    transform: scale(0.98);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-text-tertiary) 12%, transparent);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes message-reaction-count-tick-up {
+  0% {
+    transform: translateY(0.45em);
+    color: var(--color-accent-primary);
+  }
+
+  55% {
+    color: var(--color-accent-primary);
+  }
+
+  100% {
+    transform: translateY(0);
+    color: var(--color-text-secondary);
+  }
+}
+
+@keyframes message-reaction-count-tick-down {
+  0% {
+    transform: translateY(-0.42em);
+    color: var(--color-text-muted);
+  }
+
+  100% {
+    transform: translateY(0);
+    color: var(--color-text-secondary);
+  }
+}
+
 .message {
   &-reaction {
     &-bar {
@@ -7782,17 +7844,52 @@ a {
         }
       }
 
+      &--count-tick-up {
+        animation: message-reaction-chip-splash-up 0.45s cubic-bezier(0.33, 1, 0.68, 1) both;
+
+        @media (prefers-reduced-motion: reduce) {
+          animation: none;
+        }
+      }
+
+      &--count-tick-down {
+        animation: message-reaction-chip-splash-down 0.45s cubic-bezier(0.33, 1, 0.68, 1) both;
+
+        @media (prefers-reduced-motion: reduce) {
+          animation: none;
+        }
+      }
+
       &-emoji {
+        display: inline-block;
         font-size: var(--font-size-lg);
         line-height: 1;
       }
 
       &-count {
+        display: inline-block;
         font-size: var(--font-size-sm);
         font-weight: 600;
         color: var(--color-text-secondary);
         min-width: 12px;
         text-align: center;
+        font-variant-numeric: tabular-nums;
+
+        &--tick-up {
+          animation: message-reaction-count-tick-up 0.42s cubic-bezier(0.33, 1, 0.68, 1) both;
+
+          @media (prefers-reduced-motion: reduce) {
+            animation: none;
+          }
+        }
+
+        &--tick-down {
+          animation: message-reaction-count-tick-down 0.42s cubic-bezier(0.33, 1, 0.68, 1) both;
+
+          @media (prefers-reduced-motion: reduce) {
+            animation: none;
+          }
+        }
       }
     }
   }

@@ -6,7 +6,7 @@
  * from the global stylesheet.
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Menu, Portal, Popover } from '@ark-ui/react';
@@ -169,14 +169,81 @@ function buildReactionTooltip(
   return `${label} reacted with ${shortcode}`;
 }
 
+const ReactionChip = memo(
+  function ReactionChip({
+    messageId,
+    emoji,
+    count,
+    isOwn,
+    ownReactionId,
+    tooltipContent,
+    onToggleReaction,
+  }: {
+    messageId: string;
+    emoji: string;
+    count: number;
+    isOwn: boolean;
+    ownReactionId: string | undefined;
+    tooltipContent: string;
+    onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
+  }) {
+    const prevCountRef = useRef<number | null>(null);
+    const [countTick, setCountTick] = useState<'up' | 'down' | null>(null);
+
+    const handleClick = useCallback(() => {
+      onToggleReaction(messageId, emoji, ownReactionId);
+    }, [messageId, emoji, ownReactionId, onToggleReaction]);
+
+    useLayoutEffect(() => {
+      const prev = prevCountRef.current;
+      if (prev !== null && prev !== count) {
+        setCountTick(count > prev ? 'up' : 'down');
+        const id = window.setTimeout(() => setCountTick(null), 480);
+        prevCountRef.current = count;
+        return () => clearTimeout(id);
+      }
+      prevCountRef.current = count;
+    }, [count]);
+
+    const chipClass =
+      `message-reaction-chip${isOwn ? ' message-reaction-chip--own' : ''}` +
+      (countTick === 'up' ? ' message-reaction-chip--count-tick-up' : '') +
+      (countTick === 'down' ? ' message-reaction-chip--count-tick-down' : '');
+
+    const countClass =
+      'message-reaction-chip-count' +
+      (countTick === 'up' ? ' message-reaction-chip-count--tick-up' : '') +
+      (countTick === 'down' ? ' message-reaction-chip-count--tick-down' : '');
+
+    return (
+      <Tooltip content={tooltipContent} position="top">
+        <button type="button" className={chipClass} onClick={handleClick}>
+          <span className="message-reaction-chip-emoji">{emoji}</span>
+          <span className={countClass}>{count}</span>
+        </button>
+      </Tooltip>
+    );
+  },
+  (prev, next) =>
+    prev.messageId === next.messageId &&
+    prev.emoji === next.emoji &&
+    prev.count === next.count &&
+    prev.isOwn === next.isOwn &&
+    prev.ownReactionId === next.ownReactionId &&
+    prev.tooltipContent === next.tooltipContent &&
+    prev.onToggleReaction === next.onToggleReaction
+);
+
 function ReactionBar({
+  messageId,
   reactions,
   onToggleReaction,
   participantProfiles,
   currentIdentityId,
 }: {
+  messageId: string;
   reactions: GroupedReaction[];
-  onToggleReaction: (emoji: string, ownReactionId?: string) => void;
+  onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
   participantProfiles: Record<string, PublicIdentity>;
   currentIdentityId: string | undefined;
 }) {
@@ -185,20 +252,16 @@ function ReactionBar({
   return (
     <div className="message-reaction-bar">
       {reactions.map((r) => (
-        <Tooltip
-          key={r.emoji}
-          content={buildReactionTooltip(r, participantProfiles, currentIdentityId)}
-          position="top"
-        >
-          <button
-            type="button"
-            className={`message-reaction-chip${r.isOwn ? ' message-reaction-chip--own' : ''}`}
-            onClick={() => onToggleReaction(r.emoji, r.ownReactionId)}
-          >
-            <span className="message-reaction-chip-emoji">{r.emoji}</span>
-            <span className="message-reaction-chip-count">{r.count}</span>
-          </button>
-        </Tooltip>
+        <ReactionChip
+          key={`${messageId}:${r.emoji}`}
+          messageId={messageId}
+          emoji={r.emoji}
+          count={r.count}
+          isOwn={r.isOwn}
+          ownReactionId={r.ownReactionId}
+          tooltipContent={buildReactionTooltip(r, participantProfiles, currentIdentityId)}
+          onToggleReaction={onToggleReaction}
+        />
       ))}
     </div>
   );
@@ -466,10 +529,9 @@ const MessageBubble = memo(function MessageBubble({
 
   const reactionBar = (
     <ReactionBar
+      messageId={message.id}
       reactions={groupedReactions}
-      onToggleReaction={(emoji, ownReactionId) =>
-        onToggleReaction(message.id, emoji, ownReactionId)
-      }
+      onToggleReaction={onToggleReaction}
       participantProfiles={participantProfiles}
       currentIdentityId={ownProfile?.id}
     />
@@ -1519,7 +1581,7 @@ export function ConversationView() {
                         isOwn={msg.fromIdentityId === identity?.id}
                         onDelete={handleDeleteMessage}
                         onReact={(messageId, emoji) => void handleReact(messageId, emoji)}
-                        onToggleReaction={(messageId, emoji, ownReactionId) => void handleToggleReaction(messageId, emoji, ownReactionId)}
+                        onToggleReaction={handleToggleReaction}
                         groupedReactions={getGroupedReactions(msg.id)}
                         favoriteEmojis={favoriteEmojis}
                         onAddFavorite={addFavorite}
