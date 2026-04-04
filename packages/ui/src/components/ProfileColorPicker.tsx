@@ -1,12 +1,13 @@
 /**
  * ProfileColorPicker - colour picker for profile accent colours.
  *
- * Simple native colour input with label, using CSS variables for styling.
- * Supports optional clear/reset to remove a colour.
+ * Shows a custom swatch that either displays the chosen colour or a
+ * recognisable "default / unset" indicator (dashed border with diagonal
+ * strike). Clicking the swatch opens the native colour picker dialog.
+ * A clear button resets back to the theme default.
  */
 
-import { useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useCallback, useRef } from 'react';
 
 export interface ProfileColorPickerProps {
   label: string;
@@ -21,7 +22,7 @@ export function ProfileColorPicker({
   onChange,
   disabled,
 }: ProfileColorPickerProps) {
-  const { t: _t } = useTranslation();
+  const colorInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,17 +39,48 @@ export function ProfileColorPicker({
     [onChange]
   );
 
+  const handleSwatchClick = useCallback(() => {
+    if (!disabled) {
+      colorInputRef.current?.click();
+    }
+  }, [disabled]);
+
   return (
     <div className="profile-color-picker">
       <label className="profile-color-picker-label">{label}</label>
       <div className="profile-color-picker-controls">
+        {/* Hidden native input — only used to open the browser colour dialog */}
         <input
+          ref={colorInputRef}
           type="color"
-          value={value || '#22d3ee'}
+          value={value || '#808080'}
           onChange={handleChange}
           disabled={disabled}
-          className="profile-color-picker-input"
+          className="profile-color-picker-native"
+          tabIndex={-1}
+          aria-hidden
         />
+
+        {/* Visible swatch */}
+        <button
+          type="button"
+          className={`profile-color-picker-swatch ${!value ? 'profile-color-picker-swatch--default' : ''}`}
+          style={value ? { backgroundColor: value } : undefined}
+          onClick={handleSwatchClick}
+          disabled={disabled}
+          aria-label={value ? `Change ${label}` : `Set ${label}`}
+        >
+          {!value && (
+            <svg
+              className="profile-color-picker-strike"
+              viewBox="0 0 36 36"
+              aria-hidden
+            >
+              <line x1="4" y1="4" x2="32" y2="32" />
+            </svg>
+          )}
+        </button>
+
         {value && (
           <button
             type="button"
@@ -63,6 +95,7 @@ export function ProfileColorPicker({
             </svg>
           </button>
         )}
+
         <span className="profile-color-picker-value">
           {value || 'Default'}
         </span>

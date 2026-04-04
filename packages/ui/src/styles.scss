@@ -10869,27 +10869,49 @@ body {
   gap: var(--spacing-sm);
 }
 
-.profile-color-picker-input {
+.profile-color-picker-native {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.profile-color-picker-swatch {
   width: 36px;
   height: 36px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: transparent;
   cursor: pointer;
-  padding: 2px;
+  padding: 0;
+  position: relative;
+  transition: border-color 150ms ease;
 
-  &::-webkit-color-swatch-wrapper {
-    padding: 0;
+  &:hover {
+    border-color: var(--color-border-focus);
   }
 
-  &::-webkit-color-swatch {
-    border: none;
-    border-radius: var(--radius-xs);
+  &:disabled {
+    cursor: default;
+    opacity: 0.6;
   }
 
-  &::-moz-color-swatch {
-    border: none;
-    border-radius: var(--radius-xs);
+  &--default {
+    background: var(--color-bg-tertiary);
+    border-style: dashed;
+  }
+}
+
+.profile-color-picker-strike {
+  width: 100%;
+  height: 100%;
+  display: block;
+
+  line {
+    stroke: var(--color-text-muted);
+    stroke-width: 2;
+    stroke-linecap: round;
   }
 }
 
