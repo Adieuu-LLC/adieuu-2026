@@ -2,8 +2,8 @@
  * EmojiPicker component wrapping @emoji-mart/react.
  *
  * Provides a themed emoji picker that integrates with the app's
- * CSS custom properties. Supports a compact mode for reaction
- * picking and a full-size mode for the message composer.
+ * CSS custom properties. Compact mode is used for reactions (smaller grid,
+ * no category nav); full mode for the composer. Search is shown in both.
  */
 
 import { useCallback } from 'react';
@@ -49,7 +49,7 @@ export function EmojiPicker({
         previewPosition={compact ? 'none' : 'bottom'}
         skinTonePosition={compact ? 'none' : 'preview'}
         navPosition={compact ? 'none' : 'top'}
-        searchPosition={compact ? 'none' : 'sticky'}
+        searchPosition="sticky"
       />
     </div>
   );
