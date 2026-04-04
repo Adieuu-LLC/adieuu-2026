@@ -52,6 +52,7 @@ export const APP_ICON_NAMES = {
   fileArrowUp: 'file-arrow-up',
   arrowLeft: 'arrow-left',
   circle: 'circle',
+  pen: 'pen',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;
