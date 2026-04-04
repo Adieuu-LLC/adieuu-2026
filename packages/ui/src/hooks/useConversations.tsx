@@ -866,7 +866,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     async (
       conversationId: string,
       plaintext: string,
-      options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean; replyToMessageId?: string }
+      options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean; replyToMessageId?: string; e2eMediaIds?: string[] }
     ): Promise<PublicMessage | null> => {
       if (!isLoggedIn || !identity) return null;
 
@@ -903,6 +903,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           clientMessageId,
           expiresInSeconds,
           ...(options?.replyToMessageId ? { replyToMessageId: options.replyToMessageId } : {}),
+          ...(options?.e2eMediaIds?.length ? { e2eMediaIds: options.e2eMediaIds } : {}),
         };
 
         const resp = await api.conversations.sendMessage(conversationId, params);

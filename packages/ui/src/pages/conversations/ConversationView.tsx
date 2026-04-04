@@ -31,6 +31,9 @@ import { Tooltip } from '../../components/Tooltip';
 import { useToast } from '../../components/Toast';
 import { Icon } from '../../icons/Icon';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
+import { useConversationMediaUpload, type MediaUploadResult } from '../../hooks/useConversationMediaUpload';
+import { serializePayload, mediaPayload, type MediaAttachment } from '../../services/messagePayload';
+import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
 import type { SystemEvent, FormerMember, PublicIdentity } from '@adieuu/shared';
 import type { TFunction } from 'i18next';
 
@@ -1110,10 +1113,15 @@ function InviteMemberModal({
   );
 }
 
+type AttachmentUploadStatus = 'pending' | 'encrypting' | 'uploading' | 'scanning' | 'done' | 'error';
+
 /** Pending attachment state in the composer. */
 interface PendingAttachment {
   file: File;
   previewUrl: string;
+  uploadStatus: AttachmentUploadStatus;
+  uploadProgress: number;
+  uploadError?: string;
 }
 
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -1147,10 +1155,12 @@ function MessageComposer({
   participantProfiles: Record<string, PublicIdentity>;
 }) {
   const { t } = useTranslation();
-  const { warning: toastWarning } = useToast();
+  const { warning: toastWarning, error: toastError } = useToast();
+  const mediaUpload = useConversationMediaUpload();
   const [messageText, setMessageText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [stripExif, setStripExif] = useState(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1170,7 +1180,7 @@ function MessageComposer({
         continue;
       }
       if (attachments.length + newAttachments.length >= MAX_ATTACHMENTS) break;
-      newAttachments.push({ file, previewUrl: URL.createObjectURL(file) });
+      newAttachments.push({ file, previewUrl: URL.createObjectURL(file), uploadStatus: 'pending', uploadProgress: 0 });
     }
 
     if (oversized) {
@@ -1214,28 +1224,119 @@ function MessageComposer({
     return () => window.cancelAnimationFrame(id);
   }, [replyingTo]);
 
+  const updateAttachmentStatus = useCallback((index: number, patch: Partial<PendingAttachment>) => {
+    setAttachments((prev) => prev.map((a, i) => (i === index ? { ...a, ...patch } : a)));
+  }, []);
+
   const handleSend = useCallback(async () => {
     const text = messageTextRef.current.trim();
-    if (!conversationId || (!text && attachments.length === 0) || sending) return;
+    if (!conversationId || (!text && attachments.length === 0) || sending || uploadingMedia) return;
+
+    const pendingAttachments = [...attachments];
     setMessageText('');
 
-    // TODO: When media upload integration is wired, upload attachments here
-    // using the useConversationMediaUpload hook, collect e2eMediaIds, and
-    // pass them to sendTextMessage. For now, send text-only.
-    const sent = await sendTextMessage(conversationId, convertShortcodes(text), {
-      useForwardSecrecy: useFs,
-      ...(replyingTo ? { replyToMessageId: replyingTo.id } : {}),
-    });
-    onCancelReply();
-    setAttachments((prev) => {
-      prev.forEach((a) => URL.revokeObjectURL(a.previewUrl));
-      return [];
-    });
-    if (sent != null) {
-      onSendSucceeded?.();
+    if (pendingAttachments.length > 0) {
+      setUploadingMedia(true);
+
+      interface UploadedMedia extends MediaUploadResult {
+        encryptionKey: string;
+        encryptionNonce: string;
+      }
+
+      const uploadedMedia: UploadedMedia[] = [];
+
+      try {
+        for (let i = 0; i < pendingAttachments.length; i++) {
+          const att = pendingAttachments[i]!;
+          updateAttachmentStatus(i, { uploadStatus: 'encrypting', uploadProgress: 5 });
+
+          const fileBytes = new Uint8Array(await att.file.arrayBuffer());
+          const mediaKey = randomBytes(32);
+          const { ciphertext, nonce } = encryptBytes(mediaKey, fileBytes);
+          const encryptedBlob = new Blob([ciphertext.buffer as ArrayBuffer], { type: 'application/octet-stream' });
+
+          updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 15 });
+
+          mediaUpload.reset();
+          const result = await mediaUpload.uploadMedia(att.file, encryptedBlob, { stripExif });
+
+          if (!result) {
+            updateAttachmentStatus(i, {
+              uploadStatus: 'error',
+              uploadError: mediaUpload.error ?? t('conversations.uploadFailed', 'Upload failed'),
+            });
+            toastError(
+              t('conversations.uploadFailed', 'Upload failed'),
+              mediaUpload.error ?? t('conversations.uploadFailedDesc', 'One or more attachments could not be uploaded.')
+            );
+            setUploadingMedia(false);
+            return;
+          }
+
+          uploadedMedia.push({
+            ...result,
+            encryptionKey: toBase64(mediaKey),
+            encryptionNonce: toBase64(nonce),
+          });
+
+          updateAttachmentStatus(i, { uploadStatus: 'done', uploadProgress: 100 });
+        }
+      } catch (err) {
+        console.error('[Composer] Media upload failed:', err);
+        toastError(
+          t('conversations.uploadFailed', 'Upload failed'),
+          err instanceof Error ? err.message : t('conversations.uploadFailedDesc', 'One or more attachments could not be uploaded.')
+        );
+        setUploadingMedia(false);
+        return;
+      }
+
+      setUploadingMedia(false);
+
+      const mediaAttachments: MediaAttachment[] = uploadedMedia.map((m) => ({
+        e2eMediaId: m.e2eMediaId,
+        scanHash: m.scanHash,
+        contentType: m.contentType,
+        fileName: m.fileName,
+        width: m.width,
+        height: m.height,
+        sizeBytes: m.sizeBytes,
+        exifPreserved: m.exifPreserved,
+        encryptionKey: m.encryptionKey,
+        encryptionNonce: m.encryptionNonce,
+      }));
+
+      const payload = mediaPayload(convertShortcodes(text) || undefined, mediaAttachments);
+      const plaintext = serializePayload(payload);
+      const e2eMediaIds = uploadedMedia.map((m) => m.e2eMediaId);
+
+      const sent = await sendTextMessage(conversationId, plaintext, {
+        useForwardSecrecy: useFs,
+        ...(replyingTo ? { replyToMessageId: replyingTo.id } : {}),
+        e2eMediaIds,
+      });
+
+      onCancelReply();
+      setAttachments((prev) => {
+        prev.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+        return [];
+      });
+      if (sent != null) {
+        onSendSucceeded?.();
+      }
+      inputRef.current?.focus();
+    } else {
+      const sent = await sendTextMessage(conversationId, convertShortcodes(text), {
+        useForwardSecrecy: useFs,
+        ...(replyingTo ? { replyToMessageId: replyingTo.id } : {}),
+      });
+      onCancelReply();
+      if (sent != null) {
+        onSendSucceeded?.();
+      }
+      inputRef.current?.focus();
     }
-    inputRef.current?.focus();
-  }, [conversationId, sending, sendTextMessage, useFs, replyingTo, onCancelReply, onSendSucceeded, attachments]);
+  }, [conversationId, sending, uploadingMedia, sendTextMessage, useFs, replyingTo, onCancelReply, onSendSucceeded, attachments, stripExif, mediaUpload, updateAttachmentStatus, toastError, t]);
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
@@ -1281,7 +1382,7 @@ function MessageComposer({
               : `pasted-${Date.now()}.${ext}`,
             { type: file.type }
           );
-          return { file: named, previewUrl: URL.createObjectURL(named) };
+          return { file: named, previewUrl: URL.createObjectURL(named), uploadStatus: 'pending' as const, uploadProgress: 0 };
         });
         return [...prev, ...toAdd];
       });
@@ -1341,16 +1442,34 @@ function MessageComposer({
         <div className="conversation-composer-attachments">
           <div className="conversation-composer-attachments-thumbs">
             {attachments.map((att, idx) => (
-              <div key={att.previewUrl} className="conversation-composer-attachment">
+              <div key={att.previewUrl} className={`conversation-composer-attachment conversation-composer-attachment--${att.uploadStatus}`}>
                 <img src={att.previewUrl} alt="" className="conversation-composer-attachment-thumb" />
-                <button
-                  type="button"
-                  className="conversation-composer-attachment-remove"
-                  onClick={() => removeAttachment(idx)}
-                  aria-label={t('conversations.removeAttachment', 'Remove attachment')}
-                >
-                  <Icon name="x" />
-                </button>
+                {att.uploadStatus !== 'pending' && att.uploadStatus !== 'done' && (
+                  <div className="conversation-composer-attachment-overlay">
+                    {att.uploadStatus === 'error' ? (
+                      <span className="conversation-composer-attachment-error-icon" title={att.uploadError}>
+                        <Icon name="error" />
+                      </span>
+                    ) : (
+                      <span className="conversation-composer-attachment-spinner" />
+                    )}
+                  </div>
+                )}
+                {att.uploadStatus === 'done' && (
+                  <div className="conversation-composer-attachment-done">
+                    <Icon name="success" />
+                  </div>
+                )}
+                {att.uploadStatus === 'pending' && (
+                  <button
+                    type="button"
+                    className="conversation-composer-attachment-remove"
+                    onClick={() => removeAttachment(idx)}
+                    aria-label={t('conversations.removeAttachment', 'Remove attachment')}
+                  >
+                    <Icon name="x" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -1391,7 +1510,7 @@ function MessageComposer({
             type="button"
             className="conversation-attach-btn"
             onClick={() => fileInputRef.current?.click()}
-            disabled={sending || attachments.length >= MAX_ATTACHMENTS}
+            disabled={sending || uploadingMedia || attachments.length >= MAX_ATTACHMENTS}
           >
             <Icon name="image" />
           </button>
@@ -1426,7 +1545,7 @@ function MessageComposer({
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           rows={1}
-          disabled={sending}
+          disabled={sending || uploadingMedia}
         />
         <Popover.Root
           open={showEmojiPicker}

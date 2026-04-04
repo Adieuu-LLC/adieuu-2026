@@ -2079,6 +2079,7 @@ export interface SendMessageParams {
   clientMessageId: string;
   expiresInSeconds?: number;
   replyToMessageId?: string;
+  e2eMediaIds?: string[];
 }
 
 export class ConversationsApi {

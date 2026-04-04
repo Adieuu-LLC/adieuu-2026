@@ -34,6 +34,10 @@ export interface MediaAttachment {
   sizeBytes?: number;
   /** Whether the uploader chose to preserve EXIF metadata */
   exifPreserved: boolean;
+  /** Base64-encoded 256-bit symmetric key used to encrypt the E2E blob */
+  encryptionKey: string;
+  /** Base64-encoded nonce used with encryptionKey */
+  encryptionNonce: string;
 }
 
 /**
