@@ -167,6 +167,8 @@ export async function addReaction(
     type: 'reaction_added',
     data: {
       reaction: publicReaction,
+      /** Lets clients notify the message author without local message cache (pagination / other tab). */
+      messageAuthorId: message.fromIdentityId.toHexString(),
     },
   });
 

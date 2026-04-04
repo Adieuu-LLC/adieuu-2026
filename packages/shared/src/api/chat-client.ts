@@ -201,6 +201,8 @@ export interface ChatReactionAddedMessage extends ChatMessageBase {
       clientReactionId: string;
       createdAt: string;
     };
+    /** Identity id of the message author (server-known; for author notifications). */
+    messageAuthorId?: string;
   };
 }
 

@@ -1468,26 +1468,33 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         }
 
         case 'reaction_added': {
-          const { reaction } = message.data;
+          const { reaction, messageAuthorId } = message.data;
           const selfId = identityRef.current?.id;
           if (!selfId || reaction.fromIdentityId === selfId) break;
           if (!loadReactionNotificationsEnabled(selfId)) break;
 
-          const convId = reaction.conversationId;
-          const stateMap = messagesStateRef.current;
-          let msgs = stateMap[convId]?.messages;
-          if (!msgs) {
-            const lower = convId.toLowerCase();
-            for (const k of Object.keys(stateMap)) {
-              if (k.toLowerCase() === lower) {
-                msgs = stateMap[k]?.messages;
-                break;
+          let isMessageOurs = false;
+          if (typeof messageAuthorId === 'string' && messageAuthorId.length > 0) {
+            isMessageOurs = messageAuthorId === selfId;
+          } else {
+            const convId = reaction.conversationId;
+            const stateMap = messagesStateRef.current;
+            let msgs = stateMap[convId]?.messages;
+            if (!msgs) {
+              const lower = convId.toLowerCase();
+              for (const k of Object.keys(stateMap)) {
+                if (k.toLowerCase() === lower) {
+                  msgs = stateMap[k]?.messages;
+                  break;
+                }
               }
             }
+            const targetMsg = (msgs ?? []).find((m) => m.id === reaction.messageId);
+            isMessageOurs = !!targetMsg && targetMsg.fromIdentityId === selfId;
           }
-          const targetMsg = (msgs ?? []).find((m) => m.id === reaction.messageId);
-          if (!targetMsg || targetMsg.fromIdentityId !== selfId) break;
+          if (!isMessageOurs) break;
 
+          const convId = reaction.conversationId;
           const isViewing =
             convId === activeConversationIdRef.current &&
             document.hasFocus() &&
