@@ -294,11 +294,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest-4-core
+          - os: ubuntu-latest
             artifact-name: packaged-desktop-linux
           - os: windows-latest-16-core
             artifact-name: packaged-desktop-windows
-          - os: macos-latest-large
+          - os: macos-latest
             artifact-name: packaged-desktop-macos
     runs-on: ${{ matrix.os }}
     permissions:
