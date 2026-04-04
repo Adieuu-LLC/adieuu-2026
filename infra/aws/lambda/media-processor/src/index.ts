@@ -249,16 +249,21 @@ export async function handler(event: SQSEvent): Promise<void> {
   console.log(`Processing ${event.Records.length} SQS message(s)`);
 
   for (const sqsRecord of event.Records) {
-    const s3Event: S3Event = JSON.parse(sqsRecord.body);
+    const body = JSON.parse(sqsRecord.body);
+
+    if (!body.Records || !Array.isArray(body.Records)) {
+      console.log('Skipping non-S3 event message (e.g. s3:TestEvent)');
+      continue;
+    }
+
+    const s3Event = body as S3Event;
 
     for (const record of s3Event.Records) {
       try {
         await processRecord(record);
       } catch (err) {
-        console.error(
-          `Error processing record ${record.s3.object.key}:`,
-          err
-        );
+        const key = record?.s3?.object?.key ?? 'unknown';
+        console.error(`Error processing record ${key}:`, err);
       }
     }
   }

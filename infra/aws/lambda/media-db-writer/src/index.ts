@@ -76,14 +76,41 @@ async function getMongoClient(): Promise<MongoClient> {
   if (cachedMongoClient) return cachedMongoClient;
 
   const uri = await getMongoUri();
-  cachedMongoClient = new MongoClient(uri, {
+
+  const maskedUri = uri.replace(
+    /\/\/([^:]+):([^@]+)@/,
+    '//$1:***@'
+  );
+  console.log(
+    `Connecting to MongoDB: ${maskedUri}, database: ${MONGODB_DB_NAME}`
+  );
+
+  const client = new MongoClient(uri, {
     minPoolSize: 1,
     maxPoolSize: 2,
     serverSelectionTimeoutMS: 5000,
     socketTimeoutMS: 10000,
   });
 
-  await cachedMongoClient.connect();
+  await client.connect();
+
+  const db = client.db(MONGODB_DB_NAME);
+  const ping = await db.command({ ping: 1 });
+  if (!ping.ok) {
+    throw new Error(
+      `MongoDB ping failed on database "${MONGODB_DB_NAME}": ${JSON.stringify(ping)}`
+    );
+  }
+
+  const docCount = await db
+    .collection(COLLECTION_NAME)
+    .estimatedDocumentCount();
+  console.log(
+    `MongoDB connected and verified: database="${MONGODB_DB_NAME}", ` +
+    `collection="${COLLECTION_NAME}" (~${docCount} documents)`
+  );
+
+  cachedMongoClient = client;
   return cachedMongoClient;
 }
 
