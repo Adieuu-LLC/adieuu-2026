@@ -1263,13 +1263,14 @@ function MessageComposer({
           const result = await mediaUpload.uploadMedia(att.file, encryptedBlob, { stripExif });
 
           if (!result) {
+            const errorMsg = mediaUpload.errorRef.current ?? t('conversations.uploadFailed', 'Upload failed');
             updateAttachmentStatus(i, {
               uploadStatus: 'error',
-              uploadError: mediaUpload.error ?? t('conversations.uploadFailed', 'Upload failed'),
+              uploadError: errorMsg,
             });
             toastError(
               t('conversations.uploadFailed', 'Upload failed'),
-              mediaUpload.error ?? t('conversations.uploadFailedDesc', 'One or more attachments could not be uploaded.')
+              errorMsg
             );
             setUploadingMedia(false);
             return;

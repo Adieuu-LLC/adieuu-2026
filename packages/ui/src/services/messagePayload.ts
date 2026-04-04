@@ -82,6 +82,18 @@ export function serializePayload(payload: MessagePayload): string {
   return JSON.stringify(payload);
 }
 
+function isValidAttachment(a: unknown): a is MediaAttachment {
+  if (typeof a !== 'object' || a === null) return false;
+  const obj = a as Record<string, unknown>;
+  return (
+    typeof obj.e2eMediaId === 'string' &&
+    typeof obj.contentType === 'string' &&
+    typeof obj.encryptionKey === 'string' &&
+    typeof obj.encryptionNonce === 'string' &&
+    typeof obj.exifPreserved === 'boolean'
+  );
+}
+
 /**
  * Parse a decrypted plaintext into a structured payload.
  *
@@ -102,9 +114,12 @@ export function parsePayload(plaintext: string): ParsedMessagePayload {
     }
 
     const payload = parsed as unknown as MessagePayload;
+    const rawAttachments = Array.isArray(payload.attachments) ? payload.attachments : [];
+    const validAttachments = rawAttachments.filter(isValidAttachment);
+
     return {
-      text: payload.text ?? '',
-      attachments: payload.attachments ?? [],
+      text: typeof payload.text === 'string' ? payload.text : '',
+      attachments: validAttachments,
       isStructured: true,
     };
   } catch {

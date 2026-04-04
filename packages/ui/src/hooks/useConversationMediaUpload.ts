@@ -65,6 +65,8 @@ export interface UseConversationMediaUploadReturn {
   scanHash: string | null;
   progress: number;
   error: string | null;
+  /** Synchronously-readable error (safe to read immediately after uploadMedia resolves) */
+  errorRef: React.RefObject<string | null>;
   moderationStatus: string | null;
 }
 
@@ -84,6 +86,7 @@ export function useConversationMediaUpload(
   const [scanHash, setScanHash] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const errorRef = useRef<string | null>(null);
   const [moderationStatus, setModerationStatus] = useState<string | null>(null);
 
   const reset = useCallback(() => {
@@ -94,13 +97,15 @@ export function useConversationMediaUpload(
     setScanHash(null);
     setProgress(0);
     setError(null);
+    errorRef.current = null;
     setModerationStatus(null);
   }, []);
 
   const fail = useCallback(
-    (msg: string) => {
+    (msg: string, overrideState?: ConversationMediaUploadState) => {
+      errorRef.current = msg;
       setError(msg);
-      setState('error');
+      setState(overrideState ?? 'error');
       onError?.(msg);
     },
     [onError]
@@ -283,8 +288,7 @@ export function useConversationMediaUpload(
         }
 
         if (finalStatus === 'gated') {
-          setState('rejected');
-          fail('Content has been rejected by moderation');
+          fail('Content has been rejected by moderation', 'rejected');
           return null;
         }
 
@@ -308,6 +312,7 @@ export function useConversationMediaUpload(
     scanHash,
     progress,
     error,
+    errorRef,
     moderationStatus,
   };
 }

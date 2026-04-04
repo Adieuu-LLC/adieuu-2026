@@ -156,6 +156,7 @@ export async function requestE2EUpload(
     Bucket: config.s3.e2eMediaBucket,
     Key: s3Key,
     ContentType: 'application/octet-stream',
+    ContentLength: input.contentLength,
   });
 
   const uploadUrl = await getSignedUrl(getS3Client(), command, {
@@ -438,6 +439,7 @@ export async function requestScanUpload(
     Bucket: config.s3.mediaBucket,
     Key: s3Key,
     ContentType: input.contentType,
+    ContentLength: input.contentLength,
     Metadata: {
       'media-id': scanMediaId,
       purpose,
@@ -532,7 +534,8 @@ export async function deleteE2EMedia(e2eMediaId: string): Promise<boolean> {
       })
     );
   } catch (err) {
-    elog.error('Failed to delete E2E media from S3', { e2eMediaId, err });
+    elog.error('Failed to delete E2E media from S3 — DB record retained for retry', { e2eMediaId, err });
+    return false;
   }
 
   await repo.deleteByE2EMediaId(e2eMediaId);

@@ -159,9 +159,12 @@ export async function handler(event: WriterEvent): Promise<WriterResult> {
     // If this is a scan copy (conv_scan), propagate moderation status to the
     // companion E2E media record via scanHash.
     const scanHash = (mediaDoc as Record<string, unknown>).scanHash as string | undefined;
-    if (scanHash && (status === 'ready' || status === 'rejected')) {
+    if (scanHash && (status === 'ready' || status === 'rejected' || status === 'failed')) {
       const e2eCollection = db.collection(E2E_MEDIA_COLLECTION);
-      const moderationStatus = status === 'ready' ? 'passed' : 'rejected';
+      const moderationStatus =
+        status === 'ready' ? 'passed' :
+        status === 'rejected' ? 'rejected' :
+        'error';
       const e2eStatus = status === 'ready' ? 'available' : 'gated';
 
       const e2eUpdate: Record<string, unknown> = {
