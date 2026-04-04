@@ -48,6 +48,7 @@ const UpdateProfileSchema = z.object({
       primary: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
       secondary: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
       accent: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
+      background: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
     })
     .optional(),
   privacySettings: z
@@ -211,6 +212,9 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
     }
     if (data.profileColors.accent !== undefined) {
       colors.accent = data.profileColors.accent ?? undefined;
+    }
+    if (data.profileColors.background !== undefined) {
+      colors.background = data.profileColors.background ?? undefined;
     }
     update.profileColors = colors;
   }

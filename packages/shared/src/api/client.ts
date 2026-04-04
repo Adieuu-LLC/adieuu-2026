@@ -704,6 +704,7 @@ export interface ProfileColors {
   primary?: string;
   secondary?: string;
   accent?: string;
+  background?: string;
 }
 
 /**
@@ -1802,6 +1803,7 @@ export interface UpdateProfileParams {
     primary?: string | null;
     secondary?: string | null;
     accent?: string | null;
+    background?: string | null;
   };
   privacySettings?: Partial<ProfilePrivacySettings>;
   requireGroupApproval?: boolean;

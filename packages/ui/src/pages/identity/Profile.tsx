@@ -167,7 +167,8 @@ export function IdentityProfile() {
     if (
       colors.primary !== origColors.primary ||
       colors.secondary !== origColors.secondary ||
-      colors.accent !== origColors.accent
+      colors.accent !== origColors.accent ||
+      colors.background !== origColors.background
     ) return true;
 
     const origPrivacy = identity.privacySettings ?? DEFAULT_PRIVACY;
@@ -209,12 +210,14 @@ export function IdentityProfile() {
     if (
       colors.primary !== origColors.primary ||
       colors.secondary !== origColors.secondary ||
-      colors.accent !== origColors.accent
+      colors.accent !== origColors.accent ||
+      colors.background !== origColors.background
     ) {
       params.profileColors = {
         primary: colors.primary ?? null,
         secondary: colors.secondary ?? null,
         accent: colors.accent ?? null,
+        background: colors.background ?? null,
       };
     }
 
@@ -328,7 +331,7 @@ export function IdentityProfile() {
               {t('identity.profile.viewingAs', 'Viewing as')}
             </span>
             <div className="profile-preview-tabs">
-              {(['self', 'friend', 'stranger'] as PreviewMode[]).map((mode) => (
+              {(['self', 'friend', 'public'] as PreviewMode[]).map((mode) => (
                 <button
                   key={mode}
                   type="button"
@@ -354,7 +357,12 @@ export function IdentityProfile() {
 
             {/* Edit tab */}
             <TabContent value="edit">
-              <div className="profile-edit-card">
+              <div
+                className="profile-edit-card"
+                style={previewProfile.profileColors?.background
+                  ? { backgroundColor: previewProfile.profileColors.background }
+                  : undefined}
+              >
                 {/* Banner */}
                 {isEditable ? (
                   <div
@@ -510,6 +518,12 @@ export function IdentityProfile() {
                       label={t('identity.profile.colorAccent')}
                       value={colors.accent}
                       onChange={handleColorChange('accent')}
+                      disabled={saving}
+                    />
+                    <ProfileColorPicker
+                      label={t('identity.profile.colorBackground')}
+                      value={colors.background}
+                      onChange={handleColorChange('background')}
                       disabled={saving}
                     />
                   </div>

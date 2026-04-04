@@ -36,6 +36,7 @@ export interface ProfileColors {
   primary?: string;
   secondary?: string;
   accent?: string;
+  background?: string;
 }
 
 export const DEFAULT_PRIVACY_SETTINGS: ProfilePrivacySettings = {

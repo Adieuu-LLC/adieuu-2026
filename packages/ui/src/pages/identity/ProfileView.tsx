@@ -156,7 +156,12 @@ export function IdentityProfileView() {
   return (
     <div className="page-content">
       <div className="container">
-        <div className="profile-view">
+        <div
+          className="profile-view"
+          style={profile.profileColors?.background
+            ? { backgroundColor: profile.profileColors.background }
+            : undefined}
+        >
           {/* Banner + Avatar hero */}
           <div className="profile-view-hero">
             <div
