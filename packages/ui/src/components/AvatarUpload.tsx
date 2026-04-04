@@ -91,10 +91,9 @@ export function AvatarUpload({
             src={displayUrl}
             alt=""
             className="avatar-upload-image"
-            style={{ width: size, height: size }}
           />
         ) : (
-          <div className="avatar-upload-placeholder" style={{ width: size, height: size }}>
+          <div className="avatar-upload-placeholder">
             <Icon name="camera" />
           </div>
         )}
