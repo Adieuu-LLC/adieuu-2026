@@ -469,7 +469,7 @@ const ReactionChip = memo(
     prev.onToggleReaction === next.onToggleReaction
 );
 
-function ReactionBar({
+const ReactionBar = memo(function ReactionBar({
   messageId,
   reactions,
   onToggleReaction,
@@ -502,7 +502,20 @@ function ReactionBar({
       ))}
     </div>
   );
-}
+}, (prev, next) => {
+  if (prev.messageId !== next.messageId) return false;
+  if (prev.currentIdentityId !== next.currentIdentityId) return false;
+  if (prev.participantProfiles !== next.participantProfiles) return false;
+  if (prev.memberSettings !== next.memberSettings) return false;
+  const pr = prev.reactions;
+  const nr = next.reactions;
+  if (pr.length !== nr.length) return false;
+  for (let i = 0; i < pr.length; i++) {
+    if (pr[i]!.emoji !== nr[i]!.emoji || pr[i]!.count !== nr[i]!.count ||
+        pr[i]!.isOwn !== nr[i]!.isOwn || pr[i]!.ownReactionId !== nr[i]!.ownReactionId) return false;
+  }
+  return true;
+});
 
 function useExpiryCountdown(expiresAt?: string): string | null {
   const [remaining, setRemaining] = useState<string | null>(null);
@@ -1105,6 +1118,58 @@ const MessageBubble = memo(function MessageBubble({
       {contextReactionPickerPopover}
     </>
   );
+}, (prev, next) => {
+  if (prev.isOwn !== next.isOwn) return false;
+  if (prev.layout !== next.layout) return false;
+  if (prev.isFlashHighlight !== next.isFlashHighlight) return false;
+  if (prev.memberColorDisplay !== next.memberColorDisplay) return false;
+
+  const pm = prev.message;
+  const nm = next.message;
+  if (pm.id !== nm.id) return false;
+  if (pm.decryptedContent !== nm.decryptedContent) return false;
+  if (pm.deleted !== nm.deleted) return false;
+  if (pm.forwardSecrecy !== nm.forwardSecrecy) return false;
+  if (pm.expiresAt !== nm.expiresAt) return false;
+  if (pm.decryptionError !== nm.decryptionError) return false;
+  if (pm.replyToMessageId !== nm.replyToMessageId) return false;
+
+  if (prev.senderProfile?.id !== next.senderProfile?.id) return false;
+  if (prev.senderProfile?.avatarUrl !== next.senderProfile?.avatarUrl) return false;
+  if (prev.senderProfile?.displayName !== next.senderProfile?.displayName) return false;
+  if (prev.ownProfile?.id !== next.ownProfile?.id) return false;
+  if (prev.ownProfile?.avatarUrl !== next.ownProfile?.avatarUrl) return false;
+
+  if (prev.participantProfiles !== next.participantProfiles) return false;
+  if (prev.memberSettings !== next.memberSettings) return false;
+
+  if (prev.fsInfo.rotationLabel !== next.fsInfo.rotationLabel ||
+      prev.fsInfo.readableWindow !== next.fsInfo.readableWindow ||
+      prev.fsInfo.tooltip !== next.fsInfo.tooltip) return false;
+
+  const pr = prev.groupedReactions;
+  const nr = next.groupedReactions;
+  if (pr.length !== nr.length) return false;
+  for (let i = 0; i < pr.length; i++) {
+    if (pr[i]!.emoji !== nr[i]!.emoji || pr[i]!.count !== nr[i]!.count ||
+        pr[i]!.isOwn !== nr[i]!.isOwn || pr[i]!.ownReactionId !== nr[i]!.ownReactionId) return false;
+  }
+
+  if (prev.favoriteEmojis.length !== next.favoriteEmojis.length) return false;
+  for (let i = 0; i < prev.favoriteEmojis.length; i++) {
+    if (prev.favoriteEmojis[i] !== next.favoriteEmojis[i]) return false;
+  }
+
+  const pq = prev.replyQuote;
+  const nq = next.replyQuote;
+  if (!pq !== !nq) return false;
+  if (pq && nq) {
+    if (pq.text !== nq.text) return false;
+    if (pq.quotedAuthor?.displayName !== nq.quotedAuthor?.displayName) return false;
+    if (pq.quotedAuthor?.avatarUrl !== nq.quotedAuthor?.avatarUrl) return false;
+  }
+
+  return true;
 });
 
 function InviteMemberModal({
@@ -1869,6 +1934,11 @@ export function ConversationView() {
 
   const conversation = conversations.find((c) => c.id === id);
 
+  const activeMessagesRef = useRef(activeMessages);
+  activeMessagesRef.current = activeMessages;
+  const conversationRef = useRef(conversation);
+  conversationRef.current = conversation;
+
   const showArtifacts = identity ? loadShowMessageArtifacts(identity.id) : false;
 
   const reversedMessages = useMemo(
@@ -1954,14 +2024,14 @@ export function ConversationView() {
 
   const handleReact = useCallback(
     async (messageId: string, emoji: string) => {
-      if (!id || !conversation) return;
+      if (!id || !conversationRef.current) return;
       const key = `${messageId}:${emoji}`;
       if (pendingReactionsRef.current.has(key)) return;
       pendingReactionsRef.current.add(key);
       try {
-        const targetMsg = activeMessages.find((m) => m.id === messageId);
+        const targetMsg = activeMessagesRef.current.find((m) => m.id === messageId);
         const useForwardSecrecy = targetMsg?.forwardSecrecy ?? false;
-        const recipients = await fetchRecipientKeys(conversation.participants, useForwardSecrecy);
+        const recipients = await fetchRecipientKeys(conversationRef.current.participants, useForwardSecrecy);
         if (recipients.length === 0) return;
         await addReaction(messageId, emoji, recipients);
         scrollLastRowIntoViewAfterReaction(messageId);
@@ -1969,7 +2039,7 @@ export function ConversationView() {
         pendingReactionsRef.current.delete(key);
       }
     },
-    [id, conversation, activeMessages, addReaction, fetchRecipientKeys, scrollLastRowIntoViewAfterReaction]
+    [id, addReaction, fetchRecipientKeys, scrollLastRowIntoViewAfterReaction]
   );
 
   const handleToggleReaction = useCallback(
@@ -2123,6 +2193,16 @@ export function ConversationView() {
 
     return { rotationLabel, readableWindow, tooltip };
   }, [fsConfig.securityLevel, fsConfig.spkDeletionPolicy, fsConfig.clearCacheOnRotation]);
+
+  const virtuosoComponents = useMemo(() => ({
+    Header: () =>
+      messagesLoading ? (
+        <div className="dm-messages-loading">
+          <span className="spinner spinner-sm" />
+        </div>
+      ) : null,
+    Item: (props: React.HTMLAttributes<HTMLDivElement>) => <div {...props} className="dm-messages-item" />,
+  }), [messagesLoading]);
 
   const unreadCount = conversation?.unreadCount ?? 0;
 
@@ -2327,15 +2407,7 @@ export function ConversationView() {
                   overscan={{ main: 800, reverse: 800 }}
                   defaultItemHeight={72}
                   increaseViewportBy={{ top: 600, bottom: 600 }}
-                  components={{
-                    Header: () =>
-                      messagesLoading ? (
-                        <div className="dm-messages-loading">
-                          <span className="spinner spinner-sm" />
-                        </div>
-                      ) : null,
-                    Item: (props) => <div {...props} className="dm-messages-item" />,
-                  }}
+                  components={virtuosoComponents}
                   itemContent={(_, item) => {
                     if (item.type === 'unread-separator') {
                       return (
@@ -2369,7 +2441,7 @@ export function ConversationView() {
                         message={msg}
                         isOwn={msg.fromIdentityId === identity?.id}
                         onDelete={handleDeleteMessage}
-                        onReact={(messageId, emoji) => void handleReact(messageId, emoji)}
+                        onReact={handleReact}
                         onToggleReaction={handleToggleReaction}
                         groupedReactions={getGroupedReactions(msg.id)}
                         favoriteEmojis={favoriteEmojis}

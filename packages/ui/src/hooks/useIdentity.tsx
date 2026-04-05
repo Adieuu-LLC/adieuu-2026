@@ -1078,7 +1078,7 @@ function useIdentityState(): IdentityContextValue {
     return { success: true };
   }, [api]);
 
-  return {
+  return useMemo(() => ({
     ...state,
     createIdentity,
     loginToIdentity,
@@ -1090,7 +1090,19 @@ function useIdentityState(): IdentityContextValue {
     getWrappingSalt,
     getSigningKey,
     getCurrentDeviceId,
-  };
+  }), [
+    state,
+    createIdentity,
+    loginToIdentity,
+    unlockIdentity,
+    logoutFromIdentity,
+    deleteIdentity,
+    refreshIdentitySession,
+    getWrappingKey,
+    getWrappingSalt,
+    getSigningKey,
+    getCurrentDeviceId,
+  ]);
 }
 
 // ============================================================================

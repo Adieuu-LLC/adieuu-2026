@@ -10,7 +10,7 @@
  * - error: generic error state with retry
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { MediaAttachment } from '../services/messagePayload';
@@ -30,7 +30,7 @@ export interface MediaMessageProps {
   onRetry?: () => void;
 }
 
-export function MediaMessage({
+export const MediaMessage = memo(function MediaMessage({
   attachment,
   state,
   progress = 0,
@@ -41,7 +41,7 @@ export function MediaMessage({
 }: MediaMessageProps) {
   const { t } = useTranslation();
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(!!imageUrl);
   const imgRef = useRef<HTMLImageElement>(null);
 
   const openLightbox = useCallback(() => {
@@ -64,7 +64,7 @@ export function MediaMessage({
   }, [lightboxOpen]);
 
   useEffect(() => {
-    setLoaded(false);
+    if (!imageUrl) setLoaded(false);
   }, [imageUrl]);
 
   const aspectRatio =
@@ -119,7 +119,6 @@ export function MediaMessage({
             className="media-message-image"
             style={{ aspectRatio, opacity: loaded ? 1 : 0 }}
             onLoad={() => setLoaded(true)}
-            loading="lazy"
           />
           {!loaded && (
             <div className="media-message-placeholder" style={{ aspectRatio }} />
@@ -190,4 +189,4 @@ export function MediaMessage({
       )}
     </div>
   );
-}
+});

@@ -89,6 +89,9 @@ interface ConversationMessagesState {
   loading: boolean;
 }
 
+const EMPTY_MESSAGES: DisplayMessage[] = [];
+const EMPTY_MEMBER_SETTINGS: MemberSettingsMap = {};
+
 interface ConversationsContextValue {
   conversations: DecryptedConversation[];
   activeConversationId: string | null;
@@ -1789,45 +1792,55 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   // Context value
   // -------------------------------------------------------------------------
 
-  const activeState = activeConversationId ? messagesState[activeConversationId] : undefined;
+  const value: ConversationsContextValue = useMemo(() => {
+    const activeState = activeConversationId ? messagesState[activeConversationId] : undefined;
+    const activeConversation = activeConversationId
+      ? conversations.find((c) => c.id === activeConversationId)
+      : undefined;
 
-  const activeConversation = activeConversationId
-    ? conversations.find((c) => c.id === activeConversationId)
-    : undefined;
-
-  const value: ConversationsContextValue = {
-    conversations,
-    activeConversationId,
-    activeMessages: activeState?.messages ?? [],
-    activeMessagesCursor: activeState?.cursor ?? null,
-    invites,
-    participantProfiles,
-    memberSettings: activeConversation?.decryptedMemberSettings ?? {},
-    loading,
-    messagesLoading: activeState?.loading ?? false,
-    sending,
-    setActiveConversation,
-    setIsAtBottom,
-    markConversationRead,
-    createDM,
-    createGroup,
-    sendTextMessage,
-    loadMoreMessages,
-    deleteMessage,
-    addMember,
-    removeMember,
-    leaveGroup,
-    renameGroup,
-    updateMemberSettings: updateConversationMemberSettings,
-    promoteToAdmin,
-    terminateGroup,
-    acceptInvite,
-    declineInvite,
-    getInvitePreview,
-    getFormerMembers,
-    fetchRecipientKeys,
-    refresh,
-  };
+    return {
+      conversations,
+      activeConversationId,
+      activeMessages: activeState?.messages ?? EMPTY_MESSAGES,
+      activeMessagesCursor: activeState?.cursor ?? null,
+      invites,
+      participantProfiles,
+      memberSettings: activeConversation?.decryptedMemberSettings ?? EMPTY_MEMBER_SETTINGS,
+      loading,
+      messagesLoading: activeState?.loading ?? false,
+      sending,
+      setActiveConversation,
+      setIsAtBottom,
+      markConversationRead,
+      createDM,
+      createGroup,
+      sendTextMessage,
+      loadMoreMessages,
+      deleteMessage,
+      addMember,
+      removeMember,
+      leaveGroup,
+      renameGroup,
+      updateMemberSettings: updateConversationMemberSettings,
+      promoteToAdmin,
+      terminateGroup,
+      acceptInvite,
+      declineInvite,
+      getInvitePreview,
+      getFormerMembers,
+      fetchRecipientKeys,
+      refresh,
+    };
+  }, [
+    conversations, activeConversationId, messagesState, invites,
+    participantProfiles, loading, sending,
+    setActiveConversation, setIsAtBottom, markConversationRead,
+    createDM, createGroup, sendTextMessage, loadMoreMessages,
+    deleteMessage, addMember, removeMember, leaveGroup, renameGroup,
+    updateConversationMemberSettings, promoteToAdmin, terminateGroup,
+    acceptInvite, declineInvite, getInvitePreview, getFormerMembers,
+    fetchRecipientKeys, refresh,
+  ]);
 
   return (
     <ConversationsContext.Provider value={value}>
