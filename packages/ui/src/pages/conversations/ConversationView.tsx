@@ -34,7 +34,7 @@ import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreferen
 import { useConversationMediaUpload, type MediaUploadResult } from '../../hooks/useConversationMediaUpload';
 import { serializePayload, mediaPayload, parsePayload, type MediaAttachment } from '../../services/messagePayload';
 import { MediaMessage } from '../../components/MediaMessage';
-import { useE2EMediaDownload } from '../../hooks/useE2EMediaDownload';
+import { useE2EMediaDownload, clearMediaCache } from '../../hooks/useE2EMediaDownload';
 import { stripExifMetadata } from '../../utils/imageProcessing';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
 import type { SystemEvent, FormerMember, PublicIdentity } from '@adieuu/shared';
@@ -594,7 +594,11 @@ type ChatItem =
 
 const FIRST_ITEM_INDEX = 1_000_000;
 
-function MessageMediaAttachment({ attachment }: { attachment: MediaAttachment }) {
+const MessageMediaAttachment = memo(function MessageMediaAttachment({
+  attachment,
+}: {
+  attachment: MediaAttachment;
+}) {
   const { state, imageUrl, rejectionReason, errorMessage, retry } =
     useE2EMediaDownload(attachment);
 
@@ -608,7 +612,7 @@ function MessageMediaAttachment({ attachment }: { attachment: MediaAttachment })
       onRetry={retry}
     />
   );
-}
+});
 
 const MessageBubble = memo(function MessageBubble({
   message,
@@ -1749,6 +1753,7 @@ export function ConversationView() {
     setFlashingMessageId(null);
     pendingScrollToRef.current = null;
     replyScrollLoadAttemptsRef.current = 0;
+    clearMediaCache();
   }, [id]);
 
   // Clear activeConversationId and scroll state when this view unmounts

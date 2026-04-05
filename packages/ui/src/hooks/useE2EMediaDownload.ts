@@ -8,7 +8,9 @@
  * 4. Decrypts using the per-attachment symmetric key + nonce
  * 5. Produces a blob URL for rendering
  *
- * Blob URLs are revoked on unmount to prevent memory leaks.
+ * Decrypted blob URLs are cached at the module level so that Virtuoso's
+ * mount/unmount cycles do not trigger repeated downloads. The cache can
+ * be flushed by calling `clearMediaCache()` when switching conversations.
  *
  * SECURITY: The encryptionKey and encryptionNonce live exclusively inside
  * the E2E-encrypted message payload — the server never sees them.
@@ -24,6 +26,34 @@ import type { MediaMessageState } from '../components/MediaMessage';
 const POLL_INTERVAL_MS = 2500;
 const MAX_POLL_ATTEMPTS = 72; // ~3 minutes
 
+// ---------------------------------------------------------------------------
+// Module-level cache: survives Virtuoso unmount/remount cycles.
+// Keyed by e2eMediaId so each attachment is downloaded and decrypted at most
+// once per session (or until clearMediaCache is called).
+// ---------------------------------------------------------------------------
+
+interface CachedMedia {
+  url: string;
+  state: MediaMessageState;
+  rejectionReason?: string;
+}
+
+const mediaCache = new Map<string, CachedMedia>();
+
+const inflightDownloads = new Map<string, Promise<CachedMedia | null>>();
+
+export function clearMediaCache(): void {
+  for (const entry of mediaCache.values()) {
+    if (entry.url) URL.revokeObjectURL(entry.url);
+  }
+  mediaCache.clear();
+  inflightDownloads.clear();
+}
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
 export interface UseE2EMediaDownloadReturn {
   state: MediaMessageState;
   imageUrl: string | null;
@@ -37,41 +67,42 @@ export function useE2EMediaDownload(
 ): UseE2EMediaDownloadReturn {
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
-  const [state, setState] = useState<MediaMessageState>('loading');
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const mediaId = attachment.e2eMediaId;
+
+  const cached = mediaCache.get(mediaId);
+  const [state, setState] = useState<MediaMessageState>(cached?.state ?? 'loading');
+  const [imageUrl, setImageUrl] = useState<string | null>(cached?.url ?? null);
+  const [rejectionReason, setRejectionReason] = useState<string | null>(cached?.rejectionReason ?? null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
-  const abortRef = useRef<AbortController | null>(null);
-  const blobUrlRef = useRef<string | null>(null);
+  const mountedRef = useRef(true);
 
   const retry = useCallback(() => {
+    mediaCache.delete(mediaId);
+    inflightDownloads.delete(mediaId);
     setRetryCount((c) => c + 1);
-  }, []);
+  }, [mediaId]);
 
   useEffect(() => {
-    const abort = new AbortController();
-    abortRef.current = abort;
+    mountedRef.current = true;
 
-    async function run() {
-      setState('loading');
+    if (mediaCache.has(mediaId)) {
+      const c = mediaCache.get(mediaId)!;
+      setState(c.state);
+      setImageUrl(c.url);
+      setRejectionReason(c.rejectionReason ?? null);
       setErrorMessage(null);
-      setRejectionReason(null);
+      return () => { mountedRef.current = false; };
+    }
 
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
-        setImageUrl(null);
-      }
+    const abort = new AbortController();
 
+    async function downloadAndDecrypt(): Promise<CachedMedia | null> {
       try {
         let downloadUrl: string | null = null;
 
-        const firstAttempt = await api.e2eUploads.getE2EMediaDownload(
-          attachment.e2eMediaId
-        );
-
-        if (abort.signal.aborted) return;
+        const firstAttempt = await api.e2eUploads.getE2EMediaDownload(mediaId);
+        if (abort.signal.aborted) return null;
 
         if (firstAttempt.success && firstAttempt.data) {
           downloadUrl = firstAttempt.data.downloadUrl;
@@ -79,64 +110,84 @@ export function useE2EMediaDownload(
           const code = firstAttempt.error?.code;
 
           if (code === 'SCAN_PENDING') {
-            setState('scanning');
+            if (mountedRef.current) setState('scanning');
             downloadUrl = await pollUntilAvailable(abort);
-            if (abort.signal.aborted) return;
+            if (abort.signal.aborted) return null;
           } else if (code === 'FORBIDDEN') {
-            setState('rejected');
-            setRejectionReason(firstAttempt.error?.message ?? null);
-            return;
+            const entry: CachedMedia = {
+              url: '',
+              state: 'rejected',
+              rejectionReason: firstAttempt.error?.message,
+            };
+            mediaCache.set(mediaId, entry);
+            if (mountedRef.current) {
+              setState('rejected');
+              setRejectionReason(entry.rejectionReason ?? null);
+            }
+            return entry;
           } else {
-            setState('error');
-            setErrorMessage(firstAttempt.error?.message ?? 'Failed to load media');
-            return;
+            if (mountedRef.current) {
+              setState('error');
+              setErrorMessage(firstAttempt.error?.message ?? 'Failed to load media');
+            }
+            return null;
           }
         }
 
         if (!downloadUrl) {
-          if (!abort.signal.aborted) {
+          if (mountedRef.current && !abort.signal.aborted) {
             setState('error');
             setErrorMessage('Media not available after moderation scan');
           }
-          return;
+          return null;
         }
 
         const response = await fetch(downloadUrl);
-        if (abort.signal.aborted) return;
+        if (abort.signal.aborted) return null;
 
         if (!response.ok) {
-          setState('error');
-          setErrorMessage('Failed to download media');
-          return;
+          if (mountedRef.current) {
+            setState('error');
+            setErrorMessage('Failed to download media');
+          }
+          return null;
         }
 
         const ciphertext = new Uint8Array(await response.arrayBuffer());
-        if (abort.signal.aborted) return;
+        if (abort.signal.aborted) return null;
 
         const key = fromBase64(attachment.encryptionKey);
         const nonce = fromBase64(attachment.encryptionNonce);
         const plaintext = decryptSymmetric(key, ciphertext, nonce);
 
-        const blob = new Blob([plaintext.buffer as ArrayBuffer], { type: attachment.contentType });
+        const blob = new Blob([plaintext.buffer as ArrayBuffer], {
+          type: attachment.contentType,
+        });
         const url = URL.createObjectURL(blob);
-        blobUrlRef.current = url;
 
         if (abort.signal.aborted) {
           URL.revokeObjectURL(url);
-          blobUrlRef.current = null;
-          return;
+          return null;
         }
 
-        setImageUrl(url);
-        setState('available');
+        const entry: CachedMedia = { url, state: 'available' };
+        mediaCache.set(mediaId, entry);
+
+        if (mountedRef.current) {
+          setImageUrl(url);
+          setState('available');
+        }
+
+        return entry;
       } catch (err) {
-        if (!abort.signal.aborted) {
+        if (mountedRef.current && !abort.signal.aborted) {
           console.error('[useE2EMediaDownload] Error:', err);
           setState('error');
           setErrorMessage(
             err instanceof Error ? err.message : 'Failed to decrypt media'
           );
         }
+        return null;
       }
     }
 
@@ -149,9 +200,7 @@ export function useE2EMediaDownload(
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
         if (ac.signal.aborted) return null;
 
-        const res = await api.e2eUploads.getE2EMediaDownload(
-          attachment.e2eMediaId
-        );
+        const res = await api.e2eUploads.getE2EMediaDownload(mediaId);
 
         if (res.success && res.data) {
           return res.data.downloadUrl;
@@ -159,14 +208,24 @@ export function useE2EMediaDownload(
 
         const code = res.error?.code;
         if (code === 'FORBIDDEN') {
-          setState('rejected');
-          setRejectionReason(res.error?.message ?? null);
+          const entry: CachedMedia = {
+            url: '',
+            state: 'rejected',
+            rejectionReason: res.error?.message,
+          };
+          mediaCache.set(mediaId, entry);
+          if (mountedRef.current) {
+            setState('rejected');
+            setRejectionReason(entry.rejectionReason ?? null);
+          }
           return null;
         }
 
         if (code !== 'SCAN_PENDING') {
-          setState('error');
-          setErrorMessage(res.error?.message ?? 'Unexpected status during moderation');
+          if (mountedRef.current) {
+            setState('error');
+            setErrorMessage(res.error?.message ?? 'Unexpected status during moderation');
+          }
           return null;
         }
       }
@@ -174,16 +233,29 @@ export function useE2EMediaDownload(
       return null;
     }
 
-    void run();
+    // De-duplicate concurrent downloads for the same mediaId (e.g. when
+    // Virtuoso mounts multiple instances of the same message rapidly).
+    let promise = inflightDownloads.get(mediaId);
+    if (!promise) {
+      promise = downloadAndDecrypt();
+      inflightDownloads.set(mediaId, promise);
+      void promise.finally(() => inflightDownloads.delete(mediaId));
+    } else {
+      void promise.then((entry) => {
+        if (entry && mountedRef.current) {
+          setState(entry.state);
+          setImageUrl(entry.url);
+          setRejectionReason(entry.rejectionReason ?? null);
+          setErrorMessage(null);
+        }
+      });
+    }
 
     return () => {
+      mountedRef.current = false;
       abort.abort();
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
-      }
     };
-  }, [api, attachment.e2eMediaId, attachment.encryptionKey, attachment.encryptionNonce, attachment.contentType, retryCount]);
+  }, [api, mediaId, attachment.encryptionKey, attachment.encryptionNonce, attachment.contentType, retryCount]);
 
   return { state, imageUrl, rejectionReason, errorMessage, retry };
 }
