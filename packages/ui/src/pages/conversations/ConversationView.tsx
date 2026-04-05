@@ -1877,6 +1877,7 @@ export function ConversationView() {
     followOutput,
     handleAtBottomStateChange,
     scrollToBottom,
+    scrollToBottomIfPinned,
     markJustSent,
   } = useConversationScroll({ conversationId: id, setIsAtBottom, markConversationRead });
 
@@ -2017,11 +2018,12 @@ export function ConversationView() {
         const recipients = await fetchRecipientKeys(conversationRef.current.participants, useForwardSecrecy);
         if (recipients.length === 0) return;
         await addReaction(messageId, emoji, recipients);
+        scrollToBottomIfPinned();
       } finally {
         pendingReactionsRef.current.delete(key);
       }
     },
-    [id, addReaction, fetchRecipientKeys]
+    [id, addReaction, fetchRecipientKeys, scrollToBottomIfPinned]
   );
 
   const handleToggleReaction = useCallback(
@@ -2032,6 +2034,7 @@ export function ConversationView() {
         pendingReactionsRef.current.add(key);
         try {
           await removeReaction(ownReactionId, messageId);
+          scrollToBottomIfPinned();
         } finally {
           pendingReactionsRef.current.delete(key);
         }
@@ -2039,7 +2042,7 @@ export function ConversationView() {
         await handleReact(messageId, emoji);
       }
     },
-    [removeReaction, handleReact]
+    [removeReaction, handleReact, scrollToBottomIfPinned]
   );
 
   const handleStartReached = useCallback(() => {
@@ -2367,7 +2370,7 @@ export function ConversationView() {
                   followOutput={followOutput}
                   startReached={handleStartReached}
                   atBottomStateChange={handleAtBottomStateChange}
-                  atBottomThreshold={150}
+                  atBottomThreshold={250}
                   overscan={{ main: 800, reverse: 800 }}
                   defaultItemHeight={72}
                   increaseViewportBy={{ top: 600, bottom: 600 }}

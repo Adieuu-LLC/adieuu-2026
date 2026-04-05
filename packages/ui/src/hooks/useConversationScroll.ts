@@ -34,6 +34,7 @@ export interface UseConversationScrollResult {
   followOutput: (isAtBottom: boolean) => FollowOutputScalarType;
   handleAtBottomStateChange: (atBottom: boolean) => void;
   scrollToBottom: () => void;
+  scrollToBottomIfPinned: () => void;
   markJustSent: () => void;
 }
 
@@ -90,6 +91,13 @@ export function useConversationScroll({
     });
   }, []);
 
+  const scrollToBottomIfPinned = useCallback(() => {
+    if (!isAtBottomRef.current) return;
+    requestAnimationFrame(() => {
+      virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end' });
+    });
+  }, []);
+
   const markJustSent = useCallback(() => {
     justSentRef.current = true;
   }, []);
@@ -125,6 +133,7 @@ export function useConversationScroll({
     followOutput,
     handleAtBottomStateChange,
     scrollToBottom,
+    scrollToBottomIfPinned,
     markJustSent,
   };
 }
