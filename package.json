@@ -4,7 +4,7 @@
   "packageManager": "pnpm@9.15.4",
   "scripts": {
     "build": "turbo run build",
-    "build:packages": "pnpm run package:media-db-writer && cd ../../../../ && pnpm run package:media-processor",
+    "build:packages": "pnpm run package:media-db-writer && pnpm run package:media-processor",
     "dev": "turbo run dev --filter=@adieuu/api --filter=@adieuu/web --filter=@adieuu/chat",
     "dev:web": "turbo run dev --filter=@adieuu/web",
     "dev:api": "turbo run dev --filter=@adieuu/api",

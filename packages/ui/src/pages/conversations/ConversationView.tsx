@@ -32,7 +32,9 @@ import { useToast } from '../../components/Toast';
 import { Icon } from '../../icons/Icon';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
 import { useConversationMediaUpload, type MediaUploadResult } from '../../hooks/useConversationMediaUpload';
-import { serializePayload, mediaPayload, type MediaAttachment } from '../../services/messagePayload';
+import { serializePayload, mediaPayload, parsePayload, type MediaAttachment } from '../../services/messagePayload';
+import { MediaMessage } from '../../components/MediaMessage';
+import { useE2EMediaDownload } from '../../hooks/useE2EMediaDownload';
 import { stripExifMetadata } from '../../utils/imageProcessing';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
 import type { SystemEvent, FormerMember, PublicIdentity } from '@adieuu/shared';
@@ -42,7 +44,13 @@ function buildReplySnippet(parent: DisplayMessage | undefined, t: TFunction): st
   if (!parent) return t('conversations.replyOriginal', 'Original message');
   if (parent.deleted) return t('conversations.replyDeleted', 'Message deleted');
   if (parent.messageType === 'system') return t('conversations.replySystem', 'System message');
-  const text = parent.decryptedContent?.trim();
+  const raw = parent.decryptedContent?.trim();
+  if (!raw) return t('conversations.replyOriginal', 'Original message');
+  const parsed = parsePayload(raw);
+  const text = parsed.text.trim();
+  if (!text && parsed.attachments.length > 0) {
+    return t('conversations.replyMediaOnly', 'Image');
+  }
   if (!text) return t('conversations.replyOriginal', 'Original message');
   const words = text.split(/\s+/).filter(Boolean);
   const lead = words.slice(0, 6).join(' ');
@@ -586,6 +594,22 @@ type ChatItem =
 
 const FIRST_ITEM_INDEX = 1_000_000;
 
+function MessageMediaAttachment({ attachment }: { attachment: MediaAttachment }) {
+  const { state, imageUrl, rejectionReason, errorMessage, retry } =
+    useE2EMediaDownload(attachment);
+
+  return (
+    <MediaMessage
+      attachment={attachment}
+      state={state}
+      imageUrl={imageUrl ?? undefined}
+      rejectionReason={rejectionReason ?? undefined}
+      errorMessage={errorMessage ?? undefined}
+      onRetry={retry}
+    />
+  );
+}
+
 const MessageBubble = memo(function MessageBubble({
   message,
   isOwn,
@@ -629,7 +653,9 @@ const MessageBubble = memo(function MessageBubble({
   const [showContextReactionPicker, setShowContextReactionPicker] = useState(false);
   const countdown = useExpiryCountdown(message.expiresAt);
 
-  const content = message.decryptedContent ?? '';
+  const rawContent = message.decryptedContent ?? '';
+  const parsed = useMemo(() => parsePayload(rawContent), [rawContent]);
+  const content = parsed.text;
   const hasDecryptionError = !message.decryptedContent && !message.deleted;
   const isFsExpired = hasDecryptionError && message.decryptionError?.startsWith('forward-secrecy-expired:');
   const decryptionDisplayText = isFsExpired
@@ -743,7 +769,12 @@ const MessageBubble = memo(function MessageBubble({
         </p>
       </Tooltip>
     ) : (
-      <p className="dm-message-text">{content}</p>
+      <>
+        {content && <p className="dm-message-text">{content}</p>}
+        {parsed.attachments.map((att) => (
+          <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
+        ))}
+      </>
     );
 
     const replyQuoteEl =
@@ -891,7 +922,12 @@ const MessageBubble = memo(function MessageBubble({
               </p>
             </Tooltip>
           ) : (
-            <p className="dm-message-text">{content}</p>
+            <>
+              {content && <p className="dm-message-text">{content}</p>}
+              {parsed.attachments.map((att) => (
+                <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
+              ))}
+            </>
           )}
         </div>
         {reactionBar}

@@ -17,7 +17,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MediaAttachment } from '../services/messagePayload';
 
-export type MediaMessageState = 'uploading' | 'scanning' | 'available' | 'rejected' | 'error';
+export type MediaMessageState = 'loading' | 'uploading' | 'scanning' | 'available' | 'rejected' | 'error';
 
 export interface MediaMessageProps {
   attachment: MediaAttachment;
@@ -63,6 +63,15 @@ export function MediaMessage({
 
   return (
     <div className="media-message" data-state={state}>
+      {state === 'loading' && (
+        <div className="media-message-placeholder" style={{ aspectRatio }}>
+          <span className="media-message-spinner" />
+          <span className="media-message-status-text">
+            {t('conversations.mediaLoading', 'Loading...')}
+          </span>
+        </div>
+      )}
+
       {state === 'uploading' && (
         <div className="media-message-placeholder" style={{ aspectRatio }}>
           <div className="media-message-progress">

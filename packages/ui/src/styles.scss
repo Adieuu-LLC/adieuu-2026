@@ -7890,6 +7890,133 @@ a {
   }
 }
 
+// ============================================================================
+// Media message (E2E conversation attachments)
+// ============================================================================
+
+.media-message {
+  margin-top: var(--spacing-xs);
+  max-width: 360px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+
+  &-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    min-height: 120px;
+    background: var(--color-bg-muted);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+
+    &--rejected {
+      background: color-mix(in srgb, var(--color-error) 10%, transparent);
+    }
+
+    &--error {
+      background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+    }
+  }
+
+  &-status-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+  }
+
+  &-reason {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+  }
+
+  &-progress {
+    width: 100%;
+    max-width: 200px;
+    height: 4px;
+    background: var(--color-bg-tertiary);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+
+    &-bar {
+      height: 100%;
+      background: var(--color-accent-primary);
+      border-radius: var(--radius-full);
+      transition: width 0.3s ease;
+    }
+  }
+
+  &-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-accent-primary);
+    border-radius: var(--radius-full);
+    animation: media-message-spin 0.8s linear infinite;
+  }
+
+  @keyframes media-message-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  &-image-container {
+    display: block;
+    border: none;
+    padding: 0;
+    background: none;
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    max-width: 100%;
+
+    &--expanded {
+      max-width: none;
+
+      .media-message-image {
+        max-width: 90vw;
+        max-height: 85vh;
+      }
+    }
+  }
+
+  &-image {
+    display: block;
+    max-width: 100%;
+    max-height: 360px;
+    object-fit: contain;
+    border-radius: var(--radius-md);
+    transition: opacity 0.2s ease;
+  }
+
+  &-filename {
+    display: block;
+    margin-top: var(--spacing-xxs);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+  }
+
+  &-retry {
+    background: none;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-xxs) var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--color-bg-hover);
+      color: var(--color-text-primary);
+    }
+  }
+}
+
 .emoji-picker-popover {
   padding: 0;
   overflow: hidden;
