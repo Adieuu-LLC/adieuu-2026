@@ -7891,6 +7891,34 @@ a {
 }
 
 // ============================================================================
+// Multi-attachment tiling container
+// ============================================================================
+
+.dm-message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+
+  .media-message {
+    flex: 0 1 calc(50% - var(--spacing-xs) / 2);
+    min-width: 120px;
+    max-width: none;
+    margin-top: 0;
+  }
+
+  .media-message-image {
+    max-height: 200px;
+    width: 100%;
+    object-fit: cover;
+  }
+
+  .media-message-placeholder {
+    min-height: 80px;
+  }
+}
+
+// ============================================================================
 // Media message (E2E conversation attachments)
 // ============================================================================
 

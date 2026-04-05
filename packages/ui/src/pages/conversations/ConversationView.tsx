@@ -31,13 +31,15 @@ import { Tooltip } from '../../components/Tooltip';
 import { useToast } from '../../components/Toast';
 import { Icon } from '../../icons/Icon';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
-import { useConversationMediaUpload, type MediaUploadResult } from '../../hooks/useConversationMediaUpload';
+import { uploadMediaFile, type MediaUploadResult } from '../../hooks/useConversationMediaUpload';
 import { serializePayload, mediaPayload, parsePayload, type MediaAttachment } from '../../services/messagePayload';
 import { MediaMessage } from '../../components/MediaMessage';
 import { useE2EMediaDownload, clearMediaCache } from '../../hooks/useE2EMediaDownload';
 import { stripExifMetadata } from '../../utils/imageProcessing';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
+import { createApiClient } from '@adieuu/shared';
 import type { SystemEvent, FormerMember, PublicIdentity } from '@adieuu/shared';
+import { useAppConfig } from '../../config';
 import type { TFunction } from 'i18next';
 
 function buildReplySnippet(parent: DisplayMessage | undefined, t: TFunction): string {
@@ -775,9 +777,17 @@ const MessageBubble = memo(function MessageBubble({
     ) : (
       <>
         {content && <p className="dm-message-text">{content}</p>}
-        {parsed.attachments.map((att) => (
-          <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
-        ))}
+        {parsed.attachments.length > 1 ? (
+          <div className="dm-message-attachments">
+            {parsed.attachments.map((att) => (
+              <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
+            ))}
+          </div>
+        ) : (
+          parsed.attachments.map((att) => (
+            <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
+          ))
+        )}
       </>
     );
 
@@ -928,9 +938,17 @@ const MessageBubble = memo(function MessageBubble({
           ) : (
             <>
               {content && <p className="dm-message-text">{content}</p>}
-              {parsed.attachments.map((att) => (
-                <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
-              ))}
+              {parsed.attachments.length > 1 ? (
+                <div className="dm-message-attachments">
+                  {parsed.attachments.map((att) => (
+                    <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
+                  ))}
+                </div>
+              ) : (
+                parsed.attachments.map((att) => (
+                  <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
+                ))
+              )}
             </>
           )}
         </div>
@@ -1197,7 +1215,8 @@ function MessageComposer({
 }) {
   const { t } = useTranslation();
   const { warning: toastWarning, error: toastError } = useToast();
-  const mediaUpload = useConversationMediaUpload();
+  const { apiBaseUrl } = useAppConfig();
+  const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const [messageText, setMessageText] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
@@ -1284,46 +1303,56 @@ function MessageComposer({
         encryptionNonce: string;
       }
 
-      const uploadedMedia: UploadedMedia[] = [];
+      let uploadedMedia: UploadedMedia[];
 
       try {
-        for (let i = 0; i < pendingAttachments.length; i++) {
-          const att = pendingAttachments[i]!;
-          updateAttachmentStatus(i, { uploadStatus: 'encrypting', uploadProgress: 5 });
+        const settled = await Promise.allSettled(
+          pendingAttachments.map(async (att, i) => {
+            updateAttachmentStatus(i, { uploadStatus: 'encrypting', uploadProgress: 5 });
 
-          const fileToEncrypt = stripExif ? await stripExifMetadata(att.file) : att.file;
-          const fileBytes = new Uint8Array(await fileToEncrypt.arrayBuffer());
-          const mediaKey = randomBytes(32);
-          const { ciphertext, nonce } = encryptBytes(mediaKey, fileBytes);
-          const encryptedBlob = new Blob([ciphertext.buffer as ArrayBuffer], { type: 'application/octet-stream' });
+            const fileToEncrypt = stripExif ? await stripExifMetadata(att.file) : att.file;
+            const fileBytes = new Uint8Array(await fileToEncrypt.arrayBuffer());
+            const mediaKey = randomBytes(32);
+            const { ciphertext, nonce } = encryptBytes(mediaKey, fileBytes);
+            const encryptedBlob = new Blob([ciphertext.buffer as ArrayBuffer], { type: 'application/octet-stream' });
 
-          updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 15 });
+            updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 15 });
 
-          mediaUpload.reset();
-          const result = await mediaUpload.uploadMedia(att.file, encryptedBlob, { stripExif });
+            const result = await uploadMediaFile(api, att.file, encryptedBlob, { stripExif });
 
-          if (!result) {
-            const errorMsg = mediaUpload.errorRef.current ?? t('conversations.uploadFailed', 'Upload failed');
-            updateAttachmentStatus(i, {
-              uploadStatus: 'error',
-              uploadError: errorMsg,
-            });
-            toastError(
-              t('conversations.uploadFailed', 'Upload failed'),
-              errorMsg
-            );
-            setUploadingMedia(false);
-            return;
+            updateAttachmentStatus(i, { uploadStatus: 'done', uploadProgress: 100 });
+
+            return {
+              ...result,
+              encryptionKey: toBase64(mediaKey),
+              encryptionNonce: toBase64(nonce),
+            };
+          }),
+        );
+
+        const results: UploadedMedia[] = [];
+        let firstError: string | undefined;
+
+        for (let i = 0; i < settled.length; i++) {
+          const s = settled[i]!;
+          if (s.status === 'fulfilled') {
+            results.push(s.value);
+          } else {
+            const errorMsg = s.reason instanceof Error
+              ? s.reason.message
+              : t('conversations.uploadFailed', 'Upload failed');
+            updateAttachmentStatus(i, { uploadStatus: 'error', uploadError: errorMsg });
+            firstError ??= errorMsg;
           }
-
-          uploadedMedia.push({
-            ...result,
-            encryptionKey: toBase64(mediaKey),
-            encryptionNonce: toBase64(nonce),
-          });
-
-          updateAttachmentStatus(i, { uploadStatus: 'done', uploadProgress: 100 });
         }
+
+        if (firstError) {
+          toastError(t('conversations.uploadFailed', 'Upload failed'), firstError);
+          setUploadingMedia(false);
+          return;
+        }
+
+        uploadedMedia = results;
       } catch (err) {
         console.error('[Composer] Media upload failed:', err);
         toastError(
@@ -1379,7 +1408,7 @@ function MessageComposer({
       }
       inputRef.current?.focus();
     }
-  }, [conversationId, sending, uploadingMedia, sendTextMessage, useFs, replyingTo, onCancelReply, onSendSucceeded, attachments, stripExif, mediaUpload, updateAttachmentStatus, toastError, t]);
+  }, [conversationId, sending, uploadingMedia, sendTextMessage, useFs, replyingTo, onCancelReply, onSendSucceeded, attachments, stripExif, api, updateAttachmentStatus, toastError, t]);
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
@@ -2151,10 +2180,10 @@ export function ConversationView() {
                   followOutput={(isAtBottom) => (isAtBottom ? 'smooth' : false)}
                   startReached={handleStartReached}
                   atBottomStateChange={handleAtBottomStateChange}
-                  atBottomThreshold={12}
-                  overscan={{ main: 200, reverse: 200 }}
+                  atBottomThreshold={60}
+                  overscan={{ main: 800, reverse: 800 }}
                   defaultItemHeight={72}
-                  increaseViewportBy={{ top: 200, bottom: 200 }}
+                  increaseViewportBy={{ top: 600, bottom: 600 }}
                   components={{
                     Header: () =>
                       messagesLoading ? (
