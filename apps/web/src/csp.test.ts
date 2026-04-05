@@ -90,6 +90,12 @@ describe('web app CSP', () => {
       expect(imgSrc).toContain('data:');
     });
 
+    it('includes the E2E media S3 bucket for conversation images', () => {
+      const directives = parseDirectives(csp);
+      const imgSrc = directives.get('img-src') ?? [];
+      expect(imgSrc.some((v) => v.includes('e2e-media') && v.includes('s3.'))).toBe(true);
+    });
+
     it('does not reference external QR code services', () => {
       expect(csp).not.toContain('qrserver');
     });
@@ -113,6 +119,12 @@ describe('web app CSP', () => {
       const directives = parseDirectives(csp);
       const connectSrc = directives.get('connect-src') ?? [];
       expect(connectSrc.some((v) => v.includes('s3.us-east-1.amazonaws.com'))).toBe(true);
+    });
+
+    it('includes the E2E media S3 bucket', () => {
+      const directives = parseDirectives(csp);
+      const connectSrc = directives.get('connect-src') ?? [];
+      expect(connectSrc.some((v) => v.includes('e2e-media') && v.includes('s3.'))).toBe(true);
     });
   });
 

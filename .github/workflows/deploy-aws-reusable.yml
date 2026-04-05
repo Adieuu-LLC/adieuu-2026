@@ -86,6 +86,9 @@ jobs:
           # Public API/WebSocket URLs for the browser bundle (cross-origin to app hostname).
           VITE_API_BASE_URL: ${{ vars.DEPLOY_WEB_VITE_API_BASE_URL_ADIEUU }}
           VITE_CHAT_WS_URL: ${{ vars.DEPLOY_WEB_VITE_CHAT_WS_URL_ADIEUU }}
+          # S3 origins for CSP (presigned PUT/GET). Optional; defaults to production buckets.
+          VITE_MEDIA_S3_ORIGIN: ${{ vars.DEPLOY_WEB_VITE_MEDIA_S3_ORIGIN_ADIEUU || '' }}
+          VITE_E2E_MEDIA_S3_ORIGIN: ${{ vars.DEPLOY_WEB_VITE_E2E_MEDIA_S3_ORIGIN_ADIEUU || '' }}
         run: |
           if [ -z "${VITE_API_BASE_URL:-}" ]; then
             echo "::error::Set Actions variable DEPLOY_WEB_VITE_API_BASE_URL_ADIEUU (e.g. https://api.example.com)"

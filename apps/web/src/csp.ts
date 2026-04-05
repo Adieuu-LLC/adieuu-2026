@@ -14,6 +14,7 @@
  */
 
 import { mergeCspManifests } from '../../../packages/shared/src/csp/merge';
+import { mediaS3Origin, e2eMediaS3Origin } from '../../../packages/shared/src/csp/origins';
 import { cryptoCspManifest } from '../../../packages/crypto/src/csp';
 import { uiCspManifest } from '../../../packages/ui/src/csp';
 
@@ -25,13 +26,15 @@ const webCspManifest: Record<string, string[]> = {
   'img-src': [
     "'self'",
     'https://media.adieuu.com',
-    'https://adieuu-production-media-998185172444.s3.us-east-1.amazonaws.com',
+    mediaS3Origin,
+    e2eMediaS3Origin,
   ],
   'connect-src': [
     "'self'",
     'https://api.adieuu.com',
     'wss://api.adieuu.com',
-    'https://adieuu-production-media-998185172444.s3.us-east-1.amazonaws.com',
+    mediaS3Origin,
+    e2eMediaS3Origin,
     'https://downloads.adieuu.com',
   ],
   'media-src': ["'self'"],
