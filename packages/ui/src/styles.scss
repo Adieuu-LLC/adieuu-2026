@@ -6724,6 +6724,35 @@ a {
     }
   }
 
+  &-attach-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border: none;
+    background: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+    transition: color var(--transition-fast), background var(--transition-fast);
+
+    &:hover:not(:disabled) {
+      color: var(--color-text-primary);
+      background: var(--color-bg-hover);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
   &-members {
     &-sidebar {
       width: 280px;
