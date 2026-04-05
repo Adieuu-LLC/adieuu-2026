@@ -2,18 +2,16 @@
  * Media message rendering component.
  *
  * Renders media attachments in the conversation timeline with multiple states:
+ * - loading: spinner (recipient downloading + decrypting)
  * - uploading: progress bar (sender only, local state)
  * - scanning: placeholder with "Awaiting moderation" text
- * - available: decrypted image with click-to-expand
+ * - available: decrypted image thumbnail; click opens lightbox overlay
  * - rejected: "Content removed" notice
- * - error: generic error state
- *
- * Recipients attempt to fetch media via the gated download endpoint.
- * If the server returns 202 (scan pending), a placeholder is shown and
- * the component polls until the scan resolves.
+ * - error: generic error state with retry
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { MediaAttachment } from '../services/messagePayload';
 
@@ -42,15 +40,28 @@ export function MediaMessage({
   onRetry,
 }: MediaMessageProps) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
-  const handleClick = useCallback(() => {
+  const openLightbox = useCallback(() => {
     if (state === 'available' && imageUrl) {
-      setExpanded((prev) => !prev);
+      setLightboxOpen(true);
     }
   }, [state, imageUrl]);
+
+  const closeLightbox = useCallback(() => {
+    setLightboxOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setLightboxOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [lightboxOpen]);
 
   useEffect(() => {
     setLoaded(false);
@@ -97,8 +108,8 @@ export function MediaMessage({
       {state === 'available' && imageUrl && (
         <button
           type="button"
-          className={`media-message-image-container${expanded ? ' media-message-image-container--expanded' : ''}`}
-          onClick={handleClick}
+          className="media-message-image-container"
+          onClick={openLightbox}
           aria-label={t('conversations.expandMedia', 'Click to expand')}
         >
           <img
@@ -146,6 +157,36 @@ export function MediaMessage({
 
       {attachment.fileName && state === 'available' && (
         <span className="media-message-filename">{attachment.fileName}</span>
+      )}
+
+      {lightboxOpen && imageUrl && createPortal(
+        <div
+          className="media-lightbox"
+          onClick={closeLightbox}
+          role="dialog"
+          aria-modal="true"
+          aria-label={attachment.fileName ?? t('conversations.mediaLightbox', 'Image preview')}
+        >
+          <div className="media-lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={imageUrl}
+              alt={attachment.fileName ?? ''}
+              className="media-lightbox-image"
+            />
+            {attachment.fileName && (
+              <span className="media-lightbox-filename">{attachment.fileName}</span>
+            )}
+          </div>
+          <button
+            type="button"
+            className="media-lightbox-close"
+            onClick={closeLightbox}
+            aria-label={t('common.close', 'Close')}
+          >
+            &times;
+          </button>
+        </div>,
+        document.body
       )}
     </div>
   );
