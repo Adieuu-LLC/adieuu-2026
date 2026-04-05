@@ -443,6 +443,7 @@ export async function requestScanUpload(
     Metadata: {
       'media-id': scanMediaId,
       purpose,
+      'identity-id': input.identityId,
       'strip-exif': String(purposeConfig.processingFlags.stripExif),
       'content-moderation': String(purposeConfig.processingFlags.contentModeration),
       ...(purposeConfig.processingFlags.resize
