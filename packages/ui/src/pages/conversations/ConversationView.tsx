@@ -10,8 +10,9 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, mem
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Checkbox, Dialog, Menu, Portal, Popover } from '@ark-ui/react';
-import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
+import { Virtuoso } from 'react-virtuoso';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
+import { useConversationScroll } from '../../hooks/useConversationScroll';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
 import { usePreKeys } from '../../hooks/usePreKeys';
@@ -1868,15 +1869,21 @@ export function ConversationView() {
   } = useReactions(id ?? null);
   const { favorites: favoriteEmojis, addFavorite, removeFavorite } = useFavoriteEmojis(identity?.id);
 
-  const isAtBottomLocalRef = useRef(true);
-  const shouldScrollToBottomRef = useRef(true);
+  const {
+    virtuosoRef,
+    messagesContainerRef,
+    isAtBottomRef,
+    showScrollButton,
+    followOutput,
+    handleAtBottomStateChange,
+    scrollToBottom,
+    markJustSent,
+  } = useConversationScroll({ conversationId: id, setIsAtBottom, markConversationRead });
+
   const fetchedReactionsForRef = useRef<string | null>(null);
   const pendingReactionsRef = useRef<Set<string>>(new Set());
-  const latestVisibleMessageIdRef = useRef<string | undefined>(undefined);
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const pendingScrollToRef = useRef<string | null>(null);
   const replyScrollLoadAttemptsRef = useRef(0);
-  const [showScrollButton, setShowScrollButton] = useState(false);
   const [replyingTo, setReplyingTo] = useState<DisplayMessage | null>(null);
   const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
@@ -1955,17 +1962,12 @@ export function ConversationView() {
     [activeMessages, showArtifacts]
   );
 
-  latestVisibleMessageIdRef.current = reversedMessages.at(-1)?.id;
-
   useEffect(() => {
     if (id && id !== activeConversationId) {
       setActiveConversation(id);
-      isAtBottomLocalRef.current = true;
-      shouldScrollToBottomRef.current = true;
-      setIsAtBottom(true);
       fetchedReactionsForRef.current = null;
     }
-  }, [id, activeConversationId, setActiveConversation, setIsAtBottom]);
+  }, [id, activeConversationId, setActiveConversation]);
 
   useEffect(() => {
     setReplyingTo(null);
@@ -1982,14 +1984,13 @@ export function ConversationView() {
   // so this only fires on a true route change away from /conversations/:id.
   const setActiveConversationRef = useRef(setActiveConversation);
   setActiveConversationRef.current = setActiveConversation;
-  const setIsAtBottomRef = useRef(setIsAtBottom);
-  setIsAtBottomRef.current = setIsAtBottom;
+  const setIsAtBottomUnmountRef = useRef(setIsAtBottom);
+  setIsAtBottomUnmountRef.current = setIsAtBottom;
 
   useEffect(() => {
     return () => {
       setActiveConversationRef.current(null);
-      isAtBottomLocalRef.current = false;
-      setIsAtBottomRef.current(false);
+      setIsAtBottomUnmountRef.current(false);
     };
   }, []);
 
@@ -2004,24 +2005,6 @@ export function ConversationView() {
     void fetchReactions(messageIds);
   }, [id, activeMessages, fetchReactions]);
 
-  useEffect(() => {
-    if (shouldScrollToBottomRef.current) {
-      requestAnimationFrame(() => {
-        virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth', align: 'end' });
-      });
-      shouldScrollToBottomRef.current = false;
-    }
-  }, [activeMessages.length]);
-
-  const scrollLastRowIntoViewAfterReaction = useCallback((messageId: string) => {
-    if (messageId !== latestVisibleMessageIdRef.current) return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth', align: 'end' });
-      });
-    });
-  }, []);
-
   const handleReact = useCallback(
     async (messageId: string, emoji: string) => {
       if (!id || !conversationRef.current) return;
@@ -2034,12 +2017,11 @@ export function ConversationView() {
         const recipients = await fetchRecipientKeys(conversationRef.current.participants, useForwardSecrecy);
         if (recipients.length === 0) return;
         await addReaction(messageId, emoji, recipients);
-        scrollLastRowIntoViewAfterReaction(messageId);
       } finally {
         pendingReactionsRef.current.delete(key);
       }
     },
-    [id, addReaction, fetchRecipientKeys, scrollLastRowIntoViewAfterReaction]
+    [id, addReaction, fetchRecipientKeys]
   );
 
   const handleToggleReaction = useCallback(
@@ -2050,7 +2032,6 @@ export function ConversationView() {
         pendingReactionsRef.current.add(key);
         try {
           await removeReaction(ownReactionId, messageId);
-          scrollLastRowIntoViewAfterReaction(messageId);
         } finally {
           pendingReactionsRef.current.delete(key);
         }
@@ -2058,7 +2039,7 @@ export function ConversationView() {
         await handleReact(messageId, emoji);
       }
     },
-    [removeReaction, handleReact, scrollLastRowIntoViewAfterReaction]
+    [removeReaction, handleReact]
   );
 
   const handleStartReached = useCallback(() => {
@@ -2066,24 +2047,6 @@ export function ConversationView() {
       loadMoreMessages();
     }
   }, [activeMessagesCursor, messagesLoading, loadMoreMessages]);
-
-  const handleAtBottomStateChange = useCallback(
-    (atBottom: boolean) => {
-      const wasAtBottom = isAtBottomLocalRef.current;
-      isAtBottomLocalRef.current = atBottom;
-      setIsAtBottom(atBottom);
-      setShowScrollButton(!atBottom);
-
-      if (atBottom && !wasAtBottom && id) {
-        markConversationRead(id);
-      }
-    },
-    [setIsAtBottom, markConversationRead, id]
-  );
-
-  const scrollToBottom = useCallback(() => {
-    virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth', align: 'end' });
-  }, []);
 
   const handleLeaveClick = useCallback(() => {
     if (!conversation) return;
@@ -2382,13 +2345,14 @@ export function ConversationView() {
         <div className="conversation-body">
           <div className="conversation-main">
             {/* Messages */}
-            <div className="conversation-messages">
+            <div className="conversation-messages" ref={messagesContainerRef}>
               {reversedMessages.length === 0 && !messagesLoading ? (
                 <div className="conversation-messages-empty">
                   <p>{t('conversations.noMessages', 'No messages yet. Say hello!')}</p>
                 </div>
               ) : (
                 <Virtuoso
+                  key={id}
                   ref={virtuosoRef}
                   className={`dm-messages${messageLayout === 'linear' ? ' dm-messages--linear' : ''}`}
                   data={flatItems}
@@ -2400,10 +2364,10 @@ export function ConversationView() {
                       : 0
                   }
                   alignToBottom
-                  followOutput={(isAtBottom) => (isAtBottom ? 'smooth' : false)}
+                  followOutput={followOutput}
                   startReached={handleStartReached}
                   atBottomStateChange={handleAtBottomStateChange}
-                  atBottomThreshold={60}
+                  atBottomThreshold={150}
                   overscan={{ main: 800, reverse: 800 }}
                   defaultItemHeight={72}
                   increaseViewportBy={{ top: 600, bottom: 600 }}
@@ -2497,9 +2461,7 @@ export function ConversationView() {
               onToggleFs={handleToggleFs}
               replyingTo={replyingTo}
               onCancelReply={() => setReplyingTo(null)}
-              onSendSucceeded={() => {
-                shouldScrollToBottomRef.current = true;
-              }}
+              onSendSucceeded={markJustSent}
               participantProfiles={participantProfiles}
               memberSettings={memberSettings}
             />
