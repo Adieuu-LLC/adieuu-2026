@@ -53,6 +53,7 @@ import type {
 // ============================================================================
 
 const GROUP_NAME_KDF_INFO = 'adieuu-conv-name-v1';
+const MEMBER_SETTINGS_KDF_INFO = 'adieuu-conv-member-settings-v1';
 const MESSAGE_SIGN_DOMAIN = 'adieuu-msg-v1';
 
 // ============================================================================
@@ -84,6 +85,18 @@ export interface DecryptedMessage {
 export interface EncryptedGroupName {
   encryptedName: string;
   nameNonce: string;
+}
+
+export interface MemberCustomisation {
+  nickname?: string;
+  color?: string;
+}
+
+export type MemberSettingsMap = Record<string, MemberCustomisation>;
+
+export interface EncryptedMemberSettings {
+  encryptedMemberSettings: string;
+  memberSettingsNonce: string;
 }
 
 // ============================================================================
@@ -377,4 +390,50 @@ export function decryptGroupName(
   const nonce = fromBase64(nameNonce);
   const plaintext = decrypt(key, ciphertext, nonce, profile);
   return new TextDecoder().decode(plaintext);
+}
+
+// ============================================================================
+// Member Settings Encryption
+// ============================================================================
+
+function deriveMemberSettingsKey(
+  conversationId: string,
+  profile: CryptoProfile = 'default'
+): Uint8Array {
+  const ikm = toBytes(conversationId);
+  return deriveKey({ ikm, info: MEMBER_SETTINGS_KDF_INFO, length: 32 }, profile);
+}
+
+/**
+ * Encrypt per-member customisations (nicknames/colours) for server storage.
+ */
+export function encryptMemberSettings(
+  settings: MemberSettingsMap,
+  conversationId: string,
+  profile: CryptoProfile = 'default'
+): EncryptedMemberSettings {
+  const key = deriveMemberSettingsKey(conversationId, profile);
+  const plaintext = new TextEncoder().encode(JSON.stringify(settings));
+  const { ciphertext, nonce } = encrypt(key, plaintext, profile);
+
+  return {
+    encryptedMemberSettings: toBase64(ciphertext),
+    memberSettingsNonce: toBase64(nonce),
+  };
+}
+
+/**
+ * Decrypt per-member customisations retrieved from the server.
+ */
+export function decryptMemberSettings(
+  encryptedSettings: string,
+  nonce: string,
+  conversationId: string,
+  profile: CryptoProfile = 'default'
+): MemberSettingsMap {
+  const key = deriveMemberSettingsKey(conversationId, profile);
+  const ciphertext = fromBase64(encryptedSettings);
+  const nonceBytes = fromBase64(nonce);
+  const plaintext = decrypt(key, ciphertext, nonceBytes, profile);
+  return JSON.parse(new TextDecoder().decode(plaintext)) as MemberSettingsMap;
 }

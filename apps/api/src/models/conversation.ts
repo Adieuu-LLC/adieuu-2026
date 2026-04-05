@@ -42,6 +42,16 @@ export interface ConversationDocument extends BaseDocument {
   /** Nonce used for group name encryption */
   nameNonce?: string;
 
+  /**
+   * Encrypted per-member customisations (nicknames/colours).
+   * Encrypted with HKDF(conversationId, "adieuu-conv-member-settings-v1").
+   * Plaintext shape: Record<identityId, { nickname?: string; color?: string }>
+   */
+  encryptedMemberSettings?: string;
+
+  /** Nonce used for member settings encryption */
+  memberSettingsNonce?: string;
+
   /** Timestamp of the most recent message (for sorting the conversation list) */
   lastMessageAt?: Date;
 
@@ -72,6 +82,8 @@ export interface PublicConversation {
   admins: string[];
   encryptedName?: string;
   nameNonce?: string;
+  encryptedMemberSettings?: string;
+  memberSettingsNonce?: string;
   lastMessageAt?: string;
   lastMessageId?: string;
   createdAt: string;
@@ -90,6 +102,8 @@ export function toPublicConversation(doc: ConversationDocument): PublicConversat
     admins: (doc.admins ?? []).map((a) => a.toHexString()),
     encryptedName: doc.encryptedName,
     nameNonce: doc.nameNonce,
+    encryptedMemberSettings: doc.encryptedMemberSettings,
+    memberSettingsNonce: doc.memberSettingsNonce,
     lastMessageAt: doc.lastMessageAt?.toISOString(),
     lastMessageId: doc.lastMessageId?.toHexString(),
     createdAt: doc.createdAt.toISOString(),

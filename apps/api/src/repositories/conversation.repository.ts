@@ -39,6 +39,11 @@ export interface IConversationRepository {
     encryptedName: string,
     nameNonce: string
   ): Promise<ConversationDocument | null>;
+  updateMemberSettings(
+    conversationId: ObjectId,
+    encryptedMemberSettings: string,
+    memberSettingsNonce: string
+  ): Promise<ConversationDocument | null>;
 }
 
 export class ConversationRepository
@@ -200,6 +205,28 @@ export class ConversationRepository
         $set: {
           encryptedName,
           nameNonce,
+          updatedAt: new Date(),
+        },
+      },
+      { returnDocument: 'after' }
+    );
+    return result as ConversationDocument | null;
+  }
+
+  /**
+   * Update the encrypted member settings (nicknames/colours).
+   */
+  async updateMemberSettings(
+    conversationId: ObjectId,
+    encryptedMemberSettings: string,
+    memberSettingsNonce: string
+  ): Promise<ConversationDocument | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: conversationId },
+      {
+        $set: {
+          encryptedMemberSettings,
+          memberSettingsNonce,
           updatedAt: new Date(),
         },
       },

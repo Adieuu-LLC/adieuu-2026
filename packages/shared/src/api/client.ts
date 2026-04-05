@@ -1987,6 +1987,8 @@ export interface PublicConversation {
   admins: string[];
   encryptedName?: string;
   nameNonce?: string;
+  encryptedMemberSettings?: string;
+  memberSettingsNonce?: string;
   lastMessageAt?: string;
   lastMessageId?: string;
   createdAt: string;
@@ -2117,6 +2119,17 @@ export class ConversationsApi {
     return this.client.patch(
       `/api/conversations/${encodeURIComponent(conversationId)}`,
       { encryptedName, nameNonce }
+    );
+  }
+
+  async updateMemberSettings(
+    conversationId: string,
+    encryptedMemberSettings: string,
+    memberSettingsNonce: string
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.patch(
+      `/api/conversations/${encodeURIComponent(conversationId)}/member-settings`,
+      { encryptedMemberSettings, memberSettingsNonce }
     );
   }
 

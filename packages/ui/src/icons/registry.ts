@@ -35,7 +35,7 @@ import {
   faCircleCheck as sassSuccess, faCircleXmark as sassError,
   faBadgeCheck as sassBadge, faFileArrowDown as sassFileDown,
   faFileArrowUp as sassFileUp, faArrowLeft as sassArrowLeft,
-  faCircle as sassCircle,
+  faCircle as sassCircle, faPen as sassPen,
 } from '@awesome.me/kit-888aad49e1/icons/sharp/solid';
 
 import {
@@ -57,7 +57,7 @@ import {
   faCircleCheck as sasrSuccess, faCircleXmark as sasrError,
   faBadgeCheck as sasrBadge, faFileArrowDown as sasrFileDown,
   faFileArrowUp as sasrFileUp, faArrowLeft as sasrArrowLeft,
-  faCircle as sasrCircle,
+  faCircle as sasrCircle, faPen as sasrPen,
 } from '@awesome.me/kit-888aad49e1/icons/sharp/regular';
 
 import {
@@ -79,7 +79,7 @@ import {
   faCircleCheck as saslSuccess, faCircleXmark as saslError,
   faBadgeCheck as saslBadge, faFileArrowDown as saslFileDown,
   faFileArrowUp as saslFileUp, faArrowLeft as saslArrowLeft,
-  faCircle as saslCircle,
+  faCircle as saslCircle, faPen as saslPen,
 } from '@awesome.me/kit-888aad49e1/icons/sharp/light';
 
 import {
@@ -101,7 +101,7 @@ import {
   faCircleCheck as satSuccess, faCircleXmark as satError,
   faBadgeCheck as satBadge, faFileArrowDown as satFileDown,
   faFileArrowUp as satFileUp, faArrowLeft as satArrowLeft,
-  faCircle as satCircle,
+  faCircle as satCircle, faPen as satPen,
 } from '@awesome.me/kit-888aad49e1/icons/sharp/thin';
 
 // ---------------------------------------------------------------------------
@@ -127,7 +127,7 @@ import {
   faCircleCheck as fasSuccess, faCircleXmark as fasError,
   faBadgeCheck as fasBadge, faFileArrowDown as fasFileDown,
   faFileArrowUp as fasFileUp, faArrowLeft as fasArrowLeft,
-  faCircle as fasCircle,
+  faCircle as fasCircle, faPen as fasPen,
 } from '@awesome.me/kit-888aad49e1/icons/classic/solid';
 
 import {
@@ -149,7 +149,7 @@ import {
   faCircleCheck as farSuccess, faCircleXmark as farError,
   faBadgeCheck as farBadge, faFileArrowDown as farFileDown,
   faFileArrowUp as farFileUp, faArrowLeft as farArrowLeft,
-  faCircle as farCircle,
+  faCircle as farCircle, faPen as farPen,
 } from '@awesome.me/kit-888aad49e1/icons/classic/regular';
 
 import {
@@ -171,7 +171,7 @@ import {
   faCircleCheck as falSuccess, faCircleXmark as falError,
   faBadgeCheck as falBadge, faFileArrowDown as falFileDown,
   faFileArrowUp as falFileUp, faArrowLeft as falArrowLeft,
-  faCircle as falCircle,
+  faCircle as falCircle, faPen as falPen,
 } from '@awesome.me/kit-888aad49e1/icons/classic/light';
 
 import {
@@ -193,7 +193,7 @@ import {
   faCircleCheck as fatSuccess, faCircleXmark as fatError,
   faBadgeCheck as fatBadge, faFileArrowDown as fatFileDown,
   faFileArrowUp as fatFileUp, faArrowLeft as fatArrowLeft,
-  faCircle as fatCircle,
+  faCircle as fatCircle, faPen as fatPen,
 } from '@awesome.me/kit-888aad49e1/icons/classic/thin';
 
 // ---------------------------------------------------------------------------
@@ -219,7 +219,7 @@ import {
   faCircleCheck as fadSuccess, faCircleXmark as fadError,
   faBadgeCheck as fadBadge, faFileArrowDown as fadFileDown,
   faFileArrowUp as fadFileUp, faArrowLeft as fadArrowLeft,
-  faCircle as fadCircle,
+  faCircle as fadCircle, faPen as fadPen,
 } from '@awesome.me/kit-888aad49e1/icons/duotone/solid';
 
 import {
@@ -241,7 +241,7 @@ import {
   faCircleCheck as fadrSuccess, faCircleXmark as fadrError,
   faBadgeCheck as fadrBadge, faFileArrowDown as fadrFileDown,
   faFileArrowUp as fadrFileUp, faArrowLeft as fadrArrowLeft,
-  faCircle as fadrCircle,
+  faCircle as fadrCircle, faPen as fadrPen,
 } from '@awesome.me/kit-888aad49e1/icons/duotone/regular';
 
 import {
@@ -263,7 +263,7 @@ import {
   faCircleCheck as fadlSuccess, faCircleXmark as fadlError,
   faBadgeCheck as fadlBadge, faFileArrowDown as fadlFileDown,
   faFileArrowUp as fadlFileUp, faArrowLeft as fadlArrowLeft,
-  faCircle as fadlCircle,
+  faCircle as fadlCircle, faPen as fadlPen,
 } from '@awesome.me/kit-888aad49e1/icons/duotone/light';
 
 import {
@@ -285,7 +285,7 @@ import {
   faCircleCheck as fadtSuccess, faCircleXmark as fadtError,
   faBadgeCheck as fadtBadge, faFileArrowDown as fadtFileDown,
   faFileArrowUp as fadtFileUp, faArrowLeft as fadtArrowLeft,
-  faCircle as fadtCircle,
+  faCircle as fadtCircle, faPen as fadtPen,
 } from '@awesome.me/kit-888aad49e1/icons/duotone/thin';
 
 // ---------------------------------------------------------------------------
@@ -311,7 +311,7 @@ import {
   faCircleCheck as fasdsSuccess, faCircleXmark as fasdsError,
   faBadgeCheck as fasdsBadge, faFileArrowDown as fasdsFileDown,
   faFileArrowUp as fasdsFileUp, faArrowLeft as fasdsArrowLeft,
-  faCircle as fasdsCircle,
+  faCircle as fasdsCircle, faPen as fasdsPen,
 } from '@awesome.me/kit-888aad49e1/icons/sharp-duotone/solid';
 
 import {
@@ -333,7 +333,7 @@ import {
   faCircleCheck as fasdrSuccess, faCircleXmark as fasdrError,
   faBadgeCheck as fasdrBadge, faFileArrowDown as fasdrFileDown,
   faFileArrowUp as fasdrFileUp, faArrowLeft as fasdrArrowLeft,
-  faCircle as fasdrCircle,
+  faCircle as fasdrCircle, faPen as fasdrPen,
 } from '@awesome.me/kit-888aad49e1/icons/sharp-duotone/regular';
 
 import {
@@ -355,7 +355,7 @@ import {
   faCircleCheck as fasdlSuccess, faCircleXmark as fasdlError,
   faBadgeCheck as fasdlBadge, faFileArrowDown as fasdlFileDown,
   faFileArrowUp as fasdlFileUp, faArrowLeft as fasdlArrowLeft,
-  faCircle as fasdlCircle,
+  faCircle as fasdlCircle, faPen as fasdlPen,
 } from '@awesome.me/kit-888aad49e1/icons/sharp-duotone/light';
 
 import {
@@ -377,7 +377,7 @@ import {
   faCircleCheck as fasdtSuccess, faCircleXmark as fasdtError,
   faBadgeCheck as fasdtBadge, faFileArrowDown as fasdtFileDown,
   faFileArrowUp as fasdtFileUp, faArrowLeft as fasdtArrowLeft,
-  faCircle as fasdtCircle,
+  faCircle as fasdtCircle, faPen as fasdtPen,
 } from '@awesome.me/kit-888aad49e1/icons/sharp-duotone/thin';
 
 // ---------------------------------------------------------------------------
@@ -478,7 +478,7 @@ const allIcons: IconDefinition[] = [
   sassFileImport, sassChevronDown, sassChevronRight, sassChevronUp, sassCamera,
   sassImage, sassGlobe, sassDesktop, sassBars, sassEye, sassThumbsUp,
   sassWarning, sassSuccess, sassError, sassBadge, sassFileDown, sassFileUp,
-  sassArrowLeft, sassCircle,
+  sassArrowLeft, sassCircle, sassPen,
 
   sasrHouse, sasrMessage, sasrReply, sasrUsers, sasrGear, sasrCircleInfo, sasrDownload,
   sasrLogout, sasrShield, sasrKey, sasrBell, sasrSearch, sasrUser, sasrPalette,
@@ -487,7 +487,7 @@ const allIcons: IconDefinition[] = [
   sasrFileImport, sasrChevronDown, sasrChevronRight, sasrChevronUp, sasrCamera,
   sasrImage, sasrGlobe, sasrDesktop, sasrBars, sasrEye, sasrThumbsUp,
   sasrWarning, sasrSuccess, sasrError, sasrBadge, sasrFileDown, sasrFileUp,
-  sasrArrowLeft, sasrCircle,
+  sasrArrowLeft, sasrCircle, sasrPen,
 
   saslHouse, saslMessage, saslReply, saslUsers, saslGear, saslCircleInfo, saslDownload,
   saslLogout, saslShield, saslKey, saslBell, saslSearch, saslUser, saslPalette,
@@ -496,7 +496,7 @@ const allIcons: IconDefinition[] = [
   saslFileImport, saslChevronDown, saslChevronRight, saslChevronUp, saslCamera,
   saslImage, saslGlobe, saslDesktop, saslBars, saslEye, saslThumbsUp,
   saslWarning, saslSuccess, saslError, saslBadge, saslFileDown, saslFileUp,
-  saslArrowLeft, saslCircle,
+  saslArrowLeft, saslCircle, saslPen,
 
   satHouse, satMessage, satReply, satUsers, satGear, satCircleInfo, satDownload,
   satLogout, satShield, satKey, satBell, satSearch, satUser, satPalette,
@@ -505,7 +505,7 @@ const allIcons: IconDefinition[] = [
   satFileImport, satChevronDown, satChevronRight, satChevronUp, satCamera,
   satImage, satGlobe, satDesktop, satBars, satEye, satThumbsUp,
   satWarning, satSuccess, satError, satBadge, satFileDown, satFileUp,
-  satArrowLeft, satCircle,
+  satArrowLeft, satCircle, satPen,
 
   // Classic
   fasHouse, fasMessage, fasReply, fasUsers, fasGear, fasCircleInfo, fasDownload,
@@ -515,7 +515,7 @@ const allIcons: IconDefinition[] = [
   fasFileImport, fasChevronDown, fasChevronRight, fasChevronUp, fasCamera,
   fasImage, fasGlobe, fasDesktop, fasBars, fasEye, fasThumbsUp,
   fasWarning, fasSuccess, fasError, fasBadge, fasFileDown, fasFileUp,
-  fasArrowLeft, fasCircle,
+  fasArrowLeft, fasCircle, fasPen,
 
   farHouse, farMessage, farReply, farUsers, farGear, farCircleInfo, farDownload,
   farLogout, farShield, farKey, farBell, farSearch, farUser, farPalette,
@@ -524,7 +524,7 @@ const allIcons: IconDefinition[] = [
   farFileImport, farChevronDown, farChevronRight, farChevronUp, farCamera,
   farImage, farGlobe, farDesktop, farBars, farEye, farThumbsUp,
   farWarning, farSuccess, farError, farBadge, farFileDown, farFileUp,
-  farArrowLeft, farCircle,
+  farArrowLeft, farCircle, farPen,
 
   falHouse, falMessage, falReply, falUsers, falGear, falCircleInfo, falDownload,
   falLogout, falShield, falKey, falBell, falSearch, falUser, falPalette,
@@ -533,7 +533,7 @@ const allIcons: IconDefinition[] = [
   falFileImport, falChevronDown, falChevronRight, falChevronUp, falCamera,
   falImage, falGlobe, falDesktop, falBars, falEye, falThumbsUp,
   falWarning, falSuccess, falError, falBadge, falFileDown, falFileUp,
-  falArrowLeft, falCircle,
+  falArrowLeft, falCircle, falPen,
 
   fatHouse, fatMessage, fatReply, fatUsers, fatGear, fatCircleInfo, fatDownload,
   fatLogout, fatShield, fatKey, fatBell, fatSearch, fatUser, fatPalette,
@@ -542,7 +542,7 @@ const allIcons: IconDefinition[] = [
   fatFileImport, fatChevronDown, fatChevronRight, fatChevronUp, fatCamera,
   fatImage, fatGlobe, fatDesktop, fatBars, fatEye, fatThumbsUp,
   fatWarning, fatSuccess, fatError, fatBadge, fatFileDown, fatFileUp,
-  fatArrowLeft, fatCircle,
+  fatArrowLeft, fatCircle, fatPen,
 
   // DuoTone
   fadHouse, fadMessage, fadReply, fadUsers, fadGear, fadCircleInfo, fadDownload,
@@ -552,7 +552,7 @@ const allIcons: IconDefinition[] = [
   fadFileImport, fadChevronDown, fadChevronRight, fadChevronUp, fadCamera,
   fadImage, fadGlobe, fadDesktop, fadBars, fadEye, fadThumbsUp,
   fadWarning, fadSuccess, fadError, fadBadge, fadFileDown, fadFileUp,
-  fadArrowLeft, fadCircle,
+  fadArrowLeft, fadCircle, fadPen,
 
   fadrHouse, fadrMessage, fadrReply, fadrUsers, fadrGear, fadrCircleInfo, fadrDownload,
   fadrLogout, fadrShield, fadrKey, fadrBell, fadrSearch, fadrUser, fadrPalette,
@@ -561,7 +561,7 @@ const allIcons: IconDefinition[] = [
   fadrFileImport, fadrChevronDown, fadrChevronRight, fadrChevronUp, fadrCamera,
   fadrImage, fadrGlobe, fadrDesktop, fadrBars, fadrEye, fadrThumbsUp,
   fadrWarning, fadrSuccess, fadrError, fadrBadge, fadrFileDown, fadrFileUp,
-  fadrArrowLeft, fadrCircle,
+  fadrArrowLeft, fadrCircle, fadrPen,
 
   fadlHouse, fadlMessage, fadlReply, fadlUsers, fadlGear, fadlCircleInfo, fadlDownload,
   fadlLogout, fadlShield, fadlKey, fadlBell, fadlSearch, fadlUser, fadlPalette,
@@ -570,7 +570,7 @@ const allIcons: IconDefinition[] = [
   fadlFileImport, fadlChevronDown, fadlChevronRight, fadlChevronUp, fadlCamera,
   fadlImage, fadlGlobe, fadlDesktop, fadlBars, fadlEye, fadlThumbsUp,
   fadlWarning, fadlSuccess, fadlError, fadlBadge, fadlFileDown, fadlFileUp,
-  fadlArrowLeft, fadlCircle,
+  fadlArrowLeft, fadlCircle, fadlPen,
 
   fadtHouse, fadtMessage, fadtReply, fadtUsers, fadtGear, fadtCircleInfo, fadtDownload,
   fadtLogout, fadtShield, fadtKey, fadtBell, fadtSearch, fadtUser, fadtPalette,
@@ -579,7 +579,7 @@ const allIcons: IconDefinition[] = [
   fadtFileImport, fadtChevronDown, fadtChevronRight, fadtChevronUp, fadtCamera,
   fadtImage, fadtGlobe, fadtDesktop, fadtBars, fadtEye, fadtThumbsUp,
   fadtWarning, fadtSuccess, fadtError, fadtBadge, fadtFileDown, fadtFileUp,
-  fadtArrowLeft, fadtCircle,
+  fadtArrowLeft, fadtCircle, fadtPen,
 
   // Sharp DuoTone
   fasdsHouse, fasdsMessage, fasdsReply, fasdsUsers, fasdsGear, fasdsCircleInfo, fasdsDownload,
@@ -589,7 +589,7 @@ const allIcons: IconDefinition[] = [
   fasdsFileImport, fasdsChevronDown, fasdsChevronRight, fasdsChevronUp, fasdsCamera,
   fasdsImage, fasdsGlobe, fasdsDesktop, fasdsBars, fasdsEye, fasdsThumbsUp,
   fasdsWarning, fasdsSuccess, fasdsError, fasdsBadge, fasdsFileDown, fasdsFileUp,
-  fasdsArrowLeft, fasdsCircle,
+  fasdsArrowLeft, fasdsCircle, fasdsPen,
 
   fasdrHouse, fasdrMessage, fasdrReply, fasdrUsers, fasdrGear, fasdrCircleInfo, fasdrDownload,
   fasdrLogout, fasdrShield, fasdrKey, fasdrBell, fasdrSearch, fasdrUser, fasdrPalette,
@@ -598,7 +598,7 @@ const allIcons: IconDefinition[] = [
   fasdrFileImport, fasdrChevronDown, fasdrChevronRight, fasdrChevronUp, fasdrCamera,
   fasdrImage, fasdrGlobe, fasdrDesktop, fasdrBars, fasdrEye, fasdrThumbsUp,
   fasdrWarning, fasdrSuccess, fasdrError, fasdrBadge, fasdrFileDown, fasdrFileUp,
-  fasdrArrowLeft, fasdrCircle,
+  fasdrArrowLeft, fasdrCircle, fasdrPen,
 
   fasdlHouse, fasdlMessage, fasdlReply, fasdlUsers, fasdlGear, fasdlCircleInfo, fasdlDownload,
   fasdlLogout, fasdlShield, fasdlKey, fasdlBell, fasdlSearch, fasdlUser, fasdlPalette,
@@ -607,7 +607,7 @@ const allIcons: IconDefinition[] = [
   fasdlFileImport, fasdlChevronDown, fasdlChevronRight, fasdlChevronUp, fasdlCamera,
   fasdlImage, fasdlGlobe, fasdlDesktop, fasdlBars, fasdlEye, fasdlThumbsUp,
   fasdlWarning, fasdlSuccess, fasdlError, fasdlBadge, fasdlFileDown, fasdlFileUp,
-  fasdlArrowLeft, fasdlCircle,
+  fasdlArrowLeft, fasdlCircle, fasdlPen,
 
   fasdtHouse, fasdtMessage, fasdtReply, fasdtUsers, fasdtGear, fasdtCircleInfo, fasdtDownload,
   fasdtLogout, fasdtShield, fasdtKey, fasdtBell, fasdtSearch, fasdtUser, fasdtPalette,
@@ -616,7 +616,7 @@ const allIcons: IconDefinition[] = [
   fasdtFileImport, fasdtChevronDown, fasdtChevronRight, fasdtChevronUp, fasdtCamera,
   fasdtImage, fasdtGlobe, fasdtDesktop, fasdtBars, fasdtEye, fasdtThumbsUp,
   fasdtWarning, fasdtSuccess, fasdtError, fasdtBadge, fasdtFileDown, fasdtFileUp,
-  fasdtArrowLeft, fasdtCircle,
+  fasdtArrowLeft, fasdtCircle, fasdtPen,
 
   // Pro+ packs
   facrHouse, facrUsers, facrGear, facrCircleInfo, facrKey, facrBell,

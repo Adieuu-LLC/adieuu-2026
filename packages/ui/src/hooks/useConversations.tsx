@@ -46,7 +46,10 @@ import {
   decryptMessage,
   encryptGroupName,
   decryptGroupName,
+  encryptMemberSettings,
+  decryptMemberSettings,
   type RecipientKeys,
+  type MemberSettingsMap,
 } from '../services/conversationCryptoService';
 import {
   getDeviceKeysForIdentity,
@@ -69,6 +72,7 @@ import { loadReactionNotificationsEnabled } from './useReactionNotificationPrefe
 
 export interface DecryptedConversation extends PublicConversation {
   decryptedName?: string;
+  decryptedMemberSettings?: MemberSettingsMap;
   unreadCount: number;
 }
 
@@ -92,6 +96,7 @@ interface ConversationsContextValue {
   activeMessagesCursor: string | null;
   invites: PublicGroupInvite[];
   participantProfiles: Record<string, PublicIdentity>;
+  memberSettings: MemberSettingsMap;
 
   loading: boolean;
   messagesLoading: boolean;
@@ -129,6 +134,7 @@ interface ConversationsContextValue {
     options?: { transferAdminTo?: string; transferStrategy?: 'oldest' | 'most_active' }
   ) => Promise<boolean>;
   renameGroup: (conversationId: string, newName: string) => Promise<boolean>;
+  updateMemberSettings: (conversationId: string, settings: MemberSettingsMap) => Promise<boolean>;
   promoteToAdmin: (conversationId: string, identityId: string) => Promise<boolean>;
   terminateGroup: (conversationId: string) => Promise<boolean>;
 
@@ -261,13 +267,26 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     []
   );
 
+  const decryptConversationMemberSettings = useCallback(
+    (conv: PublicConversation): MemberSettingsMap | undefined => {
+      if (!conv.encryptedMemberSettings || !conv.memberSettingsNonce) return undefined;
+      try {
+        return decryptMemberSettings(conv.encryptedMemberSettings, conv.memberSettingsNonce, conv.id);
+      } catch {
+        return undefined;
+      }
+    },
+    []
+  );
+
   const toDecrypted = useCallback(
     (conv: PublicConversation): DecryptedConversation => ({
       ...conv,
       decryptedName: decryptConversationName(conv),
+      decryptedMemberSettings: decryptConversationMemberSettings(conv),
       unreadCount: 0,
     }),
-    [decryptConversationName]
+    [decryptConversationName, decryptConversationMemberSettings]
   );
 
   /**
@@ -1081,6 +1100,38 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     [api]
   );
 
+  const updateConversationMemberSettings = useCallback(
+    async (conversationId: string, settings: MemberSettingsMap): Promise<boolean> => {
+      try {
+        const encrypted = encryptMemberSettings(settings, conversationId);
+        const resp = await api.conversations.updateMemberSettings(
+          conversationId,
+          encrypted.encryptedMemberSettings,
+          encrypted.memberSettingsNonce
+        );
+        if (resp.success) {
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === conversationId
+                ? {
+                    ...c,
+                    encryptedMemberSettings: encrypted.encryptedMemberSettings,
+                    memberSettingsNonce: encrypted.memberSettingsNonce,
+                    decryptedMemberSettings: settings,
+                  }
+                : c
+            )
+          );
+          return true;
+        }
+      } catch {
+        // Error
+      }
+      return false;
+    },
+    [api]
+  );
+
   // -------------------------------------------------------------------------
   // Message deletion
   // -------------------------------------------------------------------------
@@ -1740,6 +1791,10 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
   const activeState = activeConversationId ? messagesState[activeConversationId] : undefined;
 
+  const activeConversation = activeConversationId
+    ? conversations.find((c) => c.id === activeConversationId)
+    : undefined;
+
   const value: ConversationsContextValue = {
     conversations,
     activeConversationId,
@@ -1747,6 +1802,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     activeMessagesCursor: activeState?.cursor ?? null,
     invites,
     participantProfiles,
+    memberSettings: activeConversation?.decryptedMemberSettings ?? {},
     loading,
     messagesLoading: activeState?.loading ?? false,
     sending,
@@ -1762,6 +1818,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     removeMember,
     leaveGroup,
     renameGroup,
+    updateMemberSettings: updateConversationMemberSettings,
     promoteToAdmin,
     terminateGroup,
     acceptInvite,

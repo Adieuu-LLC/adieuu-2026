@@ -31,6 +31,8 @@ import { Tooltip } from '../../components/Tooltip';
 import { useToast } from '../../components/Toast';
 import { Icon } from '../../icons/Icon';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
+import { useMemberColorPreference, setMemberColorDisplay, type MemberColorDisplay } from '../../hooks/useMemberColorPreference';
+import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import { uploadMediaFile, type MediaUploadResult } from '../../hooks/useConversationMediaUpload';
 import { serializePayload, mediaPayload, parsePayload, type MediaAttachment } from '../../services/messagePayload';
 import { MediaMessage } from '../../components/MediaMessage';
@@ -62,10 +64,10 @@ function buildReplySnippet(parent: DisplayMessage | undefined, t: TFunction): st
 function replyComposerLabel(
   target: DisplayMessage,
   profiles: Record<string, PublicIdentity>,
+  settings: MemberSettingsMap,
   t: TFunction
 ): string {
-  const p = profiles[target.fromIdentityId];
-  const name = p?.displayName ?? p?.username ?? '?';
+  const name = resolveDisplayName(target.fromIdentityId, profiles, settings);
   const snippet = buildReplySnippet(target, t);
   return `${name}: ${snippet}`;
 }
@@ -79,6 +81,7 @@ type ReplyQuoteAuthorPreview = {
 function resolveQuotedAuthorPreview(
   parent: DisplayMessage | undefined,
   participantProfiles: Record<string, PublicIdentity>,
+  settings: MemberSettingsMap,
   self: PublicIdentity | null | undefined
 ): ReplyQuoteAuthorPreview | undefined {
   if (!parent) return undefined;
@@ -86,6 +89,10 @@ function resolveQuotedAuthorPreview(
     parent.fromIdentityId === self?.id
       ? self ?? undefined
       : participantProfiles[parent.fromIdentityId];
+  const nickname = settings[parent.fromIdentityId]?.nickname;
+  if (nickname) {
+    return { displayName: nickname, avatarUrl: profile?.avatarUrl };
+  }
   if (profile) {
     return {
       displayName: profile.displayName?.trim() || profile.username || '?',
@@ -93,6 +100,90 @@ function resolveQuotedAuthorPreview(
     };
   }
   return { displayName: '?' };
+}
+
+const MEMBER_COLORS = [
+  '#e57373', '#f06292', '#ba68c8', '#9575cd',
+  '#7986cb', '#64b5f6', '#4fc3f7', '#4dd0e1',
+  '#4db6ac', '#81c784', '#aed581', '#dce775',
+  '#ffd54f', '#ffb74d', '#ff8a65', '#a1887f',
+] as const;
+
+function MemberEditPanel({
+  initialNickname,
+  initialColor,
+  onSave,
+  onCancel,
+}: {
+  initialNickname: string;
+  initialColor: string | undefined;
+  onSave: (nickname: string, color: string | undefined) => void;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation();
+  const [nickname, setNickname] = useState(initialNickname);
+  const [color, setColor] = useState(initialColor);
+
+  return (
+    <div className="conversation-member-edit-panel">
+      <label className="conversation-member-edit-field">
+        <span className="conversation-member-edit-label">{t('conversations.nickname', 'Nickname')}</span>
+        <input
+          type="text"
+          className="conversation-member-edit-input"
+          placeholder={t('conversations.nicknamePlaceholder', 'Custom name...')}
+          value={nickname}
+          onChange={(e) => setNickname(e.target.value)}
+          maxLength={50}
+        />
+      </label>
+      <div className="conversation-member-edit-field">
+        <span className="conversation-member-edit-label">{t('conversations.memberColor', 'Colour')}</span>
+        <div className="conversation-member-color-swatches">
+          <button
+            type="button"
+            className={`conversation-member-color-swatch conversation-member-color-swatch--none${!color ? ' conversation-member-color-swatch--active' : ''}`}
+            onClick={() => setColor(undefined)}
+            aria-label={t('conversations.clearColor', 'Clear colour')}
+          />
+          {MEMBER_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`conversation-member-color-swatch${color === c ? ' conversation-member-color-swatch--active' : ''}`}
+              style={{ background: c }}
+              onClick={() => setColor(c)}
+              aria-label={c}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="conversation-member-edit-actions">
+        <button type="button" className="conversation-member-edit-save" onClick={() => onSave(nickname, color)}>
+          {t('conversations.saveMemberSettings', 'Save')}
+        </button>
+        <button type="button" className="conversation-member-edit-cancel" onClick={onCancel}>
+          {t('conversations.cancelMemberSettings', 'Cancel')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function resolveDisplayName(
+  identityId: string,
+  profiles: Record<string, PublicIdentity>,
+  settings: MemberSettingsMap,
+  selfId?: string,
+  t?: (key: string, fallback: string) => string,
+): string {
+  if (selfId && identityId === selfId && t) {
+    return settings[identityId]?.nickname || t('conversations.you', 'You');
+  }
+  const nickname = settings[identityId]?.nickname;
+  if (nickname) return nickname;
+  const p = profiles[identityId];
+  return p?.displayName ?? p?.username ?? identityId.slice(0, 8);
 }
 
 type ReplyQuotePayload = {
@@ -291,6 +382,7 @@ function MessageActionBar({
 function buildReactionTooltip(
   reaction: GroupedReaction,
   profiles: Record<string, PublicIdentity>,
+  settings: MemberSettingsMap,
   currentIdentityId: string | undefined,
 ): string {
   const shortcode = getEmojiMartShortcodeLabel(reaction.emoji);
@@ -302,8 +394,7 @@ function buildReactionTooltip(
   for (const id of reaction.fromIdentityIds) {
     if (id === currentIdentityId) continue;
     if (names.length >= MAX_NAMED) break;
-    const profile = profiles[id];
-    names.push(profile?.displayName ?? profile?.username ?? id.slice(0, 8));
+    names.push(resolveDisplayName(id, profiles, settings));
   }
 
   const othersCount = reaction.count - names.length;
@@ -383,12 +474,14 @@ function ReactionBar({
   reactions,
   onToggleReaction,
   participantProfiles,
+  memberSettings,
   currentIdentityId,
 }: {
   messageId: string;
   reactions: GroupedReaction[];
   onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
   participantProfiles: Record<string, PublicIdentity>;
+  memberSettings: MemberSettingsMap;
   currentIdentityId: string | undefined;
 }) {
   if (reactions.length === 0) return null;
@@ -403,7 +496,7 @@ function ReactionBar({
           count={r.count}
           isOwn={r.isOwn}
           ownReactionId={r.ownReactionId}
-          tooltipContent={buildReactionTooltip(r, participantProfiles, currentIdentityId)}
+          tooltipContent={buildReactionTooltip(r, participantProfiles, memberSettings, currentIdentityId)}
           onToggleReaction={onToggleReaction}
         />
       ))}
@@ -631,6 +724,8 @@ const MessageBubble = memo(function MessageBubble({
   ownProfile,
   layout,
   participantProfiles,
+  memberSettings,
+  memberColorDisplay,
   replyQuote,
   onReply,
   isFlashHighlight,
@@ -649,6 +744,8 @@ const MessageBubble = memo(function MessageBubble({
   ownProfile?: PublicIdentity;
   layout: 'linear' | 'bubble';
   participantProfiles: Record<string, PublicIdentity>;
+  memberSettings: MemberSettingsMap;
+  memberColorDisplay: MemberColorDisplay;
   replyQuote?: ReplyQuotePayload | null;
   onReply?: () => void;
   isFlashHighlight?: boolean;
@@ -719,6 +816,7 @@ const MessageBubble = memo(function MessageBubble({
       reactions={groupedReactions}
       onToggleReaction={onToggleReaction}
       participantProfiles={participantProfiles}
+      memberSettings={memberSettings}
       currentIdentityId={ownProfile?.id}
     />
   );
@@ -751,9 +849,24 @@ const MessageBubble = memo(function MessageBubble({
     </Popover.Root>
   );
 
+  const senderColor = memberSettings[message.fromIdentityId]?.color;
+  const senderNameStyle: React.CSSProperties | undefined = senderColor ? { color: senderColor } : undefined;
+  const bubbleTintStyle: React.CSSProperties | undefined =
+    senderColor && !isOwn && memberColorDisplay === 'name-and-bubble'
+      ? { background: `color-mix(in srgb, ${senderColor} 8%, var(--color-bg-tertiary))` }
+      : undefined;
+  const avatarAccentStyle: React.CSSProperties | undefined =
+    senderColor && !isOwn && memberColorDisplay === 'name-and-accent'
+      ? { boxShadow: `0 0 0 2px ${senderColor}` }
+      : undefined;
+  const linearHoverStyle: React.CSSProperties | undefined =
+    senderColor && memberColorDisplay !== 'name-only'
+      ? ({ '--member-hover-bg': `color-mix(in srgb, ${senderColor} 6%, var(--color-bg-hover))` } as React.CSSProperties)
+      : undefined;
+
   if (layout === 'linear') {
     const profile = isOwn ? ownProfile : senderProfile;
-    const displayName = profile?.displayName ?? '?';
+    const displayName = resolveDisplayName(message.fromIdentityId, participantProfiles, memberSettings);
     const avatarUrl = profile?.avatarUrl;
 
     const avatarContent = avatarUrl ? (
@@ -797,6 +910,7 @@ const MessageBubble = memo(function MessageBubble({
     const messageRow = (
       <div
         className={`dm-message dm-message--linear${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
+        style={linearHoverStyle}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => {
           if (!actionBarPopoverOpen) setShowActions(false);
@@ -804,23 +918,23 @@ const MessageBubble = memo(function MessageBubble({
       >
         {profile ? (
           <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
-            <button type="button" className="dm-message-avatar-btn">
+            <button type="button" className="dm-message-avatar-btn" style={avatarAccentStyle}>
               {avatarContent}
             </button>
           </IdentityHoverCard>
         ) : (
-          <div className="dm-message-avatar">{avatarContent}</div>
+          <div className="dm-message-avatar" style={avatarAccentStyle}>{avatarContent}</div>
         )}
         <div className="dm-message-content">
           <div className="dm-message-header">
             {profile ? (
               <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
-                <button type="button" className="dm-message-sender">
+                <button type="button" className="dm-message-sender" style={senderNameStyle}>
                   {displayName}
                 </button>
               </IdentityHoverCard>
             ) : (
-              <span className="dm-message-sender">{displayName}</span>
+              <span className="dm-message-sender" style={senderNameStyle}>{displayName}</span>
             )}
             <Tooltip content={formatAbsoluteTime(message.createdAt)} position="top">
               <span className="dm-message-time">
@@ -908,8 +1022,8 @@ const MessageBubble = memo(function MessageBubble({
           identity={senderProfile}
           positioning={{ placement: 'right', gutter: 8 }}
         >
-          <button type="button" className="dm-message-sender">
-            {senderProfile.displayName}
+          <button type="button" className="dm-message-sender" style={senderNameStyle}>
+            {resolveDisplayName(message.fromIdentityId, participantProfiles, memberSettings)}
           </button>
         </IdentityHoverCard>
       )}
@@ -927,7 +1041,7 @@ const MessageBubble = memo(function MessageBubble({
             onPopoverOpenChange={setActionBarPopoverOpen}
           />
         )}
-        <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`}>
+        <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`} style={bubbleTintStyle}>
           {replyQuote && !message.deleted && <ReplyQuoteButton replyQuote={replyQuote} />}
           {hasDecryptionError ? (
             <Tooltip content={decryptionDisplayText} position="bottom">
@@ -1197,6 +1311,7 @@ function MessageComposer({
   onCancelReply,
   onSendSucceeded,
   participantProfiles,
+  memberSettings,
 }: {
   conversationId: string;
   sending: boolean;
@@ -1212,6 +1327,7 @@ function MessageComposer({
   /** Called after a message is accepted by the server so the list can scroll to show it. */
   onSendSucceeded?: () => void;
   participantProfiles: Record<string, PublicIdentity>;
+  memberSettings: MemberSettingsMap;
 }) {
   const { t } = useTranslation();
   const { warning: toastWarning, error: toastError } = useToast();
@@ -1496,9 +1612,9 @@ function MessageComposer({
         <div className="conversation-composer-reply">
           <span
             className="conversation-composer-reply-text"
-            title={replyComposerLabel(replyingTo, participantProfiles, t)}
+            title={replyComposerLabel(replyingTo, participantProfiles, memberSettings, t)}
           >
-            {replyComposerLabel(replyingTo, participantProfiles, t)}
+            {replyComposerLabel(replyingTo, participantProfiles, memberSettings, t)}
           </span>
           <button
             type="button"
@@ -1671,10 +1787,13 @@ export function ConversationView() {
     terminateGroup,
     deleteMessage,
     renameGroup,
+    updateMemberSettings,
+    memberSettings,
     fetchRecipientKeys,
   } = useConversations();
 
   const messageLayout = useMessageLayoutPreference();
+  const memberColorDisplay = useMemberColorPreference();
 
   const {
     fetchReactions,
@@ -1697,6 +1816,7 @@ export function ConversationView() {
   const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
 
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [adminTransferOpen, setAdminTransferOpen] = useState(false);
@@ -1954,6 +2074,26 @@ export function ConversationView() {
     [id, removeMember]
   );
 
+  const closeMemberEdit = useCallback(() => {
+    setEditingMemberId(null);
+  }, []);
+
+  const saveMemberEdit = useCallback(async (memberId: string, nickname: string, color: string | undefined) => {
+    if (!id) return;
+    const updated: MemberSettingsMap = { ...memberSettings };
+    const trimmed = nickname.trim();
+    if (trimmed || color) {
+      updated[memberId] = {
+        ...(trimmed ? { nickname: trimmed } : {}),
+        ...(color ? { color } : {}),
+      };
+    } else {
+      delete updated[memberId];
+    }
+    await updateMemberSettings(id, updated);
+    closeMemberEdit();
+  }, [id, memberSettings, updateMemberSettings, closeMemberEdit]);
+
   const handleDeleteMessage = useCallback(
     (messageId: string, forEveryone: boolean) => {
       if (!id) return;
@@ -2086,7 +2226,9 @@ export function ConversationView() {
     );
   }
 
-  const resolveDisplayName = (pid: string) => {
+  const resolveToolbarName = (pid: string) => {
+    const nickname = memberSettings[pid]?.nickname;
+    if (nickname) return nickname;
     const profile = participantProfiles[pid];
     return profile?.displayName ?? profile?.username ?? pid;
   };
@@ -2094,12 +2236,13 @@ export function ConversationView() {
   const otherParticipants = conversation.participants.filter((p) => p !== identity?.id);
   const displayName = conversation.type === 'group'
     ? (conversation.decryptedName ?? t('conversations.group', 'Group'))
-    : otherParticipants.map(resolveDisplayName).join(', ');
+    : otherParticipants.map(resolveToolbarName).join(', ');
   const subtitle = conversation.type === 'group'
     ? `${conversation.participants.length} ${t('conversations.members', 'members')}`
     : t('conversations.directMessage', 'Direct message');
 
   const isCurrentUserAdmin = !!(identity?.id && conversation.admins?.includes(identity.id));
+  const canEditMemberSettings = conversation.type === 'dm' || isCurrentUserAdmin;
   const isSoleMember = conversation.participants.length <= 1;
 
   return (
@@ -2237,6 +2380,8 @@ export function ConversationView() {
                         ownProfile={identity ?? undefined}
                         layout={messageLayout}
                         participantProfiles={participantProfiles}
+                        memberSettings={memberSettings}
+                        memberColorDisplay={memberColorDisplay}
                         replyQuote={
                           msg.replyToMessageId
                             ? {
@@ -2244,6 +2389,7 @@ export function ConversationView() {
                                 quotedAuthor: resolveQuotedAuthorPreview(
                                   messagesById.get(msg.replyToMessageId),
                                   participantProfiles,
+                                  memberSettings,
                                   identity
                                 ),
                                 onQuoteClick: () => scrollToMessageId(msg.replyToMessageId!),
@@ -2283,6 +2429,7 @@ export function ConversationView() {
                 shouldScrollToBottomRef.current = true;
               }}
               participantProfiles={participantProfiles}
+              memberSettings={memberSettings}
             />
           </div>
 
@@ -2334,6 +2481,29 @@ export function ConversationView() {
                     </span>
                   </span>
                 </label>
+
+                <div className="conversation-settings-color-display">
+                  <span className="app-settings-toggle-title">
+                    {t('conversations.colorDisplayMode', 'Member colour display')}
+                  </span>
+                  <div className="conversation-settings-color-options">
+                    {(['name-only', 'name-and-accent', 'name-and-bubble'] as const).map((mode) => (
+                      <label key={mode} className="conversation-settings-color-option">
+                        <input
+                          type="radio"
+                          name="memberColorDisplay"
+                          checked={memberColorDisplay === mode}
+                          onChange={() => setMemberColorDisplay(mode)}
+                        />
+                        <span>
+                          {mode === 'name-only' && t('conversations.colorDisplayNameOnly', 'Name only')}
+                          {mode === 'name-and-accent' && t('conversations.colorDisplayNameAccent', 'Name + avatar accent')}
+                          {mode === 'name-and-bubble' && t('conversations.colorDisplayNameBubble', 'Name + bubble tint')}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -2379,11 +2549,14 @@ export function ConversationView() {
                 {conversation.participants.map((participantId) => {
                   const profile = participantProfiles[participantId];
                   const isSelf = participantId === identity?.id;
-                  const name = isSelf
+                  const customisation = memberSettings[participantId];
+                  const displayedName = resolveDisplayName(participantId, participantProfiles, memberSettings, identity?.id, t);
+                  const realName = isSelf
                     ? t('conversations.you', 'You')
                     : (profile?.displayName ?? profile?.username ?? participantId);
-                  const initial = name.charAt(0).toUpperCase();
+                  const initial = displayedName.charAt(0).toUpperCase();
                   const isMemberAdmin = conversation.admins?.includes(participantId);
+                  const isEditing = editingMemberId === participantId;
 
                   return (
                     <div key={participantId} className="conversation-member-item">
@@ -2396,44 +2569,68 @@ export function ConversationView() {
                           )}
                         </div>
                         <div className="conversation-member-info">
-                          <span className="conversation-member-name">
-                            {name}
+                          <span className="conversation-member-name" style={customisation?.color ? { color: customisation.color } : undefined}>
+                            {displayedName}
                             {isMemberAdmin && (
                               <span className="conversation-member-admin-badge">
                                 {t('conversations.admin', 'Admin')}
                               </span>
                             )}
                           </span>
-                          {profile?.username && !isSelf && (
+                          {customisation?.nickname && !isSelf && (
+                            <span className="conversation-member-username">{realName}</span>
+                          )}
+                          {!customisation?.nickname && profile?.username && !isSelf && (
                             <span className="conversation-member-username">@{profile.username}</span>
                           )}
                         </div>
                       </Link>
-                      {isCurrentUserAdmin && !isSelf && conversation.type === 'group' && (
-                        <div className="conversation-member-actions">
-                          {!isMemberAdmin && (
-                            <Tooltip content={t('conversations.makeAdmin', 'Make Admin')} position="top">
-                              <button
-                                type="button"
-                                className="conversation-member-action-btn"
-                                onClick={() => void handlePromoteToAdmin(participantId)}
-                              >
-                                <Icon name="shield" className="conversation-member-action-icon" />
-                              </button>
-                            </Tooltip>
-                          )}
-                          {!isMemberAdmin && (
-                            <Tooltip content={t('conversations.removeMember', 'Remove')} position="top">
-                              <button
-                                type="button"
-                                className="conversation-member-action-btn conversation-member-action-btn--danger"
-                                onClick={() => void handleRemoveMember(participantId)}
-                              >
-                                <Icon name="x" className="conversation-member-action-icon" />
-                              </button>
-                            </Tooltip>
-                          )}
-                        </div>
+                      <div className="conversation-member-actions">
+                        {canEditMemberSettings && (
+                          <Tooltip content={t('conversations.editMember', 'Edit member')} position="top">
+                            <button
+                              type="button"
+                              className="conversation-member-action-btn"
+                              onClick={() => setEditingMemberId(isEditing ? null : participantId)}
+                            >
+                              <Icon name="pen" className="conversation-member-action-icon" />
+                            </button>
+                          </Tooltip>
+                        )}
+                        {isCurrentUserAdmin && !isSelf && conversation.type === 'group' && (
+                          <>
+                            {!isMemberAdmin && (
+                              <Tooltip content={t('conversations.makeAdmin', 'Make Admin')} position="top">
+                                <button
+                                  type="button"
+                                  className="conversation-member-action-btn"
+                                  onClick={() => void handlePromoteToAdmin(participantId)}
+                                >
+                                  <Icon name="shield" className="conversation-member-action-icon" />
+                                </button>
+                              </Tooltip>
+                            )}
+                            {!isMemberAdmin && (
+                              <Tooltip content={t('conversations.removeMember', 'Remove')} position="top">
+                                <button
+                                  type="button"
+                                  className="conversation-member-action-btn conversation-member-action-btn--danger"
+                                  onClick={() => void handleRemoveMember(participantId)}
+                                >
+                                  <Icon name="x" className="conversation-member-action-icon" />
+                                </button>
+                              </Tooltip>
+                            )}
+                          </>
+                        )}
+                      </div>
+                      {isEditing && (
+                        <MemberEditPanel
+                          initialNickname={customisation?.nickname ?? ''}
+                          initialColor={customisation?.color}
+                          onSave={(nick, col) => void saveMemberEdit(participantId, nick, col)}
+                          onCancel={closeMemberEdit}
+                        />
                       )}
                     </div>
                   );

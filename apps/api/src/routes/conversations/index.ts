@@ -34,6 +34,7 @@ import {
   promoteToAdmin,
   terminateGroup,
   getFormerMembers,
+  updateMemberSettings,
 } from '../../services/conversation.service';
 import { ObjectId } from 'mongodb';
 import { z } from '@adieuu/shared/schemas';
@@ -103,6 +104,11 @@ const LeaveSchema = z.object({
 const UpdateNameSchema = z.object({
   encryptedName: z.string().min(1).max(500),
   nameNonce: z.string().min(1).max(100),
+});
+
+const UpdateMemberSettingsSchema = z.object({
+  encryptedMemberSettings: z.string().min(1).max(10_000),
+  memberSettingsNonce: z.string().min(1).max(100),
 });
 
 // ---------------------------------------------------------------------------
@@ -355,6 +361,40 @@ router.patch('/conversations/:id', async (ctx) => {
   }
 
   return success(result.conversation, 'Group name updated.');
+});
+
+/**
+ * PATCH /conversations/:id/member-settings - Update member nicknames/colours
+ * DMs: any participant. Groups: admin only.
+ */
+router.patch('/conversations/:id/member-settings', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const parseResult = UpdateMemberSettingsSchema.safeParse(ctx.body);
+  if (!parseResult.success) return ctx.errors.validationFailed();
+
+  const result = await updateMemberSettings(
+    sanitized.value,
+    identity._id,
+    parseResult.data.encryptedMemberSettings,
+    parseResult.data.memberSettingsNonce
+  );
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
+    return errors.badRequest(result.error ?? 'Failed to update member settings.');
+  }
+
+  return success(result.conversation, 'Member settings updated.');
 });
 
 // ---------------------------------------------------------------------------

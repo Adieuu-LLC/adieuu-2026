@@ -1261,6 +1261,56 @@ export async function updateGroupName(
   return { success: true, conversation: updated ? toPublicConversation(updated) : undefined };
 }
 
+/**
+ * Update encrypted member settings (nicknames/colours).
+ * DMs: any participant. Groups: admin only.
+ */
+export async function updateMemberSettings(
+  conversationId: string | ObjectId,
+  requesterIdentityId: string | ObjectId,
+  encryptedMemberSettings: string,
+  memberSettingsNonce: string
+): Promise<ConversationResult> {
+  const conversationRepo = getConversationRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  if (!conversation.participants.some((p) => p.equals(requesterObjId))) {
+    return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  if (conversation.type === 'group' && !isGroupAdmin(conversation, requesterObjId)) {
+    return { success: false, error: 'Only group admins can update member settings', errorCode: 'NOT_ADMIN' };
+  }
+
+  const updated = await conversationRepo.updateMemberSettings(
+    convObjId,
+    encryptedMemberSettings,
+    memberSettingsNonce
+  );
+
+  await publishToParticipants(conversation.participants, requesterObjId, {
+    type: 'conversation_updated',
+    data: {
+      conversationId: convObjId.toHexString(),
+      action: 'member_settings_updated',
+      identityId: requesterObjId.toHexString(),
+    },
+  });
+
+  return { success: true, conversation: updated ? toPublicConversation(updated) : undefined };
+}
+
 // ---------------------------------------------------------------------------
 // Group invite operations
 // ---------------------------------------------------------------------------
