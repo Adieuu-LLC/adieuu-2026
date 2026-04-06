@@ -509,22 +509,27 @@ export interface IdentityModerationBlock {
  * Get identity by session.
  *
  * Returns the identity document, or `null` if the session is invalid /
- * expired / identity not found.
+ * expired / identity not found / identity is suspended or banned.
  *
- * When `opts.checkModeration` is true the caller can distinguish between
- * "no session" and "moderation block" via the returned discriminated union.
+ * Moderation is **always** enforced: suspended and banned identities
+ * are treated as absent by default so that every caller is automatically
+ * protected without opt-in.
+ *
+ * Pass `{ returnBlockDetails: true }` to receive a discriminated union
+ * that distinguishes "no session" from "moderation block" (used by
+ * the session controller to surface a 403 with reason / report ID).
  */
 export async function getIdentityFromSession(
   sessionId: string,
-  opts?: { checkModeration?: boolean },
+  opts?: { returnBlockDetails?: false },
 ): Promise<IdentityDocument | null>;
 export async function getIdentityFromSession(
   sessionId: string,
-  opts: { checkModeration: true },
+  opts: { returnBlockDetails: true },
 ): Promise<IdentityDocument | { blocked: IdentityModerationBlock } | null>;
 export async function getIdentityFromSession(
   sessionId: string,
-  opts?: { checkModeration?: boolean },
+  opts?: { returnBlockDetails?: boolean },
 ): Promise<IdentityDocument | { blocked: IdentityModerationBlock } | null> {
   const session = await getIdentitySession(sessionId);
   if (!session) return null;
@@ -533,27 +538,21 @@ export async function getIdentityFromSession(
   const identity = await identityRepo.findByIdentityId(session.identityId);
   if (!identity) return null;
 
-  if (opts?.checkModeration) {
-    if (identity.isBanned) {
-      return {
-        blocked: {
-          type: 'banned',
-          moderationReason: identity.moderationReason,
-          moderationReportId: identity.moderationReportId,
-        },
-      };
-    }
+  const isBanned = !!identity.isBanned;
+  const isSuspended = !!identity.suspendedUntil && identity.suspendedUntil > new Date();
 
-    if (identity.suspendedUntil && identity.suspendedUntil > new Date()) {
+  if (isBanned || isSuspended) {
+    if (opts?.returnBlockDetails) {
       return {
         blocked: {
-          type: 'suspended',
+          type: isBanned ? 'banned' : 'suspended',
           moderationReason: identity.moderationReason,
           moderationReportId: identity.moderationReportId,
-          suspendedUntil: identity.suspendedUntil.toISOString(),
+          suspendedUntil: isSuspended ? identity.suspendedUntil!.toISOString() : undefined,
         },
       };
     }
+    return null;
   }
 
   return identity;

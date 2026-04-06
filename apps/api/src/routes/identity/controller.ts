@@ -342,7 +342,7 @@ export async function getIdentitySessionCtrl(ctx: RouteContext): Promise<Respons
     return ctx.errors.unauthorized();
   }
 
-  const result = await getIdentityFromSession(identitySessionId, { checkModeration: true });
+  const result = await getIdentityFromSession(identitySessionId, { returnBlockDetails: true });
   if (!result) {
     return ctx.errors.unauthorized();
   }
