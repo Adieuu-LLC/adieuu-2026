@@ -1020,28 +1020,41 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
   };
 
   const avatarMembers = otherParticipants.slice(0, 3);
+  const isDm = conversation.type === 'dm';
+  const dmProfile = isDm && otherParticipants.length === 1
+    ? participantProfiles[otherParticipants[0]!]
+    : undefined;
 
-  return (
+  const avatarEl = isDm ? (
+    <div className="conversation-list-item-avatar">
+      <span className="conversation-list-item-avatar-placeholder">
+        {displayName.charAt(0).toUpperCase()}
+      </span>
+      <span className="conversation-list-item-dm-badge">DM</span>
+    </div>
+  ) : avatarMembers.length > 1 ? (
+    <div className="conversation-list-item-avatar-stack">
+      {avatarMembers.map((pid) => (
+        <span key={pid} className="conversation-list-item-avatar-stack-item">
+          {resolveDisplayName(pid).charAt(0).toUpperCase()}
+        </span>
+      ))}
+    </div>
+  ) : (
+    <div className="conversation-list-item-avatar">
+      <span className="conversation-list-item-avatar-placeholder">
+        {displayName.charAt(0).toUpperCase()}
+      </span>
+    </div>
+  );
+
+  const row = (
     <button
       type="button"
       className={`conversation-list-item${isActive ? ' conversation-list-item-active' : ''}`}
       onClick={handleClick}
     >
-      {conversation.type === 'group' && avatarMembers.length > 1 ? (
-        <div className="conversation-list-item-avatar-stack">
-          {avatarMembers.map((pid) => (
-            <span key={pid} className="conversation-list-item-avatar-stack-item">
-              {resolveDisplayName(pid).charAt(0).toUpperCase()}
-            </span>
-          ))}
-        </div>
-      ) : (
-        <div className="conversation-list-item-avatar">
-          <span className="conversation-list-item-avatar-placeholder">
-            {displayName.charAt(0).toUpperCase()}
-          </span>
-        </div>
-      )}
+      {avatarEl}
       <div className="conversation-list-item-info">
         <span className="conversation-list-item-title">{displayName}</span>
         {conversation.type === 'group' && (
@@ -1055,6 +1068,16 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
       )}
     </button>
   );
+
+  if (dmProfile) {
+    return (
+      <IdentityHoverCard identity={dmProfile} positioning={{ placement: 'right-start', gutter: 12 }}>
+        {row}
+      </IdentityHoverCard>
+    );
+  }
+
+  return row;
 }
 
 /**

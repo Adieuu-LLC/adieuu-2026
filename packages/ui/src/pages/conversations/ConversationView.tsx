@@ -1006,7 +1006,9 @@ const MessageBubble = memo(function MessageBubble({
               </Tooltip>
             )}
             {countdown && (
-              <span className="dm-message-expiry">{countdown}</span>
+              <Tooltip content={t('conversations.ttlCountdown', 'This message will disappear when the timer expires')} position="top">
+                <span className="dm-message-expiry">{countdown}</span>
+              </Tooltip>
             )}
           </div>
           {replyQuoteEl}
@@ -1141,7 +1143,9 @@ const MessageBubble = memo(function MessageBubble({
           </Tooltip>
         )}
         {countdown && (
-          <span className="dm-message-expiry">{countdown}</span>
+          <Tooltip content={t('conversations.ttlCountdown', 'This message will disappear when the timer expires')} position="top">
+            <span className="dm-message-expiry">{countdown}</span>
+          </Tooltip>
         )}
       </div>
     </div>
@@ -1404,6 +1408,51 @@ const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gi
 const MAX_ATTACHMENTS = 10;
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
+const PLACEHOLDER_VERB_KEYS = [
+  'message',
+  'ping',
+  'poke',
+  'nudge',
+  'sendLove',
+  'whisper',
+  'shout',
+  'wave',
+  'holla',
+  'buzz',
+  'serenade',
+  'sing',
+  'pigeon',
+  'dropLine',
+  'converse',
+  'sonnet',
+  'telepathy',
+  'vibes',
+  'beam',
+  'raven',
+  'smoke',
+] as const;
+
+const TTL_OPTIONS: { label: string; seconds: number }[] = [
+  { label: '30s', seconds: 30 },
+  { label: '1 min', seconds: 60 },
+  { label: '5 min', seconds: 300 },
+  { label: '10 min', seconds: 600 },
+  { label: '15 min', seconds: 900 },
+  { label: '30 min', seconds: 1800 },
+  { label: '45 min', seconds: 2700 },
+  { label: '1 hr', seconds: 3600 },
+  { label: '1.5 hr', seconds: 5400 },
+  { label: '3 hr', seconds: 10800 },
+  { label: '6 hr', seconds: 21600 },
+  { label: '12 hr', seconds: 43200 },
+  { label: '18 hr', seconds: 64800 },
+  { label: '24 hr', seconds: 86400 },
+  { label: '36 hr', seconds: 129600 },
+  { label: '48 hr', seconds: 172800 },
+  { label: '1 week', seconds: 604800 },
+  { label: '2 weeks', seconds: 1209600 },
+];
+
 function MessageComposer({
   conversationId,
   sending,
@@ -1415,13 +1464,15 @@ function MessageComposer({
   onSendSucceeded,
   participantProfiles,
   memberSettings,
+  onReplyClick,
+  placeholderTarget,
 }: {
   conversationId: string;
   sending: boolean;
   sendTextMessage: (
     conversationId: string,
     plaintext: string,
-    options?: { useForwardSecrecy?: boolean; replyToMessageId?: string; e2eMediaIds?: string[] }
+    options?: { useForwardSecrecy?: boolean; replyToMessageId?: string; e2eMediaIds?: string[]; expiresInSeconds?: number }
   ) => Promise<unknown>;
   useFs: boolean;
   onToggleFs: () => void;
@@ -1431,20 +1482,62 @@ function MessageComposer({
   onSendSucceeded?: () => void;
   participantProfiles: Record<string, PublicIdentity>;
   memberSettings: MemberSettingsMap;
+  /** Called when the user clicks the reply preview to jump to the referenced message. */
+  onReplyClick?: () => void;
+  /** Display name of the other participant (DM) or group name. */
+  placeholderTarget?: string;
 }) {
   const { t } = useTranslation();
   const { warning: toastWarning, error: toastError } = useToast();
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
-  const [messageText, setMessageText] = useState('');
+
+  const placeholder = useMemo(() => {
+    if (!placeholderTarget) return t('conversations.messagePlaceholder', 'Type a message...');
+    const key = PLACEHOLDER_VERB_KEYS[Math.floor(Math.random() * PLACEHOLDER_VERB_KEYS.length)]!;
+    const verb = t(`conversations.placeholderVerbs.${key}` as const);
+    return `${verb} ${placeholderTarget}...`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, placeholderTarget, t]);
+
+  const [messageText, setMessageTextRaw] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [stripExif, setStripExif] = useState(true);
+  const [ttlSeconds, setTtlSeconds] = useState<number | undefined>(undefined);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageTextRef = useRef(messageText);
   messageTextRef.current = messageText;
+
+  // --- Undo / redo history ---
+  const undoStack = useRef<{ text: string; cursor: number }[]>([{ text: '', cursor: 0 }]);
+  const redoStack = useRef<{ text: string; cursor: number }[]>([]);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const setMessageText = useCallback((next: string, cursor?: number) => {
+    setMessageTextRaw(next);
+
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => {
+      const top = undoStack.current[undoStack.current.length - 1];
+      if (top && top.text === next) return;
+      undoStack.current.push({ text: next, cursor: cursor ?? next.length });
+      if (undoStack.current.length > 200) undoStack.current.shift();
+      redoStack.current = [];
+    }, 300);
+  }, []);
+
+  // --- Composer mini-toast ---
+  const [composerToast, setComposerToast] = useState<string | null>(null);
+  const composerToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showComposerToast = useCallback((label: string) => {
+    if (composerToastTimer.current) clearTimeout(composerToastTimer.current);
+    setComposerToast(label);
+    composerToastTimer.current = setTimeout(() => setComposerToast(null), 1500);
+  }, []);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -1490,18 +1583,39 @@ function MessageComposer({
   }, []);
 
   useEffect(() => {
+    const id = window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [conversationId]);
+
+  useEffect(() => {
     if (!sending) {
       inputRef.current?.focus();
     }
   }, [sending]);
 
   useEffect(() => {
-    if (!replyingTo) return;
     const id = window.requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
     return () => window.cancelAnimationFrame(id);
   }, [replyingTo]);
+
+  const [isMultiLine, setIsMultiLine] = useState(false);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const scrollH = el.scrollHeight;
+    el.style.height = `${scrollH}px`;
+    const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 20;
+    const verticalPadding = parseFloat(getComputedStyle(el).paddingTop) + parseFloat(getComputedStyle(el).paddingBottom);
+    const multi = scrollH > lineHeight + verticalPadding + 2;
+    setIsMultiLine(multi);
+    el.style.overflowY = scrollH >= 500 ? 'auto' : 'hidden';
+  }, [messageText]);
 
   const updateAttachmentStatus = useCallback((index: number, patch: Partial<PendingAttachment>) => {
     setAttachments((prev) => prev.map((a, i) => (i === index ? { ...a, ...patch } : a)));
@@ -1513,6 +1627,8 @@ function MessageComposer({
 
     const pendingAttachments = [...attachments];
     setMessageText('');
+    undoStack.current = [{ text: '', cursor: 0 }];
+    redoStack.current = [];
 
     if (pendingAttachments.length > 0) {
       setUploadingMedia(true);
@@ -1604,6 +1720,7 @@ function MessageComposer({
       const sent = await sendTextMessage(conversationId, plaintext, {
         useForwardSecrecy: useFs,
         ...(replyingTo ? { replyToMessageId: replyingTo.id } : {}),
+        ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
         e2eMediaIds,
       });
 
@@ -1620,6 +1737,7 @@ function MessageComposer({
       const sent = await sendTextMessage(conversationId, convertShortcodes(text), {
         useForwardSecrecy: useFs,
         ...(replyingTo ? { replyToMessageId: replyingTo.id } : {}),
+        ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
       });
       onCancelReply();
       if (sent != null) {
@@ -1627,7 +1745,7 @@ function MessageComposer({
       }
       inputRef.current?.focus();
     }
-  }, [conversationId, sending, uploadingMedia, sendTextMessage, useFs, replyingTo, onCancelReply, onSendSucceeded, attachments, stripExif, api, updateAttachmentStatus, toastError, t]);
+  }, [conversationId, sending, uploadingMedia, sendTextMessage, useFs, replyingTo, onCancelReply, onSendSucceeded, attachments, stripExif, api, updateAttachmentStatus, toastError, t, ttlSeconds]);
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
@@ -1636,7 +1754,9 @@ function MessageComposer({
 
       let oversized = false;
       const imageFiles: File[] = [];
+      let hasTextData = false;
       for (const item of Array.from(items)) {
+        if (item.type === 'text/plain') hasTextData = true;
         if (!item.type.startsWith('image/') || !ACCEPTED_IMAGE_TYPES.includes(item.type)) continue;
         const file = item.getAsFile();
         if (!file) continue;
@@ -1647,7 +1767,10 @@ function MessageComposer({
         imageFiles.push(file);
       }
 
-      if (imageFiles.length === 0 && !oversized) return;
+      if (imageFiles.length === 0 && !oversized) {
+        if (hasTextData) showComposerToast(t('conversations.pasted', 'Pasted'));
+        return;
+      }
 
       e.preventDefault();
 
@@ -1660,6 +1783,8 @@ function MessageComposer({
       }
 
       if (imageFiles.length === 0) return;
+
+      showComposerToast(t('conversations.pasted', 'Pasted'));
 
       setAttachments((prev) => {
         const remaining = MAX_ATTACHMENTS - prev.length;
@@ -1678,14 +1803,46 @@ function MessageComposer({
         return [...prev, ...toAdd];
       });
     },
-    [toastWarning, t]
+    [toastWarning, t, showComposerToast]
   );
+
+  const handleCopy = useCallback(() => {
+    showComposerToast(t('conversations.copied', 'Copied'));
+  }, [showComposerToast, t]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         void handleSend();
+        return;
+      }
+
+      const isMod = e.ctrlKey || e.metaKey;
+      if (isMod && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (undoStack.current.length <= 1) return;
+        const current = undoStack.current.pop()!;
+        redoStack.current.push(current);
+        const prev = undoStack.current[undoStack.current.length - 1]!;
+        setMessageTextRaw(prev.text);
+        messageTextRef.current = prev.text;
+        requestAnimationFrame(() => {
+          inputRef.current?.setSelectionRange(prev.cursor, prev.cursor);
+        });
+        return;
+      }
+      if (isMod && (e.key === 'y' || (e.key === 'z' && e.shiftKey) || (e.key === 'Z'))) {
+        e.preventDefault();
+        if (redoStack.current.length === 0) return;
+        const next = redoStack.current.pop()!;
+        undoStack.current.push(next);
+        setMessageTextRaw(next.text);
+        messageTextRef.current = next.text;
+        requestAnimationFrame(() => {
+          inputRef.current?.setSelectionRange(next.cursor, next.cursor);
+        });
+        return;
       }
     },
     [handleSend]
@@ -1694,31 +1851,38 @@ function MessageComposer({
   const handleEmojiSelect = useCallback((emoji: string) => {
     const textarea = inputRef.current;
     if (!textarea) {
-      setMessageText((prev) => prev + emoji);
+      setMessageText(messageTextRef.current + emoji);
       return;
     }
     const current = messageTextRef.current;
     const start = textarea.selectionStart ?? current.length;
     const end = textarea.selectionEnd ?? current.length;
-    setMessageText(current.slice(0, start) + emoji + current.slice(end));
+    const newPos = start + emoji.length;
+    setMessageText(current.slice(0, start) + emoji + current.slice(end), newPos);
     setShowEmojiPicker(false);
     requestAnimationFrame(() => {
       textarea.focus();
-      const newPos = start + emoji.length;
       textarea.setSelectionRange(newPos, newPos);
     });
-  }, []);
+  }, [setMessageText]);
 
   return (
     <div className="conversation-composer">
+      {composerToast && (
+        <div className="conversation-composer-mini-toast" role="status" aria-live="polite">
+          {composerToast}
+        </div>
+      )}
       {replyingTo && (
         <div className="conversation-composer-reply">
-          <span
+          <button
+            type="button"
             className="conversation-composer-reply-text"
             title={replyComposerLabel(replyingTo, participantProfiles, memberSettings, t)}
+            onClick={onReplyClick}
           >
             {replyComposerLabel(replyingTo, participantProfiles, memberSettings, t)}
-          </span>
+          </button>
           <button
             type="button"
             className="conversation-composer-reply-cancel"
@@ -1764,20 +1928,33 @@ function MessageComposer({
               </div>
             ))}
           </div>
-          <Checkbox.Root
-            checked={!stripExif}
-            onCheckedChange={(e) => setStripExif(e.checked !== true)}
-            className="conversation-composer-exif-toggle"
-          >
-            <Checkbox.Control className="conversation-composer-exif-control" />
-            <Checkbox.Label className="conversation-composer-exif-label">
-              {t('conversations.includeMetadata', 'Include original metadata')}
-            </Checkbox.Label>
-            <Checkbox.HiddenInput />
-          </Checkbox.Root>
+          <div className="conversation-composer-exif-row">
+            <Checkbox.Root
+              checked={!stripExif}
+              onCheckedChange={(e) => setStripExif(e.checked !== true)}
+              className="conversation-composer-exif-toggle"
+            >
+              <Checkbox.Control className="conversation-composer-exif-control" />
+              <Checkbox.Label className="conversation-composer-exif-label">
+                {t('conversations.includeMetadata', 'Include original metadata')}
+              </Checkbox.Label>
+              <Checkbox.HiddenInput />
+            </Checkbox.Root>
+            <Tooltip
+              content={t(
+                'conversations.metadataWarning',
+                'Images often contain metadata (EXIF) such as location, device info, and timestamps that could compromise your privacy or anonymity. By default, we strip this data. Enable this only if you understand the risks.'
+              )}
+              position="top"
+            >
+              <span className="conversation-composer-exif-info">
+                <Icon name="info" />
+              </span>
+            </Tooltip>
+          </div>
         </div>
       )}
-      <div className="conversation-composer-row">
+      <div className={`conversation-composer-row${isMultiLine ? ' conversation-composer-row--multiline' : ''}`}>
         <Tooltip
           content={useFs
             ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
@@ -1788,7 +1965,7 @@ function MessageComposer({
           <button
             type="button"
             className={`conversation-fs-toggle${useFs ? ' conversation-fs-toggle--active' : ''}`}
-            onClick={onToggleFs}
+            onClick={() => { onToggleFs(); requestAnimationFrame(() => inputRef.current?.focus()); }}
           >
             FS
           </button>
@@ -1806,6 +1983,57 @@ function MessageComposer({
             <Icon name="image" />
           </button>
         </Tooltip>
+        <Menu.Root
+          onSelect={(details) => {
+            const val = details.value;
+            if (val === 'off') {
+              setTtlSeconds(undefined);
+            } else {
+              setTtlSeconds(Number(val));
+            }
+            requestAnimationFrame(() => inputRef.current?.focus());
+          }}
+          positioning={{ placement: 'top-start' }}
+        >
+          <Tooltip
+            content={ttlSeconds
+              ? t('conversations.ttlActive', 'Message expires after {{ttl}}', { ttl: TTL_OPTIONS.find((o) => o.seconds === ttlSeconds)?.label ?? '' })
+              : t('conversations.ttlOff', 'Set message expiry')
+            }
+            position="top"
+          >
+            <span style={{ display: 'inline-flex' }}>
+              <Menu.Trigger asChild>
+                <button
+                  type="button"
+                  className={`conversation-ttl-toggle${ttlSeconds ? ' conversation-ttl-toggle--active' : ''}`}
+                >
+                  <Icon name="clock" />
+                </button>
+              </Menu.Trigger>
+            </span>
+          </Tooltip>
+          <Portal>
+            <Menu.Positioner>
+              <Menu.Content className="conversation-ttl-menu">
+                {ttlSeconds && (
+                  <Menu.Item value="off" className="conversation-ttl-menu-item conversation-ttl-menu-item--off">
+                    {t('conversations.ttlDisable', 'Off')}
+                  </Menu.Item>
+                )}
+                {TTL_OPTIONS.map((opt) => (
+                  <Menu.Item
+                    key={opt.seconds}
+                    value={String(opt.seconds)}
+                    className={`conversation-ttl-menu-item${ttlSeconds === opt.seconds ? ' conversation-ttl-menu-item--selected' : ''}`}
+                  >
+                    {opt.label}
+                  </Menu.Item>
+                ))}
+              </Menu.Content>
+            </Menu.Positioner>
+          </Portal>
+        </Menu.Root>
         <input
           ref={fileInputRef}
           type="file"
@@ -1817,7 +2045,7 @@ function MessageComposer({
         <textarea
           ref={inputRef}
           className="conversation-composer-field"
-          placeholder={t('conversations.messagePlaceholder', 'Type a message...')}
+          placeholder={placeholder}
           value={messageText}
           onChange={(e) => {
             const raw = e.target.value;
@@ -1825,16 +2053,18 @@ function MessageComposer({
             if (converted !== raw) {
               const cursorPos = e.target.selectionStart ?? raw.length;
               const newCursorPos = Math.max(0, cursorPos - (raw.length - converted.length));
-              setMessageText(converted);
+              setMessageText(converted, newCursorPos);
               requestAnimationFrame(() => {
                 inputRef.current?.setSelectionRange(newCursorPos, newCursorPos);
               });
             } else {
-              setMessageText(raw);
+              const cursorPos = e.target.selectionStart ?? raw.length;
+              setMessageText(raw, cursorPos);
             }
           }}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
+          onCopy={handleCopy}
           rows={1}
           disabled={sending || uploadingMedia}
         />
@@ -2230,7 +2460,17 @@ export function ConversationView() {
     return m;
   }, [activeMessages]);
 
+  const [expiryTick, setExpiryTick] = useState(0);
+
+  useEffect(() => {
+    const hasExpiring = reversedMessages.some((m) => m.expiresAt);
+    if (!hasExpiring) return;
+    const interval = setInterval(() => setExpiryTick((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, [reversedMessages]);
+
   const flatItems = useMemo(() => {
+    const now = Date.now();
     const items: ChatItem[] = [];
     const unreadIdx =
       unreadCount > 0 && unreadCount < reversedMessages.length
@@ -2239,9 +2479,12 @@ export function ConversationView() {
 
     for (let i = 0; i < reversedMessages.length; i++) {
       const msg = reversedMessages[i]!;
+      if (msg.expiresAt && new Date(msg.expiresAt).getTime() <= now) continue;
+
       const currDate = new Date(msg.createdAt);
-      const prevMsg = i > 0 ? reversedMessages[i - 1] : null;
-      const showDaySep = !prevMsg || !isSameDay(new Date(prevMsg.createdAt), currDate);
+      const prevItem = items.length > 0 ? items[items.length - 1] : null;
+      const prevMsgDate = prevItem?.type === 'message' ? new Date(prevItem.msg.createdAt) : null;
+      const showDaySep = !prevMsgDate || !isSameDay(prevMsgDate, currDate);
 
       if (i === unreadIdx) {
         items.push({ type: 'unread-separator', key: '__unread__' });
@@ -2252,7 +2495,8 @@ export function ConversationView() {
       items.push({ type: 'message', msg, key: msg.id });
     }
     return items;
-  }, [reversedMessages, unreadCount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reversedMessages, unreadCount, expiryTick]);
 
   const flatItemsLengthRef = useRef(flatItems.length);
   flatItemsLengthRef.current = flatItems.length;
@@ -2505,19 +2749,18 @@ export function ConversationView() {
                   }}
                 />
               )}
+              {/* Scroll to bottom */}
+              <Tooltip content={t('conversations.jumpToLatest', 'Jump to latest message')} position="top">
+                <button
+                  type="button"
+                  className={`conversation-scroll-to-bottom${showScrollButton ? ' conversation-scroll-to-bottom--visible' : ''}`}
+                  onClick={scrollToBottom}
+                  aria-label={t('conversations.jumpToLatest', 'Jump to latest message')}
+                >
+                  <Icon name="chevronDown" />
+                </button>
+              </Tooltip>
             </div>
-
-            {/* Scroll to bottom */}
-            <Tooltip content={t('conversations.jumpToLatest', 'Jump to latest message')} position="top">
-              <button
-                type="button"
-                className={`conversation-scroll-to-bottom${showScrollButton ? ' conversation-scroll-to-bottom--visible' : ''}`}
-                onClick={scrollToBottom}
-                aria-label={t('conversations.jumpToLatest', 'Jump to latest message')}
-              >
-                <Icon name="chevronDown" />
-              </button>
-            </Tooltip>
 
             <MessageComposer
               conversationId={id!}
@@ -2530,6 +2773,8 @@ export function ConversationView() {
               onSendSucceeded={markJustSent}
               participantProfiles={participantProfiles}
               memberSettings={memberSettings}
+              onReplyClick={replyingTo ? () => scrollToMessageId(replyingTo.id) : undefined}
+              placeholderTarget={displayName}
             />
           </div>
 

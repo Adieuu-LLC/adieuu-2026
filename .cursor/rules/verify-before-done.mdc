@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Verify All Changes Before Finishing
 
-After making substantive code changes, you MUST run the following verification steps before considering the work complete. Do not skip any of these.
+After making substantive code changes, you MUST run the following verification steps before considering the work complete. Do not skip any of these, unless the user explicitly says to do so.
 
 ## Required Verification Commands
 
