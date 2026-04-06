@@ -147,8 +147,17 @@ export function getShortcode(emoji: string): string {
 const colonShortcodePattern = /:([a-z0-9_+-]+):/gi;
 
 /**
+ * Matches http(s) URLs and bare www. domains so they can be shielded
+ * from text-shortcut replacement (e.g. `://` must not become `😕/`).
+ */
+const URL_SHIELD_RE = /(?:https?:\/\/|www\.)[^\s<>'"]+/gi;
+
+/**
  * Convert text shortcuts and :colon_shortcodes: to Unicode emoji.
  * Run this on the plaintext before encryption.
+ *
+ * URLs are shielded from text-shortcut replacement so that protocol
+ * schemes like `://` are not mangled by shortcuts such as `:/`.
  */
 export function convertShortcodes(text: string): string {
   let result = text.replace(colonShortcodePattern, (_match, code: string) => {
@@ -156,8 +165,19 @@ export function convertShortcodes(text: string): string {
     return COLON_SHORTCODES[lower] ?? _match;
   });
 
+  const urlSlots: string[] = [];
+  const PLACEHOLDER = '\x00URL';
+  result = result.replace(URL_SHIELD_RE, (m) => {
+    urlSlots.push(m);
+    return `${PLACEHOLDER}${urlSlots.length - 1}\x00`;
+  });
+
   result = result.replace(textShortcutPattern, (match) => {
     return TEXT_SHORTCUTS[match] ?? match;
+  });
+
+  result = result.replace(/\x00URL(\d+)\x00/g, (_m, idx: string) => {
+    return urlSlots[Number(idx)] ?? '';
   });
 
   return result;

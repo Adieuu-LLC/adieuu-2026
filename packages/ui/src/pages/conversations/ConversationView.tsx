@@ -40,6 +40,9 @@ import { serializePayload, mediaPayload, parsePayload, type MediaAttachment } fr
 import { MediaMessage } from '../../components/MediaMessage';
 import { useE2EMediaDownload, clearMediaCache } from '../../hooks/useE2EMediaDownload';
 import { stripExifMetadata } from '../../utils/imageProcessing';
+import { renderMessageWithUrls, extractDomain } from '../../utils/urlParsing';
+import { isDomainTrusted } from '../../hooks/useExternalLinkPreferences';
+import { ExternalLinkModal } from '../../components/ExternalLinkModal';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
 import { createApiClient } from '@adieuu/shared';
 import type { SystemEvent, FormerMember, PublicIdentity } from '@adieuu/shared';
@@ -770,6 +773,7 @@ const MessageBubble = memo(function MessageBubble({
   replyQuote,
   onReply,
   isFlashHighlight,
+  onLinkClick,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
@@ -791,6 +795,7 @@ const MessageBubble = memo(function MessageBubble({
   replyQuote?: ReplyQuotePayload | null;
   onReply?: () => void;
   isFlashHighlight?: boolean;
+  onLinkClick: (href: string) => void;
 }) {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
@@ -801,6 +806,10 @@ const MessageBubble = memo(function MessageBubble({
   const rawContent = message.decryptedContent ?? '';
   const parsed = useMemo(() => parsePayload(rawContent), [rawContent]);
   const content = parsed.text;
+  const renderedContent = useMemo(
+    () => (content ? renderMessageWithUrls(content, onLinkClick) : null),
+    [content, onLinkClick],
+  );
   const hasDecryptionError = !message.decryptedContent && !message.deleted;
   const isFsExpired = hasDecryptionError && message.decryptionError?.startsWith('forward-secrecy-expired:');
   const decryptionDisplayText = isFsExpired
@@ -938,7 +947,7 @@ const MessageBubble = memo(function MessageBubble({
       </Tooltip>
     ) : (
       <>
-        {content && <p className="dm-message-text">{content}</p>}
+        {renderedContent && <p className="dm-message-text">{renderedContent}</p>}
         {parsed.attachments.length > 1 ? (
           <div className="dm-message-attachments">
             {parsed.attachments.map((att) => (
@@ -1104,7 +1113,7 @@ const MessageBubble = memo(function MessageBubble({
             </Tooltip>
           ) : (
             <>
-              {content && <p className="dm-message-text">{content}</p>}
+              {renderedContent && <p className="dm-message-text">{renderedContent}</p>}
               {parsed.attachments.length > 1 ? (
                 <div className="dm-message-attachments">
                   {parsed.attachments.map((att) => (
@@ -2166,6 +2175,16 @@ export function ConversationView() {
 
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [adminTransferOpen, setAdminTransferOpen] = useState(false);
+  const [pendingLinkHref, setPendingLinkHref] = useState<string | null>(null);
+
+  const handleLinkClick = useCallback((href: string) => {
+    const domain = extractDomain(href);
+    if (domain && isDomainTrusted(domain)) {
+      window.open(href, '_blank', 'noopener,noreferrer');
+    } else {
+      setPendingLinkHref(href);
+    }
+  }, []);
   const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
   const [inviteMemberOpen, setInviteMemberOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -2748,6 +2767,7 @@ export function ConversationView() {
                         }
                         onReply={() => setReplyingTo(msg)}
                         isFlashHighlight={flashingMessageId === msg.id}
+                        onLinkClick={handleLinkClick}
                       />
                     );
                   }}
@@ -3056,6 +3076,14 @@ export function ConversationView() {
         mode="message"
         targetMessageId={reportTargetMessageId}
       />
+
+      {/* External link confirmation modal */}
+      {pendingLinkHref && (
+        <ExternalLinkModal
+          href={pendingLinkHref}
+          onClose={() => setPendingLinkHref(null)}
+        />
+      )}
     </div>
   );
 }
