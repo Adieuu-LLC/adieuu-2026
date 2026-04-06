@@ -264,7 +264,7 @@ export interface E2EMediaDownloadResult {
   moderationStatus?: string;
   moderationReason?: string;
   error?: string;
-  errorCode?: 'NOT_FOUND' | 'SCAN_PENDING' | 'REJECTED' | 'NOT_READY' | 'DOWNLOAD_DISABLED';
+  errorCode?: 'NOT_FOUND' | 'SCAN_PENDING' | 'REJECTED' | 'MODERATION_ERROR' | 'NOT_READY' | 'DOWNLOAD_DISABLED';
 }
 
 export async function getE2EMediaDownload(
@@ -321,6 +321,16 @@ export async function getE2EMediaDownload(
       status: doc.status,
       moderationStatus: doc.moderationStatus,
       moderationReason: doc.moderationReason,
+    };
+  }
+
+  if (doc.moderationStatus === 'error') {
+    return {
+      success: false,
+      error: 'Content moderation scan encountered an error',
+      errorCode: 'MODERATION_ERROR',
+      status: doc.status,
+      moderationStatus: doc.moderationStatus,
     };
   }
 

@@ -212,7 +212,11 @@ router.get('/uploads/e2e/:mediaId/download', async (ctx) => {
       case 'NOT_FOUND':
         return errors.notFound(result.error);
       case 'REJECTED':
-        return errors.forbidden(result.error);
+        return error('REJECTED', result.error ?? 'Content has been rejected by moderation', 403, {
+          moderationReason: result.moderationReason,
+        });
+      case 'MODERATION_ERROR':
+        return error('MODERATION_ERROR', result.error ?? 'Content moderation scan encountered an error', 403);
       case 'SCAN_PENDING':
         return error('SCAN_PENDING', result.error ?? 'Content is awaiting moderation scan', 202);
       default:

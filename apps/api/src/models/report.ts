@@ -1,0 +1,118 @@
+/**
+ * Platform report model.
+ *
+ * Represents a moderation report that can originate from automated systems
+ * (e.g. Rekognition) or manual user submissions. Extensible for future
+ * Space-level moderation via `scopeType` / `scopeId`.
+ */
+
+import type { ObjectId } from 'mongodb';
+import type { BaseDocument } from './base';
+
+export const REPORT_TYPES = ['content', 'abuse'] as const;
+export type ReportType = (typeof REPORT_TYPES)[number];
+
+export const REPORT_SOURCES = ['automated_rekognition', 'manual_user'] as const;
+export type ReportSource = (typeof REPORT_SOURCES)[number];
+
+export const REPORT_STATUSES = ['open', 'escalated', 'resolved', 'closed'] as const;
+export type ReportStatus = (typeof REPORT_STATUSES)[number];
+
+export const REPORT_CATEGORIES = [
+  'csam',
+  'illegal_content',
+  'violence',
+  'harassment',
+  'spam',
+  'impersonation',
+  'other',
+] as const;
+export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
+
+export const SCOPE_TYPES = ['platform', 'space'] as const;
+export type ScopeType = (typeof SCOPE_TYPES)[number];
+
+export interface ReportTargetRef {
+  /** Type of the reported content/entity */
+  type: 'media_upload' | 'e2e_media' | 'message' | 'identity' | 'theme' | 'other';
+  /** ID of the target entity */
+  id: string;
+  /** Optional S3 key or CDN URL for media evidence */
+  mediaUrl?: string;
+}
+
+export interface ReportResolution {
+  /** Whether the infringing content was removed */
+  contentRemoved: boolean;
+  /** Whether a warning was issued to the target user */
+  userWarned: boolean;
+  /** Alias suspension duration in milliseconds (0 = not suspended) */
+  aliasSuspendedMs: number;
+  /** Whether the alias was permanently banned */
+  aliasBanned: boolean;
+  /** Mandatory reason from the moderator */
+  reason: string;
+  /** User ID of the moderator who resolved */
+  resolvedBy: string;
+  resolvedAt: Date;
+}
+
+export interface ReportDocument extends BaseDocument {
+  reportType: ReportType;
+  source: ReportSource;
+  status: ReportStatus;
+  category: ReportCategory;
+
+  /** Moderation scope — `platform` for now, `space` later */
+  scopeType: ScopeType;
+  /** Scope identifier (null for platform scope) */
+  scopeId?: string;
+
+  /** What was reported */
+  targetRef: ReportTargetRef;
+
+  /** Identity ID of the alias that posted the reported content (where applicable) */
+  targetIdentityId?: string;
+  /** User ID backing the target identity (where resolvable) */
+  targetUserId?: string;
+
+  /** Identity ID of the user who filed the report (null for automated) */
+  reporterIdentityId?: string;
+  /** User ID backing the reporter identity (where resolvable) */
+  reporterUserId?: string;
+
+  /** User ID of the moderator assigned to this report */
+  assignedTo?: string;
+
+  /** Automated detection metadata (e.g. Rekognition labels with confidences) */
+  detectionMetadata?: Record<string, unknown>;
+
+  /** Idempotency key to prevent duplicate automated reports */
+  idempotencyKey?: string;
+
+  /** Filled when status becomes 'resolved' */
+  resolution?: ReportResolution;
+  /** Filled when status becomes 'closed' (report deemed invalid) */
+  closureReason?: string;
+  closedBy?: string;
+  closedAt?: Date;
+
+  /** Filled when status becomes 'escalated' */
+  escalatedBy?: string;
+  escalatedAt?: Date;
+}
+
+export interface CreateReportInput {
+  reportType: ReportType;
+  source: ReportSource;
+  category: ReportCategory;
+  scopeType: ScopeType;
+  scopeId?: string;
+  targetRef: ReportTargetRef;
+  targetIdentityId?: string;
+  targetUserId?: string;
+  reporterIdentityId?: string;
+  reporterUserId?: string;
+  detectionMetadata?: Record<string, unknown>;
+  idempotencyKey?: string;
+}

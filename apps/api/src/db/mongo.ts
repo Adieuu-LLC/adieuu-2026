@@ -360,6 +360,10 @@ export const Collections = {
   MEDIA_UPLOADS: 'media_uploads',
   /** E2E encrypted media for conversation attachments */
   E2E_MEDIA: 'e2e_media',
+  /** Platform moderation reports (content, abuse, etc.) */
+  PLATFORM_REPORTS: 'platform_reports',
+  /** Timeline events for platform reports (comments, state transitions, actions) */
+  PLATFORM_REPORT_EVENTS: 'platform_report_events',
 } as const;
 
 /**

@@ -1186,12 +1186,26 @@ function SidebarFooterContent() {
   const location = useLocation();
   const { closeMobile } = useSidebar();
   const showAdmin = session?.isPlatformAdmin === true;
+  const showModerator = session?.isPlatformModerator === true || showAdmin;
   const isAdminActive = location.pathname.startsWith('/admin');
+  const isModeratorActive = location.pathname.startsWith('/moderation');
   const isDownloadActive = location.pathname === '/download';
   const showDesktopAppLink = platform === 'web';
 
   return (
     <div className="sidebar-footer-stack">
+      {showModerator && (
+        <div className="sidebar-admin-row">
+          <Link
+            to="/moderation"
+            className={`sidebar-admin-link sidebar-admin-link-btn${isModeratorActive ? ' sidebar-admin-link-active' : ''}`}
+            onClick={closeMobile}
+          >
+            <Icon name="shield" />
+            <span className="sidebar-admin-label">{t('moderation.nav.link')}</span>
+          </Link>
+        </div>
+      )}
       {showAdmin && (
         <div className="sidebar-admin-row">
           <Link

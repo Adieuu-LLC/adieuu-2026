@@ -168,6 +168,44 @@ export async function isPlatformAdmin(userId: string | ObjectId): Promise<boolea
 }
 
 /**
+ * Whether the user account is in the platform moderator list.
+ * Same semantics as isPlatformAdmin — reads from DB each time.
+ */
+export async function isPlatformModerator(userId: string | ObjectId): Promise<boolean> {
+  const repo = getPlatformSettingsRepository();
+  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.MODERATOR_ACCOUNT_LIST);
+
+  if (!doc) return false;
+
+  if (doc.valueType !== 'objectIdArray' || !Array.isArray(doc.value)) {
+    elog.warn('Platform moderator list found, but appears invalid.');
+    return false;
+  }
+
+  const currentUserId = typeof userId === 'string' ? userId.toLowerCase() : userId.toHexString().toLowerCase();
+
+  for (const entry of doc.value) {
+    if (entry instanceof ObjectId) {
+      if (entry.toHexString().toLowerCase() === currentUserId) return true;
+      continue;
+    }
+    if (typeof entry === 'string') {
+      if (isValidObjectId(entry) && entry.toLowerCase() === currentUserId) return true;
+      continue;
+    }
+    if (entry && typeof entry === 'object' && '_id' in entry) {
+      try {
+        const oid = entry as ObjectId;
+        if (oid.toHexString().toLowerCase() === currentUserId) return true;
+      } catch {
+        elog.warn('Invalid ObjectId in platform moderator list', { value: entry });
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Validates and coerces JSON body values into stored platform setting values.
  */
 export function coercePlatformSettingValue(
@@ -326,4 +364,25 @@ export async function ensureAdminAccountListPlatformSettingExists(): Promise<voi
   });
 
   elog.info('Created default platform admin list setting', { key });
+}
+
+/**
+ * Ensures the platform moderator account list setting exists with an empty list.
+ * Idempotent — safe to call on every startup.
+ */
+export async function ensureModeratorAccountListPlatformSettingExists(): Promise<void> {
+  const repo = getPlatformSettingsRepository();
+  const key = PLATFORM_SETTING_KEYS.MODERATOR_ACCOUNT_LIST;
+  const existing = await repo.findByKey(key);
+  if (existing) return;
+
+  await upsertPlatformSetting({
+    key,
+    description: 'Platform moderator user IDs',
+    valueType: 'objectIdArray',
+    value: [],
+    lastUpdatedBy: PLATFORM_SETTING_BOOTSTRAP_ACTOR,
+  });
+
+  elog.info('Created default platform moderator list setting', { key });
 }

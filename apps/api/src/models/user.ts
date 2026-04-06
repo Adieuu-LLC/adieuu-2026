@@ -35,6 +35,11 @@ export interface UserDocument extends BaseDocument {
   identityLoginAttempts: Date[];
   /** When the identity lockout expires */
   identityLockedUntil?: Date;
+
+  /** Platform-level roles assigned directly on the user document */
+  platformRoles?: string[];
+  /** Platform-level permission attributes granted directly */
+  platformAttributes?: string[];
 }
 
 /** Default identity lockout duration: 1 hour in milliseconds */
@@ -83,6 +88,8 @@ export interface UpdateUserInput {
   identityLockoutDuration?: number;
   identityLoginAttempts?: Date[];
   identityLockedUntil?: Date | null;
+  platformRoles?: string[];
+  platformAttributes?: string[];
 }
 
 /**

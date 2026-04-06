@@ -115,6 +115,16 @@ export {
   ReactionsApi,
   type PublicReaction,
   type SendReactionParams,
+  // Moderation types
+  ModerationApi,
+  type PublicReport,
+  type PublicReportEvent,
+  type ReportListParams,
+  type ReportListResponse,
+  type ReportDetailResponse,
+  type ResolveReportParams,
+  type ReportType,
+  type ReportSource,
 } from './client';
 
 export {

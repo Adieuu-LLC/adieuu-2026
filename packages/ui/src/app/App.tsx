@@ -43,6 +43,12 @@ import {
   AdminLayout,
   AdminPlatformAdmins,
 } from '../pages/admin';
+import {
+  ModeratorGate,
+  ModeratorLayout,
+  ReportList,
+  ReportDetail,
+} from '../pages/moderation';
 
 /**
  * Protected route wrapper - redirects to login if not authenticated.
@@ -199,6 +205,15 @@ export function App() {
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="platform-admins" element={<AdminPlatformAdmins />} />
             <Route path="auth-allowlist" element={<AdminAuthAllowlist />} />
+          </Route>
+        </Route>
+
+        {/* Platform moderation (moderator + admin guard) */}
+        <Route element={<ModeratorGate />}>
+          <Route path="/moderation" element={<ModeratorLayout />}>
+            <Route index element={<Navigate to="reports" replace />} />
+            <Route path="reports" element={<ReportList />} />
+            <Route path="reports/:id" element={<ReportDetail />} />
           </Route>
         </Route>
       </Route>

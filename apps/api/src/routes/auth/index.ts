@@ -17,8 +17,8 @@ import { Router } from '../../router';
 import { success } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
 import { MAX_IDENTITIES_PER_USER } from '../../services/identity.service';
-import { isPlatformAdmin } from '../../services/platform-settings.service';
 import { getUserRepository } from '../../repositories/user.repository';
+import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
 import {
   requestOtp,
   verifyOtpHandler,
@@ -275,24 +275,23 @@ router.get('/auth/session', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  // Fetch user to get identity count
   let identityCount = 0;
-  let isPlatformAdminUser = false;
+  let capabilities = { isPlatformAdmin: false, isPlatformModerator: false, roles: [] as string[], permissions: [] as string[] };
   if (session.userId) {
     const userRepo = getUserRepository();
     const user = await userRepo.findById(session.userId);
     identityCount = user?.identityCount ?? 0;
-    isPlatformAdminUser = await isPlatformAdmin(session.userId);
+    capabilities = await getPlatformCapabilities(session.userId);
   }
 
-  // Return non-sensitive session info for the UI
   return success({
     identifier: session.identifier,
     identifierType: session.identifierType,
-    // Identity info for UI state management
     identityCount,
     maxIdentities: MAX_IDENTITIES_PER_USER,
-    isPlatformAdmin: isPlatformAdminUser,
+    isPlatformAdmin: capabilities.isPlatformAdmin,
+    isPlatformModerator: capabilities.isPlatformModerator,
+    platformPermissions: capabilities.permissions,
   });
 });
 

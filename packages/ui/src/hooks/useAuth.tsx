@@ -89,6 +89,8 @@ function useAuthState(): AuthContextValue {
           session: {
             ...response.data,
             isPlatformAdmin: response.data.isPlatformAdmin ?? false,
+            isPlatformModerator: response.data.isPlatformModerator ?? false,
+            platformPermissions: response.data.platformPermissions ?? [],
           },
         });
       } else {

@@ -178,6 +178,10 @@ export interface SessionInfo {
   maxIdentities: number;
   /** Whether this user can access platform admin APIs and UI */
   isPlatformAdmin: boolean;
+  /** Whether this user can access the platform moderation panel */
+  isPlatformModerator: boolean;
+  /** Effective platform-level permissions for the current user */
+  platformPermissions: string[];
 }
 
 /**
@@ -1624,6 +1628,7 @@ export const PLATFORM_SETTING_KEYS = {
   AUTH_ALLOWLIST_EMAIL: 'platform-auth-allowlist-email',
   AUTH_ALLOWLIST_PHONE: 'platform-auth-allowlist-phone',
   ADMIN_ACCOUNT_LIST: 'platform-admin-account-list',
+  MODERATOR_ACCOUNT_LIST: 'platform-moderator-account-list',
 } as const;
 
 export type PlatformSettingKey = (typeof PLATFORM_SETTING_KEYS)[keyof typeof PLATFORM_SETTING_KEYS];
@@ -1703,6 +1708,150 @@ export class AdminApi {
     userId: string
   ): Promise<ApiResponse<{ admins: PlatformAdminRow[] }>> {
     return this.client.delete(`/api/admin/platform-admins/${encodeURIComponent(userId)}`);
+  }
+}
+
+// ============================================================================
+// Moderation API Types
+// ============================================================================
+
+export type ReportType = 'content' | 'abuse';
+export type ReportSource = 'automated_rekognition' | 'manual_user';
+export type ModerationReportStatus = 'open' | 'escalated' | 'resolved' | 'closed';
+export type ReportCategory =
+  | 'csam'
+  | 'illegal_content'
+  | 'violence'
+  | 'harassment'
+  | 'spam'
+  | 'impersonation'
+  | 'other';
+
+export interface ReportTargetRef {
+  type: string;
+  id: string;
+  mediaUrl?: string;
+}
+
+export interface ReportResolution {
+  contentRemoved: boolean;
+  userWarned: boolean;
+  aliasSuspendedMs: number;
+  aliasBanned: boolean;
+  reason: string;
+  resolvedBy: string;
+  resolvedAt: string;
+}
+
+export interface PublicReport {
+  id: string;
+  reportType: ReportType;
+  source: ReportSource;
+  status: ModerationReportStatus;
+  category: ReportCategory;
+  scopeType: string;
+  scopeId?: string;
+  targetRef: ReportTargetRef;
+  targetIdentityId?: string;
+  targetUserId?: string;
+  reporterIdentityId?: string;
+  reporterUserId?: string;
+  assignedTo?: string;
+  detectionMetadata?: Record<string, unknown>;
+  resolution?: ReportResolution;
+  closureReason?: string;
+  closedBy?: string;
+  closedAt?: string;
+  escalatedBy?: string;
+  escalatedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicReportEvent {
+  id: string;
+  reportId: string;
+  eventType: string;
+  actorUserId: string;
+  body?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ReportListParams {
+  page?: number;
+  limit?: number;
+  status?: string;
+  assigned?: 'me' | 'unassigned';
+  type?: string;
+  category?: string;
+}
+
+export interface ReportListResponse {
+  reports: PublicReport[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface ReportDetailResponse {
+  report: PublicReport;
+  events: PublicReportEvent[];
+}
+
+export interface ResolveReportParams {
+  reason: string;
+  removeContent?: boolean;
+  warnUser?: boolean;
+  suspendAliasMs?: number;
+  banAlias?: boolean;
+}
+
+export class ModerationApi {
+  constructor(private client: ApiClient) {}
+
+  async listReports(params?: ReportListParams): Promise<ApiResponse<ReportListResponse>> {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.status) qs.set('status', params.status);
+    if (params?.assigned) qs.set('assigned', params.assigned);
+    if (params?.type) qs.set('type', params.type);
+    if (params?.category) qs.set('category', params.category);
+    const query = qs.toString();
+    return this.client.get(`/api/moderation/reports${query ? `?${query}` : ''}`);
+  }
+
+  async getReport(id: string): Promise<ApiResponse<ReportDetailResponse>> {
+    return this.client.get(`/api/moderation/reports/${encodeURIComponent(id)}`);
+  }
+
+  async assignReport(id: string, userId: string): Promise<ApiResponse<PublicReport>> {
+    return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/assign`, { userId });
+  }
+
+  async unassignReport(id: string): Promise<ApiResponse<PublicReport>> {
+    return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/unassign`, {});
+  }
+
+  async escalateReport(id: string): Promise<ApiResponse<PublicReport>> {
+    return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/escalate`, {});
+  }
+
+  async changeCategory(id: string, category: string): Promise<ApiResponse<PublicReport>> {
+    return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/category`, { category });
+  }
+
+  async addComment(id: string, body: string, visibility: 'internal' | 'public'): Promise<ApiResponse<PublicReportEvent>> {
+    return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/comment`, { body, visibility });
+  }
+
+  async resolveReport(id: string, params: ResolveReportParams): Promise<ApiResponse<PublicReport>> {
+    return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/resolve`, params);
+  }
+
+  async closeReport(id: string, reason: string): Promise<ApiResponse<PublicReport>> {
+    return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/close`, { reason });
   }
 }
 
@@ -2341,6 +2490,7 @@ export function createApiClient(config: ApiClientConfig) {
     friends: new FriendsApi(client),
     notifications: new NotificationsApi(client),
     admin: new AdminApi(client),
+    moderation: new ModerationApi(client),
     themes: new ThemesApi(client),
     uploads: new UploadApi(client),
     e2eUploads: new E2EUploadApi(client),

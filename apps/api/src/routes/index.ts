@@ -22,6 +22,7 @@ import { uploadRoutes } from './uploads';
 import { e2eUploadRoutes } from './uploads/e2e';
 import { friendRoutes } from './friends';
 import { conversationRoutes } from './conversations';
+import { moderationRoutes } from './moderation';
 
 /**
  * Registers all application routes with the main router.
@@ -87,4 +88,7 @@ export function registerRoutes(app: Router): void {
 
   // DM and group conversations
   app.merge(conversationRoutes, '/api');
+
+  // Platform moderation (reports, actions, enforcement)
+  app.merge(moderationRoutes, '/api');
 }

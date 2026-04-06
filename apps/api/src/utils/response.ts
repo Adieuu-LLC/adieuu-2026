@@ -74,9 +74,10 @@ export interface ApiErrorResponse {
     code: string;
     /** Human-readable error message */
     message: string;
-    /** Optional structured fields (e.g. maxBytes for PAYLOAD_TOO_LARGE) */
+    /** Optional structured fields (e.g. maxBytes for PAYLOAD_TOO_LARGE, moderationReason for REJECTED) */
     details?: {
       maxBytes?: number;
+      moderationReason?: string;
     };
   };
   /** Response metadata */

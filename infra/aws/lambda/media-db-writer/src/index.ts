@@ -23,6 +23,7 @@ const MEDIA_CDN_URL = process.env.MEDIA_CDN_URL || '';
 
 const MEDIA_UPLOADS_COLLECTION = 'media_uploads';
 const E2E_MEDIA_COLLECTION = 'e2e_media';
+const PLATFORM_REPORTS_COLLECTION = 'platform_reports';
 
 const secretsManager = new SecretsManagerClient({});
 
@@ -185,6 +186,57 @@ export async function handler(event: WriterEvent): Promise<WriterResult> {
         console.log(`Updated E2E media via scanHash: moderationStatus=${moderationStatus}`);
       } else {
         console.warn(`No E2E media document found for scanHash (may be orphaned scan copy)`);
+      }
+    }
+
+    // Create an automated platform report when content is rejected
+    if (status === 'rejected' && rejectionReason) {
+      try {
+        const reportsCollection = db.collection(PLATFORM_REPORTS_COLLECTION);
+        const idempotencyKey = `rekog:${mediaId}`;
+        const existing = await reportsCollection.findOne({ idempotencyKey });
+        if (!existing) {
+          const identityId =
+            (mediaDoc as Record<string, unknown>).identityId as string | undefined;
+          const scanHash =
+            (mediaDoc as Record<string, unknown>).scanHash as string | undefined;
+
+          let targetType: string = 'media_upload';
+          let targetId: string = mediaId;
+          if (scanHash) {
+            const e2eDoc = await db.collection(E2E_MEDIA_COLLECTION).findOne({ scanHash });
+            if (e2eDoc) {
+              targetType = 'e2e_media';
+              targetId = (e2eDoc._id as { toHexString(): string }).toHexString();
+            }
+          }
+
+          const labelName = rejectionReason.replace('content_moderation: ', '');
+          const category = labelName.toLowerCase().includes('child')
+            ? 'csam'
+            : labelName.toLowerCase().includes('violence')
+              ? 'violence'
+              : 'illegal_content';
+
+          const now = new Date();
+          await reportsCollection.insertOne({
+            reportType: 'content',
+            source: 'automated_rekognition',
+            status: 'open',
+            category,
+            scopeType: 'platform',
+            targetRef: { type: targetType, id: targetId },
+            targetIdentityId: identityId ?? undefined,
+            detectionMetadata: { rejectionReason, mediaId, scanHash },
+            idempotencyKey,
+            createdAt: now,
+            updatedAt: now,
+          });
+
+          console.log(`Created platform report for rejected media: ${mediaId}`);
+        }
+      } catch (reportErr) {
+        console.error('Failed to create platform report (non-fatal):', reportErr);
       }
     }
 

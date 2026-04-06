@@ -113,11 +113,14 @@ export function useE2EMediaDownload(
             if (mountedRef.current) setState('scanning');
             downloadUrl = await pollUntilAvailable(abort);
             if (abort.signal.aborted) return null;
-          } else if (code === 'FORBIDDEN') {
+          } else if (code === 'FORBIDDEN' || code === 'REJECTED' || code === 'MODERATION_ERROR') {
+            const reason =
+              firstAttempt.error?.details?.moderationReason ??
+              firstAttempt.error?.message;
             const entry: CachedMedia = {
               url: '',
               state: 'rejected',
-              rejectionReason: firstAttempt.error?.message,
+              rejectionReason: reason,
             };
             mediaCache.set(mediaId, entry);
             if (mountedRef.current) {
@@ -207,11 +210,14 @@ export function useE2EMediaDownload(
         }
 
         const code = res.error?.code;
-        if (code === 'FORBIDDEN') {
+        if (code === 'FORBIDDEN' || code === 'REJECTED' || code === 'MODERATION_ERROR') {
+          const reason =
+            res.error?.details?.moderationReason ??
+            res.error?.message;
           const entry: CachedMedia = {
             url: '',
             state: 'rejected',
-            rejectionReason: res.error?.message,
+            rejectionReason: reason,
           };
           mediaCache.set(mediaId, entry);
           if (mountedRef.current) {

@@ -8,7 +8,10 @@ import { securityHeaders, requestId, cors } from './middleware';
 import { registerRoutes } from './routes';
 import { initializeDatabases, closeDatabases } from './db';
 import { config, validateProductionConfig } from './config';
-import { ensureAdminAccountListPlatformSettingExists } from './services/platform-settings.service';
+import {
+  ensureAdminAccountListPlatformSettingExists,
+  ensureModeratorAccountListPlatformSettingExists,
+} from './services/platform-settings.service';
 import { elog } from './utils';
 
 // Validate production configuration
@@ -34,8 +37,9 @@ async function start(): Promise<void> {
 
   try {
     await ensureAdminAccountListPlatformSettingExists();
+    await ensureModeratorAccountListPlatformSettingExists();
   } catch (error) {
-    elog.warn('Could not ensure platform admin list setting exists', { error });
+    elog.warn('Could not ensure platform settings exist', { error });
     if (config.features.requireDatabase) {
       throw error;
     }
