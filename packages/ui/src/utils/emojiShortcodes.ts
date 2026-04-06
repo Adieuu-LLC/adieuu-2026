@@ -147,29 +147,34 @@ export function getShortcode(emoji: string): string {
 const colonShortcodePattern = /:([a-z0-9_+-]+):/gi;
 
 /**
- * Matches http(s) URLs and bare www. domains so they can be shielded
- * from text-shortcut replacement (e.g. `://` must not become `😕/`).
+ * Matches http(s) URLs (complete and partial while typing) and bare
+ * www. domains so they can be shielded from both colon-shortcode and
+ * text-shortcut replacement.
+ *
+ * The second alternative (`https?:\/`) catches the single-slash state
+ * the user hits mid-keystroke so that `:/` is not turned into 😕.
  */
-const URL_SHIELD_RE = /(?:https?:\/\/|www\.)[^\s<>'"]+/gi;
+const URL_SHIELD_RE = /(?:https?:\/\/|https?:\/|www\.)[^\s<>'"]*/gi;
 
 /**
  * Convert text shortcuts and :colon_shortcodes: to Unicode emoji.
  * Run this on the plaintext before encryption.
  *
- * URLs are shielded from text-shortcut replacement so that protocol
- * schemes like `://` are not mangled by shortcuts such as `:/`.
+ * URLs are shielded from *both* replacement passes so that protocol
+ * schemes like `://` are not mangled by shortcuts such as `:/`, and
+ * colon shortcodes inside URL paths (e.g. `:fire:`) are left alone.
  */
 export function convertShortcodes(text: string): string {
-  let result = text.replace(colonShortcodePattern, (_match, code: string) => {
-    const lower = code.toLowerCase();
-    return COLON_SHORTCODES[lower] ?? _match;
-  });
-
   const urlSlots: string[] = [];
   const PLACEHOLDER = '\x00URL';
-  result = result.replace(URL_SHIELD_RE, (m) => {
+  let result = text.replace(URL_SHIELD_RE, (m) => {
     urlSlots.push(m);
     return `${PLACEHOLDER}${urlSlots.length - 1}\x00`;
+  });
+
+  result = result.replace(colonShortcodePattern, (_match, code: string) => {
+    const lower = code.toLowerCase();
+    return COLON_SHORTCODES[lower] ?? _match;
   });
 
   result = result.replace(textShortcutPattern, (match) => {
