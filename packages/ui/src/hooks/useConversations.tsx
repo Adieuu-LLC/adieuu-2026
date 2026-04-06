@@ -1766,7 +1766,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState !== 'visible') return;
       const activeId = activeConversationIdRef.current;
-      if (activeId && isAtBottomRef.current) {
+      if (activeId) {
         fetchMessagesRef.current(activeId, undefined, true);
       }
     };
