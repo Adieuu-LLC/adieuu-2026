@@ -49,6 +49,7 @@ export interface IIdentityRepository {
   updateDeviceActivity(identityId: string | ObjectId, deviceId: string): Promise<boolean>;
   updateDeviceName(identityId: string | ObjectId, deviceId: string, name: string): Promise<boolean>;
   getDevices(identityId: string | ObjectId): Promise<IdentityDevice[]>;
+  clearModerationFields(identityId: string | ObjectId): Promise<boolean>;
 }
 
 /**
@@ -383,6 +384,36 @@ export class IdentityRepository
   async getDevices(identityId: string | ObjectId): Promise<IdentityDevice[]> {
     const doc = await this.findByIdentityId(identityId);
     return doc?.devices ?? [];
+  }
+
+  /**
+   * Remove stale moderation fields from an identity after a suspension has lapsed.
+   * Uses $unset so the fields are fully removed rather than set to null.
+   */
+  async clearModerationFields(identityId: string | ObjectId): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $unset: {
+          suspendedUntil: '',
+          moderationReason: '',
+          moderationReportId: '',
+        },
+        $set: { updatedAt: now },
+      }
+    );
+
+    if (result.modifiedCount === 1) {
+      elog.info('Moderation fields cleared after lapsed suspension', {
+        identityId: objectId.toHexString(),
+      });
+      return true;
+    }
+
+    return false;
   }
 }
 

@@ -390,6 +390,13 @@ export async function loginToIdentity(
     };
   }
 
+  // Detect lapsed suspension: suspendedUntil is set but in the past.
+  // Clear stale moderation fields so the document stays tidy (canonical
+  // data lives in platform_reports).
+  if (identity.suspendedUntil && identity.suspendedUntil <= new Date()) {
+    await identityRepo.clearModerationFields(identity._id);
+  }
+
   // Check if hash needs upgrading
   if (identity.hashVersion < CURRENT_HASH_VERSION) {
     const { hash: newIdent } = await generateIdentityHash(
