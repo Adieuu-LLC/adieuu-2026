@@ -9,6 +9,8 @@
  *  - Composer resize (multi-line typing, attachments) keeps the bottom pinned.
  *  - A single mechanism (`followOutput`) drives auto-scroll, eliminating
  *    race conditions from competing `scrollToIndex` calls.
+ *  - Scroll position is remembered per conversation so switching back
+ *    restores the user's previous reading position.
  *
  * @module hooks/useConversationScroll
  */
@@ -16,6 +18,13 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import type { VirtuosoHandle } from 'react-virtuoso';
 import type { FollowOutputScalarType } from 'react-virtuoso';
+
+/**
+ * Module-level cache of scroll positions keyed by conversation ID.
+ * Stores the data-relative index of the first visible item.
+ * Survives hook re-mounts (Virtuoso `key={id}` causes remount on switch).
+ */
+const scrollCache = new Map<string, number>();
 
 export interface UseConversationScrollOptions {
   /** Conversation id – used only to reset refs on switch. */
@@ -36,6 +45,10 @@ export interface UseConversationScrollResult {
   scrollToBottom: () => void;
   scrollToBottomIfPinned: () => void;
   markJustSent: () => void;
+  /** Call from Virtuoso's rangeChanged with the data-relative first visible index. */
+  saveVisibleIndex: (dataIndex: number) => void;
+  /** Cached scroll index for the current conversation, or null (= go to bottom). */
+  cachedScrollIndex: number | null;
 }
 
 export function useConversationScroll({
@@ -47,16 +60,53 @@ export function useConversationScroll({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const justSentRef = useRef(false);
+  const visibleIndexRef = useRef<number | null>(null);
+  const prevConversationIdRef = useRef<string | undefined>(undefined);
 
   const [showScrollButton, setShowScrollButton] = useState(false);
 
-  // Reset scroll state when switching conversations.
+  const cachedScrollIndex = conversationId != null
+    ? (scrollCache.get(conversationId) ?? null)
+    : null;
+
+  const saveVisibleIndex = useCallback((dataIndex: number) => {
+    visibleIndexRef.current = dataIndex;
+  }, []);
+
+  // Save scroll position for the outgoing conversation, then reset for the incoming one.
   useEffect(() => {
-    isAtBottomRef.current = true;
+    const prevId = prevConversationIdRef.current;
+    prevConversationIdRef.current = conversationId;
+
+    if (prevId && prevId !== conversationId) {
+      if (isAtBottomRef.current) {
+        scrollCache.delete(prevId);
+      } else if (visibleIndexRef.current != null) {
+        scrollCache.set(prevId, visibleIndexRef.current);
+      }
+    }
+
+    visibleIndexRef.current = null;
+
+    const restoring = conversationId != null && scrollCache.has(conversationId);
+    isAtBottomRef.current = !restoring;
     justSentRef.current = false;
-    setIsAtBottom(true);
-    setShowScrollButton(false);
+    setIsAtBottom(!restoring);
+    setShowScrollButton(restoring);
   }, [conversationId, setIsAtBottom]);
+
+  // Save scroll position on unmount (e.g. navigating away from conversations).
+  useEffect(() => {
+    return () => {
+      const cid = prevConversationIdRef.current;
+      if (!cid) return;
+      if (isAtBottomRef.current) {
+        scrollCache.delete(cid);
+      } else if (visibleIndexRef.current != null) {
+        scrollCache.set(cid, visibleIndexRef.current);
+      }
+    };
+  }, []);
 
   const followOutput = useCallback(
     (isAtBottom: boolean): FollowOutputScalarType => {
@@ -135,5 +185,7 @@ export function useConversationScroll({
     scrollToBottom,
     scrollToBottomIfPinned,
     markJustSent,
+    saveVisibleIndex,
+    cachedScrollIndex,
   };
 }

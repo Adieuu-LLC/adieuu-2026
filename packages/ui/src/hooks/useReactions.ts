@@ -130,7 +130,7 @@ export function useReactions(conversationId: string | null) {
   const { identity, getSigningKey, getCurrentDeviceId, getWrappingKey } =
     useIdentity();
   const { apiBaseUrl } = useAppConfig();
-  const { subscribe } = useChatSocket();
+  const { subscribe, onStateChange } = useChatSocket();
 
   const api = useMemo(
     () => createApiClient({ baseUrl: apiBaseUrl }),
@@ -147,6 +147,8 @@ export function useReactions(conversationId: string | null) {
   const conversationIdRef = useRef(conversationId);
   conversationIdRef.current = conversationId;
   const reactionSessionKeyCache = useRef(new Map<string, Uint8Array>());
+  const byMessageRef = useRef(state.byMessage);
+  byMessageRef.current = state.byMessage;
 
   // ---- Crypto helpers ----
 
@@ -881,6 +883,21 @@ export function useReactions(conversationId: string | null) {
 
     return unsubscribe;
   }, [subscribe, getPrivateKeys, resolveSigningKeys, getWrappingKey]);
+
+  // ---- Refetch reactions on WebSocket reconnect ----
+
+  const fetchReactionsRef = useRef(fetchReactions);
+  fetchReactionsRef.current = fetchReactions;
+
+  useEffect(() => {
+    const unsub = onStateChange((socketState) => {
+      if (socketState !== 'connected') return;
+      const messageIds = Object.keys(byMessageRef.current);
+      if (messageIds.length === 0) return;
+      fetchReactionsRef.current(messageIds);
+    });
+    return unsub;
+  }, [onStateChange]);
 
   // ---- Clear on conversation change ----
 

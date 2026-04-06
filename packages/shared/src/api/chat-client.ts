@@ -266,6 +266,13 @@ export interface ChatClientConfig {
   authToken?: string;
   /** Heartbeat interval in ms (default: 15000) */
   heartbeatInterval?: number;
+  /**
+   * Heartbeat interval when the tab/window is in the background (default: 90000).
+   * Browsers throttle setInterval in hidden tabs to ~60s+, which causes false
+   * pong timeouts at the normal 15s cadence. This longer interval avoids
+   * unnecessary disconnections while the tab is backgrounded.
+   */
+  backgroundHeartbeatInterval?: number;
   /** Reconnect delay in ms (default: 1000, max: 30000 with exponential backoff) */
   reconnectDelay?: number;
   /** Maximum reconnect attempts (default: Infinity) */
@@ -297,12 +304,14 @@ export class ChatClient {
   private pongTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private intentionalClose = false;
+  private visibilityHandler: (() => void) | null = null;
 
   constructor(config: ChatClientConfig, events: ChatClientEvents = {}) {
     this.config = {
       wsUrl: config.wsUrl,
       authToken: config.authToken ?? '',
       heartbeatInterval: config.heartbeatInterval ?? 15000,
+      backgroundHeartbeatInterval: config.backgroundHeartbeatInterval ?? 90000,
       reconnectDelay: config.reconnectDelay ?? 1000,
       maxReconnectAttempts: config.maxReconnectAttempts ?? Infinity,
       connectTimeout: config.connectTimeout ?? 10000,
@@ -486,17 +495,67 @@ export class ChatClient {
 
   private startHeartbeat(): void {
     this.stopHeartbeat();
+
+    const interval = this.isDocumentHidden()
+      ? this.config.backgroundHeartbeatInterval
+      : this.config.heartbeatInterval;
+
     this.heartbeatTimer = setInterval(() => {
       if (this.send({ type: 'ping' })) {
         this.startPongTimeout();
       }
-    }, this.config.heartbeatInterval);
+    }, interval);
+
+    this.startVisibilityTracking();
   }
 
   private stopHeartbeat(): void {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
+    }
+    this.stopVisibilityTracking();
+  }
+
+  private isDocumentHidden(): boolean {
+    return typeof document !== 'undefined' && document.hidden;
+  }
+
+  private startVisibilityTracking(): void {
+    if (typeof document === 'undefined') return;
+    this.stopVisibilityTracking();
+
+    this.visibilityHandler = () => {
+      if (this.state !== 'connected') return;
+      this.clearPongTimeout();
+      if (this.heartbeatTimer) {
+        clearInterval(this.heartbeatTimer);
+      }
+
+      const interval = document.hidden
+        ? this.config.backgroundHeartbeatInterval
+        : this.config.heartbeatInterval;
+
+      if (!document.hidden) {
+        if (this.send({ type: 'ping' })) {
+          this.startPongTimeout();
+        }
+      }
+
+      this.heartbeatTimer = setInterval(() => {
+        if (this.send({ type: 'ping' })) {
+          this.startPongTimeout();
+        }
+      }, interval);
+    };
+
+    document.addEventListener('visibilitychange', this.visibilityHandler);
+  }
+
+  private stopVisibilityTracking(): void {
+    if (this.visibilityHandler && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
     }
   }
 

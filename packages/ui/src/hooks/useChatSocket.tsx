@@ -105,6 +105,7 @@ export function ChatSocketProvider({ children }: ChatSocketProviderProps) {
     const config: ChatClientConfig = {
       wsUrl: chatWsUrl,
       heartbeatInterval: 30_000,
+      backgroundHeartbeatInterval: 90_000,
       connectTimeout: 10_000,
       pongTimeout: 10_000,
       maxReconnectAttempts: Infinity,

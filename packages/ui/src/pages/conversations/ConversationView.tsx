@@ -1916,6 +1916,8 @@ export function ConversationView() {
     scrollToBottom,
     scrollToBottomIfPinned,
     markJustSent,
+    saveVisibleIndex,
+    cachedScrollIndex,
   } = useConversationScroll({ conversationId: id, setIsAtBottom, markConversationRead });
 
   const fetchedReactionsForRef = useRef<string | null>(null);
@@ -2252,6 +2254,15 @@ export function ConversationView() {
     return items;
   }, [reversedMessages, unreadCount]);
 
+  const flatItemsLengthRef = useRef(flatItems.length);
+  flatItemsLengthRef.current = flatItems.length;
+
+  const handleRangeChanged = useCallback((range: { startIndex: number; endIndex: number }) => {
+    const firstItemIndex = FIRST_ITEM_INDEX - flatItemsLengthRef.current;
+    const dataIndex = range.startIndex - firstItemIndex;
+    saveVisibleIndex(dataIndex);
+  }, [saveVisibleIndex]);
+
   /** Keep in sync with `.dm-message--flash-highlight` animation duration in styles.scss. */
   const FLASH_HIGHLIGHT_MS = 2800;
 
@@ -2410,12 +2421,15 @@ export function ConversationView() {
                   computeItemKey={(_, item) => item.key}
                   firstItemIndex={FIRST_ITEM_INDEX - flatItems.length}
                   initialTopMostItemIndex={
-                    flatItems.length > 0
-                      ? { index: flatItems.length - 1, align: 'end' }
-                      : 0
+                    cachedScrollIndex != null && flatItems.length > 0
+                      ? { index: Math.min(cachedScrollIndex, flatItems.length - 1), align: 'start' }
+                      : flatItems.length > 0
+                        ? { index: flatItems.length - 1, align: 'end' }
+                        : 0
                   }
                   alignToBottom
                   followOutput={followOutput}
+                  rangeChanged={handleRangeChanged}
                   startReached={handleStartReached}
                   atBottomStateChange={handleAtBottomStateChange}
                   atBottomThreshold={250}

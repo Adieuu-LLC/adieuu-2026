@@ -1592,6 +1592,14 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             isAtBottomRef.current;
 
           const fire = () => {
+            if (!isViewing) {
+              setConversations((prev) =>
+                prev.map((c) =>
+                  c.id === convId ? { ...c, unreadCount: c.unreadCount + 1 } : c
+                )
+              );
+            }
+
             void resolveParticipantsRef.current([reaction.fromIdentityId]).then((freshProfiles) => {
               const profiles = { ...participantProfilesRef.current, ...freshProfiles };
               const profile = profiles[reaction.fromIdentityId];
@@ -1707,6 +1715,14 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             isAtBottomRef.current;
 
           const fire = () => {
+            if (!isViewing) {
+              setConversations((prev) =>
+                prev.map((c) =>
+                  c.id === convId ? { ...c, unreadCount: c.unreadCount + 1 } : c
+                )
+              );
+            }
+
             void resolveParticipantsRef.current([fromId]).then((freshProfiles) => {
               const profiles = { ...participantProfilesRef.current, ...freshProfiles };
               const profile = profiles[fromId];
