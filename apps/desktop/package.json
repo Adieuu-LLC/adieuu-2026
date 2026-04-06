@@ -46,7 +46,7 @@
     "electron-vite": "5.0.0",
     "sass-embedded": "1.97.3",
     "typescript": "5.9.3",
-    "vite": "6.4.1"
+    "vite": "6.4.2"
   },
   "build": {
     "appId": "com.adieuu.desktop",
