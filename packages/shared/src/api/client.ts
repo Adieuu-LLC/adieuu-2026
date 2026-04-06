@@ -674,6 +674,10 @@ export class UsersApi {
   async updatePreferences(prefs: { themeId?: string; customThemes?: import('../types/theme').ThemeDefinition[]; iconPackId?: string }): Promise<ApiResponse<void>> {
     return this.client.put('/api/users/me/preferences', prefs);
   }
+
+  async updateDisplayName(displayName: string): Promise<ApiResponse<{ displayName: string }>> {
+    return this.client.patch('/api/users/me/display-name', { displayName });
+  }
 }
 
 // ============================================================================
@@ -1743,6 +1747,44 @@ export interface ReportResolution {
   resolvedAt: string;
 }
 
+export interface PublicEvidenceAttachment {
+  e2eMediaId: string;
+  encryptionKey: string;
+  encryptionNonce: string;
+  contentType: string;
+  fileName?: string;
+  width?: number;
+  height?: number;
+  sizeBytes?: number;
+}
+
+export interface PublicMessageEvidence {
+  messageId: string;
+  fromIdentityId: string;
+  conversationId: string;
+  decryptedText: string;
+  signatureVerified: boolean;
+  isTargetMessage: boolean;
+  attachments?: PublicEvidenceAttachment[];
+  createdAt: string;
+}
+
+export interface PublicProfileEvidence {
+  identityId: string;
+  displayName: string;
+  username: string;
+  bio?: string;
+  avatarUrl?: string;
+  bannerUrl?: string;
+  snapshotAt: string;
+}
+
+export interface PublicReportEvidence {
+  type: 'message' | 'profile';
+  messageEvidence?: PublicMessageEvidence[];
+  profileEvidence?: PublicProfileEvidence;
+}
+
 export interface PublicReport {
   id: string;
   reportType: ReportType;
@@ -1758,6 +1800,8 @@ export interface PublicReport {
   reporterUserId?: string;
   assignedTo?: string;
   detectionMetadata?: Record<string, unknown>;
+  evidence?: PublicReportEvidence;
+  reporterReason?: string;
   resolution?: ReportResolution;
   closureReason?: string;
   closedBy?: string;
@@ -1785,6 +1829,8 @@ export interface ReportListParams {
   assigned?: 'me' | 'unassigned';
   type?: string;
   category?: string;
+  targetIdentityId?: string;
+  reporterIdentityId?: string;
 }
 
 export interface ReportListResponse {
@@ -1794,9 +1840,21 @@ export interface ReportListResponse {
   limit: number;
 }
 
+export interface ModerationIdentityProfile {
+  displayName: string;
+  username: string;
+  avatarUrl?: string;
+}
+
+export interface ModerationUserProfile {
+  displayName: string;
+}
+
 export interface ReportDetailResponse {
   report: PublicReport;
   events: PublicReportEvent[];
+  identityProfiles: Record<string, ModerationIdentityProfile>;
+  userProfiles: Record<string, ModerationUserProfile>;
 }
 
 export interface ResolveReportParams {
@@ -1807,8 +1865,21 @@ export interface ResolveReportParams {
   banAlias?: boolean;
 }
 
+export interface ModerationModerator {
+  userId: string;
+  displayName: string;
+}
+
+export interface ModeratorsListResponse {
+  moderators: ModerationModerator[];
+}
+
 export class ModerationApi {
   constructor(private client: ApiClient) {}
+
+  async listModerators(): Promise<ApiResponse<ModeratorsListResponse>> {
+    return this.client.get('/api/moderation/moderators');
+  }
 
   async listReports(params?: ReportListParams): Promise<ApiResponse<ReportListResponse>> {
     const qs = new URLSearchParams();
@@ -1818,6 +1889,8 @@ export class ModerationApi {
     if (params?.assigned) qs.set('assigned', params.assigned);
     if (params?.type) qs.set('type', params.type);
     if (params?.category) qs.set('category', params.category);
+    if (params?.targetIdentityId) qs.set('targetIdentityId', params.targetIdentityId);
+    if (params?.reporterIdentityId) qs.set('reporterIdentityId', params.reporterIdentityId);
     const query = qs.toString();
     return this.client.get(`/api/moderation/reports${query ? `?${query}` : ''}`);
   }
@@ -1852,6 +1925,46 @@ export class ModerationApi {
 
   async closeReport(id: string, reason: string): Promise<ApiResponse<PublicReport>> {
     return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/close`, { reason });
+  }
+
+  async reopenReport(id: string, reason?: string): Promise<ApiResponse<PublicReport>> {
+    return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/reopen`, { reason });
+  }
+}
+
+// ============================================================================
+// User Report Submission API Types
+// ============================================================================
+
+export interface SubmitMessageReportParams {
+  type: 'message';
+  targetMessageId: string;
+  category: ReportCategory;
+  reason?: string;
+  /** Map of messageId -> base64-encoded per-message session key */
+  sessionKeys: Record<string, string>;
+}
+
+export interface SubmitProfileReportParams {
+  type: 'profile';
+  targetIdentityId: string;
+  category: ReportCategory;
+  reason?: string;
+}
+
+export interface SubmitReportResponse {
+  reportId: string;
+}
+
+export class ReportsApi {
+  constructor(private client: ApiClient) {}
+
+  async submitMessageReport(params: SubmitMessageReportParams): Promise<ApiResponse<SubmitReportResponse>> {
+    return this.client.post('/api/reports', params);
+  }
+
+  async submitProfileReport(params: SubmitProfileReportParams): Promise<ApiResponse<SubmitReportResponse>> {
+    return this.client.post('/api/reports', params);
   }
 }
 
@@ -2491,6 +2604,7 @@ export function createApiClient(config: ApiClientConfig) {
     notifications: new NotificationsApi(client),
     admin: new AdminApi(client),
     moderation: new ModerationApi(client),
+    reports: new ReportsApi(client),
     themes: new ThemesApi(client),
     uploads: new UploadApi(client),
     e2eUploads: new E2EUploadApi(client),

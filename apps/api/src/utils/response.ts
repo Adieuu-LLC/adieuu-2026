@@ -78,6 +78,8 @@ export interface ApiErrorResponse {
     details?: {
       maxBytes?: number;
       moderationReason?: string;
+      moderationReportId?: string;
+      suspendedUntil?: string;
     };
   };
   /** Response metadata */

@@ -57,6 +57,52 @@ export interface ReportResolution {
   resolvedAt: Date;
 }
 
+// ---------------------------------------------------------------------------
+// Evidence types for manual user reports
+// ---------------------------------------------------------------------------
+
+export interface EvidenceAttachment {
+  e2eMediaId: string;
+  encryptionKey: string;
+  encryptionNonce: string;
+  contentType: string;
+  fileName?: string;
+  width?: number;
+  height?: number;
+  sizeBytes?: number;
+}
+
+export interface MessageEvidence {
+  messageId: string;
+  fromIdentityId: string;
+  conversationId: string;
+  decryptedText: string;
+  signatureVerified: boolean;
+  isTargetMessage: boolean;
+  attachments?: EvidenceAttachment[];
+  createdAt: string;
+}
+
+export interface ProfileEvidence {
+  identityId: string;
+  displayName: string;
+  username: string;
+  bio?: string;
+  avatarUrl?: string;
+  bannerUrl?: string;
+  snapshotAt: string;
+}
+
+export interface ReportEvidence {
+  type: 'message' | 'profile';
+  messageEvidence?: MessageEvidence[];
+  profileEvidence?: ProfileEvidence;
+}
+
+// ---------------------------------------------------------------------------
+// Report document
+// ---------------------------------------------------------------------------
+
 export interface ReportDocument extends BaseDocument {
   reportType: ReportType;
   source: ReportSource;
@@ -87,6 +133,12 @@ export interface ReportDocument extends BaseDocument {
   /** Automated detection metadata (e.g. Rekognition labels with confidences) */
   detectionMetadata?: Record<string, unknown>;
 
+  /** Cryptographically verified evidence for manual user reports */
+  evidence?: ReportEvidence;
+
+  /** Free-text reason supplied by the reporter (manual reports only) */
+  reporterReason?: string;
+
   /** Idempotency key to prevent duplicate automated reports */
   idempotencyKey?: string;
 
@@ -114,5 +166,7 @@ export interface CreateReportInput {
   reporterIdentityId?: string;
   reporterUserId?: string;
   detectionMetadata?: Record<string, unknown>;
+  evidence?: ReportEvidence;
+  reporterReason?: string;
   idempotencyKey?: string;
 }

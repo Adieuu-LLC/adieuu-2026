@@ -18,9 +18,11 @@ import {
   verifyPhoneNumber,
 } from './controller';
 import { getSessionFromRequest } from '../../services/session.service';
+import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
 import { getClientIp } from '../auth/controller';
 import { z, UserThemePreferencesSchema } from '@adieuu/shared/schemas';
 import { getUserPreferencesRepository } from '../../repositories/user-preferences.repository';
+import { getUserRepository } from '../../repositories/user.repository';
 
 const router = new Router();
 
@@ -373,6 +375,32 @@ router.put('/users/me/preferences', async (ctx) => {
   await repo.upsert(session.userId, parseResult.data);
 
   return success(undefined, 'Preferences updated.');
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /users/me/display-name — update moderator display name
+// ---------------------------------------------------------------------------
+
+const DisplayNameSchema = z.object({
+  displayName: z.string().min(1).max(50).trim(),
+});
+
+router.patch('/users/me/display-name', async (ctx) => {
+  const session = await getSessionFromRequest(ctx.request);
+  if (!session?.userId) return ctx.errors.unauthorized();
+
+  const caps = await getPlatformCapabilities(session.userId);
+  const isModerator = caps.isPlatformModerator || caps.isPlatformAdmin;
+  if (!isModerator) return ctx.errors.forbidden();
+
+  const body = DisplayNameSchema.safeParse(ctx.body);
+  if (!body.success) return ctx.errors.validationFailed();
+
+  const repo = getUserRepository();
+  const updated = await repo.updateById(session.userId, { displayName: body.data.displayName });
+  if (!updated) return ctx.errors.notFound();
+
+  return success({ displayName: updated.displayName });
 });
 
 export const userRoutes = router;

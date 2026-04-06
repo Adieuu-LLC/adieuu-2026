@@ -3123,6 +3123,74 @@ a {
 }
 
 // ============================================================================
+// Suspension Modal
+// ============================================================================
+
+.suspension-modal {
+  max-width: 460px;
+
+  &-title {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  &-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  &-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+
+  &-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xxs);
+  }
+
+  &-label {
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-tertiary);
+  }
+
+  &-value {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+  }
+
+  &-code {
+    font-family: var(--font-mono);
+    font-size: var(--font-size-xs);
+    background: var(--color-bg-tertiary);
+    padding: var(--spacing-xxs) var(--spacing-xs);
+    border-radius: var(--radius-sm);
+    user-select: all;
+    word-break: break-all;
+  }
+
+  &-appeal {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    margin-top: var(--spacing-xs);
+  }
+
+  &-email {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+
+// ============================================================================
 // Invite Member Modal
 // ============================================================================
 
@@ -11579,6 +11647,84 @@ body {
 }
 
 // ============================================================================
+// Report Modal Select (Ark UI)
+// ============================================================================
+
+.report-select-control {
+  display: flex;
+  flex-direction: column;
+}
+
+.report-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  outline: none;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-text-muted);
+  }
+
+  &:focus {
+    border-color: var(--color-accent-primary);
+    box-shadow: 0 0 0 3px var(--color-accent-glow);
+  }
+
+  &[data-placeholder] {
+    color: var(--color-text-muted);
+  }
+}
+
+.report-select-indicator {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+.report-select-content {
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-xs);
+  z-index: calc(var(--z-modal) + 10);
+}
+
+.report-select-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+
+  &[data-state='checked'] {
+    color: var(--color-accent-primary);
+  }
+}
+
+.report-select-item-indicator {
+  color: var(--color-accent-primary);
+  flex-shrink: 0;
+}
+
+// ============================================================================
 // Profile View (read-only public profile page)
 // ============================================================================
 
@@ -11791,6 +11937,34 @@ body {
 
   dd {
     margin: 0;
+  }
+}
+
+.moderation-copyable-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-xs, 2px);
+  transition: color 0.15s ease, opacity 0.15s ease;
+
+  svg {
+    opacity: 0.35;
+    flex-shrink: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  &:hover {
+    color: var(--color-accent-primary);
+
+    svg {
+      opacity: 0.8;
+    }
   }
 }
 

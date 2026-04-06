@@ -92,6 +92,12 @@ export function AccountOverview() {
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // Moderator display name
+  const isModerator = session?.isPlatformModerator || session?.isPlatformAdmin;
+  const [editingDisplayName, setEditingDisplayName] = useState(false);
+  const [displayNameInput, setDisplayNameInput] = useState('');
+  const [savingDisplayName, setSavingDisplayName] = useState(false);
+
   // Load profile on mount
   const loadProfile = useCallback(async () => {
     try {
@@ -240,6 +246,25 @@ export function AccountOverview() {
     setEditMode('phone');
     setPhoneInput(profile?.phone ?? '');
     setActionError(null);
+  };
+
+  const handleSaveDisplayName = async () => {
+    if (!displayNameInput.trim()) return;
+    setSavingDisplayName(true);
+    try {
+      const res = await api.users.updateDisplayName(displayNameInput.trim());
+      if (res.success && res.data) {
+        setProfile((prev) => prev ? { ...prev, displayName: res.data!.displayName } : prev);
+        setEditingDisplayName(false);
+        toast.success(t('account.overview.moderatorDisplayNameSaved'));
+      } else {
+        toast.error(t('account.overview.moderatorDisplayNameError'));
+      }
+    } catch {
+      toast.error(t('account.overview.moderatorDisplayNameError'));
+    } finally {
+      setSavingDisplayName(false);
+    }
   };
 
   // Render verification status badge
@@ -554,6 +579,58 @@ export function AccountOverview() {
                   {t('account.overview.roleUser')}
                 </span>
               </div>
+
+              {/* Moderator display name (only for mods/admins) */}
+              {isModerator && (
+                <div className="account-detail-row">
+                  <span className="account-detail-label">{t('account.overview.moderatorDisplayName')}</span>
+                  <div className="account-detail-content">
+                    {editingDisplayName ? (
+                      <div className="account-edit-form">
+                        <Input
+                          value={displayNameInput}
+                          onChange={(e) => setDisplayNameInput(e.target.value)}
+                          placeholder={t('account.overview.moderatorDisplayNamePlaceholder')}
+                          disabled={savingDisplayName}
+                          maxLength={50}
+                        />
+                        <span className="input-hint">{t('account.overview.moderatorDisplayNameHint')}</span>
+                        <div className="account-edit-actions">
+                          <Button
+                            onClick={() => setEditingDisplayName(false)}
+                            className="btn btn-ghost btn-sm"
+                            disabled={savingDisplayName}
+                          >
+                            {t('common.cancel')}
+                          </Button>
+                          <Button
+                            onClick={handleSaveDisplayName}
+                            className="btn btn-primary btn-sm"
+                            disabled={savingDisplayName || !displayNameInput.trim()}
+                          >
+                            {savingDisplayName ? <Spinner size="sm" /> : t('common.save')}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="account-detail-display">
+                        <Button
+                          onClick={() => {
+                            setDisplayNameInput(profile?.displayName ?? '');
+                            setEditingDisplayName(true);
+                          }}
+                          className="btn btn-ghost btn-sm account-edit-btn"
+                        >
+                          {profile?.displayName ? t('common.edit') : t('account.overview.add')}
+                        </Button>
+                        <span className={`account-detail-value ${!profile?.displayName ? 'account-detail-muted' : ''}`}>
+                          {profile?.displayName || t('common.notSet')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </Card>

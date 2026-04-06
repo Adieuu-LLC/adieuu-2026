@@ -13,6 +13,8 @@ import { getSessionFromRequest } from '../../services/session.service';
 import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
 import { getReportRepository } from '../../repositories/report.repository';
 import { getReportEventRepository } from '../../repositories/report-event.repository';
+import { getIdentityRepository } from '../../repositories/identity.repository';
+import { getUserRepository } from '../../repositories/user.repository';
 import { executeEnforcement } from '../../services/moderation-enforcement.service';
 import { PLATFORM_PERMISSIONS } from '../../constants/platform-permissions';
 import { REPORT_CATEGORIES, REPORT_STATUSES, type ReportStatus } from '../../models/report';
@@ -60,6 +62,8 @@ function toPublicReport(doc: Record<string, unknown>) {
     reporterUserId: doc.reporterUserId,
     assignedTo: doc.assignedTo,
     detectionMetadata: doc.detectionMetadata,
+    evidence: doc.evidence,
+    reporterReason: doc.reporterReason,
     resolution: doc.resolution,
     closureReason: doc.closureReason,
     closedBy: doc.closedBy,
@@ -100,6 +104,8 @@ router.get('/moderation/reports', async (ctx): Promise<Response> => {
   const assignedParam = url.searchParams.get('assigned');
   const typeParam = url.searchParams.get('type');
   const categoryParam = url.searchParams.get('category');
+  const targetIdentityParam = url.searchParams.get('targetIdentityId');
+  const reporterIdentityParam = url.searchParams.get('reporterIdentityId');
 
   const filter: Record<string, unknown> = {};
   if (statusParam) {
@@ -111,6 +117,8 @@ router.get('/moderation/reports', async (ctx): Promise<Response> => {
   else if (assignedParam === 'me') filter.assignedTo = auth.session.userId;
   if (typeParam) filter.reportType = typeParam;
   if (categoryParam) filter.category = categoryParam;
+  if (targetIdentityParam) filter.targetIdentityId = targetIdentityParam;
+  if (reporterIdentityParam) filter.reporterIdentityId = reporterIdentityParam;
 
   const repo = getReportRepository();
   const result = await repo.list({ filter, page, limit });
@@ -141,10 +149,162 @@ router.get('/moderation/reports/:id', async (ctx): Promise<Response> => {
   const eventRepo = getReportEventRepository();
   const events = await eventRepo.listByReportId(id, { includeInternal: true });
 
+  // Collect all unique identity IDs referenced in this report
+  const identityIds = new Set<string>();
+  if (report.targetIdentityId) identityIds.add(report.targetIdentityId);
+  if (report.reporterIdentityId) identityIds.add(report.reporterIdentityId);
+  if (report.evidence?.messageEvidence) {
+    for (const msg of report.evidence.messageEvidence) {
+      identityIds.add(msg.fromIdentityId);
+    }
+  }
+
+  // Collect all unique user IDs from events and resolution (moderators)
+  const userIds = new Set<string>();
+  for (const ev of events) {
+    const actorId = (ev as unknown as Record<string, unknown>).actorUserId as string | undefined;
+    if (actorId) userIds.add(actorId);
+  }
+  if (report.resolution?.resolvedBy) userIds.add(report.resolution.resolvedBy);
+  if (report.closedBy) userIds.add(report.closedBy);
+  if (report.escalatedBy) userIds.add(report.escalatedBy);
+  if (report.assignedTo) userIds.add(report.assignedTo);
+
+  // Resolve identity profiles (alias-level only — no user/account data)
+  const identityRepo = getIdentityRepository();
+  const identityProfiles: Record<string, { displayName: string; username: string; avatarUrl?: string }> = {};
+  await Promise.all(
+    [...identityIds].map(async (iid) => {
+      try {
+        const identity = await identityRepo.findByIdentityId(iid);
+        if (identity) {
+          identityProfiles[iid] = {
+            displayName: identity.displayName ?? '',
+            username: identity.username ?? '',
+            avatarUrl: identity.avatarUrl,
+          };
+        }
+      } catch { /* identity not found — skip */ }
+    }),
+  );
+
+  // Resolve moderator user profiles (displayName only)
+  const userRepo = getUserRepository();
+  const userProfiles: Record<string, { displayName: string }> = {};
+  await Promise.all(
+    [...userIds].map(async (uid) => {
+      try {
+        const user = await userRepo.findById(uid);
+        if (user) {
+          userProfiles[uid] = {
+            displayName: user.displayName ?? '',
+          };
+        }
+      } catch { /* user not found — skip */ }
+    }),
+  );
+
   return success({
     report: toPublicReport(report as unknown as Record<string, unknown>),
     events: events.map((e) => toPublicEvent(e as unknown as Record<string, unknown>)),
+    identityProfiles,
+    userProfiles,
   });
+});
+
+// ---------------------------------------------------------------------------
+// GET /moderation/moderators — list all users with moderation permissions
+// ---------------------------------------------------------------------------
+
+router.get('/moderation/moderators', async (ctx): Promise<Response> => {
+  const auth = await requireModeratorSession(ctx.request, ctx.errors);
+  if (!auth.ok) return auth.error;
+
+  const { getPlatformSettingsRepository } = await import('../../repositories/platform-settings.repository');
+  const settingsRepo = getPlatformSettingsRepository();
+  const userRepo = getUserRepository();
+
+  const idSet = new Set<string>();
+
+  const adminDoc = await settingsRepo.findByKey('platform-admin-account-list');
+  if (adminDoc?.valueType === 'objectIdArray' && Array.isArray(adminDoc.value)) {
+    for (const entry of adminDoc.value) {
+      const hex = entry instanceof ObjectId ? entry.toHexString() : typeof entry === 'string' ? entry : null;
+      if (hex && isValidObjectId(hex)) idSet.add(hex.toLowerCase());
+    }
+  }
+
+  const modDoc = await settingsRepo.findByKey('platform-moderator-account-list');
+  if (modDoc?.valueType === 'objectIdArray' && Array.isArray(modDoc.value)) {
+    for (const entry of modDoc.value) {
+      const hex = entry instanceof ObjectId ? entry.toHexString() : typeof entry === 'string' ? entry : null;
+      if (hex && isValidObjectId(hex)) idSet.add(hex.toLowerCase());
+    }
+  }
+
+  const moderators: { userId: string; displayName: string }[] = [];
+  await Promise.all(
+    [...idSet].map(async (uid) => {
+      try {
+        const user = await userRepo.findById(uid);
+        if (user) {
+          moderators.push({ userId: uid, displayName: user.displayName ?? '' });
+        }
+      } catch { /* skip */ }
+    }),
+  );
+
+  moderators.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  return success({ moderators });
+});
+
+// ---------------------------------------------------------------------------
+// POST /moderation/reports/:id/reopen
+// ---------------------------------------------------------------------------
+
+const ReopenSchema = z.object({
+  reason: z.string().min(1).max(4000).optional(),
+});
+
+router.post('/moderation/reports/:id/reopen', async (ctx): Promise<Response> => {
+  const auth = await requireModeratorSession(ctx.request, ctx.errors);
+  if (!auth.ok) return auth.error;
+
+  const canUpdate =
+    auth.caps.permissions.includes(PLATFORM_PERMISSIONS.UPDATE_CONTENT_REPORTS) ||
+    auth.caps.permissions.includes(PLATFORM_PERMISSIONS.UPDATE_ABUSE_REPORTS);
+  if (!canUpdate) return ctx.errors.forbidden();
+
+  const id = ctx.params.id;
+  if (!id || !isValidObjectId(id)) return ctx.errors.badRequest();
+
+  const body = ReopenSchema.safeParse(ctx.body);
+  if (!body.success) return ctx.errors.validationFailed();
+
+  const repo = getReportRepository();
+  const report = await repo.findById(id);
+  if (!report) return ctx.errors.notFound();
+
+  if (report.status !== 'resolved' && report.status !== 'closed') {
+    return ctx.errors.badRequest();
+  }
+
+  const updated = await repo.reopen(id, auth.session.userId);
+  if (!updated) return ctx.errors.notFound();
+
+  const eventRepo = getReportEventRepository();
+  await eventRepo.createEvent({
+    reportId: new ObjectId(id),
+    eventType: 'status_change',
+    actorUserId: auth.session.userId,
+    body: body.data.reason
+      ? `Report reopened for review: ${body.data.reason}`
+      : 'Report reopened for review',
+    metadata: { from: report.status, to: 'open' },
+  });
+
+  return success(toPublicReport(updated as unknown as Record<string, unknown>));
 });
 
 // ---------------------------------------------------------------------------
@@ -164,15 +324,22 @@ router.post('/moderation/reports/:id/assign', async (ctx): Promise<Response> => 
   if (!body.success) return ctx.errors.validationFailed();
 
   const repo = getReportRepository();
+  const report = await repo.findById(id);
+  if (!report) return ctx.errors.notFound();
+
   const updated = await repo.assign(id, body.data.userId);
   if (!updated) return ctx.errors.notFound();
 
+  const previousAssignee = report.assignedTo ?? null;
   const eventRepo = getReportEventRepository();
   await eventRepo.createEvent({
     reportId: new ObjectId(id),
     eventType: 'assignment_change',
     actorUserId: auth.session.userId,
-    metadata: { assignedTo: body.data.userId },
+    body: previousAssignee
+      ? `Reassigned from ${previousAssignee.slice(0, 8)}… to ${body.data.userId.slice(0, 8)}…`
+      : `Assigned to ${body.data.userId.slice(0, 8)}…`,
+    metadata: { from: previousAssignee, assignedTo: body.data.userId },
   });
 
   return success(toPublicReport(updated as unknown as Record<string, unknown>));
@@ -190,15 +357,22 @@ router.post('/moderation/reports/:id/unassign', async (ctx): Promise<Response> =
   if (!id || !isValidObjectId(id)) return ctx.errors.badRequest();
 
   const repo = getReportRepository();
+  const report = await repo.findById(id);
+  if (!report) return ctx.errors.notFound();
+
   const updated = await repo.unassign(id);
   if (!updated) return ctx.errors.notFound();
 
+  const previousAssignee = report.assignedTo ?? null;
   const eventRepo = getReportEventRepository();
   await eventRepo.createEvent({
     reportId: new ObjectId(id),
     eventType: 'assignment_change',
     actorUserId: auth.session.userId,
-    metadata: { assignedTo: null },
+    body: previousAssignee
+      ? `Unassigned from ${previousAssignee.slice(0, 8)}…`
+      : 'Unassigned',
+    metadata: { from: previousAssignee, assignedTo: null },
   });
 
   return success(toPublicReport(updated as unknown as Record<string, unknown>));

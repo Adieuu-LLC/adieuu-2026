@@ -119,12 +119,26 @@ export {
   ModerationApi,
   type PublicReport,
   type PublicReportEvent,
+  type PublicReportEvidence,
+  type PublicMessageEvidence,
+  type PublicProfileEvidence,
+  type PublicEvidenceAttachment,
   type ReportListParams,
   type ReportListResponse,
   type ReportDetailResponse,
+  type ModerationIdentityProfile,
+  type ModerationUserProfile,
   type ResolveReportParams,
+  type ModerationModerator,
+  type ModeratorsListResponse,
   type ReportType,
   type ReportSource,
+  type ReportCategory,
+  // User report submission types
+  ReportsApi,
+  type SubmitMessageReportParams,
+  type SubmitProfileReportParams,
+  type SubmitReportResponse,
 } from './client';
 
 export {

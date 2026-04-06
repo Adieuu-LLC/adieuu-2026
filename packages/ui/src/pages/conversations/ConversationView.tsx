@@ -28,6 +28,7 @@ import { AdminTransferDialog } from '../../components/AdminTransferDialog';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
 import { EmojiPicker } from '../../components/EmojiPicker';
+import { ReportModal } from '../../components/ReportModal';
 import { Tooltip } from '../../components/Tooltip';
 import { useToast } from '../../components/Toast';
 import { Icon } from '../../icons/Icon';
@@ -235,6 +236,7 @@ function MessageActionBar({
   onDeleteForSelf,
   onDeleteForEveryone,
   onReact,
+  onReport,
   favoriteEmojis,
   onAddFavorite,
   onRemoveFavorite,
@@ -245,6 +247,7 @@ function MessageActionBar({
   onDeleteForSelf: () => void;
   onDeleteForEveryone: () => void;
   onReact: (emoji: string) => void;
+  onReport?: () => void;
   favoriteEmojis: string[];
   onAddFavorite: (emoji: string) => void;
   onRemoveFavorite: (emoji: string) => void;
@@ -375,6 +378,29 @@ function MessageActionBar({
             <Icon name="trash" className="message-action-bar-icon" style={{ color: 'var(--color-error)' }} />
           </button>
         </Tooltip>
+      )}
+      {onReport && (
+        <Menu.Root>
+          <Menu.Trigger asChild>
+            <button type="button" className="message-action-bar-btn" aria-label="More actions">
+              <Icon name="ellipsis" className="message-action-bar-icon" />
+            </button>
+          </Menu.Trigger>
+          <Portal>
+            <Menu.Positioner>
+              <Menu.Content className="dm-context-menu">
+                <Menu.Item
+                  value="report"
+                  className="dm-context-menu-item dm-context-menu-item--danger"
+                  onClick={onReport}
+                >
+                  <Icon name="warning" className="dm-context-menu-item-icon" />
+                  {t('report.reportMessage', 'Report Message')}
+                </Menu.Item>
+              </Menu.Content>
+            </Menu.Positioner>
+          </Portal>
+        </Menu.Root>
       )}
     </div>
   );
@@ -729,6 +755,7 @@ const MessageBubble = memo(function MessageBubble({
   onDelete,
   onReact,
   onToggleReaction,
+  onReport,
   groupedReactions,
   favoriteEmojis,
   onAddFavorite,
@@ -749,6 +776,7 @@ const MessageBubble = memo(function MessageBubble({
   onDelete: (messageId: string, forEveryone: boolean) => void;
   onReact: (messageId: string, emoji: string) => void;
   onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
+  onReport: (messageId: string) => void;
   groupedReactions: GroupedReaction[];
   favoriteEmojis: string[];
   onAddFavorite: (emoji: string) => void;
@@ -784,6 +812,7 @@ const MessageBubble = memo(function MessageBubble({
 
   function handleContextAction(details: { value: string }) {
     if (details.value === 'reply') onReply?.();
+    else if (details.value === 'report') onReport(message.id);
     else if (details.value === 'delete-for-me') onDelete(message.id, false);
     else if (details.value === 'delete-for-everyone') onDelete(message.id, true);
     else if (details.value === 'react') {
@@ -809,6 +838,12 @@ const MessageBubble = memo(function MessageBubble({
             <Icon name="smilePlus" className="dm-context-menu-item-icon" />
             React
           </Menu.Item>
+          {!isOwn && !message.deleted && (
+            <Menu.Item value="report" className="dm-context-menu-item dm-context-menu-item--danger">
+              <Icon name="warning" className="dm-context-menu-item-icon" />
+              {t('report.reportMessage', 'Report Message')}
+            </Menu.Item>
+          )}
           <Menu.Item value="delete-for-me" className="dm-context-menu-item">
             <Icon name="trash" className="dm-context-menu-item-icon" />
             Delete for me
@@ -984,6 +1019,7 @@ const MessageBubble = memo(function MessageBubble({
             onDeleteForSelf={() => onDelete(message.id, false)}
             onDeleteForEveryone={() => onDelete(message.id, true)}
             onReact={(emoji) => onReact(message.id, emoji)}
+            onReport={!isOwn ? () => onReport(message.id) : undefined}
             favoriteEmojis={favoriteEmojis}
             onAddFavorite={onAddFavorite}
             onRemoveFavorite={onRemoveFavorite}
@@ -1048,6 +1084,7 @@ const MessageBubble = memo(function MessageBubble({
             onDeleteForSelf={() => onDelete(message.id, false)}
             onDeleteForEveryone={() => onDelete(message.id, true)}
             onReact={(emoji) => onReact(message.id, emoji)}
+            onReport={!isOwn ? () => onReport(message.id) : undefined}
             favoriteEmojis={favoriteEmojis}
             onAddFavorite={onAddFavorite}
             onRemoveFavorite={onRemoveFavorite}
@@ -2138,6 +2175,17 @@ export function ConversationView() {
     [id, deleteMessage]
   );
 
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportTargetMessageId, setReportTargetMessageId] = useState<string | undefined>();
+
+  const handleReportMessage = useCallback(
+    (messageId: string) => {
+      setReportTargetMessageId(messageId);
+      setReportModalOpen(true);
+    },
+    []
+  );
+
   const fsInfo = useMemo(() => {
     const levelConfig = SECURITY_LEVEL_CONFIG[fsConfig.securityLevel];
     const rotationLabel = formatRotationInterval(levelConfig.spkRotationIntervalMs);
@@ -2410,6 +2458,7 @@ export function ConversationView() {
                         onDelete={handleDeleteMessage}
                         onReact={handleReact}
                         onToggleReaction={handleToggleReaction}
+                        onReport={handleReportMessage}
                         groupedReactions={getGroupedReactions(msg.id)}
                         favoriteEmojis={favoriteEmojis}
                         onAddFavorite={addFavorite}
@@ -2736,6 +2785,14 @@ export function ConversationView() {
           })}
         />
       )}
+
+      {/* Report message modal */}
+      <ReportModal
+        open={reportModalOpen}
+        onOpenChange={setReportModalOpen}
+        mode="message"
+        targetMessageId={reportTargetMessageId}
+      />
     </div>
   );
 }

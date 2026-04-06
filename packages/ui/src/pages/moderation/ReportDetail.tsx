@@ -1,10 +1,143 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
-import { createApiClient, type PublicReport, type PublicReportEvent } from '@adieuu/shared';
+import {
+  createApiClient,
+  type PublicReport,
+  type PublicReportEvent,
+  type ModerationIdentityProfile,
+  type ModerationUserProfile,
+  type ModerationModerator,
+} from '@adieuu/shared';
+import { Select, Portal, createListCollection } from '@ark-ui/react';
 import { useAppConfig } from '../../config';
 import { useAuth } from '../../hooks/useAuth';
+import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
+import { Icon } from '../../icons/Icon';
+import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function formatIdentity(
+  id: string | undefined,
+  profiles: Record<string, ModerationIdentityProfile>,
+  fallbackLabel: string,
+): string {
+  if (!id) return '—';
+  const p = profiles[id];
+  if (p?.displayName || p?.username) {
+    const name = p.displayName || p.username;
+    const username = p.username ? `@${p.username}` : '';
+    return `${name} ${username} (${id.slice(0, 8)}…)`.trim();
+  }
+  return `${fallbackLabel} (${id.slice(0, 8)}…)`;
+}
+
+function formatUser(
+  id: string | undefined,
+  profiles: Record<string, ModerationUserProfile>,
+  fallbackLabel: string,
+): string {
+  if (!id) return '—';
+  const p = profiles[id];
+  if (p?.displayName) return `${p.displayName} (${id.slice(0, 8)}…)`;
+  return `${fallbackLabel} ${id.slice(0, 8)}…`;
+}
+
+// ---------------------------------------------------------------------------
+// History sub-component (used for Target History and Reporter History tabs)
+// ---------------------------------------------------------------------------
+
+function ReportHistoryTab({
+  identityId,
+  currentReportId,
+  filterKey,
+}: {
+  identityId: string | undefined;
+  currentReportId: string;
+  filterKey: 'targetIdentityId' | 'reporterIdentityId';
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { apiBaseUrl } = useAppConfig();
+  const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+
+  const [reports, setReports] = useState<PublicReport[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!identityId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const params = { [filterKey]: identityId, limit: 25 };
+    api.moderation.listReports(params).then((res) => {
+      if (res.success && res.data) {
+        setReports(res.data.reports.filter((r) => r.id !== currentReportId));
+      }
+      setLoading(false);
+    });
+  }, [api, identityId, filterKey, currentReportId]);
+
+  if (!identityId) {
+    return <p style={{ opacity: 0.6, fontSize: '0.875rem' }}>{t('moderation.detail.historyEmpty')}</p>;
+  }
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+        <span className="spinner spinner-lg" />
+      </div>
+    );
+  }
+
+  if (reports.length === 0) {
+    return <p style={{ opacity: 0.6, fontSize: '0.875rem' }}>{t('moderation.detail.historyEmpty')}</p>;
+  }
+
+  return (
+    <div className="admin-card" style={{ overflow: 'auto', padding: 0 }}>
+      <table className="admin-table">
+        <thead>
+          <tr>
+            <th>{t('moderation.reports.col.status')}</th>
+            <th>{t('moderation.reports.col.category')}</th>
+            <th>{t('moderation.reports.col.source')}</th>
+            <th>{t('moderation.reports.col.created')}</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {reports.map((r) => (
+            <tr key={r.id} className="moderation-report-row">
+              <td>
+                <span className={`moderation-status-badge moderation-status-${r.status}`}>
+                  {t(`moderation.reports.status.${r.status}`)}
+                </span>
+              </td>
+              <td>{t(`moderation.reports.category.${r.category}`, r.category)}</td>
+              <td>{r.source === 'automated_rekognition' ? t('moderation.reports.sourceAuto') : t('moderation.reports.sourceManual')}</td>
+              <td>{new Date(r.createdAt).toLocaleDateString()}</td>
+              <td>
+                <Button variant="ghost" size="sm" onClick={() => navigate(`/moderation/reports/${r.id}`)}>
+                  {t('moderation.detail.historyViewReport')}
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 export function ReportDetail() {
   const { t } = useTranslation();
@@ -16,15 +149,15 @@ export function ReportDetail() {
 
   const [report, setReport] = useState<PublicReport | null>(null);
   const [events, setEvents] = useState<PublicReportEvent[]>([]);
+  const [identityProfiles, setIdentityProfiles] = useState<Record<string, ModerationIdentityProfile>>({});
+  const [userProfiles, setUserProfiles] = useState<Record<string, ModerationUserProfile>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Comment form
   const [commentBody, setCommentBody] = useState('');
   const [commentVisibility, setCommentVisibility] = useState<'internal' | 'public'>('internal');
 
-  // Resolve form
   const [showResolve, setShowResolve] = useState(false);
   const [resolveReason, setResolveReason] = useState('');
   const [resolveRemove, setResolveRemove] = useState(true);
@@ -32,13 +165,19 @@ export function ReportDetail() {
   const [resolveSuspendMs, setResolveSuspendMs] = useState(0);
   const [resolveBan, setResolveBan] = useState(false);
 
-  // Close form
   const [showClose, setShowClose] = useState(false);
   const [closeReason, setCloseReason] = useState('');
 
-  // Category edit
+  const [showReopen, setShowReopen] = useState(false);
+  const [reopenReason, setReopenReason] = useState('');
+
   const [editingCategory, setEditingCategory] = useState(false);
   const [newCategory, setNewCategory] = useState('');
+
+  const [moderators, setModerators] = useState<ModerationModerator[]>([]);
+  const [moderatorsLoaded, setModeratorsLoaded] = useState(false);
+
+  const toast = useToast();
 
   const canManage =
     session?.platformPermissions?.includes('update-content-reports') ||
@@ -48,13 +187,11 @@ export function ReportDetail() {
   const canManageEscalated =
     session?.platformPermissions?.includes('manage-escalated-reports') || false;
 
-  const isActionable =
-    report?.status === 'open' || report?.status === 'escalated';
+  const isActionable = report?.status === 'open' || report?.status === 'escalated';
+  const isReopenable = (report?.status === 'resolved' || report?.status === 'closed') && canManage;
 
   const canActOnThis =
-    isActionable &&
-    canManage &&
-    (report?.status !== 'escalated' || canManageEscalated);
+    isActionable && canManage && (report?.status !== 'escalated' || canManageEscalated);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -64,6 +201,8 @@ export function ReportDetail() {
     if (res.success && res.data) {
       setReport(res.data.report);
       setEvents(res.data.events);
+      setIdentityProfiles(res.data.identityProfiles ?? {});
+      setUserProfiles(res.data.userProfiles ?? {});
     } else {
       setError(t('moderation.detail.loadError'));
     }
@@ -72,31 +211,12 @@ export function ReportDetail() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Action handlers (unchanged logic, using same API calls)
   const handleEscalate = async () => {
     if (!id) return;
     setActionLoading(true);
-    const res = await api.moderation.escalateReport(id);
-    if (res.success && res.data) setReport(res.data);
+    await api.moderation.escalateReport(id);
     await load();
-    setActionLoading(false);
-  };
-
-  const handleAssignToMe = async () => {
-    if (!id || !session) return;
-    setActionLoading(true);
-    // session doesn't have userId directly, but the API reads it server-side
-    // We'll use a special "me" sentinel that the API can handle
-    // Actually, the API requires a userId. Let's pass the session identifier.
-    // The admin routes use a direct userId string from the settings list.
-    // For moderator self-assign, we need the backend to resolve from session.
-    // Simplest approach: the assign endpoint already gets session from cookie.
-    // Let's add a self-assign shortcut — passing "me" and resolving server-side.
-    // For now, we use the API as-is. The userId is the session.userId which isn't
-    // exposed to the client. We'll create a dedicated self-assign endpoint.
-    // Actually, let's just call assign with a placeholder and let the server know.
-    // The simplest correct approach: we'll just do unassign/escalate for now,
-    // and note that assign-to-me will need the userId in the session or a dedicated endpoint.
-    // For the MVP, we skip self-assign in the UI — moderators can escalate, comment, resolve, close.
     setActionLoading(false);
   };
 
@@ -152,6 +272,78 @@ export function ReportDetail() {
     }
     setActionLoading(false);
   };
+
+  const handleReopen = async () => {
+    if (!id) return;
+    setActionLoading(true);
+    const res = await api.moderation.reopenReport(id, reopenReason.trim() || undefined);
+    if (res.success && res.data) {
+      setReport(res.data);
+      setShowReopen(false);
+      setReopenReason('');
+      toast.success(t('moderation.detail.reopenSuccess'));
+      await load();
+    }
+    setActionLoading(false);
+  };
+
+  useEffect(() => {
+    if (moderatorsLoaded) return;
+    api.moderation.listModerators().then((res) => {
+      if (res.success && res.data) {
+        setModerators(res.data.moderators);
+      }
+      setModeratorsLoaded(true);
+    });
+  }, [api, moderatorsLoaded]);
+
+  const moderatorCollection = useMemo(
+    () =>
+      createListCollection({
+        items: moderators.map((m) => ({
+          value: m.userId,
+          label: m.displayName || m.userId.slice(0, 8) + '…',
+        })),
+      }),
+    [moderators],
+  );
+
+  const handleAssign = async (userId: string) => {
+    if (!id) return;
+    setActionLoading(true);
+    const res = await api.moderation.assignReport(id, userId);
+    if (res.success) {
+      toast.success(t('moderation.detail.assignSuccess'));
+      await load();
+    }
+    setActionLoading(false);
+  };
+
+  const handleUnassign = async () => {
+    if (!id) return;
+    setActionLoading(true);
+    const res = await api.moderation.unassignReport(id);
+    if (res.success) {
+      toast.success(t('moderation.detail.unassignSuccess'));
+      await load();
+    }
+    setActionLoading(false);
+  };
+
+  const handleCopyAliasId = async (aliasId: string) => {
+    try {
+      await navigator.clipboard.writeText(aliasId);
+      toast.success(t('moderation.detail.copiedAliasId'));
+    } catch {
+      /* clipboard API unavailable */
+    }
+  };
+
+  // Shorthand helpers
+  const fmtId = (identityId: string | undefined) =>
+    formatIdentity(identityId, identityProfiles, t('moderation.detail.unknownAlias'));
+  const fmtUser = (userId: string | undefined) =>
+    formatUser(userId, userProfiles, t('moderation.detail.moderatorFallback'));
 
   if (loading) {
     return (
@@ -231,26 +423,90 @@ export function ReportDetail() {
           {report.targetIdentityId && (
             <>
               <dt>{t('moderation.detail.targetIdentity')}</dt>
-              <dd className="moderation-cell-mono">{report.targetIdentityId}</dd>
+              <dd>
+                <button
+                  type="button"
+                  className="moderation-copyable-id"
+                  onClick={() => handleCopyAliasId(report.targetIdentityId!)}
+                  title={report.targetIdentityId}
+                >
+                  {fmtId(report.targetIdentityId)}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                </button>
+              </dd>
             </>
           )}
           {report.reporterIdentityId && (
             <>
               <dt>{t('moderation.detail.reporter')}</dt>
-              <dd className="moderation-cell-mono">{report.reporterIdentityId}</dd>
+              <dd>
+                <button
+                  type="button"
+                  className="moderation-copyable-id"
+                  onClick={() => handleCopyAliasId(report.reporterIdentityId!)}
+                  title={report.reporterIdentityId}
+                >
+                  {fmtId(report.reporterIdentityId)}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                </button>
+              </dd>
             </>
           )}
           <dt>{t('moderation.detail.created')}</dt>
           <dd>{new Date(report.createdAt).toLocaleString()}</dd>
-          {report.assignedTo && (
-            <>
-              <dt>{t('moderation.detail.assignedTo')}</dt>
-              <dd className="moderation-cell-mono">{report.assignedTo}</dd>
-            </>
-          )}
+          <dt>{t('moderation.detail.assignedTo')}</dt>
+          <dd>
+            {report.assignedTo ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span>{fmtUser(report.assignedTo)}</span>
+                {isActionable && (
+                  <Button variant="ghost" size="sm" onClick={handleUnassign} disabled={actionLoading}>
+                    {t('moderation.detail.unassign')}
+                  </Button>
+                )}
+              </span>
+            ) : (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span>—</span>
+                {isActionable && moderatorsLoaded && moderators.length > 0 && (
+                  <Select.Root
+                    collection={moderatorCollection}
+                    value={[]}
+                    onValueChange={(details) => {
+                      const uid = details.value[0];
+                      if (uid) void handleAssign(uid);
+                    }}
+                    positioning={{ sameWidth: true }}
+                  >
+                    <Select.Control className="report-select-control" style={{ display: 'inline-flex', minWidth: '12rem' }}>
+                      <Select.Trigger className="report-select-trigger" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8125rem' }}>
+                        <Select.ValueText placeholder={t('moderation.detail.assignSelectPlaceholder')} />
+                        <Select.Indicator className="report-select-indicator">
+                          <Icon name="chevronDown" size="xs" />
+                        </Select.Indicator>
+                      </Select.Trigger>
+                    </Select.Control>
+                    <Portal>
+                      <Select.Positioner>
+                        <Select.Content className="report-select-content">
+                          {moderatorCollection.items.map((item) => (
+                            <Select.Item key={item.value} item={item} className="report-select-item">
+                              <Select.ItemText>{item.label}</Select.ItemText>
+                              <Select.ItemIndicator className="report-select-item-indicator">
+                                <Icon name="check" size="xs" />
+                              </Select.ItemIndicator>
+                            </Select.Item>
+                          ))}
+                        </Select.Content>
+                      </Select.Positioner>
+                    </Portal>
+                  </Select.Root>
+                )}
+              </span>
+            )}
+          </dd>
         </dl>
 
-        {/* Detection metadata (Rekog labels etc.) */}
         {report.detectionMetadata && Object.keys(report.detectionMetadata).length > 0 && (
           <details style={{ marginTop: '1rem' }}>
             <summary style={{ cursor: 'pointer', fontSize: '0.875rem', opacity: 0.7 }}>
@@ -262,29 +518,295 @@ export function ReportDetail() {
           </details>
         )}
 
-        {/* Resolution info */}
-        {report.resolution && (
-          <div style={{ marginTop: '1rem', padding: '0.75rem', borderRadius: '0.5rem', background: 'var(--color-surface-alt, rgba(0,0,0,0.05))' }}>
-            <strong>{t('moderation.detail.resolution')}</strong>
-            <p style={{ margin: '0.25rem 0' }}>{report.resolution.reason}</p>
-            <small style={{ opacity: 0.6 }}>
-              {t('moderation.detail.resolvedBy')}: {report.resolution.resolvedBy} &mdash; {new Date(report.resolution.resolvedAt).toLocaleString()}
-            </small>
-          </div>
-        )}
-
-        {report.closureReason && (
-          <div style={{ marginTop: '1rem', padding: '0.75rem', borderRadius: '0.5rem', background: 'var(--color-surface-alt, rgba(0,0,0,0.05))' }}>
-            <strong>{t('moderation.detail.closedLabel')}</strong>
-            <p style={{ margin: '0.25rem 0' }}>{report.closureReason}</p>
-            <small style={{ opacity: 0.6 }}>
-              {t('moderation.detail.closedByLabel')}: {report.closedBy} &mdash; {report.closedAt ? new Date(report.closedAt).toLocaleString() : ''}
-            </small>
+        {report.reporterReason && (
+          <div style={{ marginTop: '1rem' }}>
+            <strong>{t('moderation.detail.reporterReason')}</strong>
+            <p style={{ margin: '0.25rem 0', fontStyle: 'italic' }}>{report.reporterReason}</p>
           </div>
         )}
       </div>
 
-      {/* Actions */}
+      {/* Tabs: Evidence | Target History | Reporter History */}
+      <div className="admin-card">
+        <Tabs defaultTab="evidence">
+          <TabList>
+            <TabTrigger value="evidence">{t('moderation.detail.tabEvidence')}</TabTrigger>
+            <TabTrigger value="target-history">{t('moderation.detail.tabTargetHistory')}</TabTrigger>
+            <TabTrigger value="reporter-history">{t('moderation.detail.tabReporterHistory')}</TabTrigger>
+            <TabTrigger value="timeline">{t('moderation.detail.tabTimeline')}</TabTrigger>
+          </TabList>
+
+          {/* Evidence tab */}
+          <TabContent value="evidence">
+            {/* Message evidence */}
+            {report.evidence?.type === 'message' && report.evidence.messageEvidence && (
+              <>
+                <h3 className="admin-card-title">{t('moderation.detail.evidenceMessages')}</h3>
+                <div className="moderation-evidence-messages">
+                  {report.evidence.messageEvidence.map((msg) => (
+                    <div
+                      key={msg.messageId}
+                      className={`moderation-evidence-message ${msg.isTargetMessage ? 'moderation-evidence-message--target' : ''}`}
+                      style={{
+                        padding: '0.75rem',
+                        borderRadius: '0.5rem',
+                        marginBottom: '0.5rem',
+                        background: msg.isTargetMessage
+                          ? 'var(--color-danger-bg, rgba(220,38,38,0.1))'
+                          : 'var(--color-surface-alt, rgba(0,0,0,0.03))',
+                        border: msg.isTargetMessage ? '1px solid var(--color-danger, #dc2626)' : '1px solid transparent',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', opacity: 0.7, marginBottom: '0.25rem' }}>
+                        <span>
+                          <span>{fmtId(msg.fromIdentityId)}</span>
+                          {msg.isTargetMessage && (
+                            <span style={{ marginLeft: '0.5rem', fontWeight: 600, color: 'var(--color-danger, #dc2626)' }}>
+                              {t('moderation.detail.targetMessage')}
+                            </span>
+                          )}
+                          {!msg.isTargetMessage && (
+                            <span style={{ marginLeft: '0.5rem' }}>
+                              {t('moderation.detail.contextMessage')}
+                            </span>
+                          )}
+                        </span>
+                        <span>{new Date(msg.createdAt).toLocaleString()}</span>
+                      </div>
+                      <p style={{ margin: '0.25rem 0', whiteSpace: 'pre-wrap' }}>{msg.decryptedText}</p>
+                      <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+                        <span style={{ color: msg.signatureVerified ? 'var(--color-success, green)' : 'var(--color-warning, orange)' }}>
+                          {msg.signatureVerified
+                            ? t('moderation.detail.signatureVerified')
+                            : t('moderation.detail.signatureUnverified')}
+                        </span>
+                      </div>
+                      {msg.attachments && msg.attachments.length > 0 && (
+                        <div style={{ marginTop: '0.5rem', fontSize: '0.8125rem' }}>
+                          {msg.attachments.map((att) => (
+                            <span
+                              key={att.e2eMediaId}
+                              className="moderation-evidence-attachment"
+                              style={{
+                                display: 'inline-block',
+                                padding: '0.25rem 0.5rem',
+                                marginRight: '0.25rem',
+                                borderRadius: '0.25rem',
+                                background: 'var(--color-surface-alt, rgba(0,0,0,0.05))',
+                                fontSize: '0.75rem',
+                              }}
+                            >
+                              {att.fileName || att.contentType} ({att.sizeBytes ? `${Math.round(att.sizeBytes / 1024)}KB` : att.e2eMediaId})
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Profile evidence */}
+            {report.evidence?.type === 'profile' && report.evidence.profileEvidence && (
+              <>
+                <h3 className="admin-card-title">{t('moderation.detail.evidenceProfile')}</h3>
+                <p style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>
+                  {t('moderation.detail.profileSnapshot')}
+                </p>
+                <dl className="moderation-detail-grid">
+                  <dt>Display Name</dt>
+                  <dd>{report.evidence.profileEvidence.displayName}</dd>
+                  <dt>Username</dt>
+                  <dd>@{report.evidence.profileEvidence.username}</dd>
+                  {report.evidence.profileEvidence.bio && (
+                    <>
+                      <dt>Bio</dt>
+                      <dd>{report.evidence.profileEvidence.bio}</dd>
+                    </>
+                  )}
+                  {report.evidence.profileEvidence.avatarUrl && (
+                    <>
+                      <dt>Avatar</dt>
+                      <dd>
+                        <img
+                          src={report.evidence.profileEvidence.avatarUrl}
+                          alt="avatar"
+                          style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover' }}
+                        />
+                      </dd>
+                    </>
+                  )}
+                  {report.evidence.profileEvidence.bannerUrl && (
+                    <>
+                      <dt>Banner</dt>
+                      <dd>
+                        <img
+                          src={report.evidence.profileEvidence.bannerUrl}
+                          alt="banner"
+                          style={{ width: 256, height: 64, borderRadius: '0.5rem', objectFit: 'cover' }}
+                        />
+                      </dd>
+                    </>
+                  )}
+                  <dt>Snapshot At</dt>
+                  <dd>{new Date(report.evidence.profileEvidence.snapshotAt).toLocaleString()}</dd>
+                </dl>
+              </>
+            )}
+
+            {/* No evidence (automated reports) */}
+            {!report.evidence && (
+              <p style={{ opacity: 0.6, fontSize: '0.875rem' }}>
+                {report.source === 'automated_rekognition'
+                  ? t('moderation.detail.detectionMetadata')
+                  : t('moderation.detail.noEvents')}
+              </p>
+            )}
+          </TabContent>
+
+          {/* Target History tab */}
+          <TabContent value="target-history">
+            <ReportHistoryTab
+              identityId={report.targetIdentityId}
+              currentReportId={report.id}
+              filterKey="targetIdentityId"
+            />
+          </TabContent>
+
+          {/* Reporter History tab */}
+          <TabContent value="reporter-history">
+            <ReportHistoryTab
+              identityId={report.reporterIdentityId}
+              currentReportId={report.id}
+              filterKey="reporterIdentityId"
+            />
+          </TabContent>
+
+          {/* Timeline tab */}
+          <TabContent value="timeline">
+            {events.length === 0 && (
+              <p style={{ opacity: 0.6, fontSize: '0.875rem' }}>{t('moderation.detail.noEvents')}</p>
+            )}
+            <div className="moderation-timeline">
+              {events.map((ev) => {
+                const meta = ev.metadata as Record<string, unknown> | undefined;
+                let metaDetail: string | null = null;
+                if (meta) {
+                  if (ev.eventType === 'status_change' && meta.from && meta.to) {
+                    const fromLabel = t(`moderation.reports.status.${meta.from as string}`, meta.from as string);
+                    const toLabel = t(`moderation.reports.status.${meta.to as string}`, meta.to as string);
+                    metaDetail = t('moderation.detail.eventMeta.statusTransition', { from: fromLabel, to: toLabel });
+                  } else if (ev.eventType === 'assignment_change') {
+                    const assignedTo = meta.assignedTo as string | null | undefined;
+                    const fromUser = meta.from as string | null | undefined;
+                    if (assignedTo && fromUser) {
+                      metaDetail = t('moderation.detail.eventMeta.reassigned', {
+                        from: fmtUser(fromUser),
+                        to: fmtUser(assignedTo),
+                      });
+                    } else if (assignedTo) {
+                      metaDetail = t('moderation.detail.eventMeta.assignedTo', { user: fmtUser(assignedTo) });
+                    } else {
+                      metaDetail = t('moderation.detail.eventMeta.unassigned');
+                    }
+                  } else if (ev.eventType === 'category_change' && meta.from && meta.to) {
+                    const fromCat = t(`moderation.reports.category.${meta.from as string}`, meta.from as string);
+                    const toCat = t(`moderation.reports.category.${meta.to as string}`, meta.to as string);
+                    metaDetail = t('moderation.detail.eventMeta.categoryChanged', { from: fromCat, to: toCat });
+                  }
+                }
+
+                return (
+                  <div key={ev.id} className={`moderation-timeline-event moderation-event-${ev.eventType}`}>
+                    <div className="moderation-timeline-meta">
+                      <span className="moderation-timeline-type">
+                        {t(`moderation.detail.eventType.${ev.eventType}`, ev.eventType)}
+                        {metaDetail && (
+                          <span style={{ fontWeight: 'normal', marginLeft: '0.5rem', opacity: 0.7 }}>
+                            ({metaDetail})
+                          </span>
+                        )}
+                        {ev.actorUserId && (
+                          <span style={{ fontWeight: 'normal', marginLeft: '0.5rem', opacity: 0.7 }}>
+                            — {fmtUser(ev.actorUserId)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="moderation-timeline-date">
+                        {new Date(ev.createdAt).toLocaleString()}
+                      </span>
+                    </div>
+                    {ev.body && <p className="moderation-timeline-body">{ev.body}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          </TabContent>
+        </Tabs>
+      </div>
+
+      {/* Resolution info */}
+      {report.resolution && (
+        <div className="admin-card">
+          <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: 'var(--color-surface-alt, rgba(0,0,0,0.05))' }}>
+            <strong>{t('moderation.detail.resolution')}</strong>
+            <p style={{ margin: '0.25rem 0' }}>{report.resolution.reason}</p>
+            <small style={{ opacity: 0.6 }}>
+              {t('moderation.detail.resolvedBy')}: {fmtUser(report.resolution.resolvedBy)} &mdash; {new Date(report.resolution.resolvedAt).toLocaleString()}
+            </small>
+          </div>
+        </div>
+      )}
+
+      {report.closureReason && (
+        <div className="admin-card">
+          <div style={{ padding: '0.75rem', borderRadius: '0.5rem', background: 'var(--color-surface-alt, rgba(0,0,0,0.05))' }}>
+            <strong>{t('moderation.detail.closedLabel')}</strong>
+            <p style={{ margin: '0.25rem 0' }}>{report.closureReason}</p>
+            <small style={{ opacity: 0.6 }}>
+              {t('moderation.detail.closedByLabel')}: {fmtUser(report.closedBy)} &mdash; {report.closedAt ? new Date(report.closedAt).toLocaleString() : ''}
+            </small>
+          </div>
+        </div>
+      )}
+
+      {/* Reopen action (resolved / closed reports) */}
+      {isReopenable && (
+        <div className="admin-card">
+          <h2 className="admin-card-title">{t('moderation.detail.actions')}</h2>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <Button variant="primary" size="sm" onClick={() => setShowReopen(!showReopen)} disabled={actionLoading}>
+              {t('moderation.detail.reopen')}
+            </Button>
+          </div>
+          {showReopen && (
+            <div className="moderation-action-form">
+              <h3>{t('moderation.detail.reopenTitle')}</h3>
+              <div className="input-wrapper">
+                <textarea
+                  className="input"
+                  rows={2}
+                  placeholder={t('moderation.detail.reopenReasonPlaceholder')}
+                  value={reopenReason}
+                  onChange={(e) => setReopenReason(e.target.value)}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                <Button variant="primary" size="sm" onClick={handleReopen} disabled={actionLoading}>
+                  {t('moderation.detail.confirmReopen')}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setShowReopen(false)}>
+                  {t('common.cancel')}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Actions (open / escalated reports) */}
       {canActOnThis && (
         <div className="admin-card">
           <h2 className="admin-card-title">{t('moderation.detail.actions')}</h2>
@@ -302,17 +824,19 @@ export function ReportDetail() {
             </Button>
           </div>
 
-          {/* Resolve form */}
           {showResolve && (
             <div className="moderation-action-form">
               <h3>{t('moderation.detail.resolveTitle')}</h3>
-              <textarea
-                className="moderation-textarea"
-                rows={3}
-                placeholder={t('moderation.detail.reasonPlaceholder')}
-                value={resolveReason}
-                onChange={(e) => setResolveReason(e.target.value)}
-              />
+              <div className="input-wrapper">
+                <textarea
+                  className="input"
+                  rows={3}
+                  placeholder={t('moderation.detail.reasonPlaceholder')}
+                  value={resolveReason}
+                  onChange={(e) => setResolveReason(e.target.value)}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
               <div className="moderation-action-checks">
                 <label><input type="checkbox" checked={resolveRemove} onChange={(e) => setResolveRemove(e.target.checked)} /> {t('moderation.detail.removeContent')}</label>
                 <label><input type="checkbox" checked={resolveWarn} onChange={(e) => setResolveWarn(e.target.checked)} /> {t('moderation.detail.warnUser')}</label>
@@ -344,17 +868,19 @@ export function ReportDetail() {
             </div>
           )}
 
-          {/* Close form */}
           {showClose && (
             <div className="moderation-action-form">
               <h3>{t('moderation.detail.closeTitle')}</h3>
-              <textarea
-                className="moderation-textarea"
-                rows={3}
-                placeholder={t('moderation.detail.closeReasonPlaceholder')}
-                value={closeReason}
-                onChange={(e) => setCloseReason(e.target.value)}
-              />
+              <div className="input-wrapper">
+                <textarea
+                  className="input"
+                  rows={3}
+                  placeholder={t('moderation.detail.closeReasonPlaceholder')}
+                  value={closeReason}
+                  onChange={(e) => setCloseReason(e.target.value)}
+                  style={{ resize: 'vertical' }}
+                />
+              </div>
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
                 <Button variant="ghost" size="sm" onClick={handleClose} disabled={actionLoading || !closeReason.trim()}>
                   {t('moderation.detail.confirmClose')}
@@ -371,13 +897,16 @@ export function ReportDetail() {
       {/* Comment form */}
       <div className="admin-card">
         <h2 className="admin-card-title">{t('moderation.detail.addComment')}</h2>
-        <textarea
-          className="moderation-textarea"
-          rows={2}
-          placeholder={t('moderation.detail.commentPlaceholder')}
-          value={commentBody}
-          onChange={(e) => setCommentBody(e.target.value)}
-        />
+        <div className="input-wrapper">
+          <textarea
+            className="input"
+            rows={2}
+            placeholder={t('moderation.detail.commentPlaceholder')}
+            value={commentBody}
+            onChange={(e) => setCommentBody(e.target.value)}
+            style={{ resize: 'vertical' }}
+          />
+        </div>
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
           <select
             value={commentVisibility}
@@ -393,28 +922,6 @@ export function ReportDetail() {
         </div>
       </div>
 
-      {/* Timeline */}
-      <div className="admin-card">
-        <h2 className="admin-card-title">{t('moderation.detail.timeline')}</h2>
-        {events.length === 0 && (
-          <p style={{ opacity: 0.6, fontSize: '0.875rem' }}>{t('moderation.detail.noEvents')}</p>
-        )}
-        <div className="moderation-timeline">
-          {events.map((ev) => (
-            <div key={ev.id} className={`moderation-timeline-event moderation-event-${ev.eventType}`}>
-              <div className="moderation-timeline-meta">
-                <span className="moderation-timeline-type">
-                  {t(`moderation.detail.eventType.${ev.eventType}`, ev.eventType)}
-                </span>
-                <span className="moderation-timeline-date">
-                  {new Date(ev.createdAt).toLocaleString()}
-                </span>
-              </div>
-              {ev.body && <p className="moderation-timeline-body">{ev.body}</p>}
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

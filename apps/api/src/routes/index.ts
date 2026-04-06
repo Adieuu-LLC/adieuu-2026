@@ -23,6 +23,7 @@ import { e2eUploadRoutes } from './uploads/e2e';
 import { friendRoutes } from './friends';
 import { conversationRoutes } from './conversations';
 import { moderationRoutes } from './moderation';
+import { reportRoutes } from './reports';
 
 /**
  * Registers all application routes with the main router.
@@ -91,4 +92,7 @@ export function registerRoutes(app: Router): void {
 
   // Platform moderation (reports, actions, enforcement)
   app.merge(moderationRoutes, '/api');
+
+  // User-facing report submission (manual message + profile reports)
+  app.merge(reportRoutes, '/api');
 }

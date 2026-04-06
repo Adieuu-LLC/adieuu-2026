@@ -8,6 +8,7 @@
 
 import { ObjectId } from 'mongodb';
 import { getIdentityRepository } from '../repositories/identity.repository';
+import { getIdentitySessionRepository } from '../repositories/identity-session.repository';
 import { getE2EMediaRepository } from '../repositories/e2e-media.repository';
 import { getReportEventRepository } from '../repositories/report-event.repository';
 import { deleteE2EMedia } from './e2e-upload.service';
@@ -76,6 +77,7 @@ export async function executeEnforcement(
       try {
         await identityRepo.updateById(ctx.targetIdentityId, {
           moderationReason: ctx.reason,
+          moderationReportId: ctx.reportId.toHexString(),
         });
         await eventRepo.createEvent({
           reportId: ctx.reportId,
@@ -95,13 +97,22 @@ export async function executeEnforcement(
         await identityRepo.updateById(ctx.targetIdentityId, {
           suspendedUntil: until,
           moderationReason: ctx.reason,
+          moderationReportId: ctx.reportId.toHexString(),
         });
+
+        const identitySessionRepo = getIdentitySessionRepository();
+        const revokedCount = await identitySessionRepo.revokeAllForIdentity(ctx.targetIdentityId);
+        elog.info('Enforcement: revoked identity sessions on suspend', {
+          identityId: ctx.targetIdentityId,
+          revokedCount,
+        });
+
         await eventRepo.createEvent({
           reportId: ctx.reportId,
           eventType: 'enforcement_action',
           actorUserId: ctx.actorUserId,
           body: `Identity ${ctx.targetIdentityId} suspended until ${until.toISOString()}`,
-          metadata: { action: 'suspend', identityId: ctx.targetIdentityId, until: until.toISOString(), durationMs: actions.suspendAliasMs },
+          metadata: { action: 'suspend', identityId: ctx.targetIdentityId, until: until.toISOString(), durationMs: actions.suspendAliasMs, sessionsRevoked: revokedCount },
         });
       } catch (err) {
         elog.error('Enforcement: suspend failed', { err, ctx });
@@ -113,13 +124,22 @@ export async function executeEnforcement(
         await identityRepo.updateById(ctx.targetIdentityId, {
           isBanned: true,
           moderationReason: ctx.reason,
+          moderationReportId: ctx.reportId.toHexString(),
         });
+
+        const identitySessionRepo = getIdentitySessionRepository();
+        const revokedCount = await identitySessionRepo.revokeAllForIdentity(ctx.targetIdentityId);
+        elog.info('Enforcement: revoked identity sessions on ban', {
+          identityId: ctx.targetIdentityId,
+          revokedCount,
+        });
+
         await eventRepo.createEvent({
           reportId: ctx.reportId,
           eventType: 'enforcement_action',
           actorUserId: ctx.actorUserId,
           body: `Identity ${ctx.targetIdentityId} permanently banned`,
-          metadata: { action: 'ban', identityId: ctx.targetIdentityId },
+          metadata: { action: 'ban', identityId: ctx.targetIdentityId, sessionsRevoked: revokedCount },
         });
       } catch (err) {
         elog.error('Enforcement: ban failed', { err, ctx });

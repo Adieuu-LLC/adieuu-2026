@@ -18,6 +18,8 @@ export interface ReportListFilter {
   reportType?: string;
   category?: string;
   scopeType?: string;
+  targetIdentityId?: string;
+  reporterIdentityId?: string;
 }
 
 export interface ReportListOptions {
@@ -53,6 +55,8 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
       reporterIdentityId: input.reporterIdentityId,
       reporterUserId: input.reporterUserId,
       detectionMetadata: input.detectionMetadata,
+      evidence: input.evidence,
+      reporterReason: input.reporterReason,
       idempotencyKey: input.idempotencyKey,
     };
 
@@ -81,6 +85,8 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
       if (f.reportType) filter.reportType = f.reportType as ReportDocument['reportType'];
       if (f.category) filter.category = f.category as ReportDocument['category'];
       if (f.scopeType) filter.scopeType = f.scopeType as ReportDocument['scopeType'];
+      if (f.targetIdentityId) filter.targetIdentityId = f.targetIdentityId;
+      if (f.reporterIdentityId) filter.reporterIdentityId = f.reporterIdentityId;
     }
 
     const [reports, total] = await Promise.all([
@@ -139,6 +145,24 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
     } as Partial<ReportDocument>);
   }
 
+  async reopen(reportId: string | ObjectId, reopenedBy: string): Promise<ReportDocument | null> {
+    const objectId = this.toObjectId(reportId);
+    const result = await this.collection.findOneAndUpdate(
+      { _id: objectId },
+      {
+        $set: { status: 'open' as ReportStatus, updatedAt: new Date() },
+        $unset: {
+          resolution: '',
+          closureReason: '',
+          closedBy: '',
+          closedAt: '',
+        },
+      },
+      { returnDocument: 'after' },
+    );
+    return result as ReportDocument | null;
+  }
+
   async updateCategory(
     reportId: string | ObjectId,
     category: string,
@@ -151,6 +175,8 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
     await this.collection.createIndex({ assignedTo: 1, status: 1 });
     await this.collection.createIndex({ idempotencyKey: 1 }, { unique: true, sparse: true });
     await this.collection.createIndex({ scopeType: 1, scopeId: 1, status: 1 });
+    await this.collection.createIndex({ targetIdentityId: 1, createdAt: -1 });
+    await this.collection.createIndex({ reporterIdentityId: 1, createdAt: -1 });
   }
 }
 

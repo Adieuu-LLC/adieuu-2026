@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createApiClient, type PublicReport } from '@adieuu/shared';
+import { Select, Portal, createListCollection } from '@ark-ui/react';
 import { useAppConfig } from '../../config';
 import { Button } from '../../components/Button';
+import { Icon } from '../../icons/Icon';
 
 const STATUS_OPTIONS = ['open', 'escalated', 'resolved', 'closed'] as const;
 const ASSIGNED_OPTIONS = ['all', 'me', 'unassigned'] as const;
@@ -25,6 +27,26 @@ export function ReportList() {
   const [error, setError] = useState<string | null>(null);
 
   const limit = 25;
+
+  const statusCollection = useMemo(
+    () =>
+      createListCollection({
+        items: [
+          { value: 'open,escalated', label: t('moderation.reports.statusOpenEscalated') },
+          ...STATUS_OPTIONS.map((s) => ({ value: s, label: t(`moderation.reports.status.${s}`) })),
+          { value: 'all', label: t('moderation.reports.statusAll') },
+        ],
+      }),
+    [t],
+  );
+
+  const assignedCollection = useMemo(
+    () =>
+      createListCollection({
+        items: ASSIGNED_OPTIONS.map((a) => ({ value: a, label: t(`moderation.reports.assigned.${a}`) })),
+      }),
+    [t],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,40 +94,80 @@ export function ReportList() {
       </div>
 
       {/* Filters */}
-      <div className="admin-card" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', padding: '0.75rem 1rem' }}>
-        <label className="moderation-filter-label">
-          <span>{t('moderation.reports.filterStatus')}</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => updateFilter('status', e.target.value)}
-            className="moderation-filter-select"
+      <div className="admin-card" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end', padding: '0.75rem 1rem' }}>
+        <div className="input-wrapper" style={{ minWidth: '12rem', flex: '1 1 12rem', maxWidth: '20rem' }}>
+          <label className="input-label">{t('moderation.reports.filterStatus')}</label>
+          <Select.Root
+            collection={statusCollection}
+            value={[statusFilter]}
+            onValueChange={(details) => {
+              const val = details.value[0];
+              if (val) updateFilter('status', val);
+            }}
+            positioning={{ sameWidth: true }}
           >
-            <option value="open,escalated">{t('moderation.reports.statusOpenEscalated')}</option>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>
-                {t(`moderation.reports.status.${s}`)}
-              </option>
-            ))}
-            <option value="all">{t('moderation.reports.statusAll')}</option>
-          </select>
-        </label>
+            <Select.Control className="report-select-control">
+              <Select.Trigger className="report-select-trigger">
+                <Select.ValueText placeholder={t('moderation.reports.filterStatus')} />
+                <Select.Indicator className="report-select-indicator">
+                  <Icon name="chevronDown" size="xs" />
+                </Select.Indicator>
+              </Select.Trigger>
+            </Select.Control>
+            <Portal>
+              <Select.Positioner>
+                <Select.Content className="report-select-content">
+                  {statusCollection.items.map((item) => (
+                    <Select.Item key={item.value} item={item} className="report-select-item">
+                      <Select.ItemText>{item.label}</Select.ItemText>
+                      <Select.ItemIndicator className="report-select-item-indicator">
+                        <Icon name="check" size="xs" />
+                      </Select.ItemIndicator>
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Positioner>
+            </Portal>
+          </Select.Root>
+        </div>
 
-        <label className="moderation-filter-label">
-          <span>{t('moderation.reports.filterAssigned')}</span>
-          <select
-            value={assignedFilter}
-            onChange={(e) => updateFilter('assigned', e.target.value)}
-            className="moderation-filter-select"
+        <div className="input-wrapper" style={{ minWidth: '12rem', flex: '1 1 12rem', maxWidth: '20rem' }}>
+          <label className="input-label">{t('moderation.reports.filterAssigned')}</label>
+          <Select.Root
+            collection={assignedCollection}
+            value={[assignedFilter]}
+            onValueChange={(details) => {
+              const val = details.value[0];
+              if (val) updateFilter('assigned', val);
+            }}
+            positioning={{ sameWidth: true }}
           >
-            {ASSIGNED_OPTIONS.map((a) => (
-              <option key={a} value={a}>
-                {t(`moderation.reports.assigned.${a}`)}
-              </option>
-            ))}
-          </select>
-        </label>
+            <Select.Control className="report-select-control">
+              <Select.Trigger className="report-select-trigger">
+                <Select.ValueText placeholder={t('moderation.reports.filterAssigned')} />
+                <Select.Indicator className="report-select-indicator">
+                  <Icon name="chevronDown" size="xs" />
+                </Select.Indicator>
+              </Select.Trigger>
+            </Select.Control>
+            <Portal>
+              <Select.Positioner>
+                <Select.Content className="report-select-content">
+                  {assignedCollection.items.map((item) => (
+                    <Select.Item key={item.value} item={item} className="report-select-item">
+                      <Select.ItemText>{item.label}</Select.ItemText>
+                      <Select.ItemIndicator className="report-select-item-indicator">
+                        <Icon name="check" size="xs" />
+                      </Select.ItemIndicator>
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Positioner>
+            </Portal>
+          </Select.Root>
+        </div>
 
-        <Button variant="ghost" size="sm" onClick={load} disabled={loading}>
+        <Button variant="ghost" size="sm" onClick={load} disabled={loading} style={{ alignSelf: 'flex-end' }}>
           {t('moderation.reports.refresh')}
         </Button>
       </div>

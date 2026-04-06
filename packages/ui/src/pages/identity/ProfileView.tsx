@@ -18,6 +18,7 @@ import {
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
+import { ReportModal } from '../../components/ReportModal';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
 import { useAppConfig } from '../../config';
@@ -42,6 +43,7 @@ export function IdentityProfileView() {
   const [loadState, setLoadState] = useState<LoadingState>('loading');
   const [friendStatus, setFriendStatus] = useState<FriendshipStatus>('none');
   const [friendActionLoading, setFriendActionLoading] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const isSelf = selfIdentity?.id === id;
   const isIdentityLoggedIn = selfIdentity != null;
@@ -237,6 +239,14 @@ export function IdentityProfileView() {
                       {t('friends.removeFriend')}
                     </Button>
                   )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setReportOpen(true)}
+                  >
+                    <Icon name="warning" />
+                    {t('report.reportProfile')}
+                  </Button>
                 </div>
               )}
             </div>
@@ -261,6 +271,15 @@ export function IdentityProfileView() {
           </Card>
         </div>
       </div>
+
+      {!isSelf && isIdentityLoggedIn && id && (
+        <ReportModal
+          open={reportOpen}
+          onOpenChange={setReportOpen}
+          mode="profile"
+          targetIdentityId={id}
+        />
+      )}
     </div>
   );
 }

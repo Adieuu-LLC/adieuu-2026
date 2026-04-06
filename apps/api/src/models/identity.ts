@@ -142,6 +142,8 @@ export interface IdentityDocument extends BaseDocument {
   isBanned?: boolean;
   /** Platform moderation: human-readable reason for the latest moderation action */
   moderationReason?: string;
+  /** Platform moderation: report ID that triggered the latest enforcement action */
+  moderationReportId?: string;
 }
 
 /**
@@ -177,6 +179,7 @@ export interface UpdateIdentityInput {
   suspendedUntil?: Date | null;
   isBanned?: boolean;
   moderationReason?: string;
+  moderationReportId?: string;
 }
 
 /**

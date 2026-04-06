@@ -85,11 +85,17 @@ export interface IdentityLoginResult {
   sessionId?: string;
   cookie?: string;
   error?: string;
-  errorCode?: 'INVALID_PASSPHRASE' | 'RATE_LIMITED' | 'LOCKED_OUT' | 'NO_IDENTITY' | 'VALIDATION_ERROR';
+  errorCode?: 'INVALID_PASSPHRASE' | 'RATE_LIMITED' | 'LOCKED_OUT' | 'NO_IDENTITY' | 'VALIDATION_ERROR' | 'IDENTITY_SUSPENDED' | 'IDENTITY_BANNED';
   /** Seconds until next attempt is allowed */
   retryAfter?: number;
   /** Current attempt number (1-6) */
   attemptNumber?: number;
+  /** ISO string — when the suspension expires (IDENTITY_SUSPENDED only) */
+  suspendedUntil?: string;
+  /** Human-readable reason for the moderation action */
+  moderationReason?: string;
+  /** Report ID for the appeal reference */
+  moderationReportId?: string;
 }
 
 /**
@@ -361,6 +367,29 @@ export async function loginToIdentity(
   // Success! Reset failed attempts
   await userRepo.resetIdentityLoginAttempts(userId);
 
+  // Enforce moderation: banned identities cannot log in
+  if (identity.isBanned) {
+    return {
+      success: false,
+      error: 'This alias has been permanently banned.',
+      errorCode: 'IDENTITY_BANNED',
+      moderationReason: identity.moderationReason,
+      moderationReportId: identity.moderationReportId,
+    };
+  }
+
+  // Enforce moderation: suspended identities cannot log in until the suspension expires
+  if (identity.suspendedUntil && identity.suspendedUntil > new Date()) {
+    return {
+      success: false,
+      error: 'This alias is currently suspended.',
+      errorCode: 'IDENTITY_SUSPENDED',
+      suspendedUntil: identity.suspendedUntil.toISOString(),
+      moderationReason: identity.moderationReason,
+      moderationReportId: identity.moderationReportId,
+    };
+  }
+
   // Check if hash needs upgrading
   if (identity.hashVersion < CURRENT_HASH_VERSION) {
     const { hash: newIdent } = await generateIdentityHash(
@@ -466,16 +495,68 @@ export async function getIdentitySession(sessionId: string): Promise<{
 }
 
 /**
- * Get identity by session
+ * Moderation status returned when an identity session resolves to a
+ * suspended or banned identity.
+ */
+export interface IdentityModerationBlock {
+  type: 'suspended' | 'banned';
+  moderationReason?: string;
+  moderationReportId?: string;
+  suspendedUntil?: string;
+}
+
+/**
+ * Get identity by session.
+ *
+ * Returns the identity document, or `null` if the session is invalid /
+ * expired / identity not found.
+ *
+ * When `opts.checkModeration` is true the caller can distinguish between
+ * "no session" and "moderation block" via the returned discriminated union.
  */
 export async function getIdentityFromSession(
-  sessionId: string
-): Promise<IdentityDocument | null> {
+  sessionId: string,
+  opts?: { checkModeration?: boolean },
+): Promise<IdentityDocument | null>;
+export async function getIdentityFromSession(
+  sessionId: string,
+  opts: { checkModeration: true },
+): Promise<IdentityDocument | { blocked: IdentityModerationBlock } | null>;
+export async function getIdentityFromSession(
+  sessionId: string,
+  opts?: { checkModeration?: boolean },
+): Promise<IdentityDocument | { blocked: IdentityModerationBlock } | null> {
   const session = await getIdentitySession(sessionId);
   if (!session) return null;
 
   const identityRepo = getIdentityRepository();
-  return await identityRepo.findByIdentityId(session.identityId);
+  const identity = await identityRepo.findByIdentityId(session.identityId);
+  if (!identity) return null;
+
+  if (opts?.checkModeration) {
+    if (identity.isBanned) {
+      return {
+        blocked: {
+          type: 'banned',
+          moderationReason: identity.moderationReason,
+          moderationReportId: identity.moderationReportId,
+        },
+      };
+    }
+
+    if (identity.suspendedUntil && identity.suspendedUntil > new Date()) {
+      return {
+        blocked: {
+          type: 'suspended',
+          moderationReason: identity.moderationReason,
+          moderationReportId: identity.moderationReportId,
+          suspendedUntil: identity.suspendedUntil.toISOString(),
+        },
+      };
+    }
+  }
+
+  return identity;
 }
 
 /**

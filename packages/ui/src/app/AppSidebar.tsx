@@ -21,8 +21,10 @@ import { useAuth } from '../hooks/useAuth';
 import { useIdentity } from '../hooks/useIdentity';
 import { useFriends } from '../hooks/useFriends';
 import { IdentityModal } from './IdentityModal';
+import { SuspensionModal } from '../components/SuspensionModal';
 import { useConversations, type DecryptedConversation } from '../hooks/useConversations';
 import { useTheme } from '../hooks/useTheme';
+import { createApiClient } from '@adieuu/shared';
 import type { PublicIdentity, PublicGroupInvite, GroupInvitePreview, GroupInvitePreviewMember } from '@adieuu/shared';
 
 /**
@@ -114,13 +116,14 @@ function IdentityFlyout() {
   const { t } = useTranslation();
   const location = useLocation();
   const { isExpanded, closeMobile } = useSidebar();
-  const { status: identityStatus, identity, logoutFromIdentity, hasIdentity } = useIdentity();
+  const { status: identityStatus, identity, logoutFromIdentity, hasIdentity, suspensionInfo, clearSuspension } = useIdentity();
   const [identityModalOpen, setIdentityModalOpen] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
   const isIdentityActive = location.pathname.startsWith('/identity');
   const isIdentityLoggedIn = identityStatus === 'logged_in' && identity;
   const isIdentityLocked = identityStatus === 'locked' && identity;
+  const isIdentitySuspended = identityStatus === 'suspended' && !!suspensionInfo;
 
   // Auto-open unlock modal when identity is locked (e.g., after page refresh)
   useEffect(() => {
@@ -142,6 +145,25 @@ function IdentityFlyout() {
     closeMobile();
     setIdentityModalOpen(true);
   };
+
+  // When suspended or banned, show the suspension modal
+  if (isIdentitySuspended) {
+    return (
+      <>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="sidebar-identity-btn"
+          disabled
+          data-tour="identity"
+        >
+          <Icon name="mask" />
+          <span className="sidebar-identity-label">{t('identity.notLoggedIn')}</span>
+        </Button>
+        <SuspensionModal info={suspensionInfo} onDismiss={clearSuspension} />
+      </>
+    );
+  }
 
   // When locked, show locked button and auto-open unlock modal
   if (isIdentityLocked) {
@@ -1177,46 +1199,124 @@ function SidebarNavContent({
 }
 
 /**
+ * Moderation flyout menu — groups Moderation + Platform Admin links.
+ * Shows a badge with the count of unresolved reports assigned to the
+ * current user or still unassigned.
+ */
+function ModerationFlyout() {
+  const { t } = useTranslation();
+  const location = useLocation();
+  const { isExpanded, closeMobile } = useSidebar();
+  const { session } = useAuth();
+  const { apiBaseUrl } = useAppConfig();
+
+  const showAdmin = session?.isPlatformAdmin === true;
+  const isModeratorActive = location.pathname.startsWith('/moderation');
+  const isAdminActive = location.pathname.startsWith('/admin');
+  const isSectionActive = isModeratorActive || isAdminActive;
+
+  const [unresolvedCount, setUnresolvedCount] = useState(0);
+
+  useEffect(() => {
+    if (!session) return;
+    const api = createApiClient({ baseUrl: apiBaseUrl });
+    let cancelled = false;
+
+    const fetchCount = async () => {
+      try {
+        const [mine, unassigned] = await Promise.all([
+          api.moderation.listReports({ status: 'open,escalated', assigned: 'me', limit: 1 }),
+          api.moderation.listReports({ status: 'open,escalated', assigned: 'unassigned', limit: 1 }),
+        ]);
+        if (cancelled) return;
+        const total = (mine.data?.total ?? 0) + (unassigned.data?.total ?? 0);
+        setUnresolvedCount(total);
+      } catch { /* silent */ }
+    };
+
+    void fetchCount();
+    const interval = setInterval(() => void fetchCount(), 60_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [session, apiBaseUrl]);
+
+  return (
+    <div className="sidebar-account-flyout-wrapper">
+      <Button
+        variant="ghost"
+        size="sm"
+        className={`sidebar-account-btn ${isSectionActive ? 'sidebar-account-btn-active' : ''}`}
+      >
+        <span style={{ position: 'relative', display: 'inline-flex' }}>
+          <Icon name="shield" />
+          {unresolvedCount > 0 && (
+            <span className="sidebar-tab-badge" aria-label={`${unresolvedCount} unresolved`}>
+              {unresolvedCount > 99 ? '99+' : unresolvedCount}
+            </span>
+          )}
+        </span>
+        <span className="sidebar-account-label">{t('moderation.nav.submenuLabel')}</span>
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="sidebar-account-chevron"
+        >
+          <path
+            d="M4.5 3L7.5 6L4.5 9"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </Button>
+      <div className={`sidebar-account-flyout ${!isExpanded ? 'sidebar-account-flyout-collapsed' : ''}`}>
+        <div className="sidebar-account-flyout-content">
+          <Link
+            to="/moderation"
+            onClick={closeMobile}
+            className={`sidebar-flyout-item ${isModeratorActive ? 'sidebar-flyout-item-active' : ''}`}
+          >
+            {t('moderation.nav.moderationLink')}
+            {unresolvedCount > 0 && (
+              <span className="sidebar-tab-badge" style={{ marginLeft: 'auto', position: 'static' }} aria-label={`${unresolvedCount} unresolved`}>
+                {unresolvedCount > 99 ? '99+' : unresolvedCount}
+              </span>
+            )}
+          </Link>
+          {showAdmin && (
+            <Link
+              to="/admin"
+              onClick={closeMobile}
+              className={`sidebar-flyout-item ${isAdminActive ? 'sidebar-flyout-item-active' : ''}`}
+            >
+              {t('moderation.nav.adminLink')}
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Footer content component that has access to sidebar context.
  */
 function SidebarFooterContent() {
   const { t } = useTranslation();
   const { platform } = useAppConfig();
   const { session } = useAuth();
-  const location = useLocation();
   const { closeMobile } = useSidebar();
-  const showAdmin = session?.isPlatformAdmin === true;
-  const showModerator = session?.isPlatformModerator === true || showAdmin;
-  const isAdminActive = location.pathname.startsWith('/admin');
-  const isModeratorActive = location.pathname.startsWith('/moderation');
-  const isDownloadActive = location.pathname === '/download';
+  const showModerator = session?.isPlatformModerator === true || session?.isPlatformAdmin === true;
+  const isDownloadActive = useLocation().pathname === '/download';
   const showDesktopAppLink = platform === 'web';
 
   return (
     <div className="sidebar-footer-stack">
       {showModerator && (
-        <div className="sidebar-admin-row">
-          <Link
-            to="/moderation"
-            className={`sidebar-admin-link sidebar-admin-link-btn${isModeratorActive ? ' sidebar-admin-link-active' : ''}`}
-            onClick={closeMobile}
-          >
-            <Icon name="shield" />
-            <span className="sidebar-admin-label">{t('moderation.nav.link')}</span>
-          </Link>
-        </div>
-      )}
-      {showAdmin && (
-        <div className="sidebar-admin-row">
-          <Link
-            to="/admin"
-            className={`sidebar-admin-link sidebar-admin-link-btn${isAdminActive ? ' sidebar-admin-link-active' : ''}`}
-            onClick={closeMobile}
-          >
-            <Icon name="shield" />
-            <span className="sidebar-admin-label">{t('admin.nav.link')}</span>
-          </Link>
-        </div>
+        <ModerationFlyout />
       )}
       {showDesktopAppLink && (
         <div className="sidebar-desktop-row">

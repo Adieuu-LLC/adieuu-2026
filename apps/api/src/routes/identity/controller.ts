@@ -7,7 +7,7 @@
  * @module routes/identity/controller
  */
 
-import { success, errors } from '../../utils/response';
+import { success, errors, error as errorResponse } from '../../utils/response';
 import { RouteContext } from '../../router';
 import { sanitizeString } from '../../utils/sanitize';
 import { getSessionFromRequest } from '../../services/session.service';
@@ -25,6 +25,7 @@ import {
   getIdentitySessionIdFromRequest,
   buildIdentityLogoutCookie,
   MIN_PASSPHRASE_LENGTH,
+  type IdentityModerationBlock,
 } from '../../services/identity.service';
 import {
   blockIdentity,
@@ -248,7 +249,19 @@ export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
   );
 
   if (!result.success) {
-    // Handle different error codes
+    if (result.errorCode === 'IDENTITY_SUSPENDED' || result.errorCode === 'IDENTITY_BANNED') {
+      return errorResponse(
+        result.errorCode,
+        result.error ?? 'This alias is restricted.',
+        403,
+        {
+          moderationReason: result.moderationReason,
+          moderationReportId: result.moderationReportId,
+          suspendedUntil: result.suspendedUntil,
+        },
+      );
+    }
+
     if (result.errorCode === 'LOCKED_OUT' || result.errorCode === 'RATE_LIMITED') {
       const response = ctx.errors.rateLimited();
       if (result.retryAfter) {
@@ -329,12 +342,29 @@ export async function getIdentitySessionCtrl(ctx: RouteContext): Promise<Respons
     return ctx.errors.unauthorized();
   }
 
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
+  const result = await getIdentityFromSession(identitySessionId, { checkModeration: true });
+  if (!result) {
     return ctx.errors.unauthorized();
   }
 
-  return success(toPublicIdentity(identity));
+  if ('blocked' in result) {
+    const block = (result as { blocked: IdentityModerationBlock }).blocked;
+    const code = block.type === 'banned' ? 'IDENTITY_BANNED' : 'IDENTITY_SUSPENDED';
+    return errorResponse(
+      code,
+      block.type === 'banned'
+        ? 'This alias has been permanently banned.'
+        : 'This alias is currently suspended.',
+      403,
+      {
+        moderationReason: block.moderationReason,
+        moderationReportId: block.moderationReportId,
+        suspendedUntil: block.suspendedUntil,
+      },
+    );
+  }
+
+  return success(toPublicIdentity(result));
 }
 
 export async function deleteIdentityCtrl(ctx: RouteContext): Promise<Response> {

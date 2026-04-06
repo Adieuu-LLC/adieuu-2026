@@ -155,6 +155,38 @@ export class MessageRepository
   }
 
   /**
+   * Fetch messages immediately before (older than) a given message in the
+   * same conversation. Returns newest-first order.
+   */
+  async findBefore(
+    conversationId: ObjectId,
+    messageId: ObjectId,
+    limit: number,
+  ): Promise<MessageDocument[]> {
+    return await this.collection
+      .find({ conversationId, _id: { $lt: messageId } })
+      .sort({ _id: -1 })
+      .limit(limit)
+      .toArray() as MessageDocument[];
+  }
+
+  /**
+   * Fetch messages immediately after (newer than) a given message in the
+   * same conversation. Returns oldest-first order.
+   */
+  async findAfter(
+    conversationId: ObjectId,
+    messageId: ObjectId,
+    limit: number,
+  ): Promise<MessageDocument[]> {
+    return await this.collection
+      .find({ conversationId, _id: { $gt: messageId } })
+      .sort({ _id: 1 })
+      .limit(limit)
+      .toArray() as MessageDocument[];
+  }
+
+  /**
    * Count messages sent by an identity in a conversation (for "most active" resolution).
    * Excludes system messages from the count.
    */

@@ -39,8 +39,19 @@ import { generateAndUploadPreKeys } from '../services/preKeyService';
  * - `locked`: Server session valid but wrapping key not available (needs passphrase)
  * - `logged_out`: No active identity session
  * - `no_identity`: User has no identity created yet
+ * - `suspended`: Identity is suspended or banned by moderation
  */
-export type IdentityStatus = 'loading' | 'logged_in' | 'locked' | 'logged_out' | 'no_identity';
+export type IdentityStatus = 'loading' | 'logged_in' | 'locked' | 'logged_out' | 'no_identity' | 'suspended';
+
+/**
+ * Moderation suspension details surfaced to the UI.
+ */
+export interface SuspensionInfo {
+  type: 'suspended' | 'banned';
+  reason?: string;
+  reportId?: string;
+  suspendedUntil?: string;
+}
 
 export interface IdentityState {
   status: IdentityStatus;
@@ -53,6 +64,8 @@ export interface IdentityState {
   maxIdentities: number;
   /** Whether the user can create more identities */
   canCreateMore: boolean;
+  /** Present when status is 'suspended' — contains moderation details */
+  suspensionInfo?: SuspensionInfo;
 }
 
 export interface UnlockIdentityResult {
@@ -72,13 +85,15 @@ export interface LoginIdentityResult {
   success: boolean;
   identity?: PublicIdentity;
   error?: string;
-  errorCode?: 'INVALID_PASSPHRASE' | 'LOCKED_OUT' | 'RATE_LIMITED' | 'KEY_DERIVATION_FAILED' | 'E2E_SETUP_FAILED' | 'BUNDLE_DECRYPT_FAILED' | 'KEY_GENERATION_FAILED' | 'DEVICE_REGISTRATION_FAILED';
+  errorCode?: 'INVALID_PASSPHRASE' | 'LOCKED_OUT' | 'RATE_LIMITED' | 'KEY_DERIVATION_FAILED' | 'E2E_SETUP_FAILED' | 'BUNDLE_DECRYPT_FAILED' | 'KEY_GENERATION_FAILED' | 'DEVICE_REGISTRATION_FAILED' | 'IDENTITY_SUSPENDED' | 'IDENTITY_BANNED';
   attemptNumber?: number;
   retryAfter?: number;
   /** Whether this was a new device registration (for showing first-login toast) */
   isNewDevice?: boolean;
   /** The device name that was registered */
   deviceName?: string;
+  /** Present when errorCode is IDENTITY_SUSPENDED or IDENTITY_BANNED */
+  suspensionInfo?: SuspensionInfo;
 }
 
 /** Web device mode choice returned by the onWebDeviceChoice callback. */
@@ -121,6 +136,8 @@ export interface IdentityContextValue extends IdentityState {
   deleteIdentity: () => Promise<{ success: boolean; error?: string }>;
   /** Refresh identity session status */
   refreshIdentitySession: () => Promise<void>;
+  /** Clear suspension state (e.g. after user dismisses the modal) */
+  clearSuspension: () => void;
   /**
    * Get the entropy wrapping key for the current identity session.
    * Returns null if not logged in or key not yet derived.
@@ -194,6 +211,7 @@ function useIdentityState(): IdentityContextValue {
     identityCount: 0,
     maxIdentities: 1,
     canCreateMore: true,
+    suspensionInfo: undefined,
   });
 
   // Wrapping key for cipher entropy encryption (kept in memory only)
@@ -209,6 +227,17 @@ function useIdentityState(): IdentityContextValue {
   const getWrappingSalt = useCallback(() => wrappingSaltRef.current, []);
   const getSigningKey = useCallback(() => signingKeyRef.current, []);
   const getCurrentDeviceId = useCallback(() => currentDeviceIdRef.current, []);
+
+  const clearSuspension = useCallback(() => {
+    setState((prev) => {
+      if (prev.status !== 'suspended') return prev;
+      return {
+        ...prev,
+        status: prev.hasIdentity ? 'logged_out' : 'no_identity',
+        suspensionInfo: undefined,
+      };
+    });
+  }, []);
 
   // Clear all in-memory keys on logout
   const clearSessionKeys = useCallback(() => {
@@ -271,6 +300,27 @@ function useIdentityState(): IdentityContextValue {
           canCreateMore,
         });
       } else {
+        const errorCode = response.error?.code;
+        if (errorCode === 'IDENTITY_SUSPENDED' || errorCode === 'IDENTITY_BANNED') {
+          const details = response.error?.details;
+          clearSessionKeys();
+          setState({
+            status: 'suspended',
+            identity: null,
+            hasIdentity,
+            identityCount,
+            maxIdentities,
+            canCreateMore,
+            suspensionInfo: {
+              type: errorCode === 'IDENTITY_BANNED' ? 'banned' : 'suspended',
+              reason: details?.moderationReason,
+              reportId: details?.moderationReportId,
+              suspendedUntil: details?.suspendedUntil,
+            },
+          });
+          return;
+        }
+
         // Not logged into identity, but might have one
         setState({
           status: hasIdentity ? 'logged_out' : 'no_identity',
@@ -291,7 +341,7 @@ function useIdentityState(): IdentityContextValue {
         canCreateMore,
       });
     }
-  }, [api, authStatus, hasIdentity, identityCount, maxIdentities, canCreateMore]);
+  }, [api, authStatus, hasIdentity, identityCount, maxIdentities, canCreateMore, clearSessionKeys]);
 
   // Check identity session when auth status or identity counts change
   useEffect(() => {
@@ -536,11 +586,36 @@ function useIdentityState(): IdentityContextValue {
 
       if (!response.success) {
         const errorMessage = response.error?.message ?? 'Invalid passphrase';
+        const serverCode = response.error?.code;
         let errorCode: LoginIdentityResult['errorCode'] = 'INVALID_PASSPHRASE';
 
-        if (response.error?.code === 'LOCKED_OUT' || errorMessage.includes('locked')) {
+        if (serverCode === 'IDENTITY_SUSPENDED' || serverCode === 'IDENTITY_BANNED') {
+          const details = response.error?.details;
+          const info: SuspensionInfo = {
+            type: serverCode === 'IDENTITY_BANNED' ? 'banned' : 'suspended',
+            reason: details?.moderationReason,
+            reportId: details?.moderationReportId,
+            suspendedUntil: details?.suspendedUntil,
+          };
+
+          setState((prev) => ({
+            ...prev,
+            status: 'suspended',
+            identity: null,
+            suspensionInfo: info,
+          }));
+
+          return {
+            success: false,
+            error: errorMessage,
+            errorCode: serverCode,
+            suspensionInfo: info,
+          };
+        }
+
+        if (serverCode === 'LOCKED_OUT' || errorMessage.includes('locked')) {
           errorCode = 'LOCKED_OUT';
-        } else if (response.error?.code === 'RATE_LIMITED' || errorMessage.includes('wait')) {
+        } else if (serverCode === 'RATE_LIMITED' || errorMessage.includes('wait')) {
           errorCode = 'RATE_LIMITED';
         }
 
@@ -1086,6 +1161,7 @@ function useIdentityState(): IdentityContextValue {
     logoutFromIdentity,
     deleteIdentity,
     refreshIdentitySession,
+    clearSuspension,
     getWrappingKey,
     getWrappingSalt,
     getSigningKey,
@@ -1098,6 +1174,7 @@ function useIdentityState(): IdentityContextValue {
     logoutFromIdentity,
     deleteIdentity,
     refreshIdentitySession,
+    clearSuspension,
     getWrappingKey,
     getWrappingSalt,
     getSigningKey,

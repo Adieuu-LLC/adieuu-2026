@@ -27,6 +27,8 @@ export type ApiResponse<T> = {
     details?: {
       maxBytes?: number;
       moderationReason?: string;
+      moderationReportId?: string;
+      suspendedUntil?: string;
     };
   };
 };

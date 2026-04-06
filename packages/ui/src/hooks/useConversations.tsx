@@ -41,6 +41,7 @@ import { useToast } from '../components/Toast';
 import { useNotificationSoundPreference } from './useNotificationSoundPreference';
 import { getNativeNotificationsEnabled } from './useNativeNotificationsPreference';
 import { playNotificationSound, type FocusVisibilitySnapshot } from '../utils/notificationSound';
+import { toBase64 } from '@adieuu/crypto';
 import {
   encryptMessage,
   decryptMessage,
@@ -151,6 +152,13 @@ interface ConversationsContextValue {
 
   // Crypto helpers (shared with useReactions etc.)
   fetchRecipientKeys: (participantIds: string[], useForwardSecrecy?: boolean) => Promise<RecipientKeys[]>;
+
+  /**
+   * Retrieve per-message session keys for report evidence gathering.
+   * Returns a map of messageId -> base64 session key.
+   * Tries in-memory cache, then persisted storage, then re-unwrap from wrappedKeys.
+   */
+  getSessionKeysForMessages: (messageIds: string[]) => Promise<Record<string, string>>;
 
   refresh: () => Promise<void>;
 }
@@ -1789,6 +1797,39 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   }, [isLoggedIn, activeConversationId, messagesState, fetchMessages]);
 
   // -------------------------------------------------------------------------
+  // Report evidence: session key retrieval
+  // -------------------------------------------------------------------------
+
+  const getSessionKeysForMessages = useCallback(
+    async (messageIds: string[]): Promise<Record<string, string>> => {
+      if (!identity) return {};
+      const wrappingKey = getWrappingKey();
+      const result: Record<string, string> = {};
+
+      for (const msgId of messageIds) {
+        // Layer 1: in-memory cache
+        let sk = sessionKeyCache.current.get(msgId);
+
+        // Layer 2: persisted (encrypted-at-rest) storage
+        if (!sk && wrappingKey) {
+          const persisted = await getPersistedSessionKey(msgId, identity.id, wrappingKey);
+          if (persisted) {
+            sk = persisted;
+            sessionKeyCache.current.set(msgId, persisted);
+          }
+        }
+
+        if (sk) {
+          result[msgId] = toBase64(sk);
+        }
+      }
+
+      return result;
+    },
+    [identity, getWrappingKey],
+  );
+
+  // -------------------------------------------------------------------------
   // Context value
   // -------------------------------------------------------------------------
 
@@ -1829,6 +1870,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       getInvitePreview,
       getFormerMembers,
       fetchRecipientKeys,
+      getSessionKeysForMessages,
       refresh,
     };
   }, [
@@ -1839,7 +1881,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     deleteMessage, addMember, removeMember, leaveGroup, renameGroup,
     updateConversationMemberSettings, promoteToAdmin, terminateGroup,
     acceptInvite, declineInvite, getInvitePreview, getFormerMembers,
-    fetchRecipientKeys, refresh,
+    fetchRecipientKeys, getSessionKeysForMessages, refresh,
   ]);
 
   return (
