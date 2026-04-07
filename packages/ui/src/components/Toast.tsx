@@ -24,6 +24,8 @@ export interface ToastOptions {
     label: string;
     onClick: () => void;
   };
+  /** Clicking the toast body navigates / performs this action and dismisses the toast. */
+  onClick?: () => void;
 }
 
 /**
@@ -37,7 +39,7 @@ export interface ToastContextValue {
   /** Show an error toast */
   error: (title: string, description?: string) => void;
   /** Show an info toast */
-  info: (title: string, description?: string) => void;
+  info: (title: string, description?: string, onClick?: () => void) => void;
   /** Show a warning toast */
   warning: (title: string, description?: string) => void;
   /** Show a message notification toast (with action to view) */
@@ -88,12 +90,16 @@ export interface ToastProviderProps {
  */
 export function ToastProvider({ children }: ToastProviderProps) {
   const toast = (options: ToastOptions) => {
+    const meta: Record<string, unknown> = {};
+    if (options.action) meta.action = options.action;
+    if (options.onClick) meta.onClick = options.onClick;
+
     toaster.create({
       title: options.title,
       description: options.description,
       type: options.variant ?? 'info',
       duration: options.duration ?? 5000,
-      meta: options.action ? { action: options.action } : undefined,
+      meta: Object.keys(meta).length > 0 ? meta : undefined,
     });
   };
 
@@ -105,8 +111,8 @@ export function ToastProvider({ children }: ToastProviderProps) {
     toast({ title, description, variant: 'error' });
   };
 
-  const info = (title: string, description?: string) => {
-    toast({ title, description, variant: 'info' });
+  const info = (title: string, description?: string, onClick?: () => void) => {
+    toast({ title, description, variant: 'info', onClick });
   };
 
   const warning = (title: string, description?: string) => {
@@ -137,10 +143,18 @@ export function ToastProvider({ children }: ToastProviderProps) {
       {children}
       <Toaster toaster={toaster}>
         {(toast) => {
-          const action = (toast.meta as { action?: ToastOptions['action'] } | undefined)?.action;
+          const meta = toast.meta as { action?: ToastOptions['action']; onClick?: () => void } | undefined;
+          const action = meta?.action;
+          const onClick = meta?.onClick;
           return (
-            <ArkToast.Root key={toast.id} className={`toast toast-${toast.type}`}>
-              <div className="toast-content">
+            <ArkToast.Root key={toast.id} className={`toast toast-${toast.type}${onClick ? ' toast-clickable' : ''}`}>
+              <div
+                className="toast-content"
+                role={onClick ? 'button' : undefined}
+                tabIndex={onClick ? 0 : undefined}
+                onClick={onClick ? () => { onClick(); toaster.dismiss(toast.id); } : undefined}
+                onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); toaster.dismiss(toast.id); } } : undefined}
+              >
                 <div className="toast-icon">
                   <ToastIcon variant={toast.type as ToastVariant} />
                 </div>

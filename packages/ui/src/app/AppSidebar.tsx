@@ -24,6 +24,7 @@ import { IdentityModal } from './IdentityModal';
 import { SuspensionModal } from '../components/SuspensionModal';
 import { useConversations, type DecryptedConversation } from '../hooks/useConversations';
 import { useTheme } from '../hooks/useTheme';
+import { sidebarActions } from '../utils/sidebarActions';
 import { createApiClient } from '@adieuu/shared';
 import type { PublicIdentity, PublicGroupInvite, GroupInvitePreview, GroupInvitePreviewMember } from '@adieuu/shared';
 
@@ -1398,6 +1399,18 @@ export function AppSidebar({ onExpandedChange }: AppSidebarProps) {
 
   const handleCloseChatInvitesPanel = useCallback(() => {
     setChatInvitesPanelOpen(false);
+  }, []);
+
+  useEffect(() => {
+    return sidebarActions.subscribe((action) => {
+      if (action === 'openFriends') {
+        setFriendsPanelOpen(true);
+        setChatInvitesPanelOpen(false);
+      } else if (action === 'openInvites') {
+        setChatInvitesPanelOpen(true);
+        setFriendsPanelOpen(false);
+      }
+    });
   }, []);
 
   return (

@@ -34,6 +34,7 @@ import {
   type FormerMember,
 } from '@adieuu/shared';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { useIdentity } from './useIdentity';
 import { useChatSocket } from './useChatSocket';
 import { useAppConfig, usePlatformCapabilities } from '../config';
@@ -41,6 +42,7 @@ import { useToast } from '../components/Toast';
 import { useNotificationSoundPreference } from './useNotificationSoundPreference';
 import { getNativeNotificationsEnabled } from './useNativeNotificationsPreference';
 import { playNotificationSound, type FocusVisibilitySnapshot } from '../utils/notificationSound';
+import { sidebarActions } from '../utils/sidebarActions';
 import { toBase64 } from '@adieuu/crypto';
 import {
   encryptMessage,
@@ -182,6 +184,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const toast = useToast();
   const { notifications, audio } = usePlatformCapabilities();
   const soundPref = useNotificationSoundPreference();
+  const navigate = useNavigate();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const isLoggedIn = identityStatus === 'logged_in' && !!identity;
@@ -1264,8 +1267,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   // -------------------------------------------------------------------------
 
   const fireNotification = useCallback(
-    (title: string, body: string, isViewingConvo = false) => {
-      toast.info(title, body);
+    (title: string, body: string, opts?: { isViewingConvo?: boolean; onClick?: () => void }) => {
+      toast.info(title, body, opts?.onClick);
 
       const snapshot: FocusVisibilitySnapshot = {
         hasFocus: document.hasFocus(),
@@ -1277,14 +1280,14 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         soundId: soundPref.soundId,
         customPath: soundPref.customPath,
         suppressWhenFocused: soundPref.suppressWhenFocused,
-        isViewingConversation: isViewingConvo,
+        isViewingConversation: opts?.isViewingConvo ?? false,
         snapshot,
         volume: soundPref.volume,
         loadCustomSound: audio?.loadSoundFromPath,
       });
 
       if (getNativeNotificationsEnabled() && notifications.hasPermission()) {
-        notifications.show(title, body, { tag: 'conversation-event' });
+        notifications.show(title, body, { tag: 'conversation-event', onClick: opts?.onClick });
       }
     },
     [toast, soundPref, audio, notifications]
@@ -1321,6 +1324,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
   const fireNotificationRef = useRef(fireNotification);
   fireNotificationRef.current = fireNotification;
+
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
 
   const resolveParticipantsRef = useRef(resolveParticipants);
   resolveParticipantsRef.current = resolveParticipants;
@@ -1374,7 +1380,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               tRef.current('conversations.notifications.newConversation', { defaultValue: 'New conversation' }),
               creatorName
                 ? tRef.current('conversations.notifications.newConversationBody', { name: creatorName, defaultValue: `${creatorName} started a conversation` })
-                : tRef.current('conversations.notifications.newConversationGeneric', { defaultValue: 'Someone started a conversation with you' })
+                : tRef.current('conversations.notifications.newConversationGeneric', { defaultValue: 'Someone started a conversation with you' }),
+              { onClick: () => navigateRef.current(`/conversations/${conv.id}`) }
             );
           });
           break;
@@ -1400,6 +1407,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             }
           }
 
+          const navToConvo = () => navigateRef.current(`/conversations/${conversationId}`);
+
           if (action === 'member_added' && eventIdentityId) {
             void resolveParticipantsRef.current([eventIdentityId]).then((freshProfiles) => {
               const profiles = { ...participantProfilesRef.current, ...freshProfiles };
@@ -1409,7 +1418,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 tRef.current('conversations.notifications.memberAdded', { defaultValue: 'Member added' }),
                 name
                   ? tRef.current('conversations.notifications.memberAddedBody', { name, defaultValue: `${name} was added to the group` })
-                  : tRef.current('conversations.notifications.memberAddedGeneric', { defaultValue: 'A new member was added to the group' })
+                  : tRef.current('conversations.notifications.memberAddedGeneric', { defaultValue: 'A new member was added to the group' }),
+                { onClick: navToConvo }
               );
             });
           } else if (action === 'member_left' && eventIdentityId) {
@@ -1420,7 +1430,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               tRef.current('conversations.notifications.memberLeft', { defaultValue: 'Member left' }),
               name
                 ? tRef.current('conversations.notifications.memberLeftBody', { name, defaultValue: `${name} left the group` })
-                : tRef.current('conversations.notifications.memberLeftGeneric', { defaultValue: 'A member left the group' })
+                : tRef.current('conversations.notifications.memberLeftGeneric', { defaultValue: 'A member left the group' }),
+              { onClick: navToConvo }
             );
           } else if (action === 'member_removed' && eventIdentityId) {
             const profiles = participantProfilesRef.current;
@@ -1430,7 +1441,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               tRef.current('conversations.notifications.memberRemoved', { defaultValue: 'Member removed' }),
               name
                 ? tRef.current('conversations.notifications.memberRemovedBody', { name, defaultValue: `${name} was removed from the group` })
-                : tRef.current('conversations.notifications.memberRemovedGeneric', { defaultValue: 'A member was removed from the group' })
+                : tRef.current('conversations.notifications.memberRemovedGeneric', { defaultValue: 'A member was removed from the group' }),
+              { onClick: navToConvo }
             );
           } else if (action === 'renamed') {
             if (eventIdentityId) {
@@ -1442,13 +1454,15 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                   tRef.current('conversations.notifications.groupRenamed', { defaultValue: 'Group renamed' }),
                   name
                     ? tRef.current('conversations.notifications.groupRenamedByBody', { name, defaultValue: `${name} renamed the group` })
-                    : tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' })
+                    : tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' }),
+                  { onClick: navToConvo }
                 );
               });
             } else {
               fireNotificationRef.current(
                 tRef.current('conversations.notifications.groupRenamed', { defaultValue: 'Group renamed' }),
-                tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' })
+                tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' }),
+                { onClick: navToConvo }
               );
             }
           } else if (action === 'admin_promoted' && eventIdentityId) {
@@ -1459,7 +1473,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               tRef.current('conversations.notifications.adminPromoted', { defaultValue: 'New admin' }),
               name
                 ? tRef.current('conversations.notifications.adminPromotedBody', { name, defaultValue: `${name} was promoted to admin` })
-                : tRef.current('conversations.notifications.adminPromotedGeneric', { defaultValue: 'A member was promoted to admin' })
+                : tRef.current('conversations.notifications.adminPromotedGeneric', { defaultValue: 'A member was promoted to admin' }),
+              { onClick: navToConvo }
             );
           }
           break;
@@ -1515,6 +1530,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             typeof replyToMessageAuthorId === 'string' &&
             replyToMessageAuthorId === selfId;
 
+          const navToMessage = () => navigateRef.current(`/conversations/${conversationId}?messageId=${messageId}`);
+
           if (isReplyToMe) {
             fireNotificationRef.current(
               tRef.current('conversations.notifications.messageReply', { defaultValue: 'Reply to your message' }),
@@ -1526,7 +1543,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 : tRef.current('conversations.notifications.messageReplyGeneric', {
                     defaultValue: 'Someone replied to your message',
                   }),
-              isViewing
+              { isViewingConvo: isViewing, onClick: navToMessage }
             );
           } else {
             fireNotificationRef.current(
@@ -1534,7 +1551,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               senderName
                 ? tRef.current('conversations.notifications.newMessageBody', { name: senderName, defaultValue: `Message from ${senderName}` })
                 : tRef.current('conversations.notifications.newMessageGeneric', { defaultValue: 'You received a new message' }),
-              isViewing
+              { isViewingConvo: isViewing, onClick: navToMessage }
             );
           }
           break;
@@ -1602,6 +1619,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               );
             }
 
+            const navToReaction = () => navigateRef.current(`/conversations/${convId}?messageId=${reaction.messageId}`);
+
             void resolveParticipantsRef.current([reaction.fromIdentityId]).then((freshProfiles) => {
               const profiles = { ...participantProfilesRef.current, ...freshProfiles };
               const profile = profiles[reaction.fromIdentityId];
@@ -1616,7 +1635,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                   : tRef.current('conversations.notifications.reactionGeneric', {
                       defaultValue: 'Someone reacted to your message',
                     }),
-                isViewing
+                { isViewingConvo: isViewing, onClick: navToReaction }
               );
             });
           };
@@ -1655,7 +1674,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                 : tRef.current('conversations.notifications.groupInviteGeneric', { defaultValue: "You've been invited to a group" });
             fireNotificationRef.current(
               tRef.current('conversations.notifications.groupInvite', { defaultValue: 'Group invitation' }),
-              body
+              body,
+              { onClick: () => sidebarActions.openInvites() }
             );
           });
           break;
@@ -1667,11 +1687,13 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             void resolveParticipantsRef.current([message.data.identityId]);
           }
           const joinerName = message.data.displayName ?? message.data.username;
+          const acceptedConvId = message.data.conversationId;
           fireNotificationRef.current(
             tRef.current('conversations.notifications.memberJoined', { defaultValue: 'Member joined' }),
             joinerName
               ? tRef.current('conversations.notifications.memberJoinedBody', { name: joinerName, defaultValue: `${joinerName} joined the group` })
-              : tRef.current('conversations.notifications.memberJoinedGeneric', { defaultValue: 'A new member joined the group' })
+              : tRef.current('conversations.notifications.memberJoinedGeneric', { defaultValue: 'A new member joined the group' }),
+            acceptedConvId ? { onClick: () => navigateRef.current(`/conversations/${acceptedConvId}`) } : undefined
           );
           break;
         }
@@ -1705,6 +1727,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             reactionId?: string;
             fromIdentityId?: unknown;
             conversationId?: unknown;
+            messageId?: unknown;
           };
           const fromId =
             typeof raw.fromIdentityId === 'string' ? raw.fromIdentityId : undefined;
@@ -1712,6 +1735,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             typeof raw.conversationId === 'string' ? raw.conversationId : undefined;
           const reactionId =
             typeof raw.reactionId === 'string' ? raw.reactionId : undefined;
+          const notifMsgId =
+            typeof raw.messageId === 'string' ? raw.messageId : undefined;
           if (!fromId || !convId) break;
 
           const isViewing =
@@ -1728,6 +1753,10 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               );
             }
 
+            const navToReactedMsg = notifMsgId
+              ? () => navigateRef.current(`/conversations/${convId}?messageId=${notifMsgId}`)
+              : () => navigateRef.current(`/conversations/${convId}`);
+
             void resolveParticipantsRef.current([fromId]).then((freshProfiles) => {
               const profiles = { ...participantProfilesRef.current, ...freshProfiles };
               const profile = profiles[fromId];
@@ -1742,7 +1771,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
                   : tRef.current('conversations.notifications.reactionGeneric', {
                       defaultValue: 'Someone reacted to your message',
                     }),
-                isViewing
+                { isViewingConvo: isViewing, onClick: navToReactedMsg }
               );
             });
           };

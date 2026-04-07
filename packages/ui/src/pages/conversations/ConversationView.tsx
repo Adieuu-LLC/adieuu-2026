@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Checkbox, Dialog, Menu, Portal, Popover } from '@ark-ui/react';
 import { Virtuoso } from 'react-virtuoso';
@@ -2111,6 +2111,7 @@ function MessageComposer({
 
 export function ConversationView() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { identity } = useIdentity();
@@ -2589,6 +2590,13 @@ export function ConversationView() {
     loadMoreMessages,
     flashMessageHighlight,
   ]);
+
+  const deepLinkMessageId = searchParams.get('messageId');
+  useEffect(() => {
+    if (!deepLinkMessageId || !id) return;
+    scrollToMessageId(deepLinkMessageId);
+    setSearchParams((prev) => { prev.delete('messageId'); return prev; }, { replace: true });
+  }, [deepLinkMessageId, id, scrollToMessageId, setSearchParams]);
 
   if (!conversation) {
     return (

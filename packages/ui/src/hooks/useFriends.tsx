@@ -31,6 +31,7 @@ import { useToast } from '../components/Toast';
 import { useNotificationSoundPreference } from './useNotificationSoundPreference';
 import { getNativeNotificationsEnabled } from './useNativeNotificationsPreference';
 import { playNotificationSound, type FocusVisibilitySnapshot } from '../utils/notificationSound';
+import { sidebarActions } from '../utils/sidebarActions';
 
 // ============================================================================
 // Types
@@ -95,8 +96,8 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
   const fireNotification = useCallback(
-    (title: string, body: string) => {
-      toast.info(title, body);
+    (title: string, body: string, onClick?: () => void) => {
+      toast.info(title, body, onClick);
 
       const snapshot: FocusVisibilitySnapshot = {
         hasFocus: document.hasFocus(),
@@ -115,7 +116,7 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
       });
 
       if (getNativeNotificationsEnabled() && notifications.hasPermission()) {
-        notifications.show(title, body, { tag: 'friend-event' });
+        notifications.show(title, body, { tag: 'friend-event', onClick });
       }
     },
     [toast, soundPref, audio, notifications]
@@ -269,7 +270,8 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
           if (senderName) {
             fireNotificationRef.current(
               tRef.current('friends.notifications.requestReceived'),
-              tRef.current('friends.notifications.requestReceivedBody', { name: senderName })
+              tRef.current('friends.notifications.requestReceivedBody', { name: senderName }),
+              () => sidebarActions.openFriends()
             );
           }
           break;
@@ -281,7 +283,8 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
           if (accepterName) {
             fireNotificationRef.current(
               tRef.current('friends.notifications.requestAccepted'),
-              tRef.current('friends.notifications.requestAcceptedBody', { name: accepterName })
+              tRef.current('friends.notifications.requestAcceptedBody', { name: accepterName }),
+              () => sidebarActions.openFriends()
             );
           }
           break;

@@ -2659,6 +2659,16 @@ a {
     min-width: 0;
   }
 
+  &-clickable &-content {
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: background var(--transition-fast);
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+  }
+
   &-icon {
     flex-shrink: 0;
     display: flex;
