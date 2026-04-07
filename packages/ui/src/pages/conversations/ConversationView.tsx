@@ -2684,7 +2684,7 @@ export function ConversationView() {
           <div className="conversation-main">
             {/* Messages */}
             <div className="conversation-messages" ref={messagesContainerRef}>
-              {id !== activeConversationId ? (
+              {id !== activeConversationId || (messagesLoading && reversedMessages.length === 0) ? (
                 <div className="dm-messages-loading">
                   <div className="dm-messages-spinner" />
                 </div>

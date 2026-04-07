@@ -797,13 +797,20 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     (id: string | null) => {
       setActiveConversationId(id);
       if (id) {
+        const hasUnread = conversations.some((c) => c.id === id && c.unreadCount > 0);
         setConversations((prev) =>
           prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
         );
+        if (hasUnread) {
+          setMessagesState((prev) => ({
+            ...prev,
+            [id]: { messages: [], cursor: null, loading: true },
+          }));
+        }
         fetchMessages(id, undefined, true);
       }
     },
-    [fetchMessages]
+    [conversations, fetchMessages]
   );
 
   const loadMoreMessages = useCallback(async () => {
