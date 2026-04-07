@@ -8,14 +8,19 @@ import {
   verifyCipherEntropy,
   shortCipherId,
   wrapEntropy,
-  unwrapEntropy,
-  isWrappedEntropy,
   type EntropyPiece,
   type CommunityCipher,
   type CryptoProfile,
   type WrappedEntropy,
 } from '@adieuu/crypto';
 import { useIdentity } from './useIdentity';
+import {
+  deleteStoredCipher,
+  getStoredCipherById,
+  getStoredCiphers,
+  saveStoredCipher,
+} from '../services/cipherStoreDb';
+import { decryptStoredEntropy } from '../services/cipherStoreOperations';
 
 // ============================================================================
 // Cipher Store Types
@@ -133,110 +138,6 @@ export interface CipherStoreContextValue extends CipherStoreState {
 }
 
 // ============================================================================
-// IndexedDB Helpers
-// ============================================================================
-
-const DB_NAME = 'adieuu-ciphers';
-const DB_VERSION = 1;
-const STORE_NAME = 'ciphers';
-
-/**
- * Opens the cipher IndexedDB, creating the object store on first use.
- * If the database exists but is missing the expected store (e.g. due to a
- * prior crash or aborted upgrade), the database is deleted and recreated.
- */
-function openDatabase(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = () => reject(request.error);
-
-    request.onsuccess = () => {
-      const db = request.result;
-
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.close();
-        const deleteReq = indexedDB.deleteDatabase(DB_NAME);
-        deleteReq.onsuccess = () => {
-          openDatabase().then(resolve, reject);
-        };
-        deleteReq.onerror = () => reject(deleteReq.error);
-        return;
-      }
-
-      resolve(db);
-    };
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-        store.createIndex('identityId', 'identityId', { unique: false });
-        store.createIndex('cipherId', 'cipherId', { unique: false });
-      }
-    };
-  });
-}
-
-async function getAllCiphers(identityId: string): Promise<StoredCipher[]> {
-  const db = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const index = store.index('identityId');
-    const request = index.getAll(identityId);
-
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const ciphers = request.result as StoredCipher[];
-      ciphers.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      resolve(ciphers);
-    };
-
-    tx.oncomplete = () => db.close();
-  });
-}
-
-async function saveCipher(cipher: StoredCipher): Promise<void> {
-  const db = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.put(cipher);
-
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
-    tx.oncomplete = () => db.close();
-  });
-}
-
-async function deleteCipherFromDb(id: string): Promise<void> {
-  const db = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.delete(id);
-
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve();
-    tx.oncomplete = () => db.close();
-  });
-}
-
-async function getCipherByIdFromDb(id: string): Promise<StoredCipher | undefined> {
-  const db = await openDatabase();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const request = store.get(id);
-
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result as StoredCipher | undefined);
-    tx.oncomplete = () => db.close();
-  });
-}
-
-// ============================================================================
 // Cipher Store Context
 // ============================================================================
 
@@ -287,17 +188,7 @@ function useCipherStoreState(): CipherStoreContextValue {
    */
   const decryptCipherEntropy = useCallback(
     async (stored: StoredCipher): Promise<EntropyPiece[]> => {
-      const wrappingKey = getWrappingKey();
-
-      if (!wrappingKey) {
-        throw new Error('Cannot decrypt entropy: wrapping key not available');
-      }
-
-      if (!isWrappedEntropy(stored.encryptedEntropy)) {
-        throw new Error('Cipher has invalid encrypted entropy');
-      }
-
-      return unwrapEntropy(stored.encryptedEntropy, wrappingKey);
+      return decryptStoredEntropy(stored.encryptedEntropy, getWrappingKey());
     },
     [getWrappingKey]
   );
@@ -312,7 +203,7 @@ function useCipherStoreState(): CipherStoreContextValue {
 
     try {
       setState((prev) => ({ ...prev, loading: true, error: null }));
-      const storedCiphers = await getAllCiphers(identityId);
+      const storedCiphers = (await getStoredCiphers(identityId)) as StoredCipher[];
 
       // Decrypt entropy and derive keys for all ciphers
       cipherKeysRef.clear();
@@ -414,7 +305,7 @@ function useCipherStoreState(): CipherStoreContextValue {
         };
 
         // Save to IndexedDB
-        await saveCipher(storedCipher);
+        await saveStoredCipher(storedCipher);
 
         // Cache the derived key
         cipherKeysRef.set(id, derived);
@@ -454,7 +345,7 @@ function useCipherStoreState(): CipherStoreContextValue {
   const deleteCipherAction = useCallback(
     async (id: string) => {
       try {
-        await deleteCipherFromDb(id);
+        await deleteStoredCipher(id);
         cipherKeysRef.delete(id);
         setState((prev) => ({
           ...prev,
@@ -478,14 +369,14 @@ function useCipherStoreState(): CipherStoreContextValue {
       }
 
       try {
-        const storedCipher = await getCipherByIdFromDb(id);
+        const storedCipher = (await getStoredCipherById(id)) as StoredCipher | undefined;
         if (!storedCipher) {
           return { success: false, error: 'Cipher not found' };
         }
 
         // Update stored cipher with new name
         const updatedStored = { ...storedCipher, name: newName.trim() };
-        await saveCipher(updatedStored);
+        await saveStoredCipher(updatedStored);
 
         // Update only the name in state (keep decrypted entropy intact)
         setState((prev) => ({
@@ -517,7 +408,7 @@ function useCipherStoreState(): CipherStoreContextValue {
           return { success: false, error: 'Cannot update cipher: encryption key not available' };
         }
 
-        const storedCipher = await getCipherByIdFromDb(id);
+        const storedCipher = (await getStoredCipherById(id)) as StoredCipher | undefined;
         if (!storedCipher) {
           return { success: false, error: 'Cipher not found' };
         }
@@ -564,7 +455,7 @@ function useCipherStoreState(): CipherStoreContextValue {
           shortId: newShortId,
         };
 
-        await saveCipher(updatedStored);
+        await saveStoredCipher(updatedStored);
 
         // Update state
         setState((prev) => ({
@@ -639,11 +530,11 @@ function useCipherStoreState(): CipherStoreContextValue {
 
   const touchCipher = useCallback(async (id: string) => {
     try {
-      const storedCipher = await getCipherByIdFromDb(id);
+      const storedCipher = (await getStoredCipherById(id)) as StoredCipher | undefined;
       if (storedCipher) {
         const newLastUsedAt = new Date().toISOString();
         storedCipher.lastUsedAt = newLastUsedAt;
-        await saveCipher(storedCipher);
+        await saveStoredCipher(storedCipher);
 
         // Update only the lastUsedAt in state (keep decrypted entropy intact)
         setState((prev) => ({
@@ -711,7 +602,7 @@ export { createTextEntropy, createFileEntropy, createUrlEntropy };
 // Direct IDB access for backup export/import
 // ============================================================================
 
-export { getAllCiphers as getStoredCiphersForIdentity };
+export { getStoredCiphers as getStoredCiphersForIdentity };
 
 /**
  * Stores a pre-encrypted StoredCipher record directly.
@@ -719,5 +610,5 @@ export { getAllCiphers as getStoredCiphersForIdentity };
  * the identity wrapping key.
  */
 export async function storePreEncryptedCipher(cipher: StoredCipher): Promise<void> {
-  return saveCipher(cipher);
+  return saveStoredCipher(cipher);
 }

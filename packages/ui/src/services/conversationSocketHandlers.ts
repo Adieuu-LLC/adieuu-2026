@@ -1,0 +1,557 @@
+import type {
+  ChatIncomingMessage,
+  PublicGroupInvite,
+  PublicIdentity,
+} from '@adieuu/shared';
+
+interface DisplayMessageLike {
+  id: string;
+  deleted?: boolean;
+  decryptedContent?: string;
+  ciphertext?: string;
+  fromIdentityId?: string;
+}
+
+interface DecryptedConversationLike {
+  id: string;
+  unreadCount: number;
+  type?: string;
+  encryptedName?: string | null;
+  nameNonce?: string | null;
+  participants?: string[];
+  createdBy?: string;
+  lastMessageAt?: string;
+  lastMessageId?: string;
+}
+
+interface ConversationMessagesStateLike {
+  messages: DisplayMessageLike[];
+  cursor: string | null;
+  loading: boolean;
+}
+
+type Updater<T> = (prev: T) => T;
+
+export interface ConversationSocketHandlerContext {
+  setConversations: (updater: Updater<DecryptedConversationLike[]>) => void;
+  setMessagesState: (
+    updater: Updater<Record<string, ConversationMessagesStateLike>>
+  ) => void;
+  setActiveConversationId: (updater: Updater<string | null>) => void;
+  setInvites: (updater: Updater<PublicGroupInvite[]>) => void;
+  activeConversationId: string | null;
+  isAtBottom: boolean;
+  hasFocus: boolean;
+  identityId?: string;
+  messagesState: Record<string, ConversationMessagesStateLike>;
+  participantProfiles: Record<string, PublicIdentity>;
+  decryptGroupName: (
+    encryptedName: string,
+    nonce: string,
+    conversationId: string
+  ) => string;
+  fetchConversations: () => void;
+  fetchMessages: (conversationId: string, cursor?: string, silent?: boolean) => void;
+  fireNotification: (
+    title: string,
+    body: string,
+    options?: { isViewingConvo?: boolean; onClick?: () => void }
+  ) => void;
+  navigate: (path: string) => void;
+  resolveParticipants: (participantIds: string[]) => Promise<Record<string, PublicIdentity>>;
+  t: (key: string, options?: Record<string, unknown>) => string;
+  runReactionNotifOnce: (reactionId: string, fn: () => void) => void;
+  loadReactionNotificationsEnabled: (identityId: string) => boolean;
+  openInvites: () => void;
+}
+
+export function handleConversationSocketMessage(
+  message: ChatIncomingMessage,
+  ctx: ConversationSocketHandlerContext
+): void {
+  switch (message.type) {
+    case 'conversation_created': {
+      const conv = message.data.conversation;
+      ctx.setConversations((prev) => {
+        if (prev.some((c) => c.id === conv.id)) return prev;
+        const decrypted: DecryptedConversationLike = {
+          ...conv,
+          unreadCount: 0,
+          decryptedName:
+            conv.type === 'group' && conv.encryptedName && conv.nameNonce
+              ? (() => {
+                  try {
+                    return ctx.decryptGroupName(conv.encryptedName!, conv.nameNonce!, conv.id);
+                  } catch {
+                    return undefined;
+                  }
+                })()
+              : undefined,
+        } as DecryptedConversationLike;
+        return [decrypted, ...prev];
+      });
+
+      void ctx.resolveParticipants(conv.participants).then((freshProfiles) => {
+        const profiles = { ...ctx.participantProfiles, ...freshProfiles };
+        const creatorProfile = profiles[conv.createdBy];
+        const creatorName = creatorProfile?.displayName ?? creatorProfile?.username;
+        ctx.fireNotification(
+          ctx.t('conversations.notifications.newConversation', {
+            defaultValue: 'New conversation',
+          }),
+          creatorName
+            ? ctx.t('conversations.notifications.newConversationBody', {
+                name: creatorName,
+                defaultValue: `${creatorName} started a conversation`,
+              })
+            : ctx.t('conversations.notifications.newConversationGeneric', {
+                defaultValue: 'Someone started a conversation with you',
+              }),
+          { onClick: () => ctx.navigate(`/conversations/${conv.id}`) }
+        );
+      });
+      break;
+    }
+
+    case 'conversation_updated': {
+      const { conversationId, action, identityId: eventIdentityId } = message.data;
+      if (action === 'removed') {
+        ctx.setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+        ctx.setActiveConversationId((prev) => (prev === conversationId ? null : prev));
+
+        ctx.fireNotification(
+          ctx.t('conversations.notifications.youWereRemoved', {
+            defaultValue: 'Removed from group',
+          }),
+          ctx.t('conversations.notifications.youWereRemovedBody', {
+            defaultValue: 'You were removed from a group conversation',
+          })
+        );
+      } else {
+        ctx.fetchConversations();
+        if (conversationId === ctx.activeConversationId) {
+          ctx.fetchMessages(conversationId, undefined, true);
+        }
+      }
+
+      const navToConvo = () => ctx.navigate(`/conversations/${conversationId}`);
+      if (action === 'member_added' && eventIdentityId) {
+        void ctx.resolveParticipants([eventIdentityId]).then((freshProfiles) => {
+          const profiles = { ...ctx.participantProfiles, ...freshProfiles };
+          const profile = profiles[eventIdentityId];
+          const name = profile?.displayName ?? profile?.username;
+          ctx.fireNotification(
+            ctx.t('conversations.notifications.memberAdded', {
+              defaultValue: 'Member added',
+            }),
+            name
+              ? ctx.t('conversations.notifications.memberAddedBody', {
+                  name,
+                  defaultValue: `${name} was added to the group`,
+                })
+              : ctx.t('conversations.notifications.memberAddedGeneric', {
+                  defaultValue: 'A new member was added to the group',
+                }),
+            { onClick: navToConvo }
+          );
+        });
+      } else if (action === 'member_left' && eventIdentityId) {
+        const profile = ctx.participantProfiles[eventIdentityId];
+        const name = profile?.displayName ?? profile?.username;
+        ctx.fireNotification(
+          ctx.t('conversations.notifications.memberLeft', { defaultValue: 'Member left' }),
+          name
+            ? ctx.t('conversations.notifications.memberLeftBody', {
+                name,
+                defaultValue: `${name} left the group`,
+              })
+            : ctx.t('conversations.notifications.memberLeftGeneric', {
+                defaultValue: 'A member left the group',
+              }),
+          { onClick: navToConvo }
+        );
+      } else if (action === 'member_removed' && eventIdentityId) {
+        const profile = ctx.participantProfiles[eventIdentityId];
+        const name = profile?.displayName ?? profile?.username;
+        ctx.fireNotification(
+          ctx.t('conversations.notifications.memberRemoved', {
+            defaultValue: 'Member removed',
+          }),
+          name
+            ? ctx.t('conversations.notifications.memberRemovedBody', {
+                name,
+                defaultValue: `${name} was removed from the group`,
+              })
+            : ctx.t('conversations.notifications.memberRemovedGeneric', {
+                defaultValue: 'A member was removed from the group',
+              }),
+          { onClick: navToConvo }
+        );
+      } else if (action === 'renamed') {
+        if (eventIdentityId) {
+          void ctx.resolveParticipants([eventIdentityId]).then((freshProfiles) => {
+            const profiles = { ...ctx.participantProfiles, ...freshProfiles };
+            const profile = profiles[eventIdentityId];
+            const name = profile?.displayName ?? profile?.username;
+            ctx.fireNotification(
+              ctx.t('conversations.notifications.groupRenamed', {
+                defaultValue: 'Group renamed',
+              }),
+              name
+                ? ctx.t('conversations.notifications.groupRenamedByBody', {
+                    name,
+                    defaultValue: `${name} renamed the group`,
+                  })
+                : ctx.t('conversations.notifications.groupRenamedBody', {
+                    defaultValue: 'The group name was updated',
+                  }),
+              { onClick: navToConvo }
+            );
+          });
+        } else {
+          ctx.fireNotification(
+            ctx.t('conversations.notifications.groupRenamed', {
+              defaultValue: 'Group renamed',
+            }),
+            ctx.t('conversations.notifications.groupRenamedBody', {
+              defaultValue: 'The group name was updated',
+            }),
+            { onClick: navToConvo }
+          );
+        }
+      } else if (action === 'admin_promoted' && eventIdentityId) {
+        const profile = ctx.participantProfiles[eventIdentityId];
+        const name = profile?.displayName ?? profile?.username;
+        ctx.fireNotification(
+          ctx.t('conversations.notifications.adminPromoted', {
+            defaultValue: 'New admin',
+          }),
+          name
+            ? ctx.t('conversations.notifications.adminPromotedBody', {
+                name,
+                defaultValue: `${name} was promoted to admin`,
+              })
+            : ctx.t('conversations.notifications.adminPromotedGeneric', {
+                defaultValue: 'A member was promoted to admin',
+              }),
+          { onClick: navToConvo }
+        );
+      }
+      break;
+    }
+
+    case 'conversation_message': {
+      const {
+        conversationId,
+        messageId,
+        fromIdentityId,
+        replyToMessageId,
+        replyToMessageAuthorId,
+      } = message.data;
+      const isActiveConvo = conversationId === ctx.activeConversationId;
+      const isViewing = isActiveConvo && ctx.hasFocus && ctx.isAtBottom;
+
+      if (!isViewing) {
+        ctx.setConversations((prev) =>
+          prev.map((c) =>
+            c.id === conversationId ? { ...c, unreadCount: c.unreadCount + 1 } : c
+          )
+        );
+      } else {
+        ctx.setConversations((prev) =>
+          prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c))
+        );
+      }
+
+      if (isActiveConvo) {
+        ctx.fetchMessages(conversationId, undefined, true);
+      }
+
+      ctx.setConversations((prev) => {
+        const idx = prev.findIndex((c) => c.id === conversationId);
+        if (idx === -1) return prev;
+        const conv = prev[idx]!;
+        const updated = {
+          ...conv,
+          lastMessageAt: message.data.createdAt,
+          lastMessageId: messageId,
+        };
+        const rest = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+        return [updated, ...rest];
+      });
+
+      const senderProfile = ctx.participantProfiles[fromIdentityId];
+      const senderName = senderProfile?.displayName ?? senderProfile?.username;
+      const isReplyToMe =
+        !!replyToMessageId &&
+        typeof replyToMessageAuthorId === 'string' &&
+        replyToMessageAuthorId === ctx.identityId;
+      const navToMessage = () =>
+        ctx.navigate(`/conversations/${conversationId}?messageId=${messageId}`);
+
+      if (isReplyToMe) {
+        ctx.fireNotification(
+          ctx.t('conversations.notifications.messageReply', {
+            defaultValue: 'Reply to your message',
+          }),
+          senderName
+            ? ctx.t('conversations.notifications.messageReplyBody', {
+                name: senderName,
+                defaultValue: `${senderName} replied to your message`,
+              })
+            : ctx.t('conversations.notifications.messageReplyGeneric', {
+                defaultValue: 'Someone replied to your message',
+              }),
+          { isViewingConvo: isViewing, onClick: navToMessage }
+        );
+      } else {
+        ctx.fireNotification(
+          ctx.t('conversations.notifications.newMessage', {
+            defaultValue: 'New message',
+          }),
+          senderName
+            ? ctx.t('conversations.notifications.newMessageBody', {
+                name: senderName,
+                defaultValue: `Message from ${senderName}`,
+              })
+            : ctx.t('conversations.notifications.newMessageGeneric', {
+                defaultValue: 'You received a new message',
+              }),
+          { isViewingConvo: isViewing, onClick: navToMessage }
+        );
+      }
+      break;
+    }
+
+    case 'conversation_message_deleted': {
+      const { conversationId, messageId } = message.data;
+      ctx.setMessagesState((prev) => {
+        const state = prev[conversationId];
+        if (!state) return prev;
+        return {
+          ...prev,
+          [conversationId]: {
+            ...state,
+            messages: state.messages.map((m) =>
+              m.id === messageId
+                ? { ...m, deleted: true, decryptedContent: undefined, ciphertext: undefined }
+                : m
+            ),
+          },
+        };
+      });
+      break;
+    }
+
+    case 'reaction_added': {
+      const { reaction, messageAuthorId } = message.data;
+      if (!ctx.identityId || reaction.fromIdentityId === ctx.identityId) break;
+      if (!ctx.loadReactionNotificationsEnabled(ctx.identityId)) break;
+
+      let isMessageOurs = false;
+      if (typeof messageAuthorId === 'string' && messageAuthorId.length > 0) {
+        isMessageOurs = messageAuthorId === ctx.identityId;
+      } else {
+        const convId = reaction.conversationId;
+        let msgs = ctx.messagesState[convId]?.messages;
+        if (!msgs) {
+          const lower = convId.toLowerCase();
+          for (const k of Object.keys(ctx.messagesState)) {
+            if (k.toLowerCase() === lower) {
+              msgs = ctx.messagesState[k]?.messages;
+              break;
+            }
+          }
+        }
+        const targetMsg = (msgs ?? []).find((m) => m.id === reaction.messageId);
+        isMessageOurs = !!targetMsg && targetMsg.fromIdentityId === ctx.identityId;
+      }
+      if (!isMessageOurs) break;
+
+      const convId = reaction.conversationId;
+      const isViewing =
+        convId === ctx.activeConversationId && ctx.hasFocus && ctx.isAtBottom;
+
+      const fire = () => {
+        if (!isViewing) {
+          ctx.setConversations((prev) =>
+            prev.map((c) =>
+              c.id === convId ? { ...c, unreadCount: c.unreadCount + 1 } : c
+            )
+          );
+        }
+
+        const navToReaction = () =>
+          ctx.navigate(`/conversations/${convId}?messageId=${reaction.messageId}`);
+
+        void ctx.resolveParticipants([reaction.fromIdentityId]).then((freshProfiles) => {
+          const profiles = { ...ctx.participantProfiles, ...freshProfiles };
+          const profile = profiles[reaction.fromIdentityId];
+          const name = profile?.displayName ?? profile?.username;
+          ctx.fireNotification(
+            ctx.t('conversations.notifications.reaction', { defaultValue: 'Reaction' }),
+            name
+              ? ctx.t('conversations.notifications.reactionBody', {
+                  name,
+                  defaultValue: `${name} reacted to your message`,
+                })
+              : ctx.t('conversations.notifications.reactionGeneric', {
+                  defaultValue: 'Someone reacted to your message',
+                }),
+            { isViewingConvo: isViewing, onClick: navToReaction }
+          );
+        });
+      };
+
+      ctx.runReactionNotifOnce(reaction.id, fire);
+      break;
+    }
+
+    case 'group_invite_received': {
+      const invite = message.data.invite;
+      ctx.setInvites((prev) => {
+        if (prev.some((i) => i.id === invite.id)) return prev;
+        return [invite, ...prev];
+      });
+
+      void ctx.resolveParticipants([invite.invitedByIdentityId]).then((freshProfiles) => {
+        const profiles = { ...ctx.participantProfiles, ...freshProfiles };
+        const inviterProfile = profiles[invite.invitedByIdentityId];
+        const inviterDisplayName =
+          inviterProfile?.displayName ?? inviterProfile?.username;
+        const othersCount = invite.memberCount - 1;
+        const body = invite.hasGroupName
+          ? ctx.t('conversations.notifications.groupInviteNameHidden', {
+              defaultValue: "You've been invited to a group (name hidden until you join)",
+            })
+          : inviterDisplayName
+            ? othersCount > 0
+              ? ctx.t('conversations.notifications.groupInviteFromBody', {
+                  name: inviterDisplayName,
+                  count: othersCount,
+                  defaultValue: `${inviterDisplayName} + ${othersCount} others invited you`,
+                })
+              : ctx.t('conversations.notifications.groupInviteFromSolo', {
+                  name: inviterDisplayName,
+                  defaultValue: `${inviterDisplayName} is inviting you`,
+                })
+            : ctx.t('conversations.notifications.groupInviteGeneric', {
+                defaultValue: "You've been invited to a group",
+              });
+        ctx.fireNotification(
+          ctx.t('conversations.notifications.groupInvite', {
+            defaultValue: 'Group invitation',
+          }),
+          body,
+          { onClick: () => ctx.openInvites() }
+        );
+      });
+      break;
+    }
+
+    case 'group_invite_accepted': {
+      ctx.fetchConversations();
+      if (message.data.identityId) {
+        void ctx.resolveParticipants([message.data.identityId]);
+      }
+      const joinerName = message.data.displayName ?? message.data.username;
+      const acceptedConvId = message.data.conversationId;
+      ctx.fireNotification(
+        ctx.t('conversations.notifications.memberJoined', {
+          defaultValue: 'Member joined',
+        }),
+        joinerName
+          ? ctx.t('conversations.notifications.memberJoinedBody', {
+              name: joinerName,
+              defaultValue: `${joinerName} joined the group`,
+            })
+          : ctx.t('conversations.notifications.memberJoinedGeneric', {
+              defaultValue: 'A new member joined the group',
+            }),
+        acceptedConvId
+          ? { onClick: () => ctx.navigate(`/conversations/${acceptedConvId}`) }
+          : undefined
+      );
+      break;
+    }
+
+    case 'group_terminated': {
+      const { conversationId, terminatedBy } = message.data;
+      ctx.setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+      ctx.setActiveConversationId((prev) => (prev === conversationId ? null : prev));
+      const adminName =
+        terminatedBy.displayName ?? terminatedBy.username ?? terminatedBy.id.slice(0, 8);
+      ctx.fireNotification(
+        ctx.t('conversations.notifications.groupTerminated', {
+          defaultValue: 'Group deleted',
+        }),
+        ctx.t('conversations.notifications.groupTerminatedBody', {
+          name: adminName,
+          defaultValue: `${adminName} deleted the group`,
+        })
+      );
+      break;
+    }
+
+    case 'notification_created': {
+      const { notification } = message.data;
+      if (notification.type !== 'message_reaction') break;
+      if (!ctx.identityId || !ctx.loadReactionNotificationsEnabled(ctx.identityId)) break;
+
+      const raw = notification.data as {
+        reactionId?: string;
+        fromIdentityId?: unknown;
+        conversationId?: unknown;
+        messageId?: unknown;
+      };
+      const fromId = typeof raw.fromIdentityId === 'string' ? raw.fromIdentityId : undefined;
+      const convId =
+        typeof raw.conversationId === 'string' ? raw.conversationId : undefined;
+      const reactionId = typeof raw.reactionId === 'string' ? raw.reactionId : undefined;
+      const notifMsgId = typeof raw.messageId === 'string' ? raw.messageId : undefined;
+      if (!fromId || !convId) break;
+
+      const isViewing =
+        convId === ctx.activeConversationId && ctx.hasFocus && ctx.isAtBottom;
+
+      const fire = () => {
+        if (!isViewing) {
+          ctx.setConversations((prev) =>
+            prev.map((c) =>
+              c.id === convId ? { ...c, unreadCount: c.unreadCount + 1 } : c
+            )
+          );
+        }
+
+        const navToReactedMsg = notifMsgId
+          ? () => ctx.navigate(`/conversations/${convId}?messageId=${notifMsgId}`)
+          : () => ctx.navigate(`/conversations/${convId}`);
+
+        void ctx.resolveParticipants([fromId]).then((freshProfiles) => {
+          const profiles = { ...ctx.participantProfiles, ...freshProfiles };
+          const profile = profiles[fromId];
+          const name = profile?.displayName ?? profile?.username;
+          ctx.fireNotification(
+            ctx.t('conversations.notifications.reaction', { defaultValue: 'Reaction' }),
+            name
+              ? ctx.t('conversations.notifications.reactionBody', {
+                  name,
+                  defaultValue: `${name} reacted to your message`,
+                })
+              : ctx.t('conversations.notifications.reactionGeneric', {
+                  defaultValue: 'Someone reacted to your message',
+                }),
+            { isViewingConvo: isViewing, onClick: navToReactedMsg }
+          );
+        });
+      };
+
+      if (reactionId) {
+        ctx.runReactionNotifOnce(reactionId, fire);
+      } else {
+        fire();
+      }
+      break;
+    }
+  }
+}

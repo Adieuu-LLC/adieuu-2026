@@ -37,53 +37,21 @@ import {
   deletePersistedSessionKey,
 } from '../services/preKeyStorage';
 import { notifyOtpkConsumed } from '../services/preKeyService';
+import { decryptReactionsBatch } from '../services/reactionDecryptionPipeline';
+import {
+  mergeReactionsByMessageId,
+  groupReactions,
+  type GroupedReaction,
+} from '../utils/reactionGrouping';
+export type { GroupedReaction } from '../utils/reactionGrouping';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-export interface GroupedReaction {
-  emoji: string;
-  count: number;
-  reactionIds: string[];
-  fromIdentityIds: string[];
-  isOwn: boolean;
-  ownReactionId?: string;
-}
-
 interface ReactionsState {
   byMessage: Record<string, DecryptedReaction[]>;
   loading: boolean;
-}
-
-/**
- * Merge API-fetched reactions with existing state by reaction id.
- * A refetch may decrypt fewer reactions (e.g. after OTPK consumption); without
- * merging, the spread would overwrite and drop reactions only present from WS.
- */
-function mergeReactionsByMessageId(
-  prev: Record<string, DecryptedReaction[]>,
-  fetched: Record<string, DecryptedReaction[]>
-): Record<string, DecryptedReaction[]> {
-  const merged = { ...prev };
-  for (const [messageId, fetchedList] of Object.entries(fetched)) {
-    const prevList = prev[messageId] ?? [];
-    const byId = new Map<string, DecryptedReaction>();
-    for (const r of prevList) {
-      byId.set(r.id, r);
-    }
-    for (const r of fetchedList) {
-      const existing = byId.get(r.id);
-      // Refetch may fail signature verification if wrappedKeys JSON order differs from
-      // the live WS payload; never replace a verified decrypt with an unverified one.
-      if (existing && existing.verified && !r.verified) {
-        continue;
-      }
-      byId.set(r.id, r);
-    }
-    merged[messageId] = Array.from(byId.values());
-  }
-  return merged;
 }
 
 function sameConversationRoute(
@@ -207,220 +175,20 @@ export function useReactions(conversationId: string | null) {
       const wrappingKey = getWrappingKey();
       const senderIds = [...new Set(publicReactions.map((r) => r.fromIdentityId))];
       const signingKeys = await resolveSigningKeys(senderIds);
-
-      const spkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
-      const otpkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
-      const deletedOtpkIds = new Set<string>();
-      const results: DecryptedReaction[] = [];
-
-      for (const reaction of publicReactions) {
-        try {
-          const signingKey = signingKeys[reaction.fromIdentityId];
-          if (!signingKey) continue;
-
-          // Layer 2: In-memory cache, then persistent (FS reactions need this after OTPK consumption)
-          let cachedKey = reactionSessionKeyCache.current.get(reaction.id);
-          if (!cachedKey && wrappingKey) {
-            const persisted = await getPersistedSessionKey(
-              reactionSessionStorageKey(reaction.id),
-              identity.id,
-              wrappingKey
-            );
-            if (persisted) {
-              reactionSessionKeyCache.current.set(reaction.id, persisted);
-              cachedKey = persisted;
-            }
-          }
-          if (cachedKey) {
-            try {
-              const result = decryptReaction(
-                reaction,
-                identity.id,
-                keys.ecdhPrivateKey,
-                keys.kemPrivateKey,
-                signingKey,
-                undefined,
-                undefined,
-                cachedKey
-              );
-              results.push(result);
-              continue;
-            } catch {
-              reactionSessionKeyCache.current.delete(reaction.id);
-              void deletePersistedSessionKey(
-                reactionSessionStorageKey(reaction.id),
-                identity.id
-              ).catch((err) =>
-                console.error('[Reactions] Failed to clear bad persisted session key', err)
-              );
-            }
-          }
-
-          const candidates = reaction.wrappedKeys.filter(
-            (wk) => wk.identityId === identity.id
-          );
-          if (candidates.length === 0) continue;
-
-          let resolvedWrappedKey: SerializedWrappedKey | undefined;
-          let preKeyPrivateKeys:
-            | {
-                spkEcdhPrivate?: Uint8Array;
-                spkKemPrivate?: Uint8Array;
-                otpkEcdhPrivate?: Uint8Array;
-                otpkKemPrivate?: Uint8Array;
-              }
-            | undefined;
-
-          // Tier 1: FS candidates — match by local SPK presence
-          const fsCandidates = candidates.filter(
-            (wk) => (wk.preKeyType === 'spk' || wk.preKeyType === 'otpk') && wk.signedPreKeyId
-          );
-          let fsSpkMissing = false;
-          let fsOtpkMissing = false;
-          if (fsCandidates.length > 0 && wrappingKey) {
-            for (const candidate of fsCandidates) {
-              try {
-                let spkKeys = spkCache.get(candidate.signedPreKeyId!);
-                if (!spkKeys) {
-                  const decryptedSpk = await findAndDecryptSignedPreKey(
-                    candidate.signedPreKeyId!,
-                    identity.id,
-                    wrappingKey
-                  );
-                  if (decryptedSpk) {
-                    spkKeys = { ecdh: decryptedSpk.ecdhPrivateKey, kem: decryptedSpk.kemPrivateKey };
-                    spkCache.set(candidate.signedPreKeyId!, spkKeys);
-                  }
-                }
-
-                if (spkKeys) {
-                  const candidatePreKeys: typeof preKeyPrivateKeys = {
-                    spkEcdhPrivate: spkKeys.ecdh,
-                    spkKemPrivate: spkKeys.kem,
-                  };
-
-                  if (candidate.preKeyType === 'otpk' && candidate.oneTimePreKeyId) {
-                    let otpkKeys = otpkCache.get(candidate.oneTimePreKeyId);
-                    if (!otpkKeys) {
-                      const decryptedOtpk = await findAndDecryptOneTimePreKey(
-                        candidate.oneTimePreKeyId,
-                        identity.id,
-                        wrappingKey
-                      );
-                      if (decryptedOtpk) {
-                        otpkKeys = { ecdh: decryptedOtpk.ecdhPrivateKey, kem: decryptedOtpk.kemPrivateKey };
-                        otpkCache.set(candidate.oneTimePreKeyId, otpkKeys);
-                      }
-                    }
-                    if (otpkKeys) {
-                      candidatePreKeys.otpkEcdhPrivate = otpkKeys.ecdh;
-                      candidatePreKeys.otpkKemPrivate = otpkKeys.kem;
-                    } else {
-                      fsOtpkMissing = true;
-                      console.warn('[Reactions] decrypt: OTPK not found locally, skipping candidate',
-                        candidate.oneTimePreKeyId, 'spk', candidate.signedPreKeyId);
-                      continue;
-                    }
-                  }
-
-                  resolvedWrappedKey = candidate;
-                  preKeyPrivateKeys = candidatePreKeys;
-                  break;
-                } else {
-                  fsSpkMissing = true;
-                }
-              } catch (err) {
-                console.warn('[Reactions] decrypt: pre-key lookup failed for candidate', candidate.signedPreKeyId, err);
-              }
-            }
-          }
-
-          // Tier 2: Static candidates — match by routing tag
-          if (!resolvedWrappedKey && keys.routingTag) {
-            const staticCandidates = candidates.filter(
-              (wk) => wk.preKeyType === 'static' && wk.routingTag
-            );
-            const tagMatch = staticCandidates.find((wk) => wk.routingTag === keys.routingTag);
-            if (tagMatch) {
-              resolvedWrappedKey = tagMatch;
-            }
-          }
-
-          // Tier 3: Fallback — trial decryption of remaining static candidates
-          if (!resolvedWrappedKey) {
-            for (const candidate of candidates) {
-              if (candidate.preKeyType !== 'static') continue;
-              try {
-                const result = decryptReaction(
-                  reaction,
-                  identity.id,
-                  keys.ecdhPrivateKey,
-                  keys.kemPrivateKey,
-                  signingKey,
-                  undefined,
-                  candidate
-                );
-                reactionSessionKeyCache.current.set(reaction.id, result.sessionKey);
-                results.push(result);
-                resolvedWrappedKey = candidate;
-                break;
-              } catch {
-                // Trial decryption failed, try next candidate
-              }
-            }
-            if (resolvedWrappedKey) continue;
-          }
-
-          if (!resolvedWrappedKey) {
-            if (fsCandidates.length > 0) {
-              const reason = fsOtpkMissing && !fsSpkMissing ? 'OTPK missing' :
-                fsSpkMissing ? 'SPK missing' : 'lookup error';
-              console.warn('[Reactions] decrypt: all FS candidates failed for reaction',
-                reaction.id?.slice(0, 8), `(${reason})`);
-            }
-            continue;
-          }
-
-          const decrypted = decryptReaction(
-            reaction,
-            identity.id,
-            keys.ecdhPrivateKey,
-            keys.kemPrivateKey,
-            signingKey,
-            preKeyPrivateKeys,
-            resolvedWrappedKey
-          );
-
-          reactionSessionKeyCache.current.set(reaction.id, decrypted.sessionKey);
-
-          await persistReactionFsSessionKey(
-            reaction.id,
-            identity.id,
-            decrypted.sessionKey,
-            wrappingKey,
-            resolvedWrappedKey
-          ).catch((err) =>
-            console.error('[Reactions] FS session key persist failed:', err)
-          );
-
-          if (
-            resolvedWrappedKey.preKeyType === 'otpk' &&
-            resolvedWrappedKey.oneTimePreKeyId &&
-            !deletedOtpkIds.has(resolvedWrappedKey.oneTimePreKeyId)
-          ) {
-            deletedOtpkIds.add(resolvedWrappedKey.oneTimePreKeyId);
-            deleteOneTimePreKey(resolvedWrappedKey.oneTimePreKeyId, identity.id)
-              .catch((err) => console.error('[Reactions] OTPK cleanup failed:', err));
-            notifyOtpkConsumed();
-          }
-
-          results.push(decrypted);
-        } catch {
-          // Skip reactions we cannot decrypt
-        }
-      }
-
-      return results;
+      return decryptReactionsBatch({
+        publicReactions,
+        identityId: identity.id,
+        keys,
+        wrappingKey,
+        signingKeys,
+        reactionSessionKeyCache: reactionSessionKeyCache.current,
+        findAndDecryptSignedPreKey,
+        findAndDecryptOneTimePreKey,
+        deleteOneTimePreKey,
+        getPersistedSessionKey,
+        deletePersistedSessionKey,
+        notifyOtpkConsumed,
+      });
     },
     [identity, getPrivateKeys, resolveSigningKeys, getWrappingKey]
   );
@@ -573,45 +341,7 @@ export function useReactions(conversationId: string | null) {
 
   const getGroupedReactions = useCallback(
     (messageId: string): GroupedReaction[] => {
-      const reactions = (state.byMessage[messageId] ?? []).filter(
-        (r) => r.verified !== false
-      );
-      if (reactions.length === 0) return [];
-
-      const groups = new Map<
-        string,
-        { count: number; reactionIds: string[]; fromIdentityIds: string[] }
-      >();
-
-      for (const r of reactions) {
-        const existing = groups.get(r.emoji);
-        if (existing) {
-          existing.count++;
-          existing.reactionIds.push(r.id);
-          existing.fromIdentityIds.push(r.fromIdentityId);
-        } else {
-          groups.set(r.emoji, {
-            count: 1,
-            reactionIds: [r.id],
-            fromIdentityIds: [r.fromIdentityId],
-          });
-        }
-      }
-
-      const myId = identityRef.current?.id;
-
-      return Array.from(groups.entries()).map(([emoji, data]) => ({
-        emoji,
-        count: data.count,
-        reactionIds: data.reactionIds,
-        fromIdentityIds: data.fromIdentityIds,
-        isOwn: myId ? data.fromIdentityIds.includes(myId) : false,
-        ownReactionId: myId
-          ? reactions.find(
-              (r) => r.emoji === emoji && r.fromIdentityId === myId
-            )?.id
-          : undefined,
-      }));
+      return groupReactions(state.byMessage[messageId] ?? [], identityRef.current?.id);
     },
     [state.byMessage]
   );

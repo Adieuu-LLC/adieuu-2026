@@ -16,6 +16,10 @@ import { createApiClient, type PublicDevice } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
 import { deleteAllDeviceKeysForIdentity } from '../services/deviceKeyStorage';
+import {
+  getActivityPreferences,
+  saveActivityPreferences,
+} from '../services/deviceActivityPreferences';
 
 /**
  * Activity tracking preference.
@@ -58,39 +62,6 @@ export interface DeviceManagementState {
 export interface DeviceOperationResult {
   success: boolean;
   error?: string;
-}
-
-/**
- * Storage key for activity preferences.
- */
-const ACTIVITY_PREFS_KEY = 'adieuu-activity-prefs';
-
-/**
- * Get activity preferences from localStorage.
- */
-function getActivityPreferences(): ActivityPreferences {
-  if (typeof localStorage === 'undefined') {
-    return { mode: 'disabled', intervalMinutes: 15 };
-  }
-
-  try {
-    const stored = localStorage.getItem(ACTIVITY_PREFS_KEY);
-    if (stored) {
-      return JSON.parse(stored) as ActivityPreferences;
-    }
-  } catch {
-    // Ignore parse errors
-  }
-
-  return { mode: 'disabled', intervalMinutes: 15 };
-}
-
-/**
- * Save activity preferences to localStorage.
- */
-function saveActivityPreferences(prefs: ActivityPreferences): void {
-  if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(ACTIVITY_PREFS_KEY, JSON.stringify(prefs));
 }
 
 /**

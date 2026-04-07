@@ -2,19 +2,14 @@ import { useState, useCallback, useEffect, createContext, useContext, useMemo, u
 import type { ReactNode } from 'react';
 import {
   createApiClient,
-  type PublicIdentity,
-  DEFAULT_MAX_REQUEST_BODY_BYTES,
-  jsonUtf8ByteLength,
 } from '@adieuu/shared';
 import { deriveEntropyWrappingKey, toBase64, clearBytes, getSigningPublicKey, computeRoutingTag } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
 import { useAuth } from './useAuth';
 import {
-  generateE2EKeys,
   generateDeviceKeys,
   decryptKeyBundle,
   getDefaultDeviceName,
-  type E2EInitResult,
   type DeviceKeysResult,
   type DecryptedWebDevice,
 } from '../services/e2eKeyService';
@@ -27,140 +22,31 @@ import {
   hasSecureStorageBackend,
 } from '../services/deviceKeyStorage';
 import { generateAndUploadPreKeys } from '../services/preKeyService';
-
-// ============================================================================
-// Identity State Types
-// ============================================================================
-
-/**
- * Identity session status:
- * - `loading`: Initial state, checking session
- * - `logged_in`: Fully authenticated with wrapping key available
- * - `locked`: Server session valid but wrapping key not available (needs passphrase)
- * - `logged_out`: No active identity session
- * - `no_identity`: User has no identity created yet
- * - `suspended`: Identity is suspended or banned by moderation
- */
-export type IdentityStatus = 'loading' | 'logged_in' | 'locked' | 'logged_out' | 'no_identity' | 'suspended';
-
-/**
- * Moderation suspension details surfaced to the UI.
- */
-export interface SuspensionInfo {
-  type: 'suspended' | 'banned';
-  reason?: string;
-  reportId?: string;
-  suspendedUntil?: string;
-}
-
-export interface IdentityState {
-  status: IdentityStatus;
-  identity: PublicIdentity | null;
-  /** Whether the user has created at least one identity (but may not be logged in) */
-  hasIdentity: boolean;
-  /** Number of identities the user has created */
-  identityCount: number;
-  /** Maximum number of identities allowed */
-  maxIdentities: number;
-  /** Whether the user can create more identities */
-  canCreateMore: boolean;
-  /** Present when status is 'suspended' — contains moderation details */
-  suspensionInfo?: SuspensionInfo;
-}
-
-export interface UnlockIdentityResult {
-  success: boolean;
-  error?: string;
-  errorCode?: 'INVALID_PASSPHRASE' | 'NO_SESSION';
-}
-
-export interface CreateIdentityResult {
-  success: boolean;
-  identity?: PublicIdentity;
-  error?: string;
-  errorCode?: 'USERNAME_TAKEN' | 'MAX_IDENTITIES' | 'VALIDATION_ERROR' | 'E2E_INIT_FAILED' | 'PAYLOAD_TOO_LARGE';
-}
-
-export interface LoginIdentityResult {
-  success: boolean;
-  identity?: PublicIdentity;
-  error?: string;
-  errorCode?: 'INVALID_PASSPHRASE' | 'LOCKED_OUT' | 'RATE_LIMITED' | 'KEY_DERIVATION_FAILED' | 'E2E_SETUP_FAILED' | 'BUNDLE_DECRYPT_FAILED' | 'KEY_GENERATION_FAILED' | 'DEVICE_REGISTRATION_FAILED' | 'IDENTITY_SUSPENDED' | 'IDENTITY_BANNED';
-  attemptNumber?: number;
-  retryAfter?: number;
-  /** Whether this was a new device registration (for showing first-login toast) */
-  isNewDevice?: boolean;
-  /** The device name that was registered */
-  deviceName?: string;
-  /** Present when errorCode is IDENTITY_SUSPENDED or IDENTITY_BANNED */
-  suspensionInfo?: SuspensionInfo;
-}
-
-/** Web device mode choice returned by the onWebDeviceChoice callback. */
-export type WebDeviceChoice = 'shared' | 'individual';
-
-/**
- * Login status steps for progress display.
- */
-export type LoginStatus = 'authenticating' | 'deriving_keys' | 'loading_device' | 'decrypting_bundle' | 'web_device_choice' | 'generating_keys' | 'registering_device' | 'complete';
-
-/**
- * Options for loginToIdentity
- */
-export interface LoginIdentityOptions {
-  /** Callback for status updates during login */
-  onStatusChange?: (status: LoginStatus) => void;
-  /**
-   * Callback invoked on web (no SecureStorage backend) when no cached device
-   * keys exist and the shared web device has not been registered yet.
-   * The UI should present a modal and resolve with the user's choice.
-   * If not provided, defaults to 'individual' (current behavior).
-   */
-  onWebDeviceChoice?: () => Promise<WebDeviceChoice>;
-}
-
-export interface IdentityContextValue extends IdentityState {
-  /** Create a new identity */
-  createIdentity: (passphrase: string, username: string, displayName: string) => Promise<CreateIdentityResult>;
-  /** Login to identity with passphrase */
-  loginToIdentity: (passphrase: string, options?: LoginIdentityOptions) => Promise<LoginIdentityResult>;
-  /**
-   * Unlock a locked identity session by providing the passphrase.
-   * Used after page refresh when server session is valid but wrapping key is lost.
-   * This is lighter than full login - doesn't hit the server, just derives the key.
-   */
-  unlockIdentity: (passphrase: string) => Promise<UnlockIdentityResult>;
-  /** Logout from identity (but stay logged in as user) */
-  logoutFromIdentity: () => Promise<void>;
-  /** Delete the current identity */
-  deleteIdentity: () => Promise<{ success: boolean; error?: string }>;
-  /** Refresh identity session status */
-  refreshIdentitySession: () => Promise<void>;
-  /** Clear suspension state (e.g. after user dismisses the modal) */
-  clearSuspension: () => void;
-  /**
-   * Get the entropy wrapping key for the current identity session.
-   * Returns null if not logged in or key not yet derived.
-   * Used by cipher store to encrypt/decrypt entropy at rest.
-   */
-  getWrappingKey: () => Uint8Array | null;
-  /**
-   * Get the wrapping salt for the current identity.
-   * Returns null if not logged in.
-   */
-  getWrappingSalt: () => Uint8Array | null;
-  /**
-   * Get the signing private key for the current session.
-   * Returns null if not logged in or E2E not initialized.
-   * Used for signing messages.
-   */
-  getSigningKey: () => Uint8Array | null;
-  /**
-   * Get the current device ID.
-   * Returns null if not logged in.
-   */
-  getCurrentDeviceId: () => string | null;
-}
+import type {
+  CreateIdentityResult,
+  IdentityContextValue,
+  IdentityState,
+  LoginIdentityOptions,
+  LoginIdentityResult,
+  LoginStatus,
+  UnlockIdentityResult,
+  WebDeviceChoice,
+} from './useIdentity.types';
+import { runCreateIdentityFlow } from '../services/identityCreateFlow';
+import { resolveLoginFailure } from '../services/identityLoginFlow';
+import { deriveUnlockWrappingKey } from '../services/identityUnlockFlow';
+export type {
+  CreateIdentityResult,
+  IdentityContextValue,
+  IdentityState,
+  IdentityStatus,
+  LoginIdentityOptions,
+  LoginIdentityResult,
+  LoginStatus,
+  SuspensionInfo,
+  UnlockIdentityResult,
+  WebDeviceChoice,
+} from './useIdentity.types';
 
 // ============================================================================
 // Identity Context
@@ -361,207 +247,17 @@ function useIdentityState(): IdentityContextValue {
 
   const createIdentity = useCallback(
     async (passphrase: string, username: string, displayName: string): Promise<CreateIdentityResult> => {
-      const response = await api.identity.create({ passphrase, username, displayName });
+      const flow = await runCreateIdentityFlow(api, platform, passphrase, username, displayName);
+      if (!flow.ok) return flow.result;
 
-      if (!response.success) {
-        const errorMessage = response.error?.message ?? 'Failed to create identity';
-        let errorCode: CreateIdentityResult['errorCode'];
+      wrappingKeyRef.current = flow.wrappingKey;
+      wrappingSaltRef.current = flow.wrappingSalt;
+      signingKeyRef.current = flow.signingPrivateKey;
+      currentDeviceIdRef.current = flow.deviceId;
 
-        if (errorMessage.includes('taken')) {
-          errorCode = 'USERNAME_TAKEN';
-        } else if (errorMessage.includes('maximum')) {
-          errorCode = 'MAX_IDENTITIES';
-        } else {
-          errorCode = 'VALIDATION_ERROR';
-        }
-
-        return {
-          success: false,
-          error: errorMessage,
-          errorCode,
-        };
-      }
-
-      const createdIdentity = response.data;
-      if (!createdIdentity) {
-        return {
-          success: false,
-          error: 'Identity creation returned no data',
-          errorCode: 'VALIDATION_ERROR',
-        };
-      }
-
-      // Generate E2E encryption keys
-      console.debug('[Identity] createIdentity: generating E2E keys for identity:', createdIdentity.id);
-      let e2eResult: E2EInitResult;
-      try {
-        e2eResult = await generateE2EKeys({
-          identityId: createdIdentity.id,
-          passphrase,
-          deviceName: getDefaultDeviceName(),
-          cryptoProfile: 'default',
-        });
-        console.debug('[Identity] createIdentity: E2E keys generated successfully');
-        console.log('[Identity] createIdentity: SIGNING KEY DEBUG - public key to upload:', e2eResult.signingPublicKey);
-        console.log('[Identity] createIdentity: SIGNING KEY DEBUG - derived from private:', toBase64(getSigningPublicKey(e2eResult.signingPrivateKey)));
-      } catch (err) {
-        console.error('[Identity] createIdentity: failed to generate E2E keys:', err);
-        return {
-          success: false,
-          error: 'Failed to generate encryption keys',
-          errorCode: 'E2E_INIT_FAILED',
-        };
-      }
-
-      // Web device private keys are encrypted inside the bundle — clear from memory
-      clearBytes(e2eResult.webDevice.privateKeys.ecdh);
-      clearBytes(e2eResult.webDevice.privateKeys.kem);
-
-      // Verify identity session is established before uploading E2E keys
-      console.debug('[Identity] createIdentity: verifying identity session is established...');
-      try {
-        const sessionCheck = await api.identity.getSession();
-        if (!sessionCheck.success || sessionCheck.data?.id !== createdIdentity.id) {
-          console.error('[Identity] createIdentity: identity session not established after creation');
-          clearBytes(e2eResult.signingPrivateKey);
-          clearBytes(e2eResult.devicePrivateKeys.ecdh);
-          clearBytes(e2eResult.devicePrivateKeys.kem);
-          return {
-            success: false,
-            error: 'Identity session not established. Please try again.',
-            errorCode: 'E2E_INIT_FAILED',
-          };
-        }
-        console.debug('[Identity] createIdentity: identity session verified');
-      } catch (err) {
-        console.error('[Identity] createIdentity: failed to verify identity session:', err);
-        clearBytes(e2eResult.signingPrivateKey);
-        clearBytes(e2eResult.devicePrivateKeys.ecdh);
-        clearBytes(e2eResult.devicePrivateKeys.kem);
-        return {
-          success: false,
-          error: 'Failed to verify identity session',
-          errorCode: 'E2E_INIT_FAILED',
-        };
-      }
-
-      // Upload E2E keys to server (web device keys are in the bundle but NOT registered as a device yet).
-      // Preflight below applies to apps/web and apps/desktop (shared IdentityProvider / App).
-      console.debug('[Identity] createIdentity: uploading E2E keys to server...');
-      try {
-        const initBody = {
-          signingPublicKey: e2eResult.signingPublicKey,
-          preferredCryptoProfile: 'default' as const,
-          device: e2eResult.device,
-          bundle: e2eResult.encryptedBundle,
-        };
-        const initBytes = jsonUtf8ByteLength(initBody);
-        if (initBytes > DEFAULT_MAX_REQUEST_BODY_BYTES) {
-          clearBytes(e2eResult.signingPrivateKey);
-          clearBytes(e2eResult.devicePrivateKeys.ecdh);
-          clearBytes(e2eResult.devicePrivateKeys.kem);
-          return {
-            success: false,
-            error: `Encryption setup payload is too large (${(initBytes / 1024).toFixed(1)} KiB; max ${(DEFAULT_MAX_REQUEST_BODY_BYTES / 1024).toFixed(0)} KiB).`,
-            errorCode: 'PAYLOAD_TOO_LARGE',
-          };
-        }
-        const initResponse = await api.identity.initializeE2E(createdIdentity.id, initBody);
-
-        if (!initResponse.success) {
-          console.error('[Identity] createIdentity: failed to upload E2E keys:', initResponse.error);
-          clearBytes(e2eResult.signingPrivateKey);
-          clearBytes(e2eResult.devicePrivateKeys.ecdh);
-          clearBytes(e2eResult.devicePrivateKeys.kem);
-          return {
-            success: false,
-            error: 'Failed to upload encryption keys to server',
-            errorCode: 'E2E_INIT_FAILED',
-          };
-        }
-        console.debug('[Identity] createIdentity: E2E keys uploaded successfully');
-      } catch (err) {
-        console.error('[Identity] createIdentity: E2E init API error:', err);
-        clearBytes(e2eResult.signingPrivateKey);
-        clearBytes(e2eResult.devicePrivateKeys.ecdh);
-        clearBytes(e2eResult.devicePrivateKeys.kem);
-        return {
-          success: false,
-          error: 'Failed to initialize encryption',
-          errorCode: 'E2E_INIT_FAILED',
-        };
-      }
-
-      // Derive wrapping key for device key storage
-      console.debug('[Identity] createIdentity: deriving wrapping key...');
-      let wrappingKey: Uint8Array;
-      let salt: Uint8Array;
-      try {
-        salt = await getOrCreateWrappingSalt(createdIdentity.id);
-        wrappingKey = await deriveEntropyWrappingKey(passphrase, salt);
-        console.debug('[Identity] createIdentity: wrapping key derived');
-      } catch (err) {
-        console.error('[Identity] createIdentity: failed to derive wrapping key:', err);
-        clearBytes(e2eResult.signingPrivateKey);
-        clearBytes(e2eResult.devicePrivateKeys.ecdh);
-        clearBytes(e2eResult.devicePrivateKeys.kem);
-        return {
-          success: false,
-          error: 'Failed to derive wrapping key',
-          errorCode: 'E2E_INIT_FAILED',
-        };
-      }
-
-      // Store device keys in IndexedDB (encrypted with wrapping key)
-      console.debug('[Identity] createIdentity: storing device keys in IndexedDB...');
-      try {
-        await storeDeviceKeys(
-          e2eResult.device.deviceId,
-          createdIdentity.id,
-          e2eResult.devicePrivateKeys.ecdh,
-          e2eResult.devicePrivateKeys.kem,
-          wrappingKey,
-          e2eResult.device.routingTag
-        );
-        console.debug('[Identity] createIdentity: device keys stored');
-      } catch (err) {
-        console.error('[Identity] createIdentity: failed to store device keys:', err);
-        clearBytes(wrappingKey);
-        clearBytes(e2eResult.signingPrivateKey);
-        return {
-          success: false,
-          error: 'Failed to store device keys',
-          errorCode: 'E2E_INIT_FAILED',
-        };
-      }
-
-      // Generate and upload pre-keys for forward secrecy
-      try {
-        await generateAndUploadPreKeys({
-          identityId: createdIdentity.id,
-          deviceId: e2eResult.device.deviceId,
-          signingPrivateKey: e2eResult.signingPrivateKey,
-          wrappingKey,
-          platform,
-        }, api.identity);
-        console.debug('[Identity] createIdentity: pre-keys generated and uploaded');
-      } catch (err) {
-        // Non-fatal: device works without pre-keys, FS just won't be available until next attempt
-        console.warn('[Identity] createIdentity: pre-key upload failed (non-fatal):', err);
-      }
-
-      // Cache keys in memory
-      wrappingKeyRef.current = wrappingKey;
-      wrappingSaltRef.current = salt;
-      signingKeyRef.current = e2eResult.signingPrivateKey;
-      currentDeviceIdRef.current = e2eResult.device.deviceId;
-
-      console.debug('[Identity] createIdentity: E2E initialization complete');
-
-      // Update state with the new identity - note: identityCount will be refreshed from auth session
       setState((prev) => ({
         ...prev,
-        status: 'no_identity', // Still need to login
+        status: 'no_identity',
         identity: null,
         hasIdentity: true,
         identityCount: prev.identityCount + 1,
@@ -570,7 +266,7 @@ function useIdentityState(): IdentityContextValue {
 
       return {
         success: true,
-        identity: createdIdentity,
+        identity: flow.identity,
       };
     },
     [api, platform]
@@ -587,43 +283,20 @@ function useIdentityState(): IdentityContextValue {
       if (!response.success) {
         const errorMessage = response.error?.message ?? 'Invalid passphrase';
         const serverCode = response.error?.code;
-        let errorCode: LoginIdentityResult['errorCode'] = 'INVALID_PASSPHRASE';
-
-        if (serverCode === 'IDENTITY_SUSPENDED' || serverCode === 'IDENTITY_BANNED') {
-          const details = response.error?.details;
-          const info: SuspensionInfo = {
-            type: serverCode === 'IDENTITY_BANNED' ? 'banned' : 'suspended',
-            reason: details?.moderationReason,
-            reportId: details?.moderationReportId,
-            suspendedUntil: details?.suspendedUntil,
-          };
-
+        const resolution = resolveLoginFailure(
+          errorMessage,
+          serverCode,
+          response.error?.details
+        );
+        if (resolution.suspensionInfo) {
           setState((prev) => ({
             ...prev,
             status: 'suspended',
             identity: null,
-            suspensionInfo: info,
+            suspensionInfo: resolution.suspensionInfo,
           }));
-
-          return {
-            success: false,
-            error: errorMessage,
-            errorCode: serverCode,
-            suspensionInfo: info,
-          };
         }
-
-        if (serverCode === 'LOCKED_OUT' || errorMessage.includes('locked')) {
-          errorCode = 'LOCKED_OUT';
-        } else if (serverCode === 'RATE_LIMITED' || errorMessage.includes('wait')) {
-          errorCode = 'RATE_LIMITED';
-        }
-
-        return {
-          success: false,
-          error: errorMessage,
-          errorCode,
-        };
+        return resolution.result;
       }
 
       // Update state with the identity
@@ -983,16 +656,9 @@ function useIdentityState(): IdentityContextValue {
       const identityId = state.identity.id;
 
       try {
-        // Derive wrapping key from passphrase
-        console.debug('[Identity] unlockIdentity: starting wrapping key derivation for identity:', identityId);
-
-        console.debug('[Identity] unlockIdentity: getting or creating salt...');
-        const salt = await getOrCreateWrappingSalt(identityId);
-        console.debug('[Identity] unlockIdentity: salt obtained, length:', salt.length);
-
-        console.debug('[Identity] unlockIdentity: deriving wrapping key with Argon2...');
-        const wrappingKey = await deriveEntropyWrappingKey(passphrase, salt);
-        console.debug('[Identity] unlockIdentity: wrapping key derived, length:', wrappingKey.length);
+        const unlockSeed = await deriveUnlockWrappingKey(identityId, passphrase);
+        if (!unlockSeed.ok) return unlockSeed.result;
+        const { wrappingKey, salt } = unlockSeed;
 
         // Load device keys to verify passphrase and get device ID
         console.debug('[Identity] unlockIdentity: loading device keys...');

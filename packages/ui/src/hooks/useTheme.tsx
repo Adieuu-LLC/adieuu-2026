@@ -41,6 +41,16 @@ import {
   applyThemeToDOM,
   clearThemeFromDOM,
 } from '../utils/themeCache';
+import {
+  LS_ACCOUNT_THEME_ID,
+  LS_CUSTOM_THEMES,
+  LS_IDENTITY_THEME_PREFIX,
+  loadCustomThemes,
+  lsGet,
+  lsRemove,
+  lsSet,
+} from '../services/themeLocalPreferences';
+import { resolveTheme } from '../services/themeResolve';
 
 // ============================================================================
 // Types
@@ -98,41 +108,7 @@ export function useTheme(): ThemeContextValue {
 // Local storage keys for preferences (before server sync exists)
 // ============================================================================
 
-const LS_ACCOUNT_THEME_ID = 'adieuu.theme.accountId';
-const LS_IDENTITY_THEME_PREFIX = 'adieuu.theme.identity.';
-const LS_CUSTOM_THEMES = 'adieuu.theme.customThemes';
-
-function lsGet(key: string): string | null {
-  try { return localStorage.getItem(key); } catch { return null; }
-}
-function lsSet(key: string, value: string): void {
-  try { localStorage.setItem(key, value); } catch { /* noop */ }
-}
-function lsRemove(key: string): void {
-  try { localStorage.removeItem(key); } catch { /* noop */ }
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-function resolveTheme(themeOrId: string | ThemeDefinition, customThemes: ThemeDefinition[]): ThemeDefinition | null {
-  if (typeof themeOrId === 'object') return themeOrId;
-  const builtin = getBuiltinThemeDefinition(themeOrId);
-  if (builtin) return builtin;
-  return customThemes.find((t) => t.id === themeOrId) ?? null;
-}
-
-function loadCustomThemes(): ThemeDefinition[] {
-  const raw = lsGet(LS_CUSTOM_THEMES);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
+// Helpers moved to services/themeLocalPreferences and services/themeResolve.
 
 // ============================================================================
 // Provider

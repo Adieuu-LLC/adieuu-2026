@@ -30,7 +30,6 @@ import {
   type ChatIncomingMessage,
   type SendMessageParams,
   type ClaimedDevicePreKeys,
-  type SerializedWrappedKey,
   type FormerMember,
 } from '@adieuu/shared';
 import { useTranslation } from 'react-i18next';
@@ -40,16 +39,12 @@ import { useChatSocket } from './useChatSocket';
 import { useAppConfig, usePlatformCapabilities } from '../config';
 import { useToast } from '../components/Toast';
 import { useNotificationSoundPreference } from './useNotificationSoundPreference';
-import { getNativeNotificationsEnabled } from './useNativeNotificationsPreference';
-import { playNotificationSound, type FocusVisibilitySnapshot } from '../utils/notificationSound';
+import { fireConversationNotification } from '../utils/conversationNotifications';
 import { sidebarActions } from '../utils/sidebarActions';
-import { toBase64 } from '@adieuu/crypto';
 import {
   encryptMessage,
-  decryptMessage,
   encryptGroupName,
   decryptGroupName,
-  encryptMemberSettings,
   decryptMemberSettings,
   type RecipientKeys,
   type MemberSettingsMap,
@@ -68,6 +63,18 @@ import {
 } from '../services/preKeyStorage';
 import { notifyOtpkConsumed } from '../services/preKeyService';
 import { loadReactionNotificationsEnabled } from './useReactionNotificationPreference';
+import { decryptMessageBatch } from '../services/messageDecryptionPipeline';
+import { handleConversationSocketMessage } from '../services/conversationSocketHandlers';
+import {
+  addMemberAction,
+  leaveGroupAction,
+  promoteToAdminAction,
+  removeMemberAction,
+  renameGroupAction,
+  terminateGroupAction,
+  updateMemberSettingsAction,
+} from '../services/conversationGroupActions';
+import { getSessionKeysForMessages as loadSessionKeysForMessages } from '../services/sessionKeyRetrieval';
 
 // ============================================================================
 // Types
@@ -432,300 +439,38 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             }
           }
 
-          const senderIds = [...new Set(resp.data.messages.map((m) => m.fromIdentityId))];
-          const missingSenderKeys = senderIds.filter(
-            (id) => !signingKeyCache.current[id]
-          );
-          if (missingSenderKeys.length > 0) {
-            await Promise.all(
-              missingSenderKeys.map(async (sid) => {
-                try {
-                  const keysResp = await api.identity.getPublicKeys(sid);
-                  if (keysResp.data) {
-                    signingKeyCache.current[sid] = keysResp.data.signingPublicKey;
-                  } else {
-                    console.warn('[Conversations] decrypt: getPublicKeys returned no data for', sid);
-                  }
-                } catch (err) {
-                  console.warn('[Conversations] decrypt: failed to fetch signing key for', sid, err);
-                }
-              })
-            );
-          }
-
-          resolveParticipants(senderIds);
-
-          const spkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
-          const otpkCache = new Map<string, { ecdh: Uint8Array; kem: Uint8Array }>();
-          const deletedOtpkIds = new Set<string>();
-
-          // Layer 1: Build a lookup of already-decrypted messages so we can
-          // skip redundant decryption (and OTPK re-lookup) on no-cursor refetches.
-          const existingById = new Map<string, DisplayMessage>();
-          if (!cursor) {
-            for (const em of messagesStateRef.current[conversationId]?.messages ?? []) {
-              if (em.decryptedContent !== undefined) {
-                existingById.set(em.id, em);
-              }
-            }
-          }
-
-          const newMessages: DisplayMessage[] = await Promise.all(
-            resp.data.messages.map(async (m): Promise<DisplayMessage> => {
-              if (m.deleted) {
-                sessionKeyCache.current.delete(m.id);
-                deletePersistedSessionKey(m.id, identity.id)
-                  .catch((err) => console.error('[Conversations] Session key cleanup failed:', err));
-                return { ...m, decryptedContent: undefined, signatureVerified: undefined };
-              }
-
-              if (m.messageType === 'system') {
-                return { ...m, decryptedContent: undefined, signatureVerified: undefined };
-              }
-
-              // Layer 1: Preserve already-decrypted messages on refetch
-              const preserved = existingById.get(m.id);
-              if (preserved) {
-                return preserved;
-              }
-
-              // Layer 2: Try the in-memory session-key cache before key unwrapping,
-              // falling back to persistent (encrypted-at-rest) session key storage
-              // for FS messages whose OTPKs have already been deleted.
-              let cached = sessionKeyCache.current.get(m.id);
-              if (!cached && wrappingKey) {
-                const persisted = await getPersistedSessionKey(m.id, identity.id, wrappingKey);
-                if (persisted) {
-                  cached = persisted;
-                  sessionKeyCache.current.set(m.id, persisted);
-                }
-              }
-              if (cached && ecdhPrivateKey && kemPrivateKey) {
-                const senderSigningKey = signingKeyCache.current[m.fromIdentityId];
-                if (senderSigningKey) {
-                  try {
-                    const result = decryptMessage(
-                      m,
-                      identity.id,
-                      ecdhPrivateKey,
-                      kemPrivateKey,
-                      senderSigningKey,
-                      undefined,
-                      undefined,
-                      cached
-                    );
-                    return {
-                      ...m,
-                      decryptedContent: result.plaintext,
-                      signatureVerified: result.verified,
-                      forwardSecrecy: true,
-                    };
-                  } catch {
-                    sessionKeyCache.current.delete(m.id);
-                  }
-                }
-              }
-
-              if (!ecdhPrivateKey || !kemPrivateKey) {
-                return { ...m, decryptionError: 'Device keys unavailable' };
-              }
-
-              const senderSigningKey = signingKeyCache.current[m.fromIdentityId];
-              if (!senderSigningKey) {
-                return { ...m, decryptionError: 'Sender signing key unavailable' };
-              }
-
-              if (!m.wrappedKeys || m.wrappedKeys.length === 0) {
-                return { ...m, decryptionError: 'No wrapped keys on message' };
-              }
-
-              // ---- Three-tier wrapped key routing ----
-              const candidates = m.wrappedKeys.filter(
-                (wk: SerializedWrappedKey) => wk.identityId === identity.id
-              );
-              if (candidates.length === 0) {
-                return { ...m, decryptionError: `No wrapped key for identity ${identity.id.slice(0, 8)}...` };
-              }
-
-              let resolvedWrappedKey: SerializedWrappedKey | undefined;
-              let preKeyPrivateKeys: {
-                spkEcdhPrivate?: Uint8Array;
-                spkKemPrivate?: Uint8Array;
-                otpkEcdhPrivate?: Uint8Array;
-                otpkKemPrivate?: Uint8Array;
-              } | undefined;
-
-              // Tier 1: FS messages — match by SPK presence
-              const fsCandidates = candidates.filter(
-                (wk) => (wk.preKeyType === 'spk' || wk.preKeyType === 'otpk') && wk.signedPreKeyId
-              );
-              let fsSpkMissing = false;
-              let fsOtpkMissing = false;
-              let fsLookupError = false;
-              if (fsCandidates.length > 0 && wrappingKey) {
-                for (const candidate of fsCandidates) {
-                  try {
-                    let spkKeys = spkCache.get(candidate.signedPreKeyId!);
-                    if (!spkKeys) {
-                      const decryptedSpk = await findAndDecryptSignedPreKey(
-                        candidate.signedPreKeyId!,
-                        identity.id,
-                        wrappingKey
-                      );
-                      if (decryptedSpk) {
-                        spkKeys = { ecdh: decryptedSpk.ecdhPrivateKey, kem: decryptedSpk.kemPrivateKey };
-                        spkCache.set(candidate.signedPreKeyId!, spkKeys);
-                      }
-                    }
-
-                    if (spkKeys) {
-                      const candidatePreKeys: typeof preKeyPrivateKeys = {
-                        spkEcdhPrivate: spkKeys.ecdh,
-                        spkKemPrivate: spkKeys.kem,
-                      };
-
-                      if (candidate.preKeyType === 'otpk' && candidate.oneTimePreKeyId) {
-                        let otpkKeys = otpkCache.get(candidate.oneTimePreKeyId);
-                        if (!otpkKeys) {
-                          const decryptedOtpk = await findAndDecryptOneTimePreKey(
-                            candidate.oneTimePreKeyId,
-                            identity.id,
-                            wrappingKey
-                          );
-                          if (decryptedOtpk) {
-                            otpkKeys = { ecdh: decryptedOtpk.ecdhPrivateKey, kem: decryptedOtpk.kemPrivateKey };
-                            otpkCache.set(candidate.oneTimePreKeyId, otpkKeys);
-                          }
-                        }
-                        if (otpkKeys) {
-                          candidatePreKeys.otpkEcdhPrivate = otpkKeys.ecdh;
-                          candidatePreKeys.otpkKemPrivate = otpkKeys.kem;
-                        } else {
-                          fsOtpkMissing = true;
-                          console.warn('[Conversations] decrypt: OTPK not found locally, skipping candidate',
-                            candidate.oneTimePreKeyId, 'spk', candidate.signedPreKeyId);
-                          continue;
-                        }
-                      }
-
-                      resolvedWrappedKey = candidate;
-                      preKeyPrivateKeys = candidatePreKeys;
-                      break;
-                    } else {
-                      fsSpkMissing = true;
-                    }
-                  } catch (err) {
-                    fsLookupError = true;
-                    console.warn('[Conversations] decrypt: pre-key lookup failed for candidate', candidate.signedPreKeyId, err);
-                  }
-                }
-              }
-
-              // Tier 2: Static messages — match by routing tag
-              if (!resolvedWrappedKey && myRoutingTag) {
-                const staticCandidates = candidates.filter(
-                  (wk) => wk.preKeyType === 'static' && wk.routingTag
-                );
-                const tagMatch = staticCandidates.find((wk) => wk.routingTag === myRoutingTag);
-                if (tagMatch) {
-                  resolvedWrappedKey = tagMatch;
-                }
-              }
-
-              // Tier 3: Fallback — try each remaining candidate via trial decryption
-              if (!resolvedWrappedKey) {
-                for (const candidate of candidates) {
-                  if (candidate.preKeyType !== 'static') continue;
-                  try {
-                    const result = decryptMessage(
-                      m,
-                      identity.id,
-                      ecdhPrivateKey,
-                      kemPrivateKey,
-                      senderSigningKey,
-                      undefined,
-                      candidate
-                    );
-                    sessionKeyCache.current.set(m.id, result.sessionKey);
-                    return {
-                      ...m,
-                      decryptedContent: result.plaintext,
-                      signatureVerified: result.verified,
-                      forwardSecrecy: false,
-                    };
-                  } catch {
-                    // Wrong device's wrapped key — try next candidate
-                  }
-                }
-
-                let decryptionError: string;
-                if (fsCandidates.length > 0) {
-                  const spkIds = fsCandidates.map((c) => c.signedPreKeyId?.slice(0, 8)).join(', ');
-                  if (fsOtpkMissing && !fsSpkMissing) {
-                    decryptionError = `forward-secrecy-expired:OTPK not found locally (SPK ${spkIds} present)`;
-                  } else if (fsSpkMissing && !fsOtpkMissing) {
-                    decryptionError = `SPK ${spkIds} not found locally`;
-                  } else if (fsSpkMissing && fsOtpkMissing) {
-                    decryptionError = `SPK ${spkIds} and OTPK not found locally`;
-                  } else if (fsLookupError) {
-                    decryptionError = `Pre-key lookup failed for SPK ${spkIds}`;
-                  } else {
-                    decryptionError = `FS key resolution failed (SPK ${spkIds})`;
-                  }
-                } else {
-                  decryptionError = 'No matching wrapped key for this device';
-                }
-                return { ...m, decryptionError };
-              }
-
+          const newMessages = await decryptMessageBatch({
+            messages: resp.data.messages,
+            conversationId,
+            cursor,
+            identityId: identity.id,
+            wrappingKey,
+            ecdhPrivateKey,
+            kemPrivateKey,
+            myRoutingTag,
+            signingKeyCache: signingKeyCache.current,
+            existingMessages: messagesStateRef.current[conversationId]?.messages ?? [],
+            sessionKeyCache: sessionKeyCache.current,
+            fetchSigningKey: async (sid) => {
               try {
-                const result = decryptMessage(
-                  m,
-                  identity.id,
-                  ecdhPrivateKey,
-                  kemPrivateKey,
-                  senderSigningKey,
-                  preKeyPrivateKeys,
-                  resolvedWrappedKey
-                );
-
-                // Layer 2: Cache the session key in memory
-                sessionKeyCache.current.set(m.id, result.sessionKey);
-
-                // Layer 2b: Persist the session key (encrypted) so it survives
-                // page refreshes and component remounts. Without this, the
-                // message becomes permanently unreadable once the OTPK is deleted.
-                if (wrappingKey && resolvedWrappedKey.preKeyType !== 'static') {
-                  storeSessionKey(
-                    m.id, identity.id, result.sessionKey, wrappingKey,
-                    resolvedWrappedKey.signedPreKeyId
-                  ).catch((err) => console.error('[Conversations] Session key persist failed:', err));
-                }
-
-                // Layer 3: Only delete the OTPK after the session key is cached
-                if (
-                  resolvedWrappedKey.preKeyType === 'otpk' &&
-                  resolvedWrappedKey.oneTimePreKeyId &&
-                  !deletedOtpkIds.has(resolvedWrappedKey.oneTimePreKeyId)
-                ) {
-                  deletedOtpkIds.add(resolvedWrappedKey.oneTimePreKeyId);
-                  deleteOneTimePreKey(resolvedWrappedKey.oneTimePreKeyId, identity.id)
-                    .catch((err) => console.error('[Conversations] OTPK cleanup failed:', err));
-                  notifyOtpkConsumed();
-                }
-
-                return {
-                  ...m,
-                  decryptedContent: result.plaintext,
-                  signatureVerified: result.verified,
-                  forwardSecrecy: resolvedWrappedKey.preKeyType !== 'static',
-                };
+                const keysResp = await api.identity.getPublicKeys(sid);
+                if (keysResp.data?.signingPublicKey) return keysResp.data.signingPublicKey;
               } catch (err) {
-                console.error('[Conversations] decrypt: failed for message', m.id, err);
-                return { ...m, decryptionError: String(err) };
+                console.warn('[Conversations] decrypt: failed to fetch signing key for', sid, err);
               }
-            })
-          );
+              return null;
+            },
+            resolveParticipants: (ids) => {
+              void resolveParticipants(ids);
+            },
+            findAndDecryptSignedPreKey,
+            findAndDecryptOneTimePreKey,
+            deleteOneTimePreKey,
+            getPersistedSessionKey,
+            storeSessionKey,
+            deletePersistedSessionKey,
+            notifyOtpkConsumed,
+          });
 
           setMessagesState((prev) => {
             const existing = prev[conversationId]?.messages ?? [];
@@ -988,38 +733,26 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
   const addMember = useCallback(
     async (conversationId: string, identityId: string): Promise<boolean> => {
-      try {
-        const resp = await api.conversations.addMember(conversationId, identityId);
-        if (resp.success) {
-          await fetchConversations();
-          if (conversationId === activeConversationIdRef.current) {
-            fetchMessagesRef.current(conversationId, undefined, true);
-          }
-          return true;
-        }
-      } catch {
-        // Error
+      const ok = await addMemberAction(api, conversationId, identityId);
+      if (!ok) return false;
+      await fetchConversations();
+      if (conversationId === activeConversationIdRef.current) {
+        fetchMessagesRef.current(conversationId, undefined, true);
       }
-      return false;
+      return true;
     },
     [api, fetchConversations]
   );
 
   const removeMember = useCallback(
     async (conversationId: string, identityId: string): Promise<boolean> => {
-      try {
-        const resp = await api.conversations.removeMember(conversationId, identityId);
-        if (resp.success) {
-          await fetchConversations();
-          if (conversationId === activeConversationIdRef.current) {
-            fetchMessagesRef.current(conversationId, undefined, true);
-          }
-          return true;
-        }
-      } catch {
-        // Error
+      const ok = await removeMemberAction(api, conversationId, identityId);
+      if (!ok) return false;
+      await fetchConversations();
+      if (conversationId === activeConversationIdRef.current) {
+        fetchMessagesRef.current(conversationId, undefined, true);
       }
-      return false;
+      return true;
     },
     [api, fetchConversations]
   );
@@ -1029,119 +762,84 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       conversationId: string,
       options?: { transferAdminTo?: string; transferStrategy?: 'oldest' | 'most_active' }
     ): Promise<boolean> => {
-      try {
-        const resp = await api.conversations.leave(conversationId, options);
-        if (resp.success) {
-          setConversations((prev) => prev.filter((c) => c.id !== conversationId));
-          if (activeConversationId === conversationId) {
-            setActiveConversationId(null);
-          }
-          return true;
-        }
-      } catch {
-        // Error
+      const ok = await leaveGroupAction(api, conversationId, options);
+      if (!ok) return false;
+      setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+      if (activeConversationId === conversationId) {
+        setActiveConversationId(null);
       }
-      return false;
+      return true;
     },
     [api, activeConversationId]
   );
 
   const promoteToAdmin = useCallback(
     async (conversationId: string, identityId: string): Promise<boolean> => {
-      try {
-        const resp = await api.conversations.promoteToAdmin(conversationId, identityId);
-        if (resp.success) {
-          await fetchConversations();
-          if (conversationId === activeConversationIdRef.current) {
-            fetchMessagesRef.current(conversationId, undefined, true);
-          }
-          return true;
-        }
-      } catch {
-        // Error
+      const ok = await promoteToAdminAction(api, conversationId, identityId);
+      if (!ok) return false;
+      await fetchConversations();
+      if (conversationId === activeConversationIdRef.current) {
+        fetchMessagesRef.current(conversationId, undefined, true);
       }
-      return false;
+      return true;
     },
     [api, fetchConversations]
   );
 
   const terminateGroup = useCallback(
     async (conversationId: string): Promise<boolean> => {
-      try {
-        const resp = await api.conversations.terminateGroup(conversationId);
-        if (resp.success) {
-          setConversations((prev) => prev.filter((c) => c.id !== conversationId));
-          if (activeConversationId === conversationId) {
-            setActiveConversationId(null);
-          }
-          return true;
-        }
-      } catch {
-        // Error
+      const ok = await terminateGroupAction(api, conversationId);
+      if (!ok) return false;
+      setConversations((prev) => prev.filter((c) => c.id !== conversationId));
+      if (activeConversationId === conversationId) {
+        setActiveConversationId(null);
       }
-      return false;
+      return true;
     },
     [api, activeConversationId]
   );
 
   const renameGroup = useCallback(
     async (conversationId: string, newName: string): Promise<boolean> => {
-      try {
-        const encrypted = encryptGroupName(newName, conversationId);
-        const resp = await api.conversations.updateName(
-          conversationId,
-          encrypted.encryptedName,
-          encrypted.nameNonce
-        );
-        if (resp.success) {
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === conversationId
-                ? { ...c, encryptedName: encrypted.encryptedName, nameNonce: encrypted.nameNonce, decryptedName: newName }
-                : c
-            )
-          );
-          if (conversationId === activeConversationIdRef.current) {
-            fetchMessagesRef.current(conversationId, undefined, true);
-          }
-          return true;
-        }
-      } catch {
-        // Error
+      const result = await renameGroupAction(api, conversationId, newName);
+      if (!result.ok) return false;
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                encryptedName: result.encryptedName,
+                nameNonce: result.nameNonce,
+                decryptedName: newName,
+              }
+            : c
+        )
+      );
+      if (conversationId === activeConversationIdRef.current) {
+        fetchMessagesRef.current(conversationId, undefined, true);
       }
-      return false;
+      return true;
     },
     [api]
   );
 
   const updateConversationMemberSettings = useCallback(
     async (conversationId: string, settings: MemberSettingsMap): Promise<boolean> => {
-      try {
-        const encrypted = encryptMemberSettings(settings, conversationId);
-        const resp = await api.conversations.updateMemberSettings(
-          conversationId,
-          encrypted.encryptedMemberSettings,
-          encrypted.memberSettingsNonce
-        );
-        if (resp.success) {
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === conversationId
-                ? {
-                    ...c,
-                    encryptedMemberSettings: encrypted.encryptedMemberSettings,
-                    memberSettingsNonce: encrypted.memberSettingsNonce,
-                    decryptedMemberSettings: settings,
-                  }
-                : c
-            )
-          );
-          return true;
-        }
-      } catch {
-        // Error
-      }
-      return false;
+      const result = await updateMemberSettingsAction(api, conversationId, settings);
+      if (!result.ok) return false;
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId
+            ? {
+                ...c,
+                encryptedMemberSettings: result.encryptedMemberSettings,
+                memberSettingsNonce: result.memberSettingsNonce,
+                decryptedMemberSettings: settings,
+              }
+            : c
+        )
+      );
+      return true;
     },
     [api]
   );
@@ -1266,27 +964,16 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
   const fireNotification = useCallback(
     (title: string, body: string, opts?: { isViewingConvo?: boolean; onClick?: () => void }) => {
-      toast.info(title, body, opts?.onClick);
-
-      const snapshot: FocusVisibilitySnapshot = {
-        hasFocus: document.hasFocus(),
-        visibilityState: document.visibilityState,
-      };
-
-      void playNotificationSound({
-        enabled: soundPref.enabled,
-        soundId: soundPref.soundId,
-        customPath: soundPref.customPath,
-        suppressWhenFocused: soundPref.suppressWhenFocused,
-        isViewingConversation: opts?.isViewingConvo ?? false,
-        snapshot,
-        volume: soundPref.volume,
-        loadCustomSound: audio?.loadSoundFromPath,
-      });
-
-      if (getNativeNotificationsEnabled() && notifications.hasPermission()) {
-        notifications.show(title, body, { tag: 'conversation-event', onClick: opts?.onClick });
-      }
+      fireConversationNotification(
+        title,
+        body,
+        {
+          onClick: opts?.onClick,
+          isViewingConversation: opts?.isViewingConvo,
+          nativeTag: 'conversation-event',
+        },
+        { toast, soundPref, notifications, audio }
+      );
     },
     [toast, soundPref, audio, notifications]
   );
@@ -1348,440 +1035,33 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     };
 
     const unsubMessage = subscribe((message: ChatIncomingMessage) => {
-      switch (message.type) {
-        case 'conversation_created': {
-          const conv = message.data.conversation;
-          setConversations((prev) => {
-            if (prev.some((c) => c.id === conv.id)) return prev;
-            const decrypted: DecryptedConversation = {
-              ...conv,
-              decryptedName:
-                conv.type === 'group' && conv.encryptedName && conv.nameNonce
-                  ? (() => {
-                      try {
-                        return decryptGroupName(conv.encryptedName!, conv.nameNonce!, conv.id);
-                      } catch {
-                        return undefined;
-                      }
-                    })()
-                  : undefined,
-              unreadCount: 0,
-            };
-            return [decrypted, ...prev];
-          });
-
-          void resolveParticipantsRef.current(conv.participants).then((freshProfiles) => {
-            const profiles = { ...participantProfilesRef.current, ...freshProfiles };
-            const creatorProfile = profiles[conv.createdBy];
-            const creatorName = creatorProfile?.displayName ?? creatorProfile?.username;
-            fireNotificationRef.current(
-              tRef.current('conversations.notifications.newConversation', { defaultValue: 'New conversation' }),
-              creatorName
-                ? tRef.current('conversations.notifications.newConversationBody', { name: creatorName, defaultValue: `${creatorName} started a conversation` })
-                : tRef.current('conversations.notifications.newConversationGeneric', { defaultValue: 'Someone started a conversation with you' }),
-              { onClick: () => navigateRef.current(`/conversations/${conv.id}`) }
-            );
-          });
-          break;
-        }
-
-        case 'conversation_updated': {
-          const { conversationId, action, identityId: eventIdentityId } = message.data;
-          if (action === 'removed') {
-            setConversations((prev) => prev.filter((c) => c.id !== conversationId));
-            setActiveConversationId((prev) =>
-              prev === conversationId ? null : prev
-            );
-
-            fireNotificationRef.current(
-              tRef.current('conversations.notifications.youWereRemoved', { defaultValue: 'Removed from group' }),
-              tRef.current('conversations.notifications.youWereRemovedBody', { defaultValue: 'You were removed from a group conversation' })
-            );
-          } else {
-            fetchConversationsRef.current();
-
-            if (conversationId === activeConversationIdRef.current) {
-              fetchMessagesRef.current(conversationId, undefined, true);
-            }
-          }
-
-          const navToConvo = () => navigateRef.current(`/conversations/${conversationId}`);
-
-          if (action === 'member_added' && eventIdentityId) {
-            void resolveParticipantsRef.current([eventIdentityId]).then((freshProfiles) => {
-              const profiles = { ...participantProfilesRef.current, ...freshProfiles };
-              const profile = profiles[eventIdentityId];
-              const name = profile?.displayName ?? profile?.username;
-              fireNotificationRef.current(
-                tRef.current('conversations.notifications.memberAdded', { defaultValue: 'Member added' }),
-                name
-                  ? tRef.current('conversations.notifications.memberAddedBody', { name, defaultValue: `${name} was added to the group` })
-                  : tRef.current('conversations.notifications.memberAddedGeneric', { defaultValue: 'A new member was added to the group' }),
-                { onClick: navToConvo }
-              );
-            });
-          } else if (action === 'member_left' && eventIdentityId) {
-            const profiles = participantProfilesRef.current;
-            const profile = profiles[eventIdentityId];
-            const name = profile?.displayName ?? profile?.username;
-            fireNotificationRef.current(
-              tRef.current('conversations.notifications.memberLeft', { defaultValue: 'Member left' }),
-              name
-                ? tRef.current('conversations.notifications.memberLeftBody', { name, defaultValue: `${name} left the group` })
-                : tRef.current('conversations.notifications.memberLeftGeneric', { defaultValue: 'A member left the group' }),
-              { onClick: navToConvo }
-            );
-          } else if (action === 'member_removed' && eventIdentityId) {
-            const profiles = participantProfilesRef.current;
-            const profile = profiles[eventIdentityId];
-            const name = profile?.displayName ?? profile?.username;
-            fireNotificationRef.current(
-              tRef.current('conversations.notifications.memberRemoved', { defaultValue: 'Member removed' }),
-              name
-                ? tRef.current('conversations.notifications.memberRemovedBody', { name, defaultValue: `${name} was removed from the group` })
-                : tRef.current('conversations.notifications.memberRemovedGeneric', { defaultValue: 'A member was removed from the group' }),
-              { onClick: navToConvo }
-            );
-          } else if (action === 'renamed') {
-            if (eventIdentityId) {
-              void resolveParticipantsRef.current([eventIdentityId]).then((freshProfiles) => {
-                const profiles = { ...participantProfilesRef.current, ...freshProfiles };
-                const profile = profiles[eventIdentityId];
-                const name = profile?.displayName ?? profile?.username;
-                fireNotificationRef.current(
-                  tRef.current('conversations.notifications.groupRenamed', { defaultValue: 'Group renamed' }),
-                  name
-                    ? tRef.current('conversations.notifications.groupRenamedByBody', { name, defaultValue: `${name} renamed the group` })
-                    : tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' }),
-                  { onClick: navToConvo }
-                );
-              });
-            } else {
-              fireNotificationRef.current(
-                tRef.current('conversations.notifications.groupRenamed', { defaultValue: 'Group renamed' }),
-                tRef.current('conversations.notifications.groupRenamedBody', { defaultValue: 'The group name was updated' }),
-                { onClick: navToConvo }
-              );
-            }
-          } else if (action === 'admin_promoted' && eventIdentityId) {
-            const profiles = participantProfilesRef.current;
-            const profile = profiles[eventIdentityId];
-            const name = profile?.displayName ?? profile?.username;
-            fireNotificationRef.current(
-              tRef.current('conversations.notifications.adminPromoted', { defaultValue: 'New admin' }),
-              name
-                ? tRef.current('conversations.notifications.adminPromotedBody', { name, defaultValue: `${name} was promoted to admin` })
-                : tRef.current('conversations.notifications.adminPromotedGeneric', { defaultValue: 'A member was promoted to admin' }),
-              { onClick: navToConvo }
-            );
-          }
-          break;
-        }
-
-        case 'conversation_message': {
-          const {
-            conversationId,
-            messageId,
-            fromIdentityId,
-            replyToMessageId,
-            replyToMessageAuthorId,
-          } = message.data;
-          const activeId = activeConversationIdRef.current;
-          const isActiveConvo = conversationId === activeId;
-          const isViewing = isActiveConvo && document.hasFocus() && isAtBottomRef.current;
-
-          if (!isViewing) {
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === conversationId ? { ...c, unreadCount: c.unreadCount + 1 } : c
-              )
-            );
-          }
-
-          if (isViewing) {
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === conversationId ? { ...c, unreadCount: 0 } : c
-              )
-            );
-          }
-
-          if (isActiveConvo) {
-            fetchMessagesRef.current(conversationId, undefined, true);
-          }
-
-          setConversations((prev) => {
-            const idx = prev.findIndex((c) => c.id === conversationId);
-            if (idx === -1) return prev;
-            const conv = prev[idx]!;
-            const updated = { ...conv, lastMessageAt: message.data.createdAt, lastMessageId: messageId };
-            const rest = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
-            return [updated, ...rest];
-          });
-
-          const profiles = participantProfilesRef.current;
-          const senderProfile = profiles[fromIdentityId];
-          const senderName = senderProfile?.displayName ?? senderProfile?.username;
-          const selfId = identityRef.current?.id;
-          const isReplyToMe =
-            !!replyToMessageId &&
-            typeof replyToMessageAuthorId === 'string' &&
-            replyToMessageAuthorId === selfId;
-
-          const navToMessage = () => navigateRef.current(`/conversations/${conversationId}?messageId=${messageId}`);
-
-          if (isReplyToMe) {
-            fireNotificationRef.current(
-              tRef.current('conversations.notifications.messageReply', { defaultValue: 'Reply to your message' }),
-              senderName
-                ? tRef.current('conversations.notifications.messageReplyBody', {
-                    name: senderName,
-                    defaultValue: `${senderName} replied to your message`,
-                  })
-                : tRef.current('conversations.notifications.messageReplyGeneric', {
-                    defaultValue: 'Someone replied to your message',
-                  }),
-              { isViewingConvo: isViewing, onClick: navToMessage }
-            );
-          } else {
-            fireNotificationRef.current(
-              tRef.current('conversations.notifications.newMessage', { defaultValue: 'New message' }),
-              senderName
-                ? tRef.current('conversations.notifications.newMessageBody', { name: senderName, defaultValue: `Message from ${senderName}` })
-                : tRef.current('conversations.notifications.newMessageGeneric', { defaultValue: 'You received a new message' }),
-              { isViewingConvo: isViewing, onClick: navToMessage }
-            );
-          }
-          break;
-        }
-
-        case 'conversation_message_deleted': {
-          const { conversationId, messageId } = message.data;
-          setMessagesState((prev) => {
-            const state = prev[conversationId];
-            if (!state) return prev;
-            return {
-              ...prev,
-              [conversationId]: {
-                ...state,
-                messages: state.messages.map((m) =>
-                  m.id === messageId
-                    ? { ...m, deleted: true, decryptedContent: undefined, ciphertext: undefined }
-                    : m
-                ),
-              },
-            };
-          });
-          break;
-        }
-
-        case 'reaction_added': {
-          const { reaction, messageAuthorId } = message.data;
-          const selfId = identityRef.current?.id;
-          if (!selfId || reaction.fromIdentityId === selfId) break;
-          if (!loadReactionNotificationsEnabled(selfId)) break;
-
-          let isMessageOurs = false;
-          if (typeof messageAuthorId === 'string' && messageAuthorId.length > 0) {
-            isMessageOurs = messageAuthorId === selfId;
-          } else {
-            const convId = reaction.conversationId;
-            const stateMap = messagesStateRef.current;
-            let msgs = stateMap[convId]?.messages;
-            if (!msgs) {
-              const lower = convId.toLowerCase();
-              for (const k of Object.keys(stateMap)) {
-                if (k.toLowerCase() === lower) {
-                  msgs = stateMap[k]?.messages;
-                  break;
-                }
-              }
-            }
-            const targetMsg = (msgs ?? []).find((m) => m.id === reaction.messageId);
-            isMessageOurs = !!targetMsg && targetMsg.fromIdentityId === selfId;
-          }
-          if (!isMessageOurs) break;
-
-          const convId = reaction.conversationId;
-          const isViewing =
-            convId === activeConversationIdRef.current &&
-            document.hasFocus() &&
-            isAtBottomRef.current;
-
-          const fire = () => {
-            if (!isViewing) {
-              setConversations((prev) =>
-                prev.map((c) =>
-                  c.id === convId ? { ...c, unreadCount: c.unreadCount + 1 } : c
-                )
-              );
-            }
-
-            const navToReaction = () => navigateRef.current(`/conversations/${convId}?messageId=${reaction.messageId}`);
-
-            void resolveParticipantsRef.current([reaction.fromIdentityId]).then((freshProfiles) => {
-              const profiles = { ...participantProfilesRef.current, ...freshProfiles };
-              const profile = profiles[reaction.fromIdentityId];
-              const name = profile?.displayName ?? profile?.username;
-              fireNotificationRef.current(
-                tRef.current('conversations.notifications.reaction', { defaultValue: 'Reaction' }),
-                name
-                  ? tRef.current('conversations.notifications.reactionBody', {
-                      name,
-                      defaultValue: `${name} reacted to your message`,
-                    })
-                  : tRef.current('conversations.notifications.reactionGeneric', {
-                      defaultValue: 'Someone reacted to your message',
-                    }),
-                { isViewingConvo: isViewing, onClick: navToReaction }
-              );
-            });
-          };
-
-          runReactionNotifOnce(reaction.id, fire);
-          break;
-        }
-
-        case 'group_invite_received': {
-          const invite = message.data.invite;
-          setInvites((prev) => {
-            if (prev.some((i) => i.id === invite.id)) return prev;
-            return [invite, ...prev];
-          });
-
-          void resolveParticipantsRef.current([invite.invitedByIdentityId]);
-
-          void resolveParticipantsRef.current([invite.invitedByIdentityId]).then((freshProfiles) => {
-            const profiles = { ...participantProfilesRef.current, ...freshProfiles };
-            const inviterProfile = profiles[invite.invitedByIdentityId];
-            const inviterDisplayName = inviterProfile?.displayName ?? inviterProfile?.username;
-            const othersCount = invite.memberCount - 1;
-            const body = invite.hasGroupName
-              ? tRef.current('conversations.notifications.groupInviteNameHidden', { defaultValue: "You've been invited to a group (name hidden until you join)" })
-              : inviterDisplayName
-                ? (othersCount > 0
-                  ? tRef.current('conversations.notifications.groupInviteFromBody', {
-                      name: inviterDisplayName,
-                      count: othersCount,
-                      defaultValue: `${inviterDisplayName} + ${othersCount} others invited you`,
-                    })
-                  : tRef.current('conversations.notifications.groupInviteFromSolo', {
-                      name: inviterDisplayName,
-                      defaultValue: `${inviterDisplayName} is inviting you`,
-                    }))
-                : tRef.current('conversations.notifications.groupInviteGeneric', { defaultValue: "You've been invited to a group" });
-            fireNotificationRef.current(
-              tRef.current('conversations.notifications.groupInvite', { defaultValue: 'Group invitation' }),
-              body,
-              { onClick: () => sidebarActions.openInvites() }
-            );
-          });
-          break;
-        }
-
-        case 'group_invite_accepted': {
-          fetchConversationsRef.current();
-          if (message.data.identityId) {
-            void resolveParticipantsRef.current([message.data.identityId]);
-          }
-          const joinerName = message.data.displayName ?? message.data.username;
-          const acceptedConvId = message.data.conversationId;
-          fireNotificationRef.current(
-            tRef.current('conversations.notifications.memberJoined', { defaultValue: 'Member joined' }),
-            joinerName
-              ? tRef.current('conversations.notifications.memberJoinedBody', { name: joinerName, defaultValue: `${joinerName} joined the group` })
-              : tRef.current('conversations.notifications.memberJoinedGeneric', { defaultValue: 'A new member joined the group' }),
-            acceptedConvId ? { onClick: () => navigateRef.current(`/conversations/${acceptedConvId}`) } : undefined
-          );
-          break;
-        }
-
-        case 'group_terminated': {
-          const { conversationId, terminatedBy } = message.data;
-          setConversations((prev) => prev.filter((c) => c.id !== conversationId));
-          setActiveConversationId((prev) =>
-            prev === conversationId ? null : prev
-          );
-
-          const adminName = terminatedBy.displayName ?? terminatedBy.username ?? terminatedBy.id.slice(0, 8);
-          fireNotificationRef.current(
-            tRef.current('conversations.notifications.groupTerminated', { defaultValue: 'Group deleted' }),
-            tRef.current('conversations.notifications.groupTerminatedBody', {
-              name: adminName,
-              defaultValue: `${adminName} deleted the group`,
-            })
-          );
-          break;
-        }
-
-        case 'notification_created': {
-          const { notification } = message.data;
-          if (notification.type !== 'message_reaction') break;
-
-          const selfId = identityRef.current?.id;
-          if (!selfId || !loadReactionNotificationsEnabled(selfId)) break;
-
-          const raw = notification.data as {
-            reactionId?: string;
-            fromIdentityId?: unknown;
-            conversationId?: unknown;
-            messageId?: unknown;
-          };
-          const fromId =
-            typeof raw.fromIdentityId === 'string' ? raw.fromIdentityId : undefined;
-          const convId =
-            typeof raw.conversationId === 'string' ? raw.conversationId : undefined;
-          const reactionId =
-            typeof raw.reactionId === 'string' ? raw.reactionId : undefined;
-          const notifMsgId =
-            typeof raw.messageId === 'string' ? raw.messageId : undefined;
-          if (!fromId || !convId) break;
-
-          const isViewing =
-            convId === activeConversationIdRef.current &&
-            document.hasFocus() &&
-            isAtBottomRef.current;
-
-          const fire = () => {
-            if (!isViewing) {
-              setConversations((prev) =>
-                prev.map((c) =>
-                  c.id === convId ? { ...c, unreadCount: c.unreadCount + 1 } : c
-                )
-              );
-            }
-
-            const navToReactedMsg = notifMsgId
-              ? () => navigateRef.current(`/conversations/${convId}?messageId=${notifMsgId}`)
-              : () => navigateRef.current(`/conversations/${convId}`);
-
-            void resolveParticipantsRef.current([fromId]).then((freshProfiles) => {
-              const profiles = { ...participantProfilesRef.current, ...freshProfiles };
-              const profile = profiles[fromId];
-              const name = profile?.displayName ?? profile?.username;
-              fireNotificationRef.current(
-                tRef.current('conversations.notifications.reaction', { defaultValue: 'Reaction' }),
-                name
-                  ? tRef.current('conversations.notifications.reactionBody', {
-                      name,
-                      defaultValue: `${name} reacted to your message`,
-                    })
-                  : tRef.current('conversations.notifications.reactionGeneric', {
-                      defaultValue: 'Someone reacted to your message',
-                    }),
-                { isViewingConvo: isViewing, onClick: navToReactedMsg }
-              );
-            });
-          };
-
-          if (reactionId) {
-            runReactionNotifOnce(reactionId, fire);
-          } else {
-            fire();
-          }
-          break;
-        }
-      }
+      handleConversationSocketMessage(message, {
+        setConversations: (updater) =>
+          setConversations((prev) => updater(prev as never) as never),
+        setMessagesState: (updater) =>
+          setMessagesState((prev) => updater(prev as never) as never),
+        setActiveConversationId,
+        setInvites,
+        activeConversationId: activeConversationIdRef.current,
+        isAtBottom: isAtBottomRef.current,
+        hasFocus: document.hasFocus(),
+        identityId: identityRef.current?.id,
+        messagesState: messagesStateRef.current,
+        participantProfiles: participantProfilesRef.current,
+        decryptGroupName,
+        fetchConversations: () => fetchConversationsRef.current(),
+        fetchMessages: (conversationId, cursor, silent) =>
+          void fetchMessagesRef.current(conversationId, cursor, silent),
+        fireNotification: (title, body, options) =>
+          fireNotificationRef.current(title, body, options),
+        navigate: (path) => navigateRef.current(path),
+        resolveParticipants: (participantIds) =>
+          resolveParticipantsRef.current(participantIds),
+        t: (key, options) => String(tRef.current(key, options as never)),
+        runReactionNotifOnce,
+        loadReactionNotificationsEnabled,
+        openInvites: () => sidebarActions.openInvites(),
+      });
     });
 
     const unsubState = onStateChange((state) => {
@@ -1851,28 +1131,13 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const getSessionKeysForMessages = useCallback(
     async (messageIds: string[]): Promise<Record<string, string>> => {
       if (!identity) return {};
-      const wrappingKey = getWrappingKey();
-      const result: Record<string, string> = {};
-
-      for (const msgId of messageIds) {
-        // Layer 1: in-memory cache
-        let sk = sessionKeyCache.current.get(msgId);
-
-        // Layer 2: persisted (encrypted-at-rest) storage
-        if (!sk && wrappingKey) {
-          const persisted = await getPersistedSessionKey(msgId, identity.id, wrappingKey);
-          if (persisted) {
-            sk = persisted;
-            sessionKeyCache.current.set(msgId, persisted);
-          }
-        }
-
-        if (sk) {
-          result[msgId] = toBase64(sk);
-        }
-      }
-
-      return result;
+      return loadSessionKeysForMessages({
+        messageIds,
+        identityId: identity.id,
+        wrappingKey: getWrappingKey(),
+        sessionKeyCache: sessionKeyCache.current,
+        getPersistedSessionKey,
+      });
     },
     [identity, getWrappingKey],
   );

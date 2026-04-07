@@ -29,8 +29,7 @@ import { useIdentity } from './useIdentity';
 import { useChatSocket } from './useChatSocket';
 import { useToast } from '../components/Toast';
 import { useNotificationSoundPreference } from './useNotificationSoundPreference';
-import { getNativeNotificationsEnabled } from './useNativeNotificationsPreference';
-import { playNotificationSound, type FocusVisibilitySnapshot } from '../utils/notificationSound';
+import { fireConversationNotification } from '../utils/conversationNotifications';
 import { sidebarActions } from '../utils/sidebarActions';
 
 // ============================================================================
@@ -97,27 +96,12 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
 
   const fireNotification = useCallback(
     (title: string, body: string, onClick?: () => void) => {
-      toast.info(title, body, onClick);
-
-      const snapshot: FocusVisibilitySnapshot = {
-        hasFocus: document.hasFocus(),
-        visibilityState: document.visibilityState,
-      };
-
-      void playNotificationSound({
-        enabled: soundPref.enabled,
-        soundId: soundPref.soundId,
-        customPath: soundPref.customPath,
-        suppressWhenFocused: soundPref.suppressWhenFocused,
-        isViewingConversation: false,
-        snapshot,
-        volume: soundPref.volume,
-        loadCustomSound: audio?.loadSoundFromPath,
-      });
-
-      if (getNativeNotificationsEnabled() && notifications.hasPermission()) {
-        notifications.show(title, body, { tag: 'friend-event', onClick });
-      }
+      fireConversationNotification(
+        title,
+        body,
+        { onClick, isViewingConversation: false, nativeTag: 'friend-event' },
+        { toast, soundPref, notifications, audio }
+      );
     },
     [toast, soundPref, audio, notifications]
   );
