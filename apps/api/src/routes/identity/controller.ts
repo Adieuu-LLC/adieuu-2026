@@ -10,8 +10,13 @@
 import { success, errors, error as errorResponse } from '../../utils/response';
 import { RouteContext } from '../../router';
 import { sanitizeString } from '../../utils/sanitize';
-import { getSessionFromRequest } from '../../services/session.service';
-import { getUserRepository } from '../../repositories/user.repository';
+import {
+  getSessionIdFromRequest,
+  requireIdentitySession,
+  buildLogoutCookie,
+} from '../../services/session.service';
+import { verifySignedToken } from '../../services/account-token.service';
+import { getSessionRepository } from '../../repositories/session.repository';
 import {
   getIdentityRepository,
   IDENTITY_SEARCH_DEFAULTS,
@@ -23,7 +28,6 @@ import {
   deleteIdentity,
   getIdentityFromSession,
   getIdentitySessionIdFromRequest,
-  buildIdentityLogoutCookie,
   MIN_PASSPHRASE_LENGTH,
   type IdentityModerationBlock,
 } from '../../services/identity.service';
@@ -40,13 +44,12 @@ import {
   type CryptoProfile,
   type IdentityDevice,
 } from '../../models/identity';
+import { toPublicIdentitySession } from '../../models/session';
 import { applyPrivacyFilter, areFriends } from './profile.controller';
 import { getClientIp } from '../auth/controller';
 import { isValidObjectId } from '../../utils';
 import { z } from '@adieuu/shared/schemas';
 import { getKeyBundleRepository } from '../../repositories/key-bundle.repository';
-import { getIdentitySessionRepository } from '../../repositories/identity-session.repository';
-import { toPublicIdentitySession } from '../../models/identity-session';
 import { deriveBundleId } from '../../utils/crypto';
 import type { ClientSession } from 'mongodb';
 
@@ -55,12 +58,14 @@ import type { ClientSession } from 'mongodb';
 // ============================================================================
 
 const CreateIdentitySchema = z.object({
+  signedToken: z.string().min(1),
   passphrase: z.string().min(MIN_PASSPHRASE_LENGTH),
   username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, underscores, and hyphens'),
   displayName: z.string().min(1).max(50),
 });
 
 const LoginIdentitySchema = z.object({
+  signedToken: z.string().min(1),
   passphrase: z.string().min(1),
 });
 
@@ -151,48 +156,37 @@ export async function getIdentityByIdCtrl(ctx: RouteContext): Promise<Response> 
 // ============================================================================
 
 export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
-  // Require authenticated user session
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session || !session.userId) {
-    return ctx.errors.unauthorized();
-  }
-
-  // Validate request body
   const parseResult = CreateIdentitySchema.safeParse(ctx.body);
   if (!parseResult.success) {
     return ctx.errors.validationFailed();
   }
 
-  const { passphrase, username, displayName: rawDisplayName } = parseResult.data;
+  const { signedToken, passphrase, username, displayName: rawDisplayName } = parseResult.data;
 
-  // Sanitize displayName
+  // Verify the bridging token
+  const tokenPayload = verifySignedToken(signedToken);
+  if (!tokenPayload) {
+    return ctx.errors.unauthorized();
+  }
+
   const { value: displayName } = sanitizeString(rawDisplayName, 'general');
   if (!displayName || displayName.length === 0) {
     return ctx.errors.validationFailed();
   }
 
-  // Get user to obtain createdAt for salt
-  const userRepo = getUserRepository();
-  const user = await userRepo.findById(session.userId);
-  if (!user) {
-    return ctx.errors.unauthorized();
-  }
-
-  // Get client metadata for session
   const clientIp = getClientIp(ctx.request);
   const userAgent = ctx.request.headers.get('User-Agent') ?? undefined;
 
-  // Create identity with auto-login enabled
   const result = await createIdentity(
-    user._id,
-    user.createdAt,
+    tokenPayload.sub,
+    tokenPayload.maxIdentities,
     passphrase,
     username,
     displayName,
     {
       autoLogin: true,
       metadata: { userAgent, ipAddress: clientIp },
-    }
+    },
   );
 
   if (!result.success) {
@@ -205,7 +199,6 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
     return errors.badRequest(result.error ?? 'Identity creation failed.');
   }
 
-  // Return response with identity session cookie
   const response = success(result.identity, 'Identity created successfully.');
   if (result.cookie) {
     const headers = new Headers(response.headers);
@@ -217,35 +210,26 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
 }
 
 export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
-  // Require authenticated user session
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session || !session.userId) {
-    return ctx.errors.unauthorized();
-  }
-
-  // Validate request body
   const parseResult = LoginIdentitySchema.safeParse(ctx.body);
   if (!parseResult.success) {
     return ctx.errors.validationFailed();
   }
 
-  const { passphrase } = parseResult.data;
-  const clientIp = getClientIp(ctx.request);
-  const userAgent = ctx.request.headers.get('User-Agent') ?? undefined;
+  const { signedToken, passphrase } = parseResult.data;
 
-  // Get user to obtain createdAt for salt
-  const userRepo = getUserRepository();
-  const user = await userRepo.findById(session.userId);
-  if (!user) {
+  // Verify the bridging token
+  const tokenPayload = verifySignedToken(signedToken);
+  if (!tokenPayload) {
     return ctx.errors.unauthorized();
   }
 
-  // Attempt login
+  const clientIp = getClientIp(ctx.request);
+  const userAgent = ctx.request.headers.get('User-Agent') ?? undefined;
+
   const result = await loginToIdentity(
-    user._id,
-    user.createdAt,
+    tokenPayload.sub,
     passphrase,
-    { userAgent, ipAddress: clientIp }
+    { userAgent, ipAddress: clientIp },
   );
 
   if (!result.success) {
@@ -313,30 +297,19 @@ export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
 }
 
 export async function logoutIdentityCtrl(ctx: RouteContext): Promise<Response> {
-  // Get identity session from cookie
   const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
 
   if (identitySessionId) {
     await logoutFromIdentity(identitySessionId);
   }
 
-  // Clear the identity cookie
-  const logoutCookie = buildIdentityLogoutCookie();
-
   const response = success(undefined, 'Identity logout successful.');
   const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', logoutCookie);
+  headers.set('Set-Cookie', buildLogoutCookie());
   return new Response(response.body, { status: response.status, headers });
 }
 
 export async function getIdentitySessionCtrl(ctx: RouteContext): Promise<Response> {
-  // Require authenticated user session
-  const userSession = await getSessionFromRequest(ctx.request);
-  if (!userSession || !userSession.userId) {
-    return ctx.errors.unauthorized();
-  }
-
-  // Get identity session
   const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
   if (!identitySessionId) {
     return ctx.errors.unauthorized();
@@ -368,13 +341,6 @@ export async function getIdentitySessionCtrl(ctx: RouteContext): Promise<Respons
 }
 
 export async function deleteIdentityCtrl(ctx: RouteContext): Promise<Response> {
-  // Require authenticated user session
-  const userSession = await getSessionFromRequest(ctx.request);
-  if (!userSession || !userSession.userId) {
-    return ctx.errors.unauthorized();
-  }
-
-  // Get identity session
   const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
   if (!identitySessionId) {
     return ctx.errors.unauthorized();
@@ -385,18 +351,14 @@ export async function deleteIdentityCtrl(ctx: RouteContext): Promise<Response> {
     return ctx.errors.unauthorized();
   }
 
-  // Delete the identity
   const result = await deleteIdentity(identity._id, identitySessionId);
   if (!result.success) {
     return errors.badRequest(result.error ?? 'Identity deletion failed.');
   }
 
-  // Clear the identity cookie
-  const logoutCookie = buildIdentityLogoutCookie();
-
   const response = success(undefined, 'Identity deleted successfully.');
   const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', logoutCookie);
+  headers.set('Set-Cookie', buildLogoutCookie());
   return new Response(response.body, { status: response.status, headers });
 }
 
@@ -894,8 +856,8 @@ export async function listIdentitySessionsCtrl(ctx: RouteContext): Promise<Respo
     return errors.forbidden('Cannot list sessions for another identity.');
   }
 
-  const identitySessionRepo = getIdentitySessionRepository();
-  const sessions = await identitySessionRepo.findByIdentityId(identity._id);
+  const sessionRepo = getSessionRepository();
+  const sessions = await sessionRepo.findByIdentityId(identity._id);
 
   const activeSessions = sessions.filter((s) => s.expiresAt > new Date());
 
@@ -932,14 +894,14 @@ export async function revokeIdentitySessionCtrl(ctx: RouteContext): Promise<Resp
     return errors.badRequest('Cannot revoke your current session. Use logout instead.');
   }
 
-  const identitySessionRepo = getIdentitySessionRepository();
+  const sessionRepo = getSessionRepository();
 
-  const session = await identitySessionRepo.findBySessionId(sessionId);
-  if (!session || session.identityId.toHexString() !== identity._id.toHexString()) {
+  const session = await sessionRepo.findBySessionId(sessionId);
+  if (!session || session.type !== 'identity' || session.identityId?.toHexString() !== identity._id.toHexString()) {
     return errors.notFound('Session not found.');
   }
 
-  await identitySessionRepo.revoke(sessionId);
+  await sessionRepo.revoke(sessionId);
 
   return success(undefined, 'Session revoked.');
 }
@@ -963,10 +925,10 @@ export async function revokeAllOtherIdentitySessionsCtrl(ctx: RouteContext): Pro
     return errors.forbidden('Cannot revoke sessions for another identity.');
   }
 
-  const identitySessionRepo = getIdentitySessionRepository();
-  const revokedCount = await identitySessionRepo.revokeAllForIdentityExcept(
+  const sessionRepo = getSessionRepository();
+  const revokedCount = await sessionRepo.revokeAllForIdentityExcept(
     identity._id,
-    currentSessionId
+    currentSessionId,
   );
 
   return success({ count: revokedCount }, `${revokedCount} session(s) revoked.`);

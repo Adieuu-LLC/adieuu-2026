@@ -10,7 +10,7 @@
 import { success } from '../../utils/response';
 import { RouteContext } from '../../router';
 import { sanitizeString } from '../../utils/sanitize';
-import { getSessionFromRequest } from '../../services/session.service';
+import { requireAccountSession, type AccountSessionData } from '../../services/session.service';
 import {
   generateTotpSetup,
   savePendingTotp,
@@ -32,9 +32,11 @@ import { z } from '@adieuu/shared/schemas';
  * Helper to require authenticated session.
  * Returns user info or null if not authenticated.
  */
-async function requireAuth(request: Request): Promise<{ userId: string; identifier: string } | null> {
-  const session = await getSessionFromRequest(request);
-  if (!session || !session.userId) {
+async function requireAuth(
+  request: Request,
+): Promise<Pick<AccountSessionData, 'userId' | 'identifier'> | null> {
+  const session = await requireAccountSession(request);
+  if (!session) {
     return null;
   }
   return { userId: session.userId, identifier: session.identifier };

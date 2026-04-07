@@ -13,7 +13,6 @@ import { success } from '../../utils/response';
 import {
   getIdentitySessionIdFromRequest,
   getIdentityFromSession,
-  getIdentitySession,
 } from '../../services/identity.service';
 import {
   submitMessageReport,
@@ -58,9 +57,6 @@ const SubmitReportSchema = z.discriminatedUnion('type', [
 router.post('/reports', async (ctx) => {
   const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
   if (!identitySessionId) return ctx.errors.unauthorized();
-
-  const identitySession = await getIdentitySession(identitySessionId);
-  if (!identitySession) return ctx.errors.unauthorized();
 
   const identity = await getIdentityFromSession(identitySessionId);
   if (!identity) return ctx.errors.unauthorized();

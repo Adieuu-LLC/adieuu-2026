@@ -1,10 +1,16 @@
 /**
  * Session model
- * Represents an authenticated user session stored in MongoDB
+ * Represents an authenticated session stored in MongoDB.
+ *
+ * Unified model for both account and identity sessions. The `type` discriminator
+ * determines which fields are present and which routes accept the session.
  */
 
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
+
+/** Session type discriminator */
+export type SessionType = 'account' | 'identity';
 
 /**
  * Session document stored in MongoDB (source of truth)
@@ -13,14 +19,33 @@ export interface SessionDocument extends BaseDocument {
   /** Unique session identifier (used in cookie) */
   sessionId: string;
 
-  /** Reference to the user document */
-  userId: ObjectId;
+  /** Discriminator: determines which routes accept this session */
+  type: SessionType;
 
-  /** User identifier (email or phone) for display purposes */
-  identifier: string;
+  // -- Account-type fields --------------------------------------------------
 
-  /** Identifier type */
-  identifierType: 'email' | 'phone';
+  /** Reference to the user document (account sessions only) */
+  userId?: ObjectId;
+
+  /** User identifier (email or phone) for display purposes (account sessions only) */
+  identifier?: string;
+
+  /** Identifier type (account sessions only) */
+  identifierType?: 'email' | 'phone';
+
+  // -- Identity-type fields -------------------------------------------------
+
+  /** Reference to the identity document (identity sessions only) */
+  identityId?: ObjectId;
+
+  /**
+   * HMAC-derived account hash (identity sessions only).
+   * Ephemeral — cleaned up when the session expires.
+   * Used for passphrase re-verification on destructive actions.
+   */
+  accountHash?: string;
+
+  // -- Common fields --------------------------------------------------------
 
   /** Session expiration timestamp */
   expiresAt: Date;
@@ -39,10 +64,11 @@ export interface SessionDocument extends BaseDocument {
 }
 
 /**
- * Session creation input (without system-generated fields)
+ * Input for creating an account-type session.
  */
-export interface CreateSessionInput {
+export interface CreateAccountSessionInput {
   sessionId: string;
+  type: 'account';
   userId: ObjectId;
   identifier: string;
   identifierType: 'email' | 'phone';
@@ -52,15 +78,39 @@ export interface CreateSessionInput {
 }
 
 /**
+ * Input for creating an identity-type session.
+ */
+export interface CreateIdentitySessionInput {
+  sessionId: string;
+  type: 'identity';
+  identityId: ObjectId;
+  accountHash: string;
+  expiresAt: Date;
+  userAgent?: string;
+  ipAddress?: string;
+}
+
+/**
+ * Union of all session creation inputs.
+ */
+export type CreateSessionInput = CreateAccountSessionInput | CreateIdentitySessionInput;
+
+/**
  * Session data for Redis cache (lightweight version)
  */
 export interface CachedSessionData {
-  /** User ID as hex string */
-  userId: string;
-  /** User identifier (email or phone) */
-  identifier: string;
-  /** Identifier type */
-  identifierType: 'email' | 'phone';
+  /** Session type discriminator */
+  type: SessionType;
+  /** User ID as hex string (account sessions only) */
+  userId?: string;
+  /** User identifier (email or phone) (account sessions only) */
+  identifier?: string;
+  /** Identifier type (account sessions only) */
+  identifierType?: 'email' | 'phone';
+  /** Identity ID as hex string (identity sessions only) */
+  identityId?: string;
+  /** Account hash (identity sessions only) */
+  accountHash?: string;
   /** Session expiration timestamp (ms) */
   expiresAt: number;
   /** Last activity timestamp (ms) */
@@ -104,7 +154,8 @@ function maskIpAddress(ip?: string): string | undefined {
 }
 
 /**
- * Convert a SessionDocument to PublicSession (safe for client)
+ * Convert a SessionDocument to PublicSession (safe for client).
+ * Only meaningful for account-type sessions.
  */
 export function toPublicSession(
   doc: SessionDocument,
@@ -112,8 +163,37 @@ export function toPublicSession(
 ): PublicSession {
   return {
     id: doc.sessionId,
-    identifier: doc.identifier,
-    identifierType: doc.identifierType,
+    identifier: doc.identifier ?? '',
+    identifierType: doc.identifierType ?? 'email',
+    createdAt: doc.createdAt.toISOString(),
+    lastActivityAt: doc.lastActivityAt.toISOString(),
+    userAgent: doc.userAgent,
+    ipAddress: maskIpAddress(doc.ipAddress),
+    isCurrent: currentSessionId ? doc.sessionId === currentSessionId : undefined,
+  };
+}
+
+/**
+ * Public identity session representation (safe to send to client)
+ */
+export interface PublicIdentitySession {
+  id: string;
+  createdAt: string;
+  lastActivityAt: string;
+  userAgent?: string;
+  ipAddress?: string;
+  isCurrent?: boolean;
+}
+
+/**
+ * Convert a SessionDocument (identity-type) to PublicIdentitySession
+ */
+export function toPublicIdentitySession(
+  doc: SessionDocument,
+  currentSessionId?: string
+): PublicIdentitySession {
+  return {
+    id: doc.sessionId,
     createdAt: doc.createdAt.toISOString(),
     lastActivityAt: doc.lastActivityAt.toISOString(),
     userAgent: doc.userAgent,
@@ -126,11 +206,20 @@ export function toPublicSession(
  * Convert a SessionDocument to CachedSessionData (for Redis)
  */
 export function toCachedSession(doc: SessionDocument): CachedSessionData {
-  return {
-    userId: doc.userId.toHexString(),
-    identifier: doc.identifier,
-    identifierType: doc.identifierType,
+  const base: CachedSessionData = {
+    type: doc.type,
     expiresAt: doc.expiresAt.getTime(),
     lastActivityAt: doc.lastActivityAt.getTime(),
   };
+
+  if (doc.type === 'account') {
+    base.userId = doc.userId?.toHexString();
+    base.identifier = doc.identifier;
+    base.identifierType = doc.identifierType;
+  } else {
+    base.identityId = doc.identityId?.toHexString();
+    base.accountHash = doc.accountHash;
+  }
+
+  return base;
 }

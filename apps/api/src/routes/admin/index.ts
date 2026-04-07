@@ -5,7 +5,7 @@
 import { ObjectId } from 'mongodb';
 import { Router, type RouteContext } from '../../router';
 import { success } from '../../utils/response';
-import { getSessionFromRequest } from '../../services/session.service';
+import { requireAccountSession, type AccountSessionData } from '../../services/session.service';
 import {
   ensureAuthAllowlistPlatformSettingsExist,
   isPlatformAdmin,
@@ -120,8 +120,8 @@ async function buildPlatformAdminsList(): Promise<{ admins: PlatformAdminRow[] }
 }
 
 router.get('/admin/metrics', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session?.userId) {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) {
     return ctx.errors.unauthorized();
   }
   if (!(await isPlatformAdmin(session.userId))) {
@@ -151,8 +151,8 @@ router.get('/admin/metrics', async (ctx) => {
 });
 
 router.get('/admin/platform-admins', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session?.userId) {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) {
     return ctx.errors.unauthorized();
   }
   if (!(await isPlatformAdmin(session.userId))) {
@@ -164,8 +164,8 @@ router.get('/admin/platform-admins', async (ctx) => {
 });
 
 router.post('/admin/platform-admins', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session?.userId) {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) {
     return ctx.errors.unauthorized();
   }
   if (!(await isPlatformAdmin(session.userId))) {
@@ -224,8 +224,8 @@ router.post('/admin/platform-admins', async (ctx) => {
 });
 
 router.delete('/admin/platform-admins/:userId', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session?.userId) {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) {
     return ctx.errors.unauthorized();
   }
   if (!(await isPlatformAdmin(session.userId))) {
@@ -272,8 +272,8 @@ router.delete('/admin/platform-admins/:userId', async (ctx) => {
 });
 
 router.get('/admin/platform-settings', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session?.userId) {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) {
     return ctx.errors.unauthorized();
   }
   if (!(await isPlatformAdmin(session.userId))) {
@@ -292,8 +292,8 @@ router.get('/admin/platform-settings', async (ctx) => {
 });
 
 router.get('/admin/platform-settings/:key', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session?.userId) {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) {
     return ctx.errors.unauthorized();
   }
   if (!(await isPlatformAdmin(session.userId))) {
@@ -321,8 +321,8 @@ router.get('/admin/platform-settings/:key', async (ctx) => {
 });
 
 async function upsertPlatformSettingHandler(ctx: RouteContext) {
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session?.userId) {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) {
     return ctx.errors.unauthorized();
   }
   if (!(await isPlatformAdmin(session.userId))) {

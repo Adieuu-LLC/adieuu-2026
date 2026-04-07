@@ -80,7 +80,7 @@ function clearWebDeviceKeys(webDev: DecryptedWebDevice): void {
  */
 function useIdentityState(): IdentityContextValue {
   const { apiBaseUrl, platform } = useAppConfig();
-  const { status: authStatus, session } = useAuth();
+  const { status: authStatus, session, refreshSession } = useAuth();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
@@ -142,8 +142,9 @@ function useIdentityState(): IdentityContextValue {
 
   // Check identity session status
   const refreshIdentitySession = useCallback(async () => {
-    // Only check if user is authenticated
-    if (authStatus !== 'authenticated') {
+    // Only check if user has a valid session of any type.
+    // 'authenticated' = account session, 'identity_mode' = identity session.
+    if (authStatus !== 'authenticated' && authStatus !== 'identity_mode') {
       setState({
         status: 'logged_out',
         identity: null,
@@ -231,7 +232,7 @@ function useIdentityState(): IdentityContextValue {
 
   // Check identity session when auth status or identity counts change
   useEffect(() => {
-    if (authStatus === 'authenticated') {
+    if (authStatus === 'authenticated' || authStatus === 'identity_mode') {
       refreshIdentitySession();
     } else if (authStatus === 'unauthenticated') {
       setState({
@@ -247,7 +248,12 @@ function useIdentityState(): IdentityContextValue {
 
   const createIdentity = useCallback(
     async (passphrase: string, username: string, displayName: string): Promise<CreateIdentityResult> => {
-      const flow = await runCreateIdentityFlow(api, platform, passphrase, username, displayName);
+      const signedToken = session?.signedToken;
+      if (!signedToken) {
+        return { success: false, error: 'No signed token available. Please refresh your session.', errorCode: 'VALIDATION_ERROR' };
+      }
+
+      const flow = await runCreateIdentityFlow(api, platform, signedToken, passphrase, username, displayName);
       if (!flow.ok) return flow.result;
 
       wrappingKeyRef.current = flow.wrappingKey;
@@ -269,16 +275,21 @@ function useIdentityState(): IdentityContextValue {
         identity: flow.identity,
       };
     },
-    [api, platform]
+    [api, platform, session?.signedToken]
   );
 
   const loginToIdentity = useCallback(
     async (passphrase: string, options?: LoginIdentityOptions): Promise<LoginIdentityResult> => {
+      const signedToken = session?.signedToken;
+      if (!signedToken) {
+        return { success: false, error: 'No signed token available. Please refresh your session.' };
+      }
+
       const onStatus = options?.onStatusChange;
       const onWebDeviceChoice = options?.onWebDeviceChoice;
       
       onStatus?.('authenticating');
-      const response = await api.identity.login({ passphrase });
+      const response = await api.identity.login({ signedToken, passphrase });
 
       if (!response.success) {
         const errorMessage = response.error?.message ?? 'Invalid passphrase';
@@ -639,7 +650,7 @@ function useIdentityState(): IdentityContextValue {
         error: 'Unexpected response',
       };
     },
-    [api, platform]
+    [api, platform, session?.signedToken]
   );
 
   const unlockIdentity = useCallback(
@@ -796,7 +807,10 @@ function useIdentityState(): IdentityContextValue {
       status: prev.hasIdentity ? 'logged_out' : 'no_identity',
       identity: null,
     }));
-  }, [api, clearSessionKeys]);
+    // Identity logout clears the unified cookie. Refresh auth state so the
+    // app knows the user is now unauthenticated (must re-login as account).
+    await refreshSession();
+  }, [api, clearSessionKeys, refreshSession]);
 
   const deleteIdentity = useCallback(async () => {
     const response = await api.identity.delete();
@@ -809,6 +823,7 @@ function useIdentityState(): IdentityContextValue {
     }
 
     // Note: identityCount doesn't decrement on delete (per user requirement)
+    clearSessionKeys();
     setState((prev) => ({
       ...prev,
       status: 'no_identity',
@@ -816,8 +831,11 @@ function useIdentityState(): IdentityContextValue {
       // hasIdentity stays true because identityCount doesn't decrement
     }));
 
+    // Identity session is destroyed on delete; refresh auth to detect cookie state.
+    await refreshSession();
+
     return { success: true };
-  }, [api]);
+  }, [api, clearSessionKeys, refreshSession]);
 
   return useMemo(() => ({
     ...state,

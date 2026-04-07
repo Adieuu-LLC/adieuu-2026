@@ -176,6 +176,11 @@ export interface SessionInfo {
   identityCount: number;
   /** Maximum number of identities allowed */
   maxIdentities: number;
+  /**
+   * Short-lived HS256 JWT for bridging account→identity transitions.
+   * Refreshed on every GET /api/auth/session call.
+   */
+  signedToken: string;
   /** Whether this user can access platform admin APIs and UI */
   isPlatformAdmin: boolean;
   /** Whether this user can access the platform moderation panel */
@@ -341,6 +346,14 @@ export class AuthApi {
    */
   async logout(): Promise<ApiResponse<void>> {
     return this.client.post('/api/auth/logout');
+  }
+
+  /**
+   * Clear the current session cookie without destroying the session server-side.
+   * Used when transitioning between account and identity contexts.
+   */
+  async clearSession(): Promise<ApiResponse<void>> {
+    return this.client.post('/api/auth/clear-session');
   }
 
   /**
@@ -845,6 +858,8 @@ export interface UpdateKeyBundleParams {
  * Parameters for creating an identity.
  */
 export interface CreateIdentityParams {
+  /** Short-lived signed token from GET /api/auth/session */
+  signedToken: string;
   /** Passphrase (min 8 characters) */
   passphrase: string;
   /** Username (3-30 chars, alphanumeric + underscores/hyphens) */
@@ -857,6 +872,8 @@ export interface CreateIdentityParams {
  * Parameters for logging into an identity.
  */
 export interface LoginIdentityParams {
+  /** Short-lived signed token from GET /api/auth/session */
+  signedToken: string;
   /** Passphrase to authenticate */
   passphrase: string;
 }

@@ -397,6 +397,18 @@ export const RedisKeys = {
   identityChannel: (identityId: string) => `identity:${identityId}`,
 
   /**
+   * Identity login rate-limiting counter keyed by accountHash.
+   * Stores the current attempt count with a TTL window.
+   */
+  identityLoginAttempts: (accountHash: string) => `ratelimit:identity_login:${accountHash}`,
+
+  /**
+   * Pending lockout notifications keyed by accountHash.
+   * Checked and drained on next account login.
+   */
+  lockoutPending: (accountHash: string) => `lockout_pending:${accountHash}`,
+
+  /**
    * Cached JSON blob for auth allowlist state (enforced + email/phone sets).
    * Invalidated on any platform_settings write.
    */

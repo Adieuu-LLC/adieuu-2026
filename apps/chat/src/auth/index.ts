@@ -6,7 +6,7 @@
  */
 
 import { getPublisher, isRedisConnected } from '../db/redis';
-import { getIdentitySessionsCollection, type IdentitySessionDocument } from '../db/mongo';
+import { getSessionsCollection, type SessionDocument } from '../db/mongo';
 import { config } from '../config';
 import logger from '../utils/logger';
 import type { SessionData } from '../types';
@@ -14,10 +14,10 @@ import type { SessionData } from '../types';
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
 /**
- * Redis key for identity session cache (matching API service format)
+ * Redis key for session cache (matching API service format)
  */
 function sessionCacheKey(sessionId: string): string {
-  return `identity_session:${sessionId}`;
+  return `session:${sessionId}`;
 }
 
 /**
@@ -49,7 +49,7 @@ export function extractSessionId(
 ): string | null {
   // Try cookie first (web clients)
   const cookies = parseCookies(cookieHeader);
-  const cookieSessionId = cookies['adieuu_identity'];
+  const cookieSessionId = cookies['adieuu_session'];
   if (cookieSessionId) {
     return cookieSessionId;
   }
@@ -65,7 +65,8 @@ export function extractSessionId(
 }
 
 interface CachedSessionData {
-  identityId: string;
+  type?: string;
+  identityId?: string;
   expiresAt: number;
   lastActivityAt: number;
 }
@@ -99,7 +100,7 @@ async function getSessionFromCache(sessionId: string): Promise<CachedSessionData
  */
 async function setSessionCache(
   sessionId: string,
-  session: IdentitySessionDocument
+  session: SessionDocument
 ): Promise<void> {
   if (!isRedisConnected()) {
     return;
@@ -108,8 +109,9 @@ async function setSessionCache(
   try {
     const redis = getPublisher();
     const key = sessionCacheKey(sessionId);
-    const data: CachedSessionData = {
-      identityId: session.identityId.toString(),
+    const data = {
+      type: session.type,
+      identityId: session.identityId?.toString(),
       expiresAt: session.expiresAt.getTime(),
       lastActivityAt: session.lastActivityAt.getTime(),
     };
@@ -142,6 +144,9 @@ export async function validateSession(sessionId: string): Promise<SessionData | 
       });
       return null;
     }
+    if (!cached.identityId) {
+      return null;
+    }
     logger.debug('Session validation: cache hit', {
       sessionId: sessionPrefix,
       identityId: cached.identityId.substring(0, 8) + '...',
@@ -154,11 +159,12 @@ export async function validateSession(sessionId: string): Promise<SessionData | 
     };
   }
 
-  // Cache miss - query MongoDB
+  // Cache miss - query the unified sessions collection (identity-type only)
   try {
-    const collection = getIdentitySessionsCollection();
+    const collection = getSessionsCollection();
     const session = await collection.findOne({
-      identitySessionId: sessionId,
+      sessionId,
+      type: 'identity',
       revoked: false,
     });
 
@@ -180,13 +186,16 @@ export async function validateSession(sessionId: string): Promise<SessionData | 
       return null;
     }
 
+    if (!session.identityId) {
+      return null;
+    }
+
     logger.info('Session validation: cache miss, loaded from database', {
       sessionId: sessionPrefix,
       identityId: session.identityId.toString().substring(0, 8) + '...',
       elapsedMs,
     });
 
-    // Populate cache
     await setSessionCache(sessionId, session);
 
     return {

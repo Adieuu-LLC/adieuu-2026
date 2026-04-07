@@ -7,7 +7,7 @@ import { useAppConfig, usePlatformCapabilities } from '../config';
 // Auth State Types
 // ============================================================================
 
-export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
+export type AuthStatus = 'loading' | 'authenticated' | 'identity_mode' | 'unauthenticated';
 
 export interface AuthState {
   status: AuthStatus;
@@ -84,6 +84,13 @@ function useAuthState(): AuthContextValue {
       const response = await api.auth.getSession();
 
       if (response.success && response.data) {
+        // Server returns { sessionType: 'identity' } when the cookie
+        // holds an identity session instead of an account session.
+        if ('sessionType' in response.data && (response.data as Record<string, unknown>).sessionType === 'identity') {
+          setState({ status: 'identity_mode', session: null });
+          return;
+        }
+
         setState({
           status: 'authenticated',
           session: {

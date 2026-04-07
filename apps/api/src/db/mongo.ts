@@ -364,6 +364,8 @@ export const Collections = {
   PLATFORM_REPORTS: 'platform_reports',
   /** Timeline events for platform reports (comments, state transitions, actions) */
   PLATFORM_REPORT_EVENTS: 'platform_report_events',
+  /** Per-accountHash identity creation counts (unique index on accountHash) */
+  IDENTITY_COUNTS: 'identity_counts',
 } as const;
 
 /**
@@ -601,6 +603,10 @@ async function createIndexes(): Promise<void> {
     { expireAfterSeconds: 24 * 60 * 60, partialFilterExpression: { status: 'pending' } }
   );
   await e2eMedia.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
+
+  // Identity counts collection indexes
+  const identityCounts = database.collection(Collections.IDENTITY_COUNTS);
+  await identityCounts.createIndex({ accountHash: 1 }, { unique: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

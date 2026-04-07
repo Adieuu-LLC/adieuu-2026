@@ -41,11 +41,12 @@ export type CreateIdentityFlowResult =
 export async function runCreateIdentityFlow(
   api: ApiClient,
   platform: string,
+  signedToken: string,
   passphrase: string,
   username: string,
   displayName: string
 ): Promise<CreateIdentityFlowResult> {
-  const response = await api.identity.create({ passphrase, username, displayName });
+  const response = await api.identity.create({ signedToken, passphrase, username, displayName });
   if (!response.success) {
     const errorMessage = response.error?.message ?? 'Failed to create identity';
     let errorCode: CreateIdentityResult['errorCode'];

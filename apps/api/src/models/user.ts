@@ -36,6 +36,9 @@ export interface UserDocument extends BaseDocument {
   /** When the identity lockout expires */
   identityLockedUntil?: Date;
 
+  /** Maximum identities this account may create (default: 2, adjustable per-account) */
+  maxIdentities?: number;
+
   /** Platform-level roles assigned directly on the user document */
   platformRoles?: string[];
   /** Platform-level permission attributes granted directly */

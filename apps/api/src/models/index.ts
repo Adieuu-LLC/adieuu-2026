@@ -8,7 +8,11 @@ export * from './audit';
 export * from './session';
 export * from './mfa';
 export * from './identity';
-export * from './identity-session';
+export {
+  type IdentitySessionDocument,
+  type CachedIdentitySessionData,
+  toCachedIdentitySession,
+} from './identity-session';
 export * from './block';
 export * from './friend-request';
 export * from './friendship';

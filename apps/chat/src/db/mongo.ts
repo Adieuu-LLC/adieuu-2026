@@ -12,10 +12,15 @@ import logger from '../utils/logger';
 let client: MongoClient | null = null;
 let db: Db | null = null;
 
-export interface IdentitySessionDocument {
+/**
+ * Unified session document — the chat service only cares about
+ * identity-type sessions for WebSocket authentication.
+ */
+export interface SessionDocument {
   _id: ObjectId;
-  identitySessionId: string;
-  identityId: ObjectId;
+  sessionId: string;
+  type: 'account' | 'identity';
+  identityId?: ObjectId;
   expiresAt: Date;
   lastActivityAt: Date;
   revoked: boolean;
@@ -54,10 +59,10 @@ export function getDb(): Db {
 }
 
 /**
- * Gets the identity_sessions collection
+ * Gets the unified sessions collection
  */
-export function getIdentitySessionsCollection(): Collection<IdentitySessionDocument> {
-  return getDb().collection<IdentitySessionDocument>('identity_sessions');
+export function getSessionsCollection(): Collection<SessionDocument> {
+  return getDb().collection<SessionDocument>('sessions');
 }
 
 /**

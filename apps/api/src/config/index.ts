@@ -219,6 +219,18 @@ export const config = {
     sessionSecret: optionalEnv('SESSION_SECRET', 'dev-session-secret-change-in-prod'),
     /** Secret for OTP hashing (prevents rainbow table attacks) */
     otpSecret: optionalEnv('OTP_SECRET', 'dev-otp-secret-change-in-prod'),
+    /**
+     * HMAC key for deriving accountHash (non-reversible account identifier).
+     * Non-rotatable: changing this invalidates all identity logins.
+     * In production, injected by ECS from AWS Secrets Manager.
+     */
+    accountHashSecret: optionalEnv('ACCOUNT_HASH_SECRET', 'dev-account-hash-secret-change-in-prod'),
+    /**
+     * HMAC key for signing short-lived JWTs that bridge account→identity transitions.
+     * Rotatable: clients get a fresh token on next GET /api/auth/session.
+     * In production, injected by ECS from AWS Secrets Manager.
+     */
+    tokenSigningKey: optionalEnv('TOKEN_SIGNING_KEY', 'dev-token-signing-key-change-in-prod'),
   },
 
   /** Email service configuration (AWS SES) */
@@ -377,6 +389,12 @@ export function validateProductionConfig(): void {
   }
   if (config.security.otpSecret.includes('dev-')) {
     errors.push('OTP_SECRET must be set in production');
+  }
+  if (config.security.accountHashSecret.includes('dev-')) {
+    errors.push('ACCOUNT_HASH_SECRET must be set in production');
+  }
+  if (config.security.tokenSigningKey.includes('dev-')) {
+    errors.push('TOKEN_SIGNING_KEY must be set in production');
   }
 
   // Check email config

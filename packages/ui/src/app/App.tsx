@@ -65,6 +65,8 @@ function ProtectedLayout() {
     );
   }
 
+  // Allow access for both account sessions and identity sessions.
+  // 'identity_mode' means the cookie holds a valid identity session.
   if (status === 'unauthenticated') {
     return <Navigate to="/auth/login" replace />;
   }
@@ -127,7 +129,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (status === 'authenticated') {
+  if (status === 'authenticated' || status === 'identity_mode') {
     return <Navigate to="/" replace />;
   }
 

@@ -17,7 +17,7 @@ import {
   requestPhoneVerification,
   verifyPhoneNumber,
 } from './controller';
-import { getSessionFromRequest } from '../../services/session.service';
+import { requireAccountSession } from '../../services/session.service';
 import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
 import { getClientIp } from '../auth/controller';
 import { z, UserThemePreferencesSchema } from '@adieuu/shared/schemas';
@@ -37,9 +37,9 @@ const router = new Router();
  * @returns 401 Unauthorized if not authenticated
  */
 router.get('/users/me', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
+  const session = await requireAccountSession(ctx.request);
 
-  if (!session || !session.userId) {
+  if (!session) {
     return ctx.errors.unauthorized();
   }
 
@@ -76,9 +76,9 @@ const EmailRequestSchema = z.object({
  * @returns 429 Too Many Requests if rate limited
  */
 router.post('/users/me/email', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
+  const session = await requireAccountSession(ctx.request);
 
-  if (!session || !session.userId) {
+  if (!session) {
     return ctx.errors.unauthorized();
   }
 
@@ -133,9 +133,9 @@ const EmailVerifySchema = z.object({
  * @returns 429 Too Many Requests if in backoff period
  */
 router.post('/users/me/email/verify', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
+  const session = await requireAccountSession(ctx.request);
 
-  if (!session || !session.userId) {
+  if (!session) {
     return ctx.errors.unauthorized();
   }
 
@@ -192,9 +192,9 @@ const PhoneRequestSchema = z.object({
  * @returns 429 Too Many Requests if rate limited
  */
 router.post('/users/me/phone', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
+  const session = await requireAccountSession(ctx.request);
 
-  if (!session || !session.userId) {
+  if (!session) {
     return ctx.errors.unauthorized();
   }
 
@@ -249,9 +249,9 @@ const PhoneVerifySchema = z.object({
  * @returns 429 Too Many Requests if in backoff period
  */
 router.post('/users/me/phone/verify', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
+  const session = await requireAccountSession(ctx.request);
 
-  if (!session || !session.userId) {
+  if (!session) {
     return ctx.errors.unauthorized();
   }
 
@@ -332,8 +332,8 @@ router.get('/users/:id', async (ctx) => {
  * @returns 401 Unauthorized if not authenticated
  */
 router.get('/users/me/preferences', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session?.userId) {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) {
     return ctx.errors.unauthorized();
   }
 
@@ -361,8 +361,8 @@ router.get('/users/me/preferences', async (ctx) => {
  * @returns 400 Bad Request if validation fails
  */
 router.put('/users/me/preferences', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session?.userId) {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) {
     return ctx.errors.unauthorized();
   }
 
@@ -386,8 +386,8 @@ const DisplayNameSchema = z.object({
 });
 
 router.patch('/users/me/display-name', async (ctx) => {
-  const session = await getSessionFromRequest(ctx.request);
-  if (!session?.userId) return ctx.errors.unauthorized();
+  const session = await requireAccountSession(ctx.request);
+  if (!session) return ctx.errors.unauthorized();
 
   const caps = await getPlatformCapabilities(session.userId);
   const isModerator = caps.isPlatformModerator || caps.isPlatformAdmin;

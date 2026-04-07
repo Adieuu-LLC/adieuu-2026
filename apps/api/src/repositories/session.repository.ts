@@ -8,7 +8,10 @@ import { BaseRepository } from './base.repository';
 import { Collections, getRedis, isRedisConnected, RedisKeys } from '../db';
 import type {
   SessionDocument,
+  SessionType,
   CreateSessionInput,
+  CreateAccountSessionInput,
+  CreateIdentitySessionInput,
   CachedSessionData,
 } from '../models/session';
 import { toCachedSession } from '../models/session';
@@ -18,15 +21,18 @@ import elog from '../utils/adieuuLogger';
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
 /**
- * Session repository interface
+ * Session repository interface — unified for both account and identity sessions.
  */
 export interface ISessionRepository {
   findBySessionId(sessionId: string): Promise<SessionDocument | null>;
   findByUserId(userId: string | ObjectId): Promise<SessionDocument[]>;
-  create(input: CreateSessionInput): Promise<SessionDocument>;
+  findByIdentityId(identityId: string | ObjectId): Promise<SessionDocument[]>;
+  createSession(input: CreateSessionInput): Promise<SessionDocument>;
   updateLastActivity(sessionId: string): Promise<void>;
   revoke(sessionId: string): Promise<void>;
   revokeAllForUser(userId: string | ObjectId): Promise<number>;
+  revokeAllForIdentity(identityId: string | ObjectId): Promise<number>;
+  revokeAllForIdentityExcept(identityId: string | ObjectId, excludeSessionId: string): Promise<number>;
   deleteExpired(): Promise<number>;
 }
 
@@ -75,20 +81,13 @@ export class SessionRepository
   }
 
   /**
-   * Get session from cache or database
-   * Returns cached data if available, otherwise fetches from DB
+   * Get session from cache or database.
+   * Returns the cached data shape which includes the type discriminator.
    */
-  async getSession(sessionId: string): Promise<{
-    userId: string;
-    identifier: string;
-    identifierType: 'email' | 'phone';
-    expiresAt: number;
-    lastActivityAt: number;
-  } | null> {
+  async getSession(sessionId: string): Promise<CachedSessionData | null> {
     // Try cache first
     const cached = await this.getFromCache(sessionId);
     if (cached) {
-      // Check if expired
       if (cached.expiresAt < Date.now()) {
         await this.invalidateCache(sessionId);
         return null;
@@ -103,7 +102,6 @@ export class SessionRepository
       return null;
     }
 
-    // Check if expired
     if (session.expiresAt < new Date()) {
       return null;
     }
@@ -111,13 +109,7 @@ export class SessionRepository
     // Populate cache
     await this.setCache(sessionId, session);
 
-    return {
-      userId: session.userId.toHexString(),
-      identifier: session.identifier,
-      identifierType: session.identifierType,
-      expiresAt: session.expiresAt.getTime(),
-      lastActivityAt: session.lastActivityAt.getTime(),
-    };
+    return toCachedSession(session);
   }
 
   /**
@@ -129,20 +121,35 @@ export class SessionRepository
   }
 
   /**
-   * Create a new session
+   * Create a new session (account or identity type)
    */
-  async create(input: CreateSessionInput): Promise<SessionDocument> {
-    const doc: Omit<SessionDocument, '_id' | 'createdAt' | 'updatedAt'> = {
+  async createSession(input: CreateSessionInput): Promise<SessionDocument> {
+    const base = {
       sessionId: input.sessionId,
-      userId: input.userId,
-      identifier: input.identifier,
-      identifierType: input.identifierType,
+      type: input.type,
       expiresAt: input.expiresAt,
       lastActivityAt: new Date(),
       userAgent: input.userAgent,
       ipAddress: input.ipAddress,
       revoked: false,
     };
+
+    let doc: Omit<SessionDocument, '_id' | 'createdAt' | 'updatedAt'>;
+
+    if (input.type === 'account') {
+      doc = {
+        ...base,
+        userId: input.userId,
+        identifier: input.identifier,
+        identifierType: input.identifierType,
+      };
+    } else {
+      doc = {
+        ...base,
+        identityId: input.identityId,
+        accountHash: input.accountHash,
+      };
+    }
 
     const session = await super.create(doc);
 
@@ -198,6 +205,59 @@ export class SessionRepository
     );
 
     elog.info('Session revoked', { sessionId: sessionId.substring(0, 8) + '...' });
+  }
+
+  /**
+   * Find all identity sessions for an identity
+   */
+  async findByIdentityId(identityId: string | ObjectId): Promise<SessionDocument[]> {
+    const objectId = this.toObjectId(identityId);
+    return await this.findMany({ type: 'identity', identityId: objectId, revoked: false });
+  }
+
+  /**
+   * Revoke all identity sessions for an identity
+   */
+  async revokeAllForIdentity(identityId: string | ObjectId): Promise<number> {
+    const objectId = this.toObjectId(identityId);
+
+    const sessions = await this.findMany({ type: 'identity', identityId: objectId, revoked: false });
+    await Promise.all(sessions.map((s) => this.invalidateCache(s.sessionId)));
+
+    const result = await this.collection.updateMany(
+      { type: 'identity', identityId: objectId, revoked: false },
+      { $set: { revoked: true, updatedAt: new Date() } }
+    );
+
+    elog.info('All identity sessions revoked', {
+      identityId: objectId.toHexString(),
+      count: result.modifiedCount,
+    });
+
+    return result.modifiedCount;
+  }
+
+  /**
+   * Revoke all identity sessions except a specific one
+   */
+  async revokeAllForIdentityExcept(identityId: string | ObjectId, excludeSessionId: string): Promise<number> {
+    const objectId = this.toObjectId(identityId);
+
+    const sessions = await this.findMany({
+      type: 'identity',
+      identityId: objectId,
+      revoked: false,
+      sessionId: { $ne: excludeSessionId },
+    });
+
+    await Promise.all(sessions.map((s) => this.invalidateCache(s.sessionId)));
+
+    const result = await this.collection.updateMany(
+      { type: 'identity', identityId: objectId, revoked: false, sessionId: { $ne: excludeSessionId } },
+      { $set: { revoked: true, updatedAt: new Date() } }
+    );
+
+    return result.modifiedCount;
   }
 
   /**

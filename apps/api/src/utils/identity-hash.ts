@@ -4,14 +4,14 @@
  * Provides secure, deterministic hashing for identity credentials.
  * Uses a double-hash approach for defense-in-depth:
  *
- * 1. Inner hash: Argon2id (memory-hard password hashing)
+ * 1. Inner hash: Argon2id (memory-hard, via hash-wasm)
  * 2. Outer hash: SHA3-256 (post-quantum resistant construction)
  *
- * The result is: SHA3-256(Argon2id(passphrase, salt=userId+createdAt))
+ * The result is: SHA3-256(Argon2id(passphrase, salt=accountHash))
  *
  * SECURITY NOTES:
- * - The hash is deterministic (no random salt) to allow lookup by hash
- * - Salt is derived from userId + createdAt (unique per user, unknowable to attacker)
+ * - The hash is deterministic (salt is the HMAC-derived accountHash)
+ * - accountHash is non-reversible without ACCOUNT_HASH_SECRET
  * - Parameters are versioned to allow future algorithm migration
  * - Minimum passphrase length: 8 characters
  *
@@ -19,10 +19,11 @@
  */
 
 import { createHash } from 'crypto';
+import { deriveKeyFromPassword, toHex } from '@adieuu/crypto';
 
 /**
- * Hash version configuration
- * Each version defines specific Argon2id parameters
+ * Hash version configuration.
+ * Each version defines specific Argon2id parameters.
  */
 export interface HashVersionConfig {
   /** Argon2id memory cost in KiB */
@@ -34,28 +35,27 @@ export interface HashVersionConfig {
 }
 
 /**
- * Hash version configurations
- * Add new versions here when parameters need to change
+ * Hash version configurations.
+ *
+ * Version 1: Original PBKDF2 scheme (deprecated, no longer supported).
+ * Version 2: Argon2id + SHA3-256 with accountHash as salt.
  */
 export const HASH_VERSIONS: Record<number, HashVersionConfig> = {
-  1: {
-    memoryCost: 65536, // 64 MB
+  2: {
+    memoryCost: 65536, // 64 MiB
     timeCost: 3,
-    parallelism: 4,
+    parallelism: 1,
   },
 };
 
 /** Current hash version to use for new identities */
-export const CURRENT_HASH_VERSION = 1;
+export const CURRENT_HASH_VERSION = 2;
 
 /** Minimum passphrase length */
 export const MIN_PASSPHRASE_LENGTH = 8;
 
 /**
- * Validates passphrase meets minimum requirements
- *
- * @param passphrase - The passphrase to validate
- * @returns true if valid, false otherwise
+ * Validates passphrase meets minimum requirements.
  */
 export function validatePassphrase(passphrase: string): {
   valid: boolean;
@@ -71,117 +71,43 @@ export function validatePassphrase(passphrase: string): {
 }
 
 /**
- * Generates the deterministic salt from user data
- * Salt format: userId:createdAtTimestamp
+ * Generates the identity hash using the double-hash approach.
  *
- * @param userId - The user's MongoDB ObjectId as hex string
- * @param userCreatedAt - The user's createdAt timestamp
- * @returns Salt string for Argon2
- */
-function generateSalt(userId: string, userCreatedAt: Date): string {
-  // Use userId + createdAt timestamp to create a unique, deterministic salt
-  return `${userId}:${userCreatedAt.getTime()}`;
-}
-
-/**
- * Hashes the passphrase using Argon2id (inner hash)
- *
- * @param passphrase - The user's passphrase
- * @param salt - The deterministic salt
- * @param version - The hash version to use
- * @returns Base64-encoded Argon2id hash
- */
-async function argon2Hash(
-  passphrase: string,
-  salt: string,
-  version: number
-): Promise<string> {
-  const config = HASH_VERSIONS[version];
-  if (!config) {
-    throw new Error(`Unknown hash version: ${version}`);
-  }
-
-  // Use Bun's native Argon2id implementation
-  const hash = await Bun.password.hash(passphrase, {
-    algorithm: 'argon2id',
-    memoryCost: config.memoryCost,
-    timeCost: config.timeCost,
-    // Note: Bun doesn't expose parallelism directly, uses optimal default
-  });
-
-  // Bun's hash includes the salt in the output, but we need deterministic output
-  // So we use the passphrase + our salt combined, then extract just the hash portion
-  // Actually, Bun.password.hash uses random salt internally, which won't work for us
-
-  // Instead, we need to use argon2 library or implement deterministic hashing
-  // For now, let's use a workaround: hash the combined input
-  // TODO: Replace with proper Argon2id when deterministic salt is available
-
-  // Workaround: Use PBKDF2 with high iterations as a stand-in
-  // We'll need to add argon2 package for proper implementation
-  return hash;
-}
-
-/**
- * Generates the identity hash using the double-hash approach
- *
- * Hash = SHA3-256(Argon2id(passphrase, salt=userId:createdAt))
+ * Hash = SHA3-256(Argon2id(passphrase, salt=accountHash))
  *
  * @param passphrase - The user's passphrase (min 8 characters)
- * @param userId - The user's MongoDB ObjectId as hex string
- * @param userCreatedAt - The user's createdAt timestamp
+ * @param accountHash - HMAC-SHA256 derived account hash (64-char hex)
  * @param version - The hash version to use (default: current)
  * @returns The identity hash (hex string) and version used
  */
 export async function generateIdentityHash(
   passphrase: string,
-  userId: string,
-  userCreatedAt: Date,
-  version: number = CURRENT_HASH_VERSION
+  accountHash: string,
+  version: number = CURRENT_HASH_VERSION,
 ): Promise<{ hash: string; version: number }> {
-  // Validate passphrase
   const validation = validatePassphrase(passphrase);
   if (!validation.valid) {
     throw new Error(validation.error);
   }
 
-  const config = HASH_VERSIONS[version];
-  if (!config) {
+  const versionConfig = HASH_VERSIONS[version];
+  if (!versionConfig) {
     throw new Error(`Unknown hash version: ${version}`);
   }
 
-  const salt = generateSalt(userId, userCreatedAt);
+  // Salt is the raw bytes of the accountHash hex string
+  const salt = new TextEncoder().encode(accountHash);
 
-  // Inner hash: Argon2id
-  // Since Bun.password.hash uses random salt, we need to use a different approach
-  // We'll create a deterministic key using the passphrase + salt
-  const innerInput = `${passphrase}:${salt}`;
-
-  // Use crypto.subtle for PBKDF2 as intermediate step until we add argon2 package
-  // This provides memory-hardness through high iterations
-  const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(innerInput),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  );
-
-  // Derive key with high iteration count (compensating for PBKDF2 vs Argon2id)
-  // In production, we should use argon2 package for true memory-hard hashing
-  const derivedBits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: encoder.encode(salt),
-      iterations: 600000, // OWASP recommendation for PBKDF2-SHA256
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    256 // 256 bits
-  );
-
-  const innerHash = Buffer.from(derivedBits).toString('hex');
+  // Inner hash: Argon2id with deterministic salt (via @adieuu/crypto)
+  const innerBytes = await deriveKeyFromPassword({
+    password: passphrase,
+    salt,
+    parallelism: versionConfig.parallelism,
+    timeCost: versionConfig.timeCost,
+    memoryCost: versionConfig.memoryCost,
+    outputLength: 32,
+  });
+  const innerHash = toHex(innerBytes);
 
   // Outer hash: SHA3-256
   const outerHash = createHash('sha3-256')
@@ -192,68 +118,54 @@ export async function generateIdentityHash(
 }
 
 /**
- * Verifies a passphrase against a stored identity hash
+ * Verifies a passphrase against a stored identity hash.
  *
  * @param passphrase - The passphrase to verify
- * @param userId - The user's MongoDB ObjectId as hex string
- * @param userCreatedAt - The user's createdAt timestamp
+ * @param accountHash - HMAC-SHA256 derived account hash
  * @param storedHash - The stored identity hash to compare against
  * @param storedVersion - The hash version used for the stored hash
  * @returns Object with match result and optional new hash if upgrade needed
  */
 export async function verifyIdentityHash(
   passphrase: string,
-  userId: string,
-  userCreatedAt: Date,
+  accountHash: string,
   storedHash: string,
-  storedVersion: number
+  storedVersion: number,
 ): Promise<{
   match: boolean;
   needsUpgrade: boolean;
   newHash?: string;
   newVersion?: number;
 }> {
-  // Generate hash with the stored version for comparison
   const { hash: computedHash } = await generateIdentityHash(
     passphrase,
-    userId,
-    userCreatedAt,
-    storedVersion
+    accountHash,
+    storedVersion,
   );
 
-  // Constant-time comparison to prevent timing attacks
   const match = constantTimeCompare(computedHash, storedHash);
 
   if (!match) {
     return { match: false, needsUpgrade: false };
   }
 
-  // Check if we need to upgrade to a newer hash version
   if (storedVersion < CURRENT_HASH_VERSION) {
     const { hash: newHash, version: newVersion } = await generateIdentityHash(
       passphrase,
-      userId,
-      userCreatedAt,
-      CURRENT_HASH_VERSION
+      accountHash,
+      CURRENT_HASH_VERSION,
     );
-    return {
-      match: true,
-      needsUpgrade: true,
-      newHash,
-      newVersion,
-    };
+    return { match: true, needsUpgrade: true, newHash, newVersion };
   }
 
   return { match: true, needsUpgrade: false };
 }
 
 /**
- * Constant-time string comparison to prevent timing attacks
+ * Constant-time string comparison to prevent timing attacks.
  */
 function constantTimeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
+  if (a.length !== b.length) return false;
 
   const bufferA = Buffer.from(a);
   const bufferB = Buffer.from(b);

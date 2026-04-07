@@ -18,7 +18,7 @@ import {
   getIdentityFromSession,
 } from '../../services/identity.service';
 import { checkRateLimit } from '../../services/rate-limit.service';
-import { getSessionFromRequest } from '../../services/session.service';
+import { requireAccountSession } from '../../services/session.service';
 
 const router = new Router();
 
@@ -103,8 +103,7 @@ router.get('/themes/:id', async (ctx) => {
  * @route POST /api/themes
  */
 router.post('/themes', async (ctx) => {
-  const userSession = await getSessionFromRequest(ctx.request);
-  if (!userSession?.userId) {
+  if (!(await requireAccountSession(ctx.request))) {
     return ctx.errors.unauthorized();
   }
 

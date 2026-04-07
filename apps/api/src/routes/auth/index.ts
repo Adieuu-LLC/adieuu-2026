@@ -17,8 +17,8 @@ import { Router } from '../../router';
 import { success } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
 import { MAX_IDENTITIES_PER_USER } from '../../services/identity.service';
-import { getUserRepository } from '../../repositories/user.repository';
 import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
+import { buildLogoutCookie, getSessionFromRequest } from '../../services/session.service';
 import {
   requestOtp,
   verifyOtpHandler,
@@ -256,12 +256,13 @@ router.post('/auth/verify', async (ctx) => {
 /**
  * GET /auth/session - Get current session status.
  *
- * Returns the current user's session information if authenticated,
- * or 401 Unauthorized if not authenticated.
+ * Returns the current user's session information if authenticated.
+ * If the cookie holds an identity session, returns `{ sessionType: 'identity' }`
+ * so the client can distinguish "wrong session type" from "no session at all".
  *
  * @route GET /api/auth/session
  *
- * @returns 200 OK with session info (identifier, identifier type)
+ * @returns 200 OK with session info (account) or `{ sessionType: 'identity' }`
  * @returns 401 Unauthorized if no valid session
  *
  * @security
@@ -269,26 +270,27 @@ router.post('/auth/verify', async (ctx) => {
  * - Does not expose sensitive session internals
  */
 router.get('/auth/session', async (ctx) => {
-  const session = await getSessionHandler(ctx.request);
+  const result = await getSessionHandler(ctx.request);
 
-  if (!session) {
+  if (!result) {
+    // No account session — check if there's an identity session so the
+    // client can tell "identity mode" apart from "truly unauthenticated".
+    const rawSession = await getSessionFromRequest(ctx.request);
+    if (rawSession?.type === 'identity') {
+      return success({ sessionType: 'identity' as const });
+    }
     return ctx.errors.unauthorized();
   }
 
-  let identityCount = 0;
-  let capabilities = { isPlatformAdmin: false, isPlatformModerator: false, roles: [] as string[], permissions: [] as string[] };
-  if (session.userId) {
-    const userRepo = getUserRepository();
-    const user = await userRepo.findById(session.userId);
-    identityCount = user?.identityCount ?? 0;
-    capabilities = await getPlatformCapabilities(session.userId);
-  }
+  const { session, signedToken, identityCount } = result;
+  const capabilities = await getPlatformCapabilities(session.userId);
 
   return success({
     identifier: session.identifier,
     identifierType: session.identifierType,
     identityCount,
     maxIdentities: MAX_IDENTITIES_PER_USER,
+    signedToken,
     isPlatformAdmin: capabilities.isPlatformAdmin,
     isPlatformModerator: capabilities.isPlatformModerator,
     platformPermissions: capabilities.permissions,
@@ -306,13 +308,11 @@ router.get('/auth/session', async (ctx) => {
  * @returns 200 OK with cleared session cookies
  */
 router.post('/auth/logout', async (ctx) => {
-  const { userCookie, identityCookie } = await logoutHandler(ctx.request);
+  const { cookie } = await logoutHandler(ctx.request);
 
   const response = success(undefined, 'Logged out successfully.');
-  // Need to set multiple cookies - use append instead of set
   const headers = new Headers(response.headers);
-  headers.append('Set-Cookie', userCookie);
-  headers.append('Set-Cookie', identityCookie);
+  headers.set('Set-Cookie', cookie);
   return new Response(response.body, { status: response.status, headers });
 });
 
@@ -405,19 +405,30 @@ router.delete('/auth/sessions', async (ctx) => {
     `${result.count} session(s) revoked successfully.`
   );
 
-  // If current session was revoked, clear both cookies
-  if (result.userCookie || result.identityCookie) {
+  if (result.cookie) {
     const headers = new Headers(response.headers);
-    if (result.userCookie) {
-      headers.append('Set-Cookie', result.userCookie);
-    }
-    if (result.identityCookie) {
-      headers.append('Set-Cookie', result.identityCookie);
-    }
+    headers.set('Set-Cookie', result.cookie);
     return new Response(response.body, { status: response.status, headers });
   }
 
   return response;
+});
+
+/**
+ * POST /auth/clear-session - Clear the current session (for account→identity transition).
+ *
+ * Destroys the current session and clears the cookie without fully logging out.
+ * Used by the client before creating an identity session.
+ *
+ * @route POST /api/auth/clear-session
+ */
+router.post('/auth/clear-session', async (ctx) => {
+  const { cookie } = await logoutHandler(ctx.request);
+
+  const response = success(undefined, 'Session cleared.');
+  const headers = new Headers(response.headers);
+  headers.set('Set-Cookie', cookie);
+  return new Response(response.body, { status: response.status, headers });
 });
 
 // ============================================================================

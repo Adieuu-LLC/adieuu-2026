@@ -9,7 +9,7 @@
 import { ObjectId } from 'mongodb';
 import { Router, type RouteContext } from '../../router';
 import { success } from '../../utils/response';
-import { getSessionFromRequest } from '../../services/session.service';
+import { requireAccountSession } from '../../services/session.service';
 import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
 import { getReportRepository } from '../../repositories/report.repository';
 import { getReportEventRepository } from '../../repositories/report-event.repository';
@@ -29,10 +29,10 @@ const router = new Router();
 
 type ModeratorAuthResult =
   | { ok: false; error: Response }
-  | { ok: true; session: NonNullable<Awaited<ReturnType<typeof getSessionFromRequest>>>; caps: Awaited<ReturnType<typeof getPlatformCapabilities>> };
+  | { ok: true; session: NonNullable<Awaited<ReturnType<typeof requireAccountSession>>>; caps: Awaited<ReturnType<typeof getPlatformCapabilities>> };
 
 async function requireModeratorSession(request: Request, errors: RouteContext['errors']): Promise<ModeratorAuthResult> {
-  const session = await getSessionFromRequest(request);
+  const session = await requireAccountSession(request);
   if (!session) return { ok: false, error: errors.unauthorized() };
 
   const caps = await getPlatformCapabilities(session.userId);

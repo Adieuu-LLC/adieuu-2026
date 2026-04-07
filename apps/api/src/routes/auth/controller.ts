@@ -11,19 +11,19 @@
 import { createOtp, verifyOtp, type VerifyOtpResult } from '../../services/otp.service';
 import { checkRateLimit, type RateLimitResult } from '../../services/rate-limit.service';
 import {
-  createSession,
-  getSessionFromRequest,
+  createAccountSession,
+  requireAccountSession,
+  getSessionIdFromRequest,
   destroySession,
   destroyAllSessions,
-  getSessionIdFromRequest,
   buildLogoutCookie,
-  type SessionData,
+  type AccountSessionData,
 } from '../../services/session.service';
 import {
-  logoutFromIdentity,
-  getIdentitySessionIdFromRequest,
-  buildIdentityLogoutCookie,
-} from '../../services/identity.service';
+  generateAccountHash,
+  createSignedToken,
+} from '../../services/account-token.service';
+import { getIdentityCountRepository } from '../../repositories/identity-count.repository';
 import {
   getMfaStatus,
   verifyTotpCode,
@@ -625,7 +625,7 @@ export async function verifyOtpHandler(
   }
 
   // No MFA - create session directly
-  const { cookie } = await createSession(user._id, sanitizedIdentifier.value, identifierType, {
+  const { cookie } = await createAccountSession(user._id, sanitizedIdentifier.value, identifierType, {
     userAgent,
     ipAddress: sanitizedIp.value,
   });
@@ -645,36 +645,49 @@ export async function verifyOtpHandler(
  * @param request - The incoming request with session cookie
  * @returns Session data if valid, null otherwise
  */
-export async function getSessionHandler(request: Request): Promise<SessionData | null> {
-  return getSessionFromRequest(request);
+/**
+ * Gets the current account session and generates a fresh signedToken.
+ */
+export async function getSessionHandler(request: Request): Promise<{
+  session: AccountSessionData;
+  signedToken: string;
+  identityCount: number;
+} | null> {
+  const session = await requireAccountSession(request);
+  if (!session) return null;
+
+  const userRepo = getUserRepository();
+  const user = await userRepo.findById(session.userId);
+  if (!user) return null;
+
+  const accountHash = generateAccountHash(
+    session.userId,
+    user.createdAt,
+  );
+
+  const identityCountRepo = getIdentityCountRepository();
+  const identityCount = await identityCountRepo.getCount(accountHash);
+
+  const signedToken = createSignedToken(
+    accountHash,
+    user.maxIdentities ?? 2,
+  );
+
+  return { session, signedToken, identityCount };
 }
 
 /**
- * Logs out the current session and identity session.
- *
- * @param request - The incoming request with session cookies
- * @returns Both logout cookies to clear the sessions
+ * Logs out the current session (unified cookie).
  */
 export async function logoutHandler(request: Request): Promise<{
-  userCookie: string;
-  identityCookie: string;
+  cookie: string;
 }> {
-  // Logout user session
   const sessionId = getSessionIdFromRequest(request);
   if (sessionId) {
     await destroySession(sessionId);
   }
 
-  // Logout identity session (if exists)
-  const identitySessionId = getIdentitySessionIdFromRequest(request);
-  if (identitySessionId) {
-    await logoutFromIdentity(identitySessionId);
-  }
-
-  return {
-    userCookie: buildLogoutCookie(),
-    identityCookie: buildIdentityLogoutCookie(),
-  };
+  return { cookie: buildLogoutCookie() };
 }
 
 /**
@@ -694,27 +707,19 @@ export async function listSessionsHandler(
   request: Request
 ): Promise<ListSessionsResult> {
   const currentSessionId = getSessionIdFromRequest(request);
-  const session = await getSessionFromRequest(request);
+  const session = await requireAccountSession(request);
 
   if (!session) {
     return { success: false, error: 'unauthorized' };
   }
 
   const sessionRepo = getSessionRepository();
-  let publicSessions: PublicSession[] = [];
+  const sessions = await sessionRepo.findByUserId(session.userId);
 
-  // If we have a userId, query MongoDB for all sessions
-  if (session.userId) {
-    const sessions = await sessionRepo.findByUserId(session.userId);
+  let publicSessions: PublicSession[] = sessions.map((s) =>
+    toPublicSession(s, currentSessionId ?? undefined)
+  );
 
-    // Convert to public format with current session marked
-    publicSessions = sessions.map((s) =>
-      toPublicSession(s, currentSessionId ?? undefined)
-    );
-  }
-
-  // If the current session isn't in the list (legacy session from Redis-only era),
-  // add it as a synthetic entry so the user sees their current session
   const currentSessionInList = publicSessions.some((s) => s.isCurrent);
   if (!currentSessionInList && currentSessionId) {
     const userAgent = request.headers.get('User-Agent') ?? undefined;
@@ -722,7 +727,7 @@ export async function listSessionsHandler(
       id: currentSessionId,
       identifier: session.identifier,
       identifierType: session.identifierType,
-      createdAt: new Date().toISOString(), // Unknown, use now
+      createdAt: new Date().toISOString(),
       lastActivityAt: new Date().toISOString(),
       userAgent,
       ipAddress: undefined,
@@ -730,7 +735,6 @@ export async function listSessionsHandler(
     });
   }
 
-  // Sort: current session first, then by last activity
   publicSessions.sort((a, b) => {
     if (a.isCurrent) return -1;
     if (b.isCurrent) return 1;
@@ -759,22 +763,20 @@ export async function revokeSessionHandler(
   sessionIdToRevoke: string
 ): Promise<RevokeSessionResult> {
   const currentSessionId = getSessionIdFromRequest(request);
-  const session = await getSessionFromRequest(request);
+  const session = await requireAccountSession(request);
 
-  if (!session || !session.userId) {
+  if (!session) {
     return { success: false, error: 'unauthorized' };
   }
 
-  // Prevent revoking current session via this endpoint
   if (sessionIdToRevoke === currentSessionId) {
     return { success: false, error: 'cannot_revoke_current' };
   }
 
   const sessionRepo = getSessionRepository();
 
-  // Verify the session belongs to this user
   const targetSession = await sessionRepo.findBySessionId(sessionIdToRevoke);
-  if (!targetSession || targetSession.userId.toHexString() !== session.userId) {
+  if (!targetSession || targetSession.userId?.toHexString() !== session.userId) {
     return { success: false, error: 'not_found' };
   }
 
@@ -792,52 +794,35 @@ export async function revokeSessionHandler(
  * Result type for revoking all sessions.
  */
 export type RevokeAllSessionsResult =
-  | { success: true; count: number; userCookie: string; identityCookie: string }
+  | { success: true; count: number; cookie: string }
   | { success: false; error: 'unauthorized' };
 
 /**
  * Revokes all sessions except the current one.
- *
- * @param request - The incoming request with session cookie
- * @param includeCurrentSession - Whether to also revoke the current session
- * @returns Success with count or error
  */
 export async function revokeAllSessionsHandler(
   request: Request,
   includeCurrentSession = false
 ): Promise<RevokeAllSessionsResult> {
   const currentSessionId = getSessionIdFromRequest(request);
-  const session = await getSessionFromRequest(request);
+  const session = await requireAccountSession(request);
 
-  if (!session || !session.userId) {
+  if (!session) {
     return { success: false, error: 'unauthorized' };
   }
 
   const sessionRepo = getSessionRepository();
 
   if (includeCurrentSession) {
-    // Revoke all sessions including current
     const count = await destroyAllSessions(session.userId);
-
-    // Also logout identity session if present
-    const identitySessionId = getIdentitySessionIdFromRequest(request);
-    if (identitySessionId) {
-      await logoutFromIdentity(identitySessionId);
-    }
 
     elog.info('All sessions revoked by user', {
       userId: session.userId,
       count,
     });
 
-    return {
-      success: true,
-      count,
-      userCookie: buildLogoutCookie(),
-      identityCookie: buildIdentityLogoutCookie(),
-    };
+    return { success: true, count, cookie: buildLogoutCookie() };
   } else {
-    // Revoke all except current
     const sessions = await sessionRepo.findByUserId(session.userId);
     let count = 0;
 
@@ -853,8 +838,7 @@ export async function revokeAllSessionsHandler(
       count,
     });
 
-    // Return empty cookies since current session is still valid
-    return { success: true, count, userCookie: '', identityCookie: '' };
+    return { success: true, count, cookie: '' };
   }
 }
 
@@ -933,7 +917,7 @@ export async function verifyMfaTotpHandler(
   await clearPendingLogin(mfaToken);
 
   // Create session
-  const { cookie } = await createSession(
+  const { cookie } = await createAccountSession(
     new ObjectId(pendingLogin.userId),
     pendingLogin.identifier,
     pendingLogin.identifierType,
@@ -974,7 +958,7 @@ export async function verifyMfaWebAuthnHandler(
   await clearPendingLogin(mfaToken);
 
   // Create session
-  const { cookie } = await createSession(
+  const { cookie } = await createAccountSession(
     new ObjectId(pendingLogin.userId),
     pendingLogin.identifier,
     pendingLogin.identifierType,
@@ -1015,7 +999,7 @@ export async function verifyMfaBackupCodeHandler(
   await clearPendingLogin(mfaToken);
 
   // Create session
-  const { cookie } = await createSession(
+  const { cookie } = await createAccountSession(
     new ObjectId(pendingLogin.userId),
     pendingLogin.identifier,
     pendingLogin.identifierType,

@@ -16,6 +16,7 @@ import { createApiClient, type PublicDevice } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
 import { deleteAllDeviceKeysForIdentity } from '../services/deviceKeyStorage';
+import { decryptKeyBundle } from '../services/e2eKeyService';
 import {
   getActivityPreferences,
   saveActivityPreferences,
@@ -161,20 +162,22 @@ export function useDeviceManagement() {
   );
 
   /**
-   * Verify passphrase by attempting login.
+   * Verify passphrase by attempting to decrypt the key bundle.
    * Returns true if passphrase is correct.
    */
   const verifyPassphrase = useCallback(
     async (passphrase: string): Promise<boolean> => {
+      if (!identity) return false;
       try {
-        // Attempt login to verify passphrase
-        const response = await api.identity.login({ passphrase });
-        return response.success;
+        const bundleRes = await api.identity.getKeyBundle(identity.id);
+        if (!bundleRes.success || !bundleRes.data) return false;
+        await decryptKeyBundle(bundleRes.data, passphrase);
+        return true;
       } catch {
         return false;
       }
     },
-    [api]
+    [api, identity]
   );
 
   /**

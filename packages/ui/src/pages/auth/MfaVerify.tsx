@@ -48,7 +48,7 @@ export function MfaVerify() {
 
   // Redirect if already authenticated
   useEffect(() => {
-    if (status === 'authenticated') {
+    if (status === 'authenticated' || status === 'identity_mode') {
       navigate('/', { replace: true });
     }
   }, [status, navigate]);
