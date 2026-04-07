@@ -797,22 +797,13 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     (id: string | null) => {
       setActiveConversationId(id);
       if (id) {
-        let hadUnread = false;
         setConversations((prev) =>
-          prev.map((c) => {
-            if (c.id === id) {
-              hadUnread = c.unreadCount > 0;
-              return { ...c, unreadCount: 0 };
-            }
-            return c;
-          })
+          prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
         );
-        if (!messagesState[id] || hadUnread) {
-          fetchMessages(id, undefined, true);
-        }
+        fetchMessages(id, undefined, true);
       }
     },
-    [messagesState, fetchMessages]
+    [fetchMessages]
   );
 
   const loadMoreMessages = useCallback(async () => {
