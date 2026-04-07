@@ -40,7 +40,8 @@ import { serializePayload, mediaPayload, parsePayload, type MediaAttachment } fr
 import { MediaMessage } from '../../components/MediaMessage';
 import { useE2EMediaDownload, clearMediaCache } from '../../hooks/useE2EMediaDownload';
 import { stripExifMetadata } from '../../utils/imageProcessing';
-import { renderMessageWithUrls, extractDomain } from '../../utils/urlParsing';
+import { extractDomain } from '../../utils/urlParsing';
+import { renderFormattedMessage } from '../../utils/markdownParser';
 import { isDomainTrusted } from '../../hooks/useExternalLinkPreferences';
 import { ExternalLinkModal } from '../../components/ExternalLinkModal';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
@@ -807,7 +808,7 @@ const MessageBubble = memo(function MessageBubble({
   const parsed = useMemo(() => parsePayload(rawContent), [rawContent]);
   const content = parsed.text;
   const renderedContent = useMemo(
-    () => (content ? renderMessageWithUrls(content, onLinkClick) : null),
+    () => (content ? renderFormattedMessage(content, onLinkClick) : null),
     [content, onLinkClick],
   );
   const hasDecryptionError = !message.decryptedContent && !message.deleted;
@@ -947,7 +948,7 @@ const MessageBubble = memo(function MessageBubble({
       </Tooltip>
     ) : (
       <>
-        {renderedContent && <p className="dm-message-text">{renderedContent}</p>}
+        {renderedContent}
         {parsed.attachments.length > 1 ? (
           <div className="dm-message-attachments">
             {parsed.attachments.map((att) => (
@@ -1113,7 +1114,7 @@ const MessageBubble = memo(function MessageBubble({
             </Tooltip>
           ) : (
             <>
-              {renderedContent && <p className="dm-message-text">{renderedContent}</p>}
+              {renderedContent}
               {parsed.attachments.length > 1 ? (
                 <div className="dm-message-attachments">
                   {parsed.attachments.map((att) => (
