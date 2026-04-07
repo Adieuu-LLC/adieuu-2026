@@ -836,6 +836,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             if (prev.some((c) => c.id === decrypted.id)) return prev;
             return [decrypted, ...prev];
           });
+          void resolveParticipants(decrypted.participants);
           return resp.data;
         }
       } catch {
@@ -843,7 +844,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       }
       return null;
     },
-    [api, toDecrypted]
+    [api, toDecrypted, resolveParticipants]
   );
 
   const createGroup = useCallback(
@@ -878,6 +879,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           };
           const decrypted = toDecrypted(conv);
           setConversations((prev) => [decrypted, ...prev]);
+          void resolveParticipants(decrypted.participants);
           return conv;
         }
       } catch {
@@ -885,7 +887,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       }
       return null;
     },
-    [api, toDecrypted]
+    [api, toDecrypted, resolveParticipants]
   );
 
   // -------------------------------------------------------------------------
@@ -1661,6 +1663,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
         case 'group_invite_accepted': {
           fetchConversationsRef.current();
+          if (message.data.identityId) {
+            void resolveParticipantsRef.current([message.data.identityId]);
+          }
           const joinerName = message.data.displayName ?? message.data.username;
           fireNotificationRef.current(
             tRef.current('conversations.notifications.memberJoined', { defaultValue: 'Member joined' }),

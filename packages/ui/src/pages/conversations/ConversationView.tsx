@@ -2676,7 +2676,11 @@ export function ConversationView() {
           <div className="conversation-main">
             {/* Messages */}
             <div className="conversation-messages" ref={messagesContainerRef}>
-              {reversedMessages.length === 0 && !messagesLoading ? (
+              {id !== activeConversationId ? (
+                <div className="dm-messages-loading">
+                  <div className="dm-messages-spinner" />
+                </div>
+              ) : reversedMessages.length === 0 && !messagesLoading ? (
                 <div className="conversation-messages-empty">
                   <p>{t('conversations.noMessages', 'No messages yet. Say hello!')}</p>
                 </div>
