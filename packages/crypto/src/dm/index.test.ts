@@ -9,6 +9,8 @@ import {
   deriveSenderHintKey,
   deriveReadStateKey,
   deriveSenderHintNonce,
+  deriveParticipantHash,
+  deriveScanHash,
 } from './index';
 
 describe('deriveConversationId', () => {
@@ -147,6 +149,10 @@ describe('deriveSenderHintKey', () => {
 
     expect(senderHintKey).not.toEqual(readStateKey);
   });
+
+  it('throws for malformed conversationId input', () => {
+    expect(() => deriveSenderHintKey('not-hex')).toThrow();
+  });
 });
 
 describe('deriveReadStateKey', () => {
@@ -184,6 +190,10 @@ describe('deriveReadStateKey', () => {
     const keyCnsa2 = deriveReadStateKey(conversationId, 'cnsa2');
 
     expect(keyDefault).not.toEqual(keyCnsa2);
+  });
+
+  it('throws for malformed conversationId input', () => {
+    expect(() => deriveReadStateKey('bad-id')).toThrow();
   });
 });
 
@@ -232,5 +242,47 @@ describe('deriveSenderHintNonce', () => {
         expect(nonces[i]).not.toEqual(nonces[j]);
       }
     }
+  });
+});
+
+describe('deriveParticipantHash', () => {
+  const identityId = '507f1f77bcf86cd799439011';
+  const conversationId = deriveConversationId(
+    identityId,
+    '507f1f77bcf86cd799439012'
+  );
+
+  it('returns a deterministic 64-char hex hash', () => {
+    const hash1 = deriveParticipantHash(identityId, conversationId);
+    const hash2 = deriveParticipantHash(identityId, conversationId);
+    expect(hash1).toBe(hash2);
+    expect(hash1).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('changes across conversations for same identity', () => {
+    const otherConversationId = deriveConversationId(
+      identityId,
+      '507f1f77bcf86cd799439013'
+    );
+    expect(deriveParticipantHash(identityId, conversationId)).not.toBe(
+      deriveParticipantHash(identityId, otherConversationId)
+    );
+  });
+});
+
+describe('deriveScanHash', () => {
+  const identityId = '507f1f77bcf86cd799439011';
+
+  it('returns a deterministic 64-char hex hash', () => {
+    const hash1 = deriveScanHash(identityId, 'e2e-media-1');
+    const hash2 = deriveScanHash(identityId, 'e2e-media-1');
+    expect(hash1).toBe(hash2);
+    expect(hash1).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it('produces different hashes for different media IDs', () => {
+    expect(deriveScanHash(identityId, 'e2e-media-1')).not.toBe(
+      deriveScanHash(identityId, 'e2e-media-2')
+    );
   });
 });

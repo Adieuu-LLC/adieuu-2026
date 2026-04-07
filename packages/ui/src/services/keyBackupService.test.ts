@@ -17,8 +17,23 @@ import {
   storePreEncryptedDeviceKeys,
   type StoredDeviceKeys,
 } from './deviceKeyStorage';
+import {
+  storePreEncryptedCipher,
+  type StoredCipher,
+} from '../hooks/useCipherStore';
 import type { SecureStorage } from '../config/types';
-import { randomBytes, toBase64, fromBase64, constantTimeEqual } from '@adieuu/crypto';
+import {
+  randomBytes,
+  toBase64,
+  fromBase64,
+  constantTimeEqual,
+  deriveKeyFromPassword,
+  hkdfSha3_256,
+  KDF_INFO,
+  ARGON2_HIGH_SECURITY,
+  AES_GCM_NONCE_SIZE,
+  encryptAES256GCM,
+} from '@adieuu/crypto';
 
 /**
  * Tests for the key backup export/import service.
@@ -78,6 +93,53 @@ async function seedDeviceKeys(
     );
   }
   return deviceIds;
+}
+
+function buildBackupFile(headerObj: unknown, ciphertext?: Uint8Array): Uint8Array {
+  const headerBytes = new TextEncoder().encode(JSON.stringify(headerObj));
+  const data = new Uint8Array(4 + headerBytes.length + (ciphertext?.length ?? 0));
+  new DataView(data.buffer).setUint32(0, headerBytes.length, false);
+  data.set(headerBytes, 4);
+  if (ciphertext) {
+    data.set(ciphertext, 4 + headerBytes.length);
+  }
+  return data;
+}
+
+async function buildEncryptedBackupPayload(
+  payloadBytes: Uint8Array,
+  password: string
+): Promise<Uint8Array> {
+  const salt = randomBytes(ARGON2_HIGH_SECURITY.saltLength);
+  const nonce = randomBytes(AES_GCM_NONCE_SIZE);
+  const ikm = await deriveKeyFromPassword({
+    password,
+    salt,
+    memoryCost: ARGON2_HIGH_SECURITY.memoryCost,
+    timeCost: ARGON2_HIGH_SECURITY.timeCost,
+    parallelism: ARGON2_HIGH_SECURITY.parallelism,
+    outputLength: ARGON2_HIGH_SECURITY.outputLength,
+  });
+  const key = hkdfSha3_256(ikm, salt, KDF_INFO.KEY_BACKUP, 32);
+  const encrypted = encryptAES256GCM(key, payloadBytes, nonce);
+
+  return buildBackupFile(
+    {
+      v: 1,
+      format: 'adieuu-key-backup',
+      createdAt: new Date().toISOString(),
+      kdf: {
+        algorithm: 'argon2id',
+        timeCost: ARGON2_HIGH_SECURITY.timeCost,
+        memoryCost: ARGON2_HIGH_SECURITY.memoryCost,
+        parallelism: ARGON2_HIGH_SECURITY.parallelism,
+        salt: toBase64(salt),
+      },
+      hkdf: { algorithm: 'hkdf-sha3-256', info: KDF_INFO.KEY_BACKUP },
+      encryption: { algorithm: 'AES-256-GCM', nonce: toBase64(nonce) },
+    },
+    encrypted.ciphertext
+  );
 }
 
 describe('keyBackupService', () => {
@@ -161,6 +223,56 @@ describe('keyBackupService', () => {
 
       const decodedSalt = fromBase64(payload.wrappingSalt);
       expect(constantTimeEqual(decodedSalt, wrappingSalt)).toBe(true);
+    });
+
+    test('exports devices-only payload when requested', async () => {
+      const identityId = 'devices-only';
+      const wrappingKey = generateWrappingKey();
+      const wrappingSalt = generateWrappingSalt();
+      await seedDeviceKeys(identityId, 1, wrappingKey);
+
+      const data = await exportKeyBackup(
+        identityId,
+        wrappingSalt,
+        TEST_EXPORT_PASSWORD,
+        ['devices']
+      );
+      const payload = await decryptKeyBackup(data, TEST_EXPORT_PASSWORD);
+      expect(payload.devices.length).toBe(1);
+      expect(payload.ciphers).toBeUndefined();
+    });
+
+    test('exports ciphers-only payload when requested', async () => {
+      const identityId = 'ciphers-only';
+      const wrappingSalt = generateWrappingSalt();
+      const now = new Date().toISOString();
+      const cipher: StoredCipher = {
+        id: `cipher-${crypto.randomUUID()}`,
+        name: 'Backup Cipher',
+        identityId,
+        encryptedEntropy: {
+          version: 1,
+          salt: toBase64(randomBytes(16)),
+          ciphertext: toBase64(randomBytes(48)),
+          nonce: toBase64(randomBytes(12)),
+        },
+        cipherId: toBase64(randomBytes(16)),
+        shortId: 'abc12345',
+        profile: 'default',
+        createdAt: now,
+        lastUsedAt: now,
+      };
+      await storePreEncryptedCipher(cipher);
+
+      const data = await exportKeyBackup(
+        identityId,
+        wrappingSalt,
+        TEST_EXPORT_PASSWORD,
+        ['ciphers']
+      );
+      const payload = await decryptKeyBackup(data, TEST_EXPORT_PASSWORD);
+      expect(payload.devices.length).toBe(0);
+      expect(payload.ciphers?.length).toBe(1);
     });
 
     test('produces different ciphertext for identical exports', async () => {
@@ -370,6 +482,72 @@ describe('keyBackupService', () => {
         expect(dataString).not.toContain(key.kemPrivateKeyEncrypted.ciphertext);
       }
     });
+
+    test('throws EMPTY_PAYLOAD when ciphertext section is empty', async () => {
+      const data = buildBackupFile({
+        v: 1,
+        format: 'adieuu-key-backup',
+        createdAt: new Date().toISOString(),
+        kdf: {
+          algorithm: 'argon2id',
+          timeCost: 4,
+          memoryCost: 262144,
+          parallelism: 4,
+          salt: toBase64(randomBytes(16)),
+        },
+        hkdf: { algorithm: 'hkdf-sha3-256', info: KDF_INFO.KEY_BACKUP },
+        encryption: { algorithm: 'AES-256-GCM', nonce: toBase64(randomBytes(12)) },
+      });
+
+      await expect(decryptKeyBackup(data, TEST_EXPORT_PASSWORD)).rejects.toMatchObject({
+        code: 'EMPTY_PAYLOAD',
+      });
+    });
+
+    test('throws CORRUPT_PAYLOAD when decrypted payload is not JSON', async () => {
+      const data = await buildEncryptedBackupPayload(
+        new TextEncoder().encode('not-json'),
+        TEST_EXPORT_PASSWORD
+      );
+
+      await expect(decryptKeyBackup(data, TEST_EXPORT_PASSWORD)).rejects.toMatchObject({
+        code: 'CORRUPT_PAYLOAD',
+      });
+    });
+
+    test('throws INVALID_PAYLOAD when required payload shape is missing', async () => {
+      const invalidPayload = {
+        payloadVersion: 1,
+        identityId: 'invalid-shape',
+        wrappingSalt: toBase64(randomBytes(16)),
+      };
+      const data = await buildEncryptedBackupPayload(
+        new TextEncoder().encode(JSON.stringify(invalidPayload)),
+        TEST_EXPORT_PASSWORD
+      );
+
+      await expect(decryptKeyBackup(data, TEST_EXPORT_PASSWORD)).rejects.toMatchObject({
+        code: 'INVALID_PAYLOAD',
+      });
+    });
+
+    test('throws NO_DATA when devices and ciphers are both empty', async () => {
+      const emptyPayload: KeyBackupPayload = {
+        payloadVersion: 1,
+        identityId: 'empty-payload',
+        wrappingSalt: toBase64(randomBytes(16)),
+        devices: [],
+        ciphers: [],
+      };
+      const data = await buildEncryptedBackupPayload(
+        new TextEncoder().encode(JSON.stringify(emptyPayload)),
+        TEST_EXPORT_PASSWORD
+      );
+
+      await expect(decryptKeyBackup(data, TEST_EXPORT_PASSWORD)).rejects.toMatchObject({
+        code: 'NO_DATA',
+      });
+    });
   });
 
   // ==========================================================================
@@ -498,6 +676,103 @@ describe('keyBackupService', () => {
       expect(result.imported).toBe(2);
       expect(storedRecords.length).toBe(2);
       expect(storedRecords.every((r) => r.identityId === identityId)).toBe(true);
+    });
+
+    test('imports ciphers and skips existing ones with skip strategy', async () => {
+      const identityId = `cipher-import-skip-${crypto.randomUUID()}`;
+      const now = new Date().toISOString();
+      const existingCipher: StoredCipher = {
+        id: `cipher-existing-${crypto.randomUUID()}`,
+        name: 'Existing',
+        identityId,
+        encryptedEntropy: {
+          version: 1,
+          salt: toBase64(randomBytes(16)),
+          ciphertext: toBase64(randomBytes(48)),
+          nonce: toBase64(randomBytes(12)),
+        },
+        cipherId: 'shared-cipher-id',
+        shortId: 'short1',
+        profile: 'default',
+        createdAt: now,
+        lastUsedAt: now,
+      };
+      await storePreEncryptedCipher(existingCipher);
+
+      const payload: KeyBackupPayload = {
+        payloadVersion: 1,
+        identityId,
+        wrappingSalt: toBase64(randomBytes(16)),
+        devices: [],
+        ciphers: [
+          { ...existingCipher, id: `cipher-remote-${crypto.randomUUID()}` },
+          {
+            ...existingCipher,
+            id: `cipher-new-${crypto.randomUUID()}`,
+            cipherId: 'new-cipher-id',
+            shortId: 'short2',
+          },
+        ],
+      };
+
+      const seen: StoredCipher[] = [];
+      const result = await applyKeyBackupImport(
+        payload,
+        'skip',
+        async () => {},
+        async (record) => {
+          seen.push(record);
+        }
+      );
+
+      expect(result.ciphersImported).toBe(1);
+      expect(result.ciphersSkipped).toBe(1);
+      expect(seen.length).toBe(1);
+      expect(seen[0]!.cipherId).toBe('new-cipher-id');
+    });
+
+    test('replace strategy reuses local cipher id for existing cipherId', async () => {
+      const identityId = `cipher-import-replace-${crypto.randomUUID()}`;
+      const now = new Date().toISOString();
+      const existingCipher: StoredCipher = {
+        id: `cipher-existing-${crypto.randomUUID()}`,
+        name: 'Existing',
+        identityId,
+        encryptedEntropy: {
+          version: 1,
+          salt: toBase64(randomBytes(16)),
+          ciphertext: toBase64(randomBytes(48)),
+          nonce: toBase64(randomBytes(12)),
+        },
+        cipherId: 'shared-cipher-id',
+        shortId: 'short1',
+        profile: 'default',
+        createdAt: now,
+        lastUsedAt: now,
+      };
+      await storePreEncryptedCipher(existingCipher);
+
+      const payload: KeyBackupPayload = {
+        payloadVersion: 1,
+        identityId,
+        wrappingSalt: toBase64(randomBytes(16)),
+        devices: [],
+        ciphers: [{ ...existingCipher, id: `cipher-remote-${crypto.randomUUID()}` }],
+      };
+
+      const seen: StoredCipher[] = [];
+      const result = await applyKeyBackupImport(
+        payload,
+        'replace',
+        async () => {},
+        async (record) => {
+          seen.push(record);
+        }
+      );
+
+      expect(result.ciphersImported).toBe(1);
+      expect(result.ciphersSkipped).toBe(0);
+      expect(seen[0]!.id).toBe(existingCipher.id);
     });
   });
 

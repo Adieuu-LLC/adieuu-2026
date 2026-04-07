@@ -24,6 +24,7 @@ import {
   encrypt,
   decrypt,
   deriveBundleId,
+  deriveScanHash,
   verifyDmMessageSignature,
 } from './crypto';
 
@@ -551,6 +552,25 @@ describe('crypto utilities', () => {
     test('different inputs produce different outputs', () => {
       const a = deriveBundleId('input-alpha');
       const b = deriveBundleId('input-bravo');
+      expect(a).not.toBe(b);
+    });
+  });
+
+  describe('deriveScanHash', () => {
+    test('returns a hex string (SHA3-256 digest)', () => {
+      const scanHash = deriveScanHash('identity-id-1', 'media-id-1');
+      expect(scanHash).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    test('same identity and media produce same output (deterministic)', () => {
+      const a = deriveScanHash('identity-id-1', 'media-id-1');
+      const b = deriveScanHash('identity-id-1', 'media-id-1');
+      expect(a).toBe(b);
+    });
+
+    test('different media IDs produce different outputs', () => {
+      const a = deriveScanHash('identity-id-1', 'media-id-1');
+      const b = deriveScanHash('identity-id-1', 'media-id-2');
       expect(a).not.toBe(b);
     });
   });

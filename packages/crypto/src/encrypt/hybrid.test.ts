@@ -7,6 +7,7 @@ import {
   unwrapSessionKey,
   wrapSessionKeyForRecipients,
   findAndUnwrapSessionKey,
+  computeRoutingTag,
   SESSION_KEY_SIZE,
 } from './hybrid';
 import {
@@ -277,6 +278,22 @@ describe('encrypt/hybrid', () => {
       expect(constantTimeEqual(unwrapped, sessionKey)).toBe(true);
     });
 
+    test('throws when decrypting with mismatched profile', () => {
+      const bundle = generateIdentityKeyBundle('cnsa2');
+      const publicKeys = extractPublicKeys(bundle);
+      const sessionKey = randomBytes(32);
+      const wrapped = wrapSessionKey(sessionKey, publicKeys, 'test');
+
+      expect(() =>
+        unwrapSessionKey(
+          wrapped,
+          bundle.ecdh.privateKey,
+          bundle.kem.privateKey,
+          'default'
+        )
+      ).toThrow();
+    });
+
     test('throws with wrong ECDH private key', () => {
       const bundle = generateIdentityKeyBundle();
       const wrongEcdh = generateECDHKeyPair();
@@ -310,6 +327,40 @@ describe('encrypt/hybrid', () => {
           wrongKem.privateKey
         )
       ).toThrow();
+    });
+  });
+
+  describe('computeRoutingTag', () => {
+    test('returns an 8-character base64 tag', () => {
+      const bundle = generateIdentityKeyBundle();
+      const tag = computeRoutingTag(bundle.ecdh.publicKey, bundle.kem.publicKey);
+
+      expect(tag).toMatch(/^[A-Za-z0-9+/]{8}$/);
+    });
+
+    test('is deterministic for same key material', () => {
+      const bundle = generateIdentityKeyBundle();
+      const tag1 = computeRoutingTag(bundle.ecdh.publicKey, bundle.kem.publicKey);
+      const tag2 = computeRoutingTag(bundle.ecdh.publicKey, bundle.kem.publicKey);
+      expect(tag1).toBe(tag2);
+    });
+
+    test('matches between raw bytes and base64 inputs', () => {
+      const bundle = generateIdentityKeyBundle();
+      const tagFromBytes = computeRoutingTag(bundle.ecdh.publicKey, bundle.kem.publicKey);
+      const tagFromBase64 = computeRoutingTag(
+        Buffer.from(bundle.ecdh.publicKey).toString('base64'),
+        Buffer.from(bundle.kem.publicKey).toString('base64')
+      );
+      expect(tagFromBase64).toBe(tagFromBytes);
+    });
+
+    test('handles malformed base64 input without matching valid key tag', () => {
+      const bundle = generateIdentityKeyBundle();
+      const validTag = computeRoutingTag(bundle.ecdh.publicKey, bundle.kem.publicKey);
+      const malformedTag = computeRoutingTag('not-base64!', bundle.kem.publicKey);
+      expect(malformedTag).toMatch(/^[A-Za-z0-9+/]{8}$/);
+      expect(malformedTag).not.toBe(validTag);
     });
   });
 

@@ -10,6 +10,7 @@ import {
   verify,
   concatBytes,
   toBytes,
+  randomBytes,
 } from '@adieuu/crypto';
 import type { SerializedWrappedKey, PublicMessage } from '@adieuu/shared';
 import {
@@ -17,6 +18,8 @@ import {
   decryptMessage,
   encryptGroupName,
   decryptGroupName,
+  encryptMemberSettings,
+  decryptMemberSettings,
   type RecipientKeys,
 } from './conversationCryptoService';
 
@@ -205,6 +208,15 @@ describe('conversationCryptoService', () => {
       expect(result.wrappedKeys.length).toBe(0);
     });
 
+    test('skips pre-key wrapping when signed pre-key signature is invalid', () => {
+      const sender = makeSender();
+      const { recipient } = makeRecipient({ preKeys: true });
+      recipient.preKeys![0]!.signedPreKey.signature = toBase64(randomBytes(64));
+
+      const result = encryptMessage('hello', [recipient], sender.signingPrivateKey);
+      expect(result.wrappedKeys.length).toBe(0);
+    });
+
     test('produces verifiable Ed25519 signature', () => {
       const sender = makeSender();
       const { recipient } = makeRecipient();
@@ -312,6 +324,23 @@ describe('conversationCryptoService', () => {
       expect(result.verified).toBe(true);
     });
 
+    test('throws when pre-key wrapped message is decrypted without pre-key private keys', () => {
+      const sender = makeSender();
+      const r = makeRecipient({ preKeys: true });
+      const encrypted = encryptMessage('spk only', [r.recipient], sender.signingPrivateKey);
+      const msg = toPublicMessage(encrypted, 'sender-id');
+
+      expect(() =>
+        decryptMessage(
+          msg,
+          r.recipient.identityId,
+          r.ecdhPrivateKey,
+          r.kemPrivateKey,
+          sender.signingPublicKey
+        )
+      ).toThrow('Pre-key private keys required to decrypt this message');
+    });
+
     test('decryption with SPK+OTPK pre-keys', () => {
       const sender = makeSender();
       const r = makeRecipient({ preKeys: true, otpk: true });
@@ -383,6 +412,89 @@ describe('conversationCryptoService', () => {
         );
       }).toThrow('Cannot decrypt a deleted message');
     });
+
+    test('treats incomplete message payload as deleted/unavailable', () => {
+      const msg: PublicMessage = {
+        id: 'msg-2',
+        conversationId: 'conv-2',
+        fromIdentityId: 'sender-id',
+        deleted: false,
+        nonce: 'AAAA',
+        wrappedKeys: [],
+        signature: 'AAAA',
+        cryptoProfile: 'default',
+        clientMessageId: 'cm-2',
+        createdAt: new Date().toISOString(),
+      };
+
+      expect(() =>
+        decryptMessage(msg, 'my-id', new Uint8Array(32), new Uint8Array(32), 'AAAA')
+      ).toThrow('Cannot decrypt a deleted message');
+    });
+
+    test('uses cachedSessionKey when provided (ignores wrapped key lookup)', () => {
+      const sender = makeSender();
+      const r = makeRecipient();
+      const encrypted = encryptMessage('cached path', [r.recipient], sender.signingPrivateKey);
+      const msg = toPublicMessage(encrypted, 'sender-id');
+      const first = decryptMessage(
+        msg,
+        r.recipient.identityId,
+        r.ecdhPrivateKey,
+        r.kemPrivateKey,
+        sender.signingPublicKey
+      );
+
+      const missingWrapped: PublicMessage = { ...msg, wrappedKeys: [] };
+      const cached = decryptMessage(
+        missingWrapped,
+        r.recipient.identityId,
+        r.ecdhPrivateKey,
+        r.kemPrivateKey,
+        sender.signingPublicKey,
+        undefined,
+        undefined,
+        first.sessionKey
+      );
+      expect(cached.plaintext).toBe('cached path');
+    });
+
+    test('uses resolvedWrappedKey override when provided', () => {
+      const sender = makeSender();
+      const r = makeRecipient();
+      const encrypted = encryptMessage('resolved key path', [r.recipient], sender.signingPrivateKey);
+      const msg = toPublicMessage(encrypted, 'sender-id');
+      const resolved = msg.wrappedKeys[0]!;
+
+      const result = decryptMessage(
+        msg,
+        'not-the-identity-in-wrapped-key',
+        r.ecdhPrivateKey,
+        r.kemPrivateKey,
+        sender.signingPublicKey,
+        undefined,
+        resolved
+      );
+      expect(result.plaintext).toBe('resolved key path');
+    });
+
+    test('returns verified=false when signature is malformed but payload decrypts', () => {
+      const sender = makeSender();
+      const r = makeRecipient();
+      const encrypted = encryptMessage('signature failure path', [r.recipient], sender.signingPrivateKey);
+      const msg = toPublicMessage(encrypted, 'sender-id');
+      msg.signature = 'not-base64-signature';
+
+      const result = decryptMessage(
+        msg,
+        r.recipient.identityId,
+        r.ecdhPrivateKey,
+        r.kemPrivateKey,
+        sender.signingPublicKey
+      );
+      expect(result.plaintext).toBe('signature failure path');
+      expect(result.verified).toBe(false);
+    });
   });
 
   describe('encryptGroupName / decryptGroupName', () => {
@@ -423,6 +535,34 @@ describe('conversationCryptoService', () => {
       const { encryptedName, nameNonce } = encryptGroupName(name, convId, 'cnsa2');
       const result = decryptGroupName(encryptedName, nameNonce, convId, 'cnsa2');
       expect(result).toBe(name);
+    });
+  });
+
+  describe('encryptMemberSettings / decryptMemberSettings', () => {
+    test('round-trips member settings map', () => {
+      const conversationId = crypto.randomUUID();
+      const settings = {
+        alice: { nickname: 'Al', color: '#f00' },
+        bob: { nickname: 'Bobby' },
+      };
+      const encrypted = encryptMemberSettings(settings, conversationId);
+      const decrypted = decryptMemberSettings(
+        encrypted.encryptedMemberSettings,
+        encrypted.memberSettingsNonce,
+        conversationId
+      );
+      expect(decrypted).toEqual(settings);
+    });
+
+    test('fails to decrypt with wrong conversationId', () => {
+      const encrypted = encryptMemberSettings({ alice: { nickname: 'A' } }, 'conv-a');
+      expect(() =>
+        decryptMemberSettings(
+          encrypted.encryptedMemberSettings,
+          encrypted.memberSettingsNonce,
+          'conv-b'
+        )
+      ).toThrow();
     });
   });
 });

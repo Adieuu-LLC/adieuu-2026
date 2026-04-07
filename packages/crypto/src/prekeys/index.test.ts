@@ -443,5 +443,30 @@ describe('prekeys', () => {
 
       expect(constantTimeEqual(sessionKey, unwrapped)).toBe(true);
     });
+
+    test('throws when decrypting wrapped key with mismatched profile', () => {
+      const signing = generateSigningKeyPair();
+      const spk = generateSignedPreKey(signing.privateKey, 'cnsa2');
+      const sessionKey = randomBytes(32);
+      const spkPublic: SignedPreKeyPublic = {
+        keyId: spk.keyId,
+        ecdhPublicKey: spk.ecdh.publicKey,
+        kemPublicKey: spk.kem.publicKey,
+        signature: spk.signature,
+      };
+
+      const wrapped = wrapSessionKeyWithPreKeys(sessionKey, spkPublic, undefined, 'cnsa2');
+
+      expect(() =>
+        unwrapSessionKeyWithPreKeys(
+          wrapped,
+          spk.ecdh.privateKey,
+          spk.kem.privateKey,
+          undefined,
+          undefined,
+          'default'
+        )
+      ).toThrow();
+    });
   });
 });

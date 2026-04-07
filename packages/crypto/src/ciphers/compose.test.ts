@@ -215,6 +215,18 @@ describe('ciphers/compose', () => {
       // Wrong order - should fail at cipher ID check
       expect(() => decryptLayered([cipher2, cipher1], encrypted)).toThrow('Cipher ID mismatch');
     });
+
+    test('throws on nonce count mismatch', () => {
+      const cipher1 = createTestCipher('cipher 1');
+      const cipher2 = createTestCipher('cipher 2');
+      const plaintext = toBytes('message');
+      const encrypted = encryptLayered([cipher1, cipher2], plaintext);
+      const tamperedPayload = { ...encrypted, nonces: [encrypted.nonces[0]!] };
+
+      expect(() => decryptLayered([cipher1, cipher2], tamperedPayload)).toThrow(
+        'Nonce count mismatch'
+      );
+    });
   });
 
   describe('serialization', () => {
@@ -237,6 +249,18 @@ describe('ciphers/compose', () => {
         const decrypted = decryptWithCipher(cipher, deserialized);
 
         expect(fromBytes(decrypted)).toBe('Message to serialize');
+      });
+
+      test('deserializes malformed data but decryption fails', () => {
+        const cipher = createTestCipher('serialize test');
+        const malformed = {
+          ciphertext: 'not-base64!',
+          nonce: 'still-not-base64!',
+          cipherId: cipher.cipherId,
+          epochId: undefined,
+        };
+        const deserialized = deserializeCipherPayload(malformed);
+        expect(() => decryptWithCipher(cipher, deserialized)).toThrow();
       });
     });
 
@@ -261,6 +285,19 @@ describe('ciphers/compose', () => {
         const decrypted = decryptLayered([cipher1, cipher2], deserialized);
 
         expect(fromBytes(decrypted)).toBe('Layered message');
+      });
+
+      test('deserializes malformed layered payload but decryption fails', () => {
+        const cipher1 = createTestCipher('layer 1');
+        const cipher2 = createTestCipher('layer 2');
+        const malformed = {
+          ciphertext: 'not-base64!',
+          nonces: ['bad-nonce-1', 'bad-nonce-2'],
+          cipherIds: [cipher1.cipherId, cipher2.cipherId],
+          epochIds: undefined,
+        };
+        const deserialized = deserializeLayeredPayload(malformed);
+        expect(() => decryptLayered([cipher1, cipher2], deserialized)).toThrow();
       });
     });
   });

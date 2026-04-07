@@ -362,6 +362,61 @@ describe('identity.service', () => {
       expect(result.success).toBe(false);
       expect(result.errorCode).toBe('VALIDATION_ERROR');
     });
+
+    test('logs in successfully and creates an identity session', async () => {
+      mockUserRepo.findById.mockImplementation(() => Promise.resolve(mockUser));
+      mockUserRepo.isIdentityLockedOut.mockImplementation(() =>
+        Promise.resolve({ lockedOut: false })
+      );
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() =>
+        Promise.resolve({
+          ...mockIdentity,
+          hashVersion: 1,
+          isBanned: false,
+          suspendedUntil: undefined,
+        })
+      );
+      mockIdentitySessionRepo.create.mockImplementation(() => Promise.resolve(undefined));
+
+      const result = await loginToIdentity(
+        testUserId,
+        testUserCreatedAt,
+        validPassphrase
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.identity).toBeDefined();
+      expect(result.sessionId).toBeTruthy();
+      expect(result.cookie).toContain('adieuu_identity=');
+      expect(mockUserRepo.resetIdentityLoginAttempts).toHaveBeenCalled();
+      expect(mockIdentityRepo.updateLastActive).toHaveBeenCalled();
+      expect(mockIdentitySessionRepo.create).toHaveBeenCalled();
+    });
+
+    test('upgrades hash version after successful login when outdated', async () => {
+      mockUserRepo.findById.mockImplementation(() => Promise.resolve(mockUser));
+      mockUserRepo.isIdentityLockedOut.mockImplementation(() =>
+        Promise.resolve({ lockedOut: false })
+      );
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() =>
+        Promise.resolve({
+          ...mockIdentity,
+          hashVersion: 0,
+          isBanned: false,
+          suspendedUntil: undefined,
+        })
+      );
+      mockIdentitySessionRepo.create.mockImplementation(() => Promise.resolve(undefined));
+
+      const result = await loginToIdentity(
+        testUserId,
+        testUserCreatedAt,
+        validPassphrase
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockIdentityRepo.upgradeHashVersion).toHaveBeenCalled();
+    });
   });
 
   describe('logoutFromIdentity', () => {

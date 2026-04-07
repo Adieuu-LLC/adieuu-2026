@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { randomBytes, toBase64 } from '../utils';
+import { encrypt as symmetricEncrypt } from '../encrypt/symmetric';
 import {
   deriveEntropyWrappingKey,
   generateWrappingSalt,
@@ -109,6 +110,34 @@ describe('ciphers/wrap', () => {
       const tampered = { ...wrapped, ciphertext: toBase64(randomBytes(64)) };
 
       await expect(unwrapEntropy(tampered, key)).rejects.toThrow();
+    });
+
+    test('rejects unsupported wrapped entropy version', async () => {
+      const salt = generateWrappingSalt();
+      const key = await deriveEntropyWrappingKey('version-reject', salt);
+      const wrapped = await wrapEntropy(sampleEntropy, key, salt);
+      const invalidVersion = { ...wrapped, version: wrapped.version + 1 };
+
+      await expect(unwrapEntropy(invalidVersion, key)).rejects.toThrow(
+        'Unsupported entropy wrap version'
+      );
+    });
+
+    test('throws when decrypted payload is not valid JSON', async () => {
+      const salt = generateWrappingSalt();
+      const key = await deriveEntropyWrappingKey('invalid-json', salt);
+      const { ciphertext, nonce } = symmetricEncrypt(
+        key,
+        new TextEncoder().encode('not-json')
+      );
+      const wrapped = {
+        version: ENTROPY_WRAP_VERSION,
+        salt: toBase64(salt),
+        ciphertext: toBase64(ciphertext),
+        nonce: toBase64(nonce),
+      };
+
+      await expect(unwrapEntropy(wrapped, key)).rejects.toThrow();
     });
   });
 

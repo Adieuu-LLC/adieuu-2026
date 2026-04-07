@@ -10,6 +10,7 @@ import {
   verify,
   concatBytes,
   toBytes,
+  randomBytes,
 } from '@adieuu/crypto';
 import type { SerializedWrappedKey, PublicReaction } from '@adieuu/shared';
 import { encryptReaction, decryptReaction } from './reactionCryptoService';
@@ -175,6 +176,20 @@ describe('reactionCryptoService', () => {
       expect(result.wrappedKeys[0]?.preKeyType).toBe('static');
     });
 
+    test('skips pre-key wrapping when signed pre-key signature is invalid', () => {
+      const sender = makeSender();
+      const { recipient } = makeRecipient({ preKeys: true });
+      recipient.preKeys![0]!.signedPreKey.signature = toBase64(randomBytes(64));
+
+      const result = encryptReaction(
+        '\uD83D\uDE02',
+        sender.identityId,
+        [recipient],
+        sender.signingPrivateKey
+      );
+      expect(result.wrappedKeys.length).toBe(0);
+    });
+
     test('signature uses adieuu-reaction-v1 domain', () => {
       const sender = makeSender();
       const { recipient } = makeRecipient();
@@ -323,6 +338,28 @@ describe('reactionCryptoService', () => {
       expect(result.verified).toBe(true);
     });
 
+    test('throws when pre-key wrapped reaction is decrypted without pre-key private keys', () => {
+      const sender = makeSender();
+      const r = makeRecipient({ preKeys: true });
+      const encrypted = encryptReaction(
+        '\uD83D\uDC4D',
+        sender.identityId,
+        [r.recipient],
+        sender.signingPrivateKey
+      );
+      const reaction = toPublicReaction(encrypted, sender.identityId);
+
+      expect(() =>
+        decryptReaction(
+          reaction,
+          r.recipient.identityId,
+          r.ecdhPrivateKey,
+          r.kemPrivateKey,
+          sender.signingPublicKey
+        )
+      ).toThrow('Pre-key private keys required to decrypt this reaction');
+    });
+
     test('decryption with static device keys', () => {
       const sender = makeSender();
       const r = makeRecipient();
@@ -341,6 +378,61 @@ describe('reactionCryptoService', () => {
 
       expect(result.emoji).toBe('\uD83D\uDE80');
       expect(result.verified).toBe(true);
+    });
+
+    test('uses cachedSessionKey when provided', () => {
+      const sender = makeSender();
+      const r = makeRecipient();
+      const encrypted = encryptReaction(
+        '\uD83D\uDE80',
+        sender.identityId,
+        [r.recipient],
+        sender.signingPrivateKey
+      );
+      const reaction = toPublicReaction(encrypted, sender.identityId);
+      const first = decryptReaction(
+        reaction,
+        r.recipient.identityId,
+        r.ecdhPrivateKey,
+        r.kemPrivateKey,
+        sender.signingPublicKey
+      );
+
+      const missingWrapped = { ...reaction, wrappedKeys: [] };
+      const cached = decryptReaction(
+        missingWrapped,
+        r.recipient.identityId,
+        r.ecdhPrivateKey,
+        r.kemPrivateKey,
+        sender.signingPublicKey,
+        undefined,
+        undefined,
+        first.sessionKey
+      );
+      expect(cached.emoji).toBe('\uD83D\uDE80');
+    });
+
+    test('returns verified=false when signature is malformed but payload decrypts', () => {
+      const sender = makeSender();
+      const r = makeRecipient();
+      const encrypted = encryptReaction(
+        '\uD83C\uDF89',
+        sender.identityId,
+        [r.recipient],
+        sender.signingPrivateKey
+      );
+      const reaction = toPublicReaction(encrypted, sender.identityId);
+      reaction.signature = 'not-base64-signature';
+
+      const result = decryptReaction(
+        reaction,
+        r.recipient.identityId,
+        r.ecdhPrivateKey,
+        r.kemPrivateKey,
+        sender.signingPublicKey
+      );
+      expect(result.emoji).toBe('\uD83C\uDF89');
+      expect(result.verified).toBe(false);
     });
   });
 });

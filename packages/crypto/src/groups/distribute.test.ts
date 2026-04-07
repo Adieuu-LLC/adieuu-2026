@@ -7,8 +7,13 @@ import {
   findAndUnwrapSenderKey,
   prepareKeysForNewMember,
 } from './distribute';
-import { generateSenderKey, createSenderKey, SENDER_KEY_SIZE } from './senderkey';
-import { generateIdentityKeyBundle, extractPublicKeys, generateECDHKeyPair } from '../keys';
+import { generateSenderKey, SENDER_KEY_SIZE } from './senderkey';
+import {
+  generateIdentityKeyBundle,
+  extractPublicKeys,
+  generateECDHKeyPair,
+  generateKEMKeyPair,
+} from '../keys';
 import { constantTimeEqual } from '../utils';
 
 describe('groups/distribute', () => {
@@ -204,6 +209,47 @@ describe('groups/distribute', () => {
 
       expect(() =>
         unwrapSenderKey(wrapped, wrongEcdh.privateKey, recipient.kem.privateKey)
+      ).toThrow();
+    });
+
+    test('throws with wrong KEM private key', () => {
+      const recipient = generateIdentityKeyBundle();
+      const wrongKem = generateKEMKeyPair();
+      const recipientKeys = extractPublicKeys(recipient);
+      const senderKey = generateSenderKey();
+
+      const wrapped = wrapSenderKeyForRecipient(
+        senderKey,
+        'group',
+        'owner',
+        recipientKeys,
+        'recipient'
+      );
+
+      expect(() =>
+        unwrapSenderKey(wrapped, recipient.ecdh.privateKey, wrongKem.privateKey)
+      ).toThrow();
+    });
+
+    test('throws when decrypting with mismatched profile', () => {
+      const recipient = generateIdentityKeyBundle('cnsa2');
+      const recipientKeys = extractPublicKeys(recipient);
+      const senderKey = generateSenderKey();
+      const wrapped = wrapSenderKeyForRecipient(
+        senderKey,
+        'group',
+        'owner',
+        recipientKeys,
+        'recipient'
+      );
+
+      expect(() =>
+        unwrapSenderKey(
+          wrapped,
+          recipient.ecdh.privateKey,
+          recipient.kem.privateKey,
+          'default'
+        )
       ).toThrow();
     });
   });

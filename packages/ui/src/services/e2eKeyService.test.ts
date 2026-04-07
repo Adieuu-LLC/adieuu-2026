@@ -277,6 +277,27 @@ describe('services/e2eKeyService', () => {
   });
 
   describe('decryptKeyBundle', () => {
+    async function buildBundleFromPlaintext(
+      plaintext: Uint8Array,
+      passphrase: string
+    ): Promise<{ encryptedBundle: string; salt: string; nonce: string }> {
+      const salt = randomBytes(16);
+      const derivedKey = await deriveKeyFromPassword({
+        password: passphrase,
+        salt,
+        memoryCost: ARGON2_DEFAULTS.memoryCost,
+        timeCost: ARGON2_DEFAULTS.timeCost,
+        parallelism: ARGON2_DEFAULTS.parallelism,
+        outputLength: 32,
+      });
+      const { ciphertext, nonce } = encryptChaCha20Poly1305(derivedKey, plaintext);
+      return {
+        encryptedBundle: toBase64(ciphertext),
+        salt: toBase64(salt),
+        nonce: toBase64(nonce),
+      };
+    }
+
     test('decrypts bundle encrypted by generateE2EKeys', async () => {
       const input: E2EInitInput = {
         identityId: 'test-id',
@@ -351,6 +372,18 @@ describe('services/e2eKeyService', () => {
           input.passphrase
         )
       ).rejects.toThrow(E2EKeyError);
+
+      try {
+        await decryptKeyBundle(
+          {
+            ...generated.encryptedBundle,
+            salt: 'AQIDBA==',
+          },
+          input.passphrase
+        );
+      } catch (err) {
+        expect((err as E2EKeyError).code).toBe('INVALID_SALT_SIZE');
+      }
     });
 
     test('throws on invalid nonce size', async () => {
@@ -473,6 +506,52 @@ describe('services/e2eKeyService', () => {
       // They should match the public keys returned from generateE2EKeys
       expect(toBase64(wd.ecdhPublicKey)).toBe(generated.webDevice.ecdhPublicKey);
       expect(toBase64(wd.kemPublicKey)).toBe(generated.webDevice.kemPublicKey);
+    });
+
+    test('throws INVALID_BUNDLE_FORMAT when decrypted v2 plaintext is non-JSON', async () => {
+      const passphrase = 'invalid-json-passphrase';
+      const bundle = await buildBundleFromPlaintext(
+        new TextEncoder().encode('not-json'),
+        passphrase
+      );
+
+      await expect(decryptKeyBundle(bundle, passphrase)).rejects.toMatchObject({
+        code: 'INVALID_BUNDLE_FORMAT',
+      });
+    });
+
+    test('throws UNSUPPORTED_BUNDLE_VERSION when decrypted JSON has unsupported version', async () => {
+      const passphrase = 'unsupported-version-passphrase';
+      const bundle = await buildBundleFromPlaintext(
+        new TextEncoder().encode(
+          JSON.stringify({
+            v: 3,
+            signingKey: toBase64(randomBytes(32)),
+          })
+        ),
+        passphrase
+      );
+
+      await expect(decryptKeyBundle(bundle, passphrase)).rejects.toMatchObject({
+        code: 'UNSUPPORTED_BUNDLE_VERSION',
+      });
+    });
+
+    test('throws INVALID_KEY_SIZE when v2 signing key length is not 32 bytes', async () => {
+      const passphrase = 'invalid-signing-key-size';
+      const bundle = await buildBundleFromPlaintext(
+        new TextEncoder().encode(
+          JSON.stringify({
+            v: 2,
+            signingKey: toBase64(randomBytes(16)),
+          })
+        ),
+        passphrase
+      );
+
+      await expect(decryptKeyBundle(bundle, passphrase)).rejects.toMatchObject({
+        code: 'INVALID_KEY_SIZE',
+      });
     });
   });
 
