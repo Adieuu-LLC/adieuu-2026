@@ -100,7 +100,10 @@ describe('mfa.repository', () => {
         encryptedSecret: 'enc:secret',
         name: 'Authenticator',
         verified: false,
-      })
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      }),
+      { session: undefined }
     );
   });
 
@@ -143,7 +146,10 @@ describe('mfa.repository', () => {
         hashedCodes: ['h1', 'h2'],
         totalGenerated: 2,
         generatedAt: expect.any(Date),
-      })
+        createdAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      }),
+      { session: undefined }
     );
   });
 
