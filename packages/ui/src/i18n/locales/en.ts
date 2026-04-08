@@ -146,6 +146,7 @@ export const en = {
       profile: 'Profile',
       privacy: 'Privacy',
       appearance: 'Appearance',
+      notifications: 'Notifications',
       ciphers: 'Ciphers',
       devices: 'Devices',
     },

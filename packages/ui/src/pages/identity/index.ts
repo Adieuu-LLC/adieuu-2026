@@ -2,6 +2,7 @@
 export { IdentityAppearance } from './Appearance';
 export { IdentityCiphers } from './Ciphers';
 export { Devices as IdentityDevices } from './Devices';
+export { IdentityNotifications } from './Notifications';
 export { IdentityPrivacy } from './Privacy';
 export { IdentityProfile } from './Profile';
 export { IdentityProfileView } from './ProfileView';

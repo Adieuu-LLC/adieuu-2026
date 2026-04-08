@@ -15,6 +15,7 @@ export function AccountFlyout() {
   const navigate = useNavigate();
   const { logout } = useAuth();
   const { isExpanded, closeMobile } = useSidebar();
+  const { status: identityStatus } = useIdentity();
 
   const isActive = (path: string) => location.pathname === path;
   const isAccountActive = location.pathname.startsWith('/account');
@@ -28,6 +29,10 @@ export function AccountFlyout() {
   const handleNavClick = () => {
     closeMobile();
   };
+
+  if (identityStatus === 'logged_in') {
+    return null;
+  }
 
   return (
     <div className="sidebar-account-flyout-wrapper" data-tour="account">
@@ -62,12 +67,6 @@ export function AccountFlyout() {
           </Link>
           <Link to="/account/security" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/account/security') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('account.security.title')}
-          </Link>
-          <Link to="/account/settings" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/settings') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('account.settings.title')}
-          </Link>
-          <Link to="/account/appearance" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/account/appearance') ? 'sidebar-flyout-item-active' : ''}`} data-tour="appearance-nav">
-            {t('account.appearance.title')}
           </Link>
           <div className="sidebar-flyout-divider" />
           <button
@@ -225,6 +224,9 @@ export function IdentityFlyout() {
           </Link>
           <Link to="/identity/appearance" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/appearance') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('identity.menu.appearance')}
+          </Link>
+          <Link to="/identity/notifications" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/notifications') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('identity.menu.notifications')}
           </Link>
           <Link to="/identity/ciphers" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/ciphers') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('identity.menu.ciphers')}

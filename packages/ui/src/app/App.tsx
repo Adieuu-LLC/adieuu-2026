@@ -9,14 +9,13 @@ import { Login, Verify, MfaVerify } from '../pages/auth';
 import {
   AccountOverview,
   AccountSecurity,
-  AccountSettings,
-  AccountAppearance,
   ThemeBrowser,
 } from '../pages/account';
 import {
   IdentityAppearance,
   IdentityCiphers,
   IdentityDevices,
+  IdentityNotifications,
   IdentityPrivacy,
   IdentityProfile,
   IdentityProfileView,
@@ -181,14 +180,15 @@ export function App() {
         <Route path="/account/overview" element={<AccountOverview />} />
         <Route path="/account/security" element={<Navigate to="/account/security/authentication" replace />} />
         <Route path="/account/security/:tab" element={<AccountSecurity />} />
-        <Route path="/account/settings" element={<AccountSettings />} />
-        <Route path="/account/appearance" element={<AccountAppearance />} />
+        <Route path="/account/settings" element={<Navigate to="/identity/notifications" replace />} />
+        <Route path="/account/appearance" element={<Navigate to="/identity/appearance" replace />} />
         <Route path="/account/appearance/community" element={<ThemeBrowser />} />
 
         {/* Identity Routes */}
         <Route path="/identity" element={<Navigate to="/identity/profile" replace />} />
         <Route path="/identity/profile" element={<IdentityProfile />} />
         <Route path="/identity/appearance" element={<IdentityAppearance />} />
+        <Route path="/identity/notifications" element={<IdentityNotifications />} />
         <Route path="/identity/privacy" element={<IdentityPrivacy />} />
         <Route path="/identity/devices" element={<IdentityDevices />} />
         <Route path="/identity/ciphers" element={<IdentityCiphers />} />
