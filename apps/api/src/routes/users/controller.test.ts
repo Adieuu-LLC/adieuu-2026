@@ -1,4 +1,4 @@
-import { describe, expect, test, mock } from 'bun:test';
+import { afterAll, describe, expect, test, mock } from 'bun:test';
 
 // Mock config to avoid loading env
 mock.module('../../config', () => ({
@@ -76,6 +76,10 @@ mock.module('../../db', () => ({
 import { getUserById, type User, type GetUserResult } from './controller';
 
 describe('users controller', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   describe('getUserById', () => {
     describe('return structure', () => {
       test('returns a GetUserResult object', async () => {

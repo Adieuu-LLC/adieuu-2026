@@ -79,6 +79,7 @@ function advancePastCacheTTL() {
 
 afterAll(() => {
   Date.now = realDateNow;
+  mock.restore();
 });
 
 describe('release manifest routes', () => {

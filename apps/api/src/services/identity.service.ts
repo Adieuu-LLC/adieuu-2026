@@ -218,7 +218,8 @@ export async function createIdentity(
     return { success: false, error: 'An identity with this passphrase already exists', errorCode: 'VALIDATION_ERROR' };
   }
 
-  // Create the identity
+  // Create identity, then increment the count. If the increment fails,
+  // roll back the identity so we never leave an orphaned, un-tracked slot.
   const identity = await identityRepo.create({
     ident,
     hashVersion,
@@ -226,10 +227,22 @@ export async function createIdentity(
     displayName,
   });
 
-  // Increment count (no decrement on delete — slots are permanent)
-  await identityCountRepo.increment(accountHash);
+  try {
+    await identityCountRepo.increment(accountHash);
+  } catch (err) {
+    try {
+      await identityRepo.deleteById(identity._id);
+    } catch (rollbackErr) {
+      elog.error('Failed to roll back identity after count increment failure', {
+        identityId: identity._id.toHexString(),
+        rollbackError: rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr),
+      });
+    }
+    throw err;
+  }
 
-  // Auto-login: create identity session
+  // Session creation is best-effort: it touches Redis as well as MongoDB,
+  // and a failure here is recoverable (user can simply log in).
   if (autoLogin) {
     const { sessionId, cookie } = await createIdentitySession(
       identity._id,

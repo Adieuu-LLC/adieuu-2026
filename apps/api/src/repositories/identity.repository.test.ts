@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
 // Mock config
@@ -38,6 +38,10 @@ import { IdentityRepository, getIdentityRepository } from './identity.repository
 import { DELETED_IDENT_PREFIX } from '../models/identity';
 
 describe('IdentityRepository', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   let repo: IdentityRepository;
 
   const mockIdentity = {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -36,6 +36,10 @@ mock.module('../repositories/report.repository', () => ({
 import { submitMessageReport } from './report-submission.service';
 
 describe('report-submission.service', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   const reporterIdentityId = new ObjectId().toHexString();
   const targetMessageId = new ObjectId().toHexString();
   const conversationId = new ObjectId();

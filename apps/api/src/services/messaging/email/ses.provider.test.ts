@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 const mockConfig: {
   email: {
@@ -32,6 +32,10 @@ mock.module('../../../utils/adieuuLogger', () => ({
 import { SesEmailProvider } from './ses.provider';
 
 describe('SesEmailProvider', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   const origFetch = globalThis.fetch;
   const RealDate = Date;
 

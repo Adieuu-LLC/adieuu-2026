@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import { PLATFORM_SETTING_KEYS } from '../constants/platform-settings-keys';
 import type { PlatformSettingsDocument } from '../models/platform-settings';
@@ -48,6 +48,10 @@ import {
   isPlatformAdmin,
   upsertPlatformSetting,
 } from './platform-settings.service';
+
+afterAll(() => {
+  mock.restore();
+});
 
 describe('coercePlatformSettingValue', () => {
   test('coerces boolean', () => {

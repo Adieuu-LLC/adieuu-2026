@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 
 // Define the HealthCheck type for mocks
 type HealthCheckResult = { status: 'up'; latencyMs: number } | { status: 'down'; error: string };
@@ -38,6 +38,10 @@ mock.module('../../db', () => ({
 import { getHealthStatus, getLivenessStatus, type HealthStatus, type HealthCheck } from './controller';
 
 describe('health controller', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     // Reset all mocks before each test
     mockCheckMongoHealth.mockClear();

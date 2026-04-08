@@ -610,3 +610,24 @@ async function createIndexes(): Promise<void> {
 
   elog.debug('MongoDB indexes created/verified');
 }
+
+/**
+ * Ensures collections that are critical for core functionality exist,
+ * regardless of the `INITIALIZE_COLLECTIONS` feature flag.
+ *
+ * Currently this covers `identity_counts`, which must be present before
+ * the first identity-creation transaction runs.
+ */
+export async function ensureCriticalCollections(): Promise<void> {
+  const database = getDb();
+  const existing = await database.listCollections().toArray();
+  const names = new Set(existing.map((c) => c.name));
+
+  if (!names.has(Collections.IDENTITY_COUNTS)) {
+    await database.createCollection(Collections.IDENTITY_COUNTS);
+    elog.info('Created critical collection', { collection: Collections.IDENTITY_COUNTS });
+  }
+
+  const identityCounts = database.collection(Collections.IDENTITY_COUNTS);
+  await identityCounts.createIndex({ accountHash: 1 }, { unique: true });
+}

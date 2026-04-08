@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach, afterEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach, afterEach } from 'bun:test';
 
 // Mock the config module before importing crypto functions
 mock.module('../config', () => ({
@@ -29,6 +29,10 @@ import {
 } from './crypto';
 
 describe('crypto utilities', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   describe('generateOtp', () => {
     test('generates a 6-digit OTP by default', () => {
       const otp = generateOtp();

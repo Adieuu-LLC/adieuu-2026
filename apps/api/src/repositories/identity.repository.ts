@@ -6,7 +6,7 @@
  * Never store or log any relationship between User and Identity.
  */
 
-import { ObjectId } from 'mongodb';
+import { ObjectId, type ClientSession } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type {
@@ -147,7 +147,7 @@ export class IdentityRepository
   /**
    * Create a new identity
    */
-  async create(input: CreateIdentityInput): Promise<IdentityDocument> {
+  async create(input: CreateIdentityInput, options?: { session?: ClientSession }): Promise<IdentityDocument> {
     const doc: Omit<IdentityDocument, '_id' | 'createdAt' | 'updatedAt'> = {
       ident: input.ident,
       hashVersion: input.hashVersion,
@@ -157,7 +157,7 @@ export class IdentityRepository
       requireGroupApproval: true,
     };
 
-    return await super.create(doc);
+    return await super.create(doc, options);
   }
 
   /**

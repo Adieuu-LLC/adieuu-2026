@@ -2,7 +2,7 @@
  * Redis cache + invalidation for auth allowlist (isolated mocks).
  */
 
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import { PLATFORM_SETTING_KEYS } from '../constants/platform-settings-keys';
 
@@ -48,6 +48,10 @@ mock.module('../db/redis', () => ({
 }));
 
 import { isAuthIdentifierAllowed, upsertPlatformSetting } from './platform-settings.service';
+
+afterAll(() => {
+  mock.restore();
+});
 
 describe('loadAuthAllowlistState with Redis', () => {
   beforeEach(() => {

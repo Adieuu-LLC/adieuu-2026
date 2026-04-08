@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
@@ -33,6 +33,10 @@ mock.module('../db', () => ({
 import { createOtp, verifyOtp } from './otp.service';
 
 describe('otp.service', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     redisMock.set.mockReset();
     redisMock.get.mockReset();

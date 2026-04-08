@@ -7,6 +7,7 @@
  * identity slots are permanently consumed.
  */
 
+import type { ClientSession } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 
@@ -20,7 +21,7 @@ interface IdentityCountDocument {
 
 export interface IIdentityCountRepository {
   getCount(accountHash: string): Promise<number>;
-  increment(accountHash: string): Promise<number>;
+  increment(accountHash: string, options?: { session?: ClientSession }): Promise<number>;
 }
 
 export class IdentityCountRepository
@@ -44,7 +45,7 @@ export class IdentityCountRepository
    * Atomically increments the identity count (upsert).
    * Returns the new count after increment.
    */
-  async increment(accountHash: string): Promise<number> {
+  async increment(accountHash: string, options?: { session?: ClientSession }): Promise<number> {
     const result = await this.collection.findOneAndUpdate(
       { accountHash },
       {
@@ -52,7 +53,7 @@ export class IdentityCountRepository
         $set: { updatedAt: new Date() },
         $setOnInsert: { createdAt: new Date() },
       },
-      { upsert: true, returnDocument: 'after' },
+      { upsert: true, returnDocument: 'after', session: options?.session },
     );
 
     return result?.count ?? 1;

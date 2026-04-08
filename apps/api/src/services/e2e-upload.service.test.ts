@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { deriveScanHash } from '../utils/crypto';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -51,6 +51,10 @@ mock.module('../config', () => ({
 import { requestE2EUpload, requestScanUpload } from './e2e-upload.service';
 
 describe('e2e-upload.service', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     createE2EMediaMock.mockReset();
     countRecentByIdentityMock.mockReset();

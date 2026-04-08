@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
 // Mock config
@@ -31,15 +31,24 @@ const mockIdentity = {
   lastActiveAt: new Date(),
 };
 
+// Mock session service
+mock.module('../../services/session.service', () => ({
+  requireIdentitySession: mock((request: Request) => {
+    const cookie = request.headers.get('Cookie') ?? '';
+    if (cookie.includes('adieuu_session=')) {
+      return Promise.resolve({
+        type: 'identity',
+        identityId: mockIdentityId.toHexString(),
+        accountHash: 'a'.repeat(64),
+        lastActivityAt: Date.now(),
+      });
+    }
+    return Promise.resolve(null);
+  }),
+}));
+
 // Mock identity service
 mock.module('../../services/identity.service', () => ({
-  getIdentitySessionIdFromRequest: mock((request: Request) => {
-    const cookie = request.headers.get('Cookie') ?? '';
-    if (cookie.includes('adieuu_identity=')) {
-      return 'test-identity-session';
-    }
-    return null;
-  }),
   getIdentityFromSession: mock(() => Promise.resolve(mockIdentity)),
 }));
 
@@ -78,6 +87,10 @@ mock.module('../../services/notification.service', () => ({
 import { notificationRoutes } from './index';
 
 describe('notifications routes', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     mockGetNotifications.mockClear();
     mockMarkNotificationsAsRead.mockClear();
@@ -127,7 +140,7 @@ describe('notifications routes', () => {
     test('returns notifications with identity session', async () => {
       const response = await makeRequest('/notifications', {
         method: 'GET',
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);
@@ -142,7 +155,7 @@ describe('notifications routes', () => {
     test('respects limit parameter', async () => {
       const response = await makeRequest('/notifications?limit=25', {
         method: 'GET',
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);
@@ -155,7 +168,7 @@ describe('notifications routes', () => {
     test('caps limit at 100', async () => {
       const response = await makeRequest('/notifications?limit=200', {
         method: 'GET',
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);
@@ -168,7 +181,7 @@ describe('notifications routes', () => {
     test('passes unreadOnly filter', async () => {
       const response = await makeRequest('/notifications?unreadOnly=true', {
         method: 'GET',
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);
@@ -181,7 +194,7 @@ describe('notifications routes', () => {
     test('parses types parameter', async () => {
       const response = await makeRequest('/notifications?types=friend_request,message', {
         method: 'GET',
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);
@@ -195,7 +208,7 @@ describe('notifications routes', () => {
       const sinceDate = '2024-01-15T12:00:00Z';
       const response = await makeRequest(`/notifications?since=${encodeURIComponent(sinceDate)}`, {
         method: 'GET',
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);
@@ -220,7 +233,7 @@ describe('notifications routes', () => {
       const response = await makeRequest('/notifications/read', {
         method: 'POST',
         body: {},
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(400);
@@ -230,7 +243,7 @@ describe('notifications routes', () => {
       const response = await makeRequest('/notifications/read', {
         method: 'POST',
         body: { notificationIds: 'all' },
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);
@@ -246,7 +259,7 @@ describe('notifications routes', () => {
       const response = await makeRequest('/notifications/read', {
         method: 'POST',
         body: { notificationIds },
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);
@@ -262,7 +275,7 @@ describe('notifications routes', () => {
       const response = await makeRequest('/notifications/read', {
         method: 'POST',
         body: { notificationIds },
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);
@@ -274,7 +287,7 @@ describe('notifications routes', () => {
       const response = await makeRequest('/notifications/read', {
         method: 'POST',
         body: { notificationIds: ['zzzzzzzzzzzzzzzzzzzzzzzz', 'yyyyyyyyyyyyyyyyyyyyyyyy'] },
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(400);
@@ -295,7 +308,7 @@ describe('notifications routes', () => {
       const response = await makeRequest('/notifications/unread', {
         method: 'POST',
         body: { notificationIds: 'all' },
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);
@@ -317,7 +330,7 @@ describe('notifications routes', () => {
       const response = await makeRequest('/notifications', {
         method: 'DELETE',
         body: { notificationIds: 'all' },
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);
@@ -333,7 +346,7 @@ describe('notifications routes', () => {
       const response = await makeRequest('/notifications', {
         method: 'DELETE',
         body: { notificationIds },
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);
@@ -353,7 +366,7 @@ describe('notifications routes', () => {
     test('returns notification counts', async () => {
       const response = await makeRequest('/notifications/count', {
         method: 'GET',
-        cookies: 'adieuu_identity=test-identity-session',
+        cookies: 'adieuu_session=test-identity-session',
       });
 
       expect(response.status).toBe(200);

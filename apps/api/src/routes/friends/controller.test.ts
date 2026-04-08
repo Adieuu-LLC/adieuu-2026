@@ -12,9 +12,17 @@ import type { PublicFriendRequest } from '../../models/friend-request';
 const myIdentityId = new ObjectId();
 const targetIdentityId = new ObjectId();
 
-const getIdentitySessionIdFromRequestMock = mock((request: Request) => {
+const requireIdentitySessionMock = mock((request: Request) => {
   const cookie = request.headers.get('Cookie') ?? '';
-  return cookie.includes('adieuu_identity=') ? 'identity-session' : null;
+  if (cookie.includes('adieuu_session=')) {
+    return Promise.resolve({
+      type: 'identity' as const,
+      identityId: myIdentityId.toHexString(),
+      accountHash: 'a'.repeat(64),
+      lastActivityAt: Date.now(),
+    });
+  }
+  return Promise.resolve(null);
 });
 const getIdentityFromSessionMock = mock(async () => ({
   _id: myIdentityId,
@@ -52,8 +60,11 @@ const getOutgoingRequestsMock = mock(async () => ({
 const getIncomingRequestCountMock = mock(async () => 0);
 const getFriendshipStatusMock = mock(async (): Promise<FriendshipStatus> => 'none');
 
+mock.module('../../services/session.service', () => ({
+  requireIdentitySession: requireIdentitySessionMock,
+}));
+
 mock.module('../../services/identity.service', () => ({
-  getIdentitySessionIdFromRequest: getIdentitySessionIdFromRequestMock,
   getIdentityFromSession: getIdentityFromSessionMock,
 }));
 
@@ -98,7 +109,7 @@ function makeRequest(
   });
 }
 
-const AUTH_COOKIE = 'adieuu_identity=session';
+const AUTH_COOKIE = 'adieuu_session=session';
 
 describe('friends routes', () => {
   afterAll(() => {
@@ -106,7 +117,7 @@ describe('friends routes', () => {
   });
 
   beforeEach(() => {
-    getIdentitySessionIdFromRequestMock.mockClear();
+    requireIdentitySessionMock.mockClear();
     getIdentityFromSessionMock.mockClear();
     sendFriendRequestMock.mockClear();
     acceptFriendRequestMock.mockClear();

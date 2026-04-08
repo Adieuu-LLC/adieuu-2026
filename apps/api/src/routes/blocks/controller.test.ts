@@ -5,9 +5,17 @@ import type { BlockResult, UnblockResult } from '../../services/block.service';
 const myIdentityId = new ObjectId();
 const targetIdentityId = new ObjectId();
 
-const getIdentitySessionIdFromRequestMock = mock((request: Request) => {
+const requireIdentitySessionMock = mock((request: Request) => {
   const cookie = request.headers.get('Cookie') ?? '';
-  return cookie.includes('adieuu_identity=') ? 'identity-session' : null;
+  if (cookie.includes('adieuu_session=')) {
+    return Promise.resolve({
+      type: 'identity' as const,
+      identityId: myIdentityId.toHexString(),
+      accountHash: 'a'.repeat(64),
+      lastActivityAt: Date.now(),
+    });
+  }
+  return Promise.resolve(null);
 });
 const getIdentityFromSessionMock = mock(async () => ({
   _id: myIdentityId,
@@ -19,8 +27,11 @@ const unblockIdentityMock = mock(async (): Promise<UnblockResult> => ({ success:
 const checkIfBlockedMock = mock(async () => ({ blocked: false, blockedAt: null as string | null }));
 const getBlockedIdentitiesMock = mock(async () => ({ blocks: [], cursor: null as string | null }));
 
+mock.module('../../services/session.service', () => ({
+  requireIdentitySession: requireIdentitySessionMock,
+}));
+
 mock.module('../../services/identity.service', () => ({
-  getIdentitySessionIdFromRequest: getIdentitySessionIdFromRequestMock,
   getIdentityFromSession: getIdentityFromSessionMock,
 }));
 
@@ -64,7 +75,7 @@ describe('blocks routes', () => {
   });
 
   beforeEach(() => {
-    getIdentitySessionIdFromRequestMock.mockClear();
+    requireIdentitySessionMock.mockClear();
     getIdentityFromSessionMock.mockClear();
     blockIdentityMock.mockClear();
     unblockIdentityMock.mockClear();
@@ -90,7 +101,7 @@ describe('blocks routes', () => {
     const invalid = await blockRoutes.handler()(makeRequest('/blocks', {
       method: 'POST',
       body: { identityId: 'invalid' },
-      cookies: 'adieuu_identity=session',
+      cookies: 'adieuu_session=session',
     }));
     expect(invalid.status).toBe(400);
 
@@ -98,7 +109,7 @@ describe('blocks routes', () => {
     const selfBlock = await blockRoutes.handler()(makeRequest('/blocks', {
       method: 'POST',
       body: { identityId: targetIdentityId.toHexString() },
-      cookies: 'adieuu_identity=session',
+      cookies: 'adieuu_session=session',
     }));
     expect(selfBlock.status).toBe(400);
   });
@@ -106,34 +117,34 @@ describe('blocks routes', () => {
   test('DELETE /blocks/:identityId validates and maps not-found', async () => {
     const invalid = await blockRoutes.handler()(makeRequest('/blocks/invalid', {
       method: 'DELETE',
-      cookies: 'adieuu_identity=session',
+      cookies: 'adieuu_session=session',
     }));
     expect(invalid.status).toBe(400);
 
     unblockIdentityMock.mockResolvedValueOnce({ success: false, errorCode: 'BLOCK_NOT_FOUND' });
     const missing = await blockRoutes.handler()(makeRequest(`/blocks/${targetIdentityId.toHexString()}`, {
       method: 'DELETE',
-      cookies: 'adieuu_identity=session',
+      cookies: 'adieuu_session=session',
     }));
     expect(missing.status).toBe(404);
   });
 
   test('GET /blocks normalizes limit and passes cursor', async () => {
     await blockRoutes.handler()(makeRequest('/blocks?limit=999&cursor=invalid', {
-      cookies: 'adieuu_identity=session',
+      cookies: 'adieuu_session=session',
     }));
     expect(getBlockedIdentitiesMock).toHaveBeenCalledWith(myIdentityId, 100, undefined);
   });
 
   test('GET /blocks/check/:identityId validates input and returns status', async () => {
     const invalid = await blockRoutes.handler()(makeRequest('/blocks/check/not-an-id', {
-      cookies: 'adieuu_identity=session',
+      cookies: 'adieuu_session=session',
     }));
     expect(invalid.status).toBe(400);
 
     checkIfBlockedMock.mockResolvedValueOnce({ blocked: true, blockedAt: '2026-01-01T00:00:00.000Z' });
     const response = await blockRoutes.handler()(makeRequest(`/blocks/check/${targetIdentityId.toHexString()}`, {
-      cookies: 'adieuu_identity=session',
+      cookies: 'adieuu_session=session',
     }));
     expect(response.status).toBe(200);
     expect(checkIfBlockedMock).toHaveBeenCalledWith(myIdentityId, targetIdentityId.toHexString());

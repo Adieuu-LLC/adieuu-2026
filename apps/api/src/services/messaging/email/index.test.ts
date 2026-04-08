@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 const mockConfig = {
   env: 'development',
@@ -29,6 +29,10 @@ mock.module('../../../utils/adieuuLogger', () => ({
 import { getEmailProvider, resetEmailProviderForTests } from './index';
 
 describe.serial('email factory (getEmailProvider)', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     resetEmailProviderForTests();
     warnMock.mockClear();

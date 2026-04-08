@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
 // Mock config
@@ -21,6 +21,7 @@ mock.module('../../config', () => ({
 // Test session data
 const mockUserId = new ObjectId();
 const mockSession = {
+  type: 'account' as const,
   userId: mockUserId.toHexString(),
   identifier: 'test@example.com',
   identifierType: 'email' as const,
@@ -29,7 +30,7 @@ const mockSession = {
 
 // Mock session service
 mock.module('../../services/session.service', () => ({
-  getSessionFromRequest: mock((request: Request) => {
+  requireAccountSession: mock((request: Request) => {
     const cookie = request.headers.get('Cookie') ?? '';
     if (cookie.includes('adieuu_session=')) {
       return Promise.resolve(mockSession);
@@ -142,6 +143,10 @@ mock.module('../../models/mfa', () => ({
 import mfaRoutes from './index';
 
 describe('mfa routes', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   const makeRequest = async (
     path: string,
     options: { method?: string; body?: object; cookies?: string } = {}

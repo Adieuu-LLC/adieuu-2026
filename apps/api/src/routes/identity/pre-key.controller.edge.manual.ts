@@ -27,12 +27,23 @@ const getUnconsumedOtpkDigestMock = mock(async () => 'digest-placeholder');
 const purgeUnconsumedOneTimePreKeysMock = mock(async () => 0);
 const getConsumedOtpkKeyIdsMock = mock(async (): Promise<string[]> => []);
 
+mock.module('../../services/session.service', () => ({
+  requireIdentitySession: mock((request: Request) => {
+    const cookie = request.headers.get('Cookie') ?? '';
+    if (cookie.includes('adieuu_session=')) {
+      return Promise.resolve({
+        type: 'identity',
+        identityId: ownerId.toHexString(),
+        accountHash: 'a'.repeat(64),
+        lastActivityAt: Date.now(),
+      });
+    }
+    return Promise.resolve(null);
+  }),
+}));
+
 mock.module('../../services/identity.service', () => ({
   getIdentityFromSession: getIdentityFromSessionMock,
-  getIdentitySessionIdFromRequest: mock((request: Request) => {
-    const cookie = request.headers.get('Cookie') ?? '';
-    return cookie.includes('adieuu_identity=') ? 'identity-session' : null;
-  }),
 }));
 
 mock.module('../../repositories/identity.repository', () => ({
@@ -88,7 +99,7 @@ function makeCtx(options: {
   const request = new Request('http://localhost', {
     headers: options.authenticated === false
       ? undefined
-      : { Cookie: 'adieuu_identity=session' },
+      : { Cookie: 'adieuu_session=session' },
   });
 
   return {

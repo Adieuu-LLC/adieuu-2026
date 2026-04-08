@@ -2,11 +2,11 @@
  * Admin platform-settings routes — handler integration with mocked session and services.
  */
 
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import { PLATFORM_SETTING_KEYS } from '../../constants/platform-settings-keys';
 
-const mockGetSessionFromRequest = mock(() => Promise.resolve(null as unknown));
+const mockRequireAccountSession = mock(() => Promise.resolve(null as unknown));
 const mockIsPlatformAdmin = mock(() => Promise.resolve(false));
 const mockUpsertPlatformSetting = mock(() => Promise.resolve());
 const mockFindAll = mock(() => Promise.resolve([] as unknown[]));
@@ -23,7 +23,7 @@ mock.module('../../config', () => ({
 }));
 
 mock.module('../../services/session.service', () => ({
-  getSessionFromRequest: mockGetSessionFromRequest,
+  requireAccountSession: mockRequireAccountSession,
   getSession: mock(() => Promise.resolve(null)),
   destroySession: mock(() => Promise.resolve()),
   destroyAllSessions: mock(() => Promise.resolve(0)),
@@ -73,6 +73,7 @@ import { Router } from '../../router';
 import { adminRoutes } from './index';
 
 const sessionUser = {
+  type: 'account' as const,
   userId: new ObjectId().toHexString(),
   identifier: 'admin@example.com',
   identifierType: 'email' as const,
@@ -86,10 +87,14 @@ function adminHandler() {
 }
 
 describe('admin platform-settings routes', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   const handler = adminHandler();
 
   beforeEach(() => {
-    mockGetSessionFromRequest.mockReset();
+    mockRequireAccountSession.mockReset();
     mockIsPlatformAdmin.mockReset();
     mockUpsertPlatformSetting.mockReset();
     mockEnsureAuthAllowlist.mockReset();
@@ -99,7 +104,7 @@ describe('admin platform-settings routes', () => {
     mockIdentityCount.mockReset();
     mockUserFindById.mockReset();
     mockFindByIdentifier.mockReset();
-    mockGetSessionFromRequest.mockImplementation(() => Promise.resolve(null));
+    mockRequireAccountSession.mockImplementation(() => Promise.resolve(null));
     mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(false));
     mockFindAll.mockImplementation(() => Promise.resolve([]));
     mockFindByKey.mockImplementation(() => Promise.resolve(null));
@@ -116,7 +121,7 @@ describe('admin platform-settings routes', () => {
   });
 
   test('GET /api/admin/platform-settings returns 403 when session exists but user is not admin', async () => {
-    mockGetSessionFromRequest.mockImplementation(() => Promise.resolve(sessionUser));
+    mockRequireAccountSession.mockImplementation(() => Promise.resolve(sessionUser));
     mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(false));
 
     const res = await handler(new Request('http://localhost/api/admin/platform-settings'));
@@ -124,7 +129,7 @@ describe('admin platform-settings routes', () => {
   });
 
   test('GET /api/admin/platform-settings returns 200 and list when admin', async () => {
-    mockGetSessionFromRequest.mockImplementation(() => Promise.resolve(sessionUser));
+    mockRequireAccountSession.mockImplementation(() => Promise.resolve(sessionUser));
     mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
     mockFindAll.mockImplementation(() =>
       Promise.resolve([
@@ -153,7 +158,7 @@ describe('admin platform-settings routes', () => {
   });
 
   test('PUT /api/admin/platform-settings/:key upserts and returns 200', async () => {
-    mockGetSessionFromRequest.mockImplementation(() => Promise.resolve(sessionUser));
+    mockRequireAccountSession.mockImplementation(() => Promise.resolve(sessionUser));
     mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
     mockFindByKey.mockImplementation((key: string) => {
       if (key === PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_ENFORCED) {
@@ -190,7 +195,7 @@ describe('admin platform-settings routes', () => {
   });
 
   test('GET /api/admin/metrics returns 200 with counts when admin', async () => {
-    mockGetSessionFromRequest.mockImplementation(() => Promise.resolve(sessionUser));
+    mockRequireAccountSession.mockImplementation(() => Promise.resolve(sessionUser));
     mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
     mockUserCount.mockImplementation(() => Promise.resolve(42));
     let identityCall = 0;
@@ -219,7 +224,7 @@ describe('admin platform-settings routes', () => {
 
   test('GET /api/admin/platform-admins returns admins when admin', async () => {
     const otherId = new ObjectId();
-    mockGetSessionFromRequest.mockImplementation(() => Promise.resolve(sessionUser));
+    mockRequireAccountSession.mockImplementation(() => Promise.resolve(sessionUser));
     mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
     mockFindByKey.mockImplementation((key: string) => {
       if (key === PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST) {
@@ -272,7 +277,7 @@ describe('admin platform-settings routes', () => {
   });
 
   test('POST /api/admin/platform-admins returns 404 when user not found', async () => {
-    mockGetSessionFromRequest.mockImplementation(() => Promise.resolve(sessionUser));
+    mockRequireAccountSession.mockImplementation(() => Promise.resolve(sessionUser));
     mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
     mockFindByIdentifier.mockImplementation(() => Promise.resolve(null));
 
@@ -287,7 +292,7 @@ describe('admin platform-settings routes', () => {
   });
 
   test('DELETE /api/admin/platform-admins/:userId returns 400 when removing self', async () => {
-    mockGetSessionFromRequest.mockImplementation(() => Promise.resolve(sessionUser));
+    mockRequireAccountSession.mockImplementation(() => Promise.resolve(sessionUser));
     mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
 
     const url = `http://localhost/api/admin/platform-admins/${sessionUser.userId}`;

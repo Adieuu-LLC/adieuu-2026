@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
 // Mock config
@@ -57,6 +57,10 @@ import {
 } from './identity-session.repository';
 
 describe('IdentitySessionRepository', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   let repo: IdentitySessionRepository;
 
   const mockIdentityId = new ObjectId();

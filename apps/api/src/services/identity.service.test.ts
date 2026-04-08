@@ -1,17 +1,36 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
-// Mock dependencies - use 'any' for test flexibility with dynamic mock implementations
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
-const mockUserRepo = {
-  findById: mock(() => Promise.resolve(null)) as AnyMock,
-  incrementIdentityCount: mock(() => Promise.resolve()) as AnyMock,
-  recordIdentityLoginAttempt: mock(() => Promise.resolve({ attempts: [] as Date[], lockedUntil: undefined })) as AnyMock,
-  resetIdentityLoginAttempts: mock(() => Promise.resolve()) as AnyMock,
-  isIdentityLockedOut: mock(() => Promise.resolve({ lockedOut: false })) as AnyMock,
-};
+const testAccountHash = 'a'.repeat(64);
+
+// --- Mock identity-hash ---
+
+const mockGenerateIdentityHash = mock(() =>
+  Promise.resolve({ hash: 'v2:mock-hash', version: 2 }),
+) as AnyMock;
+
+const mockValidatePassphrase = mock((passphrase: string) => {
+  if (!passphrase || passphrase.length < 8) {
+    return { valid: false, error: 'Passphrase must be at least 8 characters' };
+  }
+  return { valid: true };
+}) as AnyMock;
+
+mock.module('../utils/identity-hash', () => ({
+  generateIdentityHash: mockGenerateIdentityHash,
+  verifyIdentityHash: mock(() =>
+    Promise.resolve({ match: true, needsUpgrade: false }),
+  ),
+  validatePassphrase: mockValidatePassphrase,
+  CURRENT_HASH_VERSION: 2,
+  MIN_PASSPHRASE_LENGTH: 8,
+}));
+
+// --- Mock identity repository ---
 
 const mockIdentityRepo = {
   findByUsername: mock(() => Promise.resolve(null)) as AnyMock,
@@ -22,44 +41,78 @@ const mockIdentityRepo = {
   softDelete: mock(() => Promise.resolve(true)) as AnyMock,
   updateLastActive: mock(() => Promise.resolve()) as AnyMock,
   upgradeHashVersion: mock(() => Promise.resolve(true)) as AnyMock,
+  clearModerationFields: mock(() => Promise.resolve()) as AnyMock,
 };
-
-const mockIdentitySessionRepo = {
-  create: mock(() => Promise.resolve(null)) as AnyMock,
-  findBySessionId: mock(() => Promise.resolve(null)) as AnyMock,
-  getSession: mock(() => Promise.resolve(null)) as AnyMock,
-  revoke: mock(() => Promise.resolve()) as AnyMock,
-  revokeAllForIdentity: mock(() => Promise.resolve(0)) as AnyMock,
-};
-
-/* eslint-enable @typescript-eslint/no-explicit-any */
-
-mock.module('../repositories/user.repository', () => ({
-  getUserRepository: () => mockUserRepo,
-}));
 
 mock.module('../repositories/identity.repository', () => ({
   getIdentityRepository: () => mockIdentityRepo,
 }));
 
-mock.module('../repositories/identity-session.repository', () => ({
-  getIdentitySessionRepository: () => mockIdentitySessionRepo,
+// --- Mock identity count repository ---
+
+const mockIdentityCountRepo = {
+  getCount: mock(() => Promise.resolve(0)) as AnyMock,
+  increment: mock(() => Promise.resolve(1)) as AnyMock,
+};
+
+mock.module('../repositories/identity-count.repository', () => ({
+  getIdentityCountRepository: () => mockIdentityCountRepo,
 }));
 
-mock.module('./messaging', () => ({
-  sendEmail: mock(() => Promise.resolve({ success: true })),
-  sendSms: mock(() => Promise.resolve({ success: true })),
+// --- Mock session repository ---
+
+const mockSessionRepo = {
+  findBySessionId: mock(() => Promise.resolve(null)) as AnyMock,
+  getSession: mock(() => Promise.resolve(null)) as AnyMock,
+  revoke: mock(() => Promise.resolve()) as AnyMock,
+  revokeAllForIdentity: mock(() => Promise.resolve(0)) as AnyMock,
+  updateLastActivity: mock(() => Promise.resolve()) as AnyMock,
+};
+
+mock.module('../repositories/session.repository', () => ({
+  getSessionRepository: () => mockSessionRepo,
 }));
 
-mock.module('../config', () => ({
-  config: {
-    env: 'test',
-    security: {
-      sessionSecret: 'test-secret',
-    },
-    cookie: {
-      domain: '',
-    },
+// --- Mock session service ---
+
+const mockCreateIdentitySession = mock(() =>
+  Promise.resolve({ sessionId: 'mock-session-id', cookie: 'mock-cookie' }),
+) as AnyMock;
+const mockDestroySession = mock(() => Promise.resolve()) as AnyMock;
+const mockDestroyAllIdentitySessions = mock(() =>
+  Promise.resolve(1),
+) as AnyMock;
+const mockBuildLogoutCookie = mock(() => 'mock-logout-cookie') as AnyMock;
+
+mock.module('./session.service', () => ({
+  createIdentitySession: mockCreateIdentitySession,
+  destroySession: mockDestroySession,
+  destroyAllIdentitySessions: mockDestroyAllIdentitySessions,
+  requireIdentitySession: mock(() => Promise.resolve(null)),
+  buildLogoutCookie: mockBuildLogoutCookie,
+  getSessionIdFromRequest: mock(() => 'mock-session-id'),
+}));
+
+// --- Mock Redis (rate limiting) ---
+
+const mockRedis = {
+  get: mock(() => Promise.resolve(null)) as AnyMock,
+  set: mock(() => Promise.resolve('OK')) as AnyMock,
+  incr: mock(() => Promise.resolve(1)) as AnyMock,
+  expire: mock(() => Promise.resolve(1)) as AnyMock,
+  del: mock(() => Promise.resolve(1)) as AnyMock,
+  ttl: mock(() => Promise.resolve(-1)) as AnyMock,
+  rpush: mock(() => Promise.resolve(1)) as AnyMock,
+};
+
+mock.module('../db', () => ({
+  getRedis: () => mockRedis,
+  isRedisConnected: () => true,
+  RedisKeys: {
+    identityLoginAttempts: (hash: string) =>
+      `ratelimit:identity_login:${hash}`,
+    lockoutPending: (hash: string) => `lockout_pending:${hash}`,
+    session: (id: string) => `session:${id}`,
   },
 }));
 
@@ -69,26 +122,52 @@ import {
   loginToIdentity,
   logoutFromIdentity,
   deleteIdentity,
-  getIdentitySession,
+  getIdentityFromSession,
   buildIdentityLogoutCookie,
   getIdentitySessionIdFromRequest,
   MIN_PASSPHRASE_LENGTH,
+  MAX_IDENTITIES_PER_USER,
 } from './identity.service';
 
 describe('identity.service', () => {
-  const testUserId = new ObjectId();
-  const testUserCreatedAt = new Date('2024-01-15T12:00:00Z');
+  afterAll(() => {
+    mock.restore();
+  });
+
   const validPassphrase = 'my-secure-passphrase-123';
   const testUsername = 'testuser';
   const testDisplayName = 'Test User';
 
+  function makeMockIdentity(overrides?: Record<string, unknown>) {
+    return {
+      _id: new ObjectId(),
+      ident: 'v2:mock-hash',
+      hashVersion: 2,
+      username: testUsername,
+      displayName: testDisplayName,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastActiveAt: new Date(),
+      ...overrides,
+    };
+  }
+
   beforeEach(() => {
-    // Reset all mocks
-    mockUserRepo.findById.mockReset();
-    mockUserRepo.incrementIdentityCount.mockReset();
-    mockUserRepo.recordIdentityLoginAttempt.mockReset();
-    mockUserRepo.resetIdentityLoginAttempts.mockReset();
-    mockUserRepo.isIdentityLockedOut.mockReset();
+    mockGenerateIdentityHash.mockReset();
+    mockGenerateIdentityHash.mockImplementation(() =>
+      Promise.resolve({ hash: 'v2:mock-hash', version: 2 }),
+    );
+    mockValidatePassphrase.mockReset();
+    mockValidatePassphrase.mockImplementation((passphrase: string) => {
+      if (!passphrase || passphrase.length < 8) {
+        return {
+          valid: false,
+          error: 'Passphrase must be at least 8 characters',
+        };
+      }
+      return { valid: true };
+    });
+
     mockIdentityRepo.findByUsername.mockReset();
     mockIdentityRepo.findByIdent.mockReset();
     mockIdentityRepo.findActiveByIdent.mockReset();
@@ -97,339 +176,256 @@ describe('identity.service', () => {
     mockIdentityRepo.softDelete.mockReset();
     mockIdentityRepo.updateLastActive.mockReset();
     mockIdentityRepo.upgradeHashVersion.mockReset();
-    mockIdentitySessionRepo.create.mockReset();
-    mockIdentitySessionRepo.findBySessionId.mockReset();
-    mockIdentitySessionRepo.getSession.mockReset();
-    mockIdentitySessionRepo.revoke.mockReset();
-    mockIdentitySessionRepo.revokeAllForIdentity.mockReset();
+    mockIdentityRepo.clearModerationFields.mockReset();
 
-    // Set up default mock returns
-    mockUserRepo.isIdentityLockedOut.mockImplementation(() =>
-      Promise.resolve({ lockedOut: false })
+    mockIdentityCountRepo.getCount.mockReset();
+    mockIdentityCountRepo.getCount.mockImplementation(() => Promise.resolve(0));
+    mockIdentityCountRepo.increment.mockReset();
+    mockIdentityCountRepo.increment.mockImplementation(() =>
+      Promise.resolve(1),
     );
-    mockUserRepo.recordIdentityLoginAttempt.mockImplementation(() =>
-      Promise.resolve({ attempts: [new Date()], lockedUntil: undefined })
+
+    mockSessionRepo.findBySessionId.mockReset();
+    mockSessionRepo.getSession.mockReset();
+    mockSessionRepo.revoke.mockReset();
+    mockSessionRepo.revokeAllForIdentity.mockReset();
+    mockSessionRepo.updateLastActivity.mockReset();
+
+    mockCreateIdentitySession.mockReset();
+    mockCreateIdentitySession.mockImplementation(() =>
+      Promise.resolve({ sessionId: 'mock-session-id', cookie: 'mock-cookie' }),
     );
+    mockDestroySession.mockReset();
+    mockDestroyAllIdentitySessions.mockReset();
+    mockDestroyAllIdentitySessions.mockImplementation(() =>
+      Promise.resolve(1),
+    );
+    mockBuildLogoutCookie.mockReset();
+    mockBuildLogoutCookie.mockImplementation(() => 'mock-logout-cookie');
+
+    mockRedis.get.mockReset();
+    mockRedis.get.mockImplementation(() => Promise.resolve(null));
+    mockRedis.set.mockReset();
+    mockRedis.incr.mockReset();
+    mockRedis.incr.mockImplementation(() => Promise.resolve(1));
+    mockRedis.expire.mockReset();
+    mockRedis.del.mockReset();
+    mockRedis.ttl.mockReset();
+    mockRedis.ttl.mockImplementation(() => Promise.resolve(-1));
+    mockRedis.rpush.mockReset();
   });
 
   describe('createIdentity', () => {
-    test('returns error for passphrase below minimum length', async () => {
+    test('creates identity and returns session on auto-login', async () => {
+      const identity = makeMockIdentity();
+      mockIdentityRepo.create.mockImplementation(() =>
+        Promise.resolve(identity),
+      );
+
       const result = await createIdentity(
-        testUserId,
-        testUserCreatedAt,
-        'short', // Too short
+        testAccountHash,
+        MAX_IDENTITIES_PER_USER,
+        validPassphrase,
         testUsername,
-        testDisplayName
+        testDisplayName,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.identity?.username).toBe(testUsername);
+      expect(result.sessionId).toBe('mock-session-id');
+      expect(result.cookie).toBe('mock-cookie');
+
+      expect(mockIdentityCountRepo.getCount).toHaveBeenCalledWith(
+        testAccountHash,
+      );
+      expect(mockIdentityCountRepo.increment).toHaveBeenCalledWith(
+        testAccountHash,
+      );
+      expect(mockIdentityRepo.create).toHaveBeenCalledWith({
+        ident: 'v2:mock-hash',
+        hashVersion: 2,
+        username: testUsername,
+        displayName: testDisplayName,
+      });
+      expect(mockCreateIdentitySession).toHaveBeenCalledWith(
+        identity._id,
+        testAccountHash,
+        undefined,
+      );
+    });
+
+    test('returns VALIDATION_ERROR for short passphrase', async () => {
+      const result = await createIdentity(
+        testAccountHash,
+        MAX_IDENTITIES_PER_USER,
+        'short',
+        testUsername,
+        testDisplayName,
       );
 
       expect(result.success).toBe(false);
       expect(result.errorCode).toBe('VALIDATION_ERROR');
+      expect(mockIdentityRepo.create).not.toHaveBeenCalled();
     });
 
-    test('returns error when user not found', async () => {
-      mockUserRepo.findById.mockImplementation(() => Promise.resolve(null));
-
-      const result = await createIdentity(
-        testUserId,
-        testUserCreatedAt,
-        validPassphrase,
-        testUsername,
-        testDisplayName
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.errorCode).toBe('VALIDATION_ERROR');
-      expect(result.error).toContain('User not found');
-    });
-
-    test('returns error when max identities reached', async () => {
-      mockUserRepo.findById.mockImplementation(() =>
-        Promise.resolve({
-          _id: testUserId,
-          identityCount: 2, // Already at max (MAX_IDENTITIES_PER_USER = 2)
-          createdAt: testUserCreatedAt,
-        })
+    test('returns MAX_IDENTITIES when count exceeds limit', async () => {
+      mockIdentityCountRepo.getCount.mockImplementation(() =>
+        Promise.resolve(MAX_IDENTITIES_PER_USER),
       );
 
       const result = await createIdentity(
-        testUserId,
-        testUserCreatedAt,
+        testAccountHash,
+        MAX_IDENTITIES_PER_USER,
         validPassphrase,
         testUsername,
-        testDisplayName
+        testDisplayName,
       );
 
       expect(result.success).toBe(false);
       expect(result.errorCode).toBe('MAX_IDENTITIES');
+      expect(mockIdentityRepo.create).not.toHaveBeenCalled();
     });
 
-    test('returns error when username is taken', async () => {
-      mockUserRepo.findById.mockImplementation(() =>
-        Promise.resolve({
-          _id: testUserId,
-          identityCount: 0,
-          createdAt: testUserCreatedAt,
-        })
-      );
+    test('returns USERNAME_TAKEN when username exists', async () => {
       mockIdentityRepo.findByUsername.mockImplementation(() =>
-        Promise.resolve({ _id: new ObjectId(), username: testUsername })
+        Promise.resolve({ _id: new ObjectId(), username: testUsername }),
       );
 
       const result = await createIdentity(
-        testUserId,
-        testUserCreatedAt,
+        testAccountHash,
+        MAX_IDENTITIES_PER_USER,
         validPassphrase,
         testUsername,
-        testDisplayName
+        testDisplayName,
       );
 
       expect(result.success).toBe(false);
       expect(result.errorCode).toBe('USERNAME_TAKEN');
     });
 
-    test('returns error when ident hash already exists', async () => {
-      mockUserRepo.findById.mockImplementation(() =>
-        Promise.resolve({
-          _id: testUserId,
-          identityCount: 0,
-          createdAt: testUserCreatedAt,
-        })
-      );
-      mockIdentityRepo.findByUsername.mockImplementation(() => Promise.resolve(null));
+    test('returns VALIDATION_ERROR for duplicate ident hash', async () => {
       mockIdentityRepo.findByIdent.mockImplementation(() =>
-        Promise.resolve({ _id: new ObjectId(), ident: 'existing-hash' })
+        Promise.resolve({ _id: new ObjectId(), ident: 'v2:mock-hash' }),
       );
 
       const result = await createIdentity(
-        testUserId,
-        testUserCreatedAt,
+        testAccountHash,
+        MAX_IDENTITIES_PER_USER,
         validPassphrase,
         testUsername,
-        testDisplayName
+        testDisplayName,
       );
 
       expect(result.success).toBe(false);
       expect(result.errorCode).toBe('VALIDATION_ERROR');
-    });
-
-    test('creates identity successfully', async () => {
-      const mockIdentity = {
-        _id: new ObjectId(),
-        ident: 'generated-hash',
-        hashVersion: 1,
-        username: testUsername,
-        displayName: testDisplayName,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        lastActiveAt: new Date(),
-      };
-
-      mockUserRepo.findById.mockImplementation(() =>
-        Promise.resolve({
-          _id: testUserId,
-          identityCount: 0,
-          createdAt: testUserCreatedAt,
-        })
-      );
-      mockIdentityRepo.findByUsername.mockImplementation(() => Promise.resolve(null));
-      mockIdentityRepo.findByIdent.mockImplementation(() => Promise.resolve(null));
-      mockIdentityRepo.create.mockImplementation(() => Promise.resolve(mockIdentity));
-
-      const result = await createIdentity(
-        testUserId,
-        testUserCreatedAt,
-        validPassphrase,
-        testUsername,
-        testDisplayName
-      );
-
-      expect(result.success).toBe(true);
-      expect(result.identity).toBeDefined();
-      expect(result.identity?.username).toBe(testUsername);
-      expect(mockUserRepo.incrementIdentityCount).toHaveBeenCalled();
     });
   });
 
   describe('loginToIdentity', () => {
-    const mockIdentity = {
-      _id: new ObjectId(),
-      ident: 'test-hash',
-      hashVersion: 1,
-      username: testUsername,
-      displayName: testDisplayName,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      lastActiveAt: new Date(),
-    };
-
-    const mockUser = {
-      _id: testUserId,
-      createdAt: testUserCreatedAt,
-      identityCount: 1,
-      identityLoginAttempts: [],
-      identityLockoutDuration: 3600000, // 1 hour
-    };
-
-    test('returns error when user not found', async () => {
-      mockUserRepo.findById.mockImplementation(() => Promise.resolve(null));
-
-      const result = await loginToIdentity(
-        testUserId,
-        testUserCreatedAt,
-        validPassphrase
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.errorCode).toBe('VALIDATION_ERROR');
-    });
-
-    test('returns error when user is locked out', async () => {
-      mockUserRepo.findById.mockImplementation(() => Promise.resolve(mockUser));
-      mockUserRepo.isIdentityLockedOut.mockImplementation(() =>
-        Promise.resolve({
-          lockedOut: true,
-          lockedUntil: new Date(Date.now() + 3600000),
-        })
-      );
-
-      const result = await loginToIdentity(
-        testUserId,
-        testUserCreatedAt,
-        validPassphrase
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.errorCode).toBe('LOCKED_OUT');
-      expect(result.retryAfter).toBeDefined();
-    });
-
-    test('returns error for invalid passphrase (identity not found)', async () => {
-      mockUserRepo.findById.mockImplementation(() => Promise.resolve(mockUser));
-      mockUserRepo.isIdentityLockedOut.mockImplementation(() =>
-        Promise.resolve({ lockedOut: false })
-      );
-      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(null));
-
-      const result = await loginToIdentity(
-        testUserId,
-        testUserCreatedAt,
-        'wrong-passphrase-here'
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.errorCode).toBe('INVALID_PASSPHRASE');
-      expect(mockUserRepo.recordIdentityLoginAttempt).toHaveBeenCalled();
-      // NOTE: We intentionally do NOT audit identity login failures to preserve
-      // cryptographic separation between identities and user accounts
-    });
-
-    test('triggers lockout after max attempts', async () => {
-      const lockedUntil = new Date(Date.now() + 3600000);
-      mockUserRepo.findById.mockImplementation(() => Promise.resolve(mockUser));
-      mockUserRepo.isIdentityLockedOut.mockImplementation(() =>
-        Promise.resolve({ lockedOut: false })
-      );
-      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(null));
-      mockUserRepo.recordIdentityLoginAttempt.mockImplementation(() =>
-        Promise.resolve({
-          attempts: [new Date(), new Date(), new Date(), new Date(), new Date(), new Date()],
-          lockedUntil,
-        })
-      );
-
-      const result = await loginToIdentity(
-        testUserId,
-        testUserCreatedAt,
-        'wrong-passphrase'
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.errorCode).toBe('LOCKED_OUT');
-    });
-
-    test('returns error for passphrase below minimum length', async () => {
-      mockUserRepo.findById.mockImplementation(() => Promise.resolve(mockUser));
-      mockUserRepo.isIdentityLockedOut.mockImplementation(() =>
-        Promise.resolve({ lockedOut: false })
-      );
-
-      const result = await loginToIdentity(
-        testUserId,
-        testUserCreatedAt,
-        'short' // Too short
-      );
-
-      expect(result.success).toBe(false);
-      expect(result.errorCode).toBe('VALIDATION_ERROR');
-    });
-
-    test('logs in successfully and creates an identity session', async () => {
-      mockUserRepo.findById.mockImplementation(() => Promise.resolve(mockUser));
-      mockUserRepo.isIdentityLockedOut.mockImplementation(() =>
-        Promise.resolve({ lockedOut: false })
-      );
+    test('logs in successfully and creates session', async () => {
+      const identity = makeMockIdentity();
       mockIdentityRepo.findActiveByIdent.mockImplementation(() =>
-        Promise.resolve({
-          ...mockIdentity,
-          hashVersion: 1,
-          isBanned: false,
-          suspendedUntil: undefined,
-        })
+        Promise.resolve(identity),
       );
-      mockIdentitySessionRepo.create.mockImplementation(() => Promise.resolve(undefined));
 
-      const result = await loginToIdentity(
-        testUserId,
-        testUserCreatedAt,
-        validPassphrase
-      );
+      const result = await loginToIdentity(testAccountHash, validPassphrase);
 
       expect(result.success).toBe(true);
       expect(result.identity).toBeDefined();
-      expect(result.sessionId).toBeTruthy();
-      expect(result.cookie).toContain('adieuu_identity=');
-      expect(mockUserRepo.resetIdentityLoginAttempts).toHaveBeenCalled();
-      expect(mockIdentityRepo.updateLastActive).toHaveBeenCalled();
-      expect(mockIdentitySessionRepo.create).toHaveBeenCalled();
+      expect(result.sessionId).toBe('mock-session-id');
+      expect(result.cookie).toBe('mock-cookie');
+      expect(mockRedis.del).toHaveBeenCalled();
+      expect(mockIdentityRepo.updateLastActive).toHaveBeenCalledWith(
+        identity._id,
+      );
+      expect(mockCreateIdentitySession).toHaveBeenCalledWith(
+        identity._id,
+        testAccountHash,
+        undefined,
+      );
     });
 
-    test('upgrades hash version after successful login when outdated', async () => {
-      mockUserRepo.findById.mockImplementation(() => Promise.resolve(mockUser));
-      mockUserRepo.isIdentityLockedOut.mockImplementation(() =>
-        Promise.resolve({ lockedOut: false })
-      );
+    test('returns INVALID_PASSPHRASE when identity not found', async () => {
       mockIdentityRepo.findActiveByIdent.mockImplementation(() =>
-        Promise.resolve({
-          ...mockIdentity,
-          hashVersion: 0,
-          isBanned: false,
-          suspendedUntil: undefined,
-        })
+        Promise.resolve(null),
       );
-      mockIdentitySessionRepo.create.mockImplementation(() => Promise.resolve(undefined));
 
-      const result = await loginToIdentity(
-        testUserId,
-        testUserCreatedAt,
-        validPassphrase
+      const result = await loginToIdentity(testAccountHash, validPassphrase);
+
+      expect(result.success).toBe(false);
+      expect(result.errorCode).toBe('INVALID_PASSPHRASE');
+      expect(mockRedis.incr).toHaveBeenCalled();
+    });
+
+    test('returns LOCKED_OUT when attempts exceed threshold', async () => {
+      mockRedis.get.mockImplementation(() => Promise.resolve('6'));
+      mockRedis.ttl.mockImplementation(() => Promise.resolve(3200));
+
+      const result = await loginToIdentity(testAccountHash, validPassphrase);
+
+      expect(result.success).toBe(false);
+      expect(result.errorCode).toBe('LOCKED_OUT');
+      expect(result.retryAfter).toBe(3200);
+    });
+
+    test('returns VALIDATION_ERROR for short passphrase', async () => {
+      const result = await loginToIdentity(testAccountHash, 'short');
+
+      expect(result.success).toBe(false);
+      expect(result.errorCode).toBe('VALIDATION_ERROR');
+    });
+
+    test('triggers lockout after max failed attempts', async () => {
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() =>
+        Promise.resolve(null),
       );
+      mockRedis.incr.mockImplementation(() => Promise.resolve(6));
+
+      const result = await loginToIdentity(testAccountHash, validPassphrase);
+
+      expect(result.success).toBe(false);
+      expect(result.errorCode).toBe('LOCKED_OUT');
+      expect(mockRedis.rpush).toHaveBeenCalled();
+    });
+
+    test('upgrades hash version when outdated', async () => {
+      const identity = makeMockIdentity({ hashVersion: 1 });
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() =>
+        Promise.resolve(identity),
+      );
+
+      const result = await loginToIdentity(testAccountHash, validPassphrase);
 
       expect(result.success).toBe(true);
       expect(mockIdentityRepo.upgradeHashVersion).toHaveBeenCalled();
     });
+
+    test('returns IDENTITY_BANNED for banned identity', async () => {
+      const identity = makeMockIdentity({
+        isBanned: true,
+        moderationReason: 'spam',
+      });
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() =>
+        Promise.resolve(identity),
+      );
+
+      const result = await loginToIdentity(testAccountHash, validPassphrase);
+
+      expect(result.success).toBe(false);
+      expect(result.errorCode).toBe('IDENTITY_BANNED');
+      expect(result.moderationReason).toBe('spam');
+    });
   });
 
   describe('logoutFromIdentity', () => {
-    test('revokes session when session ID provided', async () => {
+    test('calls destroySession with session ID', async () => {
       await logoutFromIdentity('test-session-id');
-
-      expect(mockIdentitySessionRepo.revoke).toHaveBeenCalledWith('test-session-id');
+      expect(mockDestroySession).toHaveBeenCalledWith('test-session-id');
     });
 
-    test('does nothing when session ID is empty', async () => {
+    test('does nothing for empty session ID', async () => {
       await logoutFromIdentity('');
-
-      expect(mockIdentitySessionRepo.revoke).not.toHaveBeenCalled();
+      expect(mockDestroySession).not.toHaveBeenCalled();
     });
   });
 
@@ -437,9 +433,32 @@ describe('identity.service', () => {
     const testIdentityId = new ObjectId();
     const testSessionId = 'test-session-id';
 
-    test('returns error when session not found', async () => {
-      mockIdentitySessionRepo.findBySessionId.mockImplementation(() =>
-        Promise.resolve(null)
+    test('deletes identity successfully', async () => {
+      mockSessionRepo.findBySessionId.mockImplementation(() =>
+        Promise.resolve({
+          sessionId: testSessionId,
+          type: 'identity',
+          identityId: testIdentityId,
+        }),
+      );
+      mockIdentityRepo.softDelete.mockImplementation(() =>
+        Promise.resolve(true),
+      );
+
+      const result = await deleteIdentity(testIdentityId, testSessionId);
+
+      expect(result.success).toBe(true);
+      expect(mockDestroyAllIdentitySessions).toHaveBeenCalledWith(
+        testIdentityId,
+      );
+      expect(mockIdentityRepo.softDelete).toHaveBeenCalledWith(
+        testIdentityId,
+      );
+    });
+
+    test('returns error for invalid session', async () => {
+      mockSessionRepo.findBySessionId.mockImplementation(() =>
+        Promise.resolve(null),
       );
 
       const result = await deleteIdentity(testIdentityId, testSessionId);
@@ -448,12 +467,24 @@ describe('identity.service', () => {
       expect(result.error).toContain('Invalid session');
     });
 
-    test('returns error when session does not match identity', async () => {
-      mockIdentitySessionRepo.findBySessionId.mockImplementation(() =>
+    test('returns error when session type is not identity', async () => {
+      mockSessionRepo.findBySessionId.mockImplementation(() =>
+        Promise.resolve({ sessionId: testSessionId, type: 'account' }),
+      );
+
+      const result = await deleteIdentity(testIdentityId, testSessionId);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Invalid session');
+    });
+
+    test('returns error when session identity does not match', async () => {
+      mockSessionRepo.findBySessionId.mockImplementation(() =>
         Promise.resolve({
-          identitySessionId: testSessionId,
-          identityId: new ObjectId(), // Different identity
-        })
+          sessionId: testSessionId,
+          type: 'identity',
+          identityId: new ObjectId(),
+        }),
       );
 
       const result = await deleteIdentity(testIdentityId, testSessionId);
@@ -462,109 +493,145 @@ describe('identity.service', () => {
       expect(result.error).toContain('does not match');
     });
 
-    test('deletes identity successfully', async () => {
-      mockIdentitySessionRepo.findBySessionId.mockImplementation(() =>
-        Promise.resolve({
-          identitySessionId: testSessionId,
-          identityId: testIdentityId,
-        })
-      );
-      mockIdentityRepo.softDelete.mockImplementation(() => Promise.resolve(true));
-
-      const result = await deleteIdentity(testIdentityId, testSessionId);
-
-      expect(result.success).toBe(true);
-      expect(mockIdentitySessionRepo.revokeAllForIdentity).toHaveBeenCalled();
-      expect(mockIdentityRepo.softDelete).toHaveBeenCalled();
-    });
-
     test('returns error when soft delete fails', async () => {
-      mockIdentitySessionRepo.findBySessionId.mockImplementation(() =>
+      mockSessionRepo.findBySessionId.mockImplementation(() =>
         Promise.resolve({
-          identitySessionId: testSessionId,
+          sessionId: testSessionId,
+          type: 'identity',
           identityId: testIdentityId,
-        })
+        }),
       );
-      mockIdentityRepo.softDelete.mockImplementation(() => Promise.resolve(false));
+      mockIdentityRepo.softDelete.mockImplementation(() =>
+        Promise.resolve(false),
+      );
 
       const result = await deleteIdentity(testIdentityId, testSessionId);
 
       expect(result.success).toBe(false);
+      expect(result.error).toContain('Failed to delete');
     });
   });
 
-  describe('getIdentitySession', () => {
-    test('returns null for empty session ID', async () => {
-      const result = await getIdentitySession('');
-      expect(result).toBeNull();
-    });
-
-    test('returns session data when found', async () => {
-      const mockSession = {
-        identityId: 'test-identity-id',
-        expiresAt: Date.now() + 3600000,
-        lastActivityAt: Date.now(),
-      };
-      mockIdentitySessionRepo.getSession.mockImplementation(() =>
-        Promise.resolve(mockSession)
+  describe('getIdentityFromSession', () => {
+    test('returns identity when session is valid', async () => {
+      const identity = makeMockIdentity();
+      mockSessionRepo.getSession.mockImplementation(() =>
+        Promise.resolve({
+          type: 'identity',
+          identityId: identity._id,
+          accountHash: testAccountHash,
+          expiresAt: Date.now() + 86_400_000,
+          lastActivityAt: Date.now(),
+        }),
+      );
+      mockIdentityRepo.findByIdentityId.mockImplementation(() =>
+        Promise.resolve(identity),
       );
 
-      const result = await getIdentitySession('test-session-id');
+      const result = await getIdentityFromSession('valid-session-id');
 
-      expect(result).toEqual(mockSession);
+      expect(result).toHaveProperty('username', testUsername);
+    });
+
+    test('returns null for empty session ID', async () => {
+      expect(await getIdentityFromSession('')).toBeNull();
     });
 
     test('returns null when session not found', async () => {
-      mockIdentitySessionRepo.getSession.mockImplementation(() =>
-        Promise.resolve(null)
+      mockSessionRepo.getSession.mockImplementation(() =>
+        Promise.resolve(null),
       );
 
-      const result = await getIdentitySession('nonexistent-session');
+      expect(await getIdentityFromSession('nonexistent')).toBeNull();
+    });
 
-      expect(result).toBeNull();
+    test('returns null when session type is not identity', async () => {
+      mockSessionRepo.getSession.mockImplementation(() =>
+        Promise.resolve({
+          type: 'account',
+          userId: 'some-user-id',
+          expiresAt: Date.now() + 86_400_000,
+          lastActivityAt: Date.now(),
+        }),
+      );
+
+      expect(await getIdentityFromSession('account-session')).toBeNull();
+    });
+
+    test('returns null for banned identity without block details', async () => {
+      const identity = makeMockIdentity({ isBanned: true });
+      mockSessionRepo.getSession.mockImplementation(() =>
+        Promise.resolve({
+          type: 'identity',
+          identityId: identity._id,
+          accountHash: testAccountHash,
+          expiresAt: Date.now() + 86_400_000,
+          lastActivityAt: Date.now(),
+        }),
+      );
+      mockIdentityRepo.findByIdentityId.mockImplementation(() =>
+        Promise.resolve(identity),
+      );
+
+      expect(await getIdentityFromSession('banned-session')).toBeNull();
+    });
+
+    test('returns block details for banned identity when requested', async () => {
+      const identity = makeMockIdentity({
+        isBanned: true,
+        moderationReason: 'violation',
+      });
+      mockSessionRepo.getSession.mockImplementation(() =>
+        Promise.resolve({
+          type: 'identity',
+          identityId: identity._id,
+          accountHash: testAccountHash,
+          expiresAt: Date.now() + 86_400_000,
+          lastActivityAt: Date.now(),
+        }),
+      );
+      mockIdentityRepo.findByIdentityId.mockImplementation(() =>
+        Promise.resolve(identity),
+      );
+
+      const result = await getIdentityFromSession('banned-session', {
+        returnBlockDetails: true,
+      });
+
+      expect(result).toHaveProperty('blocked');
+      expect((result as { blocked: { type: string } }).blocked.type).toBe(
+        'banned',
+      );
     });
   });
 
   describe('buildIdentityLogoutCookie', () => {
-    test('returns a cookie string that clears the session', () => {
+    test('delegates to buildLogoutCookie', () => {
       const cookie = buildIdentityLogoutCookie();
 
-      expect(cookie).toContain('adieuu_identity=');
-      expect(cookie).toContain('Max-Age=0');
-      expect(cookie).toContain('HttpOnly');
-      expect(cookie).toContain('Path=/');
+      expect(cookie).toBe('mock-logout-cookie');
+      expect(mockBuildLogoutCookie).toHaveBeenCalled();
     });
   });
 
   describe('getIdentitySessionIdFromRequest', () => {
     test('returns null when no cookie header', () => {
       const request = new Request('http://localhost/test');
-      const result = getIdentitySessionIdFromRequest(request);
-      expect(result).toBeNull();
+      expect(getIdentitySessionIdFromRequest(request)).toBeNull();
     });
 
-    test('returns null when identity cookie not present', () => {
+    test('returns session ID from adieuu_session cookie', () => {
+      const request = new Request('http://localhost/test', {
+        headers: { Cookie: 'adieuu_session=test-session-id; other=value' },
+      });
+      expect(getIdentitySessionIdFromRequest(request)).toBe('test-session-id');
+    });
+
+    test('returns null when adieuu_session cookie absent', () => {
       const request = new Request('http://localhost/test', {
         headers: { Cookie: 'other_cookie=value' },
       });
-      const result = getIdentitySessionIdFromRequest(request);
-      expect(result).toBeNull();
-    });
-
-    test('returns session ID when identity cookie present', () => {
-      const request = new Request('http://localhost/test', {
-        headers: { Cookie: 'adieuu_identity=test-session-id; other=value' },
-      });
-      const result = getIdentitySessionIdFromRequest(request);
-      expect(result).toBe('test-session-id');
-    });
-
-    test('handles cookie as only cookie', () => {
-      const request = new Request('http://localhost/test', {
-        headers: { Cookie: 'adieuu_identity=session123' },
-      });
-      const result = getIdentitySessionIdFromRequest(request);
-      expect(result).toBe('session123');
+      expect(getIdentitySessionIdFromRequest(request)).toBeNull();
     });
   });
 

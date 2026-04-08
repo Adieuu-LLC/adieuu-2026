@@ -80,6 +80,7 @@ describe('session.repository', () => {
   test('getSession returns cached session when redis cache is valid', async () => {
     const expiresAt = Date.now() + 60_000;
     redisGetValue = JSON.stringify({
+      type: 'account',
       userId: new ObjectId().toHexString(),
       identifier: 'user@example.com',
       identifierType: 'email',
@@ -97,6 +98,7 @@ describe('session.repository', () => {
 
   test('getSession returns null and invalidates expired cached session', async () => {
     redisGetValue = JSON.stringify({
+      type: 'account',
       userId: new ObjectId().toHexString(),
       identifier: 'user@example.com',
       identifierType: 'email',
@@ -111,13 +113,14 @@ describe('session.repository', () => {
     expect(redisDelMock).toHaveBeenCalledWith('session:session-1');
   });
 
-  test('create stores session and caches with EX ttl', async () => {
+  test('createSession stores session and caches with EX ttl', async () => {
     const now = Date.now();
     const insertedId = new ObjectId();
     mockCollection.insertOne.mockResolvedValue({ insertedId });
     mockCollection.findOne.mockResolvedValue({
       _id: insertedId,
       sessionId: 'session-1',
+      type: 'account',
       userId: new ObjectId(),
       identifier: 'user@example.com',
       identifierType: 'email',
@@ -129,8 +132,9 @@ describe('session.repository', () => {
     });
 
     const repo = new SessionRepository();
-    await repo.create({
+    await repo.createSession({
       sessionId: 'session-1',
+      type: 'account',
       userId: new ObjectId(),
       identifier: 'user@example.com',
       identifierType: 'email',
@@ -147,6 +151,7 @@ describe('session.repository', () => {
 
   test('updateLastActivity updates mongo and refreshes cached timestamp with KEEPTTL', async () => {
     redisGetValue = JSON.stringify({
+      type: 'account',
       userId: new ObjectId().toHexString(),
       identifier: 'user@example.com',
       identifierType: 'email',

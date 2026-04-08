@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -40,6 +40,10 @@ mock.module('../../utils/timing', () => ({
 import { verifyEmailAddress, verifyPhoneNumber } from './controller';
 
 describe('users verification controller', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     verifyOtpMock.mockReset();
     userRepoMock.findByEmail.mockReset();

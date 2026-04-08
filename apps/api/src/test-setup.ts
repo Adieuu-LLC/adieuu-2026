@@ -15,6 +15,11 @@ mock.module('./config', () => ({
     security: {
       otpSecret: 'test-otp-secret-32-bytes-long!!',
       sessionSecret: 'test-session-secret-that-is-long-enough-for-keys',
+      accountHashSecret: 'test-account-hash-secret-32bytes!',
+      tokenSigningKey: 'test-token-signing-key-32-bytes!',
+    },
+    cookie: {
+      domain: undefined,
     },
     mongodb: {
       uri: 'mongodb://localhost:27017/test',
@@ -53,6 +58,9 @@ const Collections = {
   USERS: 'users',
   SESSIONS: 'sessions',
   AUDIT_LOGS: 'audit_logs',
+  IDENTITY_COUNTS: 'identity_counts',
+  IDENTITIES: 'identities',
+  IDENTITY_SESSIONS: 'identity_sessions',
 };
 
 // Mock db/mongo to prevent real MongoDB connections
@@ -88,6 +96,8 @@ mock.module('./db/redis', () => ({
     otp: (id: string) => `otp:${id}`,
     rateLimit: (action: string, id: string) => `rate:${action}:${id}`,
     session: (id: string) => `session:${id}`,
+    identityLoginAttempts: (accountHash: string) => `ratelimit:identity_login:${accountHash}`,
+    lockoutPending: (accountHash: string) => `lockout_pending:${accountHash}`,
   },
 }));
 
@@ -122,6 +132,8 @@ mock.module('./db', () => ({
     otp: (id: string) => `otp:${id}`,
     rateLimit: (action: string, id: string) => `rate:${action}:${id}`,
     session: (id: string) => `session:${id}`,
+    identityLoginAttempts: (accountHash: string) => `ratelimit:identity_login:${accountHash}`,
+    lockoutPending: (accountHash: string) => `lockout_pending:${accountHash}`,
   },
   // Initialization helpers
   initializeDatabases: mock(() => Promise.resolve()),

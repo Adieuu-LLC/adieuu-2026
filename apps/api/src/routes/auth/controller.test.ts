@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 
 // Mock config to avoid loading env
 mock.module('../../config', () => ({
@@ -94,14 +94,22 @@ mock.module('../../repositories/base.repository', () => ({
 }));
 
 // Mock repositories
+const mockUser = {
+  _id: 'test-user-id',
+  email: 'test@example.com',
+  createdAt: new Date('2024-01-15T12:00:00Z'),
+  maxIdentities: 2,
+  failedAttempts: 0,
+};
+
 mock.module('../../repositories/user.repository', () => ({
   getUserRepository: mock(() => ({
-    findById: mock(() => Promise.resolve(null)),
+    findById: mock(() => Promise.resolve(mockUser)),
     findOne: mock(() => Promise.resolve(null)),
     findByEmail: mock(() => Promise.resolve(null)),
     findByPhone: mock(() => Promise.resolve(null)),
     findByIdentifier: mock(() => Promise.resolve(null)),
-    create: mock(() => Promise.resolve({ _id: 'test-id' })),
+    create: mock(() => Promise.resolve({ _id: 'test-id', createdAt: new Date() })),
     updateById: mock(() => Promise.resolve(null)),
     recordLogin: mock(() => Promise.resolve()),
     incrementFailedAttempts: mock(() => Promise.resolve()),
@@ -125,13 +133,75 @@ mock.module('../../repositories/session.repository', () => ({
 }));
 
 // Mock session service
+const mockAccountSession = {
+  type: 'account' as const,
+  userId: 'test-user-id',
+  identifier: 'test@example.com',
+  identifierType: 'email' as const,
+  lastActivityAt: Date.now(),
+};
+
 mock.module('../../services/session.service', () => ({
-  createSession: mock(() => Promise.resolve({ sessionId: 'test-session', userId: 'test-user' })),
-  getSessionFromRequest: mock(() => Promise.resolve(null)),
+  createAccountSession: mock(() => Promise.resolve({ sessionId: 'test-session', cookie: 'adieuu_session=test-session; Path=/; HttpOnly' })),
+  createSession: mock(() => Promise.resolve({ sessionId: 'test-session', cookie: 'adieuu_session=test-session; Path=/; HttpOnly' })),
+  requireAccountSession: mock((request: Request) => {
+    const cookie = request.headers.get('Cookie') ?? '';
+    if (cookie.includes('adieuu_session=test-session')) {
+      return Promise.resolve(mockAccountSession);
+    }
+    return Promise.resolve(null);
+  }),
+  getSessionFromRequest: mock((request: Request) => {
+    const cookie = request.headers.get('Cookie') ?? '';
+    if (cookie.includes('adieuu_session=test-session')) {
+      return Promise.resolve(mockAccountSession);
+    }
+    return Promise.resolve(null);
+  }),
   destroySession: mock(() => Promise.resolve()),
   destroyAllSessions: mock(() => Promise.resolve(0)),
-  getSessionIdFromRequest: mock(() => null),
-  buildLogoutCookie: mock(() => 'session=; Path=/; HttpOnly; Max-Age=0'),
+  getSessionIdFromRequest: mock((request: Request) => {
+    const cookie = request.headers.get('Cookie') ?? '';
+    const match = cookie.match(/adieuu_session=([^;]+)/);
+    return match?.[1] ?? null;
+  }),
+  buildLogoutCookie: mock(() => 'adieuu_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax'),
+}));
+
+// Mock account token service
+mock.module('../../services/account-token.service', () => ({
+  generateAccountHash: mock(() => 'a'.repeat(64)),
+  createSignedToken: mock(() => 'mock-signed-token'),
+}));
+
+// Mock identity count repository
+mock.module('../../repositories/identity-count.repository', () => ({
+  getIdentityCountRepository: mock(() => ({
+    getCount: mock(() => Promise.resolve(1)),
+  })),
+}));
+
+// Mock identity service (for MAX_IDENTITIES_PER_USER constant used by auth routes)
+mock.module('../../services/identity.service', () => ({
+  MAX_IDENTITIES_PER_USER: 2,
+}));
+
+// Mock platform capabilities service
+mock.module('../../services/platform-capabilities.service', () => ({
+  getPlatformCapabilities: mock(() => Promise.resolve({
+    isPlatformAdmin: false,
+    isPlatformModerator: false,
+    permissions: [],
+  })),
+}));
+
+// Mock MFA service
+mock.module('../../services/mfa.service', () => ({
+  getMfaStatus: mock(() => Promise.resolve({ enabled: false, totpEnabled: false, webauthnEnabled: false, backupCodesExist: false })),
+  verifyTotpCode: mock(() => Promise.resolve({ success: false })),
+  verifyWebAuthnAuthentication: mock(() => Promise.resolve({ success: false })),
+  verifyBackupCode: mock(() => Promise.resolve({ success: false })),
+  generateWebAuthnAuthenticationOptions: mock(() => Promise.resolve(null)),
 }));
 
 // Now mock the services that depend on db
@@ -174,8 +244,13 @@ mock.module('../../services/platform-settings.service', () => ({
 }));
 
 import { requestOtp, getClientIp, verifyOtpHandler, type RequestOtpInput } from './controller';
+import { authRoutes } from './index';
 
 describe('auth controller', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     // Reset all mocks before each test
     mockCreateOtp.mockClear();
@@ -563,6 +638,87 @@ describe('auth controller', () => {
       if (!result.success) {
         expect(result.error).toBe('not_allowed');
       }
+    });
+  });
+
+  // ==========================================================================
+  // Route-level tests
+  // ==========================================================================
+
+  describe('GET /auth/session', () => {
+    const makeRouteRequest = async (
+      path: string,
+      options: { method?: string; cookies?: string } = {}
+    ) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (options.cookies) {
+        headers['Cookie'] = options.cookies;
+      }
+      const request = new Request(`http://localhost${path}`, {
+        method: options.method ?? 'GET',
+        headers,
+      });
+      const handler = authRoutes.handler();
+      return handler(request);
+    };
+
+    test('returns session data with signedToken and identityCount', async () => {
+      const response = await makeRouteRequest('/auth/session', {
+        cookies: 'adieuu_session=test-session',
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json() as {
+        data: { signedToken: string; identityCount: number; identifier: string };
+      };
+      expect(body.data.signedToken).toBe('mock-signed-token');
+      expect(body.data.identityCount).toBe(1);
+      expect(body.data.identifier).toBe('test@example.com');
+    });
+
+    test('returns 401 without session', async () => {
+      const response = await makeRouteRequest('/auth/session');
+
+      expect(response.status).toBe(401);
+    });
+  });
+
+  describe('POST /auth/clear-session', () => {
+    const makeRouteRequest = async (
+      path: string,
+      options: { method?: string; cookies?: string; body?: object } = {}
+    ) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (options.cookies) {
+        headers['Cookie'] = options.cookies;
+      }
+      const request = new Request(`http://localhost${path}`, {
+        method: options.method ?? 'POST',
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+      const handler = authRoutes.handler();
+      return handler(request);
+    };
+
+    test('clears session and returns logout cookie', async () => {
+      const response = await makeRouteRequest('/auth/clear-session', {
+        method: 'POST',
+        cookies: 'adieuu_session=test-session',
+      });
+
+      expect(response.status).toBe(200);
+      const setCookie = response.headers.get('Set-Cookie');
+      expect(setCookie).toContain('adieuu_session=');
+      expect(setCookie).toContain('Max-Age=0');
+    });
+
+    test('succeeds even without session', async () => {
+      const response = await makeRouteRequest('/auth/clear-session', {
+        method: 'POST',
+      });
+
+      expect(response.status).toBe(200);
     });
   });
 });

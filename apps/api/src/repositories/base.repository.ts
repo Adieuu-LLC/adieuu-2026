@@ -4,6 +4,7 @@
  */
 
 import {
+  ClientSession,
   Collection,
   Document,
   Filter,
@@ -22,7 +23,7 @@ export interface IRepository<T extends BaseDocument> {
   findById(id: string | ObjectId): Promise<T | null>;
   findOne(filter: Filter<T>): Promise<T | null>;
   findMany(filter: Filter<T>, limit?: number): Promise<T[]>;
-  create(data: Omit<T, '_id' | 'createdAt' | 'updatedAt'>): Promise<T>;
+  create(data: Omit<T, '_id' | 'createdAt' | 'updatedAt'>, options?: { session?: ClientSession }): Promise<T>;
   updateById(id: string | ObjectId, update: Partial<Omit<T, '_id' | 'createdAt'>>): Promise<T | null>;
   deleteById(id: string | ObjectId): Promise<boolean>;
   count(filter: Filter<T>): Promise<number>;
@@ -76,9 +77,9 @@ export class BaseRepository<T extends BaseDocument> implements IRepository<T> {
   /**
    * Create a new document
    */
-  async create(data: Omit<T, '_id' | 'createdAt' | 'updatedAt'>): Promise<T> {
+  async create(data: Omit<T, '_id' | 'createdAt' | 'updatedAt'>, options?: { session?: ClientSession }): Promise<T> {
     const doc = withTimestamps(data) as OptionalUnlessRequiredId<T>;
-    const result = await this.collection.insertOne(doc);
+    const result = await this.collection.insertOne(doc, { session: options?.session });
     return { ...doc, _id: result.insertedId } as T;
   }
 
