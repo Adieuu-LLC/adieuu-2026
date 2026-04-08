@@ -5,7 +5,7 @@ import { SidebarLogo } from './sidebar/conversations';
 import { SidebarFooterContent } from './sidebar/footer';
 import { FriendsPanel } from './sidebar/friends';
 import { ChatInvitationsPanel } from './sidebar/invitations';
-import { SidebarNavContent } from './sidebar/nav';
+import { SidebarTopNavContent, SidebarNavContent } from './sidebar/nav';
 import {
   applySidebarAction,
   closeChatInvitesPanel,
@@ -51,6 +51,12 @@ export function AppSidebar({ onExpandedChange }: AppSidebarProps) {
   return (
     <Sidebar
       header={<SidebarLogo />}
+      topNav={
+        <SidebarTopNavContent
+          isFriendsPanelOpen={panelState.isFriendsPanelOpen}
+          onToggleFriendsPanel={handleToggleFriendsPanel}
+        />
+      }
       footer={<SidebarFooterContent />}
       panel={
         <>
@@ -67,8 +73,6 @@ export function AppSidebar({ onExpandedChange }: AppSidebarProps) {
       onExpandedChange={onExpandedChange}
     >
       <SidebarNavContent
-        isFriendsPanelOpen={panelState.isFriendsPanelOpen}
-        onToggleFriendsPanel={handleToggleFriendsPanel}
         isChatInvitesPanelOpen={panelState.isChatInvitesPanelOpen}
         onToggleChatInvitesPanel={handleToggleChatInvitesPanel}
       />

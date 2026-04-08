@@ -39,6 +39,8 @@ export function useSidebar() {
 export interface SidebarProps {
   children: ReactNode;
   header?: ReactNode;
+  /** Content rendered between the header and the scrollable nav area (not clipped by overflow) */
+  topNav?: ReactNode;
   footer?: ReactNode;
   /** Optional panel rendered inside the aside but outside the scrollable nav area */
   panel?: ReactNode;
@@ -52,6 +54,7 @@ export interface SidebarProps {
 export function Sidebar({ 
   children, 
   header, 
+  topNav,
   footer, 
   panel,
   defaultExpanded = true,
@@ -173,6 +176,8 @@ export function Sidebar({
 
       <aside className={classNames}>
         {header && <div className="sidebar-header">{header}</div>}
+
+        {topNav && <div className="sidebar-top-nav">{topNav}</div>}
         
         <nav className="sidebar-nav">{children}</nav>
         
@@ -333,7 +338,7 @@ export function SidebarDivider() {
 // ============================================================================
 
 export interface SidebarSectionProps {
-  label: string;
+  label?: string;
   children: ReactNode;
 }
 
@@ -342,7 +347,7 @@ export function SidebarSection({ label, children }: SidebarSectionProps) {
   
   return (
     <div className="sidebar-section">
-      {isExpanded && <span className="sidebar-section-label">{label}</span>}
+      {label && isExpanded && <span className="sidebar-section-label">{label}</span>}
       {children}
     </div>
   );

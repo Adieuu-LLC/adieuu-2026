@@ -1,0 +1,1 @@
+export { AboutUpdates } from './Updates';

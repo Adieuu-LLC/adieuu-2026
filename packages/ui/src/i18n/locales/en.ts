@@ -896,6 +896,10 @@ export const en = {
     securityText: 'All messages are encrypted using industry-standard cryptographic algorithms. Our passwordless authentication system eliminates the risk of password breaches while providing a seamless user experience.',
     desktopTitle: 'Desktop App',
     desktopText: 'The Adieuu desktop app is built with Electron, providing a native experience on Windows, macOS, and Linux. It shares the same secure codebase as our web application, ensuring consistent security across all platforms.',
+    updates: {
+      title: 'Check for Updates',
+      subtitle: 'Keep Adieuu up to date with the latest features and security patches.',
+    },
   },
 
   download: {
