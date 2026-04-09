@@ -53,6 +53,9 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   // Login status for progress display
   const [loginStatus, setLoginStatus] = useState<LoginStatus>('authenticating');
 
+  // Ref for refocusing the unlock passphrase input after a failed attempt
+  const unlockInputRef = useRef<HTMLInputElement>(null);
+
   // Web device choice modal state
   const [webDeviceChoiceOpen, setWebDeviceChoiceOpen] = useState(false);
   const webDeviceChoiceResolver = useRef<((choice: WebDeviceChoice) => void) | null>(null);
@@ -163,6 +166,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
       }, 500);
     } else {
       setError(result.error || t('identity.unlock.errorInvalid'));
+      unlockInputRef.current?.focus();
     }
   };
 
@@ -380,6 +384,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
               }}
             >
               <Input
+                ref={unlockInputRef}
                 type="password"
                 placeholder={t('identity.unlock.passphrasePlaceholder')}
                 value={passphrase}
