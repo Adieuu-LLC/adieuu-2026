@@ -97,6 +97,34 @@ export class KeyBundleRepository
   }
 
   /**
+   * Migrate a bundle to a new bundleId and update its encrypted contents.
+   * Used during passphrase change when the ident (and thus bundleId) changes.
+   */
+  async migrateBundleId(
+    oldBundleId: string,
+    newBundleId: string,
+    encryptedBundle: string,
+    salt: string,
+    nonce: string,
+  ): Promise<KeyBundleDocument | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { bundleId: oldBundleId },
+      {
+        $set: {
+          bundleId: newBundleId,
+          encryptedBundle,
+          salt,
+          nonce,
+          updatedAt: new Date(),
+        },
+      },
+      { returnDocument: 'after' },
+    );
+
+    return result as KeyBundleDocument | null;
+  }
+
+  /**
    * Delete a key bundle by its bundle ID.
    * Used when deleting an identity.
    */

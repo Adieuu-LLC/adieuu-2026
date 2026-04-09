@@ -364,6 +364,8 @@ export const Collections = {
   PLATFORM_REPORT_EVENTS: 'platform_report_events',
   /** Per-accountHash identity creation counts (unique index on accountHash) */
   IDENTITY_COUNTS: 'identity_counts',
+  /** Identity-scoped backup / recovery codes */
+  IDENTITY_BACKUP_CODES: 'identity_backup_codes',
 } as const;
 
 /**
@@ -598,6 +600,10 @@ async function createIndexes(): Promise<void> {
   // Identity counts collection indexes
   const identityCounts = database.collection(Collections.IDENTITY_COUNTS);
   await identityCounts.createIndex({ accountHash: 1 }, { unique: true });
+
+  // Identity backup codes — one document per identity
+  const identityBackupCodes = database.collection(Collections.IDENTITY_BACKUP_CODES);
+  await identityBackupCodes.createIndex({ identityId: 1 }, { unique: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

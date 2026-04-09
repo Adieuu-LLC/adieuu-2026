@@ -896,6 +896,18 @@ export interface IdentityLoginErrorResponse {
   retryAfter?: number;
 }
 
+/**
+ * Parameters for changing the identity passphrase.
+ */
+export interface ChangePassphraseParams {
+  signedToken: string;
+  currentPassphrase: string;
+  newPassphrase: string;
+  newEncryptedBundle: string;
+  newBundleSalt: string;
+  newBundleNonce: string;
+}
+
 export class IdentityApi {
   constructor(private client: ApiClient) { }
 
@@ -1280,6 +1292,48 @@ export class IdentityApi {
   async getProfile(identityId: string): Promise<ApiResponse<PublicIdentity>> {
     return this.client.get(
       `/api/identity/${encodeURIComponent(identityId)}/profile`
+    );
+  }
+
+  // ==========================================================================
+  // Passphrase Change
+  // ==========================================================================
+
+  /**
+   * Change the identity passphrase.
+   *
+   * The client must re-encrypt the key bundle with the new passphrase
+   * before calling this endpoint. Returns new backup codes.
+   */
+  async changePassphrase(
+    params: ChangePassphraseParams,
+  ): Promise<ApiResponse<{ backupCodes: string[] }>> {
+    return this.client.post('/api/identity/change-passphrase', params);
+  }
+
+  // ==========================================================================
+  // Backup Codes
+  // ==========================================================================
+
+  /**
+   * Regenerate identity backup codes (invalidates existing codes).
+   */
+  async regenerateBackupCodes(
+    identityId: string,
+  ): Promise<ApiResponse<{ backupCodes: string[] }>> {
+    return this.client.post(
+      `/api/identity/${encodeURIComponent(identityId)}/backup-codes/regenerate`,
+    );
+  }
+
+  /**
+   * Get remaining identity backup code count.
+   */
+  async getBackupCodesCount(
+    identityId: string,
+  ): Promise<ApiResponse<{ remaining: number }>> {
+    return this.client.get(
+      `/api/identity/${encodeURIComponent(identityId)}/backup-codes/count`,
     );
   }
 }

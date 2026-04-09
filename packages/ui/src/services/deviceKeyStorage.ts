@@ -579,6 +579,59 @@ export async function decryptDeviceKeys(
 }
 
 /**
+ * Re-wraps all device keys for an identity with a new wrapping key.
+ *
+ * Each stored key is decrypted with the old wrapping key and re-encrypted
+ * with the new one. Used during passphrase change (the wrapping key is
+ * derived from the passphrase).
+ *
+ * @returns Number of device keys re-wrapped
+ */
+export async function reWrapDeviceKeys(
+  identityId: string,
+  oldWrappingKey: Uint8Array,
+  newWrappingKey: Uint8Array,
+): Promise<number> {
+  const storedKeys = await getDeviceKeysForIdentity(identityId);
+  if (storedKeys.length === 0) return 0;
+
+  let reWrapped = 0;
+
+  for (const stored of storedKeys) {
+    const ecdhPlain = await decryptWithWrappingKey(stored.ecdhPrivateKeyEncrypted, oldWrappingKey);
+    const kemPlain = await decryptWithWrappingKey(stored.kemPrivateKeyEncrypted, oldWrappingKey);
+
+    const ecdhEncrypted = await encryptWithWrappingKey(ecdhPlain, newWrappingKey);
+    const kemEncrypted = await encryptWithWrappingKey(kemPlain, newWrappingKey);
+
+    clearBytes(ecdhPlain);
+    clearBytes(kemPlain);
+
+    stored.ecdhPrivateKeyEncrypted = ecdhEncrypted;
+    stored.kemPrivateKeyEncrypted = kemEncrypted;
+    reWrapped++;
+  }
+
+  // Persist back
+  if (getDkBackend()) {
+    await saveIdentityStore(identityId, storedKeys);
+  } else {
+    const db = await openDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const objectStore = tx.objectStore(STORE_NAME);
+      for (const record of storedKeys) {
+        objectStore.put(record);
+      }
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { reject(tx.error); };
+    });
+  }
+
+  return reWrapped;
+}
+
+/**
  * Checks if device keys exist for an identity.
  */
 export async function hasDeviceKeys(identityId: string): Promise<boolean> {

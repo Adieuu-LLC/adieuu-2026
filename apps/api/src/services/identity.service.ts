@@ -25,7 +25,10 @@ import {
   MIN_PASSPHRASE_LENGTH,
 } from '../utils/identity-hash';
 import { config } from '../config';
-import { getRedis, isRedisConnected, RedisKeys } from '../db';
+import { getRedis, isRedisConnected, RedisKeys, withTransaction } from '../db';
+import { getKeyBundleRepository } from '../repositories/key-bundle.repository';
+import { deriveBundleId } from '../utils/crypto';
+import { generateIdentityBackupCodes } from './identity-backup-codes.service';
 import {
   createIdentitySession,
   destroySession,
@@ -397,6 +400,120 @@ export async function loginToIdentity(
     sessionId,
     cookie,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Change Passphrase
+// ---------------------------------------------------------------------------
+
+export interface ChangePassphraseResult {
+  success: boolean;
+  backupCodes?: string[];
+  error?: string;
+  errorCode?: 'INVALID_PASSPHRASE' | 'VALIDATION_ERROR' | 'COLLISION' | 'BUNDLE_NOT_FOUND';
+}
+
+/**
+ * Change the passphrase for an identity.
+ *
+ * Atomically updates the ident hash and migrates the encrypted key bundle
+ * (whose lookup key is derived from the ident). New backup codes are generated
+ * after the transaction succeeds.
+ *
+ * @param accountHash - HMAC-derived account hash
+ * @param currentPassphrase - Current passphrase for verification
+ * @param newPassphrase - Replacement passphrase
+ * @param newBundle - Re-encrypted bundle payload (encrypted client-side with the new passphrase)
+ * @param callerIdentityId - Identity ID from the caller's session (ownership guard)
+ */
+export async function changePassphrase(
+  accountHash: string,
+  currentPassphrase: string,
+  newPassphrase: string,
+  newBundle: { encryptedBundle: string; salt: string; nonce: string },
+  callerIdentityId: string,
+): Promise<ChangePassphraseResult> {
+  const identityRepo = getIdentityRepository();
+
+  // Validate passphrases
+  const currentValidation = validatePassphrase(currentPassphrase);
+  if (!currentValidation.valid) {
+    return { success: false, error: currentValidation.error, errorCode: 'VALIDATION_ERROR' };
+  }
+  const newValidation = validatePassphrase(newPassphrase);
+  if (!newValidation.valid) {
+    return { success: false, error: newValidation.error, errorCode: 'VALIDATION_ERROR' };
+  }
+  if (currentPassphrase === newPassphrase) {
+    return { success: false, error: 'New passphrase must differ from current passphrase', errorCode: 'VALIDATION_ERROR' };
+  }
+
+  // Verify current passphrase
+  const { hash: currentIdent } = await generateIdentityHash(
+    currentPassphrase,
+    accountHash,
+    CURRENT_HASH_VERSION,
+  );
+
+  const identity = await identityRepo.findActiveByIdent(currentIdent);
+  if (!identity) {
+    return { success: false, error: 'Invalid passphrase', errorCode: 'INVALID_PASSPHRASE' };
+  }
+
+  if (identity._id.toHexString() !== callerIdentityId) {
+    return { success: false, error: 'Invalid passphrase', errorCode: 'INVALID_PASSPHRASE' };
+  }
+
+  // Derive new ident
+  const { hash: newIdent, version: newHashVersion } = await generateIdentityHash(
+    newPassphrase,
+    accountHash,
+    CURRENT_HASH_VERSION,
+  );
+
+  // Collision guard
+  const collision = await identityRepo.findByIdent(newIdent);
+  if (collision) {
+    return { success: false, error: 'Passphrase collision detected', errorCode: 'COLLISION' };
+  }
+
+  // Compute bundle IDs
+  const oldBundleId = deriveBundleId(currentIdent);
+  const newBundleId = deriveBundleId(newIdent);
+  const keyBundleRepo = getKeyBundleRepository();
+
+  // Ensure the existing bundle exists before attempting the migration
+  const existingBundle = await keyBundleRepo.findByBundleId(oldBundleId);
+  if (!existingBundle) {
+    return { success: false, error: 'Key bundle not found', errorCode: 'BUNDLE_NOT_FOUND' };
+  }
+
+  // Atomic: update ident + migrate bundle
+  await withTransaction(async () => {
+    await identityRepo.changeIdent(identity._id, newIdent, newHashVersion);
+    await keyBundleRepo.migrateBundleId(
+      oldBundleId,
+      newBundleId,
+      newBundle.encryptedBundle,
+      newBundle.salt,
+      newBundle.nonce,
+    );
+  });
+
+  // Generate new backup codes (outside the transaction — non-fatal)
+  let backupCodes: string[] | undefined;
+  try {
+    backupCodes = await generateIdentityBackupCodes(callerIdentityId);
+  } catch (err) {
+    elog.error('Failed to generate backup codes after passphrase change', {
+      identityId: callerIdentityId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  elog.info('Passphrase changed', { identityId: callerIdentityId });
+
+  return { success: true, backupCodes };
 }
 
 // ---------------------------------------------------------------------------

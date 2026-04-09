@@ -252,6 +252,40 @@ export class IdentityRepository
   }
 
   /**
+   * Change the ident hash and version for a passphrase change.
+   * Intended for use within a MongoDB transaction.
+   */
+  async changeIdent(
+    identityId: string | ObjectId,
+    newIdent: string,
+    newHashVersion: number,
+  ): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          ident: newIdent,
+          hashVersion: newHashVersion,
+          updatedAt: now,
+        },
+      },
+    );
+
+    if (result.modifiedCount === 1) {
+      elog.info('Identity ident changed (passphrase change)', {
+        identityId: objectId.toHexString(),
+        newHashVersion,
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Set the signing public key and crypto profile for E2E encryption.
    * Should only be called once when initializing E2E for an identity.
    */

@@ -29,9 +29,14 @@ import {
   deleteIdentity,
   getIdentityFromSession,
   getIdentitySessionIdFromRequest,
+  changePassphrase,
   MIN_PASSPHRASE_LENGTH,
   type IdentityModerationBlock,
 } from '../../services/identity.service';
+import {
+  generateIdentityBackupCodes,
+  getIdentityBackupCodesCount,
+} from '../../services/identity-backup-codes.service';
 import {
   blockIdentity,
   unblockIdentity,
@@ -200,7 +205,22 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
     return errors.badRequest(result.error ?? 'Identity creation failed.');
   }
 
-  const response = success(result.identity, 'Identity created successfully.');
+  let backupCodes: string[] | undefined;
+  if (result.identity?.id) {
+    try {
+      backupCodes = await generateIdentityBackupCodes(result.identity.id);
+    } catch (err) {
+      elog.error('Failed to generate identity backup codes during creation', {
+        identityId: result.identity.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  const response = success(
+    { ...result.identity, backupCodes },
+    'Identity created successfully.',
+  );
   if (result.cookie) {
     const headers = new Headers(response.headers);
     headers.set('Set-Cookie', result.cookie);
@@ -1018,4 +1038,124 @@ export async function initializeE2ECtrl(ctx: RouteContext): Promise<Response> {
     const errorMessage = err instanceof Error ? err.message : 'Unknown error';
     return errors.badRequest(`Failed to initialize E2E encryption: ${errorMessage}`);
   }
+}
+
+// ============================================================================
+// Identity Backup Codes Controllers
+// ============================================================================
+
+/**
+ * Regenerate identity backup codes.
+ * POST /identity/:id/backup-codes/regenerate
+ */
+export async function regenerateIdentityBackupCodesCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot regenerate backup codes for another identity.');
+  }
+
+  const backupCodes = await generateIdentityBackupCodes(identity._id.toHexString());
+
+  return success({ backupCodes }, 'Backup codes regenerated.');
+}
+
+/**
+ * Get remaining identity backup code count.
+ * GET /identity/:id/backup-codes/count
+ */
+export async function getIdentityBackupCodesCountCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot view backup codes for another identity.');
+  }
+
+  const remaining = await getIdentityBackupCodesCount(identity._id.toHexString());
+
+  return success({ remaining });
+}
+
+// ============================================================================
+// Passphrase Change Controller
+// ============================================================================
+
+const ChangePassphraseSchema = z.object({
+  signedToken: z.string().min(1),
+  currentPassphrase: z.string().min(1),
+  newPassphrase: z.string().min(MIN_PASSPHRASE_LENGTH),
+  newEncryptedBundle: z.string().min(32).max(8000),
+  newBundleSalt: z.string().min(16).max(64),
+  newBundleNonce: z.string().min(16).max(64),
+});
+
+/**
+ * Change the passphrase for the current identity.
+ * POST /identity/change-passphrase
+ */
+export async function changePassphraseCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  const parseResult = ChangePassphraseSchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const {
+    signedToken,
+    currentPassphrase,
+    newPassphrase,
+    newEncryptedBundle,
+    newBundleSalt,
+    newBundleNonce,
+  } = parseResult.data;
+
+  const tokenPayload = verifySignedToken(signedToken);
+  if (!tokenPayload) {
+    return ctx.errors.unauthorized();
+  }
+
+  const result = await changePassphrase(
+    tokenPayload.sub,
+    currentPassphrase,
+    newPassphrase,
+    { encryptedBundle: newEncryptedBundle, salt: newBundleSalt, nonce: newBundleNonce },
+    identity._id.toHexString(),
+  );
+
+  if (!result.success) {
+    if (result.errorCode === 'INVALID_PASSPHRASE') {
+      return new Response(
+        JSON.stringify({ success: false, error: result.error }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+    return errors.badRequest(result.error ?? 'Passphrase change failed.');
+  }
+
+  return success({ backupCodes: result.backupCodes }, 'Passphrase changed successfully.');
 }

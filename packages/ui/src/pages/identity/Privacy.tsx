@@ -1,18 +1,25 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Checkbox, RadioGroup } from '@ark-ui/react';
 import { createApiClient } from '@adieuu/shared';
+import { deriveEntropyWrappingKey } from '@adieuu/crypto';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
+import { Input } from '../../components/Input';
 import { Spinner } from '../../components/Spinner';
 import { Avatar } from '../../components/Avatar';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { Alert } from '../../components/Alert';
+import { BackupCodesDisplay } from '../../components/BackupCodesDisplay';
 import { useBlocks } from '../../hooks/useBlocks';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useAuth } from '../../hooks/useAuth';
 import { usePreKeys } from '../../hooks/usePreKeys';
 import { useAppConfig } from '../../config';
 import { useToast } from '../../components/Toast';
+import { decryptKeyBundle, encryptKeyBundle } from '../../services/e2eKeyService';
+import { getOrCreateWrappingSalt, reWrapDeviceKeys } from '../../services/deviceKeyStorage';
 import type { SecurityLevel } from '../../services/preKeyService';
 
 // ============================================================================
@@ -301,6 +308,291 @@ function ForwardSecrecySettings() {
 }
 
 // ============================================================================
+// Change Passphrase Settings
+// ============================================================================
+
+type ChangePassphraseStep = 'form' | 'processing' | 'backup_codes' | 'done';
+
+function ChangePassphraseSettings({ api }: { api: ReturnType<typeof createApiClient> }) {
+  const { t } = useTranslation();
+  const { identity, getWrappingKey } = useIdentity();
+  const { session } = useAuth();
+  const toast = useToast();
+
+  const [step, setStep] = useState<ChangePassphraseStep>('form');
+  const [currentPassphrase, setCurrentPassphrase] = useState('');
+  const [newPassphrase, setNewPassphrase] = useState('');
+  const [confirmPassphrase, setConfirmPassphrase] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+
+  const resetForm = () => {
+    setCurrentPassphrase('');
+    setNewPassphrase('');
+    setConfirmPassphrase('');
+    setError(null);
+    setBackupCodes([]);
+    setStep('form');
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (newPassphrase.length < 8) {
+      setError(t('identity.privacy.changePassphrase.errorMinLength'));
+      return;
+    }
+    if (newPassphrase !== confirmPassphrase) {
+      setError(t('identity.privacy.changePassphrase.errorMismatch'));
+      return;
+    }
+    if (currentPassphrase === newPassphrase) {
+      setError(t('identity.privacy.changePassphrase.errorSamePassphrase'));
+      return;
+    }
+
+    const signedToken = session?.signedToken;
+    if (!signedToken || !identity) {
+      setError('Session expired. Please refresh the page.');
+      return;
+    }
+
+    setStep('processing');
+
+    try {
+      // 1. Fetch the encrypted bundle
+      const bundleResp = await api.identity.getKeyBundle(identity.id);
+      if (!bundleResp.success || !bundleResp.data) {
+        throw new Error('Failed to fetch key bundle');
+      }
+
+      // 2. Decrypt with current passphrase
+      let decrypted;
+      try {
+        decrypted = await decryptKeyBundle(bundleResp.data, currentPassphrase);
+      } catch {
+        setError(t('identity.privacy.changePassphrase.errorDecryptFailed'));
+        setStep('form');
+        return;
+      }
+
+      // 3. Re-encrypt with new passphrase
+      const newBundle = await encryptKeyBundle(decrypted, newPassphrase);
+
+      // 4. Send to server
+      const result = await api.identity.changePassphrase({
+        signedToken,
+        currentPassphrase,
+        newPassphrase,
+        newEncryptedBundle: newBundle.encryptedBundle,
+        newBundleSalt: newBundle.salt,
+        newBundleNonce: newBundle.nonce,
+      });
+
+      if (!result.success) {
+        setError(result.error?.message ?? t('identity.privacy.changePassphrase.errorFailed'));
+        setStep('form');
+        return;
+      }
+
+      // 5. Re-wrap local device keys
+      const oldWrappingKey = getWrappingKey();
+      if (oldWrappingKey) {
+        try {
+          const wrappingSalt = await getOrCreateWrappingSalt(identity.id);
+          const newWrappingKey = await deriveEntropyWrappingKey(newPassphrase, wrappingSalt);
+          await reWrapDeviceKeys(identity.id, oldWrappingKey, newWrappingKey);
+        } catch (err) {
+          console.warn('[ChangePassphrase] Failed to re-wrap local device keys:', err);
+        }
+      }
+
+      // 6. Show backup codes
+      if (result.data?.backupCodes && result.data.backupCodes.length > 0) {
+        setBackupCodes(result.data.backupCodes);
+        setStep('backup_codes');
+      } else {
+        toast.success(t('identity.privacy.changePassphrase.success'));
+        resetForm();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('identity.privacy.changePassphrase.errorFailed'));
+      setStep('form');
+    }
+  };
+
+  if (step === 'processing') {
+    return (
+      <div className="change-passphrase-processing">
+        <Spinner size="lg" />
+        <p>{t('identity.privacy.changePassphrase.processing')}</p>
+      </div>
+    );
+  }
+
+  if (step === 'backup_codes') {
+    return (
+      <BackupCodesDisplay
+        codes={backupCodes}
+        onConfirm={() => {
+          toast.success(t('identity.privacy.changePassphrase.success'));
+          resetForm();
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="change-passphrase-settings">
+      <div className="sessions-header">
+        <div className="sessions-header-text">
+          <h3>{t('identity.privacy.changePassphrase.title')}</h3>
+          <p>{t('identity.privacy.changePassphrase.description')}</p>
+        </div>
+      </div>
+
+      <Alert variant="warning" className="change-passphrase-warning">
+        {t('identity.privacy.changePassphrase.invalidatesBackupCodes')}
+      </Alert>
+
+      {error && <Alert variant="error">{error}</Alert>}
+
+      <form onSubmit={handleSubmit} className="change-passphrase-form">
+        <Input
+          type="password"
+          label={t('identity.privacy.changePassphrase.currentPassphrase')}
+          value={currentPassphrase}
+          onChange={(e) => setCurrentPassphrase(e.target.value)}
+          autoComplete="current-password"
+        />
+        <Input
+          type="password"
+          label={t('identity.privacy.changePassphrase.newPassphrase')}
+          value={newPassphrase}
+          onChange={(e) => setNewPassphrase(e.target.value)}
+          autoComplete="new-password"
+        />
+        <Input
+          type="password"
+          label={t('identity.privacy.changePassphrase.confirmPassphrase')}
+          value={confirmPassphrase}
+          onChange={(e) => setConfirmPassphrase(e.target.value)}
+          autoComplete="new-password"
+        />
+        <Button type="submit" disabled={!currentPassphrase || !newPassphrase || !confirmPassphrase}>
+          {t('identity.privacy.changePassphrase.submit')}
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+// ============================================================================
+// Backup Codes Section
+// ============================================================================
+
+function BackupCodesSection({ api }: { api: ReturnType<typeof createApiClient> }) {
+  const { t } = useTranslation();
+  const { identity } = useIdentity();
+  const toast = useToast();
+
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [newCodes, setNewCodes] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (!identity) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await api.identity.getBackupCodesCount(identity.id);
+        if (!cancelled && resp.success && resp.data) {
+          setRemaining(resp.data.remaining);
+        }
+      } catch {
+        // Non-fatal
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [api, identity]);
+
+  const handleRegenerate = async () => {
+    if (!identity) return;
+    setRegenerating(true);
+    try {
+      const resp = await api.identity.regenerateBackupCodes(identity.id);
+      if (resp.success && resp.data) {
+        setNewCodes(resp.data.backupCodes);
+        setRemaining(resp.data.backupCodes.length);
+      }
+    } catch {
+      toast.error(t('identity.privacy.backupCodes.sectionTitle'), 'Failed to regenerate codes.');
+    } finally {
+      setRegenerating(false);
+      setShowConfirm(false);
+    }
+  };
+
+  if (newCodes) {
+    return (
+      <BackupCodesDisplay
+        codes={newCodes}
+        onConfirm={() => setNewCodes(null)}
+      />
+    );
+  }
+
+  return (
+    <div className="backup-codes-section">
+      <div className="sessions-header">
+        <div className="sessions-header-text">
+          <h3>{t('identity.privacy.backupCodes.sectionTitle')}</h3>
+          <p>{t('identity.privacy.backupCodes.sectionDescription')}</p>
+        </div>
+      </div>
+
+      {loading ? (
+        <Spinner size="sm" />
+      ) : (
+        <p className="backup-codes-remaining">
+          {remaining != null && remaining > 0
+            ? t('identity.privacy.backupCodes.remaining', { count: remaining })
+            : t('identity.privacy.backupCodes.noneRemaining')}
+        </p>
+      )}
+
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => setShowConfirm(true)}
+        disabled={regenerating}
+      >
+        {regenerating
+          ? <Spinner size="sm" />
+          : t('identity.privacy.backupCodes.regenerate')}
+      </Button>
+
+      <ConfirmDialog
+        open={showConfirm}
+        onOpenChange={setShowConfirm}
+        title={t('identity.privacy.backupCodes.regenerateTitle')}
+        description={t('identity.privacy.backupCodes.regenerateConfirm')}
+        confirmLabel={t('identity.privacy.backupCodes.regenerate')}
+        cancelLabel={t('common.cancel', 'Cancel')}
+        variant="danger"
+        loading={regenerating}
+        onConfirm={handleRegenerate}
+      />
+    </div>
+  );
+}
+
+// ============================================================================
 // Identity Privacy Page
 // ============================================================================
 
@@ -369,6 +661,11 @@ export function IdentityPrivacy() {
               {t('identity.privacy.tabs.forwardSecrecy', 'Forward Secrecy')}{' '}
               <span className="beta-badge">{t('identity.devices.forwardSecrecy.betaBadge')}</span>
             </TabTrigger>
+            {isLoggedIn && (
+              <TabTrigger value="change-passphrase">
+                {t('identity.privacy.tabs.changePassphrase', 'Change Passphrase')}
+              </TabTrigger>
+            )}
           </TabList>
 
           <TabContent value="general">
@@ -464,6 +761,18 @@ export function IdentityPrivacy() {
               <ForwardSecrecySettings />
             </Card>
           </TabContent>
+
+          {isLoggedIn && (
+            <TabContent value="change-passphrase">
+              <Card variant="elevated">
+                <ChangePassphraseSettings api={api} />
+              </Card>
+
+              <Card variant="elevated" className="backup-codes-card">
+                <BackupCodesSection api={api} />
+              </Card>
+            </TabContent>
+          )}
         </Tabs>
 
         <ConfirmDialog

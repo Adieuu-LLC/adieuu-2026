@@ -144,7 +144,7 @@ export const en = {
     // Menu items for identity flyout
     menu: {
       profile: 'Profile',
-      privacy: 'Privacy',
+      privacy: 'Privacy & Security',
       appearance: 'Appearance',
       notifications: 'Notifications',
       ciphers: 'Ciphers',
@@ -153,6 +153,17 @@ export const en = {
     // Actions for identity interactions
     actions: {
       viewProfile: 'View Profile',
+    },
+    // Backup codes (shared display component)
+    backupCodes: {
+      title: 'Save Your Recovery Codes',
+      description: 'These recovery codes can be used to regain access to your alias if you forget your passphrase. Each code can only be used once.',
+      warning: 'These codes will not be shown again. Save them in a secure location now.',
+      copy: 'Copy all',
+      copied: 'Copied!',
+      download: 'Download as file',
+      confirmLabel: 'I have saved my recovery codes in a safe place',
+      continue: 'Continue',
     },
     // Device management
     device: {
@@ -387,7 +398,7 @@ export const en = {
       errorUsernameTaken: 'This username is already taken.',
       errorMaxIdentities: 'You have reached the maximum number of identities.',
       errorValidation: 'Please check your input and try again.',
-      noRecoveryWarning: 'There is no recovery option for your passphrase. Make sure you remember it!',
+      noRecoveryWarning: 'After creating your alias, you will receive recovery codes. Store them safely — they are the only way to recover your alias if you forget your passphrase.',
     },
     // Login modal
     login: {
@@ -600,11 +611,12 @@ export const en = {
     },
     // Privacy page (identity-scoped)
     privacy: {
-      title: 'Privacy',
-      subtitle: 'Control your privacy settings and who can interact with you.',
+      title: 'Privacy & Security',
+      subtitle: 'Manage your privacy settings, security options, and recovery codes.',
       tabs: {
         general: 'General',
         forwardSecrecy: 'Forward Secrecy',
+        changePassphrase: 'Change Passphrase',
       },
       blockedUsers: 'Blocked Users',
       profileVisibility: 'Profile Visibility',
@@ -618,6 +630,31 @@ export const en = {
       groupApprovalEnabled: 'Group approval is now required.',
       groupApprovalDisabled: 'Group approval is no longer required.',
       groupApprovalError: 'Failed to update setting. Please try again.',
+      changePassphrase: {
+        title: 'Change Passphrase',
+        description: 'Change the passphrase used to sign in to this alias. Your encrypted key bundle will be re-encrypted with the new passphrase.',
+        currentPassphrase: 'Current passphrase',
+        newPassphrase: 'New passphrase',
+        confirmPassphrase: 'Confirm new passphrase',
+        submit: 'Change Passphrase',
+        processing: 'Changing passphrase...',
+        success: 'Passphrase changed successfully.',
+        errorMismatch: 'New passphrases do not match.',
+        errorSamePassphrase: 'New passphrase must be different from current passphrase.',
+        errorMinLength: 'Passphrase must be at least 8 characters.',
+        errorDecryptFailed: 'Failed to decrypt your key bundle. Is your current passphrase correct?',
+        errorFailed: 'Passphrase change failed. Please try again.',
+        invalidatesBackupCodes: 'This will invalidate your existing backup codes. New codes will be generated.',
+      },
+      backupCodes: {
+        sectionTitle: 'Recovery Codes',
+        sectionDescription: 'Recovery codes let you regain access to your alias if you forget your passphrase.',
+        remaining: '{{count}} recovery codes remaining',
+        noneRemaining: 'No recovery codes remaining',
+        regenerate: 'Regenerate codes',
+        regenerateTitle: 'Regenerate Recovery Codes',
+        regenerateConfirm: 'This will invalidate your existing recovery codes. You will receive a new set. Continue?',
+      },
     },
     // Appearance page (identity-scoped)
     appearance: {

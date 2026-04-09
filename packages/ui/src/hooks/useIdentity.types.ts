@@ -46,6 +46,7 @@ export interface UnlockIdentityResult {
 export interface CreateIdentityResult {
   success: boolean;
   identity?: PublicIdentity;
+  backupCodes?: string[];
   error?: string;
   errorCode?:
     | 'USERNAME_TAKEN'

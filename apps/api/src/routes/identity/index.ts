@@ -42,6 +42,9 @@ import {
   listIdentitySessionsCtrl,
   revokeIdentitySessionCtrl,
   revokeAllOtherIdentitySessionsCtrl,
+  regenerateIdentityBackupCodesCtrl,
+  getIdentityBackupCodesCountCtrl,
+  changePassphraseCtrl,
 } from './controller';
 import {
   uploadPreKeysCtrl,
@@ -204,6 +207,31 @@ router.delete('/identity/blocklist/:identityId', async (ctx) => {
  */
 router.post('/identity', async (ctx) => {
   return await createIdentityCtrl(ctx);
+});
+
+/**
+ * POST /identity/change-passphrase - Change passphrase for the current identity
+ *
+ * Changes the identity's passphrase (ident hash), migrates the encrypted
+ * key bundle, and generates new backup codes. The client must re-encrypt
+ * the key bundle with the new passphrase before calling this endpoint.
+ *
+ * @route POST /api/identity/change-passphrase
+ *
+ * @requestBody
+ * - `signedToken` (string, required): Bridging token for accountHash
+ * - `currentPassphrase` (string, required): Current passphrase for verification
+ * - `newPassphrase` (string, required): New passphrase (min 8 characters)
+ * - `newEncryptedBundle` (string, required): Bundle re-encrypted with new passphrase
+ * - `newBundleSalt` (string, required): New Argon2id salt (base64)
+ * - `newBundleNonce` (string, required): New ChaCha20-Poly1305 nonce (base64)
+ *
+ * @returns 200 OK with new backup codes
+ * @returns 401 Unauthorized if current passphrase is invalid or not authenticated
+ * @returns 400 Bad Request if validation fails
+ */
+router.post('/identity/change-passphrase', async (ctx) => {
+  return await changePassphraseCtrl(ctx);
 });
 
 /**
@@ -490,6 +518,41 @@ router.get('/identity/:id/devices/:deviceId/pre-keys/count', async (ctx) => {
  */
 router.delete('/identity/:id/devices/:deviceId/pre-keys/one-time', async (ctx) => {
   return await purgeOneTimePreKeysCtrl(ctx);
+});
+
+// ============================================================================
+// Identity Backup Codes
+// ============================================================================
+
+/**
+ * POST /identity/:id/backup-codes/regenerate - Regenerate backup codes
+ *
+ * Invalidates any existing backup codes and generates a fresh set.
+ * Returns the new plaintext codes (shown once, stored hashed).
+ *
+ * @route POST /api/identity/:id/backup-codes/regenerate
+ *
+ * @returns 200 OK with new plaintext backup codes
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to regenerate for another identity
+ */
+router.post('/identity/:id/backup-codes/regenerate', async (ctx) => {
+  return await regenerateIdentityBackupCodesCtrl(ctx);
+});
+
+/**
+ * GET /identity/:id/backup-codes/count - Get remaining backup code count
+ *
+ * Returns the number of unused backup codes for the identity.
+ *
+ * @route GET /api/identity/:id/backup-codes/count
+ *
+ * @returns 200 OK with { remaining: number }
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if trying to query another identity
+ */
+router.get('/identity/:id/backup-codes/count', async (ctx) => {
+  return await getIdentityBackupCodesCountCtrl(ctx);
 });
 
 // ============================================================================

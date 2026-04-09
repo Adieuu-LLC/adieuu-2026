@@ -282,6 +282,72 @@ export async function generateE2EKeys(input: E2EInitInput): Promise<E2EInitResul
 }
 
 /**
+ * Re-encrypt a decrypted bundle with a new passphrase.
+ *
+ * Used during passphrase change: the caller decrypts with the old passphrase
+ * (via `decryptKeyBundle`), then re-encrypts here with the new one. The bundle
+ * format is preserved (v1 signing-key-only or v2 JSON with web device keys).
+ *
+ * @param decrypted - Decrypted bundle from `decryptKeyBundle`
+ * @param newPassphrase - Passphrase to encrypt with
+ * @returns Encrypted bundle ready for server upload
+ * @throws E2EKeyError if encryption fails
+ */
+export async function encryptKeyBundle(
+  decrypted: DecryptedBundle,
+  newPassphrase: string,
+): Promise<{ encryptedBundle: string; salt: string; nonce: string }> {
+  let plaintextBytes: Uint8Array;
+
+  if (decrypted.webDevice) {
+    const bundlePlaintext: BundleV2Plaintext = {
+      v: 2,
+      signingKey: toBase64(decrypted.signingPrivateKey),
+      webDevice: {
+        deviceId: decrypted.webDevice.deviceId,
+        ecdhPrivateKey: toBase64(decrypted.webDevice.ecdhPrivateKey),
+        kemPrivateKey: toBase64(decrypted.webDevice.kemPrivateKey),
+        ecdhPublicKey: toBase64(decrypted.webDevice.ecdhPublicKey),
+        kemPublicKey: toBase64(decrypted.webDevice.kemPublicKey),
+      },
+    };
+    plaintextBytes = new TextEncoder().encode(JSON.stringify(bundlePlaintext));
+  } else {
+    plaintextBytes = new Uint8Array(decrypted.signingPrivateKey);
+  }
+
+  const salt = randomBytes(16);
+  let derivedKey: Uint8Array;
+
+  try {
+    derivedKey = await deriveKeyFromPassword({
+      password: newPassphrase,
+      salt,
+      memoryCost: ARGON2_DEFAULTS.memoryCost,
+      timeCost: ARGON2_DEFAULTS.timeCost,
+      parallelism: ARGON2_DEFAULTS.parallelism,
+      outputLength: 32,
+    });
+  } catch {
+    throw new E2EKeyError(
+      'Failed to derive encryption key from new passphrase',
+      'KEY_DERIVATION_FAILED',
+    );
+  }
+
+  const { ciphertext, nonce } = encryptChaCha20Poly1305(derivedKey, plaintextBytes);
+
+  clearBytes(derivedKey);
+  clearBytes(plaintextBytes);
+
+  return {
+    encryptedBundle: toBase64(ciphertext),
+    salt: toBase64(salt),
+    nonce: toBase64(nonce),
+  };
+}
+
+/**
  * Generates device keys for a new device login.
  *
  * Called when logging into an identity from a device that doesn't have
