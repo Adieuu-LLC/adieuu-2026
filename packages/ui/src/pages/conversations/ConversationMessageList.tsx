@@ -103,7 +103,9 @@ export function ConversationMessageList({
   const [convGifHidden] = useConversationGifHidden(conversationId ?? '');
   const gifsEnabled = gifVisibility !== 'disabled' && !convGifHidden && !gifsDisabledByAdmin;
 
-  const itemContent = useCallback((_: number, item: ChatItem) => {
+  const virtuosoContext = useMemo(() => ({ gifsEnabled }), [gifsEnabled]);
+
+  const itemContent = useCallback((_: number, item: ChatItem, ctx: { gifsEnabled: boolean }) => {
     if (item.type === 'day-separator') {
       return (
         <div className="dm-day-separator">
@@ -174,7 +176,7 @@ export function ConversationMessageList({
           onLinkClick={onLinkClick}
           onMentionClick={onMentionClick}
           selfId={identity?.id}
-          gifsEnabled={gifsEnabled}
+          gifsEnabled={ctx.gifsEnabled}
         />
       </>
     );
@@ -183,7 +185,7 @@ export function ConversationMessageList({
     scrollToMessageId, onDeleteMessage, onReact, onToggleReaction,
     onReportMessage, getGroupedReactions, favoriteEmojis, onAddFavorite,
     onRemoveFavorite, fsInfo, messageLayout, memberColorDisplay,
-    flashingMessageId, onReply, onLinkClick, onMentionClick, gifsEnabled,
+    flashingMessageId, onReply, onLinkClick, onMentionClick,
   ]);
 
   return (
@@ -221,6 +223,7 @@ export function ConversationMessageList({
           defaultItemHeight={72}
           increaseViewportBy={{ top: 600, bottom: 600 }}
           components={virtuosoComponents}
+          context={virtuosoContext}
           itemContent={itemContent}
         />
       )}

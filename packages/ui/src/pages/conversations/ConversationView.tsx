@@ -17,7 +17,7 @@ import { usePreKeys } from '../../hooks/usePreKeys';
 import { useReactions } from '../../hooks/useReactions';
 import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
 import { loadConversationFsDefault, saveConversationFsDefault, loadShowMessageArtifacts, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
-import { useConversationGifHidden } from '../../hooks/useGifPreference';
+import { useGifPreference, useConversationGifHidden } from '../../hooks/useGifPreference';
 import { useAppConfig } from '../../config/PlatformContext';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
 import { useMemberColorPreference } from '../../hooks/useMemberColorPreference';
@@ -163,11 +163,20 @@ export function ConversationView() {
   // GIF admin toggle
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const [gifVisibility] = useGifPreference(identity?.id ?? '');
+  const gifsGloballyDisabled = gifVisibility === 'disabled';
   const [convGifHidden, setConvGifHidden] = useConversationGifHidden(id ?? '');
+
+  const [gifsDisabledOverride, setGifsDisabledOverride] = useState<boolean | null>(null);
 
   const handleGifsDisabledByAdminToggle = useCallback(async (disabled: boolean) => {
     if (!id) return;
-    await api.conversations.updateGifsDisabled(id, disabled);
+    setGifsDisabledOverride(disabled);
+    try {
+      await api.conversations.updateGifsDisabled(id, disabled);
+    } catch {
+      setGifsDisabledOverride(null);
+    }
   }, [id, api]);
 
   const handleToggleFs = useCallback(() => {
@@ -183,6 +192,14 @@ export function ConversationView() {
   }, [id, renameValue, renaming, renameGroup]);
 
   const conversation = conversations.find((c) => c.id === id);
+
+  const effectiveGifsDisabled = gifsDisabledOverride ?? conversation?.gifsDisabled ?? false;
+
+  useEffect(() => {
+    if (gifsDisabledOverride !== null && conversation?.gifsDisabled === gifsDisabledOverride) {
+      setGifsDisabledOverride(null);
+    }
+  }, [conversation?.gifsDisabled, gifsDisabledOverride]);
 
   const activeMessagesRef = useRef(activeMessages);
   activeMessagesRef.current = activeMessages;
@@ -666,7 +683,7 @@ export function ConversationView() {
               cachedScrollIndex={cachedScrollIndex}
               virtuosoComponents={virtuosoComponents}
               t={t as any}
-              gifsDisabledByAdmin={conversation?.gifsDisabled}
+              gifsDisabledByAdmin={effectiveGifsDisabled}
             />
 
             <MessageComposer
@@ -679,7 +696,7 @@ export function ConversationView() {
               mentionSource={composerMentionSource}
               placeholderTarget={displayName}
               mentionInsertRef={mentionInsertRef}
-              gifsDisabled={conversation?.gifsDisabled}
+              gifsDisabled={effectiveGifsDisabled}
             />
           </div>
 
@@ -695,10 +712,10 @@ export function ConversationView() {
               fsEnabled={convFsOverride ?? fsConfig.enabled}
               onFsToggle={handleConvFsToggle}
               memberColorDisplay={memberColorDisplay}
-              gifsDisabledByAdmin={conversation.gifsDisabled ?? false}
+              gifsDisabledByAdmin={effectiveGifsDisabled}
               onGifsDisabledByAdminToggle={handleGifsDisabledByAdminToggle}
               gifsHiddenForMe={convGifHidden}
-              onGifsHiddenForMeToggle={setConvGifHidden}
+              onGifsHiddenForMeToggle={gifsGloballyDisabled ? undefined : setConvGifHidden}
             />
           )}
 
