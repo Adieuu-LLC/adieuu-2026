@@ -29,6 +29,8 @@ export interface ConversationNotificationDeps {
   soundPref: NotificationSoundPreferenceLike;
   /** Separate sound preference for disappearing/TTL messages. Falls back to soundPref when absent. */
   ttlSoundPref?: NotificationSoundPreferenceLike;
+  /** Separate sound preference for @mention messages. Falls back to soundPref when absent. */
+  mentionSoundPref?: NotificationSoundPreferenceLike;
   notifications: NotificationPlatformLike;
   audio?: { loadSoundFromPath?: (path: string) => Promise<ArrayBuffer | null> };
   nativeEnabled?: () => boolean;
@@ -40,6 +42,8 @@ export interface ConversationNotificationOptions {
   nativeTag: string;
   /** ISO-8601 expiry timestamp — triggers TTL sound + toast countdown. */
   expiresAt?: string;
+  /** Whether this message mentions the current user. */
+  isMention?: boolean;
 }
 
 export function fireConversationNotification(
@@ -61,8 +65,12 @@ export function fireConversationNotification(
     deps.toast.info(title, body, options.onClick);
   }
 
+  const isMention = !!options.isMention;
   const isExpiring = !!options.expiresAt;
-  const effectivePref = isExpiring && deps.ttlSoundPref ? deps.ttlSoundPref : deps.soundPref;
+  const effectivePref =
+    isMention && deps.mentionSoundPref ? deps.mentionSoundPref
+    : isExpiring && deps.ttlSoundPref  ? deps.ttlSoundPref
+    :                                     deps.soundPref;
 
   const snapshot: FocusVisibilitySnapshot = {
     hasFocus: document.hasFocus(),

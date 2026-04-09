@@ -10,6 +10,12 @@ import {
   setNotificationSoundSuppressWhenFocused,
   getNotificationSoundVolume,
   setNotificationSoundVolume,
+  getMentionNotificationSoundId,
+  setMentionNotificationSoundId,
+  getMentionNotificationSoundCustomPath,
+  setMentionNotificationSoundCustomPath,
+  getMentionNotificationSoundVolume,
+  setMentionNotificationSoundVolume,
 } from './useNotificationSoundPreference';
 
 class MemoryStorage implements Storage {
@@ -107,5 +113,53 @@ describe('notification sound preference (localStorage)', () => {
     expect(getNotificationSoundVolume()).toBe(2);
     setNotificationSoundVolume(1.5);
     expect(getNotificationSoundVolume()).toBe(1.5);
+  });
+});
+
+describe('mention notification sound preference (localStorage)', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: new MemoryStorage(),
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it('defaults mention sound id to magic', () => {
+    expect(getMentionNotificationSoundId()).toBe('magic');
+  });
+
+  it('persists mention sound id', () => {
+    setMentionNotificationSoundId('ding');
+    expect(getMentionNotificationSoundId()).toBe('ding');
+  });
+
+  it('falls back to magic for unknown stored ids', () => {
+    localStorage.setItem('adieuu.app.mentionNotificationSoundId', 'nonexistent');
+    expect(getMentionNotificationSoundId()).toBe('magic');
+  });
+
+  it('defaults mention custom path to null', () => {
+    expect(getMentionNotificationSoundCustomPath()).toBe(null);
+  });
+
+  it('persists mention custom path', () => {
+    setMentionNotificationSoundCustomPath('/home/user/mention.wav');
+    expect(getMentionNotificationSoundCustomPath()).toBe('/home/user/mention.wav');
+    setMentionNotificationSoundCustomPath(null);
+    expect(getMentionNotificationSoundCustomPath()).toBe(null);
+  });
+
+  it('defaults mention sound volume to 100%', () => {
+    expect(getMentionNotificationSoundVolume()).toBe(1);
+  });
+
+  it('persists mention sound volume', () => {
+    setMentionNotificationSoundVolume(0.5);
+    expect(getMentionNotificationSoundVolume()).toBe(0.5);
+    setMentionNotificationSoundVolume(1);
+    expect(getMentionNotificationSoundVolume()).toBe(1);
+    setMentionNotificationSoundVolume(2);
+    expect(getMentionNotificationSoundVolume()).toBe(2);
   });
 });

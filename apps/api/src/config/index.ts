@@ -314,6 +314,20 @@ export const config = {
     initializeCollections: optionalEnvBool('INITIALIZE_COLLECTIONS', false),
   },
 
+  /** Klipy GIF/sticker API proxy configuration */
+  klipy: {
+    /** Klipy API key (required in production; empty disables the proxy in dev) */
+    apiKey: process.env.KLIPY_API_KEY || '',
+    /** Klipy API base URL (without trailing slash or API key segment) */
+    baseUrl: optionalEnv('KLIPY_BASE_URL', 'https://api.klipy.com/api/v1'),
+    /** Content safety filter level sent to Klipy (off | low | medium | high) */
+    contentFilter: optionalEnv('KLIPY_CONTENT_FILTER', 'high'),
+    /** Redis cache TTL for search results (seconds) */
+    cacheTtlSearch: optionalEnvInt('KLIPY_CACHE_TTL_SEARCH', 30),
+    /** Redis cache TTL for trending results (seconds) */
+    cacheTtlTrending: optionalEnvInt('KLIPY_CACHE_TTL_TRENDING', 120),
+  },
+
   /**
    * Rate limiting configuration.
    * Set RATE_LIMIT_ENABLED=false to disable all rate limiting (dev only).
@@ -351,6 +365,13 @@ export const config = {
     globalIpLimit: optionalEnvInt('RATE_LIMIT_GLOBAL_IP', 1000),
     /** Global per IP window in seconds */
     globalIpWindow: optionalEnvInt('RATE_LIMIT_GLOBAL_IP_WINDOW', 60),
+
+    /** Klipy search base limit per identity (tier 0) */
+    klipySearchIdentityLimit: optionalEnvInt('RATE_LIMIT_KLIPY_SEARCH_IDENTITY', 30),
+    /** Klipy search per identity window in seconds */
+    klipySearchIdentityWindow: optionalEnvInt('RATE_LIMIT_KLIPY_SEARCH_IDENTITY_WINDOW', 60),
+    /** Klipy progressive throttle cooldown in seconds (tier decays after no limit hits) */
+    klipyThrottleCooldown: optionalEnvInt('RATE_LIMIT_KLIPY_THROTTLE_COOLDOWN', 300),
   },
 } as const;
 
@@ -405,6 +426,11 @@ export function validateProductionConfig(): void {
   // Check SMS config
   if (!config.sms.textmagicUsername || !config.sms.textmagicApiKey) {
     errors.push('TextMagic credentials must be set for SMS in production');
+  }
+
+  // Check Klipy config
+  if (!config.klipy.apiKey) {
+    errors.push('KLIPY_API_KEY must be set in production');
   }
 
   if (errors.length > 0) {

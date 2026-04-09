@@ -138,6 +138,12 @@ export {
   type SubmitMessageReportParams,
   type SubmitProfileReportParams,
   type SubmitReportResponse,
+  // Klipy GIF/sticker proxy types
+  KlipyApi,
+  type KlipyItem,
+  type KlipySearchResponse,
+  type KlipySearchParams,
+  type KlipyShareParams,
 } from './client';
 
 export {

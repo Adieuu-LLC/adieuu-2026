@@ -54,6 +54,30 @@ export interface MentionEntity {
 }
 
 /**
+ * GIF or sticker attachment referenced by a Klipy CDN URL.
+ * Embedded in the encrypted payload — the URL reference avoids
+ * uploading to S3 while keeping the actual content invisible to the server.
+ */
+export interface GifAttachment {
+  provider: 'klipy';
+  type: 'gif' | 'sticker';
+  /** Sanitised hd.webp URL for message display */
+  url: string;
+  /** sm.webp for picker thumbnails / context */
+  previewUrl: string;
+  /** xs.webp for very small previews (e.g. composer strip) */
+  tinyUrl: string;
+  /** Base64 JPEG blur placeholder (immediate visual while loading) */
+  blurPreview: string;
+  width: number;
+  height: number;
+  /** The search term the sender used (fallback display when GIFs disabled) */
+  searchTerm: string;
+  /** Klipy item identifier (for share trigger) */
+  slug: string;
+}
+
+/**
  * Versioned message payload. Currently version 1.
  * Future versions can extend this interface while maintaining backwards
  * compatibility via the version discriminator.
@@ -66,6 +90,8 @@ export interface MessagePayload {
   attachments?: MediaAttachment[];
   /** @mention entities referencing spans within `text` */
   mentions?: MentionEntity[];
+  /** GIF / sticker attachments (URL references, not E2E blobs) */
+  gifAttachments?: GifAttachment[];
 }
 
 /**
@@ -78,6 +104,8 @@ export interface ParsedMessagePayload {
   attachments: MediaAttachment[];
   /** @mention entities (empty array if none) */
   mentions: MentionEntity[];
+  /** GIF/sticker attachments (empty array if none) */
+  gifAttachments: GifAttachment[];
   /** Whether this was parsed from a structured payload (true) or legacy string (false) */
   isStructured: boolean;
 }
@@ -92,7 +120,11 @@ export interface ParsedMessagePayload {
  * returns JSON.
  */
 export function serializePayload(payload: MessagePayload): string {
-  if (!payload.attachments?.length && !payload.mentions?.length) {
+  if (
+    !payload.attachments?.length &&
+    !payload.mentions?.length &&
+    !payload.gifAttachments?.length
+  ) {
     return payload.text ?? '';
   }
 
@@ -123,6 +155,23 @@ function isValidAttachment(a: unknown): a is MediaAttachment {
   );
 }
 
+export function isValidGifAttachment(a: unknown): a is GifAttachment {
+  if (typeof a !== 'object' || a === null) return false;
+  const obj = a as Record<string, unknown>;
+  return (
+    obj.provider === 'klipy' &&
+    (obj.type === 'gif' || obj.type === 'sticker') &&
+    typeof obj.url === 'string' &&
+    typeof obj.previewUrl === 'string' &&
+    typeof obj.tinyUrl === 'string' &&
+    typeof obj.blurPreview === 'string' &&
+    typeof obj.width === 'number' &&
+    typeof obj.height === 'number' &&
+    typeof obj.searchTerm === 'string' &&
+    typeof obj.slug === 'string'
+  );
+}
+
 /**
  * Parse a decrypted plaintext into a structured payload.
  *
@@ -132,14 +181,14 @@ function isValidAttachment(a: unknown): a is MediaAttachment {
  */
 export function parsePayload(plaintext: string): ParsedMessagePayload {
   if (!plaintext.startsWith('{')) {
-    return { text: plaintext, attachments: [], mentions: [], isStructured: false };
+    return { text: plaintext, attachments: [], mentions: [], gifAttachments: [], isStructured: false };
   }
 
   try {
     const parsed = JSON.parse(plaintext) as Record<string, unknown>;
 
     if (typeof parsed.version !== 'number' || parsed.version < 1) {
-      return { text: plaintext, attachments: [], mentions: [], isStructured: false };
+      return { text: plaintext, attachments: [], mentions: [], gifAttachments: [], isStructured: false };
     }
 
     const payload = parsed as unknown as MessagePayload;
@@ -147,15 +196,18 @@ export function parsePayload(plaintext: string): ParsedMessagePayload {
     const validAttachments = rawAttachments.filter(isValidAttachment);
     const rawMentions = Array.isArray(payload.mentions) ? payload.mentions : [];
     const validMentions = rawMentions.filter(isValidMention);
+    const rawGifs = Array.isArray(payload.gifAttachments) ? payload.gifAttachments : [];
+    const validGifs = rawGifs.filter(isValidGifAttachment);
 
     return {
       text: typeof payload.text === 'string' ? payload.text : '',
       attachments: validAttachments,
       mentions: validMentions,
+      gifAttachments: validGifs,
       isStructured: true,
     };
   } catch {
-    return { text: plaintext, attachments: [], mentions: [], isStructured: false };
+    return { text: plaintext, attachments: [], mentions: [], gifAttachments: [], isStructured: false };
   }
 }
 
@@ -174,4 +226,14 @@ export function mediaPayload(
   attachments: MediaAttachment[]
 ): MessagePayload {
   return { version: 1, text, attachments };
+}
+
+/**
+ * Create a payload with text and a GIF/sticker attachment.
+ */
+export function gifPayload(
+  text: string | undefined,
+  gif: GifAttachment
+): MessagePayload {
+  return { version: 1, text, gifAttachments: [gif] };
 }

@@ -139,6 +139,8 @@ export interface ChatConversationMessageMessage extends ChatMessageBase {
     replyToMessageAuthorId?: string;
     /** ISO-8601 expiry timestamp when the message is a disappearing/TTL message. */
     expiresAt?: string;
+    /** Identity IDs of participants @mentioned in this message (for mention-specific notification sounds). */
+    mentionedIdentityIds?: string[];
   };
 }
 

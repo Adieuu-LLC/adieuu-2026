@@ -455,7 +455,9 @@ export async function listConversations(
 export async function sendMessage(
   conversationId: string | ObjectId,
   senderIdentityId: string | ObjectId,
-  input: Omit<CreateMessageInput, 'conversationId' | 'fromIdentityId'>
+  input: Omit<CreateMessageInput, 'conversationId' | 'fromIdentityId'> & {
+    mentionedIdentityIds?: string[];
+  }
 ): Promise<MessageResult> {
   const conversationRepo = getConversationRepository();
   const messageRepo = getMessageRepository();
@@ -507,7 +509,10 @@ export async function sendMessage(
     }
   }
 
-  const { replyToMessageId: replyFromInput, ...messageFields } = input;
+  const { replyToMessageId: replyFromInput, mentionedIdentityIds: rawMentionIds, ...messageFields } = input;
+
+  const participantHexSet = new Set(conversation.participants.map((p) => p.toHexString()));
+  const validMentionIds = rawMentionIds?.filter((id) => participantHexSet.has(id));
 
   let resolvedReplyId: ObjectId | undefined;
   let replyTargetAuthorId: ObjectId | undefined;
@@ -560,6 +565,7 @@ export async function sendMessage(
           }
         : {}),
       ...(message.expiresAt ? { expiresAt: message.expiresAt.toISOString() } : {}),
+      ...(validMentionIds?.length ? { mentionedIdentityIds: validMentionIds } : {}),
     },
   });
 
@@ -1309,6 +1315,56 @@ export async function updateMemberSettings(
       conversationId: convObjId.toHexString(),
       action: 'member_settings_updated',
       identityId: requesterObjId.toHexString(),
+    },
+  });
+
+  return { success: true, conversation: updated ? toPublicConversation(updated) : undefined };
+}
+
+// ---------------------------------------------------------------------------
+// GIF settings
+// ---------------------------------------------------------------------------
+
+/**
+ * Toggle whether GIFs are disabled for a conversation.
+ * In groups only admins may call this; in DMs either participant may.
+ */
+export async function updateGifsDisabled(
+  conversationId: string | ObjectId,
+  requesterIdentityId: string | ObjectId,
+  gifsDisabled: boolean
+): Promise<ConversationResult> {
+  const conversationRepo = getConversationRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  if (!conversation.participants.some((p) => p.equals(requesterObjId))) {
+    return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  if (conversation.type === 'group' && !isGroupAdmin(conversation, requesterObjId)) {
+    return { success: false, error: 'Only group admins can toggle GIF settings', errorCode: 'NOT_ADMIN' };
+  }
+
+  const updated = await conversationRepo.updateGifsDisabled(convObjId, gifsDisabled);
+
+  await publishToParticipants(conversation.participants, requesterObjId, {
+    type: 'conversation_updated',
+    data: {
+      conversationId: convObjId.toHexString(),
+      action: 'gifs_disabled_updated',
+      identityId: requesterObjId.toHexString(),
+      gifsDisabled,
     },
   });
 

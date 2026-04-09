@@ -797,6 +797,18 @@ export const en = {
         ttlSoundCustomFile: 'Custom sound',
         ttlSoundBrowse: 'Browse…',
         ttlSoundFileMissing: 'The selected sound file could not be read. Choose another file or pick a built-in sound.',
+
+        mentionSoundSectionTitle: 'Mention sound',
+        mentionSoundSectionDescription:
+          'Play a distinct sound when someone @mentions you in a conversation.',
+        mentionSoundSelectLabel: 'Sound',
+        mentionSoundPreview: 'Preview',
+        mentionSoundVolumeLabel: 'Mention sound volume',
+        mentionSoundVolumeHint:
+          'Volume for mention notifications only. The enabled/suppress toggles above apply to all notification sounds.',
+        mentionSoundCustomFile: 'Custom sound',
+        mentionSoundBrowse: 'Browse…',
+        mentionSoundFileMissing: 'The selected sound file could not be read. Choose another file or pick a built-in sound.',
       },
     },
 
@@ -1490,6 +1502,9 @@ export const en = {
       messageReply: 'Reply to your message',
       messageReplyBody: '{{name}} replied to your message',
       messageReplyGeneric: 'Someone replied to your message',
+      mentioned: 'You were mentioned',
+      mentionedBody: '{{name}} mentioned you',
+      mentionedGeneric: 'Someone mentioned you',
       groupInvite: 'Group invitation',
       groupInviteNameHidden:
         "You've been invited to a group (name hidden until you join)",

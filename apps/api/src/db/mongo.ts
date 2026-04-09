@@ -366,6 +366,8 @@ export const Collections = {
   IDENTITY_COUNTS: 'identity_counts',
   /** Identity-scoped backup / recovery codes */
   IDENTITY_BACKUP_CODES: 'identity_backup_codes',
+  /** Anonymised Klipy search term logs (no identity linkage) */
+  KLIPY_SEARCH_LOGS: 'klipy_search_logs',
 } as const;
 
 /**
@@ -604,6 +606,15 @@ async function createIndexes(): Promise<void> {
   // Identity backup codes — one document per identity
   const identityBackupCodes = database.collection(Collections.IDENTITY_BACKUP_CODES);
   await identityBackupCodes.createIndex({ identityId: 1 }, { unique: true });
+
+  // Klipy search logs — time-series analytics (90-day retention)
+  const klipySearchLogs = database.collection(Collections.KLIPY_SEARCH_LOGS);
+  await klipySearchLogs.createIndex({ timestamp: -1 });
+  await klipySearchLogs.createIndex({ term: 1, timestamp: -1 });
+  await klipySearchLogs.createIndex(
+    { timestamp: 1 },
+    { expireAfterSeconds: 90 * 24 * 60 * 60 }
+  );
 
   elog.debug('MongoDB indexes created/verified');
 }

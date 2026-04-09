@@ -55,7 +55,7 @@ export interface ConversationSocketHandlerContext {
   fireNotification: (
     title: string,
     body: string,
-    options?: { isViewingConvo?: boolean; onClick?: () => void; expiresAt?: string }
+    options?: { isViewingConvo?: boolean; onClick?: () => void; expiresAt?: string; isMention?: boolean }
   ) => void;
   navigate: (path: string) => void;
   resolveParticipants: (participantIds: string[]) => Promise<Record<string, PublicIdentity>>;
@@ -248,6 +248,7 @@ export function handleConversationSocketMessage(
         replyToMessageId,
         replyToMessageAuthorId,
         expiresAt,
+        mentionedIdentityIds,
       } = message.data;
       const isActiveConvo = conversationId === ctx.activeConversationId;
       const isViewing = isActiveConvo && ctx.hasFocus && ctx.isAtBottom;
@@ -287,6 +288,10 @@ export function handleConversationSocketMessage(
         !!replyToMessageId &&
         typeof replyToMessageAuthorId === 'string' &&
         replyToMessageAuthorId === ctx.identityId;
+      const isMention =
+        !!ctx.identityId &&
+        Array.isArray(mentionedIdentityIds) &&
+        mentionedIdentityIds.includes(ctx.identityId);
       const navToMessage = () =>
         ctx.navigate(`/conversations/${conversationId}?messageId=${messageId}`);
 
@@ -303,22 +308,35 @@ export function handleConversationSocketMessage(
             : ctx.t('conversations.notifications.messageReplyGeneric', {
                 defaultValue: 'Someone replied to your message',
               }),
-          { isViewingConvo: isViewing, onClick: navToMessage, expiresAt }
+          { isViewingConvo: isViewing, onClick: navToMessage, expiresAt, isMention }
         );
       } else {
         ctx.fireNotification(
-          ctx.t('conversations.notifications.newMessage', {
-            defaultValue: 'New message',
-          }),
-          senderName
-            ? ctx.t('conversations.notifications.newMessageBody', {
-                name: senderName,
-                defaultValue: `Message from ${senderName}`,
+          isMention
+            ? ctx.t('conversations.notifications.mentioned', {
+                defaultValue: 'You were mentioned',
               })
-            : ctx.t('conversations.notifications.newMessageGeneric', {
-                defaultValue: 'You received a new message',
+            : ctx.t('conversations.notifications.newMessage', {
+                defaultValue: 'New message',
               }),
-          { isViewingConvo: isViewing, onClick: navToMessage, expiresAt }
+          senderName
+            ? isMention
+              ? ctx.t('conversations.notifications.mentionedBody', {
+                  name: senderName,
+                  defaultValue: `${senderName} mentioned you`,
+                })
+              : ctx.t('conversations.notifications.newMessageBody', {
+                  name: senderName,
+                  defaultValue: `Message from ${senderName}`,
+                })
+            : isMention
+              ? ctx.t('conversations.notifications.mentionedGeneric', {
+                  defaultValue: 'Someone mentioned you',
+                })
+              : ctx.t('conversations.notifications.newMessageGeneric', {
+                  defaultValue: 'You received a new message',
+                }),
+          { isViewingConvo: isViewing, onClick: navToMessage, expiresAt, isMention }
         );
       }
       break;

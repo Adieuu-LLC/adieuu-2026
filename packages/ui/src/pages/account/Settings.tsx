@@ -16,6 +16,7 @@ import {
 import {
   useNotificationSoundPreference,
   useTtlNotificationSoundPreference,
+  useMentionNotificationSoundPreference,
   setNotificationSoundEnabled,
   setNotificationSoundId,
   setNotificationSoundCustomPath,
@@ -24,8 +25,12 @@ import {
   setTtlNotificationSoundId,
   setTtlNotificationSoundCustomPath,
   setTtlNotificationSoundVolume,
+  setMentionNotificationSoundId,
+  setMentionNotificationSoundCustomPath,
+  setMentionNotificationSoundVolume,
   MAX_NOTIFICATION_GAIN,
   DEFAULT_TTL_NOTIFICATION_SOUND_ID,
+  DEFAULT_MENTION_NOTIFICATION_SOUND_ID,
   type NotificationSoundId,
 } from '../../hooks/useNotificationSoundPreference';
 import {
@@ -47,11 +52,14 @@ export function AccountSettings() {
   const nativeEnabled = useNativeNotificationsPreference();
   const soundPref = useNotificationSoundPreference();
   const ttlSoundPref = useTtlNotificationSoundPreference();
+  const mentionSoundPref = useMentionNotificationSoundPreference();
   const [busy, setBusy] = useState(false);
   const [soundBrowseBusy, setSoundBrowseBusy] = useState(false);
   const [customSoundMissing, setCustomSoundMissing] = useState(false);
   const [ttlSoundBrowseBusy, setTtlSoundBrowseBusy] = useState(false);
   const [ttlCustomSoundMissing, setTtlCustomSoundMissing] = useState(false);
+  const [mentionSoundBrowseBusy, setMentionSoundBrowseBusy] = useState(false);
+  const [mentionCustomSoundMissing, setMentionCustomSoundMissing] = useState(false);
 
   const supportsNotifications = typeof window !== 'undefined' && 'Notification' in window;
 
@@ -90,6 +98,24 @@ export function AccountSettings() {
     }
     void verifyTtlCustom();
   }, [ttlSoundPref.soundId, ttlSoundPref.customPath, audio]);
+
+  useEffect(() => {
+    if (!hasCustomSoundPicker && mentionSoundPref.soundId === 'custom') {
+      setMentionNotificationSoundId(DEFAULT_MENTION_NOTIFICATION_SOUND_ID);
+    }
+  }, [hasCustomSoundPicker, mentionSoundPref.soundId]);
+
+  useEffect(() => {
+    async function verifyMentionCustom(): Promise<void> {
+      if (mentionSoundPref.soundId !== 'custom' || !mentionSoundPref.customPath || !audio?.loadSoundFromPath) {
+        setMentionCustomSoundMissing(false);
+        return;
+      }
+      const buf = await audio.loadSoundFromPath(mentionSoundPref.customPath);
+      setMentionCustomSoundMissing(!buf || buf.byteLength === 0);
+    }
+    void verifyMentionCustom();
+  }, [mentionSoundPref.soundId, mentionSoundPref.customPath, audio]);
 
   const handleNativeChange = useCallback(
     async (checked: boolean) => {
@@ -233,6 +259,45 @@ export function AccountSettings() {
 
   const handleTtlVolumeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     setTtlNotificationSoundVolume(Number(e.target.value) / 100);
+  }, []);
+
+  const handleMentionSoundIdChange = useCallback(
+    (value: string) => {
+      const id = value as NotificationSoundId;
+      setMentionNotificationSoundId(id);
+      if (id !== 'custom') {
+        invalidateNotificationSoundCustomCache();
+      }
+    },
+    []
+  );
+
+  const handleBrowseMentionCustomSound = useCallback(async () => {
+    if (!audio?.pickSoundFile) return;
+    setMentionSoundBrowseBusy(true);
+    try {
+      const picked = await audio.pickSoundFile();
+      if (!picked) return;
+      setMentionNotificationSoundCustomPath(picked.path);
+      setMentionNotificationSoundId('custom');
+      invalidateNotificationSoundCustomCache();
+      setMentionCustomSoundMissing(false);
+    } finally {
+      setMentionSoundBrowseBusy(false);
+    }
+  }, [audio]);
+
+  const handlePreviewMentionSound = useCallback(async () => {
+    await previewNotificationSound({
+      soundId: mentionSoundPref.soundId,
+      customPath: mentionSoundPref.customPath,
+      loadCustomSound: audio?.loadSoundFromPath,
+      volume: mentionSoundPref.volume,
+    });
+  }, [audio, mentionSoundPref.customPath, mentionSoundPref.soundId, mentionSoundPref.volume]);
+
+  const handleMentionVolumeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setMentionNotificationSoundVolume(Number(e.target.value) / 100);
   }, []);
 
   const soundSelectLabels = useMemo(
@@ -511,6 +576,93 @@ export function AccountSettings() {
               {ttlCustomSoundMissing && (
                 <Alert variant="warning" className="app-settings-alert">
                   {t('account.settings.notifications.ttlSoundFileMissing')}
+                </Alert>
+              )}
+            </div>
+          )}
+        </Card>
+
+        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound">
+          <h2 className="app-settings-section-title">{t('account.settings.notifications.mentionSoundSectionTitle')}</h2>
+          <p className="app-settings-section-desc">{t('account.settings.notifications.mentionSoundSectionDescription')}</p>
+
+          <div className="app-settings-sound-row">
+            <div id="mention-notification-sound-preset-label" className="app-settings-sound-select-label">
+              {t('account.settings.notifications.mentionSoundSelectLabel')}
+            </div>
+            <div className="app-settings-sound-row-controls">
+              <NotificationSoundSelect
+                value={mentionSoundPref.soundId}
+                disabled={!soundPref.enabled}
+                hasCustomSoundPicker={hasCustomSoundPicker}
+                builtinItems={builtinSoundSelectItems}
+                labels={soundSelectLabels}
+                onValueChange={handleMentionSoundIdChange}
+                labelId="mention-notification-sound-preset-label"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary app-settings-sound-preview"
+                disabled={
+                  mentionSoundPref.soundId === 'none' ||
+                  (mentionSoundPref.soundId === 'custom' &&
+                    (!mentionSoundPref.customPath || !audio?.loadSoundFromPath))
+                }
+                onClick={() => void handlePreviewMentionSound()}
+              >
+                {t('account.settings.notifications.mentionSoundPreview')}
+              </button>
+            </div>
+          </div>
+
+          <div className="app-settings-sound-volume">
+            <label htmlFor="mention-notification-sound-volume" className="app-settings-sound-volume-label">
+              {t('account.settings.notifications.mentionSoundVolumeLabel')}
+            </label>
+            <div className="app-settings-sound-volume-row">
+              <input
+                id="mention-notification-sound-volume"
+                type="range"
+                className="app-settings-sound-volume-slider"
+                min={0}
+                max={Math.round(MAX_NOTIFICATION_GAIN * 100)}
+                step={1}
+                value={Math.round(mentionSoundPref.volume * 100)}
+                disabled={mentionSoundPref.soundId === 'none'}
+                onChange={handleMentionVolumeChange}
+                aria-valuemin={0}
+                aria-valuemax={Math.round(MAX_NOTIFICATION_GAIN * 100)}
+                aria-valuenow={Math.round(mentionSoundPref.volume * 100)}
+                aria-valuetext={`${Math.round(mentionSoundPref.volume * 100)}%`}
+              />
+              <span className="app-settings-sound-volume-value" aria-hidden>
+                {Math.round(mentionSoundPref.volume * 100)}%
+              </span>
+            </div>
+            <p className="app-settings-sound-volume-hint">{t('account.settings.notifications.mentionSoundVolumeHint')}</p>
+          </div>
+
+          {hasCustomSoundPicker && mentionSoundPref.soundId === 'custom' && (
+            <div className="app-settings-custom-sound">
+              <span className="app-settings-custom-sound-label">
+                {t('account.settings.notifications.mentionSoundCustomFile')}
+              </span>
+              <div className="app-settings-custom-sound-row">
+                <span className="app-settings-custom-sound-name" title={mentionSoundPref.customPath ?? ''}>
+                  {mentionSoundPref.customPath ? basenameFromPath(mentionSoundPref.customPath) : '—'}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={!soundPref.enabled || mentionSoundBrowseBusy}
+                  onClick={() => void handleBrowseMentionCustomSound()}
+                >
+                  {t('account.settings.notifications.mentionSoundBrowse')}
+                </button>
+              </div>
+              {mentionCustomSoundMissing && (
+                <Alert variant="warning" className="app-settings-alert">
+                  {t('account.settings.notifications.mentionSoundFileMissing')}
                 </Alert>
               )}
             </div>

@@ -57,6 +57,9 @@ export interface ConversationDocument extends BaseDocument {
 
   /** ID of the most recent message */
   lastMessageId?: ObjectId;
+
+  /** Whether GIF/sticker content is disabled for this conversation (admin toggle) */
+  gifsDisabled?: boolean;
 }
 
 /**
@@ -86,6 +89,7 @@ export interface PublicConversation {
   memberSettingsNonce?: string;
   lastMessageAt?: string;
   lastMessageId?: string;
+  gifsDisabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -106,6 +110,7 @@ export function toPublicConversation(doc: ConversationDocument): PublicConversat
     memberSettingsNonce: doc.memberSettingsNonce,
     lastMessageAt: doc.lastMessageAt?.toISOString(),
     lastMessageId: doc.lastMessageId?.toHexString(),
+    gifsDisabled: doc.gifsDisabled,
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };

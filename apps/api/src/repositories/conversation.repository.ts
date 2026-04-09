@@ -44,6 +44,10 @@ export interface IConversationRepository {
     encryptedMemberSettings: string,
     memberSettingsNonce: string
   ): Promise<ConversationDocument | null>;
+  updateGifsDisabled(
+    conversationId: ObjectId,
+    gifsDisabled: boolean
+  ): Promise<ConversationDocument | null>;
 }
 
 export class ConversationRepository
@@ -227,6 +231,23 @@ export class ConversationRepository
         $set: {
           encryptedMemberSettings,
           memberSettingsNonce,
+          updatedAt: new Date(),
+        },
+      },
+      { returnDocument: 'after' }
+    );
+    return result as ConversationDocument | null;
+  }
+
+  async updateGifsDisabled(
+    conversationId: ObjectId,
+    gifsDisabled: boolean
+  ): Promise<ConversationDocument | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: conversationId },
+      {
+        $set: {
+          gifsDisabled,
           updatedAt: new Date(),
         },
       },

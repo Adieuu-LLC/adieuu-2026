@@ -35,6 +35,7 @@ import {
   terminateGroup,
   getFormerMembers,
   updateMemberSettings,
+  updateGifsDisabled,
 } from '../../services/conversation.service';
 import { ObjectId } from 'mongodb';
 import { z } from '@adieuu/shared/schemas';
@@ -86,6 +87,7 @@ const SendMessageSchema = z.object({
   e2eMediaIds: z.array(z.string().min(1).max(100)).max(10).optional(),
   expiresInSeconds: z.number().int().min(30).max(1209600).optional(),
   replyToMessageId: z.string().length(24).optional(),
+  mentionedIdentityIds: z.array(z.string().length(24)).max(200).optional(),
 });
 
 const AddMemberSchema = z.object({
@@ -398,6 +400,47 @@ router.patch('/conversations/:id/member-settings', async (ctx) => {
 });
 
 // ---------------------------------------------------------------------------
+// GIF settings
+// ---------------------------------------------------------------------------
+
+const UpdateGifsDisabledSchema = z.object({
+  gifsDisabled: z.boolean(),
+});
+
+/**
+ * PATCH /conversations/:id/gifs - Toggle GIFs for a conversation
+ * Groups: admin only. DMs: either participant.
+ */
+router.patch('/conversations/:id/gifs', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const parseResult = UpdateGifsDisabledSchema.safeParse(ctx.body);
+  if (!parseResult.success) return ctx.errors.validationFailed();
+
+  const result = await updateGifsDisabled(
+    sanitized.value,
+    identity._id,
+    parseResult.data.gifsDisabled
+  );
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
+    return errors.badRequest(result.error ?? 'Failed to update GIF settings.');
+  }
+
+  return success(result.conversation, 'GIF settings updated.');
+});
+
+// ---------------------------------------------------------------------------
 // Message routes
 // ---------------------------------------------------------------------------
 
@@ -417,7 +460,7 @@ router.post('/conversations/:id/messages', async (ctx) => {
   const parseResult = SendMessageSchema.safeParse(ctx.body);
   if (!parseResult.success) return ctx.errors.validationFailed();
 
-  const { expiresInSeconds, replyToMessageId, ...messageInput } = parseResult.data;
+  const { expiresInSeconds, replyToMessageId, mentionedIdentityIds, ...messageInput } = parseResult.data;
 
   const expiresAt = expiresInSeconds
     ? new Date(Date.now() + expiresInSeconds * 1000)
@@ -427,6 +470,7 @@ router.post('/conversations/:id/messages', async (ctx) => {
     ...messageInput,
     ...(replyToMessageId ? { replyToMessageId: new ObjectId(replyToMessageId) } : {}),
     expiresAt,
+    mentionedIdentityIds,
   });
 
   if (!result.success) {

@@ -24,6 +24,7 @@ import { friendRoutes } from './friends';
 import { conversationRoutes } from './conversations';
 import { moderationRoutes } from './moderation';
 import { reportRoutes } from './reports';
+import { klipyRoutes } from './klipy';
 
 /**
  * Registers all application routes with the main router.
@@ -95,4 +96,7 @@ export function registerRoutes(app: Router): void {
 
   // User-facing report submission (manual message + profile reports)
   app.merge(reportRoutes, '/api');
+
+  // Klipy GIF/sticker proxy (search, trending, share trigger)
+  app.merge(klipyRoutes, '/api');
 }

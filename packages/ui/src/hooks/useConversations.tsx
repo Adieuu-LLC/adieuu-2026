@@ -38,7 +38,7 @@ import { useIdentity } from './useIdentity';
 import { useChatSocket } from './useChatSocket';
 import { useAppConfig, usePlatformCapabilities } from '../config';
 import { useToast } from '../components/Toast';
-import { useNotificationSoundPreference, useTtlNotificationSoundPreference } from './useNotificationSoundPreference';
+import { useNotificationSoundPreference, useTtlNotificationSoundPreference, useMentionNotificationSoundPreference } from './useNotificationSoundPreference';
 import { fireConversationNotification } from '../utils/conversationNotifications';
 import { sidebarActions } from '../utils/sidebarActions';
 import {
@@ -192,6 +192,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const { notifications, audio } = usePlatformCapabilities();
   const soundPref = useNotificationSoundPreference();
   const ttlSoundPref = useTtlNotificationSoundPreference();
+  const mentionSoundPref = useMentionNotificationSoundPreference();
   const navigate = useNavigate();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -645,7 +646,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     async (
       conversationId: string,
       plaintext: string,
-      options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean; replyToMessageId?: string; e2eMediaIds?: string[] }
+      options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean; replyToMessageId?: string; e2eMediaIds?: string[]; mentionedIdentityIds?: string[] }
     ): Promise<PublicMessage | null> => {
       if (!isLoggedIn || !identity) return null;
 
@@ -683,6 +684,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           expiresInSeconds,
           ...(options?.replyToMessageId ? { replyToMessageId: options.replyToMessageId } : {}),
           ...(options?.e2eMediaIds?.length ? { e2eMediaIds: options.e2eMediaIds } : {}),
+          ...(options?.mentionedIdentityIds?.length ? { mentionedIdentityIds: options.mentionedIdentityIds } : {}),
         };
 
         const resp = await api.conversations.sendMessage(conversationId, params);
@@ -964,7 +966,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   // -------------------------------------------------------------------------
 
   const fireNotification = useCallback(
-    (title: string, body: string, opts?: { isViewingConvo?: boolean; onClick?: () => void; expiresAt?: string }) => {
+    (title: string, body: string, opts?: { isViewingConvo?: boolean; onClick?: () => void; expiresAt?: string; isMention?: boolean }) => {
       fireConversationNotification(
         title,
         body,
@@ -973,11 +975,12 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           isViewingConversation: opts?.isViewingConvo,
           nativeTag: 'conversation-event',
           expiresAt: opts?.expiresAt,
+          isMention: opts?.isMention,
         },
-        { toast, soundPref, ttlSoundPref, notifications, audio }
+        { toast, soundPref, ttlSoundPref, mentionSoundPref, notifications, audio }
       );
     },
-    [toast, soundPref, ttlSoundPref, audio, notifications]
+    [toast, soundPref, ttlSoundPref, mentionSoundPref, audio, notifications]
   );
 
   // -------------------------------------------------------------------------

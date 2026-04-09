@@ -3,6 +3,7 @@ export type ComposerSendOptions = {
   replyToMessageId?: string;
   e2eMediaIds?: string[];
   expiresInSeconds?: number;
+  mentionedIdentityIds?: string[];
 };
 
 export type ComposerSendFn = (

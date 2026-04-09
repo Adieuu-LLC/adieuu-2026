@@ -385,3 +385,148 @@ export function useTtlNotificationSoundPreference(): NotificationSoundPreference
     () => TTL_SERVER_SNAPSHOT
   );
 }
+
+// ---------------------------------------------------------------------------
+// Mention notification sound — independent sound/volume,
+// shared enabled + suppressWhenFocused with the main preference.
+// ---------------------------------------------------------------------------
+
+const MENTION_STORAGE_KEY_SOUND_ID = 'adieuu.app.mentionNotificationSoundId';
+const MENTION_STORAGE_KEY_CUSTOM_PATH = 'adieuu.app.mentionNotificationSoundCustomPath';
+const MENTION_STORAGE_KEY_VOLUME = 'adieuu.app.mentionNotificationSoundVolume';
+
+export const DEFAULT_MENTION_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId = 'magic';
+
+export function getMentionNotificationSoundId(): NotificationSoundId {
+  if (typeof localStorage === 'undefined') return DEFAULT_MENTION_NOTIFICATION_SOUND_ID;
+  try {
+    const v = localStorage.getItem(MENTION_STORAGE_KEY_SOUND_ID);
+    if (isValidSoundId(v)) return v;
+    return DEFAULT_MENTION_NOTIFICATION_SOUND_ID;
+  } catch {
+    return DEFAULT_MENTION_NOTIFICATION_SOUND_ID;
+  }
+}
+
+export function setMentionNotificationSoundId(value: NotificationSoundId): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(MENTION_STORAGE_KEY_SOUND_ID, value);
+  } catch {
+    return;
+  }
+  emit();
+}
+
+export function getMentionNotificationSoundCustomPath(): string | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const v = localStorage.getItem(MENTION_STORAGE_KEY_CUSTOM_PATH);
+    return v && v.length > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setMentionNotificationSoundCustomPath(path: string | null): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (path === null || path === '') {
+      localStorage.removeItem(MENTION_STORAGE_KEY_CUSTOM_PATH);
+    } else {
+      localStorage.setItem(MENTION_STORAGE_KEY_CUSTOM_PATH, path);
+    }
+  } catch {
+    return;
+  }
+  emit();
+}
+
+export function getMentionNotificationSoundVolume(): number {
+  if (typeof localStorage === 'undefined') return DEFAULT_VOLUME;
+  try {
+    const v = localStorage.getItem(MENTION_STORAGE_KEY_VOLUME);
+    if (v === null) return DEFAULT_VOLUME;
+    if (v.includes('.')) {
+      const f = parseFloat(v);
+      return Number.isFinite(f) ? clampNotificationGain(f) : DEFAULT_VOLUME;
+    }
+    const units = parseInt(v, 10);
+    if (!Number.isFinite(units)) return DEFAULT_VOLUME;
+    return clampNotificationGain(units / 100);
+  } catch {
+    return DEFAULT_VOLUME;
+  }
+}
+
+export function setMentionNotificationSoundVolume(gain: number): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const units = Math.round(clampNotificationGain(gain) * 100);
+    localStorage.setItem(MENTION_STORAGE_KEY_VOLUME, String(units));
+  } catch {
+    return;
+  }
+  emit();
+}
+
+function subscribeMentionNotificationSoundPreference(onStoreChange: () => void): () => void {
+  listeners.add(onStoreChange);
+  const onStorage = (e: StorageEvent) => {
+    if (
+      e.key === STORAGE_KEY_ENABLED ||
+      e.key === STORAGE_KEY_SUPPRESS_FOCUSED ||
+      e.key === MENTION_STORAGE_KEY_SOUND_ID ||
+      e.key === MENTION_STORAGE_KEY_CUSTOM_PATH ||
+      e.key === MENTION_STORAGE_KEY_VOLUME ||
+      e.key === null
+    ) {
+      onStoreChange();
+    }
+  };
+  window.addEventListener('storage', onStorage);
+  return () => {
+    listeners.delete(onStoreChange);
+    window.removeEventListener('storage', onStorage);
+  };
+}
+
+let cachedMentionSnapshot: NotificationSoundPreferenceSnapshot | null = null;
+
+function getMentionSnapshot(): NotificationSoundPreferenceSnapshot {
+  const enabled = getNotificationSoundEnabled();
+  const soundId = getMentionNotificationSoundId();
+  const customPath = getMentionNotificationSoundCustomPath();
+  const suppressWhenFocused = getNotificationSoundSuppressWhenFocused();
+  const volume = getMentionNotificationSoundVolume();
+
+  if (
+    cachedMentionSnapshot &&
+    cachedMentionSnapshot.enabled === enabled &&
+    cachedMentionSnapshot.soundId === soundId &&
+    cachedMentionSnapshot.customPath === customPath &&
+    cachedMentionSnapshot.suppressWhenFocused === suppressWhenFocused &&
+    cachedMentionSnapshot.volume === volume
+  ) {
+    return cachedMentionSnapshot;
+  }
+
+  cachedMentionSnapshot = { enabled, soundId, customPath, suppressWhenFocused, volume };
+  return cachedMentionSnapshot;
+}
+
+const MENTION_SERVER_SNAPSHOT: NotificationSoundPreferenceSnapshot = {
+  enabled: true,
+  soundId: DEFAULT_MENTION_NOTIFICATION_SOUND_ID,
+  customPath: null,
+  suppressWhenFocused: true,
+  volume: DEFAULT_VOLUME,
+};
+
+export function useMentionNotificationSoundPreference(): NotificationSoundPreferenceSnapshot {
+  return useSyncExternalStore(
+    subscribeMentionNotificationSoundPreference,
+    getMentionSnapshot,
+    () => MENTION_SERVER_SNAPSHOT
+  );
+}

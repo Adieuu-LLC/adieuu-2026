@@ -405,6 +405,18 @@ export const RedisKeys = {
    * Invalidated on any platform_settings write.
    */
   platformAuthAllowlistCache: () => 'platform_setting_cache:auth_allowlist',
+
+  /** Klipy search result cache. */
+  klipyCache: (type: string, query: string, page: number, perPage: number) =>
+    `klipy:cache:${type}:${query}:${page}:${perPage}`,
+
+  /** Klipy trending result cache. */
+  klipyTrendingCache: (type: string, page: number) =>
+    `klipy:cache:trending:${type}:${page}`,
+
+  /** Progressive throttle tier for Klipy search (0-3). */
+  klipyThrottleTier: (identityId: string) =>
+    `klipy:throttle:${identityId}`,
 } as const;
 
 /**

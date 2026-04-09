@@ -408,11 +408,16 @@ export function MessageComposer({
       const plaintext = serializePayload(payload);
       const e2eMediaIds = uploadedMedia.map((m) => m.e2eMediaId);
 
+      const mentionedIdentityIds = currentMentions.length > 0
+        ? [...new Set(currentMentions.map((m) => m.identityId))]
+        : undefined;
+
       const sent = await onSend(plaintext, {
         useForwardSecrecy: forwardSecrecy?.enabled,
         ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
         ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
         e2eMediaIds,
+        mentionedIdentityIds,
       });
 
       replyContext?.onCancel();
@@ -427,6 +432,9 @@ export function MessageComposer({
     } else {
       const convertedText = convertShortcodes(text);
       const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
+      const mentionedIdentityIds = mentions.length > 0
+        ? [...new Set(mentions.map((m) => m.id))]
+        : undefined;
       const plaintext = mentions.length > 0
         ? serializePayload({ version: 1, text: convertedText, mentions })
         : convertedText;
@@ -434,6 +442,7 @@ export function MessageComposer({
         useForwardSecrecy: forwardSecrecy?.enabled,
         ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
         ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
+        mentionedIdentityIds,
       });
       replyContext?.onCancel();
       if (sent != null) {

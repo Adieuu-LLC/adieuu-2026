@@ -153,6 +153,14 @@ function getRateLimits(): Record<string, RateLimitConfig> {
       limit: config.rateLimit.authRequestIdentifierLimit,
       windowSeconds: config.rateLimit.authRequestIdentifierWindow,
     },
+
+    /**
+     * Klipy search per identity (base tier — progressive throttle may lower this)
+     */
+    'klipy:search:identity': {
+      limit: config.rateLimit.klipySearchIdentityLimit,
+      windowSeconds: config.rateLimit.klipySearchIdentityWindow,
+    },
   };
 }
 
@@ -360,6 +368,65 @@ export async function getRateLimitStatus(
     remaining: Math.max(0, cfg.limit - count),
     limit: cfg.limit,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Progressive throttle for Klipy search
+// ---------------------------------------------------------------------------
+
+/** Maximum penalty tier (0 = no penalty, 3 = most restrictive). */
+const KLIPY_MAX_THROTTLE_TIER = 3;
+
+/** Divisor per tier — limit is halved each tier: 30 → 15 → 8 → 4. */
+const KLIPY_TIER_DIVISORS = [1, 2, 4, 8] as const;
+
+/**
+ * Reads the current progressive throttle tier for an identity's Klipy
+ * search usage and returns the adjusted rate limit config.
+ *
+ * The tier is stored in Redis as a simple integer key with a TTL
+ * equal to the configured cooldown.  Each time the identity is actually
+ * rate-limited (429), the route handler should call
+ * {@link escalateKlipyThrottle} to bump the tier.
+ *
+ * @param identityId - The identity to check
+ * @returns Adjusted {@link RateLimitConfig} for `klipy:search:identity`
+ */
+export async function getKlipySearchConfig(identityId: string): Promise<RateLimitConfig> {
+  const baseLimit = config.rateLimit.klipySearchIdentityLimit;
+  const window = config.rateLimit.klipySearchIdentityWindow;
+
+  if (!config.rateLimit.enabled || !isRedisConnected()) {
+    return { limit: baseLimit, windowSeconds: window };
+  }
+
+  try {
+    const redis = getRedis();
+    const key = RedisKeys.klipyThrottleTier(identityId);
+    const raw = await redis.get(key);
+    const tier = Math.min(parseInt(raw ?? '0', 10) || 0, KLIPY_MAX_THROTTLE_TIER);
+    const divisor = KLIPY_TIER_DIVISORS[tier] ?? 1;
+    return { limit: Math.max(1, Math.floor(baseLimit / divisor)), windowSeconds: window };
+  } catch {
+    return { limit: baseLimit, windowSeconds: window };
+  }
+}
+
+/**
+ * Bumps the progressive throttle tier for an identity after a 429.
+ * The key auto-expires after the configured cooldown, decaying back to 0.
+ */
+export async function escalateKlipyThrottle(identityId: string): Promise<void> {
+  if (!isRedisConnected()) return;
+  try {
+    const redis = getRedis();
+    const key = RedisKeys.klipyThrottleTier(identityId);
+    const current = parseInt((await redis.get(key)) ?? '0', 10) || 0;
+    const next = Math.min(current + 1, KLIPY_MAX_THROTTLE_TIER);
+    await redis.set(key, String(next), 'EX', config.rateLimit.klipyThrottleCooldown);
+  } catch {
+    // Non-critical — fail silently
+  }
 }
 
 /**
