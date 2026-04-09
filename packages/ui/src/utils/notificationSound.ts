@@ -17,31 +17,118 @@ export interface FocusVisibilitySnapshot {
   visibilityState: DocumentVisibilityState;
 }
 
-/**
- * Target RMS in linear amplitude (≈ -18 dBFS).
- * -18 dBFS is a common broadcast loudness target and sits comfortably below clipping
- * while keeping short notification sounds audible across devices.
- */
+/** Target K-weighted RMS ≈ −18 dBFS (common broadcast loudness reference). */
 const TARGET_RMS = Math.pow(10, -18 / 20); // ≈ 0.1259
 
-/**
- * Compute a gain multiplier that normalises an AudioBuffer to TARGET_RMS.
- * Returns 1 when the buffer is silent or its RMS already matches the target.
- */
-function computeNormalizationGain(buffer: AudioBuffer): number {
-  let sumSq = 0;
-  let sampleCount = 0;
-  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
-    const data = buffer.getChannelData(ch);
-    for (const sample of data) {
-      sumSq += sample * sample;
-    }
-    sampleCount += data.length;
+/** Samples below this linear amplitude are excluded from the RMS measurement (≈ −40 dBFS). */
+const SILENCE_GATE = 0.01;
+
+/** Maximum normalization boost (+12 dB) to prevent ear-splitting transients on quiet/padded files. */
+const MAX_NORM_GAIN = 4;
+
+// ---------------------------------------------------------------------------
+// ITU-R BS.1770 K-weighting (two cascaded biquads)
+// ---------------------------------------------------------------------------
+
+interface BiquadCoeffs {
+  b0: number; b1: number; b2: number;
+  a1: number; a2: number;
+}
+
+/** High-shelf coefficients (Audio EQ Cookbook). */
+function highShelfCoeffs(fs: number, f0: number, dBGain: number, Q: number): BiquadCoeffs {
+  const A = Math.pow(10, dBGain / 40);
+  const w0 = (2 * Math.PI * f0) / fs;
+  const cosW = Math.cos(w0);
+  const alpha = Math.sin(w0) / (2 * Q);
+  const sqrtA = Math.sqrt(A);
+
+  const a0 = (A + 1) - (A - 1) * cosW + 2 * sqrtA * alpha;
+  return {
+    b0: (A * ((A + 1) + (A - 1) * cosW + 2 * sqrtA * alpha)) / a0,
+    b1: (-2 * A * ((A - 1) + (A + 1) * cosW)) / a0,
+    b2: (A * ((A + 1) + (A - 1) * cosW - 2 * sqrtA * alpha)) / a0,
+    a1: (2 * ((A - 1) - (A + 1) * cosW)) / a0,
+    a2: ((A + 1) - (A - 1) * cosW - 2 * sqrtA * alpha) / a0,
+  };
+}
+
+/** Second-order high-pass coefficients (Audio EQ Cookbook). */
+function highPassCoeffs(fs: number, f0: number, Q: number): BiquadCoeffs {
+  const w0 = (2 * Math.PI * f0) / fs;
+  const cosW = Math.cos(w0);
+  const alpha = Math.sin(w0) / (2 * Q);
+
+  const a0 = 1 + alpha;
+  return {
+    b0: ((1 + cosW) / 2) / a0,
+    b1: (-(1 + cosW)) / a0,
+    b2: ((1 + cosW) / 2) / a0,
+    a1: (-2 * cosW) / a0,
+    a2: (1 - alpha) / a0,
+  };
+}
+
+function applyBiquad(samples: Float32Array, c: BiquadCoeffs): Float32Array {
+  const out = new Float32Array(samples.length);
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const x = samples[i]!;
+    const y = c.b0 * x + c.b1 * x1 + c.b2 * x2 - c.a1 * y1 - c.a2 * y2;
+    out[i] = y;
+    x2 = x1; x1 = x;
+    y2 = y1; y1 = y;
   }
-  if (sampleCount === 0) return 1;
-  const rms = Math.sqrt(sumSq / sampleCount);
+  return out;
+}
+
+/**
+ * Apply BS.1770 K-weighting to PCM samples: a high-shelf pre-filter (head-related
+ * transfer approximation) cascaded with a ~38 Hz high-pass (RLB weighting).
+ * Coefficients are derived from the standard's analog prototype via the bilinear
+ * transform, so they adapt to any sample rate.
+ */
+function applyKWeighting(samples: Float32Array, sampleRate: number): Float32Array {
+  const shelf = highShelfCoeffs(sampleRate, 1681.974450955533, 3.999843853973347, 0.7071752369554196);
+  const hp = highPassCoeffs(sampleRate, 38.13547087602444, 0.5003270373238773);
+  return applyBiquad(applyBiquad(samples, shelf), hp);
+}
+
+// ---------------------------------------------------------------------------
+// Normalization
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute a gain multiplier that normalises an AudioBuffer to TARGET_RMS using
+ * K-weighted, silence-gated loudness measurement (simplified ITU-R BS.1770).
+ *
+ * Improvements over plain RMS:
+ *  - K-weighting models human frequency sensitivity (bright transients ≠ bass rumble).
+ *  - Silence gating excludes padding/gaps so short sounds aren't over-amplified.
+ *  - Gain is capped at MAX_NORM_GAIN to prevent clipping on pathologically quiet files.
+ */
+/** @internal Exported for unit tests only. */
+export function computeNormalizationGain(buffer: AudioBuffer): number {
+  const sampleRate = buffer.sampleRate;
+  let gatedSumSq = 0;
+  let gatedCount = 0;
+
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const raw = buffer.getChannelData(ch);
+    const weighted = applyKWeighting(raw, sampleRate);
+    for (let i = 0; i < weighted.length; i++) {
+      const s = weighted[i]!;
+      if (Math.abs(s) >= SILENCE_GATE) {
+        gatedSumSq += s * s;
+        gatedCount++;
+      }
+    }
+  }
+
+  if (gatedCount === 0) return 1;
+  const rms = Math.sqrt(gatedSumSq / gatedCount);
   if (rms < 1e-6) return 1;
-  return TARGET_RMS / rms;
+  return Math.min(MAX_NORM_GAIN, TARGET_RMS / rms);
 }
 
 /** Decoded built-in asset (Web Audio gain can exceed 1; fetch+decode avoids HTMLAudio volume cap). */
