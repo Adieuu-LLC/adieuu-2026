@@ -7,9 +7,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Bun's mock.module() is global; whichever test file loads last wins. Filesystem order differs
-# between CI and dev machines, so pin verification.controller.test.ts last so its user.repository
-# and otp.service mocks override auth/controller.test.ts when both target the same modules.
+# Bun's mock.restore() in afterAll is global — it tears down ALL module mocks process-wide.
+# Run verification.controller.test.ts in its own process so other files' afterAll cleanup
+# cannot interfere with its mock.module() registrations mid-flight.
 if [[ $# -eq 0 ]]; then
   mapfile -t _all_tests < <(find src -name '*.test.ts' -type f | LC_ALL=C sort)
   _main_tests=()
@@ -21,7 +21,10 @@ if [[ $# -eq 0 ]]; then
       _main_tests+=("$f")
     fi
   done
-  bun test "${_main_tests[@]}" "${_verification_tests[@]}"
+  bun test "${_main_tests[@]}"
+  if [[ ${#_verification_tests[@]} -gt 0 ]]; then
+    bun test "${_verification_tests[@]}"
+  fi
 else
   bun test "$@"
 fi

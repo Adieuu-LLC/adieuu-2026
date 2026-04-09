@@ -12,7 +12,7 @@ API_ROOT="$(pwd)"
 rm -rf coverage
 mkdir -p "$API_ROOT/coverage/main"
 
-# Reporter/outfile flags only: reorder for stable mock.module wins. Explicit file args: passthrough.
+# Reporter/outfile flags only: isolate verification tests in their own process. Explicit file args: passthrough.
 _reporter_only=1
 for _a in "$@"; do
   case "$_a" in
@@ -31,8 +31,18 @@ if [[ $# -eq 0 ]] || [[ "$_reporter_only" -eq 1 ]]; then
       _main_tests+=("$f")
     fi
   done
+  # Run main suite and verification suite in separate processes so that
+  # mock.restore() calls in afterAll blocks (which are global in Bun) cannot
+  # tear down module mocks across concurrent test files.
   bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" \
-    "${_main_tests[@]}" "${_verification_tests[@]}" "$@"
+    "${_main_tests[@]}" "$@"
+  if [[ ${#_verification_tests[@]} -gt 0 ]]; then
+    mkdir -p "$API_ROOT/coverage/verification"
+    # Reporter/outfile flags are only passed to the main suite; the verification
+    # suite's results appear in stdout and failures are caught by set -e.
+    bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/verification" \
+      "${_verification_tests[@]}"
+  fi
 else
   bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" "$@"
 fi
@@ -40,9 +50,11 @@ unset _a _reporter_only
 
 mapfile -t EDGE < <(find src -name '*.edge.manual.ts' 2>/dev/null | sort)
 INFOS=()
-if [[ -f "$API_ROOT/coverage/main/lcov.info" ]]; then
-  INFOS+=("$API_ROOT/coverage/main/lcov.info")
-fi
+for _dir in main verification; do
+  if [[ -f "$API_ROOT/coverage/$_dir/lcov.info" ]]; then
+    INFOS+=("$API_ROOT/coverage/$_dir/lcov.info")
+  fi
+done
 
 i=0
 for f in "${EDGE[@]}"; do
