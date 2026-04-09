@@ -1,4 +1,13 @@
-import { describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test, mock } from 'bun:test';
+
+mock.module('../config', () => ({
+  config: {
+    security: {
+      accountHashSecret: 'test-account-hash-secret-32bytes!',
+    },
+  },
+}));
+
 import { sanitiseKlipyUrl, deriveKlipyCustomerId } from './klipy.service';
 
 describe('sanitiseKlipyUrl', () => {
@@ -34,6 +43,10 @@ describe('sanitiseKlipyUrl', () => {
   test('rejects malformed URLs', () => {
     expect(sanitiseKlipyUrl('not-a-url')).toBeUndefined();
   });
+});
+
+afterAll(() => {
+  mock.restore();
 });
 
 describe('deriveKlipyCustomerId', () => {
