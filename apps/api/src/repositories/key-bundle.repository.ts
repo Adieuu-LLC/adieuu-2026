@@ -12,6 +12,7 @@
  * @module repositories/key-bundle
  */
 
+import type { ClientSession } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type {
@@ -34,6 +35,7 @@ export interface IKeyBundleRepository {
   ): Promise<KeyBundleDocument | null>;
   deleteByBundleId(bundleId: string): Promise<boolean>;
   exists(bundleId: string): Promise<boolean>;
+  migrateBundleId(oldBundleId: string, newBundleId: string, encryptedBundle: string, salt: string, nonce: string, options?: { session?: ClientSession }): Promise<KeyBundleDocument | null>;
 }
 
 /**
@@ -106,6 +108,7 @@ export class KeyBundleRepository
     encryptedBundle: string,
     salt: string,
     nonce: string,
+    options?: { session?: ClientSession },
   ): Promise<KeyBundleDocument | null> {
     const result = await this.collection.findOneAndUpdate(
       { bundleId: oldBundleId },
@@ -118,7 +121,7 @@ export class KeyBundleRepository
           updatedAt: new Date(),
         },
       },
-      { returnDocument: 'after' },
+      { returnDocument: 'after', session: options?.session },
     );
 
     return result as KeyBundleDocument | null;

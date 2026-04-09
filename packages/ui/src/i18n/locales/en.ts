@@ -654,6 +654,7 @@ export const en = {
         regenerate: 'Regenerate codes',
         regenerateTitle: 'Regenerate Recovery Codes',
         regenerateConfirm: 'This will invalidate your existing recovery codes. You will receive a new set. Continue?',
+        regenerateError: 'Failed to regenerate codes.',
       },
     },
     // Appearance page (identity-scoped)

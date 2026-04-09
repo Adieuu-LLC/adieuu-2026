@@ -50,6 +50,7 @@ export interface IIdentityRepository {
   updateDeviceName(identityId: string | ObjectId, deviceId: string, name: string): Promise<boolean>;
   getDevices(identityId: string | ObjectId): Promise<IdentityDevice[]>;
   clearModerationFields(identityId: string | ObjectId): Promise<boolean>;
+  changeIdent(identityId: string | ObjectId, newIdent: string, newHashVersion: number, options?: { session?: ClientSession }): Promise<boolean>;
 }
 
 /**
@@ -259,6 +260,7 @@ export class IdentityRepository
     identityId: string | ObjectId,
     newIdent: string,
     newHashVersion: number,
+    options?: { session?: ClientSession },
   ): Promise<boolean> {
     const objectId = this.toObjectId(identityId);
     const now = new Date();
@@ -272,6 +274,7 @@ export class IdentityRepository
           updatedAt: now,
         },
       },
+      { session: options?.session },
     );
 
     if (result.modifiedCount === 1) {

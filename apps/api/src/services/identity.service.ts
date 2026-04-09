@@ -489,14 +489,15 @@ export async function changePassphrase(
   }
 
   // Atomic: update ident + migrate bundle
-  await withTransaction(async () => {
-    await identityRepo.changeIdent(identity._id, newIdent, newHashVersion);
+  await withTransaction(async (session) => {
+    await identityRepo.changeIdent(identity._id, newIdent, newHashVersion, { session });
     await keyBundleRepo.migrateBundleId(
       oldBundleId,
       newBundleId,
       newBundle.encryptedBundle,
       newBundle.salt,
       newBundle.nonce,
+      { session },
     );
   });
 

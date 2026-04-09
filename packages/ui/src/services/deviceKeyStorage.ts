@@ -599,7 +599,13 @@ export async function reWrapDeviceKeys(
 
   for (const stored of storedKeys) {
     const ecdhPlain = await decryptWithWrappingKey(stored.ecdhPrivateKeyEncrypted, oldWrappingKey);
-    const kemPlain = await decryptWithWrappingKey(stored.kemPrivateKeyEncrypted, oldWrappingKey);
+    let kemPlain: Uint8Array;
+    try {
+      kemPlain = await decryptWithWrappingKey(stored.kemPrivateKeyEncrypted, oldWrappingKey);
+    } catch (err) {
+      clearBytes(ecdhPlain);
+      throw err;
+    }
 
     const ecdhEncrypted = await encryptWithWrappingKey(ecdhPlain, newWrappingKey);
     const kemEncrypted = await encryptWithWrappingKey(kemPlain, newWrappingKey);

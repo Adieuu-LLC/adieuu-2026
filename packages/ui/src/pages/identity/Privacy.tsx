@@ -311,7 +311,7 @@ function ForwardSecrecySettings() {
 // Change Passphrase Settings
 // ============================================================================
 
-type ChangePassphraseStep = 'form' | 'processing' | 'backup_codes' | 'done';
+type ChangePassphraseStep = 'form' | 'processing' | 'backup_codes';
 
 function ChangePassphraseSettings({ api }: { api: ReturnType<typeof createApiClient> }) {
   const { t } = useTranslation();
@@ -531,7 +531,7 @@ function BackupCodesSection({ api }: { api: ReturnType<typeof createApiClient> }
         setRemaining(resp.data.backupCodes.length);
       }
     } catch {
-      toast.error(t('identity.privacy.backupCodes.sectionTitle'), 'Failed to regenerate codes.');
+      toast.error(t('identity.privacy.backupCodes.sectionTitle'), t('identity.privacy.backupCodes.regenerateError', 'Failed to regenerate codes.'));
     } finally {
       setRegenerating(false);
       setShowConfirm(false);

@@ -209,6 +209,31 @@ describe('formatMessageTime', () => {
     const result = formatMessageTime(yesterday.toISOString());
     expect(result).toContain('Yesterday');
   });
+
+  test('returns weekday name for dates within the last week', () => {
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const result = formatMessageTime(threeDaysAgo.toISOString());
+    const dayName = threeDaysAgo.toLocaleDateString([], { weekday: 'long' });
+    expect(result).toContain(dayName);
+    expect(result).toContain('at');
+  });
+
+  test('returns month/day for older same-year dates', () => {
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    const result = formatMessageTime(twoWeeksAgo.toISOString());
+    expect(result).toContain('at');
+    expect(result).not.toContain('Yesterday');
+  });
+
+  test('includes year for dates in a previous year', () => {
+    const lastYear = new Date();
+    lastYear.setFullYear(lastYear.getFullYear() - 1);
+    const result = formatMessageTime(lastYear.toISOString());
+    expect(result).toContain(String(lastYear.getFullYear()));
+    expect(result).toContain('at');
+  });
 });
 
 describe('formatDayLabel', () => {
@@ -220,6 +245,20 @@ describe('formatDayLabel', () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     expect(formatDayLabel(yesterday)).toBe('Yesterday');
+  });
+
+  test('returns weekday + month + day for same-year older date', () => {
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    const result = formatDayLabel(twoWeeksAgo);
+    const expected = twoWeeksAgo.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+    expect(result).toBe(expected);
+  });
+
+  test('includes year for dates in a previous year', () => {
+    const lastYear = new Date(new Date().getFullYear() - 1, 5, 15);
+    const result = formatDayLabel(lastYear);
+    expect(result).toContain(String(lastYear.getFullYear()));
   });
 });
 

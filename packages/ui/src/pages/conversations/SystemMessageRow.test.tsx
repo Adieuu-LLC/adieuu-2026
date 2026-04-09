@@ -102,6 +102,13 @@ describe('SystemMessageRow', () => {
     expect(html).toContain('Bob renamed the group');
   });
 
+  test('renders group_renamed without actor', () => {
+    const html = renderToStaticMarkup(
+      <SystemMessageRow event={{ ...baseEvent, type: 'group_renamed' } as any} />
+    );
+    expect(html).toContain('Alice renamed the group');
+  });
+
   test('renders unknown event type as-is', () => {
     const html = renderToStaticMarkup(
       <SystemMessageRow event={{ ...baseEvent, type: 'some_unknown_type' } as any} />
