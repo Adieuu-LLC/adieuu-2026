@@ -8,7 +8,7 @@
 
 import { ObjectId } from 'mongodb';
 import { getIdentityRepository } from '../repositories/identity.repository';
-import { getIdentitySessionRepository } from '../repositories/identity-session.repository';
+import { getSessionRepository } from '../repositories/session.repository';
 import { getE2EMediaRepository } from '../repositories/e2e-media.repository';
 import { getReportEventRepository } from '../repositories/report-event.repository';
 import { deleteE2EMedia } from './e2e-upload.service';
@@ -25,7 +25,7 @@ export interface EnforcementContext {
   reportId: ObjectId;
   targetIdentityId?: string;
   targetRef: { type: string; id: string };
-  actorUserId: string;
+  actorIdentityId: string;
   reason: string;
 }
 

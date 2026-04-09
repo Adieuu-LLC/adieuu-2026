@@ -6778,6 +6778,14 @@ a {
       color: var(--color-text-secondary);
     }
 
+    &-reply-icon {
+      flex-shrink: 0;
+      width: 14px;
+      height: 14px;
+      color: var(--color-accent-primary);
+      transform: scaleX(-1);
+    }
+
     &-reply-text {
       flex: 1;
       min-width: 0;

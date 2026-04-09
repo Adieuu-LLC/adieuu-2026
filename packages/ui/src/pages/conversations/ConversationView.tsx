@@ -1501,15 +1501,13 @@ function MessageComposer({
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
-  const [placeholderSeed, setPlaceholderSeed] = useState(0);
-
   const placeholder = useMemo(() => {
     if (!placeholderTarget) return t('conversations.messagePlaceholder', 'Type a message...');
     const key = PLACEHOLDER_VERB_KEYS[Math.floor(Math.random() * PLACEHOLDER_VERB_KEYS.length)]!;
     const verb = t(`conversations.placeholderVerbs.${key}` as const);
     return `${verb} ${placeholderTarget}...`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversationId, placeholderTarget, placeholderSeed, t]);
+  }, [conversationId, placeholderTarget, t]);
 
   const [messageText, setMessageTextRaw] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -1742,7 +1740,6 @@ function MessageComposer({
       });
       if (sent != null) {
         onSendSucceeded?.();
-        setPlaceholderSeed((s) => s + 1);
       }
       inputRef.current?.focus();
     } else {
@@ -1754,7 +1751,6 @@ function MessageComposer({
       onCancelReply();
       if (sent != null) {
         onSendSucceeded?.();
-        setPlaceholderSeed((s) => s + 1);
       }
       inputRef.current?.focus();
     }
@@ -1888,6 +1884,7 @@ function MessageComposer({
       )}
       {replyingTo && (
         <div className="conversation-composer-reply">
+          <Icon name="reply" className="conversation-composer-reply-icon" />
           <button
             type="button"
             className="conversation-composer-reply-text"
