@@ -21,4 +21,6 @@ jobs:
       id-token: write
       contents: read
     uses: ./.github/workflows/deploy-aws-reusable.yml
+    with:
+      force_all: true
     secrets: inherit
