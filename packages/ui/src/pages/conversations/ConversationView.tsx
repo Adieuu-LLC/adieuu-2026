@@ -728,8 +728,7 @@ function formatDayLabel(date: Date): string {
 
 type ChatItem =
   | { type: 'day-separator'; date: Date; key: string }
-  | { type: 'unread-separator'; key: string }
-  | { type: 'message'; msg: DisplayMessage; key: string };
+  | { type: 'message'; msg: DisplayMessage; key: string; isFirstUnread?: boolean };
 
 const FIRST_ITEM_INDEX = 1_000_000;
 
@@ -2511,13 +2510,10 @@ export function ConversationView() {
       const prevMsgDate = prevItem?.type === 'message' ? new Date(prevItem.msg.createdAt) : null;
       const showDaySep = !prevMsgDate || !isSameDay(prevMsgDate, currDate);
 
-      if (i === unreadIdx) {
-        items.push({ type: 'unread-separator', key: '__unread__' });
-      }
       if (showDaySep) {
         items.push({ type: 'day-separator', date: currDate, key: `day-${msg.id}` });
       }
-      items.push({ type: 'message', msg, key: msg.id });
+      items.push({ type: 'message', msg, key: msg.id, isFirstUnread: i === unreadIdx || undefined });
     }
     return items;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2718,18 +2714,6 @@ export function ConversationView() {
                   increaseViewportBy={{ top: 600, bottom: 600 }}
                   components={virtuosoComponents}
                   itemContent={(_, item) => {
-                    if (item.type === 'unread-separator') {
-                      return (
-                        <div className="dm-unread-separator">
-                          <div className="dm-unread-separator-line" />
-                          <span className="dm-unread-separator-text">
-                            {t('conversations.newUnreads', 'New messages')}
-                          </span>
-                          <div className="dm-unread-separator-line" />
-                        </div>
-                      );
-                    }
-
                     if (item.type === 'day-separator') {
                       return (
                         <div className="dm-day-separator">
@@ -2741,47 +2725,65 @@ export function ConversationView() {
                     }
 
                     const msg = item.msg;
+                    const unreadMarker = item.isFirstUnread ? (
+                      <div className="dm-unread-separator">
+                        <div className="dm-unread-separator-line" />
+                        <span className="dm-unread-separator-text">
+                          {t('conversations.newUnreads', 'New messages')}
+                        </span>
+                        <div className="dm-unread-separator-line" />
+                      </div>
+                    ) : null;
+
                     if (msg.messageType === 'system' && msg.systemEvent) {
-                      return <SystemMessageRow event={msg.systemEvent} />;
+                      return (
+                        <>
+                          {unreadMarker}
+                          <SystemMessageRow event={msg.systemEvent} />
+                        </>
+                      );
                     }
 
                     return (
-                      <MessageBubble
-                        message={msg}
-                        isOwn={msg.fromIdentityId === identity?.id}
-                        onDelete={handleDeleteMessage}
-                        onReact={handleReact}
-                        onToggleReaction={handleToggleReaction}
-                        onReport={handleReportMessage}
-                        groupedReactions={getGroupedReactions(msg.id)}
-                        favoriteEmojis={favoriteEmojis}
-                        onAddFavorite={addFavorite}
-                        onRemoveFavorite={removeFavorite}
-                        fsInfo={fsInfo}
-                        senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
-                        ownProfile={identity ?? undefined}
-                        layout={messageLayout}
-                        participantProfiles={participantProfiles}
-                        memberSettings={memberSettings}
-                        memberColorDisplay={memberColorDisplay}
-                        replyQuote={
-                          msg.replyToMessageId
-                            ? {
-                                text: buildReplySnippet(messagesById.get(msg.replyToMessageId), t),
-                                quotedAuthor: resolveQuotedAuthorPreview(
-                                  messagesById.get(msg.replyToMessageId),
-                                  participantProfiles,
-                                  memberSettings,
-                                  identity
-                                ),
-                                onQuoteClick: () => scrollToMessageId(msg.replyToMessageId!),
-                              }
-                            : null
-                        }
-                        onReply={() => setReplyingTo(msg)}
-                        isFlashHighlight={flashingMessageId === msg.id}
-                        onLinkClick={handleLinkClick}
-                      />
+                      <>
+                        {unreadMarker}
+                        <MessageBubble
+                          message={msg}
+                          isOwn={msg.fromIdentityId === identity?.id}
+                          onDelete={handleDeleteMessage}
+                          onReact={handleReact}
+                          onToggleReaction={handleToggleReaction}
+                          onReport={handleReportMessage}
+                          groupedReactions={getGroupedReactions(msg.id)}
+                          favoriteEmojis={favoriteEmojis}
+                          onAddFavorite={addFavorite}
+                          onRemoveFavorite={removeFavorite}
+                          fsInfo={fsInfo}
+                          senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
+                          ownProfile={identity ?? undefined}
+                          layout={messageLayout}
+                          participantProfiles={participantProfiles}
+                          memberSettings={memberSettings}
+                          memberColorDisplay={memberColorDisplay}
+                          replyQuote={
+                            msg.replyToMessageId
+                              ? {
+                                  text: buildReplySnippet(messagesById.get(msg.replyToMessageId), t),
+                                  quotedAuthor: resolveQuotedAuthorPreview(
+                                    messagesById.get(msg.replyToMessageId),
+                                    participantProfiles,
+                                    memberSettings,
+                                    identity
+                                  ),
+                                  onQuoteClick: () => scrollToMessageId(msg.replyToMessageId!),
+                                }
+                              : null
+                          }
+                          onReply={() => setReplyingTo(msg)}
+                          isFlashHighlight={flashingMessageId === msg.id}
+                          onLinkClick={handleLinkClick}
+                        />
+                      </>
                     );
                   }}
                 />

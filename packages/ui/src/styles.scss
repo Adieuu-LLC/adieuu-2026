@@ -7966,6 +7966,7 @@ a {
 
     &-item {
       padding-top: var(--spacing-md);
+      position: relative;
     }
 
     &-loading,
@@ -8504,10 +8505,17 @@ a {
   }
 
   &-unread-separator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    transform: translateY(-50%);
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    padding: var(--spacing-sm) 0;
+    padding: 0 var(--spacing-xs);
+    pointer-events: none;
+    z-index: 1;
 
     &-line {
       flex: 1;
