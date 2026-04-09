@@ -12,7 +12,31 @@ API_ROOT="$(pwd)"
 rm -rf coverage
 mkdir -p "$API_ROOT/coverage/main"
 
-bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" "$@"
+# Reporter/outfile flags only: reorder for stable mock.module wins. Explicit file args: passthrough.
+_reporter_only=1
+for _a in "$@"; do
+  case "$_a" in
+    *.ts|*.tsx|src/*) _reporter_only=0 ;;
+  esac
+done
+
+if [[ $# -eq 0 ]] || [[ "$_reporter_only" -eq 1 ]]; then
+  mapfile -t _all_tests < <(find src -name '*.test.ts' -type f | LC_ALL=C sort)
+  _main_tests=()
+  _verification_tests=()
+  for f in "${_all_tests[@]}"; do
+    if [[ "$(basename "$f")" == 'verification.controller.test.ts' ]]; then
+      _verification_tests+=("$f")
+    else
+      _main_tests+=("$f")
+    fi
+  done
+  bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" \
+    "${_main_tests[@]}" "${_verification_tests[@]}" "$@"
+else
+  bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" "$@"
+fi
+unset _a _reporter_only
 
 mapfile -t EDGE < <(find src -name '*.edge.manual.ts' 2>/dev/null | sort)
 INFOS=()

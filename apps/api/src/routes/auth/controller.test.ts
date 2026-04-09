@@ -223,7 +223,8 @@ const mockAddJitter = mock(() => Promise.resolve());
 
 mock.module('../../services/otp.service', () => ({
   createOtp: mockCreateOtp,
-  verifyOtp: mock(() => Promise.resolve({ success: true, userId: 'test-user-id' })),
+  // Match VerifyOtpResult ({ valid, error?, ... }); wrong shape breaks other suites when this mock wins globally.
+  verifyOtp: mock(() => Promise.resolve({ valid: true })),
 }));
 
 mock.module('../../services/rate-limit.service', () => ({
