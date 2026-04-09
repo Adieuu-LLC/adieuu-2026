@@ -42,6 +42,7 @@ export function MessageComposer({
   placeholder: placeholderOverride,
   placeholderTarget,
   mentionInsertRef,
+  gifsDisabled,
 }: {
   channelId: string;
   sending: boolean;
@@ -53,6 +54,7 @@ export function MessageComposer({
   placeholder?: string;
   placeholderTarget?: string;
   mentionInsertRef?: React.MutableRefObject<((identityId: string) => void) | null>;
+  gifsDisabled?: boolean;
 }) {
   const { t } = useTranslation();
   const { warning: toastWarning, error: toastError } = useToast();
@@ -848,29 +850,33 @@ export function MessageComposer({
             <Icon name="image" />
           </button>
         </Tooltip>
-        <Popover.Root
-          open={showGifPicker}
-          onOpenChange={(e) => setShowGifPicker(e.open)}
-          positioning={{ placement: 'top-end' }}
-        >
-          <Popover.Trigger asChild>
-            <button
-              type="button"
-              className="conversation-gif-btn"
-              title={t('gif.composerButton', 'GIF')}
-              disabled={sending || uploadingMedia}
-            >
-              <span className="conversation-gif-btn__label">GIF</span>
-            </button>
-          </Popover.Trigger>
-          <Portal>
-            <Popover.Positioner>
-              <Popover.Content className="gif-picker-popover">
-                <GifPicker onGifSelect={handleGifSelect} />
-              </Popover.Content>
-            </Popover.Positioner>
-          </Portal>
-        </Popover.Root>
+        {!gifsDisabled && (
+          <Popover.Root
+            open={showGifPicker}
+            onOpenChange={(e) => setShowGifPicker(e.open)}
+            positioning={{ placement: 'top-end' }}
+            lazyMount
+            unmountOnExit
+          >
+            <Popover.Trigger asChild>
+              <button
+                type="button"
+                className="conversation-gif-btn"
+                title={t('gif.composerButton', 'GIF')}
+                disabled={sending || uploadingMedia}
+              >
+                <span className="conversation-gif-btn__label">GIF</span>
+              </button>
+            </Popover.Trigger>
+            <Portal>
+              <Popover.Positioner>
+                <Popover.Content className="gif-picker-popover">
+                  <GifPicker onGifSelect={handleGifSelect} />
+                </Popover.Content>
+              </Popover.Positioner>
+            </Portal>
+          </Popover.Root>
+        )}
         <Popover.Root
           open={showEmojiPicker}
           onOpenChange={(e) => setShowEmojiPicker(e.open)}

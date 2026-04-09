@@ -29,7 +29,7 @@ export const MessageGifAttachment = memo(function MessageGifAttachment({
     return (
       <div className="gif-fallback">
         <span className="gif-fallback__label">
-          {t('gif.fallbackLabel', { term: gif.searchTerm || gif.type })}
+          {t('gif.fallbackLabel', { term: gif.title || gif.searchTerm || gif.type })}
         </span>
         <button
           type="button"

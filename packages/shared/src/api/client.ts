@@ -2322,6 +2322,7 @@ export interface PublicConversation {
   memberSettingsNonce?: string;
   lastMessageAt?: string;
   lastMessageId?: string;
+  gifsDisabled?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -2589,6 +2590,16 @@ export class ConversationsApi {
   async getInvitePreview(inviteId: string): Promise<ApiResponse<GroupInvitePreview>> {
     return this.client.get(
       `/api/conversations/invites/${encodeURIComponent(inviteId)}/preview`
+    );
+  }
+
+  async updateGifsDisabled(
+    conversationId: string,
+    gifsDisabled: boolean
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.patch(
+      `/api/conversations/${encodeURIComponent(conversationId)}/gifs`,
+      { gifsDisabled }
     );
   }
 }

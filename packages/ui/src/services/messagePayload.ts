@@ -73,6 +73,8 @@ export interface GifAttachment {
   height: number;
   /** The search term the sender used (fallback display when GIFs disabled) */
   searchTerm: string;
+  /** Title provided by Klipy (preferred fallback when GIFs disabled) */
+  title?: string;
   /** Klipy item identifier (for share trigger) */
   slug: string;
 }

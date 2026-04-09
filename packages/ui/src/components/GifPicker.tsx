@@ -260,6 +260,7 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
         width: item.width,
         height: item.height,
         searchTerm: searchTerm || '',
+        title: item.title || undefined,
         slug: item.slug,
       };
       onGifSelect(gif);

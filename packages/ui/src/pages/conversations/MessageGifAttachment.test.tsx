@@ -54,7 +54,22 @@ describe('MessageGifAttachment', () => {
     expect(html).not.toContain('gif-attachment__img');
   });
 
-  test('fallback uses type when searchTerm is empty', () => {
+  test('fallback prefers title over searchTerm', () => {
+    const gifWithTitle = { ...sampleGif, title: 'Hilarious Cat Clip' };
+    const html = renderToStaticMarkup(
+      <MessageGifAttachment gif={gifWithTitle} gifsEnabled={false} />,
+    );
+    expect(html).toContain('GIF: Hilarious Cat Clip');
+  });
+
+  test('fallback uses searchTerm when no title', () => {
+    const html = renderToStaticMarkup(
+      <MessageGifAttachment gif={sampleGif} gifsEnabled={false} />,
+    );
+    expect(html).toContain('GIF: funny cats');
+  });
+
+  test('fallback uses type when no title or searchTerm', () => {
     const gifNoTerm = { ...sampleGif, searchTerm: '' };
     const html = renderToStaticMarkup(
       <MessageGifAttachment gif={gifNoTerm} gifsEnabled={false} />,

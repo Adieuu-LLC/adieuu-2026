@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { createApiClient } from '@adieuu/shared';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
@@ -16,6 +17,8 @@ import { usePreKeys } from '../../hooks/usePreKeys';
 import { useReactions } from '../../hooks/useReactions';
 import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
 import { loadConversationFsDefault, saveConversationFsDefault, loadShowMessageArtifacts, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
+import { useConversationGifHidden } from '../../hooks/useGifPreference';
+import { useAppConfig } from '../../config/PlatformContext';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
 import { useMemberColorPreference } from '../../hooks/useMemberColorPreference';
 import { extractDomain } from '../../utils/urlParsing';
@@ -156,6 +159,16 @@ export function ConversationView() {
     saveConversationFsDefault(id, enabled);
     setUseFs(enabled);
   }, [id]);
+
+  // GIF admin toggle
+  const { apiBaseUrl } = useAppConfig();
+  const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const [convGifHidden, setConvGifHidden] = useConversationGifHidden(id ?? '');
+
+  const handleGifsDisabledByAdminToggle = useCallback(async (disabled: boolean) => {
+    if (!id) return;
+    await api.conversations.updateGifsDisabled(id, disabled);
+  }, [id, api]);
 
   const handleToggleFs = useCallback(() => {
     setUseFs((v) => !v);
@@ -653,6 +666,7 @@ export function ConversationView() {
               cachedScrollIndex={cachedScrollIndex}
               virtuosoComponents={virtuosoComponents}
               t={t as any}
+              gifsDisabledByAdmin={conversation?.gifsDisabled}
             />
 
             <MessageComposer
@@ -665,6 +679,7 @@ export function ConversationView() {
               mentionSource={composerMentionSource}
               placeholderTarget={displayName}
               mentionInsertRef={mentionInsertRef}
+              gifsDisabled={conversation?.gifsDisabled}
             />
           </div>
 
@@ -680,6 +695,10 @@ export function ConversationView() {
               fsEnabled={convFsOverride ?? fsConfig.enabled}
               onFsToggle={handleConvFsToggle}
               memberColorDisplay={memberColorDisplay}
+              gifsDisabledByAdmin={conversation.gifsDisabled ?? false}
+              onGifsDisabledByAdminToggle={handleGifsDisabledByAdminToggle}
+              gifsHiddenForMe={convGifHidden}
+              onGifsHiddenForMeToggle={setConvGifHidden}
             />
           )}
 

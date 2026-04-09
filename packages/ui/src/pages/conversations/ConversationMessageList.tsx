@@ -57,6 +57,7 @@ export function ConversationMessageList({
   cachedScrollIndex,
   virtuosoComponents,
   t,
+  gifsDisabledByAdmin,
 }: {
   conversationId: string | undefined;
   activeConversationId: string | null;
@@ -94,12 +95,13 @@ export function ConversationMessageList({
   cachedScrollIndex: number | null;
   virtuosoComponents: { Header: () => React.ReactElement | null; Item: (props: React.HTMLAttributes<HTMLDivElement>) => React.ReactElement };
   t: (key: string, fallback: string) => string;
+  gifsDisabledByAdmin?: boolean;
 }) {
   const { t: tLocal } = useTranslation();
 
   const [gifVisibility] = useGifPreference(identity?.id ?? '');
   const [convGifHidden] = useConversationGifHidden(conversationId ?? '');
-  const gifsEnabled = gifVisibility !== 'disabled' && !convGifHidden;
+  const gifsEnabled = gifVisibility !== 'disabled' && !convGifHidden && !gifsDisabledByAdmin;
 
   const itemContent = useCallback((_: number, item: ChatItem) => {
     if (item.type === 'day-separator') {
