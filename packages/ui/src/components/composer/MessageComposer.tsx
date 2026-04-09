@@ -791,18 +791,14 @@ export function MessageComposer({
           positioning={{ placement: 'top-end' }}
         >
           <Popover.Trigger asChild>
-            <Tooltip
-              content={t('gif.composerButton', 'GIF')}
-              position="top"
+            <button
+              type="button"
+              className="conversation-gif-btn"
+              title={t('gif.composerButton', 'GIF')}
+              disabled={sending || uploadingMedia}
             >
-              <button
-                type="button"
-                className="conversation-gif-btn"
-                disabled={sending || uploadingMedia}
-              >
-                <span className="conversation-gif-btn__label">GIF</span>
-              </button>
-            </Tooltip>
+              <span className="conversation-gif-btn__label">GIF</span>
+            </button>
           </Popover.Trigger>
           <Portal>
             <Popover.Positioner>

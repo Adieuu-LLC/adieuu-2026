@@ -249,7 +249,7 @@ export function AccountAppearance() {
 
   const iconPackFamilies = useMemo(() => {
     const families = new Map<string, typeof ICON_PACKS>();
-    const order = ['Sharp', 'Classic', 'DuoTone', 'Sharp DuoTone', 'Curated'];
+    const order = ['DuoTone', 'Sharp DuoTone', 'Classic', 'Curated'];
     for (const pack of ICON_PACKS) {
       const list = families.get(pack.family) ?? [];
       list.push(pack);

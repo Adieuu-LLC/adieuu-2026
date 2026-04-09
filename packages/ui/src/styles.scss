@@ -12674,8 +12674,13 @@ body {
 // ============================================================================
 
 .gif-picker-popover {
-  padding: 0;
+  z-index: var(--z-popover, 100);
+  border-radius: var(--radius-md);
   overflow: hidden;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  background: var(--color-bg-elevated);
+  padding: 0;
 }
 
 .conversation-gif-btn {

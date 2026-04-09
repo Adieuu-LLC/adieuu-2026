@@ -60,6 +60,7 @@ const INITIAL_STATE: FetchState = {
 const DEBOUNCE_MS = 400;
 const COLUMN_WIDTH = 150;
 const GAP = 8;
+const PER_PAGE = 6;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -113,12 +114,12 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
 
         if (tab === 'gifs') {
           res = isSearch
-            ? await api.klipy.searchGifs({ q: debouncedQuery, page: pageToFetch })
-            : await api.klipy.trendingGifs({ page: pageToFetch });
+            ? await api.klipy.searchGifs({ q: debouncedQuery, page: pageToFetch, per_page: PER_PAGE })
+            : await api.klipy.trendingGifs({ page: pageToFetch, per_page: PER_PAGE });
         } else {
           res = isSearch
-            ? await api.klipy.searchStickers({ q: debouncedQuery, page: pageToFetch })
-            : await api.klipy.trendingStickers({ page: pageToFetch });
+            ? await api.klipy.searchStickers({ q: debouncedQuery, page: pageToFetch, per_page: PER_PAGE })
+            : await api.klipy.trendingStickers({ page: pageToFetch, per_page: PER_PAGE });
         }
 
         if (id !== fetchId.current) return;

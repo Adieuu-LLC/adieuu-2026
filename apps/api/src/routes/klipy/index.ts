@@ -87,7 +87,7 @@ for (const type of ['gifs', 'stickers'] as const) {
     logKlipySearch(q, contentType);
 
     const page = clampInt(ctx.query.get('page'), 1, 100, 1);
-    const perPage = clampInt(ctx.query.get('per_page'), 1, 50, 24);
+    const perPage = clampInt(ctx.query.get('per_page'), 1, 50, 6);
 
     const result = await searchKlipy(contentType, {
       query: q,
@@ -127,7 +127,7 @@ for (const type of ['gifs', 'stickers'] as const) {
     }
 
     const page = clampInt(ctx.query.get('page'), 1, 100, 1);
-    const perPage = clampInt(ctx.query.get('per_page'), 1, 50, 24);
+    const perPage = clampInt(ctx.query.get('per_page'), 1, 50, 6);
 
     const result = await trendingKlipy(contentType, {
       page,
