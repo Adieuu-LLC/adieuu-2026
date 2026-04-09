@@ -82,6 +82,7 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [state, setState] = useState<FetchState>(INITIAL_STATE);
 
+  const gridRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
   const fetchId = useRef(0);
@@ -110,6 +111,7 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
     setThrottled(false);
     pageFetchTimestamps.current = [];
     clearTimeout(throttleTimer.current);
+    if (gridRef.current) gridRef.current.scrollTop = 0;
   }, [tab, debouncedQuery]);
 
   // -------------------------------------------------------------------------
@@ -281,7 +283,7 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
         </div>
       )}
 
-      <div className="gif-picker__grid">
+      <div className="gif-picker__grid" ref={gridRef}>
         {state.items.map((item) => (
           <GifPickerTile key={item.id} item={item} onClick={handleSelect} />
         ))}
@@ -305,7 +307,9 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
 
         {!state.loading && !throttled && !state.error && state.items.length === 0 && (
           <div className="gif-picker__empty">
-            {t('gif.noResults', { query: debouncedQuery })}
+            {debouncedQuery
+              ? t('gif.noResults', { query: debouncedQuery })
+              : t('gif.loading')}
           </div>
         )}
 

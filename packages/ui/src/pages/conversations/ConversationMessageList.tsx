@@ -8,6 +8,7 @@ import type { PublicIdentity } from '@adieuu/shared';
 import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
+import { useGifPreference, useConversationGifHidden } from '../../hooks/useGifPreference';
 import {
   type ChatItem,
   type ReplyQuotePayload,
@@ -96,6 +97,10 @@ export function ConversationMessageList({
 }) {
   const { t: tLocal } = useTranslation();
 
+  const [gifVisibility] = useGifPreference(identity?.id ?? '');
+  const [convGifHidden] = useConversationGifHidden(conversationId ?? '');
+  const gifsEnabled = gifVisibility !== 'disabled' && !convGifHidden;
+
   const itemContent = useCallback((_: number, item: ChatItem) => {
     if (item.type === 'day-separator') {
       return (
@@ -167,6 +172,7 @@ export function ConversationMessageList({
           onLinkClick={onLinkClick}
           onMentionClick={onMentionClick}
           selfId={identity?.id}
+          gifsEnabled={gifsEnabled}
         />
       </>
     );
@@ -175,7 +181,7 @@ export function ConversationMessageList({
     scrollToMessageId, onDeleteMessage, onReact, onToggleReaction,
     onReportMessage, getGroupedReactions, favoriteEmojis, onAddFavorite,
     onRemoveFavorite, fsInfo, messageLayout, memberColorDisplay,
-    flashingMessageId, onReply, onLinkClick, onMentionClick,
+    flashingMessageId, onReply, onLinkClick, onMentionClick, gifsEnabled,
   ]);
 
   return (

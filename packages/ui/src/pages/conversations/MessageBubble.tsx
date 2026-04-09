@@ -117,6 +117,7 @@ export const MessageBubble = memo(function MessageBubble({
   onLinkClick,
   onMentionClick,
   selfId,
+  gifsEnabled,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
@@ -141,6 +142,7 @@ export const MessageBubble = memo(function MessageBubble({
   onLinkClick: (href: string) => void;
   onMentionClick?: (identityId: string) => void;
   selfId?: string;
+  gifsEnabled: boolean;
 }) {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
@@ -312,7 +314,7 @@ export const MessageBubble = memo(function MessageBubble({
           ))
         )}
         {parsed.gifAttachments.map((gif, i) => (
-          <MessageGifAttachment key={`gif-${i}`} gif={gif} gifsEnabled />
+          <MessageGifAttachment key={`gif-${i}`} gif={gif} gifsEnabled={gifsEnabled} />
         ))}
       </>
     );
@@ -481,7 +483,7 @@ export const MessageBubble = memo(function MessageBubble({
                 ))
               )}
               {parsed.gifAttachments.map((gif, i) => (
-                <MessageGifAttachment key={`gif-${i}`} gif={gif} gifsEnabled />
+                <MessageGifAttachment key={`gif-${i}`} gif={gif} gifsEnabled={gifsEnabled} />
               ))}
             </>
           )}
