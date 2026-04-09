@@ -40,6 +40,13 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     }
   }, [unlockMode, isOpen]);
 
+  // Refocus the unlock passphrase input after a failed attempt
+  useEffect(() => {
+    if (view === 'unlock' && error && !loading) {
+      unlockInputRef.current?.focus();
+    }
+  }, [view, error, loading]);
+
   // Form fields
   const [passphrase, setPassphrase] = useState('');
   const [passphraseConfirm, setPassphraseConfirm] = useState('');
@@ -166,7 +173,6 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
       }, 500);
     } else {
       setError(result.error || t('identity.unlock.errorInvalid'));
-      unlockInputRef.current?.focus();
     }
   };
 

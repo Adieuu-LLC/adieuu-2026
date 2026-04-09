@@ -36,12 +36,12 @@ import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreferen
 import { useMemberColorPreference, setMemberColorDisplay, type MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import { uploadMediaFile, type MediaUploadResult } from '../../hooks/useConversationMediaUpload';
-import { serializePayload, mediaPayload, parsePayload, type MediaAttachment } from '../../services/messagePayload';
+import { serializePayload, mediaPayload, parsePayload, type MediaAttachment, type MentionEntity } from '../../services/messagePayload';
 import { MediaMessage } from '../../components/MediaMessage';
 import { useE2EMediaDownload, clearMediaCache } from '../../hooks/useE2EMediaDownload';
 import { stripExifMetadata } from '../../utils/imageProcessing';
 import { extractDomain } from '../../utils/urlParsing';
-import { renderFormattedMessage } from '../../utils/markdownParser';
+import { renderFormattedMessage, injectMentionMarkers, type MentionRenderContext } from '../../utils/markdownParser';
 import { isDomainTrusted } from '../../hooks/useExternalLinkPreferences';
 import { ExternalLinkModal } from '../../components/ExternalLinkModal';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
@@ -774,6 +774,8 @@ const MessageBubble = memo(function MessageBubble({
   onReply,
   isFlashHighlight,
   onLinkClick,
+  onMentionClick,
+  selfId,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
@@ -796,6 +798,8 @@ const MessageBubble = memo(function MessageBubble({
   onReply?: () => void;
   isFlashHighlight?: boolean;
   onLinkClick: (href: string) => void;
+  onMentionClick?: (identityId: string) => void;
+  selfId?: string;
 }) {
   const { t } = useTranslation();
   const [showActions, setShowActions] = useState(false);
@@ -806,10 +810,19 @@ const MessageBubble = memo(function MessageBubble({
   const rawContent = message.decryptedContent ?? '';
   const parsed = useMemo(() => parsePayload(rawContent), [rawContent]);
   const content = parsed.text;
-  const renderedContent = useMemo(
-    () => (content ? renderFormattedMessage(content, onLinkClick) : null),
-    [content, onLinkClick],
-  );
+  const mentionRenderCtx: MentionRenderContext | undefined = useMemo(() => ({
+    profiles: participantProfiles,
+    memberSettings,
+    selfId,
+    onMentionClick,
+  }), [participantProfiles, memberSettings, selfId, onMentionClick]);
+  const renderedContent = useMemo(() => {
+    if (!content) return null;
+    const markedText = parsed.mentions.length > 0
+      ? injectMentionMarkers(content, parsed.mentions)
+      : content;
+    return renderFormattedMessage(markedText, onLinkClick, mentionRenderCtx);
+  }, [content, parsed.mentions, onLinkClick, mentionRenderCtx]);
   const hasDecryptionError = !message.decryptedContent && !message.deleted;
   const isFsExpired = hasDecryptionError && message.decryptionError?.startsWith('forward-secrecy-expired:');
   const decryptionDisplayText = isFsExpired
@@ -1473,8 +1486,11 @@ function MessageComposer({
   onSendSucceeded,
   participantProfiles,
   memberSettings,
+  participants,
+  selfId,
   onReplyClick,
   placeholderTarget,
+  mentionInsertRef,
 }: {
   conversationId: string;
   sending: boolean;
@@ -1491,10 +1507,16 @@ function MessageComposer({
   onSendSucceeded?: () => void;
   participantProfiles: Record<string, PublicIdentity>;
   memberSettings: MemberSettingsMap;
+  /** Identity IDs of conversation participants. */
+  participants: string[];
+  /** Current user's identity ID (excluded from mention autocomplete). */
+  selfId?: string;
   /** Called when the user clicks the reply preview to jump to the referenced message. */
   onReplyClick?: () => void;
   /** Display name of the other participant (DM) or group name. */
   placeholderTarget?: string;
+  /** Ref to expose the insertMentionAtCursor function to parent. */
+  mentionInsertRef?: React.MutableRefObject<((identityId: string) => void) | null>;
 }) {
   const { t } = useTranslation();
   const { warning: toastWarning, error: toastError } = useToast();
@@ -1551,6 +1573,66 @@ function MessageComposer({
     setAcSelectedIdx(0);
   }, []);
 
+  // --- @mention autocomplete ---
+
+  interface TrackedMention { identityId: string; offset: number; length: number }
+
+  const [mentionAC, setMentionAC] = useState<{ query: string; atIdx: number } | null>(null);
+  const [mentionAcSelectedIdx, setMentionAcSelectedIdx] = useState(0);
+  const mentionEntriesRef = useRef<TrackedMention[]>([]);
+
+  const mentionACRef = useRef(mentionAC);
+  mentionACRef.current = mentionAC;
+  const mentionAcSelectedIdxRef = useRef(mentionAcSelectedIdx);
+  mentionAcSelectedIdxRef.current = mentionAcSelectedIdx;
+
+  const mentionSuggestions = useMemo(() => {
+    if (!mentionAC) return [];
+    const q = mentionAC.query.toLowerCase();
+    const prefix: { id: string; profile: PublicIdentity }[] = [];
+    const substring: { id: string; profile: PublicIdentity }[] = [];
+    for (const pid of participants) {
+      if (selfId && pid === selfId) continue;
+      const profile = participantProfiles[pid];
+      if (!profile) continue;
+      const nickname = memberSettings[pid]?.nickname?.toLowerCase() ?? '';
+      const uname = profile.username?.toLowerCase() ?? '';
+      const dname = profile.displayName?.toLowerCase() ?? '';
+      const fields = [uname, dname, nickname].filter(Boolean);
+      if (fields.some((f) => f.startsWith(q))) prefix.push({ id: pid, profile });
+      else if (fields.some((f) => f.includes(q))) substring.push({ id: pid, profile });
+    }
+    return [...prefix, ...substring].slice(0, 3);
+  }, [mentionAC, participants, selfId, participantProfiles, memberSettings]);
+
+  const mentionSuggestionsRef = useRef(mentionSuggestions);
+  mentionSuggestionsRef.current = mentionSuggestions;
+
+  const detectMentionQuery = useCallback((text: string, cursorPos: number) => {
+    const before = text.slice(0, cursorPos);
+    const atIdx = before.lastIndexOf('@');
+    if (atIdx === -1) { setMentionAC(null); return; }
+    if (atIdx > 0 && !/\s/.test(before[atIdx - 1]!)) { setMentionAC(null); return; }
+    const query = before.slice(atIdx + 1);
+    if (!/^[a-zA-Z0-9_.\- ]*$/.test(query)) { setMentionAC(null); return; }
+    setMentionAC({ query, atIdx });
+    setMentionAcSelectedIdx(0);
+  }, []);
+
+  const updateMentionOffsets = useCallback((oldText: string, newText: string, cursorPos: number) => {
+    const delta = newText.length - oldText.length;
+    if (delta === 0) return;
+    mentionEntriesRef.current = mentionEntriesRef.current.filter((m) => {
+      const mEnd = m.offset + m.length;
+      if (cursorPos <= m.offset) {
+        m.offset += delta;
+        return true;
+      }
+      if (cursorPos - Math.max(delta, 0) >= mEnd) return true;
+      return false;
+    });
+  }, []);
+
   // --- Undo / redo history ---
   const undoStack = useRef<{ text: string; cursor: number }[]>([{ text: '', cursor: 0 }]);
   const redoStack = useRef<{ text: string; cursor: number }[]>([]);
@@ -1568,6 +1650,60 @@ function MessageComposer({
       redoStack.current = [];
     }, 300);
   }, []);
+
+  const acceptMention = useCallback((identityId: string, displayText: string) => {
+    const ac = mentionACRef.current;
+    if (!ac) return;
+    const textarea = inputRef.current!;
+    const text = messageTextRef.current;
+    const cursor = textarea.selectionStart ?? text.length;
+    const insertText = `@${displayText} `;
+    const newText = text.slice(0, ac.atIdx) + insertText + text.slice(cursor);
+    const newPos = ac.atIdx + insertText.length;
+
+    mentionEntriesRef.current.push({
+      identityId,
+      offset: ac.atIdx,
+      length: insertText.length - 1,
+    });
+
+    setMessageText(newText, newPos);
+    setMentionAC(null);
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(newPos, newPos);
+    });
+  }, [setMessageText]);
+
+  const insertMentionAtCursor = useCallback((identityId: string) => {
+    const profile = participantProfiles[identityId];
+    if (!profile) return;
+    const nickname = memberSettings[identityId]?.nickname;
+    const displayText = nickname || profile.displayName || profile.username || identityId.slice(0, 8);
+    const textarea = inputRef.current;
+    const text = messageTextRef.current;
+    const cursorPos = textarea?.selectionStart ?? text.length;
+    const insertText = `@${displayText} `;
+    const newText = text.slice(0, cursorPos) + insertText + text.slice(cursorPos);
+    const newPos = cursorPos + insertText.length;
+
+    mentionEntriesRef.current.push({
+      identityId,
+      offset: cursorPos,
+      length: insertText.length - 1,
+    });
+
+    setMessageText(newText, newPos);
+    requestAnimationFrame(() => {
+      textarea?.focus();
+      textarea?.setSelectionRange(newPos, newPos);
+    });
+  }, [participantProfiles, memberSettings, setMessageText]);
+
+  useEffect(() => {
+    if (mentionInsertRef) mentionInsertRef.current = insertMentionAtCursor;
+    return () => { if (mentionInsertRef) mentionInsertRef.current = null; };
+  }, [mentionInsertRef, insertMentionAtCursor]);
 
   // --- Composer mini-toast ---
   const [composerToast, setComposerToast] = useState<string | null>(null);
@@ -1666,7 +1802,9 @@ function MessageComposer({
     if (!conversationId || (!text && attachments.length === 0) || sending || uploadingMedia) return;
 
     const pendingAttachments = [...attachments];
+    const currentMentions = [...mentionEntriesRef.current];
     setMessageText('');
+    mentionEntriesRef.current = [];
     undoStack.current = [{ text: '', cursor: 0 }];
     redoStack.current = [];
 
@@ -1753,7 +1891,9 @@ function MessageComposer({
         encryptionNonce: m.encryptionNonce,
       }));
 
-      const payload = mediaPayload(convertShortcodes(text) || undefined, mediaAttachments);
+      const mediaText = convertShortcodes(text) || undefined;
+      const payload = mediaPayload(mediaText, mediaAttachments);
+      if (currentMentions.length > 0) payload.mentions = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
       const plaintext = serializePayload(payload);
       const e2eMediaIds = uploadedMedia.map((m) => m.e2eMediaId);
 
@@ -1774,7 +1914,12 @@ function MessageComposer({
       }
       inputRef.current?.focus();
     } else {
-      const sent = await sendTextMessage(conversationId, convertShortcodes(text), {
+      const convertedText = convertShortcodes(text);
+      const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
+      const plaintext = mentions.length > 0
+        ? serializePayload({ version: 1, text: convertedText, mentions })
+        : convertedText;
+      const sent = await sendTextMessage(conversationId, plaintext, {
         useForwardSecrecy: useFs,
         ...(replyingTo ? { replyToMessageId: replyingTo.id } : {}),
         ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
@@ -1852,6 +1997,36 @@ function MessageComposer({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // --- Mention AC (Enter confirms, must check before send) ---
+      const mAc = mentionACRef.current;
+      const mSuggestions = mentionSuggestionsRef.current;
+      if (mAc && mSuggestions.length > 0) {
+        if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+          e.preventDefault();
+          const s = mSuggestions[mentionAcSelectedIdxRef.current]!;
+          const nickname = memberSettings[s.id]?.nickname;
+          const displayText = nickname || s.profile.displayName || s.profile.username || s.id.slice(0, 8);
+          acceptMention(s.id, displayText);
+          return;
+        }
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setMentionAcSelectedIdx((prev) => (prev + 1) % mSuggestions.length);
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setMentionAcSelectedIdx((prev) => (prev - 1 + mSuggestions.length) % mSuggestions.length);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setMentionAC(null);
+          return;
+        }
+      }
+
+      // --- Emoji shortcode AC ---
       const ac = shortcodeACRef.current;
       const suggestions = acSuggestionsRef.current;
       if (ac && suggestions.length > 0) {
@@ -1921,7 +2096,7 @@ function MessageComposer({
         return;
       }
     },
-    [handleSend, setMessageText]
+    [handleSend, setMessageText, acceptMention, memberSettings]
   );
 
   const handleEmojiSelect = useCallback((emoji: string) => {
@@ -2063,6 +2238,39 @@ function MessageComposer({
             ))}
           </ul>
         )}
+        {mentionSuggestions.length > 0 && (
+          <ul className="conversation-composer-mention-ac" role="listbox" id="mention-ac-listbox">
+            {mentionSuggestions.map((s, i) => {
+              const nickname = memberSettings[s.id]?.nickname;
+              const display = nickname || s.profile.displayName || s.profile.username || s.id.slice(0, 8);
+              return (
+                <li
+                  key={s.id}
+                  id={`mention-ac-option-${s.id}`}
+                  role="option"
+                  aria-selected={i === mentionAcSelectedIdx}
+                  className={`conversation-composer-mention-ac-item${i === mentionAcSelectedIdx ? ' conversation-composer-mention-ac-item--selected' : ''}`}
+                  onMouseDown={(ev) => {
+                    ev.preventDefault();
+                    acceptMention(s.id, display);
+                  }}
+                >
+                  {s.profile.avatarUrl ? (
+                    <img src={s.profile.avatarUrl} alt="" className="conversation-composer-mention-ac-avatar" />
+                  ) : (
+                    <span className="conversation-composer-mention-ac-avatar conversation-composer-mention-ac-avatar--placeholder">
+                      {display[0]?.toUpperCase() ?? '?'}
+                    </span>
+                  )}
+                  <span className="conversation-composer-mention-ac-name">{display}</span>
+                  {s.profile.username && (
+                    <span className="conversation-composer-mention-ac-username">@{s.profile.username}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
         <Tooltip
           content={useFs
             ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
@@ -2157,26 +2365,41 @@ function MessageComposer({
           value={messageText}
           role="combobox"
           aria-autocomplete="list"
-          aria-expanded={acSuggestions.length > 0}
-          aria-controls={acSuggestions.length > 0 ? 'emoji-ac-listbox' : undefined}
+          aria-expanded={acSuggestions.length > 0 || mentionSuggestions.length > 0}
+          aria-controls={
+            mentionSuggestions.length > 0
+              ? 'mention-ac-listbox'
+              : acSuggestions.length > 0
+                ? 'emoji-ac-listbox'
+                : undefined
+          }
           aria-activedescendant={
-            acSuggestions.length > 0 ? `emoji-ac-option-${acSuggestions[acSelectedIdx]![0]}` : undefined
+            mentionSuggestions.length > 0
+              ? `mention-ac-option-${mentionSuggestions[mentionAcSelectedIdx]?.id}`
+              : acSuggestions.length > 0
+                ? `emoji-ac-option-${acSuggestions[acSelectedIdx]![0]}`
+                : undefined
           }
           onChange={(e) => {
             const raw = e.target.value;
+            const oldText = messageTextRef.current;
             const converted = convertShortcodes(raw);
             if (converted !== raw) {
               const cursorPos = e.target.selectionStart ?? raw.length;
               const newCursorPos = Math.max(0, cursorPos - (raw.length - converted.length));
+              updateMentionOffsets(oldText, converted, newCursorPos);
               setMessageText(converted, newCursorPos);
               detectShortcodeQuery(converted, newCursorPos);
+              detectMentionQuery(converted, newCursorPos);
               requestAnimationFrame(() => {
                 inputRef.current?.setSelectionRange(newCursorPos, newCursorPos);
               });
             } else {
               const cursorPos = e.target.selectionStart ?? raw.length;
+              updateMentionOffsets(oldText, raw, cursorPos);
               setMessageText(raw, cursorPos);
               detectShortcodeQuery(raw, cursorPos);
+              detectMentionQuery(raw, cursorPos);
             }
           }}
           onKeyDown={handleKeyDown}
@@ -2281,6 +2504,11 @@ export function ConversationView() {
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [adminTransferOpen, setAdminTransferOpen] = useState(false);
   const [pendingLinkHref, setPendingLinkHref] = useState<string | null>(null);
+
+  const mentionInsertRef = useRef<((identityId: string) => void) | null>(null);
+  const handleMentionClick = useCallback((identityId: string) => {
+    mentionInsertRef.current?.(identityId);
+  }, []);
 
   const handleLinkClick = useCallback((href: string) => {
     const domain = extractDomain(href);
@@ -2886,6 +3114,8 @@ export function ConversationView() {
                           onReply={() => setReplyingTo(msg)}
                           isFlashHighlight={flashingMessageId === msg.id}
                           onLinkClick={handleLinkClick}
+                          onMentionClick={handleMentionClick}
+                          selfId={identity?.id}
                         />
                       </>
                     );
@@ -2916,8 +3146,11 @@ export function ConversationView() {
               onSendSucceeded={markJustSent}
               participantProfiles={participantProfiles}
               memberSettings={memberSettings}
+              participants={conversation.participants}
+              selfId={identity?.id}
               onReplyClick={replyingTo ? () => scrollToMessageId(replyingTo.id) : undefined}
               placeholderTarget={displayName}
+              mentionInsertRef={mentionInsertRef}
             />
           </div>
 

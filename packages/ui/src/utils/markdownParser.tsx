@@ -14,6 +14,10 @@
  */
 
 import { type ReactNode } from 'react';
+import type { PublicIdentity } from '@adieuu/shared';
+import type { MentionEntity } from '../services/messagePayload';
+import type { MemberSettingsMap } from '../services/conversationCryptoService';
+import { IdentityHoverCard } from '../components/IdentityHoverCard';
 import { parseMessageSegments } from './urlParsing';
 
 // ---------------------------------------------------------------------------
@@ -109,11 +113,51 @@ function parseBlocks(text: string): Block[] {
 }
 
 // ---------------------------------------------------------------------------
+// Mention marker injection
+// ---------------------------------------------------------------------------
+
+const MENTION_START = '\uFFF0';
+const MENTION_END = '\uFFF1';
+
+/**
+ * Context passed to the renderer for resolving and rendering @mentions.
+ */
+export interface MentionRenderContext {
+  profiles: Record<string, PublicIdentity>;
+  memberSettings: MemberSettingsMap;
+  selfId?: string;
+  onMentionClick?: (identityId: string) => void;
+}
+
+/**
+ * Replace mention entity spans in `text` with inline markers that the
+ * format-rule pipeline can detect. Must be called **before** block/inline
+ * parsing so that the markers survive the split.
+ *
+ * Processes mentions in reverse-offset order to avoid invalidating earlier
+ * offsets when splicing.
+ */
+export function injectMentionMarkers(text: string, mentions: MentionEntity[]): string {
+  if (!mentions.length) return text;
+
+  const sorted = [...mentions].sort((a, b) => b.offset - a.offset);
+  let result = text;
+  for (const m of sorted) {
+    if (m.offset < 0 || m.offset + m.length > result.length) continue;
+    result =
+      result.slice(0, m.offset) +
+      MENTION_START + m.id + MENTION_END +
+      result.slice(m.offset + m.length);
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Inline parsing
 // ---------------------------------------------------------------------------
 
 interface FormatRule {
-  type: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code';
+  type: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'code' | 'mention';
   pattern: RegExp;
 }
 
@@ -122,7 +166,12 @@ interface FormatRule {
  * `**` is tried before `*`, and inline code (no nesting) before all
  * text-style markers.
  */
+const MENTION_PATTERN = new RegExp(
+  MENTION_START + '([a-f0-9]{24})' + MENTION_END,
+);
+
 const FORMAT_RULES: FormatRule[] = [
+  { type: 'mention',       pattern: MENTION_PATTERN },
   { type: 'code',          pattern: /`([^`\n]+?)`/ },
   { type: 'bold',          pattern: /\*\*(?!\s)([\s\S]+?)(?<!\s)\*\*/ },
   { type: 'strikethrough', pattern: /~~(?!\s)([\s\S]+?)(?<!\s)~~/ },
@@ -141,6 +190,7 @@ const TAG_FOR_TYPE = {
 interface RenderCtx {
   k: number;
   onLinkClick: (href: string) => void;
+  mentionCtx?: MentionRenderContext;
 }
 
 function parseInline(text: string, ctx: RenderCtx): ReactNode[] {
@@ -171,7 +221,9 @@ function parseInline(text: string, ctx: RenderCtx): ReactNode[] {
   const inner = match[1] ?? '';
   const afterIdx = idx + match[0].length;
 
-  if (rule.type === 'code') {
+  if (rule.type === 'mention') {
+    nodes.push(renderMentionNode(inner, ctx));
+  } else if (rule.type === 'code') {
     nodes.push(<code key={ctx.k++} className="dm-md-code">{inner}</code>);
   } else {
     const Tag = TAG_FOR_TYPE[rule.type];
@@ -184,6 +236,56 @@ function parseInline(text: string, ctx: RenderCtx): ReactNode[] {
   }
 
   return nodes;
+}
+
+// ---------------------------------------------------------------------------
+// Mention node rendering
+// ---------------------------------------------------------------------------
+
+function resolveMentionDisplayName(
+  identityId: string,
+  mCtx: MentionRenderContext,
+): string {
+  const nickname = mCtx.memberSettings[identityId]?.nickname;
+  if (nickname) return nickname;
+  const p = mCtx.profiles[identityId];
+  return p?.displayName ?? p?.username ?? 'Unknown';
+}
+
+function renderMentionNode(identityId: string, ctx: RenderCtx): ReactNode {
+  const mCtx = ctx.mentionCtx;
+  const displayName = mCtx
+    ? resolveMentionDisplayName(identityId, mCtx)
+    : 'Unknown';
+  const profile = mCtx?.profiles[identityId];
+
+  const mentionSpan = (
+    <span
+      key={ctx.k++}
+      className={profile ? 'dm-mention' : 'dm-mention dm-mention--unknown'}
+      role="link"
+      tabIndex={0}
+      onClick={() => mCtx?.onMentionClick?.(identityId)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          mCtx?.onMentionClick?.(identityId);
+        }
+      }}
+    >
+      @{displayName}
+    </span>
+  );
+
+  if (profile) {
+    return (
+      <IdentityHoverCard key={ctx.k++} identity={profile}>
+        {mentionSpan}
+      </IdentityHoverCard>
+    );
+  }
+
+  return mentionSpan;
 }
 
 // ---------------------------------------------------------------------------
@@ -263,10 +365,11 @@ function renderBlock(block: Block, ctx: RenderCtx): ReactNode {
 export function renderFormattedMessage(
   text: string,
   onLinkClick: (href: string) => void,
+  mentionCtx?: MentionRenderContext,
 ): ReactNode | null {
   if (!text) return null;
 
-  const ctx: RenderCtx = { k: 0, onLinkClick };
+  const ctx: RenderCtx = { k: 0, onLinkClick, mentionCtx };
   const blocks = parseBlocks(text);
   if (blocks.length === 0) return null;
 

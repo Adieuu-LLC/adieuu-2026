@@ -41,6 +41,19 @@ export interface MediaAttachment {
 }
 
 /**
+ * An @mention entity embedded in the encrypted payload.
+ * Maps a span of text to the identity that was mentioned.
+ */
+export interface MentionEntity {
+  /** Identity ID of the mentioned user */
+  id: string;
+  /** Character offset in the `text` field where the mention display text starts */
+  offset: number;
+  /** Length of the mention display text in `text` */
+  length: number;
+}
+
+/**
  * Versioned message payload. Currently version 1.
  * Future versions can extend this interface while maintaining backwards
  * compatibility via the version discriminator.
@@ -51,6 +64,8 @@ export interface MessagePayload {
   text?: string;
   /** Media attachments (may be empty for text-only messages) */
   attachments?: MediaAttachment[];
+  /** @mention entities referencing spans within `text` */
+  mentions?: MentionEntity[];
 }
 
 /**
@@ -61,6 +76,8 @@ export interface ParsedMessagePayload {
   text: string;
   /** Media attachments (empty array if none) */
   attachments: MediaAttachment[];
+  /** @mention entities (empty array if none) */
+  mentions: MentionEntity[];
   /** Whether this was parsed from a structured payload (true) or legacy string (false) */
   isStructured: boolean;
 }
@@ -75,11 +92,23 @@ export interface ParsedMessagePayload {
  * returns JSON.
  */
 export function serializePayload(payload: MessagePayload): string {
-  if (!payload.attachments?.length) {
+  if (!payload.attachments?.length && !payload.mentions?.length) {
     return payload.text ?? '';
   }
 
   return JSON.stringify(payload);
+}
+
+function isValidMention(m: unknown): m is MentionEntity {
+  if (typeof m !== 'object' || m === null) return false;
+  const obj = m as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.offset === 'number' &&
+    typeof obj.length === 'number' &&
+    obj.offset >= 0 &&
+    obj.length > 0
+  );
 }
 
 function isValidAttachment(a: unknown): a is MediaAttachment {
@@ -103,27 +132,30 @@ function isValidAttachment(a: unknown): a is MediaAttachment {
  */
 export function parsePayload(plaintext: string): ParsedMessagePayload {
   if (!plaintext.startsWith('{')) {
-    return { text: plaintext, attachments: [], isStructured: false };
+    return { text: plaintext, attachments: [], mentions: [], isStructured: false };
   }
 
   try {
     const parsed = JSON.parse(plaintext) as Record<string, unknown>;
 
     if (typeof parsed.version !== 'number' || parsed.version < 1) {
-      return { text: plaintext, attachments: [], isStructured: false };
+      return { text: plaintext, attachments: [], mentions: [], isStructured: false };
     }
 
     const payload = parsed as unknown as MessagePayload;
     const rawAttachments = Array.isArray(payload.attachments) ? payload.attachments : [];
     const validAttachments = rawAttachments.filter(isValidAttachment);
+    const rawMentions = Array.isArray(payload.mentions) ? payload.mentions : [];
+    const validMentions = rawMentions.filter(isValidMention);
 
     return {
       text: typeof payload.text === 'string' ? payload.text : '',
       attachments: validAttachments,
+      mentions: validMentions,
       isStructured: true,
     };
   } catch {
-    return { text: plaintext, attachments: [], isStructured: false };
+    return { text: plaintext, attachments: [], mentions: [], isStructured: false };
   }
 }
 
