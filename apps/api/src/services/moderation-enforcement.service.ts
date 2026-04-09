@@ -52,7 +52,7 @@ export async function executeEnforcement(
       await eventRepo.createEvent({
         reportId: ctx.reportId,
         eventType: 'enforcement_action',
-        actorUserId: ctx.actorUserId,
+        actorIdentityId: ctx.actorIdentityId,
         body: removed
           ? `Content removed (${ctx.targetRef.type}:${ctx.targetRef.id})`
           : `Content removal skipped — not found or unsupported type`,
@@ -63,7 +63,7 @@ export async function executeEnforcement(
       await eventRepo.createEvent({
         reportId: ctx.reportId,
         eventType: 'enforcement_action',
-        actorUserId: ctx.actorUserId,
+        actorIdentityId: ctx.actorIdentityId,
         body: 'Content removal failed',
         metadata: { action: 'remove_content', error: String(err) },
       });
@@ -82,7 +82,7 @@ export async function executeEnforcement(
         await eventRepo.createEvent({
           reportId: ctx.reportId,
           eventType: 'enforcement_action',
-          actorUserId: ctx.actorUserId,
+          actorIdentityId: ctx.actorIdentityId,
           body: `Warning issued to identity ${ctx.targetIdentityId}`,
           metadata: { action: 'warn', identityId: ctx.targetIdentityId },
         });
@@ -100,8 +100,8 @@ export async function executeEnforcement(
           moderationReportId: ctx.reportId.toHexString(),
         });
 
-        const identitySessionRepo = getIdentitySessionRepository();
-        const revokedCount = await identitySessionRepo.revokeAllForIdentity(ctx.targetIdentityId);
+        const sessionRepo = getSessionRepository();
+        const revokedCount = await sessionRepo.revokeAllForIdentity(ctx.targetIdentityId);
         elog.info('Enforcement: revoked identity sessions on suspend', {
           identityId: ctx.targetIdentityId,
           revokedCount,
@@ -110,7 +110,7 @@ export async function executeEnforcement(
         await eventRepo.createEvent({
           reportId: ctx.reportId,
           eventType: 'enforcement_action',
-          actorUserId: ctx.actorUserId,
+          actorIdentityId: ctx.actorIdentityId,
           body: `Identity ${ctx.targetIdentityId} suspended until ${until.toISOString()}`,
           metadata: { action: 'suspend', identityId: ctx.targetIdentityId, until: until.toISOString(), durationMs: actions.suspendAliasMs, sessionsRevoked: revokedCount },
         });
@@ -127,8 +127,8 @@ export async function executeEnforcement(
           moderationReportId: ctx.reportId.toHexString(),
         });
 
-        const identitySessionRepo = getIdentitySessionRepository();
-        const revokedCount = await identitySessionRepo.revokeAllForIdentity(ctx.targetIdentityId);
+        const sessionRepo = getSessionRepository();
+        const revokedCount = await sessionRepo.revokeAllForIdentity(ctx.targetIdentityId);
         elog.info('Enforcement: revoked identity sessions on ban', {
           identityId: ctx.targetIdentityId,
           revokedCount,
@@ -137,7 +137,7 @@ export async function executeEnforcement(
         await eventRepo.createEvent({
           reportId: ctx.reportId,
           eventType: 'enforcement_action',
-          actorUserId: ctx.actorUserId,
+          actorIdentityId: ctx.actorIdentityId,
           body: `Identity ${ctx.targetIdentityId} permanently banned`,
           metadata: { action: 'ban', identityId: ctx.targetIdentityId, sessionsRevoked: revokedCount },
         });

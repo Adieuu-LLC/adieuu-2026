@@ -14,7 +14,6 @@ import { connectMongo, getDb, disconnectMongo } from '../src/db/mongo';
 
 const COLLECTIONS_TO_DROP = [
   'identities',
-  'identity_sessions',
   'friendships',
   'friend_requests',
   'blocks',

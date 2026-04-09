@@ -132,11 +132,14 @@ export async function decryptMessageBatch(params: DecryptMessageBatchParams): Pr
               undefined,
               cached
             );
+            const hasFs = m.wrappedKeys?.some(
+              (wk) => wk.identityId === identityId && wk.preKeyType !== 'static'
+            ) ?? false;
             return {
               ...m,
               decryptedContent: result.plaintext,
               signatureVerified: result.verified,
-              forwardSecrecy: true,
+              forwardSecrecy: hasFs,
             };
           } catch {
             sessionKeyCache.delete(m.id);

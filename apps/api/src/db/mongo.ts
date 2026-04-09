@@ -326,8 +326,6 @@ export const Collections = {
   MFA_BACKUP_CODES: 'mfa_backup_codes',
   /** User identities collection */
   IDENTITIES: 'identities',
-  /** Identity sessions collection */
-  IDENTITY_SESSIONS: 'identity_sessions',
   /** Blocks between identities */
   BLOCKS: 'blocks',
   /** Friend requests between identities */
@@ -475,13 +473,6 @@ async function createIndexes(): Promise<void> {
   await identities.createIndex({ ident: 1 }, { unique: true });
   await identities.createIndex({ username: 1 }, { unique: true });
   await identities.createIndex({ lastActiveAt: 1 });
-
-  // Identity sessions collection indexes
-  const identitySessions = database.collection(Collections.IDENTITY_SESSIONS);
-  await identitySessions.createIndex({ identitySessionId: 1 }, { unique: true });
-  await identitySessions.createIndex({ identityId: 1 });
-  await identitySessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // TTL index
-  await identitySessions.createIndex({ revoked: 1, expiresAt: 1 });
 
   // Blocks collection indexes
   const blocks = database.collection(Collections.BLOCKS);

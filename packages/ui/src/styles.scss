@@ -6759,9 +6759,50 @@ a {
       align-items: center;
       gap: var(--spacing-sm);
       width: 100%;
+      position: relative;
 
       &--multiline {
         align-items: flex-start;
+      }
+    }
+
+    &-emoji-ac {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      right: 0;
+      list-style: none;
+      margin: 0 0 var(--spacing-xs);
+      padding: var(--spacing-xs);
+      background: var(--color-bg-secondary);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      z-index: 10;
+
+      &-item {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-xs) var(--spacing-sm);
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        color: var(--color-text-secondary);
+
+        &--selected,
+        &:hover {
+          background: var(--color-bg-hover);
+          color: var(--color-text-primary);
+        }
+      }
+
+      &-emoji {
+        font-size: 1.2em;
+        flex-shrink: 0;
+      }
+
+      &-code {
+        font-size: var(--font-size-sm);
+        color: var(--color-text-muted);
       }
     }
 

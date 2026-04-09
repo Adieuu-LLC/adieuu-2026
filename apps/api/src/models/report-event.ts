@@ -24,8 +24,8 @@ export interface ReportEventDocument extends BaseDocument {
 
   eventType: ReportEventType;
 
-  /** User ID of the actor (moderator/admin/system) */
-  actorUserId: string;
+  /** Identity ID of the actor (moderator/admin/system) */
+  actorIdentityId: string;
 
   /** Human-readable body (comment text, reason, etc.) */
   body?: string;
@@ -37,7 +37,7 @@ export interface ReportEventDocument extends BaseDocument {
 export interface CreateReportEventInput {
   reportId: ObjectId;
   eventType: ReportEventType;
-  actorUserId: string;
+  actorIdentityId: string;
   body?: string;
   metadata?: Record<string, unknown>;
 }

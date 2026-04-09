@@ -318,7 +318,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
    * and all devices use static key wrapping. E2EE is still maintained.
    */
   const fetchRecipientKeys = useCallback(
-    async (participantIds: string[], useForwardSecrecy = true): Promise<RecipientKeys[]> => {
+    async (participantIds: string[], useForwardSecrecy = false): Promise<RecipientKeys[]> => {
       const recipients: RecipientKeys[] = [];
 
       for (const pid of participantIds) {
@@ -651,7 +651,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       const conversation = conversations.find((c) => c.id === conversationId);
       if (!conversation) return null;
 
-      const useFs = options?.useForwardSecrecy ?? true;
+      const useFs = options?.useForwardSecrecy ?? false;
       const expiresInSeconds = options?.expiresInSeconds;
 
       setSending(true);

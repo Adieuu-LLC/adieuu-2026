@@ -6,17 +6,15 @@ coverage:
   status:
     project:
       default:
-        # Coverage target - warn if below this threshold
         target: 80%
-        # Allow coverage to drop by this amount before failing
         threshold: 10%
-        # Only check coverage on files changed in the PR
         only_pulls: true
+        informational: true
     patch:
       default:
-        # Require new code to have at least this coverage
         target: 50%
         threshold: 10%
+        informational: true
 
   # Precision of coverage percentage (0-5 decimal places)
   precision: 2

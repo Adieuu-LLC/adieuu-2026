@@ -125,12 +125,12 @@ export async function isAuthIdentifierAllowed(
 }
 
 /**
- * Whether the user account is in the platform admin list (Mongo ObjectIds).
+ * Whether the identity is in the platform admin list (Mongo ObjectIds).
  * Reads from DB each time — no Redis cache (revocation must be immediate).
  */
-export async function isPlatformAdmin(userId: string | ObjectId): Promise<boolean> {
+export async function isPlatformAdmin(identityId: string | ObjectId): Promise<boolean> {
   const repo = getPlatformSettingsRepository();
-  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST);
+  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST);
 
   if (!doc) {
     elog.warn('No platform admin list found.');
@@ -142,15 +142,15 @@ export async function isPlatformAdmin(userId: string | ObjectId): Promise<boolea
     return false;
   }
 
-  const currentUserId = typeof userId === 'string' ? userId.toLowerCase() : userId.toHexString().toLowerCase();
+  const currentId = typeof identityId === 'string' ? identityId.toLowerCase() : identityId.toHexString().toLowerCase();
 
   for (const adminlistEntry of doc.value) {
     if (adminlistEntry instanceof ObjectId) {
-      if (adminlistEntry.toHexString().toLowerCase() === currentUserId) return true;
+      if (adminlistEntry.toHexString().toLowerCase() === currentId) return true;
       continue;
     }
     if (typeof adminlistEntry === 'string') {
-      if (isValidObjectId(adminlistEntry) && adminlistEntry.toLowerCase() === currentUserId) {
+      if (isValidObjectId(adminlistEntry) && adminlistEntry.toLowerCase() === currentId) {
         return true;
       }
       continue;
@@ -158,7 +158,7 @@ export async function isPlatformAdmin(userId: string | ObjectId): Promise<boolea
     if (adminlistEntry && typeof adminlistEntry === 'object' && '_id' in adminlistEntry) {
       try {
         const oid = adminlistEntry as ObjectId;
-        if (oid.toHexString().toLowerCase() === currentUserId) return true;
+        if (oid.toHexString().toLowerCase() === currentId) return true;
       } catch {
         elog.warn('Invalid ObjectId in platform admin list', { value: adminlistEntry });
       }
@@ -168,12 +168,12 @@ export async function isPlatformAdmin(userId: string | ObjectId): Promise<boolea
 }
 
 /**
- * Whether the user account is in the platform moderator list.
+ * Whether the identity is in the platform moderator list.
  * Same semantics as isPlatformAdmin — reads from DB each time.
  */
-export async function isPlatformModerator(userId: string | ObjectId): Promise<boolean> {
+export async function isPlatformModerator(identityId: string | ObjectId): Promise<boolean> {
   const repo = getPlatformSettingsRepository();
-  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.MODERATOR_ACCOUNT_LIST);
+  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.MODERATOR_IDENTITY_LIST);
 
   if (!doc) return false;
 
@@ -182,21 +182,21 @@ export async function isPlatformModerator(userId: string | ObjectId): Promise<bo
     return false;
   }
 
-  const currentUserId = typeof userId === 'string' ? userId.toLowerCase() : userId.toHexString().toLowerCase();
+  const currentId = typeof identityId === 'string' ? identityId.toLowerCase() : identityId.toHexString().toLowerCase();
 
   for (const entry of doc.value) {
     if (entry instanceof ObjectId) {
-      if (entry.toHexString().toLowerCase() === currentUserId) return true;
+      if (entry.toHexString().toLowerCase() === currentId) return true;
       continue;
     }
     if (typeof entry === 'string') {
-      if (isValidObjectId(entry) && entry.toLowerCase() === currentUserId) return true;
+      if (isValidObjectId(entry) && entry.toLowerCase() === currentId) return true;
       continue;
     }
     if (entry && typeof entry === 'object' && '_id' in entry) {
       try {
         const oid = entry as ObjectId;
-        if (oid.toHexString().toLowerCase() === currentUserId) return true;
+        if (oid.toHexString().toLowerCase() === currentId) return true;
       } catch {
         elog.warn('Invalid ObjectId in platform moderator list', { value: entry });
       }
@@ -344,12 +344,12 @@ export async function ensureAuthAllowlistPlatformSettingsExist(lastUpdatedBy: st
 export const PLATFORM_SETTING_BOOTSTRAP_ACTOR = 'system';
 
 /**
- * Ensures the platform admin account list setting exists with an empty list.
+ * Ensures the platform admin identity list setting exists with an empty list.
  * Call once after MongoDB is available (e.g. server startup). Idempotent.
  */
-export async function ensureAdminAccountListPlatformSettingExists(): Promise<void> {
+export async function ensureAdminIdentityListPlatformSettingExists(): Promise<void> {
   const repo = getPlatformSettingsRepository();
-  const key = PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST;
+  const key = PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST;
   const existing = await repo.findByKey(key);
   if (existing) {
     return;
@@ -357,7 +357,7 @@ export async function ensureAdminAccountListPlatformSettingExists(): Promise<voi
 
   await upsertPlatformSetting({
     key,
-    description: 'Platform administrator user IDs',
+    description: 'Platform administrator identity IDs',
     valueType: 'objectIdArray',
     value: [],
     lastUpdatedBy: PLATFORM_SETTING_BOOTSTRAP_ACTOR,
@@ -367,18 +367,18 @@ export async function ensureAdminAccountListPlatformSettingExists(): Promise<voi
 }
 
 /**
- * Ensures the platform moderator account list setting exists with an empty list.
+ * Ensures the platform moderator identity list setting exists with an empty list.
  * Idempotent — safe to call on every startup.
  */
-export async function ensureModeratorAccountListPlatformSettingExists(): Promise<void> {
+export async function ensureModeratorIdentityListPlatformSettingExists(): Promise<void> {
   const repo = getPlatformSettingsRepository();
-  const key = PLATFORM_SETTING_KEYS.MODERATOR_ACCOUNT_LIST;
+  const key = PLATFORM_SETTING_KEYS.MODERATOR_IDENTITY_LIST;
   const existing = await repo.findByKey(key);
   if (existing) return;
 
   await upsertPlatformSetting({
     key,
-    description: 'Platform moderator user IDs',
+    description: 'Platform moderator identity IDs',
     valueType: 'objectIdArray',
     value: [],
     lastUpdatedBy: PLATFORM_SETTING_BOOTSTRAP_ACTOR,

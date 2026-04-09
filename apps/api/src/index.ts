@@ -9,8 +9,8 @@ import { registerRoutes } from './routes';
 import { initializeDatabases, closeDatabases } from './db';
 import { config, validateProductionConfig } from './config';
 import {
-  ensureAdminAccountListPlatformSettingExists,
-  ensureModeratorAccountListPlatformSettingExists,
+  ensureAdminIdentityListPlatformSettingExists,
+  ensureModeratorIdentityListPlatformSettingExists,
 } from './services/platform-settings.service';
 import { elog } from './utils';
 
@@ -36,8 +36,8 @@ async function start(): Promise<void> {
   await initializeDatabases();
 
   try {
-    await ensureAdminAccountListPlatformSettingExists();
-    await ensureModeratorAccountListPlatformSettingExists();
+    await ensureAdminIdentityListPlatformSettingExists();
+    await ensureModeratorIdentityListPlatformSettingExists();
   } catch (error) {
     elog.warn('Could not ensure platform settings exist', { error });
     if (config.features.requireDatabase) {

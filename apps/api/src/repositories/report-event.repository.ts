@@ -19,7 +19,7 @@ export class ReportEventRepository extends BaseRepository<ReportEventDocument> {
     const doc: Omit<ReportEventDocument, '_id' | 'createdAt' | 'updatedAt'> = {
       reportId: input.reportId,
       eventType: input.eventType,
-      actorUserId: input.actorUserId,
+      actorIdentityId: input.actorIdentityId,
       body: input.body,
       metadata: input.metadata,
     };

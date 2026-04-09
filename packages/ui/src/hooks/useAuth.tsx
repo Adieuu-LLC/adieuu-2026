@@ -84,10 +84,19 @@ function useAuthState(): AuthContextValue {
       const response = await api.auth.getSession();
 
       if (response.success && response.data) {
+        const data = response.data as unknown as Record<string, unknown>;
+
         // Server returns { sessionType: 'identity' } when the cookie
         // holds an identity session instead of an account session.
-        if ('sessionType' in response.data && (response.data as Record<string, unknown>).sessionType === 'identity') {
-          setState({ status: 'identity_mode', session: null });
+        if ('sessionType' in data && data.sessionType === 'identity') {
+          setState({
+            status: 'identity_mode',
+            session: {
+              isPlatformAdmin: (data.isPlatformAdmin as boolean) ?? false,
+              isPlatformModerator: (data.isPlatformModerator as boolean) ?? false,
+              platformPermissions: (data.platformPermissions as string[]) ?? [],
+            },
+          });
           return;
         }
 
@@ -95,9 +104,9 @@ function useAuthState(): AuthContextValue {
           status: 'authenticated',
           session: {
             ...response.data,
-            isPlatformAdmin: response.data.isPlatformAdmin ?? false,
-            isPlatformModerator: response.data.isPlatformModerator ?? false,
-            platformPermissions: response.data.platformPermissions ?? [],
+            isPlatformAdmin: false,
+            isPlatformModerator: false,
+            platformPermissions: [],
           },
         });
       } else {

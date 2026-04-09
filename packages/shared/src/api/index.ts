@@ -127,7 +127,6 @@ export {
   type ReportListResponse,
   type ReportDetailResponse,
   type ModerationIdentityProfile,
-  type ModerationUserProfile,
   type ResolveReportParams,
   type ModerationModerator,
   type ModeratorsListResponse,

@@ -131,6 +131,8 @@ const textShortcutPattern = new RegExp(
   'g'
 );
 
+export const SHORTCODE_ENTRIES: ReadonlyArray<readonly [string, string]> = Object.entries(COLON_SHORTCODES);
+
 const EMOJI_TO_SHORTCODE: Record<string, string> = Object.fromEntries(
   Object.entries(COLON_SHORTCODES).map(([code, emoji]) => [emoji, code])
 );

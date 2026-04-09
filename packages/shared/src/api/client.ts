@@ -170,22 +170,24 @@ export interface PublicKeyCredentialRequestOptionsJSON {
  * not exposed to JavaScript.
  */
 export interface SessionInfo {
-  identifier: string;
-  identifierType: 'email' | 'phone';
-  /** Number of identities the user has created */
-  identityCount: number;
-  /** Maximum number of identities allowed */
-  maxIdentities: number;
+  /** Present in account mode */
+  identifier?: string;
+  /** Present in account mode */
+  identifierType?: 'email' | 'phone';
+  /** Number of identities the user has created (account mode) */
+  identityCount?: number;
+  /** Maximum number of identities allowed (account mode) */
+  maxIdentities?: number;
   /**
    * Short-lived HS256 JWT for bridging account→identity transitions.
-   * Refreshed on every GET /api/auth/session call.
+   * Refreshed on every GET /api/auth/session call. Present in account mode.
    */
-  signedToken: string;
-  /** Whether this user can access platform admin APIs and UI */
+  signedToken?: string;
+  /** Whether this identity can access platform admin APIs and UI (identity mode) */
   isPlatformAdmin: boolean;
-  /** Whether this user can access the platform moderation panel */
+  /** Whether this identity can access the platform moderation panel (identity mode) */
   isPlatformModerator: boolean;
-  /** Effective platform-level permissions for the current user */
+  /** Effective platform-level permissions for the current identity (identity mode) */
   platformPermissions: string[];
 }
 
@@ -1685,11 +1687,11 @@ export interface PutPlatformSettingBody {
 }
 
 export interface PlatformAdminRow {
-  userId: string;
-  email?: string;
-  phone?: string;
+  identityId: string;
   displayName?: string;
-  /** True when the user id is listed but no longer exists in the database */
+  username?: string;
+  avatarUrl?: string;
+  /** True when the identity id is listed but no longer exists in the database */
   stale?: boolean;
 }
 
@@ -1720,15 +1722,15 @@ export class AdminApi {
   }
 
   async addPlatformAdmin(params: {
-    identifier: string;
+    identityId: string;
   }): Promise<ApiResponse<{ admins: PlatformAdminRow[] }>> {
     return this.client.post('/api/admin/platform-admins', params);
   }
 
   async removePlatformAdmin(
-    userId: string
+    identityId: string
   ): Promise<ApiResponse<{ admins: PlatformAdminRow[] }>> {
-    return this.client.delete(`/api/admin/platform-admins/${encodeURIComponent(userId)}`);
+    return this.client.delete(`/api/admin/platform-admins/${encodeURIComponent(identityId)}`);
   }
 }
 
@@ -1760,7 +1762,7 @@ export interface ReportResolution {
   aliasSuspendedMs: number;
   aliasBanned: boolean;
   reason: string;
-  resolvedBy: string;
+  resolvedByIdentityId: string;
   resolvedAt: string;
 }
 
@@ -1821,9 +1823,9 @@ export interface PublicReport {
   reporterReason?: string;
   resolution?: ReportResolution;
   closureReason?: string;
-  closedBy?: string;
+  closedByIdentityId?: string;
   closedAt?: string;
-  escalatedBy?: string;
+  escalatedByIdentityId?: string;
   escalatedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -1833,7 +1835,7 @@ export interface PublicReportEvent {
   id: string;
   reportId: string;
   eventType: string;
-  actorUserId: string;
+  actorIdentityId: string;
   body?: string;
   metadata?: Record<string, unknown>;
   createdAt: string;
@@ -1863,15 +1865,10 @@ export interface ModerationIdentityProfile {
   avatarUrl?: string;
 }
 
-export interface ModerationUserProfile {
-  displayName: string;
-}
-
 export interface ReportDetailResponse {
   report: PublicReport;
   events: PublicReportEvent[];
   identityProfiles: Record<string, ModerationIdentityProfile>;
-  userProfiles: Record<string, ModerationUserProfile>;
 }
 
 export interface ResolveReportParams {
@@ -1883,8 +1880,9 @@ export interface ResolveReportParams {
 }
 
 export interface ModerationModerator {
-  userId: string;
+  identityId: string;
   displayName: string;
+  username: string;
 }
 
 export interface ModeratorsListResponse {
@@ -1916,8 +1914,8 @@ export class ModerationApi {
     return this.client.get(`/api/moderation/reports/${encodeURIComponent(id)}`);
   }
 
-  async assignReport(id: string, userId: string): Promise<ApiResponse<PublicReport>> {
-    return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/assign`, { userId });
+  async assignReport(id: string, identityId: string): Promise<ApiResponse<PublicReport>> {
+    return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/assign`, { identityId });
   }
 
   async unassignReport(id: string): Promise<ApiResponse<PublicReport>> {

@@ -27,7 +27,6 @@ mock.module('../../db', () => ({
   Collections: {
     KEY_BUNDLES: 'key_bundles',
     IDENTITIES: 'identities',
-    IDENTITY_SESSIONS: 'identity_sessions',
     USERS: 'users',
     SESSIONS: 'sessions',
     AUDIT_LOGS: 'audit_logs',
@@ -126,18 +125,6 @@ mock.module('../../repositories/identity.repository', () => ({
     DEFAULT_LIMIT: 10,
     MAX_LIMIT: 50,
   },
-}));
-
-// Mock identity session repository
-mock.module('../../repositories/identity-session.repository', () => ({
-  getIdentitySessionRepository: () => ({
-    create: mock(() => Promise.resolve({ identitySessionId: 'test-session' })),
-    findBySessionId: mock(() => Promise.resolve({ identitySessionId: 'test-session', identityId: mockIdentity._id })),
-    getSession: mock(() => Promise.resolve({ identityId: mockIdentity._id.toHexString(), expiresAt: Date.now() + 3600000, lastActivityAt: Date.now() })),
-    revoke: mock(() => Promise.resolve()),
-    revokeAllForIdentity: mock(() => Promise.resolve(0)),
-    updateLastActivity: mock(() => Promise.resolve()),
-  }),
 }));
 
 // Mock audit repository

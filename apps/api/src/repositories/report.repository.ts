@@ -97,8 +97,8 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
     return { reports, total, page, limit };
   }
 
-  async assign(reportId: string | ObjectId, userId: string): Promise<ReportDocument | null> {
-    return await this.updateById(reportId, { assignedTo: userId } as Partial<ReportDocument>);
+  async assign(reportId: string | ObjectId, identityId: string): Promise<ReportDocument | null> {
+    return await this.updateById(reportId, { assignedTo: identityId } as Partial<ReportDocument>);
   }
 
   async unassign(reportId: string | ObjectId): Promise<ReportDocument | null> {
@@ -113,11 +113,11 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
 
   async escalate(
     reportId: string | ObjectId,
-    escalatedBy: string,
+    escalatedByIdentityId: string,
   ): Promise<ReportDocument | null> {
     return await this.updateById(reportId, {
       status: 'escalated',
-      escalatedBy,
+      escalatedByIdentityId,
       escalatedAt: new Date(),
     } as Partial<ReportDocument>);
   }
@@ -134,12 +134,12 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
 
   async close(
     reportId: string | ObjectId,
-    closedBy: string,
+    closedByIdentityId: string,
     closureReason: string,
   ): Promise<ReportDocument | null> {
     return await this.updateById(reportId, {
       status: 'closed',
-      closedBy,
+      closedByIdentityId,
       closureReason,
       closedAt: new Date(),
     } as Partial<ReportDocument>);
@@ -154,7 +154,7 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
         $unset: {
           resolution: '',
           closureReason: '',
-          closedBy: '',
+          closedByIdentityId: '',
           closedAt: '',
         },
       },

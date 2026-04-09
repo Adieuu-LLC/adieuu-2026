@@ -9,12 +9,11 @@
 import { ObjectId } from 'mongodb';
 import { Router, type RouteContext } from '../../router';
 import { success } from '../../utils/response';
-import { requireAccountSession } from '../../services/session.service';
+import { requireIdentitySession } from '../../services/session.service';
 import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
 import { getReportRepository } from '../../repositories/report.repository';
 import { getReportEventRepository } from '../../repositories/report-event.repository';
 import { getIdentityRepository } from '../../repositories/identity.repository';
-import { getUserRepository } from '../../repositories/user.repository';
 import { executeEnforcement } from '../../services/moderation-enforcement.service';
 import { PLATFORM_PERMISSIONS } from '../../constants/platform-permissions';
 import { REPORT_CATEGORIES, REPORT_STATUSES, type ReportStatus } from '../../models/report';
@@ -29,13 +28,13 @@ const router = new Router();
 
 type ModeratorAuthResult =
   | { ok: false; error: Response }
-  | { ok: true; session: NonNullable<Awaited<ReturnType<typeof requireAccountSession>>>; caps: Awaited<ReturnType<typeof getPlatformCapabilities>> };
+  | { ok: true; session: NonNullable<Awaited<ReturnType<typeof requireIdentitySession>>>; caps: Awaited<ReturnType<typeof getPlatformCapabilities>> };
 
 async function requireModeratorSession(request: Request, errors: RouteContext['errors']): Promise<ModeratorAuthResult> {
-  const session = await requireAccountSession(request);
+  const session = await requireIdentitySession(request);
   if (!session) return { ok: false, error: errors.unauthorized() };
 
-  const caps = await getPlatformCapabilities(session.userId);
+  const caps = await getPlatformCapabilities(session.identityId);
   const canRead =
     caps.permissions.includes(PLATFORM_PERMISSIONS.READ_CONTENT_REPORTS) ||
     caps.permissions.includes(PLATFORM_PERMISSIONS.READ_ABUSE_REPORTS);
@@ -66,9 +65,9 @@ function toPublicReport(doc: Record<string, unknown>) {
     reporterReason: doc.reporterReason,
     resolution: doc.resolution,
     closureReason: doc.closureReason,
-    closedBy: doc.closedBy,
+    closedByIdentityId: doc.closedByIdentityId,
     closedAt: doc.closedAt instanceof Date ? doc.closedAt.toISOString() : doc.closedAt,
-    escalatedBy: doc.escalatedBy,
+    escalatedByIdentityId: doc.escalatedByIdentityId,
     escalatedAt: doc.escalatedAt instanceof Date ? doc.escalatedAt.toISOString() : doc.escalatedAt,
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
     updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : doc.updatedAt,
@@ -81,7 +80,7 @@ function toPublicEvent(doc: Record<string, unknown>) {
     id,
     reportId: doc.reportId instanceof ObjectId ? doc.reportId.toHexString() : String(doc.reportId),
     eventType: doc.eventType,
-    actorUserId: doc.actorUserId,
+    actorIdentityId: doc.actorIdentityId,
     body: doc.body,
     metadata: doc.metadata,
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
@@ -114,7 +113,7 @@ router.get('/moderation/reports', async (ctx): Promise<Response> => {
     else if (statuses.length > 1) filter.status = statuses;
   }
   if (assignedParam === 'unassigned') filter.assignedTo = null;
-  else if (assignedParam === 'me') filter.assignedTo = auth.session.userId;
+  else if (assignedParam === 'me') filter.assignedTo = auth.session.identityId;
   if (typeParam) filter.reportType = typeParam;
   if (categoryParam) filter.category = categoryParam;
   if (targetIdentityParam) filter.targetIdentityId = targetIdentityParam;
@@ -159,18 +158,17 @@ router.get('/moderation/reports/:id', async (ctx): Promise<Response> => {
     }
   }
 
-  // Collect all unique user IDs from events and resolution (moderators)
-  const userIds = new Set<string>();
+  // Collect moderator/actor identity IDs from events and resolution
   for (const ev of events) {
-    const actorId = (ev as unknown as Record<string, unknown>).actorUserId as string | undefined;
-    if (actorId) userIds.add(actorId);
+    const actorId = (ev as unknown as Record<string, unknown>).actorIdentityId as string | undefined;
+    if (actorId) identityIds.add(actorId);
   }
-  if (report.resolution?.resolvedBy) userIds.add(report.resolution.resolvedBy);
-  if (report.closedBy) userIds.add(report.closedBy);
-  if (report.escalatedBy) userIds.add(report.escalatedBy);
-  if (report.assignedTo) userIds.add(report.assignedTo);
+  if (report.resolution?.resolvedByIdentityId) identityIds.add(report.resolution.resolvedByIdentityId);
+  if (report.closedByIdentityId) identityIds.add(report.closedByIdentityId);
+  if (report.escalatedByIdentityId) identityIds.add(report.escalatedByIdentityId);
+  if (report.assignedTo) identityIds.add(report.assignedTo);
 
-  // Resolve identity profiles (alias-level only — no user/account data)
+  // Resolve identity profiles (targets, reporters, and moderator actors)
   const identityRepo = getIdentityRepository();
   const identityProfiles: Record<string, { displayName: string; username: string; avatarUrl?: string }> = {};
   await Promise.all(
@@ -188,27 +186,10 @@ router.get('/moderation/reports/:id', async (ctx): Promise<Response> => {
     }),
   );
 
-  // Resolve moderator user profiles (displayName only)
-  const userRepo = getUserRepository();
-  const userProfiles: Record<string, { displayName: string }> = {};
-  await Promise.all(
-    [...userIds].map(async (uid) => {
-      try {
-        const user = await userRepo.findById(uid);
-        if (user) {
-          userProfiles[uid] = {
-            displayName: user.displayName ?? '',
-          };
-        }
-      } catch { /* user not found — skip */ }
-    }),
-  );
-
   return success({
     report: toPublicReport(report as unknown as Record<string, unknown>),
     events: events.map((e) => toPublicEvent(e as unknown as Record<string, unknown>)),
     identityProfiles,
-    userProfiles,
   });
 });
 
@@ -222,11 +203,11 @@ router.get('/moderation/moderators', async (ctx): Promise<Response> => {
 
   const { getPlatformSettingsRepository } = await import('../../repositories/platform-settings.repository');
   const settingsRepo = getPlatformSettingsRepository();
-  const userRepo = getUserRepository();
+  const identityRepo = getIdentityRepository();
 
   const idSet = new Set<string>();
 
-  const adminDoc = await settingsRepo.findByKey('platform-admin-account-list');
+  const adminDoc = await settingsRepo.findByKey('platform-admin-identity-list');
   if (adminDoc?.valueType === 'objectIdArray' && Array.isArray(adminDoc.value)) {
     for (const entry of adminDoc.value) {
       const hex = entry instanceof ObjectId ? entry.toHexString() : typeof entry === 'string' ? entry : null;
@@ -234,7 +215,7 @@ router.get('/moderation/moderators', async (ctx): Promise<Response> => {
     }
   }
 
-  const modDoc = await settingsRepo.findByKey('platform-moderator-account-list');
+  const modDoc = await settingsRepo.findByKey('platform-moderator-identity-list');
   if (modDoc?.valueType === 'objectIdArray' && Array.isArray(modDoc.value)) {
     for (const entry of modDoc.value) {
       const hex = entry instanceof ObjectId ? entry.toHexString() : typeof entry === 'string' ? entry : null;
@@ -242,13 +223,17 @@ router.get('/moderation/moderators', async (ctx): Promise<Response> => {
     }
   }
 
-  const moderators: { userId: string; displayName: string }[] = [];
+  const moderators: { identityId: string; displayName: string; username: string }[] = [];
   await Promise.all(
-    [...idSet].map(async (uid) => {
+    [...idSet].map(async (iid) => {
       try {
-        const user = await userRepo.findById(uid);
-        if (user) {
-          moderators.push({ userId: uid, displayName: user.displayName ?? '' });
+        const identity = await identityRepo.findByIdentityId(iid);
+        if (identity) {
+          moderators.push({
+            identityId: iid,
+            displayName: identity.displayName ?? '',
+            username: identity.username ?? '',
+          });
         }
       } catch { /* skip */ }
     }),
@@ -290,14 +275,14 @@ router.post('/moderation/reports/:id/reopen', async (ctx): Promise<Response> => 
     return ctx.errors.badRequest();
   }
 
-  const updated = await repo.reopen(id, auth.session.userId);
+  const updated = await repo.reopen(id, auth.session.identityId);
   if (!updated) return ctx.errors.notFound();
 
   const eventRepo = getReportEventRepository();
   await eventRepo.createEvent({
     reportId: new ObjectId(id),
     eventType: 'status_change',
-    actorUserId: auth.session.userId,
+    actorIdentityId: auth.session.identityId,
     body: body.data.reason
       ? `Report reopened for review: ${body.data.reason}`
       : 'Report reopened for review',
@@ -311,7 +296,7 @@ router.post('/moderation/reports/:id/reopen', async (ctx): Promise<Response> => 
 // POST /moderation/reports/:id/assign
 // ---------------------------------------------------------------------------
 
-const AssignSchema = z.object({ userId: z.string().min(1) });
+const AssignSchema = z.object({ identityId: z.string().min(1) });
 
 router.post('/moderation/reports/:id/assign', async (ctx): Promise<Response> => {
   const auth = await requireModeratorSession(ctx.request, ctx.errors);
@@ -327,7 +312,7 @@ router.post('/moderation/reports/:id/assign', async (ctx): Promise<Response> => 
   const report = await repo.findById(id);
   if (!report) return ctx.errors.notFound();
 
-  const updated = await repo.assign(id, body.data.userId);
+  const updated = await repo.assign(id, body.data.identityId);
   if (!updated) return ctx.errors.notFound();
 
   const previousAssignee = report.assignedTo ?? null;
@@ -335,11 +320,11 @@ router.post('/moderation/reports/:id/assign', async (ctx): Promise<Response> => 
   await eventRepo.createEvent({
     reportId: new ObjectId(id),
     eventType: 'assignment_change',
-    actorUserId: auth.session.userId,
+    actorIdentityId: auth.session.identityId,
     body: previousAssignee
-      ? `Reassigned from ${previousAssignee.slice(0, 8)}… to ${body.data.userId.slice(0, 8)}…`
-      : `Assigned to ${body.data.userId.slice(0, 8)}…`,
-    metadata: { from: previousAssignee, assignedTo: body.data.userId },
+      ? `Reassigned from ${previousAssignee.slice(0, 8)}… to ${body.data.identityId.slice(0, 8)}…`
+      : `Assigned to ${body.data.identityId.slice(0, 8)}…`,
+    metadata: { from: previousAssignee, assignedTo: body.data.identityId },
   });
 
   return success(toPublicReport(updated as unknown as Record<string, unknown>));
@@ -368,7 +353,7 @@ router.post('/moderation/reports/:id/unassign', async (ctx): Promise<Response> =
   await eventRepo.createEvent({
     reportId: new ObjectId(id),
     eventType: 'assignment_change',
-    actorUserId: auth.session.userId,
+    actorIdentityId: auth.session.identityId,
     body: previousAssignee
       ? `Unassigned from ${previousAssignee.slice(0, 8)}…`
       : 'Unassigned',
@@ -395,14 +380,14 @@ router.post('/moderation/reports/:id/escalate', async (ctx): Promise<Response> =
   if (!id || !isValidObjectId(id)) return ctx.errors.badRequest();
 
   const repo = getReportRepository();
-  const updated = await repo.escalate(id, auth.session.userId);
+  const updated = await repo.escalate(id, auth.session.identityId);
   if (!updated) return ctx.errors.notFound();
 
   const eventRepo = getReportEventRepository();
   await eventRepo.createEvent({
     reportId: new ObjectId(id),
     eventType: 'status_change',
-    actorUserId: auth.session.userId,
+    actorIdentityId: auth.session.identityId,
     body: 'Report escalated for admin review',
     metadata: { from: 'open', to: 'escalated' },
   });
@@ -439,7 +424,7 @@ router.post('/moderation/reports/:id/category', async (ctx): Promise<Response> =
   await eventRepo.createEvent({
     reportId: new ObjectId(id),
     eventType: 'category_change',
-    actorUserId: auth.session.userId,
+    actorIdentityId: auth.session.identityId,
     metadata: { from: oldCategory, to: body.data.category },
   });
 
@@ -473,7 +458,7 @@ router.post('/moderation/reports/:id/comment', async (ctx): Promise<Response> =>
   const event = await eventRepo.createEvent({
     reportId: new ObjectId(id),
     eventType: body.data.visibility === 'internal' ? 'comment_internal' : 'comment_public',
-    actorUserId: auth.session.userId,
+    actorIdentityId: auth.session.identityId,
     body: body.data.body,
   });
 
@@ -527,7 +512,7 @@ router.post('/moderation/reports/:id/resolve', async (ctx): Promise<Response> =>
       reportId: new ObjectId(id),
       targetIdentityId: report.targetIdentityId,
       targetRef: report.targetRef,
-      actorUserId: auth.session.userId,
+      actorIdentityId: auth.session.identityId,
       reason: body.data.reason,
     },
   );
@@ -538,7 +523,7 @@ router.post('/moderation/reports/:id/resolve', async (ctx): Promise<Response> =>
     aliasSuspendedMs: body.data.suspendAliasMs,
     aliasBanned: body.data.banAlias,
     reason: body.data.reason,
-    resolvedBy: auth.session.userId,
+    resolvedByIdentityId: auth.session.identityId,
     resolvedAt: new Date(),
   });
 
@@ -546,7 +531,7 @@ router.post('/moderation/reports/:id/resolve', async (ctx): Promise<Response> =>
   await eventRepo.createEvent({
     reportId: new ObjectId(id),
     eventType: 'status_change',
-    actorUserId: auth.session.userId,
+    actorIdentityId: auth.session.identityId,
     body: `Report resolved: ${body.data.reason}`,
     metadata: { from: report.status, to: 'resolved', actions: body.data },
   });
@@ -586,13 +571,13 @@ router.post('/moderation/reports/:id/close', async (ctx): Promise<Response> => {
     return ctx.errors.forbidden();
   }
 
-  const updated = await repo.close(id, auth.session.userId, body.data.reason);
+  const updated = await repo.close(id, auth.session.identityId, body.data.reason);
 
   const eventRepo = getReportEventRepository();
   await eventRepo.createEvent({
     reportId: new ObjectId(id),
     eventType: 'status_change',
-    actorUserId: auth.session.userId,
+    actorIdentityId: auth.session.identityId,
     body: `Report closed (invalid): ${body.data.reason}`,
     metadata: { from: report.status, to: 'closed' },
   });

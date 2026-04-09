@@ -6,7 +6,6 @@ import {
   type PublicReport,
   type PublicReportEvent,
   type ModerationIdentityProfile,
-  type ModerationUserProfile,
   type ModerationModerator,
 } from '@adieuu/shared';
 import { Select, Portal, createListCollection } from '@ark-ui/react';
@@ -34,17 +33,6 @@ function formatIdentity(
     return `${name} ${username} (${id.slice(0, 8)}…)`.trim();
   }
   return `${fallbackLabel} (${id.slice(0, 8)}…)`;
-}
-
-function formatUser(
-  id: string | undefined,
-  profiles: Record<string, ModerationUserProfile>,
-  fallbackLabel: string,
-): string {
-  if (!id) return '—';
-  const p = profiles[id];
-  if (p?.displayName) return `${p.displayName} (${id.slice(0, 8)}…)`;
-  return `${fallbackLabel} ${id.slice(0, 8)}…`;
 }
 
 // ---------------------------------------------------------------------------
@@ -150,7 +138,6 @@ export function ReportDetail() {
   const [report, setReport] = useState<PublicReport | null>(null);
   const [events, setEvents] = useState<PublicReportEvent[]>([]);
   const [identityProfiles, setIdentityProfiles] = useState<Record<string, ModerationIdentityProfile>>({});
-  const [userProfiles, setUserProfiles] = useState<Record<string, ModerationUserProfile>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -202,7 +189,6 @@ export function ReportDetail() {
       setReport(res.data.report);
       setEvents(res.data.events);
       setIdentityProfiles(res.data.identityProfiles ?? {});
-      setUserProfiles(res.data.userProfiles ?? {});
     } else {
       setError(t('moderation.detail.loadError'));
     }
@@ -301,17 +287,17 @@ export function ReportDetail() {
     () =>
       createListCollection({
         items: moderators.map((m) => ({
-          value: m.userId,
-          label: m.displayName || m.userId.slice(0, 8) + '…',
+          value: m.identityId,
+          label: m.displayName || `@${m.username}` || m.identityId.slice(0, 8) + '…',
         })),
       }),
     [moderators],
   );
 
-  const handleAssign = async (userId: string) => {
+  const handleAssign = async (identityId: string) => {
     if (!id) return;
     setActionLoading(true);
-    const res = await api.moderation.assignReport(id, userId);
+    const res = await api.moderation.assignReport(id, identityId);
     if (res.success) {
       toast.success(t('moderation.detail.assignSuccess'));
       await load();
@@ -342,8 +328,6 @@ export function ReportDetail() {
   // Shorthand helpers
   const fmtId = (identityId: string | undefined) =>
     formatIdentity(identityId, identityProfiles, t('moderation.detail.unknownAlias'));
-  const fmtUser = (userId: string | undefined) =>
-    formatUser(userId, userProfiles, t('moderation.detail.moderatorFallback'));
 
   if (loading) {
     return (
@@ -458,7 +442,7 @@ export function ReportDetail() {
           <dd>
             {report.assignedTo ? (
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span>{fmtUser(report.assignedTo)}</span>
+                <span>{fmtId(report.assignedTo)}</span>
                 {isActionable && (
                   <Button variant="ghost" size="sm" onClick={handleUnassign} disabled={actionLoading}>
                     {t('moderation.detail.unassign')}
@@ -473,8 +457,8 @@ export function ReportDetail() {
                     collection={moderatorCollection}
                     value={[]}
                     onValueChange={(details) => {
-                      const uid = details.value[0];
-                      if (uid) void handleAssign(uid);
+                      const iid = details.value[0];
+                      if (iid) void handleAssign(iid);
                     }}
                     positioning={{ sameWidth: true }}
                   >
@@ -699,14 +683,14 @@ export function ReportDetail() {
                     metaDetail = t('moderation.detail.eventMeta.statusTransition', { from: fromLabel, to: toLabel });
                   } else if (ev.eventType === 'assignment_change') {
                     const assignedTo = meta.assignedTo as string | null | undefined;
-                    const fromUser = meta.from as string | null | undefined;
-                    if (assignedTo && fromUser) {
+                    const fromIdentity = meta.from as string | null | undefined;
+                    if (assignedTo && fromIdentity) {
                       metaDetail = t('moderation.detail.eventMeta.reassigned', {
-                        from: fmtUser(fromUser),
-                        to: fmtUser(assignedTo),
+                        from: fmtId(fromIdentity),
+                        to: fmtId(assignedTo),
                       });
                     } else if (assignedTo) {
-                      metaDetail = t('moderation.detail.eventMeta.assignedTo', { user: fmtUser(assignedTo) });
+                      metaDetail = t('moderation.detail.eventMeta.assignedTo', { user: fmtId(assignedTo) });
                     } else {
                       metaDetail = t('moderation.detail.eventMeta.unassigned');
                     }
@@ -727,9 +711,9 @@ export function ReportDetail() {
                             ({metaDetail})
                           </span>
                         )}
-                        {ev.actorUserId && (
+                        {ev.actorIdentityId && (
                           <span style={{ fontWeight: 'normal', marginLeft: '0.5rem', opacity: 0.7 }}>
-                            — {fmtUser(ev.actorUserId)}
+                            — {fmtId(ev.actorIdentityId)}
                           </span>
                         )}
                       </span>
@@ -753,7 +737,7 @@ export function ReportDetail() {
             <strong>{t('moderation.detail.resolution')}</strong>
             <p style={{ margin: '0.25rem 0' }}>{report.resolution.reason}</p>
             <small style={{ opacity: 0.6 }}>
-              {t('moderation.detail.resolvedBy')}: {fmtUser(report.resolution.resolvedBy)} &mdash; {new Date(report.resolution.resolvedAt).toLocaleString()}
+              {t('moderation.detail.resolvedBy')}: {fmtId(report.resolution.resolvedByIdentityId)} &mdash; {new Date(report.resolution.resolvedAt).toLocaleString()}
             </small>
           </div>
         </div>
@@ -765,7 +749,7 @@ export function ReportDetail() {
             <strong>{t('moderation.detail.closedLabel')}</strong>
             <p style={{ margin: '0.25rem 0' }}>{report.closureReason}</p>
             <small style={{ opacity: 0.6 }}>
-              {t('moderation.detail.closedByLabel')}: {fmtUser(report.closedBy)} &mdash; {report.closedAt ? new Date(report.closedAt).toLocaleString() : ''}
+              {t('moderation.detail.closedByLabel')}: {fmtId(report.closedByIdentityId)} &mdash; {report.closedAt ? new Date(report.closedAt).toLocaleString() : ''}
             </small>
           </div>
         </div>

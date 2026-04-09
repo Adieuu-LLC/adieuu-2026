@@ -1,11 +1,11 @@
 /**
- * Platform admin routes — session + platform admin list only.
+ * Platform admin routes — identity session + platform admin list only.
  */
 
 import { ObjectId } from 'mongodb';
 import { Router, type RouteContext } from '../../router';
 import { success } from '../../utils/response';
-import { requireAccountSession, type AccountSessionData } from '../../services/session.service';
+import { requireIdentitySession, type IdentitySessionData } from '../../services/session.service';
 import {
   ensureAuthAllowlistPlatformSettingsExist,
   isPlatformAdmin,
@@ -18,7 +18,6 @@ import { DELETED_IDENT_PREFIX } from '../../models/identity';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getUserRepository } from '../../repositories/user.repository';
 import { checkRateLimit } from '../../services/rate-limit.service';
-import { sanitizeString } from '../../utils/sanitize';
 import { z } from '@adieuu/shared/schemas';
 
 const router = new Router();
@@ -30,7 +29,7 @@ const PutPlatformSettingSchema = z.object({
 });
 
 const AddPlatformAdminSchema = z.object({
-  identifier: z.string().min(1).max(512),
+  identityId: z.string().min(1).max(64),
 });
 
 /** Non-deleted identities only (matches identity search filter). */
@@ -38,14 +37,6 @@ function activeIdentityBaseFilter() {
   return {
     ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
   };
-}
-
-function normalizeAdminIdentifier(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.includes('@')) {
-    return sanitizeString(trimmed, 'email').value;
-  }
-  return sanitizeString(trimmed, 'phone').value;
 }
 
 function isoFromDocDate(doc: PlatformSettingsDocument, field: 'createdAt' | 'updatedAt'): string {
@@ -88,31 +79,31 @@ function readAdminObjectIds(doc: PlatformSettingsDocument | null): ObjectId[] {
 }
 
 type PlatformAdminRow = {
-  userId: string;
-  email?: string;
-  phone?: string;
+  identityId: string;
   displayName?: string;
+  username?: string;
+  avatarUrl?: string;
   stale?: boolean;
 };
 
 async function buildPlatformAdminsList(): Promise<{ admins: PlatformAdminRow[] }> {
   const repo = getPlatformSettingsRepository();
-  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST);
+  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST);
   const ids = readAdminObjectIds(doc);
-  const userRepo = getUserRepository();
+  const identityRepo = getIdentityRepository();
   const admins: PlatformAdminRow[] = [];
 
   for (const oid of ids) {
-    const user = await userRepo.findById(oid);
-    if (!user) {
-      admins.push({ userId: oid.toHexString(), stale: true });
+    const identity = await identityRepo.findById(oid);
+    if (!identity) {
+      admins.push({ identityId: oid.toHexString(), stale: true });
       continue;
     }
     admins.push({
-      userId: oid.toHexString(),
-      email: user.email,
-      phone: user.phone,
-      displayName: user.displayName,
+      identityId: oid.toHexString(),
+      displayName: identity.displayName,
+      username: identity.username,
+      avatarUrl: identity.avatarUrl,
     });
   }
 
@@ -120,11 +111,11 @@ async function buildPlatformAdminsList(): Promise<{ admins: PlatformAdminRow[] }
 }
 
 router.get('/admin/metrics', async (ctx) => {
-  const session = await requireAccountSession(ctx.request);
+  const session = await requireIdentitySession(ctx.request);
   if (!session) {
     return ctx.errors.unauthorized();
   }
-  if (!(await isPlatformAdmin(session.userId))) {
+  if (!(await isPlatformAdmin(session.identityId))) {
     return ctx.errors.forbidden();
   }
 
@@ -151,11 +142,11 @@ router.get('/admin/metrics', async (ctx) => {
 });
 
 router.get('/admin/platform-admins', async (ctx) => {
-  const session = await requireAccountSession(ctx.request);
+  const session = await requireIdentitySession(ctx.request);
   if (!session) {
     return ctx.errors.unauthorized();
   }
-  if (!(await isPlatformAdmin(session.userId))) {
+  if (!(await isPlatformAdmin(session.identityId))) {
     return ctx.errors.forbidden();
   }
 
@@ -164,15 +155,15 @@ router.get('/admin/platform-admins', async (ctx) => {
 });
 
 router.post('/admin/platform-admins', async (ctx) => {
-  const session = await requireAccountSession(ctx.request);
+  const session = await requireIdentitySession(ctx.request);
   if (!session) {
     return ctx.errors.unauthorized();
   }
-  if (!(await isPlatformAdmin(session.userId))) {
+  if (!(await isPlatformAdmin(session.identityId))) {
     return ctx.errors.forbidden();
   }
 
-  const rl = await checkRateLimit('admin:platform-admins:add', session.userId, {
+  const rl = await checkRateLimit('admin:platform-admins:add', session.identityId, {
     limit: 30,
     windowSeconds: 3600,
   });
@@ -185,21 +176,16 @@ router.post('/admin/platform-admins', async (ctx) => {
     return ctx.errors.validationFailed();
   }
 
-  const identifier = normalizeAdminIdentifier(parseResult.data.identifier);
-  if (!identifier) {
-    return ctx.errors.validationFailed();
-  }
-
-  const userRepo = getUserRepository();
-  const user = await userRepo.findByIdentifier(identifier);
-  if (!user) {
+  const identityRepo = getIdentityRepository();
+  const identity = await identityRepo.findById(parseResult.data.identityId);
+  if (!identity) {
     return ctx.errors.notFound();
   }
 
   const repo = getPlatformSettingsRepository();
-  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST);
+  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST);
   const existing = readAdminObjectIds(doc);
-  const targetHex = user._id instanceof ObjectId ? user._id.toHexString() : String(user._id);
+  const targetHex = identity._id instanceof ObjectId ? identity._id.toHexString() : String(identity._id);
   if (existing.some((id) => id.toHexString() === targetHex)) {
     const payload = await buildPlatformAdminsList();
     return success(payload);
@@ -209,11 +195,11 @@ router.post('/admin/platform-admins', async (ctx) => {
 
   try {
     await upsertPlatformSetting({
-      key: PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST,
-      description: doc?.description ?? 'Platform administrator user IDs',
+      key: PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST,
+      description: doc?.description ?? 'Platform administrator identity IDs',
       valueType: 'objectIdArray',
       value: nextIds,
-      lastUpdatedBy: session.userId,
+      lastUpdatedBy: session.identityId,
     });
   } catch {
     return ctx.errors.validationFailed();
@@ -223,16 +209,16 @@ router.post('/admin/platform-admins', async (ctx) => {
   return success(payload);
 });
 
-router.delete('/admin/platform-admins/:userId', async (ctx) => {
-  const session = await requireAccountSession(ctx.request);
+router.delete('/admin/platform-admins/:identityId', async (ctx) => {
+  const session = await requireIdentitySession(ctx.request);
   if (!session) {
     return ctx.errors.unauthorized();
   }
-  if (!(await isPlatformAdmin(session.userId))) {
+  if (!(await isPlatformAdmin(session.identityId))) {
     return ctx.errors.forbidden();
   }
 
-  const rawId = decodeURIComponent(ctx.params.userId ?? '');
+  const rawId = decodeURIComponent(ctx.params.identityId ?? '');
   let removeId: ObjectId;
   try {
     removeId = new ObjectId(rawId);
@@ -240,12 +226,12 @@ router.delete('/admin/platform-admins/:userId', async (ctx) => {
     return ctx.errors.validationFailed();
   }
 
-  if (removeId.toHexString() === session.userId.toLowerCase()) {
+  if (removeId.toHexString() === session.identityId.toLowerCase()) {
     return ctx.errors.validationFailed();
   }
 
   const repo = getPlatformSettingsRepository();
-  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST);
+  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST);
   const existing = readAdminObjectIds(doc);
   const nextHex = existing
     .map((id) => id.toHexString())
@@ -257,11 +243,11 @@ router.delete('/admin/platform-admins/:userId', async (ctx) => {
 
   try {
     await upsertPlatformSetting({
-      key: PLATFORM_SETTING_KEYS.ADMIN_ACCOUNT_LIST,
-      description: doc?.description ?? 'Platform administrator user IDs',
+      key: PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST,
+      description: doc?.description ?? 'Platform administrator identity IDs',
       valueType: 'objectIdArray',
       value: nextHex,
-      lastUpdatedBy: session.userId,
+      lastUpdatedBy: session.identityId,
     });
   } catch {
     return ctx.errors.validationFailed();
@@ -272,16 +258,16 @@ router.delete('/admin/platform-admins/:userId', async (ctx) => {
 });
 
 router.get('/admin/platform-settings', async (ctx) => {
-  const session = await requireAccountSession(ctx.request);
+  const session = await requireIdentitySession(ctx.request);
   if (!session) {
     return ctx.errors.unauthorized();
   }
-  if (!(await isPlatformAdmin(session.userId))) {
+  if (!(await isPlatformAdmin(session.identityId))) {
     return ctx.errors.forbidden();
   }
 
   try {
-    await ensureAuthAllowlistPlatformSettingsExist(session.userId);
+    await ensureAuthAllowlistPlatformSettingsExist(session.identityId);
   } catch {
     return ctx.errors.internal();
   }
@@ -292,11 +278,11 @@ router.get('/admin/platform-settings', async (ctx) => {
 });
 
 router.get('/admin/platform-settings/:key', async (ctx) => {
-  const session = await requireAccountSession(ctx.request);
+  const session = await requireIdentitySession(ctx.request);
   if (!session) {
     return ctx.errors.unauthorized();
   }
-  if (!(await isPlatformAdmin(session.userId))) {
+  if (!(await isPlatformAdmin(session.identityId))) {
     return ctx.errors.forbidden();
   }
 
@@ -306,7 +292,7 @@ router.get('/admin/platform-settings/:key', async (ctx) => {
   }
 
   try {
-    await ensureAuthAllowlistPlatformSettingsExist(session.userId);
+    await ensureAuthAllowlistPlatformSettingsExist(session.identityId);
   } catch {
     return ctx.errors.internal();
   }
@@ -321,11 +307,11 @@ router.get('/admin/platform-settings/:key', async (ctx) => {
 });
 
 async function upsertPlatformSettingHandler(ctx: RouteContext) {
-  const session = await requireAccountSession(ctx.request);
+  const session = await requireIdentitySession(ctx.request);
   if (!session) {
     return ctx.errors.unauthorized();
   }
-  if (!(await isPlatformAdmin(session.userId))) {
+  if (!(await isPlatformAdmin(session.identityId))) {
     return ctx.errors.forbidden();
   }
 
@@ -347,7 +333,7 @@ async function upsertPlatformSettingHandler(ctx: RouteContext) {
       description,
       valueType: valueType as PlatformSettingValueType,
       value,
-      lastUpdatedBy: session.userId,
+      lastUpdatedBy: session.identityId,
     });
   } catch {
     return ctx.errors.validationFailed();

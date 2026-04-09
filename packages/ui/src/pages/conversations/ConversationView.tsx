@@ -19,7 +19,7 @@ import { usePreKeys } from '../../hooks/usePreKeys';
 import { useReactions, type GroupedReaction } from '../../hooks/useReactions';
 import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
 import { loadConversationFsDefault, saveConversationFsDefault, loadShowMessageArtifacts, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
-import { convertShortcodes } from '../../utils/emojiShortcodes';
+import { convertShortcodes, SHORTCODE_ENTRIES } from '../../utils/emojiShortcodes';
 import { getEmojiMartShortcodeLabel } from '../../utils/emojiMartShortcode';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
@@ -1515,10 +1515,41 @@ function MessageComposer({
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [stripExif, setStripExif] = useState(true);
   const [ttlSeconds, setTtlSeconds] = useState<number | undefined>(undefined);
+  const [shortcodeAC, setShortcodeAC] = useState<{ query: string; colonIdx: number } | null>(null);
+  const [acSelectedIdx, setAcSelectedIdx] = useState(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageTextRef = useRef(messageText);
   messageTextRef.current = messageText;
+
+  const acSuggestions = useMemo(() => {
+    if (!shortcodeAC) return [];
+    const q = shortcodeAC.query.toLowerCase();
+    const prefix: [string, string][] = [];
+    const substring: [string, string][] = [];
+    for (const [code, emoji] of SHORTCODE_ENTRIES) {
+      if (code.startsWith(q)) prefix.push([code, emoji]);
+      else if (code.includes(q)) substring.push([code, emoji]);
+    }
+    return [...prefix, ...substring].slice(0, 3);
+  }, [shortcodeAC]);
+
+  const shortcodeACRef = useRef(shortcodeAC);
+  shortcodeACRef.current = shortcodeAC;
+  const acSuggestionsRef = useRef(acSuggestions);
+  acSuggestionsRef.current = acSuggestions;
+  const acSelectedIdxRef = useRef(acSelectedIdx);
+  acSelectedIdxRef.current = acSelectedIdx;
+
+  const detectShortcodeQuery = useCallback((text: string, cursorPos: number) => {
+    const before = text.slice(0, cursorPos);
+    const colonIdx = before.lastIndexOf(':');
+    if (colonIdx === -1) { setShortcodeAC(null); return; }
+    const query = before.slice(colonIdx + 1);
+    if (query.length === 0 || !/^[a-z0-9_+-]+$/i.test(query)) { setShortcodeAC(null); return; }
+    setShortcodeAC({ query, colonIdx });
+    setAcSelectedIdx(0);
+  }, []);
 
   // --- Undo / redo history ---
   const undoStack = useRef<{ text: string; cursor: number }[]>([{ text: '', cursor: 0 }]);
@@ -1821,6 +1852,42 @@ function MessageComposer({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      const ac = shortcodeACRef.current;
+      const suggestions = acSuggestionsRef.current;
+      if (ac && suggestions.length > 0) {
+        if (e.key === 'Tab') {
+          e.preventDefault();
+          const [, emoji] = suggestions[acSelectedIdxRef.current]!;
+          const textarea = inputRef.current!;
+          const text = messageTextRef.current;
+          const cursor = textarea.selectionStart ?? text.length;
+          const newText = text.slice(0, ac.colonIdx) + emoji + text.slice(cursor);
+          const newPos = ac.colonIdx + emoji.length;
+          setMessageText(newText, newPos);
+          setShortcodeAC(null);
+          requestAnimationFrame(() => {
+            textarea.focus();
+            textarea.setSelectionRange(newPos, newPos);
+          });
+          return;
+        }
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setAcSelectedIdx((prev) => (prev + 1) % suggestions.length);
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setAcSelectedIdx((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setShortcodeAC(null);
+          return;
+        }
+      }
+
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         void handleSend();
@@ -1854,7 +1921,7 @@ function MessageComposer({
         return;
       }
     },
-    [handleSend]
+    [handleSend, setMessageText]
   );
 
   const handleEmojiSelect = useCallback((emoji: string) => {
@@ -1965,6 +2032,37 @@ function MessageComposer({
         </div>
       )}
       <div className={`conversation-composer-row${isMultiLine ? ' conversation-composer-row--multiline' : ''}`}>
+        {acSuggestions.length > 0 && (
+          <ul className="conversation-composer-emoji-ac" role="listbox" id="emoji-ac-listbox">
+            {acSuggestions.map(([code, emoji], i) => (
+              <li
+                key={code}
+                id={`emoji-ac-option-${code}`}
+                role="option"
+                aria-selected={i === acSelectedIdx}
+                className={`conversation-composer-emoji-ac-item${i === acSelectedIdx ? ' conversation-composer-emoji-ac-item--selected' : ''}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const textarea = inputRef.current!;
+                  const text = messageTextRef.current;
+                  const cursor = textarea.selectionStart ?? text.length;
+                  const ac = shortcodeACRef.current!;
+                  const newText = text.slice(0, ac.colonIdx) + emoji + text.slice(cursor);
+                  const newPos = ac.colonIdx + emoji.length;
+                  setMessageText(newText, newPos);
+                  setShortcodeAC(null);
+                  requestAnimationFrame(() => {
+                    textarea.focus();
+                    textarea.setSelectionRange(newPos, newPos);
+                  });
+                }}
+              >
+                <span className="conversation-composer-emoji-ac-emoji">{emoji}</span>
+                <span className="conversation-composer-emoji-ac-code">:{code}:</span>
+              </li>
+            ))}
+          </ul>
+        )}
         <Tooltip
           content={useFs
             ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
@@ -2057,6 +2155,13 @@ function MessageComposer({
           className="conversation-composer-field"
           placeholder={placeholder}
           value={messageText}
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={acSuggestions.length > 0}
+          aria-controls={acSuggestions.length > 0 ? 'emoji-ac-listbox' : undefined}
+          aria-activedescendant={
+            acSuggestions.length > 0 ? `emoji-ac-option-${acSuggestions[acSelectedIdx]![0]}` : undefined
+          }
           onChange={(e) => {
             const raw = e.target.value;
             const converted = convertShortcodes(raw);
@@ -2064,12 +2169,14 @@ function MessageComposer({
               const cursorPos = e.target.selectionStart ?? raw.length;
               const newCursorPos = Math.max(0, cursorPos - (raw.length - converted.length));
               setMessageText(converted, newCursorPos);
+              detectShortcodeQuery(converted, newCursorPos);
               requestAnimationFrame(() => {
                 inputRef.current?.setSelectionRange(newCursorPos, newCursorPos);
               });
             } else {
               const cursorPos = e.target.selectionStart ?? raw.length;
               setMessageText(raw, cursorPos);
+              detectShortcodeQuery(raw, cursorPos);
             }
           }}
           onKeyDown={handleKeyDown}

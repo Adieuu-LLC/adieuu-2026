@@ -14,7 +14,7 @@ export function AdminPlatformAdmins() {
   const [admins, setAdmins] = useState<PlatformAdminRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [identifier, setIdentifier] = useState('');
+  const [identityId, setIdentityId] = useState('');
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [removeId, setRemoveId] = useState<string | null>(null);
@@ -38,14 +38,14 @@ export function AdminPlatformAdmins() {
   }, [load]);
 
   const handleAdd = async () => {
-    const trimmed = identifier.trim();
+    const trimmed = identityId.trim();
     if (!trimmed) return;
     setAdding(true);
     setAddError(null);
-    const res = await api.admin.addPlatformAdmin({ identifier: trimmed });
+    const res = await api.admin.addPlatformAdmin({ identityId: trimmed });
     if (res.success && res.data) {
       setAdmins(res.data.admins);
-      setIdentifier('');
+      setIdentityId('');
     } else {
       setAddError(t('admin.platformAdmins.addError'));
     }
@@ -86,13 +86,13 @@ export function AdminPlatformAdmins() {
           <input
             type="text"
             className="admin-input"
-            placeholder={t('admin.platformAdmins.identifierPlaceholder')}
-            value={identifier}
-            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder={t('admin.platformAdmins.identityIdPlaceholder')}
+            value={identityId}
+            onChange={(e) => setIdentityId(e.target.value)}
             disabled={adding}
-            aria-label={t('admin.platformAdmins.identifierPlaceholder')}
+            aria-label={t('admin.platformAdmins.identityIdPlaceholder')}
           />
-          <Button variant="primary" onClick={() => void handleAdd()} disabled={adding || !identifier.trim()}>
+          <Button variant="primary" onClick={() => void handleAdd()} disabled={adding || !identityId.trim()}>
             {t('admin.platformAdmins.add')}
           </Button>
         </div>
@@ -110,15 +110,14 @@ export function AdminPlatformAdmins() {
               <thead>
                 <tr>
                   <th>{t('admin.platformAdmins.table.displayName')}</th>
-                  <th>{t('admin.platformAdmins.table.email')}</th>
-                  <th>{t('admin.platformAdmins.table.phone')}</th>
-                  <th>{t('admin.platformAdmins.table.userId')}</th>
+                  <th>{t('admin.platformAdmins.table.username')}</th>
+                  <th>{t('admin.platformAdmins.table.identityId')}</th>
                   <th>{t('admin.platformAdmins.table.actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {admins.map((row) => (
-                  <tr key={row.userId}>
+                  <tr key={row.identityId}>
                     <td>
                       {row.stale ? (
                         <span className="admin-stale">{t('admin.platformAdmins.table.stale')}</span>
@@ -126,13 +125,12 @@ export function AdminPlatformAdmins() {
                         row.displayName ?? '—'
                       )}
                     </td>
-                    <td>{row.email ?? '—'}</td>
-                    <td>{row.phone ?? '—'}</td>
+                    <td>{row.username ? `@${row.username}` : '—'}</td>
                     <td>
-                      <code className="admin-mono">{row.userId}</code>
+                      <code className="admin-mono">{row.identityId}</code>
                     </td>
                     <td>
-                      <Button variant="ghost" size="sm" onClick={() => setRemoveId(row.userId)}>
+                      <Button variant="ghost" size="sm" onClick={() => setRemoveId(row.identityId)}>
                         {t('admin.platformAdmins.table.remove')}
                       </Button>
                     </td>

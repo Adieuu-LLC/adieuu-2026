@@ -52,8 +52,8 @@ export interface ReportResolution {
   aliasBanned: boolean;
   /** Mandatory reason from the moderator */
   reason: string;
-  /** User ID of the moderator who resolved */
-  resolvedBy: string;
+  /** Identity ID of the moderator who resolved */
+  resolvedByIdentityId: string;
   resolvedAt: Date;
 }
 
@@ -146,11 +146,11 @@ export interface ReportDocument extends BaseDocument {
   resolution?: ReportResolution;
   /** Filled when status becomes 'closed' (report deemed invalid) */
   closureReason?: string;
-  closedBy?: string;
+  closedByIdentityId?: string;
   closedAt?: Date;
 
   /** Filled when status becomes 'escalated' */
-  escalatedBy?: string;
+  escalatedByIdentityId?: string;
   escalatedAt?: Date;
 }
 

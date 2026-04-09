@@ -277,13 +277,18 @@ router.get('/auth/session', async (ctx) => {
     // client can tell "identity mode" apart from "truly unauthenticated".
     const rawSession = await getSessionFromRequest(ctx.request);
     if (rawSession?.type === 'identity') {
-      return success({ sessionType: 'identity' as const });
+      const capabilities = await getPlatformCapabilities(rawSession.identityId);
+      return success({
+        sessionType: 'identity' as const,
+        isPlatformAdmin: capabilities.isPlatformAdmin,
+        isPlatformModerator: capabilities.isPlatformModerator,
+        platformPermissions: capabilities.permissions,
+      });
     }
     return ctx.errors.unauthorized();
   }
 
   const { session, signedToken, identityCount } = result;
-  const capabilities = await getPlatformCapabilities(session.userId);
 
   return success({
     identifier: session.identifier,
@@ -291,9 +296,6 @@ router.get('/auth/session', async (ctx) => {
     identityCount,
     maxIdentities: MAX_IDENTITIES_PER_USER,
     signedToken,
-    isPlatformAdmin: capabilities.isPlatformAdmin,
-    isPlatformModerator: capabilities.isPlatformModerator,
-    platformPermissions: capabilities.permissions,
   });
 });
 

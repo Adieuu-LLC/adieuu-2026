@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import type { PublicMessage } from '@adieuu/shared';
+import {
+  generateIdentityKeyBundle,
+  generateSignedPreKey,
+  generateOneTimePreKeys,
+  toBase64,
+} from '@adieuu/crypto';
+import { encryptMessage, decryptMessage, type RecipientKeys } from './conversationCryptoService';
 import { decryptMessageBatch } from './messageDecryptionPipeline';
 
 function makeMessage(overrides: Partial<PublicMessage> = {}): PublicMessage {
@@ -46,6 +53,59 @@ function createBaseParams(messages: PublicMessage[]) {
   };
 }
 
+// Helpers for crypto-based tests
+
+interface TestUser {
+  identityId: string;
+  deviceId: string;
+  bundle: ReturnType<typeof generateIdentityKeyBundle>;
+  signingPublicKeyB64: string;
+}
+
+function createTestUser(name: string): TestUser {
+  const bundle = generateIdentityKeyBundle('default');
+  return {
+    identityId: `identity-${name}`,
+    deviceId: `device-${name}`,
+    bundle,
+    signingPublicKeyB64: toBase64(bundle.signing.publicKey),
+  };
+}
+
+function buildRecipient(user: TestUser, preKeys?: { claimed: unknown }): RecipientKeys {
+  return {
+    identityId: user.identityId,
+    signingPublicKey: user.signingPublicKeyB64,
+    preferredCryptoProfile: 'default',
+    devices: [
+      {
+        deviceId: user.deviceId,
+        name: user.deviceId,
+        ecdhPublicKey: toBase64(user.bundle.ecdh.publicKey),
+        kemPublicKey: toBase64(user.bundle.kem.publicKey),
+      },
+    ],
+    preKeys: preKeys ? [preKeys.claimed as RecipientKeys['preKeys'] extends (infer U)[] | undefined ? U : never] : undefined,
+  };
+}
+
+function toPublicMsg(
+  encrypted: ReturnType<typeof encryptMessage>,
+  fromIdentityId: string
+): PublicMessage {
+  return {
+    id: crypto.randomUUID(),
+    conversationId: 'conv-1',
+    fromIdentityId,
+    ciphertext: encrypted.ciphertext,
+    nonce: encrypted.nonce,
+    wrappedKeys: encrypted.wrappedKeys,
+    signature: encrypted.signature,
+    cryptoProfile: encrypted.cryptoProfile,
+    createdAt: new Date().toISOString(),
+  };
+}
+
 describe('messageDecryptionPipeline', () => {
   test('preserves already decrypted messages on no-cursor refetch', async () => {
     const msg = makeMessage({ id: 'msg-1' });
@@ -76,5 +136,157 @@ describe('messageDecryptionPipeline', () => {
     params.fetchSigningKey = async () => 'sender-signing-key';
     const out = await decryptMessageBatch(params);
     expect(out[0]?.decryptionError).toBe('Device keys unavailable');
+  });
+
+  test('cached session key: static-wrapped message has forwardSecrecy=false', async () => {
+    const alice = createTestUser('alice');
+    const bob = createTestUser('bob');
+
+    const recipient = buildRecipient(bob);
+    const encrypted = encryptMessage('static test', [recipient], alice.bundle.signing.privateKey);
+    const msg = toPublicMsg(encrypted, alice.identityId);
+    msg.fromIdentityId = alice.identityId;
+
+    // First-pass decrypt to obtain the session key
+    const first = decryptMessage(
+      msg,
+      bob.identityId,
+      bob.bundle.ecdh.privateKey,
+      bob.bundle.kem.privateKey,
+      alice.signingPublicKeyB64
+    );
+    expect(first.plaintext).toBe('static test');
+    expect(msg.wrappedKeys[0]?.preKeyType).toBe('static');
+
+    // Feed into pipeline with the session key pre-cached
+    const { params } = createBaseParams([msg]);
+    params.identityId = bob.identityId;
+    params.ecdhPrivateKey = bob.bundle.ecdh.privateKey;
+    params.kemPrivateKey = bob.bundle.kem.privateKey;
+    params.signingKeyCache[alice.identityId] = alice.signingPublicKeyB64;
+    params.sessionKeyCache.set(msg.id, first.sessionKey);
+
+    const out = await decryptMessageBatch(params);
+    expect(out[0]?.decryptedContent).toBe('static test');
+    expect(out[0]?.forwardSecrecy).toBe(false);
+  });
+
+  test('cached session key: SPK-wrapped message has forwardSecrecy=true', async () => {
+    const alice = createTestUser('alice');
+    const bob = createTestUser('bob');
+
+    const spk = generateSignedPreKey(bob.bundle.signing.privateKey, 'default');
+    const claimed = {
+      deviceId: bob.deviceId,
+      signedPreKey: {
+        keyId: spk.keyId,
+        ecdhPublicKey: toBase64(spk.ecdh.publicKey),
+        kemPublicKey: toBase64(spk.kem.publicKey),
+        signature: toBase64(spk.signature),
+      },
+      oneTimePreKey: null,
+    };
+
+    const recipient = buildRecipient(bob, { claimed });
+    const encrypted = encryptMessage('spk test', [recipient], alice.bundle.signing.privateKey);
+    const msg = toPublicMsg(encrypted, alice.identityId);
+
+    expect(msg.wrappedKeys[0]?.preKeyType).toBe('spk');
+
+    const first = decryptMessage(
+      msg,
+      bob.identityId,
+      bob.bundle.ecdh.privateKey,
+      bob.bundle.kem.privateKey,
+      alice.signingPublicKeyB64,
+      { spkEcdhPrivate: spk.ecdh.privateKey, spkKemPrivate: spk.kem.privateKey }
+    );
+    expect(first.plaintext).toBe('spk test');
+
+    const { params } = createBaseParams([msg]);
+    params.identityId = bob.identityId;
+    params.ecdhPrivateKey = bob.bundle.ecdh.privateKey;
+    params.kemPrivateKey = bob.bundle.kem.privateKey;
+    params.signingKeyCache[alice.identityId] = alice.signingPublicKeyB64;
+    params.sessionKeyCache.set(msg.id, first.sessionKey);
+
+    const out = await decryptMessageBatch(params);
+    expect(out[0]?.decryptedContent).toBe('spk test');
+    expect(out[0]?.forwardSecrecy).toBe(true);
+  });
+
+  test('cached session key: OTPK-wrapped message has forwardSecrecy=true', async () => {
+    const alice = createTestUser('alice');
+    const bob = createTestUser('bob');
+
+    const spk = generateSignedPreKey(bob.bundle.signing.privateKey, 'default');
+    const [otpk] = generateOneTimePreKeys(1, 'default');
+
+    const claimed = {
+      deviceId: bob.deviceId,
+      signedPreKey: {
+        keyId: spk.keyId,
+        ecdhPublicKey: toBase64(spk.ecdh.publicKey),
+        kemPublicKey: toBase64(spk.kem.publicKey),
+        signature: toBase64(spk.signature),
+      },
+      oneTimePreKey: {
+        keyId: otpk!.keyId,
+        ecdhPublicKey: toBase64(otpk!.ecdh.publicKey),
+        kemPublicKey: toBase64(otpk!.kem.publicKey),
+      },
+    };
+
+    const recipient = buildRecipient(bob, { claimed });
+    const encrypted = encryptMessage('otpk test', [recipient], alice.bundle.signing.privateKey);
+    const msg = toPublicMsg(encrypted, alice.identityId);
+
+    expect(msg.wrappedKeys[0]?.preKeyType).toBe('otpk');
+
+    const first = decryptMessage(
+      msg,
+      bob.identityId,
+      bob.bundle.ecdh.privateKey,
+      bob.bundle.kem.privateKey,
+      alice.signingPublicKeyB64,
+      {
+        spkEcdhPrivate: spk.ecdh.privateKey,
+        spkKemPrivate: spk.kem.privateKey,
+        otpkEcdhPrivate: otpk!.ecdh.privateKey,
+        otpkKemPrivate: otpk!.kem.privateKey,
+      }
+    );
+    expect(first.plaintext).toBe('otpk test');
+
+    const { params } = createBaseParams([msg]);
+    params.identityId = bob.identityId;
+    params.ecdhPrivateKey = bob.bundle.ecdh.privateKey;
+    params.kemPrivateKey = bob.bundle.kem.privateKey;
+    params.signingKeyCache[alice.identityId] = alice.signingPublicKeyB64;
+    params.sessionKeyCache.set(msg.id, first.sessionKey);
+
+    const out = await decryptMessageBatch(params);
+    expect(out[0]?.decryptedContent).toBe('otpk test');
+    expect(out[0]?.forwardSecrecy).toBe(true);
+  });
+
+  test('static fallback decryption sets forwardSecrecy=false', async () => {
+    const alice = createTestUser('alice');
+    const bob = createTestUser('bob');
+
+    const recipient = buildRecipient(bob);
+    const encrypted = encryptMessage('fallback test', [recipient], alice.bundle.signing.privateKey);
+    const msg = toPublicMsg(encrypted, alice.identityId);
+
+    const { params } = createBaseParams([msg]);
+    params.identityId = bob.identityId;
+    params.ecdhPrivateKey = bob.bundle.ecdh.privateKey;
+    params.kemPrivateKey = bob.bundle.kem.privateKey;
+    params.signingKeyCache[alice.identityId] = alice.signingPublicKeyB64;
+
+    const out = await decryptMessageBatch(params);
+    expect(out[0]?.decryptedContent).toBe('fallback test');
+    expect(out[0]?.signatureVerified).toBe(true);
+    expect(out[0]?.forwardSecrecy).toBe(false);
   });
 });

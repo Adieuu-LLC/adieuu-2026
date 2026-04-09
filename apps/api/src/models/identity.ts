@@ -136,6 +136,11 @@ export interface IdentityDocument extends BaseDocument {
   /** When true, adding this identity to a group requires their explicit approval */
   requireGroupApproval?: boolean;
 
+  /** Platform-level roles assigned directly on this identity */
+  platformRoles?: string[];
+  /** Platform-level permission attributes granted directly */
+  platformAttributes?: string[];
+
   /** Platform moderation: suspended until this date (null/undefined = not suspended) */
   suspendedUntil?: Date | null;
   /** Platform moderation: permanently banned */
@@ -176,6 +181,8 @@ export interface UpdateIdentityInput {
   signingPublicKey?: string;
   devices?: IdentityDevice[];
   requireGroupApproval?: boolean;
+  platformRoles?: string[];
+  platformAttributes?: string[];
   suspendedUntil?: Date | null;
   isBanned?: boolean;
   moderationReason?: string;

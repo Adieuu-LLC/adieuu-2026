@@ -1,14 +1,14 @@
 /**
- * Resolves effective platform capabilities for a user by combining
+ * Resolves effective platform capabilities for an identity by combining
  * list-based role membership (admin / moderator lists in platform_settings),
- * persisted user-document roles, and direct attribute grants.
+ * persisted identity-document roles, and direct attribute grants.
  *
- * Single entry-point: `getPlatformCapabilities(userId)`.
+ * Single entry-point: `getPlatformCapabilities(identityId)`.
  */
 
 import type { ObjectId } from 'mongodb';
 import { isPlatformAdmin, isPlatformModerator } from './platform-settings.service';
-import { getUserRepository } from '../repositories/user.repository';
+import { getIdentityRepository } from '../repositories/identity.repository';
 import {
   PLATFORM_ROLES,
   resolvePermissions,
@@ -24,29 +24,29 @@ export interface PlatformCapabilities {
 }
 
 export async function getPlatformCapabilities(
-  userId: string | ObjectId,
+  identityId: string | ObjectId,
 ): Promise<PlatformCapabilities> {
   const [isAdmin, isModerator] = await Promise.all([
-    isPlatformAdmin(userId),
-    isPlatformModerator(userId),
+    isPlatformAdmin(identityId),
+    isPlatformModerator(identityId),
   ]);
 
   const roles: PlatformRole[] = [];
   if (isAdmin) roles.push(PLATFORM_ROLES.ADMIN);
   if (isModerator) roles.push(PLATFORM_ROLES.MODERATOR);
 
-  const userRepo = getUserRepository();
-  const user = await userRepo.findById(userId);
+  const identityRepo = getIdentityRepository();
+  const identity = await identityRepo.findById(identityId);
 
-  if (user?.platformRoles) {
-    for (const r of user.platformRoles) {
+  if (identity?.platformRoles) {
+    for (const r of identity.platformRoles) {
       if (!roles.includes(r as PlatformRole)) {
         roles.push(r as PlatformRole);
       }
     }
   }
 
-  const directAttributes = user?.platformAttributes ?? [];
+  const directAttributes = identity?.platformAttributes ?? [];
   const permissions = resolvePermissions(roles, directAttributes);
 
   return {

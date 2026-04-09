@@ -60,7 +60,6 @@ const Collections = {
   AUDIT_LOGS: 'audit_logs',
   IDENTITY_COUNTS: 'identity_counts',
   IDENTITIES: 'identities',
-  IDENTITY_SESSIONS: 'identity_sessions',
 };
 
 // Mock db/mongo to prevent real MongoDB connections
