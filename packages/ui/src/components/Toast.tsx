@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Toaster, Toast as ArkToast, createToaster } from '@ark-ui/react';
 import { Icon } from '../icons/Icon';
 
@@ -26,6 +26,8 @@ export interface ToastOptions {
   };
   /** Clicking the toast body navigates / performs this action and dismisses the toast. */
   onClick?: () => void;
+  /** ISO-8601 expiry timestamp — renders a live countdown badge on the toast. */
+  expiresAt?: string;
 }
 
 /**
@@ -93,6 +95,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
     const meta: Record<string, unknown> = {};
     if (options.action) meta.action = options.action;
     if (options.onClick) meta.onClick = options.onClick;
+    if (options.expiresAt) meta.expiresAt = options.expiresAt;
 
     toaster.create({
       title: options.title,
@@ -143,11 +146,12 @@ export function ToastProvider({ children }: ToastProviderProps) {
       {children}
       <Toaster toaster={toaster}>
         {(toast) => {
-          const meta = toast.meta as { action?: ToastOptions['action']; onClick?: () => void } | undefined;
+          const meta = toast.meta as { action?: ToastOptions['action']; onClick?: () => void; expiresAt?: string } | undefined;
           const action = meta?.action;
           const onClick = meta?.onClick;
+          const expiresAt = meta?.expiresAt;
           return (
-            <ArkToast.Root key={toast.id} className={`toast toast-${toast.type}${onClick ? ' toast-clickable' : ''}`}>
+            <ArkToast.Root key={toast.id} className={`toast toast-${toast.type}${onClick ? ' toast-clickable' : ''}${expiresAt ? ' toast-expiring' : ''}`}>
               <div
                 className="toast-content"
                 role={onClick ? 'button' : undefined}
@@ -165,6 +169,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
                       {toast.description}
                     </ArkToast.Description>
                   )}
+                  {expiresAt && <ToastExpiryCountdown expiresAt={expiresAt} />}
                 </div>
               </div>
               <div className="toast-actions">
@@ -201,4 +206,37 @@ const TOAST_ICON_MAP: Record<ToastVariant, 'success' | 'error' | 'warning' | 'in
 
 function ToastIcon({ variant }: { variant: ToastVariant }) {
   return <Icon name={TOAST_ICON_MAP[variant] ?? 'info'} />;
+}
+
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return 'Expired';
+  const totalSec = Math.ceil(ms / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  if (totalSec < 3600) return `${Math.ceil(totalSec / 60)}m`;
+  if (totalSec < 86400) return `${Math.ceil(totalSec / 3600)}h`;
+  return `${Math.ceil(totalSec / 86400)}d`;
+}
+
+function ToastExpiryCountdown({ expiresAt }: { expiresAt: string }) {
+  const [label, setLabel] = useState(() => {
+    const ms = new Date(expiresAt).getTime() - Date.now();
+    return formatCountdown(ms);
+  });
+
+  useEffect(() => {
+    const update = () => {
+      const ms = new Date(expiresAt).getTime() - Date.now();
+      setLabel(formatCountdown(ms));
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [expiresAt]);
+
+  return (
+    <span className="toast-expiry-countdown" aria-label={`Disappears in ${label}`}>
+      <Icon name="clock" />
+      {label}
+    </span>
+  );
 }

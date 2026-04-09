@@ -137,6 +137,8 @@ export interface ChatConversationMessageMessage extends ChatMessageBase {
     replyToMessageId?: string;
     /** Author of the message being replied to (for reply-specific client UX) */
     replyToMessageAuthorId?: string;
+    /** ISO-8601 expiry timestamp when the message is a disappearing/TTL message. */
+    expiresAt?: string;
   };
 }
 

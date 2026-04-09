@@ -2705,6 +2705,26 @@ a {
     line-height: var(--line-height-normal);
   }
 
+  &-expiry-countdown {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-xs);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-warning);
+    line-height: var(--line-height-tight);
+
+    svg {
+      width: 0.85em;
+      height: 0.85em;
+    }
+  }
+
+  &-expiring {
+    border-color: var(--color-warning);
+  }
+
   &-close {
     flex-shrink: 0;
     display: flex;

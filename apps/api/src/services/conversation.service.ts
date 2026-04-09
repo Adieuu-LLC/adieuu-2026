@@ -559,6 +559,7 @@ export async function sendMessage(
             replyToMessageAuthorId: replyTargetAuthorId.toHexString(),
           }
         : {}),
+      ...(message.expiresAt ? { expiresAt: message.expiresAt.toISOString() } : {}),
     },
   });
 

@@ -1,6 +1,7 @@
 import { getNativeNotificationsEnabled } from '../hooks/useNativeNotificationsPreference';
 import { playNotificationSound, type FocusVisibilitySnapshot } from './notificationSound';
 import type { NotificationSoundId } from '../hooks/useNotificationSoundPreference';
+import type { ToastOptions } from '../components/Toast';
 
 export interface NotificationSoundPreferenceLike {
   enabled: boolean;
@@ -20,8 +21,14 @@ export interface NotificationPlatformLike {
 }
 
 export interface ConversationNotificationDeps {
-  toast: { info: (title: string, body: string, onClick?: () => void) => void };
+  toast: {
+    info: (title: string, body: string, onClick?: () => void) => void;
+    /** Full toast API — used for TTL message toasts with countdown metadata. */
+    toast?: (options: ToastOptions) => void;
+  };
   soundPref: NotificationSoundPreferenceLike;
+  /** Separate sound preference for disappearing/TTL messages. Falls back to soundPref when absent. */
+  ttlSoundPref?: NotificationSoundPreferenceLike;
   notifications: NotificationPlatformLike;
   audio?: { loadSoundFromPath?: (path: string) => Promise<ArrayBuffer | null> };
   nativeEnabled?: () => boolean;
@@ -31,6 +38,8 @@ export interface ConversationNotificationOptions {
   onClick?: () => void;
   isViewingConversation?: boolean;
   nativeTag: string;
+  /** ISO-8601 expiry timestamp — triggers TTL sound + toast countdown. */
+  expiresAt?: string;
 }
 
 export function fireConversationNotification(
@@ -39,7 +48,21 @@ export function fireConversationNotification(
   options: ConversationNotificationOptions,
   deps: ConversationNotificationDeps
 ): void {
-  deps.toast.info(title, body, options.onClick);
+  if (options.expiresAt && deps.toast.toast) {
+    deps.toast.toast({
+      title,
+      description: body,
+      variant: 'info',
+      duration: 8000,
+      onClick: options.onClick,
+      expiresAt: options.expiresAt,
+    });
+  } else {
+    deps.toast.info(title, body, options.onClick);
+  }
+
+  const isExpiring = !!options.expiresAt;
+  const effectivePref = isExpiring && deps.ttlSoundPref ? deps.ttlSoundPref : deps.soundPref;
 
   const snapshot: FocusVisibilitySnapshot = {
     hasFocus: document.hasFocus(),
@@ -47,13 +70,13 @@ export function fireConversationNotification(
   };
 
   void playNotificationSound({
-    enabled: deps.soundPref.enabled,
-    soundId: deps.soundPref.soundId,
-    customPath: deps.soundPref.customPath,
-    suppressWhenFocused: deps.soundPref.suppressWhenFocused,
+    enabled: effectivePref.enabled,
+    soundId: effectivePref.soundId,
+    customPath: effectivePref.customPath,
+    suppressWhenFocused: effectivePref.suppressWhenFocused,
     isViewingConversation: options.isViewingConversation ?? false,
     snapshot,
-    volume: deps.soundPref.volume,
+    volume: effectivePref.volume,
     loadCustomSound: deps.audio?.loadSoundFromPath,
   });
 

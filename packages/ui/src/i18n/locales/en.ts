@@ -747,6 +747,18 @@ export const en = {
         testNotificationBody: 'If you can see this and hear the sound, notifications are working properly.',
         testNotificationSuccess: 'Test notification sent.',
         testNotificationNoPermission: 'System notifications are not enabled or permission is missing.',
+
+        ttlSoundSectionTitle: 'Disappearing message sound',
+        ttlSoundSectionDescription:
+          'Play a distinct sound when a disappearing (TTL) message arrives, so you know it needs timely attention.',
+        ttlSoundSelectLabel: 'Sound',
+        ttlSoundPreview: 'Preview',
+        ttlSoundVolumeLabel: 'Disappearing message sound volume',
+        ttlSoundVolumeHint:
+          'Volume for disappearing message notifications only. The enabled/suppress toggles above apply to both regular and disappearing message sounds.',
+        ttlSoundCustomFile: 'Custom sound',
+        ttlSoundBrowse: 'Browse…',
+        ttlSoundFileMissing: 'The selected sound file could not be read. Choose another file or pick a built-in sound.',
       },
     },
 

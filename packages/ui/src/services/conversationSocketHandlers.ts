@@ -55,7 +55,7 @@ export interface ConversationSocketHandlerContext {
   fireNotification: (
     title: string,
     body: string,
-    options?: { isViewingConvo?: boolean; onClick?: () => void }
+    options?: { isViewingConvo?: boolean; onClick?: () => void; expiresAt?: string }
   ) => void;
   navigate: (path: string) => void;
   resolveParticipants: (participantIds: string[]) => Promise<Record<string, PublicIdentity>>;
@@ -247,6 +247,7 @@ export function handleConversationSocketMessage(
         fromIdentityId,
         replyToMessageId,
         replyToMessageAuthorId,
+        expiresAt,
       } = message.data;
       const isActiveConvo = conversationId === ctx.activeConversationId;
       const isViewing = isActiveConvo && ctx.hasFocus && ctx.isAtBottom;
@@ -302,7 +303,7 @@ export function handleConversationSocketMessage(
             : ctx.t('conversations.notifications.messageReplyGeneric', {
                 defaultValue: 'Someone replied to your message',
               }),
-          { isViewingConvo: isViewing, onClick: navToMessage }
+          { isViewingConvo: isViewing, onClick: navToMessage, expiresAt }
         );
       } else {
         ctx.fireNotification(
@@ -317,7 +318,7 @@ export function handleConversationSocketMessage(
             : ctx.t('conversations.notifications.newMessageGeneric', {
                 defaultValue: 'You received a new message',
               }),
-          { isViewingConvo: isViewing, onClick: navToMessage }
+          { isViewingConvo: isViewing, onClick: navToMessage, expiresAt }
         );
       }
       break;

@@ -15,12 +15,17 @@ import {
 } from '../../constants/builtinNotificationSounds';
 import {
   useNotificationSoundPreference,
+  useTtlNotificationSoundPreference,
   setNotificationSoundEnabled,
   setNotificationSoundId,
   setNotificationSoundCustomPath,
   setNotificationSoundSuppressWhenFocused,
   setNotificationSoundVolume,
+  setTtlNotificationSoundId,
+  setTtlNotificationSoundCustomPath,
+  setTtlNotificationSoundVolume,
   MAX_NOTIFICATION_GAIN,
+  DEFAULT_TTL_NOTIFICATION_SOUND_ID,
   type NotificationSoundId,
 } from '../../hooks/useNotificationSoundPreference';
 import {
@@ -41,9 +46,12 @@ export function AccountSettings() {
   const { hasCustomSoundPicker } = usePlatformFeatures();
   const nativeEnabled = useNativeNotificationsPreference();
   const soundPref = useNotificationSoundPreference();
+  const ttlSoundPref = useTtlNotificationSoundPreference();
   const [busy, setBusy] = useState(false);
   const [soundBrowseBusy, setSoundBrowseBusy] = useState(false);
   const [customSoundMissing, setCustomSoundMissing] = useState(false);
+  const [ttlSoundBrowseBusy, setTtlSoundBrowseBusy] = useState(false);
+  const [ttlCustomSoundMissing, setTtlCustomSoundMissing] = useState(false);
 
   const supportsNotifications = typeof window !== 'undefined' && 'Notification' in window;
 
@@ -64,6 +72,24 @@ export function AccountSettings() {
     }
     void verifyCustom();
   }, [soundPref.soundId, soundPref.customPath, audio]);
+
+  useEffect(() => {
+    if (!hasCustomSoundPicker && ttlSoundPref.soundId === 'custom') {
+      setTtlNotificationSoundId(DEFAULT_TTL_NOTIFICATION_SOUND_ID);
+    }
+  }, [hasCustomSoundPicker, ttlSoundPref.soundId]);
+
+  useEffect(() => {
+    async function verifyTtlCustom(): Promise<void> {
+      if (ttlSoundPref.soundId !== 'custom' || !ttlSoundPref.customPath || !audio?.loadSoundFromPath) {
+        setTtlCustomSoundMissing(false);
+        return;
+      }
+      const buf = await audio.loadSoundFromPath(ttlSoundPref.customPath);
+      setTtlCustomSoundMissing(!buf || buf.byteLength === 0);
+    }
+    void verifyTtlCustom();
+  }, [ttlSoundPref.soundId, ttlSoundPref.customPath, audio]);
 
   const handleNativeChange = useCallback(
     async (checked: boolean) => {
@@ -168,6 +194,45 @@ export function AccountSettings() {
 
   const handleVolumeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     setNotificationSoundVolume(Number(e.target.value) / 100);
+  }, []);
+
+  const handleTtlSoundIdChange = useCallback(
+    (value: string) => {
+      const id = value as NotificationSoundId;
+      setTtlNotificationSoundId(id);
+      if (id !== 'custom') {
+        invalidateNotificationSoundCustomCache();
+      }
+    },
+    []
+  );
+
+  const handleBrowseTtlCustomSound = useCallback(async () => {
+    if (!audio?.pickSoundFile) return;
+    setTtlSoundBrowseBusy(true);
+    try {
+      const picked = await audio.pickSoundFile();
+      if (!picked) return;
+      setTtlNotificationSoundCustomPath(picked.path);
+      setTtlNotificationSoundId('custom');
+      invalidateNotificationSoundCustomCache();
+      setTtlCustomSoundMissing(false);
+    } finally {
+      setTtlSoundBrowseBusy(false);
+    }
+  }, [audio]);
+
+  const handlePreviewTtlSound = useCallback(async () => {
+    await previewNotificationSound({
+      soundId: ttlSoundPref.soundId,
+      customPath: ttlSoundPref.customPath,
+      loadCustomSound: audio?.loadSoundFromPath,
+      volume: ttlSoundPref.volume,
+    });
+  }, [audio, ttlSoundPref.customPath, ttlSoundPref.soundId, ttlSoundPref.volume]);
+
+  const handleTtlVolumeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setTtlNotificationSoundVolume(Number(e.target.value) / 100);
   }, []);
 
   const soundSelectLabels = useMemo(
@@ -363,6 +428,93 @@ export function AccountSettings() {
               </span>
             </span>
           </label>
+        </Card>
+
+        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound">
+          <h2 className="app-settings-section-title">{t('account.settings.notifications.ttlSoundSectionTitle')}</h2>
+          <p className="app-settings-section-desc">{t('account.settings.notifications.ttlSoundSectionDescription')}</p>
+
+          <div className="app-settings-sound-row">
+            <div id="ttl-notification-sound-preset-label" className="app-settings-sound-select-label">
+              {t('account.settings.notifications.ttlSoundSelectLabel')}
+            </div>
+            <div className="app-settings-sound-row-controls">
+              <NotificationSoundSelect
+                value={ttlSoundPref.soundId}
+                disabled={!soundPref.enabled}
+                hasCustomSoundPicker={hasCustomSoundPicker}
+                builtinItems={builtinSoundSelectItems}
+                labels={soundSelectLabels}
+                onValueChange={handleTtlSoundIdChange}
+                labelId="ttl-notification-sound-preset-label"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary app-settings-sound-preview"
+                disabled={
+                  ttlSoundPref.soundId === 'none' ||
+                  (ttlSoundPref.soundId === 'custom' &&
+                    (!ttlSoundPref.customPath || !audio?.loadSoundFromPath))
+                }
+                onClick={() => void handlePreviewTtlSound()}
+              >
+                {t('account.settings.notifications.ttlSoundPreview')}
+              </button>
+            </div>
+          </div>
+
+          <div className="app-settings-sound-volume">
+            <label htmlFor="ttl-notification-sound-volume" className="app-settings-sound-volume-label">
+              {t('account.settings.notifications.ttlSoundVolumeLabel')}
+            </label>
+            <div className="app-settings-sound-volume-row">
+              <input
+                id="ttl-notification-sound-volume"
+                type="range"
+                className="app-settings-sound-volume-slider"
+                min={0}
+                max={Math.round(MAX_NOTIFICATION_GAIN * 100)}
+                step={1}
+                value={Math.round(ttlSoundPref.volume * 100)}
+                disabled={ttlSoundPref.soundId === 'none'}
+                onChange={handleTtlVolumeChange}
+                aria-valuemin={0}
+                aria-valuemax={Math.round(MAX_NOTIFICATION_GAIN * 100)}
+                aria-valuenow={Math.round(ttlSoundPref.volume * 100)}
+                aria-valuetext={`${Math.round(ttlSoundPref.volume * 100)}%`}
+              />
+              <span className="app-settings-sound-volume-value" aria-hidden>
+                {Math.round(ttlSoundPref.volume * 100)}%
+              </span>
+            </div>
+            <p className="app-settings-sound-volume-hint">{t('account.settings.notifications.ttlSoundVolumeHint')}</p>
+          </div>
+
+          {hasCustomSoundPicker && ttlSoundPref.soundId === 'custom' && (
+            <div className="app-settings-custom-sound">
+              <span className="app-settings-custom-sound-label">
+                {t('account.settings.notifications.ttlSoundCustomFile')}
+              </span>
+              <div className="app-settings-custom-sound-row">
+                <span className="app-settings-custom-sound-name" title={ttlSoundPref.customPath ?? ''}>
+                  {ttlSoundPref.customPath ? basenameFromPath(ttlSoundPref.customPath) : '—'}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={!soundPref.enabled || ttlSoundBrowseBusy}
+                  onClick={() => void handleBrowseTtlCustomSound()}
+                >
+                  {t('account.settings.notifications.ttlSoundBrowse')}
+                </button>
+              </div>
+              {ttlCustomSoundMissing && (
+                <Alert variant="warning" className="app-settings-alert">
+                  {t('account.settings.notifications.ttlSoundFileMissing')}
+                </Alert>
+              )}
+            </div>
+          )}
         </Card>
       </div>
     </div>

@@ -38,7 +38,7 @@ import { useIdentity } from './useIdentity';
 import { useChatSocket } from './useChatSocket';
 import { useAppConfig, usePlatformCapabilities } from '../config';
 import { useToast } from '../components/Toast';
-import { useNotificationSoundPreference } from './useNotificationSoundPreference';
+import { useNotificationSoundPreference, useTtlNotificationSoundPreference } from './useNotificationSoundPreference';
 import { fireConversationNotification } from '../utils/conversationNotifications';
 import { sidebarActions } from '../utils/sidebarActions';
 import {
@@ -191,6 +191,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const toast = useToast();
   const { notifications, audio } = usePlatformCapabilities();
   const soundPref = useNotificationSoundPreference();
+  const ttlSoundPref = useTtlNotificationSoundPreference();
   const navigate = useNavigate();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -963,7 +964,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   // -------------------------------------------------------------------------
 
   const fireNotification = useCallback(
-    (title: string, body: string, opts?: { isViewingConvo?: boolean; onClick?: () => void }) => {
+    (title: string, body: string, opts?: { isViewingConvo?: boolean; onClick?: () => void; expiresAt?: string }) => {
       fireConversationNotification(
         title,
         body,
@@ -971,11 +972,12 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           onClick: opts?.onClick,
           isViewingConversation: opts?.isViewingConvo,
           nativeTag: 'conversation-event',
+          expiresAt: opts?.expiresAt,
         },
-        { toast, soundPref, notifications, audio }
+        { toast, soundPref, ttlSoundPref, notifications, audio }
       );
     },
-    [toast, soundPref, audio, notifications]
+    [toast, soundPref, ttlSoundPref, audio, notifications]
   );
 
   // -------------------------------------------------------------------------

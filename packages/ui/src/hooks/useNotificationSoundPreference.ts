@@ -246,3 +246,148 @@ export function useNotificationSoundPreference(): NotificationSoundPreferenceSna
     () => SERVER_SNAPSHOT
   );
 }
+
+// ---------------------------------------------------------------------------
+// TTL (disappearing message) notification sound — independent sound/volume,
+// shared enabled + suppressWhenFocused with the main preference.
+// ---------------------------------------------------------------------------
+
+const TTL_STORAGE_KEY_SOUND_ID = 'adieuu.app.ttlNotificationSoundId';
+const TTL_STORAGE_KEY_CUSTOM_PATH = 'adieuu.app.ttlNotificationSoundCustomPath';
+const TTL_STORAGE_KEY_VOLUME = 'adieuu.app.ttlNotificationSoundVolume';
+
+export const DEFAULT_TTL_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId = 'hype';
+
+export function getTtlNotificationSoundId(): NotificationSoundId {
+  if (typeof localStorage === 'undefined') return DEFAULT_TTL_NOTIFICATION_SOUND_ID;
+  try {
+    const v = normalizeStoredSoundId(localStorage.getItem(TTL_STORAGE_KEY_SOUND_ID));
+    if (isValidSoundId(v)) return v;
+    return DEFAULT_TTL_NOTIFICATION_SOUND_ID;
+  } catch {
+    return DEFAULT_TTL_NOTIFICATION_SOUND_ID;
+  }
+}
+
+export function setTtlNotificationSoundId(value: NotificationSoundId): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(TTL_STORAGE_KEY_SOUND_ID, value);
+  } catch {
+    return;
+  }
+  emit();
+}
+
+export function getTtlNotificationSoundCustomPath(): string | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const v = localStorage.getItem(TTL_STORAGE_KEY_CUSTOM_PATH);
+    return v && v.length > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setTtlNotificationSoundCustomPath(path: string | null): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (path === null || path === '') {
+      localStorage.removeItem(TTL_STORAGE_KEY_CUSTOM_PATH);
+    } else {
+      localStorage.setItem(TTL_STORAGE_KEY_CUSTOM_PATH, path);
+    }
+  } catch {
+    return;
+  }
+  emit();
+}
+
+export function getTtlNotificationSoundVolume(): number {
+  if (typeof localStorage === 'undefined') return DEFAULT_VOLUME;
+  try {
+    const v = localStorage.getItem(TTL_STORAGE_KEY_VOLUME);
+    if (v === null) return DEFAULT_VOLUME;
+    if (v.includes('.')) {
+      const f = parseFloat(v);
+      return Number.isFinite(f) ? clampNotificationGain(f) : DEFAULT_VOLUME;
+    }
+    const units = parseInt(v, 10);
+    if (!Number.isFinite(units)) return DEFAULT_VOLUME;
+    return clampNotificationGain(units / 100);
+  } catch {
+    return DEFAULT_VOLUME;
+  }
+}
+
+export function setTtlNotificationSoundVolume(gain: number): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const units = Math.round(clampNotificationGain(gain) * 100);
+    localStorage.setItem(TTL_STORAGE_KEY_VOLUME, String(units));
+  } catch {
+    return;
+  }
+  emit();
+}
+
+function subscribeTtlNotificationSoundPreference(onStoreChange: () => void): () => void {
+  listeners.add(onStoreChange);
+  const onStorage = (e: StorageEvent) => {
+    if (
+      e.key === STORAGE_KEY_ENABLED ||
+      e.key === STORAGE_KEY_SUPPRESS_FOCUSED ||
+      e.key === TTL_STORAGE_KEY_SOUND_ID ||
+      e.key === TTL_STORAGE_KEY_CUSTOM_PATH ||
+      e.key === TTL_STORAGE_KEY_VOLUME ||
+      e.key === null
+    ) {
+      onStoreChange();
+    }
+  };
+  window.addEventListener('storage', onStorage);
+  return () => {
+    listeners.delete(onStoreChange);
+    window.removeEventListener('storage', onStorage);
+  };
+}
+
+let cachedTtlSnapshot: NotificationSoundPreferenceSnapshot | null = null;
+
+function getTtlSnapshot(): NotificationSoundPreferenceSnapshot {
+  const enabled = getNotificationSoundEnabled();
+  const soundId = getTtlNotificationSoundId();
+  const customPath = getTtlNotificationSoundCustomPath();
+  const suppressWhenFocused = getNotificationSoundSuppressWhenFocused();
+  const volume = getTtlNotificationSoundVolume();
+
+  if (
+    cachedTtlSnapshot &&
+    cachedTtlSnapshot.enabled === enabled &&
+    cachedTtlSnapshot.soundId === soundId &&
+    cachedTtlSnapshot.customPath === customPath &&
+    cachedTtlSnapshot.suppressWhenFocused === suppressWhenFocused &&
+    cachedTtlSnapshot.volume === volume
+  ) {
+    return cachedTtlSnapshot;
+  }
+
+  cachedTtlSnapshot = { enabled, soundId, customPath, suppressWhenFocused, volume };
+  return cachedTtlSnapshot;
+}
+
+const TTL_SERVER_SNAPSHOT: NotificationSoundPreferenceSnapshot = {
+  enabled: true,
+  soundId: DEFAULT_TTL_NOTIFICATION_SOUND_ID,
+  customPath: null,
+  suppressWhenFocused: true,
+  volume: DEFAULT_VOLUME,
+};
+
+export function useTtlNotificationSoundPreference(): NotificationSoundPreferenceSnapshot {
+  return useSyncExternalStore(
+    subscribeTtlNotificationSoundPreference,
+    getTtlSnapshot,
+    () => TTL_SERVER_SNAPSHOT
+  );
+}
