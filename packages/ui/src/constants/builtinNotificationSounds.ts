@@ -5,12 +5,6 @@
 
 const BUILTIN_PREFIX = '/sounds/';
 
-/** Legacy preset ids from older builds; mapped to current stems on read. */
-export const LEGACY_NOTIFICATION_SOUND_ID_MAP: Readonly<Record<string, string>> = {
-  gentle: 'chime',
-  bell: 'ding',
-};
-
 /**
  * Ordered for the settings dropdown. Default preset for new installs is `DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID`.
  * displayName is shown in the UI (English); extend i18n later if needed.
@@ -34,7 +28,7 @@ export const BUILTIN_NOTIFICATION_SOUNDS = [
   { id: 'impact', displayName: 'Impact', filename: 'impact.mp3' },
   { id: 'jive', displayName: 'Jive', filename: 'jive.mp3' },
   { id: 'jump', displayName: 'Jump', filename: 'jump.mp3' },
-  { id: 'jump-again', displayName: 'Jump Again', filename: 'jump-again.mp3' },
+  { id: 'jump-higher', displayName: 'Jump Higher', filename: 'jump-higher.mp3' },
   { id: 'light', displayName: 'Light', filename: 'light.mp3' },
   { id: 'magic', displayName: 'Magic', filename: 'magic.mp3' },
   { id: 'meow', displayName: 'Meow', filename: 'meow.mp3' },

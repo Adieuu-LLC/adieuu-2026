@@ -7,7 +7,6 @@ import { useSyncExternalStore } from 'react';
 import {
   BUILTIN_NOTIFICATION_SOUND_ID_SET,
   DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID,
-  LEGACY_NOTIFICATION_SOUND_ID_MAP,
 } from '../constants/builtinNotificationSounds';
 import type { BuiltinNotificationSoundId } from '../constants/builtinNotificationSounds';
 
@@ -35,11 +34,6 @@ function emit(): void {
   for (const l of listeners) {
     l();
   }
-}
-
-function normalizeStoredSoundId(raw: string | null): string | null {
-  if (raw === null) return null;
-  return LEGACY_NOTIFICATION_SOUND_ID_MAP[raw] ?? raw;
 }
 
 function isValidSoundId(value: string | null): value is NotificationSoundId {
@@ -72,7 +66,7 @@ export function setNotificationSoundEnabled(value: boolean): void {
 export function getNotificationSoundId(): NotificationSoundId {
   if (typeof localStorage === 'undefined') return DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID;
   try {
-    const v = normalizeStoredSoundId(localStorage.getItem(STORAGE_KEY_SOUND_ID));
+    const v = localStorage.getItem(STORAGE_KEY_SOUND_ID);
     if (isValidSoundId(v)) return v;
     return DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID;
   } catch {
@@ -261,7 +255,7 @@ export const DEFAULT_TTL_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId = 'hy
 export function getTtlNotificationSoundId(): NotificationSoundId {
   if (typeof localStorage === 'undefined') return DEFAULT_TTL_NOTIFICATION_SOUND_ID;
   try {
-    const v = normalizeStoredSoundId(localStorage.getItem(TTL_STORAGE_KEY_SOUND_ID));
+    const v = localStorage.getItem(TTL_STORAGE_KEY_SOUND_ID);
     if (isValidSoundId(v)) return v;
     return DEFAULT_TTL_NOTIFICATION_SOUND_ID;
   } catch {
