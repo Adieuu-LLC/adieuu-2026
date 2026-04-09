@@ -45,6 +45,8 @@ Store strings the app must not log in git. Typical keys:
 | `CSRF_SECRET` | Required in production (`validateProductionConfig`). |
 | `SESSION_SECRET` | Required in production. |
 | `OTP_SECRET` | Required in production. |
+| `ACCOUNT_HASH_SECRET` | Required in production. HMAC key for deriving `accountHash` (non-reversible account identifier). **Non-rotatable:** changing this invalidates all existing identity logins. |
+| `TOKEN_SIGNING_KEY` | Required in production. HMAC key for signing short-lived JWTs that bridge account→identity transitions. Rotatable: clients get a fresh token on next `GET /api/auth/session`. |
 | `AWS_ACCESS_KEY_ID` | SES mail in production (unless you use a different email path). |
 | `AWS_SECRET_ACCESS_KEY` | Pair with above. |
 | `TEXTMAGIC_USERNAME` | SMS in production. |

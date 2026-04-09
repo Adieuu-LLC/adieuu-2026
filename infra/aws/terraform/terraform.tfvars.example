@@ -111,8 +111,9 @@ single_nat_gateway        = true
 
 # Secrets Manager -> ECS (execution role gets GetSecretValue). Values are ARNs, not secret text.
 # Prefer one JSON secret per service; for a key inside JSON use :KeyName:: at the end of the ARN.
-# Typical API keys: MONGODB_URI, CSRF_SECRET, SESSION_SECRET, OTP_SECRET, AWS_ACCESS_KEY_ID,
-# AWS_SECRET_ACCESS_KEY, TEXTMAGIC_USERNAME, TEXTMAGIC_API_KEY (see ecs-environment.md).
+# Typical API keys: MONGODB_URI, CSRF_SECRET, SESSION_SECRET, OTP_SECRET, ACCOUNT_HASH_SECRET,
+# TOKEN_SIGNING_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, TEXTMAGIC_USERNAME,
+# TEXTMAGIC_API_KEY (see ecs-environment.md).
 # Typical chat keys: MONGODB_URI (and optionally REDIS_URL if not from ElastiCache / plain env).
 #
 # api_container_secrets = {
@@ -120,6 +121,8 @@ single_nat_gateway        = true
 #   CSRF_SECRET           = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CSRF_SECRET::"
 #   SESSION_SECRET        = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:SESSION_SECRET::"
 #   OTP_SECRET            = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:OTP_SECRET::"
+#   ACCOUNT_HASH_SECRET   = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:ACCOUNT_HASH_SECRET::"
+#   TOKEN_SIGNING_KEY     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:TOKEN_SIGNING_KEY::"
 #   AWS_ACCESS_KEY_ID     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:AWS_ACCESS_KEY_ID::"
 #   AWS_SECRET_ACCESS_KEY = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:AWS_SECRET_ACCESS_KEY::"
 #   TEXTMAGIC_USERNAME    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:TEXTMAGIC_USERNAME::"
