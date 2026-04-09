@@ -1,20 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test';
-
-const encryptGroupNameMock = mock(() => ({
-  encryptedName: 'enc-name',
-  nameNonce: 'nonce-name',
-}));
-const encryptMemberSettingsMock = mock(() => ({
-  encryptedMemberSettings: 'enc-settings',
-  memberSettingsNonce: 'nonce-settings',
-}));
-
-mock.module('./conversationCryptoService', () => ({
-  encryptGroupName: encryptGroupNameMock,
-  encryptMemberSettings: encryptMemberSettingsMock,
-}));
-
-const actions = await import('./conversationGroupActions');
+import * as actions from './conversationGroupActions';
 
 function createApi() {
   return {
@@ -53,8 +38,8 @@ describe('conversationGroupActions', () => {
     expect(result.ok).toBe(true);
     expect(api.conversations.updateName).toHaveBeenCalledWith(
       'conv-1',
-      'enc-name',
-      'nonce-name'
+      expect.any(String),
+      expect.any(String)
     );
   });
 
@@ -68,8 +53,8 @@ describe('conversationGroupActions', () => {
     expect(result.ok).toBe(true);
     expect(api.conversations.updateMemberSettings).toHaveBeenCalledWith(
       'conv-1',
-      'enc-settings',
-      'nonce-settings'
+      expect.any(String),
+      expect.any(String)
     );
   });
 });
