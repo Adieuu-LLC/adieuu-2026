@@ -54,6 +54,8 @@ export const MessageGifAttachment = memo(function MessageGifAttachment({
     backgroundSize: 'cover',
   };
 
+  const watermarkHeight = Math.round(displayHeight * 0.15);
+
   return (
     <div className="gif-attachment" style={containerStyle}>
       <img
@@ -65,6 +67,14 @@ export const MessageGifAttachment = memo(function MessageGifAttachment({
         onLoad={() => setLoaded(true)}
         className={`gif-attachment__img${loaded ? ' gif-attachment__img--loaded' : ''}`}
       />
+      <div className="gif-attachment__watermark">
+        <img
+          src="/img/klipy/image-watermark.svg"
+          alt=""
+          height={watermarkHeight}
+          aria-hidden="true"
+        />
+      </div>
     </div>
   );
 });

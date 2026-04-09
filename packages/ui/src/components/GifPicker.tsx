@@ -52,15 +52,20 @@ const INITIAL_STATE: FetchState = {
   items: [],
   page: 0,
   hasNext: true,
-  loading: false,
+  loading: true,
   error: null,
   rateLimitRetryAfter: null,
 };
 
 const DEBOUNCE_MS = 400;
+const MIN_QUERY_LENGTH = 2;
 const COLUMN_WIDTH = 150;
 const GAP = 8;
 const PER_PAGE = 6;
+
+const THROTTLE_WINDOW_MS = 2_500;
+const THROTTLE_MAX_PAGES = 3;
+const THROTTLE_COOLDOWN_MS = 3_000;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -80,6 +85,9 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
   const fetchId = useRef(0);
+  const pageFetchTimestamps = useRef<number[]>([]);
+  const throttleTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [throttled, setThrottled] = useState(false);
 
   // -------------------------------------------------------------------------
   // Debounce search input
@@ -87,7 +95,8 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
   useEffect(() => {
     clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
-      setDebouncedQuery(query.trim());
+      const trimmed = query.trim();
+      setDebouncedQuery(trimmed.length >= MIN_QUERY_LENGTH ? trimmed : '');
     }, DEBOUNCE_MS);
     return () => clearTimeout(debounceTimer.current);
   }, [query]);
@@ -98,6 +107,9 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
   useEffect(() => {
     setState(INITIAL_STATE);
     setSearchTerm(debouncedQuery);
+    setThrottled(false);
+    pageFetchTimestamps.current = [];
+    clearTimeout(throttleTimer.current);
   }, [tab, debouncedQuery]);
 
   // -------------------------------------------------------------------------
@@ -173,16 +185,44 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
 
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry?.isIntersecting && state.hasNext && !state.loading && !state.error && !state.rateLimitRetryAfter) {
-          fetchPage(state.page + 1);
+        if (
+          !entry?.isIntersecting ||
+          !state.hasNext ||
+          state.loading ||
+          state.error ||
+          state.rateLimitRetryAfter ||
+          throttled
+        ) return;
+
+        const now = Date.now();
+        const recent = pageFetchTimestamps.current.filter(
+          (ts) => now - ts < THROTTLE_WINDOW_MS,
+        );
+        pageFetchTimestamps.current = recent;
+
+        if (recent.length >= THROTTLE_MAX_PAGES) {
+          setThrottled(true);
+          clearTimeout(throttleTimer.current);
+          throttleTimer.current = setTimeout(() => {
+            pageFetchTimestamps.current = [];
+            setThrottled(false);
+          }, THROTTLE_COOLDOWN_MS);
+          return;
         }
+
+        pageFetchTimestamps.current.push(now);
+        fetchPage(state.page + 1);
       },
       { rootMargin: '200px' }
     );
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [fetchPage, state.hasNext, state.loading, state.page, state.error, state.rateLimitRetryAfter]);
+  }, [fetchPage, state.hasNext, state.loading, state.page, state.error, state.rateLimitRetryAfter, throttled]);
+
+  useEffect(() => {
+    return () => clearTimeout(throttleTimer.current);
+  }, []);
 
   // -------------------------------------------------------------------------
   // Item click handler
@@ -246,8 +286,10 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
           <GifPickerTile key={item.id} item={item} onClick={handleSelect} />
         ))}
 
-        {state.loading && (
+        {state.items.length === 0 && state.loading && (
           <>
+            <div className="gif-picker__placeholder" />
+            <div className="gif-picker__placeholder" />
             <div className="gif-picker__placeholder" />
             <div className="gif-picker__placeholder" />
             <div className="gif-picker__placeholder" />
@@ -255,11 +297,15 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
           </>
         )}
 
-        {!state.loading && !state.error && state.items.length === 0 && (
+        {state.items.length > 0 && (state.loading || throttled) && (
+          <div className="gif-picker__page-loader">
+            <div className="gif-picker__spinner" />
+          </div>
+        )}
+
+        {!state.loading && !throttled && !state.error && state.items.length === 0 && (
           <div className="gif-picker__empty">
-            {debouncedQuery
-              ? t('gif.noResults', { query: debouncedQuery })
-              : t('gif.loading')}
+            {t('gif.noResults', { query: debouncedQuery })}
           </div>
         )}
 
@@ -279,7 +325,11 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
       </div>
 
       <div className="gif-picker__attribution">
-        {t('gif.poweredBy')}
+        <img
+          src="/img/klipy/viewer-logo.svg"
+          alt={t('gif.poweredBy')}
+          className="gif-picker__attribution-logo"
+        />
       </div>
     </div>
   );

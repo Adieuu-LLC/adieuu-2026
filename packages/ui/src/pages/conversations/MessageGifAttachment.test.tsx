@@ -36,6 +36,14 @@ describe('MessageGifAttachment', () => {
     expect(html).not.toContain('gif-fallback');
   });
 
+  test('renders Klipy watermark on displayed GIF', () => {
+    const html = renderToStaticMarkup(
+      <MessageGifAttachment gif={sampleGif} gifsEnabled={true} />,
+    );
+    expect(html).toContain('gif-attachment__watermark');
+    expect(html).toContain('image-watermark.svg');
+  });
+
   test('renders fallback with search term when gifsEnabled is false', () => {
     const html = renderToStaticMarkup(
       <MessageGifAttachment gif={sampleGif} gifsEnabled={false} />,

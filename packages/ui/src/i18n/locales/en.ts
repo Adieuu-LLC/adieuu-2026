@@ -1755,7 +1755,7 @@ export const en = {
 
   gif: {
     pickerTitle: 'GIFs & Stickers',
-    searchPlaceholder: 'Search GIFs and stickers…',
+    searchPlaceholder: 'Search KLIPY',
     tabGifs: 'GIFs',
     tabStickers: 'Stickers',
     noResults: 'No results for "{{query}}"',
