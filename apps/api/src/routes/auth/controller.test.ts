@@ -181,8 +181,13 @@ mock.module('../../repositories/identity-count.repository', () => ({
   })),
 }));
 
-// Mock identity service (for MAX_IDENTITIES_PER_USER constant used by auth routes)
+// Preserve full identity.service exports: a MAX-only mock replaces the entire module globally
+// and breaks other route tests that share the same Bun process.
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- sync load after db mocks above
+const identityServiceModule = require('../../services/identity.service') as typeof import('../../services/identity.service');
+
 mock.module('../../services/identity.service', () => ({
+  ...identityServiceModule,
   MAX_IDENTITIES_PER_USER: 2,
 }));
 

@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
+import { ROUTE_TEST_IDENTITY_ID, parseAdieuuSessionCookie } from '../../test-fixtures/route-identity';
 import type {
   FriendRequestResult,
   FriendshipResult,
@@ -9,7 +10,7 @@ import type {
 } from '../../services/friend.service';
 import type { PublicFriendRequest } from '../../models/friend-request';
 
-const myIdentityId = new ObjectId();
+const myIdentityId = ROUTE_TEST_IDENTITY_ID;
 const targetIdentityId = new ObjectId();
 
 const requireIdentitySessionMock = mock((request: Request) => {
@@ -66,6 +67,7 @@ mock.module('../../services/session.service', () => ({
 
 mock.module('../../services/identity.service', () => ({
   getIdentityFromSession: getIdentityFromSessionMock,
+  getIdentitySessionIdFromRequest: mock((request: Request) => parseAdieuuSessionCookie(request)),
 }));
 
 mock.module('../../services/friend.service', () => ({

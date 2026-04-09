@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
+import { ROUTE_TEST_IDENTITY_ID, parseAdieuuSessionCookie } from '../../test-fixtures/route-identity';
 
 // Mock config
 mock.module('../../config', () => ({
@@ -18,8 +19,8 @@ mock.module('../../config', () => ({
   },
 }));
 
-// Test identity data
-const mockIdentityId = new ObjectId();
+// Test identity data (stable across route tests; matches other controller mocks)
+const mockIdentityId = ROUTE_TEST_IDENTITY_ID;
 const mockIdentity = {
   _id: mockIdentityId,
   ident: 'test-hash',
@@ -50,6 +51,7 @@ mock.module('../../services/session.service', () => ({
 // Mock identity service
 mock.module('../../services/identity.service', () => ({
   getIdentityFromSession: mock(() => Promise.resolve(mockIdentity)),
+  getIdentitySessionIdFromRequest: mock((request: Request) => parseAdieuuSessionCookie(request)),
 }));
 
 // Mock notification service

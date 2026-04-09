@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
+import { ROUTE_TEST_IDENTITY_ID, parseAdieuuSessionCookie } from '../../test-fixtures/route-identity';
 
 // Mock config
 mock.module('../../config', () => ({
@@ -40,8 +41,8 @@ mock.module('../../db', () => ({
   },
 }));
 
-// Pre-define identity ObjectId for use across mocks
-const mockIdentityId = new ObjectId();
+// Pre-define identity ObjectId for use across mocks (stable across route test files)
+const mockIdentityId = ROUTE_TEST_IDENTITY_ID;
 const mockAccountHash = 'a'.repeat(64);
 
 // Mock account token service
@@ -188,14 +189,13 @@ mock.module('../../services/identity.service', () => ({
   loginToIdentity: mock(() => Promise.resolve({ success: false, errorCode: 'INVALID_PASSPHRASE' })),
   logoutFromIdentity: mock(() => Promise.resolve()),
   deleteIdentity: mock(() => Promise.resolve({ success: true })),
-  getIdentityFromSession: mock(() => Promise.resolve(mockIdentity)),
-  getIdentitySessionIdFromRequest: mock((request: Request) => {
-    const cookie = request.headers.get('Cookie') ?? '';
-    if (cookie.includes('adieuu_session=test-identity-session')) {
-      return 'test-identity-session';
+  getIdentityFromSession: mock((sessionId: string) => {
+    if (!sessionId || sessionId === 'test-session') {
+      return Promise.resolve(null);
     }
-    return null;
+    return Promise.resolve(mockIdentity);
   }),
+  getIdentitySessionIdFromRequest: mock((request: Request) => parseAdieuuSessionCookie(request)),
   MIN_PASSPHRASE_LENGTH: 8,
 }));
 
