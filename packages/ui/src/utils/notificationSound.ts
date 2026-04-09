@@ -26,6 +26,15 @@ const SILENCE_GATE = 0.01;
 /** Maximum normalization boost (+12 dB) to prevent ear-splitting transients on quiet/padded files. */
 const MAX_NORM_GAIN = 4;
 
+/**
+ * Crest factor (peak / RMS) above which a proportional gain penalty is applied.
+ * ~9.5 dB; typical sustained tones sit around 3 dB, sharp transients 12-20 dB.
+ */
+const CREST_FACTOR_THRESHOLD = 3.0;
+
+/** How aggressively to penalise excess crest factor (0 = ignore, 1 = full dB-for-dB). */
+const CREST_PENALTY_RATIO = 0.65;
+
 // ---------------------------------------------------------------------------
 // ITU-R BS.1770 K-weighting (two cascaded biquads)
 // ---------------------------------------------------------------------------
@@ -112,13 +121,16 @@ export function computeNormalizationGain(buffer: AudioBuffer): number {
   const sampleRate = buffer.sampleRate;
   let gatedSumSq = 0;
   let gatedCount = 0;
+  let peak = 0;
 
   for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
     const raw = buffer.getChannelData(ch);
     const weighted = applyKWeighting(raw, sampleRate);
     for (let i = 0; i < weighted.length; i++) {
       const s = weighted[i]!;
-      if (Math.abs(s) >= SILENCE_GATE) {
+      const abs = Math.abs(s);
+      if (abs > peak) peak = abs;
+      if (abs >= SILENCE_GATE) {
         gatedSumSq += s * s;
         gatedCount++;
       }
@@ -128,7 +140,16 @@ export function computeNormalizationGain(buffer: AudioBuffer): number {
   if (gatedCount === 0) return 1;
   const rms = Math.sqrt(gatedSumSq / gatedCount);
   if (rms < 1e-6) return 1;
-  return Math.min(MAX_NORM_GAIN, TARGET_RMS / rms);
+
+  let gain = Math.min(MAX_NORM_GAIN, TARGET_RMS / rms);
+
+  const crestFactor = peak / rms;
+  if (crestFactor > CREST_FACTOR_THRESHOLD) {
+    const excessDb = 20 * Math.log10(crestFactor / CREST_FACTOR_THRESHOLD);
+    gain *= Math.pow(10, -(excessDb * CREST_PENALTY_RATIO) / 20);
+  }
+
+  return gain;
 }
 
 /** Decoded built-in asset (Web Audio gain can exceed 1; fetch+decode avoids HTMLAudio volume cap). */

@@ -20,7 +20,7 @@ export const BUILTIN_NOTIFICATION_SOUNDS = [
   { id: 'bike', displayName: 'Bike', filename: 'bike.mp3' },
   { id: 'blip', displayName: 'Blip', filename: 'blip.mp3' },
   { id: 'boing', displayName: 'Boing', filename: 'boing.mp3' },
-  { id: 'chime', displayName: 'Gentle chime', filename: 'chime.mp3' },
+  { id: 'chime', displayName: 'Chime', filename: 'chime.mp3' },
   { id: 'coins', displayName: 'Coins', filename: 'coins.mp3' },
   { id: 'correct', displayName: 'Correct', filename: 'correct.mp3' },
   { id: 'ding', displayName: 'Ding', filename: 'ding.mp3' },

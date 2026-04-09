@@ -190,4 +190,60 @@ describe('computeNormalizationGain', () => {
 
     expect(Math.abs(gain44 - gain48) / gain48).toBeLessThan(0.15);
   });
+
+  it('does not apply crest factor penalty to a pure sine wave', () => {
+    // Sine crest factor = sqrt(2) ≈ 1.41, well below the threshold of 3.
+    // Two sines at different amplitudes should scale proportionally (no penalty
+    // distortion), within the normal operating range.
+    const rate = 48000;
+    const gainA = computeNormalizationGain(mockAudioBuffer([sineWave(1000, rate, 1, 0.15)]));
+    const gainB = computeNormalizationGain(mockAudioBuffer([sineWave(1000, rate, 1, 0.30)]));
+
+    // gain is inversely proportional to amplitude for a sine (crest ≈ constant).
+    expect(gainA / gainB).toBeGreaterThan(1.8);
+    expect(gainA / gainB).toBeLessThan(2.2);
+  });
+
+  it('applies crest factor penalty when transient spikes are present', () => {
+    const rate = 48000;
+
+    // Sustained tone: pure sine at 1kHz, crest ≈ 1.41 (no penalty).
+    const sustained = sineWave(1000, rate, 1, 0.15);
+
+    // Same tone with a single sharp spike injected at 500ms.
+    // The spike barely changes the RMS but massively raises the peak,
+    // pushing the crest factor well above the 3.0 threshold.
+    const withSpike = new Float32Array(sustained);
+    for (let i = 24000; i < 24048; i++) {
+      withSpike[i] = 0.95;
+    }
+
+    const sustainedGain = computeNormalizationGain(mockAudioBuffer([sustained]));
+    const spikeGain = computeNormalizationGain(mockAudioBuffer([withSpike]));
+
+    expect(spikeGain).toBeLessThan(sustainedGain);
+    // The penalty should be meaningful — at least a 20% reduction.
+    expect(spikeGain / sustainedGain).toBeLessThan(0.8);
+  });
+
+  it('scales crest penalty proportionally to excess crest factor', () => {
+    const rate = 48000;
+    const base = sineWave(1000, rate, 1, 0.15);
+
+    // Small spike → moderate excess crest factor
+    const smallSpike = new Float32Array(base);
+    for (let i = 24000; i < 24048; i++) smallSpike[i] = 0.5;
+
+    // Large spike → large excess crest factor
+    const largeSpike = new Float32Array(base);
+    for (let i = 24000; i < 24048; i++) largeSpike[i] = 0.98;
+
+    const smallGain = computeNormalizationGain(mockAudioBuffer([smallSpike]));
+    const largeGain = computeNormalizationGain(mockAudioBuffer([largeSpike]));
+
+    // Both should be penalised, but the larger spike more so.
+    const noSpikeGain = computeNormalizationGain(mockAudioBuffer([base]));
+    expect(smallGain).toBeLessThan(noSpikeGain);
+    expect(largeGain).toBeLessThan(smallGain);
+  });
 });
