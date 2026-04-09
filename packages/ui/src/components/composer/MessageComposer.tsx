@@ -772,42 +772,6 @@ export function MessageComposer({
             </button>
           </Tooltip>
         )}
-        <Tooltip
-          content={t('conversations.attachMedia', 'Attach image')}
-          position="top"
-        >
-          <button
-            type="button"
-            className="conversation-attach-btn"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={sending || uploadingMedia || attachments.length >= MAX_ATTACHMENTS}
-          >
-            <Icon name="image" />
-          </button>
-        </Tooltip>
-        <Popover.Root
-          open={showGifPicker}
-          onOpenChange={(e) => setShowGifPicker(e.open)}
-          positioning={{ placement: 'top-end' }}
-        >
-          <Popover.Trigger asChild>
-            <button
-              type="button"
-              className="conversation-gif-btn"
-              title={t('gif.composerButton', 'GIF')}
-              disabled={sending || uploadingMedia}
-            >
-              <span className="conversation-gif-btn__label">GIF</span>
-            </button>
-          </Popover.Trigger>
-          <Portal>
-            <Popover.Positioner>
-              <Popover.Content className="gif-picker-popover">
-                <GifPicker onGifSelect={handleGifSelect} />
-              </Popover.Content>
-            </Popover.Positioner>
-          </Portal>
-        </Popover.Root>
         <ComposerTTLMenu
           ttlSeconds={ttlSeconds}
           onSelect={setTtlSeconds}
@@ -871,6 +835,42 @@ export function MessageComposer({
           rows={1}
           disabled={sending || uploadingMedia}
         />
+        <Tooltip
+          content={t('conversations.attachMedia', 'Attach image')}
+          position="top"
+        >
+          <button
+            type="button"
+            className="conversation-attach-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending || uploadingMedia || attachments.length >= MAX_ATTACHMENTS}
+          >
+            <Icon name="image" />
+          </button>
+        </Tooltip>
+        <Popover.Root
+          open={showGifPicker}
+          onOpenChange={(e) => setShowGifPicker(e.open)}
+          positioning={{ placement: 'top-end' }}
+        >
+          <Popover.Trigger asChild>
+            <button
+              type="button"
+              className="conversation-gif-btn"
+              title={t('gif.composerButton', 'GIF')}
+              disabled={sending || uploadingMedia}
+            >
+              <span className="conversation-gif-btn__label">GIF</span>
+            </button>
+          </Popover.Trigger>
+          <Portal>
+            <Popover.Positioner>
+              <Popover.Content className="gif-picker-popover">
+                <GifPicker onGifSelect={handleGifSelect} />
+              </Popover.Content>
+            </Popover.Positioner>
+          </Portal>
+        </Popover.Root>
         <Popover.Root
           open={showEmojiPicker}
           onOpenChange={(e) => setShowEmojiPicker(e.open)}
