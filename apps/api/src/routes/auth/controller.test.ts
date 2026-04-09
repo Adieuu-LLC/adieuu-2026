@@ -61,6 +61,7 @@ mock.module('../../db', () => ({
   getCollection: mock(() => mockCollection),
   checkMongoHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 5 })),
   initializeCollections: mock(() => Promise.resolve([])),
+  withTransaction: async (fn: (session: unknown) => Promise<unknown>) => fn({}),
   Collections: {
     USERS: 'users',
     SESSIONS: 'sessions',

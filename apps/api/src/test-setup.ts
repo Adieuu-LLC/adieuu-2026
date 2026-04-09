@@ -73,8 +73,11 @@ mock.module('./db/mongo', () => ({
     createCollection: mock(() => Promise.resolve()),
   })),
   getCollection: mock(() => mockCollection),
+  getMongoClient: mock(() => ({})),
+  withTransaction: mock(async (fn: (session: unknown) => Promise<unknown>) => fn({})),
   checkMongoHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 5 })),
   initializeCollections: mock(() => Promise.resolve([])),
+  ensureCriticalCollections: mock(() => Promise.resolve()),
   Collections,
 }));
 
@@ -112,8 +115,11 @@ mock.module('./db', () => ({
     createCollection: mock(() => Promise.resolve()),
   })),
   getCollection: mock(() => mockCollection),
+  getMongoClient: mock(() => ({})),
+  withTransaction: mock(async (fn: (session: unknown) => Promise<unknown>) => fn({})),
   checkMongoHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 5 })),
   initializeCollections: mock(() => Promise.resolve([])),
+  ensureCriticalCollections: mock(() => Promise.resolve()),
   Collections,
   // Redis exports
   connectRedis: mock(() => Promise.resolve()),

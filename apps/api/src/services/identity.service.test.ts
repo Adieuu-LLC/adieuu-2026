@@ -108,6 +108,7 @@ const mockRedis = {
 mock.module('../db', () => ({
   getRedis: () => mockRedis,
   isRedisConnected: () => true,
+  withTransaction: async (fn: (session: unknown) => Promise<unknown>) => fn({}),
   RedisKeys: {
     identityLoginAttempts: (hash: string) =>
       `ratelimit:identity_login:${hash}`,
