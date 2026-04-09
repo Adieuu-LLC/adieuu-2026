@@ -244,20 +244,14 @@ describe('admin platform-settings routes', () => {
       }
       return Promise.resolve(null);
     });
-    mockUserFindById.mockImplementation((id: unknown) => {
+    mockIdentityFindById.mockImplementation((id: unknown) => {
       const hex = typeof id === 'string' ? id : (id as ObjectId).toHexString();
       if (hex === otherId.toHexString()) {
         return Promise.resolve({
           _id: otherId,
-          email: 'u@example.com',
-          emailVerified: true,
-          phone: undefined,
-          phoneVerified: false,
           displayName: 'Admin User',
-          failedAttempts: 0,
-          identityCount: 0,
-          identityLockoutDuration: 3600000,
-          identityLoginAttempts: [],
+          username: 'adminuser',
+          avatarUrl: undefined,
           createdAt: new Date(),
           updatedAt: new Date(),
         });
@@ -269,26 +263,26 @@ describe('admin platform-settings routes', () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       success: boolean;
-      data: { admins: Array<{ userId: string; email?: string; stale?: boolean }> };
+      data: { admins: Array<{ identityId: string; displayName?: string; stale?: boolean }> };
     };
     expect(body.success).toBe(true);
     expect(body.data.admins).toHaveLength(1);
     const firstAdmin = body.data.admins[0];
     expect(firstAdmin).toBeDefined();
-    expect(firstAdmin!.userId).toBe(otherId.toHexString());
-    expect(firstAdmin!.email).toBe('u@example.com');
+    expect(firstAdmin!.identityId).toBe(otherId.toHexString());
+    expect(firstAdmin!.displayName).toBe('Admin User');
   });
 
   test('POST /api/admin/platform-admins returns 404 when user not found', async () => {
     mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
     mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
-    mockFindByIdentifier.mockImplementation(() => Promise.resolve(null));
+    mockIdentityFindById.mockImplementation(() => Promise.resolve(null));
 
     const res = await handler(
       new Request('http://localhost/api/admin/platform-admins', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: 'nobody@example.com' }),
+        body: JSON.stringify({ identityId: new ObjectId().toHexString() }),
       })
     );
     expect(res.status).toBe(404);
