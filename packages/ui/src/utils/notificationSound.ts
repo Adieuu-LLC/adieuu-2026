@@ -17,15 +17,42 @@ export interface FocusVisibilitySnapshot {
   visibilityState: DocumentVisibilityState;
 }
 
+/**
+ * Target RMS in linear amplitude (≈ -18 dBFS).
+ * -18 dBFS is a common broadcast loudness target and sits comfortably below clipping
+ * while keeping short notification sounds audible across devices.
+ */
+const TARGET_RMS = Math.pow(10, -18 / 20); // ≈ 0.1259
+
+/**
+ * Compute a gain multiplier that normalises an AudioBuffer to TARGET_RMS.
+ * Returns 1 when the buffer is silent or its RMS already matches the target.
+ */
+function computeNormalizationGain(buffer: AudioBuffer): number {
+  let sumSq = 0;
+  let sampleCount = 0;
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const data = buffer.getChannelData(ch);
+    for (const sample of data) {
+      sumSq += sample * sample;
+    }
+    sampleCount += data.length;
+  }
+  if (sampleCount === 0) return 1;
+  const rms = Math.sqrt(sumSq / sampleCount);
+  if (rms < 1e-6) return 1;
+  return TARGET_RMS / rms;
+}
+
 /** Decoded built-in asset (Web Audio gain can exceed 1; fetch+decode avoids HTMLAudio volume cap). */
-let cachedBuiltinDecoded: { src: string; buffer: AudioBuffer } | null = null;
+let cachedBuiltinDecoded: { src: string; buffer: AudioBuffer; normGain: number } | null = null;
 
 let cachedCustomPath: string | null = null;
 let cachedCustomUrl: string | null = null;
 let cachedCustomAudio: HTMLAudioElement | null = null;
 
 /** Decoded custom file for Web Audio playback (reliable after async IPC). */
-let cachedCustomDecoded: { path: string; buffer: AudioBuffer } | null = null;
+let cachedCustomDecoded: { path: string; buffer: AudioBuffer; normGain: number } | null = null;
 
 let sharedAudioContext: AudioContext | null = null;
 
@@ -129,15 +156,16 @@ async function playBuiltin(
         const res = await fetch(src);
         if (!res.ok) {
           console.warn(`[notificationSound] Built-in sound fetch failed: ${res.status} ${src}`);
-          // Fall through to HTMLAudio fallback below
         } else {
           const ab = await res.arrayBuffer();
-          cachedBuiltinDecoded = { src, buffer: await ctx.decodeAudioData(ab) };
-          playDecodedBuffer(ctx, cachedBuiltinDecoded.buffer, gain);
+          const buffer = await ctx.decodeAudioData(ab);
+          const normGain = computeNormalizationGain(buffer);
+          cachedBuiltinDecoded = { src, buffer, normGain };
+          playDecodedBuffer(ctx, buffer, gain * normGain);
           return;
         }
       } else {
-        playDecodedBuffer(ctx, cachedBuiltinDecoded.buffer, gain);
+        playDecodedBuffer(ctx, cachedBuiltinDecoded.buffer, gain * cachedBuiltinDecoded.normGain);
         return;
       }
     } catch (err) {
@@ -156,7 +184,12 @@ async function playBuiltin(
 /**
  * Fallback when decodeAudioData fails (codec) or AudioContext is unavailable: blob URL + <audio>.
  */
-async function playCustomHtmlAudio(path: string, buf: ArrayBuffer, gain: number): Promise<void> {
+async function playCustomHtmlAudio(
+  path: string,
+  buf: ArrayBuffer,
+  gain: number,
+  normGain: number
+): Promise<void> {
   revokeCustomUrl();
   cachedCustomDecoded = null;
   cachedCustomPath = path;
@@ -166,13 +199,14 @@ async function playCustomHtmlAudio(path: string, buf: ArrayBuffer, gain: number)
   audioEl.preload = 'auto';
   cachedCustomAudio = audioEl;
 
+  const effectiveGain = gain * normGain;
   const ctx = await ensureAudioContextRunning();
-  if (ctx && gain > 1) {
+  if (ctx && effectiveGain > 1) {
     await waitForAudioReady(audioEl);
     try {
       const source = ctx.createMediaElementSource(audioEl);
       const gainNode = ctx.createGain();
-      gainNode.gain.value = gain;
+      gainNode.gain.value = effectiveGain;
       source.connect(gainNode);
       gainNode.connect(ctx.destination);
       audioEl.currentTime = 0;
@@ -183,7 +217,7 @@ async function playCustomHtmlAudio(path: string, buf: ArrayBuffer, gain: number)
     return;
   }
 
-  audioEl.volume = Math.min(1, gain);
+  audioEl.volume = Math.min(1, effectiveGain);
   await waitForAudioReady(audioEl);
   try {
     audioEl.currentTime = 0;
@@ -221,7 +255,7 @@ async function playCustomUnserialized(
   const ctx = await ensureAudioContextRunning();
 
   if (cachedCustomDecoded?.path === path && ctx) {
-    playDecodedBuffer(ctx, cachedCustomDecoded.buffer, volume);
+    playDecodedBuffer(ctx, cachedCustomDecoded.buffer, volume * cachedCustomDecoded.normGain);
     return;
   }
 
@@ -236,15 +270,16 @@ async function playCustomUnserialized(
   if (ctx) {
     try {
       const audioBuffer = await ctx.decodeAudioData(buf.slice(0));
-      cachedCustomDecoded = { path, buffer: audioBuffer };
-      playDecodedBuffer(ctx, audioBuffer, volume);
+      const normGain = computeNormalizationGain(audioBuffer);
+      cachedCustomDecoded = { path, buffer: audioBuffer, normGain };
+      playDecodedBuffer(ctx, audioBuffer, volume * normGain);
       return;
     } catch (err) {
       console.warn('[notificationSound] decodeAudioData failed, falling back to HTMLAudio:', err);
     }
   }
 
-  await playCustomHtmlAudio(path, buf, volume);
+  await playCustomHtmlAudio(path, buf, volume, 1);
 }
 
 async function playCustom(
