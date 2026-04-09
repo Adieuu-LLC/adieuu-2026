@@ -51,6 +51,9 @@ export function extractSessionId(
   const cookies = parseCookies(cookieHeader);
   const cookieSessionId = cookies['adieuu_session'];
   if (cookieSessionId) {
+    logger.debug('extractSessionId: from cookie', {
+      sessionIdPrefix: cookieSessionId.substring(0, 8) + '...',
+    });
     return cookieSessionId;
   }
 
@@ -58,6 +61,9 @@ export function extractSessionId(
   const params = new URLSearchParams(queryString);
   const tokenSessionId = params.get('token');
   if (tokenSessionId) {
+    logger.debug('extractSessionId: from query token', {
+      sessionIdPrefix: tokenSessionId.substring(0, 8) + '...',
+    });
     return tokenSessionId;
   }
 
@@ -145,6 +151,12 @@ export async function validateSession(sessionId: string): Promise<SessionData | 
       return null;
     }
     if (!cached.identityId) {
+      logger.warn('Session validation: cache hit but no identityId', {
+        sessionId: sessionPrefix,
+        cachedType: cached.type ?? '(missing)',
+        hasIdentityId: !!cached.identityId,
+        elapsedMs: Math.round(performance.now() - start),
+      });
       return null;
     }
     logger.debug('Session validation: cache hit', {
@@ -187,6 +199,11 @@ export async function validateSession(sessionId: string): Promise<SessionData | 
     }
 
     if (!session.identityId) {
+      logger.warn('Session validation: found in database but no identityId', {
+        sessionId: sessionPrefix,
+        sessionType: session.type,
+        elapsedMs,
+      });
       return null;
     }
 

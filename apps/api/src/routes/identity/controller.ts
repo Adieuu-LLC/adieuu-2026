@@ -7,6 +7,7 @@
  * @module routes/identity/controller
  */
 
+import elog from '../../utils/adieuuLogger';
 import { success, errors, error as errorResponse } from '../../utils/response';
 import { RouteContext } from '../../router';
 import { sanitizeString } from '../../utils/sanitize';
@@ -292,6 +293,9 @@ export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
   const headers = new Headers(response.headers);
   if (result.cookie) {
     headers.set('Set-Cookie', result.cookie);
+    elog.debug('Identity login: Set-Cookie applied', {
+      sessionIdPrefix: result.sessionId?.substring(0, 8) + '...',
+    });
   }
   return new Response(response.body, { status: response.status, headers });
 }

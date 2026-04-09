@@ -112,6 +112,12 @@ export async function createIdentitySession(
     ipAddress: metadata?.ipAddress,
   });
 
+  elog.info('Identity session created', {
+    sessionIdPrefix: sessionId.substring(0, 8) + '...',
+    identityIdPrefix: identityId.toHexString().substring(0, 8) + '...',
+    expiresInSeconds: SESSION_CONFIG.identityTtlSeconds,
+  });
+
   const cookie = buildSessionCookie(sessionId, SESSION_CONFIG.identityTtlSeconds);
   return { sessionId, cookie };
 }
