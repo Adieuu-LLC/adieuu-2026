@@ -4,8 +4,11 @@ import {
   serializePayload,
   textPayload,
   mediaPayload,
+  gifPayload,
+  isValidGifAttachment,
   type MentionEntity,
   type MessagePayload,
+  type GifAttachment,
 } from './messagePayload';
 
 describe('serializePayload', () => {
@@ -163,5 +166,114 @@ describe('parsePayload', () => {
     expect(parsed.text).toBe(original.text);
     expect(parsed.attachments).toHaveLength(1);
     expect(parsed.mentions).toEqual(original.mentions);
+  });
+
+  test('structured payload with gifAttachments parses them', () => {
+    const gif: GifAttachment = {
+      provider: 'klipy',
+      type: 'gif',
+      url: 'https://static.klipy.com/hd.webp',
+      previewUrl: 'https://static.klipy.com/sm.webp',
+      tinyUrl: 'https://static.klipy.com/xs.webp',
+      blurPreview: 'data:image/jpeg;base64,abc',
+      width: 498,
+      height: 300,
+      searchTerm: 'cats',
+      slug: 'cats-123',
+    };
+    const json = JSON.stringify({ version: 1, text: 'look!', gifAttachments: [gif] });
+    const result = parsePayload(json);
+    expect(result.gifAttachments).toHaveLength(1);
+    expect(result.gifAttachments[0]!.slug).toBe('cats-123');
+    expect(result.isStructured).toBe(true);
+  });
+
+  test('invalid gifAttachments are filtered out', () => {
+    const json = JSON.stringify({
+      version: 1,
+      text: '',
+      gifAttachments: [
+        { provider: 'klipy', type: 'gif' },
+        'not an object',
+        null,
+      ],
+    });
+    const result = parsePayload(json);
+    expect(result.gifAttachments).toHaveLength(0);
+  });
+
+  test('legacy plaintext has empty gifAttachments', () => {
+    const result = parsePayload('just text');
+    expect(result.gifAttachments).toEqual([]);
+  });
+});
+
+describe('gifPayload', () => {
+  const sampleGif: GifAttachment = {
+    provider: 'klipy',
+    type: 'gif',
+    url: 'https://static.klipy.com/hd.webp',
+    previewUrl: 'https://static.klipy.com/sm.webp',
+    tinyUrl: 'https://static.klipy.com/xs.webp',
+    blurPreview: '',
+    width: 498,
+    height: 280,
+    searchTerm: 'hello',
+    slug: 'hello-662',
+  };
+
+  test('serialises to JSON (not plain string)', () => {
+    const payload = gifPayload('hey', sampleGif);
+    const result = serializePayload(payload);
+    expect(result.startsWith('{')).toBe(true);
+    const parsed = JSON.parse(result);
+    expect(parsed.gifAttachments).toHaveLength(1);
+  });
+
+  test('round-trips correctly', () => {
+    const payload = gifPayload('look at this', sampleGif);
+    const serialised = serializePayload(payload);
+    const parsed = parsePayload(serialised);
+    expect(parsed.text).toBe('look at this');
+    expect(parsed.gifAttachments).toHaveLength(1);
+    expect(parsed.gifAttachments[0]!.slug).toBe('hello-662');
+  });
+});
+
+describe('isValidGifAttachment', () => {
+  test('accepts valid GifAttachment', () => {
+    expect(isValidGifAttachment({
+      provider: 'klipy',
+      type: 'gif',
+      url: 'u',
+      previewUrl: 'p',
+      tinyUrl: 't',
+      blurPreview: 'b',
+      width: 100,
+      height: 100,
+      searchTerm: 's',
+      slug: 'sl',
+    })).toBe(true);
+  });
+
+  test('rejects missing fields', () => {
+    expect(isValidGifAttachment({ provider: 'klipy', type: 'gif' })).toBe(false);
+    expect(isValidGifAttachment(null)).toBe(false);
+    expect(isValidGifAttachment({})).toBe(false);
+  });
+
+  test('rejects wrong provider', () => {
+    expect(isValidGifAttachment({
+      provider: 'giphy',
+      type: 'gif',
+      url: 'u',
+      previewUrl: 'p',
+      tinyUrl: 't',
+      blurPreview: 'b',
+      width: 100,
+      height: 100,
+      searchTerm: 's',
+      slug: 'sl',
+    })).toBe(false);
   });
 });

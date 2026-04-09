@@ -14,6 +14,10 @@ export function ConversationSettingsSidebar({
   fsEnabled,
   onFsToggle,
   memberColorDisplay,
+  gifsDisabledByAdmin,
+  onGifsDisabledByAdminToggle,
+  gifsHiddenForMe,
+  onGifsHiddenForMeToggle,
 }: {
   isGroup: boolean;
   isAdmin: boolean;
@@ -25,6 +29,10 @@ export function ConversationSettingsSidebar({
   fsEnabled: boolean;
   onFsToggle: (enabled: boolean) => void;
   memberColorDisplay: MemberColorDisplay;
+  gifsDisabledByAdmin?: boolean;
+  onGifsDisabledByAdminToggle?: (disabled: boolean) => void;
+  gifsHiddenForMe?: boolean;
+  onGifsHiddenForMeToggle?: (hidden: boolean) => void;
 }) {
   const { t } = useTranslation();
 
@@ -98,6 +106,42 @@ export function ConversationSettingsSidebar({
             ))}
           </div>
         </div>
+
+        {(isAdmin || !isGroup) && onGifsDisabledByAdminToggle && (
+          <label className="app-settings-toggle">
+            <input
+              type="checkbox"
+              checked={gifsDisabledByAdmin ?? false}
+              onChange={(e) => onGifsDisabledByAdminToggle(e.target.checked)}
+            />
+            <span className="app-settings-toggle-label">
+              <span className="app-settings-toggle-title">
+                {t('gif.conversationDisabledByAdmin')}
+              </span>
+              <span className="app-settings-toggle-hint">
+                {t('gif.conversationDisabledByAdminHint', 'This disables GIF and sticker content for all members')}
+              </span>
+            </span>
+          </label>
+        )}
+
+        {!gifsDisabledByAdmin && onGifsHiddenForMeToggle && (
+          <label className="app-settings-toggle">
+            <input
+              type="checkbox"
+              checked={gifsHiddenForMe ?? false}
+              onChange={(e) => onGifsHiddenForMeToggle(e.target.checked)}
+            />
+            <span className="app-settings-toggle-label">
+              <span className="app-settings-toggle-title">
+                {t('gif.conversationHideForMe')}
+              </span>
+              <span className="app-settings-toggle-hint">
+                {t('gif.conversationHideForMeHint', 'Only affects your view')}
+              </span>
+            </span>
+          </label>
+        )}
       </div>
     </div>
   );

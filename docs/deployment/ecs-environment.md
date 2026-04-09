@@ -51,6 +51,7 @@ Store strings the app must not log in git. Typical keys:
 | `AWS_SECRET_ACCESS_KEY` | Pair with above. |
 | `TEXTMAGIC_USERNAME` | SMS in production. |
 | `TEXTMAGIC_API_KEY` | SMS in production. |
+| `KLIPY_API_KEY` | Required in production. Klipy GIF/sticker API key (https://partner.klipy.com/). |
 
 Use **`REDIS_URL`** in Secrets Manager (or plain env) **only** when Redis is **not** the Terraform-managed ElastiCache cluster — e.g. you set **`create_elasticache_redis = false`** and point **`REDIS_URL`** at an external endpoint yourself.
 

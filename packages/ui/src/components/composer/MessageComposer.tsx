@@ -2,12 +2,13 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Popover, Portal } from '@ark-ui/react';
 import { convertShortcodes, SHORTCODE_ENTRIES } from '../../utils/emojiShortcodes';
-import { serializePayload, mediaPayload, type MediaAttachment, type MentionEntity } from '../../services/messagePayload';
+import { serializePayload, mediaPayload, gifPayload, type MediaAttachment, type MentionEntity, type GifAttachment } from '../../services/messagePayload';
 import { uploadMediaFile, type MediaUploadResult } from '../../hooks/useConversationMediaUpload';
 import { stripExifMetadata } from '../../utils/imageProcessing';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
 import { createApiClient } from '@adieuu/shared';
 import { EmojiPicker } from '../EmojiPicker';
+import { GifPicker } from '../GifPicker';
 import { Tooltip } from '../Tooltip';
 import { useToast } from '../Toast';
 import { Icon } from '../../icons/Icon';
@@ -69,6 +70,8 @@ export function MessageComposer({
 
   const [messageText, setMessageTextRaw] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const [pendingGif, setPendingGif] = useState<GifAttachment | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [stripExif, setStripExif] = useState(true);
@@ -310,14 +313,47 @@ export function MessageComposer({
 
   const handleSend = useCallback(async () => {
     const text = messageTextRef.current.trim();
-    if (!channelId || (!text && attachments.length === 0) || sending || uploadingMedia) return;
+    if (!channelId || (!text && attachments.length === 0 && !pendingGif) || sending || uploadingMedia) return;
 
+    const currentPendingGif = pendingGif;
     const pendingAttachments = [...attachments];
     const currentMentions = [...mentionEntriesRef.current];
     setMessageText('');
+    setPendingGif(null);
     mentionEntriesRef.current = [];
     undoStack.current = [{ text: '', cursor: 0 }];
     redoStack.current = [];
+
+    if (currentPendingGif) {
+      const convertedText = convertShortcodes(text) || undefined;
+      const payload = gifPayload(convertedText, currentPendingGif);
+      const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
+      if (mentions.length > 0) payload.mentions = mentions;
+      const plaintext = serializePayload(payload);
+
+      const mentionedIdentityIds = mentions.length > 0
+        ? [...new Set(mentions.map((m) => m.id))]
+        : undefined;
+
+      api.klipy.share({
+        slug: currentPendingGif.slug,
+        type: currentPendingGif.type,
+        searchTerm: currentPendingGif.searchTerm || undefined,
+      });
+
+      const sent = await onSend(plaintext, {
+        useForwardSecrecy: forwardSecrecy?.enabled,
+        ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
+        ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
+        mentionedIdentityIds,
+      });
+      replyContext?.onCancel();
+      if (sent != null) {
+        onSendSucceeded?.();
+      }
+      inputRef.current?.focus();
+      return;
+    }
 
     if (pendingAttachments.length > 0) {
       setUploadingMedia(true);
@@ -450,7 +486,7 @@ export function MessageComposer({
       }
       inputRef.current?.focus();
     }
-  }, [channelId, sending, uploadingMedia, onSend, forwardSecrecy, replyContext, onSendSucceeded, attachments, stripExif, api, updateAttachmentStatus, toastError, t, ttlSeconds]);
+  }, [channelId, sending, uploadingMedia, onSend, forwardSecrecy, replyContext, onSendSucceeded, attachments, pendingGif, stripExif, api, updateAttachmentStatus, toastError, t, ttlSeconds]);
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
@@ -615,6 +651,12 @@ export function MessageComposer({
     [handleSend, setMessageText, acceptMention]
   );
 
+  const handleGifSelect = useCallback((gif: GifAttachment) => {
+    setPendingGif(gif);
+    setShowGifPicker(false);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
+
   const handleEmojiSelect = useCallback((emoji: string) => {
     const textarea = inputRef.current;
     if (!textarea) {
@@ -676,6 +718,26 @@ export function MessageComposer({
           </button>
         </div>
       )}
+      {pendingGif && (
+        <div className="composer-gif-preview">
+          <img
+            src={pendingGif.tinyUrl}
+            alt={pendingGif.searchTerm || 'GIF'}
+            className="composer-gif-preview__img"
+          />
+          <span className="composer-gif-preview__label">
+            {pendingGif.type === 'sticker' ? 'Sticker' : 'GIF'}
+          </span>
+          <button
+            type="button"
+            className="composer-gif-preview__remove"
+            onClick={() => setPendingGif(null)}
+            aria-label={t('gif.removePreview', 'Remove GIF')}
+          >
+            <Icon name="x" />
+          </button>
+        </div>
+      )}
       <ComposerAttachments
         attachments={attachments}
         onRemove={removeAttachment}
@@ -723,6 +785,33 @@ export function MessageComposer({
             <Icon name="image" />
           </button>
         </Tooltip>
+        <Popover.Root
+          open={showGifPicker}
+          onOpenChange={(e) => setShowGifPicker(e.open)}
+          positioning={{ placement: 'top-end' }}
+        >
+          <Popover.Trigger asChild>
+            <Tooltip
+              content={t('gif.composerButton', 'GIF')}
+              position="top"
+            >
+              <button
+                type="button"
+                className="conversation-gif-btn"
+                disabled={sending || uploadingMedia}
+              >
+                <span className="conversation-gif-btn__label">GIF</span>
+              </button>
+            </Tooltip>
+          </Popover.Trigger>
+          <Portal>
+            <Popover.Positioner>
+              <Popover.Content className="gif-picker-popover">
+                <GifPicker onGifSelect={handleGifSelect} />
+              </Popover.Content>
+            </Popover.Positioner>
+          </Portal>
+        </Popover.Root>
         <ComposerTTLMenu
           ttlSeconds={ttlSeconds}
           onSelect={setTtlSeconds}

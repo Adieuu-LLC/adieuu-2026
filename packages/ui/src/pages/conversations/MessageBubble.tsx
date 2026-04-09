@@ -21,6 +21,7 @@ import {
 import { MessageActionBar } from './MessageActionBar';
 import { ReactionBar } from './ReactionBar';
 import { MessageMediaAttachment } from './MessageMediaAttachment';
+import { MessageGifAttachment } from './MessageGifAttachment';
 
 function ReplyQuoteButton({ replyQuote }: { replyQuote: ReplyQuotePayload }) {
   const { text, quotedAuthor, onQuoteClick } = replyQuote;
@@ -310,6 +311,9 @@ export const MessageBubble = memo(function MessageBubble({
             <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
           ))
         )}
+        {parsed.gifAttachments.map((gif, i) => (
+          <MessageGifAttachment key={`gif-${i}`} gif={gif} gifsEnabled />
+        ))}
       </>
     );
 
@@ -476,6 +480,9 @@ export const MessageBubble = memo(function MessageBubble({
                   <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
                 ))
               )}
+              {parsed.gifAttachments.map((gif, i) => (
+                <MessageGifAttachment key={`gif-${i}`} gif={gif} gifsEnabled />
+              ))}
             </>
           )}
         </div>

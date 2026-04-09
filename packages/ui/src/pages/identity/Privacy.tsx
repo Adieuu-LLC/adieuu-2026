@@ -14,6 +14,7 @@ import { Alert } from '../../components/Alert';
 import { BackupCodesDisplay } from '../../components/BackupCodesDisplay';
 import { useBlocks } from '../../hooks/useBlocks';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useGifPreference, type GifVisibility } from '../../hooks/useGifPreference';
 import { useAuth } from '../../hooks/useAuth';
 import { usePreKeys } from '../../hooks/usePreKeys';
 import { useAppConfig } from '../../config';
@@ -593,6 +594,47 @@ function BackupCodesSection({ api }: { api: ReturnType<typeof createApiClient> }
 }
 
 // ============================================================================
+// GIF Visibility Settings
+// ============================================================================
+
+const GIF_VISIBILITY_OPTIONS: { value: GifVisibility; labelKey: string }[] = [
+  { value: 'all', labelKey: 'gif.privacyAll' },
+  { value: 'private_only', labelKey: 'gif.privacyPrivateOnly' },
+  { value: 'friends_only', labelKey: 'gif.privacyFriendsOnly' },
+  { value: 'disabled', labelKey: 'gif.privacyDisabled' },
+];
+
+function GifVisibilityCard({ identityId }: { identityId: string }) {
+  const { t } = useTranslation();
+  const [value, setValue] = useGifPreference(identityId);
+
+  return (
+    <Card variant="elevated" className="app-settings-card">
+      <h2 className="app-settings-section-title">{t('gif.settingsTitle')}</h2>
+      <p className="app-settings-section-desc">{t('gif.settingsDescription')}</p>
+
+      <RadioGroup.Root
+        value={value}
+        onValueChange={(d) => {
+          if (d.value) setValue(d.value as GifVisibility);
+        }}
+        className="activity-radio-group"
+      >
+        {GIF_VISIBILITY_OPTIONS.map((opt) => (
+          <RadioGroup.Item key={opt.value} value={opt.value} className="activity-radio-item">
+            <RadioGroup.ItemControl className="activity-radio-control" />
+            <RadioGroup.ItemText className="activity-radio-text">
+              <span className="activity-radio-title">{t(opt.labelKey)}</span>
+            </RadioGroup.ItemText>
+            <RadioGroup.ItemHiddenInput />
+          </RadioGroup.Item>
+        ))}
+      </RadioGroup.Root>
+    </Card>
+  );
+}
+
+// ============================================================================
 // Identity Privacy Page
 // ============================================================================
 
@@ -696,6 +738,10 @@ export function IdentityPrivacy() {
                 </label>
               )}
             </Card>
+
+            {isLoggedIn && identity && (
+              <GifVisibilityCard identityId={identity.id} />
+            )}
 
             <Card variant="elevated">
               <h2 className="card-section-title">{t('blocked.title')}</h2>
