@@ -227,6 +227,25 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
   }, []);
 
   // -------------------------------------------------------------------------
+  // Masonry layout computation
+  // -------------------------------------------------------------------------
+  const { positions, totalHeight } = useMemo(() => {
+    const colHeights = [0, 0];
+    const pos = state.items.map((item) => {
+      const aspect = item.previewWidth && item.previewHeight
+        ? item.previewWidth / item.previewHeight
+        : 1;
+      const h = Math.round(COLUMN_WIDTH / aspect);
+      const col = colHeights[0]! <= colHeights[1]! ? 0 : 1;
+      const top = colHeights[col]!;
+      const left = col * (COLUMN_WIDTH + GAP);
+      colHeights[col]! += h + GAP;
+      return { top, left, width: COLUMN_WIDTH, height: h };
+    });
+    return { positions: pos, totalHeight: Math.max(colHeights[0]!, colHeights[1]!, 0) };
+  }, [state.items]);
+
+  // -------------------------------------------------------------------------
   // Item click handler
   // -------------------------------------------------------------------------
   const handleSelect = useCallback(
@@ -284,19 +303,28 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
       )}
 
       <div className="gif-picker__grid" ref={gridRef}>
-        {state.items.map((item) => (
-          <GifPickerTile key={item.id} item={item} onClick={handleSelect} />
-        ))}
+        {state.items.length > 0 && (
+          <div className="gif-picker__masonry" style={{ height: totalHeight }}>
+            {state.items.map((item, i) => (
+              <GifPickerTile
+                key={item.id}
+                item={item}
+                onClick={handleSelect}
+                position={positions[i]!}
+              />
+            ))}
+          </div>
+        )}
 
         {state.items.length === 0 && state.loading && (
-          <>
+          <div className="gif-picker__placeholder-grid">
             <div className="gif-picker__placeholder" />
             <div className="gif-picker__placeholder" />
             <div className="gif-picker__placeholder" />
             <div className="gif-picker__placeholder" />
             <div className="gif-picker__placeholder" />
             <div className="gif-picker__placeholder" />
-          </>
+          </div>
         )}
 
         {state.items.length > 0 && (state.loading || throttled) && (
@@ -343,23 +371,25 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
 // Tile sub-component
 // ---------------------------------------------------------------------------
 
+interface TilePosition { top: number; left: number; width: number; height: number }
+
 function GifPickerTile({
   item,
   onClick,
+  position,
 }: {
   item: KlipyItem;
   onClick: (item: KlipyItem) => void;
+  position: TilePosition;
 }) {
   const [loaded, setLoaded] = useState(false);
 
-  const aspectRatio = item.previewWidth && item.previewHeight
-    ? item.previewWidth / item.previewHeight
-    : 1;
-  const height = Math.round(COLUMN_WIDTH / aspectRatio);
-
   const style: CSSProperties = {
-    width: COLUMN_WIDTH,
-    height,
+    position: 'absolute',
+    top: position.top,
+    left: position.left,
+    width: position.width,
+    height: position.height,
     backgroundImage: item.blurPreview ? `url(${item.blurPreview})` : undefined,
     backgroundSize: 'cover',
   };
@@ -375,8 +405,8 @@ function GifPickerTile({
       <img
         src={item.previewUrl}
         alt={item.title || ''}
-        width={COLUMN_WIDTH}
-        height={height}
+        width={position.width}
+        height={position.height}
         loading="lazy"
         onLoad={() => setLoaded(true)}
         className={`gif-picker__tile-img${loaded ? ' gif-picker__tile-img--loaded' : ''}`}

@@ -654,7 +654,7 @@ export function MessageComposer({
   const handleGifSelect = useCallback((gif: GifAttachment) => {
     setPendingGif(gif);
     setShowGifPicker(false);
-    requestAnimationFrame(() => inputRef.current?.focus());
+    setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
   const handleEmojiSelect = useCallback((emoji: string) => {
