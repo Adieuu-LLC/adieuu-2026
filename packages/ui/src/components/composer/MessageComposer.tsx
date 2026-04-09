@@ -43,6 +43,7 @@ export function MessageComposer({
   placeholderTarget,
   mentionInsertRef,
   gifsDisabled,
+  lastMessageText,
 }: {
   channelId: string;
   sending: boolean;
@@ -55,6 +56,8 @@ export function MessageComposer({
   placeholderTarget?: string;
   mentionInsertRef?: React.MutableRefObject<((identityId: string) => void) | null>;
   gifsDisabled?: boolean;
+  /** Plain-text of the most recent conversation message (for sticker search seeding). */
+  lastMessageText?: string;
 }) {
   const { t } = useTranslation();
   const { warning: toastWarning, error: toastError } = useToast();
@@ -73,6 +76,7 @@ export function MessageComposer({
   const [messageText, setMessageTextRaw] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [pendingGif, setPendingGif] = useState<GifAttachment | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -656,6 +660,7 @@ export function MessageComposer({
   const handleGifSelect = useCallback((gif: GifAttachment) => {
     setPendingGif(gif);
     setShowGifPicker(false);
+    setShowStickerPicker(false);
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
@@ -789,6 +794,8 @@ export function MessageComposer({
         />
         <textarea
           ref={inputRef}
+          id="message-composer"
+          name="message-composer"
           className="conversation-composer-field"
           placeholder={placeholder}
           value={messageText}
@@ -851,31 +858,66 @@ export function MessageComposer({
           </button>
         </Tooltip>
         {!gifsDisabled && (
-          <Popover.Root
-            open={showGifPicker}
-            onOpenChange={(e) => setShowGifPicker(e.open)}
-            positioning={{ placement: 'top-end' }}
-            lazyMount
-            unmountOnExit
-          >
-            <Popover.Trigger asChild>
-              <button
-                type="button"
-                className="conversation-gif-btn"
-                title={t('gif.composerButton', 'GIF')}
-                disabled={sending || uploadingMedia}
-              >
-                <span className="conversation-gif-btn__label">GIF</span>
-              </button>
-            </Popover.Trigger>
-            <Portal>
-              <Popover.Positioner>
-                <Popover.Content className="gif-picker-popover">
-                  <GifPicker onGifSelect={handleGifSelect} />
-                </Popover.Content>
-              </Popover.Positioner>
-            </Portal>
-          </Popover.Root>
+          <>
+            <Popover.Root
+              open={showGifPicker}
+              onOpenChange={(e) => setShowGifPicker(e.open)}
+              positioning={{ placement: 'top-end' }}
+              lazyMount
+              unmountOnExit
+            >
+              <Popover.Trigger asChild>
+                <button
+                  type="button"
+                  className="conversation-gif-btn"
+                  title={t('gif.composerButton', 'GIF')}
+                  disabled={sending || uploadingMedia}
+                >
+                  <span className="conversation-gif-btn__label">GIF</span>
+                </button>
+              </Popover.Trigger>
+              <Portal>
+                <Popover.Positioner>
+                  <Popover.Content className="gif-picker-popover">
+                    <GifPicker onGifSelect={handleGifSelect} lastMessageText={lastMessageText} />
+                  </Popover.Content>
+                </Popover.Positioner>
+              </Portal>
+            </Popover.Root>
+            <Popover.Root
+              open={showStickerPicker}
+              onOpenChange={(e) => setShowStickerPicker(e.open)}
+              positioning={{ placement: 'top-end' }}
+              lazyMount
+              unmountOnExit
+            >
+              <Popover.Trigger asChild>
+                <Tooltip
+                  content={t('gif.stickerButton', 'Stickers')}
+                  position="top"
+                >
+                  <button
+                    type="button"
+                    className="conversation-sticker-btn"
+                    disabled={sending || uploadingMedia}
+                  >
+                    <Icon name="noteSticky" />
+                  </button>
+                </Tooltip>
+              </Popover.Trigger>
+              <Portal>
+                <Popover.Positioner>
+                  <Popover.Content className="gif-picker-popover">
+                    <GifPicker
+                      onGifSelect={handleGifSelect}
+                      initialTab="stickers"
+                      lastMessageText={lastMessageText}
+                    />
+                  </Popover.Content>
+                </Popover.Positioner>
+              </Portal>
+            </Popover.Root>
+          </>
         )}
         <Popover.Root
           open={showEmojiPicker}

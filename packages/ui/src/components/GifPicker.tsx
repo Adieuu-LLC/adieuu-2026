@@ -33,11 +33,16 @@ import type { GifAttachment } from '../services/messagePayload';
 // Types
 // ---------------------------------------------------------------------------
 
+export type ContentTab = 'gifs' | 'stickers';
+
 export interface GifPickerProps {
   onGifSelect: (gif: GifAttachment) => void;
+  /** Which tab to show on mount. Defaults to `'gifs'`. */
+  initialTab?: ContentTab;
+  /** Plain-text of the most recent message; used to seed a search when the
+   *  sticker tab opens with an empty query. */
+  lastMessageText?: string;
 }
-
-type ContentTab = 'gifs' | 'stickers';
 
 interface FetchState {
   items: KlipyItem[];
@@ -67,20 +72,48 @@ const THROTTLE_WINDOW_MS = 2_500;
 const THROTTLE_MAX_PAGES = 3;
 const THROTTLE_COOLDOWN_MS = 3_000;
 
+const STOPWORDS = new Set([
+  'i', 'me', 'my', 'we', 'our', 'you', 'your', 'he', 'she', 'it', 'its',
+  'they', 'them', 'their', 'this', 'that', 'these', 'those', 'am', 'is',
+  'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do',
+  'does', 'did', 'will', 'would', 'shall', 'should', 'can', 'could', 'may',
+  'might', 'must', 'a', 'an', 'the', 'and', 'but', 'or', 'nor', 'not',
+  'no', 'so', 'if', 'of', 'at', 'by', 'for', 'in', 'on', 'to', 'up',
+  'as', 'with', 'from', 'into', 'about', 'just', 'very', 'too', 'also',
+  'than', 'then', 'here', 'there', 'when', 'where', 'how', 'what', 'who',
+  'which', 'all', 'each', 'some', 'any', 'many', 'much', 'own', 'same',
+  'other', 'such', 'only', 'both', 'few', 'more', 'most', 'out', 'over',
+  'oh', 'ok', 'okay', 'yeah', 'yes', 'no', 'hey', 'hi', 'hello', 'bye',
+  'lol', 'lmao', 'haha', 'hmm', 'um', 'uh', 'like', 'gonna', 'gotta',
+  'really', 'actually', 'basically', 'literally', 'maybe', 'probably',
+]);
+
+/** Extract the best keyword (likely a noun or verb) from a message. */
+function extractKeyword(text: string): string {
+  const words = text
+    .replace(/[^\p{L}\p{N}\s'-]/gu, '')
+    .split(/\s+/)
+    .map((w) => w.toLowerCase())
+    .filter((w) => w.length >= 3 && !STOPWORDS.has(w));
+  if (words.length === 0) return '';
+  return words.reduce((best, w) => (w.length > best.length ? w : best), words[0]!);
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function GifPicker({ onGifSelect }: GifPickerProps) {
+export function GifPicker({ onGifSelect, initialTab, lastMessageText }: GifPickerProps) {
   const { t } = useTranslation();
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
-  const [tab, setTab] = useState<ContentTab>('gifs');
+  const [tab, setTab] = useState<ContentTab>(initialTab ?? 'gifs');
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [state, setState] = useState<FetchState>(INITIAL_STATE);
+  const appliedSeedRef = useRef(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -101,6 +134,19 @@ export function GifPicker({ onGifSelect }: GifPickerProps) {
     }, DEBOUNCE_MS);
     return () => clearTimeout(debounceTimer.current);
   }, [query]);
+
+  // -------------------------------------------------------------------------
+  // Seed sticker search from the most recent message (once per mount)
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    if (appliedSeedRef.current) return;
+    if (tab !== 'stickers' || query.length > 0) return;
+    if (!lastMessageText) return;
+    const keyword = extractKeyword(lastMessageText);
+    if (!keyword) return;
+    appliedSeedRef.current = true;
+    setQuery(keyword);
+  }, [tab, query, lastMessageText]);
 
   // -------------------------------------------------------------------------
   // Reset state when tab or query changes

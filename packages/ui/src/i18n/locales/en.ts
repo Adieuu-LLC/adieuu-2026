@@ -1778,6 +1778,7 @@ export const en = {
     conversationHideForMe: 'Hide GIFs for me in this conversation',
     conversationHideForMeHint: 'Only affects your view',
     composerButton: 'GIF',
+    stickerButton: 'Stickers',
   },
 } as const;
 

@@ -6955,12 +6955,13 @@ a {
 
     &-field {
       flex: 1;
-      padding: var(--spacing-sm) var(--spacing-md);
+      padding: 15px var(--spacing-md);
       border: 1px solid var(--color-border);
       border-radius: var(--radius-md);
       background: var(--color-bg-primary);
       color: var(--color-text-primary);
       font-size: var(--font-size-md);
+      line-height: 20px;
       font-family: var(--font-sans);
       outline: none;
       resize: none;
@@ -12716,6 +12717,35 @@ body {
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+}
+
+.conversation-sticker-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  transition: color var(--transition-fast), background var(--transition-fast);
+
+  &:hover:not(:disabled) {
+    color: var(--color-text-primary);
+    background: var(--color-bg-hover);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  svg {
+    width: 20px;
+    height: 20px;
   }
 }
 

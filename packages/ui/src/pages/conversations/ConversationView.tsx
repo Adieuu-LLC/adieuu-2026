@@ -25,6 +25,7 @@ import { extractDomain } from '../../utils/urlParsing';
 import { isDomainTrusted } from '../../hooks/useExternalLinkPreferences';
 import { clearMediaCache } from '../../hooks/useE2EMediaDownload';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
+import { parsePayload } from '../../services/messagePayload';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import type { ComposerSendFn, ComposerReplyContext, MentionSource, MentionableUser } from '../../components/composer';
 import { MessageComposer } from '../../components/composer';
@@ -221,6 +222,16 @@ export function ConversationView() {
         }),
     [activeMessages, showArtifacts]
   );
+
+  const lastMessageText = useMemo(() => {
+    for (let i = activeMessages.length - 1; i >= 0; i--) {
+      const msg = activeMessages[i]!;
+      if (!msg.decryptedContent || msg.deleted || msg.messageType === 'system') continue;
+      const { text } = parsePayload(msg.decryptedContent);
+      if (text) return text;
+    }
+    return undefined;
+  }, [activeMessages]);
 
   useEffect(() => {
     if (id && id !== activeConversationId) {
@@ -697,6 +708,7 @@ export function ConversationView() {
               placeholderTarget={displayName}
               mentionInsertRef={mentionInsertRef}
               gifsDisabled={effectiveGifsDisabled}
+              lastMessageText={lastMessageText}
             />
           </div>
 
