@@ -45,6 +45,26 @@ flags:
     paths:
       - apps/api/src/
     carryforward: true
+  web:
+    paths:
+      - apps/web/src/
+    carryforward: true
+  chat:
+    paths:
+      - apps/chat/src/
+    carryforward: true
+  desktop:
+    paths:
+      - apps/desktop/src/
+    carryforward: true
+  ui:
+    paths:
+      - packages/ui/src/
+    carryforward: true
+  crypto:
+    paths:
+      - packages/crypto/src/
+    carryforward: true
 
 # Ignore certain files from coverage
 ignore:

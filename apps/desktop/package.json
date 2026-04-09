@@ -21,6 +21,7 @@
     "package": "electron-builder",
     "package:ci": "electron-builder --publish never",
     "test": "bun test",
+    "test:ci": "bun test --coverage --coverage-reporter=lcov --coverage-dir=coverage",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist out"
   },

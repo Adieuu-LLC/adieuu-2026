@@ -29,6 +29,7 @@
     "dev": "tsc --watch",
     "test": "bun test --preload ./src/test.setup.ts",
     "test:coverage": "bun test --preload ./src/test.setup.ts --coverage",
+    "test:ci": "bun test --preload ./src/test.setup.ts --coverage --coverage-reporter=lcov --coverage-dir=coverage",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist coverage"
   },
