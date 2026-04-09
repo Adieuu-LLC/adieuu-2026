@@ -1,0 +1,9 @@
+---
+description: Ensure all code changes are verified with lint, typecheck, audit, build, and test runs before considering work complete
+alwaysApply: true
+---
+
+# Avoid creating large files, and abstract/refactor as needed to avoid creating large, unmaintainable files.
+
+Large files are unmaintainable. Avoid creating large files and, when working on files that are beginning to grow to less maintainable size (> 1000 lines, for example), take preventative action by notifying the user of the growing size (and prompting with recommendations for refactors). When creating plans, include refactoring/abstraction when it becomes likely file size would grow. Always make sure to update relevant tests (and, when refactoring presents opportunities to add add'l tests to increase coverage, make recommendations).
+
