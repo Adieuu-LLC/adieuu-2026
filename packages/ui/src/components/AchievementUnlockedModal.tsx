@@ -72,6 +72,12 @@ export function AchievementUnlockedModal({
                 {t(definition.description)}
               </Dialog.Description>
 
+              {definition.how && (
+                <p className="achievement-modal-how">
+                  {t(definition.how)}
+                </p>
+              )}
+
               <span className="achievement-modal-category">
                 {t(`achievements.category.${definition.category}`)}
               </span>

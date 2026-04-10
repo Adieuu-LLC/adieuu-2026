@@ -20,6 +20,8 @@ export interface AchievementDefinition {
   name: string;
   /** i18n key for the description */
   description: string;
+  /** Optional i18n key for more detailed "how to achieve" instructions */
+  how?: string;
   /** Icon name from the UI icon registry */
   icon: string;
   category: AchievementCategory;
@@ -33,6 +35,7 @@ export interface PublicAchievementDefinition {
   id: string;
   name: string;
   description: string;
+  how?: string;
   icon: string;
   category: AchievementCategory;
 }
@@ -146,6 +149,7 @@ export function toPublicDefinition(def: AchievementDefinition): PublicAchievemen
     id: def.id,
     name: def.name,
     description: def.description,
+    ...(def.how ? { how: def.how } : {}),
     icon: def.icon,
     category: def.category,
   };

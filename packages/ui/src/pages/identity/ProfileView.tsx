@@ -325,6 +325,11 @@ export function IdentityProfileView() {
                         <span className="achievement-card-desc">
                           {t(ach.definition.description)}
                         </span>
+                        {ach.definition.how && (
+                          <span className="achievement-card-how">
+                            {t(ach.definition.how)}
+                          </span>
+                        )}
                         <span className="achievement-card-date">
                           {new Date(ach.awardedAt).toLocaleDateString()}
                         </span>

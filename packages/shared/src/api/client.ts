@@ -2754,6 +2754,8 @@ export interface PublicAchievementDefinition {
   name: string;
   /** i18n key */
   description: string;
+  /** Optional i18n key for detailed "how to achieve" instructions */
+  how?: string;
   icon: string;
   category: AchievementCategory;
 }
