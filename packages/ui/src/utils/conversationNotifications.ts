@@ -1,6 +1,6 @@
 import { getNativeNotificationsEnabled } from '../hooks/useNativeNotificationsPreference';
 import { playNotificationSound, type FocusVisibilitySnapshot } from './notificationSound';
-import type { NotificationSoundId } from '../hooks/useNotificationSoundPreference';
+import type { NotificationSoundId } from '../constants/notificationSoundPreferenceShared';
 import type { ToastOptions } from '../components/Toast';
 
 export interface NotificationSoundPreferenceLike {

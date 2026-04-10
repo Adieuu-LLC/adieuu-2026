@@ -6,7 +6,7 @@
 import { useMemo } from 'react';
 import { Select, Portal, createListCollection } from '@ark-ui/react';
 import type { BuiltinNotificationSoundId } from '../constants/builtinNotificationSounds';
-import type { NotificationSoundId } from '../hooks/useNotificationSoundPreference';
+import type { NotificationSoundId } from '../constants/notificationSoundPreferenceShared';
 
 export interface NotificationSoundSelectLabels {
   none: string;

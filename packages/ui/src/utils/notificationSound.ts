@@ -3,7 +3,7 @@
  * No network; custom audio is loaded only via platform capabilities on desktop.
  */
 
-import { MAX_NOTIFICATION_GAIN, type NotificationSoundId } from '../hooks/useNotificationSoundPreference';
+import { MAX_NOTIFICATION_GAIN, type NotificationSoundId } from '../constants/notificationSoundPreferenceShared';
 import {
   getBuiltinNotificationSoundSrc,
   isBuiltinNotificationSoundId,

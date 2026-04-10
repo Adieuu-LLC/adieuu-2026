@@ -16,7 +16,7 @@ import {
   setMentionNotificationSoundCustomPath,
   getMentionNotificationSoundVolume,
   setMentionNotificationSoundVolume,
-} from './useNotificationSoundPreference';
+} from './notificationSoundPreferenceStorage';
 
 class MemoryStorage implements Storage {
   private map = new Map<string, string>();

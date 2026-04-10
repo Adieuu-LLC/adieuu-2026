@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'bun:test';
 import {
   getNativeNotificationsEnabled,
   setNativeNotificationsEnabled,
-} from './useNativeNotificationsPreference';
+} from './nativeNotificationsPreferenceStorage';
 
 class MemoryStorage implements Storage {
   private map = new Map<string, string>();
