@@ -622,6 +622,13 @@ export async function sendMessage(
 
   checkAndAward(senderObjId, 'message_sent').catch(() => {});
 
+  const usesFs = input.wrappedKeys.some((k) => k.preKeyType !== 'static');
+  const usesTtl = !!input.expiresAt;
+
+  if (usesFs) checkAndAward(senderObjId, 'fs_message_sent').catch(() => {});
+  if (usesTtl) checkAndAward(senderObjId, 'ttl_message_sent').catch(() => {});
+  if (usesFs && usesTtl) checkAndAward(senderObjId, 'fs_ttl_message_sent').catch(() => {});
+
   return { success: true, message: publicMessage };
 }
 
@@ -772,6 +779,8 @@ export async function deleteMessageForEveryone(
       forEveryone: true,
     },
   });
+
+  checkAndAward(requesterObjId, 'message_deleted_for_all').catch(() => {});
 
   return { success: true };
 }

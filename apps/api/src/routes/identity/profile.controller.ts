@@ -47,9 +47,8 @@ const UpdateProfileSchema = z.object({
   removeBanner: z.boolean().optional(),
   profileColors: z
     .object({
-      primary: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
-      secondary: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
       accent: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
+      cardBackground: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
       background: z.string().regex(HEX_COLOR_REGEX).optional().nullable(),
     })
     .optional(),
@@ -207,14 +206,11 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
 
   if (data.profileColors !== undefined) {
     const colors: Record<string, string | undefined> = {};
-    if (data.profileColors.primary !== undefined) {
-      colors.primary = data.profileColors.primary ?? undefined;
-    }
-    if (data.profileColors.secondary !== undefined) {
-      colors.secondary = data.profileColors.secondary ?? undefined;
-    }
     if (data.profileColors.accent !== undefined) {
       colors.accent = data.profileColors.accent ?? undefined;
+    }
+    if (data.profileColors.cardBackground !== undefined) {
+      colors.cardBackground = data.profileColors.cardBackground ?? undefined;
     }
     if (data.profileColors.background !== undefined) {
       colors.background = data.profileColors.background ?? undefined;

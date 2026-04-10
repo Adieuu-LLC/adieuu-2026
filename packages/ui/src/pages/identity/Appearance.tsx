@@ -23,6 +23,7 @@ import { DEFAULT_THEME_ID } from '../../constants/builtinThemes';
 import { sanitizeImportedTheme } from '../../utils/themeSanitizer';
 import { loadShowMessageArtifacts, saveShowMessageArtifacts } from '../../services/preKeyService';
 import { loadReactionNotificationsEnabled, saveReactionNotificationsEnabled } from '../../hooks/useReactionNotificationPreference';
+import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 import { ICON_PACKS, DEFAULT_ICON_PACK_ID } from '../../icons/packs';
 import type { IconPackId } from '../../icons/packs';
 import type { ThemeDefinition, ThemeColorTokens } from '@adieuu/shared';
@@ -107,6 +108,7 @@ export function IdentityAppearance() {
   const { status: identityStatus, identity } = useIdentity();
   const { packId, setIconPack } = useIconPack();
   const messageLayout = useMessageLayoutPreference();
+  const claimAchievement = useClaimAchievement();
 
   const currentThemeId = identityThemeId ?? accountThemeId ?? DEFAULT_THEME_ID;
 
@@ -123,7 +125,8 @@ export function IdentityAppearance() {
     if (identity) {
       saveShowMessageArtifacts(identity.id, enabled);
     }
-  }, [identity]);
+    if (enabled) claimAchievement('show_message_artifacts_enabled');
+  }, [identity, claimAchievement]);
 
   const handleReactionNotificationsToggle = useCallback((enabled: boolean) => {
     setReactionNotifications(enabled);
@@ -197,8 +200,9 @@ export function IdentityAppearance() {
     await setIdentityTheme(theme);
     setEditMode(false);
     setEditColors(null);
+    claimAchievement('theme_saved');
     toast.success(t('identity.appearance.themeSaved'));
-  }, [editColors, saveName, saveDesc, saveCustomTheme, setIdentityTheme, toast, t]);
+  }, [editColors, saveName, saveDesc, saveCustomTheme, setIdentityTheme, claimAchievement, toast, t]);
 
   const handleSelectPreset = useCallback(async (themeId: string) => {
     await setIdentityTheme(themeId);

@@ -198,9 +198,8 @@ export function IdentityProfile() {
 
     const origColors = identity.profileColors ?? {};
     if (
-      colors.primary !== origColors.primary ||
-      colors.secondary !== origColors.secondary ||
       colors.accent !== origColors.accent ||
+      colors.cardBackground !== origColors.cardBackground ||
       colors.background !== origColors.background
     ) return true;
 
@@ -241,15 +240,13 @@ export function IdentityProfile() {
 
     const origColors = identity.profileColors ?? {};
     if (
-      colors.primary !== origColors.primary ||
-      colors.secondary !== origColors.secondary ||
       colors.accent !== origColors.accent ||
+      colors.cardBackground !== origColors.cardBackground ||
       colors.background !== origColors.background
     ) {
       params.profileColors = {
-        primary: colors.primary ?? null,
-        secondary: colors.secondary ?? null,
         accent: colors.accent ?? null,
+        cardBackground: colors.cardBackground ?? null,
         background: colors.background ?? null,
       };
     }
@@ -392,15 +389,15 @@ export function IdentityProfile() {
             <TabContent value="edit">
               <div
                 className="profile-edit-card"
-                style={previewProfile.profileColors?.background
-                  ? { backgroundColor: previewProfile.profileColors.background }
+                style={previewProfile.profileColors?.cardBackground
+                  ? { backgroundColor: previewProfile.profileColors.cardBackground }
                   : undefined}
               >
                 {/* Banner */}
                 {isEditable ? (
                   <div
                     className="profile-edit-banner"
-                    style={{ '--profile-banner-bg': colors.primary || undefined } as React.CSSProperties}
+                    style={{ '--profile-banner-bg': colors.accent || undefined } as React.CSSProperties}
                   >
                     <BannerUpload
                       currentUrl={bannerUrl}
@@ -416,7 +413,7 @@ export function IdentityProfile() {
                       backgroundImage: previewProfile.bannerUrl
                         ? `url(${previewProfile.bannerUrl})`
                         : undefined,
-                      backgroundColor: previewProfile.profileColors?.primary || 'var(--color-bg-tertiary)',
+                      backgroundColor: previewProfile.profileColors?.accent || 'var(--color-bg-tertiary)',
                     }}
                   />
                 )}
@@ -536,21 +533,15 @@ export function IdentityProfile() {
                   <h3 className="profile-section-title">{t('identity.profile.profileColors')}</h3>
                   <div className="profile-colors-grid">
                     <ProfileColorPicker
-                      label={t('identity.profile.colorPrimary')}
-                      value={colors.primary}
-                      onChange={handleColorChange('primary')}
-                      disabled={saving}
-                    />
-                    <ProfileColorPicker
-                      label={t('identity.profile.colorSecondary')}
-                      value={colors.secondary}
-                      onChange={handleColorChange('secondary')}
-                      disabled={saving}
-                    />
-                    <ProfileColorPicker
                       label={t('identity.profile.colorAccent')}
                       value={colors.accent}
                       onChange={handleColorChange('accent')}
+                      disabled={saving}
+                    />
+                    <ProfileColorPicker
+                      label={t('identity.profile.colorCardBackground')}
+                      value={colors.cardBackground}
+                      onChange={handleColorChange('cardBackground')}
                       disabled={saving}
                     />
                     <ProfileColorPicker

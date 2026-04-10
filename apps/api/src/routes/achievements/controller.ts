@@ -19,10 +19,11 @@ import {
   getIdentityAchievements,
   getAchievementHolderCount,
   getGlobalAchievementStats,
+  checkAndAward,
 } from '../../services/achievement.service';
 import { DEFAULT_PRIVACY_SETTINGS, type ProfileVisibility } from '../../models/identity';
 import { areFriends } from '../identity/profile.controller';
-import { ACHIEVEMENT_MAP } from '../../models/achievement-definitions';
+import { ACHIEVEMENT_MAP, CLAIMABLE_ACTIONS } from '../../models/achievement-definitions';
 
 /**
  * GET /achievements/definitions - List all achievement definitions.
@@ -120,4 +121,29 @@ export async function getAchievementStatsCtrl(ctx: RouteContext): Promise<Respon
 export async function getGlobalStatsCtrl(ctx: RouteContext): Promise<Response> {
   const stats = await getGlobalAchievementStats();
   return success({ stats });
+}
+
+/**
+ * POST /achievements/claim - Claim a client-triggered achievement.
+ * Only actions in the CLAIMABLE_ACTIONS whitelist are accepted.
+ */
+export async function claimAchievementCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  const { action } = ctx.body as { action?: string };
+  if (!action || !CLAIMABLE_ACTIONS.has(action)) {
+    return errors.badRequest('Invalid or non-claimable action.');
+  }
+
+  await checkAndAward(identity._id, action);
+
+  return success({ claimed: true });
 }

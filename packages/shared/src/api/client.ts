@@ -725,9 +725,8 @@ export interface ProfilePrivacySettings {
  * Customisable profile accent colours.
  */
 export interface ProfileColors {
-  primary?: string;
-  secondary?: string;
   accent?: string;
+  cardBackground?: string;
   background?: string;
 }
 
@@ -2144,9 +2143,8 @@ export interface UpdateProfileParams {
   removeAvatar?: boolean;
   removeBanner?: boolean;
   profileColors?: {
-    primary?: string | null;
-    secondary?: string | null;
     accent?: string | null;
+    cardBackground?: string | null;
     background?: string | null;
   };
   privacySettings?: Partial<ProfilePrivacySettings>;
@@ -2821,6 +2819,13 @@ export class AchievementsApi {
    */
   async getGlobalStats(): Promise<ApiResponse<{ stats: Record<string, number> }>> {
     return this.client.get('/api/achievements/stats');
+  }
+
+  /**
+   * Claim a client-triggered achievement action.
+   */
+  async claim(action: string): Promise<ApiResponse<{ claimed: boolean }>> {
+    return this.client.post('/api/achievements/claim', { action });
   }
 }
 

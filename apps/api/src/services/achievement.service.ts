@@ -187,13 +187,11 @@ async function canInferActionCompleted(
       });
       return doc !== null;
     }
-    case 'e2e_initialized':
-      return !!identity.signingPublicKey;
     case 'device_registered':
       return Array.isArray(identity.devices) && identity.devices.length >= 1;
     case 'profile_customized': {
       const colors = identity.profileColors;
-      const hasColors = !!colors && !!(colors.primary || colors.secondary || colors.accent || colors.background);
+      const hasColors = !!colors && !!(colors.accent || colors.cardBackground || colors.background);
       return !!(identity.avatarUrl || identity.bio || hasColors);
     }
     case 'banner_set':

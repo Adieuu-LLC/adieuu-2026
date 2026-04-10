@@ -1033,7 +1033,6 @@ export async function initializeE2ECtrl(ctx: RouteContext): Promise<Response> {
       await identityRepo.addDevice(identity._id, deviceDoc);
     });
 
-    checkAndAward(identity._id, 'e2e_initialized').catch(() => {});
     checkAndAward(identity._id, 'device_registered').catch(() => {});
 
     return success({

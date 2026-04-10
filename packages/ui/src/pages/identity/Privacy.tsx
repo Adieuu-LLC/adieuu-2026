@@ -17,6 +17,7 @@ import { useIdentity } from '../../hooks/useIdentity';
 import { useGifPreference, type GifVisibility } from '../../hooks/useGifPreference';
 import { useAuth } from '../../hooks/useAuth';
 import { usePreKeys } from '../../hooks/usePreKeys';
+import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 import { useAppConfig } from '../../config';
 import { useToast } from '../../components/Toast';
 import { decryptKeyBundle, encryptKeyBundle } from '../../services/e2eKeyService';
@@ -31,6 +32,7 @@ function ForwardSecrecySettings() {
   const { t } = useTranslation();
   const { config, updateConfig, rotateNow, purgeRetiredKeys, isRotating, lastRotation } = usePreKeys();
   const { success: toastSuccess, error: toastError } = useToast();
+  const claimAchievement = useClaimAchievement();
 
   const [immediateConfirmOpen, setImmediateConfirmOpen] = useState(false);
   const [clearCacheConfirmOpen, setClearCacheConfirmOpen] = useState(false);
@@ -40,6 +42,7 @@ function ForwardSecrecySettings() {
 
   const handleEnabledToggle = (checked: boolean) => {
     updateConfig({ enabled: checked });
+    if (checked) claimAchievement('fs_default_enabled');
     toastSuccess(t('identity.devices.forwardSecrecy.enabledUpdated'));
   };
 

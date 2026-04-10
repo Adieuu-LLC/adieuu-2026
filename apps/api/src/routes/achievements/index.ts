@@ -13,6 +13,7 @@ import {
   getMyAchievementsCtrl,
   getAchievementStatsCtrl,
   getGlobalStatsCtrl,
+  claimAchievementCtrl,
 } from './controller';
 
 const router = new Router();
@@ -35,6 +36,11 @@ router.get('/achievements/stats', async (ctx) => {
 /** GET /achievements/:achievementId/stats - Single achievement holder count (public) */
 router.get('/achievements/:achievementId/stats', async (ctx) => {
   return await getAchievementStatsCtrl(ctx);
+});
+
+/** POST /achievements/claim - Claim a client-triggered achievement (identity session required) */
+router.post('/achievements/claim', async (ctx) => {
+  return await claimAchievementCtrl(ctx);
 });
 
 export const achievementRoutes = router;

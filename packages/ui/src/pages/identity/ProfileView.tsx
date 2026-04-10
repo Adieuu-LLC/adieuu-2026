@@ -178,11 +178,17 @@ export function IdentityProfileView() {
 
   return (
     <div className="page-content">
+      {profile.profileColors?.background && (
+        <div
+          className="profile-view-page-bg"
+          style={{ backgroundColor: profile.profileColors.background }}
+        />
+      )}
       <div className="container">
         <div
           className="profile-view"
-          style={profile.profileColors?.background
-            ? { backgroundColor: profile.profileColors.background }
+          style={profile.profileColors?.cardBackground
+            ? { backgroundColor: profile.profileColors.cardBackground }
             : undefined}
         >
           {/* Banner + Avatar hero */}
@@ -194,7 +200,7 @@ export function IdentityProfileView() {
                   ? `url(${profile.bannerUrl})`
                   : undefined,
                 backgroundColor:
-                  profile.profileColors?.primary || 'var(--color-bg-tertiary)',
+                  profile.profileColors?.accent || 'var(--color-bg-tertiary)',
               }}
             />
             <div className="profile-view-avatar-wrapper">

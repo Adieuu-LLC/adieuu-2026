@@ -38,6 +38,7 @@ import {
   invalidateNotificationSoundCustomCache,
   ensureAudioContextRunning,
 } from '../../utils/notificationSound';
+import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 
 function basenameFromPath(p: string): string {
   const parts = p.split(/[/\\]/);
@@ -53,6 +54,7 @@ export function AccountSettings() {
   const soundPref = useNotificationSoundPreference();
   const ttlSoundPref = useTtlNotificationSoundPreference();
   const mentionSoundPref = useMentionNotificationSoundPreference();
+  const claimAchievement = useClaimAchievement();
   const [busy, setBusy] = useState(false);
   const [soundBrowseBusy, setSoundBrowseBusy] = useState(false);
   const [customSoundMissing, setCustomSoundMissing] = useState(false);
@@ -176,8 +178,10 @@ export function AccountSettings() {
     setNotificationSoundEnabled(checked);
     if (checked) {
       void ensureAudioContextRunning();
+    } else {
+      claimAchievement('notifications_disabled');
     }
-  }, []);
+  }, [claimAchievement]);
 
   const handleSoundIdChange = useCallback(
     (value: string) => {
@@ -219,8 +223,10 @@ export function AccountSettings() {
   }, [audio, soundPref.customPath, soundPref.soundId, soundPref.volume]);
 
   const handleVolumeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setNotificationSoundVolume(Number(e.target.value) / 100);
-  }, []);
+    const pct = Number(e.target.value);
+    setNotificationSoundVolume(pct / 100);
+    if (pct >= 200) claimAchievement('notification_volume_maxed');
+  }, [claimAchievement]);
 
   const handleTtlSoundIdChange = useCallback(
     (value: string) => {
@@ -258,8 +264,10 @@ export function AccountSettings() {
   }, [audio, ttlSoundPref.customPath, ttlSoundPref.soundId, ttlSoundPref.volume]);
 
   const handleTtlVolumeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setTtlNotificationSoundVolume(Number(e.target.value) / 100);
-  }, []);
+    const pct = Number(e.target.value);
+    setTtlNotificationSoundVolume(pct / 100);
+    if (pct >= 200) claimAchievement('notification_volume_maxed');
+  }, [claimAchievement]);
 
   const handleMentionSoundIdChange = useCallback(
     (value: string) => {
@@ -297,8 +305,10 @@ export function AccountSettings() {
   }, [audio, mentionSoundPref.customPath, mentionSoundPref.soundId, mentionSoundPref.volume]);
 
   const handleMentionVolumeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    setMentionNotificationSoundVolume(Number(e.target.value) / 100);
-  }, []);
+    const pct = Number(e.target.value);
+    setMentionNotificationSoundVolume(pct / 100);
+    if (pct >= 200) claimAchievement('notification_volume_maxed');
+  }, [claimAchievement]);
 
   const soundSelectLabels = useMemo(
     () => ({

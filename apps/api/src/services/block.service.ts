@@ -19,6 +19,7 @@ import type { PublicBlock } from '../models/block';
 import { toPublicBlock } from '../models/block';
 import { toPublicIdentity, type PublicIdentity } from '../models/identity';
 import { cleanupFriendData } from './friend.service';
+import { checkAndAward } from './achievement.service';
 import elog from '../utils/adieuuLogger';
 import { constantTimeCompare } from '../utils/crypto';
 
@@ -133,6 +134,9 @@ export async function blockIdentity(
       };
     }
 
+    // Check for mutual block before creating (B already blocked A)
+    const reverseBlock = await blockRepo.findBlock(blockedObjId, blockerObjId);
+
     // Create the block
     await blockRepo.create({
       blockerIdentityId: blockerObjId,
@@ -145,6 +149,15 @@ export async function blockIdentity(
     elog.info('Identity blocked', {
       blockerIdentityId: blockerHex,
     });
+
+    // Achievement triggers (fire-and-forget)
+    checkAndAward(blockerObjId, 'user_blocked').catch(() => {});
+    checkAndAward(blockedObjId, 'user_blocked_by').catch(() => {});
+
+    if (reverseBlock) {
+      checkAndAward(blockerObjId, 'mutual_block').catch(() => {});
+      checkAndAward(blockedObjId, 'mutual_block').catch(() => {});
+    }
 
     return { success: true };
   });
@@ -183,6 +196,8 @@ export async function unblockIdentity(
     elog.info('Identity unblocked', {
       blockerIdentityId: blockerObjId.toHexString(),
     });
+
+    checkAndAward(blockerObjId, 'block_then_unblock').catch(() => {});
 
     return { success: true };
   });

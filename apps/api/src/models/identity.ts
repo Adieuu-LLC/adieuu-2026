@@ -34,9 +34,8 @@ export interface ProfilePrivacySettings {
  * Customisable profile accent colours.
  */
 export interface ProfileColors {
-  primary?: string;
-  secondary?: string;
   accent?: string;
+  cardBackground?: string;
   background?: string;
 }
 
