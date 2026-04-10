@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test';
-import { shouldPlayNotificationSound, computeNormalizationGain } from './notificationSound';
+import { shouldPlayNotificationSound, computeNormalizationGain } from './notificationSoundPure';
 
 // ---------------------------------------------------------------------------
 // Helpers
