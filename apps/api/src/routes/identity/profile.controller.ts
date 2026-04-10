@@ -21,6 +21,7 @@ import {
   getIdentityFromSession,
 } from '../../services/identity.service';
 import { checkAndAward } from '../../services/achievement.service';
+import { publishProfileUpdated } from '../../services/profile-event.service';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getMediaUploadRepository } from '../../repositories/media-upload.repository';
 import { getCollection, Collections } from '../../db';
@@ -259,6 +260,8 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
   if (update.avatarUrl || update.bio !== undefined || update.profileColors) {
     checkAndAward(identity._id, 'profile_customized').catch(() => {});
   }
+
+  publishProfileUpdated(identityId).catch(() => {});
 
   return success(toPublicIdentity(updatedDoc), 'Profile updated.');
 }

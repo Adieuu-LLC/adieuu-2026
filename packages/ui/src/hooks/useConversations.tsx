@@ -93,6 +93,10 @@ export interface DisplayMessage extends PublicMessage {
   forwardSecrecy?: boolean;
 }
 
+export interface SendMessageErrorResult {
+  errorCode: string;
+}
+
 interface ConversationMessagesState {
   messages: DisplayMessage[];
   cursor: string | null;
@@ -131,7 +135,7 @@ interface ConversationsContextValue {
     conversationId: string,
     plaintext: string,
     options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean; replyToMessageId?: string }
-  ) => Promise<PublicMessage | null>;
+  ) => Promise<PublicMessage | SendMessageErrorResult | null>;
   loadMoreMessages: () => Promise<void>;
   deleteMessage: (
     conversationId: string,
@@ -270,6 +274,31 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       }
 
       return fetched;
+    },
+    [api]
+  );
+
+  /**
+   * Force-refresh a single participant's profile by invalidating
+   * the cache entry and re-fetching through the server's privacy filter.
+   * Used when the server signals that an identity's profile has changed.
+   */
+  const refreshParticipantProfile = useCallback(
+    async (identityId: string): Promise<void> => {
+      resolvedProfileIds.current.delete(identityId);
+      try {
+        const resp = await api.identity.getProfile(identityId);
+        if (resp.data) {
+          setParticipantProfiles((prev) => ({ ...prev, [identityId]: resp.data! }));
+        }
+      } catch {
+        // Profile may have become inaccessible (privacy change); remove it
+        setParticipantProfiles((prev) => {
+          const next = { ...prev };
+          delete next[identityId];
+          return next;
+        });
+      }
     },
     [api]
   );
@@ -647,7 +676,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       conversationId: string,
       plaintext: string,
       options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean; replyToMessageId?: string; e2eMediaIds?: string[]; mentionedIdentityIds?: string[] }
-    ): Promise<PublicMessage | null> => {
+    ): Promise<PublicMessage | SendMessageErrorResult | null> => {
       if (!isLoggedIn || !identity) return null;
 
       const conversation = conversations.find((c) => c.id === conversationId);
@@ -719,6 +748,10 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           );
 
           return resp.data;
+        }
+
+        if (resp.error?.code === 'FORBIDDEN') {
+          return { errorCode: 'BLOCKED' };
         }
       } catch (err) {
         console.error('[Conversations] Failed to send message:', err);
@@ -1021,6 +1054,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const resolveParticipantsRef = useRef(resolveParticipants);
   resolveParticipantsRef.current = resolveParticipants;
 
+  const refreshParticipantProfileRef = useRef(refreshParticipantProfile);
+  refreshParticipantProfileRef.current = refreshParticipantProfile;
+
   const participantProfilesRef = useRef(participantProfiles);
   participantProfilesRef.current = participantProfiles;
 
@@ -1066,6 +1102,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         runReactionNotifOnce,
         loadReactionNotificationsEnabled,
         openInvites: () => sidebarActions.openInvites(),
+        refreshParticipantProfile: (identityId) =>
+          void refreshParticipantProfileRef.current(identityId),
       });
     });
 

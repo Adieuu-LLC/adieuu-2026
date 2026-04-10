@@ -65,6 +65,7 @@ export interface ConversationSocketHandlerContext {
   runReactionNotifOnce: (reactionId: string, fn: () => void) => void;
   loadReactionNotificationsEnabled: (identityId: string) => boolean;
   openInvites: () => void;
+  refreshParticipantProfile: (identityId: string) => void;
 }
 
 export function handleConversationSocketMessage(
@@ -592,6 +593,11 @@ export function handleConversationSocketMessage(
       } else {
         fire();
       }
+      break;
+    }
+
+    case 'identity_profile_updated': {
+      ctx.refreshParticipantProfile(message.data.identityId);
       break;
     }
   }

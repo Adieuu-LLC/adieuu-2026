@@ -595,7 +595,14 @@ export function ConversationView() {
   // --- Adapter: map conversation types to composer generic interfaces ---
 
   const composerSend: ComposerSendFn = useCallback(
-    (plaintext, options) => sendTextMessage(id!, plaintext, options),
+    async (plaintext, options) => {
+      const result = await sendTextMessage(id!, plaintext, options);
+      if (result && 'errorCode' in result && result.errorCode === 'BLOCKED') {
+        setBlockedByOther(true);
+        return null;
+      }
+      return result;
+    },
     [id, sendTextMessage]
   );
 

@@ -27,7 +27,8 @@ export type ChatMessageType =
   | 'group_terminated'
   | 'reaction_added'
   | 'reaction_removed'
-  | 'notification_created';
+  | 'notification_created'
+  | 'identity_profile_updated';
 
 export interface ChatMessageBase {
   type: ChatMessageType;
@@ -237,6 +238,13 @@ export interface ChatNotificationCreatedMessage extends ChatMessageBase {
   };
 }
 
+export interface ChatIdentityProfileUpdatedMessage extends ChatMessageBase {
+  type: 'identity_profile_updated';
+  data: {
+    identityId: string;
+  };
+}
+
 export type ChatIncomingMessage =
   | ChatPongMessage
   | ChatErrorMessage
@@ -253,7 +261,8 @@ export type ChatIncomingMessage =
   | ChatGroupTerminatedMessage
   | ChatReactionAddedMessage
   | ChatReactionRemovedMessage
-  | ChatNotificationCreatedMessage;
+  | ChatNotificationCreatedMessage
+  | ChatIdentityProfileUpdatedMessage;
 
 export type ChatOutgoingMessage =
   | ChatPingMessage;
