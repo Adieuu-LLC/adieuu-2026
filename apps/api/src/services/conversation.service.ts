@@ -78,6 +78,7 @@ export interface MessageResult {
   errorCode?:
     | 'CONVERSATION_NOT_FOUND'
     | 'NOT_PARTICIPANT'
+    | 'BLOCKED'
     | 'DUPLICATE_MESSAGE'
     | 'MESSAGE_NOT_FOUND'
     | 'NOT_SENDER'
@@ -482,6 +483,25 @@ export async function sendMessage(
     return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
   }
 
+  // Block enforcement: reject outright for DMs, filter delivery for groups
+  const blockRepo = getBlockRepository();
+  let blockedPairSet: Set<string> | undefined;
+
+  if (conversation.type === 'dm') {
+    const otherParticipant = conversation.participants.find((p) => !p.equals(senderObjId));
+    if (otherParticipant) {
+      const blocked = await blockRepo.isBlockedByEither(senderObjId, otherParticipant);
+      if (blocked) {
+        return { success: false, error: 'Cannot message this identity', errorCode: 'BLOCKED' };
+      }
+    }
+  } else if (conversation.type === 'group') {
+    const relatedIds = await blockRepo.getBlockRelatedIdentityIds(senderObjId);
+    if (relatedIds.length > 0) {
+      blockedPairSet = new Set(relatedIds.map((id) => id.toHexString()));
+    }
+  }
+
   // Deduplicate by clientMessageId
   const existing = await messageRepo.findByClientMessageId(convObjId, input.clientMessageId);
   if (existing) {
@@ -553,8 +573,15 @@ export async function sendMessage(
 
   const publicMessage = toPublicMessage(message, senderObjId);
 
-  // Publish to all other participants (per-member fan-out)
-  await publishToParticipants(conversation.participants, senderObjId, {
+  // In groups, exclude participants involved in a block relationship with the sender
+  const deliveryRecipients = blockedPairSet
+    ? conversation.participants.filter(
+        (p) => !p.equals(senderObjId) && !blockedPairSet!.has(p.toHexString())
+      )
+    : conversation.participants.filter((p) => !p.equals(senderObjId));
+
+  // Publish to eligible participants (per-member fan-out)
+  const messageEvent = {
     type: 'conversation_message',
     data: {
       conversationId: convObjId.toHexString(),
@@ -570,11 +597,13 @@ export async function sendMessage(
       ...(message.expiresAt ? { expiresAt: message.expiresAt.toISOString() } : {}),
       ...(validMentionIds?.length ? { mentionedIdentityIds: validMentionIds } : {}),
     },
-  });
+  };
+  await Promise.all(
+    deliveryRecipients.map((id) => publishConversationEvent(id.toHexString(), messageEvent))
+  );
 
-  // Create persistent notifications for other participants
-  for (const participantId of conversation.participants) {
-    if (participantId.equals(senderObjId)) continue;
+  // Create persistent notifications for eligible participants
+  for (const participantId of deliveryRecipients) {
     if (replyTargetAuthorId && participantId.equals(replyTargetAuthorId)) {
       await createNotification(participantId, 'conversation_message_reply', {
         conversationId: convObjId.toHexString(),

@@ -22,6 +22,7 @@ export interface IBlockRepository {
   remove(blockerIdentityId: ObjectId, blockedIdentityId: ObjectId): Promise<boolean>;
   getBlockedByIdentity(identityId: ObjectId, limit?: number, cursor?: ObjectId): Promise<BlockDocument[]>;
   getBlockedIdentityIds(identityId: ObjectId): Promise<ObjectId[]>;
+  getBlockRelatedIdentityIds(identityId: ObjectId): Promise<ObjectId[]>;
   countBlockedByIdentity(identityId: ObjectId): Promise<number>;
 }
 
@@ -132,6 +133,34 @@ export class BlockRepository
       .toArray();
 
     return blocks.map((b) => b.blockedIdentityId as ObjectId);
+  }
+
+  /**
+   * Get all identity IDs involved in a block relationship with this identity
+   * (either direction). Single query, useful for filtering group delivery.
+   */
+  async getBlockRelatedIdentityIds(identityId: ObjectId): Promise<ObjectId[]> {
+    const blocks = await this.collection
+      .find({
+        $or: [
+          { blockerIdentityId: identityId },
+          { blockedIdentityId: identityId },
+        ],
+      })
+      .project({ blockerIdentityId: 1, blockedIdentityId: 1 })
+      .toArray();
+
+    const identityHex = identityId.toHexString();
+    const idSet = new Set<string>();
+
+    for (const block of blocks) {
+      const blockerHex = (block.blockerIdentityId as ObjectId).toHexString();
+      const blockedHex = (block.blockedIdentityId as ObjectId).toHexString();
+      if (blockerHex !== identityHex) idSet.add(blockerHex);
+      if (blockedHex !== identityHex) idSet.add(blockedHex);
+    }
+
+    return [...idSet].map((hex) => new ObjectId(hex));
   }
 
   /**

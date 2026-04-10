@@ -17,6 +17,7 @@ import { ObjectId } from 'mongodb';
 import { getReactionRepository } from '../repositories/reaction.repository';
 import { getConversationRepository } from '../repositories/conversation.repository';
 import { getMessageRepository } from '../repositories/message.repository';
+import { getBlockRepository } from '../repositories/block.repository';
 import { createNotification } from './notification.service';
 import { checkAndAward } from './achievement.service';
 import {
@@ -121,6 +122,25 @@ export async function addReaction(
     return { success: false, error: 'Not a participant in this conversation.' };
   }
 
+  // Block enforcement for DMs
+  const blockRepo = getBlockRepository();
+  let blockedPairSet: Set<string> | undefined;
+
+  if (conversation.type === 'dm') {
+    const otherParticipant = conversation.participants.find((p) => !p.equals(identityObjId));
+    if (otherParticipant) {
+      const blocked = await blockRepo.isBlockedByEither(identityObjId, otherParticipant);
+      if (blocked) {
+        return { success: false, error: 'Cannot react in this conversation.' };
+      }
+    }
+  } else if (conversation.type === 'group') {
+    const relatedIds = await blockRepo.getBlockRelatedIdentityIds(identityObjId);
+    if (relatedIds.length > 0) {
+      blockedPairSet = new Set(relatedIds.map((id) => id.toHexString()));
+    }
+  }
+
   const msgRepo = getMessageRepository();
   const message = await msgRepo.findById(msgObjId);
   if (!message || !message.conversationId.equals(convObjId)) {
@@ -164,18 +184,32 @@ export async function addReaction(
   const reaction = await reactionRepo.createReaction(input);
   const publicReaction = toPublicReaction(reaction);
 
-  await publishToParticipants(conversation.participants, identityObjId, {
+  // In groups, exclude participants involved in a block relationship with the reactor
+  const deliveryRecipients = blockedPairSet
+    ? conversation.participants.filter(
+        (p) => !p.equals(identityObjId) && !blockedPairSet!.has(p.toHexString())
+      )
+    : conversation.participants.filter((p) => !p.equals(identityObjId));
+
+  const reactionEvent = {
     type: 'reaction_added',
     data: {
       reaction: publicReaction,
-      /** Lets clients notify the message author without local message cache (pagination / other tab). */
       messageAuthorId: message.fromIdentityId.toHexString(),
     },
-  });
+  };
+  await Promise.all(
+    deliveryRecipients.map((id) => publishReactionEvent(id.toHexString(), reactionEvent))
+  );
 
-  if (!message.fromIdentityId.equals(identityObjId)) {
+  const messageAuthorId = message.fromIdentityId;
+  const authorIsEligible =
+    !messageAuthorId.equals(identityObjId) &&
+    deliveryRecipients.some((p) => p.equals(messageAuthorId));
+
+  if (authorIsEligible) {
     try {
-      await createNotification(message.fromIdentityId, 'message_reaction', {
+      await createNotification(messageAuthorId, 'message_reaction', {
         conversationId: convObjId.toHexString(),
         messageId: msgObjId.toHexString(),
         reactionId: reaction._id.toHexString(),
@@ -188,7 +222,7 @@ export async function addReaction(
         messageId: msgObjId.toHexString(),
         reactionId: reaction._id.toHexString(),
         fromIdentityId: identityId,
-        recipientIdentityId: message.fromIdentityId.toHexString(),
+        recipientIdentityId: messageAuthorId.toHexString(),
       });
     }
   }
