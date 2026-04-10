@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Menu, Portal } from '@ark-ui/react';
+import { Menu, Portal, Switch } from '@ark-ui/react';
 import { SidebarItem, useSidebar } from '../../components/Sidebar';
 import { SidebarTabs, type SidebarTab } from '../../components/SidebarTabs';
 import { Popover } from '../../components/Popover';
@@ -111,15 +111,19 @@ function ConversationFilterPopover({
           </div>
         </div>
 
-        <label className="sidebar-filter-toggle-label">
-          <span>{t('conversations.filter.showArchived')}</span>
-          <input
-            type="checkbox"
-            className="sidebar-filter-toggle"
-            checked={showArchived}
-            onChange={(e) => onShowArchived(e.target.checked)}
-          />
-        </label>
+        <Switch.Root
+          checked={showArchived}
+          onCheckedChange={(details) => onShowArchived(details.checked)}
+          className="sidebar-filter-switch"
+        >
+          <Switch.Label className="sidebar-filter-switch-label">
+            {t('conversations.filter.showArchived')}
+          </Switch.Label>
+          <Switch.Control className="sidebar-filter-switch-control">
+            <Switch.Thumb className="sidebar-filter-switch-thumb" />
+          </Switch.Control>
+          <Switch.HiddenInput />
+        </Switch.Root>
       </div>
     </Popover>
   );
@@ -517,11 +521,6 @@ export function ConversationsSidebarSection({
             />
 
             <div className="sidebar-conversations-actions">
-              <SidebarItem
-                icon={<Icon name="plus" />}
-                label={t('sidebar.newConversation', 'New')}
-                onClick={handleNewConversation}
-              />
               <ConversationFilterPopover
                 typeFilter={typeFilter}
                 onTypeFilter={setTypeFilter}
@@ -530,6 +529,12 @@ export function ConversationsSidebarSection({
                 showArchived={showArchived}
                 onShowArchived={setShowArchived}
               />
+              <SidebarItem
+                icon={<Icon name="plus" />}
+                label={t('sidebar.newConversation', 'New')}
+                onClick={handleNewConversation}
+              />
+              
             </div>
 
             {loading && conversations.length === 0 && (

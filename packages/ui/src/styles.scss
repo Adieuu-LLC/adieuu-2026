@@ -3450,6 +3450,7 @@ a {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-bold, 700);
   color: var(--color-text-primary);
+  margin-top: 10px;
 }
 
 .achievement-modal-description {
@@ -3475,6 +3476,7 @@ a {
   font-weight: var(--font-weight-medium, 500);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  margin-top: 10px;
 }
 
 .achievement-modal-stats {
@@ -6883,6 +6885,251 @@ a {
   p {
     margin: 0;
   }
+}
+
+// ============================================================================
+// Sidebar Conversations Actions Row (New + Filter)
+// ============================================================================
+
+.sidebar-conversations-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: 0;
+
+  > :last-child {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+// ============================================================================
+// Filter Popover
+// ============================================================================
+
+.sidebar-filter-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+.sidebar-filter-popover {
+  min-width: 200px;
+}
+
+.sidebar-filter-popover-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs);
+}
+
+.sidebar-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.sidebar-filter-row {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.sidebar-filter-chip {
+  flex: 1;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  &--active {
+    background: var(--color-accent-primary);
+    color: var(--color-text-inverse);
+    border-color: var(--color-accent-primary);
+
+    &:hover {
+      background: var(--color-accent-primary);
+      color: var(--color-text-inverse);
+    }
+  }
+}
+
+.sidebar-filter-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) 0;
+  cursor: pointer;
+}
+
+.sidebar-filter-switch-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.sidebar-filter-switch-control {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+
+  &[data-state='checked'] {
+    background: var(--color-accent-primary);
+    border-color: var(--color-accent-primary);
+  }
+}
+
+.sidebar-filter-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-text-inverse);
+  transition: transform var(--transition-fast);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+
+  [data-state='checked'] & {
+    transform: translateX(14px);
+  }
+}
+
+// ============================================================================
+// Conversation Context Menu
+// ============================================================================
+
+.conversation-context-menu {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: var(--spacing-xs) 0;
+  min-width: 200px;
+  z-index: 50;
+
+  &-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+
+    &--danger {
+      color: var(--color-error);
+
+      &:hover {
+        background: var(--color-error-bg);
+      }
+    }
+
+    &-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+  }
+}
+
+// ============================================================================
+// Favorites Section Header
+// ============================================================================
+
+.sidebar-conversations-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sidebar-conversations-section-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: var(--color-accent-primary);
+}
+
+// ============================================================================
+// Archived Conversation Appearance
+// ============================================================================
+
+.conversation-list-item--archived {
+  opacity: 0.55;
+}
+
+.conversation-list-item-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
+.conversation-list-item-star {
+  width: 12px;
+  height: 12px;
+  color: var(--color-accent-primary);
+  flex-shrink: 0;
+}
+
+.conversation-list-item-archive-icon {
+  width: 12px;
+  height: 12px;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
 }
 
 // ============================================================================
@@ -12463,12 +12710,12 @@ body {
   }
 
   &[data-state="checked"] {
-    color: var(--color-accent-primary);
+    color: var(--profile-accent, var(--color-accent-primary));
   }
 }
 
 .achievement-select-item-indicator {
-  color: var(--color-accent-primary);
+  color: var(--profile-accent, var(--color-accent-primary));
   flex-shrink: 0;
 }
 
@@ -13023,6 +13270,19 @@ body {
   .achievement-card-icon {
     background: color-mix(in srgb, var(--profile-accent, var(--color-accent-primary)) 12%, transparent);
     color: var(--profile-accent, var(--color-accent-primary));
+  }
+
+  .achievement-select-trigger {
+    border-color: color-mix(in srgb, var(--profile-accent, var(--color-border)) 40%, transparent);
+    background: var(--profile-card-bg, var(--color-bg-secondary));
+
+    &:hover {
+      border-color: var(--profile-accent, var(--color-accent-primary));
+    }
+  }
+
+  .achievement-select-indicator {
+    color: var(--profile-accent, var(--color-text-muted));
   }
 }
 

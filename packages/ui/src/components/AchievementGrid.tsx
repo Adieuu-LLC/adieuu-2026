@@ -31,6 +31,8 @@ export interface AchievementGridProps {
   viewerAchievementIds?: Set<string>;
   /** Replace the grid with a loading spinner. */
   loading?: boolean;
+  /** Profile accent colour — forwarded to portaled filter dropdowns. */
+  accentColor?: string;
 }
 
 type StatusFilter = 'all' | 'earned' | 'unearned';
@@ -50,6 +52,7 @@ export function AchievementGrid({
   showStatusFilter = false,
   viewerAchievementIds,
   loading = false,
+  accentColor,
 }: AchievementGridProps) {
   const { t } = useTranslation();
   const [categoryFilter, setCategoryFilter] = useState<'all' | AchievementCategory>('all');
@@ -142,6 +145,7 @@ export function AchievementGrid({
               value={categoryFilter}
               label={categoryLabel}
               onValueChange={(v) => setCategoryFilter(v as 'all' | AchievementCategory)}
+              accentColor={accentColor}
             />
             {catalogMode && showStatusFilter && (
               <FilterSelect
@@ -149,6 +153,7 @@ export function AchievementGrid({
                 value={statusFilter}
                 label={statusLabel}
                 onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+                accentColor={accentColor}
               />
             )}
           </div>
@@ -228,9 +233,14 @@ interface FilterSelectProps {
   value: string;
   label: string;
   onValueChange: (value: string) => void;
+  accentColor?: string;
 }
 
-function FilterSelect({ collection, value, label, onValueChange }: FilterSelectProps) {
+function FilterSelect({ collection, value, label, onValueChange, accentColor }: FilterSelectProps) {
+  const portalStyle = accentColor
+    ? { '--profile-accent': accentColor } as React.CSSProperties
+    : undefined;
+
   return (
     <Select.Root
       collection={collection}
@@ -251,7 +261,7 @@ function FilterSelect({ collection, value, label, onValueChange }: FilterSelectP
       </Select.Control>
       <Portal>
         <Select.Positioner>
-          <Select.Content className="achievement-select-content">
+          <Select.Content className="achievement-select-content" style={portalStyle}>
             {collection.items.map((item) => (
               <Select.Item key={item.value} item={item} className="achievement-select-item">
                 <Select.ItemText>{item.label}</Select.ItemText>

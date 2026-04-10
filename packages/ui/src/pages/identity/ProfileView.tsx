@@ -346,6 +346,7 @@ export function IdentityProfileView() {
               achievements={achievements}
               viewerAchievementIds={isIdentityLoggedIn ? myAchievementIds : undefined}
               loading={!achievementsLoaded}
+              accentColor={accent}
             />
           </div>
         </div>

@@ -51,6 +51,7 @@ export const en = {
     tabs: {
       spaces: 'Spaces',
     },
+    newConversation: 'Start New',
   },
 
   // Search
@@ -1885,7 +1886,7 @@ export const en = {
     deleteForEveryone: { name: 'Take It Back', description: 'Delete a message you sent.' },
     ttlMessageSent: { name: 'Going, Going, Gone!', description: 'Send a disappearing message.' },
     fsMessageSent: { name: 'Burn After Reading', description: 'Send a message with forward secrecy enabled.' },
-    fsDefaultEnabled: { name: 'Forward', description: 'Enable forward secrecy as your default.' },
+    fsDefaultEnabled: { name: 'Always Forward!', description: 'Enable forward secrecy as your default.' },
     fsTtlMessage: { name: "Out of Time", description: 'Send a message with both forward secrecy and a TTL.' },
     profileCustomized: { name: 'Express Yourself', description: 'Customise your profile.' },
     bannerSet: { name: 'Banner Bearer', description: 'Set a profile banner.' },

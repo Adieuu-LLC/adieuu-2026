@@ -180,7 +180,7 @@ export function AchievementUnlockedModal({
                   <MagicRings
                     color={theme.primary}
                     colorTwo={theme.secondary}
-                    baseRadius={0.115}
+                    baseRadius={0.100}
                     ringCount={3}
                     radiusStep={0.06}
                     scaleRate={0.05}
