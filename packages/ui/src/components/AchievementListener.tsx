@@ -25,6 +25,7 @@ export function AchievementListener() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [pending, setPending] = useState<AchievementUnlockEvent | null>(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
   const handleUnlocked = useCallback(
     (event: AchievementUnlockEvent) => {
@@ -33,6 +34,7 @@ export function AchievementListener() {
         : { popupEnabled: true, soundEnabled: true };
 
       if (prefs.popupEnabled) {
+        setSoundEnabled(prefs.soundEnabled);
         setPending(event);
         setModalOpen(true);
       } else {
@@ -60,6 +62,7 @@ export function AchievementListener() {
       }}
       achievementId={pending.achievementId}
       definition={pending.definition as PublicAchievementDefinition}
+      soundEnabled={soundEnabled}
     />
   );
 }
