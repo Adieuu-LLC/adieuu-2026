@@ -1,17 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { Menu, Portal } from '@ark-ui/react';
 import { SidebarItem, useSidebar } from '../../components/Sidebar';
 import { SidebarTabs, type SidebarTab } from '../../components/SidebarTabs';
+import { Popover } from '../../components/Popover';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Logo } from '../../components/Logo';
 import { Icon } from '../../icons/Icon';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { useConversations, type DecryptedConversation } from '../../hooks/useConversations';
+import { useConversationPreferences } from '../../hooks/useConversationPreferences';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useTheme } from '../../hooks/useTheme';
 import { usePlatformCapabilities } from '../../config';
 import { ChatInvitationsSidebarButton } from './invitations';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+type TypeFilter = 'all' | 'dm' | 'group';
+type SortMode = 'recent' | 'alpha';
+
+// ============================================================================
+// Sidebar Logo
+// ============================================================================
 
 export function SidebarLogo() {
   const { t } = useTranslation();
@@ -24,23 +39,122 @@ export function SidebarLogo() {
   );
 }
 
-function ConversationListItem({ conversation }: { conversation: DecryptedConversation }) {
+// ============================================================================
+// Filter Popover
+// ============================================================================
+
+function ConversationFilterPopover({
+  typeFilter,
+  onTypeFilter,
+  sortMode,
+  onSortMode,
+  showArchived,
+  onShowArchived,
+}: {
+  typeFilter: TypeFilter;
+  onTypeFilter: (v: TypeFilter) => void;
+  sortMode: SortMode;
+  onSortMode: (v: SortMode) => void;
+  showArchived: boolean;
+  onShowArchived: (v: boolean) => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Popover
+      trigger={
+        <button
+          type="button"
+          className="sidebar-filter-trigger"
+          aria-label={t('conversations.filter.button')}
+        >
+          <Icon name="filter" />
+        </button>
+      }
+      positioning={{ placement: 'bottom-start' }}
+      className="sidebar-filter-popover"
+    >
+      <div className="sidebar-filter-popover-body">
+        <div className="sidebar-filter-group">
+          <div className="sidebar-filter-row">
+            {(['all', 'dm', 'group'] as const).map((val) => (
+              <button
+                key={val}
+                type="button"
+                className={`sidebar-filter-chip${typeFilter === val ? ' sidebar-filter-chip--active' : ''}`}
+                onClick={() => onTypeFilter(val)}
+              >
+                {val === 'all'
+                  ? t('conversations.filter.typeAll')
+                  : val === 'dm'
+                    ? t('conversations.filter.typeDms')
+                    : t('conversations.filter.typeGroups')}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="sidebar-filter-group">
+          <div className="sidebar-filter-row">
+            {(['recent', 'alpha'] as const).map((val) => (
+              <button
+                key={val}
+                type="button"
+                className={`sidebar-filter-chip${sortMode === val ? ' sidebar-filter-chip--active' : ''}`}
+                onClick={() => onSortMode(val)}
+              >
+                {val === 'recent'
+                  ? t('conversations.filter.sortRecent')
+                  : t('conversations.filter.sortAlpha')}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <label className="sidebar-filter-toggle-label">
+          <span>{t('conversations.filter.showArchived')}</span>
+          <input
+            type="checkbox"
+            className="sidebar-filter-toggle"
+            checked={showArchived}
+            onChange={(e) => onShowArchived(e.target.checked)}
+          />
+        </label>
+      </div>
+    </Popover>
+  );
+}
+
+// ============================================================================
+// Conversation List Item (with context menu)
+// ============================================================================
+
+function ConversationListItem({
+  conversation,
+  displayName,
+  isArchived,
+  isFavorited,
+  onLeave,
+}: {
+  conversation: DecryptedConversation;
+  displayName: string;
+  isArchived: boolean;
+  isFavorited: boolean;
+  onLeave: (conversationId: string) => void;
+}) {
+  const { t } = useTranslation();
   const { identity } = useIdentity();
   const { activeConversationId, setActiveConversation, participantProfiles } = useConversations();
+  const { toggleArchive, toggleFavorite } = useConversationPreferences();
   const navigate = useNavigate();
   const { closeMobile } = useSidebar();
 
   const isActive = activeConversationId === conversation.id;
-  const otherParticipants = conversation.participants.filter((participantId) => participantId !== identity?.id);
-
-  const resolveDisplayName = (participantId: string) => {
-    const profile = participantProfiles[participantId];
-    return profile?.displayName ?? profile?.username ?? participantId;
-  };
-
-  const displayName = conversation.type === 'group'
-    ? (conversation.decryptedName ?? 'Group')
-    : otherParticipants.map(resolveDisplayName).join(', ');
+  const otherParticipants = conversation.participants.filter(
+    (pid) => pid !== identity?.id,
+  );
+  const isDm = conversation.type === 'dm';
+  const isGroup = conversation.type === 'group';
 
   const handleClick = () => {
     setActiveConversation(conversation.id);
@@ -48,11 +162,43 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
     closeMobile();
   };
 
+  const handleContextAction = useCallback(
+    (details: { value: string }) => {
+      switch (details.value) {
+        case 'archive':
+          toggleArchive(conversation.id, true, false);
+          break;
+        case 'unarchive':
+          toggleArchive(conversation.id, false);
+          break;
+        case 'keep-archived':
+          toggleArchive(conversation.id, true, true);
+          break;
+        case 'favorite':
+          toggleFavorite(conversation.id, true);
+          break;
+        case 'unfavorite':
+          toggleFavorite(conversation.id, false);
+          break;
+        case 'leave':
+          onLeave(conversation.id);
+          break;
+        case 'edit':
+          setActiveConversation(conversation.id);
+          navigate(`/conversations/${conversation.id}?showSettings=true`);
+          closeMobile();
+          break;
+      }
+    },
+    [conversation.id, toggleArchive, toggleFavorite, onLeave, setActiveConversation, navigate, closeMobile],
+  );
+
+  const resolveDisplay = (pid: string) => {
+    const p = participantProfiles[pid];
+    return p?.displayName ?? p?.username ?? pid;
+  };
+
   const avatarMembers = otherParticipants.slice(0, 3);
-  const isDm = conversation.type === 'dm';
-  const dmProfile = isDm && otherParticipants.length === 1
-    ? participantProfiles[otherParticipants[0]!]
-    : undefined;
 
   const avatarEl = isDm ? (
     <div className="conversation-list-item-avatar">
@@ -63,9 +209,9 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
     </div>
   ) : avatarMembers.length > 1 ? (
     <div className="conversation-list-item-avatar-stack">
-      {avatarMembers.map((participantId) => (
-        <span key={participantId} className="conversation-list-item-avatar-stack-item">
-          {resolveDisplayName(participantId).charAt(0).toUpperCase()}
+      {avatarMembers.map((pid) => (
+        <span key={pid} className="conversation-list-item-avatar-stack-item">
+          {resolveDisplay(pid).charAt(0).toUpperCase()}
         </span>
       ))}
     </div>
@@ -77,26 +223,102 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
     </div>
   );
 
+  const itemClasses = [
+    'conversation-list-item',
+    isActive && 'conversation-list-item-active',
+    isArchived && 'conversation-list-item--archived',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   const row = (
-    <button
-      type="button"
-      className={`conversation-list-item${isActive ? ' conversation-list-item-active' : ''}`}
-      onClick={handleClick}
-    >
+    <button type="button" className={itemClasses} onClick={handleClick}>
       {avatarEl}
       <div className="conversation-list-item-info">
         <span className="conversation-list-item-title">{displayName}</span>
-        {conversation.type === 'group' && (
+        {isGroup && (
           <span className="conversation-list-item-members">
             {conversation.participants.length} members
           </span>
         )}
       </div>
-      {conversation.unreadCount > 0 && (
-        <span className="conversation-list-item-badge">{conversation.unreadCount}</span>
-      )}
+      <div className="conversation-list-item-badges">
+        {isFavorited && (
+          <Icon name="star" className="conversation-list-item-star" />
+        )}
+        {isArchived && (
+          <Icon name="archive" className="conversation-list-item-archive-icon" />
+        )}
+        {conversation.unreadCount > 0 && (
+          <span className="conversation-list-item-badge">{conversation.unreadCount}</span>
+        )}
+      </div>
     </button>
   );
+
+  const contextMenu = (
+    <Portal>
+      <Menu.Positioner>
+        <Menu.Content className="conversation-context-menu">
+          {!isArchived ? (
+            <>
+              <Menu.Item value="archive" className="conversation-context-menu-item">
+                <Icon name="archive" className="conversation-context-menu-item-icon" />
+                {t('conversations.contextMenu.archive')}
+              </Menu.Item>
+              {isGroup && (
+                <Menu.Item value="keep-archived" className="conversation-context-menu-item">
+                  <Icon name="archive" className="conversation-context-menu-item-icon" />
+                  {t('conversations.contextMenu.keepArchived')}
+                </Menu.Item>
+              )}
+            </>
+          ) : (
+            <Menu.Item value="unarchive" className="conversation-context-menu-item">
+              <Icon name="archive" className="conversation-context-menu-item-icon" />
+              {t('conversations.contextMenu.unarchive')}
+            </Menu.Item>
+          )}
+
+          {!isFavorited ? (
+            <Menu.Item value="favorite" className="conversation-context-menu-item">
+              <Icon name="star" className="conversation-context-menu-item-icon" />
+              {t('conversations.contextMenu.addFavorite')}
+            </Menu.Item>
+          ) : (
+            <Menu.Item value="unfavorite" className="conversation-context-menu-item">
+              <Icon name="star" className="conversation-context-menu-item-icon" />
+              {t('conversations.contextMenu.removeFavorite')}
+            </Menu.Item>
+          )}
+
+          {isGroup && (
+            <Menu.Item value="leave" className="conversation-context-menu-item conversation-context-menu-item--danger">
+              <Icon name="logout" className="conversation-context-menu-item-icon" />
+              {t('conversations.leave')}
+            </Menu.Item>
+          )}
+
+          <Menu.Item value="edit" className="conversation-context-menu-item">
+            <Icon name="settings" className="conversation-context-menu-item-icon" />
+            {t('conversations.contextMenu.editConversation')}
+          </Menu.Item>
+        </Menu.Content>
+      </Menu.Positioner>
+    </Portal>
+  );
+
+  const wrappedRow = (
+    <Menu.Root onSelect={handleContextAction}>
+      <Menu.ContextTrigger asChild>{row}</Menu.ContextTrigger>
+      {contextMenu}
+    </Menu.Root>
+  );
+
+  const dmProfile =
+    isDm && otherParticipants.length === 1
+      ? participantProfiles[otherParticipants[0]!]
+      : undefined;
 
   if (dmProfile) {
     return (
@@ -104,13 +326,38 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
         identity={dmProfile}
         positioning={{ placement: 'right-start', gutter: 12 }}
       >
-        {row}
+        {wrappedRow}
       </IdentityHoverCard>
     );
   }
 
-  return row;
+  return wrappedRow;
 }
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+function resolveConversationDisplayName(
+  conversation: DecryptedConversation,
+  selfId: string | undefined,
+  profiles: Record<string, { displayName?: string; username?: string }>,
+): string {
+  if (conversation.type === 'group') {
+    return conversation.decryptedName ?? 'Group';
+  }
+  const others = conversation.participants.filter((p) => p !== selfId);
+  return others
+    .map((pid) => {
+      const p = profiles[pid];
+      return p?.displayName ?? p?.username ?? pid;
+    })
+    .join(', ');
+}
+
+// ============================================================================
+// Main Section
+// ============================================================================
 
 export function ConversationsSidebarSection({
   isChatInvitesPanelOpen,
@@ -121,11 +368,27 @@ export function ConversationsSidebarSection({
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { conversations, loading } = useConversations();
+  const { conversations, loading, leaveGroup, participantProfiles } = useConversations();
+  const { preferences } = useConversationPreferences();
+  const { identity } = useIdentity();
   const { closeMobile } = useSidebar();
   const [activeTab, setActiveTab] = useState('conversations');
 
-  const totalUnread = conversations.reduce((sum, conversation) => sum + conversation.unreadCount, 0);
+  // Filter state
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [sortMode, setSortMode] = useState<SortMode>('recent');
+  const [showArchived, setShowArchived] = useState(false);
+
+  // Leave dialog state
+  const [leaveTargetId, setLeaveTargetId] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
+
+  const isFiltered = typeFilter !== 'all' || sortMode !== 'recent' || showArchived;
+
+  const totalUnread = conversations.reduce(
+    (sum, c) => sum + c.unreadCount,
+    0,
+  );
 
   const { appWindow } = usePlatformCapabilities();
   const { activeTheme } = useTheme();
@@ -154,10 +417,95 @@ export function ConversationsSidebarSection({
     closeMobile();
   };
 
+  const handleLeaveRequest = useCallback((conversationId: string) => {
+    setLeaveTargetId(conversationId);
+  }, []);
+
+  const handleLeaveConfirm = useCallback(async () => {
+    if (!leaveTargetId) return;
+    setLeaving(true);
+    try {
+      await leaveGroup(leaveTargetId);
+    } finally {
+      setLeaving(false);
+      setLeaveTargetId(null);
+    }
+  }, [leaveTargetId, leaveGroup]);
+
+  const leaveTargetConversation = leaveTargetId
+    ? conversations.find((c) => c.id === leaveTargetId)
+    : undefined;
+  const isSoleMember =
+    leaveTargetConversation?.participants.length === 1;
+
+  // Derive filtered + sorted conversation lists
+  const { favoritesList, mainList } = useMemo(() => {
+    const withNames = conversations.map((c) => ({
+      conversation: c,
+      displayName: resolveConversationDisplayName(
+        c,
+        identity?.id,
+        participantProfiles,
+      ),
+      pref: preferences[c.id],
+    }));
+
+    // Apply type filter
+    let filtered = withNames;
+    if (typeFilter === 'dm') {
+      filtered = filtered.filter((x) => x.conversation.type === 'dm');
+    } else if (typeFilter === 'group') {
+      filtered = filtered.filter((x) => x.conversation.type === 'group');
+    }
+
+    // Apply archive filter
+    if (!showArchived) {
+      filtered = filtered.filter((x) => !x.pref?.archived);
+    }
+
+    // Sort
+    if (sortMode === 'alpha') {
+      filtered.sort((a, b) =>
+        a.displayName.localeCompare(b.displayName, undefined, {
+          sensitivity: 'base',
+        }),
+      );
+    }
+    // 'recent' preserves the server ordering (already by lastMessageAt desc)
+
+    // Split favorites from the rest (only when no active filters)
+    if (!isFiltered) {
+      const favs = filtered.filter((x) => x.pref?.favorited);
+      const rest = filtered.filter((x) => !x.pref?.favorited);
+      return { favoritesList: favs, mainList: rest };
+    }
+
+    return { favoritesList: [], mainList: filtered };
+  }, [
+    conversations,
+    identity?.id,
+    participantProfiles,
+    preferences,
+    typeFilter,
+    sortMode,
+    showArchived,
+    isFiltered,
+  ]);
+
+  const renderItem = (item: (typeof mainList)[number]) => (
+    <ConversationListItem
+      key={item.conversation.id}
+      conversation={item.conversation}
+      displayName={item.displayName}
+      isArchived={!!item.pref?.archived}
+      isFavorited={!!item.pref?.favorited}
+      onLeave={handleLeaveRequest}
+    />
+  );
+
   return (
     <div className="sidebar-tabs-section">
       <SidebarTabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
-
       <ChatConnectionBanner />
 
       <div className="sidebar-tab-content">
@@ -167,11 +515,22 @@ export function ConversationsSidebarSection({
               isOpen={isChatInvitesPanelOpen}
               onToggle={onToggleChatInvitesPanel}
             />
-            <SidebarItem
-              icon={<Icon name="plus" />}
-              label={t('sidebar.newConversation', 'New Conversation')}
-              onClick={handleNewConversation}
-            />
+
+            <div className="sidebar-conversations-actions">
+              <SidebarItem
+                icon={<Icon name="plus" />}
+                label={t('sidebar.newConversation', 'New')}
+                onClick={handleNewConversation}
+              />
+              <ConversationFilterPopover
+                typeFilter={typeFilter}
+                onTypeFilter={setTypeFilter}
+                sortMode={sortMode}
+                onSortMode={setSortMode}
+                showArchived={showArchived}
+                onShowArchived={setShowArchived}
+              />
+            </div>
 
             {loading && conversations.length === 0 && (
               <div className="sidebar-conversations-loading">
@@ -180,16 +539,49 @@ export function ConversationsSidebarSection({
             )}
 
             <div className="sidebar-conversations-list">
-              {conversations.map((conversation) => (
-                <ConversationListItem key={conversation.id} conversation={conversation} />
-              ))}
-
-              {!loading && conversations.length === 0 && (
-                <div className="sidebar-conversations-empty">
-                  {t('sidebar.noConversations', 'No conversations yet')}
-                </div>
+              {favoritesList.length > 0 && (
+                <>
+                  <div className="sidebar-conversations-section-header">
+                    <Icon name="star" className="sidebar-conversations-section-icon" />
+                    <span>{t('conversations.favorites.section')}</span>
+                  </div>
+                  {favoritesList.map(renderItem)}
+                </>
               )}
+
+              {mainList.map(renderItem)}
+
+              {!loading &&
+                favoritesList.length === 0 &&
+                mainList.length === 0 && (
+                  <div className="sidebar-conversations-empty">
+                    {t('sidebar.noConversations', 'No conversations yet')}
+                  </div>
+                )}
             </div>
+
+            <ConfirmDialog
+              open={!!leaveTargetId}
+              onOpenChange={(open) => {
+                if (!open) setLeaveTargetId(null);
+              }}
+              title={t('conversations.leaveGroup.title', 'Leave group?')}
+              description={
+                isSoleMember
+                  ? t(
+                      'conversations.leaveGroup.lastMember',
+                      'You are the last member. The group and all messages will be permanently deleted.',
+                    )
+                  : t(
+                      'conversations.leaveGroup.confirm',
+                      "You won't be able to rejoin without a new invite.",
+                    )
+              }
+              confirmLabel={t('conversations.leaveGroup.confirmBtn', 'Leave')}
+              variant={isSoleMember ? 'danger' : 'warning'}
+              loading={leaving}
+              onConfirm={handleLeaveConfirm}
+            />
           </>
         )}
 

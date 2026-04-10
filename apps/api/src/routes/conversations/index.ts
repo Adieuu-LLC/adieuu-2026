@@ -37,6 +37,8 @@ import {
   updateMemberSettings,
   updateGifsDisabled,
 } from '../../services/conversation.service';
+import { getConversationPreferencesRepository } from '../../repositories/conversation-preferences.repository';
+import { toPublicConversationPreferences } from '../../models/conversation-preferences';
 import { ObjectId } from 'mongodb';
 import { z } from '@adieuu/shared/schemas';
 import { isValidObjectId } from '../../utils';
@@ -194,6 +196,66 @@ router.get('/conversations', async (ctx) => {
     conversations: result.conversations,
     cursor: result.cursor,
   });
+});
+
+// ---------------------------------------------------------------------------
+// Conversation preferences routes
+// Registered before /conversations/:id to prevent the parameterised route
+// from swallowing literal "/conversations/preferences" requests.
+// ---------------------------------------------------------------------------
+
+const UpdatePreferencesSchema = z.object({
+  archived: z.boolean().optional(),
+  keepArchived: z.boolean().optional(),
+  favorited: z.boolean().optional(),
+});
+
+/**
+ * GET /conversations/preferences - List all conversation preferences for the authenticated identity
+ */
+router.get('/conversations/preferences', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const repo = getConversationPreferencesRepository();
+  const docs = await repo.findForIdentity(identity._id);
+
+  return success(docs.map(toPublicConversationPreferences));
+});
+
+/**
+ * PATCH /conversations/:id/preferences - Upsert conversation preferences
+ */
+router.patch('/conversations/preferences/:id', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const parseResult = UpdatePreferencesSchema.safeParse(ctx.body);
+  if (!parseResult.success) return ctx.errors.validationFailed();
+
+  const patch = parseResult.data;
+  if (
+    patch.archived === undefined &&
+    patch.keepArchived === undefined &&
+    patch.favorited === undefined
+  ) {
+    return errors.badRequest('At least one preference field is required.');
+  }
+
+  const repo = getConversationPreferencesRepository();
+  const doc = await repo.upsert(
+    identity._id,
+    new ObjectId(sanitized.value),
+    patch,
+  );
+
+  return success(toPublicConversationPreferences(doc), 'Preferences updated.');
 });
 
 // ---------------------------------------------------------------------------

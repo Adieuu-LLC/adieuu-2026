@@ -1602,6 +1602,34 @@ export const en = {
 
     ttlOff: 'Disappear this message',
     ttlActive: 'Message will disappear after {{ttl}}',
+
+    filter: {
+      button: 'Filter',
+      typeAll: 'All',
+      typeDms: 'DMs',
+      typeGroups: 'Groups',
+      sortRecent: 'Recent',
+      sortAlpha: 'A\u2013Z',
+      showArchived: 'Show archived',
+    },
+
+    contextMenu: {
+      archive: 'Archive',
+      unarchive: 'Unarchive',
+      keepArchived: 'Keep archived on new messages',
+      addFavorite: 'Add to Favourites',
+      removeFavorite: 'Remove from Favourites',
+      editConversation: 'Edit Conversation',
+    },
+
+    favorites: {
+      section: 'Favourites',
+    },
+
+    archiveToast: 'Conversation archived',
+    unarchiveToast: 'Conversation unarchived',
+    favoriteAddedToast: 'Added to favourites',
+    favoriteRemovedToast: 'Removed from favourites',
   },
   // User-facing report submission
   report: {

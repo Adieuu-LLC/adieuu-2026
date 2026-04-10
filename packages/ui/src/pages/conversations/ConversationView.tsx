@@ -593,6 +593,13 @@ export function ConversationView() {
     setSearchParams((prev) => { prev.delete('messageId'); return prev; }, { replace: true });
   }, [deepLinkMessageId, id, scrollToMessageId, setSearchParams]);
 
+  useEffect(() => {
+    if (searchParams.get('showSettings') === 'true' && id) {
+      setShowSettings(true);
+      setSearchParams((prev) => { prev.delete('showSettings'); return prev; }, { replace: true });
+    }
+  }, [searchParams, id, setSearchParams]);
+
   // --- Adapter: map conversation types to composer generic interfaces ---
 
   const checkMessageAchievements = useMessageAchievements();

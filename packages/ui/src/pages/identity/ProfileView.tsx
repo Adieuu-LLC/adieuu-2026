@@ -8,22 +8,20 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+
 import { useParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Select, Portal, createListCollection } from '@ark-ui/react';
 import {
   createApiClient,
   type PublicIdentity,
   type PublicAchievement,
-  type PublicAchievementDefinition,
-  type AchievementCategory,
   type FriendshipStatus,
 } from '@adieuu/shared';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
-import type { AppIconName } from '../../icons/appIcons';
 import { ReportModal } from '../../components/ReportModal';
+import { AchievementGrid } from '../../components/AchievementGrid';
 import { BlockActionButton } from '../../components/BlockActionButton';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
@@ -54,13 +52,8 @@ export function IdentityProfileView() {
   const [friendActionLoading, setFriendActionLoading] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [achievements, setAchievements] = useState<PublicAchievement[]>([]);
-  const [definitions, setDefinitions] = useState<PublicAchievementDefinition[]>([]);
   const [achievementsLoaded, setAchievementsLoaded] = useState(false);
   const [myAchievementIds, setMyAchievementIds] = useState<Set<string>>(new Set());
-
-  type StatusFilter = 'all' | 'earned' | 'unearned';
-  const [categoryFilter, setCategoryFilter] = useState<'all' | AchievementCategory>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const isSelf = selfIdentity?.id === id;
   const isIdentityLoggedIn = selfIdentity != null;
@@ -132,11 +125,6 @@ export function IdentityProfileView() {
           setAchievements(res.data.achievements);
         }
       }),
-      api.achievements.getDefinitions().then((res) => {
-        if (!cancelled && res.success && res.data) {
-          setDefinitions(res.data.definitions);
-        }
-      }),
     ];
 
     if (!isSelf && isIdentityLoggedIn) {
@@ -171,69 +159,6 @@ export function IdentityProfileView() {
     if (ok) setFriendStatus('none');
     setFriendActionLoading(false);
   }, [id, removeFriend, friendActionLoading]);
-
-  const earnedIds = useMemo(
-    () => new Set(achievements.map((a) => a.achievementId)),
-    [achievements],
-  );
-
-  const filteredItems = useMemo(() => {
-    const earnedMap = new Map(achievements.map((a) => [a.achievementId, a]));
-
-    type DisplayItem = {
-      key: string;
-      definition: PublicAchievementDefinition;
-      earned: boolean;
-      achievement?: PublicAchievement;
-    };
-
-    const items: DisplayItem[] = definitions.map((def) => {
-      const ach = earnedMap.get(def.id);
-      return {
-        key: def.id,
-        definition: def,
-        earned: !!ach,
-        achievement: ach,
-      };
-    });
-
-    return items.filter((item) => {
-      if (categoryFilter !== 'all' && item.definition.category !== categoryFilter) return false;
-      if (statusFilter === 'earned' && !item.earned) return false;
-      if (statusFilter === 'unearned' && item.earned) return false;
-      return true;
-    });
-  }, [definitions, achievements, categoryFilter, statusFilter]);
-
-  const categoryCollection = useMemo(
-    () =>
-      createListCollection({
-        items: [
-          { value: 'all', label: t('achievements.filterAll') },
-          { value: 'social', label: t('achievements.category.social') },
-          { value: 'messaging', label: t('achievements.category.messaging') },
-          { value: 'security', label: t('achievements.category.security') },
-          { value: 'profile', label: t('achievements.category.profile') },
-          { value: 'misc', label: t('achievements.category.misc') },
-        ],
-      }),
-    [t],
-  );
-
-  const statusCollection = useMemo(
-    () =>
-      createListCollection({
-        items: [
-          { value: 'all', label: t('achievements.filterAll') },
-          { value: 'earned', label: t('achievements.filterEarned') },
-          { value: 'unearned', label: t('achievements.filterUnearned') },
-        ],
-      }),
-    [t],
-  );
-
-  const categoryLabel = categoryCollection.items.find((i) => i.value === categoryFilter)?.label ?? '';
-  const statusLabel = statusCollection.items.find((i) => i.value === statusFilter)?.label ?? '';
 
   if (loadState === 'loading') {
     return (
@@ -416,137 +341,12 @@ export function IdentityProfileView() {
 
           {/* Achievements */}
           <div className="profile-view-achievements">
-            <div className="achievement-header">
-              <h2 className="profile-view-section-title">
-                <Icon name="trophy" size="sm" />
-                {t('identity.profileView.tabAchievements')}
-              </h2>
-
-              {achievementsLoaded && definitions.length > 0 && (
-                <div className="achievement-header__filters">
-                  <Select.Root
-                    collection={categoryCollection}
-                    value={[categoryFilter]}
-                    onValueChange={(d) => {
-                      const next = d.value[0] as 'all' | AchievementCategory | undefined;
-                      if (next) setCategoryFilter(next);
-                    }}
-                    positioning={{ sameWidth: true }}
-                  >
-                    <Select.Control className="achievement-select-control">
-                      <Select.Trigger className="achievement-select-trigger">
-                        <Select.ValueText>{categoryLabel}</Select.ValueText>
-                        <Select.Indicator className="achievement-select-indicator">
-                          <Icon name="chevronDown" size="xs" />
-                        </Select.Indicator>
-                      </Select.Trigger>
-                    </Select.Control>
-                    <Portal>
-                      <Select.Positioner>
-                        <Select.Content className="achievement-select-content">
-                          {categoryCollection.items.map((item) => (
-                            <Select.Item key={item.value} item={item} className="achievement-select-item">
-                              <Select.ItemText>{item.label}</Select.ItemText>
-                              <Select.ItemIndicator className="achievement-select-item-indicator">
-                                <Icon name="check" size="xs" />
-                              </Select.ItemIndicator>
-                            </Select.Item>
-                          ))}
-                        </Select.Content>
-                      </Select.Positioner>
-                    </Portal>
-                  </Select.Root>
-
-                  <Select.Root
-                    collection={statusCollection}
-                    value={[statusFilter]}
-                    onValueChange={(d) => {
-                      const next = d.value[0] as StatusFilter | undefined;
-                      if (next) setStatusFilter(next);
-                    }}
-                    positioning={{ sameWidth: true }}
-                  >
-                    <Select.Control className="achievement-select-control">
-                      <Select.Trigger className="achievement-select-trigger">
-                        <Select.ValueText>{statusLabel}</Select.ValueText>
-                        <Select.Indicator className="achievement-select-indicator">
-                          <Icon name="chevronDown" size="xs" />
-                        </Select.Indicator>
-                      </Select.Trigger>
-                    </Select.Control>
-                    <Portal>
-                      <Select.Positioner>
-                        <Select.Content className="achievement-select-content">
-                          {statusCollection.items.map((item) => (
-                            <Select.Item key={item.value} item={item} className="achievement-select-item">
-                              <Select.ItemText>{item.label}</Select.ItemText>
-                              <Select.ItemIndicator className="achievement-select-item-indicator">
-                                <Icon name="check" size="xs" />
-                              </Select.ItemIndicator>
-                            </Select.Item>
-                          ))}
-                        </Select.Content>
-                      </Select.Positioner>
-                    </Portal>
-                  </Select.Root>
-                </div>
-              )}
-            </div>
-
-            {!achievementsLoaded ? (
-              <div className="profile-view-loading">
-                <div className="spinner" />
-              </div>
-            ) : filteredItems.length === 0 ? (
-              <div className="profile-view-achievements-empty">
-                <p style={{ color: 'var(--color-text-secondary)' }}>
-                  {categoryFilter !== 'all' || statusFilter !== 'all'
-                    ? t('achievements.noResults')
-                    : t('achievements.noAchievements')}
-                </p>
-              </div>
-            ) : (
-              <div className="profile-view-achievements-grid">
-                {filteredItems.map((item) => {
-                  const viewerLacksThis = !isSelf && isIdentityLoggedIn
-                    && !myAchievementIds.has(item.definition.id);
-
-                  return (
-                    <div
-                      key={item.key}
-                      className={`achievement-card${!item.earned ? ' achievement-card--locked' : ''}`}
-                    >
-                      <div className="achievement-card-icon">
-                        <Icon name={item.definition.icon as AppIconName} size="lg" />
-                      </div>
-                      <div className="achievement-card-info">
-                        <span className="achievement-card-name">
-                          {t(item.definition.name)}
-                        </span>
-                        <span className="achievement-card-desc">
-                          {t(item.definition.description)}
-                        </span>
-                        {isSelf && item.earned && item.achievement?.awardedAt && (
-                          <span className="achievement-card-date">
-                            {new Date(item.achievement.awardedAt).toLocaleDateString()}
-                          </span>
-                        )}
-                        {!item.earned && (
-                          <span className="achievement-card-not-earned">
-                            {t('achievements.notYetEarned')}
-                          </span>
-                        )}
-                        {item.earned && viewerLacksThis && (
-                          <span className="achievement-card-not-earned">
-                            {t('achievements.youDontHaveThis')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <AchievementGrid
+              title={t('identity.profileView.tabAchievements')}
+              achievements={achievements}
+              viewerAchievementIds={isIdentityLoggedIn ? myAchievementIds : undefined}
+              loading={!achievementsLoaded}
+            />
           </div>
         </div>
       </div>

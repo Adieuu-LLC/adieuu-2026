@@ -62,6 +62,10 @@ export const APP_ICON_NAMES = {
   ban: 'ban',
   fire: 'fire',
   userMinus: 'user-minus',
+  archive: 'box-archive',
+  star: 'star',
+  filter: 'filter',
+  sortAlpha: 'arrow-down-a-z',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;

@@ -370,6 +370,8 @@ export const Collections = {
   KLIPY_SEARCH_LOGS: 'klipy_search_logs',
   /** Achievements awarded to identities */
   IDENTITY_ACHIEVEMENTS: 'identity_achievements',
+  /** Per-identity conversation preferences (archive, favorites) */
+  CONVERSATION_PREFERENCES: 'conversation_preferences',
 } as const;
 
 /**
@@ -626,6 +628,14 @@ async function createIndexes(): Promise<void> {
   );
   await identityAchievements.createIndex({ achievementId: 1 });
   await identityAchievements.createIndex({ identityId: 1, awardedAt: -1 });
+
+  // Conversation preferences — per-identity archive/favorite state
+  const conversationPreferences = database.collection(Collections.CONVERSATION_PREFERENCES);
+  await conversationPreferences.createIndex(
+    { identityId: 1, conversationId: 1 },
+    { unique: true },
+  );
+  await conversationPreferences.createIndex({ identityId: 1 });
 
   elog.debug('MongoDB indexes created/verified');
 }

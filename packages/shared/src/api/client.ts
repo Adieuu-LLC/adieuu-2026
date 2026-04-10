@@ -2613,6 +2613,38 @@ export class ConversationsApi {
       { gifsDisabled }
     );
   }
+
+  async listPreferences(): Promise<ApiResponse<ConversationPreferences[]>> {
+    return this.client.get('/api/conversations/preferences');
+  }
+
+  async updatePreferences(
+    conversationId: string,
+    patch: ConversationPreferencesPatch
+  ): Promise<ApiResponse<ConversationPreferences>> {
+    return this.client.patch(
+      `/api/conversations/preferences/${encodeURIComponent(conversationId)}`,
+      patch
+    );
+  }
+}
+
+// ============================================================================
+// Conversation Preferences
+// ============================================================================
+
+export interface ConversationPreferences {
+  id: string;
+  conversationId: string;
+  archived: boolean;
+  keepArchived: boolean;
+  favorited: boolean;
+}
+
+export interface ConversationPreferencesPatch {
+  archived?: boolean;
+  keepArchived?: boolean;
+  favorited?: boolean;
 }
 
 // ============================================================================

@@ -112,6 +112,9 @@ export {
   type GroupInvitePreviewMember,
   type SendMessageParams,
   type FormerMember,
+  // Conversation preferences types
+  type ConversationPreferences,
+  type ConversationPreferencesPatch,
   // Reaction types
   ReactionsApi,
   type PublicReaction,

@@ -30,6 +30,7 @@ import { ChatSocketProvider } from '../hooks/useChatSocket';
 import { FriendsProvider } from '../hooks/useFriends';
 import { BlockProvider } from '../hooks/useBlockContext';
 import { ConversationsProvider } from '../hooks/useConversations';
+import { ConversationPreferencesProvider } from '../hooks/useConversationPreferences';
 import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { WebSecurityBanner } from '../components/WebSecurityBanner';
@@ -80,9 +81,11 @@ function ProtectedLayout() {
           <FriendsProvider>
             <BlockProvider>
               <ConversationsProvider>
-                <UpdateProvider>
-                  <ProtectedLayoutContent />
-                </UpdateProvider>
+                <ConversationPreferencesProvider>
+                  <UpdateProvider>
+                    <ProtectedLayoutContent />
+                  </UpdateProvider>
+                </ConversationPreferencesProvider>
               </ConversationsProvider>
             </BlockProvider>
           </FriendsProvider>
