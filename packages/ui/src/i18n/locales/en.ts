@@ -1576,6 +1576,9 @@ export const en = {
       openClean: 'Open without tracking',
       openConfirm: 'Acknowledge & Open',
     },
+
+    ttlOff: 'Disappear this message',
+    ttlActive: 'Message will disappear after {{ttl}}',
   },
   // User-facing report submission
   report: {
