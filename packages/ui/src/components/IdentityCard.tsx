@@ -80,13 +80,13 @@ export function IdentityCard({
 
   const colors = identity.profileColors;
 
-  const cardStyle: React.CSSProperties = colors?.background
-    ? { backgroundColor: colors.background }
+  const cardStyle: React.CSSProperties = colors?.cardBackground
+    ? { backgroundColor: colors.cardBackground }
     : {};
 
   const bannerStyle: React.CSSProperties = {
     backgroundImage: identity.bannerUrl ? `url(${identity.bannerUrl})` : undefined,
-    backgroundColor: colors?.primary || 'var(--color-bg-tertiary)',
+    backgroundColor: colors?.accent || 'var(--color-bg-tertiary)',
   };
 
   const nameStyle: React.CSSProperties = colors?.accent

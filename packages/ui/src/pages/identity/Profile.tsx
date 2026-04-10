@@ -38,7 +38,7 @@ const DEFAULT_PRIVACY: ProfilePrivacySettings = {
   avatar: 'public',
   banner: 'public',
   bio: 'public',
-  lastActiveAt: 'public',
+  lastActiveAt: 'friends',
   profileColors: 'public',
   achievements: 'public',
 };
@@ -326,14 +326,24 @@ export function IdentityProfile() {
   }
 
   return (
-    <div className="page-content">
+    <div
+      className="page-content"
+      style={colors.background
+        ? { backgroundColor: colors.background }
+        : undefined}
+    >
       <div className="container">
         <div className="page-header">
           <h1 className="page-title">{t('identity.profile.title')}</h1>
           <p className="page-subtitle">{t('identity.profile.subtitle')}</p>
         </div>
 
-        <div className="profile-editor">
+        <div
+          className="profile-editor"
+          style={colors.accent
+            ? { '--profile-accent': colors.accent } as React.CSSProperties
+            : undefined}
+        >
           {/* Save bar */}
           <div className="profile-save-bar">
             {saveMessage && (

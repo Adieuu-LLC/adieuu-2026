@@ -177,13 +177,12 @@ export function IdentityProfileView() {
     .toUpperCase();
 
   return (
-    <div className="page-content">
-      {profile.profileColors?.background && (
-        <div
-          className="profile-view-page-bg"
-          style={{ backgroundColor: profile.profileColors.background }}
-        />
-      )}
+    <div
+      className="page-content"
+      style={profile.profileColors?.background
+        ? { backgroundColor: profile.profileColors.background }
+        : undefined}
+    >
       <div className="container">
         <div
           className="profile-view"

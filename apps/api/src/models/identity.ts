@@ -43,7 +43,7 @@ export const DEFAULT_PRIVACY_SETTINGS: ProfilePrivacySettings = {
   avatar: 'public',
   banner: 'public',
   bio: 'public',
-  lastActiveAt: 'public',
+  lastActiveAt: 'friends',
   profileColors: 'public',
   achievements: 'public',
 };

@@ -11960,6 +11960,25 @@ body {
   > .profile-preview-header {
     margin-bottom: 0;
   }
+
+  .btn-primary {
+    background: var(--profile-accent, linear-gradient(135deg, var(--color-accent-primary) 0%, var(--color-accent-secondary) 100%));
+
+    &:hover:not(:disabled) {
+      filter: brightness(1.1);
+    }
+  }
+
+  .profile-preview-tab--active {
+    color: var(--profile-accent, var(--color-accent-primary));
+    border-color: var(--profile-accent, var(--color-accent-primary));
+    background: color-mix(in srgb, var(--profile-accent, var(--color-accent-primary)) 12%, transparent);
+  }
+
+  .tabs-trigger-active {
+    color: var(--profile-accent, var(--color-accent-primary));
+    border-bottom-color: var(--profile-accent, var(--color-accent-primary));
+  }
 }
 
 .profile-section {
