@@ -13,6 +13,7 @@
 import { ObjectId } from 'mongodb';
 import { getAchievementRepository } from '../repositories/achievement.repository';
 import { getFriendshipRepository } from '../repositories/friendship.repository';
+import { getIdentityRepository } from '../repositories/identity.repository';
 import { getCollection, Collections } from '../db';
 import { createNotification } from './notification.service';
 import {
@@ -22,6 +23,7 @@ import {
   type AchievementDefinition,
   type PublicAchievementDefinition,
 } from '../models/achievement-definitions';
+import type { IdentityDocument } from '../models/identity';
 import { toPublicAchievement, type PublicAchievement } from '../models/achievement';
 import elog from '../utils/adieuuLogger';
 
@@ -161,4 +163,98 @@ export async function getGlobalAchievementStats(): Promise<Record<string, number
  */
 export function getAllDefinitions(): PublicAchievementDefinition[] {
   return ACHIEVEMENT_DEFINITIONS.map(toPublicDefinition);
+}
+
+// ---------------------------------------------------------------------------
+// Retroactive reconciliation (runs on login)
+// ---------------------------------------------------------------------------
+
+/**
+ * Infer whether an action-based achievement's triggering event has already
+ * occurred by checking current domain state.
+ */
+async function canInferActionCompleted(
+  identityId: ObjectId,
+  action: string,
+  identity: IdentityDocument,
+): Promise<boolean> {
+  switch (action) {
+    case 'group_created': {
+      const conversations = getCollection(Collections.CONVERSATIONS);
+      const doc = await conversations.findOne({
+        type: 'group',
+        createdBy: identityId,
+      });
+      return doc !== null;
+    }
+    case 'e2e_initialized':
+      return !!identity.signingPublicKey;
+    case 'device_registered':
+      return Array.isArray(identity.devices) && identity.devices.length >= 1;
+    case 'profile_customized': {
+      const colors = identity.profileColors;
+      const hasColors = !!colors && !!(colors.primary || colors.secondary || colors.accent || colors.background);
+      return !!(identity.avatarUrl || identity.bio || hasColors);
+    }
+    case 'banner_set':
+      return !!identity.bannerUrl;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Check all achievement definitions against current domain state and award
+ * any that the identity qualifies for but hasn't yet received.
+ *
+ * Designed to be called fire-and-forget on login so that newly added
+ * achievements are retroactively awarded to users who already qualify.
+ */
+export async function reconcileAchievements(
+  identityId: ObjectId,
+): Promise<void> {
+  const repo = getAchievementRepository();
+  const identityRepo = getIdentityRepository();
+
+  const identity = await identityRepo.findByIdentityId(identityId);
+  if (!identity) return;
+
+  const earnedDocs = await repo.getByIdentity(identityId);
+  const earnedIds = new Set(earnedDocs.map((d) => d.achievementId));
+
+  for (const def of ACHIEVEMENT_DEFINITIONS) {
+    if (earnedIds.has(def.id)) continue;
+
+    try {
+      let qualifies = false;
+
+      if (def.trigger.type === 'count') {
+        const count = await getCountForAction(identityId, def.trigger.action);
+        qualifies = count >= def.trigger.threshold;
+      } else if (def.trigger.type === 'action') {
+        qualifies = await canInferActionCompleted(identityId, def.trigger.action, identity);
+      }
+
+      if (!qualifies) continue;
+
+      const awarded = await repo.award(identityId, def.id);
+      if (!awarded) continue;
+
+      await createNotification(identityId, 'achievement_unlocked', {
+        achievementId: def.id,
+        definition: toPublicDefinition(def),
+      });
+
+      elog.info('Achievement awarded (retroactive)', {
+        identityId: identityId.toHexString(),
+        achievementId: def.id,
+      });
+    } catch (err) {
+      elog.warn('Failed to reconcile achievement', {
+        error: err,
+        identityId: identityId.toHexString(),
+        achievementId: def.id,
+      });
+    }
+  }
 }

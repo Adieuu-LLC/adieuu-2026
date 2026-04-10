@@ -35,6 +35,7 @@ import {
   destroyAllIdentitySessions,
   buildLogoutCookie,
 } from './session.service';
+import { reconcileAchievements } from './achievement.service';
 import elog from '../utils/adieuuLogger';
 import type { IdentityDocument, PublicIdentity } from '../models/identity';
 import { toPublicIdentity } from '../models/identity';
@@ -393,6 +394,14 @@ export async function loginToIdentity(
     accountHash,
     metadata,
   );
+
+  // Retroactively award any achievements the identity already qualifies for
+  reconcileAchievements(identity._id).catch((err) => {
+    elog.warn('Achievement reconciliation failed', {
+      error: err,
+      identityId: identity._id.toHexString(),
+    });
+  });
 
   return {
     success: true,
