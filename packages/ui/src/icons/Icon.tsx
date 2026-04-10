@@ -26,7 +26,7 @@ export interface IconProps {
   packOverride?: string;
 }
 
-export function Icon({ name, className, style, size, title, fixedWidth = true, packOverride }: IconProps) {
+export function Icon({ name, className, style, size, title, packOverride }: IconProps) {
   const { packId: contextPackId } = useIconPack();
   const faName = APP_ICON_NAMES[name] as IconName;
 
@@ -47,8 +47,7 @@ export function Icon({ name, className, style, size, title, fixedWidth = true, p
       className={className}
       style={style}
       size={size}
-      title={title}
-      fixedWidth={fixedWidth}
+      aria-label={title}
     />
   );
 }

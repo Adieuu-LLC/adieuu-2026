@@ -762,28 +762,6 @@ export function MessageComposer({
           selectedIdx={mentionAcSelectedIdx}
           onSelect={acceptMention}
         />
-        {forwardSecrecy && (
-          <Tooltip
-            content={forwardSecrecy.enabled
-              ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
-              : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
-            }
-            position="top"
-          >
-            <button
-              type="button"
-              className={`conversation-fs-toggle${forwardSecrecy.enabled ? ' conversation-fs-toggle--active' : ''}`}
-              onClick={() => { forwardSecrecy.onToggle(); requestAnimationFrame(() => inputRef.current?.focus()); }}
-            >
-              FS
-            </button>
-          </Tooltip>
-        )}
-        <ComposerTTLMenu
-          ttlSeconds={ttlSeconds}
-          onSelect={setTtlSeconds}
-          onAfterSelect={() => requestAnimationFrame(() => inputRef.current?.focus())}
-        />
         <input
           ref={fileInputRef}
           type="file"
@@ -792,6 +770,30 @@ export function MessageComposer({
           onChange={handleFileSelect}
           style={{ display: 'none' }}
         />
+        <div className="conversation-composer-row__left">
+          {forwardSecrecy && (
+            <Tooltip
+              content={forwardSecrecy.enabled
+                ? t('conversations.fsEnabled', 'Forward secrecy is on for this message')
+                : t('conversations.fsDisabled', 'Forward secrecy is off for this message')
+              }
+              position="top"
+            >
+              <button
+                type="button"
+                className={`conversation-fs-toggle${forwardSecrecy.enabled ? ' conversation-fs-toggle--active' : ''}`}
+                onClick={() => { forwardSecrecy.onToggle(); requestAnimationFrame(() => inputRef.current?.focus()); }}
+              >
+                FS
+              </button>
+            </Tooltip>
+          )}
+          <ComposerTTLMenu
+            ttlSeconds={ttlSeconds}
+            onSelect={setTtlSeconds}
+            onAfterSelect={() => requestAnimationFrame(() => inputRef.current?.focus())}
+          />
+        </div>
         <textarea
           ref={inputRef}
           id="message-composer"
@@ -844,103 +846,105 @@ export function MessageComposer({
           rows={1}
           disabled={sending || uploadingMedia}
         />
-        <Tooltip
-          content={t('conversations.attachMedia', 'Attach image')}
-          position="top"
-        >
-          <button
-            type="button"
-            className="conversation-attach-btn"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={sending || uploadingMedia || attachments.length >= MAX_ATTACHMENTS}
+        <div className="conversation-composer-row__right">
+          <Tooltip
+            content={t('conversations.attachMedia', 'Attach image')}
+            position="top"
           >
-            <Icon name="image" />
-          </button>
-        </Tooltip>
-        {!gifsDisabled && (
-          <>
-            <Popover.Root
-              open={showGifPicker}
-              onOpenChange={(e) => setShowGifPicker(e.open)}
-              positioning={{ placement: 'top-end' }}
-              lazyMount
-              unmountOnExit
-            >
-              <Popover.Trigger asChild>
-                <button
-                  type="button"
-                  className="conversation-gif-btn"
-                  title={t('gif.composerButton', 'GIF')}
-                  disabled={sending || uploadingMedia}
-                >
-                  <span className="conversation-gif-btn__label">GIF</span>
-                </button>
-              </Popover.Trigger>
-              <Portal>
-                <Popover.Positioner>
-                  <Popover.Content className="gif-picker-popover">
-                    <GifPicker onGifSelect={handleGifSelect} lastMessageText={lastMessageText} />
-                  </Popover.Content>
-                </Popover.Positioner>
-              </Portal>
-            </Popover.Root>
-            <Popover.Root
-              open={showStickerPicker}
-              onOpenChange={(e) => setShowStickerPicker(e.open)}
-              positioning={{ placement: 'top-end' }}
-              lazyMount
-              unmountOnExit
-            >
-              <Popover.Trigger asChild>
-                <Tooltip
-                  content={t('gif.stickerButton', 'Stickers')}
-                  position="top"
-                >
-                  <button
-                    type="button"
-                    className="conversation-sticker-btn"
-                    disabled={sending || uploadingMedia}
-                  >
-                    <Icon name="noteSticky" />
-                  </button>
-                </Tooltip>
-              </Popover.Trigger>
-              <Portal>
-                <Popover.Positioner>
-                  <Popover.Content className="gif-picker-popover">
-                    <GifPicker
-                      onGifSelect={handleGifSelect}
-                      initialTab="stickers"
-                      lastMessageText={lastMessageText}
-                    />
-                  </Popover.Content>
-                </Popover.Positioner>
-              </Portal>
-            </Popover.Root>
-          </>
-        )}
-        <Popover.Root
-          open={showEmojiPicker}
-          onOpenChange={(e) => setShowEmojiPicker(e.open)}
-          positioning={{ placement: 'top-end' }}
-        >
-          <Popover.Trigger asChild>
             <button
               type="button"
-              className="message-composer-emoji-btn"
-              title={t('conversations.emojiButton', 'Emoji')}
+              className="conversation-attach-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending || uploadingMedia || attachments.length >= MAX_ATTACHMENTS}
             >
-              <Icon name="smile" className="message-composer-emoji-icon" />
+              <Icon name="image" />
             </button>
-          </Popover.Trigger>
-          <Portal>
-            <Popover.Positioner>
-              <Popover.Content className="emoji-picker-popover">
-                <EmojiPicker onEmojiSelect={handleEmojiSelect} />
-              </Popover.Content>
-            </Popover.Positioner>
-          </Portal>
-        </Popover.Root>
+          </Tooltip>
+          {!gifsDisabled && (
+            <>
+              <Popover.Root
+                open={showGifPicker}
+                onOpenChange={(e) => setShowGifPicker(e.open)}
+                positioning={{ placement: 'top-end' }}
+                lazyMount
+                unmountOnExit
+              >
+                <Popover.Trigger asChild>
+                  <button
+                    type="button"
+                    className="conversation-gif-btn"
+                    title={t('gif.composerButton', 'GIF')}
+                    disabled={sending || uploadingMedia}
+                  >
+                    <span className="conversation-gif-btn__label">GIF</span>
+                  </button>
+                </Popover.Trigger>
+                <Portal>
+                  <Popover.Positioner>
+                    <Popover.Content className="gif-picker-popover">
+                      <GifPicker onGifSelect={handleGifSelect} lastMessageText={lastMessageText} />
+                    </Popover.Content>
+                  </Popover.Positioner>
+                </Portal>
+              </Popover.Root>
+              <Popover.Root
+                open={showStickerPicker}
+                onOpenChange={(e) => setShowStickerPicker(e.open)}
+                positioning={{ placement: 'top-end' }}
+                lazyMount
+                unmountOnExit
+              >
+                <Popover.Trigger asChild>
+                  <Tooltip
+                    content={t('gif.stickerButton', 'Stickers')}
+                    position="top"
+                  >
+                    <button
+                      type="button"
+                      className="conversation-sticker-btn"
+                      disabled={sending || uploadingMedia}
+                    >
+                      <Icon name="noteSticky" />
+                    </button>
+                  </Tooltip>
+                </Popover.Trigger>
+                <Portal>
+                  <Popover.Positioner>
+                    <Popover.Content className="gif-picker-popover">
+                      <GifPicker
+                        onGifSelect={handleGifSelect}
+                        initialTab="stickers"
+                        lastMessageText={lastMessageText}
+                      />
+                    </Popover.Content>
+                  </Popover.Positioner>
+                </Portal>
+              </Popover.Root>
+            </>
+          )}
+          <Popover.Root
+            open={showEmojiPicker}
+            onOpenChange={(e) => setShowEmojiPicker(e.open)}
+            positioning={{ placement: 'top-end' }}
+          >
+            <Popover.Trigger asChild>
+              <button
+                type="button"
+                className="message-composer-emoji-btn"
+                title={t('conversations.emojiButton', 'Emoji')}
+              >
+                <Icon name="smile" className="message-composer-emoji-icon" />
+              </button>
+            </Popover.Trigger>
+            <Portal>
+              <Popover.Positioner>
+                <Popover.Content className="emoji-picker-popover">
+                  <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+                </Popover.Content>
+              </Popover.Positioner>
+            </Portal>
+          </Popover.Root>
+        </div>
       </div>
     </div>
   );

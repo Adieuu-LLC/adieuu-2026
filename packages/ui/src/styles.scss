@@ -6776,13 +6776,32 @@ a {
 
     &-row {
       display: flex;
-      align-items: center;
-      gap: var(--spacing-sm);
+      align-items: stretch;
       width: 100%;
       position: relative;
 
-      &--multiline {
-        align-items: flex-start;
+      &__left,
+      &__right {
+        position: absolute;
+        bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+        z-index: 2;
+        padding: 6px;
+        pointer-events: none;
+
+        > * {
+          pointer-events: auto;
+        }
+      }
+
+      &__left {
+        left: 1px;
+      }
+
+      &__right {
+        right: 1px;
       }
     }
 
@@ -6954,8 +6973,8 @@ a {
     }
 
     &-field {
-      flex: 1;
-      padding: 15px var(--spacing-md);
+      width: 100%;
+      padding: 15px 140px 15px 80px;
       border: 1px solid var(--color-border);
       border-radius: var(--radius-md);
       background: var(--color-bg-primary);
