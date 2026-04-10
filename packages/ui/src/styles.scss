@@ -6138,9 +6138,12 @@ a {
 // ============================================================================
 
 .hover-card-content.identity-hover-card {
+  padding: 0;
+}
+
+.identity-hover-card {
   min-width: 260px;
   max-width: 300px;
-  padding: 0;
 
   &-inner {
     border-radius: var(--radius-lg);
