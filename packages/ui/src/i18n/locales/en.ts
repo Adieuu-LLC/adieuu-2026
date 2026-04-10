@@ -132,6 +132,7 @@ export const en = {
     userBlocked: 'User blocked',
     userUnblocked: 'User unblocked',
     blockedBanner: 'You have blocked this user. You cannot send or receive messages.',
+    blockedByOtherBanner: 'This user has blocked you. You cannot send or receive messages.',
     blockUserAction: 'Block User',
   },
 

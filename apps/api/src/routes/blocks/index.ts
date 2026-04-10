@@ -24,6 +24,7 @@ import {
   unblockIdentity,
   checkIfBlocked,
   getBlockedIdentities,
+  isBlockedByEither,
 } from '../../services/block.service';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { toPublicIdentity } from '../../models/identity';
@@ -235,6 +236,48 @@ router.get('/blocks/check/:identityId', async (ctx) => {
   return success({
     blocked: result.blocked,
     blockedAt: result.blockedAt,
+  });
+});
+
+/**
+ * GET /blocks/check-either/:identityId - Bidirectional block check
+ *
+ * Checks if either the caller or the target has blocked the other.
+ * Used by the conversation view to show a block banner to either party.
+ *
+ * @route GET /api/blocks/check-either/:identityId
+ *
+ * @param identityId (string, required): The other identity ID
+ *
+ * @returns 200 OK with { blockedByEither, blockedByYou }
+ * @returns 401 Unauthorized if not authenticated
+ */
+router.get('/blocks/check-either/:identityId', async (ctx) => {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  const { identityId } = ctx.params;
+
+  const sanitized = sanitizeString(identityId ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+
+  const [byEither, byYou] = await Promise.all([
+    isBlockedByEither(identity._id, sanitized.value),
+    checkIfBlocked(identity._id, sanitized.value),
+  ]);
+
+  return success({
+    blockedByEither: byEither,
+    blockedByYou: byYou.blocked,
   });
 });
 

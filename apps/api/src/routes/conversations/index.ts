@@ -476,6 +476,7 @@ router.post('/conversations/:id/messages', async (ctx) => {
   if (!result.success) {
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
     if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'BLOCKED') return errors.forbidden('Cannot message this identity.');
     if (result.errorCode === 'INVALID_REPLY_TARGET') {
       return errors.badRequest(result.error ?? 'The message you are replying to was not found in this conversation.');
     }

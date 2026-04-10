@@ -57,6 +57,7 @@ export {
   type PublicIdentitySession,
   // Blocked types
   type BlockedIdentity,
+  type BlockCheckEitherResult,
   // Friends types
   FriendsApi,
   type FriendshipStatus,

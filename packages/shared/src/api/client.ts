@@ -1359,6 +1359,11 @@ export interface BlockCheckResult {
   blockedAt?: string;
 }
 
+export interface BlockCheckEitherResult {
+  blockedByEither: boolean;
+  blockedByYou: boolean;
+}
+
 export class BlocksApi {
   constructor(private client: ApiClient) {}
 
@@ -1395,6 +1400,13 @@ export class BlocksApi {
    */
   async checkBlocked(identityId: string): Promise<ApiResponse<BlockCheckResult>> {
     return this.client.get(`/api/blocks/check/${encodeURIComponent(identityId)}`);
+  }
+
+  /**
+   * Bidirectional block check: has either party blocked the other?
+   */
+  async checkBlockedByEither(identityId: string): Promise<ApiResponse<BlockCheckEitherResult>> {
+    return this.client.get(`/api/blocks/check-either/${encodeURIComponent(identityId)}`);
   }
 }
 

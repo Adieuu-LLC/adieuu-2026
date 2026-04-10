@@ -204,6 +204,23 @@ export function ConversationView() {
 
   const conversation = conversations.find((c) => c.id === id);
 
+  // Detect when the other party has blocked us (bidirectional check)
+  const [blockedByOther, setBlockedByOther] = useState(false);
+  useEffect(() => {
+    setBlockedByOther(false);
+    if (!conversation || conversation.type !== 'dm' || !identity?.id) return;
+    const otherId = conversation.participants.find((p) => p !== identity.id);
+    if (!otherId) return;
+    let cancelled = false;
+    api.blocks.checkBlockedByEither(otherId).then((resp) => {
+      if (cancelled) return;
+      if (resp.data) {
+        setBlockedByOther(resp.data.blockedByEither && !resp.data.blockedByYou);
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [conversation?.id, conversation?.type, identity?.id, api]);
+
   const effectiveGifsDisabled = gifsDisabledOverride ?? conversation?.gifsDisabled ?? false;
 
   useEffect(() => {
@@ -728,6 +745,12 @@ export function ConversationView() {
                 </Button>
               </div>
             )}
+            {blockedByOther && !isDmBlocked && (
+              <div className="blocked-conversation-banner">
+                <Icon name="ban" />
+                <span>{t('blocked.blockedByOtherBanner')}</span>
+              </div>
+            )}
             <MessageComposer
               channelId={id!}
               sending={sending}
@@ -740,7 +763,7 @@ export function ConversationView() {
               mentionInsertRef={mentionInsertRef}
               gifsDisabled={effectiveGifsDisabled}
               lastMessageText={lastMessageText}
-              disabled={isDmBlocked}
+              disabled={isDmBlocked || blockedByOther}
             />
           </div>
 
