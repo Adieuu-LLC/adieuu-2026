@@ -59,6 +59,7 @@ export const APP_ICON_NAMES = {
   group: 'user-group',
   device: 'mobile-screen-button',
   heart: 'heart',
+  ban: 'ban',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;

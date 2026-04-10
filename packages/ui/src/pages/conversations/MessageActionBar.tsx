@@ -14,6 +14,7 @@ export function MessageActionBar({
   onDeleteForEveryone,
   onReact,
   onReport,
+  onBlock,
   favoriteEmojis,
   onAddFavorite,
   onRemoveFavorite,
@@ -25,6 +26,7 @@ export function MessageActionBar({
   onDeleteForEveryone: () => void;
   onReact: (emoji: string) => void;
   onReport?: () => void;
+  onBlock?: () => void;
   favoriteEmojis: string[];
   onAddFavorite: (emoji: string) => void;
   onRemoveFavorite: (emoji: string) => void;
@@ -155,7 +157,7 @@ export function MessageActionBar({
           </button>
         </Tooltip>
       )}
-      {onReport && (
+      {(onReport || onBlock) && (
         <Menu.Root>
           <Menu.Trigger asChild>
             <button type="button" className="message-action-bar-btn" aria-label="More actions">
@@ -165,14 +167,26 @@ export function MessageActionBar({
           <Portal>
             <Menu.Positioner>
               <Menu.Content className="dm-context-menu">
-                <Menu.Item
-                  value="report"
-                  className="dm-context-menu-item dm-context-menu-item--danger"
-                  onClick={onReport}
-                >
-                  <Icon name="warning" className="dm-context-menu-item-icon" />
-                  {t('report.reportMessage', 'Report Message')}
-                </Menu.Item>
+                {onBlock && (
+                  <Menu.Item
+                    value="block"
+                    className="dm-context-menu-item dm-context-menu-item--danger"
+                    onClick={onBlock}
+                  >
+                    <Icon name="ban" className="dm-context-menu-item-icon" />
+                    {t('blocked.blockUserAction', 'Block User')}
+                  </Menu.Item>
+                )}
+                {onReport && (
+                  <Menu.Item
+                    value="report"
+                    className="dm-context-menu-item dm-context-menu-item--danger"
+                    onClick={onReport}
+                  >
+                    <Icon name="warning" className="dm-context-menu-item-icon" />
+                    {t('report.reportMessage', 'Report Message')}
+                  </Menu.Item>
+                )}
               </Menu.Content>
             </Menu.Positioner>
           </Portal>

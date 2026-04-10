@@ -9,6 +9,10 @@ import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { parsePayload } from '../../services/messagePayload';
 import { renderFormattedMessage, injectMentionMarkers, type MentionRenderContext } from '../../utils/markdownParser';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
+import { BlockActionButton } from '../../components/BlockActionButton';
+import { useBlockContext } from '../../hooks/useBlockContext';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { useToast } from '../../components/Toast';
 import { EmojiPicker } from '../../components/EmojiPicker';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
@@ -145,10 +149,29 @@ export const MessageBubble = memo(function MessageBubble({
   gifsEnabled: boolean;
 }) {
   const { t } = useTranslation();
+  const { block: blockIdentity } = useBlockContext();
+  const toast = useToast();
   const [showActions, setShowActions] = useState(false);
   const [actionBarPopoverOpen, setActionBarPopoverOpen] = useState(false);
   const [showContextReactionPicker, setShowContextReactionPicker] = useState(false);
+  const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
   const countdown = useExpiryCountdown(message.expiresAt);
+
+  const handleBlockConfirm = async () => {
+    setBlockLoading(true);
+    try {
+      const result = await blockIdentity(message.fromIdentityId);
+      if (result.success) {
+        toast.success(t('blocked.userBlocked'));
+      } else {
+        toast.error(result.error ?? t('blocked.blockUser'));
+      }
+    } finally {
+      setBlockLoading(false);
+      setBlockConfirmOpen(false);
+    }
+  };
 
   const rawContent = message.decryptedContent ?? '';
   const parsed = useMemo(() => parsePayload(rawContent), [rawContent]);
@@ -332,7 +355,11 @@ export const MessageBubble = memo(function MessageBubble({
         }}
       >
         {profile ? (
-          <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
+          <IdentityHoverCard
+            identity={profile}
+            positioning={{ placement: 'right', gutter: 8 }}
+            actions={!isOwn ? <BlockActionButton identityId={profile.id} /> : undefined}
+          >
             <button type="button" className="dm-message-avatar-btn" style={avatarAccentStyle}>
               {avatarContent}
             </button>
@@ -343,7 +370,11 @@ export const MessageBubble = memo(function MessageBubble({
         <div className="dm-message-content">
           <div className="dm-message-header">
             {profile ? (
-              <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
+              <IdentityHoverCard
+                identity={profile}
+                positioning={{ placement: 'right', gutter: 8 }}
+                actions={!isOwn ? <BlockActionButton identityId={profile.id} /> : undefined}
+              >
                 <button type="button" className="dm-message-sender" style={senderNameStyle}>
                   {displayName}
                 </button>
@@ -388,6 +419,7 @@ export const MessageBubble = memo(function MessageBubble({
             onDeleteForEveryone={() => onDelete(message.id, true)}
             onReact={(emoji) => onReact(message.id, emoji)}
             onReport={!isOwn ? () => onReport(message.id) : undefined}
+            onBlock={!isOwn ? () => setBlockConfirmOpen(true) : undefined}
             favoriteEmojis={favoriteEmojis}
             onAddFavorite={onAddFavorite}
             onRemoveFavorite={onRemoveFavorite}
@@ -407,6 +439,18 @@ export const MessageBubble = memo(function MessageBubble({
           {contextMenuContent}
         </Menu.Root>
         {contextReactionPickerPopover}
+        {!isOwn && (
+          <ConfirmDialog
+            open={blockConfirmOpen}
+            onOpenChange={setBlockConfirmOpen}
+            title={t('blocked.blockUser')}
+            description={t('blocked.confirmBlock')}
+            confirmLabel={t('blocked.blockUser')}
+            variant="danger"
+            loading={blockLoading}
+            onConfirm={handleBlockConfirm}
+          />
+        )}
       </>
     );
   }
@@ -439,6 +483,7 @@ export const MessageBubble = memo(function MessageBubble({
         <IdentityHoverCard
           identity={senderProfile}
           positioning={{ placement: 'right', gutter: 8 }}
+          actions={<BlockActionButton identityId={senderProfile.id} />}
         >
           <button type="button" className="dm-message-sender" style={senderNameStyle}>
             {resolveDisplayName(message.fromIdentityId, participantProfiles, memberSettings)}
@@ -453,6 +498,7 @@ export const MessageBubble = memo(function MessageBubble({
             onDeleteForEveryone={() => onDelete(message.id, true)}
             onReact={(emoji) => onReact(message.id, emoji)}
             onReport={!isOwn ? () => onReport(message.id) : undefined}
+            onBlock={!isOwn ? () => setBlockConfirmOpen(true) : undefined}
             favoriteEmojis={favoriteEmojis}
             onAddFavorite={onAddFavorite}
             onRemoveFavorite={onRemoveFavorite}
@@ -527,6 +573,18 @@ export const MessageBubble = memo(function MessageBubble({
         {contextMenuContent}
       </Menu.Root>
       {contextReactionPickerPopover}
+      {!isOwn && (
+        <ConfirmDialog
+          open={blockConfirmOpen}
+          onOpenChange={setBlockConfirmOpen}
+          title={t('blocked.blockUser')}
+          description={t('blocked.confirmBlock')}
+          confirmLabel={t('blocked.blockUser')}
+          variant="danger"
+          loading={blockLoading}
+          onConfirm={handleBlockConfirm}
+        />
+      )}
     </>
   );
 }, (prev, next) => {

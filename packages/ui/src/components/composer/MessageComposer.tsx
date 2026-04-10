@@ -44,6 +44,7 @@ export function MessageComposer({
   mentionInsertRef,
   gifsDisabled,
   lastMessageText,
+  disabled,
 }: {
   channelId: string;
   sending: boolean;
@@ -58,6 +59,8 @@ export function MessageComposer({
   gifsDisabled?: boolean;
   /** Plain-text of the most recent conversation message (for sticker search seeding). */
   lastMessageText?: string;
+  /** When true, disables all input and hides action buttons (e.g. when conversation is blocked). */
+  disabled?: boolean;
 }) {
   const { t } = useTranslation();
   const { warning: toastWarning, error: toastError } = useToast();
@@ -318,6 +321,7 @@ export function MessageComposer({
   }, []);
 
   const handleSend = useCallback(async () => {
+    if (disabled) return;
     const text = messageTextRef.current.trim();
     if (!channelId || (!text && attachments.length === 0 && !pendingGif) || sending || uploadingMedia) return;
 
@@ -492,7 +496,7 @@ export function MessageComposer({
       }
       inputRef.current?.focus();
     }
-  }, [channelId, sending, uploadingMedia, onSend, forwardSecrecy, replyContext, onSendSucceeded, attachments, pendingGif, stripExif, api, updateAttachmentStatus, toastError, t, ttlSeconds]);
+  }, [disabled, channelId, sending, uploadingMedia, onSend, forwardSecrecy, replyContext, onSendSucceeded, attachments, pendingGif, stripExif, api, updateAttachmentStatus, toastError, t, ttlSeconds]);
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
@@ -698,7 +702,7 @@ export function MessageComposer({
   }, [setMessageText]);
 
   return (
-    <div className="conversation-composer">
+    <div className={`conversation-composer${disabled ? ' conversation-composer--disabled' : ''}`}>
       {composerToast && (
         <div className="conversation-composer-mini-toast" role="status" aria-live="polite">
           {composerToast}
@@ -844,9 +848,10 @@ export function MessageComposer({
           onPaste={handlePaste}
           onCopy={handleCopy}
           rows={1}
-          disabled={sending || uploadingMedia}
+          readOnly={disabled}
+          disabled={disabled || sending || uploadingMedia}
         />
-        <div className="conversation-composer-row__right">
+        <div className="conversation-composer-row__right" style={disabled ? { display: 'none' } : undefined}>
           <Tooltip
             content={t('conversations.attachMedia', 'Attach image')}
             position="top"

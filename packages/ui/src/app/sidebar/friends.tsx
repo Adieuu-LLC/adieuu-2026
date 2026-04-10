@@ -6,6 +6,7 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Icon } from '../../icons/Icon';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
+import { BlockActionButton } from '../../components/BlockActionButton';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
 import type { PublicIdentity } from '@adieuu/shared';
@@ -281,14 +282,17 @@ export function FriendsPanel({
                 key={friend.identity.id}
                 identity={friend.identity}
                 actions={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(event) => handleRemoveFriend(friend.identity.id, event)}
-                  >
-                    <Icon name="x" />
-                    {t('friends.remove')}
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(event) => handleRemoveFriend(friend.identity.id, event)}
+                    >
+                      <Icon name="x" />
+                      {t('friends.remove')}
+                    </Button>
+                    <BlockActionButton identityId={friend.identity.id} />
+                  </>
                 }
               >
                 <button

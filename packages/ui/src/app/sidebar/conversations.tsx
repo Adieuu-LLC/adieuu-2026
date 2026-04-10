@@ -6,6 +6,7 @@ import { SidebarTabs, type SidebarTab } from '../../components/SidebarTabs';
 import { Logo } from '../../components/Logo';
 import { Icon } from '../../icons/Icon';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
+import { BlockActionButton } from '../../components/BlockActionButton';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { useConversations, type DecryptedConversation } from '../../hooks/useConversations';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -100,7 +101,11 @@ function ConversationListItem({ conversation }: { conversation: DecryptedConvers
 
   if (dmProfile) {
     return (
-      <IdentityHoverCard identity={dmProfile} positioning={{ placement: 'right-start', gutter: 12 }}>
+      <IdentityHoverCard
+        identity={dmProfile}
+        positioning={{ placement: 'right-start', gutter: 12 }}
+        actions={<BlockActionButton identityId={dmProfile.id} />}
+      >
         {row}
       </IdentityHoverCard>
     );

@@ -129,6 +129,10 @@ export const en = {
     confirmBlock: 'Are you sure you want to block this user?',
     confirmUnblock: 'Are you sure you want to unblock this user?',
     blocked: 'Blocked',
+    userBlocked: 'User blocked',
+    userUnblocked: 'User unblocked',
+    blockedBanner: 'You have blocked this user. You cannot send or receive messages.',
+    blockUserAction: 'Block User',
   },
 
   // Identity
@@ -1800,8 +1804,8 @@ export const en = {
     noAchievements: 'No achievements earned yet.',
     notYetEarned: 'Not yet earned',
     yourAchievements: 'Achievements',
-    holderCount_one: '{{count}} person has earned this',
-    holderCount_other: '{{count}} people have earned this',
+    holderCount_one: '{{count}} other person has earned this',
+    holderCount_other: '{{count}} other people have earned this',
 
     // Categories
     category: {

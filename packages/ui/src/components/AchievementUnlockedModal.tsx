@@ -5,7 +5,8 @@
  * - Large circular icon badge overlapping the top of the dialog
  * - Scale-up → rotate → confetti burst → settle animation sequence
  * - Optional achievement sound on open
- * - Holder count fetched on open
+ * - Holder count fetched on open (displays "other" holders, excluding self)
+ * - Confetti canvas rendered inside the Portal to avoid stacking-context issues
  */
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
@@ -28,23 +29,24 @@ export interface AchievementUnlockedModalProps {
 
 const ACHIEVEMENT_SOUND_PATH = '/sounds/achievement.mp3';
 
-function fireConfetti() {
+function fireConfetti(canvas: HTMLCanvasElement) {
+  const fire = confetti.create(canvas, { resize: true, useWorker: true });
   const count = 180;
-  const defaults: confetti.Options = { origin: { y: 0.3 }, zIndex: 9999 };
+  const defaults: confetti.Options = { origin: { y: 0.3 } };
 
-  function fire(particleRatio: number, opts: confetti.Options) {
-    confetti({
+  function burst(particleRatio: number, opts: confetti.Options) {
+    fire({
       ...defaults,
       ...opts,
       particleCount: Math.floor(count * particleRatio),
     });
   }
 
-  fire(0.25, { spread: 26, startVelocity: 55 });
-  fire(0.2, { spread: 60 });
-  fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
-  fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
-  fire(0.1, { spread: 120, startVelocity: 45 });
+  burst(0.25, { spread: 26, startVelocity: 55 });
+  burst(0.2, { spread: 60 });
+  burst(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+  burst(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
+  burst(0.1, { spread: 120, startVelocity: 45 });
 }
 
 export function AchievementUnlockedModal({
@@ -62,6 +64,7 @@ export function AchievementUnlockedModal({
   const [animating, setAnimating] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasPlayedRef = useRef(false);
+  const confettiCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const playSound = useCallback(() => {
     if (!soundEnabled) return;
@@ -91,7 +94,9 @@ export function AchievementUnlockedModal({
     setAnimating(true);
 
     const confettiTimer = setTimeout(() => {
-      fireConfetti();
+      if (confettiCanvasRef.current) {
+        fireConfetti(confettiCanvasRef.current);
+      }
     }, 600);
 
     const settleTimer = setTimeout(() => {
@@ -101,7 +106,8 @@ export function AchievementUnlockedModal({
     let cancelled = false;
     api.achievements.getStats(achievementId).then((res) => {
       if (!cancelled && res.success && res.data) {
-        setHolderCount(res.data.holderCount);
+        const others = Math.max(0, res.data.holderCount - 1);
+        setHolderCount(others);
       }
     });
 
@@ -128,6 +134,10 @@ export function AchievementUnlockedModal({
       <Portal>
         <Dialog.Backdrop className="confirm-dialog-backdrop" />
         <Dialog.Positioner className="confirm-dialog-positioner">
+          <canvas
+            ref={confettiCanvasRef}
+            className="achievement-confetti-canvas"
+          />
           <Dialog.Content className="confirm-dialog-content achievement-modal">
             <div
               className={`achievement-modal-badge${animating ? ' achievement-modal-badge--animating' : ''}`}
@@ -157,7 +167,7 @@ export function AchievementUnlockedModal({
                 {t(`achievements.category.${definition.category}`)}
               </span>
 
-              {holderCount !== null && (
+              {holderCount !== null && holderCount > 0 && (
                 <p className="achievement-modal-stats">
                   {t('achievements.holderCount', { count: holderCount })}
                 </p>

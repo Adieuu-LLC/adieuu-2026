@@ -22,8 +22,10 @@ import { Icon } from '../../icons/Icon';
 import type { AppIconName } from '../../icons/appIcons';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
 import { ReportModal } from '../../components/ReportModal';
+import { BlockActionButton } from '../../components/BlockActionButton';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
+import { useBlockContext } from '../../hooks/useBlockContext';
 import { useAppConfig } from '../../config';
 
 type LoadingState = 'loading' | 'loaded' | 'not_found' | 'error';
@@ -39,6 +41,7 @@ export function IdentityProfileView() {
     removeFriend,
     getFriendshipStatus: getFriendStatus,
   } = useFriends();
+  const { isBlocked: checkBlocked } = useBlockContext();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
@@ -228,9 +231,9 @@ export function IdentityProfileView() {
                   </Button>
                 </Link>
               )}
-              {!isSelf && isIdentityLoggedIn && (
+              {!isSelf && isIdentityLoggedIn && id && (
                 <div className="profile-view-friend-actions">
-                  {friendStatus === 'none' && (
+                  {!checkBlocked(id) && friendStatus === 'none' && (
                     <Button
                       variant="primary"
                       size="sm"
@@ -241,12 +244,12 @@ export function IdentityProfileView() {
                       {t('friends.addFriend')}
                     </Button>
                   )}
-                  {(friendStatus === 'pending_outgoing' || friendStatus === 'pending_incoming') && (
+                  {!checkBlocked(id) && (friendStatus === 'pending_outgoing' || friendStatus === 'pending_incoming') && (
                     <Button variant="ghost" size="sm" disabled>
                       {t('friends.pending')}
                     </Button>
                   )}
-                  {friendStatus === 'friends' && (
+                  {!checkBlocked(id) && friendStatus === 'friends' && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -257,6 +260,7 @@ export function IdentityProfileView() {
                       {t('friends.removeFriend')}
                     </Button>
                   )}
+                  <BlockActionButton identityId={id} />
                   <Button
                     variant="ghost"
                     size="sm"

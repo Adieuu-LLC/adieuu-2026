@@ -3165,6 +3165,15 @@ a {
 // Achievement Unlocked Modal
 // ============================================================================
 
+.achievement-confetti-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
 .achievement-modal {
   overflow: visible;
   padding-top: 60px;
@@ -7316,6 +7325,11 @@ a {
         height: 14px;
       }
     }
+
+    &--disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
   }
 
   &-fs-toggle {
@@ -8889,6 +8903,35 @@ a {
     --rgb-input: var(--color-bg-tertiary-rgb);
     --rgb-color: var(--color-text-primary-rgb);
     --rgb-accent: var(--color-accent-primary-rgb);
+  }
+}
+
+// ============================================================================
+// Blocked conversation banner (shown between message list and composer)
+// ============================================================================
+
+.blocked-conversation-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  border-top: 1px solid var(--color-border);
+
+  svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
+
+  span {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
   }
 }
 

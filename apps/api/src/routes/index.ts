@@ -26,6 +26,7 @@ import { moderationRoutes } from './moderation';
 import { reportRoutes } from './reports';
 import { klipyRoutes } from './klipy';
 import { achievementRoutes } from './achievements';
+import { blockRoutes } from './blocks';
 
 /**
  * Registers all application routes with the main router.
@@ -103,4 +104,7 @@ export function registerRoutes(app: Router): void {
 
   // Achievements (definitions, own, stats)
   app.merge(achievementRoutes, '/api');
+
+  // Identity blocking (block, unblock, list, check)
+  app.merge(blockRoutes, '/api');
 }

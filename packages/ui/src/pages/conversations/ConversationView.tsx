@@ -43,6 +43,10 @@ import { ConversationSettingsSidebar } from './ConversationSettingsSidebar';
 import { ConversationMembersSidebar } from './ConversationMembersSidebar';
 import { ConversationDialogs } from './ConversationDialogs';
 import { ConversationMessageList } from './ConversationMessageList';
+import { useBlockContext } from '../../hooks/useBlockContext';
+import { Icon } from '../../icons/Icon';
+import { Button } from '../../components/Button';
+import { useToast } from '../../components/Toast';
 
 export function ConversationView() {
   const { id } = useParams<{ id: string }>();
@@ -77,6 +81,8 @@ export function ConversationView() {
 
   const messageLayout = useMessageLayoutPreference();
   const memberColorDisplay = useMemberColorPreference();
+  const { isBlocked: checkBlocked, unblock: unblockIdentity } = useBlockContext();
+  const toast = useToast();
 
   const {
     fetchReactions,
@@ -624,6 +630,7 @@ export function ConversationView() {
   }
 
   const otherParticipants = conversation.participants.filter((p) => p !== identity?.id);
+  const isDmBlocked = conversation.type === 'dm' && otherParticipants.length === 1 && checkBlocked(otherParticipants[0]!);
   const resolveToolbarName = (pid: string) => {
     const nickname = memberSettings[pid]?.nickname;
     if (nickname) return nickname;
@@ -701,6 +708,26 @@ export function ConversationView() {
               gifsDisabledByAdmin={effectiveGifsDisabled}
             />
 
+            {isDmBlocked && (
+              <div className="blocked-conversation-banner">
+                <Icon name="ban" />
+                <span>{t('blocked.blockedBanner')}</span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={async () => {
+                    const result = await unblockIdentity(otherParticipants[0]!);
+                    if (result.success) {
+                      toast.success(t('blocked.userUnblocked'));
+                    } else {
+                      toast.error(result.error ?? t('blocked.unblock'));
+                    }
+                  }}
+                >
+                  {t('blocked.unblock')}
+                </Button>
+              </div>
+            )}
             <MessageComposer
               channelId={id!}
               sending={sending}
@@ -713,6 +740,7 @@ export function ConversationView() {
               mentionInsertRef={mentionInsertRef}
               gifsDisabled={effectiveGifsDisabled}
               lastMessageText={lastMessageText}
+              disabled={isDmBlocked}
             />
           </div>
 

@@ -28,6 +28,7 @@ import { TourProvider, useTourContext, useAppearanceTour } from '../hooks/useTou
 import { CipherStoreProvider } from '../hooks/useCipherStore';
 import { ChatSocketProvider } from '../hooks/useChatSocket';
 import { FriendsProvider } from '../hooks/useFriends';
+import { BlockProvider } from '../hooks/useBlockContext';
 import { ConversationsProvider } from '../hooks/useConversations';
 import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
@@ -77,11 +78,13 @@ function ProtectedLayout() {
       <CipherStoreProvider>
         <ChatSocketProvider>
           <FriendsProvider>
-            <ConversationsProvider>
-              <UpdateProvider>
-                <ProtectedLayoutContent />
-              </UpdateProvider>
-            </ConversationsProvider>
+            <BlockProvider>
+              <ConversationsProvider>
+                <UpdateProvider>
+                  <ProtectedLayoutContent />
+                </UpdateProvider>
+              </ConversationsProvider>
+            </BlockProvider>
           </FriendsProvider>
         </ChatSocketProvider>
       </CipherStoreProvider>
