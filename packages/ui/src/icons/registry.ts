@@ -35,7 +35,7 @@ import {
   faCircleCheck as fasSuccess, faCircleXmark as fasError,
   faBadgeCheck as fasBadge, faFileArrowDown as fasFileDown,
   faFileArrowUp as fasFileUp, faArrowLeft as fasArrowLeft,
-  faCircle as fasCircle, faPen as fasPen,
+  faCircle as fasCircle, faPen as fasPen, faNoteSticky as fasNoteSticky,
 } from '@awesome.me/kit-888aad49e1/icons/classic/solid';
 
 // ---------------------------------------------------------------------------
@@ -62,6 +62,7 @@ import {
   faBadgeCheck as fadBadge, faFileArrowDown as fadFileDown,
   faFileArrowUp as fadFileUp, faArrowLeft as fadArrowLeft,
   faCircle as fadCircle, faPen as fadPen,
+  faNoteSticky as fadNoteSticky,
 } from '@awesome.me/kit-888aad49e1/icons/duotone/solid';
 
 // ---------------------------------------------------------------------------
@@ -88,7 +89,8 @@ import {
   faBadgeCheck as fadtBadge, faFileArrowDown as fadtFileDown,
   faFileArrowUp as fadtFileUp, faArrowLeft as fadtArrowLeft,
   faCircle as fadtCircle, faPen as fadtPen,
-} from '@awesome.me/kit-888aad49e1/icons/duotone/thin';
+  faNoteSticky as fadtNoteSticky,
+  } from '@awesome.me/kit-888aad49e1/icons/duotone/thin';
 
 // ---------------------------------------------------------------------------
 // Sharp DuoTone Solid
@@ -114,6 +116,7 @@ import {
   faBadgeCheck as fasdsBadge, faFileArrowDown as fasdsFileDown,
   faFileArrowUp as fasdsFileUp, faArrowLeft as fasdsArrowLeft,
   faCircle as fasdsCircle, faPen as fasdsPen,
+  faNoteSticky as fasdsNoteSticky,
 } from '@awesome.me/kit-888aad49e1/icons/sharp-duotone/solid';
 
 // ---------------------------------------------------------------------------
@@ -140,6 +143,7 @@ import {
   faBadgeCheck as fasdtBadge, faFileArrowDown as fasdtFileDown,
   faFileArrowUp as fasdtFileUp, faArrowLeft as fasdtArrowLeft,
   faCircle as fasdtCircle, faPen as fasdtPen,
+  faNoteSticky as fasdtNoteSticky,
 } from '@awesome.me/kit-888aad49e1/icons/sharp-duotone/thin';
 
 // ---------------------------------------------------------------------------
@@ -173,7 +177,7 @@ const allIcons: IconDefinition[] = [
   fasFileImport, fasChevronDown, fasChevronRight, fasChevronUp, fasCamera,
   fasImage, fasGlobe, fasDesktop, fasBars, fasEye, fasThumbsUp,
   fasWarning, fasSuccess, fasError, fasBadge, fasFileDown, fasFileUp,
-  fasArrowLeft, fasCircle, fasPen,
+  fasArrowLeft, fasCircle, fasPen, fasNoteSticky,
 
   // DuoTone Solid
   fadHouse, fadMessage, fadReply, fadUsers, fadGear, fadCircleInfo, fadDownload,
@@ -183,7 +187,7 @@ const allIcons: IconDefinition[] = [
   fadFileImport, fadChevronDown, fadChevronRight, fadChevronUp, fadCamera,
   fadImage, fadGlobe, fadDesktop, fadBars, fadEye, fadThumbsUp,
   fadWarning, fadSuccess, fadError, fadBadge, fadFileDown, fadFileUp,
-  fadArrowLeft, fadCircle, fadPen,
+  fadArrowLeft, fadCircle, fadPen, fadNoteSticky,
 
   // DuoTone Thin
   fadtHouse, fadtMessage, fadtReply, fadtUsers, fadtGear, fadtCircleInfo, fadtDownload,
@@ -193,7 +197,7 @@ const allIcons: IconDefinition[] = [
   fadtFileImport, fadtChevronDown, fadtChevronRight, fadtChevronUp, fadtCamera,
   fadtImage, fadtGlobe, fadtDesktop, fadtBars, fadtEye, fadtThumbsUp,
   fadtWarning, fadtSuccess, fadtError, fadtBadge, fadtFileDown, fadtFileUp,
-  fadtArrowLeft, fadtCircle, fadtPen,
+  fadtArrowLeft, fadtCircle, fadtPen, fadtNoteSticky,
 
   // Sharp DuoTone Solid
   fasdsHouse, fasdsMessage, fasdsReply, fasdsUsers, fasdsGear, fasdsCircleInfo, fasdsDownload,
@@ -203,7 +207,7 @@ const allIcons: IconDefinition[] = [
   fasdsFileImport, fasdsChevronDown, fasdsChevronRight, fasdsChevronUp, fasdsCamera,
   fasdsImage, fasdsGlobe, fasdsDesktop, fasdsBars, fasdsEye, fasdsThumbsUp,
   fasdsWarning, fasdsSuccess, fasdsError, fasdsBadge, fasdsFileDown, fasdsFileUp,
-  fasdsArrowLeft, fasdsCircle, fasdsPen,
+  fasdsArrowLeft, fasdsCircle, fasdsPen, fasdsNoteSticky,
 
   // Sharp DuoTone Thin
   fasdtHouse, fasdtMessage, fasdtReply, fasdtUsers, fasdtGear, fasdtCircleInfo, fasdtDownload,
@@ -213,7 +217,7 @@ const allIcons: IconDefinition[] = [
   fasdtFileImport, fasdtChevronDown, fasdtChevronRight, fasdtChevronUp, fasdtCamera,
   fasdtImage, fasdtGlobe, fasdtDesktop, fasdtBars, fasdtEye, fasdtThumbsUp,
   fasdtWarning, fasdtSuccess, fasdtError, fasdtBadge, fasdtFileDown, fasdtFileUp,
-  fasdtArrowLeft, fasdtCircle, fasdtPen,
+  fasdtArrowLeft, fasdtCircle, fasdtPen, fasdtNoteSticky, fasdtNoteSticky,
 
   // Jelly Regular
   fajrHouse, fajrUsers, fajrGear, fajrCircleInfo, fajrKey, fajrBell,
