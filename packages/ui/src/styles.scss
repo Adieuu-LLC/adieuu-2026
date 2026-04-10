@@ -11848,6 +11848,85 @@ body {
   margin-top: var(--spacing-md);
 }
 
+// ============================================================================
+// Achievement Cards (shared between ProfileView + Profile editor)
+// ============================================================================
+
+.profile-view-achievements-grid,
+.profile-achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+}
+
+.profile-view-achievements-empty {
+  margin-top: var(--spacing-sm);
+}
+
+.achievement-card {
+  display: flex;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  transition: opacity var(--transition-fast), filter var(--transition-fast);
+}
+
+.achievement-card-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
+  color: var(--color-accent-primary);
+}
+
+.achievement-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.achievement-card-name {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.achievement-card-desc {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.achievement-card-how {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.achievement-card-date {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.achievement-card--locked {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+
+  .achievement-card-icon {
+    background: color-mix(in srgb, var(--color-text-muted) 10%, transparent);
+    color: var(--color-text-muted);
+  }
+}
+
+.profile-edit-achievements-section {
+  margin-top: var(--spacing-md);
+}
+
 .profile-preview-viewing-label {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);

@@ -17,6 +17,8 @@ import {
   type ProfilePrivacySettings,
   type ProfileColors,
   type UpdateProfileParams,
+  type PublicAchievementDefinition,
+  type PublicAchievement,
 } from '@adieuu/shared';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
@@ -26,6 +28,7 @@ import { BannerUpload } from '../../components/BannerUpload';
 import { ProfileColorPicker } from '../../components/ProfileColorPicker';
 import { PrivacySelect } from '../../components/PrivacySelect';
 import { Icon } from '../../icons/Icon';
+import type { AppIconName } from '../../icons/appIcons';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAppConfig } from '../../config';
 
@@ -104,6 +107,35 @@ export function IdentityProfile() {
       bioInputRef.current?.focus();
     }
   }, [editingField]);
+
+  // --- Achievements ---
+  const [allDefinitions, setAllDefinitions] = useState<PublicAchievementDefinition[]>([]);
+  const [myAchievements, setMyAchievements] = useState<PublicAchievement[]>([]);
+
+  const earnedIds = useMemo(
+    () => new Set(myAchievements.map((a) => a.achievementId)),
+    [myAchievements]
+  );
+
+  const earnedMap = useMemo(
+    () => new Map(myAchievements.map((a) => [a.achievementId, a])),
+    [myAchievements]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([
+      api.achievements.getDefinitions(),
+      api.achievements.getMine(),
+    ]).then(([defsRes, mineRes]) => {
+      if (cancelled) return;
+      if (defsRes.success && defsRes.data) setAllDefinitions(defsRes.data.definitions);
+      if (mineRes.success && mineRes.data) setMyAchievements(mineRes.data.achievements);
+    });
+
+    return () => { cancelled = true; };
+  }, [api]);
 
   // --- Handlers ---
 
@@ -527,6 +559,56 @@ export function IdentityProfile() {
                       onChange={handleColorChange('background')}
                       disabled={saving}
                     />
+                  </div>
+                </Card>
+              )}
+
+              {/* Achievements */}
+              {allDefinitions.length > 0 && (
+                <Card variant="elevated" className="profile-section profile-edit-achievements-section">
+                  <h3 className="profile-section-title">
+                    <Icon name="trophy" size="sm" />
+                    {t('achievements.yourAchievements')}
+                  </h3>
+                  <div className="profile-achievements-grid">
+                    {allDefinitions.map((def) => {
+                      const earned = earnedIds.has(def.id);
+                      const record = earnedMap.get(def.id);
+
+                      return (
+                        <Card
+                          key={def.id}
+                          variant="elevated"
+                          className={`achievement-card${earned ? '' : ' achievement-card--locked'}`}
+                        >
+                          <div className="achievement-card-icon">
+                            <Icon name={def.icon as AppIconName} size="lg" />
+                          </div>
+                          <div className="achievement-card-info">
+                            <span className="achievement-card-name">
+                              {t(def.name)}
+                            </span>
+                            <span className="achievement-card-desc">
+                              {t(def.description)}
+                            </span>
+                            {!earned && def.how && (
+                              <span className="achievement-card-how">
+                                {t(def.how)}
+                              </span>
+                            )}
+                            {earned && record ? (
+                              <span className="achievement-card-date">
+                                {new Date(record.awardedAt).toLocaleDateString()}
+                              </span>
+                            ) : (
+                              <span className="achievement-card-how">
+                                {t('achievements.notYetEarned')}
+                              </span>
+                            )}
+                          </div>
+                        </Card>
+                      );
+                    })}
                   </div>
                 </Card>
               )}

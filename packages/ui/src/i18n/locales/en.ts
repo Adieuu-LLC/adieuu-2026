@@ -1798,6 +1798,8 @@ export const en = {
     unlocked: 'Achievement Unlocked!',
     dismiss: 'Brilliant',
     noAchievements: 'No achievements earned yet.',
+    notYetEarned: 'Not yet earned',
+    yourAchievements: 'Achievements',
     holderCount_one: '{{count}} person has earned this',
     holderCount_other: '{{count}} people have earned this',
 
