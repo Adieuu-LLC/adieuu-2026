@@ -2,22 +2,23 @@
  * Modal shown when an achievement is unlocked.
  *
  * Features:
- * - Large circular icon badge overlapping the top of the dialog
- * - Scale-up → rotate → confetti burst → settle animation sequence
+ * - Large circular icon badge with MagicRings radiating outward
+ * - BorderGlow animated intro sweep on the card
+ * - Scale-up → rotate → settle badge animation
  * - Optional achievement sound on open
  * - Holder count fetched on open (displays "other" holders, excluding self)
- * - Confetti canvas rendered inside the Portal to avoid stacking-context issues
  */
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Dialog, Portal } from '@ark-ui/react';
 import { useTranslation } from 'react-i18next';
-import confetti from 'canvas-confetti';
 import { createApiClient, type PublicAchievementDefinition } from '@adieuu/shared';
 import { Button } from './Button';
 import { Icon } from '../icons/Icon';
 import type { AppIconName } from '../icons/appIcons';
 import { useAppConfig } from '../config';
+import { MagicRings } from './MagicRings';
+import { BorderGlow } from './BorderGlow';
 
 export interface AchievementUnlockedModalProps {
   open: boolean;
@@ -29,24 +30,38 @@ export interface AchievementUnlockedModalProps {
 
 const ACHIEVEMENT_SOUND_PATH = '/sounds/achievement.mp3';
 
-function fireConfetti(canvas: HTMLCanvasElement) {
-  const fire = confetti.create(canvas, { resize: true, useWorker: true });
-  const count = 180;
-  const defaults: confetti.Options = { origin: { y: 0.3 } };
+function getCssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 
-  function burst(particleRatio: number, opts: confetti.Options) {
-    fire({
-      ...defaults,
-      ...opts,
-      particleCount: Math.floor(count * particleRatio),
-    });
-  }
+function hexToHsl(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return `0 0 ${Math.round(l * 100)}`;
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+  return `${Math.round(h * 360)} ${Math.round(s * 100)} ${Math.round(l * 100)}`;
+}
 
-  burst(0.25, { spread: 26, startVelocity: 55 });
-  burst(0.2, { spread: 60 });
-  burst(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
-  burst(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
-  burst(0.1, { spread: 120, startVelocity: 45 });
+function useThemeColors() {
+  const [colors, setColors] = useState({ primary: '#22d3ee', secondary: '#38bdf8', bg: '#1a1a2e' });
+
+  useEffect(() => {
+    const primary = getCssVar('--color-accent-primary') || '#22d3ee';
+    const secondary = getCssVar('--color-accent-secondary') || '#38bdf8';
+    const bg = getCssVar('--color-bg-elevated') || '#1a1a2e';
+    setColors({ primary, secondary, bg });
+  }, []);
+
+  return colors;
 }
 
 export function AchievementUnlockedModal({
@@ -59,12 +74,12 @@ export function AchievementUnlockedModal({
   const { t } = useTranslation();
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const theme = useThemeColors();
 
   const [holderCount, setHolderCount] = useState<number | null>(null);
   const [animating, setAnimating] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasPlayedRef = useRef(false);
-  const confettiCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const playSound = useCallback(() => {
     if (!soundEnabled) return;
@@ -93,12 +108,6 @@ export function AchievementUnlockedModal({
     playSound();
     setAnimating(true);
 
-    const confettiTimer = setTimeout(() => {
-      if (confettiCanvasRef.current) {
-        fireConfetti(confettiCanvasRef.current);
-      }
-    }, 600);
-
     const settleTimer = setTimeout(() => {
       setAnimating(false);
     }, 1400);
@@ -113,7 +122,6 @@ export function AchievementUnlockedModal({
 
     return () => {
       cancelled = true;
-      clearTimeout(confettiTimer);
       clearTimeout(settleTimer);
     };
   }, [open, achievementId, api, playSound]);
@@ -128,61 +136,89 @@ export function AchievementUnlockedModal({
   }, []);
 
   const iconName = definition.icon as AppIconName;
+  const glowHsl = hexToHsl(theme.primary);
 
   return (
     <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)}>
       <Portal>
         <Dialog.Backdrop className="confirm-dialog-backdrop" />
         <Dialog.Positioner className="confirm-dialog-positioner">
-          <canvas
-            ref={confettiCanvasRef}
-            className="achievement-confetti-canvas"
-          />
-          <Dialog.Content className="confirm-dialog-content achievement-modal">
-            <div
-              className={`achievement-modal-badge${animating ? ' achievement-modal-badge--animating' : ''}`}
-            >
-              <Icon name={iconName} size="2x" />
-            </div>
+          <BorderGlow
+            className="achievement-glow-wrapper"
+            animated={animating}
+            colors={[theme.primary, theme.secondary, theme.primary]}
+            glowColor={glowHsl}
+            backgroundColor={theme.bg}
+            borderRadius={12}
+            glowRadius={30}
+            glowIntensity={0.8}
+            fillOpacity={0.35}
+          >
+            <Dialog.Content className="confirm-dialog-content achievement-modal">
+              <div className="achievement-modal-rings">
+                {open && (
+                  <MagicRings
+                    color={theme.primary}
+                    colorTwo={theme.secondary}
+                    baseRadius={0.115}
+                    ringCount={3}
+                    radiusStep={0.06}
+                    scaleRate={0.05}
+                    lineThickness={2}
+                    attenuation={10}
+                    speed={0.6}
+                    opacity={0.85}
+                    noiseAmount={0.00}
+                    ringGap={1.4}
+                  />
+                )}
+              </div>
 
-            <Dialog.Title className="achievement-modal-title">
-              {t('achievements.unlocked')}
-            </Dialog.Title>
-
-            <div className="achievement-modal-body">
-              <h3 className="achievement-modal-name">
-                {t(definition.name)}
-              </h3>
-              <Dialog.Description className="achievement-modal-description">
-                {t(definition.description)}
-              </Dialog.Description>
-
-              {definition.how && (
-                <p className="achievement-modal-how">
-                  {t(definition.how)}
-                </p>
-              )}
-
-              <span className="achievement-modal-category">
-                {t(`achievements.category.${definition.category}`)}
-              </span>
-
-              {holderCount !== null && holderCount > 0 && (
-                <p className="achievement-modal-stats">
-                  {t('achievements.holderCount', { count: holderCount })}
-                </p>
-              )}
-            </div>
-
-            <div className="confirm-dialog-footer">
-              <Button
-                variant="primary"
-                onClick={() => onOpenChange(false)}
+              <div
+                className={`achievement-modal-badge${animating ? ' achievement-modal-badge--animating' : ''}`}
               >
-                {t('achievements.dismiss')}
-              </Button>
-            </div>
-          </Dialog.Content>
+                <Icon name={iconName} size="2x" />
+              </div>
+
+              <Dialog.Title className="achievement-modal-title">
+                {t('achievements.unlocked')}
+              </Dialog.Title>
+
+              <div className="achievement-modal-body">
+                <h3 className="achievement-modal-name">
+                  {t(definition.name)}
+                </h3>
+                <Dialog.Description className="achievement-modal-description">
+                  {t(definition.description)}
+                </Dialog.Description>
+
+                {definition.how && (
+                  <p className="achievement-modal-how">
+                    {t(definition.how)}
+                  </p>
+                )}
+
+                <span className="achievement-modal-category">
+                  {t(`achievements.category.${definition.category}`)}
+                </span>
+
+                {holderCount !== null && holderCount > 0 && (
+                  <p className="achievement-modal-stats">
+                    {t('achievements.holderCount', { count: holderCount })}
+                  </p>
+                )}
+              </div>
+
+              <div className="confirm-dialog-footer">
+                <Button
+                  variant="primary"
+                  onClick={() => onOpenChange(false)}
+                >
+                  {t('achievements.dismiss')}
+                </Button>
+              </div>
+            </Dialog.Content>
+          </BorderGlow>
         </Dialog.Positioner>
       </Portal>
     </Dialog.Root>
