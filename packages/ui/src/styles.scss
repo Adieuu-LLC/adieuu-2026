@@ -3171,6 +3171,36 @@ a {
 }
 
 // ============================================================================
+// Shiny Text (react-bits)
+// ============================================================================
+
+.shiny-text {
+  display: inline-block;
+  background: linear-gradient(
+    var(--shiny-spread, 120deg),
+    var(--shiny-color, #b5b5b5) 0%,
+    var(--shiny-color, #b5b5b5) 35%,
+    var(--shiny-shine, #fff) 50%,
+    var(--shiny-color, #b5b5b5) 65%,
+    var(--shiny-color, #b5b5b5) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shiny-sweep var(--shiny-speed, 3s) linear infinite;
+
+  &--disabled {
+    animation: none;
+  }
+}
+
+@keyframes shiny-sweep {
+  0%   { background-position: 100% center; }
+  100% { background-position: -100% center; }
+}
+
+// ============================================================================
 // Border Glow (react-bits)
 // ============================================================================
 

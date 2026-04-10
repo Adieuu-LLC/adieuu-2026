@@ -19,6 +19,7 @@ import type { AppIconName } from '../icons/appIcons';
 import { useAppConfig } from '../config';
 import { MagicRings } from './MagicRings';
 import { BorderGlow } from './BorderGlow';
+import { ShinyText } from './ShinyText';
 
 export interface AchievementUnlockedModalProps {
   open: boolean;
@@ -180,9 +181,14 @@ export function AchievementUnlockedModal({
                 <Icon name={iconName} size="2x" />
               </div>
 
-              <Dialog.Title className="achievement-modal-title">
-                {t('achievements.unlocked')}
-              </Dialog.Title>
+            <Dialog.Title className="achievement-modal-title">
+              <ShinyText
+                text={t('achievements.unlocked')}
+                color={theme.primary}
+                shineColor="#ffffff"
+                speed={2.5}
+              />
+            </Dialog.Title>
 
               <div className="achievement-modal-body">
                 <h3 className="achievement-modal-name">
