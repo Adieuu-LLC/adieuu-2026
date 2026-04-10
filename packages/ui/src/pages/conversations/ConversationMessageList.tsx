@@ -55,7 +55,7 @@ export function ConversationMessageList({
   handleAtBottomStateChange,
   handleStartReached,
   handleRangeChanged,
-  handleTotalListHeightChanged,
+  handleIsScrolling,
   cachedScrollIndex,
   virtuosoComponents,
   t,
@@ -94,7 +94,7 @@ export function ConversationMessageList({
   handleAtBottomStateChange: (atBottom: boolean) => void;
   handleStartReached: () => void;
   handleRangeChanged: (range: { startIndex: number; endIndex: number }) => void;
-  handleTotalListHeightChanged: () => void;
+  handleIsScrolling: (scrolling: boolean) => void;
   cachedScrollIndex: number | null;
   virtuosoComponents: { Header: () => React.ReactElement | null; Item: (props: React.HTMLAttributes<HTMLDivElement>) => React.ReactElement };
   t: (key: string, fallback: string) => string;
@@ -219,10 +219,10 @@ export function ConversationMessageList({
           alignToBottom
           followOutput={followOutput}
           rangeChanged={handleRangeChanged}
+          isScrolling={handleIsScrolling}
           startReached={handleStartReached}
           atBottomStateChange={handleAtBottomStateChange}
           atBottomThreshold={CONVERSATION_AT_BOTTOM_THRESHOLD_PX}
-          totalListHeightChanged={handleTotalListHeightChanged}
           overscan={{ main: 800, reverse: 800 }}
           defaultItemHeight={72}
           increaseViewportBy={{ top: 600, bottom: 600 }}

@@ -105,7 +105,7 @@ export function ConversationView() {
     markJustSent,
     saveVisibleIndex,
     cachedScrollIndex,
-    handleTotalListHeightChanged,
+    handleIsScrolling,
   } = useConversationScroll({ conversationId: id, setIsAtBottom, markConversationRead });
 
   const fetchedReactionsForRef = useRef<string | null>(null);
@@ -114,6 +114,8 @@ export function ConversationView() {
   /** `messageId` query on this conversation the first time `id` is set (survives deep-link strip). */
   const urlMessageIdOnConversationEntryRef = useRef<string | null>(null);
   const prevIdForUrlCaptureRef = useRef<string | undefined>(undefined);
+  /** One-time snap to true bottom when opening without a cached scroll index (not on pagination). */
+  const initialOpenBottomSnapDoneRef = useRef(false);
   const replyScrollLoadAttemptsRef = useRef(0);
   const [replyingTo, setReplyingTo] = useState<DisplayMessage | null>(null);
   const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
@@ -277,6 +279,7 @@ export function ConversationView() {
     setFlashingMessageId(null);
     pendingScrollToRef.current = null;
     replyScrollLoadAttemptsRef.current = 0;
+    initialOpenBottomSnapDoneRef.current = false;
     clearMediaCache();
   }, [id]);
 
@@ -544,7 +547,10 @@ export function ConversationView() {
     if (flatItems.length === 0 || messagesLoading) return;
     if (pendingScrollToRef.current) return;
     if (urlMessageIdOnConversationEntryRef.current) return;
+    if (initialOpenBottomSnapDoneRef.current) return;
+    initialOpenBottomSnapDoneRef.current = true;
     const run = () => {
+      if (!isAtBottomRef.current) return;
       virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end', behavior: 'auto' });
     };
     requestAnimationFrame(() => {
@@ -763,7 +769,7 @@ export function ConversationView() {
               handleAtBottomStateChange={handleAtBottomStateChange}
               handleStartReached={handleStartReached}
               handleRangeChanged={handleRangeChanged}
-              handleTotalListHeightChanged={handleTotalListHeightChanged}
+              handleIsScrolling={handleIsScrolling}
               cachedScrollIndex={cachedScrollIndex}
               virtuosoComponents={virtuosoComponents}
               t={t as any}

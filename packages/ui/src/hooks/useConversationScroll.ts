@@ -54,8 +54,8 @@ export interface UseConversationScrollResult {
   saveVisibleIndex: (dataIndex: number) => void;
   /** Cached scroll index for the current conversation, or null (= go to bottom). */
   cachedScrollIndex: number | null;
-  /** Virtuoso: when total list height changes (items, remeasure, viewport). */
-  handleTotalListHeightChanged: () => void;
+  /** Pass to Virtuoso `isScrolling` — suppresses follow while the user scrolls (avoids remeasure fighting the wheel). */
+  handleIsScrolling: (scrolling: boolean) => void;
 }
 
 export function useConversationScroll({
@@ -67,6 +67,8 @@ export function useConversationScroll({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isAtBottomRef = useRef(true);
   const justSentRef = useRef(false);
+  /** True while Virtuoso reports user-driven scrolling (wheel/touch/drag). */
+  const isUserScrollingRef = useRef(false);
   const visibleIndexRef = useRef<number | null>(null);
   const prevConversationIdRef = useRef<string | undefined>(undefined);
 
@@ -94,6 +96,7 @@ export function useConversationScroll({
     }
 
     visibleIndexRef.current = null;
+    isUserScrollingRef.current = false;
 
     const restoring = conversationId != null && scrollCache.has(conversationId);
     isAtBottomRef.current = !restoring;
@@ -115,13 +118,18 @@ export function useConversationScroll({
     };
   }, []);
 
+  const handleIsScrolling = useCallback((scrolling: boolean) => {
+    isUserScrollingRef.current = scrolling;
+  }, []);
+
   const followOutput = useCallback(
     (isAtBottom: boolean): FollowOutputScalarType => {
       if (justSentRef.current) {
         justSentRef.current = false;
         return 'smooth';
       }
-      return isAtBottom ? 'smooth' : false;
+      if (isUserScrollingRef.current) return false;
+      return isAtBottom ? 'auto' : false;
     },
     [],
   );
@@ -155,10 +163,6 @@ export function useConversationScroll({
     });
   }, []);
 
-  const handleTotalListHeightChanged = useCallback(() => {
-    scrollToBottomIfPinned();
-  }, [scrollToBottomIfPinned]);
-
   const markJustSent = useCallback(() => {
     justSentRef.current = true;
   }, []);
@@ -166,6 +170,8 @@ export function useConversationScroll({
   // Compensate for composer resize: when the messages container shrinks or
   // grows (e.g. multi-line input, attachment thumbnails) and the user was
   // at the bottom, re-pin to the bottom so messages aren't hidden.
+  // Do not use Virtuoso `totalListHeightChanged` for this — it fires during
+  // scroll/virtualization and causes flicker when reading history.
   useEffect(() => {
     const el = messagesContainerRef.current;
     if (!el) return;
@@ -198,6 +204,6 @@ export function useConversationScroll({
     markJustSent,
     saveVisibleIndex,
     cachedScrollIndex,
-    handleTotalListHeightChanged,
+    handleIsScrolling,
   };
 }

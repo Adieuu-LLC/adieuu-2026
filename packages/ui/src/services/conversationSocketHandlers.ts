@@ -53,7 +53,7 @@ export interface ConversationSocketHandlerContext {
     conversationId: string
   ) => string;
   fetchConversations: () => void;
-  fetchMessages: (conversationId: string, cursor?: string, silent?: boolean) => void;
+  fetchMessages: (conversationId: string, cursor?: string, silent?: boolean, mergeLatest?: boolean) => void;
   fireNotification: (
     title: string,
     body: string,
@@ -274,7 +274,9 @@ export function handleConversationSocketMessage(
       }
 
       if (isActiveConvo) {
-        ctx.fetchMessages(conversationId, undefined, true);
+        const alreadyHaveMessages =
+          (ctx.messagesState[conversationId]?.messages?.length ?? 0) > 0;
+        ctx.fetchMessages(conversationId, undefined, true, alreadyHaveMessages);
       }
 
       ctx.setConversations((prev) => {

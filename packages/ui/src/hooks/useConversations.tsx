@@ -419,10 +419,10 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   }, [isLoggedIn, api, toDecrypted, resolveParticipants]);
 
   const fetchMessages = useCallback(
-    async (conversationId: string, cursor?: string, silent?: boolean) => {
+    async (conversationId: string, cursor?: string, silent?: boolean, mergeLatest?: boolean) => {
       if (!isLoggedIn || !identity) return;
 
-      if (!silent) {
+      if (!silent && !mergeLatest) {
         setMessagesState((prev) => ({
           ...prev,
           [conversationId]: {
@@ -433,7 +433,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       }
 
       try {
-        const resp = await api.conversations.getMessages(conversationId, 30, cursor);
+        const limit = mergeLatest ? 1 : 30;
+        const resp = await api.conversations.getMessages(conversationId, limit, mergeLatest ? undefined : cursor);
         if (resp.data) {
           let ecdhPrivateKey: Uint8Array | null = null;
           let kemPrivateKey: Uint8Array | null = null;
@@ -473,7 +474,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           const newMessages = await decryptMessageBatch({
             messages: resp.data.messages,
             conversationId,
-            cursor,
+            cursor: mergeLatest ? undefined : cursor,
             identityId: identity.id,
             wrappingKey,
             ecdhPrivateKey,
@@ -504,6 +505,21 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           });
 
           setMessagesState((prev) => {
+            if (mergeLatest) {
+              const existing = prev[conversationId]?.messages ?? [];
+              const keepCursor = prev[conversationId]?.cursor ?? null;
+              const ids = new Set(existing.map((m) => m.id));
+              const added = newMessages.filter((m) => !ids.has(m.id));
+              if (added.length === 0) return prev;
+              return {
+                ...prev,
+                [conversationId]: {
+                  messages: [...added, ...existing],
+                  cursor: keepCursor,
+                  loading: false,
+                },
+              };
+            }
             const existing = prev[conversationId]?.messages ?? [];
             const merged = cursor ? [...existing, ...newMessages] : newMessages;
             return {
@@ -529,7 +545,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           }
         }
     } catch (err) {
-      console.error('[useConversations] fetchMessages failed', { conversationId, cursor }, err);
+      console.error('[useConversations] fetchMessages failed', { conversationId, cursor, mergeLatest }, err);
       setMessagesState((prev) => ({
         ...prev,
         [conversationId]: {
@@ -1091,8 +1107,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         participantProfiles: participantProfilesRef.current,
         decryptGroupName,
         fetchConversations: () => fetchConversationsRef.current(),
-        fetchMessages: (conversationId, cursor, silent) =>
-          void fetchMessagesRef.current(conversationId, cursor, silent),
+        fetchMessages: (conversationId, cursor, silent, mergeLatest) =>
+          void fetchMessagesRef.current(conversationId, cursor, silent, mergeLatest),
         fireNotification: (title, body, options) =>
           fireNotificationRef.current(title, body, options),
         navigate: (path) => navigateRef.current(path),
