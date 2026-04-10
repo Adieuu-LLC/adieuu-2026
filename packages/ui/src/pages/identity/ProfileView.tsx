@@ -20,12 +20,12 @@ import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
 import type { AppIconName } from '../../icons/appIcons';
-import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
 import { ReportModal } from '../../components/ReportModal';
 import { BlockActionButton } from '../../components/BlockActionButton';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
 import { useBlockContext } from '../../hooks/useBlockContext';
+import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 import { useAppConfig } from '../../config';
 
 type LoadingState = 'loading' | 'loaded' | 'not_found' | 'error';
@@ -52,6 +52,7 @@ export function IdentityProfileView() {
   const [reportOpen, setReportOpen] = useState(false);
   const [achievements, setAchievements] = useState<PublicAchievement[]>([]);
   const [achievementsLoaded, setAchievementsLoaded] = useState(false);
+  const [myAchievementIds, setMyAchievementIds] = useState<Set<string>>(new Set());
 
   const isSelf = selfIdentity?.id === id;
   const isIdentityLoggedIn = selfIdentity != null;
@@ -90,6 +91,18 @@ export function IdentityProfileView() {
     };
   }, [id, api]);
 
+  const claimAchievement = useClaimAchievement();
+
+  useEffect(() => {
+    if (!id || !selfIdentity || isSelf || loadState !== 'loaded') return;
+    try {
+      const key = `ach_profile_views_${selfIdentity.id}`;
+      const count = (parseInt(localStorage.getItem(key) ?? '0', 10) || 0) + 1;
+      localStorage.setItem(key, String(count));
+      if (count >= 25) claimAchievement('profile_views_25');
+    } catch { /* localStorage unavailable */ }
+  }, [id, selfIdentity, isSelf, loadState, claimAchievement]);
+
   useEffect(() => {
     if (!id || isSelf || !isIdentityLoggedIn) return;
 
@@ -104,14 +117,31 @@ export function IdentityProfileView() {
     if (!id || loadState !== 'loaded') return;
 
     let cancelled = false;
-    api.achievements.getForIdentity(id).then((res) => {
-      if (!cancelled && res.success && res.data) {
-        setAchievements(res.data.achievements);
-      }
+
+    const fetches: Promise<void>[] = [
+      api.achievements.getForIdentity(id).then((res) => {
+        if (!cancelled && res.success && res.data) {
+          setAchievements(res.data.achievements);
+        }
+      }),
+    ];
+
+    if (!isSelf && isIdentityLoggedIn) {
+      fetches.push(
+        api.achievements.getMine().then((res) => {
+          if (!cancelled && res.success && res.data) {
+            setMyAchievementIds(new Set(res.data.achievements.map((a) => a.achievementId)));
+          }
+        }),
+      );
+    }
+
+    Promise.all(fetches).then(() => {
       if (!cancelled) setAchievementsLoaded(true);
     });
+
     return () => { cancelled = true; };
-  }, [id, loadState, api]);
+  }, [id, loadState, api, isSelf, isIdentityLoggedIn]);
 
   const handleAddFriend = useCallback(async () => {
     if (!id || friendActionLoading) return;
@@ -176,17 +206,24 @@ export function IdentityProfileView() {
     .join('')
     .toUpperCase();
 
-  const cardBg = profile.profileColors?.cardBackground;
+  const colors = profile.profileColors;
+  const cardBg = colors?.cardBackground;
+  const accent = colors?.accent;
+
+  const viewStyle: React.CSSProperties = {
+    ...(accent ? { '--profile-accent': accent } as React.CSSProperties : {}),
+    ...(cardBg ? { '--profile-card-bg': cardBg } as React.CSSProperties : {}),
+  };
 
   return (
     <div
       className="page-content"
-      style={profile.profileColors?.background
-        ? { backgroundColor: profile.profileColors.background }
+      style={colors?.background
+        ? { backgroundColor: colors.background }
         : undefined}
     >
       <div className="container">
-        <div className="profile-view">
+        <div className="profile-view" style={viewStyle}>
           {/* Unified card: banner + avatar + info */}
           <div
             className="profile-view-card slide-up"
@@ -301,33 +338,30 @@ export function IdentityProfileView() {
             </div>
           </div>
 
-          {/* Profile tabs */}
-          <Tabs defaultTab="about" className="profile-view-tabs">
-            <TabList>
-              <TabTrigger value="about">{t('identity.profileView.tabAbout')}</TabTrigger>
-              <TabTrigger value="achievements">
-                <Icon name="trophy" />
-                {t('identity.profileView.tabAchievements')}
-              </TabTrigger>
-            </TabList>
+          {/* Achievements */}
+          <div className="profile-view-achievements">
+            <h2 className="profile-view-section-title">
+              <Icon name="trophy" size="sm" />
+              {t('identity.profileView.tabAchievements')}
+            </h2>
+            {!achievementsLoaded ? (
+              <div className="profile-view-loading">
+                <div className="spinner" />
+              </div>
+            ) : achievements.length === 0 ? (
+              <div className="profile-view-achievements-empty">
+                <p style={{ color: 'var(--color-text-secondary)' }}>
+                  {t('achievements.noAchievements')}
+                </p>
+              </div>
+            ) : (
+              <div className="profile-view-achievements-grid">
+                {achievements.map((ach) => {
+                  const viewerLacksThis = !isSelf && isIdentityLoggedIn
+                    && !myAchievementIds.has(ach.achievementId);
 
-            <TabContent value="about" />
-
-            <TabContent value="achievements">
-              {!achievementsLoaded ? (
-                <div className="profile-view-loading">
-                  <div className="spinner" />
-                </div>
-              ) : achievements.length === 0 ? (
-                <Card variant="elevated" className="profile-view-achievements-empty">
-                  <p style={{ color: 'var(--color-text-secondary)' }}>
-                    {t('achievements.noAchievements')}
-                  </p>
-                </Card>
-              ) : (
-                <div className="profile-view-achievements-grid">
-                  {achievements.map((ach) => (
-                    <Card key={ach.id} variant="elevated" className="achievement-card">
+                  return (
+                    <div key={ach.id} className="achievement-card">
                       <div className="achievement-card-icon">
                         <Icon name={ach.definition.icon as AppIconName} size="lg" />
                       </div>
@@ -338,21 +372,23 @@ export function IdentityProfileView() {
                         <span className="achievement-card-desc">
                           {t(ach.definition.description)}
                         </span>
-                        {ach.definition.how && (
-                          <span className="achievement-card-how">
-                            {t(ach.definition.how)}
+                        {isSelf && ach.awardedAt && (
+                          <span className="achievement-card-date">
+                            {new Date(ach.awardedAt).toLocaleDateString()}
                           </span>
                         )}
-                        <span className="achievement-card-date">
-                          {new Date(ach.awardedAt).toLocaleDateString()}
-                        </span>
+                        {viewerLacksThis && (
+                          <span className="achievement-card-not-earned">
+                            {t('achievements.youDontHaveThis')}
+                          </span>
+                        )}
                       </div>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </TabContent>
-          </Tabs>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -597,7 +597,7 @@ export function IdentityProfile() {
                                 {t(def.how)}
                               </span>
                             )}
-                            {earned && record ? (
+                            {earned && record?.awardedAt ? (
                               <span className="achievement-card-date">
                                 {new Date(record.awardedAt).toLocaleDateString()}
                               </span>

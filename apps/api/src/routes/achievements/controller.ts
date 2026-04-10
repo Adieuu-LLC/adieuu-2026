@@ -97,6 +97,12 @@ export async function getIdentityAchievementsCtrl(ctx: RouteContext): Promise<Re
   }
 
   const achievements = await getIdentityAchievements(targetDoc._id);
+
+  if (viewerRelation !== 'self') {
+    const stripped = achievements.map(({ awardedAt: _, ...rest }) => rest);
+    return success({ achievements: stripped });
+  }
+
   return success({ achievements });
 }
 

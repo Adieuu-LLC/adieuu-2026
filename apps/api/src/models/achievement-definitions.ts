@@ -77,6 +77,14 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     trigger: { type: 'count', action: 'message_sent', threshold: 1 },
   },
   {
+    id: 'besties',
+    name: 'achievements.besties.name',
+    description: 'achievements.besties.description',
+    icon: 'heart',
+    category: 'messaging',
+    trigger: { type: 'count', action: 'message_sent', threshold: 50 },
+  },
+  {
     id: 'hundred_messages',
     name: 'achievements.hundredMessages.name',
     description: 'achievements.hundredMessages.description',
@@ -267,6 +275,25 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     trigger: { type: 'action', action: 'friend_removed' },
   },
 
+  {
+    id: 'mutual_report',
+    name: 'achievements.mutualReport.name',
+    description: 'achievements.mutualReport.description',
+    icon: 'warning',
+    category: 'social',
+    trigger: { type: 'action', action: 'mutual_report' },
+  },
+
+  // -- Social (client-tracked) --
+  {
+    id: 'stalker',
+    name: 'achievements.stalker.name',
+    description: 'achievements.stalker.description',
+    icon: 'eye',
+    category: 'social',
+    trigger: { type: 'action', action: 'profile_views_25' },
+  },
+
   // -- Messaging (client-detected, hidden descriptions) --
   {
     id: 'answer_to_universe',
@@ -320,6 +347,7 @@ export const CLAIMABLE_ACTIONS = new Set([
   'message_contains_420',
   'curse_word_message_sent',
   'curse_word_messages_25',
+  'profile_views_25',
 ]);
 
 export function toPublicDefinition(def: AchievementDefinition): PublicAchievementDefinition {

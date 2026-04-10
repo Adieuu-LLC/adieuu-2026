@@ -12387,6 +12387,23 @@ body {
   }
 }
 
+.achievement-card-not-earned {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.profile-view-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
 .profile-edit-achievements-section {
   margin-top: var(--spacing-md);
 }
@@ -12909,6 +12926,26 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
+
+  .btn-primary {
+    background: var(--profile-accent, linear-gradient(135deg, var(--color-accent-primary) 0%, var(--color-accent-secondary) 100%));
+
+    &:hover:not(:disabled) {
+      filter: brightness(1.1);
+    }
+  }
+
+  .achievement-card {
+    background: var(--profile-card-bg, var(--color-bg-secondary));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: none;
+  }
+
+  .achievement-card-icon {
+    background: color-mix(in srgb, var(--profile-accent, var(--color-accent-primary)) 12%, transparent);
+    color: var(--profile-accent, var(--color-accent-primary));
+  }
 }
 
 .profile-view-loading {

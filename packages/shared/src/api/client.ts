@@ -2773,7 +2773,8 @@ export interface PublicAchievementDefinition {
 export interface PublicAchievement {
   id: string;
   achievementId: string;
-  awardedAt: string;
+  /** Present only when viewing your own achievements */
+  awardedAt?: string;
   metadata?: Record<string, unknown>;
   definition: PublicAchievementDefinition;
 }

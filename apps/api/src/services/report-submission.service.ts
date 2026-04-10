@@ -12,7 +12,7 @@
  * @module services/report-submission
  */
 
-import { ObjectId } from 'mongodb';
+import { ObjectId, type Filter } from 'mongodb';
 import {
   decrypt as aeadDecrypt,
   verify as ed25519Verify,
@@ -24,14 +24,16 @@ import {
 import { getMessageRepository } from '../repositories/message.repository';
 import { getConversationRepository } from '../repositories/conversation.repository';
 import { getIdentityRepository } from '../repositories/identity.repository';
-import { getReportRepository } from '../repositories/report.repository';
+import { getReportRepository, type ReportRepository } from '../repositories/report.repository';
 import type { MessageDocument } from '../models/message';
 import type {
   ReportCategory,
+  ReportDocument,
   MessageEvidence,
   EvidenceAttachment,
   ReportEvidence,
 } from '../models/report';
+import { checkAndAward } from './achievement.service';
 import elog from '../utils/adieuuLogger';
 
 const MESSAGE_SIGN_DOMAIN = 'adieuu-msg-v1';
@@ -304,7 +306,28 @@ export async function submitMessageReport(
     evidenceCount: messageEvidence.length,
   });
 
+  checkMutualReport(reporterIdentityId, targetIdentityId, reportRepo).catch(() => {});
+
   return { success: true, reportId: report._id.toHexString() };
+}
+
+// ---------------------------------------------------------------------------
+// Mutual report check
+// ---------------------------------------------------------------------------
+
+async function checkMutualReport(
+  reporterIdentityId: string,
+  targetIdentityId: string,
+  reportRepo: ReportRepository,
+): Promise<void> {
+  const reverse = await reportRepo.findOne({
+    reporterIdentityId: targetIdentityId,
+    targetIdentityId: reporterIdentityId,
+  } as Filter<ReportDocument>);
+  if (!reverse) return;
+
+  checkAndAward(reporterIdentityId, 'mutual_report').catch(() => {});
+  checkAndAward(targetIdentityId, 'mutual_report').catch(() => {});
 }
 
 // ---------------------------------------------------------------------------
@@ -374,6 +397,8 @@ export async function submitProfileReport(
     targetIdentityId: params.targetIdentityId,
     category: params.category,
   });
+
+  checkMutualReport(reporterIdentityId, params.targetIdentityId, reportRepo).catch(() => {});
 
   return { success: true, reportId: report._id.toHexString() };
 }
