@@ -31,6 +31,19 @@ export interface AchievementUnlockedModalProps {
 
 const ACHIEVEMENT_SOUND_PATH = '/sounds/achievement.mp3';
 
+const DISMISS_KEYS = [
+  'achievements.dismiss',
+  'achievements.dismiss1',
+  'achievements.dismiss2',
+  'achievements.dismiss3',
+  'achievements.dismiss4',
+  'achievements.dismiss5',
+  'achievements.dismiss6',
+  'achievements.dismiss7',
+  'achievements.dismiss8',
+  'achievements.dismiss9',
+] as const;
+
 function getCssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
@@ -139,6 +152,12 @@ export function AchievementUnlockedModal({
   const iconName = definition.icon as AppIconName;
   const glowHsl = hexToHsl(theme.primary);
 
+  const dismissKey = useMemo(
+    () => DISMISS_KEYS[Math.floor(Math.random() * DISMISS_KEYS.length)] ?? DISMISS_KEYS[0],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- pick a fresh phrase each time the modal opens
+    [open],
+  );
+
   return (
     <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)}>
       <Portal>
@@ -220,7 +239,7 @@ export function AchievementUnlockedModal({
                   variant="primary"
                   onClick={() => onOpenChange(false)}
                 >
-                  {t('achievements.dismiss')}
+                  {t(dismissKey)}
                 </Button>
               </div>
             </Dialog.Content>

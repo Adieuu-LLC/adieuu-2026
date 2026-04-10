@@ -327,6 +327,98 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     category: 'messaging',
     trigger: { type: 'action', action: 'curse_word_messages_25' },
   },
+
+  // -- Messaging (GIFs & stickers, client-detected) --
+  {
+    id: 'first_gif',
+    name: 'achievements.firstGif.name',
+    description: 'achievements.firstGif.description',
+    icon: 'image',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'gif_sent' },
+  },
+  {
+    id: 'gif_enthusiast',
+    name: 'achievements.gifEnthusiast.name',
+    description: 'achievements.gifEnthusiast.description',
+    icon: 'image',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'gifs_sent_25' },
+  },
+  {
+    id: 'first_sticker',
+    name: 'achievements.firstSticker.name',
+    description: 'achievements.firstSticker.description',
+    icon: 'noteSticky',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'sticker_sent' },
+  },
+  {
+    id: 'sticker_collector',
+    name: 'achievements.stickerCollector.name',
+    description: 'achievements.stickerCollector.description',
+    icon: 'noteSticky',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'stickers_sent_25' },
+  },
+
+  // -- Messaging (memes & phrases, client-detected) --
+  {
+    id: 'rickroll',
+    name: 'achievements.rickroll.name',
+    description: 'achievements.rickroll.description',
+    icon: 'globe',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'rickroll_sent' },
+  },
+  {
+    id: 'press_f',
+    name: 'achievements.pressF.name',
+    description: 'achievements.pressF.description',
+    icon: 'trophy',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'press_f_sent' },
+  },
+  {
+    id: 'over_9000',
+    name: 'achievements.overNineThousand.name',
+    description: 'achievements.overNineThousand.description',
+    icon: 'fire',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'over_9000_sent' },
+  },
+  {
+    id: 'uwu',
+    name: 'achievements.uwu.name',
+    description: 'achievements.uwu.description',
+    icon: 'heart',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'uwu_sent' },
+  },
+  {
+    id: 'all_caps',
+    name: 'achievements.allCaps.name',
+    description: 'achievements.allCaps.description',
+    icon: 'warning',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'all_caps_sent' },
+  },
+  {
+    id: 'laughing_out_loud',
+    name: 'achievements.laughingOutLoud.name',
+    description: 'achievements.laughingOutLoud.description',
+    icon: 'smile',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'lol_sent' },
+  },
+  {
+    id: 'shrug',
+    name: 'achievements.shrug.name',
+    description: 'achievements.shrug.description',
+    icon: 'ellipsis',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'shrug_sent' },
+  },
 ];
 
 export const ACHIEVEMENT_MAP = new Map(
@@ -348,6 +440,17 @@ export const CLAIMABLE_ACTIONS = new Set([
   'curse_word_message_sent',
   'curse_word_messages_25',
   'profile_views_25',
+  'gif_sent',
+  'gifs_sent_25',
+  'sticker_sent',
+  'stickers_sent_25',
+  'rickroll_sent',
+  'press_f_sent',
+  'over_9000_sent',
+  'uwu_sent',
+  'all_caps_sent',
+  'lol_sent',
+  'shrug_sent',
 ]);
 
 export function toPublicDefinition(def: AchievementDefinition): PublicAchievementDefinition {

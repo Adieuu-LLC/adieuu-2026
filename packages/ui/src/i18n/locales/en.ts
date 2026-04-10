@@ -1810,13 +1810,28 @@ export const en = {
   // Achievements
   achievements: {
     unlocked: 'Achievement Unlocked!',
-    dismiss: 'Brilliant',
+    dismiss: 'Brilliant!',
+    dismiss1: 'Awesome!',
+    dismiss2: 'Far Out!',
+    dismiss3: 'Cowabunga!',
+    dismiss4: 'Radical!',
+    dismiss5: 'Splendid!',
+    dismiss6: 'Groovy!',
+    dismiss7: 'Wicked!',
+    dismiss8: 'Bodacious!',
+    dismiss9: 'Stellar!',
     noAchievements: 'No achievements earned yet.',
     notYetEarned: 'Not yet earned',
     youDontHaveThis: "You don't have this yet!",
     yourAchievements: 'Achievements',
     holderCount_one: '{{count}} other person has earned this',
     holderCount_other: '{{count}} other people have earned this',
+
+    // Filters
+    filterAll: 'All',
+    filterEarned: 'Earned',
+    filterUnearned: 'Not Yet Earned',
+    noResults: 'No achievements match your filters.',
 
     // Categories
     category: {
@@ -1832,7 +1847,7 @@ export const en = {
     fiveFriends: { name: 'The Gang is Back', description: 'Add five friends.' },
     tenFriends: { name: 'Social Butterfly', description: 'Add ten friends.' },
     blockSomeone: { name: 'Talk to the Hand', description: 'Block someone.' },
-    blockedBySomeone: { name: 'Take a Hint', description: 'Be blocked by someone.' },
+    blockedBySomeone: { name: 'It\'s Me, Not You!', description: 'Be blocked by someone.' },
     mutualBlock: { name: 'The Feeling\'s Mutual!', description: 'Mutually block another user.' },
     mutualReport: { name: "He Said, She Said", description: "Who are we to believe?" },
     blockUnblock: { name: 'On and Off Again', description: 'Maybe they\'re not so bad after all...' },
@@ -1861,7 +1876,17 @@ export const en = {
     sailor: { name: 'Like a Sailor', description: 'Perhaps out of place in polite society?' },
     besties: { name: 'Besties!', description: 'We have a special bond.' },
     stalker: { name: 'Stalker', description: 'Somebody\'s watching you!' },
-    
+    firstGif: { name: 'Worth a Thousand Words', description: 'Send your first GIF.' },
+    gifEnthusiast: { name: 'GIF-ted', description: "You really like GIFs, don't you?" },
+    firstSticker: { name: 'Stick With It', description: 'Send your first sticker.' },
+    stickerCollector: { name: 'Sticker Collector', description: "You've amassed quite the collection." },
+    rickroll: { name: 'Never Gonna Give You Up', description: 'Never gonna let you down...' },
+    pressF: { name: 'Press F to Pay Respects', description: 'A solemn tribute.' },
+    overNineThousand: { name: "It's Over 9000!", description: 'What?! 9000?!' },
+    uwu: { name: 'UwU', description: '*notices your achievement*' },
+    allCaps: { name: 'Indoor Voice, Please', description: 'We can hear you just fine.' },
+    laughingOutLoud: { name: 'Laughing Out Loud', description: 'Classic internet laughter.' },
+    shrug: { name: 'It Is What It Is', description: "Sometimes words just aren't enough." },
   },
 } as const;
 
