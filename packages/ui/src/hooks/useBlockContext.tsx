@@ -4,6 +4,10 @@
  * Provides shared block state across the entire app tree so that any
  * component can check block status in O(1) without redundant API calls.
  * Must be mounted inside IdentityProvider.
+ *
+ * Also owns the block-confirmation dialog so it renders at the provider
+ * level — outside any Ark overlay (HoverCard, Popover, etc.) whose
+ * dismiss cascade would otherwise tear the dialog down.
  */
 
 import {
@@ -16,9 +20,12 @@ import {
   useContext,
 } from 'react';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createApiClient, type BlockedIdentity } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { useToast } from '../components/Toast';
 
 export interface BlockContextValue {
   blockedIds: Set<string>;
@@ -29,6 +36,8 @@ export interface BlockContextValue {
   isBlocked: (identityId: string) => boolean;
   block: (identityId: string) => Promise<{ success: boolean; error?: string }>;
   unblock: (identityId: string) => Promise<{ success: boolean; error?: string }>;
+  /** Open the global block/unblock confirmation dialog for the given identity. */
+  requestBlockConfirm: (identityId: string) => void;
   refresh: () => Promise<void>;
   loadMore: () => Promise<void>;
 }
@@ -43,7 +52,7 @@ export function useBlockContext(): BlockContextValue {
   return context;
 }
 
-function useBlockState(): BlockContextValue {
+function useBlockState(): Omit<BlockContextValue, 'requestBlockConfirm'> {
   const { apiBaseUrl } = useAppConfig();
   const { status: identityStatus } = useIdentity();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -149,7 +158,7 @@ function useBlockState(): BlockContextValue {
   }, [isLoggedIn, refresh]);
 
   return useMemo(
-    () => ({
+    (): Omit<BlockContextValue, 'requestBlockConfirm'> => ({
       blockedIds,
       blockedList,
       isLoading,
@@ -171,6 +180,67 @@ export interface BlockProviderProps {
 
 export function BlockProvider({ children }: BlockProviderProps) {
   const blockState = useBlockState();
+  const { t } = useTranslation();
+  const toast = useToast();
 
-  return <BlockContext.Provider value={blockState}>{children}</BlockContext.Provider>;
+  const [pendingBlockId, setPendingBlockId] = useState<string | null>(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+
+  const pendingIsBlocked = pendingBlockId ? blockState.isBlocked(pendingBlockId) : false;
+
+  const requestBlockConfirm = useCallback((identityId: string) => {
+    setPendingBlockId(identityId);
+  }, []);
+
+  const handleCancel = useCallback(() => {
+    if (!confirmLoading) setPendingBlockId(null);
+  }, [confirmLoading]);
+
+  const handleConfirm = useCallback(async () => {
+    if (!pendingBlockId) return;
+    setConfirmLoading(true);
+    try {
+      if (pendingIsBlocked) {
+        const result = await blockState.unblock(pendingBlockId);
+        if (result.success) {
+          toast.success(t('blocked.userUnblocked'));
+        } else {
+          toast.error(result.error ?? t('blocked.unblock'));
+        }
+      } else {
+        const result = await blockState.block(pendingBlockId);
+        if (result.success) {
+          toast.success(t('blocked.userBlocked'));
+        } else {
+          toast.error(result.error ?? t('blocked.blockUser'));
+        }
+      }
+    } finally {
+      setConfirmLoading(false);
+      setPendingBlockId(null);
+    }
+  }, [pendingBlockId, pendingIsBlocked, blockState, toast, t]);
+
+  const value = useMemo<BlockContextValue>(
+    () => ({ ...blockState, requestBlockConfirm }),
+    [blockState, requestBlockConfirm],
+  );
+
+  return (
+    <BlockContext.Provider value={value}>
+      {children}
+      <ConfirmDialog
+        open={!!pendingBlockId}
+        onOpenChange={() => {}}
+        onCancel={handleCancel}
+        title={pendingIsBlocked ? t('blocked.unblock') : t('blocked.blockUser')}
+        description={pendingIsBlocked ? t('blocked.confirmUnblock') : t('blocked.confirmBlock')}
+        confirmLabel={pendingIsBlocked ? t('blocked.unblock') : t('blocked.blockUser')}
+        variant="danger"
+        loading={confirmLoading}
+        onConfirm={handleConfirm}
+        closeOnInteractOutside={false}
+      />
+    </BlockContext.Provider>
+  );
 }

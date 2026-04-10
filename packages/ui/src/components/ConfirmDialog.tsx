@@ -33,6 +33,8 @@ export interface ConfirmDialogProps {
   loading?: boolean;
   /** Dialog variant - danger shows destructive styling */
   variant?: ConfirmDialogVariant;
+  /** Override closeOnInteractOutside (defaults to `!loading`) */
+  closeOnInteractOutside?: boolean;
 }
 
 /**
@@ -75,6 +77,7 @@ export function ConfirmDialog({
   onCancel,
   loading = false,
   variant = 'default',
+  closeOnInteractOutside,
 }: ConfirmDialogProps) {
   const handleCancel = () => {
     if (onCancel) {
@@ -89,7 +92,7 @@ export function ConfirmDialog({
   };
 
   return (
-    <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)} closeOnInteractOutside={!loading}>
+    <Dialog.Root open={open} onOpenChange={(e) => onOpenChange(e.open)} closeOnInteractOutside={closeOnInteractOutside ?? !loading}>
       <Portal>
         <Dialog.Backdrop className="confirm-dialog-backdrop" />
         <Dialog.Positioner className="confirm-dialog-positioner">
