@@ -54,6 +54,11 @@ export const APP_ICON_NAMES = {
   circle: 'circle',
   pen: 'pen',
   noteSticky: 'note-sticky',
+  trophy: 'trophy',
+  userPlus: 'user-plus',
+  group: 'user-group',
+  device: 'mobile-screen-button',
+  heart: 'heart',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;

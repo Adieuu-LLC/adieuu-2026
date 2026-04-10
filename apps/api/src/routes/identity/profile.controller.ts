@@ -20,6 +20,7 @@ import {
   getIdentitySessionIdFromRequest,
   getIdentityFromSession,
 } from '../../services/identity.service';
+import { checkAndAward } from '../../services/achievement.service';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getMediaUploadRepository } from '../../repositories/media-upload.repository';
 import { getCollection, Collections } from '../../db';
@@ -58,6 +59,7 @@ const UpdateProfileSchema = z.object({
       bio: ProfileVisibilityEnum.optional(),
       lastActiveAt: ProfileVisibilityEnum.optional(),
       profileColors: ProfileVisibilityEnum.optional(),
+      achievements: ProfileVisibilityEnum.optional(),
     })
     .optional(),
   requireGroupApproval: z.boolean().optional(),
@@ -228,6 +230,8 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
       lastActiveAt: data.privacySettings.lastActiveAt ?? current.lastActiveAt,
       profileColors:
         data.privacySettings.profileColors ?? current.profileColors,
+      achievements:
+        data.privacySettings.achievements ?? current.achievements,
     };
     update.privacySettings = merged;
   }
@@ -247,6 +251,13 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
 
   if (!updatedDoc) {
     return errors.internal('Failed to update profile');
+  }
+
+  if (update.bannerUrl) {
+    checkAndAward(identity._id, 'banner_set').catch(() => {});
+  }
+  if (update.avatarUrl || update.bio !== undefined || update.profileColors) {
+    checkAndAward(identity._id, 'profile_customized').catch(() => {});
   }
 
   return success(toPublicIdentity(updatedDoc), 'Profile updated.');

@@ -57,6 +57,7 @@ import { isValidObjectId } from '../../utils';
 import { z } from '@adieuu/shared/schemas';
 import { getKeyBundleRepository } from '../../repositories/key-bundle.repository';
 import { deriveBundleId } from '../../utils/crypto';
+import { checkAndAward } from '../../services/achievement.service';
 import type { ClientSession } from 'mongodb';
 
 // ============================================================================
@@ -602,6 +603,8 @@ export async function registerDeviceCtrl(ctx: RouteContext): Promise<Response> {
     return errors.badRequest('Failed to register device.');
   }
 
+  checkAndAward(identity._id, 'device_registered').catch(() => {});
+
   return success({ deviceId }, 'Device registered successfully.');
 }
 
@@ -1029,6 +1032,9 @@ export async function initializeE2ECtrl(ctx: RouteContext): Promise<Response> {
 
       await identityRepo.addDevice(identity._id, deviceDoc);
     });
+
+    checkAndAward(identity._id, 'e2e_initialized').catch(() => {});
+    checkAndAward(identity._id, 'device_registered').catch(() => {});
 
     return success({
       initialized: true,

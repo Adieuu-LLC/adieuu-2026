@@ -144,6 +144,12 @@ export {
   type KlipySearchResponse,
   type KlipySearchParams,
   type KlipyShareParams,
+  // Achievement types
+  AchievementsApi,
+  type AchievementCategory,
+  type PublicAchievementDefinition,
+  type PublicAchievement,
+  type AchievementStats,
 } from './client';
 
 export {

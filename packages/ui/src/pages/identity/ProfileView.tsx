@@ -13,11 +13,14 @@ import { useTranslation } from 'react-i18next';
 import {
   createApiClient,
   type PublicIdentity,
+  type PublicAchievement,
   type FriendshipStatus,
 } from '@adieuu/shared';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
+import type { AppIconName } from '../../icons/appIcons';
+import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
 import { ReportModal } from '../../components/ReportModal';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
@@ -44,6 +47,8 @@ export function IdentityProfileView() {
   const [friendStatus, setFriendStatus] = useState<FriendshipStatus>('none');
   const [friendActionLoading, setFriendActionLoading] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [achievements, setAchievements] = useState<PublicAchievement[]>([]);
+  const [achievementsLoaded, setAchievementsLoaded] = useState(false);
 
   const isSelf = selfIdentity?.id === id;
   const isIdentityLoggedIn = selfIdentity != null;
@@ -91,6 +96,19 @@ export function IdentityProfileView() {
     });
     return () => { cancelled = true; };
   }, [id, isSelf, isIdentityLoggedIn, getFriendStatus]);
+
+  useEffect(() => {
+    if (!id || loadState !== 'loaded') return;
+
+    let cancelled = false;
+    api.achievements.getForIdentity(id).then((res) => {
+      if (!cancelled && res.success && res.data) {
+        setAchievements(res.data.achievements);
+      }
+      if (!cancelled) setAchievementsLoaded(true);
+    });
+    return () => { cancelled = true; };
+  }, [id, loadState, api]);
 
   const handleAddFriend = useCallback(async () => {
     if (!id || friendActionLoading) return;
@@ -269,6 +287,54 @@ export function IdentityProfileView() {
               })}
             </p>
           </Card>
+
+          {/* Profile tabs */}
+          <Tabs defaultTab="about" className="profile-view-tabs">
+            <TabList>
+              <TabTrigger value="about">{t('identity.profileView.tabAbout')}</TabTrigger>
+              <TabTrigger value="achievements">
+                <Icon name="trophy" />
+                {t('identity.profileView.tabAchievements')}
+              </TabTrigger>
+            </TabList>
+
+            <TabContent value="about" />
+
+            <TabContent value="achievements">
+              {!achievementsLoaded ? (
+                <div className="profile-view-loading">
+                  <div className="spinner" />
+                </div>
+              ) : achievements.length === 0 ? (
+                <Card variant="elevated" className="profile-view-achievements-empty">
+                  <p style={{ color: 'var(--color-text-secondary)' }}>
+                    {t('achievements.noAchievements')}
+                  </p>
+                </Card>
+              ) : (
+                <div className="profile-view-achievements-grid">
+                  {achievements.map((ach) => (
+                    <Card key={ach.id} variant="elevated" className="achievement-card">
+                      <div className="achievement-card-icon">
+                        <Icon name={ach.definition.icon as AppIconName} size="lg" />
+                      </div>
+                      <div className="achievement-card-info">
+                        <span className="achievement-card-name">
+                          {t(ach.definition.name)}
+                        </span>
+                        <span className="achievement-card-desc">
+                          {t(ach.definition.description)}
+                        </span>
+                        <span className="achievement-card-date">
+                          {new Date(ach.awardedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabContent>
+          </Tabs>
         </div>
       </div>
 

@@ -47,6 +47,11 @@ import {
   invalidateNotificationSoundCustomCache,
   ensureAudioContextRunning,
 } from '../../utils/notificationSound';
+import {
+  loadAchievementPreferences,
+  saveAchievementPopupEnabled,
+  saveAchievementSoundEnabled,
+} from '../../hooks/useAchievementPreferences';
 
 function basenameFromPath(p: string): string {
   const parts = p.split(/[/\\]/);
@@ -56,7 +61,7 @@ function basenameFromPath(p: string): string {
 export function IdentityNotifications() {
   const { t } = useTranslation();
   const toast = useToast();
-  const { status: identityStatus } = useIdentity();
+  const { status: identityStatus, identity: notifIdentity } = useIdentity();
   const { notifications, audio } = usePlatformCapabilities();
   const { hasCustomSoundPicker } = usePlatformFeatures();
   const nativeEnabled = useNativeNotificationsPreference();
@@ -70,6 +75,10 @@ export function IdentityNotifications() {
   const [ttlCustomSoundMissing, setTtlCustomSoundMissing] = useState(false);
   const [mentionSoundBrowseBusy, setMentionSoundBrowseBusy] = useState(false);
   const [mentionCustomSoundMissing, setMentionCustomSoundMissing] = useState(false);
+
+  const achPrefs = notifIdentity?.id ? loadAchievementPreferences(notifIdentity.id) : { popupEnabled: true, soundEnabled: true };
+  const [achPopup, setAchPopup] = useState(achPrefs.popupEnabled);
+  const [achSound, setAchSound] = useState(achPrefs.soundEnabled);
 
   const supportsNotifications = typeof window !== 'undefined' && 'Notification' in window;
 
@@ -703,6 +712,51 @@ export function IdentityNotifications() {
               )}
             </div>
           )}
+        </Card>
+
+        <Card variant="elevated" className="slide-up app-settings-card">
+          <h2 className="app-settings-section-title">{t('account.settings.notifications.achievementSectionTitle')}</h2>
+          <p className="app-settings-section-desc">{t('account.settings.notifications.achievementSectionDescription')}</p>
+
+          <label className="app-settings-toggle">
+            <input
+              type="checkbox"
+              checked={achPopup}
+              onChange={(e) => {
+                const val = e.target.checked;
+                setAchPopup(val);
+                if (notifIdentity?.id) saveAchievementPopupEnabled(notifIdentity.id, val);
+              }}
+            />
+            <span className="app-settings-toggle-label">
+              <span className="app-settings-toggle-title">
+                {t('account.settings.notifications.achievementPopupToggle')}
+              </span>
+              <span className="app-settings-toggle-hint">
+                {t('account.settings.notifications.achievementPopupHint')}
+              </span>
+            </span>
+          </label>
+
+          <label className="app-settings-toggle">
+            <input
+              type="checkbox"
+              checked={achSound}
+              onChange={(e) => {
+                const val = e.target.checked;
+                setAchSound(val);
+                if (notifIdentity?.id) saveAchievementSoundEnabled(notifIdentity.id, val);
+              }}
+            />
+            <span className="app-settings-toggle-label">
+              <span className="app-settings-toggle-title">
+                {t('account.settings.notifications.achievementSoundToggle')}
+              </span>
+              <span className="app-settings-toggle-hint">
+                {t('account.settings.notifications.achievementSoundHint')}
+              </span>
+            </span>
+          </label>
         </Card>
       </div>
     </div>

@@ -656,6 +656,28 @@ router.get('/identity/:id/profile', async (ctx) => {
 });
 
 // ============================================================================
+// Identity Achievements (privacy-gated)
+// ============================================================================
+
+import { getIdentityAchievementsCtrl } from '../achievements/controller';
+
+/**
+ * GET /identity/:id/achievements - Get an identity's achievements
+ *
+ * Returns the achievements earned by this identity. Respects the identity's
+ * achievements privacy setting (public/friends/private).
+ *
+ * @route GET /api/identity/:id/achievements
+ * @param id (string, required): Identity ID
+ *
+ * @returns 200 OK with achievements array
+ * @returns 404 Not Found if identity doesn't exist
+ */
+router.get('/identity/:id/achievements', async (ctx) => {
+  return await getIdentityAchievementsCtrl(ctx);
+});
+
+// ============================================================================
 // Identity by ID (parameterized - must be last)
 // ============================================================================
 

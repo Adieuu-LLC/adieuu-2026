@@ -18,6 +18,7 @@ import { getFriendshipRepository } from '../repositories/friendship.repository';
 import { getBlockRepository } from '../repositories/block.repository';
 import { getIdentityRepository } from '../repositories/identity.repository';
 import { createNotification } from './notification.service';
+import { checkAndAward } from './achievement.service';
 import { toPublicFriendRequest, type PublicFriendRequest } from '../models/friend-request';
 import { toPublicIdentity, type PublicIdentity } from '../models/identity';
 import { getRedis, isRedisConnected, RedisKeys } from '../db';
@@ -218,6 +219,10 @@ export async function acceptFriendRequest(
 
   // Create mutual friendship
   await friendshipRepo.createMutual(request.fromIdentityId, request.toIdentityId);
+
+  // Check achievement triggers for both parties (fire-and-forget)
+  checkAndAward(request.fromIdentityId, 'friendship_created').catch(() => {});
+  checkAndAward(request.toIdentityId, 'friendship_created').catch(() => {});
 
   // Notify the sender that their request was accepted
   const accepterIdentity = await identityRepo.findByIdentityId(identityObjId);

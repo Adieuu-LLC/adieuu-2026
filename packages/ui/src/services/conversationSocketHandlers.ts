@@ -3,6 +3,7 @@ import type {
   PublicGroupInvite,
   PublicIdentity,
 } from '@adieuu/shared';
+import { emitAchievementUnlocked } from './achievementEvents';
 
 interface DisplayMessageLike {
   id: string;
@@ -22,6 +23,7 @@ interface DecryptedConversationLike {
   createdBy?: string;
   lastMessageAt?: string;
   lastMessageId?: string;
+  gifsDisabled?: boolean;
 }
 
 interface ConversationMessagesStateLike {
@@ -126,6 +128,11 @@ export function handleConversationSocketMessage(
           ctx.t('conversations.notifications.youWereRemovedBody', {
             defaultValue: 'You were removed from a group conversation',
           })
+        );
+      } else if (action === 'gifs_disabled_updated') {
+        const newVal = message.data.gifsDisabled ?? false;
+        ctx.setConversations((prev) =>
+          prev.map((c) => (c.id === conversationId ? { ...c, gifsDisabled: newVal } : c))
         );
       } else {
         ctx.fetchConversations();
@@ -514,6 +521,21 @@ export function handleConversationSocketMessage(
 
     case 'notification_created': {
       const { notification } = message.data;
+
+      if (notification.type === 'achievement_unlocked') {
+        const achData = notification.data as {
+          achievementId?: string;
+          definition?: { id: string; name: string; description: string; icon: string; category: string };
+        };
+        if (achData.achievementId && achData.definition) {
+          emitAchievementUnlocked({
+            achievementId: achData.achievementId,
+            definition: achData.definition,
+          });
+        }
+        break;
+      }
+
       if (notification.type !== 'message_reaction') break;
       if (!ctx.identityId || !ctx.loadReactionNotificationsEnabled(ctx.identityId)) break;
 

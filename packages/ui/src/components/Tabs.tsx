@@ -84,9 +84,9 @@ export function TabTrigger({ value, children, className = '' }: TabTriggerProps)
   );
 }
 
-interface TabContentProps {
+export interface TabContentProps {
   value: string;
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
 }
 

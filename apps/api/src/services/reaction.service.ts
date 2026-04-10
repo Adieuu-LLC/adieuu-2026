@@ -18,6 +18,7 @@ import { getReactionRepository } from '../repositories/reaction.repository';
 import { getConversationRepository } from '../repositories/conversation.repository';
 import { getMessageRepository } from '../repositories/message.repository';
 import { createNotification } from './notification.service';
+import { checkAndAward } from './achievement.service';
 import {
   toPublicReaction,
   type PublicReaction,
@@ -191,6 +192,8 @@ export async function addReaction(
       });
     }
   }
+
+  checkAndAward(identityObjId, 'reaction_added').catch(() => {});
 
   return { success: true, reaction: publicReaction };
 }

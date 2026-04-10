@@ -170,6 +170,10 @@ export function ConversationView() {
 
   const [gifsDisabledOverride, setGifsDisabledOverride] = useState<boolean | null>(null);
 
+  useEffect(() => {
+    setGifsDisabledOverride(null);
+  }, [id]);
+
   const handleGifsDisabledByAdminToggle = useCallback(async (disabled: boolean) => {
     if (!id) return;
     setGifsDisabledOverride(disabled);

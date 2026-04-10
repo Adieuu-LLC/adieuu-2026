@@ -27,6 +27,7 @@ export interface ProfilePrivacySettings {
   bio: ProfileVisibility;
   lastActiveAt: ProfileVisibility;
   profileColors: ProfileVisibility;
+  achievements: ProfileVisibility;
 }
 
 /**
@@ -45,6 +46,7 @@ export const DEFAULT_PRIVACY_SETTINGS: ProfilePrivacySettings = {
   bio: 'public',
   lastActiveAt: 'public',
   profileColors: 'public',
+  achievements: 'public',
 };
 
 /** Prefix for deleted identity idents (followed by objectId) */

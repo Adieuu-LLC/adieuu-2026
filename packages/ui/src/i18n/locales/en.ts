@@ -573,6 +573,7 @@ export const en = {
       avatar: 'Avatar',
       banner: 'Banner',
       profileColors: 'Profile Colours',
+      achievements: 'Achievements',
       colorPrimary: 'Primary',
       colorSecondary: 'Secondary',
       colorAccent: 'Accent',
@@ -608,6 +609,8 @@ export const en = {
       editProfile: 'Edit profile',
       lastActive: 'Last active {{date}}',
       joined: 'Joined {{date}}',
+      tabAbout: 'About',
+      tabAchievements: 'Achievements',
     },
     // Privacy page (identity-scoped)
     privacy: {
@@ -809,6 +812,12 @@ export const en = {
         mentionSoundCustomFile: 'Custom sound',
         mentionSoundBrowse: 'Browse…',
         mentionSoundFileMissing: 'The selected sound file could not be read. Choose another file or pick a built-in sound.',
+        achievementSectionTitle: 'Achievement Notifications',
+        achievementSectionDescription: 'Control how achievement unlocks are displayed.',
+        achievementPopupToggle: 'Show achievement popup',
+        achievementPopupHint: 'Display a detailed modal when you unlock an achievement. When off, a basic toast notification is shown instead.',
+        achievementSoundToggle: 'Play achievement sound',
+        achievementSoundHint: 'Play a sound effect when an achievement is unlocked.',
       },
     },
 
@@ -1782,6 +1791,37 @@ export const en = {
     conversationHideForMeHint: 'Only affects your view',
     composerButton: 'GIF',
     stickerButton: 'Stickers',
+  },
+
+  // Achievements
+  achievements: {
+    unlocked: 'Achievement Unlocked!',
+    dismiss: 'Brilliant',
+    noAchievements: 'No achievements earned yet.',
+    holderCount_one: '{{count}} person has earned this',
+    holderCount_other: '{{count}} people have earned this',
+
+    // Categories
+    category: {
+      social: 'Social',
+      messaging: 'Messaging',
+      security: 'Security',
+      profile: 'Profile',
+      misc: 'Misc',
+    },
+
+    // Definition names & descriptions
+    firstFriend: { name: 'First Friend', description: 'Add your first friend.' },
+    fiveFriends: { name: 'Squad Goals', description: 'Have five friends.' },
+    tenFriends: { name: 'Social Butterfly', description: 'Have ten friends.' },
+    firstMessage: { name: 'Hello, World!', description: 'Send your first message.' },
+    hundredMessages: { name: 'Chatterbox', description: 'Send one hundred messages.' },
+    firstGroup: { name: 'Founder', description: 'Create your first group conversation.' },
+    e2eSetup: { name: 'Locked & Loaded', description: 'Set up end-to-end encryption.' },
+    firstDeviceAdded: { name: 'Multi-Device', description: 'Register a device.' },
+    profileCustomized: { name: 'Express Yourself', description: 'Customise your profile.' },
+    bannerSet: { name: 'Banner Bearer', description: 'Set a profile banner.' },
+    firstReaction: { name: 'Reactor', description: 'React to a message for the first time.' },
   },
 } as const;
 

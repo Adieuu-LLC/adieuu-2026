@@ -37,6 +37,7 @@ const DEFAULT_PRIVACY: ProfilePrivacySettings = {
   bio: 'public',
   lastActiveAt: 'public',
   profileColors: 'public',
+  achievements: 'public',
 };
 
 type PreviewMode = 'self' | 'friend' | 'stranger';
@@ -543,6 +544,7 @@ export function IdentityProfile() {
                       { field: 'bio' as const, label: t('identity.profile.bio') },
                       { field: 'lastActiveAt' as const, label: 'Last active' },
                       { field: 'profileColors' as const, label: t('identity.profile.profileColors') },
+                      { field: 'achievements' as const, label: t('identity.profile.achievements') },
                     ] as const
                   ).map(({ field, label }) => (
                     <div key={field} className="profile-privacy-row">

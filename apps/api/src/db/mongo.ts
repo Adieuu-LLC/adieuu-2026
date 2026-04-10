@@ -368,6 +368,8 @@ export const Collections = {
   IDENTITY_BACKUP_CODES: 'identity_backup_codes',
   /** Anonymised Klipy search term logs (no identity linkage) */
   KLIPY_SEARCH_LOGS: 'klipy_search_logs',
+  /** Achievements awarded to identities */
+  IDENTITY_ACHIEVEMENTS: 'identity_achievements',
 } as const;
 
 /**
@@ -615,6 +617,15 @@ async function createIndexes(): Promise<void> {
     { timestamp: 1 },
     { expireAfterSeconds: 90 * 24 * 60 * 60 }
   );
+
+  // Identity achievements — one record per identity per achievement
+  const identityAchievements = database.collection(Collections.IDENTITY_ACHIEVEMENTS);
+  await identityAchievements.createIndex(
+    { identityId: 1, achievementId: 1 },
+    { unique: true }
+  );
+  await identityAchievements.createIndex({ achievementId: 1 });
+  await identityAchievements.createIndex({ identityId: 1, awardedAt: -1 });
 
   elog.debug('MongoDB indexes created/verified');
 }

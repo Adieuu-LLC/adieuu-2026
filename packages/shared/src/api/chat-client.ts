@@ -107,8 +107,9 @@ export interface ChatConversationUpdatedMessage extends ChatMessageBase {
   type: 'conversation_updated';
   data: {
     conversationId: string;
-    action: 'member_added' | 'member_removed' | 'member_left' | 'removed' | 'renamed' | 'admin_promoted';
+    action: 'member_added' | 'member_removed' | 'member_left' | 'removed' | 'renamed' | 'admin_promoted' | 'gifs_disabled_updated';
     identityId?: string;
+    gifsDisabled?: boolean;
   };
 }
 

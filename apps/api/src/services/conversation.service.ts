@@ -21,6 +21,7 @@ import { getBlockRepository } from '../repositories/block.repository';
 import { getIdentityRepository } from '../repositories/identity.repository';
 import { getReactionRepository } from '../repositories/reaction.repository';
 import { createNotification } from './notification.service';
+import { checkAndAward } from './achievement.service';
 import {
   toPublicConversation,
   type ConversationDocument,
@@ -377,6 +378,8 @@ export async function createConversation(
       });
     }
 
+    checkAndAward(creatorObjId, 'group_created').catch(() => {});
+
     return { success: true, conversation: publicConv };
   }
 
@@ -587,6 +590,8 @@ export async function sendMessage(
       });
     }
   }
+
+  checkAndAward(senderObjId, 'message_sent').catch(() => {});
 
   return { success: true, message: publicMessage };
 }
