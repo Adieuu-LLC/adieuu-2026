@@ -254,6 +254,7 @@ export function ConversationMessageList({
                 key={item.key}
                 className="dm-messages-item"
                 data-dm-item-index={idx}
+                data-scroll-anchor-key={item.key}
                 {...(item.type === 'message' ? { 'data-message-id': item.msg.id } as const : {})}
               >
                 {renderItem(item, ctx)}

@@ -38,7 +38,7 @@ import {
   buildReplySnippet,
   replyComposerLabel,
 } from './conversationUtils';
-import { computeScrollTopAfterPrepend } from './conversationScrollUtils';
+import { applyHistoryScrollAnchor } from './conversationScrollUtils';
 import { ConversationToolbar } from './ConversationToolbar';
 import { ConversationSettingsSidebar } from './ConversationSettingsSidebar';
 import { ConversationMembersSidebar } from './ConversationMembersSidebar';
@@ -115,7 +115,8 @@ export function ConversationView() {
     messageLayoutKey,
   });
 
-  const prependAnchorRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null);
+  /** First visible row before loading older history — restored by key + viewport offset (stable vs scrollHeight deltas). */
+  const historyScrollAnchorRef = useRef<{ anchorKey: string; targetViewportOffsetPx: number } | null>(null);
 
   const fetchedReactionsForRef = useRef<string | null>(null);
   const pendingReactionsRef = useRef<Set<string>>(new Set());
@@ -289,7 +290,7 @@ export function ConversationView() {
     pendingScrollToRef.current = null;
     replyScrollLoadAttemptsRef.current = 0;
     initialOpenBottomSnapDoneRef.current = false;
-    prependAnchorRef.current = null;
+    historyScrollAnchorRef.current = null;
     clearMediaCache();
   }, [id]);
 
@@ -365,16 +366,30 @@ export function ConversationView() {
   const handleReachOlder = useCallback(() => {
     if (!activeMessagesCursor || messagesLoading) return;
     const vp = scrollViewportRef.current;
-    if (vp) {
-      prependAnchorRef.current = { scrollTop: vp.scrollTop, scrollHeight: vp.scrollHeight };
+    const content = messagesContentRef.current;
+    if (vp && content) {
+      const vRect = vp.getBoundingClientRect();
+      for (let i = 0; i < content.children.length; i++) {
+        const el = content.children[i] as HTMLElement;
+        const key = el.dataset.scrollAnchorKey;
+        if (!key) continue;
+        const cr = el.getBoundingClientRect();
+        if (cr.bottom > vRect.top + 1) {
+          historyScrollAnchorRef.current = {
+            anchorKey: key,
+            targetViewportOffsetPx: cr.top - vRect.top,
+          };
+          break;
+        }
+      }
     }
     void loadMoreMessages();
-  }, [activeMessagesCursor, messagesLoading, loadMoreMessages]);
+  }, [activeMessagesCursor, messagesLoading, loadMoreMessages, scrollViewportRef, messagesContentRef]);
 
   const handleJumpToLatest = useCallback(async () => {
     if (!id) return;
     clearConversationScrollCache(id);
-    prependAnchorRef.current = null;
+    historyScrollAnchorRef.current = null;
     await jumpToLatestMessages(id);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -549,16 +564,65 @@ export function ConversationView() {
   }, [reversedMessages, unreadCount, expiryTick]);
 
   useLayoutEffect(() => {
-    const anchor = prependAnchorRef.current;
-    if (!anchor || messagesLoading) return;
+    if (messagesLoading) return;
+    const anchor = historyScrollAnchorRef.current;
+    if (!anchor) return;
     const vp = scrollViewportRef.current;
-    if (!vp) return;
-    if (vp.scrollHeight === anchor.scrollHeight) {
-      prependAnchorRef.current = null;
-      return;
-    }
-    prependAnchorRef.current = null;
-    vp.scrollTop = computeScrollTopAfterPrepend(anchor.scrollTop, anchor.scrollHeight, vp.scrollHeight);
+    const content = messagesContentRef.current;
+    if (!vp || !content) return;
+
+    const run = () => {
+      const a = historyScrollAnchorRef.current;
+      if (!a) return;
+      const r = applyHistoryScrollAnchor(vp, content, a);
+      if (r === 'missing') historyScrollAnchorRef.current = null;
+    };
+    run();
+    requestAnimationFrame(run);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(run);
+    });
+  }, [messagesLoading, flatItems.length, id]);
+
+  useEffect(() => {
+    if (messagesLoading) return undefined;
+    if (!historyScrollAnchorRef.current) return undefined;
+    const vp = scrollViewportRef.current;
+    const content = messagesContentRef.current;
+    if (!vp || !content) return undefined;
+
+    let consecutiveAligned = 0;
+    const tick = () => {
+      const a = historyScrollAnchorRef.current;
+      if (!a) return;
+      const r = applyHistoryScrollAnchor(vp, content, a);
+      if (r === 'missing') {
+        historyScrollAnchorRef.current = null;
+        return;
+      }
+      if (r === 'aligned') {
+        consecutiveAligned += 1;
+        if (consecutiveAligned >= 2) historyScrollAnchorRef.current = null;
+      } else {
+        consecutiveAligned = 0;
+      }
+    };
+
+    const ro = new ResizeObserver(() => {
+      tick();
+    });
+    ro.observe(content);
+    tick();
+
+    const t = window.setTimeout(() => {
+      historyScrollAnchorRef.current = null;
+      ro.disconnect();
+    }, 2800);
+
+    return () => {
+      clearTimeout(t);
+      ro.disconnect();
+    };
   }, [messagesLoading, flatItems.length, id]);
 
   // New rows append at the bottom: scrollHeight grows while scrollTop stays fixed, so the viewport no longer

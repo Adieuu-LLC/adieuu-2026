@@ -35,3 +35,35 @@ export function computeScrollTopAfterPrepend(
 ): number {
   return prevScrollTop + (nextScrollHeight - prevScrollHeight);
 }
+
+export type HistoryScrollAnchor = {
+  /** Stable row key (matches `ChatItem.key` / `data-scroll-anchor-key`). */
+  anchorKey: string;
+  /** Desired distance from the scroll viewport top to the anchor element top (px). */
+  targetViewportOffsetPx: number;
+};
+
+/**
+ * Keeps a row at the same visual offset after older history is prepended above it.
+ * Prefer this over scrollHeight deltas when row heights are asynchronous (images, fonts).
+ */
+export function applyHistoryScrollAnchor(
+  scrollViewport: HTMLElement,
+  contentRoot: HTMLElement,
+  anchor: HistoryScrollAnchor,
+): 'aligned' | 'adjusted' | 'missing' {
+  const escaped =
+    typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+      ? CSS.escape(anchor.anchorKey)
+      : anchor.anchorKey.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const el = contentRoot.querySelector(`[data-scroll-anchor-key="${escaped}"]`);
+  if (!el) return 'missing';
+
+  const vRect = scrollViewport.getBoundingClientRect();
+  const cr = el.getBoundingClientRect();
+  const currentOffset = cr.top - vRect.top;
+  const diff = currentOffset - anchor.targetViewportOffsetPx;
+  if (Math.abs(diff) < 0.5) return 'aligned';
+  scrollViewport.scrollTop += diff;
+  return 'adjusted';
+}
