@@ -112,22 +112,21 @@ export function AchievementListener() {
     });
   }, [onStateChange, api]);
 
-  // ------ auto-open next item when queue has entries and modal is closed ------
+  // ------ auto-open next item after close animation finishes ------
 
   useEffect(() => {
     if (!modalOpen && queue.length > 0) {
-      setModalOpen(true);
+      const timer = setTimeout(() => setModalOpen(true), CLOSE_ANIMATION_MS);
+      return () => clearTimeout(timer);
     }
   }, [modalOpen, queue.length]);
 
-  // ------ dismiss handler: close modal, then dequeue after animation ------
+  // ------ dismiss handler: close modal and dequeue immediately ------
 
   const handleDismiss = useCallback((open: boolean) => {
     if (open) return;
     setModalOpen(false);
-    setTimeout(() => {
-      setQueue((prev) => prev.slice(1));
-    }, CLOSE_ANIMATION_MS);
+    setQueue((prev) => prev.slice(1));
   }, []);
 
   const current = queue[0] ?? null;
