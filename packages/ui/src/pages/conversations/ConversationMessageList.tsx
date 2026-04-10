@@ -1,6 +1,5 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Virtuoso, type VirtuosoHandle, type FollowOutputScalarType } from 'react-virtuoso';
 import type { DisplayMessage } from '../../hooks/useConversations';
 import type { GroupedReaction } from '../../hooks/useReactions';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
@@ -9,11 +8,9 @@ import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 import { useGifPreference, useConversationGifHidden } from '../../hooks/useGifPreference';
-import { CONVERSATION_AT_BOTTOM_THRESHOLD_PX } from '../../hooks/useConversationScroll';
 import {
   type ChatItem,
   type ReplyQuotePayload,
-  FIRST_ITEM_INDEX,
   formatDayLabel,
   buildReplySnippet,
   resolveQuotedAuthorPreview,
@@ -48,16 +45,15 @@ export function ConversationMessageList({
   onMentionClick,
   scrollToMessageId,
   showScrollButton,
-  scrollToBottom,
-  virtuosoRef,
+  onJumpToLatest,
+  scrollViewportRef,
+  messagesContentRef,
   messagesContainerRef,
-  followOutput,
-  handleAtBottomStateChange,
-  handleStartReached,
-  handleRangeChanged,
-  handleIsScrolling,
+  onScrollViewportScroll,
+  onUserScrollIntent,
   cachedScrollIndex,
-  virtuosoComponents,
+  hasMoreOlder,
+  onReachOlder,
   t,
   gifsDisabledByAdmin,
 }: {
@@ -87,16 +83,15 @@ export function ConversationMessageList({
   onMentionClick: (identityId: string) => void;
   scrollToMessageId: (id: string) => void;
   showScrollButton: boolean;
-  scrollToBottom: () => void;
-  virtuosoRef: React.RefObject<VirtuosoHandle | null>;
+  onJumpToLatest: () => void | Promise<void>;
+  scrollViewportRef: React.RefObject<HTMLDivElement | null>;
+  messagesContentRef: React.RefObject<HTMLDivElement | null>;
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
-  followOutput: (isAtBottom: boolean) => FollowOutputScalarType;
-  handleAtBottomStateChange: (atBottom: boolean) => void;
-  handleStartReached: () => void;
-  handleRangeChanged: (range: { startIndex: number; endIndex: number }) => void;
-  handleIsScrolling: (scrolling: boolean) => void;
+  onScrollViewportScroll: () => void;
+  onUserScrollIntent: () => void;
   cachedScrollIndex: number | null;
-  virtuosoComponents: { Header: () => React.ReactElement | null; Item: (props: React.HTMLAttributes<HTMLDivElement>) => React.ReactElement };
+  hasMoreOlder: boolean;
+  onReachOlder: () => void;
   t: (key: string, fallback: string) => string;
   gifsDisabledByAdmin?: boolean;
 }) {
@@ -106,90 +101,128 @@ export function ConversationMessageList({
   const [convGifHidden] = useConversationGifHidden(conversationId ?? '');
   const gifsEnabled = gifVisibility !== 'disabled' && !convGifHidden && !gifsDisabledByAdmin;
 
-  const virtuosoContext = useMemo(() => ({ gifsEnabled }), [gifsEnabled]);
+  const topSentinelRef = useRef<HTMLDivElement | null>(null);
+  const restoredForConvRef = useRef<string | null>(null);
 
-  const itemContent = useCallback((_: number, item: ChatItem, ctx: { gifsEnabled: boolean }) => {
-    if (item.type === 'day-separator') {
-      return (
-        <div className="dm-day-separator">
-          <div className="dm-day-separator-line" />
-          <span className="dm-day-separator-text">{formatDayLabel(item.date)}</span>
-          <div className="dm-day-separator-line" />
-        </div>
-      );
+  useEffect(() => {
+    restoredForConvRef.current = null;
+  }, [conversationId]);
+
+  useLayoutEffect(() => {
+    if (cachedScrollIndex == null || flatItems.length === 0 || !conversationId) return;
+    if (restoredForConvRef.current === conversationId) return;
+    const el = messagesContentRef.current?.querySelector(
+      `[data-dm-item-index="${String(cachedScrollIndex)}"]`,
+    );
+    if (el) {
+      el.scrollIntoView({ block: 'start', behavior: 'auto' });
+      restoredForConvRef.current = conversationId;
     }
+  }, [conversationId, cachedScrollIndex, flatItems.length, messagesContentRef]);
 
-    const msg = item.msg;
-    const unreadMarker = item.isFirstUnread ? (
-      <div className="dm-unread-separator">
-        <div className="dm-unread-separator-line" />
-        <span className="dm-unread-separator-text">
-          {t('conversations.newUnreads', 'New messages')}
-        </span>
-        <div className="dm-unread-separator-line" />
-      </div>
-    ) : null;
+  useEffect(() => {
+    const root = scrollViewportRef.current;
+    const sentinel = topSentinelRef.current;
+    if (!root || !sentinel) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        if (!hasMoreOlder || messagesLoading) return;
+        onReachOlder();
+      },
+      { root, rootMargin: '120px 0px 0px 0px', threshold: 0 },
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [scrollViewportRef, hasMoreOlder, messagesLoading, onReachOlder, conversationId, flatItems.length]);
 
-    if (msg.messageType === 'system' && msg.systemEvent) {
+  const renderItem = useCallback(
+    (item: ChatItem, ctx: { gifsEnabled: boolean }) => {
+      if (item.type === 'day-separator') {
+        return (
+          <div className="dm-day-separator">
+            <div className="dm-day-separator-line" />
+            <span className="dm-day-separator-text">{formatDayLabel(item.date)}</span>
+            <div className="dm-day-separator-line" />
+          </div>
+        );
+      }
+
+      const msg = item.msg;
+      const unreadMarker = item.isFirstUnread ? (
+        <div className="dm-unread-separator">
+          <div className="dm-unread-separator-line" />
+          <span className="dm-unread-separator-text">
+            {t('conversations.newUnreads', 'New messages')}
+          </span>
+          <div className="dm-unread-separator-line" />
+        </div>
+      ) : null;
+
+      if (msg.messageType === 'system' && msg.systemEvent) {
+        return (
+          <>
+            {unreadMarker}
+            <SystemMessageRow event={msg.systemEvent} />
+          </>
+        );
+      }
+
+      const replyQuote: ReplyQuotePayload | null = msg.replyToMessageId
+        ? {
+            text: buildReplySnippet(messagesById.get(msg.replyToMessageId), tLocal as any),
+            quotedAuthor: resolveQuotedAuthorPreview(
+              messagesById.get(msg.replyToMessageId),
+              participantProfiles,
+              memberSettings,
+              identity as any,
+            ),
+            onQuoteClick: () => scrollToMessageId(msg.replyToMessageId!),
+          }
+        : null;
+
       return (
         <>
           {unreadMarker}
-          <SystemMessageRow event={msg.systemEvent} />
+          <MessageBubble
+            message={msg}
+            isOwn={msg.fromIdentityId === identity?.id}
+            onDelete={onDeleteMessage}
+            onReact={onReact}
+            onToggleReaction={onToggleReaction}
+            onReport={onReportMessage}
+            groupedReactions={getGroupedReactions(msg.id)}
+            favoriteEmojis={favoriteEmojis}
+            onAddFavorite={onAddFavorite}
+            onRemoveFavorite={onRemoveFavorite}
+            fsInfo={fsInfo}
+            senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
+            ownProfile={identity as PublicIdentity | undefined}
+            layout={messageLayout}
+            participantProfiles={participantProfiles}
+            memberSettings={memberSettings}
+            memberColorDisplay={memberColorDisplay}
+            replyQuote={replyQuote}
+            onReply={() => onReply(msg)}
+            isFlashHighlight={flashingMessageId === msg.id}
+            onLinkClick={onLinkClick}
+            onMentionClick={onMentionClick}
+            selfId={identity?.id}
+            gifsEnabled={ctx.gifsEnabled}
+          />
         </>
       );
-    }
+    },
+    [
+      t, tLocal, messagesById, participantProfiles, memberSettings, identity,
+      scrollToMessageId, onDeleteMessage, onReact, onToggleReaction,
+      onReportMessage, getGroupedReactions, favoriteEmojis, onAddFavorite,
+      onRemoveFavorite, fsInfo, messageLayout, memberColorDisplay,
+      flashingMessageId, onReply, onLinkClick, onMentionClick,
+    ],
+  );
 
-    const replyQuote: ReplyQuotePayload | null = msg.replyToMessageId
-      ? {
-          text: buildReplySnippet(messagesById.get(msg.replyToMessageId), tLocal as any),
-          quotedAuthor: resolveQuotedAuthorPreview(
-            messagesById.get(msg.replyToMessageId),
-            participantProfiles,
-            memberSettings,
-            identity as any,
-          ),
-          onQuoteClick: () => scrollToMessageId(msg.replyToMessageId!),
-        }
-      : null;
-
-    return (
-      <>
-        {unreadMarker}
-        <MessageBubble
-          message={msg}
-          isOwn={msg.fromIdentityId === identity?.id}
-          onDelete={onDeleteMessage}
-          onReact={onReact}
-          onToggleReaction={onToggleReaction}
-          onReport={onReportMessage}
-          groupedReactions={getGroupedReactions(msg.id)}
-          favoriteEmojis={favoriteEmojis}
-          onAddFavorite={onAddFavorite}
-          onRemoveFavorite={onRemoveFavorite}
-          fsInfo={fsInfo}
-          senderProfile={msg.fromIdentityId !== identity?.id ? participantProfiles[msg.fromIdentityId] : undefined}
-          ownProfile={identity as PublicIdentity | undefined}
-          layout={messageLayout}
-          participantProfiles={participantProfiles}
-          memberSettings={memberSettings}
-          memberColorDisplay={memberColorDisplay}
-          replyQuote={replyQuote}
-          onReply={() => onReply(msg)}
-          isFlashHighlight={flashingMessageId === msg.id}
-          onLinkClick={onLinkClick}
-          onMentionClick={onMentionClick}
-          selfId={identity?.id}
-          gifsEnabled={ctx.gifsEnabled}
-        />
-      </>
-    );
-  }, [
-    t, tLocal, messagesById, participantProfiles, memberSettings, identity,
-    scrollToMessageId, onDeleteMessage, onReact, onToggleReaction,
-    onReportMessage, getGroupedReactions, favoriteEmojis, onAddFavorite,
-    onRemoveFavorite, fsInfo, messageLayout, memberColorDisplay,
-    flashingMessageId, onReply, onLinkClick, onMentionClick,
-  ]);
+  const ctx = useMemo(() => ({ gifsEnabled }), [gifsEnabled]);
 
   return (
     <div className="conversation-messages" ref={messagesContainerRef as React.RefObject<HTMLDivElement>}>
@@ -202,40 +235,38 @@ export function ConversationMessageList({
           <p>{t('conversations.noMessages', 'No messages yet. Say hello!')}</p>
         </div>
       ) : (
-        <Virtuoso
-          key={conversationId}
-          ref={virtuosoRef as React.RefObject<VirtuosoHandle>}
+        <div
+          ref={scrollViewportRef as React.RefObject<HTMLDivElement>}
           className={`dm-messages${messageLayout === 'linear' ? ' dm-messages--linear' : ''}`}
-          data={flatItems}
-          computeItemKey={(_, item) => item.key}
-          firstItemIndex={FIRST_ITEM_INDEX - flatItems.length}
-          initialTopMostItemIndex={
-            cachedScrollIndex != null && flatItems.length > 0
-              ? { index: Math.min(cachedScrollIndex, flatItems.length - 1), align: 'start' }
-              : flatItems.length > 0
-                ? { index: flatItems.length - 1, align: 'end' }
-                : 0
-          }
-          alignToBottom
-          followOutput={followOutput}
-          rangeChanged={handleRangeChanged}
-          isScrolling={handleIsScrolling}
-          startReached={handleStartReached}
-          atBottomStateChange={handleAtBottomStateChange}
-          atBottomThreshold={CONVERSATION_AT_BOTTOM_THRESHOLD_PX}
-          overscan={{ main: 800, reverse: 800 }}
-          defaultItemHeight={72}
-          increaseViewportBy={{ top: 600, bottom: 600 }}
-          components={virtuosoComponents}
-          context={virtuosoContext}
-          itemContent={itemContent}
-        />
+          onScroll={onScrollViewportScroll}
+          onWheel={onUserScrollIntent}
+          onTouchMove={onUserScrollIntent}
+        >
+          {messagesLoading && reversedMessagesLength > 0 ? (
+            <div className="dm-messages-history-loading" aria-busy="true">
+              <span className="spinner spinner-sm" />
+            </div>
+          ) : null}
+          <div ref={topSentinelRef} className="dm-messages-top-sentinel" aria-hidden />
+          <div ref={messagesContentRef as React.RefObject<HTMLDivElement>} className="dm-messages-content">
+            {flatItems.map((item, idx) => (
+              <div
+                key={item.key}
+                className="dm-messages-item"
+                data-dm-item-index={idx}
+                {...(item.type === 'message' ? { 'data-message-id': item.msg.id } as const : {})}
+              >
+                {renderItem(item, ctx)}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
       <Tooltip content={t('conversations.jumpToLatest', 'Jump to latest message')} position="top">
         <button
           type="button"
           className={`conversation-scroll-to-bottom${showScrollButton ? ' conversation-scroll-to-bottom--visible' : ''}`}
-          onClick={scrollToBottom}
+          onClick={() => void onJumpToLatest()}
           aria-label={t('conversations.jumpToLatest', 'Jump to latest message')}
         >
           <Icon name="chevronDown" />

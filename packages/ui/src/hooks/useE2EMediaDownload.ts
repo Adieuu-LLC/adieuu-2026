@@ -8,7 +8,7 @@
  * 4. Decrypts using the per-attachment symmetric key + nonce
  * 5. Produces a blob URL for rendering
  *
- * Decrypted blob URLs are cached at the module level so that Virtuoso's
+ * Decrypted blob URLs are cached at the module level so that message list
  * mount/unmount cycles do not trigger repeated downloads. The cache can
  * be flushed by calling `clearMediaCache()` when switching conversations.
  *
@@ -27,7 +27,7 @@ const POLL_INTERVAL_MS = 2500;
 const MAX_POLL_ATTEMPTS = 72; // ~3 minutes
 
 // ---------------------------------------------------------------------------
-// Module-level cache: survives Virtuoso unmount/remount cycles.
+// Module-level cache: survives list remount cycles.
 // Keyed by e2eMediaId so each attachment is downloaded and decrypted at most
 // once per session (or until clearMediaCache is called).
 // ---------------------------------------------------------------------------
@@ -240,7 +240,7 @@ export function useE2EMediaDownload(
     }
 
     // De-duplicate concurrent downloads for the same mediaId (e.g. when
-    // Virtuoso mounts multiple instances of the same message rapidly).
+    // the same attachment renders in quick succession).
     let promise = inflightDownloads.get(mediaId);
     if (!promise) {
       promise = downloadAndDecrypt();

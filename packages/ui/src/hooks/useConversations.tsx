@@ -75,6 +75,7 @@ import {
   updateMemberSettingsAction,
 } from '../services/conversationGroupActions';
 import { getSessionKeysForMessages as loadSessionKeysForMessages } from '../services/sessionKeyRetrieval';
+import { trimMessagesBuffer } from '../pages/conversations/conversationScrollUtils';
 
 // ============================================================================
 // Types
@@ -137,6 +138,8 @@ interface ConversationsContextValue {
     options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean; replyToMessageId?: string }
   ) => Promise<PublicMessage | SendMessageErrorResult | null>;
   loadMoreMessages: () => Promise<void>;
+  /** Replace loaded history with the latest page only (bounded buffer). */
+  jumpToLatestMessages: (conversationId: string) => Promise<void>;
   deleteMessage: (
     conversationId: string,
     messageId: string,
@@ -222,6 +225,11 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const messagesStateRef = useRef(messagesState);
   const sessionKeyCache = useRef(new Map<string, Uint8Array>());
   useEffect(() => { messagesStateRef.current = messagesState; }, [messagesState]);
+
+  const isAtBottomRef = useRef(true);
+  const setIsAtBottom = useCallback((value: boolean) => {
+    isAtBottomRef.current = value;
+  }, []);
 
   // -------------------------------------------------------------------------
   // Participant identity resolution
@@ -511,10 +519,14 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               const ids = new Set(existing.map((m) => m.id));
               const added = newMessages.filter((m) => !ids.has(m.id));
               if (added.length === 0) return prev;
+              let messages = [...added, ...existing];
+              if (messages.length > 0) {
+                messages = trimMessagesBuffer(messages, isAtBottomRef.current);
+              }
               return {
                 ...prev,
                 [conversationId]: {
-                  messages: [...added, ...existing],
+                  messages,
                   cursor: keepCursor,
                   loading: false,
                 },
@@ -522,10 +534,14 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             }
             const existing = prev[conversationId]?.messages ?? [];
             const merged = cursor ? [...existing, ...newMessages] : newMessages;
+            let messages = merged;
+            if (messages.length > 0) {
+              messages = trimMessagesBuffer(messages, isAtBottomRef.current);
+            }
             return {
               ...prev,
               [conversationId]: {
-                messages: merged,
+                messages,
                 cursor: resp.data!.cursor,
                 loading: false,
               },
@@ -611,6 +627,22 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     if (!state?.cursor || state.loading) return;
     await fetchMessages(activeConversationId, state.cursor);
   }, [activeConversationId, messagesState, fetchMessages]);
+
+  const jumpToLatestMessages = useCallback(
+    async (conversationId: string) => {
+      if (!isLoggedIn || !identity) return;
+      setMessagesState((prev) => ({
+        ...prev,
+        [conversationId]: {
+          messages: [],
+          cursor: null,
+          loading: true,
+        },
+      }));
+      await fetchMessages(conversationId, undefined, true);
+    },
+    [isLoggedIn, identity, fetchMessages],
+  );
 
   // -------------------------------------------------------------------------
   // Conversation operations
@@ -1039,11 +1071,6 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const activeConversationIdRef = useRef(activeConversationId);
   activeConversationIdRef.current = activeConversationId;
 
-  const isAtBottomRef = useRef(true);
-  const setIsAtBottom = useCallback((value: boolean) => {
-    isAtBottomRef.current = value;
-  }, []);
-
   const markConversationRead = useCallback((conversationId: string) => {
     setConversations((prev) =>
       prev.map((c) =>
@@ -1229,6 +1256,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       createGroup,
       sendTextMessage,
       loadMoreMessages,
+      jumpToLatestMessages,
       deleteMessage,
       addMember,
       removeMember,
@@ -1249,7 +1277,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     conversations, activeConversationId, messagesState, invites,
     participantProfiles, loading, sending,
     setActiveConversation, setIsAtBottom, markConversationRead,
-    createDM, createGroup, sendTextMessage, loadMoreMessages,
+    createDM, createGroup, sendTextMessage, loadMoreMessages, jumpToLatestMessages,
     deleteMessage, addMember, removeMember, leaveGroup, renameGroup,
     updateConversationMemberSettings, promoteToAdmin, terminateGroup,
     acceptInvite, declineInvite, getInvitePreview, getFormerMembers,

@@ -46,7 +46,6 @@
     "i18next": "24.2.3",
     "qrcode.react": "4.2.0",
     "react-i18next": "15.7.4",
-    "react-virtuoso": "4.18.4",
     "recharts": "2.15.4",
     "three": "0.183.2"
   },

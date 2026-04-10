@@ -396,9 +396,6 @@ importers:
       react-i18next:
         specifier: 15.7.4
         version: 15.7.4(i18next@24.2.3(typescript@5.9.3))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
-      react-virtuoso:
-        specifier: 4.18.4
-        version: 4.18.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       recharts:
         specifier: 2.15.4
         version: 2.15.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -3828,12 +3825,6 @@ packages:
     peerDependencies:
       react: '>=16.6.0'
       react-dom: '>=16.6.0'
-
-  react-virtuoso@4.18.4:
-    resolution: {integrity: sha512-DNM4Wy2tMA/J6ejMaDdqecOug31rOwgSRg4C/Dw6Iox4dJe9qwcx32M8HdhkE5uHEVVZh7h0koYwAsCSNdxGfQ==}
-    peerDependencies:
-      react: '>=16 || >=17 || >= 18 || >= 19'
-      react-dom: '>=16 || >=17 || >= 18 || >=19'
 
   react@18.3.1:
     resolution: {integrity: sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==}
@@ -8987,11 +8978,6 @@ snapshots:
       dom-helpers: 5.2.1
       loose-envify: 1.4.0
       prop-types: 15.8.1
-      react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
-
-  react-virtuoso@4.18.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
-    dependencies:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 

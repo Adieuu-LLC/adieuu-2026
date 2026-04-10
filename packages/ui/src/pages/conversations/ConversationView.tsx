@@ -11,7 +11,7 @@ import { createApiClient } from '@adieuu/shared';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
-import { useConversationScroll } from '../../hooks/useConversationScroll';
+import { useConversationScroll, clearConversationScrollCache } from '../../hooks/useConversationScroll';
 import { useIdentity } from '../../hooks/useIdentity';
 import { usePreKeys } from '../../hooks/usePreKeys';
 import { useReactions } from '../../hooks/useReactions';
@@ -32,13 +32,13 @@ import type { ComposerSendFn, ComposerReplyContext, MentionSource, MentionableUs
 import { MessageComposer } from '../../components/composer';
 import {
   type ChatItem,
-  FIRST_ITEM_INDEX,
   isSameDay,
   formatRotationInterval,
   resolveDisplayName,
   buildReplySnippet,
   replyComposerLabel,
 } from './conversationUtils';
+import { computeScrollTopAfterPrepend } from './conversationScrollUtils';
 import { ConversationToolbar } from './ConversationToolbar';
 import { ConversationSettingsSidebar } from './ConversationSettingsSidebar';
 import { ConversationMembersSidebar } from './ConversationMembersSidebar';
@@ -69,6 +69,7 @@ export function ConversationView() {
     markConversationRead,
     sendTextMessage,
     loadMoreMessages,
+    jumpToLatestMessages,
     leaveGroup,
     removeMember,
     promoteToAdmin,
@@ -79,6 +80,8 @@ export function ConversationView() {
     memberSettings,
     fetchRecipientKeys,
   } = useConversations();
+
+  const messageLayoutKey = `${activeMessages[0]?.id ?? ''}:${activeMessages.length}`;
 
   const messageLayout = useMessageLayoutPreference();
   const memberColorDisplay = useMemberColorPreference();
@@ -94,19 +97,25 @@ export function ConversationView() {
   const { favorites: favoriteEmojis, addFavorite, removeFavorite } = useFavoriteEmojis(identity?.id);
 
   const {
-    virtuosoRef,
+    scrollViewportRef,
+    messagesContentRef,
     messagesContainerRef,
     isAtBottomRef,
     showScrollButton,
-    followOutput,
-    handleAtBottomStateChange,
     scrollToBottom,
     scrollToBottomIfPinned,
     markJustSent,
-    saveVisibleIndex,
     cachedScrollIndex,
-    handleIsScrolling,
-  } = useConversationScroll({ conversationId: id, setIsAtBottom, markConversationRead });
+    onScrollViewportScroll,
+    onUserScrollIntent,
+  } = useConversationScroll({
+    conversationId: id,
+    setIsAtBottom,
+    markConversationRead,
+    messageLayoutKey,
+  });
+
+  const prependAnchorRef = useRef<{ scrollTop: number; scrollHeight: number } | null>(null);
 
   const fetchedReactionsForRef = useRef<string | null>(null);
   const pendingReactionsRef = useRef<Set<string>>(new Set());
@@ -280,6 +289,7 @@ export function ConversationView() {
     pendingScrollToRef.current = null;
     replyScrollLoadAttemptsRef.current = 0;
     initialOpenBottomSnapDoneRef.current = false;
+    prependAnchorRef.current = null;
     clearMediaCache();
   }, [id]);
 
@@ -352,11 +362,26 @@ export function ConversationView() {
     [removeReaction, handleReact, scrollToBottomIfPinned]
   );
 
-  const handleStartReached = useCallback(() => {
-    if (activeMessagesCursor && !messagesLoading) {
-      loadMoreMessages();
+  const handleReachOlder = useCallback(() => {
+    if (!activeMessagesCursor || messagesLoading) return;
+    const vp = scrollViewportRef.current;
+    if (vp) {
+      prependAnchorRef.current = { scrollTop: vp.scrollTop, scrollHeight: vp.scrollHeight };
     }
+    void loadMoreMessages();
   }, [activeMessagesCursor, messagesLoading, loadMoreMessages]);
+
+  const handleJumpToLatest = useCallback(async () => {
+    if (!id) return;
+    clearConversationScrollCache(id);
+    prependAnchorRef.current = null;
+    await jumpToLatestMessages(id);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollToBottom('auto');
+      });
+    });
+  }, [id, jumpToLatestMessages, scrollToBottom]);
 
   const handleLeaveClick = useCallback(() => {
     if (!conversation) return;
@@ -478,16 +503,6 @@ export function ConversationView() {
     return { rotationLabel, readableWindow, tooltip };
   }, [fsConfig.securityLevel, fsConfig.spkDeletionPolicy, fsConfig.clearCacheOnRotation]);
 
-  const virtuosoComponents = useMemo(() => ({
-    Header: () =>
-      messagesLoading ? (
-        <div className="dm-messages-loading">
-          <span className="spinner spinner-sm" />
-        </div>
-      ) : null,
-    Item: (props: React.HTMLAttributes<HTMLDivElement>) => <div {...props} className="dm-messages-item" />,
-  }), [messagesLoading]);
-
   const unreadCount = conversation?.unreadCount ?? 0;
 
   const messagesById = useMemo(() => {
@@ -533,14 +548,28 @@ export function ConversationView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reversedMessages, unreadCount, expiryTick]);
 
-  const flatItemsLengthRef = useRef(flatItems.length);
-  flatItemsLengthRef.current = flatItems.length;
+  useLayoutEffect(() => {
+    const anchor = prependAnchorRef.current;
+    if (!anchor || messagesLoading) return;
+    const vp = scrollViewportRef.current;
+    if (!vp) return;
+    if (vp.scrollHeight === anchor.scrollHeight) {
+      prependAnchorRef.current = null;
+      return;
+    }
+    prependAnchorRef.current = null;
+    vp.scrollTop = computeScrollTopAfterPrepend(anchor.scrollTop, anchor.scrollHeight, vp.scrollHeight);
+  }, [messagesLoading, flatItems.length, id]);
 
-  const handleRangeChanged = useCallback((range: { startIndex: number; endIndex: number }) => {
-    const firstItemIndex = FIRST_ITEM_INDEX - flatItemsLengthRef.current;
-    const dataIndex = range.startIndex - firstItemIndex;
-    saveVisibleIndex(dataIndex);
-  }, [saveVisibleIndex]);
+  // New rows append at the bottom: scrollHeight grows while scrollTop stays fixed, so the viewport no longer
+  // shows the latest until we re-pin — must run in layout *after* prepend restoration above.
+  useLayoutEffect(() => {
+    if (!id) return;
+    const vp = scrollViewportRef.current;
+    if (!vp) return;
+    if (!isAtBottomRef.current) return;
+    vp.scrollTop = vp.scrollHeight - vp.clientHeight;
+  }, [messageLayoutKey, id]);
 
   useLayoutEffect(() => {
     if (!id || cachedScrollIndex != null) return;
@@ -551,7 +580,8 @@ export function ConversationView() {
     initialOpenBottomSnapDoneRef.current = true;
     const run = () => {
       if (!isAtBottomRef.current) return;
-      virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end', behavior: 'auto' });
+      const vp = scrollViewportRef.current;
+      if (vp) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
     };
     requestAnimationFrame(() => {
       requestAnimationFrame(run);
@@ -570,15 +600,17 @@ export function ConversationView() {
   const scrollToMessageId = useCallback(
     (targetId: string) => {
       replyScrollLoadAttemptsRef.current = 0;
-      const idx = flatItems.findIndex((i) => i.type === 'message' && i.msg.id === targetId);
-      if (idx >= 0) {
-        virtuosoRef.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'smooth' });
+      const vp = scrollViewportRef.current;
+      const escaped = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(targetId) : targetId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      const el = vp?.querySelector(`[data-message-id="${escaped}"]`);
+      if (el) {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
         window.setTimeout(() => flashMessageHighlight(targetId), 350);
         return;
       }
       pendingScrollToRef.current = targetId;
     },
-    [flatItems, flashMessageHighlight]
+    [flashMessageHighlight]
   );
 
   useEffect(() => {
@@ -586,8 +618,10 @@ export function ConversationView() {
     const id = pendingScrollToRef.current;
     const idx = flatItems.findIndex((i) => i.type === 'message' && i.msg.id === id);
     if (idx >= 0) {
+      const vp = scrollViewportRef.current;
+      const escaped = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(id) : id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
       requestAnimationFrame(() => {
-        virtuosoRef.current?.scrollToIndex({ index: idx, align: 'center', behavior: 'smooth' });
+        vp?.querySelector(`[data-message-id="${escaped}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       });
       pendingScrollToRef.current = null;
       replyScrollLoadAttemptsRef.current = 0;
@@ -762,16 +796,15 @@ export function ConversationView() {
               onMentionClick={handleMentionClick}
               scrollToMessageId={scrollToMessageId}
               showScrollButton={showScrollButton}
-              scrollToBottom={scrollToBottom}
-              virtuosoRef={virtuosoRef}
+              onJumpToLatest={handleJumpToLatest}
+              scrollViewportRef={scrollViewportRef}
+              messagesContentRef={messagesContentRef}
               messagesContainerRef={messagesContainerRef}
-              followOutput={followOutput}
-              handleAtBottomStateChange={handleAtBottomStateChange}
-              handleStartReached={handleStartReached}
-              handleRangeChanged={handleRangeChanged}
-              handleIsScrolling={handleIsScrolling}
+              onScrollViewportScroll={onScrollViewportScroll}
+              onUserScrollIntent={onUserScrollIntent}
               cachedScrollIndex={cachedScrollIndex}
-              virtuosoComponents={virtuosoComponents}
+              hasMoreOlder={!!activeMessagesCursor}
+              onReachOlder={handleReachOlder}
               t={t as any}
               gifsDisabledByAdmin={effectiveGifsDisabled}
             />
