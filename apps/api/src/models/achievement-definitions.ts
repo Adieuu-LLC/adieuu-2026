@@ -147,14 +147,6 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
 
   // -- Security --
   {
-    id: 'first_device_added',
-    name: 'achievements.firstDeviceAdded.name',
-    description: 'achievements.firstDeviceAdded.description',
-    icon: 'device',
-    category: 'security',
-    trigger: { type: 'action', action: 'device_registered' },
-  },
-  {
     id: 'fs_message_sent',
     name: 'achievements.fsMessageSent.name',
     description: 'achievements.fsMessageSent.description',
@@ -238,6 +230,76 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     category: 'misc',
     trigger: { type: 'action', action: 'show_message_artifacts_enabled' },
   },
+
+  // -- Profile (privacy / colours) --
+  {
+    id: 'get_off_my_lawn',
+    name: 'achievements.getOffMyLawn.name',
+    description: 'achievements.getOffMyLawn.description',
+    icon: 'lock',
+    category: 'profile',
+    trigger: { type: 'action', action: 'privacy_all_private' },
+  },
+  {
+    id: 'i_was_never_here',
+    name: 'achievements.iWasNeverHere.name',
+    description: 'achievements.iWasNeverHere.description',
+    icon: 'mask',
+    category: 'profile',
+    trigger: { type: 'action', action: 'last_active_private' },
+  },
+  {
+    id: 'polarizing',
+    name: 'achievements.polarizing.name',
+    description: 'achievements.polarizing.description',
+    icon: 'palette',
+    category: 'profile',
+    trigger: { type: 'action', action: 'profile_colors_high_contrast' },
+  },
+
+  // -- Social --
+  {
+    id: 'we_dont_talk_anymore',
+    name: 'achievements.weDontTalkAnymore.name',
+    description: 'achievements.weDontTalkAnymore.description',
+    icon: 'userMinus',
+    category: 'social',
+    trigger: { type: 'action', action: 'friend_removed' },
+  },
+
+  // -- Messaging (client-detected, hidden descriptions) --
+  {
+    id: 'answer_to_universe',
+    name: 'achievements.answerToUniverse.name',
+    description: 'achievements.answerToUniverse.description',
+    icon: 'globe',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'message_contains_42' },
+  },
+  {
+    id: 'blaze_it',
+    name: 'achievements.blazeIt.name',
+    description: 'achievements.blazeIt.description',
+    icon: 'fire',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'message_contains_420' },
+  },
+  {
+    id: 'nsfw',
+    name: 'achievements.nsfw.name',
+    description: 'achievements.nsfw.description',
+    icon: 'warning',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'curse_word_message_sent' },
+  },
+  {
+    id: 'sailor',
+    name: 'achievements.sailor.name',
+    description: 'achievements.sailor.description',
+    icon: 'message',
+    category: 'messaging',
+    trigger: { type: 'action', action: 'curse_word_messages_25' },
+  },
 ];
 
 export const ACHIEVEMENT_MAP = new Map(
@@ -254,6 +316,10 @@ export const CLAIMABLE_ACTIONS = new Set([
   'notification_volume_maxed',
   'theme_saved',
   'show_message_artifacts_enabled',
+  'message_contains_42',
+  'message_contains_420',
+  'curse_word_message_sent',
+  'curse_word_messages_25',
 ]);
 
 export function toPublicDefinition(def: AchievementDefinition): PublicAchievementDefinition {

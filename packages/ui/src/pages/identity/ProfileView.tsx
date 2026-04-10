@@ -176,6 +176,8 @@ export function IdentityProfileView() {
     .join('')
     .toUpperCase();
 
+  const cardBg = profile.profileColors?.cardBackground;
+
   return (
     <div
       className="page-content"
@@ -184,14 +186,12 @@ export function IdentityProfileView() {
         : undefined}
     >
       <div className="container">
-        <div
-          className="profile-view"
-          style={profile.profileColors?.cardBackground
-            ? { backgroundColor: profile.profileColors.cardBackground }
-            : undefined}
-        >
-          {/* Banner + Avatar hero */}
-          <div className="profile-view-hero">
+        <div className="profile-view">
+          {/* Unified card: banner + avatar + info */}
+          <div
+            className="profile-view-card slide-up"
+            style={cardBg ? { backgroundColor: cardBg } : undefined}
+          >
             <div
               className="profile-view-banner"
               style={{
@@ -202,100 +202,104 @@ export function IdentityProfileView() {
                   profile.profileColors?.accent || 'var(--color-bg-tertiary)',
               }}
             />
-            <div className="profile-view-avatar-wrapper">
-              {profile.avatarUrl ? (
-                <img
-                  src={profile.avatarUrl}
-                  alt={profile.displayName}
-                  className="profile-view-avatar"
-                />
-              ) : (
-                <div className="profile-view-avatar profile-view-avatar--placeholder">
-                  <span>{initials}</span>
-                </div>
-              )}
-            </div>
-          </div>
 
-          {/* Identity info */}
-          <Card variant="elevated" className="profile-view-info slide-up">
-            <div className="profile-view-name-row">
-              <div>
-                <h1
-                  className="profile-view-display-name"
-                  style={{ color: profile.profileColors?.accent || undefined }}
-                >
-                  {profile.displayName}
-                </h1>
-                <p className="profile-view-username">@{profile.username}</p>
+            <div className="profile-view-body">
+              <div className="profile-view-avatar-wrapper">
+                {profile.avatarUrl ? (
+                  <img
+                    src={profile.avatarUrl}
+                    alt={profile.displayName}
+                    className="profile-view-avatar"
+                    style={cardBg ? { borderColor: cardBg } : undefined}
+                  />
+                ) : (
+                  <div
+                    className="profile-view-avatar profile-view-avatar--placeholder"
+                    style={cardBg ? { borderColor: cardBg } : undefined}
+                  >
+                    <span>{initials}</span>
+                  </div>
+                )}
               </div>
-              {isSelf && (
-                <Link to="/identity/profile">
-                  <Button variant="secondary" size="sm">
-                    {t('identity.profileView.editProfile')}
-                  </Button>
-                </Link>
-              )}
-              {!isSelf && isIdentityLoggedIn && id && (
-                <div className="profile-view-friend-actions">
-                  {!checkBlocked(id) && friendStatus === 'none' && (
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={handleAddFriend}
-                      disabled={friendActionLoading}
-                    >
-                      <Icon name="plus" />
-                      {t('friends.addFriend')}
+
+              <div className="profile-view-name-row">
+                <div>
+                  <h1
+                    className="profile-view-display-name"
+                    style={{ color: profile.profileColors?.accent || undefined }}
+                  >
+                    {profile.displayName}
+                  </h1>
+                  <p className="profile-view-username">@{profile.username}</p>
+                </div>
+                {isSelf && (
+                  <Link to="/identity/profile">
+                    <Button variant="secondary" size="sm">
+                      {t('identity.profileView.editProfile')}
                     </Button>
-                  )}
-                  {!checkBlocked(id) && (friendStatus === 'pending_outgoing' || friendStatus === 'pending_incoming') && (
-                    <Button variant="ghost" size="sm" disabled>
-                      {t('friends.pending')}
-                    </Button>
-                  )}
-                  {!checkBlocked(id) && friendStatus === 'friends' && (
+                  </Link>
+                )}
+                {!isSelf && isIdentityLoggedIn && id && (
+                  <div className="profile-view-friend-actions">
+                    {!checkBlocked(id) && friendStatus === 'none' && (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleAddFriend}
+                        disabled={friendActionLoading}
+                      >
+                        <Icon name="plus" />
+                        {t('friends.addFriend')}
+                      </Button>
+                    )}
+                    {!checkBlocked(id) && (friendStatus === 'pending_outgoing' || friendStatus === 'pending_incoming') && (
+                      <Button variant="ghost" size="sm" disabled>
+                        {t('friends.pending')}
+                      </Button>
+                    )}
+                    {!checkBlocked(id) && friendStatus === 'friends' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleRemoveFriend}
+                        disabled={friendActionLoading}
+                      >
+                        <Icon name="x" />
+                        {t('friends.removeFriend')}
+                      </Button>
+                    )}
+                    <BlockActionButton identityId={id} />
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={handleRemoveFriend}
-                      disabled={friendActionLoading}
+                      onClick={() => setReportOpen(true)}
                     >
-                      <Icon name="x" />
-                      {t('friends.removeFriend')}
+                      <Icon name="warning" />
+                      {t('report.reportProfile')}
                     </Button>
-                  )}
-                  <BlockActionButton identityId={id} />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setReportOpen(true)}
-                  >
-                    <Icon name="warning" />
-                    {t('report.reportProfile')}
-                  </Button>
-                </div>
+                  </div>
+                )}
+              </div>
+
+              {profile.bio && (
+                <p className="profile-view-bio">{profile.bio}</p>
               )}
-            </div>
 
-            {profile.bio && (
-              <p className="profile-view-bio">{profile.bio}</p>
-            )}
+              {profile.lastActiveAt && (
+                <p className="profile-view-meta">
+                  {t('identity.profileView.lastActive', {
+                    date: new Date(profile.lastActiveAt).toLocaleDateString(),
+                  })}
+                </p>
+              )}
 
-            {profile.lastActiveAt && (
               <p className="profile-view-meta">
-                {t('identity.profileView.lastActive', {
-                  date: new Date(profile.lastActiveAt).toLocaleDateString(),
+                {t('identity.profileView.joined', {
+                  date: new Date(profile.createdAt).toLocaleDateString(),
                 })}
               </p>
-            )}
-
-            <p className="profile-view-meta">
-              {t('identity.profileView.joined', {
-                date: new Date(profile.createdAt).toLocaleDateString(),
-              })}
-            </p>
-          </Card>
+            </div>
+          </div>
 
           {/* Profile tabs */}
           <Tabs defaultTab="about" className="profile-view-tabs">

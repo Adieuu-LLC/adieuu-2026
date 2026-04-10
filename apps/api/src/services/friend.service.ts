@@ -338,6 +338,8 @@ export async function removeFriend(
     data: { identityId: identityObjId.toHexString() },
   });
 
+  checkAndAward(identityObjId, 'friend_removed').catch(() => {});
+
   elog.info('Friend removed', { identityId: identityObjId.toHexString() });
 
   return { success: true };

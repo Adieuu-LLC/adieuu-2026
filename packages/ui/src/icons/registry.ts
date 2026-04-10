@@ -39,6 +39,7 @@ import {
   faTrophy as fasTrophy, faUserPlus as fasUserPlus,
   faUserGroup as fasUserGroup, faMobileScreenButton as fasMobile,
   faHeart as fasHeart, faBan as fasBan,
+  faFire as fasFire, faUserMinus as fasUserMinus,
 } from '@awesome.me/kit-888aad49e1/icons/classic/solid';
 
 // ---------------------------------------------------------------------------
@@ -69,6 +70,7 @@ import {
   faTrophy as fadTrophy, faUserPlus as fadUserPlus,
   faUserGroup as fadUserGroup, faMobileScreenButton as fadMobile,
   faHeart as fadHeart, faBan as fadBan,
+  faFire as fadFire, faUserMinus as fadUserMinus,
 } from '@awesome.me/kit-888aad49e1/icons/duotone/solid';
 
 // ---------------------------------------------------------------------------
@@ -99,6 +101,7 @@ import {
   faTrophy as fadtTrophy, faUserPlus as fadtUserPlus,
   faUserGroup as fadtUserGroup, faMobileScreenButton as fadtMobile,
   faHeart as fadtHeart, faBan as fadtBan,
+  faFire as fadtFire, faUserMinus as fadtUserMinus,
 } from '@awesome.me/kit-888aad49e1/icons/duotone/thin';
 
 // ---------------------------------------------------------------------------
@@ -129,6 +132,7 @@ import {
   faTrophy as fasdsTrophy, faUserPlus as fasdsUserPlus,
   faUserGroup as fasdsUserGroup, faMobileScreenButton as fasdsMobile,
   faHeart as fasdsHeart, faBan as fasdsBan,
+  faFire as fasdsFire, faUserMinus as fasdsUserMinus,
 } from '@awesome.me/kit-888aad49e1/icons/sharp-duotone/solid';
 
 // ---------------------------------------------------------------------------
@@ -159,6 +163,7 @@ import {
   faTrophy as fasdtTrophy, faUserPlus as fasdtUserPlus,
   faUserGroup as fasdtUserGroup, faMobileScreenButton as fasdtMobile,
   faHeart as fasdtHeart, faBan as fasdtBan,
+  faFire as fasdtFire, faUserMinus as fasdtUserMinus,
 } from '@awesome.me/kit-888aad49e1/icons/sharp-duotone/thin';
 
 // ---------------------------------------------------------------------------
@@ -177,6 +182,7 @@ import {
   faThumbsUp as fajrThumbsUp, faTriangleExclamation as fajrWarning,
   faCircleCheck as fajrSuccess, faCircleXmark as fajrError,
   faArrowLeft as fajrArrowLeft, faCircle as fajrCircle,
+  faFire as fajrFire,
 } from '@awesome.me/kit-888aad49e1/icons/jelly/regular';
 
 // ---------------------------------------------------------------------------
@@ -194,6 +200,7 @@ const allIcons: IconDefinition[] = [
   fasWarning, fasSuccess, fasError, fasBadge, fasFileDown, fasFileUp,
   fasArrowLeft, fasCircle, fasPen, fasNoteSticky,
   fasTrophy, fasUserPlus, fasUserGroup, fasMobile, fasHeart, fasBan,
+  fasFire, fasUserMinus,
 
   // DuoTone Solid
   fadHouse, fadMessage, fadReply, fadUsers, fadGear, fadCircleInfo, fadDownload,
@@ -205,6 +212,7 @@ const allIcons: IconDefinition[] = [
   fadWarning, fadSuccess, fadError, fadBadge, fadFileDown, fadFileUp,
   fadArrowLeft, fadCircle, fadPen, fadNoteSticky,
   fadTrophy, fadUserPlus, fadUserGroup, fadMobile, fadHeart, fadBan,
+  fadFire, fadUserMinus,
 
   // DuoTone Thin
   fadtHouse, fadtMessage, fadtReply, fadtUsers, fadtGear, fadtCircleInfo, fadtDownload,
@@ -216,6 +224,7 @@ const allIcons: IconDefinition[] = [
   fadtWarning, fadtSuccess, fadtError, fadtBadge, fadtFileDown, fadtFileUp,
   fadtArrowLeft, fadtCircle, fadtPen, fadtNoteSticky,
   fadtTrophy, fadtUserPlus, fadtUserGroup, fadtMobile, fadtHeart, fadtBan,
+  fadtFire, fadtUserMinus,
 
   // Sharp DuoTone Solid
   fasdsHouse, fasdsMessage, fasdsReply, fasdsUsers, fasdsGear, fasdsCircleInfo, fasdsDownload,
@@ -227,6 +236,7 @@ const allIcons: IconDefinition[] = [
   fasdsWarning, fasdsSuccess, fasdsError, fasdsBadge, fasdsFileDown, fasdsFileUp,
   fasdsArrowLeft, fasdsCircle, fasdsPen, fasdsNoteSticky,
   fasdsTrophy, fasdsUserPlus, fasdsUserGroup, fasdsMobile, fasdsHeart, fasdsBan,
+  fasdsFire, fasdsUserMinus,
 
   // Sharp DuoTone Thin
   fasdtHouse, fasdtMessage, fasdtReply, fasdtUsers, fasdtGear, fasdtCircleInfo, fasdtDownload,
@@ -238,6 +248,7 @@ const allIcons: IconDefinition[] = [
   fasdtWarning, fasdtSuccess, fasdtError, fasdtBadge, fasdtFileDown, fasdtFileUp,
   fasdtArrowLeft, fasdtCircle, fasdtPen, fasdtNoteSticky,
   fasdtTrophy, fasdtUserPlus, fasdtUserGroup, fasdtMobile, fasdtHeart, fasdtBan,
+  fasdtFire, fasdtUserMinus,
 
   // Jelly Regular
   fajrHouse, fajrUsers, fajrGear, fajrCircleInfo, fajrKey, fajrBell,
@@ -245,7 +256,7 @@ const allIcons: IconDefinition[] = [
   fajrClock, fajrX, fajrEllipsis, fajrSmile, fajrSend, fajrTrash,
   fajrCamera, fajrImage, fajrGlobe, fajrDesktop, fajrBars, fajrEye,
   fajrThumbsUp, fajrWarning, fajrSuccess, fajrError, fajrArrowLeft,
-  fajrCircle,
+  fajrCircle, fajrFire,
 ];
 
 library.add(...allIcons);

@@ -22,6 +22,7 @@ import {
 } from '../../services/identity.service';
 import { checkAndAward } from '../../services/achievement.service';
 import { publishProfileUpdated } from '../../services/profile-event.service';
+import { contrastRatio } from '../../utils/color';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getMediaUploadRepository } from '../../repositories/media-upload.repository';
 import { getCollection, Collections } from '../../db';
@@ -218,9 +219,10 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
     update.profileColors = colors;
   }
 
+  let mergedPrivacy: ProfilePrivacySettings | undefined;
   if (data.privacySettings !== undefined) {
     const current = identity.privacySettings ?? { ...DEFAULT_PRIVACY_SETTINGS };
-    const merged: ProfilePrivacySettings = {
+    mergedPrivacy = {
       avatar: data.privacySettings.avatar ?? current.avatar,
       banner: data.privacySettings.banner ?? current.banner,
       bio: data.privacySettings.bio ?? current.bio,
@@ -230,7 +232,7 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
       achievements:
         data.privacySettings.achievements ?? current.achievements,
     };
-    update.privacySettings = merged;
+    update.privacySettings = mergedPrivacy;
   }
 
   if (data.requireGroupApproval !== undefined) {
@@ -255,6 +257,25 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
   }
   if (update.avatarUrl || update.bio !== undefined || update.profileColors) {
     checkAndAward(identity._id, 'profile_customized').catch(() => {});
+  }
+
+  if (mergedPrivacy) {
+    if (mergedPrivacy.avatar === 'private' && mergedPrivacy.banner === 'private' && mergedPrivacy.bio === 'private') {
+      checkAndAward(identity._id, 'privacy_all_private').catch(() => {});
+    }
+    if (mergedPrivacy.lastActiveAt === 'private') {
+      checkAndAward(identity._id, 'last_active_private').catch(() => {});
+    }
+  }
+
+  if (update.profileColors) {
+    const mergedColors = { ...identity.profileColors, ...data.profileColors };
+    if (mergedColors.accent && mergedColors.cardBackground) {
+      const ratio = contrastRatio(mergedColors.accent, mergedColors.cardBackground);
+      if (ratio >= 7) {
+        checkAndAward(identity._id, 'profile_colors_high_contrast').catch(() => {});
+      }
+    }
   }
 
   publishProfileUpdated(identityId).catch(() => {});

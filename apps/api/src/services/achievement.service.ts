@@ -23,8 +23,9 @@ import {
   type AchievementDefinition,
   type PublicAchievementDefinition,
 } from '../models/achievement-definitions';
-import type { IdentityDocument } from '../models/identity';
+import { DEFAULT_PRIVACY_SETTINGS, type IdentityDocument } from '../models/identity';
 import { toPublicAchievement, type PublicAchievement } from '../models/achievement';
+import { contrastRatio } from '../utils/color';
 import elog from '../utils/adieuuLogger';
 
 // ---------------------------------------------------------------------------
@@ -187,8 +188,6 @@ async function canInferActionCompleted(
       });
       return doc !== null;
     }
-    case 'device_registered':
-      return Array.isArray(identity.devices) && identity.devices.length >= 1;
     case 'profile_customized': {
       const colors = identity.profileColors;
       const hasColors = !!colors && !!(colors.accent || colors.cardBackground || colors.background);
@@ -196,6 +195,19 @@ async function canInferActionCompleted(
     }
     case 'banner_set':
       return !!identity.bannerUrl;
+    case 'privacy_all_private': {
+      const p = identity.privacySettings ?? DEFAULT_PRIVACY_SETTINGS;
+      return p.avatar === 'private' && p.banner === 'private' && p.bio === 'private';
+    }
+    case 'last_active_private': {
+      const p = identity.privacySettings ?? DEFAULT_PRIVACY_SETTINGS;
+      return p.lastActiveAt === 'private';
+    }
+    case 'profile_colors_high_contrast': {
+      const c = identity.profileColors;
+      if (!c?.accent || !c?.cardBackground) return false;
+      return contrastRatio(c.accent, c.cardBackground) >= 7;
+    }
     default:
       return false;
   }

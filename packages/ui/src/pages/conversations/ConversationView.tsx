@@ -25,6 +25,7 @@ import { extractDomain } from '../../utils/urlParsing';
 import { isDomainTrusted } from '../../hooks/useExternalLinkPreferences';
 import { clearMediaCache } from '../../hooks/useE2EMediaDownload';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
+import { useMessageAchievements } from '../../hooks/useMessageAchievements';
 import { parsePayload } from '../../services/messagePayload';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import type { ComposerSendFn, ComposerReplyContext, MentionSource, MentionableUser } from '../../components/composer';
@@ -594,6 +595,8 @@ export function ConversationView() {
 
   // --- Adapter: map conversation types to composer generic interfaces ---
 
+  const checkMessageAchievements = useMessageAchievements();
+
   const composerSend: ComposerSendFn = useCallback(
     async (plaintext, options) => {
       const result = await sendTextMessage(id!, plaintext, options);
@@ -601,9 +604,12 @@ export function ConversationView() {
         setBlockedByOther(true);
         return null;
       }
+      if (result && !('errorCode' in result)) {
+        checkMessageAchievements(plaintext);
+      }
       return result;
     },
-    [id, sendTextMessage]
+    [id, sendTextMessage, checkMessageAchievements]
   );
 
   const composerReplyContext: ComposerReplyContext | null = useMemo(() => {
