@@ -6,7 +6,7 @@
  * from the global stylesheet.
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { createApiClient } from '@adieuu/shared';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -105,11 +105,15 @@ export function ConversationView() {
     markJustSent,
     saveVisibleIndex,
     cachedScrollIndex,
+    handleTotalListHeightChanged,
   } = useConversationScroll({ conversationId: id, setIsAtBottom, markConversationRead });
 
   const fetchedReactionsForRef = useRef<string | null>(null);
   const pendingReactionsRef = useRef<Set<string>>(new Set());
   const pendingScrollToRef = useRef<string | null>(null);
+  /** `messageId` query on this conversation the first time `id` is set (survives deep-link strip). */
+  const urlMessageIdOnConversationEntryRef = useRef<string | null>(null);
+  const prevIdForUrlCaptureRef = useRef<string | undefined>(undefined);
   const replyScrollLoadAttemptsRef = useRef(0);
   const [replyingTo, setReplyingTo] = useState<DisplayMessage | null>(null);
   const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
@@ -275,6 +279,13 @@ export function ConversationView() {
     replyScrollLoadAttemptsRef.current = 0;
     clearMediaCache();
   }, [id]);
+
+  useEffect(() => {
+    if (prevIdForUrlCaptureRef.current !== id) {
+      prevIdForUrlCaptureRef.current = id;
+      urlMessageIdOnConversationEntryRef.current = searchParams.get('messageId');
+    }
+  }, [id, searchParams]);
 
   const setActiveConversationRef = useRef(setActiveConversation);
   setActiveConversationRef.current = setActiveConversation;
@@ -528,6 +539,19 @@ export function ConversationView() {
     saveVisibleIndex(dataIndex);
   }, [saveVisibleIndex]);
 
+  useLayoutEffect(() => {
+    if (!id || cachedScrollIndex != null) return;
+    if (flatItems.length === 0 || messagesLoading) return;
+    if (pendingScrollToRef.current) return;
+    if (urlMessageIdOnConversationEntryRef.current) return;
+    const run = () => {
+      virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end', behavior: 'auto' });
+    };
+    requestAnimationFrame(() => {
+      requestAnimationFrame(run);
+    });
+  }, [id, cachedScrollIndex, flatItems.length, messagesLoading]);
+
   const FLASH_HIGHLIGHT_MS = 2800;
 
   const flashMessageHighlight = useCallback((targetId: string) => {
@@ -739,6 +763,7 @@ export function ConversationView() {
               handleAtBottomStateChange={handleAtBottomStateChange}
               handleStartReached={handleStartReached}
               handleRangeChanged={handleRangeChanged}
+              handleTotalListHeightChanged={handleTotalListHeightChanged}
               cachedScrollIndex={cachedScrollIndex}
               virtuosoComponents={virtuosoComponents}
               t={t as any}

@@ -59,7 +59,7 @@ async function getMongoUri(): Promise<string> {
     uri = parsed[MONGODB_SECRET_KEY];
     if (!uri) {
       throw new Error(
-        `Key "${MONGODB_SECRET_KEY}" not found in secret JSON`
+        `Mongo secret key not found in secret JSON`
       );
     }
   } catch (err) {
@@ -100,7 +100,7 @@ async function getMongoClient(): Promise<MongoClient> {
   const ping = await db.command({ ping: 1 });
   if (!ping.ok) {
     throw new Error(
-      `MongoDB ping failed on database "${MONGODB_DB_NAME}": ${JSON.stringify(ping)}`
+      `MongoDB ping failed on database "${MONGODB_DB_NAME}"!`
     );
   }
 

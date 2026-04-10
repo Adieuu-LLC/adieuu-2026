@@ -5,7 +5,9 @@
  *
  * Design goals (matching Discord / Slack semantics):
  *  - Sending a message always scrolls to the bottom, even when browsing history.
- *  - Receiving a message auto-scrolls only if the user is already at the bottom.
+ *  - Receiving a message auto-scrolls only if the user is within
+ *    {@link CONVERSATION_AT_BOTTOM_THRESHOLD_PX} px of the bottom (Virtuoso
+ *    `atBottomThreshold`; manual scroll is the signal we have).
  *  - Composer resize (multi-line typing, attachments) keeps the bottom pinned.
  *  - A single mechanism (`followOutput`) drives auto-scroll, eliminating
  *    race conditions from competing `scrollToIndex` calls.
@@ -25,6 +27,9 @@ import type { FollowOutputScalarType } from 'react-virtuoso';
  * Survives hook re-mounts (Virtuoso `key={id}` causes remount on switch).
  */
 const scrollCache = new Map<string, number>();
+
+/** Distance from the scroll bottom within which Virtuoso treats the list as "at bottom" for follow and read semantics. */
+export const CONVERSATION_AT_BOTTOM_THRESHOLD_PX = 900;
 
 export interface UseConversationScrollOptions {
   /** Conversation id – used only to reset refs on switch. */
@@ -49,6 +54,8 @@ export interface UseConversationScrollResult {
   saveVisibleIndex: (dataIndex: number) => void;
   /** Cached scroll index for the current conversation, or null (= go to bottom). */
   cachedScrollIndex: number | null;
+  /** Virtuoso: when total list height changes (items, remeasure, viewport). */
+  handleTotalListHeightChanged: () => void;
 }
 
 export function useConversationScroll({
@@ -148,6 +155,10 @@ export function useConversationScroll({
     });
   }, []);
 
+  const handleTotalListHeightChanged = useCallback(() => {
+    scrollToBottomIfPinned();
+  }, [scrollToBottomIfPinned]);
+
   const markJustSent = useCallback(() => {
     justSentRef.current = true;
   }, []);
@@ -187,5 +198,6 @@ export function useConversationScroll({
     markJustSent,
     saveVisibleIndex,
     cachedScrollIndex,
+    handleTotalListHeightChanged,
   };
 }

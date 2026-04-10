@@ -9,6 +9,7 @@ import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 import { useGifPreference, useConversationGifHidden } from '../../hooks/useGifPreference';
+import { CONVERSATION_AT_BOTTOM_THRESHOLD_PX } from '../../hooks/useConversationScroll';
 import {
   type ChatItem,
   type ReplyQuotePayload,
@@ -54,6 +55,7 @@ export function ConversationMessageList({
   handleAtBottomStateChange,
   handleStartReached,
   handleRangeChanged,
+  handleTotalListHeightChanged,
   cachedScrollIndex,
   virtuosoComponents,
   t,
@@ -92,6 +94,7 @@ export function ConversationMessageList({
   handleAtBottomStateChange: (atBottom: boolean) => void;
   handleStartReached: () => void;
   handleRangeChanged: (range: { startIndex: number; endIndex: number }) => void;
+  handleTotalListHeightChanged: () => void;
   cachedScrollIndex: number | null;
   virtuosoComponents: { Header: () => React.ReactElement | null; Item: (props: React.HTMLAttributes<HTMLDivElement>) => React.ReactElement };
   t: (key: string, fallback: string) => string;
@@ -218,7 +221,8 @@ export function ConversationMessageList({
           rangeChanged={handleRangeChanged}
           startReached={handleStartReached}
           atBottomStateChange={handleAtBottomStateChange}
-          atBottomThreshold={250}
+          atBottomThreshold={CONVERSATION_AT_BOTTOM_THRESHOLD_PX}
+          totalListHeightChanged={handleTotalListHeightChanged}
           overscan={{ main: 800, reverse: 800 }}
           defaultItemHeight={72}
           increaseViewportBy={{ top: 600, bottom: 600 }}
