@@ -1,6 +1,10 @@
 /**
  * Identity card component for displaying identity information with actions.
  * Used in search results and other identity listings.
+ *
+ * Shows a mini banner, avatar, display name, username, bio, and action
+ * buttons. Applies the identity's profileColors for visual consistency
+ * with the full profile page and hover cards.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -27,9 +31,6 @@ export interface IdentityCardProps {
   className?: string;
 }
 
-/**
- * Card component for displaying an identity with avatar, info, and actions.
- */
 export function IdentityCard({
   identity,
   showActions = true,
@@ -77,8 +78,26 @@ export function IdentityCard({
         ? t('friends.pending')
         : t('friends.addFriend');
 
+  const colors = identity.profileColors;
+
+  const cardStyle: React.CSSProperties = colors?.background
+    ? { backgroundColor: colors.background }
+    : {};
+
+  const bannerStyle: React.CSSProperties = {
+    backgroundImage: identity.bannerUrl ? `url(${identity.bannerUrl})` : undefined,
+    backgroundColor: colors?.primary || 'var(--color-bg-tertiary)',
+  };
+
+  const nameStyle: React.CSSProperties = colors?.accent
+    ? { color: colors.accent }
+    : {};
+
   return (
-    <div className={`identity-card ${className}`.trim()}>
+    <div className={`identity-card ${className}`.trim()} style={cardStyle}>
+      {/* Mini banner */}
+      <div className="identity-card-banner" style={bannerStyle} />
+
       <div className="identity-card-header">
         <div className="identity-card-avatar">
           {identity.avatarUrl ? (
@@ -92,7 +111,7 @@ export function IdentityCard({
           )}
         </div>
         <div className="identity-card-info">
-          <h3 className="identity-card-name">{identity.displayName}</h3>
+          <h3 className="identity-card-name" style={nameStyle}>{identity.displayName}</h3>
           <span className="identity-card-username">@{identity.username}</span>
         </div>
       </div>

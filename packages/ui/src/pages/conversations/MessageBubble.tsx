@@ -9,7 +9,6 @@ import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { parsePayload } from '../../services/messagePayload';
 import { renderFormattedMessage, injectMentionMarkers, type MentionRenderContext } from '../../utils/markdownParser';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
-import { BlockActionButton } from '../../components/BlockActionButton';
 import { useBlockContext } from '../../hooks/useBlockContext';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useToast } from '../../components/Toast';
@@ -358,7 +357,6 @@ export const MessageBubble = memo(function MessageBubble({
           <IdentityHoverCard
             identity={profile}
             positioning={{ placement: 'right', gutter: 8 }}
-            actions={!isOwn ? <BlockActionButton identityId={profile.id} /> : undefined}
           >
             <button type="button" className="dm-message-avatar-btn" style={avatarAccentStyle}>
               {avatarContent}
@@ -373,7 +371,6 @@ export const MessageBubble = memo(function MessageBubble({
               <IdentityHoverCard
                 identity={profile}
                 positioning={{ placement: 'right', gutter: 8 }}
-                actions={!isOwn ? <BlockActionButton identityId={profile.id} /> : undefined}
               >
                 <button type="button" className="dm-message-sender" style={senderNameStyle}>
                   {displayName}
@@ -483,7 +480,6 @@ export const MessageBubble = memo(function MessageBubble({
         <IdentityHoverCard
           identity={senderProfile}
           positioning={{ placement: 'right', gutter: 8 }}
-          actions={<BlockActionButton identityId={senderProfile.id} />}
         >
           <button type="button" className="dm-message-sender" style={senderNameStyle}>
             {resolveDisplayName(message.fromIdentityId, participantProfiles, memberSettings)}

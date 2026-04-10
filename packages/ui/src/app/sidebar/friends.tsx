@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, type MouseEvent as ReactMouseEvent, type ReactElement, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, type MouseEvent as ReactMouseEvent, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { SidebarItem, useSidebar } from '../../components/Sidebar';
@@ -6,7 +6,6 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Icon } from '../../icons/Icon';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
-import { BlockActionButton } from '../../components/BlockActionButton';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useFriends } from '../../hooks/useFriends';
 import type { PublicIdentity } from '@adieuu/shared';
@@ -44,14 +43,12 @@ export function FriendsSidebarButton({
 function FriendProfileHoverCard({
   identity,
   children,
-  actions,
 }: {
   identity: PublicIdentity;
   children: ReactElement;
-  actions: ReactNode;
 }) {
   return (
-    <IdentityHoverCard identity={identity} actions={actions}>
+    <IdentityHoverCard identity={identity}>
       {children}
     </IdentityHoverCard>
   );
@@ -203,26 +200,6 @@ export function FriendsPanel({
               <FriendProfileHoverCard
                 key={req.request.id}
                 identity={req.fromIdentity}
-                actions={
-                  <>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={(event) => handleAccept(req.request.id, event)}
-                    >
-                      <Icon name="check" />
-                      {t('friends.accept')}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(event) => handleIgnore(req.request.id, event)}
-                    >
-                      <Icon name="x" />
-                      {t('friends.ignore')}
-                    </Button>
-                  </>
-                }
               >
                 <div className="sidebar-friends-panel-item sidebar-friends-panel-item-request">
                   <button
@@ -281,19 +258,6 @@ export function FriendsPanel({
               <FriendProfileHoverCard
                 key={friend.identity.id}
                 identity={friend.identity}
-                actions={
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(event) => handleRemoveFriend(friend.identity.id, event)}
-                    >
-                      <Icon name="x" />
-                      {t('friends.remove')}
-                    </Button>
-                    <BlockActionButton identityId={friend.identity.id} />
-                  </>
-                }
               >
                 <button
                   type="button"

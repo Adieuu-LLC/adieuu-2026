@@ -70,6 +70,16 @@ export const en = {
     },
   },
 
+  // Identity hover card / profile card actions
+  identityCard: {
+    viewProfile: 'Profile',
+    message: 'Message',
+    block: 'Block',
+    unblock: 'Unblock',
+    report: 'Report',
+    removeFriend: 'Remove Friend',
+  },
+
   // Friends
   friends: {
     title: 'Friends',
