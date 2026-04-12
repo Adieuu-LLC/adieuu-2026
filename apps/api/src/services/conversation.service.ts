@@ -13,6 +13,11 @@
  */
 
 import { ObjectId } from 'mongodb';
+import {
+  computeHasNewerPagesFromLastMessageId,
+  messagePageBoundsFromNewestFirst,
+  type MessagePaginationDirection,
+} from '@adieuu/shared';
 import { getConversationRepository } from '../repositories/conversation.repository';
 import { getMessageRepository } from '../repositories/message.repository';
 import { getGroupInviteRepository } from '../repositories/group-invite.repository';
@@ -31,6 +36,7 @@ import {
 } from '../models/conversation';
 import {
   toPublicMessage,
+  type MessageDocument,
   type PublicMessage,
   type CreateMessageInput,
 } from '../models/message';
@@ -83,7 +89,8 @@ export interface MessageResult {
     | 'MESSAGE_NOT_FOUND'
     | 'NOT_SENDER'
     | 'INVALID_REPLY_TARGET'
-    | 'INVALID_MEDIA';
+    | 'INVALID_MEDIA'
+    | 'INVALID_MESSAGE_QUERY';
 }
 
 export interface GroupInviteResult {
@@ -632,15 +639,68 @@ export async function sendMessage(
   return { success: true, message: publicMessage };
 }
 
+export type MessagePagePayload = {
+  messages: PublicMessage[];
+  /**
+   * When non-null, pass as `cursor` with `direction=older` to fetch the next page toward the past.
+   */
+  cursor: string | null;
+  pageOldestId: string | null;
+  pageNewestId: string | null;
+  hasNewerPages: boolean;
+};
+
+async function buildMessagePagePayload(
+  conversation: ConversationDocument,
+  convObjId: ObjectId,
+  requesterObjId: ObjectId,
+  messageRepo: ReturnType<typeof getMessageRepository>,
+  docs: MessageDocument[],
+  nextOlderCursor: string | null,
+): Promise<MessagePagePayload> {
+  const publicMessages = docs.map((m) => toPublicMessage(m, requesterObjId));
+  const bounds = messagePageBoundsFromNewestFirst(publicMessages);
+  let hasNewerPages = false;
+  if (bounds.pageNewestId) {
+    const derived = computeHasNewerPagesFromLastMessageId(
+      bounds.pageNewestId,
+      conversation.lastMessageId?.toHexString(),
+    );
+    if (derived === null) {
+      hasNewerPages = await messageRepo.hasMessageNewerThan(
+        convObjId,
+        new ObjectId(bounds.pageNewestId),
+      );
+    } else {
+      hasNewerPages = derived;
+    }
+  }
+  return {
+    messages: publicMessages,
+    cursor: nextOlderCursor,
+    pageOldestId: bounds.pageOldestId,
+    pageNewestId: bounds.pageNewestId,
+    hasNewerPages,
+  };
+}
+
 /**
  * Get messages for a conversation with cursor-based pagination.
+ *
+ * - **Initial page:** omit both `cursor` and `direction` — returns the newest messages (newest-first).
+ * - **Older:** `cursor` = anchor id, `direction=older` — next chunk toward the past (`_id < cursor`).
+ * - **Newer:** `cursor` = anchor id, `direction=newer` — next chunk toward the present (`_id > cursor`).
+ *
+ * Each response includes `pageOldestId` / `pageNewestId` for this batch (newest-first order).
+ * `hasNewerPages` is derived from `pageNewestId` vs the conversation’s `lastMessageId` when present.
  */
 export async function getMessages(
   conversationId: string | ObjectId,
   requesterIdentityId: string | ObjectId,
   limit = 50,
-  cursor?: string
-): Promise<{ messages: PublicMessage[]; cursor: string | null } | MessageResult> {
+  cursor?: string,
+  direction?: MessagePaginationDirection
+): Promise<MessagePagePayload | MessageResult> {
   const conversationRepo = getConversationRepository();
   const messageRepo = getMessageRepository();
 
@@ -650,6 +710,18 @@ export async function getMessages(
     requesterIdentityId instanceof ObjectId
       ? requesterIdentityId
       : new ObjectId(requesterIdentityId as string);
+
+  const hasCursor = !!cursor?.trim();
+  const hasDirection = direction != null;
+  if (hasCursor !== hasDirection) {
+    return {
+      success: false,
+      error: hasCursor
+        ? 'direction is required when cursor is set (older or newer).'
+        : 'cursor is required when direction is set.',
+      errorCode: 'INVALID_MESSAGE_QUERY',
+    };
+  }
 
   const conversation = await conversationRepo.findById(convObjId);
   if (!conversation) {
@@ -661,25 +733,81 @@ export async function getMessages(
     return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
   }
 
-  const cursorObjId = cursor ? new ObjectId(cursor) : undefined;
-  /** Cursor is the oldest message from the prior page; repository `asc` applies `_id < cursor` for the next older chunk. */
-  const messages = await messageRepo.findByConversation(
+  if (hasCursor && direction === 'newer') {
+    const anchorObjId = new ObjectId(cursor!);
+    // Next page toward the present: the *oldest* N messages with _id > anchor (ascending),
+    // not the globally newest N (descending would jump to the live tail).
+    const ascChunk = await messageRepo.findAfter(convObjId, anchorObjId, limit + 1);
+    const hasMoreInDirection = ascChunk.length > limit;
+    const pageAsc = hasMoreInDirection ? ascChunk.slice(0, limit) : ascChunk;
+    if (pageAsc.length === 0) {
+      return {
+        messages: [],
+        cursor: null,
+        pageOldestId: null,
+        pageNewestId: null,
+        hasNewerPages: false,
+      };
+    }
+    const newestFirst = [...pageAsc].reverse();
+    const tail = newestFirst[newestFirst.length - 1]!;
+    const hasMoreOlder = await messageRepo.hasMessageOlderThan(convObjId, tail._id);
+    return buildMessagePagePayload(
+      conversation,
+      convObjId,
+      requesterObjId,
+      messageRepo,
+      newestFirst,
+      hasMoreOlder ? tail._id.toHexString() : null,
+    );
+  }
+
+  if (hasCursor && direction === 'older') {
+    const anchorObjId = new ObjectId(cursor!);
+    const messages = await messageRepo.findByConversation(convObjId, limit + 1, anchorObjId, 'asc');
+    const hasMoreOlder = messages.length > limit;
+    const result = hasMoreOlder ? messages.slice(0, limit) : messages;
+    if (result.length === 0) {
+      return {
+        messages: [],
+        cursor: null,
+        pageOldestId: null,
+        pageNewestId: null,
+        hasNewerPages: false,
+      };
+    }
+    const tail = result[result.length - 1]!;
+    return buildMessagePagePayload(
+      conversation,
+      convObjId,
+      requesterObjId,
+      messageRepo,
+      result,
+      hasMoreOlder ? tail._id.toHexString() : null,
+    );
+  }
+
+  const messages = await messageRepo.findByConversation(convObjId, limit + 1, undefined);
+  const hasMoreOlder = messages.length > limit;
+  const result = hasMoreOlder ? messages.slice(0, limit) : messages;
+  if (result.length === 0) {
+    return {
+      messages: [],
+      cursor: null,
+      pageOldestId: null,
+      pageNewestId: null,
+      hasNewerPages: false,
+    };
+  }
+  const tail = result[result.length - 1]!;
+  return buildMessagePagePayload(
+    conversation,
     convObjId,
-    limit + 1,
-    cursorObjId,
-    'asc',
+    requesterObjId,
+    messageRepo,
+    result,
+    hasMoreOlder ? tail._id.toHexString() : null,
   );
-
-  const hasMore = messages.length > limit;
-  const result = hasMore ? messages.slice(0, limit) : messages;
-
-  return {
-    messages: result.map((m) => toPublicMessage(m, requesterObjId)),
-    cursor:
-      hasMore && result.length > 0
-        ? result[result.length - 1]!._id.toHexString()
-        : null,
-  };
 }
 
 /**

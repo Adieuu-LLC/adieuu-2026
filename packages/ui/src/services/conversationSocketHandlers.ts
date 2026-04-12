@@ -28,7 +28,7 @@ interface DecryptedConversationLike {
 
 interface ConversationMessagesStateLike {
   messages: DisplayMessageLike[];
-  cursor: string | null;
+  olderCursor: string | null;
   loading: boolean;
 }
 
@@ -53,7 +53,13 @@ export interface ConversationSocketHandlerContext {
     conversationId: string
   ) => string;
   fetchConversations: () => void;
-  fetchMessages: (conversationId: string, cursor?: string, silent?: boolean, mergeLatest?: boolean) => void;
+  fetchMessages: (
+    conversationId: string,
+    paginationCursor?: string,
+    silent?: boolean,
+    mergeLatest?: boolean,
+    direction?: 'older' | 'newer'
+  ) => void;
   fireNotification: (
     title: string,
     body: string,

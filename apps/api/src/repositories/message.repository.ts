@@ -6,7 +6,7 @@
  * and metadata-based queries. Content decryption happens exclusively client-side.
  */
 
-import { ObjectId } from 'mongodb';
+import { type Filter, ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type {
@@ -33,6 +33,8 @@ export interface IMessageRepository {
   markDeletedForIdentity(messageId: ObjectId, identityId: ObjectId): Promise<boolean>;
   deleteByConversation(conversationId: ObjectId): Promise<number>;
   countByParticipant(conversationId: ObjectId, identityId: ObjectId): Promise<number>;
+  hasMessageNewerThan(conversationId: ObjectId, thanId: ObjectId): Promise<boolean>;
+  hasMessageOlderThan(conversationId: ObjectId, thanId: ObjectId): Promise<boolean>;
 }
 
 export class MessageRepository
@@ -90,6 +92,34 @@ export class MessageRepository
       .sort({ createdAt: -1, _id: -1 })
       .limit(limit)
       .toArray() as MessageDocument[];
+  }
+
+  /**
+   * Whether the conversation has any message strictly newer than `thanId` (by ObjectId order).
+   */
+  async hasMessageNewerThan(
+    conversationId: ObjectId,
+    thanId: ObjectId,
+  ): Promise<boolean> {
+    const doc = await this.collection.findOne(
+      { conversationId, _id: { $gt: thanId } } as Filter<MessageDocument>,
+      { projection: { _id: 1 } }
+    );
+    return doc !== null;
+  }
+
+  /**
+   * Whether the conversation has any message strictly older than `thanId`.
+   */
+  async hasMessageOlderThan(
+    conversationId: ObjectId,
+    thanId: ObjectId,
+  ): Promise<boolean> {
+    const doc = await this.collection.findOne(
+      { conversationId, _id: { $lt: thanId } } as Filter<MessageDocument>,
+      { projection: { _id: 1 } }
+    );
+    return doc !== null;
   }
 
   /**

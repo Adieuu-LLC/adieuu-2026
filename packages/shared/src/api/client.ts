@@ -6,6 +6,7 @@
  */
 
 import type { ApiResponse } from '../types';
+import type { MessagePaginationDirection } from '../messaging/messagePagination';
 
 export interface ApiClientConfig {
   baseUrl: string;
@@ -2490,12 +2491,27 @@ export class ConversationsApi {
 
   async getMessages(
     conversationId: string,
-    limit?: number,
-    cursor?: string
-  ): Promise<ApiResponse<{ messages: PublicMessage[]; cursor: string | null }>> {
+    options?: {
+      limit?: number;
+      /** Message id anchor; requires `direction`. */
+      cursor?: string;
+      /** With `cursor`: page toward the past or toward the present. Omit both for the initial newest page. */
+      direction?: MessagePaginationDirection;
+    }
+  ): Promise<
+    ApiResponse<{
+      messages: PublicMessage[];
+      /** Pass as `cursor` with `direction=older` for the next page toward the past. */
+      cursor: string | null;
+      pageOldestId: string | null;
+      pageNewestId: string | null;
+      hasNewerPages: boolean;
+    }>
+  > {
     const params = new URLSearchParams();
-    if (limit) params.set('limit', limit.toString());
-    if (cursor) params.set('cursor', cursor);
+    if (options?.limit != null) params.set('limit', String(options.limit));
+    if (options?.cursor) params.set('cursor', options.cursor);
+    if (options?.direction) params.set('direction', options.direction);
     const query = params.toString();
     return this.client.get(
       `/api/conversations/${encodeURIComponent(conversationId)}/messages${query ? `?${query}` : ''}`

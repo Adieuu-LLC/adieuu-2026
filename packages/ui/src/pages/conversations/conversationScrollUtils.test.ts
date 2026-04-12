@@ -4,29 +4,41 @@ import {
   trimMessagesBuffer,
   computeIsAtBottom,
   computeScrollTopAfterPrepend,
+  readDistanceFromBottom,
+  applyDistanceFromBottom,
 } from './conversationScrollUtils';
 
 describe('trimMessagesBuffer', () => {
   it('returns unchanged when under cap', () => {
-    const m = Array.from({ length: 10 }, (_, i) => i);
+    const m = Array.from({ length: 10 }, (_, i) => ({ id: String(i) }));
     expect(trimMessagesBuffer(m, true)).toBe(m);
     expect(trimMessagesBuffer(m, false)).toBe(m);
   });
 
   it('keeps newest messages when at bottom', () => {
-    const m = Array.from({ length: MAX_LOADED_MESSAGES + 10 }, (_, i) => i);
+    const m = Array.from({ length: MAX_LOADED_MESSAGES + 10 }, (_, i) => ({ id: String(i) }));
     const t = trimMessagesBuffer(m, true);
     expect(t).toHaveLength(MAX_LOADED_MESSAGES);
-    expect(t[0]).toBe(0);
-    expect(t[MAX_LOADED_MESSAGES - 1]).toBe(MAX_LOADED_MESSAGES - 1);
+    expect(t[0]!.id).toBe('0');
+    expect(t[MAX_LOADED_MESSAGES - 1]!.id).toBe(String(MAX_LOADED_MESSAGES - 1));
   });
 
   it('keeps oldest messages when not at bottom', () => {
-    const m = Array.from({ length: MAX_LOADED_MESSAGES + 10 }, (_, i) => i);
+    const m = Array.from({ length: MAX_LOADED_MESSAGES + 10 }, (_, i) => ({ id: String(i) }));
     const t = trimMessagesBuffer(m, false);
     expect(t).toHaveLength(MAX_LOADED_MESSAGES);
-    expect(t[0]).toBe(10);
-    expect(t[MAX_LOADED_MESSAGES - 1]).toBe(MAX_LOADED_MESSAGES + 9);
+    expect(t[0]!.id).toBe('10');
+    expect(t[MAX_LOADED_MESSAGES - 1]!.id).toBe(String(MAX_LOADED_MESSAGES + 9));
+  });
+
+  it('when not at bottom, also keeps newest unreadCount for unread marker alignment', () => {
+    const total = MAX_LOADED_MESSAGES + 20;
+    const m = Array.from({ length: total }, (_, i) => ({ id: `m${i}` }));
+    const t = trimMessagesBuffer(m, false, 5);
+    expect(t.some((x) => x.id === 'm0')).toBe(true);
+    expect(t.some((x) => x.id === 'm4')).toBe(true);
+    expect(t.some((x) => x.id === 'm139')).toBe(true);
+    expect(t.some((x) => x.id === 'm19')).toBe(false);
   });
 });
 
@@ -47,5 +59,20 @@ describe('computeIsAtBottom', () => {
 describe('computeScrollTopAfterPrepend', () => {
   it('adjusts scrollTop by height delta', () => {
     expect(computeScrollTopAfterPrepend(120, 800, 1100)).toBe(420);
+  });
+});
+
+describe('readDistanceFromBottom / applyDistanceFromBottom', () => {
+  it('round-trips distance from bottom when content grows', () => {
+    const el = {
+      scrollHeight: 1000,
+      scrollTop: 100,
+      clientHeight: 200,
+    } as unknown as HTMLElement;
+    const dist = readDistanceFromBottom(el);
+    expect(dist).toBe(700);
+    el.scrollHeight = 1500;
+    applyDistanceFromBottom(el, dist);
+    expect(el.scrollTop).toBe(600);
   });
 });

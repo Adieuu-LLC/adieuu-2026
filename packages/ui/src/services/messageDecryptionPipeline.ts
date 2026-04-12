@@ -11,7 +11,8 @@ export interface DisplayMessageLike extends PublicMessage {
 export interface DecryptMessageBatchParams {
   messages: PublicMessage[];
   conversationId: string;
-  cursor?: string;
+  /** Set when paging (older or newer); skips reusing prior decrypt shortcuts from initial load. */
+  pagingCursor?: string;
   identityId: string;
   wrappingKey: Uint8Array | null;
   ecdhPrivateKey: Uint8Array | null;
@@ -52,7 +53,7 @@ export interface DecryptMessageBatchParams {
 export async function decryptMessageBatch(params: DecryptMessageBatchParams): Promise<DisplayMessageLike[]> {
   const {
     messages,
-    cursor,
+    pagingCursor,
     identityId,
     wrappingKey,
     ecdhPrivateKey,
@@ -89,7 +90,7 @@ export async function decryptMessageBatch(params: DecryptMessageBatchParams): Pr
   const deletedOtpkIds = new Set<string>();
 
   const existingById = new Map<string, DisplayMessageLike>();
-  if (!cursor) {
+  if (!pagingCursor) {
     for (const em of existingMessages) {
       if (em.decryptedContent !== undefined) existingById.set(em.id, em);
     }

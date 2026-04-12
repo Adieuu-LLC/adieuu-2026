@@ -54,6 +54,8 @@ export function ConversationMessageList({
   cachedScrollIndex,
   hasMoreOlder,
   onReachOlder,
+  hasNewerPages,
+  onReachNewer,
   t,
   gifsDisabledByAdmin,
 }: {
@@ -92,6 +94,8 @@ export function ConversationMessageList({
   cachedScrollIndex: number | null;
   hasMoreOlder: boolean;
   onReachOlder: () => void;
+  hasNewerPages: boolean;
+  onReachNewer: () => void;
   t: (key: string, fallback: string) => string;
   gifsDisabledByAdmin?: boolean;
 }) {
@@ -102,6 +106,7 @@ export function ConversationMessageList({
   const gifsEnabled = gifVisibility !== 'disabled' && !convGifHidden && !gifsDisabledByAdmin;
 
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
+  const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const restoredForConvRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -135,6 +140,22 @@ export function ConversationMessageList({
     io.observe(sentinel);
     return () => io.disconnect();
   }, [scrollViewportRef, hasMoreOlder, messagesLoading, onReachOlder, conversationId, flatItems.length]);
+
+  useEffect(() => {
+    const root = scrollViewportRef.current;
+    const sentinel = bottomSentinelRef.current;
+    if (!root || !sentinel) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        if (!hasNewerPages || messagesLoading) return;
+        onReachNewer();
+      },
+      { root, rootMargin: '0px 0px 120px 0px', threshold: 0 },
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [scrollViewportRef, hasNewerPages, messagesLoading, onReachNewer, conversationId, flatItems.length]);
 
   const renderItem = useCallback(
     (item: ChatItem, ctx: { gifsEnabled: boolean }) => {
@@ -261,6 +282,12 @@ export function ConversationMessageList({
               </div>
             ))}
           </div>
+          <div
+            ref={bottomSentinelRef}
+            className="dm-messages-bottom-sentinel"
+            style={{ minHeight: 1 }}
+            aria-hidden
+          />
         </div>
       )}
       <Tooltip content={t('conversations.jumpToLatest', 'Jump to latest message')} position="top">

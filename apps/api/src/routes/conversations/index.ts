@@ -562,33 +562,55 @@ router.get('/conversations/:id/messages', async (ctx) => {
   }
 
   const limitParam = ctx.query.get('limit');
-  const cursor = ctx.query.get('cursor');
+  const cursorParam = ctx.query.get('cursor');
+  const directionParam = ctx.query.get('direction');
 
   let limit = limitParam ? parseInt(limitParam, 10) : 50;
   if (isNaN(limit) || limit < 1) limit = 50;
   if (limit > 100) limit = 100;
 
   let validCursor: string | undefined;
-  if (cursor) {
-    const sanitizedCursor = sanitizeString(cursor, 'general');
+  if (cursorParam) {
+    const sanitizedCursor = sanitizeString(cursorParam, 'general');
     if (sanitizedCursor.value && isValidObjectId(sanitizedCursor.value)) {
       validCursor = sanitizedCursor.value;
     }
   }
 
-  const result = await getMessages(sanitized.value, identity._id, limit, validCursor);
+  const validDirection =
+    directionParam === 'older' || directionParam === 'newer' ? directionParam : undefined;
+
+  const result = await getMessages(sanitized.value, identity._id, limit, validCursor, validDirection);
 
   if ('errorCode' in result) {
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
     if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'INVALID_MESSAGE_QUERY') {
+      return errors.badRequest(result.error ?? 'Invalid message query.');
+    }
     return errors.badRequest(result.error ?? 'Failed to get messages.');
   }
 
-  const { messages, cursor: nextCursor } = result as { messages: PublicMessage[]; cursor: string | null };
+  const {
+    messages,
+    cursor: nextOlderCursor,
+    pageOldestId,
+    pageNewestId,
+    hasNewerPages,
+  } = result as {
+    messages: PublicMessage[];
+    cursor: string | null;
+    pageOldestId: string | null;
+    pageNewestId: string | null;
+    hasNewerPages: boolean;
+  };
 
   return success({
     messages,
-    cursor: nextCursor,
+    cursor: nextOlderCursor,
+    pageOldestId,
+    pageNewestId,
+    hasNewerPages,
   });
 });
 

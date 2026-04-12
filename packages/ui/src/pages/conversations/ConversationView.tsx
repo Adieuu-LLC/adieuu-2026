@@ -38,7 +38,12 @@ import {
   buildReplySnippet,
   replyComposerLabel,
 } from './conversationUtils';
-import { applyHistoryScrollAnchor } from './conversationScrollUtils';
+import {
+  applyHistoryScrollAnchor,
+  applyDistanceFromBottom,
+  readDistanceFromBottom,
+  type HistoryScrollAnchor,
+} from './conversationScrollUtils';
 import { ConversationToolbar } from './ConversationToolbar';
 import { ConversationSettingsSidebar } from './ConversationSettingsSidebar';
 import { ConversationMembersSidebar } from './ConversationMembersSidebar';
@@ -60,7 +65,8 @@ export function ConversationView() {
     conversations,
     activeConversationId,
     activeMessages,
-    activeMessagesCursor,
+    activeMessagesOlderCursor,
+    activeMessagesHasNewerPages,
     messagesLoading,
     sending,
     participantProfiles,
@@ -68,7 +74,8 @@ export function ConversationView() {
     setIsAtBottom,
     markConversationRead,
     sendTextMessage,
-    loadMoreMessages,
+    loadOlder,
+    loadNewer,
     jumpToLatestMessages,
     leaveGroup,
     removeMember,
@@ -364,7 +371,7 @@ export function ConversationView() {
   );
 
   const handleReachOlder = useCallback(() => {
-    if (!activeMessagesCursor || messagesLoading) return;
+    if (!activeMessagesOlderCursor || messagesLoading) return;
     const vp = scrollViewportRef.current;
     const content = messagesContentRef.current;
     if (vp && content) {
@@ -383,8 +390,52 @@ export function ConversationView() {
         }
       }
     }
-    void loadMoreMessages();
-  }, [activeMessagesCursor, messagesLoading, loadMoreMessages, scrollViewportRef, messagesContentRef]);
+    void loadOlder();
+  }, [activeMessagesOlderCursor, messagesLoading, loadOlder, scrollViewportRef, messagesContentRef]);
+
+  const handleReachNewer = useCallback(() => {
+    if (!activeMessagesHasNewerPages || messagesLoading) return;
+    const vp = scrollViewportRef.current;
+    const content = messagesContentRef.current;
+    const distBefore = vp ? readDistanceFromBottom(vp) : 0;
+    /** Newest row before fetch; after merge, newer pages sit below it — anchor so we are not pinned to the bottom sentinel (avoids IO fetch chains). */
+    let anchor: HistoryScrollAnchor | null = null;
+    if (vp && content) {
+      const headId = activeMessages[0]?.id;
+      if (headId) {
+        const vRect = vp.getBoundingClientRect();
+        const escaped =
+          typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+            ? CSS.escape(headId)
+            : headId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const row = content.querySelector(`[data-scroll-anchor-key="${escaped}"]`);
+        if (row) {
+          const cr = row.getBoundingClientRect();
+          anchor = { anchorKey: headId, targetViewportOffsetPx: cr.top - vRect.top };
+        }
+      }
+    }
+    void loadNewer().then(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const el = scrollViewportRef.current;
+          const c = messagesContentRef.current;
+          if (anchor && el && c) {
+            applyHistoryScrollAnchor(el, c, anchor);
+          } else if (el) {
+            applyDistanceFromBottom(el, distBefore);
+          }
+        });
+      });
+    });
+  }, [
+    activeMessages,
+    activeMessagesHasNewerPages,
+    messagesLoading,
+    loadNewer,
+    scrollViewportRef,
+    messagesContentRef,
+  ]);
 
   const handleJumpToLatest = useCallback(async () => {
     if (!id) return;
@@ -698,9 +749,9 @@ export function ConversationView() {
       replyScrollLoadAttemptsRef.current = 0;
       return;
     }
-    if (activeMessagesCursor) {
+    if (activeMessagesOlderCursor) {
       replyScrollLoadAttemptsRef.current += 1;
-      void loadMoreMessages();
+      void loadOlder();
     } else {
       pendingScrollToRef.current = null;
       replyScrollLoadAttemptsRef.current = 0;
@@ -708,9 +759,9 @@ export function ConversationView() {
   }, [
     activeMessages,
     flatItems,
-    activeMessagesCursor,
+    activeMessagesOlderCursor,
     messagesLoading,
-    loadMoreMessages,
+    loadOlder,
     flashMessageHighlight,
   ]);
 
@@ -867,8 +918,10 @@ export function ConversationView() {
               onScrollViewportScroll={onScrollViewportScroll}
               onUserScrollIntent={onUserScrollIntent}
               cachedScrollIndex={cachedScrollIndex}
-              hasMoreOlder={!!activeMessagesCursor}
+              hasMoreOlder={!!activeMessagesOlderCursor}
               onReachOlder={handleReachOlder}
+              hasNewerPages={activeMessagesHasNewerPages}
+              onReachNewer={handleReachNewer}
               t={t as any}
               gifsDisabledByAdmin={effectiveGifsDisabled}
             />

@@ -8,13 +8,25 @@ export const MAX_LOADED_MESSAGES = 120;
 /**
  * `messages` order matches API / {@link useConversations}: index 0 = newest, last = oldest.
  * When over capacity: at bottom keep the newest window; when reading history, keep the oldest window.
+ * When not at bottom and `unreadCount` &gt; 0, also retain the newest `unreadCount` messages so
+ * unread separators stay aligned with `ConversationView` (last-N-unreads heuristic).
  */
-export function trimMessagesBuffer<T>(messages: T[], atBottom: boolean): T[] {
+export function trimMessagesBuffer<T extends { id: string }>(
+  messages: T[],
+  atBottom: boolean,
+  unreadCount = 0,
+): T[] {
   if (messages.length <= MAX_LOADED_MESSAGES) return messages;
   if (atBottom) {
     return messages.slice(0, MAX_LOADED_MESSAGES);
   }
-  return messages.slice(-MAX_LOADED_MESSAGES);
+  const keepOldest = messages.slice(-MAX_LOADED_MESSAGES);
+  if (unreadCount <= 0) return keepOldest;
+
+  const n = Math.min(unreadCount, messages.length);
+  const keepNewest = messages.slice(0, n);
+  const keepId = new Set<string>([...keepOldest, ...keepNewest].map((m) => m.id));
+  return messages.filter((m) => keepId.has(m.id));
 }
 
 export function computeIsAtBottom(
@@ -34,6 +46,22 @@ export function computeScrollTopAfterPrepend(
   nextScrollHeight: number,
 ): number {
   return prevScrollTop + (nextScrollHeight - prevScrollHeight);
+}
+
+/** Distance from the scroll viewport bottom edge to content bottom (px). */
+export function readDistanceFromBottom(scrollViewport: HTMLElement): number {
+  return scrollViewport.scrollHeight - scrollViewport.scrollTop - scrollViewport.clientHeight;
+}
+
+/** Restore the same distance-from-bottom after content height changes (e.g. prepending newer history). */
+export function applyDistanceFromBottom(
+  scrollViewport: HTMLElement,
+  distanceFromBottom: number,
+): void {
+  scrollViewport.scrollTop = Math.max(
+    0,
+    scrollViewport.scrollHeight - scrollViewport.clientHeight - distanceFromBottom,
+  );
 }
 
 export type HistoryScrollAnchor = {

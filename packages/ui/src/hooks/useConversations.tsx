@@ -75,7 +75,10 @@ import {
   updateMemberSettingsAction,
 } from '../services/conversationGroupActions';
 import { getSessionKeysForMessages as loadSessionKeysForMessages } from '../services/sessionKeyRetrieval';
-import { trimMessagesBuffer } from '../pages/conversations/conversationScrollUtils';
+import {
+  MAX_LOADED_MESSAGES,
+  trimMessagesBuffer,
+} from '../pages/conversations/conversationScrollUtils';
 
 // ============================================================================
 // Types
@@ -100,7 +103,15 @@ export interface SendMessageErrorResult {
 
 interface ConversationMessagesState {
   messages: DisplayMessage[];
-  cursor: string | null;
+  /** Next `cursor` with `direction=older` (from API `cursor`). */
+  olderCursor: string | null;
+  /**
+   * Newest message id still in the buffer (`messages[0]`); must match after merge/trim so
+   * `after` pagination is never stale when {@link trimMessagesBuffer} evicts toward the present.
+   */
+  newerPaginationAfterId: string | null;
+  /** More messages exist toward the present than are currently in the buffer (or were evicted by trim). */
+  hasNewerPages: boolean;
   loading: boolean;
 }
 
@@ -111,7 +122,8 @@ interface ConversationsContextValue {
   conversations: DecryptedConversation[];
   activeConversationId: string | null;
   activeMessages: DisplayMessage[];
-  activeMessagesCursor: string | null;
+  activeMessagesOlderCursor: string | null;
+  activeMessagesHasNewerPages: boolean;
   invites: PublicGroupInvite[];
   participantProfiles: Record<string, PublicIdentity>;
   memberSettings: MemberSettingsMap;
@@ -137,7 +149,8 @@ interface ConversationsContextValue {
     plaintext: string,
     options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean; replyToMessageId?: string }
   ) => Promise<PublicMessage | SendMessageErrorResult | null>;
-  loadMoreMessages: () => Promise<void>;
+  loadOlder: () => Promise<void>;
+  loadNewer: () => Promise<void>;
   /** Replace loaded history with the latest page only (bounded buffer). */
   jumpToLatestMessages: (conversationId: string) => Promise<void>;
   deleteMessage: (
@@ -223,8 +236,10 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const signingKeyCache = useRef<Record<string, string>>({});
   const resolvedProfileIds = useRef<Set<string>>(new Set());
   const messagesStateRef = useRef(messagesState);
+  const conversationsRef = useRef(conversations);
   const sessionKeyCache = useRef(new Map<string, Uint8Array>());
   useEffect(() => { messagesStateRef.current = messagesState; }, [messagesState]);
+  useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
 
   const isAtBottomRef = useRef(true);
   const setIsAtBottom = useCallback((value: boolean) => {
@@ -427,14 +442,26 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   }, [isLoggedIn, api, toDecrypted, resolveParticipants]);
 
   const fetchMessages = useCallback(
-    async (conversationId: string, cursor?: string, silent?: boolean, mergeLatest?: boolean) => {
+    async (
+      conversationId: string,
+      paginationCursor?: string,
+      silent?: boolean,
+      mergeLatest?: boolean,
+      direction?: 'older' | 'newer'
+    ) => {
       if (!isLoggedIn || !identity) return;
 
       if (!silent && !mergeLatest) {
         setMessagesState((prev) => ({
           ...prev,
           [conversationId]: {
-            ...(prev[conversationId] ?? { messages: [], cursor: null, loading: true }),
+            ...(prev[conversationId] ?? {
+              messages: [],
+              olderCursor: null,
+              newerPaginationAfterId: null,
+              hasNewerPages: false,
+              loading: true,
+            }),
             loading: true,
           },
         }));
@@ -442,7 +469,14 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
       try {
         const limit = mergeLatest ? 1 : 30;
-        const resp = await api.conversations.getMessages(conversationId, limit, mergeLatest ? undefined : cursor);
+        const resp = await api.conversations.getMessages(conversationId, {
+          limit,
+          ...(mergeLatest
+            ? {}
+            : paginationCursor != null && direction
+              ? { cursor: paginationCursor, direction }
+              : {}),
+        });
         if (resp.data) {
           let ecdhPrivateKey: Uint8Array | null = null;
           let kemPrivateKey: Uint8Array | null = null;
@@ -482,7 +516,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           const newMessages = await decryptMessageBatch({
             messages: resp.data.messages,
             conversationId,
-            cursor: mergeLatest ? undefined : cursor,
+            pagingCursor: mergeLatest ? undefined : paginationCursor,
             identityId: identity.id,
             wrappingKey,
             ecdhPrivateKey,
@@ -515,34 +549,55 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           setMessagesState((prev) => {
             if (mergeLatest) {
               const existing = prev[conversationId]?.messages ?? [];
-              const keepCursor = prev[conversationId]?.cursor ?? null;
+              const keepOlderCursor = prev[conversationId]?.olderCursor ?? null;
               const ids = new Set(existing.map((m) => m.id));
               const added = newMessages.filter((m) => !ids.has(m.id));
               if (added.length === 0) return prev;
               let messages = [...added, ...existing];
               if (messages.length > 0) {
-                messages = trimMessagesBuffer(messages, isAtBottomRef.current);
+                const unread =
+                  conversationsRef.current.find((c) => c.id === conversationId)?.unreadCount ?? 0;
+                messages = trimMessagesBuffer(messages, isAtBottomRef.current, unread);
               }
               return {
                 ...prev,
                 [conversationId]: {
                   messages,
-                  cursor: keepCursor,
+                  olderCursor: keepOlderCursor,
+                  newerPaginationAfterId: messages[0]?.id ?? null,
+                  hasNewerPages: resp.data!.hasNewerPages ?? false,
                   loading: false,
                 },
               };
             }
             const existing = prev[conversationId]?.messages ?? [];
-            const merged = cursor ? [...existing, ...newMessages] : newMessages;
+            let merged: DisplayMessage[];
+            if (direction === 'newer') {
+              const ids = new Set(existing.map((m) => m.id));
+              merged = [...newMessages.filter((m) => !ids.has(m.id)), ...existing];
+            } else if (direction === 'older') {
+              merged = [...existing, ...newMessages];
+            } else {
+              merged = newMessages;
+            }
+            const mergedLen = merged.length;
             let messages = merged;
             if (messages.length > 0) {
-              messages = trimMessagesBuffer(messages, isAtBottomRef.current);
+              const unread =
+                conversationsRef.current.find((c) => c.id === conversationId)?.unreadCount ?? 0;
+              messages = trimMessagesBuffer(messages, isAtBottomRef.current, unread);
+            }
+            let hasNewerPages = resp.data!.hasNewerPages ?? false;
+            if (!isAtBottomRef.current && mergedLen > MAX_LOADED_MESSAGES) {
+              hasNewerPages = true;
             }
             return {
               ...prev,
               [conversationId]: {
                 messages,
-                cursor: resp.data!.cursor,
+                olderCursor: resp.data!.cursor,
+                newerPaginationAfterId: messages[0]?.id ?? null,
+                hasNewerPages,
                 loading: false,
               },
             };
@@ -561,11 +616,17 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           }
         }
     } catch (err) {
-      console.error('[useConversations] fetchMessages failed', { conversationId, cursor, mergeLatest }, err);
+      console.error('[useConversations] fetchMessages failed', { conversationId, paginationCursor, direction, mergeLatest }, err);
       setMessagesState((prev) => ({
         ...prev,
         [conversationId]: {
-          ...(prev[conversationId] ?? { messages: [], cursor: null, loading: false }),
+          ...(prev[conversationId] ?? {
+            messages: [],
+            olderCursor: null,
+            newerPaginationAfterId: null,
+            hasNewerPages: false,
+            loading: false,
+          }),
           loading: false,
         },
       }));
@@ -612,7 +673,13 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         if (hasUnread) {
           setMessagesState((prev) => ({
             ...prev,
-            [id]: { messages: [], cursor: null, loading: true },
+            [id]: {
+              messages: [],
+              olderCursor: null,
+              newerPaginationAfterId: null,
+              hasNewerPages: false,
+              loading: true,
+            },
           }));
         }
         fetchMessages(id, undefined, true);
@@ -621,11 +688,21 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     [conversations, fetchMessages]
   );
 
-  const loadMoreMessages = useCallback(async () => {
+  const loadOlder = useCallback(async () => {
     if (!activeConversationId) return;
     const state = messagesState[activeConversationId];
-    if (!state?.cursor || state.loading) return;
-    await fetchMessages(activeConversationId, state.cursor);
+    if (!state?.olderCursor || state.loading) return;
+    await fetchMessages(activeConversationId, state.olderCursor, false, false, 'older');
+  }, [activeConversationId, messagesState, fetchMessages]);
+
+  const loadNewer = useCallback(async () => {
+    if (!activeConversationId) return;
+    const state = messagesState[activeConversationId];
+    const head = state?.messages[0];
+    if (!state?.hasNewerPages || state.loading) return;
+    const anchorId = head?.id;
+    if (!anchorId) return;
+    await fetchMessages(activeConversationId, anchorId, false, false, 'newer');
   }, [activeConversationId, messagesState, fetchMessages]);
 
   const jumpToLatestMessages = useCallback(
@@ -635,7 +712,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         ...prev,
         [conversationId]: {
           messages: [],
-          cursor: null,
+          olderCursor: null,
+          newerPaginationAfterId: null,
+          hasNewerPages: false,
           loading: true,
         },
       }));
@@ -777,8 +856,16 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           setMessagesState((prev) => ({
             ...prev,
             [conversationId]: {
-              ...(prev[conversationId] ?? { messages: [], cursor: null, loading: false }),
+              ...(prev[conversationId] ?? {
+                messages: [],
+                olderCursor: null,
+                newerPaginationAfterId: null,
+                hasNewerPages: false,
+                loading: false,
+              }),
               messages: [displayMsg, ...(prev[conversationId]?.messages ?? [])],
+              newerPaginationAfterId: displayMsg.id,
+              hasNewerPages: false,
             },
           }));
 
@@ -1134,8 +1221,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         participantProfiles: participantProfilesRef.current,
         decryptGroupName,
         fetchConversations: () => fetchConversationsRef.current(),
-        fetchMessages: (conversationId, cursor, silent, mergeLatest) =>
-          void fetchMessagesRef.current(conversationId, cursor, silent, mergeLatest),
+        fetchMessages: (conversationId, paginationCursor, silent, mergeLatest, direction) =>
+          void fetchMessagesRef.current(conversationId, paginationCursor, silent, mergeLatest, direction),
         fireNotification: (title, body, options) =>
           fireNotificationRef.current(title, body, options),
         navigate: (path) => navigateRef.current(path),
@@ -1242,7 +1329,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       conversations,
       activeConversationId,
       activeMessages: activeState?.messages ?? EMPTY_MESSAGES,
-      activeMessagesCursor: activeState?.cursor ?? null,
+      activeMessagesOlderCursor: activeState?.olderCursor ?? null,
+      activeMessagesHasNewerPages: activeState?.hasNewerPages ?? false,
       invites,
       participantProfiles,
       memberSettings: activeConversation?.decryptedMemberSettings ?? EMPTY_MEMBER_SETTINGS,
@@ -1255,7 +1343,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       createDM,
       createGroup,
       sendTextMessage,
-      loadMoreMessages,
+      loadOlder,
+      loadNewer,
       jumpToLatestMessages,
       deleteMessage,
       addMember,
@@ -1277,7 +1366,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     conversations, activeConversationId, messagesState, invites,
     participantProfiles, loading, sending,
     setActiveConversation, setIsAtBottom, markConversationRead,
-    createDM, createGroup, sendTextMessage, loadMoreMessages, jumpToLatestMessages,
+    createDM, createGroup, sendTextMessage, loadOlder, loadNewer, jumpToLatestMessages,
     deleteMessage, addMember, removeMember, leaveGroup, renameGroup,
     updateConversationMemberSettings, promoteToAdmin, terminateGroup,
     acceptInvite, declineInvite, getInvitePreview, getFormerMembers,

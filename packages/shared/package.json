@@ -23,6 +23,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
+    "test": "bun test src/messaging/messagePagination.test.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@adieuu/tsconfig": "workspace:*",
+    "@types/bun": "1.3.9",
     "typescript": "5.9.3"
   }
 }

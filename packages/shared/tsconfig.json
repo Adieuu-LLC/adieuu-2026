@@ -6,5 +6,5 @@
     "lib": ["ES2022", "DOM"]
   },
   "include": ["src/**/*"],
-  "exclude": ["src/csp/vite-plugin-csp.ts", "src/csp/origins.ts"]
+  "exclude": ["src/csp/vite-plugin-csp.ts", "src/csp/origins.ts", "src/**/*.test.ts"]
 }
