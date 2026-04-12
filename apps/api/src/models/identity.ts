@@ -45,7 +45,7 @@ export const DEFAULT_PRIVACY_SETTINGS: ProfilePrivacySettings = {
   bio: 'public',
   lastActiveAt: 'friends',
   profileColors: 'public',
-  achievements: 'public',
+  achievements: 'friends',
 };
 
 /** Prefix for deleted identity idents (followed by objectId) */

@@ -52,6 +52,13 @@ export const en = {
       spaces: 'Spaces',
     },
     newConversation: 'Start New',
+    update: {
+      available: 'Update Available',
+      downloading: 'Downloading Update',
+      install: 'Install Update',
+      restartWeb: 'Restart to Update',
+      error: 'Update issue',
+    },
   },
 
   // Search

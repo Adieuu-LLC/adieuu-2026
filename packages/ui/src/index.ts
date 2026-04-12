@@ -161,7 +161,6 @@ export { SidebarTabs } from './components/SidebarTabs';
 export { AvatarGroup } from './components/AvatarGroup';
 export { KeyStorageBanner } from './components/KeyStorageBanner';
 export { ProgressBar } from './components/ProgressBar';
-export { UpdateBanner } from './components/UpdateBanner';
 export { UpdateOverlay } from './components/UpdateOverlay';
 export { ExportKeyBackupModal } from './components/ExportKeyBackupModal';
 export { ImportKeyBackupModal } from './components/ImportKeyBackupModal';

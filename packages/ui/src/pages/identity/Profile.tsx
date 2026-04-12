@@ -40,7 +40,7 @@ const DEFAULT_PRIVACY: ProfilePrivacySettings = {
   bio: 'public',
   lastActiveAt: 'friends',
   profileColors: 'public',
-  achievements: 'public',
+  achievements: 'friends',
 };
 
 type PreviewMode = 'self' | 'friend' | 'stranger';

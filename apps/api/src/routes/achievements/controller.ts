@@ -69,7 +69,8 @@ export async function getIdentityAchievementsCtrl(ctx: RouteContext): Promise<Re
   }
 
   const privacy = targetDoc.privacySettings ?? DEFAULT_PRIVACY_SETTINGS;
-  const achievementVisibility: ProfileVisibility = privacy.achievements ?? 'public';
+  const achievementVisibility: ProfileVisibility =
+    privacy.achievements ?? DEFAULT_PRIVACY_SETTINGS.achievements;
 
   let viewerRelation: 'self' | 'friend' | 'stranger' = 'stranger';
 

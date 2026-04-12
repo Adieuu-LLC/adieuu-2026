@@ -35,7 +35,6 @@ import { ConversationPreferencesProvider } from '../hooks/useConversationPrefere
 import { usePreKeys } from '../hooks/usePreKeys';
 import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { WebSecurityBanner } from '../components/WebSecurityBanner';
-import { UpdateBanner } from '../components/UpdateBanner';
 import { UpdateOverlay } from '../components/UpdateOverlay';
 import { AchievementListener } from '../components/AchievementListener';
 import { UpdateProvider } from '../hooks/useUpdateContext';
@@ -113,7 +112,6 @@ function ProtectedLayoutContent() {
       <TourRoot tour={tour} />
       <TourRoot tour={appearanceTour} />
       <AppLayout sidebar={<AppSidebar />}>
-        <UpdateBanner />
         <KeyStorageBanner />
         <WebSecurityBanner />
         <Outlet />

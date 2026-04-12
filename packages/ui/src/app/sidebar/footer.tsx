@@ -8,6 +8,7 @@ import { useAppConfig } from '../../config';
 import { useAuth } from '../../hooks/useAuth';
 import { createApiClient } from '@adieuu/shared';
 import { AccountFlyout, IdentityFlyout } from './identity';
+import { SidebarUpdateNav } from './SidebarUpdateNav';
 
 export function ModerationFlyout() {
   const { t } = useTranslation();
@@ -133,6 +134,7 @@ export function SidebarFooterContent() {
           </Link>
         </div>
       )}
+      <SidebarUpdateNav />
       <div className="sidebar-identity-section">
         <div className="sidebar-identity-row">
           <IdentityFlyout />
