@@ -20,6 +20,7 @@ import {
 } from '../../hooks/useNativeNotificationsPreference';
 import {
   BUILTIN_NOTIFICATION_SOUNDS,
+  DEFAULT_ACHIEVEMENT_NOTIFICATION_SOUND_ID,
   DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID,
 } from '../../constants/builtinNotificationSounds';
 import {
@@ -50,7 +51,10 @@ import {
 import {
   loadAchievementPreferences,
   saveAchievementPopupEnabled,
+  saveAchievementSoundCustomPath,
   saveAchievementSoundEnabled,
+  saveAchievementSoundId,
+  saveAchievementSoundVolume,
 } from '../../hooks/useAchievementPreferences';
 import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 
@@ -77,10 +81,30 @@ export function IdentityNotifications() {
   const [ttlCustomSoundMissing, setTtlCustomSoundMissing] = useState(false);
   const [mentionSoundBrowseBusy, setMentionSoundBrowseBusy] = useState(false);
   const [mentionCustomSoundMissing, setMentionCustomSoundMissing] = useState(false);
+  const [achSoundBrowseBusy, setAchSoundBrowseBusy] = useState(false);
+  const [achCustomSoundMissing, setAchCustomSoundMissing] = useState(false);
 
-  const achPrefs = notifIdentity?.id ? loadAchievementPreferences(notifIdentity.id) : { popupEnabled: true, soundEnabled: true };
+  const defaultAchievementPrefs = useMemo(
+    () => ({
+      popupEnabled: true,
+      soundEnabled: true,
+      achievementSoundId: DEFAULT_ACHIEVEMENT_NOTIFICATION_SOUND_ID as NotificationSoundId,
+      achievementSoundCustomPath: null as string | null,
+      achievementSoundVolume: 1,
+    }),
+    []
+  );
+
+  const achPrefs = notifIdentity?.id
+    ? loadAchievementPreferences(notifIdentity.id)
+    : defaultAchievementPrefs;
   const [achPopup, setAchPopup] = useState(achPrefs.popupEnabled);
   const [achSound, setAchSound] = useState(achPrefs.soundEnabled);
+  const [achSoundId, setAchSoundId] = useState<NotificationSoundId>(achPrefs.achievementSoundId);
+  const [achCustomPath, setAchCustomPath] = useState<string | null>(
+    achPrefs.achievementSoundCustomPath
+  );
+  const [achSoundVolume, setAchSoundVolume] = useState(achPrefs.achievementSoundVolume);
 
   const supportsNotifications = typeof window !== 'undefined' && 'Notification' in window;
 
@@ -137,6 +161,37 @@ export function IdentityNotifications() {
     }
     void verifyMentionCustom();
   }, [mentionSoundPref.soundId, mentionSoundPref.customPath, audio]);
+
+  useEffect(() => {
+    if (!notifIdentity?.id) return;
+    const p = loadAchievementPreferences(notifIdentity.id);
+    setAchPopup(p.popupEnabled);
+    setAchSound(p.soundEnabled);
+    setAchSoundId(p.achievementSoundId);
+    setAchCustomPath(p.achievementSoundCustomPath);
+    setAchSoundVolume(p.achievementSoundVolume);
+  }, [notifIdentity?.id]);
+
+  useEffect(() => {
+    if (!hasCustomSoundPicker && achSoundId === 'custom') {
+      setAchSoundId(DEFAULT_ACHIEVEMENT_NOTIFICATION_SOUND_ID);
+      if (notifIdentity?.id) {
+        saveAchievementSoundId(notifIdentity.id, DEFAULT_ACHIEVEMENT_NOTIFICATION_SOUND_ID);
+      }
+    }
+  }, [hasCustomSoundPicker, achSoundId, notifIdentity?.id]);
+
+  useEffect(() => {
+    async function verifyAchCustom(): Promise<void> {
+      if (achSoundId !== 'custom' || !achCustomPath || !audio?.loadSoundFromPath) {
+        setAchCustomSoundMissing(false);
+        return;
+      }
+      const buf = await audio.loadSoundFromPath(achCustomPath);
+      setAchCustomSoundMissing(!buf || buf.byteLength === 0);
+    }
+    void verifyAchCustom();
+  }, [achSoundId, achCustomPath, audio]);
 
   const handleNativeChange = useCallback(
     async (checked: boolean) => {
@@ -328,6 +383,52 @@ export function IdentityNotifications() {
     setMentionNotificationSoundVolume(pct / 100);
     if (pct >= 200) claimAchievement('notification_volume_maxed');
   }, [claimAchievement]);
+
+  const handleAchSoundIdChange = useCallback(
+    (value: string) => {
+      const id = value as NotificationSoundId;
+      setAchSoundId(id);
+      if (notifIdentity?.id) saveAchievementSoundId(notifIdentity.id, id);
+      if (id !== 'custom') {
+        invalidateNotificationSoundCustomCache();
+      }
+    },
+    [notifIdentity?.id]
+  );
+
+  const handleBrowseAchCustomSound = useCallback(async () => {
+    if (!audio?.pickSoundFile) return;
+    setAchSoundBrowseBusy(true);
+    try {
+      const picked = await audio.pickSoundFile();
+      if (!picked || !notifIdentity?.id) return;
+      setAchCustomPath(picked.path);
+      setAchSoundId('custom');
+      saveAchievementSoundCustomPath(notifIdentity.id, picked.path);
+      saveAchievementSoundId(notifIdentity.id, 'custom');
+      invalidateNotificationSoundCustomCache();
+      setAchCustomSoundMissing(false);
+    } finally {
+      setAchSoundBrowseBusy(false);
+    }
+  }, [audio, notifIdentity?.id]);
+
+  const handlePreviewAchSound = useCallback(async () => {
+    await previewNotificationSound({
+      soundId: achSoundId,
+      customPath: achCustomPath,
+      loadCustomSound: audio?.loadSoundFromPath,
+      volume: achSoundVolume,
+    });
+  }, [achCustomPath, achSoundId, achSoundVolume, audio]);
+
+  const handleAchVolumeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const pct = Number(e.target.value);
+    const gain = pct / 100;
+    setAchSoundVolume(gain);
+    if (notifIdentity?.id) saveAchievementSoundVolume(notifIdentity.id, gain);
+    if (pct >= 200) claimAchievement('notification_volume_maxed');
+  }, [claimAchievement, notifIdentity?.id]);
 
   const soundSelectLabels = useMemo(
     () => ({
@@ -724,7 +825,7 @@ export function IdentityNotifications() {
           )}
         </Card>
 
-        <Card variant="elevated" className="slide-up app-settings-card">
+        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound">
           <h2 className="app-settings-section-title">{t('account.settings.notifications.achievementSectionTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.settings.notifications.achievementSectionDescription')}</p>
 
@@ -767,6 +868,88 @@ export function IdentityNotifications() {
               </span>
             </span>
           </label>
+
+          <div className="app-settings-sound-row">
+            <div id="achievement-sound-preset-label" className="app-settings-sound-select-label">
+              {t('account.settings.notifications.achievementSoundSelectLabel')}
+            </div>
+            <div className="app-settings-sound-row-controls">
+              <NotificationSoundSelect
+                value={achSoundId}
+                disabled={!achSound}
+                hasCustomSoundPicker={hasCustomSoundPicker}
+                builtinItems={builtinSoundSelectItems}
+                labels={soundSelectLabels}
+                onValueChange={handleAchSoundIdChange}
+                labelId="achievement-sound-preset-label"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary app-settings-sound-preview"
+                disabled={
+                  !achSound ||
+                  achSoundId === 'none' ||
+                  (achSoundId === 'custom' && (!achCustomPath || !audio?.loadSoundFromPath))
+                }
+                onClick={() => void handlePreviewAchSound()}
+              >
+                {t('account.settings.notifications.achievementSoundPreview')}
+              </button>
+            </div>
+          </div>
+
+          <div className="app-settings-sound-volume">
+            <label htmlFor="achievement-sound-volume" className="app-settings-sound-volume-label">
+              {t('account.settings.notifications.achievementSoundVolumeLabel')}
+            </label>
+            <div className="app-settings-sound-volume-row">
+              <input
+                id="achievement-sound-volume"
+                type="range"
+                className="app-settings-sound-volume-slider"
+                min={0}
+                max={Math.round(MAX_NOTIFICATION_GAIN * 100)}
+                step={1}
+                value={Math.round(achSoundVolume * 100)}
+                disabled={!achSound || achSoundId === 'none'}
+                onChange={handleAchVolumeChange}
+                aria-valuemin={0}
+                aria-valuemax={Math.round(MAX_NOTIFICATION_GAIN * 100)}
+                aria-valuenow={Math.round(achSoundVolume * 100)}
+                aria-valuetext={`${Math.round(achSoundVolume * 100)}%`}
+              />
+              <span className="app-settings-sound-volume-value" aria-hidden>
+                {Math.round(achSoundVolume * 100)}%
+              </span>
+            </div>
+            <p className="app-settings-sound-volume-hint">{t('account.settings.notifications.achievementSoundVolumeHint')}</p>
+          </div>
+
+          {hasCustomSoundPicker && achSoundId === 'custom' && (
+            <div className="app-settings-custom-sound">
+              <span className="app-settings-custom-sound-label">
+                {t('account.settings.notifications.achievementSoundCustomFile')}
+              </span>
+              <div className="app-settings-custom-sound-row">
+                <span className="app-settings-custom-sound-name" title={achCustomPath ?? ''}>
+                  {achCustomPath ? basenameFromPath(achCustomPath) : '—'}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={!achSound || achSoundBrowseBusy}
+                  onClick={() => void handleBrowseAchCustomSound()}
+                >
+                  {t('account.settings.notifications.achievementSoundBrowse')}
+                </button>
+              </div>
+              {achCustomSoundMissing && (
+                <Alert variant="warning" className="app-settings-alert">
+                  {t('account.settings.notifications.achievementSoundFileMissing')}
+                </Alert>
+              )}
+            </div>
+          )}
         </Card>
       </div>
     </div>

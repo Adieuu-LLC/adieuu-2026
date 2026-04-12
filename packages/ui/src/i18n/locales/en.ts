@@ -846,6 +846,15 @@ export const en = {
         achievementPopupHint: 'Display a detailed modal when you unlock an achievement. When off, a basic toast notification is shown instead.',
         achievementSoundToggle: 'Play achievement sound',
         achievementSoundHint: 'Play a sound effect when an achievement is unlocked.',
+        achievementSoundSelectLabel: 'Sound',
+        achievementSoundPreview: 'Preview',
+        achievementSoundVolumeLabel: 'Achievement sound volume',
+        achievementSoundVolumeHint:
+          'Volume for achievement unlock sounds only. Use the Play achievement sound toggle above to mute entirely.',
+        achievementSoundCustomFile: 'Custom sound',
+        achievementSoundBrowse: 'Browse…',
+        achievementSoundFileMissing:
+          'The selected sound file could not be read. Choose another file or pick a built-in sound.',
       },
     },
 
@@ -1457,7 +1466,7 @@ export const en = {
     colorDisplayMode: 'Member colour display',
     colorDisplayNameOnly: 'Name only',
     colorDisplayNameAccent: 'Name + avatar accent',
-    colorDisplayNameBubble: 'Name + bubble tint',
+    colorDisplayNameBubble: 'Name + message tint',
     memberSettingsUpdated: 'Member settings updated',
 
     settingsFs: 'Forward Secrecy',

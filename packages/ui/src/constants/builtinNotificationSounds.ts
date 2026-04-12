@@ -11,6 +11,11 @@ const BUILTIN_PREFIX = '/sounds/';
  */
 export const BUILTIN_NOTIFICATION_SOUNDS = [
   { id: 'achievement', displayName: 'Achievement', filename: 'achievement.mp3' },
+  {
+    id: 'adieuu_achievement',
+    displayName: 'Adieuu achievement',
+    filename: 'adieuu_achievement.mp3',
+  },
   { id: 'bike', displayName: 'Bike', filename: 'bike.mp3' },
   { id: 'blip', displayName: 'Blip', filename: 'blip.mp3' },
   { id: 'boing', displayName: 'Boing', filename: 'boing.mp3' },
@@ -65,6 +70,10 @@ export const BUILTIN_NOTIFICATION_SOUNDS = [
 export type BuiltinNotificationSoundId = (typeof BUILTIN_NOTIFICATION_SOUNDS)[number]['id'];
 
 export const DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId = 'win-low';
+
+/** Default built-in for achievement-unlock sound (separate from DM notification default). */
+export const DEFAULT_ACHIEVEMENT_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId =
+  'adieuu_achievement';
 
 const builtinIdToFilename = new Map<string, string>(
   BUILTIN_NOTIFICATION_SOUNDS.map((s) => [s.id, s.filename])

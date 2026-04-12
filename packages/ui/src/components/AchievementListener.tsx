@@ -19,7 +19,9 @@ import { createApiClient, type PublicAchievementDefinition } from '@adieuu/share
 import { useIdentity } from '../hooks/useIdentity';
 import { useToast } from './Toast';
 import { useChatSocket } from '../hooks/useChatSocket';
-import { useAppConfig } from '../config';
+import { useAppConfig, usePlatformCapabilities } from '../config';
+import { DEFAULT_ACHIEVEMENT_NOTIFICATION_SOUND_ID } from '../constants/builtinNotificationSounds';
+import type { NotificationSoundId } from '../constants/notificationSoundPreferenceShared';
 import { AchievementUnlockedModal } from './AchievementUnlockedModal';
 import {
   onAchievementUnlocked,
@@ -31,17 +33,34 @@ import { loadAchievementPreferences } from '../hooks/useAchievementPreferences';
 
 const CLOSE_ANIMATION_MS = 300;
 
+type QueuedAchievementUnlock = AchievementUnlockEvent & {
+  playback: {
+    soundEnabled: boolean;
+    achievementSoundId: NotificationSoundId;
+    achievementSoundCustomPath: string | null;
+    achievementSoundVolume: number;
+  };
+};
+
+const FALLBACK_ACHIEVEMENT_PREFS = {
+  popupEnabled: true,
+  soundEnabled: true,
+  achievementSoundId: DEFAULT_ACHIEVEMENT_NOTIFICATION_SOUND_ID as NotificationSoundId,
+  achievementSoundCustomPath: null as string | null,
+  achievementSoundVolume: 1,
+};
+
 export function AchievementListener() {
   const { identity } = useIdentity();
   const { t } = useTranslation();
   const toast = useToast();
   const { apiBaseUrl } = useAppConfig();
+  const { audio } = usePlatformCapabilities();
   const { onStateChange } = useChatSocket();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
-  const [queue, setQueue] = useState<AchievementUnlockEvent[]>([]);
+  const [queue, setQueue] = useState<QueuedAchievementUnlock[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
 
   // Reset dedup state when identity changes.
   useEffect(() => {
@@ -56,13 +75,18 @@ export function AchievementListener() {
     (event: AchievementUnlockEvent) => {
       const prefs = identity?.id
         ? loadAchievementPreferences(identity.id)
-        : { popupEnabled: true, soundEnabled: true };
+        : FALLBACK_ACHIEVEMENT_PREFS;
 
       if (prefs.popupEnabled) {
-        setSoundEnabled(prefs.soundEnabled);
+        const playback = {
+          soundEnabled: prefs.soundEnabled,
+          achievementSoundId: prefs.achievementSoundId,
+          achievementSoundCustomPath: prefs.achievementSoundCustomPath,
+          achievementSoundVolume: prefs.achievementSoundVolume,
+        };
         setQueue((prev) => {
           if (prev.some((e) => e.achievementId === event.achievementId)) return prev;
-          return [...prev, event];
+          return [...prev, { ...event, playback }];
         });
       } else {
         toast.info(t('achievements.unlocked'), t(event.definition.name));
@@ -138,7 +162,11 @@ export function AchievementListener() {
       onOpenChange={handleDismiss}
       achievementId={current.achievementId}
       definition={current.definition as PublicAchievementDefinition}
-      soundEnabled={soundEnabled}
+      soundEnabled={current.playback.soundEnabled}
+      achievementSoundId={current.playback.achievementSoundId}
+      achievementSoundCustomPath={current.playback.achievementSoundCustomPath}
+      achievementSoundVolume={current.playback.achievementSoundVolume}
+      loadCustomSound={audio?.loadSoundFromPath}
     />
   );
 }

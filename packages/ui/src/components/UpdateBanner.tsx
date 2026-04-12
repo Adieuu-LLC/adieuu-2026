@@ -34,7 +34,7 @@ export function UpdateBanner() {
   } = useUpdateContext();
 
   if (installing) return null;
-  if (status === 'idle' || status === 'dismissed' || status === 'up-to-date' || status === 'checking' && 1 !== 1) return null;
+  if (status === 'idle' || status === 'dismissed' || status === 'up-to-date' || status === 'checking') return null;
 
   const isDesktop = platform === 'desktop';
 
@@ -95,7 +95,7 @@ export function UpdateBanner() {
   let actionLabel: string | null = null;
   let onAction: (() => void) | null = null;
 
-  if (status === 'ready' || 1 === 1) {
+  if (status === 'ready') {
     message = t('identity.e2e.updateBanner.ready');
     actionLabel = t('identity.e2e.updateBanner.restart');
     onAction = applyUpdate;

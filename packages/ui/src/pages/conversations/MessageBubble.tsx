@@ -298,6 +298,10 @@ export const MessageBubble = memo(function MessageBubble({
       ? ({ '--member-hover-bg': `color-mix(in srgb, ${senderColor} 6%, var(--color-bg-hover))` } as React.CSSProperties)
       : undefined;
 
+  /** Same mode as bubble message tint (`name-and-bubble`); linear uses a slim bar instead of filling the bubble (own + others). */
+  const linearMessageTintMarker =
+    senderColor && memberColorDisplay === 'name-and-bubble';
+
   if (layout === 'linear') {
     const profile = isOwn ? ownProfile : senderProfile;
     const displayName = resolveDisplayName(message.fromIdentityId, participantProfiles, memberSettings);
@@ -353,6 +357,13 @@ export const MessageBubble = memo(function MessageBubble({
           if (!actionBarPopoverOpen) setShowActions(false);
         }}
       >
+        {linearMessageTintMarker && (
+          <div
+            className="dm-message-linear-tint-marker"
+            style={{ background: senderColor }}
+            aria-hidden
+          />
+        )}
         {profile ? (
           <IdentityHoverCard
             identity={profile}

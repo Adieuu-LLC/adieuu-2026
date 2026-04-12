@@ -17,6 +17,8 @@ import { Button } from './Button';
 import { Icon } from '../icons/Icon';
 import type { AppIconName } from '../icons/appIcons';
 import { useAppConfig } from '../config';
+import type { NotificationSoundId } from '../constants/notificationSoundPreferenceShared';
+import { previewNotificationSound } from '../utils/notificationSound';
 import { MagicRings } from './MagicRings';
 import { BorderGlow } from './BorderGlow';
 import { ShinyText } from './ShinyText';
@@ -27,9 +29,11 @@ export interface AchievementUnlockedModalProps {
   achievementId: string;
   definition: PublicAchievementDefinition;
   soundEnabled?: boolean;
+  achievementSoundId: NotificationSoundId;
+  achievementSoundCustomPath: string | null;
+  achievementSoundVolume: number;
+  loadCustomSound?: (path: string) => Promise<ArrayBuffer | null>;
 }
-
-const ACHIEVEMENT_SOUND_PATH = '/sounds/achievement.mp3';
 
 const DISMISS_KEYS = [
   'achievements.dismiss',
@@ -84,6 +88,10 @@ export function AchievementUnlockedModal({
   achievementId,
   definition,
   soundEnabled = true,
+  achievementSoundId,
+  achievementSoundCustomPath,
+  achievementSoundVolume,
+  loadCustomSound,
 }: AchievementUnlockedModalProps) {
   const { t } = useTranslation();
   const { apiBaseUrl } = useAppConfig();
@@ -92,21 +100,23 @@ export function AchievementUnlockedModal({
 
   const [holderCount, setHolderCount] = useState<number | null>(null);
   const [animating, setAnimating] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const hasPlayedRef = useRef(false);
 
   const playSound = useCallback(() => {
     if (!soundEnabled) return;
-    try {
-      if (!audioRef.current) {
-        audioRef.current = new Audio(ACHIEVEMENT_SOUND_PATH);
-      }
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
-    } catch {
-      // Audio playback not available
-    }
-  }, [soundEnabled]);
+    void previewNotificationSound({
+      soundId: achievementSoundId,
+      customPath: achievementSoundCustomPath,
+      loadCustomSound,
+      volume: achievementSoundVolume,
+    });
+  }, [
+    achievementSoundCustomPath,
+    achievementSoundId,
+    achievementSoundVolume,
+    loadCustomSound,
+    soundEnabled,
+  ]);
 
   useEffect(() => {
     if (!open) {
@@ -139,15 +149,6 @@ export function AchievementUnlockedModal({
       clearTimeout(settleTimer);
     };
   }, [open, achievementId, api, playSound]);
-
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, []);
 
   const iconName = definition.icon as AppIconName;
   const glowHsl = hexToHsl(theme.primary);
