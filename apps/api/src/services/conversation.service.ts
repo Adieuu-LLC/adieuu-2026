@@ -260,7 +260,8 @@ function isGroupAdmin(
 
 /**
  * Create a new DM or group conversation.
- * - DMs: Deduplicates by participant pair; returns existing if found.
+ * - DMs: By default deduplicates by participant pair and returns the most
+ *   recently active existing DM if found. With forceNew, always creates a new DM row.
  * - Groups: Validates all participants are friends of creator, respects
  *   requireGroupApproval preference.
  */
@@ -269,7 +270,8 @@ export async function createConversation(
   type: 'dm' | 'group',
   participantIds: string[],
   encryptedName?: string,
-  nameNonce?: string
+  nameNonce?: string,
+  forceNew?: boolean
 ): Promise<ConversationResult> {
   const conversationRepo = getConversationRepository();
   const friendshipRepo = getFriendshipRepository();
@@ -282,6 +284,10 @@ export async function createConversation(
       : new ObjectId(creatorIdentityId as string);
 
   const participantObjIds = participantIds.map((id) => new ObjectId(id));
+
+  if (type === 'group' && forceNew) {
+    return { success: false, error: 'forceNew applies only to direct messages', errorCode: 'INVALID_TYPE' };
+  }
 
   // DM: exactly one other participant
   if (type === 'dm') {
@@ -306,9 +312,9 @@ export async function createConversation(
       return { success: false, error: 'Cannot message this identity', errorCode: 'BLOCKED' };
     }
 
-    // Deduplicate: return existing DM if one exists
+    // Deduplicate: return existing DM unless client starts a separate thread
     const existing = await conversationRepo.findByParticipants('dm', creatorObjId, otherObjId);
-    if (existing) {
+    if (existing && !forceNew) {
       return { success: true, conversation: toPublicConversation(existing) };
     }
 
@@ -1532,7 +1538,7 @@ export async function leaveConversation(
 }
 
 /**
- * Update the encrypted group name (admin only).
+ * Update the encrypted conversation topic or name (group: admin only; DM: any participant).
  */
 export async function updateGroupName(
   conversationId: string | ObjectId,
@@ -1550,8 +1556,33 @@ export async function updateGroupName(
       : new ObjectId(requesterIdentityId as string);
 
   const conversation = await conversationRepo.findById(convObjId);
-  if (!conversation || conversation.type !== 'group') {
-    return { success: false, error: 'Group conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  if (conversation.type === 'dm') {
+    const isParticipant = conversation.participants.some((p) => p.equals(requesterObjId));
+    if (!isParticipant) {
+      return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+    }
+
+    const updated = await conversationRepo.updateEncryptedName(convObjId, encryptedName, nameNonce);
+
+    await publishToParticipants(conversation.participants, requesterObjId, {
+      type: 'conversation_updated',
+      data: {
+        conversationId: convObjId.toHexString(),
+        action: 'renamed',
+        identityId: requesterObjId.toHexString(),
+        conversationType: 'dm',
+      },
+    });
+
+    return { success: true, conversation: updated ? toPublicConversation(updated) : undefined };
+  }
+
+  if (conversation.type !== 'group') {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
   }
 
   if (!isGroupAdmin(conversation, requesterObjId)) {
@@ -1590,6 +1621,7 @@ export async function updateGroupName(
       conversationId: convObjId.toHexString(),
       action: 'renamed',
       identityId: requesterObjId.toHexString(),
+      conversationType: 'group',
     },
   });
 

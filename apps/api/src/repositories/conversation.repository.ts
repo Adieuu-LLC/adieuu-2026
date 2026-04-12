@@ -3,7 +3,9 @@
  * Data access layer for conversation operations with MongoDB persistence.
  *
  * Supports both DM (1-1) and group (up to 25 members) conversations.
- * DMs are deduplicated by participant pair.
+ * Multiple DM documents may exist for the same participant pair when clients
+ * start a new thread with a separate topic; dedupe returns the preferred
+ * existing row (see findByParticipants sort).
  */
 
 import { ObjectId } from 'mongodb';
@@ -59,18 +61,25 @@ export class ConversationRepository
   }
 
   /**
-   * Find an existing DM between exactly two participants.
-   * Used for deduplication when starting a new DM.
+   * Find a DM between exactly two participants for deduplication when
+   * starting a DM without forceNew. When several exist, returns the most
+   * recently active (by last message, then creation time).
    */
   async findByParticipants(
     type: 'dm',
     participantA: ObjectId,
     participantB: ObjectId
   ): Promise<ConversationDocument | null> {
-    return await this.findOne({
-      type,
-      participants: { $all: [participantA, participantB], $size: 2 },
-    });
+    const doc = await this.collection.findOne(
+      {
+        type,
+        participants: { $all: [participantA, participantB], $size: 2 },
+      },
+      {
+        sort: { lastMessageAt: -1, createdAt: -1, _id: -1 },
+      }
+    );
+    return doc as ConversationDocument | null;
   }
 
   /**

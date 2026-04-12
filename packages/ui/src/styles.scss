@@ -9028,9 +9028,29 @@ a {
   }
 }
 
-.new-conversation-group-name {
+.new-conversation-topic-name {
   flex-shrink: 0;
   margin-bottom: var(--spacing-md);
+}
+
+.new-conversation-dm-extras {
+  flex-shrink: 0;
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.new-conversation-dm-switch {
+  width: 100%;
+}
+
+.new-conversation-dm-first-note {
+  p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    line-height: 1.4;
+  }
 }
 
 .new-conversation-search {

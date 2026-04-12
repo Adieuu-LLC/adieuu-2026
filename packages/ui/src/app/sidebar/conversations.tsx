@@ -350,6 +350,9 @@ function resolveConversationDisplayName(
   if (conversation.type === 'group') {
     return conversation.decryptedName ?? 'Group';
   }
+  if (conversation.decryptedName?.trim()) {
+    return conversation.decryptedName.trim();
+  }
   const others = conversation.participants.filter((p) => p !== selfId);
   return others
     .map((pid) => {

@@ -180,7 +180,7 @@ export function InviteMemberModal({
               <span>
                 {t(
                   'conversations.inviteMember.privacyNote',
-                  'Invitees will be able to see current and invited member lists, but the group name will be hidden until they join.'
+                  'Invitees will be able to see current and invited member lists, but the conversation topic or name will be hidden until they join.'
                 )}
               </span>
             </div>

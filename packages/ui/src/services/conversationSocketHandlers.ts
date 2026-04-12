@@ -125,7 +125,12 @@ export function handleConversationSocketMessage(
     }
 
     case 'conversation_updated': {
-      const { conversationId, action, identityId: eventIdentityId } = message.data;
+      const {
+        conversationId,
+        action,
+        identityId: eventIdentityId,
+        conversationType: eventConversationType,
+      } = message.data;
       if (action === 'pending_invites_changed') {
         ctx.onPendingInvitesChanged?.(conversationId);
         break;
@@ -208,34 +213,60 @@ export function handleConversationSocketMessage(
           { onClick: navToConvo }
         );
       } else if (action === 'renamed') {
+        const isDmTopic = eventConversationType === 'dm';
         if (eventIdentityId) {
           void ctx.resolveParticipants([eventIdentityId]).then((freshProfiles) => {
             const profiles = { ...ctx.participantProfiles, ...freshProfiles };
             const profile = profiles[eventIdentityId];
             const name = profile?.displayName ?? profile?.username;
-            ctx.fireNotification(
-              ctx.t('conversations.notifications.groupRenamed', {
-                defaultValue: 'Group renamed',
-              }),
-              name
-                ? ctx.t('conversations.notifications.groupRenamedByBody', {
-                    name,
-                    defaultValue: `${name} renamed the group`,
-                  })
-                : ctx.t('conversations.notifications.groupRenamedBody', {
-                    defaultValue: 'The group name was updated',
-                  }),
-              { onClick: navToConvo }
-            );
+            if (isDmTopic) {
+              ctx.fireNotification(
+                ctx.t('conversations.notifications.conversationTopicUpdated', {
+                  defaultValue: 'Conversation updated',
+                }),
+                name
+                  ? ctx.t('conversations.notifications.conversationTopicUpdatedByBody', {
+                      name,
+                      defaultValue: `${name} updated the conversation topic`,
+                    })
+                  : ctx.t('conversations.notifications.conversationTopicUpdatedBody', {
+                      defaultValue: 'The conversation topic or name was updated',
+                    }),
+                { onClick: navToConvo }
+              );
+            } else {
+              ctx.fireNotification(
+                ctx.t('conversations.notifications.groupRenamed', {
+                  defaultValue: 'Group renamed',
+                }),
+                name
+                  ? ctx.t('conversations.notifications.groupRenamedByBody', {
+                      name,
+                      defaultValue: `${name} renamed the group`,
+                    })
+                  : ctx.t('conversations.notifications.groupRenamedBody', {
+                      defaultValue: 'The group name was updated',
+                    }),
+                { onClick: navToConvo }
+              );
+            }
           });
         } else {
           ctx.fireNotification(
-            ctx.t('conversations.notifications.groupRenamed', {
-              defaultValue: 'Group renamed',
-            }),
-            ctx.t('conversations.notifications.groupRenamedBody', {
-              defaultValue: 'The group name was updated',
-            }),
+            isDmTopic
+              ? ctx.t('conversations.notifications.conversationTopicUpdated', {
+                  defaultValue: 'Conversation updated',
+                })
+              : ctx.t('conversations.notifications.groupRenamed', {
+                  defaultValue: 'Group renamed',
+                }),
+            isDmTopic
+              ? ctx.t('conversations.notifications.conversationTopicUpdatedBody', {
+                  defaultValue: 'The conversation topic or name was updated',
+                })
+              : ctx.t('conversations.notifications.groupRenamedBody', {
+                  defaultValue: 'The group name was updated',
+                }),
             { onClick: navToConvo }
           );
         }

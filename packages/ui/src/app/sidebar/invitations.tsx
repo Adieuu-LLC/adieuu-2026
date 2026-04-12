@@ -80,7 +80,7 @@ function InviteGroupHoverCard({
           <div className="invite-group-hover-card-header">
             <span className="invite-group-hover-card-name">
               {preview.hasGroupName
-                ? t('conversations.invites.groupNameHidden', 'Group Name Hidden')
+                ? t('conversations.invites.groupNameHidden', 'Conversation topic hidden')
                 : t('conversations.invites.group', 'Group')}
             </span>
             <span className="invite-group-hover-card-count">
@@ -256,7 +256,7 @@ export function ChatInvitationsPanel({
 
           const othersCount = invite.memberCount - 1;
           const displayName = invite.hasGroupName
-            ? t('conversations.invites.groupNameHidden', 'Group Name Hidden')
+            ? t('conversations.invites.groupNameHidden', 'Conversation topic hidden')
             : inviterName
               ? (othersCount > 0
                 ? t('conversations.invites.inviterAndOthers', {

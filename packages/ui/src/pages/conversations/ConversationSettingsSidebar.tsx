@@ -45,7 +45,7 @@ export function ConversationSettingsSidebar({
         {isGroup && isAdmin && (
           <div className="conversation-settings-rename">
             <span className="app-settings-toggle-title">
-              {t('conversations.settingsRenameTitle', 'Group Name')}
+              {t('conversations.settingsRenameTitle', 'Conversation topic or name')}
             </span>
             <div className="conversation-settings-rename-row">
               <Input

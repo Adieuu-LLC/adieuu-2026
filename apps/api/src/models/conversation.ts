@@ -4,7 +4,7 @@
  *
  * PRIVACY NOTES:
  * - Participants are stored in plaintext (needed for lookups/routing)
- * - Group names are encrypted with a conversation-derived key
+ * - Conversation topic or name (groups and optionally DMs) is encrypted with a conversation-derived key
  * - Message content is always E2E encrypted (see message model)
  */
 
@@ -33,13 +33,13 @@ export interface ConversationDocument extends BaseDocument {
   admins: ObjectId[];
 
   /**
-   * Encrypted group name (groups only).
+   * Encrypted conversation topic or name (groups; optional for DMs with a named thread).
    * Encrypted with HKDF(conversationId, "adieuu-conv-name-v1").
-   * DMs derive name client-side from the other participant's profile.
+   * DMs without a stored name derive display from the other participant's profile.
    */
   encryptedName?: string;
 
-  /** Nonce used for group name encryption */
+  /** Nonce used for conversation topic/name encryption */
   nameNonce?: string;
 
   /**

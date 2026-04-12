@@ -68,6 +68,8 @@ const CreateConversationSchema = z.object({
   participants: z.array(z.string().length(24)).min(1).max(24),
   encryptedName: z.string().max(500).optional(),
   nameNonce: z.string().max(100).optional(),
+  /** When true (DM only), create a new thread even if one already exists with this peer. */
+  forceNew: z.boolean().optional(),
 });
 
 const SendMessageSchema = z.object({
@@ -132,7 +134,7 @@ router.post('/conversations', async (ctx) => {
   const parseResult = CreateConversationSchema.safeParse(ctx.body);
   if (!parseResult.success) return ctx.errors.validationFailed();
 
-  const { type, participants, encryptedName, nameNonce } = parseResult.data;
+  const { type, participants, encryptedName, nameNonce, forceNew } = parseResult.data;
 
   for (const id of participants) {
     const sanitized = sanitizeString(id, 'general');
@@ -146,7 +148,8 @@ router.post('/conversations', async (ctx) => {
     type,
     participants,
     encryptedName,
-    nameNonce
+    nameNonce,
+    forceNew
   );
 
   if (!result.success) {
@@ -399,7 +402,8 @@ router.get('/conversations/:id', async (ctx) => {
 });
 
 /**
- * PATCH /conversations/:id - Update group name (admin only)
+ * PATCH /conversations/:id - Update encrypted conversation topic or name
+ * (group: admins; DM: any participant)
  */
 router.patch('/conversations/:id', async (ctx) => {
   const identity = await requireIdentity(ctx.request);
@@ -423,11 +427,12 @@ router.patch('/conversations/:id', async (ctx) => {
 
   if (!result.success) {
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
-    if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
-    return errors.badRequest(result.error ?? 'Failed to update group name.');
+    if (result.errorCode === 'NOT_ADMIN' || result.errorCode === 'NOT_PARTICIPANT')
+      return ctx.errors.unauthorized();
+    return errors.badRequest(result.error ?? 'Failed to update conversation name.');
   }
 
-  return success(result.conversation, 'Group name updated.');
+  return success(result.conversation, 'Conversation updated.');
 });
 
 /**

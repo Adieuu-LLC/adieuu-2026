@@ -144,10 +144,13 @@ interface ConversationsContextValue {
   markConversationRead: (conversationId: string) => void;
 
   // Conversation operations
-  createDM: (participantId: string) => Promise<PublicConversation | null>;
+  createDM: (
+    participantId: string,
+    options?: { forceNew?: boolean; topic?: string }
+  ) => Promise<PublicConversation | null>;
   createGroup: (
     participantIds: string[],
-    groupName?: string
+    conversationTopicOrName?: string
   ) => Promise<PublicConversation | null>;
 
   // Message operations
@@ -384,7 +387,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
   const decryptConversationName = useCallback(
     (conv: PublicConversation): string | undefined => {
-      if (conv.type !== 'group' || !conv.encryptedName || !conv.nameNonce) return undefined;
+      if (!conv.encryptedName || !conv.nameNonce) return undefined;
       try {
         return decryptGroupName(conv.encryptedName, conv.nameNonce, conv.id);
       } catch {
@@ -1068,33 +1071,56 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   // -------------------------------------------------------------------------
 
   const createDM = useCallback(
-    async (participantId: string): Promise<PublicConversation | null> => {
+    async (
+      participantId: string,
+      options?: { forceNew?: boolean; topic?: string }
+    ): Promise<PublicConversation | null> => {
       try {
+        const { forceNew, topic } = options ?? {};
         const resp = await api.conversations.create({
           type: 'dm',
           participants: [participantId],
+          forceNew: forceNew === true ? true : undefined,
         });
-        if (resp.data) {
-          const decrypted = toDecrypted(resp.data);
-          setConversations((prev) => {
-            if (prev.some((c) => c.id === decrypted.id)) return prev;
-            return [decrypted, ...prev];
-          });
-          void resolveParticipants(decrypted.participants);
-          return resp.data;
+        if (!resp.data) return null;
+
+        let conv: PublicConversation = resp.data;
+        const trimmedTopic = topic?.trim();
+        if (trimmedTopic) {
+          const encrypted = encryptGroupName(trimmedTopic, conv.id);
+          const nameResp = await api.conversations.updateName(
+            conv.id,
+            encrypted.encryptedName,
+            encrypted.nameNonce
+          );
+          if (nameResp.data) {
+            conv = {
+              ...nameResp.data,
+              encryptedName: nameResp.data.encryptedName ?? encrypted.encryptedName,
+              nameNonce: nameResp.data.nameNonce ?? encrypted.nameNonce,
+            };
+          }
         }
+
+        const decrypted = toDecrypted(conv);
+        setConversations((prev) => {
+          if (prev.some((c) => c.id === decrypted.id)) return prev;
+          return [decrypted, ...prev];
+        });
+        void resolveParticipants(decrypted.participants);
+        return conv;
       } catch {
         // Error
       }
       return null;
     },
-    [api, toDecrypted, resolveParticipants]
+    [api, toDecrypted, resolveParticipants, encryptGroupName]
   );
 
   const createGroup = useCallback(
     async (
       participantIds: string[],
-      groupName?: string
+      conversationTopicOrName?: string
     ): Promise<PublicConversation | null> => {
       try {
         let encryptedName: string | undefined;
@@ -1108,8 +1134,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           participants: participantIds,
         });
 
-        if (resp.data && groupName) {
-          const encrypted = encryptGroupName(groupName, resp.data.id);
+        if (resp.data && conversationTopicOrName) {
+          const encrypted = encryptGroupName(conversationTopicOrName, resp.data.id);
           await api.conversations.updateName(resp.data.id, encrypted.encryptedName, encrypted.nameNonce);
           encryptedName = encrypted.encryptedName;
           nameNonce = encrypted.nameNonce;

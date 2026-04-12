@@ -999,7 +999,9 @@ export function ConversationView() {
   };
   const displayName = conversation.type === 'group'
     ? (conversation.decryptedName ?? t('conversations.group', 'Group'))
-    : otherParticipants.map(resolveToolbarName).join(', ');
+    : conversation.decryptedName?.trim()
+      ? conversation.decryptedName.trim()
+      : otherParticipants.map(resolveToolbarName).join(', ');
   const subtitle = conversation.type === 'group'
     ? `${conversation.participants.length} ${t('conversations.members', 'members')}`
     : t('conversations.directMessage', 'Direct message');

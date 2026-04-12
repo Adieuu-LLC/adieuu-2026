@@ -120,6 +120,8 @@ export interface ChatConversationUpdatedMessage extends ChatMessageBase {
       | 'pending_invites_changed';
     identityId?: string;
     gifsDisabled?: boolean;
+    /** Present for action renamed — drives notification copy (group vs DM). */
+    conversationType?: 'dm' | 'group';
   };
 }
 

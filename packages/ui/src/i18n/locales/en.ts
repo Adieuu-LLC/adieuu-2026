@@ -1478,8 +1478,12 @@ export const en = {
 
     settingsFs: 'Forward Secrecy',
     settingsFsHint: 'Default messages in this conversation to use forward secrecy. Messages without FS remain end-to-end encrypted but persist in history.',
-    settingsRenameTitle: 'Group Name',
-    settingsRenamePlaceholder: 'Enter new name...',
+    settingsRenameTitle: 'Conversation topic or name',
+    settingsRenamePlaceholder: 'Enter new conversation topic or name...',
+    conversationTopicOrNamePlaceholder: 'Conversation topic or name (optional)',
+    startSeparateDmLabel: 'Start a new conversation? (must add topic name)',
+    firstDmWithFriendNote:
+      'You have not messaged this person in a direct conversation before.',
     settingsRenameSave: 'Save',
 
     adminTransfer: {
@@ -1503,14 +1507,14 @@ export const en = {
       memberLeft: '{{name}} has left the conversation',
       adminPromoted: '{{actor}} made {{name}} an admin',
       adminPromotedSimple: '{{name}} is now an admin',
-      groupRenamed: '{{actor}} renamed the group',
-      groupRenamedSimple: '{{name}} renamed the group',
+      groupRenamed: '{{actor}} updated the conversation topic',
+      groupRenamedSimple: '{{name}} updated the conversation topic',
     },
 
     invites: {
       panelTitle: 'Chat Invitations',
       group: 'Group',
-      groupNameHidden: 'Group Name Hidden',
+      groupNameHidden: 'Conversation topic hidden',
       inviterAndOthers: '{{name}} + {{count}} others',
       inviterAndOthers_one: '{{name}} + 1 other',
       inviterAndOthers_other: '{{name}} + {{count}} others',
@@ -1541,7 +1545,7 @@ export const en = {
       button: 'Invite Member',
       invite: 'Invite',
       privacyNote:
-        'Invitees will be able to see current and invited member lists, but the group name will be hidden until they join.',
+        'Invitees will be able to see current and invited member lists, but the conversation topic or name will be hidden until they join.',
       previouslyLeft: 'Previously left',
       noEligible: 'No friends available to invite',
       createNew: 'Create New Conversation Instead',
@@ -1587,8 +1591,12 @@ export const en = {
       memberLeftBody: '{{name}} left the group',
       memberRemoved: 'Member removed',
       memberRemovedBody: '{{name}} was removed from the group',
-      groupRenamed: 'Group renamed',
-      groupRenamedBody: 'The group name was updated',
+      groupRenamed: 'Conversation updated',
+      groupRenamedBody: 'The conversation topic or name was updated',
+      groupRenamedByBody: '{{name}} updated the conversation topic',
+      conversationTopicUpdated: 'Conversation updated',
+      conversationTopicUpdatedBody: 'The conversation topic or name was updated',
+      conversationTopicUpdatedByBody: '{{name}} updated the conversation topic',
       adminPromoted: 'New admin',
       adminPromotedBody: '{{name}} was promoted to admin',
       reaction: 'Reaction',

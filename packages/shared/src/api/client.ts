@@ -2453,6 +2453,8 @@ export class ConversationsApi {
     participants: string[];
     encryptedName?: string;
     nameNonce?: string;
+    /** DM only: create a new thread even if one already exists with this peer. */
+    forceNew?: boolean;
   }): Promise<ApiResponse<PublicConversation>> {
     return this.client.post('/api/conversations', params);
   }
