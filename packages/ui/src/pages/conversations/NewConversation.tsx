@@ -42,6 +42,9 @@ export function NewConversation() {
   const [isSearching, setIsSearching] = useState(false);
   const [creating, setCreating] = useState(false);
   const searchSeqRef = useRef(0);
+  /** Tracks prior topic trim + whether the "separate DM" switch was shown, for defaulting the switch on. */
+  const prevTopicTrimmedForSeparateRef = useRef('');
+  const showSeparateSwitchPrevRef = useRef(false);
 
   const isGroup = selectedIds.length > 1;
   const singlePeerId = selectedIds.length === 1 ? selectedIds[0] : undefined;
@@ -74,6 +77,27 @@ export function NewConversation() {
       setStartSeparateDm(false);
     }
   }, [selectedIds.length]);
+
+  useEffect(() => {
+    prevTopicTrimmedForSeparateRef.current = '';
+    showSeparateSwitchPrevRef.current = false;
+  }, [singlePeerId]);
+
+  /** When a topic/name is present and an existing DM exists, default "separate conversation" to on. */
+  useEffect(() => {
+    const trimmed = conversationTopicOrName.trim();
+    const prevTrim = prevTopicTrimmedForSeparateRef.current;
+    const wasShowingSwitch = showSeparateSwitchPrevRef.current;
+
+    if (showSeparateThreadSwitch && trimmed) {
+      if (prevTrim === '' || !wasShowingSwitch) {
+        setStartSeparateDm(true);
+      }
+    }
+
+    prevTopicTrimmedForSeparateRef.current = trimmed;
+    showSeparateSwitchPrevRef.current = showSeparateThreadSwitch;
+  }, [conversationTopicOrName, showSeparateThreadSwitch]);
 
   useEffect(() => {
     const q = searchQuery.trim();
