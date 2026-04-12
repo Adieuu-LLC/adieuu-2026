@@ -78,6 +78,8 @@ export function ConversationView() {
     loadNewer,
     jumpToLatestMessages,
     fetchMessagesAround,
+    replyParentHydrationMap,
+    ensureReplyParentHydration,
     leaveGroup,
     removeMember,
     promoteToAdmin,
@@ -603,8 +605,13 @@ export function ConversationView() {
     for (const msg of activeMessages) {
       m.set(msg.id, msg);
     }
+    for (const [msgId, msg] of Object.entries(replyParentHydrationMap)) {
+      if (!m.has(msgId)) {
+        m.set(msgId, msg);
+      }
+    }
     return m;
-  }, [activeMessages]);
+  }, [activeMessages, replyParentHydrationMap]);
 
   const [expiryTick, setExpiryTick] = useState(0);
 
@@ -640,6 +647,19 @@ export function ConversationView() {
     return items;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reversedMessages, unreadCount, expiryTick]);
+
+  useEffect(() => {
+    if (!id) return;
+    const seen = new Set<string>();
+    for (const item of flatItems) {
+      if (item.type !== 'message') continue;
+      const parentId = item.msg.replyToMessageId;
+      if (!parentId || seen.has(parentId)) continue;
+      seen.add(parentId);
+      if (messagesById.has(parentId)) continue;
+      void ensureReplyParentHydration(id, parentId);
+    }
+  }, [id, flatItems, messagesById, ensureReplyParentHydration]);
 
   useLayoutEffect(() => {
     if (messagesLoading) return;

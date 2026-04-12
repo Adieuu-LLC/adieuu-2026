@@ -10,6 +10,10 @@ export const REPLY_JUMP_CONTEXT_BEFORE = 15;
 /** Newer-side window when jumping to a reply target (API `after`). */
 export const REPLY_JUMP_CONTEXT_AFTER = 15;
 
+/** Smallest valid `getMessagesAround` window when hydrating reply-quote parents outside the buffer (API minimum is 1). */
+export const REPLY_QUOTE_HYDRATION_BEFORE = 1;
+export const REPLY_QUOTE_HYDRATION_AFTER = 1;
+
 /**
  * `messages` order matches API / {@link useConversations}: index 0 = newest, last = oldest.
  * When over capacity: at bottom keep the newest window; when reading history, keep the oldest window.

@@ -79,6 +79,8 @@ import {
   MAX_LOADED_MESSAGES,
   REPLY_JUMP_CONTEXT_AFTER,
   REPLY_JUMP_CONTEXT_BEFORE,
+  REPLY_QUOTE_HYDRATION_AFTER,
+  REPLY_QUOTE_HYDRATION_BEFORE,
   trimMessagesBuffer,
 } from '../pages/conversations/conversationScrollUtils';
 
@@ -170,6 +172,13 @@ interface ConversationsContextValue {
     centerMessageId: string,
     options?: { before?: number; after?: number }
   ) => Promise<boolean>;
+  /**
+   * Parents of reply quotes loaded outside the main paged buffer (for snippets / author preview).
+   * {@link activeMessages} wins when the same id appears in both.
+   */
+  replyParentHydrationMap: Record<string, DisplayMessage>;
+  /** Load a small window around `parentMessageId` into {@link replyParentHydrationMap} without replacing the scroll buffer. */
+  ensureReplyParentHydration: (conversationId: string, parentMessageId: string) => Promise<void>;
   deleteMessage: (
     conversationId: string,
     messageId: string,
@@ -245,7 +254,20 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const [conversations, setConversations] = useState<DecryptedConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messagesState, setMessagesState] = useState<Record<string, ConversationMessagesState>>({});
+  /** Reply-quote parents fetched outside the main buffer (per conversation). */
+  const [replyParentHydration, setReplyParentHydration] = useState<
+    Record<string, Record<string, DisplayMessage>>
+  >({});
+  const replyParentHydrationRef = useRef(replyParentHydration);
+  useEffect(() => {
+    replyParentHydrationRef.current = replyParentHydration;
+  }, [replyParentHydration]);
+  const replyHydrationInflightRef = useRef(new Set<string>());
   const [invites, setInvites] = useState<PublicGroupInvite[]>([]);
+
+  useEffect(() => {
+    setReplyParentHydration({});
+  }, [activeConversationId]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
 
@@ -821,6 +843,123 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       toast,
       t,
     ],
+  );
+
+  const ensureReplyParentHydration = useCallback(
+    async (conversationId: string, parentMessageId: string): Promise<void> => {
+      if (!isLoggedIn || !identity) return;
+
+      if (messagesStateRef.current[conversationId]?.messages.some((m) => m.id === parentMessageId)) {
+        return;
+      }
+      if (replyParentHydrationRef.current[conversationId]?.[parentMessageId]) {
+        return;
+      }
+
+      const inflightKey = `${conversationId}:${parentMessageId}`;
+      if (replyHydrationInflightRef.current.has(inflightKey)) {
+        return;
+      }
+      replyHydrationInflightRef.current.add(inflightKey);
+
+      try {
+        const resp = await api.conversations.getMessagesAround(conversationId, parentMessageId, {
+          before: REPLY_QUOTE_HYDRATION_BEFORE,
+          after: REPLY_QUOTE_HYDRATION_AFTER,
+        });
+        if (!resp.data?.messages?.length) {
+          return;
+        }
+
+        let ecdhPrivateKey: Uint8Array | null = null;
+        let kemPrivateKey: Uint8Array | null = null;
+        let myRoutingTag: string | undefined;
+
+        const deviceId = getCurrentDeviceId();
+        const wrappingKey = getWrappingKey();
+
+        if (deviceId && wrappingKey) {
+          try {
+            const storedKeys = await getDeviceKeysForIdentity(identity.id);
+            const myDeviceKeys = storedKeys.find((k) => k.deviceId === deviceId);
+            if (myDeviceKeys) {
+              const decrypted = await decryptDeviceKeys(myDeviceKeys, wrappingKey);
+              ecdhPrivateKey = decrypted.ecdhPrivateKey;
+              kemPrivateKey = decrypted.kemPrivateKey;
+              myRoutingTag = decrypted.routingTag;
+            }
+          } catch (err) {
+            console.error('[Conversations] decrypt: failed to load device keys:', err);
+          }
+        }
+
+        const main = messagesStateRef.current[conversationId]?.messages ?? [];
+        const hydrated = replyParentHydrationRef.current[conversationId] ?? {};
+        const existingById = new Map<string, DisplayMessage>();
+        for (const m of main) {
+          existingById.set(m.id, m);
+        }
+        for (const m of Object.values(hydrated)) {
+          if (!existingById.has(m.id)) {
+            existingById.set(m.id, m);
+          }
+        }
+        const existingMessages = Array.from(existingById.values());
+
+        const newMessages = await decryptMessageBatch({
+          messages: resp.data.messages,
+          conversationId,
+          pagingCursor: undefined,
+          identityId: identity.id,
+          wrappingKey,
+          ecdhPrivateKey,
+          kemPrivateKey,
+          myRoutingTag,
+          signingKeyCache: signingKeyCache.current,
+          existingMessages,
+          sessionKeyCache: sessionKeyCache.current,
+          fetchSigningKey: async (sid) => {
+            try {
+              const keysResp = await api.identity.getPublicKeys(sid);
+              if (keysResp.data?.signingPublicKey) return keysResp.data.signingPublicKey;
+            } catch (err) {
+              console.warn('[Conversations] decrypt: failed to fetch signing key for', sid, err);
+            }
+            return null;
+          },
+          resolveParticipants: (ids) => {
+            void resolveParticipants(ids);
+          },
+          findAndDecryptSignedPreKey,
+          findAndDecryptOneTimePreKey,
+          deleteOneTimePreKey,
+          getPersistedSessionKey,
+          storeSessionKey,
+          deletePersistedSessionKey,
+          notifyOtpkConsumed,
+        });
+
+        setReplyParentHydration((prev) => {
+          const conv = { ...(prev[conversationId] ?? {}) };
+          for (const m of newMessages) {
+            conv[m.id] = m as DisplayMessage;
+          }
+          return {
+            ...prev,
+            [conversationId]: conv,
+          };
+        });
+      } catch (err) {
+        console.error(
+          '[useConversations] ensureReplyParentHydration failed',
+          { conversationId, parentMessageId },
+          err,
+        );
+      } finally {
+        replyHydrationInflightRef.current.delete(inflightKey);
+      }
+    },
+    [isLoggedIn, identity, api, getCurrentDeviceId, getWrappingKey, resolveParticipants],
   );
 
   const fetchInvites = useCallback(async () => {
@@ -1470,6 +1609,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     if (!isLoggedIn && wasLoggedInRef.current) {
       setConversations([]);
       setMessagesState({});
+      setReplyParentHydration({});
       setInvites([]);
       setActiveConversationId(null);
     }
@@ -1544,6 +1684,10 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       loadNewer,
       jumpToLatestMessages,
       fetchMessagesAround,
+      replyParentHydrationMap: activeConversationId
+        ? replyParentHydration[activeConversationId] ?? {}
+        : {},
+      ensureReplyParentHydration,
       deleteMessage,
       addMember,
       removeMember,
@@ -1561,11 +1705,11 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       refresh,
     };
   }, [
-    conversations, activeConversationId, messagesState, invites,
+    conversations, activeConversationId, messagesState, replyParentHydration, invites,
     participantProfiles, loading, sending,
     setActiveConversation, setIsAtBottom, markConversationRead,
     createDM, createGroup, sendTextMessage, loadOlder, loadNewer, jumpToLatestMessages,
-    fetchMessagesAround,
+    fetchMessagesAround, ensureReplyParentHydration,
     deleteMessage, addMember, removeMember, leaveGroup, renameGroup,
     updateConversationMemberSettings, promoteToAdmin, terminateGroup,
     acceptInvite, declineInvite, getInvitePreview, getFormerMembers,
