@@ -18,7 +18,8 @@ export interface IMessageRepository {
   findByConversation(
     conversationId: ObjectId,
     limit: number,
-    cursor?: ObjectId
+    cursor?: ObjectId,
+    direction?: 'asc' | 'desc',
   ): Promise<MessageDocument[]>;
   findByIdInConversation(
     conversationId: ObjectId,
@@ -68,12 +69,13 @@ export class MessageRepository
   async findByConversation(
     conversationId: ObjectId,
     limit = 50,
-    cursor?: ObjectId
+    cursor?: ObjectId,
+    direction?: 'asc' | 'desc',
   ): Promise<MessageDocument[]> {
     const filter: Record<string, unknown> = { conversationId };
 
     if (cursor) {
-      filter._id = { $lt: cursor };
+      filter._id = direction === 'asc' ? { $lt: cursor } : { $gt: cursor };
     }
 
     return await this.collection
