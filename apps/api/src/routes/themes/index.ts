@@ -18,7 +18,6 @@ import {
   getIdentityFromSession,
 } from '../../services/identity.service';
 import { checkRateLimit } from '../../services/rate-limit.service';
-import { requireAccountSession } from '../../services/session.service';
 
 const router = new Router();
 
@@ -72,6 +71,30 @@ router.get('/themes', async (ctx) => {
 });
 
 /**
+ * GET /themes/me/shared-checksums - List colour checksums the current alias has already shared.
+ *
+ * Identity session required. Used to show "Share" only for custom themes not yet in the gallery.
+ *
+ * @route GET /api/themes/me/shared-checksums
+ */
+router.get('/themes/me/shared-checksums', async (ctx) => {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  const repo = getCommunityThemeRepository();
+  const checksums = await repo.listColorChecksumsByAuthor(identity._id);
+
+  return success({ checksums });
+});
+
+/**
  * GET /themes/:id - Get a single community theme by ID.
  *
  * Public endpoint. Increments download counter.
@@ -98,15 +121,15 @@ router.get('/themes/:id', async (ctx) => {
 /**
  * POST /themes - Upload/share a theme publicly.
  *
- * Requires both a user session and an identity session.
+ * Resolves the alias via `getIdentityFromSession` (same as GET /identity/session
+ * and DELETE /themes/:id). Do not use `requireIdentitySession` here: it goes
+ * through `getSession` → `cachedToSessionData`, which rejects identity sessions
+ * missing `accountHash`, while `getIdentityFromSession` only requires
+ * `type === 'identity'` and `identityId`.
  *
  * @route POST /api/themes
  */
 router.post('/themes', async (ctx) => {
-  if (!(await requireAccountSession(ctx.request))) {
-    return ctx.errors.unauthorized();
-  }
-
   const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
   if (!identitySessionId) {
     return ctx.errors.unauthorized();

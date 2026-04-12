@@ -121,6 +121,17 @@ export class CommunityThemeRepository {
     return doc !== null;
   }
 
+  /**
+   * Colour checksums for all community themes still published by this author.
+   * Used by the client to hide "Share" for custom themes that are already shared.
+   */
+  async listColorChecksumsByAuthor(authorIdentityId: ObjectId): Promise<string[]> {
+    const docs = await this.collection
+      .find({ authorIdentityId, removedByAdmin: { $ne: true } }, { projection: { colorChecksum: 1 } })
+      .toArray();
+    return docs.map((d) => d.colorChecksum);
+  }
+
   async countByAuthor(authorIdentityId: ObjectId): Promise<number> {
     return this.collection.countDocuments({ authorIdentityId, removedByAdmin: { $ne: true } });
   }

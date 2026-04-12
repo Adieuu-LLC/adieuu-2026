@@ -11839,6 +11839,36 @@ body {
   color: var(--color-text-muted);
 }
 
+.theme-preset-card-actions {
+  position: absolute;
+  top: var(--spacing-xs);
+  right: var(--spacing-xs);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+}
+
+.theme-preset-card-actions .theme-preset-delete {
+  position: static;
+}
+
+.theme-preset-share {
+  padding: 2px 6px;
+  font-size: var(--font-size-xs);
+  line-height: 1;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+
+  &:hover:not(:disabled) {
+    color: var(--color-accent-primary);
+  }
+}
+
+.theme-preset-share-tooltip-wrap {
+  display: inline-flex;
+}
+
 .theme-preset-delete {
   position: absolute;
   top: var(--spacing-xs);

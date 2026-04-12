@@ -14,6 +14,8 @@ import { Button } from '../../components/Button';
 import { Alert } from '../../components/Alert';
 import { useToast } from '../../components/Toast';
 import { useTheme } from '../../hooks/useTheme';
+import { useMySharedThemeChecksums } from '../../hooks/useMySharedThemeChecksums';
+import { CustomThemeShareButton } from '../../components/CustomThemeShareButton';
 import { useIconPack } from '../../hooks/useIconPack';
 import { useMessageLayoutPreference, setMessageLayout, type MessageLayout } from '../../hooks/useMessageLayoutPreference';
 import { DEFAULT_THEME_ID } from '../../constants/builtinThemes';
@@ -100,6 +102,7 @@ export function AccountAppearance() {
     removeCustomTheme,
     customThemes,
   } = useTheme();
+  const { sharedChecksums, refresh: refreshSharedThemeChecksums } = useMySharedThemeChecksums();
 
   const { packId, setIconPack } = useIconPack();
   const messageLayout = useMessageLayoutPreference();
@@ -426,15 +429,22 @@ export function AccountAppearance() {
                       </span>
                     )}
                   </button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="theme-preset-delete"
-                    onClick={() => void handleDeleteCustom(ct.id)}
-                    title={t('account.appearance.deleteTheme')}
-                  >
-                    x
-                  </Button>
+                  <div className="theme-preset-card-actions">
+                    <CustomThemeShareButton
+                      theme={ct}
+                      sharedChecksums={sharedChecksums}
+                      onShared={refreshSharedThemeChecksums}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="theme-preset-delete"
+                      onClick={() => void handleDeleteCustom(ct.id)}
+                      title={t('account.appearance.deleteTheme')}
+                    >
+                      x
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

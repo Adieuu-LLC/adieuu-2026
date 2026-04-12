@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { useIdentity } from '../hooks/useIdentity';
 import { AppLayout } from '../components/AppLayout';
 import { TourRoot } from '../components/Tour';
 import { Home } from '../pages/Home';
@@ -126,6 +127,18 @@ function ProtectedLayoutContent() {
 /**
  * Auth route wrapper - redirects to home if already authenticated
  */
+/**
+ * Account routes (email/phone session, MFA, billing-adjacent controls) are hidden
+ * while the user has their alias unlocked — same rule as the account flyout in the sidebar.
+ */
+function AccountSessionOnlyOutlet() {
+  const { status: identityStatus } = useIdentity();
+  if (identityStatus === 'logged_in') {
+    return <Navigate to="/identity/profile" replace />;
+  }
+  return <Outlet />;
+}
+
 function AuthRoute({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
 
@@ -185,18 +198,22 @@ export function App() {
         <Route path="/download" element={<Download />} />
         <Route path="/search" element={<Search />} />
 
-        {/* Account Routes */}
-        <Route path="/account" element={<Navigate to="/account/overview" replace />} />
-        <Route path="/account/overview" element={<AccountOverview />} />
-        <Route path="/account/security" element={<Navigate to="/account/security/authentication" replace />} />
-        <Route path="/account/security/:tab" element={<AccountSecurity />} />
-        <Route path="/account/settings" element={<Navigate to="/identity/notifications" replace />} />
-        <Route path="/account/appearance" element={<Navigate to="/identity/appearance" replace />} />
-        <Route path="/account/appearance/community" element={<ThemeBrowser />} />
+        {/* Account Routes (not available while alias session is unlocked) */}
+        <Route element={<AccountSessionOnlyOutlet />}>
+          <Route path="/account" element={<Navigate to="/account/overview" replace />} />
+          <Route path="/account/overview" element={<AccountOverview />} />
+          <Route path="/account/security" element={<Navigate to="/account/security/authentication" replace />} />
+          <Route path="/account/security/:tab" element={<AccountSecurity />} />
+          <Route path="/account/settings" element={<Navigate to="/identity/notifications" replace />} />
+          <Route path="/account/appearance" element={<Navigate to="/identity/appearance" replace />} />
+          <Route path="/account/appearance/community" element={<ThemeBrowser />} />
+        </Route>
 
         {/* Identity Routes */}
         <Route path="/identity" element={<Navigate to="/identity/profile" replace />} />
         <Route path="/identity/profile" element={<IdentityProfile />} />
+        {/* Longer static path before `/identity/appearance` so routers never prefer a dynamic match. */}
+        <Route path="/identity/appearance/community" element={<ThemeBrowser />} />
         <Route path="/identity/appearance" element={<IdentityAppearance />} />
         <Route path="/identity/notifications" element={<IdentityNotifications />} />
         <Route path="/identity/privacy" element={<IdentityPrivacy />} />

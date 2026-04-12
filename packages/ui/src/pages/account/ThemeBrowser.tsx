@@ -53,6 +53,9 @@ export function ThemeBrowser() {
   const [unsharing, setUnsharing] = useState(false);
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Toast API changes identity every ToastProvider render; keep fetch stable to avoid request races. */
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
 
   const handleSearchInput = useCallback((value: string) => {
     setSearch(value);
@@ -80,16 +83,27 @@ export function ThemeBrowser() {
         search: debouncedSearch || undefined,
         sort,
       });
-      if (resp.success && resp.data) {
+      if (resp.success && resp.data && Array.isArray(resp.data.themes)) {
         setThemes(resp.data.themes);
         setTotal(resp.data.total);
+        return;
+      }
+      setThemes([]);
+      setTotal(0);
+      if (!resp.success) {
+        toastRef.current.error(
+          t('account.appearance.communityLoadError'),
+          resp.error?.message,
+        );
       }
     } catch {
-      toast.error(t('account.appearance.communityLoadError'));
+      setThemes([]);
+      setTotal(0);
+      toastRef.current.error(t('account.appearance.communityLoadError'));
     } finally {
       setLoading(false);
     }
-  }, [api, page, debouncedSearch, sort, toast, t]);
+  }, [api, page, debouncedSearch, sort, t]);
 
   useEffect(() => {
     void fetchThemes();

@@ -2,7 +2,6 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Checkbox, RadioGroup } from '@ark-ui/react';
 import { createApiClient } from '@adieuu/shared';
-import { Link } from 'react-router-dom';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
@@ -12,7 +11,9 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Alert } from '../../components/Alert';
 import { BackupCodesDisplay } from '../../components/BackupCodesDisplay';
 import { useBlocks } from '../../hooks/useBlocks';
+import { useAuth } from '../../hooks/useAuth';
 import { useIdentity } from '../../hooks/useIdentity';
+import { ChangePassphrasePanel } from '../account/ChangePassphrasePanel';
 import { useGifPreference, type GifVisibility } from '../../hooks/useGifPreference';
 import { usePreKeys } from '../../hooks/usePreKeys';
 import { useClaimAchievement } from '../../hooks/useClaimAchievement';
@@ -458,6 +459,7 @@ function GifVisibilityCard({ identityId }: { identityId: string }) {
 
 export function IdentityPrivacy() {
   const { t } = useTranslation();
+  const { status: authStatus } = useAuth();
   const { status: identityStatus, identity, refreshIdentitySession } = useIdentity();
   const { apiBaseUrl } = useAppConfig();
   const toast = useToast();
@@ -635,20 +637,21 @@ export function IdentityPrivacy() {
           {isLoggedIn && (
             <TabContent value="change-passphrase">
               <Card variant="elevated">
-                <div className="sessions-header">
-                  <div className="sessions-header-text">
-                    <h3>{t('identity.privacy.changePassword.managedInAccountTitle')}</h3>
-                    <p>{t('identity.privacy.changePassword.managedInAccountBody')}</p>
-                  </div>
-                </div>
-                <Alert variant="info" className="change-passphrase-account-notice">
-                  <p>{t('identity.privacy.changePassword.managedInAccountHint')}</p>
-                  <p className="change-passphrase-account-notice-link-wrap">
-                    <Link to="/account/security/passphrase">
-                      {t('identity.privacy.changePassword.managedInAccountLink')}
-                    </Link>
-                  </p>
-                </Alert>
+                {authStatus === 'authenticated' ? (
+                  <ChangePassphrasePanel api={api} />
+                ) : (
+                  <>
+                    <div className="sessions-header">
+                      <div className="sessions-header-text">
+                        <h3>{t('identity.privacy.changePassword.identityOnlyTitle')}</h3>
+                        <p>{t('identity.privacy.changePassword.identityOnlyBody')}</p>
+                      </div>
+                    </div>
+                    <Alert variant="info" className="change-passphrase-account-notice">
+                      <p>{t('identity.privacy.changePassword.identityOnlyHint')}</p>
+                    </Alert>
+                  </>
+                )}
               </Card>
             </TabContent>
           )}

@@ -24,6 +24,8 @@ import { sanitizeImportedTheme } from '../../utils/themeSanitizer';
 import { loadShowMessageArtifacts, saveShowMessageArtifacts } from '../../services/preKeyService';
 import { loadReactionNotificationsEnabled, saveReactionNotificationsEnabled } from '../../hooks/useReactionNotificationPreference';
 import { useClaimAchievement } from '../../hooks/useClaimAchievement';
+import { useMySharedThemeChecksums } from '../../hooks/useMySharedThemeChecksums';
+import { CustomThemeShareButton } from '../../components/CustomThemeShareButton';
 import { ICON_PACKS, DEFAULT_ICON_PACK_ID } from '../../icons/packs';
 import type { IconPackId } from '../../icons/packs';
 import type { ThemeDefinition, ThemeColorTokens } from '@adieuu/shared';
@@ -109,6 +111,7 @@ export function IdentityAppearance() {
   const { packId, setIconPack } = useIconPack();
   const messageLayout = useMessageLayoutPreference();
   const claimAchievement = useClaimAchievement();
+  const { sharedChecksums, refresh: refreshSharedThemeChecksums } = useMySharedThemeChecksums();
 
   const currentThemeId = identityThemeId ?? accountThemeId ?? DEFAULT_THEME_ID;
 
@@ -335,8 +338,8 @@ export function IdentityAppearance() {
                 {t('identity.appearance.subtitle', { alias: identity?.displayName })}
               </p>
             </div>
-            <div className="page-header-actions">
-              <Link to="/account/appearance/community" style={{ textDecoration: 'none' }}>
+            <div className="page-header-actions" data-tour="appearance-community-link">
+              <Link to="/identity/appearance/community" style={{ textDecoration: 'none' }}>
                 <Button variant="secondary" size="sm">
                   {t('account.appearance.communityTitle')}
                 </Button>
@@ -463,15 +466,22 @@ export function IdentityAppearance() {
                       </span>
                     )}
                   </button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="theme-preset-delete"
-                    onClick={() => void handleDeleteCustom(ct.id)}
-                    title={t('account.appearance.deleteTheme')}
-                  >
-                    x
-                  </Button>
+                  <div className="theme-preset-card-actions">
+                    <CustomThemeShareButton
+                      theme={ct}
+                      sharedChecksums={sharedChecksums}
+                      onShared={refreshSharedThemeChecksums}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="theme-preset-delete"
+                      onClick={() => void handleDeleteCustom(ct.id)}
+                      title={t('account.appearance.deleteTheme')}
+                    >
+                      x
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>

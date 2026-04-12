@@ -429,6 +429,22 @@ export async function initializeCollections(): Promise<string[]> {
 }
 
 /**
+ * Indexes for community theme listing, search, and author lookups.
+ * Safe to call multiple times (idempotent).
+ */
+async function ensureCommunityThemesIndexes(database: Db): Promise<void> {
+  const communityThemes = database.collection(Collections.COMMUNITY_THEMES);
+  await communityThemes.createIndex({ authorIdentityId: 1 });
+  await communityThemes.createIndex({ downloads: -1 });
+  await communityThemes.createIndex({ tags: 1 });
+  await communityThemes.createIndex({ createdAt: -1 });
+  await communityThemes.createIndex(
+    { name: 'text' },
+    { default_language: 'english' },
+  );
+}
+
+/**
  * Creates indexes for all collections.
  * 
  * Ensures efficient queries on common fields like email, phone, sessionId, etc.
@@ -567,15 +583,7 @@ async function createIndexes(): Promise<void> {
   await userPreferences.createIndex({ userId: 1 }, { unique: true });
 
   // Community themes
-  const communityThemes = database.collection(Collections.COMMUNITY_THEMES);
-  await communityThemes.createIndex({ authorIdentityId: 1 });
-  await communityThemes.createIndex({ downloads: -1 });
-  await communityThemes.createIndex({ tags: 1 });
-  await communityThemes.createIndex({ createdAt: -1 });
-  await communityThemes.createIndex(
-    { name: 'text' },
-    { default_language: 'english' }
-  );
+  await ensureCommunityThemesIndexes(database);
 
   // Identity encrypted preferences — one per identity (keyed by prefsId)
   const identityEncryptedPrefs = database.collection(Collections.IDENTITY_ENCRYPTED_PREFS);
@@ -645,7 +653,8 @@ async function createIndexes(): Promise<void> {
  * regardless of the `INITIALIZE_COLLECTIONS` feature flag.
  *
  * Currently this covers `identity_counts`, which must be present before
- * the first identity-creation transaction runs.
+ * the first identity-creation transaction runs, and `community_themes` so
+ * uploads and public browse work when `INITIALIZE_COLLECTIONS` is false.
  */
 export async function ensureCriticalCollections(): Promise<void> {
   const database = getDb();
@@ -659,4 +668,11 @@ export async function ensureCriticalCollections(): Promise<void> {
 
   const identityCounts = database.collection(Collections.IDENTITY_COUNTS);
   await identityCounts.createIndex({ accountHash: 1 }, { unique: true });
+
+  if (!names.has(Collections.COMMUNITY_THEMES)) {
+    await database.createCollection(Collections.COMMUNITY_THEMES);
+    elog.info('Created critical collection', { collection: Collections.COMMUNITY_THEMES });
+  }
+
+  await ensureCommunityThemesIndexes(database);
 }

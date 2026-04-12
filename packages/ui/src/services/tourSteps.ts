@@ -93,7 +93,7 @@ export function createAppearanceTourSteps(
       placement: 'bottom',
       effect: ({ show }) => {
         document.body.classList.remove('tour-account-flyout-open');
-        navigate('/account/appearance');
+        navigate('/identity/appearance');
         return waitForElement('[data-tour="appearance-presets"]', show);
       },
     },
@@ -121,7 +121,7 @@ export function createAppearanceTourSteps(
       description: t('tour.appearance.communitySearch.description'),
       placement: 'bottom',
       effect: ({ show }) => {
-        navigate('/account/appearance/community');
+        navigate('/identity/appearance/community');
         return waitForElement('[data-tour="community-search"]', show);
       },
     },

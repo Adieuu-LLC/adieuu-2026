@@ -2069,8 +2069,21 @@ export interface ThemeListResponse {
   limit: number;
 }
 
+/** Checksums of colours for themes this identity has already shared (GET /themes/me/shared-checksums). */
+export interface MySharedThemeChecksumsResponse {
+  checksums: string[];
+}
+
 export class ThemesApi {
   constructor(private client: ApiClient) { }
+
+  /**
+   * List colour checksums for themes the current alias has already shared to the community.
+   * Requires identity session.
+   */
+  async listMySharedChecksums(): Promise<ApiResponse<MySharedThemeChecksumsResponse>> {
+    return this.client.get('/api/themes/me/shared-checksums');
+  }
 
   /**
    * List community themes with optional search/filter.

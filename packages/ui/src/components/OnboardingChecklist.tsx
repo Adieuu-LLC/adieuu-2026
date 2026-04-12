@@ -5,6 +5,7 @@ import { Button } from './Button';
 import { Spinner } from './Spinner';
 import { useTourContext, useAppearanceTour } from '../hooks/useTourContext';
 import { useOnboardingStatus } from '../hooks/useOnboardingStatus';
+import { useIdentity } from '../hooks/useIdentity';
 import { Icon } from '../icons/Icon';
 
 function OnboardingCheckMark({ done }: { done: boolean }) {
@@ -23,6 +24,8 @@ export function OnboardingChecklist() {
   const tour = useTourContext();
   const appearanceTour = useAppearanceTour();
   const { items, loading } = useOnboardingStatus();
+  const { status: identityStatus } = useIdentity();
+  const hideAccountLinks = identityStatus === 'logged_in';
 
   return (
     <Card variant="elevated" className="onboarding-checklist">
@@ -67,12 +70,12 @@ export function OnboardingChecklist() {
                             : t('home.onboarding.items.tour.action')}
                         </Button>
                       )}
-                      {item.id === 'mfa' && (
+                      {item.id === 'mfa' && !hideAccountLinks && (
                         <Link to="/account/security" className="btn btn-secondary btn-sm">
                           {t('home.onboarding.items.mfa.action')}
                         </Link>
                       )}
-                      {item.id === 'verify' && (
+                      {item.id === 'verify' && !hideAccountLinks && (
                         <Link to="/account/overview" className="btn btn-secondary btn-sm">
                           {t('home.onboarding.items.verify.action')}
                         </Link>

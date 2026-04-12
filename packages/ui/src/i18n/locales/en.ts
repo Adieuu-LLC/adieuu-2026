@@ -662,13 +662,12 @@ export const en = {
         errorFailed: 'Password change failed. Please try again.',
         invalidatesBackupCodes: 'This will invalidate your existing backup codes. New codes will be generated.',
         errorSession:
-          'Your account session is not available. Sign out of your alias, sign into oyur account, then try again from Account → Security.',
-        managedInAccountTitle: 'Passwords are managed Account Settings',
-        managedInAccountBody:
-          'Password changes are part of account security, because some of your alias\' internal details are derived from your account (these details + your password are what ensure your alias is both unique and cryptographically separate from your account). You\'ll need to sign out of your alias (and back into your account) to change your password.',
-        managedInAccountHint:
-          'To modify this setting, sign out of your alias, then sign back in to your Adieuu account. From there, open Account → Security → Password to change your alias password.',
-        managedInAccountLink: 'Go to Account → Security → Password',
+          'Your account session is not available. Sign out of your alias, sign into your account, then try again from Privacy & security → Change password.',
+        identityOnlyTitle: 'Account sign-in required',
+        identityOnlyBody:
+          'Changing your alias passphrase uses a short-lived security token tied to your email or phone sign-in.',
+        identityOnlyHint:
+          'Sign out completely, sign in with your registered email or phone, unlock your alias, then return to this tab. You can change your passphrase here while your account session is active (before or after unlocking your alias).',
       },
       backupCodes: {
         sectionTitle: 'Recovery Codes',
@@ -928,6 +927,7 @@ export const en = {
       shareError: 'Could not share the theme. Ensure you are logged into an Alias.',
       shareBlockedPreset: 'This theme matches a built-in preset and cannot be shared.',
       shareBlockedDuplicate: 'You have already shared a theme with these colours.',
+      shareNameTooShort: 'Give the theme a name of at least 3 characters before sharing.',
       unshareButton: 'Unshare',
       unshareConfirmTitle: 'Unshare theme?',
       unshareConfirmDesc: 'This will remove "{{name}}" from the community gallery. Other users who have already downloaded it will keep their copy.',
