@@ -2518,6 +2518,31 @@ export class ConversationsApi {
     );
   }
 
+  /**
+   * Load a window around a message (newest-first), for reply navigation / deep links.
+   */
+  async getMessagesAround(
+    conversationId: string,
+    centerMessageId: string,
+    options?: { before?: number; after?: number }
+  ): Promise<
+    ApiResponse<{
+      messages: PublicMessage[];
+      cursor: string | null;
+      pageOldestId: string | null;
+      pageNewestId: string | null;
+      hasNewerPages: boolean;
+    }>
+  > {
+    const params = new URLSearchParams();
+    if (options?.before != null) params.set('before', String(options.before));
+    if (options?.after != null) params.set('after', String(options.after));
+    const query = params.toString();
+    return this.client.get(
+      `/api/conversations/${encodeURIComponent(conversationId)}/messages/around/${encodeURIComponent(centerMessageId)}${query ? `?${query}` : ''}`
+    );
+  }
+
   async deleteMessageForSelf(
     conversationId: string,
     messageId: string

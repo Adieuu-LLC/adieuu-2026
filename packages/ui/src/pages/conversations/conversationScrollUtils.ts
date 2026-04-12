@@ -5,6 +5,11 @@
 /** Max decrypted messages kept per conversation in memory before trimming. */
 export const MAX_LOADED_MESSAGES = 120;
 
+/** Older-side window when jumping to a reply target (API `before`). */
+export const REPLY_JUMP_CONTEXT_BEFORE = 15;
+/** Newer-side window when jumping to a reply target (API `after`). */
+export const REPLY_JUMP_CONTEXT_AFTER = 15;
+
 /**
  * `messages` order matches API / {@link useConversations}: index 0 = newest, last = oldest.
  * When over capacity: at bottom keep the newest window; when reading history, keep the oldest window.

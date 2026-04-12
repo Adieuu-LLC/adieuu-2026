@@ -21,6 +21,7 @@ import {
   listConversations,
   sendMessage,
   getMessages,
+  getMessagesAround,
   deleteMessageForSelf,
   deleteMessageForEveryone,
   addGroupMember,
@@ -604,6 +605,64 @@ router.get('/conversations/:id/messages', async (ctx) => {
     pageNewestId: string | null;
     hasNewerPages: boolean;
   };
+
+  return success({
+    messages,
+    cursor: nextOlderCursor,
+    pageOldestId,
+    pageNewestId,
+    hasNewerPages,
+  });
+});
+
+/**
+ * GET /conversations/:id/messages/around/:messageId — window around a message (reply jump / deep link).
+ */
+router.get('/conversations/:id/messages/around/:messageId', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id, messageId } = ctx.params;
+  const sanitizedConv = sanitizeString(id ?? '', 'general');
+  if (!sanitizedConv.value || !isValidObjectId(sanitizedConv.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+  const sanitizedMsg = sanitizeString(messageId ?? '', 'general');
+  if (!sanitizedMsg.value || !isValidObjectId(sanitizedMsg.value)) {
+    return errors.badRequest('Invalid message ID.');
+  }
+
+  const beforeParam = ctx.query.get('before');
+  const afterParam = ctx.query.get('after');
+  let before = beforeParam ? parseInt(beforeParam, 10) : 15;
+  let after = afterParam ? parseInt(afterParam, 10) : 15;
+  if (Number.isNaN(before) || before < 1) before = 15;
+  if (Number.isNaN(after) || after < 1) after = 15;
+  if (before > 100) before = 100;
+  if (after > 100) after = 100;
+
+  const result = await getMessagesAround(
+    sanitizedConv.value,
+    identity._id,
+    sanitizedMsg.value,
+    before,
+    after,
+  );
+
+  if (!('messages' in result)) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'MESSAGE_NOT_FOUND') return errors.notFound('Message not found.');
+    return errors.badRequest(result.error ?? 'Failed to get messages.');
+  }
+
+  const {
+    messages,
+    cursor: nextOlderCursor,
+    pageOldestId,
+    pageNewestId,
+    hasNewerPages,
+  } = result;
 
   return success({
     messages,

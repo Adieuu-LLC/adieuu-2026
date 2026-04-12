@@ -1411,6 +1411,7 @@ export const en = {
     makeAdmin: 'Make Admin',
     removeMember: 'Remove',
     notFound: 'Conversation not found',
+    loadMessageContextFailed: 'Could not load messages',
     backHome: 'Back to home',
     deleteGroup: 'Delete Group',
 

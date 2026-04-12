@@ -811,6 +811,69 @@ export async function getMessages(
 }
 
 /**
+ * Load a window around a message: up to `afterLimit` newer and `beforeLimit` older than `centerMessageId`,
+ * including the center message, sorted newest-first (same shape as {@link getMessages}).
+ */
+export async function getMessagesAround(
+  conversationId: string | ObjectId,
+  requesterIdentityId: string | ObjectId,
+  centerMessageId: string,
+  beforeLimit = 15,
+  afterLimit = 15,
+): Promise<MessagePagePayload | MessageResult> {
+  const conversationRepo = getConversationRepository();
+  const messageRepo = getMessageRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const bl = Math.max(1, Math.min(beforeLimit, 100));
+  const al = Math.max(1, Math.min(afterLimit, 100));
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  const isParticipant = conversation.participants.some((p) => p.equals(requesterObjId));
+  if (!isParticipant) {
+    return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  const centerObjId = new ObjectId(centerMessageId);
+  const centerDoc = await messageRepo.findByIdInConversation(convObjId, centerObjId);
+  if (!centerDoc) {
+    return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+
+  const newerDocs = await messageRepo.findAfter(convObjId, centerObjId, al);
+  const olderDocs = await messageRepo.findBefore(convObjId, centerObjId, bl);
+
+  const combined: MessageDocument[] = [centerDoc, ...newerDocs, ...olderDocs];
+  combined.sort((a, b) => {
+    const ax = a._id.toHexString();
+    const bx = b._id.toHexString();
+    if (ax === bx) return 0;
+    return ax < bx ? 1 : -1;
+  });
+
+  const tail = combined[combined.length - 1]!;
+  const hasMoreOlder = await messageRepo.hasMessageOlderThan(convObjId, tail._id);
+  return buildMessagePagePayload(
+    conversation,
+    convObjId,
+    requesterObjId,
+    messageRepo,
+    combined,
+    hasMoreOlder ? tail._id.toHexString() : null,
+  );
+}
+
+/**
  * Delete a message for the requesting identity only.
  * The message remains visible to other participants.
  */

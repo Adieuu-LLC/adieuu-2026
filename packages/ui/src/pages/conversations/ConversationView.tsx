@@ -77,6 +77,7 @@ export function ConversationView() {
     loadOlder,
     loadNewer,
     jumpToLatestMessages,
+    fetchMessagesAround,
     leaveGroup,
     removeMember,
     promoteToAdmin,
@@ -128,12 +129,13 @@ export function ConversationView() {
   const fetchedReactionsForRef = useRef<string | null>(null);
   const pendingReactionsRef = useRef<Set<string>>(new Set());
   const pendingScrollToRef = useRef<string | null>(null);
+  /** True while a reply / deep-link around-fetch is in flight (avoids clearing pending before loading flips). */
+  const replyAroundFetchPendingRef = useRef(false);
   /** `messageId` query on this conversation the first time `id` is set (survives deep-link strip). */
   const urlMessageIdOnConversationEntryRef = useRef<string | null>(null);
   const prevIdForUrlCaptureRef = useRef<string | undefined>(undefined);
   /** One-time snap to true bottom when opening without a cached scroll index (not on pagination). */
   const initialOpenBottomSnapDoneRef = useRef(false);
-  const replyScrollLoadAttemptsRef = useRef(0);
   const [replyingTo, setReplyingTo] = useState<DisplayMessage | null>(null);
   const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
@@ -295,7 +297,7 @@ export function ConversationView() {
     setReplyingTo(null);
     setFlashingMessageId(null);
     pendingScrollToRef.current = null;
-    replyScrollLoadAttemptsRef.current = 0;
+    replyAroundFetchPendingRef.current = false;
     initialOpenBottomSnapDoneRef.current = false;
     historyScrollAnchorRef.current = null;
     clearMediaCache();
@@ -439,15 +441,40 @@ export function ConversationView() {
 
   const handleJumpToLatest = useCallback(async () => {
     if (!id) return;
+    const lastId = conversation?.lastMessageId;
+    const headId = activeMessages[0]?.id;
+    if (
+      !messagesLoading &&
+      activeMessages.length > 0 &&
+      !activeMessagesHasNewerPages &&
+      lastId &&
+      headId === lastId
+    ) {
+      clearConversationScrollCache(id);
+      historyScrollAnchorRef.current = null;
+      setIsAtBottom(true);
+      scrollToBottom('smooth');
+      return;
+    }
     clearConversationScrollCache(id);
     historyScrollAnchorRef.current = null;
+    setIsAtBottom(true);
     await jumpToLatestMessages(id);
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         scrollToBottom('auto');
       });
     });
-  }, [id, jumpToLatestMessages, scrollToBottom]);
+  }, [
+    id,
+    conversation?.lastMessageId,
+    activeMessages,
+    messagesLoading,
+    activeMessagesHasNewerPages,
+    jumpToLatestMessages,
+    scrollToBottom,
+    setIsAtBottom,
+  ]);
 
   const handleLeaveClick = useCallback(() => {
     if (!conversation) return;
@@ -714,7 +741,6 @@ export function ConversationView() {
 
   const scrollToMessageId = useCallback(
     (targetId: string) => {
-      replyScrollLoadAttemptsRef.current = 0;
       const vp = scrollViewportRef.current;
       const escaped = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(targetId) : targetId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
       const el = vp?.querySelector(`[data-message-id="${escaped}"]`);
@@ -724,46 +750,41 @@ export function ConversationView() {
         return;
       }
       pendingScrollToRef.current = targetId;
+      const haveInBuffer = activeMessagesRef.current.some((m) => m.id === targetId);
+      if (!haveInBuffer && id) {
+        clearConversationScrollCache(id);
+        setIsAtBottom(false);
+        replyAroundFetchPendingRef.current = true;
+        void fetchMessagesAround(id, targetId).then((ok) => {
+          replyAroundFetchPendingRef.current = false;
+          if (!ok) pendingScrollToRef.current = null;
+        });
+      }
     },
-    [flashMessageHighlight]
+    [flashMessageHighlight, id, fetchMessagesAround, setIsAtBottom]
   );
 
   useEffect(() => {
     if (!pendingScrollToRef.current) return;
-    const id = pendingScrollToRef.current;
-    const idx = flatItems.findIndex((i) => i.type === 'message' && i.msg.id === id);
+    const pendingId = pendingScrollToRef.current;
+    const idx = flatItems.findIndex((i) => i.type === 'message' && i.msg.id === pendingId);
     if (idx >= 0) {
       const vp = scrollViewportRef.current;
-      const escaped = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(id) : id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      const escaped =
+        typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+          ? CSS.escape(pendingId)
+          : pendingId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
       requestAnimationFrame(() => {
         vp?.querySelector(`[data-message-id="${escaped}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
       });
       pendingScrollToRef.current = null;
-      replyScrollLoadAttemptsRef.current = 0;
-      window.setTimeout(() => flashMessageHighlight(id), 350);
+      replyAroundFetchPendingRef.current = false;
+      window.setTimeout(() => flashMessageHighlight(pendingId), 350);
       return;
     }
-    if (messagesLoading) return;
-    if (replyScrollLoadAttemptsRef.current >= 25) {
-      pendingScrollToRef.current = null;
-      replyScrollLoadAttemptsRef.current = 0;
-      return;
-    }
-    if (activeMessagesOlderCursor) {
-      replyScrollLoadAttemptsRef.current += 1;
-      void loadOlder();
-    } else {
-      pendingScrollToRef.current = null;
-      replyScrollLoadAttemptsRef.current = 0;
-    }
-  }, [
-    activeMessages,
-    flatItems,
-    activeMessagesOlderCursor,
-    messagesLoading,
-    loadOlder,
-    flashMessageHighlight,
-  ]);
+    if (messagesLoading || replyAroundFetchPendingRef.current) return;
+    pendingScrollToRef.current = null;
+  }, [flatItems, messagesLoading, flashMessageHighlight]);
 
   const deepLinkMessageId = searchParams.get('messageId');
   useEffect(() => {
@@ -785,17 +806,46 @@ export function ConversationView() {
 
   const composerSend: ComposerSendFn = useCallback(
     async (plaintext, options) => {
-      const result = await sendTextMessage(id!, plaintext, options);
+      const hadNewerPages = activeMessagesHasNewerPages;
+      const headBefore = activeMessagesRef.current[0]?.id;
+      const lastBefore = conversationRef.current?.lastMessageId;
+      const atLiveTailBefore =
+        !hadNewerPages &&
+        (lastBefore == null ? headBefore == null : headBefore === lastBefore);
+
+      const result = await sendTextMessage(id!, plaintext, {
+        ...options,
+        skipMessageStateUpdate: !atLiveTailBefore,
+      });
       if (result && 'errorCode' in result && result.errorCode === 'BLOCKED') {
         setBlockedByOther(true);
         return null;
       }
       if (result && !('errorCode' in result)) {
         checkMessageAchievements(plaintext);
+        if (!atLiveTailBefore) {
+          clearConversationScrollCache(id!);
+          setIsAtBottom(true);
+          await jumpToLatestMessages(id!);
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => scrollToBottom('smooth'));
+          });
+        } else {
+          markJustSent();
+        }
       }
       return result;
     },
-    [id, sendTextMessage, checkMessageAchievements]
+    [
+      id,
+      sendTextMessage,
+      checkMessageAchievements,
+      activeMessagesHasNewerPages,
+      jumpToLatestMessages,
+      scrollToBottom,
+      markJustSent,
+      setIsAtBottom,
+    ]
   );
 
   const composerReplyContext: ComposerReplyContext | null = useMemo(() => {
@@ -958,7 +1008,6 @@ export function ConversationView() {
               onSend={composerSend}
               forwardSecrecy={{ enabled: useFs, onToggle: handleToggleFs }}
               replyContext={composerReplyContext}
-              onSendSucceeded={markJustSent}
               mentionSource={composerMentionSource}
               placeholderTarget={displayName}
               mentionInsertRef={mentionInsertRef}

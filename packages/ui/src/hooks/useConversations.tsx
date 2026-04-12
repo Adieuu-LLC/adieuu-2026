@@ -77,6 +77,8 @@ import {
 import { getSessionKeysForMessages as loadSessionKeysForMessages } from '../services/sessionKeyRetrieval';
 import {
   MAX_LOADED_MESSAGES,
+  REPLY_JUMP_CONTEXT_AFTER,
+  REPLY_JUMP_CONTEXT_BEFORE,
   trimMessagesBuffer,
 } from '../pages/conversations/conversationScrollUtils';
 
@@ -147,12 +149,27 @@ interface ConversationsContextValue {
   sendTextMessage: (
     conversationId: string,
     plaintext: string,
-    options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean; replyToMessageId?: string }
+    options?: {
+      expiresInSeconds?: number;
+      useForwardSecrecy?: boolean;
+      replyToMessageId?: string;
+      /** When true, do not merge the sent message into local message state (caller will refresh, e.g. jump to latest). */
+      skipMessageStateUpdate?: boolean;
+    }
   ) => Promise<PublicMessage | SendMessageErrorResult | null>;
   loadOlder: () => Promise<void>;
   loadNewer: () => Promise<void>;
   /** Replace loaded history with the latest page only (bounded buffer). */
   jumpToLatestMessages: (conversationId: string) => Promise<void>;
+  /**
+   * Replace the message buffer with a window around `centerMessageId` (for reply / deep-link jumps).
+   * Returns whether messages were loaded.
+   */
+  fetchMessagesAround: (
+    conversationId: string,
+    centerMessageId: string,
+    options?: { before?: number; after?: number }
+  ) => Promise<boolean>;
   deleteMessage: (
     conversationId: string,
     messageId: string,
@@ -635,6 +652,177 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     [isLoggedIn, identity, api, getCurrentDeviceId, getWrappingKey, resolveParticipants]
   );
 
+  const fetchMessagesAround = useCallback(
+    async (
+      conversationId: string,
+      centerMessageId: string,
+      options?: { before?: number; after?: number },
+    ): Promise<boolean> => {
+      if (!isLoggedIn || !identity) return false;
+      const before = options?.before ?? REPLY_JUMP_CONTEXT_BEFORE;
+      const after = options?.after ?? REPLY_JUMP_CONTEXT_AFTER;
+
+      setMessagesState((prev) => ({
+        ...prev,
+        [conversationId]: {
+          ...(prev[conversationId] ?? {
+            messages: [],
+            olderCursor: null,
+            newerPaginationAfterId: null,
+            hasNewerPages: false,
+            loading: true,
+          }),
+          loading: true,
+        },
+      }));
+
+      try {
+        const resp = await api.conversations.getMessagesAround(conversationId, centerMessageId, {
+          before,
+          after,
+        });
+        if (!resp.data) {
+          toast.error(
+            t('conversations.loadMessageContextFailed', 'Could not load messages'),
+            typeof resp.error === 'string' ? resp.error : undefined,
+          );
+          setMessagesState((prev) => ({
+            ...prev,
+            [conversationId]: {
+              ...(prev[conversationId] ?? {
+                messages: [],
+                olderCursor: null,
+                newerPaginationAfterId: null,
+                hasNewerPages: false,
+                loading: false,
+              }),
+              loading: false,
+            },
+          }));
+          return false;
+        }
+
+        let ecdhPrivateKey: Uint8Array | null = null;
+        let kemPrivateKey: Uint8Array | null = null;
+        let myRoutingTag: string | undefined;
+
+        const deviceId = getCurrentDeviceId();
+        const wrappingKey = getWrappingKey();
+
+        if (deviceId && wrappingKey) {
+          try {
+            const storedKeys = await getDeviceKeysForIdentity(identity.id);
+            const myDeviceKeys = storedKeys.find((k) => k.deviceId === deviceId);
+            if (myDeviceKeys) {
+              const decrypted = await decryptDeviceKeys(myDeviceKeys, wrappingKey);
+              ecdhPrivateKey = decrypted.ecdhPrivateKey;
+              kemPrivateKey = decrypted.kemPrivateKey;
+              myRoutingTag = decrypted.routingTag;
+            }
+          } catch (err) {
+            console.error('[Conversations] decrypt: failed to load device keys:', err);
+          }
+        }
+
+        const newMessages = await decryptMessageBatch({
+          messages: resp.data.messages,
+          conversationId,
+          pagingCursor: undefined,
+          identityId: identity.id,
+          wrappingKey,
+          ecdhPrivateKey,
+          kemPrivateKey,
+          myRoutingTag,
+          signingKeyCache: signingKeyCache.current,
+          existingMessages: [],
+          sessionKeyCache: sessionKeyCache.current,
+          fetchSigningKey: async (sid) => {
+            try {
+              const keysResp = await api.identity.getPublicKeys(sid);
+              if (keysResp.data?.signingPublicKey) return keysResp.data.signingPublicKey;
+            } catch (err) {
+              console.warn('[Conversations] decrypt: failed to fetch signing key for', sid, err);
+            }
+            return null;
+          },
+          resolveParticipants: (ids) => {
+            void resolveParticipants(ids);
+          },
+          findAndDecryptSignedPreKey,
+          findAndDecryptOneTimePreKey,
+          deleteOneTimePreKey,
+          getPersistedSessionKey,
+          storeSessionKey,
+          deletePersistedSessionKey,
+          notifyOtpkConsumed,
+        });
+
+        setMessagesState((prev) => {
+          const merged = newMessages;
+          const mergedLen = merged.length;
+          let messages = merged;
+          if (messages.length > 0) {
+            const unread =
+              conversationsRef.current.find((c) => c.id === conversationId)?.unreadCount ?? 0;
+            messages = trimMessagesBuffer(messages, isAtBottomRef.current, unread);
+          }
+          let hasNewerPages = resp.data!.hasNewerPages ?? false;
+          if (!isAtBottomRef.current && mergedLen > MAX_LOADED_MESSAGES) {
+            hasNewerPages = true;
+          }
+          return {
+            ...prev,
+            [conversationId]: {
+              messages,
+              olderCursor: resp.data!.cursor,
+              newerPaginationAfterId: messages[0]?.id ?? null,
+              hasNewerPages,
+              loading: false,
+            },
+          };
+        });
+
+        if (
+          conversationId === activeConversationIdRef.current &&
+          document.hasFocus() &&
+          isAtBottomRef.current
+        ) {
+          setConversations((prev) =>
+            prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c)),
+          );
+        }
+        return true;
+      } catch (err) {
+        console.error('[useConversations] fetchMessagesAround failed', { conversationId, centerMessageId }, err);
+        toast.error(t('conversations.loadMessageContextFailed', 'Could not load messages'));
+        setMessagesState((prev) => ({
+          ...prev,
+          [conversationId]: {
+            ...(prev[conversationId] ?? {
+              messages: [],
+              olderCursor: null,
+              newerPaginationAfterId: null,
+              hasNewerPages: false,
+              loading: false,
+            }),
+            loading: false,
+          },
+        }));
+        return false;
+      }
+    },
+    [
+      isLoggedIn,
+      identity,
+      api,
+      getCurrentDeviceId,
+      getWrappingKey,
+      resolveParticipants,
+      toast,
+      t,
+    ],
+  );
+
   const fetchInvites = useCallback(async () => {
     if (!isLoggedIn) return;
     try {
@@ -802,7 +990,14 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     async (
       conversationId: string,
       plaintext: string,
-      options?: { expiresInSeconds?: number; useForwardSecrecy?: boolean; replyToMessageId?: string; e2eMediaIds?: string[]; mentionedIdentityIds?: string[] }
+      options?: {
+        expiresInSeconds?: number;
+        useForwardSecrecy?: boolean;
+        replyToMessageId?: string;
+        e2eMediaIds?: string[];
+        mentionedIdentityIds?: string[];
+        skipMessageStateUpdate?: boolean;
+      }
     ): Promise<PublicMessage | SendMessageErrorResult | null> => {
       if (!isLoggedIn || !identity) return null;
 
@@ -853,21 +1048,23 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             forwardSecrecy: useFs,
           };
 
-          setMessagesState((prev) => ({
-            ...prev,
-            [conversationId]: {
-              ...(prev[conversationId] ?? {
-                messages: [],
-                olderCursor: null,
-                newerPaginationAfterId: null,
+          if (!options?.skipMessageStateUpdate) {
+            setMessagesState((prev) => ({
+              ...prev,
+              [conversationId]: {
+                ...(prev[conversationId] ?? {
+                  messages: [],
+                  olderCursor: null,
+                  newerPaginationAfterId: null,
+                  hasNewerPages: false,
+                  loading: false,
+                }),
+                messages: [displayMsg, ...(prev[conversationId]?.messages ?? [])],
+                newerPaginationAfterId: displayMsg.id,
                 hasNewerPages: false,
-                loading: false,
-              }),
-              messages: [displayMsg, ...(prev[conversationId]?.messages ?? [])],
-              newerPaginationAfterId: displayMsg.id,
-              hasNewerPages: false,
-            },
-          }));
+              },
+            }));
+          }
 
           // Update conversation's lastMessage timestamp
           setConversations((prev) =>
@@ -1346,6 +1543,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       loadOlder,
       loadNewer,
       jumpToLatestMessages,
+      fetchMessagesAround,
       deleteMessage,
       addMember,
       removeMember,
@@ -1367,6 +1565,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     participantProfiles, loading, sending,
     setActiveConversation, setIsAtBottom, markConversationRead,
     createDM, createGroup, sendTextMessage, loadOlder, loadNewer, jumpToLatestMessages,
+    fetchMessagesAround,
     deleteMessage, addMember, removeMember, leaveGroup, renameGroup,
     updateConversationMemberSettings, promoteToAdmin, terminateGroup,
     acceptInvite, declineInvite, getInvitePreview, getFormerMembers,
