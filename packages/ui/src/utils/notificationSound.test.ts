@@ -76,6 +76,12 @@ describe('shouldPlayNotificationSound', () => {
       shouldPlayNotificationSound(true, 'custom', '/x/y.mp3', true, false, unfocused)
     ).toBe(true);
   });
+
+  it('does not suppress when snapshot is null (focus gating skipped)', () => {
+    expect(
+      shouldPlayNotificationSound(true, 'chime', null, true, true, null)
+    ).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

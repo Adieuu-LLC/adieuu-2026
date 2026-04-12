@@ -155,6 +155,39 @@ describe('fireConversationNotification', () => {
     expect(callArgs.volume).toBe(0.7);
   });
 
+  test('uses ttlSoundPref when expiresAt is set and message is not a mention', () => {
+    const ttlPref = {
+      enabled: true,
+      soundId: 'adieuu_click' as const,
+      customPath: null,
+      suppressWhenFocused: true,
+      volume: 0.85,
+    };
+    const toastWithExpiry = mock(() => undefined);
+    fireConversationNotification(
+      'TTL msg',
+      'Body',
+      { nativeTag: 'conversation-event', expiresAt: '2026-12-01T00:00:00Z' },
+      {
+        toast: { info: () => undefined, toast: toastWithExpiry },
+        soundPref: {
+          enabled: true,
+          soundId: 'adieuu_arrival',
+          customPath: null,
+          suppressWhenFocused: true,
+          volume: 1,
+        },
+        ttlSoundPref: ttlPref,
+        notifications: { hasPermission: () => false, show: () => undefined },
+      }
+    );
+    expect(playNotificationSoundMock).toHaveBeenCalledTimes(1);
+    const callArgs = playNotificationSoundMock.mock.calls[0]![0] as Record<string, unknown>;
+    expect(callArgs.soundId).toBe('adieuu_click');
+    expect(callArgs.volume).toBe(0.85);
+    expect(toastWithExpiry).toHaveBeenCalledTimes(1);
+  });
+
   test('falls back to soundPref when isMention is false', () => {
     const mentionPref = {
       enabled: true,
