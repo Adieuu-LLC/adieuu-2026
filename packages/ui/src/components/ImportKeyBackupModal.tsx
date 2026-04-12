@@ -327,7 +327,7 @@ export function ImportKeyBackupModal({
                     <Input
                       id="import-passphrase"
                       type="password"
-                      placeholder={t('identity.devices.import.passphrasePlaceholder', 'Enter your identity passphrase')}
+                      placeholder={t('identity.devices.import.passwordPlaceholder', 'Enter your identity passphrase')}
                       value={identityPassphrase}
                       onChange={(e) => setIdentityPassphrase(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && identityPassphrase && handlePassphraseSubmit()}

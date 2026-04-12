@@ -412,7 +412,7 @@ export async function loginToIdentity(
 }
 
 // ---------------------------------------------------------------------------
-// Change Passphrase
+// Change Password
 // ---------------------------------------------------------------------------
 
 export interface ChangePassphraseResult {

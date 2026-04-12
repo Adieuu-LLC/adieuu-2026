@@ -9,8 +9,9 @@ import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { TotpSetup, WebAuthnSetup, MfaCredentialsList } from '../../components/MfaSetup';
 import { createApiClient, type SessionDetails } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
+import { ChangePassphrasePanel } from './ChangePassphrasePanel';
 
-const VALID_TABS = ['authentication', 'sessions'] as const;
+const VALID_TABS = ['authentication', 'passphrase', 'sessions'] as const;
 type SecurityTab = typeof VALID_TABS[number];
 
 /**
@@ -257,6 +258,8 @@ export function AccountSecurity() {
   const { t } = useTranslation();
   const { tab } = useParams<{ tab: string }>();
   const navigate = useNavigate();
+  const { apiBaseUrl } = useAppConfig();
+  const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
   // Validate tab parameter and default to authentication
   const activeTab: SecurityTab = VALID_TABS.includes(tab as SecurityTab)
@@ -280,6 +283,9 @@ export function AccountSecurity() {
             <TabTrigger value="authentication">
               {t('account.security.tabs.authentication')}
             </TabTrigger>
+            <TabTrigger value="passphrase">
+              {t('account.security.tabs.passphrase')}
+            </TabTrigger>
             <TabTrigger value="sessions">
               {t('account.security.tabs.sessions')}
             </TabTrigger>
@@ -287,6 +293,12 @@ export function AccountSecurity() {
 
           <TabContent value="authentication">
             <AuthenticationSettings />
+          </TabContent>
+
+          <TabContent value="passphrase">
+            <Card variant="elevated">
+              <ChangePassphrasePanel api={api} />
+            </Card>
           </TabContent>
 
           <TabContent value="sessions">

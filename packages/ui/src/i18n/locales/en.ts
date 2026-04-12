@@ -173,7 +173,7 @@ export const en = {
     // Backup codes (shared display component)
     backupCodes: {
       title: 'Save Your Recovery Codes',
-      description: 'These recovery codes can be used to regain access to your alias if you forget your passphrase. Each code can only be used once.',
+      description: 'These recovery codes can be used to regain access to your alias if you forget your password. Each code can only be used once.',
       warning: 'These codes will not be shown again. Save them in a secure location now.',
       copy: 'Copy all',
       copied: 'Copied!',
@@ -245,9 +245,7 @@ export const en = {
         pickFileHint: 'Select a .adieuu-keys file',
         passwordLabel: 'Export Password',
         passwordPlaceholder: 'Enter the export password',
-        passphraseNeeded: 'Your alias passphrase is needed to re-encrypt the imported data for this device.',
-        passphraseLabel: 'Alias Passphrase',
-        passphrasePlaceholder: 'Enter your alias passphrase',
+        passwordNeeded: 'Your alias password is needed to re-encrypt the imported data for this device.',
         submit: 'Decrypt & Import',
         importing: 'Decrypting and importing...',
         summaryDevices: '{{count}} device key(s)',
@@ -381,25 +379,25 @@ export const en = {
     create: {
       title: 'Create Anonymous Alias',
       subtitle: 'Your alias is cryptographically separated from your account. No one can trace it back to you.',
-      passphrasePlaceholder: 'Enter a memorable passphrase',
-      passphraseConfirmPlaceholder: 'Confirm your passphrase',
-      passphraseHint: 'Use a sentence or phrase (8+ characters). You will need this to login.',
-      passphraseMismatch: 'Passphrases do not match.',
-      passphraseExamplesTitle: 'Strong Passphrase Examples',
-      passphraseExamples: [
+      passwordPlaceholder: 'Enter a memorable password',
+      passwordConfirmPlaceholder: 'Confirm your password',
+      passwordHint: 'Use a sentence or phrase (8+ characters). You will need this to login.',
+      passwordMismatch: 'Passwords do not match.',
+      passwordExamplesTitle: 'Strong Password Examples',
+      passwordExamples: [
         'the purple elephant dances at midnight',
         'my coffee is always too hot on tuesdays',
         'three blind mice ran up the clock tower',
         'sunshine through the kitchen window 2024',
       ],
-      passphraseExamplesTip: 'Sentences and phrases are easier to remember and harder to crack than random characters.',
-      // Passphrase strength hints
-      passphraseStrength: {
-        match: 'Passphrases match',
+      passwordExamplesTip: 'Sentences and phrases are easier to remember and harder to crack than random characters.',
+      // Password strength hints
+      passwordStrength: {
+        match: 'Passwords match',
         weak: 'Could be stronger - try adding more words',
         medium: 'Good, but a longer phrase is even better',
-        strong: 'Strong passphrase',
-        veryStrong: 'Excellent passphrase',
+        strong: 'Strong password',
+        veryStrong: 'Excellent password',
       },
       usernamePlaceholder: 'Choose a username',
       usernameHint: 'This will be visible to others.',
@@ -414,19 +412,19 @@ export const en = {
       errorUsernameTaken: 'This username is already taken.',
       errorMaxIdentities: 'You have reached the maximum number of identities.',
       errorValidation: 'Please check your input and try again.',
-      noRecoveryWarning: 'After creating your alias, you will receive recovery codes. Store them safely — they are the only way to recover your alias if you forget your passphrase.',
+      noRecoveryWarning: 'After creating your alias, you will receive recovery codes. Store them safely — they are the only way to recover your alias if you forget your password.',
     },
     // Login modal
     login: {
       title: 'Login to Alias',
-      subtitle: 'Enter your passphrase to access your anonymous alias.',
-      passphrasePlaceholder: 'Enter your passphrase',
+      subtitle: 'Enter your password to access your anonymous alias.',
+      passwordPlaceholder: 'Enter your password',
       submitButton: 'Login',
       loggingIn: 'Logging in...',
       loggingInTitle: 'Logging In',
       redirecting: 'Opening your alias...',
       success: 'Logged in successfully!',
-      errorInvalid: 'Invalid passphrase. Please try again.',
+      errorInvalid: 'Invalid password. Please try again.',
       errorLocked: 'Too many failed attempts. Please try again later.',
       errorRateLimited: 'Please wait {{seconds}} seconds before trying again.',
       attemptsRemaining: '{{remaining}} attempts remaining before lockout.',
@@ -436,7 +434,7 @@ export const en = {
       createAnotherPrompt: 'Create a new alias',
       // Login status messages
       status: {
-        authenticating: 'Verifying passphrase...',
+        authenticating: 'Verifying password...',
         deriving_keys: 'Deriving encryption keys...',
         loading_device: 'Loading device keys...',
         decrypting_bundle: 'Decrypting signing keys...',
@@ -449,12 +447,12 @@ export const en = {
     // Unlock modal (after page refresh)
     unlock: {
       title: 'Session Locked',
-      subtitle: 'Enter your passphrase to unlock your session.',
-      passphrasePlaceholder: 'Enter your passphrase',
-      passphraseRequired: 'Passphrase must be at least 8 characters.',
+      subtitle: 'Enter your password to unlock your session.',
+      passwordPlaceholder: 'Enter your password',
+      passwordRequired: 'Password must be at least 8 characters.',
       submitButton: 'Unlock',
       success: 'Unlocked!',
-      errorInvalid: 'Invalid passphrase. Please try again.',
+      errorInvalid: 'Invalid password. Please try again.',
       loginDifferent: 'Login to a different alias',
       logoutButton: 'Fully Logout',
     },
@@ -476,7 +474,7 @@ export const en = {
 
       // Bundle operations
       bundleFetchFailed: 'Failed to fetch encryption keys from server.',
-      bundleDecryptFailed: 'Failed to decrypt encryption keys. Check your passphrase.',
+      bundleDecryptFailed: 'Failed to decrypt encryption keys. Check your password.',
       invalidBundleData: 'Invalid encryption key data received from server.',
 
       // Device key storage
@@ -486,14 +484,14 @@ export const en = {
 
       // Key storage warnings (banner)
       keyStorageWarning: {
-        teeUnavailable: 'Your encryption keys are not protected by the OS keychain. They are still encrypted with your passphrase, but OS-level protection is unavailable. Ensure your system keyring (KWallet, GNOME Keyring, etc.) is running.',
-        teeFailed: 'The OS keychain encountered an error while protecting your encryption keys. Keys have been saved with passphrase encryption only. Error: {{error}}',
+        teeUnavailable: 'Your encryption keys are not protected by the OS keychain. They are still encrypted with your password, but OS-level protection is unavailable. Ensure your system keyring (KWallet, GNOME Keyring, etc.) is running.',
+        teeFailed: 'The OS keychain encountered an error while protecting your encryption keys. Keys have been saved with password encryption only. Error: {{error}}',
         dismiss: 'Dismiss',
       },
 
       // Web platform security recommendation (banner)
       webSecurityBanner: {
-        message: 'For stronger security, consider using the Adieuu desktop app. It can protect your encryption keys with your operating system\'s secure keychain, adding a layer of protection beyond your passphrase alone.',
+        message: 'For stronger security, consider using the Adieuu desktop app. It can protect your encryption keys with your operating system\'s secure keychain, adding a layer of protection beyond your password alone.',
         openInDesktop: 'Open in Desktop',
         dismiss: 'Dismiss',
       },
@@ -524,16 +522,16 @@ export const en = {
       existingDeviceLoaded: 'Encryption keys loaded successfully.',
       signingKeyDecrypted: 'Signing key decrypted successfully.',
 
-      // Separate passphrase
-      separatePassphrase: {
-        label: 'Use separate passphrase for encryption keys',
-        hint: 'Advanced: Protect your encryption keys with a different passphrase than your alias login.',
-        placeholder: 'Enter encryption passphrase',
-        confirmPlaceholder: 'Confirm encryption passphrase',
-        mismatch: 'Encryption passphrases do not match.',
-        tooShort: 'Encryption passphrase must be at least 12 characters.',
-        sameAsIdentity: 'Encryption passphrase must be different from alias passphrase.',
-        required: 'Both passphrases are required to access messages on new devices.',
+      // Separate password
+      separatePassword: {
+        label: 'Use separate password for encryption keys',
+        hint: 'Advanced: Protect your encryption keys with a different password than your alias login.',
+        placeholder: 'Enter encryption password',
+        confirmPlaceholder: 'Confirm encryption password',
+        mismatch: 'Encryption passwords do not match.',
+        tooShort: 'Encryption password must be at least 12 characters.',
+        sameAsIdentity: 'Encryption password must be different from alias password.',
+        required: 'Both passwords are required to access messages on new devices.',
       },
 
       // Device naming
@@ -572,7 +570,7 @@ export const en = {
         webCryptoUnavailable: 'Web Crypto API is not available. Please use a modern browser.',
         indexedDbUnavailable: 'IndexedDB is not available. Private browsing mode may not be supported.',
         kemEncryptionFailed: 'Failed to encrypt post-quantum keys.',
-        kemDecryptionFailed: 'Failed to decrypt post-quantum keys. Check your passphrase.',
+        kemDecryptionFailed: 'Failed to decrypt post-quantum keys. Check your password.',
         invalidKeySize: 'Invalid key size. Key data may be corrupted.',
         argon2Failed: 'Key derivation failed. Please try again.',
       },
@@ -634,7 +632,7 @@ export const en = {
       tabs: {
         general: 'General',
         forwardSecrecy: 'Forward Secrecy',
-        changePassphrase: 'Change Passphrase',
+        changePassword: 'Change Password',
       },
       blockedUsers: 'Blocked Users',
       profileVisibility: 'Profile Visibility',
@@ -648,25 +646,33 @@ export const en = {
       groupApprovalEnabled: 'Group approval is now required.',
       groupApprovalDisabled: 'Group approval is no longer required.',
       groupApprovalError: 'Failed to update setting. Please try again.',
-      changePassphrase: {
-        title: 'Change Passphrase',
-        description: 'Change the passphrase used to sign in to this alias. Your encrypted key bundle will be re-encrypted with the new passphrase.',
-        currentPassphrase: 'Current passphrase',
-        newPassphrase: 'New passphrase',
-        confirmPassphrase: 'Confirm new passphrase',
-        submit: 'Change Passphrase',
-        processing: 'Changing passphrase...',
-        success: 'Passphrase changed successfully.',
-        errorMismatch: 'New passphrases do not match.',
-        errorSamePassphrase: 'New passphrase must be different from current passphrase.',
-        errorMinLength: 'Passphrase must be at least 8 characters.',
-        errorDecryptFailed: 'Failed to decrypt your key bundle. Is your current passphrase correct?',
-        errorFailed: 'Passphrase change failed. Please try again.',
+      changePassword: {
+        title: 'Change Password',
+        description: 'Change the password used to sign in to this alias. Your encrypted key bundle will be re-encrypted with the new password.',
+        currentPassword: 'Current password',
+        newPassword: 'New password',
+        confirmPassword: 'Confirm new password',
+        submit: 'Change Password',
+        processing: 'Changing password...',
+        success: 'Password changed successfully.',
+        errorMismatch: 'New passwords do not match.',
+        errorSamePassword: 'New password must be different from current password.',
+        errorMinLength: 'Password must be at least 8 characters.',
+        errorDecryptFailed: 'Failed to decrypt your key bundle. Is your current password correct?',
+        errorFailed: 'Password change failed. Please try again.',
         invalidatesBackupCodes: 'This will invalidate your existing backup codes. New codes will be generated.',
+        errorSession:
+          'Your account session is not available. Sign out of your alias, sign into oyur account, then try again from Account → Security.',
+        managedInAccountTitle: 'Passwords are managed Account Settings',
+        managedInAccountBody:
+          'Password changes are part of account security, because some of your alias\' internal details are derived from your account (these details + your password are what ensure your alias is both unique and cryptographically separate from your account). You\'ll need to sign out of your alias (and back into your account) to change your password.',
+        managedInAccountHint:
+          'To modify this setting, sign out of your alias, then sign back in to your Adieuu account. From there, open Account → Security → Password to change your alias password.',
+        managedInAccountLink: 'Go to Account → Security → Password',
       },
       backupCodes: {
         sectionTitle: 'Recovery Codes',
-        sectionDescription: 'Recovery codes let you regain access to your alias if you forget your passphrase.',
+        sectionDescription: 'Recovery codes let you regain access to your alias if you forget your password.',
         remaining: '{{count}} recovery codes remaining',
         noneRemaining: 'No recovery codes remaining',
         regenerate: 'Regenerate codes',
@@ -675,13 +681,13 @@ export const en = {
         regenerateError: 'Failed to regenerate codes.',
       },
     },
-    // Appearance page (identity-scoped)
+    // Appearance page (alias-scoped)
     appearance: {
       title: 'Alias Appearance',
       subtitle: 'Customise the look and feel for your alias "{{alias}}".',
       overrideTitle: 'Theme Override',
       overrideDescription:
-        'Enable a distinct theme for this alias so you can tell at a glance which identity is active.',
+        'Enable a distinct theme for this alias so you can tell at a glance which alias is active.',
       enableOverride: 'Enable Override',
       disableOverride: 'Disable Override',
       overrideEnabled: 'Alias theme override enabled.',
@@ -883,7 +889,7 @@ export const en = {
       importFailed: 'Import failed',
 
       identityThemeTitle: 'Alias Theme Override',
-      identityThemeDescription: 'Set a distinct theme for your alias "{{alias}}" so you can tell at a glance which identity is active.',
+      identityThemeDescription: 'Set a distinct theme for your alias "{{alias}}" so you can tell at a glance which alias is active.',
       identityThemeSet: 'Use current theme for this Alias',
       identityThemeActive: 'Active theme: {{name}}',
       identityThemeClear: 'Clear override',
@@ -942,6 +948,7 @@ export const en = {
       // Tabs
       tabs: {
         authentication: 'Authentication',
+        password: 'Password',
         sessions: 'Sessions',
       },
       // Authentication tab
@@ -1064,7 +1071,7 @@ export const en = {
     onboarding: {
       title: 'Get started',
       subtitle:
-        'Adieuu has two sign-ins: your account (email or phone) and your Alias (your public identity). Complete the steps below to secure your account and start messaging.',
+        'Adieuu has two sign-ins: your account (where your personal info lives, like email or phone) and your Alias (your public identity you use for chatting and other activities). Complete the steps below to secure your account and start messaging.',
       loading: 'Loading your progress...',
       badgeComingSoon: 'Coming soon',
       items: {
@@ -1221,7 +1228,7 @@ export const en = {
     exportBackup: 'Export',
     importBackup: 'Import',
     notLoggedIn: 'Please log in to your alias to manage ciphers.',
-    sessionLocked: 'Your session is locked. Enter your passphrase to unlock and view your ciphers.',
+    sessionLocked: 'Your session is locked. Enter your password to unlock and view your ciphers.',
 
     // Empty state
     empty: {

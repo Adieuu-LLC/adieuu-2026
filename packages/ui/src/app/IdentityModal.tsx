@@ -337,7 +337,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
             >
               <Input
                 type="password"
-                placeholder={t('identity.login.passphrasePlaceholder')}
+                placeholder={t('identity.login.passwordPlaceholder')}
                 value={passphrase}
                 onChange={(e) => setPassphrase(e.target.value)}
                 disabled={loading}
@@ -401,7 +401,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
               <Input
                 ref={unlockInputRef}
                 type="password"
-                placeholder={t('identity.unlock.passphrasePlaceholder')}
+                placeholder={t('identity.unlock.passwordPlaceholder')}
                 value={passphrase}
                 onChange={(e) => setPassphrase(e.target.value)}
                 disabled={loading}
@@ -459,7 +459,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
                 <div className="input-with-info">
                   <Input
                     type="password"
-                    placeholder={t('identity.create.passphrasePlaceholder')}
+                    placeholder={t('identity.create.passwordPlaceholder')}
                     value={passphrase}
                     onChange={(e) => setPassphrase(e.target.value)}
                     disabled={loading}
