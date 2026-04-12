@@ -975,7 +975,7 @@ router.post('/conversations/:id/admins', async (ctx) => {
 });
 
 /**
- * DELETE /conversations/:id - Terminate (delete) a group conversation
+ * DELETE /conversations/:id - Terminate (delete) a group (admin) or topical DM (either participant)
  */
 router.delete('/conversations/:id', async (ctx) => {
   const identity = await requireIdentity(ctx.request);
@@ -990,12 +990,14 @@ router.delete('/conversations/:id', async (ctx) => {
   const result = await terminateGroup(sanitized.value, identity._id);
 
   if (!result.success) {
-    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Group conversation not found.');
-    if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
-    return errors.badRequest(result.error ?? 'Failed to delete group.');
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_ADMIN' || result.errorCode === 'NOT_PARTICIPANT')
+      return ctx.errors.unauthorized();
+    if (result.errorCode === 'INVALID_TYPE') return errors.badRequest(result.error ?? 'Cannot delete this conversation.');
+    return errors.badRequest(result.error ?? 'Failed to delete conversation.');
   }
 
-  return success(undefined, 'Group deleted.');
+  return success(undefined, 'Conversation deleted.');
 });
 
 // ---------------------------------------------------------------------------

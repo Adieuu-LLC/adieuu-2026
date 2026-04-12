@@ -2217,8 +2217,9 @@ export async function promoteToAdmin(
 }
 
 /**
- * Terminate (delete) a group conversation. Admin only.
- * Notifies all members, then hard-deletes messages, invites, and the conversation.
+ * Terminate (delete) a group conversation (admin only) or a **topical** DM
+ * (both participants; requires encrypted conversation topic/name on the document).
+ * Notifies all members/participants, then hard-deletes messages, invites (groups), and the conversation.
  */
 export async function terminateGroup(
   conversationId: string | ObjectId,
@@ -2237,12 +2238,29 @@ export async function terminateGroup(
       : new ObjectId(requesterIdentityId as string);
 
   const conversation = await conversationRepo.findById(convObjId);
-  if (!conversation || conversation.type !== 'group') {
-    return { success: false, error: 'Group conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
   }
 
-  if (!isGroupAdmin(conversation, requesterObjId)) {
-    return { success: false, error: 'Only group admins can delete the group', errorCode: 'NOT_ADMIN' };
+  if (conversation.type === 'group') {
+    if (!isGroupAdmin(conversation, requesterObjId)) {
+      return { success: false, error: 'Only group admins can delete the group', errorCode: 'NOT_ADMIN' };
+    }
+  } else if (conversation.type === 'dm') {
+    const isParticipant = conversation.participants.some((p) => p.equals(requesterObjId));
+    if (!isParticipant) {
+      return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+    }
+    const hasTopic = !!(conversation.encryptedName && conversation.nameNonce);
+    if (!hasTopic) {
+      return {
+        success: false,
+        error: 'Only direct conversations with a topic can be deleted for both participants',
+        errorCode: 'INVALID_TYPE',
+      };
+    }
+  } else {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
   }
 
   const requesterIdentity = await identityRepo.findByIdentityId(requesterObjId);

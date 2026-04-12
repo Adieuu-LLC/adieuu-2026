@@ -106,9 +106,12 @@ export function ConversationDialogs({
       <ConfirmDialog
         open={deleteGroupOpen}
         onOpenChange={setDeleteGroupOpen}
-        title={t('conversations.deleteGroup.title', 'Delete group?')}
-        description={t('conversations.deleteGroup.confirm', 'This will permanently delete the group and all messages for everyone.')}
-        confirmLabel={t('conversations.deleteGroup.confirmBtn', 'Delete')}
+        title={t('conversations.deleteConversationDialog.title', 'Delete conversation?')}
+        description={t(
+          'conversations.deleteConversationDialog.confirm',
+          'This will permanently delete the conversation and all messages for everyone.'
+        )}
+        confirmLabel={t('conversations.deleteConversationDialog.confirmBtn', 'Delete')}
         variant="danger"
         loading={deletingGroup}
         onConfirm={onDeleteGroup}

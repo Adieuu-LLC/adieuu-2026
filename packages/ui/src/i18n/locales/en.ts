@@ -1448,6 +1448,7 @@ export const en = {
     loadMessageContextFailed: 'Could not load messages',
     backHome: 'Back to home',
     deleteGroup: 'Delete Group',
+    deleteConversation: 'Delete conversation',
 
     leaveGroup: {
       title: 'Leave group?',
@@ -1459,6 +1460,12 @@ export const en = {
     deleteGroupDialog: {
       title: 'Delete group?',
       confirm: 'This will permanently delete the group and all messages for everyone.',
+      confirmBtn: 'Delete',
+    },
+
+    deleteConversationDialog: {
+      title: 'Delete conversation?',
+      confirm: 'This will permanently delete the conversation and all messages for everyone.',
       confirmBtn: 'Delete',
     },
 
@@ -1581,8 +1588,8 @@ export const en = {
       groupInviteFromBody_one: '{{name}} + 1 other invited you',
       groupInviteFromBody_other: '{{name}} + {{count}} others invited you',
       groupInviteFromSolo: '{{name}} is inviting you',
-      groupTerminated: 'Group deleted',
-      groupTerminatedBody: '{{name}} deleted the group',
+      groupTerminated: 'Conversation deleted',
+      groupTerminatedBody: '{{name}} deleted the conversation',
       memberJoined: 'Member joined',
       memberJoinedBody: '{{name}} joined the group',
       memberAdded: 'Member added',

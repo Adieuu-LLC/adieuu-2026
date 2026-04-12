@@ -561,11 +561,11 @@ export function handleConversationSocketMessage(
         terminatedBy.displayName ?? terminatedBy.username ?? terminatedBy.id.slice(0, 8);
       ctx.fireNotification(
         ctx.t('conversations.notifications.groupTerminated', {
-          defaultValue: 'Group deleted',
+          defaultValue: 'Conversation deleted',
         }),
         ctx.t('conversations.notifications.groupTerminatedBody', {
           name: adminName,
-          defaultValue: `${adminName} deleted the group`,
+          defaultValue: `${adminName} deleted the conversation`,
         })
       );
       break;

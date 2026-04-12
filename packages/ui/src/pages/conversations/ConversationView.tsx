@@ -1009,6 +1009,10 @@ export function ConversationView() {
   const isCurrentUserAdmin = !!(identity?.id && conversation.admins?.includes(identity.id));
   const canEditMemberSettings = conversation.type === 'dm' || isCurrentUserAdmin;
   const isSoleMember = conversation.participants.length <= 1;
+  const isTopicalDm =
+    conversation.type === 'dm' && !!(conversation.encryptedName && conversation.nameNonce);
+  const canDeleteConversation =
+    conversation.type === 'group' ? isCurrentUserAdmin : isTopicalDm;
 
   return (
     <div className="conversation-page">
@@ -1021,7 +1025,7 @@ export function ConversationView() {
           showMembers={showMembers}
           onToggleMembers={() => setShowMembers((v) => !v)}
           isGroup={conversation.type === 'group'}
-          isAdmin={isCurrentUserAdmin}
+          canDeleteConversation={canDeleteConversation}
           onDeleteGroup={() => setDeleteGroupOpen(true)}
           onLeave={handleLeaveClick}
         />

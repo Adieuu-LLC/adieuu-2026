@@ -9,7 +9,7 @@ export function ConversationToolbar({
   showMembers,
   onToggleMembers,
   isGroup,
-  isAdmin,
+  canDeleteConversation,
   onDeleteGroup,
   onLeave,
 }: {
@@ -20,7 +20,8 @@ export function ConversationToolbar({
   showMembers: boolean;
   onToggleMembers: () => void;
   isGroup: boolean;
-  isAdmin: boolean;
+  /** Group: admin only. Topical DM: either participant. */
+  canDeleteConversation: boolean;
   onDeleteGroup: () => void;
   onLeave: () => void;
 }) {
@@ -56,14 +57,16 @@ export function ConversationToolbar({
         >
           {t('conversations.members', 'Members')}
         </Button>
-        {isGroup && isAdmin && (
+        {canDeleteConversation && (
           <Button
             variant="ghost"
             size="sm"
             className="conversation-toolbar-btn conversation-toolbar-btn--danger"
             onClick={onDeleteGroup}
           >
-            {t('conversations.deleteGroup', 'Delete Group')}
+            {isGroup
+              ? t('conversations.deleteGroup', 'Delete Group')
+              : t('conversations.deleteConversation', 'Delete conversation')}
           </Button>
         )}
         {isGroup && (
