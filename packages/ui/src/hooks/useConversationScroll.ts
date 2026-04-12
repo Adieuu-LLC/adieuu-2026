@@ -8,6 +8,7 @@
  *  - Receiving a message auto-scrolls only if the user is within
  *    {@link CONVERSATION_AT_BOTTOM_THRESHOLD_PX} px of the bottom.
  *  - Composer resize (multi-line typing, attachments) keeps the bottom pinned.
+ *  - Conversation sidebars (settings/members) narrowing the column re-pin the latest when already at bottom.
  *  - Scroll position is remembered per conversation so switching back
  *    restores the user's previous reading position.
  *
@@ -216,26 +217,24 @@ export function useConversationScroll({
     });
   }, [messageLayoutKey, scrollToBottomImpl, handleAtBottomStateChange]);
 
-  // Composer resize: when the messages viewport shrinks or grows and the user was at the bottom.
+  // Scroll viewport resize (width: sidebars; height: composer flex) — reflow can change scrollHeight while
+  // scrollTop stays fixed; re-pin when the user was already at the latest. Double rAF so scrollHeight matches layout.
   useEffect(() => {
-    const el = messagesContainerRef.current;
+    const el = scrollViewportRef.current;
     if (!el) return;
 
-    let prevHeight = el.clientHeight;
-
     const observer = new ResizeObserver(() => {
-      const newHeight = el.clientHeight;
-      if (newHeight !== prevHeight && isAtBottomRef.current) {
+      if (!isAtBottomRef.current) return;
+      requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           scrollToBottomImpl('auto');
         });
-      }
-      prevHeight = newHeight;
+      });
     });
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [conversationId, scrollToBottomImpl]);
+  }, [conversationId, messageLayoutKey, scrollToBottomImpl]);
 
   // Row content growth (reactions, GIFs, reply preview): keep bottom in view when pinned.
   useEffect(() => {
