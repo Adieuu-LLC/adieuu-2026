@@ -37,6 +37,8 @@ import {
   getFormerMembers,
   updateMemberSettings,
   updateGifsDisabled,
+  listPendingInvitesForConversation,
+  revokeGroupInvite,
 } from '../../services/conversation.service';
 import { getConversationPreferencesRepository } from '../../repositories/conversation-preferences.repository';
 import { toPublicConversationPreferences } from '../../models/conversation-preferences';
@@ -850,6 +852,60 @@ router.get('/conversations/:id/former-members', async (ctx) => {
   }
 
   return success(result.formerMembers);
+});
+
+/**
+ * GET /conversations/:id/pending-invites - Pending group invites for this conversation
+ */
+router.get('/conversations/:id/pending-invites', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const result = await listPendingInvitesForConversation(sanitized.value, identity._id);
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    return errors.badRequest(result.error ?? 'Failed to list pending invites.');
+  }
+
+  return success({ invites: result.invites ?? [] });
+});
+
+/**
+ * DELETE /conversations/:id/invites/:inviteId - Revoke a pending group invite (admin only)
+ */
+router.delete('/conversations/:id/invites/:inviteId', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id, inviteId } = ctx.params;
+  const sanitizedConv = sanitizeString(id ?? '', 'general');
+  const sanitizedInvite = sanitizeString(inviteId ?? '', 'general');
+  if (!sanitizedConv.value || !isValidObjectId(sanitizedConv.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+  if (!sanitizedInvite.value || !isValidObjectId(sanitizedInvite.value)) {
+    return errors.badRequest('Invalid invite ID.');
+  }
+
+  const result = await revokeGroupInvite(sanitizedConv.value, sanitizedInvite.value, identity._id);
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
+    if (result.errorCode === 'INVITE_NOT_FOUND') return errors.notFound('Invite not found.');
+    if (result.errorCode === 'INVITE_NOT_PENDING') return errors.badRequest('Invite is not pending.');
+    return errors.badRequest(result.error ?? 'Failed to revoke invite.');
+  }
+
+  return success(result.invite, 'Invite revoked.');
 });
 
 /**

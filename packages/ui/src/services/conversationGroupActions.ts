@@ -1,4 +1,4 @@
-import { type createApiClient } from '@adieuu/shared';
+import { type createApiClient, type PublicGroupInvite } from '@adieuu/shared';
 import {
   encryptGroupName,
   encryptMemberSettings,
@@ -14,6 +14,32 @@ export async function addMemberAction(
 ): Promise<boolean> {
   try {
     const resp = await api.conversations.addMember(conversationId, identityId);
+    return resp.success;
+  } catch {
+    return false;
+  }
+}
+
+export async function listPendingGroupInvitesAction(
+  api: ApiClient,
+  conversationId: string
+): Promise<PublicGroupInvite[]> {
+  try {
+    const resp = await api.conversations.listPendingInvitesForConversation(conversationId);
+    if (!resp.success || !resp.data) return [];
+    return resp.data.invites;
+  } catch {
+    return [];
+  }
+}
+
+export async function revokeGroupInviteAction(
+  api: ApiClient,
+  conversationId: string,
+  inviteId: string
+): Promise<boolean> {
+  try {
+    const resp = await api.conversations.revokeGroupInvite(conversationId, inviteId);
     return resp.success;
   } catch {
     return false;

@@ -24,7 +24,7 @@ export function BackupCodesDisplay({
   const displayDescription = description ?? t('identity.backupCodes.description');
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(codes.join('\n'));
+    void navigator.clipboard.writeText(codes.join('\n'));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [codes]);

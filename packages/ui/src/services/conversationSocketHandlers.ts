@@ -72,6 +72,8 @@ export interface ConversationSocketHandlerContext {
   loadReactionNotificationsEnabled: (identityId: string) => boolean;
   openInvites: () => void;
   refreshParticipantProfile: (identityId: string) => void;
+  /** When the server signals a change to pending group invites (sidebar list). */
+  onPendingInvitesChanged?: (conversationId: string) => void;
 }
 
 export function handleConversationSocketMessage(
@@ -124,6 +126,10 @@ export function handleConversationSocketMessage(
 
     case 'conversation_updated': {
       const { conversationId, action, identityId: eventIdentityId } = message.data;
+      if (action === 'pending_invites_changed') {
+        ctx.onPendingInvitesChanged?.(conversationId);
+        break;
+      }
       if (action === 'removed') {
         ctx.setConversations((prev) => prev.filter((c) => c.id !== conversationId));
         ctx.setActiveConversationId((prev) => (prev === conversationId ? null : prev));
@@ -439,6 +445,12 @@ export function handleConversationSocketMessage(
       };
 
       ctx.runReactionNotifOnce(reaction.id, fire);
+      break;
+    }
+
+    case 'group_invite_revoked': {
+      const inviteId = message.data.inviteId;
+      ctx.setInvites((prev) => prev.filter((i) => i.id !== inviteId));
       break;
     }
 

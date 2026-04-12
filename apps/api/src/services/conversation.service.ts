@@ -46,7 +46,7 @@ import {
   type GroupInvitePreview,
   type GroupInvitePreviewMember,
 } from '../models/group-invite';
-import { toPublicIdentity } from '../models/identity';
+import { toPublicIdentity, type IdentityDocument } from '../models/identity';
 import { getE2EMediaRepository } from '../repositories/e2e-media.repository';
 import { deleteE2EMedia } from './e2e-upload.service';
 import { getRedis, isRedisConnected, RedisKeys } from '../db';
@@ -101,7 +101,11 @@ export interface GroupInviteResult {
     | 'INVITE_NOT_FOUND'
     | 'NOT_AUTHORIZED'
     | 'ALREADY_MEMBER'
-    | 'INVITE_EXISTS';
+    | 'INVITE_EXISTS'
+    | 'NOT_ADMIN'
+    | 'INVITE_NOT_PENDING'
+    | 'NOT_PARTICIPANT'
+    | 'CONVERSATION_NOT_FOUND';
 }
 
 export interface GroupInvitePreviewResult {
@@ -162,6 +166,78 @@ async function publishToParticipants(
       .filter((id) => id.toHexString() !== excludeHex)
       .map((id) => publishConversationEvent(id.toHexString(), event))
   );
+}
+
+/**
+ * Persist a member_invited system line and notify current participants (invitees are not members yet).
+ */
+async function appendGroupInviteSystemMessageAndNotify(
+  convObjId: ObjectId,
+  invitedMember: IdentityDocument,
+  inviter: IdentityDocument,
+  participantIds: ObjectId[]
+): Promise<void> {
+  const messageRepo = getMessageRepository();
+  const conversationRepo = getConversationRepository();
+  const invitedPublic = toPublicIdentity(invitedMember);
+  const inviterPublic = toPublicIdentity(inviter);
+
+  const systemMsg = await messageRepo.createMessage({
+    conversationId: convObjId,
+    fromIdentityId: inviter._id,
+    messageType: 'system',
+    systemEvent: {
+      type: 'member_invited',
+      identityId: invitedPublic.id,
+      displayName: invitedPublic.displayName,
+      username: invitedPublic.username,
+      actorIdentityId: inviterPublic.id,
+      actorDisplayName: inviterPublic.displayName,
+      actorUsername: inviterPublic.username,
+    },
+    ciphertext: '',
+    nonce: '',
+    wrappedKeys: [],
+    signature: '',
+    cryptoProfile: 'default',
+    clientMessageId: crypto.randomUUID(),
+  });
+
+  await conversationRepo.updateLastMessage(convObjId, systemMsg._id, systemMsg.createdAt);
+
+  for (const participantId of participantIds) {
+    await publishConversationEvent(participantId.toHexString(), {
+      type: 'conversation_message',
+      data: {
+        conversationId: convObjId.toHexString(),
+        messageId: systemMsg._id.toHexString(),
+        fromIdentityId: inviterPublic.id,
+        createdAt: systemMsg.createdAt.toISOString(),
+      },
+    });
+  }
+
+  for (const participantId of participantIds) {
+    await publishConversationEvent(participantId.toHexString(), {
+      type: 'conversation_updated',
+      data: {
+        conversationId: convObjId.toHexString(),
+        action: 'pending_invites_changed',
+      },
+    });
+  }
+}
+
+async function publishPendingInvitesChanged(convObjId: ObjectId, participantIds: ObjectId[]): Promise<void> {
+  for (const participantId of participantIds) {
+    await publishConversationEvent(participantId.toHexString(), {
+      type: 'conversation_updated',
+      data: {
+        conversationId: convObjId.toHexString(),
+        action: 'pending_invites_changed',
+      },
+    });
+  }
 }
 
 /**
@@ -384,6 +460,17 @@ export async function createConversation(
           : undefined,
         memberCount: initialParticipants.length,
       });
+
+      const invitedDoc = await identityRepo.findByIdentityId(inviteId);
+      const inviterDoc = creatorIdentity ?? (await identityRepo.findByIdentityId(creatorObjId));
+      if (invitedDoc && inviterDoc) {
+        await appendGroupInviteSystemMessageAndNotify(
+          conversation._id,
+          invitedDoc,
+          inviterDoc,
+          initialParticipants
+        );
+      }
     }
 
     checkAndAward(creatorObjId, 'group_created').catch(() => {});
@@ -1078,6 +1165,16 @@ export async function addGroupMember(
       memberCount: conversation.participants.length,
     });
 
+    const inviterForMsg = requesterIdentity ?? (await identityRepo.findByIdentityId(requesterObjId));
+    if (inviterForMsg) {
+      await appendGroupInviteSystemMessageAndNotify(
+        convObjId,
+        newMember,
+        inviterForMsg,
+        conversation.participants
+      );
+    }
+
     return { success: true, invite: toPublicGroupInvite(invite) };
   }
 
@@ -1100,8 +1197,10 @@ export async function addGroupMember(
       type: 'member_invited',
       identityId: newMemberObjId.toHexString(),
       displayName: newMemberPublic.displayName,
+      username: newMemberPublic.username,
       actorIdentityId: requesterObjId.toHexString(),
       actorDisplayName: requesterPublic?.displayName ?? requesterPublic?.username,
+      actorUsername: requesterPublic?.username,
     },
     ciphertext: '',
     nonce: '',
@@ -1110,6 +1209,8 @@ export async function addGroupMember(
     cryptoProfile: 'default',
     clientMessageId: crypto.randomUUID(),
   });
+
+  await conversationRepo.updateLastMessage(convObjId, systemMsg._id, systemMsg.createdAt);
 
   // Notify all existing members about the new member
   await publishToParticipants(conversation.participants, requesterObjId, {
@@ -1710,6 +1811,8 @@ export async function acceptGroupInvite(
           : undefined,
       });
     }
+
+    await publishPendingInvitesChanged(invite.conversationId, conversation.participants);
   }
 
   const updated = await groupInviteRepo.findById(inviteObjId);
@@ -1740,6 +1843,109 @@ export async function declineGroupInvite(
   }
 
   await groupInviteRepo.updateStatus(inviteObjId, 'declined');
+
+  const conversationRepo = getConversationRepository();
+  const conversationAfterDecline = await conversationRepo.findById(invite.conversationId);
+  if (conversationAfterDecline) {
+    await publishPendingInvitesChanged(invite.conversationId, conversationAfterDecline.participants);
+  }
+
+  const updated = await groupInviteRepo.findById(inviteObjId);
+  return { success: true, invite: updated ? toPublicGroupInvite(updated) : undefined };
+}
+
+/**
+ * List pending group invites for a conversation (any current member may view).
+ */
+export async function listPendingInvitesForConversation(
+  conversationId: string | ObjectId,
+  requesterIdentityId: string | ObjectId
+): Promise<{
+  success: boolean;
+  invites?: PublicGroupInvite[];
+  error?: string;
+  errorCode?: 'CONVERSATION_NOT_FOUND' | 'NOT_PARTICIPANT';
+}> {
+  const conversationRepo = getConversationRepository();
+  const groupInviteRepo = getGroupInviteRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation || conversation.type !== 'group') {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  if (!conversation.participants.some((p) => p.equals(requesterObjId))) {
+    return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  const pending = await groupInviteRepo.findAllPendingForConversation(convObjId);
+  return { success: true, invites: pending.map(toPublicGroupInvite) };
+}
+
+/**
+ * Revoke a pending group invite (group admins only).
+ */
+export async function revokeGroupInvite(
+  conversationId: string | ObjectId,
+  inviteId: string | ObjectId,
+  requesterIdentityId: string | ObjectId
+): Promise<GroupInviteResult> {
+  const conversationRepo = getConversationRepository();
+  const groupInviteRepo = getGroupInviteRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const inviteObjId =
+    inviteId instanceof ObjectId ? inviteId : new ObjectId(inviteId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation || conversation.type !== 'group') {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  if (!isGroupAdmin(conversation, requesterObjId)) {
+    return { success: false, error: 'Only group admins can revoke invites', errorCode: 'NOT_ADMIN' };
+  }
+
+  const invite = await groupInviteRepo.findById(inviteObjId);
+  if (!invite || !invite.conversationId.equals(convObjId)) {
+    return { success: false, error: 'Invite not found', errorCode: 'INVITE_NOT_FOUND' };
+  }
+
+  if (invite.status !== 'pending') {
+    return { success: false, error: 'Invite is not pending', errorCode: 'INVITE_NOT_PENDING' };
+  }
+
+  await groupInviteRepo.updateStatus(inviteObjId, 'revoked');
+
+  for (const pid of conversation.participants) {
+    await publishConversationEvent(pid.toHexString(), {
+      type: 'conversation_updated',
+      data: {
+        conversationId: convObjId.toHexString(),
+        action: 'pending_invites_changed',
+      },
+    });
+  }
+
+  await publishConversationEvent(invite.invitedIdentityId.toHexString(), {
+    type: 'group_invite_revoked',
+    data: {
+      inviteId: inviteObjId.toHexString(),
+      conversationId: convObjId.toHexString(),
+    },
+  });
 
   const updated = await groupInviteRepo.findById(inviteObjId);
   return { success: true, invite: updated ? toPublicGroupInvite(updated) : undefined };

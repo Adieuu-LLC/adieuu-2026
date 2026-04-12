@@ -2331,8 +2331,10 @@ export interface SystemEvent {
   type: string;
   identityId: string;
   displayName?: string;
+  username?: string;
   actorIdentityId?: string;
   actorDisplayName?: string;
+  actorUsername?: string;
 }
 
 export interface PublicConversation {
@@ -2598,6 +2600,23 @@ export class ConversationsApi {
   ): Promise<ApiResponse<FormerMember[]>> {
     return this.client.get(
       `/api/conversations/${encodeURIComponent(conversationId)}/former-members`
+    );
+  }
+
+  async listPendingInvitesForConversation(
+    conversationId: string
+  ): Promise<ApiResponse<{ invites: PublicGroupInvite[] }>> {
+    return this.client.get(
+      `/api/conversations/${encodeURIComponent(conversationId)}/pending-invites`
+    );
+  }
+
+  async revokeGroupInvite(
+    conversationId: string,
+    inviteId: string
+  ): Promise<ApiResponse<PublicGroupInvite>> {
+    return this.client.delete(
+      `/api/conversations/${encodeURIComponent(conversationId)}/invites/${encodeURIComponent(inviteId)}`
     );
   }
 

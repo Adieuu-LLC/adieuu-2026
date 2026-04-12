@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import type { PublicIdentity } from '@adieuu/shared';
+import type { PublicGroupInvite, PublicIdentity } from '@adieuu/shared';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import { Button } from '../../components/Button';
 import { Tooltip } from '../../components/Tooltip';
@@ -25,6 +25,9 @@ export function ConversationMembersSidebar({
   onRemoveMember,
   onInviteMember,
   onAddMember,
+  pendingInvites,
+  pendingInvitesLoading,
+  onRevokeInvite,
 }: {
   participants: string[];
   participantProfiles: Record<string, PublicIdentity>;
@@ -42,6 +45,9 @@ export function ConversationMembersSidebar({
   onRemoveMember: (memberId: string) => void;
   onInviteMember: () => void;
   onAddMember: () => void;
+  pendingInvites?: PublicGroupInvite[];
+  pendingInvitesLoading?: boolean;
+  onRevokeInvite?: (inviteId: string) => void | Promise<void>;
 }) {
   const { t } = useTranslation();
 
@@ -170,6 +176,62 @@ export function ConversationMembersSidebar({
           );
         })}
       </div>
+
+      {conversationType === 'group' && (pendingInvitesLoading || (pendingInvites?.length ?? 0) > 0) && (
+        <div className="conversation-members-invited">
+          <div className="conversation-members-subheader">
+            <h4 className="conversation-members-subheader-title">
+              {t('conversations.invitedSection', 'Invited')}
+            </h4>
+            {pendingInvitesLoading && (
+              <span className="conversation-members-invited-loading" aria-hidden>
+                …
+              </span>
+            )}
+          </div>
+          <div className="conversation-members-list">
+            {(pendingInvites ?? []).map((inv) => {
+              const pid = inv.invitedIdentityId;
+              const profile = participantProfiles[pid];
+              const displayedName = profile?.displayName ?? profile?.username ?? pid.slice(0, 8);
+              const initial = displayedName.charAt(0).toUpperCase();
+
+              return (
+                <div key={inv.id} className="conversation-member-item conversation-member-item--invited">
+                  <Link to={`/identity/${pid}`} className="conversation-member-item-link">
+                    <div className="conversation-member-avatar">
+                      {profile?.avatarUrl ? (
+                        <img src={profile.avatarUrl} alt="" className="conversation-member-avatar-img" />
+                      ) : (
+                        <span className="conversation-member-avatar-placeholder">{initial}</span>
+                      )}
+                    </div>
+                    <div className="conversation-member-info">
+                      <span className="conversation-member-name">{displayedName}</span>
+                      {profile?.username && (
+                        <span className="conversation-member-username">@{profile.username}</span>
+                      )}
+                    </div>
+                  </Link>
+                  {isCurrentUserAdmin && onRevokeInvite && (
+                    <div className="conversation-member-actions">
+                      <Tooltip content={t('conversations.revokeInvite', 'Revoke invite')} position="top">
+                        <button
+                          type="button"
+                          className="conversation-member-action-btn conversation-member-action-btn--danger"
+                          onClick={() => void onRevokeInvite(inv.id)}
+                        >
+                          <Icon name="x" className="conversation-member-action-icon" />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

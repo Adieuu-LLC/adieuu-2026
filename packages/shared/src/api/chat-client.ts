@@ -23,6 +23,7 @@ export type ChatMessageType =
   | 'conversation_message'
   | 'group_invite_received'
   | 'group_invite_accepted'
+  | 'group_invite_revoked'
   | 'conversation_message_deleted'
   | 'group_terminated'
   | 'reaction_added'
@@ -108,7 +109,15 @@ export interface ChatConversationUpdatedMessage extends ChatMessageBase {
   type: 'conversation_updated';
   data: {
     conversationId: string;
-    action: 'member_added' | 'member_removed' | 'member_left' | 'removed' | 'renamed' | 'admin_promoted' | 'gifs_disabled_updated';
+    action:
+      | 'member_added'
+      | 'member_removed'
+      | 'member_left'
+      | 'removed'
+      | 'renamed'
+      | 'admin_promoted'
+      | 'gifs_disabled_updated'
+      | 'pending_invites_changed';
     identityId?: string;
     gifsDisabled?: boolean;
   };
@@ -170,6 +179,14 @@ export interface ChatGroupInviteAcceptedMessage extends ChatMessageBase {
     identityId: string;
     username?: string;
     displayName?: string;
+  };
+}
+
+export interface ChatGroupInviteRevokedMessage extends ChatMessageBase {
+  type: 'group_invite_revoked';
+  data: {
+    inviteId: string;
+    conversationId: string;
   };
 }
 
@@ -257,6 +274,7 @@ export type ChatIncomingMessage =
   | ChatConversationMessageMessage
   | ChatGroupInviteReceivedMessage
   | ChatGroupInviteAcceptedMessage
+  | ChatGroupInviteRevokedMessage
   | ChatConversationMessageDeletedMessage
   | ChatGroupTerminatedMessage
   | ChatReactionAddedMessage

@@ -177,6 +177,7 @@ export {
   type ChatConversationMessageMessage,
   type ChatGroupInviteReceivedMessage,
   type ChatGroupInviteAcceptedMessage,
+  type ChatGroupInviteRevokedMessage,
   type ChatConversationMessageDeletedMessage,
   type ChatReactionAddedMessage,
   type ChatReactionRemovedMessage,

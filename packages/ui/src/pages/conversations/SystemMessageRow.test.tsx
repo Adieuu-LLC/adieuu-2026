@@ -31,18 +31,20 @@ describe('SystemMessageRow', () => {
       <SystemMessageRow event={{
         ...baseEvent,
         type: 'member_invited',
+        username: 'alice',
         actorIdentityId: 'actor-1',
         actorDisplayName: 'Bob',
+        actorUsername: 'bob',
       } as any} />
     );
-    expect(html).toContain('Bob invited Alice to the group');
+    expect(html).toContain('Alice (@alice) was invited by Bob (@bob)');
   });
 
-  test('renders member_invited without actor as joined', () => {
+  test('renders member_invited without actor as invitee-only line', () => {
     const html = renderToStaticMarkup(
       <SystemMessageRow event={{ ...baseEvent, type: 'member_invited' } as any} />
     );
-    expect(html).toContain('Alice has joined the conversation');
+    expect(html).toContain('Alice was invited');
   });
 
   test('renders member_left', () => {

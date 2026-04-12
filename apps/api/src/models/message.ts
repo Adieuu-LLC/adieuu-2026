@@ -35,8 +35,11 @@ export interface SystemEvent {
   type: string;
   identityId: string;
   displayName?: string;
+  /** Invited or affected user's username (plaintext, for system copy) */
+  username?: string;
   actorIdentityId?: string;
   actorDisplayName?: string;
+  actorUsername?: string;
 }
 
 /**

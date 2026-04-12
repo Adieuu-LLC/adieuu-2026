@@ -2251,6 +2251,83 @@ a {
   flex-shrink: 0;
 }
 
+// Change passphrase tab (alias session without full account — info strip + “why” modal)
+.change-passphrase-identity-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  border: 1px solid var(--color-info);
+}
+
+.change-passphrase-identity-notice-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 0.15em;
+}
+
+.change-passphrase-identity-notice-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+
+  p {
+    margin: 0;
+    line-height: var(--line-height-relaxed);
+  }
+}
+
+.change-passphrase-identity-why-link {
+  align-self: flex-start;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-info);
+  text-decoration: underline;
+  cursor: pointer;
+  text-align: left;
+
+  &:hover {
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-info);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+}
+
+.change-passphrase-why-dialog {
+  max-width: 28rem;
+}
+
+.change-passphrase-why-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+
+  p {
+    margin: 0;
+    font-size: var(--font-size-md);
+    color: var(--color-text-secondary);
+    line-height: var(--line-height-normal);
+  }
+}
+
 // ============================================================================
 // Key Backup Export/Import
 // ============================================================================
@@ -4229,6 +4306,117 @@ a {
   font-size: var(--font-size-sm);
   margin: 0;
   text-align: center;
+}
+
+// BackupCodesDisplay (identity modal, Privacy, change passphrase)
+.backup-codes-display {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  width: 100%;
+
+  .backup-codes-title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+  }
+
+  .backup-codes-description {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: var(--line-height-relaxed);
+  }
+
+  .backup-codes-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--color-bg-tertiary);
+    border-radius: var(--radius-md);
+  }
+
+  .backup-codes-code {
+    display: block;
+    padding: var(--spacing-sm);
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    text-align: center;
+    border: 1px solid var(--color-border-muted);
+  }
+
+  .backup-codes-warning {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-warning);
+    line-height: var(--line-height-normal);
+  }
+
+  .backup-codes-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+  }
+
+  .backup-codes-confirm-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-xs);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .backup-codes-checkbox-control {
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    flex-shrink: 0;
+    margin-top: 2px;
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      background var(--transition-fast),
+      border-color var(--transition-fast);
+
+    &[data-state='checked'] {
+      background: var(--color-accent-primary);
+      border-color: var(--color-accent-primary);
+
+      &::after {
+        content: '';
+        display: block;
+        width: 5px;
+        height: 9px;
+        border: solid var(--color-on-primary, #fff);
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg) translateY(-1px);
+      }
+    }
+  }
+
+  .backup-codes-checkbox-label {
+    flex: 1;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: var(--line-height-normal);
+    cursor: pointer;
+  }
+
+  .backup-codes-continue {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--spacing-sm);
+  }
 }
 
 // ============================================================================
@@ -8176,6 +8364,33 @@ a {
       border-radius: var(--radius-full);
     }
 
+    &-invited {
+      border-top: 1px solid var(--color-border-muted);
+      padding-top: var(--spacing-sm);
+      margin-top: var(--spacing-xs);
+    }
+
+    &-subheader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--spacing-md) var(--spacing-xs);
+
+      &-title {
+        margin: 0;
+        font-size: var(--font-size-xs);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+    }
+
+    &-invited-loading {
+      font-size: var(--font-size-sm);
+      color: var(--color-text-muted);
+    }
+
     &-invite {
       &-row {
         padding: var(--spacing-xs) var(--spacing-sm);
@@ -8222,6 +8437,10 @@ a {
 
       &:hover {
         background: var(--color-bg-hover);
+      }
+
+      &--invited .conversation-member-actions {
+        opacity: 1;
       }
 
       &-link {

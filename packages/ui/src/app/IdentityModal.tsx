@@ -11,6 +11,7 @@ import { Icon } from '../icons/Icon';
 import { BackupCodesDisplay } from '../components/BackupCodesDisplay';
 import { useIdentity, type LoginStatus, type WebDeviceChoice } from '../hooks/useIdentity';
 import { WebDeviceChoiceModal } from '../components/WebDeviceChoiceModal';
+import { stringArrayFromI18nReturn } from './identityModalUtils';
 
 interface IdentityModalProps {
   isOpen: boolean;
@@ -105,7 +106,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   const handleLogin = async () => {
     if (loading) return; // Prevent multiple submissions
     if (passphrase.length < 8) {
-      setError(t('identity.create.passphraseHint'));
+      setError(t('identity.create.passwordHint'));
       return;
     }
 
@@ -158,7 +159,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   const handleUnlock = async () => {
     if (loading) return;
     if (passphrase.length < 8) {
-      setError(t('identity.unlock.passphraseRequired'));
+      setError(t('identity.unlock.passwordRequired'));
       return;
     }
 
@@ -195,11 +196,11 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   const handleCreate = async () => {
     if (loading) return; // Prevent multiple submissions
     if (passphrase.length < 8) {
-      setError(t('identity.create.passphraseHint'));
+      setError(t('identity.create.passwordHint'));
       return;
     }
     if (passphrase !== passphraseConfirm) {
-      setError(t('identity.create.passphraseMismatch'));
+      setError(t('identity.create.passwordMismatch'));
       return;
     }
     if (username.length < 3) {
@@ -479,41 +480,43 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
                     className="passphrase-popover"
                   >
                     <div className="passphrase-info-content">
-                      <h4>{t('identity.create.passphraseExamplesTitle')}</h4>
+                      <h4>{t('identity.create.passwordExamplesTitle')}</h4>
                       <ul>
-                        {(t('identity.create.passphraseExamples', { returnObjects: true }) as string[]).map((example, i) => (
+                        {stringArrayFromI18nReturn(
+                          t('identity.create.passwordExamples', { returnObjects: true })
+                        ).map((example, i) => (
                           <li key={i}>{example}</li>
                         ))}
                       </ul>
-                      <p className="passphrase-tip">{t('identity.create.passphraseExamplesTip')}</p>
+                      <p className="passphrase-tip">{t('identity.create.passwordExamplesTip')}</p>
                     </div>
                   </Popover>
                 </div>
-                <p className="form-hint">{t('identity.create.passphraseHint')}</p>
+                <p className="form-hint">{t('identity.create.passwordHint')}</p>
               </div>
 
               <div className="form-group">
                 <Input
                   type="password"
-                  placeholder={t('identity.create.passphraseConfirmPlaceholder')}
+                  placeholder={t('identity.create.passwordConfirmPlaceholder')}
                   value={passphraseConfirm}
                   onChange={(e) => setPassphraseConfirm(e.target.value)}
                   disabled={loading}
                 />
                 {passphraseConfirm.length > 0 && passphrase !== passphraseConfirm && (
-                  <p className="form-error">{t('identity.create.passphraseMismatch')}</p>
+                  <p className="form-error">{t('identity.create.passwordMismatch')}</p>
                 )}
                 {passphrasesMatch && passphraseStrength && (
                   <p className={`passphrase-strength passphrase-strength-${passphraseStrength}`}>
-                    {t('identity.create.passphraseStrength.match')}
+                    {t('identity.create.passwordStrength.match')}
                     {passphraseStrength !== 'veryStrong' && (
                       <span className="passphrase-strength-hint">
-                        {' '}&mdash; {t(`identity.create.passphraseStrength.${passphraseStrength}`)}
+                        {' '}&mdash; {t(`identity.create.passwordStrength.${passphraseStrength}`)}
                       </span>
                     )}
                     {passphraseStrength === 'veryStrong' && (
                       <span className="passphrase-strength-hint passphrase-strength-excellent">
-                        {' '}&mdash; {t('identity.create.passphraseStrength.veryStrong')}
+                        {' '}&mdash; {t('identity.create.passwordStrength.veryStrong')}
                       </span>
                     )}
                   </p>

@@ -67,6 +67,8 @@ import { decryptMessageBatch } from '../services/messageDecryptionPipeline';
 import { handleConversationSocketMessage } from '../services/conversationSocketHandlers';
 import {
   addMemberAction,
+  listPendingGroupInvitesAction,
+  revokeGroupInviteAction,
   leaveGroupAction,
   promoteToAdminAction,
   removeMemberAction,
@@ -206,6 +208,12 @@ interface ConversationsContextValue {
   // Former members
   getFormerMembers: (conversationId: string) => Promise<FormerMember[]>;
 
+  /** Server-driven refresh for the group members sidebar "Invited" list */
+  pendingInvitesRefreshSignal: { conversationId: string; nonce: number } | null;
+  listPendingGroupInvites: (conversationId: string) => Promise<PublicGroupInvite[]>;
+  revokeGroupInvite: (conversationId: string, inviteId: string) => Promise<boolean>;
+  prefetchParticipantProfiles: (identityIds: string[]) => Promise<Record<string, PublicIdentity>>;
+
   // Crypto helpers (shared with useReactions etc.)
   fetchRecipientKeys: (participantIds: string[], useForwardSecrecy?: boolean) => Promise<RecipientKeys[]>;
 
@@ -265,6 +273,10 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   }, [replyParentHydration]);
   const replyHydrationInflightRef = useRef(new Set<string>());
   const [invites, setInvites] = useState<PublicGroupInvite[]>([]);
+  const [pendingInvitesRefreshSignal, setPendingInvitesRefreshSignal] = useState<{
+    conversationId: string;
+    nonce: number;
+  } | null>(null);
 
   useEffect(() => {
     setReplyParentHydration({});
@@ -1294,6 +1306,26 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     [api, fetchConversations]
   );
 
+  const onPendingInvitesChanged = useCallback((conversationId: string) => {
+    setPendingInvitesRefreshSignal({ conversationId, nonce: Date.now() });
+  }, []);
+
+  const listPendingGroupInvites = useCallback(
+    async (conversationId: string) => listPendingGroupInvitesAction(api, conversationId),
+    [api]
+  );
+
+  const revokeGroupInvite = useCallback(
+    async (conversationId: string, inviteId: string): Promise<boolean> => {
+      const ok = await revokeGroupInviteAction(api, conversationId, inviteId);
+      if (ok) {
+        setPendingInvitesRefreshSignal({ conversationId, nonce: Date.now() });
+      }
+      return ok;
+    },
+    [api]
+  );
+
   const terminateGroup = useCallback(
     async (conversationId: string): Promise<boolean> => {
       const ok = await terminateGroupAction(api, conversationId);
@@ -1524,6 +1556,9 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const refreshParticipantProfileRef = useRef(refreshParticipantProfile);
   refreshParticipantProfileRef.current = refreshParticipantProfile;
 
+  const onPendingInvitesChangedRef = useRef(onPendingInvitesChanged);
+  onPendingInvitesChangedRef.current = onPendingInvitesChanged;
+
   const participantProfilesRef = useRef(participantProfiles);
   participantProfilesRef.current = participantProfiles;
 
@@ -1571,6 +1606,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
         openInvites: () => sidebarActions.openInvites(),
         refreshParticipantProfile: (identityId) =>
           void refreshParticipantProfileRef.current(identityId),
+        onPendingInvitesChanged: (cid) => onPendingInvitesChangedRef.current(cid),
       });
     });
 
@@ -1701,12 +1737,17 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       declineInvite,
       getInvitePreview,
       getFormerMembers,
+      pendingInvitesRefreshSignal,
+      listPendingGroupInvites,
+      revokeGroupInvite,
+      prefetchParticipantProfiles: resolveParticipants,
       fetchRecipientKeys,
       getSessionKeysForMessages,
       refresh,
     };
   }, [
     conversations, activeConversationId, messagesState, replyParentHydration, invites,
+    pendingInvitesRefreshSignal,
     participantProfiles, loading, sending,
     setActiveConversation, setIsAtBottom, markConversationRead,
     createDM, createGroup, sendTextMessage, loadOlder, loadNewer, jumpToLatestMessages,
@@ -1714,6 +1755,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     deleteMessage, addMember, removeMember, leaveGroup, renameGroup,
     updateConversationMemberSettings, promoteToAdmin, terminateGroup,
     acceptInvite, declineInvite, getInvitePreview, getFormerMembers,
+    listPendingGroupInvites, revokeGroupInvite, resolveParticipants,
     fetchRecipientKeys, getSessionKeysForMessages, refresh,
   ]);
 

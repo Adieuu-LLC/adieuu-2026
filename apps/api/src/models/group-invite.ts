@@ -11,7 +11,7 @@
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
 
-export type GroupInviteStatus = 'pending' | 'accepted' | 'declined';
+export type GroupInviteStatus = 'pending' | 'accepted' | 'declined' | 'revoked';
 
 /**
  * Group invite document stored in MongoDB

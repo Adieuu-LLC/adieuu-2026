@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
-import { createApiClient } from '@adieuu/shared';
+import { createApiClient, type PublicGroupInvite } from '@adieuu/shared';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
@@ -91,6 +91,10 @@ export function ConversationView() {
     updateMemberSettings,
     memberSettings,
     fetchRecipientKeys,
+    listPendingGroupInvites,
+    revokeGroupInvite,
+    pendingInvitesRefreshSignal,
+    prefetchParticipantProfiles,
   } = useConversations();
 
   const messageLayoutKey = `${activeMessages[0]?.id ?? ''}:${activeMessages.length}`;
@@ -165,6 +169,8 @@ export function ConversationView() {
   }, []);
   const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
   const [inviteMemberOpen, setInviteMemberOpen] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState<PublicGroupInvite[]>([]);
+  const [pendingInvitesLoading, setPendingInvitesLoading] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [deletingGroup, setDeletingGroup] = useState(false);
   const [renameValue, setRenameValue] = useState('');
@@ -233,6 +239,58 @@ export function ConversationView() {
   }, [id, renameValue, renaming, renameGroup]);
 
   const conversation = conversations.find((c) => c.id === id);
+
+  const refreshPendingInvites = useCallback(async () => {
+    if (!id || conversation?.type !== 'group') return;
+    setPendingInvitesLoading(true);
+    try {
+      const list = await listPendingGroupInvites(id);
+      setPendingInvites(list);
+    } finally {
+      setPendingInvitesLoading(false);
+    }
+  }, [id, conversation?.type, listPendingGroupInvites]);
+
+  useEffect(() => {
+    if (!showMembers || conversation?.type !== 'group' || !id) return;
+    void refreshPendingInvites();
+  }, [showMembers, conversation?.type, id, refreshPendingInvites]);
+
+  useEffect(() => {
+    if (
+      !pendingInvitesRefreshSignal ||
+      pendingInvitesRefreshSignal.conversationId !== id ||
+      !showMembers ||
+      conversation?.type !== 'group'
+    ) {
+      return;
+    }
+    void refreshPendingInvites();
+  }, [
+    pendingInvitesRefreshSignal,
+    id,
+    showMembers,
+    conversation?.type,
+    refreshPendingInvites,
+  ]);
+
+  useEffect(() => {
+    if (pendingInvites.length === 0) return;
+    void prefetchParticipantProfiles(pendingInvites.map((i) => i.invitedIdentityId));
+  }, [pendingInvites, prefetchParticipantProfiles]);
+
+  const handleRevokeInvite = useCallback(
+    async (inviteId: string) => {
+      if (!id) return;
+      const ok = await revokeGroupInvite(id, inviteId);
+      if (!ok) {
+        toast.error(
+          t('conversations.revokeInviteFailed', 'Could not revoke the invite.')
+        );
+      }
+    },
+    [id, revokeGroupInvite, toast, t]
+  );
 
   // Detect when the other party has blocked us (bidirectional check)
   const [blockedByOther, setBlockedByOther] = useState(false);
@@ -1093,6 +1151,15 @@ export function ConversationView() {
               onAddMember={() => navigate('/conversations/new', {
                 state: { preSelectedIds: otherParticipants },
               })}
+              pendingInvites={conversation.type === 'group' ? pendingInvites : undefined}
+              pendingInvitesLoading={
+                conversation.type === 'group' ? pendingInvitesLoading : undefined
+              }
+              onRevokeInvite={
+                conversation.type === 'group' && isCurrentUserAdmin
+                  ? handleRevokeInvite
+                  : undefined
+              }
             />
           )}
         </div>

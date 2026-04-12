@@ -178,7 +178,7 @@ export const en = {
       copy: 'Copy all',
       copied: 'Copied!',
       download: 'Download as file',
-      confirmLabel: 'I have saved my recovery codes in a safe place',
+      confirmLabel: 'Yes, these are in a safe place',
       continue: 'Continue',
     },
     // Device management
@@ -662,12 +662,20 @@ export const en = {
         errorFailed: 'Password change failed. Please try again.',
         invalidatesBackupCodes: 'This will invalidate your existing backup codes. New codes will be generated.',
         errorSession:
-          'Your account session is not available. Sign out of your alias, sign into your account, then try again from Privacy & security → Change password.',
+          'Your account session is not available. Sign out of your alias, sign in to your account, then open Account → Security → Change password.',
         identityOnlyTitle: 'Account sign-in required',
         identityOnlyBody:
-          'Changing your alias passphrase uses a short-lived security token tied to your email or phone sign-in.',
+          'Changing your alias password requires a full account sign-in. It is not available when you are signed in to an alias.',
         identityOnlyHint:
-          'Sign out completely, sign in with your registered email or phone, unlock your alias, then return to this tab. You can change your passphrase here while your account session is active (before or after unlocking your alias).',
+          'Sign out of your alias, sign in to your account, then go to Account → Security.',
+        whyAccountSignInLink: 'Why is this necessary?',
+        whyAccountSignInTitle: 'Why account sign-in is required',
+        whyAccountSignInP1:
+          'Your account and your aliases use separate cryptographic keys on purpose: a problem with one should not automatically expose the other. Unfortunately, this means you can\'t be signed into both (we originally supported this but felt the risks of your account and alias being linked together was too high if/when our systems were breached).',
+        whyAccountSignInP2:
+          'One of the many protections we employ for your Aliases, however, includes deriving some of your Alias\' encrypted key material from data that only exists in an Account. This makes it much harder for an attacker to guess an Alias password, even if they managed to breach our database.',
+        whyAccountSignInP3:
+          'An Alias session does not include those account-held secrets, so the service cannot complete the password change until you sign into your Account.',
       },
       backupCodes: {
         sectionTitle: 'Recovery Codes',
@@ -1417,6 +1425,9 @@ export const en = {
     admin: 'Admin',
     makeAdmin: 'Make Admin',
     removeMember: 'Remove',
+    invitedSection: 'Invited',
+    revokeInvite: 'Revoke invite',
+    revokeInviteFailed: 'Could not revoke the invite.',
     notFound: 'Conversation not found',
     loadMessageContextFailed: 'Could not load messages',
     backHome: 'Back to home',
@@ -1471,6 +1482,8 @@ export const en = {
     systemMessage: {
       memberJoined: '{{name}} has joined the conversation',
       memberInvited: '{{actor}} invited {{name}} to the group',
+      memberInvitedLine: '{{invitee}} was invited by {{actor}}',
+      memberInvitedInviteeOnly: '{{invitee}} was invited',
       memberLeft: '{{name}} has left the conversation',
       adminPromoted: '{{actor}} made {{name}} an admin',
       adminPromotedSimple: '{{name}} is now an admin',

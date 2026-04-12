@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Checkbox, RadioGroup } from '@ark-ui/react';
+import { Checkbox, Dialog, Portal, RadioGroup } from '@ark-ui/react';
 import { createApiClient } from '@adieuu/shared';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
@@ -8,7 +8,6 @@ import { Spinner } from '../../components/Spinner';
 import { Avatar } from '../../components/Avatar';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { Alert } from '../../components/Alert';
 import { BackupCodesDisplay } from '../../components/BackupCodesDisplay';
 import { useBlocks } from '../../hooks/useBlocks';
 import { useAuth } from '../../hooks/useAuth';
@@ -468,6 +467,7 @@ export function IdentityPrivacy() {
   const [unblockingId, setUnblockingId] = useState<string | null>(null);
   const [confirmUnblock, setConfirmUnblock] = useState<string | null>(null);
   const [savingApproval, setSavingApproval] = useState(false);
+  const [whyAccountSignInOpen, setWhyAccountSignInOpen] = useState(false);
 
   const isLoggedIn = identityStatus === 'logged_in';
 
@@ -647,9 +647,26 @@ export function IdentityPrivacy() {
                         <p>{t('identity.privacy.changePassword.identityOnlyBody')}</p>
                       </div>
                     </div>
-                    <Alert variant="info" className="change-passphrase-account-notice">
-                      <p>{t('identity.privacy.changePassword.identityOnlyHint')}</p>
-                    </Alert>
+                    <div className="change-passphrase-identity-notice" role="status">
+                      <span className="change-passphrase-identity-notice-icon" aria-hidden>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                          <path
+                            fillRule="evenodd"
+                            d="M8 16A8 8 0 108 0a8 8 0 000 16zm.93-9.412l-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287h.002zm-.766-3.63a.945.945 0 110 1.89.945.945 0 010-1.89z"
+                          />
+                        </svg>
+                      </span>
+                      <div className="change-passphrase-identity-notice-main">
+                        <p>{t('identity.privacy.changePassword.identityOnlyHint')}</p>
+                        <button
+                          type="button"
+                          className="change-passphrase-identity-why-link"
+                          onClick={() => setWhyAccountSignInOpen(true)}
+                        >
+                          {t('identity.privacy.changePassword.whyAccountSignInLink')}
+                        </button>
+                      </div>
+                    </div>
                   </>
                 )}
               </Card>
@@ -666,6 +683,35 @@ export function IdentityPrivacy() {
           confirmLabel={t('blocked.unblock')}
           variant="warning"
         />
+
+        <Dialog.Root open={whyAccountSignInOpen} onOpenChange={(e) => setWhyAccountSignInOpen(e.open)}>
+          <Portal>
+            <Dialog.Backdrop className="confirm-dialog-backdrop" />
+            <Dialog.Positioner className="confirm-dialog-positioner">
+              <Dialog.Content className="confirm-dialog-content change-passphrase-why-dialog">
+                <div className="confirm-dialog-header">
+                  <Dialog.Title className="confirm-dialog-title">
+                    {t('identity.privacy.changePassword.whyAccountSignInTitle')}
+                  </Dialog.Title>
+                </div>
+                <div className="confirm-dialog-body">
+                  <Dialog.Description asChild>
+                    <div className="change-passphrase-why-dialog-body">
+                      <p>{t('identity.privacy.changePassword.whyAccountSignInP1')}</p>
+                      <p>{t('identity.privacy.changePassword.whyAccountSignInP2')}</p>
+                      <p>{t('identity.privacy.changePassword.whyAccountSignInP3')}</p>
+                    </div>
+                  </Dialog.Description>
+                </div>
+                <div className="confirm-dialog-footer">
+                  <Button variant="primary" onClick={() => setWhyAccountSignInOpen(false)}>
+                    {t('common.close')}
+                  </Button>
+                </div>
+              </Dialog.Content>
+            </Dialog.Positioner>
+          </Portal>
+        </Dialog.Root>
       </div>
     </div>
   );

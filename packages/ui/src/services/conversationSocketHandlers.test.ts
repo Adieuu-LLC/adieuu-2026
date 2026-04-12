@@ -45,6 +45,7 @@ function createContext() {
     runReactionNotifOnce: (_reactionId, fn) => fn(),
     loadReactionNotificationsEnabled: () => true,
     openInvites: () => undefined,
+    refreshParticipantProfile: () => undefined,
   };
 
   return {

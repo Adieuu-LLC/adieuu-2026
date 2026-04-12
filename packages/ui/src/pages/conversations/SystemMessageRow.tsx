@@ -14,18 +14,28 @@ export function SystemMessageRow({ event }: { event: SystemEvent }) {
         defaultValue: `${name} has joined the conversation`,
       });
       break;
-    case 'member_invited':
-      text = actorName
-        ? t('conversations.systemMessage.memberInvited', {
-            actor: actorName,
-            name,
-            defaultValue: `${actorName} invited ${name} to the group`,
+    case 'member_invited': {
+      const inviteeLabel = event.username
+        ? `${name} (@${event.username})`
+        : name;
+      const actorDisplay =
+        event.actorDisplayName ?? event.actorIdentityId?.slice(0, 8) ?? '';
+      const actorLabel =
+        actorDisplay && event.actorUsername
+          ? `${actorDisplay} (@${event.actorUsername})`
+          : actorDisplay;
+      text = actorLabel
+        ? t('conversations.systemMessage.memberInvitedLine', {
+            invitee: inviteeLabel,
+            actor: actorLabel,
+            defaultValue: `${inviteeLabel} was invited by ${actorLabel}`,
           })
-        : t('conversations.systemMessage.memberJoined', {
-            name,
-            defaultValue: `${name} has joined the conversation`,
+        : t('conversations.systemMessage.memberInvitedInviteeOnly', {
+            invitee: inviteeLabel,
+            defaultValue: `${inviteeLabel} was invited`,
           });
       break;
+    }
     case 'member_left':
       text = t('conversations.systemMessage.memberLeft', {
         name,
