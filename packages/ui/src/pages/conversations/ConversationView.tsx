@@ -961,6 +961,7 @@ export function ConversationView() {
               onMentionClick={handleMentionClick}
               scrollToMessageId={scrollToMessageId}
               showScrollButton={showScrollButton}
+              unreadCount={unreadCount}
               onJumpToLatest={handleJumpToLatest}
               scrollViewportRef={scrollViewportRef}
               messagesContentRef={messagesContentRef}

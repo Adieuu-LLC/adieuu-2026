@@ -1513,6 +1513,8 @@ export const en = {
 
     newUnreads: 'New messages',
     jumpToLatest: 'Jump to latest message',
+    jumpToLatestLabel: 'Latest',
+    jumpToLatestWithUnread: 'Jump to latest message, {{count}} unread',
 
     reply: 'Reply',
     cancelReply: 'Cancel reply',

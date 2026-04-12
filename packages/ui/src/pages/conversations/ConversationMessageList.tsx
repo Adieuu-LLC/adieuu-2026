@@ -45,6 +45,7 @@ export function ConversationMessageList({
   onMentionClick,
   scrollToMessageId,
   showScrollButton,
+  unreadCount = 0,
   onJumpToLatest,
   scrollViewportRef,
   messagesContentRef,
@@ -85,6 +86,8 @@ export function ConversationMessageList({
   onMentionClick: (identityId: string) => void;
   scrollToMessageId: (id: string) => void;
   showScrollButton: boolean;
+  /** When > 0 and the jump control is shown, the button highlights unreads (count badge, accent fill, “Latest” label). */
+  unreadCount?: number;
   onJumpToLatest: () => void | Promise<void>;
   scrollViewportRef: React.RefObject<HTMLDivElement | null>;
   messagesContentRef: React.RefObject<HTMLDivElement | null>;
@@ -245,6 +248,15 @@ export function ConversationMessageList({
 
   const ctx = useMemo(() => ({ gifsEnabled }), [gifsEnabled]);
 
+  const jumpShowsUnreads = showScrollButton && unreadCount > 0;
+  const jumpAriaLabel = jumpShowsUnreads
+    ? tLocal('conversations.jumpToLatestWithUnread', {
+        count: unreadCount,
+        defaultValue: `Jump to latest message, ${unreadCount} unread`,
+      })
+    : t('conversations.jumpToLatest', 'Jump to latest message');
+  const jumpTooltip = jumpShowsUnreads ? jumpAriaLabel : t('conversations.jumpToLatest', 'Jump to latest message');
+
   return (
     <div className="conversation-messages" ref={messagesContainerRef as React.RefObject<HTMLDivElement>}>
       {conversationId !== activeConversationId || (messagesLoading && reversedMessagesLength === 0) ? (
@@ -290,14 +302,26 @@ export function ConversationMessageList({
           />
         </div>
       )}
-      <Tooltip content={t('conversations.jumpToLatest', 'Jump to latest message')} position="top">
+      <Tooltip content={jumpTooltip} position="top">
         <button
           type="button"
-          className={`conversation-scroll-to-bottom${showScrollButton ? ' conversation-scroll-to-bottom--visible' : ''}`}
+          className={`conversation-scroll-to-bottom${showScrollButton ? ' conversation-scroll-to-bottom--visible' : ''}${jumpShowsUnreads ? ' conversation-scroll-to-bottom--unread' : ''}`}
           onClick={() => void onJumpToLatest()}
-          aria-label={t('conversations.jumpToLatest', 'Jump to latest message')}
+          aria-label={jumpAriaLabel}
         >
-          <Icon name="chevronDown" />
+          {jumpShowsUnreads ? (
+            <>
+              <span className="conversation-scroll-to-bottom__badge" aria-hidden>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+              <span className="conversation-scroll-to-bottom__label">
+                {tLocal('conversations.jumpToLatestLabel', { defaultValue: 'Latest' })}
+              </span>
+              <Icon name="chevronDown" />
+            </>
+          ) : (
+            <Icon name="chevronDown" />
+          )}
         </button>
       </Tooltip>
     </div>
