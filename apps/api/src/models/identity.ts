@@ -19,7 +19,7 @@ export type ProfileVisibility = 'public' | 'friends' | 'private';
 
 /**
  * Per-field privacy settings for the identity profile.
- * Defaults to 'public' for all fields when not set.
+ * When absent from storage, {@link DEFAULT_PRIVACY_SETTINGS} applies.
  */
 export interface ProfilePrivacySettings {
   avatar: ProfileVisibility;
