@@ -70,16 +70,6 @@ export function OnboardingChecklist() {
                             : t('home.onboarding.items.tour.action')}
                         </Button>
                       )}
-                      {item.id === 'mfa' && !hideAccountLinks && (
-                        <Link to="/account/security" className="btn btn-secondary btn-sm">
-                          {t('home.onboarding.items.mfa.action')}
-                        </Link>
-                      )}
-                      {item.id === 'verify' && !hideAccountLinks && (
-                        <Link to="/account/overview" className="btn btn-secondary btn-sm">
-                          {t('home.onboarding.items.verify.action')}
-                        </Link>
-                      )}
                       {item.id === 'alias' && (
                         <Link to="/identity/profile" className="btn btn-secondary btn-sm">
                           {t('home.onboarding.items.alias.action')}

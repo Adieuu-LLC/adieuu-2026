@@ -89,6 +89,7 @@ export function ConversationView() {
     deleteMessage,
     renameGroup,
     updateMemberSettings,
+    updateGifsDisabled,
     memberSettings,
     fetchRecipientKeys,
     listPendingGroupInvites,
@@ -210,21 +211,13 @@ export function ConversationView() {
   const gifsGloballyDisabled = gifVisibility === 'disabled';
   const [convGifHidden, setConvGifHidden] = useConversationGifHidden(id ?? '');
 
-  const [gifsDisabledOverride, setGifsDisabledOverride] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    setGifsDisabledOverride(null);
-  }, [id]);
-
-  const handleGifsDisabledByAdminToggle = useCallback(async (disabled: boolean) => {
-    if (!id) return;
-    setGifsDisabledOverride(disabled);
-    try {
-      await api.conversations.updateGifsDisabled(id, disabled);
-    } catch {
-      setGifsDisabledOverride(null);
-    }
-  }, [id, api]);
+  const handleGifsDisabledByAdminToggle = useCallback(
+    async (disabled: boolean) => {
+      if (!id) return;
+      await updateGifsDisabled(id, disabled);
+    },
+    [id, updateGifsDisabled],
+  );
 
   const handleToggleFs = useCallback(() => {
     setUseFs((v) => !v);
@@ -309,13 +302,7 @@ export function ConversationView() {
     return () => { cancelled = true; };
   }, [conversation?.id, conversation?.type, identity?.id, api]);
 
-  const effectiveGifsDisabled = gifsDisabledOverride ?? conversation?.gifsDisabled ?? false;
-
-  useEffect(() => {
-    if (gifsDisabledOverride !== null && conversation?.gifsDisabled === gifsDisabledOverride) {
-      setGifsDisabledOverride(null);
-    }
-  }, [conversation?.gifsDisabled, gifsDisabledOverride]);
+  const effectiveGifsDisabled = conversation?.gifsDisabled ?? false;
 
   const activeMessagesRef = useRef(activeMessages);
   activeMessagesRef.current = activeMessages;

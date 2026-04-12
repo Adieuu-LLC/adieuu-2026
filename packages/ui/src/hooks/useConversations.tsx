@@ -200,6 +200,8 @@ interface ConversationsContextValue {
   ) => Promise<boolean>;
   renameGroup: (conversationId: string, newName: string) => Promise<boolean>;
   updateMemberSettings: (conversationId: string, settings: MemberSettingsMap) => Promise<boolean>;
+  /** Persists GIF policy from the server into local conversation state (the toggling client is excluded from WS fan-out). */
+  updateGifsDisabled: (conversationId: string, gifsDisabled: boolean) => Promise<boolean>;
   promoteToAdmin: (conversationId: string, identityId: string) => Promise<boolean>;
   terminateGroup: (conversationId: string) => Promise<boolean>;
 
@@ -1410,6 +1412,21 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     [api]
   );
 
+  const updateGifsDisabled = useCallback(
+    async (conversationId: string, gifsDisabled: boolean): Promise<boolean> => {
+      const resp = await api.conversations.updateGifsDisabled(conversationId, gifsDisabled);
+      if (!resp.success || !resp.data) return false;
+      const updated = toDecrypted(resp.data);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...updated, unreadCount: c.unreadCount } : c
+        )
+      );
+      return true;
+    },
+    [api, toDecrypted]
+  );
+
   // -------------------------------------------------------------------------
   // Message deletion
   // -------------------------------------------------------------------------
@@ -1757,6 +1774,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       leaveGroup,
       renameGroup,
       updateMemberSettings: updateConversationMemberSettings,
+      updateGifsDisabled,
       promoteToAdmin,
       terminateGroup,
       acceptInvite,
@@ -1779,7 +1797,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     createDM, createGroup, sendTextMessage, loadOlder, loadNewer, jumpToLatestMessages,
     fetchMessagesAround, ensureReplyParentHydration,
     deleteMessage, addMember, removeMember, leaveGroup, renameGroup,
-    updateConversationMemberSettings, promoteToAdmin, terminateGroup,
+    updateConversationMemberSettings, updateGifsDisabled, promoteToAdmin, terminateGroup,
     acceptInvite, declineInvite, getInvitePreview, getFormerMembers,
     listPendingGroupInvites, revokeGroupInvite, resolveParticipants,
     fetchRecipientKeys, getSessionKeysForMessages, refresh,
