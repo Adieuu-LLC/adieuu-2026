@@ -25,10 +25,11 @@ const SOUND_ID_KEY_PREFIX = 'adieuu-achievement-sound-id-';
 const SOUND_CUSTOM_PATH_KEY_PREFIX = 'adieuu-achievement-sound-custom-';
 const SOUND_VOLUME_KEY_PREFIX = 'adieuu-achievement-sound-volume-';
 
-const DEFAULT_VOLUME = 1;
+/** Default gain for achievement unlock sound when no value is stored (100%). */
+export const DEFAULT_ACHIEVEMENT_SOUND_VOLUME = 1;
 
 function clampGain(n: number): number {
-  if (!Number.isFinite(n)) return DEFAULT_VOLUME;
+  if (!Number.isFinite(n)) return DEFAULT_ACHIEVEMENT_SOUND_VOLUME;
   return Math.min(MAX_NOTIFICATION_GAIN, Math.max(0, n));
 }
 
@@ -39,17 +40,17 @@ function isValidNotificationSoundId(value: string | null): value is Notification
 }
 
 function parseStoredVolume(raw: string | null): number {
-  if (raw === null) return DEFAULT_VOLUME;
+  if (raw === null) return DEFAULT_ACHIEVEMENT_SOUND_VOLUME;
   try {
     if (raw.includes('.')) {
       const f = parseFloat(raw);
-      return Number.isFinite(f) ? clampGain(f) : DEFAULT_VOLUME;
+      return Number.isFinite(f) ? clampGain(f) : DEFAULT_ACHIEVEMENT_SOUND_VOLUME;
     }
     const units = parseInt(raw, 10);
-    if (!Number.isFinite(units)) return DEFAULT_VOLUME;
+    if (!Number.isFinite(units)) return DEFAULT_ACHIEVEMENT_SOUND_VOLUME;
     return clampGain(units / 100);
   } catch {
-    return DEFAULT_VOLUME;
+    return DEFAULT_ACHIEVEMENT_SOUND_VOLUME;
   }
 }
 
@@ -66,7 +67,7 @@ export function loadAchievementPreferences(identityId: string): AchievementPrefe
   let soundEnabled = true;
   let achievementSoundId: NotificationSoundId = DEFAULT_ACHIEVEMENT_NOTIFICATION_SOUND_ID;
   let achievementSoundCustomPath: string | null = null;
-  let achievementSoundVolume = DEFAULT_VOLUME;
+  let achievementSoundVolume = DEFAULT_ACHIEVEMENT_SOUND_VOLUME;
 
   try {
     const popup = localStorage.getItem(POPUP_KEY_PREFIX + identityId);

@@ -16,6 +16,10 @@ import {
   setMentionNotificationSoundCustomPath,
   getMentionNotificationSoundVolume,
   setMentionNotificationSoundVolume,
+  getTtlNotificationSoundId,
+  setTtlNotificationSoundId,
+  getTtlNotificationSoundVolume,
+  setTtlNotificationSoundVolume,
 } from './notificationSoundPreferenceStorage';
 
 class MemoryStorage implements Storage {
@@ -67,7 +71,7 @@ describe('notification sound preference (localStorage)', () => {
   });
 
   it('defaults sound id to the default built-in preset', () => {
-    expect(getNotificationSoundId()).toBe('win-low');
+    expect(getNotificationSoundId()).toBe('adieuu_arrival');
   });
 
   it('persists sound id', () => {
@@ -77,7 +81,7 @@ describe('notification sound preference (localStorage)', () => {
 
   it('falls back to default for unknown stored ids', () => {
     localStorage.setItem('adieuu.app.notificationSoundId', 'nonexistent');
-    expect(getNotificationSoundId()).toBe('win-low');
+    expect(getNotificationSoundId()).toBe('adieuu_arrival');
   });
 
   it('defaults custom path to null', () => {
@@ -125,8 +129,8 @@ describe('mention notification sound preference (localStorage)', () => {
     });
   });
 
-  it('defaults mention sound id to magic', () => {
-    expect(getMentionNotificationSoundId()).toBe('magic');
+  it('defaults mention sound id to adieuu_mention', () => {
+    expect(getMentionNotificationSoundId()).toBe('adieuu_mention');
   });
 
   it('persists mention sound id', () => {
@@ -134,9 +138,9 @@ describe('mention notification sound preference (localStorage)', () => {
     expect(getMentionNotificationSoundId()).toBe('ding');
   });
 
-  it('falls back to magic for unknown stored ids', () => {
+  it('falls back to adieuu_mention for unknown stored ids', () => {
     localStorage.setItem('adieuu.app.mentionNotificationSoundId', 'nonexistent');
-    expect(getMentionNotificationSoundId()).toBe('magic');
+    expect(getMentionNotificationSoundId()).toBe('adieuu_mention');
   });
 
   it('defaults mention custom path to null', () => {
@@ -161,5 +165,40 @@ describe('mention notification sound preference (localStorage)', () => {
     expect(getMentionNotificationSoundVolume()).toBe(1);
     setMentionNotificationSoundVolume(2);
     expect(getMentionNotificationSoundVolume()).toBe(2);
+  });
+});
+
+describe('TTL notification sound preference (localStorage)', () => {
+  beforeEach(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: new MemoryStorage(),
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it('defaults TTL sound id to adieuu_click', () => {
+    expect(getTtlNotificationSoundId()).toBe('adieuu_click');
+  });
+
+  it('persists TTL sound id', () => {
+    setTtlNotificationSoundId('ding');
+    expect(getTtlNotificationSoundId()).toBe('ding');
+  });
+
+  it('falls back to adieuu_click for unknown stored ids', () => {
+    localStorage.setItem('adieuu.app.ttlNotificationSoundId', 'nonexistent');
+    expect(getTtlNotificationSoundId()).toBe('adieuu_click');
+  });
+
+  it('defaults TTL sound volume to 100%', () => {
+    expect(getTtlNotificationSoundVolume()).toBe(1);
+  });
+
+  it('persists TTL sound volume', () => {
+    setTtlNotificationSoundVolume(0.5);
+    expect(getTtlNotificationSoundVolume()).toBe(0.5);
+    setTtlNotificationSoundVolume(1);
+    expect(getTtlNotificationSoundVolume()).toBe(1);
   });
 });

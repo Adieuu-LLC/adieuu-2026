@@ -29,7 +29,10 @@ import {
   resetAchievementEmitHistory,
   type AchievementUnlockEvent,
 } from '../services/achievementEvents';
-import { loadAchievementPreferences } from '../hooks/useAchievementPreferences';
+import {
+  DEFAULT_ACHIEVEMENT_SOUND_VOLUME,
+  loadAchievementPreferences,
+} from '../hooks/useAchievementPreferences';
 
 const CLOSE_ANIMATION_MS = 300;
 
@@ -47,7 +50,7 @@ const FALLBACK_ACHIEVEMENT_PREFS = {
   soundEnabled: true,
   achievementSoundId: DEFAULT_ACHIEVEMENT_NOTIFICATION_SOUND_ID as NotificationSoundId,
   achievementSoundCustomPath: null as string | null,
-  achievementSoundVolume: 1,
+  achievementSoundVolume: DEFAULT_ACHIEVEMENT_SOUND_VOLUME,
 };
 
 export function AchievementListener() {

@@ -6,6 +6,7 @@
 import { MAX_NOTIFICATION_GAIN, type NotificationSoundId } from '../constants/notificationSoundPreferenceShared';
 import {
   getBuiltinNotificationSoundSrc,
+  getBuiltinPostNormGain,
   isBuiltinNotificationSoundId,
 } from '../constants/builtinNotificationSounds';
 import {
@@ -120,6 +121,7 @@ async function playBuiltin(
   gain: number
 ): Promise<void> {
   const src = getBuiltinSrc(id);
+  const postNorm = getBuiltinPostNormGain(id);
   const ctx = await ensureAudioContextRunning();
   if (ctx) {
     try {
@@ -132,11 +134,15 @@ async function playBuiltin(
           const buffer = await ctx.decodeAudioData(ab);
           const normGain = computeNormalizationGain(buffer);
           cachedBuiltinDecoded = { src, buffer, normGain };
-          playDecodedBuffer(ctx, buffer, gain * normGain);
+          playDecodedBuffer(ctx, buffer, gain * normGain * postNorm);
           return;
         }
       } else {
-        playDecodedBuffer(ctx, cachedBuiltinDecoded.buffer, gain * cachedBuiltinDecoded.normGain);
+        playDecodedBuffer(
+          ctx,
+          cachedBuiltinDecoded.buffer,
+          gain * cachedBuiltinDecoded.normGain * postNorm
+        );
         return;
       }
     } catch (err) {
@@ -145,7 +151,7 @@ async function playBuiltin(
   }
   try {
     const audio = new Audio(src);
-    audio.volume = Math.min(1, gain);
+    audio.volume = Math.min(1, gain * postNorm);
     await audio.play();
   } catch (err) {
     console.warn('[notificationSound] HTMLAudio fallback failed for built-in sound:', err);

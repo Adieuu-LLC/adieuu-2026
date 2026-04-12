@@ -44,7 +44,7 @@ describe('fireConversationNotification', () => {
         toast: { info: toastInfo },
         soundPref: {
           enabled: true,
-          soundId: 'win-low',
+          soundId: 'adieuu_arrival',
           customPath: null,
           suppressWhenFocused: true,
           volume: 1,
@@ -71,7 +71,7 @@ describe('fireConversationNotification', () => {
         toast: { info: () => undefined },
         soundPref: {
           enabled: true,
-          soundId: 'win-low',
+          soundId: 'adieuu_arrival',
           customPath: null,
           suppressWhenFocused: true,
           volume: 1,
@@ -101,7 +101,7 @@ describe('fireConversationNotification', () => {
         toast: { info: () => undefined },
         soundPref: {
           enabled: true,
-          soundId: 'win-low',
+          soundId: 'adieuu_arrival',
           customPath: null,
           suppressWhenFocused: true,
           volume: 1,
@@ -126,7 +126,7 @@ describe('fireConversationNotification', () => {
     };
     const ttlPref = {
       enabled: true,
-      soundId: 'hype' as const,
+      soundId: 'adieuu_click' as const,
       customPath: null,
       suppressWhenFocused: true,
       volume: 0.9,
@@ -139,7 +139,7 @@ describe('fireConversationNotification', () => {
         toast: { info: () => undefined },
         soundPref: {
           enabled: true,
-          soundId: 'win-low',
+          soundId: 'adieuu_arrival',
           customPath: null,
           suppressWhenFocused: true,
           volume: 1,
@@ -171,7 +171,7 @@ describe('fireConversationNotification', () => {
         toast: { info: () => undefined },
         soundPref: {
           enabled: true,
-          soundId: 'win-low',
+          soundId: 'adieuu_arrival',
           customPath: null,
           suppressWhenFocused: true,
           volume: 1,
@@ -182,7 +182,7 @@ describe('fireConversationNotification', () => {
     );
     expect(playNotificationSoundMock).toHaveBeenCalledTimes(1);
     const callArgs = playNotificationSoundMock.mock.calls[0]![0] as Record<string, unknown>;
-    expect(callArgs.soundId).toBe('win-low');
+    expect(callArgs.soundId).toBe('adieuu_arrival');
     expect(callArgs.volume).toBe(1);
   });
 });

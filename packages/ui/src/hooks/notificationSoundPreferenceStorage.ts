@@ -201,7 +201,7 @@ const TTL_STORAGE_KEY_SOUND_ID = 'adieuu.app.ttlNotificationSoundId';
 const TTL_STORAGE_KEY_CUSTOM_PATH = 'adieuu.app.ttlNotificationSoundCustomPath';
 const TTL_STORAGE_KEY_VOLUME = 'adieuu.app.ttlNotificationSoundVolume';
 
-export const DEFAULT_TTL_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId = 'hype';
+export const DEFAULT_TTL_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId = 'adieuu_click';
 
 export function getTtlNotificationSoundId(): NotificationSoundId {
   if (typeof localStorage === 'undefined') return DEFAULT_TTL_NOTIFICATION_SOUND_ID;
@@ -305,7 +305,7 @@ const MENTION_STORAGE_KEY_SOUND_ID = 'adieuu.app.mentionNotificationSoundId';
 const MENTION_STORAGE_KEY_CUSTOM_PATH = 'adieuu.app.mentionNotificationSoundCustomPath';
 const MENTION_STORAGE_KEY_VOLUME = 'adieuu.app.mentionNotificationSoundVolume';
 
-export const DEFAULT_MENTION_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId = 'magic';
+export const DEFAULT_MENTION_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId = 'adieuu_mention';
 
 export function getMentionNotificationSoundId(): NotificationSoundId {
   if (typeof localStorage === 'undefined') return DEFAULT_MENTION_NOTIFICATION_SOUND_ID;

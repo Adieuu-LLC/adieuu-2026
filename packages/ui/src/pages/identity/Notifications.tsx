@@ -49,6 +49,7 @@ import {
   ensureAudioContextRunning,
 } from '../../utils/notificationSound';
 import {
+  DEFAULT_ACHIEVEMENT_SOUND_VOLUME,
   loadAchievementPreferences,
   saveAchievementPopupEnabled,
   saveAchievementSoundCustomPath,
@@ -90,7 +91,7 @@ export function IdentityNotifications() {
       soundEnabled: true,
       achievementSoundId: DEFAULT_ACHIEVEMENT_NOTIFICATION_SOUND_ID as NotificationSoundId,
       achievementSoundCustomPath: null as string | null,
-      achievementSoundVolume: 1,
+      achievementSoundVolume: DEFAULT_ACHIEVEMENT_SOUND_VOLUME,
     }),
     []
   );

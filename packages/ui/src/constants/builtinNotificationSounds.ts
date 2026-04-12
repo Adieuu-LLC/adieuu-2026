@@ -10,12 +10,18 @@ const BUILTIN_PREFIX = '/sounds/';
  * displayName is shown in the UI (English); extend i18n later if needed.
  */
 export const BUILTIN_NOTIFICATION_SOUNDS = [
-  { id: 'achievement', displayName: 'Achievement', filename: 'achievement.mp3' },
   {
     id: 'adieuu_achievement',
-    displayName: 'Adieuu achievement',
+    displayName: 'Adieuu: Achieved',
     filename: 'adieuu_achievement.mp3',
   },
+  { id: 'adieuu_arrival', displayName: 'Adieuu: Arrival', filename: 'adieuu_arrival.mp3' },
+  
+  { id: 'adieuu_click', displayName: 'Adieuu: Click', filename: 'adieuu_click.mp3' },
+  { id: 'adieuu_mention', displayName: 'Adieuu: Mention', filename: 'adieuu_mention.mp3' },
+  { id: 'adieuu_timed', displayName: 'Adieuu: Timed', filename: 'adieuu_timed.mp3' },
+  { id: 'adieuu_twist', displayName: 'Adieuu: Twist', filename: 'adieuu_twist.mp3' },
+  { id: 'achievement', displayName: 'Achievement', filename: 'achievement.mp3' },
   { id: 'bike', displayName: 'Bike', filename: 'bike.mp3' },
   { id: 'blip', displayName: 'Blip', filename: 'blip.mp3' },
   { id: 'boing', displayName: 'Boing', filename: 'boing.mp3' },
@@ -69,11 +75,23 @@ export const BUILTIN_NOTIFICATION_SOUNDS = [
 
 export type BuiltinNotificationSoundId = (typeof BUILTIN_NOTIFICATION_SOUNDS)[number]['id'];
 
-export const DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId = 'win-low';
+export const DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId = 'adieuu_arrival';
 
 /** Default built-in for achievement-unlock sound (separate from DM notification default). */
 export const DEFAULT_ACHIEVEMENT_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId =
   'adieuu_achievement';
+
+/**
+ * Extra linear multiplier after client-side loudness normalization (which targets ~−18 dBFS for
+ * every built-in). Without this, a hotter master file is still scaled down to match other presets.
+ */
+const BUILTIN_POST_NORM_GAIN: Partial<Record<BuiltinNotificationSoundId, number>> = {
+  adieuu_arrival: 1.75,
+};
+
+export function getBuiltinPostNormGain(id: BuiltinNotificationSoundId): number {
+  return BUILTIN_POST_NORM_GAIN[id] ?? 1;
+}
 
 const builtinIdToFilename = new Map<string, string>(
   BUILTIN_NOTIFICATION_SOUNDS.map((s) => [s.id, s.filename])
