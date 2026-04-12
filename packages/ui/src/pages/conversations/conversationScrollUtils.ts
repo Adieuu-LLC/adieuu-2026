@@ -5,10 +5,16 @@
 /** Max decrypted messages kept per conversation in memory before trimming. */
 export const MAX_LOADED_MESSAGES = 120;
 
-/** Older-side window when jumping to a reply target (API `before`). */
-export const REPLY_JUMP_CONTEXT_BEFORE = 15;
-/** Newer-side window when jumping to a reply target (API `after`). */
-export const REPLY_JUMP_CONTEXT_AFTER = 15;
+/**
+ * Default page size for `getMessages` in the client — used to size reply/deep-link jumps as
+ * “half a page” on each side of the target (plus the target).
+ */
+export const DEFAULT_MESSAGE_PAGE_LIMIT = 30;
+
+/** Older-side window when jumping to a reply target (API `before`); half of {@link DEFAULT_MESSAGE_PAGE_LIMIT}. */
+export const REPLY_JUMP_CONTEXT_BEFORE = Math.floor(DEFAULT_MESSAGE_PAGE_LIMIT / 2);
+/** Newer-side window when jumping to a reply target (API `after`); half of {@link DEFAULT_MESSAGE_PAGE_LIMIT}. */
+export const REPLY_JUMP_CONTEXT_AFTER = Math.floor(DEFAULT_MESSAGE_PAGE_LIMIT / 2);
 
 /** Smallest valid `getMessagesAround` window when hydrating reply-quote parents outside the buffer (API minimum is 1). */
 export const REPLY_QUOTE_HYDRATION_BEFORE = 1;

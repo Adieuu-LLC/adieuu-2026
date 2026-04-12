@@ -42,6 +42,8 @@ import {
   applyHistoryScrollAnchor,
   applyDistanceFromBottom,
   readDistanceFromBottom,
+  REPLY_JUMP_CONTEXT_AFTER,
+  REPLY_JUMP_CONTEXT_BEFORE,
   type HistoryScrollAnchor,
 } from './conversationScrollUtils';
 import { ConversationToolbar } from './ConversationToolbar';
@@ -375,6 +377,7 @@ export function ConversationView() {
   );
 
   const handleReachOlder = useCallback(() => {
+    if (pendingScrollToRef.current) return;
     if (!activeMessagesOlderCursor || messagesLoading) return;
     const vp = scrollViewportRef.current;
     const content = messagesContentRef.current;
@@ -398,6 +401,7 @@ export function ConversationView() {
   }, [activeMessagesOlderCursor, messagesLoading, loadOlder, scrollViewportRef, messagesContentRef]);
 
   const handleReachNewer = useCallback(() => {
+    if (pendingScrollToRef.current) return;
     if (!activeMessagesHasNewerPages || messagesLoading) return;
     const vp = scrollViewportRef.current;
     const content = messagesContentRef.current;
@@ -775,7 +779,10 @@ export function ConversationView() {
         clearConversationScrollCache(id);
         setIsAtBottom(false);
         replyAroundFetchPendingRef.current = true;
-        void fetchMessagesAround(id, targetId).then((ok) => {
+        void fetchMessagesAround(id, targetId, {
+          before: REPLY_JUMP_CONTEXT_BEFORE,
+          after: REPLY_JUMP_CONTEXT_AFTER,
+        }).then((ok) => {
           replyAroundFetchPendingRef.current = false;
           if (!ok) pendingScrollToRef.current = null;
         });
@@ -784,7 +791,11 @@ export function ConversationView() {
     [flashMessageHighlight, id, fetchMessagesAround, setIsAtBottom]
   );
 
-  useEffect(() => {
+  /**
+   * Run pending jump-to-message before paint so the scroll viewport moves to the target
+   * before top/bottom intersection observers can fire incremental page loads.
+   */
+  useLayoutEffect(() => {
     if (!pendingScrollToRef.current) return;
     const pendingId = pendingScrollToRef.current;
     const idx = flatItems.findIndex((i) => i.type === 'message' && i.msg.id === pendingId);
@@ -794,8 +805,10 @@ export function ConversationView() {
         typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
           ? CSS.escape(pendingId)
           : pendingId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      requestAnimationFrame(() => {
-        vp?.querySelector(`[data-message-id="${escaped}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      vp?.querySelector(`[data-message-id="${escaped}"]`)?.scrollIntoView({
+        block: 'center',
+        // Snap immediately so top/bottom sentinels do not fire incremental paging before we land on the target.
+        behavior: 'auto',
       });
       pendingScrollToRef.current = null;
       replyAroundFetchPendingRef.current = false;

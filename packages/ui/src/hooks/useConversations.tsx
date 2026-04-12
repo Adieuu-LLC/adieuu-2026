@@ -76,6 +76,7 @@ import {
 } from '../services/conversationGroupActions';
 import { getSessionKeysForMessages as loadSessionKeysForMessages } from '../services/sessionKeyRetrieval';
 import {
+  DEFAULT_MESSAGE_PAGE_LIMIT,
   MAX_LOADED_MESSAGES,
   REPLY_JUMP_CONTEXT_AFTER,
   REPLY_JUMP_CONTEXT_BEFORE,
@@ -507,7 +508,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       }
 
       try {
-        const limit = mergeLatest ? 1 : 30;
+        const limit = mergeLatest ? 1 : DEFAULT_MESSAGE_PAGE_LIMIT;
         const resp = await api.conversations.getMessages(conversationId, {
           limit,
           ...(mergeLatest
