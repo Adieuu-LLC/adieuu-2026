@@ -731,28 +731,31 @@ export function ConversationView() {
   // shows the latest until we re-pin — must run in layout *after* prepend restoration above.
   useLayoutEffect(() => {
     if (!id) return;
+    if (activeConversationId !== id) return;
     const vp = scrollViewportRef.current;
     if (!vp) return;
     if (!isAtBottomRef.current) return;
     vp.scrollTop = vp.scrollHeight - vp.clientHeight;
-  }, [messageLayoutKey, id]);
+  }, [messageLayoutKey, id, activeConversationId]);
 
+  /** Snap to latest when opening a conversation without a saved scroll position. Do not gate on isAtBottomRef in
+   * the rAF callback: the first scroll event can fire at scrollTop 0 (far from bottom) before we pin, which would
+   * clear isAtBottomRef and skip the snap while initialOpenBottomSnapDoneRef is already true. */
   useLayoutEffect(() => {
     if (!id || cachedScrollIndex != null) return;
+    if (activeConversationId !== id) return;
     if (flatItems.length === 0 || messagesLoading) return;
     if (pendingScrollToRef.current) return;
     if (urlMessageIdOnConversationEntryRef.current) return;
     if (initialOpenBottomSnapDoneRef.current) return;
     initialOpenBottomSnapDoneRef.current = true;
     const run = () => {
-      if (!isAtBottomRef.current) return;
-      const vp = scrollViewportRef.current;
-      if (vp) vp.scrollTop = vp.scrollHeight - vp.clientHeight;
+      scrollToBottom('auto');
     };
     requestAnimationFrame(() => {
       requestAnimationFrame(run);
     });
-  }, [id, cachedScrollIndex, flatItems.length, messagesLoading]);
+  }, [id, activeConversationId, cachedScrollIndex, flatItems.length, messagesLoading, scrollToBottom]);
 
   const FLASH_HIGHLIGHT_MS = 2800;
 
