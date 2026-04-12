@@ -9,6 +9,7 @@
  */
 
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   createApiClient,
   type PublicReaction,
@@ -41,9 +42,16 @@ import { decryptReactionsBatch } from '../services/reactionDecryptionPipeline';
 import {
   mergeReactionsByMessageId,
   groupReactions,
+  OPTIMISTIC_REACTION_ID_PREFIX,
+  isOptimisticReactionId,
   type GroupedReaction,
 } from '../utils/reactionGrouping';
+import { useToast } from '../components/Toast';
 export type { GroupedReaction } from '../utils/reactionGrouping';
+
+function optimisticReactionLocalId(clientReactionId: string): string {
+  return `${OPTIMISTIC_REACTION_ID_PREFIX}${clientReactionId}`;
+}
 
 // ============================================================================
 // Types
@@ -95,10 +103,15 @@ async function persistReactionFsSessionKey(
 // ============================================================================
 
 export function useReactions(conversationId: string | null) {
+  const { t } = useTranslation();
+  const toast = useToast();
   const { identity, getSigningKey, getCurrentDeviceId, getWrappingKey } =
     useIdentity();
   const { apiBaseUrl } = useAppConfig();
   const { subscribe, onStateChange } = useChatSocket();
+
+  /** Abort in-flight POST /reactions when the user toggles off an optimistic reaction. */
+  const pendingReactionAddAborts = useRef(new Map<string, AbortController>());
 
   const api = useMemo(
     () => createApiClient({ baseUrl: apiBaseUrl }),
@@ -247,8 +260,46 @@ export function useReactions(conversationId: string | null) {
       const signingKey = getSigningKey();
       if (!signingKey) return false;
 
+      const clientReactionId = crypto.randomUUID();
+      const optimisticId = optimisticReactionLocalId(clientReactionId);
+      const abortController = new AbortController();
+      pendingReactionAddAborts.current.set(optimisticId, abortController);
+
+      const optimistic: DecryptedReaction = {
+        id: optimisticId,
+        messageId,
+        conversationId,
+        fromIdentityId: identity.id,
+        emoji,
+        verified: true,
+        createdAt: new Date().toISOString(),
+      };
+
+      setState((prev) => {
+        const existing = prev.byMessage[messageId] ?? [];
+        return {
+          ...prev,
+          byMessage: {
+            ...prev.byMessage,
+            [messageId]: [...existing, optimistic],
+          },
+        };
+      });
+
+      const rollbackOptimistic = () => {
+        setState((prev) => {
+          const existing = prev.byMessage[messageId] ?? [];
+          return {
+            ...prev,
+            byMessage: {
+              ...prev.byMessage,
+              [messageId]: existing.filter((r) => r.id !== optimisticId),
+            },
+          };
+        });
+      };
+
       try {
-        const clientReactionId = crypto.randomUUID();
         const encrypted = encryptReaction(
           emoji,
           identity.id,
@@ -256,14 +307,23 @@ export function useReactions(conversationId: string | null) {
           signingKey
         );
 
-        const resp = await api.reactions.add(conversationId, messageId, {
-          ciphertext: encrypted.ciphertext,
-          nonce: encrypted.nonce,
-          wrappedKeys: encrypted.wrappedKeys,
-          signature: encrypted.signature,
-          cryptoProfile: encrypted.cryptoProfile,
-          clientReactionId,
-        });
+        const resp = await api.reactions.add(
+          conversationId,
+          messageId,
+          {
+            ciphertext: encrypted.ciphertext,
+            nonce: encrypted.nonce,
+            wrappedKeys: encrypted.wrappedKeys,
+            signature: encrypted.signature,
+            cryptoProfile: encrypted.cryptoProfile,
+            clientReactionId,
+          },
+          { signal: abortController.signal }
+        );
+
+        if (abortController.signal.aborted) {
+          return false;
+        }
 
         if (resp.success && resp.data) {
           const decryptedReaction: DecryptedReaction = {
@@ -278,24 +338,43 @@ export function useReactions(conversationId: string | null) {
 
           setState((prev) => {
             const existing = prev.byMessage[messageId] ?? [];
+            const withoutOptimistic = existing.filter((r) => r.id !== optimisticId);
+            if (withoutOptimistic.some((r) => r.id === decryptedReaction.id)) {
+              return {
+                ...prev,
+                byMessage: {
+                  ...prev.byMessage,
+                  [messageId]: withoutOptimistic,
+                },
+              };
+            }
             return {
               ...prev,
               byMessage: {
                 ...prev.byMessage,
-                [messageId]: [...existing, decryptedReaction],
+                [messageId]: [...withoutOptimistic, decryptedReaction],
               },
             };
           });
 
           return true;
         }
-      } catch {
-        // Reaction failed
-      }
 
-      return false;
+        rollbackOptimistic();
+        toast.error(t('conversations.reactionSaveError'));
+        return false;
+      } catch {
+        if (abortController.signal.aborted) {
+          return false;
+        }
+        rollbackOptimistic();
+        toast.error(t('conversations.reactionSaveError'));
+        return false;
+      } finally {
+        pendingReactionAddAborts.current.delete(optimisticId);
+      }
     },
-    [conversationId, identity, getSigningKey, api]
+    [conversationId, identity, getSigningKey, api, toast, t]
   );
 
   // ---- Remove reaction ----
@@ -303,6 +382,39 @@ export function useReactions(conversationId: string | null) {
   const removeReaction = useCallback(
     async (reactionId: string, messageId: string): Promise<boolean> => {
       if (!conversationId) return false;
+
+      if (isOptimisticReactionId(reactionId)) {
+        const ac = pendingReactionAddAborts.current.get(reactionId);
+        ac?.abort();
+        pendingReactionAddAborts.current.delete(reactionId);
+        setState((prev) => {
+          const existing = prev.byMessage[messageId] ?? [];
+          return {
+            ...prev,
+            byMessage: {
+              ...prev.byMessage,
+              [messageId]: existing.filter((r) => r.id !== reactionId),
+            },
+          };
+        });
+        return true;
+      }
+
+      const previous =
+        byMessageRef.current[messageId]?.find((r) => r.id === reactionId) ??
+        null;
+      if (!previous) return false;
+
+      setState((prev) => {
+        const existing = prev.byMessage[messageId] ?? [];
+        return {
+          ...prev,
+          byMessage: {
+            ...prev.byMessage,
+            [messageId]: existing.filter((r) => r.id !== reactionId),
+          },
+        };
+      });
 
       try {
         const resp = await api.reactions.remove(conversationId, reactionId);
@@ -316,25 +428,27 @@ export function useReactions(conversationId: string | null) {
               console.error('[Reactions] Session key delete on remove failed', err)
             );
           }
-          setState((prev) => {
-            const existing = prev.byMessage[messageId] ?? [];
-            return {
-              ...prev,
-              byMessage: {
-                ...prev.byMessage,
-                [messageId]: existing.filter((r) => r.id !== reactionId),
-              },
-            };
-          });
           return true;
         }
       } catch {
-        // Remove failed
+        // Remove failed — restore below
       }
 
+      setState((prev) => {
+        const existing = prev.byMessage[messageId] ?? [];
+        if (existing.some((r) => r.id === reactionId)) return prev;
+        return {
+          ...prev,
+          byMessage: {
+            ...prev.byMessage,
+            [messageId]: [...existing, previous],
+          },
+        };
+      });
+      toast.error(t('conversations.reactionRemoveError'));
       return false;
     },
-    [conversationId, api, identity]
+    [conversationId, api, identity, toast, t]
   );
 
   // ---- Group reactions for display ----

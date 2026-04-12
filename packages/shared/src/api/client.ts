@@ -2755,11 +2755,13 @@ export class ReactionsApi {
   async add(
     conversationId: string,
     messageId: string,
-    params: SendReactionParams
+    params: SendReactionParams,
+    options?: RequestOptions
   ): Promise<ApiResponse<PublicReaction>> {
     return this.client.post(
       `/api/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/reactions`,
-      params
+      params,
+      options
     );
   }
 

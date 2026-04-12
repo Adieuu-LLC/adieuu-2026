@@ -242,7 +242,7 @@ export function ConversationMessageList({
       scrollToMessageId, onDeleteMessage, onReact, onToggleReaction,
       onReportMessage, getGroupedReactions, favoriteEmojis, onAddFavorite,
       onRemoveFavorite, fsInfo, messageLayout, memberColorDisplay,
-      flashingMessageId, onReply, onLinkClick, onMentionClick,
+      flashingMessageId, onReply, onLinkClick, onMentionClick, gifsEnabled,
     ],
   );
 

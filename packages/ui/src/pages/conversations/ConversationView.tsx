@@ -1112,7 +1112,7 @@ export function ConversationView() {
               mentionSource={composerMentionSource}
               placeholderTarget={displayName}
               mentionInsertRef={mentionInsertRef}
-              gifsDisabled={effectiveGifsDisabled}
+              gifsDisabled={effectiveGifsDisabled || convGifHidden || gifsGloballyDisabled}
               lastMessageText={lastMessageText}
               disabled={isDmBlocked || blockedByOther}
             />

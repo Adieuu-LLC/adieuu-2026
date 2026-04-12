@@ -6139,6 +6139,113 @@ a {
 }
 
 // ============================================================================
+// Conversation settings (right panel): Ark UI tabs, sidebar-style triggers
+// ============================================================================
+
+.conversation-settings-sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100%;
+}
+
+.conversation-settings-header {
+  flex-shrink: 0;
+  padding: var(--spacing-sm) var(--spacing-sm) 0;
+}
+
+.conversation-settings-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.conversation-settings-tabs-list {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--spacing-xs);
+  padding: 0 var(--spacing-sm) var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.conversation-settings-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    color var(--transition-fast);
+  flex: 1 1 0;
+  justify-content: center;
+  min-width: 0;
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-secondary);
+  }
+
+  &[data-selected] {
+    background: var(--color-bg-active);
+    color: var(--color-accent-primary);
+  }
+}
+
+.conversation-settings-tab-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.conversation-settings-tab-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// Ark Tabs.Content sets `hidden` on inactive panels; a bare `display: flex` here
+// overrides the UA [hidden] rule so both panels stayed visible.
+.conversation-settings-tab-panel {
+  &[hidden] {
+    display: none !important;
+  }
+
+  &:not([hidden]) {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-sm);
+  }
+}
+
+.conversation-settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-sm);
+}
+
+// ============================================================================
 // Sidebar Friends List
 // ============================================================================
 

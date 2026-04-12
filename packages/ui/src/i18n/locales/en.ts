@@ -1436,6 +1436,8 @@ export const en = {
     members: 'Members',
     directMessage: 'Direct message',
     settings: 'Settings',
+    settingsTabPersonal: 'For you',
+    settingsTabConversation: 'Conversation',
     leave: 'Leave',
     you: 'You',
     admin: 'Admin',
@@ -1449,6 +1451,8 @@ export const en = {
     backHome: 'Back to home',
     deleteGroup: 'Delete Group',
     deleteConversation: 'Delete conversation',
+    reactionSaveError: 'Could not save your reaction.',
+    reactionRemoveError: 'Could not remove your reaction.',
 
     leaveGroup: {
       title: 'Leave group?',

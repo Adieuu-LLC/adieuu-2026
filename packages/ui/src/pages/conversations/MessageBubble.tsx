@@ -599,6 +599,7 @@ export const MessageBubble = memo(function MessageBubble({
   if (prev.layout !== next.layout) return false;
   if (prev.isFlashHighlight !== next.isFlashHighlight) return false;
   if (prev.memberColorDisplay !== next.memberColorDisplay) return false;
+  if (prev.gifsEnabled !== next.gifsEnabled) return false;
 
   const pm = prev.message;
   const nm = next.message;

@@ -1,5 +1,26 @@
 import type { DecryptedReaction } from '../services/reactionCryptoService';
 
+/** Local-only reaction row id while the create request is in flight (not a server id). */
+export const OPTIMISTIC_REACTION_ID_PREFIX = '__optimistic__:';
+
+export function isOptimisticReactionId(id: string): boolean {
+  return id.startsWith(OPTIMISTIC_REACTION_ID_PREFIX);
+}
+
+function stripStaleOptimisticForFetched(
+  prevList: DecryptedReaction[],
+  fetchedList: DecryptedReaction[]
+): DecryptedReaction[] {
+  const keys = new Set(
+    fetchedList.map((r) => `${r.fromIdentityId}:${r.emoji}`)
+  );
+  return prevList.filter((r) => {
+    if (!isOptimisticReactionId(r.id)) return true;
+    const key = `${r.fromIdentityId}:${r.emoji}`;
+    return !keys.has(key);
+  });
+}
+
 export interface GroupedReaction {
   emoji: string;
   count: number;
@@ -15,7 +36,8 @@ export function mergeReactionsByMessageId(
 ): Record<string, DecryptedReaction[]> {
   const merged = { ...prev };
   for (const [messageId, fetchedList] of Object.entries(fetched)) {
-    const prevList = prev[messageId] ?? [];
+    const prevListRaw = prev[messageId] ?? [];
+    const prevList = stripStaleOptimisticForFetched(prevListRaw, fetchedList);
     const byId = new Map<string, DecryptedReaction>();
     for (const reaction of prevList) {
       byId.set(reaction.id, reaction);
