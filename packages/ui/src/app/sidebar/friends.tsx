@@ -35,7 +35,7 @@ export function FriendsSidebarButton({
       icon={<Icon name="users" />}
       label={buttonLabel}
       onClick={onToggle}
-      isActive={isOpen}
+      isActive={isOpen || hasRequests}
     />
   );
 }

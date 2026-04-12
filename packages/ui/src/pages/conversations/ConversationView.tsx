@@ -1190,6 +1190,8 @@ export function ConversationView() {
         onCreateNewConversation={() => navigate('/conversations/new', {
           state: { preSelectedIds: otherParticipants },
         })}
+        pendingInvites={conversation.type === 'group' ? pendingInvites : []}
+        onInviteMemberSuccess={refreshPendingInvites}
         reportModalOpen={reportModalOpen}
         setReportModalOpen={setReportModalOpen}
         reportTargetMessageId={reportTargetMessageId}

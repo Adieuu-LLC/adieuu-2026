@@ -70,6 +70,9 @@ const FriendsContext = createContext<FriendsContextValue | null>(null);
 
 const POLL_INTERVAL_MS = 30_000;
 const LOCAL_SEARCH_THRESHOLD = 50;
+/** API max per page; we follow cursors until exhausted (cap pages to avoid runaway). */
+const FRIENDS_PAGE_SIZE = 100;
+const MAX_FRIEND_PAGES = 50;
 
 export interface FriendsProviderProps {
   children: ReactNode;
@@ -112,10 +115,23 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
 
   const fetchFriends = useCallback(async () => {
     try {
-      const res = await api.friends.getFriends(100);
-      if (res.success && res.data) {
-        setFriends(res.data.friends);
+      const merged: FriendInfo[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < MAX_FRIEND_PAGES; page++) {
+        const res = await api.friends.getFriends(FRIENDS_PAGE_SIZE, cursor);
+        if (!res.success || !res.data) break;
+        merged.push(...res.data.friends);
+        const next = res.data.cursor;
+        if (!next) break;
+        cursor = next;
       }
+      const seen = new Set<string>();
+      const deduped = merged.filter((f) => {
+        if (seen.has(f.identity.id)) return false;
+        seen.add(f.identity.id);
+        return true;
+      });
+      setFriends(deduped);
     } catch {
       // Silently fail -- will retry on next refresh
     }

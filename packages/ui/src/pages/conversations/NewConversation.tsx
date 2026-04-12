@@ -5,7 +5,7 @@
  * by selecting friends from their friends list.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConversations } from '../../hooks/useConversations';
@@ -13,17 +13,20 @@ import { useFriends } from '../../hooks/useFriends';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Icon } from '../../icons/Icon';
+import { mergeFriendInfosById } from './inviteMemberModalUtils';
 
 interface NewConversationLocationState {
   preSelectedIds?: string[];
 }
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 export function NewConversation() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { createDM, createGroup } = useConversations();
-  const { friends } = useFriends();
+  const { friends, searchFriends } = useFriends();
 
   const locationState = location.state as NewConversationLocationState | null;
   const [selectedIds, setSelectedIds] = useState<string[]>(
@@ -31,17 +34,43 @@ export function NewConversation() {
   );
   const [groupName, setGroupName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<typeof friends | undefined>(undefined);
+  const [isSearching, setIsSearching] = useState(false);
   const [creating, setCreating] = useState(false);
+  const searchSeqRef = useRef(0);
 
   const isGroup = selectedIds.length > 1;
 
-  const filteredFriends = searchQuery.trim()
-    ? friends.filter(
-        (f) =>
-          f.identity.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          f.identity.username.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : friends;
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (q.length < 2) {
+      setSearchResults(undefined);
+      setIsSearching(false);
+      return;
+    }
+    setIsSearching(true);
+    const seq = ++searchSeqRef.current;
+    const timer = setTimeout(() => {
+      void (async () => {
+        const res = await searchFriends(q);
+        if (searchSeqRef.current !== seq) return;
+        setSearchResults(res);
+        setIsSearching(false);
+      })();
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchFriends]);
+
+  const filteredFriends = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (q.length < 2) return friends;
+    const merged = mergeFriendInfosById([friends, searchResults ?? []]);
+    return merged.filter(
+      (f) =>
+        f.identity.displayName.toLowerCase().includes(q) ||
+        f.identity.username.toLowerCase().includes(q)
+    );
+  }, [friends, searchQuery, searchResults]);
 
   const toggleSelection = useCallback((identityId: string) => {
     setSelectedIds((prev) =>
@@ -94,6 +123,7 @@ export function NewConversation() {
         <Input
           inputSize="sm"
           leftIcon={<Icon name="search" />}
+          rightIcon={isSearching ? <span className="spinner spinner-sm" /> : undefined}
           placeholder={t('conversations.searchFriendsPlaceholder', 'Search friends...')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -103,6 +133,7 @@ export function NewConversation() {
       <div className="new-conversation-list">
         {filteredFriends.map((friend) => {
           const isSelected = selectedIds.includes(friend.identity.id);
+          const initialSource = friend.identity.displayName || friend.identity.username || '?';
           return (
             <button
               key={friend.identity.id}
@@ -119,7 +150,7 @@ export function NewConversation() {
                   />
                 ) : (
                   <span className="new-conversation-item-avatar-placeholder">
-                    {friend.identity.displayName.charAt(0).toUpperCase()}
+                    {initialSource.charAt(0).toUpperCase()}
                   </span>
                 )}
               </div>
@@ -142,7 +173,7 @@ export function NewConversation() {
 
         {filteredFriends.length === 0 && (
           <div className="new-conversation-empty">
-            {searchQuery
+            {searchQuery.trim()
               ? t('conversations.noMatchingFriends', 'No matching friends')
               : t('conversations.noFriendsToMessage', 'No friends to message. Add friends first!')}
           </div>

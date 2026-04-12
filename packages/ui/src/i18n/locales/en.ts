@@ -1529,6 +1529,8 @@ export const en = {
       previouslyLeft: 'Previously left',
       noEligible: 'No friends available to invite',
       createNew: 'Create New Conversation Instead',
+      statusMember: 'Member',
+      statusInvited: 'Invited',
     },
 
     newUnreads: 'New messages',

@@ -4,7 +4,7 @@ import { AdminTransferDialog } from '../../components/AdminTransferDialog';
 import { ReportModal } from '../../components/ReportModal';
 import { ExternalLinkModal } from '../../components/ExternalLinkModal';
 import { InviteMemberModal } from './InviteMemberModal';
-import type { PublicIdentity } from '@adieuu/shared';
+import type { PublicGroupInvite, PublicIdentity } from '@adieuu/shared';
 
 export function ConversationDialogs({
   conversationId,
@@ -29,6 +29,8 @@ export function ConversationDialogs({
   inviteMemberOpen,
   setInviteMemberOpen,
   onCreateNewConversation,
+  pendingInvites,
+  onInviteMemberSuccess,
   reportModalOpen,
   setReportModalOpen,
   reportTargetMessageId,
@@ -57,6 +59,8 @@ export function ConversationDialogs({
   inviteMemberOpen: boolean;
   setInviteMemberOpen: (open: boolean) => void;
   onCreateNewConversation: () => void;
+  pendingInvites: PublicGroupInvite[];
+  onInviteMemberSuccess?: () => void;
   reportModalOpen: boolean;
   setReportModalOpen: (open: boolean) => void;
   reportTargetMessageId: string | undefined;
@@ -116,7 +120,10 @@ export function ConversationDialogs({
           onOpenChange={setInviteMemberOpen}
           conversationId={conversationId}
           currentParticipants={participants}
+          pendingInvites={pendingInvites}
+          participantProfiles={participantProfiles}
           onCreateNewConversation={onCreateNewConversation}
+          onInviteSuccess={onInviteMemberSuccess}
         />
       )}
 

@@ -3953,6 +3953,48 @@ a {
     font-style: italic;
   }
 
+  .invite-member-modal-item-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xxs);
+    margin-top: 2px;
+  }
+
+  .invite-member-modal-item-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+
+    &--member {
+      color: var(--color-text-muted);
+      background: var(--color-bg-tertiary);
+    }
+
+    &--invited {
+      color: var(--color-accent-primary);
+      background: color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
+    }
+  }
+
+  .invite-member-modal-item-status-done {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    flex-shrink: 0;
+    color: var(--color-accent-primary);
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+
   .invite-member-modal-empty {
     padding: var(--spacing-lg);
     text-align: center;
@@ -6782,16 +6824,6 @@ a {
 // Chat Invitations Panel (mirrors Friends Panel)
 // ============================================================================
 
-.sidebar-chat-invitations-btn .sidebar-item {
-  color: var(--color-accent-primary);
-  background: var(--color-accent-glow);
-
-  &:hover {
-    color: var(--color-accent-primary-hover);
-    background: var(--color-accent-glow);
-  }
-}
-
 .sidebar-invitations-panel {
   position: absolute;
   left: 100%;
@@ -8508,6 +8540,23 @@ a {
       background: color-mix(in srgb, var(--color-warning) 12%, transparent);
       border-radius: var(--radius-sm);
       vertical-align: middle;
+    }
+
+    &-role-badge {
+      display: inline-block;
+      margin-left: var(--spacing-xs);
+      padding: 1px 6px;
+      font-size: 10px;
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text-muted);
+      background: var(--color-bg-tertiary);
+      border-radius: var(--radius-sm);
+      vertical-align: middle;
+
+      &--invited {
+        color: var(--color-accent-primary);
+        background: color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
+      }
     }
 
     &-actions {

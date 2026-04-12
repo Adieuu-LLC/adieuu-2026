@@ -116,6 +116,11 @@ export function ConversationMembersSidebar({
                         {t('conversations.admin', 'Admin')}
                       </span>
                     )}
+                    {conversationType === 'group' && (
+                      <span className="conversation-member-role-badge">
+                        {t('conversations.inviteMember.statusMember', 'Member')}
+                      </span>
+                    )}
                   </span>
                   {customisation?.nickname && !isSelf && (
                     <span className="conversation-member-username">{realName}</span>
@@ -207,7 +212,12 @@ export function ConversationMembersSidebar({
                       )}
                     </div>
                     <div className="conversation-member-info">
-                      <span className="conversation-member-name">{displayedName}</span>
+                      <span className="conversation-member-name">
+                        {displayedName}
+                        <span className="conversation-member-role-badge conversation-member-role-badge--invited">
+                          {t('conversations.inviteMember.statusInvited', 'Invited')}
+                        </span>
+                      </span>
                       {profile?.username && (
                         <span className="conversation-member-username">@{profile.username}</span>
                       )}

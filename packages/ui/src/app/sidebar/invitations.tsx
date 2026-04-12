@@ -22,7 +22,8 @@ export function ChatInvitationsSidebarButton({
   const { invites } = useConversations();
 
   const isIdentityLoggedIn = identityStatus === 'logged_in';
-  if (!isIdentityLoggedIn || invites.length === 0) return null;
+  const hasInvites = invites.length > 0;
+  if (!isIdentityLoggedIn || !hasInvites) return null;
 
   const buttonLabel = t('nav.chatInvitations', { count: invites.length });
 
@@ -31,8 +32,7 @@ export function ChatInvitationsSidebarButton({
       icon={<Icon name="message" />}
       label={buttonLabel}
       onClick={onToggle}
-      isActive={isOpen}
-      className="sidebar-chat-invitations-btn"
+      isActive={isOpen || hasInvites}
     />
   );
 }
