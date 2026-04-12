@@ -56,8 +56,7 @@ export class MessageRepository
   }
 
   /**
-   * Fetch messages for a conversation with cursor-based pagination.
-   * Returns newest first; the client reverses for display.
+   * Look up a single message by id, scoped to the conversation.
    */
   async findByIdInConversation(
     conversationId: ObjectId,
@@ -66,6 +65,14 @@ export class MessageRepository
     return await this.findOne({ _id: messageId, conversationId });
   }
 
+  /**
+   * Fetch messages for a conversation with cursor-based pagination.
+   * Returns newest first; the client reverses for display.
+   *
+   * When `cursor` is set: `asc` keeps messages strictly older than the cursor (`_id` less than cursor),
+   * which matches a next-page token taken as the oldest id on the previous page. The default (`desc`)
+   * keeps messages strictly newer than the cursor (`_id` greater than cursor).
+   */
   async findByConversation(
     conversationId: ObjectId,
     limit = 50,

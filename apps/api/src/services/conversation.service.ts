@@ -662,7 +662,13 @@ export async function getMessages(
   }
 
   const cursorObjId = cursor ? new ObjectId(cursor) : undefined;
-  const messages = await messageRepo.findByConversation(convObjId, limit + 1, cursorObjId);
+  /** Cursor is the oldest message from the prior page; repository `asc` applies `_id < cursor` for the next older chunk. */
+  const messages = await messageRepo.findByConversation(
+    convObjId,
+    limit + 1,
+    cursorObjId,
+    'asc',
+  );
 
   const hasMore = messages.length > limit;
   const result = hasMore ? messages.slice(0, limit) : messages;
