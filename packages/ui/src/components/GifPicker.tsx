@@ -16,6 +16,7 @@ import {
   useRef,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   type CSSProperties,
 } from 'react';
@@ -58,6 +59,16 @@ const INITIAL_STATE: FetchState = {
   page: 0,
   hasNext: true,
   loading: true,
+  error: null,
+  rateLimitRetryAfter: null,
+};
+
+/** Stickers: no default grid without a search query — avoid loading trending + bogus empty copy. */
+const STICKERS_BROWSE_IDLE: FetchState = {
+  items: [],
+  page: 0,
+  hasNext: false,
+  loading: false,
   error: null,
   rateLimitRetryAfter: null,
 };
@@ -112,16 +123,29 @@ export function GifPicker({ onGifSelect, initialTab, lastMessageText }: GifPicke
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [state, setState] = useState<FetchState>(INITIAL_STATE);
+  const [state, setState] = useState<FetchState>(() =>
+    (initialTab ?? 'gifs') === 'stickers' ? STICKERS_BROWSE_IDLE : INITIAL_STATE,
+  );
   const appliedSeedRef = useRef(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout>>();
   const fetchId = useRef(0);
   const pageFetchTimestamps = useRef<number[]>([]);
   const throttleTimer = useRef<ReturnType<typeof setTimeout>>();
   const [throttled, setThrottled] = useState(false);
+
+  // Focus search after mount so it wins over popover / tab triggers (autoFocus alone is unreliable).
+  useLayoutEffect(() => {
+    const el = searchInputRef.current;
+    if (!el) return;
+    const focusSearch = () => el.focus({ preventScroll: true });
+    focusSearch();
+    const t = window.setTimeout(focusSearch, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   // -------------------------------------------------------------------------
   // Debounce search input
@@ -152,7 +176,9 @@ export function GifPicker({ onGifSelect, initialTab, lastMessageText }: GifPicke
   // Reset state when tab or query changes
   // -------------------------------------------------------------------------
   useEffect(() => {
-    setState(INITIAL_STATE);
+    setState(
+      tab === 'stickers' && debouncedQuery === '' ? STICKERS_BROWSE_IDLE : INITIAL_STATE,
+    );
     setSearchTerm(debouncedQuery);
     setThrottled(false);
     pageFetchTimestamps.current = [];
@@ -165,6 +191,10 @@ export function GifPicker({ onGifSelect, initialTab, lastMessageText }: GifPicke
   // -------------------------------------------------------------------------
   const fetchPage = useCallback(
     async (pageToFetch: number) => {
+      if (tab === 'stickers' && debouncedQuery.length === 0) {
+        return;
+      }
+
       const id = ++fetchId.current;
       setState((prev) => ({ ...prev, loading: true, error: null, rateLimitRetryAfter: null }));
 
@@ -177,9 +207,11 @@ export function GifPicker({ onGifSelect, initialTab, lastMessageText }: GifPicke
             ? await api.klipy.searchGifs({ q: debouncedQuery, page: pageToFetch, per_page: PER_PAGE })
             : await api.klipy.trendingGifs({ page: pageToFetch, per_page: PER_PAGE });
         } else {
-          res = isSearch
-            ? await api.klipy.searchStickers({ q: debouncedQuery, page: pageToFetch, per_page: PER_PAGE })
-            : await api.klipy.trendingStickers({ page: pageToFetch, per_page: PER_PAGE });
+          res = await api.klipy.searchStickers({
+            q: debouncedQuery,
+            page: pageToFetch,
+            per_page: PER_PAGE,
+          });
         }
 
         if (id !== fetchId.current) return;
@@ -219,10 +251,11 @@ export function GifPicker({ onGifSelect, initialTab, lastMessageText }: GifPicke
     [api.klipy, debouncedQuery, tab, t]
   );
 
-  // Initial load + query/tab change
+  // Initial load + query/tab change (stickers without a search query: idle CTA only)
   useEffect(() => {
+    if (tab === 'stickers' && debouncedQuery === '') return;
     fetchPage(1);
-  }, [fetchPage]);
+  }, [fetchPage, tab, debouncedQuery]);
 
   // -------------------------------------------------------------------------
   // Infinite scroll via IntersectionObserver
@@ -335,12 +368,12 @@ export function GifPicker({ onGifSelect, initialTab, lastMessageText }: GifPicke
       </Tabs.Root>
 
       <input
+        ref={searchInputRef}
         className="gif-picker__search"
         type="text"
         placeholder={t('gif.searchPlaceholder')}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        autoFocus
       />
 
       {state.rateLimitRetryAfter !== null && (
@@ -384,7 +417,15 @@ export function GifPicker({ onGifSelect, initialTab, lastMessageText }: GifPicke
           <div className="gif-picker__empty">
             {debouncedQuery
               ? t('gif.noResults', { query: debouncedQuery })
-              : t('gif.loading')}
+              : tab === 'stickers'
+                ? t(
+                    'gif.stickersSearchPrompt',
+                    'Type at least two characters in the search box to find stickers.',
+                  )
+                : t(
+                    'gif.trendingGifsEmpty',
+                    'No trending GIFs right now. Try searching above.',
+                  )}
           </div>
         )}
 

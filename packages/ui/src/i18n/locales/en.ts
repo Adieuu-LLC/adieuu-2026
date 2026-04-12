@@ -1839,6 +1839,9 @@ export const en = {
     tabGifs: 'GIFs',
     tabStickers: 'Stickers',
     noResults: 'No results for "{{query}}"',
+    stickersSearchPrompt:
+      'Type at least two characters in the search box to find stickers.',
+    trendingGifsEmpty: 'No trending GIFs right now. Try searching above.',
     loading: 'Loading…',
     error: 'Failed to load results. Please try again.',
     retryButton: 'Retry',

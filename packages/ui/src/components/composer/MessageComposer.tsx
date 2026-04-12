@@ -900,18 +900,14 @@ export function MessageComposer({
                 unmountOnExit
               >
                 <Popover.Trigger asChild>
-                  <Tooltip
-                    content={t('gif.stickerButton', 'Stickers')}
-                    position="top"
+                  <button
+                    type="button"
+                    className="conversation-sticker-btn"
+                    title={t('gif.stickerButton', 'Stickers')}
+                    disabled={sending || uploadingMedia}
                   >
-                    <button
-                      type="button"
-                      className="conversation-sticker-btn"
-                      disabled={sending || uploadingMedia}
-                    >
-                      <Icon name="noteSticky" />
-                    </button>
-                  </Tooltip>
+                    <Icon name="noteSticky" />
+                  </button>
                 </Popover.Trigger>
                 <Portal>
                   <Popover.Positioner>
