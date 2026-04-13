@@ -1,0 +1,199 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Moderation
+// ============================================================================
+
+.moderation-filter-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.moderation-filter-select {
+  appearance: auto;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+
+  &:focus {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: 1px;
+  }
+}
+
+.moderation-status-badge {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-full, 999px);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: capitalize;
+}
+
+.moderation-status-open {
+  background: var(--color-warning-bg, rgba(250, 200, 50, 0.15));
+  color: var(--color-warning, #b58900);
+}
+
+.moderation-status-escalated {
+  background: var(--color-error-bg, rgba(220, 50, 50, 0.12));
+  color: var(--color-error, #dc322f);
+}
+
+.moderation-status-resolved {
+  background: var(--color-success-bg, rgba(50, 200, 80, 0.12));
+  color: var(--color-success, #2aa198);
+}
+
+.moderation-status-closed {
+  background: var(--color-surface-alt, rgba(128, 128, 128, 0.1));
+  color: var(--color-text-secondary);
+}
+
+.moderation-report-row:hover td {
+  background: var(--color-surface-hover, rgba(128, 128, 128, 0.06));
+}
+
+.moderation-cell-mono {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--font-size-xs);
+  word-break: break-all;
+}
+
+.moderation-detail-grid {
+  display: grid;
+  grid-template-columns: 10rem 1fr;
+  gap: var(--spacing-xs) var(--spacing-md);
+  font-size: var(--font-size-sm);
+
+  dt {
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-medium);
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.moderation-copyable-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-xs, 2px);
+  transition: color 0.15s ease, opacity 0.15s ease;
+
+  svg {
+    opacity: 0.35;
+    flex-shrink: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  &:hover {
+    color: var(--color-accent-primary);
+
+    svg {
+      opacity: 0.8;
+    }
+  }
+}
+
+.moderation-textarea {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  resize: vertical;
+
+  &:focus {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: 1px;
+  }
+}
+
+.moderation-action-form {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt, rgba(0, 0, 0, 0.02));
+
+  h3 {
+    margin: 0 0 var(--spacing-sm);
+    font-size: var(--font-size-base);
+  }
+}
+
+.moderation-action-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm) var(--spacing-lg);
+  margin-top: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+
+  label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    cursor: pointer;
+  }
+}
+
+.moderation-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.moderation-timeline-event {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-left: 3px solid var(--color-border-subtle);
+  font-size: var(--font-size-sm);
+}
+
+.moderation-event-comment_internal {
+  border-left-color: var(--color-warning, #b58900);
+}
+
+.moderation-event-enforcement_action {
+  border-left-color: var(--color-error, #dc322f);
+}
+
+.moderation-timeline-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.125rem;
+}
+
+.moderation-timeline-type {
+  font-weight: var(--font-weight-medium);
+  text-transform: capitalize;
+}
+
+.moderation-timeline-date {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.moderation-timeline-body {
+  margin: 0.25rem 0 0;
+  white-space: pre-wrap;
+}
+

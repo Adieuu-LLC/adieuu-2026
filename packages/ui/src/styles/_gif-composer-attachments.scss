@@ -1,0 +1,358 @@
+@use 'variables' as *;
+
+// ============================================================================
+// GIF / Sticker Picker
+// ============================================================================
+
+.gif-picker-popover {
+  z-index: var(--z-popover, 100);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  background: var(--color-bg-elevated);
+  padding: 0;
+}
+
+.gif-picker {
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  height: 440px;
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-md);
+
+  &__tabs {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--color-border);
+    position: relative;
+    padding: 0 var(--spacing-sm);
+  }
+
+  &__tab {
+    flex: 1;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: none;
+    background: none;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium, 500);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color var(--transition-fast);
+
+    &:hover {
+      color: var(--color-text-primary);
+    }
+
+    &[data-selected] {
+      color: var(--color-accent-primary);
+    }
+  }
+
+  &__tab-indicator {
+    position: absolute;
+    bottom: 0;
+    height: 2px;
+    background: var(--color-accent-primary);
+    border-radius: 2px 2px 0 0;
+    transition: left 0.2s ease, width 0.2s ease;
+  }
+
+  &__search {
+    margin: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    outline: none;
+
+    &::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    &:focus {
+      border-color: var(--color-border-focus);
+      box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 99, 102, 241), 0.15);
+    }
+  }
+
+  &__rate-limit {
+    margin: 0 var(--spacing-sm) var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-warning-text, var(--color-warning));
+    background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+    border-radius: var(--radius-sm);
+    text-align: center;
+  }
+
+  &__grid {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 var(--spacing-sm) var(--spacing-sm);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  &__masonry {
+    position: relative;
+    width: calc(150px * 2 + 8px);
+    flex-shrink: 0;
+  }
+
+  &__placeholder-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 150px);
+    gap: 8px;
+    width: calc(150px * 2 + 8px);
+  }
+
+  &__tile {
+    display: block;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    cursor: pointer;
+    background-size: cover;
+    background-position: center;
+    transition: transform 0.1s ease;
+
+    &:hover {
+      transform: scale(1.03);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-accent-primary);
+      outline-offset: 2px;
+    }
+  }
+
+  &__tile-img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+
+    &--loaded {
+      opacity: 1;
+    }
+  }
+
+  &__placeholder {
+    height: 110px;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-muted);
+    animation: gif-picker-shimmer 1.2s ease infinite;
+  }
+
+  &__empty,
+  &__error {
+    width: 100%;
+    padding: var(--spacing-lg);
+    text-align: center;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+  }
+
+  &__retry {
+    display: inline-block;
+    margin-top: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+  }
+
+  &__page-loader {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-md) 0;
+  }
+
+  &__spinner {
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--color-accent-primary);
+    border-radius: 50%;
+    animation: gif-picker-spin 0.7s linear infinite;
+  }
+
+  &__sentinel {
+    height: 1px;
+    width: 100%;
+  }
+
+  &__attribution {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-top: 1px solid var(--color-border);
+  }
+
+  &__attribution-logo {
+    height: 18px;
+    width: auto;
+    opacity: 0.7;
+  }
+}
+
+@keyframes gif-picker-shimmer {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+
+@keyframes gif-picker-spin {
+  to { transform: rotate(360deg); }
+}
+
+// ============================================================================
+// Composer GIF Preview Strip
+// ============================================================================
+
+.composer-gif-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+
+  &__img {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+  }
+
+  &__label {
+    flex: 1;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__remove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+
+    &:hover {
+      background: var(--color-bg-hover);
+      color: var(--color-text-primary);
+    }
+
+    svg {
+      width: 14px;
+      height: 14px;
+    }
+  }
+}
+
+// ============================================================================
+// Message GIF Attachment
+// ============================================================================
+
+.gif-attachment {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-top: var(--spacing-xs);
+  background-size: cover;
+  background-position: center;
+
+  &__img {
+    display: block;
+    width: 100%;
+    height: auto;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+
+    &--loaded {
+      opacity: 1;
+    }
+  }
+
+  &__watermark {
+    position: absolute;
+    bottom: 6px;
+    left: 6px;
+    pointer-events: none;
+    line-height: 0;
+
+    img {
+      display: block;
+      max-height: 10px;
+      width: auto;
+      opacity: 0.7;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+    }
+  }
+}
+
+.gif-fallback {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-top: var(--spacing-xs);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 25%, transparent);
+
+  &__label {
+    flex: 1;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium, 500);
+    color: var(--color-accent-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__reveal {
+    flex-shrink: 0;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid color-mix(in srgb, var(--color-accent-primary) 40%, transparent);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    font-size: var(--font-size-xs);
+    color: var(--color-accent-primary);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+
+    &:hover {
+      background: color-mix(in srgb, var(--color-accent-primary) 18%, transparent);
+    }
+  }
+}
