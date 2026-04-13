@@ -333,6 +333,7 @@ export function GifPicker({ onGifSelect, initialTab, lastMessageText }: GifPicke
         provider: 'klipy',
         type: item.type,
         url: item.url,
+        ...(item.posterUrl ? { posterUrl: item.posterUrl } : {}),
         previewUrl: item.previewUrl,
         tinyUrl: item.tinyUrl,
         blurPreview: item.blurPreview,

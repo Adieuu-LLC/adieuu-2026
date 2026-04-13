@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/Button';
+import { Icon } from '../../icons/Icon';
 
 export function ConversationToolbar({
   displayName,
@@ -47,6 +48,9 @@ export function ConversationToolbar({
           className={`conversation-toolbar-btn${showSettings ? ' active' : ''}`}
           onClick={onToggleSettings}
         >
+          <span className="conversation-toolbar-btn-icon" aria-hidden>
+            <Icon name="settings" size="sm" />
+          </span>
           {t('conversations.settings', 'Settings')}
         </Button>
         <Button
@@ -55,6 +59,9 @@ export function ConversationToolbar({
           className={`conversation-toolbar-btn${showMembers ? ' active' : ''}`}
           onClick={onToggleMembers}
         >
+          <span className="conversation-toolbar-btn-icon" aria-hidden>
+            <Icon name="users" size="sm" />
+          </span>
           {t('conversations.members', 'Members')}
         </Button>
         {canDeleteConversation && (
@@ -64,13 +71,19 @@ export function ConversationToolbar({
             className="conversation-toolbar-btn conversation-toolbar-btn--danger"
             onClick={onDeleteGroup}
           >
+            <span className="conversation-toolbar-btn-icon" aria-hidden>
+              <Icon name="trash" size="sm" />
+            </span>
             {isGroup
               ? t('conversations.deleteGroup', 'Delete Group')
               : t('conversations.deleteConversation', 'Delete conversation')}
           </Button>
         )}
         {isGroup && (
-          <Button variant="ghost" size="sm" onClick={onLeave}>
+          <Button variant="ghost" size="sm" className="conversation-toolbar-btn" onClick={onLeave}>
+            <span className="conversation-toolbar-btn-icon" aria-hidden>
+              <Icon name="logout" size="sm" />
+            </span>
             {t('conversations.leave', 'Leave')}
           </Button>
         )}

@@ -7,7 +7,11 @@ import type { PublicIdentity } from '@adieuu/shared';
 import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
-import { useGifPreference, useConversationGifHidden } from '../../hooks/useGifPreference';
+import {
+  useGifPreference,
+  useConversationGifHidden,
+  useEffectiveGifAnimateOnHoverOnly,
+} from '../../hooks/useGifPreference';
 import {
   type ChatItem,
   type ReplyQuotePayload,
@@ -107,6 +111,7 @@ export function ConversationMessageList({
   const [gifVisibility] = useGifPreference(identity?.id ?? '');
   const [convGifHidden] = useConversationGifHidden(conversationId ?? '');
   const gifsEnabled = gifVisibility !== 'disabled' && !convGifHidden && !gifsDisabledByAdmin;
+  const gifAnimateOnHoverOnly = useEffectiveGifAnimateOnHoverOnly(identity?.id ?? '', conversationId ?? '');
 
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
@@ -161,7 +166,7 @@ export function ConversationMessageList({
   }, [scrollViewportRef, hasNewerPages, messagesLoading, onReachNewer, conversationId, flatItems.length]);
 
   const renderItem = useCallback(
-    (item: ChatItem, ctx: { gifsEnabled: boolean }) => {
+    (item: ChatItem, ctx: { gifsEnabled: boolean; gifAnimateOnHoverOnly: boolean }) => {
       if (item.type === 'day-separator') {
         return (
           <div className="dm-day-separator">
@@ -233,6 +238,7 @@ export function ConversationMessageList({
             onMentionClick={onMentionClick}
             selfId={identity?.id}
             gifsEnabled={ctx.gifsEnabled}
+            gifAnimateOnHoverOnly={ctx.gifAnimateOnHoverOnly}
           />
         </>
       );
@@ -242,11 +248,14 @@ export function ConversationMessageList({
       scrollToMessageId, onDeleteMessage, onReact, onToggleReaction,
       onReportMessage, getGroupedReactions, favoriteEmojis, onAddFavorite,
       onRemoveFavorite, fsInfo, messageLayout, memberColorDisplay,
-      flashingMessageId, onReply, onLinkClick, onMentionClick, gifsEnabled,
+      flashingMessageId, onReply, onLinkClick, onMentionClick,
     ],
   );
 
-  const ctx = useMemo(() => ({ gifsEnabled }), [gifsEnabled]);
+  const ctx = useMemo(
+    () => ({ gifsEnabled, gifAnimateOnHoverOnly }),
+    [gifsEnabled, gifAnimateOnHoverOnly],
+  );
 
   const jumpShowsUnreads = showScrollButton && unreadCount > 0;
   const jumpAriaLabel = jumpShowsUnreads

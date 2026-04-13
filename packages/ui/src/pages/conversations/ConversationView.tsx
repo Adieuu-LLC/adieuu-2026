@@ -17,7 +17,13 @@ import { usePreKeys } from '../../hooks/usePreKeys';
 import { useReactions } from '../../hooks/useReactions';
 import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
 import { loadConversationFsDefault, saveConversationFsDefault, loadShowMessageArtifacts, SECURITY_LEVEL_CONFIG } from '../../services/preKeyService';
-import { useGifPreference, useConversationGifHidden } from '../../hooks/useGifPreference';
+import {
+  useGifPreference,
+  useConversationGifHidden,
+  loadGifAnimateOnHoverOnlyIdentity,
+  useEffectiveGifAnimateOnHoverOnly,
+  saveConversationGifAnimateOnHoverOverride,
+} from '../../hooks/useGifPreference';
 import { useAppConfig } from '../../config/PlatformContext';
 import { useMessageLayoutPreference } from '../../hooks/useMessageLayoutPreference';
 import { useMemberColorPreference } from '../../hooks/useMemberColorPreference';
@@ -210,6 +216,19 @@ export function ConversationView() {
   const [gifVisibility] = useGifPreference(identity?.id ?? '');
   const gifsGloballyDisabled = gifVisibility === 'disabled';
   const [convGifHidden, setConvGifHidden] = useConversationGifHidden(id ?? '');
+  const effectiveGifAnimateOnHover = useEffectiveGifAnimateOnHoverOnly(identity?.id ?? '', id ?? '');
+
+  const handleGifAnimateOnHoverConversationToggle = useCallback(
+    (checked: boolean) => {
+      if (!id || !identity?.id) return;
+      saveConversationGifAnimateOnHoverOverride(
+        id,
+        checked,
+        loadGifAnimateOnHoverOnlyIdentity(identity.id),
+      );
+    },
+    [id, identity?.id],
+  );
 
   const handleGifsDisabledByAdminToggle = useCallback(
     async (disabled: boolean) => {
@@ -1121,6 +1140,10 @@ export function ConversationView() {
               onGifsDisabledByAdminToggle={handleGifsDisabledByAdminToggle}
               gifsHiddenForMe={convGifHidden}
               onGifsHiddenForMeToggle={gifsGloballyDisabled ? undefined : setConvGifHidden}
+              gifAnimateOnHoverOnly={effectiveGifAnimateOnHover}
+              onGifAnimateOnHoverOnlyToggle={
+                gifsGloballyDisabled ? undefined : handleGifAnimateOnHoverConversationToggle
+              }
             />
           )}
 

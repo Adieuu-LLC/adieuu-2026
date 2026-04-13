@@ -20,6 +20,8 @@ export function ConversationSettingsSidebar({
   onGifsDisabledByAdminToggle,
   gifsHiddenForMe,
   onGifsHiddenForMeToggle,
+  gifAnimateOnHoverOnly,
+  onGifAnimateOnHoverOnlyToggle,
 }: {
   isGroup: boolean;
   isAdmin: boolean;
@@ -35,6 +37,8 @@ export function ConversationSettingsSidebar({
   onGifsDisabledByAdminToggle?: (disabled: boolean) => void;
   gifsHiddenForMe?: boolean;
   onGifsHiddenForMeToggle?: (hidden: boolean) => void;
+  gifAnimateOnHoverOnly?: boolean;
+  onGifAnimateOnHoverOnlyToggle?: (value: boolean) => void;
 }) {
   const { t } = useTranslation();
 
@@ -99,6 +103,20 @@ export function ConversationSettingsSidebar({
             <span className="app-settings-toggle-hint">
               {t('gif.conversationHideForMeHint', 'Only affects your view')}
             </span>
+          </span>
+        </label>
+      )}
+
+      {!gifsDisabledByAdmin && onGifAnimateOnHoverOnlyToggle && (
+        <label className="app-settings-toggle">
+          <input
+            type="checkbox"
+            checked={gifAnimateOnHoverOnly ?? false}
+            onChange={(e) => onGifAnimateOnHoverOnlyToggle(e.target.checked)}
+          />
+          <span className="app-settings-toggle-label">
+            <span className="app-settings-toggle-title">{t('gif.animateOnHoverOnly')}</span>
+            <span className="app-settings-toggle-hint">{t('gif.animateOnHoverOnlyHint')}</span>
           </span>
         </label>
       )}

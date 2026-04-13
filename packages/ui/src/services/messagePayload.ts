@@ -63,6 +63,8 @@ export interface GifAttachment {
   type: 'gif' | 'sticker';
   /** Sanitised hd.webp URL for message display */
   url: string;
+  /** Optional HD-tier JPG still — when present, clients may show it until hover/focus */
+  posterUrl?: string;
   /** sm.webp for picker thumbnails / context */
   previewUrl: string;
   /** xs.webp for very small previews (e.g. composer strip) */
@@ -164,6 +166,7 @@ export function isValidGifAttachment(a: unknown): a is GifAttachment {
     obj.provider === 'klipy' &&
     (obj.type === 'gif' || obj.type === 'sticker') &&
     typeof obj.url === 'string' &&
+    (obj.posterUrl === undefined || typeof obj.posterUrl === 'string') &&
     typeof obj.previewUrl === 'string' &&
     typeof obj.tinyUrl === 'string' &&
     typeof obj.blurPreview === 'string' &&

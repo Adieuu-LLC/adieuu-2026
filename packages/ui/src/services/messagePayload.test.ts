@@ -276,4 +276,36 @@ describe('isValidGifAttachment', () => {
       slug: 'sl',
     })).toBe(false);
   });
+
+  test('accepts optional posterUrl', () => {
+    expect(isValidGifAttachment({
+      provider: 'klipy',
+      type: 'gif',
+      url: 'u',
+      posterUrl: 'https://static.klipy.com/hd.jpg',
+      previewUrl: 'p',
+      tinyUrl: 't',
+      blurPreview: 'b',
+      width: 100,
+      height: 100,
+      searchTerm: 's',
+      slug: 'sl',
+    })).toBe(true);
+  });
+
+  test('rejects non-string posterUrl', () => {
+    expect(isValidGifAttachment({
+      provider: 'klipy',
+      type: 'gif',
+      url: 'u',
+      posterUrl: 123 as unknown as string,
+      previewUrl: 'p',
+      tinyUrl: 't',
+      blurPreview: 'b',
+      width: 100,
+      height: 100,
+      searchTerm: 's',
+      slug: 'sl',
+    })).toBe(false);
+  });
 });

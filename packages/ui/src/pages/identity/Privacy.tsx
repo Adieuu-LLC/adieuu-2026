@@ -13,7 +13,11 @@ import { useBlocks } from '../../hooks/useBlocks';
 import { useAuth } from '../../hooks/useAuth';
 import { useIdentity } from '../../hooks/useIdentity';
 import { ChangePassphrasePanel } from '../account/ChangePassphrasePanel';
-import { useGifPreference, type GifVisibility } from '../../hooks/useGifPreference';
+import {
+  useGifPreference,
+  useGifAnimateOnHoverOnlyPreference,
+  type GifVisibility,
+} from '../../hooks/useGifPreference';
 import { usePreKeys } from '../../hooks/usePreKeys';
 import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 import { useAppConfig } from '../../config';
@@ -425,6 +429,7 @@ const GIF_VISIBILITY_OPTIONS: { value: GifVisibility; labelKey: string }[] = [
 function GifVisibilityCard({ identityId }: { identityId: string }) {
   const { t } = useTranslation();
   const [value, setValue] = useGifPreference(identityId);
+  const [animateOnHoverOnly, setAnimateOnHoverOnly] = useGifAnimateOnHoverOnlyPreference(identityId);
 
   return (
     <Card variant="elevated" className="app-settings-card">
@@ -448,6 +453,18 @@ function GifVisibilityCard({ identityId }: { identityId: string }) {
           </RadioGroup.Item>
         ))}
       </RadioGroup.Root>
+
+      <label className="app-settings-toggle app-settings-toggle--gif-hover">
+        <input
+          type="checkbox"
+          checked={animateOnHoverOnly}
+          onChange={(e) => setAnimateOnHoverOnly(e.target.checked)}
+        />
+        <span className="app-settings-toggle-label">
+          <span className="app-settings-toggle-title">{t('gif.animateOnHoverOnly')}</span>
+          <span className="app-settings-toggle-hint">{t('gif.animateOnHoverOnlyHint')}</span>
+        </span>
+      </label>
     </Card>
   );
 }

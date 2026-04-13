@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, type ReactElement } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Menu, Portal, Switch } from '@ark-ui/react';
@@ -8,7 +8,8 @@ import { Popover } from '../../components/Popover';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Logo } from '../../components/Logo';
 import { Icon } from '../../icons/Icon';
-import { IdentityHoverCard } from '../../components/IdentityHoverCard';
+import { SidebarConversationDmHoverCard } from './SidebarConversationDmHoverCard';
+import { GroupConversationSidebarHoverCard } from './GroupConversationSidebarHoverCard';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { useConversations, type DecryptedConversation } from '../../hooks/useConversations';
 import { useConversationPreferences } from '../../hooks/useConversationPreferences';
@@ -260,6 +261,8 @@ function ConversationListItem({
     </button>
   );
 
+  const contextTriggerRow = <Menu.ContextTrigger asChild>{row}</Menu.ContextTrigger>;
+
   const contextMenu = (
     <Portal>
       <Menu.Positioner>
@@ -312,30 +315,30 @@ function ConversationListItem({
     </Portal>
   );
 
-  const wrappedRow = (
+  const menuShell = (trigger: ReactElement) => (
     <Menu.Root onSelect={handleContextAction}>
-      <Menu.ContextTrigger asChild>{row}</Menu.ContextTrigger>
+      {trigger}
       {contextMenu}
     </Menu.Root>
   );
 
-  const dmProfile =
-    isDm && otherParticipants.length === 1
-      ? participantProfiles[otherParticipants[0]!]
-      : undefined;
-
-  if (dmProfile) {
-    return (
-      <IdentityHoverCard
-        identity={dmProfile}
-        positioning={{ placement: 'right-start', gutter: 12 }}
-      >
-        {wrappedRow}
-      </IdentityHoverCard>
+  if (isDm && otherParticipants.length === 1) {
+    return menuShell(
+      <SidebarConversationDmHoverCard otherUserId={otherParticipants[0]!}>
+        {contextTriggerRow}
+      </SidebarConversationDmHoverCard>,
     );
   }
 
-  return wrappedRow;
+  if (isGroup) {
+    return menuShell(
+      <GroupConversationSidebarHoverCard conversation={conversation} displayName={displayName}>
+        {contextTriggerRow}
+      </GroupConversationSidebarHoverCard>,
+    );
+  }
+
+  return menuShell(contextTriggerRow);
 }
 
 // ============================================================================

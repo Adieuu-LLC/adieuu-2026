@@ -4,6 +4,10 @@ import {
   saveGifVisibility,
   loadConversationGifHidden,
   saveConversationGifHidden,
+  loadGifAnimateOnHoverOnlyIdentity,
+  saveGifAnimateOnHoverOnlyIdentity,
+  loadConversationGifAnimateOnHoverOverride,
+  saveConversationGifAnimateOnHoverOverride,
 } from './useGifPreference';
 
 class MemoryStorage implements Storage {
@@ -86,5 +90,42 @@ describe('saveConversationGifHidden', () => {
     localStorage.setItem('adieuu.conv-gif-disabled.conv3', 'true');
     saveConversationGifHidden('conv3', false);
     expect(localStorage.getItem('adieuu.conv-gif-disabled.conv3')).toBeNull();
+  });
+});
+
+describe('loadGifAnimateOnHoverOnlyIdentity', () => {
+  test('defaults to false', () => {
+    expect(loadGifAnimateOnHoverOnlyIdentity('id-a')).toBe(false);
+  });
+
+  test('reads true', () => {
+    localStorage.setItem('adieuu.gif-animate-on-hover-only.id-a', 'true');
+    expect(loadGifAnimateOnHoverOnlyIdentity('id-a')).toBe(true);
+  });
+});
+
+describe('saveConversationGifAnimateOnHoverOverride', () => {
+  test('stores override when different from identity default', () => {
+    saveGifAnimateOnHoverOnlyIdentity('id-x', false);
+    saveConversationGifAnimateOnHoverOverride('conv-x', true, false);
+    expect(localStorage.getItem('adieuu.conv-gif-animate-on-hover.conv-x')).toBe('true');
+  });
+
+  test('removes key when matching identity default', () => {
+    saveGifAnimateOnHoverOnlyIdentity('id-y', true);
+    localStorage.setItem('adieuu.conv-gif-animate-on-hover.conv-y', 'false');
+    saveConversationGifAnimateOnHoverOverride('conv-y', true, true);
+    expect(localStorage.getItem('adieuu.conv-gif-animate-on-hover.conv-y')).toBeNull();
+  });
+});
+
+describe('loadConversationGifAnimateOnHoverOverride', () => {
+  test('returns undefined when absent', () => {
+    expect(loadConversationGifAnimateOnHoverOverride('conv-z')).toBeUndefined();
+  });
+
+  test('reads boolean', () => {
+    localStorage.setItem('adieuu.conv-gif-animate-on-hover.conv-z', 'false');
+    expect(loadConversationGifAnimateOnHoverOverride('conv-z')).toBe(false);
   });
 });

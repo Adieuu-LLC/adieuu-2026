@@ -108,3 +108,101 @@ export function useConversationGifHidden(conversationId: string): [boolean, (v: 
 
   return [value, setValue];
 }
+
+// ---------------------------------------------------------------------------
+// Animate GIFs/stickers only on hover (identity default + optional per-conv)
+// ---------------------------------------------------------------------------
+
+const ID_ANIMATE_ON_HOVER_PREFIX = 'adieuu.gif-animate-on-hover-only.';
+const CONV_ANIMATE_ON_HOVER_PREFIX = 'adieuu.conv-gif-animate-on-hover.';
+
+export function loadGifAnimateOnHoverOnlyIdentity(identityId: string): boolean {
+  if (!identityId) return false;
+  try {
+    return localStorage.getItem(ID_ANIMATE_ON_HOVER_PREFIX + identityId) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function saveGifAnimateOnHoverOnlyIdentity(identityId: string, value: boolean): void {
+  try {
+    if (value) {
+      localStorage.setItem(ID_ANIMATE_ON_HOVER_PREFIX + identityId, 'true');
+    } else {
+      localStorage.removeItem(ID_ANIMATE_ON_HOVER_PREFIX + identityId);
+    }
+    emitChange();
+  } catch {
+    // Storage full or unavailable
+  }
+}
+
+/**
+ * Identity-level default: when true, GIF attachments show a still poster until hover/focus when available.
+ */
+export function useGifAnimateOnHoverOnlyPreference(
+  identityId: string
+): [boolean, (v: boolean) => void] {
+  const value = useSyncExternalStore(
+    subscribe,
+    () => loadGifAnimateOnHoverOnlyIdentity(identityId),
+    () => false
+  );
+
+  const setValue = useCallback(
+    (v: boolean) => saveGifAnimateOnHoverOnlyIdentity(identityId, v),
+    [identityId]
+  );
+
+  return [value, setValue];
+}
+
+export function loadConversationGifAnimateOnHoverOverride(conversationId: string): boolean | undefined {
+  if (!conversationId) return undefined;
+  try {
+    const raw = localStorage.getItem(CONV_ANIMATE_ON_HOVER_PREFIX + conversationId);
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
+/**
+ * Per-conversation override: when the chosen value matches the identity default, the key is removed (inherit).
+ */
+export function saveConversationGifAnimateOnHoverOverride(
+  conversationId: string,
+  value: boolean,
+  identityDefault: boolean
+): void {
+  try {
+    if (value === identityDefault) {
+      localStorage.removeItem(CONV_ANIMATE_ON_HOVER_PREFIX + conversationId);
+    } else {
+      localStorage.setItem(CONV_ANIMATE_ON_HOVER_PREFIX + conversationId, value ? 'true' : 'false');
+    }
+    emitChange();
+  } catch {
+    // ignore
+  }
+}
+
+function effectiveGifAnimateOnHoverSnapshot(identityId: string, conversationId: string): boolean {
+  const conv = loadConversationGifAnimateOnHoverOverride(conversationId);
+  if (conv !== undefined) return conv;
+  return loadGifAnimateOnHoverOnlyIdentity(identityId);
+}
+
+/**
+ * Resolved preference for the open conversation: per-conversation override wins, else identity default.
+ */
+export function useEffectiveGifAnimateOnHoverOnly(identityId: string, conversationId: string): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => effectiveGifAnimateOnHoverSnapshot(identityId, conversationId),
+    () => false
+  );
+}

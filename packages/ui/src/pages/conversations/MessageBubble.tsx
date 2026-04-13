@@ -121,6 +121,7 @@ export const MessageBubble = memo(function MessageBubble({
   onMentionClick,
   selfId,
   gifsEnabled,
+  gifAnimateOnHoverOnly,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
@@ -146,6 +147,7 @@ export const MessageBubble = memo(function MessageBubble({
   onMentionClick?: (identityId: string) => void;
   selfId?: string;
   gifsEnabled: boolean;
+  gifAnimateOnHoverOnly: boolean;
 }) {
   const { t } = useTranslation();
   const { block: blockIdentity } = useBlockContext();
@@ -340,7 +342,12 @@ export const MessageBubble = memo(function MessageBubble({
           ))
         )}
         {parsed.gifAttachments.map((gif, i) => (
-          <MessageGifAttachment key={`gif-${i}`} gif={gif} gifsEnabled={gifsEnabled} />
+          <MessageGifAttachment
+            key={`gif-${i}`}
+            gif={gif}
+            gifsEnabled={gifsEnabled}
+            gifAnimateOnHoverOnly={gifAnimateOnHoverOnly}
+          />
         ))}
       </>
     );
@@ -536,7 +543,12 @@ export const MessageBubble = memo(function MessageBubble({
                 ))
               )}
               {parsed.gifAttachments.map((gif, i) => (
-                <MessageGifAttachment key={`gif-${i}`} gif={gif} gifsEnabled={gifsEnabled} />
+                <MessageGifAttachment
+                  key={`gif-${i}`}
+                  gif={gif}
+                  gifsEnabled={gifsEnabled}
+                  gifAnimateOnHoverOnly={gifAnimateOnHoverOnly}
+                />
               ))}
             </>
           )}
@@ -600,6 +612,7 @@ export const MessageBubble = memo(function MessageBubble({
   if (prev.isFlashHighlight !== next.isFlashHighlight) return false;
   if (prev.memberColorDisplay !== next.memberColorDisplay) return false;
   if (prev.gifsEnabled !== next.gifsEnabled) return false;
+  if (prev.gifAnimateOnHoverOnly !== next.gifAnimateOnHoverOnly) return false;
 
   const pm = prev.message;
   const nm = next.message;

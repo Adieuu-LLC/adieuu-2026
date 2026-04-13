@@ -29,6 +29,8 @@ export interface KlipyItem {
   previewWidth: number;
   previewHeight: number;
   url: string;
+  /** Sanitised JPG URL from the HD tier, when Klipy provides one — still frame for hover-to-animate UX */
+  posterUrl?: string;
   width: number;
   height: number;
   tinyUrl: string;
@@ -129,6 +131,12 @@ function pickBestVariant(tier: KlipySizeTier | undefined): KlipyFileVariant | un
   return undefined;
 }
 
+/** Static JPG from a tier (for animated-WebP hover UX), when Klipy includes a JPG alongside WebP. */
+function pickJpgPosterUrl(tier: KlipySizeTier | undefined): string | undefined {
+  if (!tier?.jpg?.url) return undefined;
+  return sanitiseKlipyUrl(tier.jpg.url);
+}
+
 // ---------------------------------------------------------------------------
 // Customer ID hashing
 // ---------------------------------------------------------------------------
@@ -156,6 +164,7 @@ function shapeItem(raw: KlipyRawItem, fallbackType: KlipyContentType): KlipyItem
   const hdUrl = sanitiseKlipyUrl(hd?.url);
   const smUrl = sanitiseKlipyUrl(sm?.url);
   const xsUrl = sanitiseKlipyUrl(xs?.url);
+  const posterUrl = pickJpgPosterUrl(raw.file?.hd);
 
   if (!hdUrl || !smUrl) return null;
 
@@ -169,6 +178,7 @@ function shapeItem(raw: KlipyRawItem, fallbackType: KlipyContentType): KlipyItem
     previewWidth: sm?.width ?? 220,
     previewHeight: sm?.height ?? 220,
     url: hdUrl,
+    ...(posterUrl ? { posterUrl } : {}),
     width: hd?.width ?? 498,
     height: hd?.height ?? 498,
     tinyUrl: xsUrl ?? smUrl,

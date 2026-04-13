@@ -2799,6 +2799,8 @@ export interface KlipyItem {
   previewWidth: number;
   previewHeight: number;
   url: string;
+  /** Still JPG from HD tier when available (hover-to-animate) */
+  posterUrl?: string;
   width: number;
   height: number;
   tinyUrl: string;

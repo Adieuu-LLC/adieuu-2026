@@ -1895,6 +1895,10 @@ export const en = {
     conversationDisabledByAdminHint: 'This disables GIF and sticker content for all members',
     conversationHideForMe: 'Hide GIFs for me in this conversation',
     conversationHideForMeHint: 'Only affects your view',
+    animateOnHoverOnly: 'Animate GIFs and Stickers only on hover',
+    animateOnHoverOnlyHint:
+      'Shows a still image until you hover or focus. If no still image is available for a message, the animation plays as usual.',
+    animateOnHoverAria: 'GIF or sticker',
     composerButton: 'GIF',
     stickerButton: 'Stickers',
   },

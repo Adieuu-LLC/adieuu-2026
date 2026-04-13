@@ -6,6 +6,7 @@ mock.module('react-i18next', () => ({
     t: (key: string, opts?: Record<string, unknown>) => {
       if (key === 'gif.fallbackLabel' && opts?.term) return `GIF: ${opts.term}`;
       if (key === 'gif.showThisGif') return 'Show this GIF';
+      if (key === 'gif.animateOnHoverAria') return 'GIF or sticker';
       return key;
     },
   }),
@@ -98,6 +99,23 @@ describe('MessageGifAttachment', () => {
       <MessageGifAttachment gif={sticker} gifsEnabled={true} />,
     );
     expect(html).toContain('gif-attachment');
+    expect(html).toContain('https://static.klipy.com/hd.webp');
+  });
+
+  test('hover mode with poster shows still JPG first', () => {
+    const withPoster = { ...sampleGif, posterUrl: 'https://static.klipy.com/hd.jpg' };
+    const html = renderToStaticMarkup(
+      <MessageGifAttachment gif={withPoster} gifsEnabled={true} gifAnimateOnHoverOnly={true} />,
+    );
+    expect(html).toContain('https://static.klipy.com/hd.jpg');
+    expect(html).not.toContain('hd.webp');
+    expect(html).toContain('tabindex="0"');
+  });
+
+  test('hover mode without poster still uses animated url', () => {
+    const html = renderToStaticMarkup(
+      <MessageGifAttachment gif={sampleGif} gifsEnabled={true} gifAnimateOnHoverOnly={true} />,
+    );
     expect(html).toContain('https://static.klipy.com/hd.webp');
   });
 });
