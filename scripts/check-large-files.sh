@@ -7,7 +7,7 @@
 #
 # Skips common binary extensions where line counts are meaningless.
 #
-# Usage:
+# Usage (works from any directory inside the repo):
 #   bash scripts/check-large-files.sh
 #   MIN_LINES=500 bash scripts/check-large-files.sh
 #   bash scripts/check-large-files.sh --min-lines 1000
@@ -36,6 +36,17 @@ if ! [[ "$MIN_LINES" =~ ^[0-9]+$ ]] || [[ "$MIN_LINES" -lt 1 ]]; then
   echo "MIN_LINES must be a positive integer, got: ${MIN_LINES}" >&2
   exit 2
 fi
+
+# git ls-files is cwd-relative; wc needs paths from repo root. Anchor so the script
+# behaves the same whether invoked from the monorepo root or a subdirectory.
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+  echo "Not inside a git work tree; cannot list tracked files." >&2
+  exit 1
+}
+cd "$REPO_ROOT" || {
+  echo "Cannot cd to repository root: ${REPO_ROOT}" >&2
+  exit 1
+}
 
 # Binary / asset extensions: line counts from wc are not useful.
 BINARY_RE='\.(mp3|m4a|wav|aac|flac|ogg|png|jpe?g|gif|webp|ico|woff2?|ttf|eot|pdf|zip|gz|br|wasm)$'
