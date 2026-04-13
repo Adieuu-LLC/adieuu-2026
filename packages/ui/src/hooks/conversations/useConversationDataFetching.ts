@@ -1,0 +1,453 @@
+import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import type { TFunction } from 'i18next';
+import {
+  createApiClient,
+  type PublicConversation,
+  type PublicGroupInvite,
+  type PublicIdentity,
+} from '@adieuu/shared';
+import { decryptMessageBatch } from '../../services/messageDecryptionPipeline';
+import {
+  DEFAULT_MESSAGE_PAGE_LIMIT,
+  REPLY_JUMP_CONTEXT_AFTER,
+  REPLY_JUMP_CONTEXT_BEFORE,
+  REPLY_QUOTE_HYDRATION_AFTER,
+  REPLY_QUOTE_HYDRATION_BEFORE,
+} from '../../pages/conversations/conversationScrollUtils';
+import { buildDecryptMessageBatchSharedFields } from './decryptMessageBatchShared';
+import { loadDecryptKeysQuiet, loadDecryptKeysVerbose } from './conversationDecryptKeys';
+import { applyFetchedMessagesToConversationState } from './messageStateUpdates';
+import type { ConversationMessagesState, DecryptedConversation, DisplayMessage } from './types';
+
+type ApiClient = ReturnType<typeof createApiClient>;
+
+export interface ConversationDataFetchingParams {
+  isLoggedIn: boolean;
+  identity: PublicIdentity | null;
+  api: ApiClient;
+  getCurrentDeviceId: () => string | null;
+  getWrappingKey: () => Uint8Array | null;
+  toDecrypted: (conv: PublicConversation) => DecryptedConversation;
+  resolveParticipants: (ids: string[]) => Promise<Record<string, PublicIdentity>>;
+  setLoading: Dispatch<SetStateAction<boolean>>;
+  setConversations: Dispatch<SetStateAction<DecryptedConversation[]>>;
+  setMessagesState: Dispatch<SetStateAction<Record<string, ConversationMessagesState>>>;
+  setInvites: Dispatch<SetStateAction<PublicGroupInvite[]>>;
+  setReplyParentHydration: Dispatch<
+    SetStateAction<Record<string, Record<string, DisplayMessage>>>
+  >;
+  signingKeyCache: MutableRefObject<Record<string, string>>;
+  sessionKeyCache: MutableRefObject<Map<string, Uint8Array>>;
+  messagesStateRef: MutableRefObject<Record<string, ConversationMessagesState>>;
+  conversationsRef: MutableRefObject<DecryptedConversation[]>;
+  activeConversationIdRef: MutableRefObject<string | null>;
+  isAtBottomRef: MutableRefObject<boolean>;
+  replyParentHydrationRef: MutableRefObject<Record<string, Record<string, DisplayMessage>>>;
+  replyHydrationInflightRef: MutableRefObject<Set<string>>;
+  toast: { error: (message: string, detail?: string) => void };
+  t: TFunction;
+}
+
+/**
+ * List conversations, paginated messages, reply-context windows, invites, and refresh.
+ */
+export function useConversationDataFetching(params: ConversationDataFetchingParams) {
+  const {
+    isLoggedIn,
+    identity,
+    api,
+    getCurrentDeviceId,
+    getWrappingKey,
+    toDecrypted,
+    resolveParticipants,
+    setLoading,
+    setConversations,
+    setMessagesState,
+    setInvites,
+    setReplyParentHydration,
+    signingKeyCache,
+    sessionKeyCache,
+    messagesStateRef,
+    conversationsRef,
+    activeConversationIdRef,
+    isAtBottomRef,
+    replyParentHydrationRef,
+    replyHydrationInflightRef,
+    toast,
+    t,
+  } = params;
+
+  const fetchConversations = useCallback(async () => {
+    if (!isLoggedIn) return;
+    setLoading(true);
+    try {
+      const resp = await api.conversations.list(100);
+      if (resp.data?.conversations) {
+        const decrypted = resp.data.conversations.map(toDecrypted);
+
+        setConversations((prev) => {
+          const prevUnread = new Map(prev.map((c) => [c.id, c.unreadCount]));
+          return decrypted.map((c) => ({
+            ...c,
+            unreadCount: prevUnread.get(c.id) ?? c.unreadCount,
+          }));
+        });
+
+        const allParticipantIds = [
+          ...new Set(decrypted.flatMap((c) => c.participants)),
+        ];
+        resolveParticipants(allParticipantIds);
+      }
+    } catch (err) {
+      console.error('[useConversations] fetchConversations failed', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [isLoggedIn, api, toDecrypted, resolveParticipants]);
+
+  const fetchMessages = useCallback(
+    async (
+      conversationId: string,
+      paginationCursor?: string,
+      silent?: boolean,
+      mergeLatest?: boolean,
+      direction?: 'older' | 'newer'
+    ) => {
+      if (!isLoggedIn || !identity) return;
+
+      if (!silent && !mergeLatest) {
+        setMessagesState((prev) => ({
+          ...prev,
+          [conversationId]: {
+            ...(prev[conversationId] ?? {
+              messages: [],
+              olderCursor: null,
+              newerPaginationAfterId: null,
+              hasNewerPages: false,
+              loading: true,
+            }),
+            loading: true,
+          },
+        }));
+      }
+
+      try {
+        const limit = mergeLatest ? 1 : DEFAULT_MESSAGE_PAGE_LIMIT;
+        const resp = await api.conversations.getMessages(conversationId, {
+          limit,
+          ...(mergeLatest
+            ? {}
+            : paginationCursor != null && direction
+              ? { cursor: paginationCursor, direction }
+              : {}),
+        });
+        if (resp.data) {
+          const deviceId = getCurrentDeviceId();
+          const wrappingKey = getWrappingKey();
+          const keys = await loadDecryptKeysVerbose(identity.id, deviceId, wrappingKey);
+          const shared = buildDecryptMessageBatchSharedFields({
+            identityId: identity.id,
+            wrappingKey,
+            keys,
+            signingKeyCache: signingKeyCache.current,
+            sessionKeyCache: sessionKeyCache.current,
+            api,
+            resolveParticipants,
+          });
+
+          const newMessages = await decryptMessageBatch({
+            ...shared,
+            messages: resp.data.messages,
+            conversationId,
+            pagingCursor: mergeLatest ? undefined : paginationCursor,
+            existingMessages: messagesStateRef.current[conversationId]?.messages ?? [],
+          });
+
+          const unreadCount =
+            conversationsRef.current.find((c) => c.id === conversationId)?.unreadCount ?? 0;
+          setMessagesState((prev) =>
+            applyFetchedMessagesToConversationState(prev, {
+              conversationId,
+              mergeLatest: !!mergeLatest,
+              newMessages,
+              direction,
+              cursor: resp.data!.cursor,
+              hasNewerPagesFromApi: resp.data!.hasNewerPages,
+              unreadCount,
+              isAtBottom: isAtBottomRef.current,
+            })
+          );
+
+          if (
+            conversationId === activeConversationIdRef.current &&
+            document.hasFocus() &&
+            isAtBottomRef.current
+          ) {
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === conversationId ? { ...c, unreadCount: 0 } : c
+              )
+            );
+          }
+        }
+      } catch (err) {
+        console.error('[useConversations] fetchMessages failed', { conversationId, paginationCursor, direction, mergeLatest }, err);
+        setMessagesState((prev) => ({
+          ...prev,
+          [conversationId]: {
+            ...(prev[conversationId] ?? {
+              messages: [],
+              olderCursor: null,
+              newerPaginationAfterId: null,
+              hasNewerPages: false,
+              loading: false,
+            }),
+            loading: false,
+          },
+        }));
+      }
+    },
+    [isLoggedIn, identity, api, getCurrentDeviceId, getWrappingKey, resolveParticipants]
+  );
+
+  const fetchMessagesAround = useCallback(
+    async (
+      conversationId: string,
+      centerMessageId: string,
+      options?: { before?: number; after?: number },
+    ): Promise<boolean> => {
+      if (!isLoggedIn || !identity) return false;
+      const before = options?.before ?? REPLY_JUMP_CONTEXT_BEFORE;
+      const after = options?.after ?? REPLY_JUMP_CONTEXT_AFTER;
+
+      setMessagesState((prev) => ({
+        ...prev,
+        [conversationId]: {
+          ...(prev[conversationId] ?? {
+            messages: [],
+            olderCursor: null,
+            newerPaginationAfterId: null,
+            hasNewerPages: false,
+            loading: true,
+          }),
+          loading: true,
+        },
+      }));
+
+      try {
+        const resp = await api.conversations.getMessagesAround(conversationId, centerMessageId, {
+          before,
+          after,
+        });
+        if (!resp.data) {
+          toast.error(
+            t('conversations.loadMessageContextFailed', 'Could not load messages'),
+            typeof resp.error === 'string' ? resp.error : undefined,
+          );
+          setMessagesState((prev) => ({
+            ...prev,
+            [conversationId]: {
+              ...(prev[conversationId] ?? {
+                messages: [],
+                olderCursor: null,
+                newerPaginationAfterId: null,
+                hasNewerPages: false,
+                loading: false,
+              }),
+              loading: false,
+            },
+          }));
+          return false;
+        }
+
+        const deviceId = getCurrentDeviceId();
+        const wrappingKey = getWrappingKey();
+        const keys = await loadDecryptKeysQuiet(identity.id, deviceId, wrappingKey);
+        const shared = buildDecryptMessageBatchSharedFields({
+          identityId: identity.id,
+          wrappingKey,
+          keys,
+          signingKeyCache: signingKeyCache.current,
+          sessionKeyCache: sessionKeyCache.current,
+          api,
+          resolveParticipants,
+        });
+
+        const newMessages = await decryptMessageBatch({
+          ...shared,
+          messages: resp.data.messages,
+          conversationId,
+          pagingCursor: undefined,
+          existingMessages: [],
+        });
+
+        const unreadCount =
+          conversationsRef.current.find((c) => c.id === conversationId)?.unreadCount ?? 0;
+        setMessagesState((prev) =>
+          applyFetchedMessagesToConversationState(prev, {
+            conversationId,
+            mergeLatest: false,
+            newMessages,
+            cursor: resp.data!.cursor,
+            hasNewerPagesFromApi: resp.data!.hasNewerPages,
+            unreadCount,
+            isAtBottom: isAtBottomRef.current,
+          })
+        );
+
+        if (
+          conversationId === activeConversationIdRef.current &&
+          document.hasFocus() &&
+          isAtBottomRef.current
+        ) {
+          setConversations((prev) =>
+            prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c)),
+          );
+        }
+        return true;
+      } catch (err) {
+        console.error('[useConversations] fetchMessagesAround failed', { conversationId, centerMessageId }, err);
+        toast.error(t('conversations.loadMessageContextFailed', 'Could not load messages'));
+        setMessagesState((prev) => ({
+          ...prev,
+          [conversationId]: {
+            ...(prev[conversationId] ?? {
+              messages: [],
+              olderCursor: null,
+              newerPaginationAfterId: null,
+              hasNewerPages: false,
+              loading: false,
+            }),
+            loading: false,
+          },
+        }));
+        return false;
+      }
+    },
+    [
+      isLoggedIn,
+      identity,
+      api,
+      getCurrentDeviceId,
+      getWrappingKey,
+      resolveParticipants,
+      toast,
+      t,
+    ]
+  );
+
+  const ensureReplyParentHydration = useCallback(
+    async (conversationId: string, parentMessageId: string): Promise<void> => {
+      if (!isLoggedIn || !identity) return;
+
+      if (messagesStateRef.current[conversationId]?.messages.some((m) => m.id === parentMessageId)) {
+        return;
+      }
+      if (replyParentHydrationRef.current[conversationId]?.[parentMessageId]) {
+        return;
+      }
+
+      const inflightKey = `${conversationId}:${parentMessageId}`;
+      if (replyHydrationInflightRef.current.has(inflightKey)) {
+        return;
+      }
+      replyHydrationInflightRef.current.add(inflightKey);
+
+      try {
+        const resp = await api.conversations.getMessagesAround(conversationId, parentMessageId, {
+          before: REPLY_QUOTE_HYDRATION_BEFORE,
+          after: REPLY_QUOTE_HYDRATION_AFTER,
+        });
+        if (!resp.data?.messages?.length) {
+          return;
+        }
+
+        const deviceId = getCurrentDeviceId();
+        const wrappingKey = getWrappingKey();
+        const keys = await loadDecryptKeysQuiet(identity.id, deviceId, wrappingKey);
+        const shared = buildDecryptMessageBatchSharedFields({
+          identityId: identity.id,
+          wrappingKey,
+          keys,
+          signingKeyCache: signingKeyCache.current,
+          sessionKeyCache: sessionKeyCache.current,
+          api,
+          resolveParticipants,
+        });
+
+        const main = messagesStateRef.current[conversationId]?.messages ?? [];
+        const hydrated = replyParentHydrationRef.current[conversationId] ?? {};
+        const existingById = new Map<string, DisplayMessage>();
+        for (const m of main) {
+          existingById.set(m.id, m);
+        }
+        for (const m of Object.values(hydrated)) {
+          if (!existingById.has(m.id)) {
+            existingById.set(m.id, m);
+          }
+        }
+        const existingMessages = Array.from(existingById.values());
+
+        const newMessages = await decryptMessageBatch({
+          ...shared,
+          messages: resp.data.messages,
+          conversationId,
+          pagingCursor: undefined,
+          existingMessages,
+        });
+
+        setReplyParentHydration((prev) => {
+          const conv = { ...(prev[conversationId] ?? {}) };
+          for (const m of newMessages) {
+            conv[m.id] = m as DisplayMessage;
+          }
+          return {
+            ...prev,
+            [conversationId]: conv,
+          };
+        });
+      } catch (err) {
+        console.error(
+          '[useConversations] ensureReplyParentHydration failed',
+          { conversationId, parentMessageId },
+          err,
+        );
+      } finally {
+        replyHydrationInflightRef.current.delete(inflightKey);
+      }
+    },
+    [isLoggedIn, identity, api, getCurrentDeviceId, getWrappingKey, resolveParticipants]
+  );
+
+  const fetchInvites = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const resp = await api.conversations.listInvites();
+      if (resp.data?.invites) {
+        setInvites(resp.data.invites);
+
+        const inviterIds = [
+          ...new Set(resp.data.invites.map((i) => i.invitedByIdentityId)),
+        ];
+        if (inviterIds.length > 0) {
+          resolveParticipants(inviterIds);
+        }
+      }
+    } catch (err) {
+      console.error('[useConversations] fetchInvites failed', err);
+    }
+  }, [isLoggedIn, api, resolveParticipants]);
+
+  const refresh = useCallback(async () => {
+    await Promise.all([fetchConversations(), fetchInvites()]);
+  }, [fetchConversations, fetchInvites]);
+
+  return {
+    fetchConversations,
+    fetchMessages,
+    fetchMessagesAround,
+    ensureReplyParentHydration,
+    fetchInvites,
+    refresh,
+  };
+}

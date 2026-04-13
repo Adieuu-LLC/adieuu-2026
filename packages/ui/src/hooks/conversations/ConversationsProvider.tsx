@@ -21,7 +21,6 @@ import {
   type PublicGroupInvite,
   type GroupInvitePreview,
   type PublicIdentity,
-  type ChatIncomingMessage,
   type SendMessageParams,
   type ClaimedDevicePreKeys,
   type FormerMember,
@@ -39,7 +38,6 @@ import {
   useMentionNotificationSoundPreference,
 } from '../useNotificationSoundPreference';
 import { fireConversationNotification } from '../../utils/conversationNotifications';
-import { sidebarActions } from '../../utils/sidebarActions';
 import {
   encryptMessage,
   encryptGroupName,
@@ -49,9 +47,6 @@ import {
   type MemberSettingsMap,
 } from '../../services/conversationCryptoService';
 import { getPersistedSessionKey } from '../../services/preKeyStorage';
-import { loadReactionNotificationsEnabled } from '../useReactionNotificationPreference';
-import { decryptMessageBatch } from '../../services/messageDecryptionPipeline';
-import { handleConversationSocketMessage } from '../../services/conversationSocketHandlers';
 import {
   addMemberAction,
   listPendingGroupInvitesAction,
@@ -65,13 +60,6 @@ import {
 } from '../../services/conversationGroupActions';
 import { getSessionKeysForMessages as loadSessionKeysForMessages } from '../../services/sessionKeyRetrieval';
 import {
-  DEFAULT_MESSAGE_PAGE_LIMIT,
-  REPLY_JUMP_CONTEXT_AFTER,
-  REPLY_JUMP_CONTEXT_BEFORE,
-  REPLY_QUOTE_HYDRATION_AFTER,
-  REPLY_QUOTE_HYDRATION_BEFORE,
-} from '../../pages/conversations/conversationScrollUtils';
-import {
   EMPTY_MEMBER_SETTINGS,
   EMPTY_MESSAGES,
   type ConversationMessagesState,
@@ -81,9 +69,10 @@ import {
   type SendMessageErrorResult,
 } from './types';
 import { ConversationsContext } from './context';
-import { loadDecryptKeysQuiet, loadDecryptKeysVerbose } from './conversationDecryptKeys';
-import { buildDecryptMessageBatchSharedFields } from './decryptMessageBatchShared';
-import { applyFetchedMessagesToConversationState } from './messageStateUpdates';
+import { useConversationParticipantProfiles } from './useConversationParticipantProfiles';
+import { useConversationDataFetching } from './useConversationDataFetching';
+import { useConversationsSocketEffects } from './useConversationsSocketEffects';
+import { useConversationsAuthLifecycleEffects } from './useConversationsAuthLifecycleEffects';
 
 // ============================================================================
 // Provider
@@ -112,9 +101,6 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const identityRef = useRef(identity);
   identityRef.current = identity;
 
-  /** Dedupe reaction toasts when both `reaction_added` and `notification_created` fire. */
-  const reactionNotifDedupeRef = useRef(new Set<string>());
-
   // State
   const [conversations, setConversations] = useState<DecryptedConversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -141,8 +127,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const [sending, setSending] = useState(false);
 
   const [participantProfiles, setParticipantProfiles] = useState<Record<string, PublicIdentity>>({});
-  const signingKeyCache = useRef<Record<string, string>>({});
-  const resolvedProfileIds = useRef<Set<string>>(new Set());
+  const { signingKeyCache, resolveParticipants, refreshParticipantProfile } =
+    useConversationParticipantProfiles(api, setParticipantProfiles);
   const messagesStateRef = useRef(messagesState);
   const conversationsRef = useRef(conversations);
   const sessionKeyCache = useRef(new Map<string, Uint8Array>());
@@ -154,85 +140,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     isAtBottomRef.current = value;
   }, []);
 
-  // -------------------------------------------------------------------------
-  // Participant identity resolution
-  // -------------------------------------------------------------------------
-
-  /**
-   * Resolves participant IDs to PublicIdentity profiles and caches
-   * their signing public keys for message decryption/verification.
-   *
-   * Uses a ref-based "already requested" set rather than depending on
-   * participantProfiles state, so this callback's identity is stable
-   * and doesn't cause cascading re-renders/reconnections.
-   */
-  const resolveParticipants = useCallback(
-    async (ids: string[]): Promise<Record<string, PublicIdentity>> => {
-      const missing = ids.filter((id) => !resolvedProfileIds.current.has(id));
-      if (missing.length === 0) return {};
-
-      for (const id of missing) resolvedProfileIds.current.add(id);
-
-      const fetched: Record<string, PublicIdentity> = {};
-
-      await Promise.all(
-        missing.map(async (id) => {
-          try {
-            const resp = await api.identity.getProfile(id);
-            if (resp.data) {
-              fetched[id] = resp.data;
-            }
-          } catch {
-            // Skip unreachable identities -- allow retry later
-            resolvedProfileIds.current.delete(id);
-          }
-
-          try {
-            if (!signingKeyCache.current[id]) {
-              const keysResp = await api.identity.getPublicKeys(id);
-              if (keysResp.data) {
-                signingKeyCache.current[id] = keysResp.data.signingPublicKey;
-              }
-            }
-          } catch {
-            // Signing keys unavailable
-          }
-        })
-      );
-
-      if (Object.keys(fetched).length > 0) {
-        setParticipantProfiles((prev) => ({ ...prev, ...fetched }));
-      }
-
-      return fetched;
-    },
-    [api]
-  );
-
-  /**
-   * Force-refresh a single participant's profile by invalidating
-   * the cache entry and re-fetching through the server's privacy filter.
-   * Used when the server signals that an identity's profile has changed.
-   */
-  const refreshParticipantProfile = useCallback(
-    async (identityId: string): Promise<void> => {
-      resolvedProfileIds.current.delete(identityId);
-      try {
-        const resp = await api.identity.getProfile(identityId);
-        if (resp.data) {
-          setParticipantProfiles((prev) => ({ ...prev, [identityId]: resp.data! }));
-        }
-      } catch {
-        // Profile may have become inaccessible (privacy change); remove it
-        setParticipantProfiles((prev) => {
-          const next = { ...prev };
-          delete next[identityId];
-          return next;
-        });
-      }
-    },
-    [api]
-  );
+  const activeConversationIdRef = useRef(activeConversationId);
+  activeConversationIdRef.current = activeConversationId;
 
   // -------------------------------------------------------------------------
   // Helpers
@@ -321,370 +230,37 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   // Data fetching
   // -------------------------------------------------------------------------
 
-  const fetchConversations = useCallback(async () => {
-    if (!isLoggedIn) return;
-    setLoading(true);
-    try {
-      const resp = await api.conversations.list(100);
-      if (resp.data?.conversations) {
-        const decrypted = resp.data.conversations.map(toDecrypted);
-
-        setConversations((prev) => {
-          const prevUnread = new Map(prev.map((c) => [c.id, c.unreadCount]));
-          return decrypted.map((c) => ({
-            ...c,
-            unreadCount: prevUnread.get(c.id) ?? c.unreadCount,
-          }));
-        });
-
-        const allParticipantIds = [
-          ...new Set(decrypted.flatMap((c) => c.participants)),
-        ];
-        resolveParticipants(allParticipantIds);
-      }
-    } catch (err) {
-      console.error('[useConversations] fetchConversations failed', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [isLoggedIn, api, toDecrypted, resolveParticipants]);
-
-  const fetchMessages = useCallback(
-    async (
-      conversationId: string,
-      paginationCursor?: string,
-      silent?: boolean,
-      mergeLatest?: boolean,
-      direction?: 'older' | 'newer'
-    ) => {
-      if (!isLoggedIn || !identity) return;
-
-      if (!silent && !mergeLatest) {
-        setMessagesState((prev) => ({
-          ...prev,
-          [conversationId]: {
-            ...(prev[conversationId] ?? {
-              messages: [],
-              olderCursor: null,
-              newerPaginationAfterId: null,
-              hasNewerPages: false,
-              loading: true,
-            }),
-            loading: true,
-          },
-        }));
-      }
-
-      try {
-        const limit = mergeLatest ? 1 : DEFAULT_MESSAGE_PAGE_LIMIT;
-        const resp = await api.conversations.getMessages(conversationId, {
-          limit,
-          ...(mergeLatest
-            ? {}
-            : paginationCursor != null && direction
-              ? { cursor: paginationCursor, direction }
-              : {}),
-        });
-        if (resp.data) {
-          const deviceId = getCurrentDeviceId();
-          const wrappingKey = getWrappingKey();
-          const keys = await loadDecryptKeysVerbose(identity.id, deviceId, wrappingKey);
-          const shared = buildDecryptMessageBatchSharedFields({
-            identityId: identity.id,
-            wrappingKey,
-            keys,
-            signingKeyCache: signingKeyCache.current,
-            sessionKeyCache: sessionKeyCache.current,
-            api,
-            resolveParticipants,
-          });
-
-          const newMessages = await decryptMessageBatch({
-            ...shared,
-            messages: resp.data.messages,
-            conversationId,
-            pagingCursor: mergeLatest ? undefined : paginationCursor,
-            existingMessages: messagesStateRef.current[conversationId]?.messages ?? [],
-          });
-
-          const unreadCount =
-            conversationsRef.current.find((c) => c.id === conversationId)?.unreadCount ?? 0;
-          setMessagesState((prev) =>
-            applyFetchedMessagesToConversationState(prev, {
-              conversationId,
-              mergeLatest: !!mergeLatest,
-              newMessages,
-              direction,
-              cursor: resp.data!.cursor,
-              hasNewerPagesFromApi: resp.data!.hasNewerPages,
-              unreadCount,
-              isAtBottom: isAtBottomRef.current,
-            })
-          );
-
-          if (
-            conversationId === activeConversationIdRef.current &&
-            document.hasFocus() &&
-            isAtBottomRef.current
-          ) {
-            setConversations((prev) =>
-              prev.map((c) =>
-                c.id === conversationId ? { ...c, unreadCount: 0 } : c
-              )
-            );
-          }
-        }
-    } catch (err) {
-      console.error('[useConversations] fetchMessages failed', { conversationId, paginationCursor, direction, mergeLatest }, err);
-      setMessagesState((prev) => ({
-        ...prev,
-        [conversationId]: {
-          ...(prev[conversationId] ?? {
-            messages: [],
-            olderCursor: null,
-            newerPaginationAfterId: null,
-            hasNewerPages: false,
-            loading: false,
-          }),
-          loading: false,
-        },
-      }));
-    }
-    },
-    [isLoggedIn, identity, api, getCurrentDeviceId, getWrappingKey, resolveParticipants]
-  );
-
-  const fetchMessagesAround = useCallback(
-    async (
-      conversationId: string,
-      centerMessageId: string,
-      options?: { before?: number; after?: number },
-    ): Promise<boolean> => {
-      if (!isLoggedIn || !identity) return false;
-      const before = options?.before ?? REPLY_JUMP_CONTEXT_BEFORE;
-      const after = options?.after ?? REPLY_JUMP_CONTEXT_AFTER;
-
-      setMessagesState((prev) => ({
-        ...prev,
-        [conversationId]: {
-          ...(prev[conversationId] ?? {
-            messages: [],
-            olderCursor: null,
-            newerPaginationAfterId: null,
-            hasNewerPages: false,
-            loading: true,
-          }),
-          loading: true,
-        },
-      }));
-
-      try {
-        const resp = await api.conversations.getMessagesAround(conversationId, centerMessageId, {
-          before,
-          after,
-        });
-        if (!resp.data) {
-          toast.error(
-            t('conversations.loadMessageContextFailed', 'Could not load messages'),
-            typeof resp.error === 'string' ? resp.error : undefined,
-          );
-          setMessagesState((prev) => ({
-            ...prev,
-            [conversationId]: {
-              ...(prev[conversationId] ?? {
-                messages: [],
-                olderCursor: null,
-                newerPaginationAfterId: null,
-                hasNewerPages: false,
-                loading: false,
-              }),
-              loading: false,
-            },
-          }));
-          return false;
-        }
-
-        const deviceId = getCurrentDeviceId();
-        const wrappingKey = getWrappingKey();
-        const keys = await loadDecryptKeysQuiet(identity.id, deviceId, wrappingKey);
-        const shared = buildDecryptMessageBatchSharedFields({
-          identityId: identity.id,
-          wrappingKey,
-          keys,
-          signingKeyCache: signingKeyCache.current,
-          sessionKeyCache: sessionKeyCache.current,
-          api,
-          resolveParticipants,
-        });
-
-        const newMessages = await decryptMessageBatch({
-          ...shared,
-          messages: resp.data.messages,
-          conversationId,
-          pagingCursor: undefined,
-          existingMessages: [],
-        });
-
-        const unreadCount =
-          conversationsRef.current.find((c) => c.id === conversationId)?.unreadCount ?? 0;
-        setMessagesState((prev) =>
-          applyFetchedMessagesToConversationState(prev, {
-            conversationId,
-            mergeLatest: false,
-            newMessages,
-            cursor: resp.data!.cursor,
-            hasNewerPagesFromApi: resp.data!.hasNewerPages,
-            unreadCount,
-            isAtBottom: isAtBottomRef.current,
-          })
-        );
-
-        if (
-          conversationId === activeConversationIdRef.current &&
-          document.hasFocus() &&
-          isAtBottomRef.current
-        ) {
-          setConversations((prev) =>
-            prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c)),
-          );
-        }
-        return true;
-      } catch (err) {
-        console.error('[useConversations] fetchMessagesAround failed', { conversationId, centerMessageId }, err);
-        toast.error(t('conversations.loadMessageContextFailed', 'Could not load messages'));
-        setMessagesState((prev) => ({
-          ...prev,
-          [conversationId]: {
-            ...(prev[conversationId] ?? {
-              messages: [],
-              olderCursor: null,
-              newerPaginationAfterId: null,
-              hasNewerPages: false,
-              loading: false,
-            }),
-            loading: false,
-          },
-        }));
-        return false;
-      }
-    },
-    [
-      isLoggedIn,
-      identity,
-      api,
-      getCurrentDeviceId,
-      getWrappingKey,
-      resolveParticipants,
-      toast,
-      t,
-    ],
-  );
-
-  const ensureReplyParentHydration = useCallback(
-    async (conversationId: string, parentMessageId: string): Promise<void> => {
-      if (!isLoggedIn || !identity) return;
-
-      if (messagesStateRef.current[conversationId]?.messages.some((m) => m.id === parentMessageId)) {
-        return;
-      }
-      if (replyParentHydrationRef.current[conversationId]?.[parentMessageId]) {
-        return;
-      }
-
-      const inflightKey = `${conversationId}:${parentMessageId}`;
-      if (replyHydrationInflightRef.current.has(inflightKey)) {
-        return;
-      }
-      replyHydrationInflightRef.current.add(inflightKey);
-
-      try {
-        const resp = await api.conversations.getMessagesAround(conversationId, parentMessageId, {
-          before: REPLY_QUOTE_HYDRATION_BEFORE,
-          after: REPLY_QUOTE_HYDRATION_AFTER,
-        });
-        if (!resp.data?.messages?.length) {
-          return;
-        }
-
-        const deviceId = getCurrentDeviceId();
-        const wrappingKey = getWrappingKey();
-        const keys = await loadDecryptKeysQuiet(identity.id, deviceId, wrappingKey);
-        const shared = buildDecryptMessageBatchSharedFields({
-          identityId: identity.id,
-          wrappingKey,
-          keys,
-          signingKeyCache: signingKeyCache.current,
-          sessionKeyCache: sessionKeyCache.current,
-          api,
-          resolveParticipants,
-        });
-
-        const main = messagesStateRef.current[conversationId]?.messages ?? [];
-        const hydrated = replyParentHydrationRef.current[conversationId] ?? {};
-        const existingById = new Map<string, DisplayMessage>();
-        for (const m of main) {
-          existingById.set(m.id, m);
-        }
-        for (const m of Object.values(hydrated)) {
-          if (!existingById.has(m.id)) {
-            existingById.set(m.id, m);
-          }
-        }
-        const existingMessages = Array.from(existingById.values());
-
-        const newMessages = await decryptMessageBatch({
-          ...shared,
-          messages: resp.data.messages,
-          conversationId,
-          pagingCursor: undefined,
-          existingMessages,
-        });
-
-        setReplyParentHydration((prev) => {
-          const conv = { ...(prev[conversationId] ?? {}) };
-          for (const m of newMessages) {
-            conv[m.id] = m as DisplayMessage;
-          }
-          return {
-            ...prev,
-            [conversationId]: conv,
-          };
-        });
-      } catch (err) {
-        console.error(
-          '[useConversations] ensureReplyParentHydration failed',
-          { conversationId, parentMessageId },
-          err,
-        );
-      } finally {
-        replyHydrationInflightRef.current.delete(inflightKey);
-      }
-    },
-    [isLoggedIn, identity, api, getCurrentDeviceId, getWrappingKey, resolveParticipants],
-  );
-
-  const fetchInvites = useCallback(async () => {
-    if (!isLoggedIn) return;
-    try {
-      const resp = await api.conversations.listInvites();
-      if (resp.data?.invites) {
-        setInvites(resp.data.invites);
-
-        const inviterIds = [
-          ...new Set(resp.data.invites.map((i) => i.invitedByIdentityId)),
-        ];
-        if (inviterIds.length > 0) {
-          resolveParticipants(inviterIds);
-        }
-      }
-    } catch (err) {
-      console.error('[useConversations] fetchInvites failed', err);
-    }
-  }, [isLoggedIn, api, resolveParticipants]);
-
-  const refresh = useCallback(async () => {
-    await Promise.all([fetchConversations(), fetchInvites()]);
-  }, [fetchConversations, fetchInvites]);
+  const {
+    fetchConversations,
+    fetchMessages,
+    fetchMessagesAround,
+    ensureReplyParentHydration,
+    fetchInvites,
+    refresh,
+  } = useConversationDataFetching({
+    isLoggedIn,
+    identity,
+    api,
+    getCurrentDeviceId,
+    getWrappingKey,
+    toDecrypted,
+    resolveParticipants,
+    setLoading,
+    setConversations,
+    setMessagesState,
+    setInvites,
+    setReplyParentHydration,
+    signingKeyCache,
+    sessionKeyCache,
+    messagesStateRef,
+    conversationsRef,
+    activeConversationIdRef,
+    isAtBottomRef,
+    replyParentHydrationRef,
+    replyHydrationInflightRef,
+    toast,
+    t,
+  });
 
   // -------------------------------------------------------------------------
   // Active conversation
@@ -1250,9 +826,6 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   // WebSocket events (via shared ChatSocket)
   // -------------------------------------------------------------------------
 
-  const activeConversationIdRef = useRef(activeConversationId);
-  activeConversationIdRef.current = activeConversationId;
-
   const markConversationRead = useCallback((conversationId: string) => {
     setConversations((prev) =>
       prev.map((c) =>
@@ -1291,111 +864,43 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const tRef = useRef(t);
   tRef.current = t;
 
-  useEffect(() => {
-    if (!isLoggedIn) return;
+  useConversationsSocketEffects({
+    isLoggedIn,
+    subscribe,
+    onStateChange,
+    setConversations,
+    setMessagesState,
+    setActiveConversationId,
+    setInvites,
+    identityRef,
+    activeConversationIdRef,
+    isAtBottomRef,
+    messagesStateRef,
+    participantProfilesRef,
+    fetchConversationsRef,
+    fetchMessagesRef,
+    refreshRef,
+    fireNotificationRef,
+    navigateRef,
+    resolveParticipantsRef,
+    refreshParticipantProfileRef,
+    onPendingInvitesChangedRef,
+    tRef,
+    decryptGroupName,
+  });
 
-    const runReactionNotifOnce = (reactionId: string, fn: () => void) => {
-      if (reactionNotifDedupeRef.current.has(reactionId)) return;
-      reactionNotifDedupeRef.current.add(reactionId);
-      setTimeout(() => {
-        reactionNotifDedupeRef.current.delete(reactionId);
-      }, 60_000);
-      fn();
-    };
-
-    const unsubMessage = subscribe((message: ChatIncomingMessage) => {
-      handleConversationSocketMessage(message, {
-        setConversations: (updater) =>
-          setConversations((prev) => updater(prev as never) as never),
-        setMessagesState: (updater) =>
-          setMessagesState((prev) => updater(prev as never) as never),
-        setActiveConversationId,
-        setInvites,
-        activeConversationId: activeConversationIdRef.current,
-        isAtBottom: isAtBottomRef.current,
-        hasFocus: document.hasFocus(),
-        identityId: identityRef.current?.id,
-        messagesState: messagesStateRef.current,
-        participantProfiles: participantProfilesRef.current,
-        decryptGroupName,
-        fetchConversations: () => fetchConversationsRef.current(),
-        fetchMessages: (conversationId, paginationCursor, silent, mergeLatest, direction) =>
-          void fetchMessagesRef.current(conversationId, paginationCursor, silent, mergeLatest, direction),
-        fireNotification: (title, body, options) =>
-          fireNotificationRef.current(title, body, options),
-        navigate: (path) => navigateRef.current(path),
-        resolveParticipants: (participantIds) =>
-          resolveParticipantsRef.current(participantIds),
-        t: (key, options) => String(tRef.current(key, options as never)),
-        runReactionNotifOnce,
-        loadReactionNotificationsEnabled,
-        openInvites: () => sidebarActions.openInvites(),
-        refreshParticipantProfile: (identityId) =>
-          void refreshParticipantProfileRef.current(identityId),
-        onPendingInvitesChanged: (cid) => onPendingInvitesChangedRef.current(cid),
-      });
-    });
-
-    const unsubState = onStateChange((state) => {
-      if (state === 'connected') {
-        refreshRef.current();
-
-        const activeId = activeConversationIdRef.current;
-        if (activeId) {
-          fetchMessagesRef.current(activeId, undefined, true);
-        }
-      }
-    });
-
-    const handleVisibilityOrFocus = () => {
-      if (document.visibilityState !== 'visible') return;
-      const activeId = activeConversationIdRef.current;
-      if (activeId) {
-        fetchMessagesRef.current(activeId, undefined, true);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
-    window.addEventListener('focus', handleVisibilityOrFocus);
-
-    return () => {
-      unsubMessage();
-      unsubState();
-      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-      window.removeEventListener('focus', handleVisibilityOrFocus);
-    };
-  }, [isLoggedIn, subscribe, onStateChange]);
-
-  // Clear state on definitive logout (isLoggedIn going true -> false).
-  const wasLoggedInRef = useRef(isLoggedIn);
-  useEffect(() => {
-    if (!isLoggedIn && wasLoggedInRef.current) {
-      setConversations([]);
-      setMessagesState({});
-      setReplyParentHydration({});
-      setInvites([]);
-      setActiveConversationId(null);
-    }
-    wasLoggedInRef.current = isLoggedIn;
-  }, [isLoggedIn]);
-
-  // Initial data fetch -- only depends on isLoggedIn to avoid
-  // re-firing when the refresh callback reference changes.
-  useEffect(() => {
-    if (isLoggedIn) {
-      refreshRef.current();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoggedIn]);
-
-  // If the active conversation was set before login (e.g. hard refresh on
-  // /conversations/:id), fetchMessages would have bailed. Retry once
-  // isLoggedIn becomes true and there's still no messages state.
-  useEffect(() => {
-    if (isLoggedIn && activeConversationId && !messagesState[activeConversationId]) {
-      fetchMessages(activeConversationId);
-    }
-  }, [isLoggedIn, activeConversationId, messagesState, fetchMessages]);
+  useConversationsAuthLifecycleEffects({
+    isLoggedIn,
+    setConversations,
+    setMessagesState,
+    setReplyParentHydration,
+    setInvites,
+    setActiveConversationId,
+    refreshRef,
+    activeConversationId,
+    messagesState,
+    fetchMessages,
+  });
 
   // -------------------------------------------------------------------------
   // Report evidence: session key retrieval
