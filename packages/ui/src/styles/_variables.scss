@@ -1,0 +1,17 @@
+// ============================================================================
+// SCSS Variables
+// ============================================================================
+
+// Layout
+$sidebar-width: 20vw;
+$sidebar-width-max: 300px;
+$sidebar-width-collapsed: 64px;
+$mobile-breakpoint: 600px;
+
+// Z-Index Scale (layout-specific)
+$z-content: 1;
+$z-sidebar: 10;
+$z-mobile-overlay: 15;
+$z-hamburger: 20;
+// Drawer must sit above overlay + hamburger so sidebar (incl. logo) receives clicks
+$z-sidebar-mobile-open: 25;
