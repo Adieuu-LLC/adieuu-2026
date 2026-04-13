@@ -1,0 +1,251 @@
+import { useCallback, type Dispatch, type SetStateAction } from 'react';
+import {
+  createApiClient,
+  type PublicConversation,
+  type PublicMessage,
+  type PublicIdentity,
+  type SendMessageParams,
+} from '@adieuu/shared';
+import {
+  encryptMessage,
+  encryptGroupName,
+  type RecipientKeys,
+} from '../../services/conversationCryptoService';
+import type {
+  ConversationMessagesState,
+  DecryptedConversation,
+  DisplayMessage,
+  SendMessageErrorResult,
+} from './types';
+
+type ApiClient = ReturnType<typeof createApiClient>;
+
+export interface ConversationCreateAndSendParams {
+  isLoggedIn: boolean;
+  identity: PublicIdentity | null;
+  api: ApiClient;
+  conversations: DecryptedConversation[];
+  getSigningKey: () => Uint8Array | null | undefined;
+  fetchRecipientKeys: (participantIds: string[], useForwardSecrecy?: boolean) => Promise<RecipientKeys[]>;
+  toDecrypted: (conv: PublicConversation) => DecryptedConversation;
+  resolveParticipants: (ids: string[]) => Promise<Record<string, PublicIdentity>>;
+  setConversations: Dispatch<SetStateAction<DecryptedConversation[]>>;
+  setMessagesState: Dispatch<SetStateAction<Record<string, ConversationMessagesState>>>;
+  setSending: Dispatch<SetStateAction<boolean>>;
+}
+
+/**
+ * Create DM/group conversations and send encrypted text messages.
+ */
+export function useConversationCreateAndSend(params: ConversationCreateAndSendParams) {
+  const {
+    isLoggedIn,
+    identity,
+    api,
+    conversations,
+    getSigningKey,
+    fetchRecipientKeys,
+    toDecrypted,
+    resolveParticipants,
+    setConversations,
+    setMessagesState,
+    setSending,
+  } = params;
+
+  const createDM = useCallback(
+    async (
+      participantId: string,
+      options?: { forceNew?: boolean; topic?: string }
+    ): Promise<PublicConversation | null> => {
+      try {
+        const { forceNew, topic } = options ?? {};
+        const resp = await api.conversations.create({
+          type: 'dm',
+          participants: [participantId],
+          forceNew: forceNew === true ? true : undefined,
+        });
+        if (!resp.data) return null;
+
+        let conv: PublicConversation = resp.data;
+        const trimmedTopic = topic?.trim();
+        if (trimmedTopic) {
+          const encrypted = encryptGroupName(trimmedTopic, conv.id);
+          const nameResp = await api.conversations.updateName(
+            conv.id,
+            encrypted.encryptedName,
+            encrypted.nameNonce
+          );
+          if (nameResp.data) {
+            conv = {
+              ...nameResp.data,
+              encryptedName: nameResp.data.encryptedName ?? encrypted.encryptedName,
+              nameNonce: nameResp.data.nameNonce ?? encrypted.nameNonce,
+            };
+          }
+        }
+
+        const decrypted = toDecrypted(conv);
+        setConversations((prev) => {
+          if (prev.some((c) => c.id === decrypted.id)) return prev;
+          return [decrypted, ...prev];
+        });
+        void resolveParticipants(decrypted.participants);
+        return conv;
+      } catch {
+        // Error
+      }
+      return null;
+    },
+    [api, toDecrypted, resolveParticipants, encryptGroupName]
+  );
+
+  const createGroup = useCallback(
+    async (
+      participantIds: string[],
+      conversationTopicOrName?: string
+    ): Promise<PublicConversation | null> => {
+      try {
+        let encryptedName: string | undefined;
+        let nameNonce: string | undefined;
+
+        const resp = await api.conversations.create({
+          type: 'group',
+          participants: participantIds,
+        });
+
+        if (resp.data && conversationTopicOrName) {
+          const encrypted = encryptGroupName(conversationTopicOrName, resp.data.id);
+          await api.conversations.updateName(resp.data.id, encrypted.encryptedName, encrypted.nameNonce);
+          encryptedName = encrypted.encryptedName;
+          nameNonce = encrypted.nameNonce;
+        }
+
+        if (resp.data) {
+          const conv = {
+            ...resp.data,
+            encryptedName,
+            nameNonce,
+          };
+          const decrypted = toDecrypted(conv);
+          setConversations((prev) => [decrypted, ...prev]);
+          void resolveParticipants(decrypted.participants);
+          return conv;
+        }
+      } catch {
+        // Error
+      }
+      return null;
+    },
+    [api, toDecrypted, resolveParticipants]
+  );
+
+  const sendTextMessage = useCallback(
+    async (
+      conversationId: string,
+      plaintext: string,
+      options?: {
+        expiresInSeconds?: number;
+        useForwardSecrecy?: boolean;
+        replyToMessageId?: string;
+        e2eMediaIds?: string[];
+        mentionedIdentityIds?: string[];
+        skipMessageStateUpdate?: boolean;
+      }
+    ): Promise<PublicMessage | SendMessageErrorResult | null> => {
+      if (!isLoggedIn || !identity) return null;
+
+      const conversation = conversations.find((c) => c.id === conversationId);
+      if (!conversation) return null;
+
+      const useFs = options?.useForwardSecrecy ?? false;
+      const expiresInSeconds = options?.expiresInSeconds;
+
+      setSending(true);
+      try {
+        const signingKey = getSigningKey();
+        if (!signingKey) throw new Error('No signing key available');
+
+        const recipients = await fetchRecipientKeys(conversation.participants, useFs);
+        if (recipients.length === 0) throw new Error('No recipient keys available');
+
+        const cryptoProfile = identity.preferredCryptoProfile ?? 'default';
+        const encrypted = encryptMessage(
+          plaintext,
+          recipients,
+          signingKey,
+          cryptoProfile as 'default' | 'cnsa2'
+        );
+
+        const clientMessageId = crypto.randomUUID();
+
+        const sendParams: SendMessageParams = {
+          ciphertext: encrypted.ciphertext,
+          nonce: encrypted.nonce,
+          wrappedKeys: encrypted.wrappedKeys,
+          signature: encrypted.signature,
+          cryptoProfile: encrypted.cryptoProfile,
+          clientMessageId,
+          expiresInSeconds,
+          ...(options?.replyToMessageId ? { replyToMessageId: options.replyToMessageId } : {}),
+          ...(options?.e2eMediaIds?.length ? { e2eMediaIds: options.e2eMediaIds } : {}),
+          ...(options?.mentionedIdentityIds?.length ? { mentionedIdentityIds: options.mentionedIdentityIds } : {}),
+        };
+
+        const resp = await api.conversations.sendMessage(conversationId, sendParams);
+
+        if (resp.data) {
+          const displayMsg: DisplayMessage = {
+            ...resp.data,
+            decryptedContent: plaintext,
+            signatureVerified: true,
+            forwardSecrecy: useFs,
+          };
+
+          if (!options?.skipMessageStateUpdate) {
+            setMessagesState((prev) => ({
+              ...prev,
+              [conversationId]: {
+                ...(prev[conversationId] ?? {
+                  messages: [],
+                  olderCursor: null,
+                  newerPaginationAfterId: null,
+                  hasNewerPages: false,
+                  loading: false,
+                }),
+                messages: [displayMsg, ...(prev[conversationId]?.messages ?? [])],
+                newerPaginationAfterId: displayMsg.id,
+                hasNewerPages: false,
+              },
+            }));
+          }
+
+          setConversations((prev) =>
+            prev.map((c) =>
+              c.id === conversationId
+                ? { ...c, lastMessageAt: resp.data!.createdAt, lastMessageId: resp.data!.id }
+                : c
+            ).sort((a, b) => {
+              const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+              const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+              return bTime - aTime;
+            })
+          );
+
+          return resp.data;
+        }
+
+        if (resp.error?.code === 'FORBIDDEN') {
+          return { errorCode: 'BLOCKED' };
+        }
+      } catch (err) {
+        console.error('[Conversations] Failed to send message:', err);
+      } finally {
+        setSending(false);
+      }
+      return null;
+    },
+    [isLoggedIn, identity, conversations, getSigningKey, fetchRecipientKeys, api]
+  );
+
+  return { createDM, createGroup, sendTextMessage };
+}

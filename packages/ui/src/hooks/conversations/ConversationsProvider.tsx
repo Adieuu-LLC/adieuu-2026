@@ -19,12 +19,8 @@ import {
   createApiClient,
   type PublicConversation,
   type PublicGroupInvite,
-  type GroupInvitePreview,
   type PublicIdentity,
-  type SendMessageParams,
   type ClaimedDevicePreKeys,
-  type FormerMember,
-  type PublicMessage,
 } from '@adieuu/shared';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -39,25 +35,12 @@ import {
 } from '../useNotificationSoundPreference';
 import { fireConversationNotification } from '../../utils/conversationNotifications';
 import {
-  encryptMessage,
-  encryptGroupName,
   decryptGroupName,
   decryptMemberSettings,
   type RecipientKeys,
   type MemberSettingsMap,
 } from '../../services/conversationCryptoService';
 import { getPersistedSessionKey } from '../../services/preKeyStorage';
-import {
-  addMemberAction,
-  listPendingGroupInvitesAction,
-  revokeGroupInviteAction,
-  leaveGroupAction,
-  promoteToAdminAction,
-  removeMemberAction,
-  renameGroupAction,
-  terminateGroupAction,
-  updateMemberSettingsAction,
-} from '../../services/conversationGroupActions';
 import { getSessionKeysForMessages as loadSessionKeysForMessages } from '../../services/sessionKeyRetrieval';
 import {
   EMPTY_MEMBER_SETTINGS,
@@ -66,13 +49,14 @@ import {
   type DecryptedConversation,
   type DisplayMessage,
   type ConversationsContextValue,
-  type SendMessageErrorResult,
 } from './types';
 import { ConversationsContext } from './context';
 import { useConversationParticipantProfiles } from './useConversationParticipantProfiles';
 import { useConversationDataFetching } from './useConversationDataFetching';
 import { useConversationsSocketEffects } from './useConversationsSocketEffects';
 import { useConversationsAuthLifecycleEffects } from './useConversationsAuthLifecycleEffects';
+import { useConversationCreateAndSend } from './useConversationCreateAndSend';
+import { useConversationGroupInvitesAndDelete } from './useConversationGroupInvitesAndDelete';
 
 // ============================================================================
 // Provider
@@ -262,6 +246,11 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     t,
   });
 
+  const fetchConversationsRef = useRef(fetchConversations);
+  fetchConversationsRef.current = fetchConversations;
+  const fetchMessagesRef = useRef(fetchMessages);
+  fetchMessagesRef.current = fetchMessages;
+
   // -------------------------------------------------------------------------
   // Active conversation
   // -------------------------------------------------------------------------
@@ -327,478 +316,50 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     [isLoggedIn, identity, fetchMessages],
   );
 
-  // -------------------------------------------------------------------------
-  // Conversation operations
-  // -------------------------------------------------------------------------
+  const { createDM, createGroup, sendTextMessage } = useConversationCreateAndSend({
+    isLoggedIn,
+    identity,
+    api,
+    conversations,
+    getSigningKey,
+    fetchRecipientKeys,
+    toDecrypted,
+    resolveParticipants,
+    setConversations,
+    setMessagesState,
+    setSending,
+  });
 
-  const createDM = useCallback(
-    async (
-      participantId: string,
-      options?: { forceNew?: boolean; topic?: string }
-    ): Promise<PublicConversation | null> => {
-      try {
-        const { forceNew, topic } = options ?? {};
-        const resp = await api.conversations.create({
-          type: 'dm',
-          participants: [participantId],
-          forceNew: forceNew === true ? true : undefined,
-        });
-        if (!resp.data) return null;
-
-        let conv: PublicConversation = resp.data;
-        const trimmedTopic = topic?.trim();
-        if (trimmedTopic) {
-          const encrypted = encryptGroupName(trimmedTopic, conv.id);
-          const nameResp = await api.conversations.updateName(
-            conv.id,
-            encrypted.encryptedName,
-            encrypted.nameNonce
-          );
-          if (nameResp.data) {
-            conv = {
-              ...nameResp.data,
-              encryptedName: nameResp.data.encryptedName ?? encrypted.encryptedName,
-              nameNonce: nameResp.data.nameNonce ?? encrypted.nameNonce,
-            };
-          }
-        }
-
-        const decrypted = toDecrypted(conv);
-        setConversations((prev) => {
-          if (prev.some((c) => c.id === decrypted.id)) return prev;
-          return [decrypted, ...prev];
-        });
-        void resolveParticipants(decrypted.participants);
-        return conv;
-      } catch {
-        // Error
-      }
-      return null;
-    },
-    [api, toDecrypted, resolveParticipants, encryptGroupName]
-  );
-
-  const createGroup = useCallback(
-    async (
-      participantIds: string[],
-      conversationTopicOrName?: string
-    ): Promise<PublicConversation | null> => {
-      try {
-        let encryptedName: string | undefined;
-        let nameNonce: string | undefined;
-
-        // We'll encrypt the name after we get the conversationId --
-        // but we need the ID to derive the key. So we create the
-        // conversation first with a placeholder, then update the name.
-        const resp = await api.conversations.create({
-          type: 'group',
-          participants: participantIds,
-        });
-
-        if (resp.data && conversationTopicOrName) {
-          const encrypted = encryptGroupName(conversationTopicOrName, resp.data.id);
-          await api.conversations.updateName(resp.data.id, encrypted.encryptedName, encrypted.nameNonce);
-          encryptedName = encrypted.encryptedName;
-          nameNonce = encrypted.nameNonce;
-        }
-
-        if (resp.data) {
-          const conv = {
-            ...resp.data,
-            encryptedName,
-            nameNonce,
-          };
-          const decrypted = toDecrypted(conv);
-          setConversations((prev) => [decrypted, ...prev]);
-          void resolveParticipants(decrypted.participants);
-          return conv;
-        }
-      } catch {
-        // Error
-      }
-      return null;
-    },
-    [api, toDecrypted, resolveParticipants]
-  );
-
-  // -------------------------------------------------------------------------
-  // Message operations
-  // -------------------------------------------------------------------------
-
-  const sendTextMessage = useCallback(
-    async (
-      conversationId: string,
-      plaintext: string,
-      options?: {
-        expiresInSeconds?: number;
-        useForwardSecrecy?: boolean;
-        replyToMessageId?: string;
-        e2eMediaIds?: string[];
-        mentionedIdentityIds?: string[];
-        skipMessageStateUpdate?: boolean;
-      }
-    ): Promise<PublicMessage | SendMessageErrorResult | null> => {
-      if (!isLoggedIn || !identity) return null;
-
-      const conversation = conversations.find((c) => c.id === conversationId);
-      if (!conversation) return null;
-
-      const useFs = options?.useForwardSecrecy ?? false;
-      const expiresInSeconds = options?.expiresInSeconds;
-
-      setSending(true);
-      try {
-        const signingKey = getSigningKey();
-        if (!signingKey) throw new Error('No signing key available');
-
-        const recipients = await fetchRecipientKeys(conversation.participants, useFs);
-        if (recipients.length === 0) throw new Error('No recipient keys available');
-
-        const cryptoProfile = identity.preferredCryptoProfile ?? 'default';
-        const encrypted = encryptMessage(
-          plaintext,
-          recipients,
-          signingKey,
-          cryptoProfile as 'default' | 'cnsa2'
-        );
-
-        const clientMessageId = crypto.randomUUID();
-
-        const params: SendMessageParams = {
-          ciphertext: encrypted.ciphertext,
-          nonce: encrypted.nonce,
-          wrappedKeys: encrypted.wrappedKeys,
-          signature: encrypted.signature,
-          cryptoProfile: encrypted.cryptoProfile,
-          clientMessageId,
-          expiresInSeconds,
-          ...(options?.replyToMessageId ? { replyToMessageId: options.replyToMessageId } : {}),
-          ...(options?.e2eMediaIds?.length ? { e2eMediaIds: options.e2eMediaIds } : {}),
-          ...(options?.mentionedIdentityIds?.length ? { mentionedIdentityIds: options.mentionedIdentityIds } : {}),
-        };
-
-        const resp = await api.conversations.sendMessage(conversationId, params);
-
-        if (resp.data) {
-          const displayMsg: DisplayMessage = {
-            ...resp.data,
-            decryptedContent: plaintext,
-            signatureVerified: true,
-            forwardSecrecy: useFs,
-          };
-
-          if (!options?.skipMessageStateUpdate) {
-            setMessagesState((prev) => ({
-              ...prev,
-              [conversationId]: {
-                ...(prev[conversationId] ?? {
-                  messages: [],
-                  olderCursor: null,
-                  newerPaginationAfterId: null,
-                  hasNewerPages: false,
-                  loading: false,
-                }),
-                messages: [displayMsg, ...(prev[conversationId]?.messages ?? [])],
-                newerPaginationAfterId: displayMsg.id,
-                hasNewerPages: false,
-              },
-            }));
-          }
-
-          // Update conversation's lastMessage timestamp
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === conversationId
-                ? { ...c, lastMessageAt: resp.data!.createdAt, lastMessageId: resp.data!.id }
-                : c
-            ).sort((a, b) => {
-              const aTime = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
-              const bTime = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
-              return bTime - aTime;
-            })
-          );
-
-          return resp.data;
-        }
-
-        if (resp.error?.code === 'FORBIDDEN') {
-          return { errorCode: 'BLOCKED' };
-        }
-      } catch (err) {
-        console.error('[Conversations] Failed to send message:', err);
-      } finally {
-        setSending(false);
-      }
-      return null;
-    },
-    [isLoggedIn, identity, conversations, getSigningKey, fetchRecipientKeys, api]
-  );
-
-  // -------------------------------------------------------------------------
-  // Group management
-  // -------------------------------------------------------------------------
-
-  const addMember = useCallback(
-    async (conversationId: string, identityId: string): Promise<boolean> => {
-      const ok = await addMemberAction(api, conversationId, identityId);
-      if (!ok) return false;
-      await fetchConversations();
-      if (conversationId === activeConversationIdRef.current) {
-        fetchMessagesRef.current(conversationId, undefined, true);
-      }
-      return true;
-    },
-    [api, fetchConversations]
-  );
-
-  const removeMember = useCallback(
-    async (conversationId: string, identityId: string): Promise<boolean> => {
-      const ok = await removeMemberAction(api, conversationId, identityId);
-      if (!ok) return false;
-      await fetchConversations();
-      if (conversationId === activeConversationIdRef.current) {
-        fetchMessagesRef.current(conversationId, undefined, true);
-      }
-      return true;
-    },
-    [api, fetchConversations]
-  );
-
-  const leaveGroup = useCallback(
-    async (
-      conversationId: string,
-      options?: { transferAdminTo?: string; transferStrategy?: 'oldest' | 'most_active' }
-    ): Promise<boolean> => {
-      const ok = await leaveGroupAction(api, conversationId, options);
-      if (!ok) return false;
-      setConversations((prev) => prev.filter((c) => c.id !== conversationId));
-      if (activeConversationId === conversationId) {
-        setActiveConversationId(null);
-      }
-      return true;
-    },
-    [api, activeConversationId]
-  );
-
-  const promoteToAdmin = useCallback(
-    async (conversationId: string, identityId: string): Promise<boolean> => {
-      const ok = await promoteToAdminAction(api, conversationId, identityId);
-      if (!ok) return false;
-      await fetchConversations();
-      if (conversationId === activeConversationIdRef.current) {
-        fetchMessagesRef.current(conversationId, undefined, true);
-      }
-      return true;
-    },
-    [api, fetchConversations]
-  );
-
-  const onPendingInvitesChanged = useCallback((conversationId: string) => {
-    setPendingInvitesRefreshSignal({ conversationId, nonce: Date.now() });
-  }, []);
-
-  const listPendingGroupInvites = useCallback(
-    async (conversationId: string) => listPendingGroupInvitesAction(api, conversationId),
-    [api]
-  );
-
-  const revokeGroupInvite = useCallback(
-    async (conversationId: string, inviteId: string): Promise<boolean> => {
-      const ok = await revokeGroupInviteAction(api, conversationId, inviteId);
-      if (ok) {
-        setPendingInvitesRefreshSignal({ conversationId, nonce: Date.now() });
-      }
-      return ok;
-    },
-    [api]
-  );
-
-  const terminateGroup = useCallback(
-    async (conversationId: string): Promise<boolean> => {
-      const ok = await terminateGroupAction(api, conversationId);
-      if (!ok) return false;
-      setConversations((prev) => prev.filter((c) => c.id !== conversationId));
-      if (activeConversationId === conversationId) {
-        setActiveConversationId(null);
-      }
-      return true;
-    },
-    [api, activeConversationId]
-  );
-
-  const renameGroup = useCallback(
-    async (conversationId: string, newName: string): Promise<boolean> => {
-      const result = await renameGroupAction(api, conversationId, newName);
-      if (!result.ok) return false;
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === conversationId
-            ? {
-                ...c,
-                encryptedName: result.encryptedName,
-                nameNonce: result.nameNonce,
-                decryptedName: newName,
-              }
-            : c
-        )
-      );
-      if (conversationId === activeConversationIdRef.current) {
-        fetchMessagesRef.current(conversationId, undefined, true);
-      }
-      return true;
-    },
-    [api]
-  );
-
-  const updateConversationMemberSettings = useCallback(
-    async (conversationId: string, settings: MemberSettingsMap): Promise<boolean> => {
-      const result = await updateMemberSettingsAction(api, conversationId, settings);
-      if (!result.ok) return false;
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === conversationId
-            ? {
-                ...c,
-                encryptedMemberSettings: result.encryptedMemberSettings,
-                memberSettingsNonce: result.memberSettingsNonce,
-                decryptedMemberSettings: settings,
-              }
-            : c
-        )
-      );
-      return true;
-    },
-    [api]
-  );
-
-  const updateGifsDisabled = useCallback(
-    async (conversationId: string, gifsDisabled: boolean): Promise<boolean> => {
-      const resp = await api.conversations.updateGifsDisabled(conversationId, gifsDisabled);
-      if (!resp.success || !resp.data) return false;
-      const updated = toDecrypted(resp.data);
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === conversationId ? { ...updated, unreadCount: c.unreadCount } : c
-        )
-      );
-      return true;
-    },
-    [api, toDecrypted]
-  );
-
-  // -------------------------------------------------------------------------
-  // Message deletion
-  // -------------------------------------------------------------------------
-
-  const deleteMessage = useCallback(
-    async (conversationId: string, messageId: string, forEveryone: boolean): Promise<boolean> => {
-      try {
-        const resp = forEveryone
-          ? await api.conversations.deleteMessageForEveryone(conversationId, messageId)
-          : await api.conversations.deleteMessageForSelf(conversationId, messageId);
-
-        if (resp.success) {
-          setMessagesState((prev) => {
-            const state = prev[conversationId];
-            if (!state) return prev;
-            return {
-              ...prev,
-              [conversationId]: {
-                ...state,
-                messages: state.messages.map((m) =>
-                  m.id === messageId
-                    ? { ...m, deleted: true, decryptedContent: undefined, ciphertext: undefined }
-                    : m
-                ),
-              },
-            };
-          });
-          return true;
-        }
-      } catch {
-        // Error
-      }
-      return false;
-    },
-    [api]
-  );
-
-  // -------------------------------------------------------------------------
-  // Invites
-  // -------------------------------------------------------------------------
-
-  const acceptInvite = useCallback(
-    async (inviteId: string): Promise<boolean> => {
-      try {
-        const resp = await api.conversations.acceptInvite(inviteId);
-        if (resp.success) {
-          setInvites((prev) => prev.filter((i) => i.id !== inviteId));
-          await fetchConversations();
-          return true;
-        }
-      } catch {
-        // Error
-      }
-      return false;
-    },
-    [api, fetchConversations]
-  );
-
-  const declineInvite = useCallback(
-    async (inviteId: string): Promise<boolean> => {
-      try {
-        const resp = await api.conversations.declineInvite(inviteId);
-        if (resp.success) {
-          setInvites((prev) => prev.filter((i) => i.id !== inviteId));
-          return true;
-        }
-      } catch {
-        // Error
-      }
-      return false;
-    },
-    [api]
-  );
-
-  const invitePreviewCache = useRef<Record<string, GroupInvitePreview>>({});
-
-  const getInvitePreview = useCallback(
-    async (inviteId: string): Promise<GroupInvitePreview | null> => {
-      if (invitePreviewCache.current[inviteId]) {
-        return invitePreviewCache.current[inviteId];
-      }
-      try {
-        const resp = await api.conversations.getInvitePreview(inviteId);
-        if (resp.data) {
-          invitePreviewCache.current[inviteId] = resp.data;
-          return resp.data;
-        }
-      } catch {
-        // Error
-      }
-      return null;
-    },
-    [api]
-  );
-
-  // -------------------------------------------------------------------------
-  // Former members
-  // -------------------------------------------------------------------------
-
-  const getFormerMembers = useCallback(
-    async (conversationId: string): Promise<FormerMember[]> => {
-      try {
-        const resp = await api.conversations.getFormerMembers(conversationId);
-        if (resp.data) {
-          return resp.data;
-        }
-      } catch {
-        // Error
-      }
-      return [];
-    },
-    [api]
-  );
+  const {
+    addMember,
+    removeMember,
+    leaveGroup,
+    promoteToAdmin,
+    onPendingInvitesChanged,
+    listPendingGroupInvites,
+    revokeGroupInvite,
+    terminateGroup,
+    renameGroup,
+    updateConversationMemberSettings,
+    updateGifsDisabled,
+    deleteMessage,
+    acceptInvite,
+    declineInvite,
+    getInvitePreview,
+    getFormerMembers,
+  } = useConversationGroupInvitesAndDelete({
+    api,
+    fetchConversations,
+    fetchMessagesRef,
+    activeConversationIdRef,
+    setConversations,
+    setActiveConversationId,
+    activeConversationId,
+    setPendingInvitesRefreshSignal,
+    setInvites,
+    setMessagesState,
+    toDecrypted,
+  });
 
   // -------------------------------------------------------------------------
   // Notifications
@@ -833,12 +394,6 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       )
     );
   }, []);
-
-  const fetchConversationsRef = useRef(fetchConversations);
-  fetchConversationsRef.current = fetchConversations;
-
-  const fetchMessagesRef = useRef(fetchMessages);
-  fetchMessagesRef.current = fetchMessages;
 
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
