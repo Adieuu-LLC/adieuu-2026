@@ -3108,48 +3108,6 @@ a {
   }
 }
 
-// Backup Codes
-.mfa-backup-codes {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-  background: var(--color-bg-tertiary);
-  border-radius: var(--radius-md);
-
-  &-modal {
-    display: flex;
-    flex-direction: column;
-    gap: var(--spacing-md);
-
-    h4 {
-      margin: 0;
-      color: var(--color-text-primary);
-    }
-
-    p {
-      margin: 0;
-      color: var(--color-text-secondary);
-      font-size: var(--font-size-sm);
-    }
-  }
-}
-
-.mfa-backup-code {
-  padding: var(--spacing-sm);
-  background: var(--color-bg-secondary);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-primary);
-  text-align: center;
-  border: 1px solid var(--color-border-muted);
-}
-
-.mfa-copy-btn {
-  width: 100%;
-}
-
 // ============================================================================
 // Confirm Dialog Component
 // ============================================================================
@@ -4350,117 +4308,6 @@ a {
   font-size: var(--font-size-sm);
   margin: 0;
   text-align: center;
-}
-
-// BackupCodesDisplay (identity modal, Privacy, change passphrase)
-.backup-codes-display {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-  width: 100%;
-
-  .backup-codes-title {
-    margin: 0;
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-semibold);
-    color: var(--color-text-primary);
-  }
-
-  .backup-codes-description {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
-    line-height: var(--line-height-relaxed);
-  }
-
-  .backup-codes-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--spacing-sm);
-    padding: var(--spacing-md);
-    background: var(--color-bg-tertiary);
-    border-radius: var(--radius-md);
-  }
-
-  .backup-codes-code {
-    display: block;
-    padding: var(--spacing-sm);
-    background: var(--color-bg-secondary);
-    border-radius: var(--radius-sm);
-    font-family: var(--font-mono);
-    font-size: var(--font-size-sm);
-    color: var(--color-text-primary);
-    text-align: center;
-    border: 1px solid var(--color-border-muted);
-  }
-
-  .backup-codes-warning {
-    margin: 0;
-    font-size: var(--font-size-sm);
-    color: var(--color-warning);
-    line-height: var(--line-height-normal);
-  }
-
-  .backup-codes-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--spacing-sm);
-  }
-
-  .backup-codes-confirm-checkbox {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--spacing-sm);
-    margin-top: var(--spacing-xs);
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .backup-codes-checkbox-control {
-    width: 18px;
-    height: 18px;
-    min-width: 18px;
-    flex-shrink: 0;
-    margin-top: 2px;
-    border: 2px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    background: var(--color-bg);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition:
-      background var(--transition-fast),
-      border-color var(--transition-fast);
-
-    &[data-state='checked'] {
-      background: var(--color-accent-primary);
-      border-color: var(--color-accent-primary);
-
-      &::after {
-        content: '';
-        display: block;
-        width: 5px;
-        height: 9px;
-        border: solid var(--color-on-primary, #fff);
-        border-width: 0 2px 2px 0;
-        transform: rotate(45deg) translateY(-1px);
-      }
-    }
-  }
-
-  .backup-codes-checkbox-label {
-    flex: 1;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-secondary);
-    line-height: var(--line-height-normal);
-    cursor: pointer;
-  }
-
-  .backup-codes-continue {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: var(--spacing-sm);
-  }
 }
 
 // ============================================================================
@@ -7173,6 +7020,22 @@ a {
       overflow: hidden;
       text-overflow: ellipsis;
       margin-left: auto;
+    }
+
+    &--link {
+      text-decoration: none;
+      color: inherit;
+      cursor: pointer;
+      transition: background-color 0.12s ease;
+
+      &:hover {
+        background: var(--color-bg-tertiary);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--color-focus-ring, var(--color-accent-primary));
+        outline-offset: 1px;
+      }
     }
   }
 

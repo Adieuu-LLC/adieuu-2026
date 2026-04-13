@@ -31,6 +31,8 @@ const COLLECTIONS_TO_DROP = [
   'platform_reports',
   'platform_report_events',
   'identity_counts',
+  'identity_backup_codes',
+  'mfa_backup_codes',
   'sessions',
   'user_preferences',
 ];
@@ -39,7 +41,6 @@ const COLLECTIONS_TO_KEEP = [
   'users',
   'totp_credentials',
   'webauthn_credentials',
-  'mfa_backup_codes',
   'platform_settings',
   'audit_logs',
 ];

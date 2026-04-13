@@ -177,17 +177,6 @@ export const en = {
     actions: {
       viewProfile: 'View Profile',
     },
-    // Backup codes (shared display component)
-    backupCodes: {
-      title: 'Save Your Recovery Codes',
-      description: 'These recovery codes can be used to regain access to your alias if you forget your password. Each code can only be used once.',
-      warning: 'These codes will not be shown again. Save them in a secure location now.',
-      copy: 'Copy all',
-      copied: 'Copied!',
-      download: 'Download as file',
-      confirmLabel: 'Yes, these are in a safe place',
-      continue: 'Continue',
-    },
     // Device management
     device: {
       newDeviceTitle: 'New Device Added',
@@ -419,7 +408,7 @@ export const en = {
       errorUsernameTaken: 'This username is already taken.',
       errorMaxIdentities: 'You have reached the maximum number of identities.',
       errorValidation: 'Please check your input and try again.',
-      noRecoveryWarning: 'After creating your alias, you will receive recovery codes. Store them safely — they are the only way to recover your alias if you forget your password.',
+      noRecoveryWarning: 'Store your password in a safe place. Without it, you cannot decrypt your alias on new devices.',
     },
     // Login modal
     login: {
@@ -635,7 +624,7 @@ export const en = {
     // Privacy page (identity-scoped)
     privacy: {
       title: 'Privacy & Security',
-      subtitle: 'Manage your privacy settings, security options, and recovery codes.',
+      subtitle: 'Manage your privacy settings and security options.',
       tabs: {
         general: 'General',
         forwardSecrecy: 'Forward Secrecy',
@@ -659,15 +648,19 @@ export const en = {
         currentPassword: 'Current password',
         newPassword: 'New password',
         confirmPassword: 'Confirm new password',
+        currentPassphrase: 'Current password',
+        newPassphrase: 'New password',
+        confirmPassphrase: 'Confirm new password',
         submit: 'Change Password',
         processing: 'Changing password...',
         success: 'Password changed successfully.',
         errorMismatch: 'New passwords do not match.',
+        errorSamePassphrase: 'New password must be different from current password.',
         errorSamePassword: 'New password must be different from current password.',
         errorMinLength: 'Password must be at least 8 characters.',
         errorDecryptFailed: 'Failed to decrypt your key bundle. Is your current password correct?',
         errorFailed: 'Password change failed. Please try again.',
-        invalidatesBackupCodes: 'This will invalidate your existing backup codes. New codes will be generated.',
+        securityNote: 'Choose a strong password and store it safely. Without it, encrypted data for this alias cannot be recovered.',
         errorSession:
           'Your account session is not available. Sign out of your alias, sign in to your account, then open Account → Security → Change password.',
         identityOnlyTitle: 'Account sign-in required',
@@ -683,16 +676,6 @@ export const en = {
           'One of the many protections we employ for your Aliases, however, includes deriving some of your Alias\' encrypted key material from data that only exists in an Account. This makes it much harder for an attacker to guess an Alias password, even if they managed to breach our database.',
         whyAccountSignInP3:
           'An Alias session does not include those account-held secrets, so the service cannot complete the password change until you sign into your Account.',
-      },
-      backupCodes: {
-        sectionTitle: 'Recovery Codes',
-        sectionDescription: 'Recovery codes let you regain access to your alias if you forget your password.',
-        remaining: '{{count}} recovery codes remaining',
-        noneRemaining: 'No recovery codes remaining',
-        regenerate: 'Regenerate codes',
-        regenerateTitle: 'Regenerate Recovery Codes',
-        regenerateConfirm: 'This will invalidate your existing recovery codes. You will receive a new set. Continue?',
-        regenerateError: 'Failed to regenerate codes.',
       },
     },
     // Appearance page (alias-scoped)

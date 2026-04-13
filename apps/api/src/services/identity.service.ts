@@ -28,7 +28,6 @@ import { config } from '../config';
 import { getRedis, isRedisConnected, RedisKeys, withTransaction } from '../db';
 import { getKeyBundleRepository } from '../repositories/key-bundle.repository';
 import { deriveBundleId } from '../utils/crypto';
-import { generateIdentityBackupCodes } from './identity-backup-codes.service';
 import {
   createIdentitySession,
   destroySession,
@@ -417,7 +416,6 @@ export async function loginToIdentity(
 
 export interface ChangePassphraseResult {
   success: boolean;
-  backupCodes?: string[];
   error?: string;
   errorCode?: 'INVALID_PASSPHRASE' | 'VALIDATION_ERROR' | 'COLLISION' | 'BUNDLE_NOT_FOUND';
 }
@@ -426,8 +424,7 @@ export interface ChangePassphraseResult {
  * Change the passphrase for an identity.
  *
  * Atomically updates the ident hash and migrates the encrypted key bundle
- * (whose lookup key is derived from the ident). New backup codes are generated
- * after the transaction succeeds.
+ * (whose lookup key is derived from the ident).
  *
  * @param accountHash - HMAC-derived account hash
  * @param currentPassphrase - Current passphrase for verification
@@ -510,20 +507,9 @@ export async function changePassphrase(
     );
   });
 
-  // Generate new backup codes (outside the transaction — non-fatal)
-  let backupCodes: string[] | undefined;
-  try {
-    backupCodes = await generateIdentityBackupCodes(callerIdentityId);
-  } catch (err) {
-    elog.error('Failed to generate backup codes after passphrase change', {
-      identityId: callerIdentityId,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-
   elog.info('Passphrase changed', { identityId: callerIdentityId });
 
-  return { success: true, backupCodes };
+  return { success: true };
 }
 
 // ---------------------------------------------------------------------------

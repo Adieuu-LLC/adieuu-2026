@@ -13,19 +13,18 @@ interface LocationState {
   identifier?: string;
 }
 
-type MfaMethod = 'totp' | 'webauthn' | 'backup';
+type MfaMethod = 'totp' | 'webauthn';
 
 export function MfaVerify() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { completeMfaTotp, completeMfaWebAuthn, completeMfaBackupCode, status } = useAuth();
+  const { completeMfaTotp, completeMfaWebAuthn, status } = useAuth();
 
   const state = location.state as LocationState | null;
   const mfaChallenge = state?.mfaChallenge;
 
   const [method, setMethod] = useState<MfaMethod | null>(null);
   const [code, setCode] = useState('');
-  const [backupCode, setBackupCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,8 +40,6 @@ export function MfaVerify() {
       setMethod('webauthn');
     } else if (mfaChallenge.mfaOptions.totp) {
       setMethod('totp');
-    } else if (mfaChallenge.mfaOptions.backupCodes) {
-      setMethod('backup');
     }
   }, [mfaChallenge, navigate]);
 
@@ -110,26 +107,6 @@ export function MfaVerify() {
     navigate('/', { replace: true });
   };
 
-  const handleBackupSubmit = async (e?: FormEvent) => {
-    e?.preventDefault();
-    if (!backupCode.trim() || !mfaChallenge || isLoading) return; // Prevent multiple submissions
-
-    setError(null);
-    setIsLoading(true);
-
-    const result = await completeMfaBackupCode(mfaChallenge.mfaToken, backupCode.trim());
-
-    setIsLoading(false);
-
-    if (!result.success) {
-      setError(result.error ?? 'Invalid backup code');
-      setBackupCode('');
-      return;
-    }
-
-    navigate('/', { replace: true });
-  };
-
   const handleTotpComplete = (value: string) => {
     setCode(value);
     // Auto-submit when code is complete (skip if already loading)
@@ -156,7 +133,6 @@ export function MfaVerify() {
   const availableMethods: { key: MfaMethod; label: string; available: boolean }[] = [
     { key: 'webauthn', label: 'Passkey / Security Key', available: mfaChallenge.mfaOptions.webauthn && !!mfaChallenge.webauthnChallenge },
     { key: 'totp', label: 'Authenticator App', available: mfaChallenge.mfaOptions.totp },
-    { key: 'backup', label: 'Backup Code', available: mfaChallenge.mfaOptions.backupCodes },
   ];
 
   const showMethodSelector = availableMethods.filter(m => m.available).length > 1;
@@ -185,7 +161,6 @@ export function MfaVerify() {
                   setMethod(key);
                   setError(null);
                   setCode('');
-                  setBackupCode('');
                 }}
                 disabled={isLoading}
                 style={{ marginRight: 'var(--spacing-sm)', marginBottom: 'var(--spacing-sm)' }}
@@ -243,48 +218,6 @@ export function MfaVerify() {
               variant="primary"
               className="btn-full"
               disabled={code.length !== 6 || isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Spinner size="sm" />
-                  Verifying...
-                </>
-              ) : (
-                'Verify'
-              )}
-            </Button>
-          </form>
-        )}
-
-        {/* Backup Code Method */}
-        {method === 'backup' && (
-          <form className="auth-form" onSubmit={handleBackupSubmit}>
-            <p style={{ textAlign: 'center', marginBottom: 'var(--spacing-md)', color: 'var(--color-text-secondary)' }}>
-              Enter one of your backup codes
-            </p>
-            <div style={{ marginBottom: 'var(--spacing-md)' }}>
-              <input
-                type="text"
-                value={backupCode}
-                onChange={(e) => setBackupCode(e.target.value.toUpperCase())}
-                placeholder="XXXX-XXXX"
-                className="input"
-                disabled={isLoading}
-                autoFocus
-                style={{
-                  width: '100%',
-                  textAlign: 'center',
-                  fontSize: '1.25rem',
-                  letterSpacing: '0.1em',
-                  fontFamily: 'var(--font-mono)',
-                }}
-              />
-            </div>
-            <Button
-              type="submit"
-              variant="primary"
-              className="btn-full"
-              disabled={!backupCode.trim() || isLoading}
             >
               {isLoading ? (
                 <>

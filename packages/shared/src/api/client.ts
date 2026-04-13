@@ -148,7 +148,6 @@ export interface VerifyOtpResponse {
   mfaOptions?: {
     totp: boolean;
     webauthn: boolean;
-    backupCodes: boolean;
   };
   /** WebAuthn challenge options (only if webauthn is available) */
   webauthnChallenge?: PublicKeyCredentialRequestOptionsJSON;
@@ -318,17 +317,6 @@ export class AuthApi {
   }
 
   /**
-   * Complete MFA with backup code.
-   *
-   * @param mfaToken - Token from verifyOtp response
-   * @param code - Backup code
-   * @returns Success on valid code (session cookie is set)
-   */
-  async verifyMfaBackupCode(mfaToken: string, code: string): Promise<ApiResponse<void>> {
-    return this.client.post('/api/auth/mfa/backup-code', { mfaToken, code });
-  }
-
-  /**
    * Get current session status.
    *
    * Returns session info if authenticated (cookie is valid),
@@ -407,8 +395,6 @@ export interface MfaStatus {
   totpCount: number;
   webauthnEnabled: boolean;
   webauthnCount: number;
-  backupCodesExist: boolean;
-  backupCodesRemaining: number;
 }
 
 /**
@@ -457,7 +443,6 @@ export interface TotpSetupResponse {
  */
 export interface TotpVerifyResponse {
   verified: boolean;
-  backupCodes?: string[];
 }
 
 /**
@@ -473,15 +458,6 @@ export interface WebAuthnRegisterStartResponse {
  */
 export interface WebAuthnRegisterFinishResponse {
   credential: WebAuthnCredential;
-  backupCodes?: string[];
-}
-
-/**
- * Backup codes regenerate response
- */
-export interface BackupCodesResponse {
-  codes: string[];
-  message: string;
 }
 
 /**
@@ -580,22 +556,6 @@ export class MfaApi {
    */
   async deleteWebAuthn(credentialId: string): Promise<ApiResponse<void>> {
     return this.client.delete(`/api/mfa/webauthn/${credentialId}`);
-  }
-
-  // Backup codes methods
-
-  /**
-   * Regenerate backup codes.
-   */
-  async regenerateBackupCodes(): Promise<ApiResponse<BackupCodesResponse>> {
-    return this.client.post('/api/mfa/backup-codes/regenerate');
-  }
-
-  /**
-   * Get remaining backup codes count.
-   */
-  async getBackupCodesCount(): Promise<ApiResponse<{ remaining: number }>> {
-    return this.client.get('/api/mfa/backup-codes/count');
   }
 }
 
@@ -1304,38 +1264,12 @@ export class IdentityApi {
    * Change the identity passphrase.
    *
    * The client must re-encrypt the key bundle with the new passphrase
-   * before calling this endpoint. Returns new backup codes.
+   * before calling this endpoint.
    */
   async changePassphrase(
     params: ChangePassphraseParams,
-  ): Promise<ApiResponse<{ backupCodes: string[] }>> {
+  ): Promise<ApiResponse<void>> {
     return this.client.post('/api/identity/change-passphrase', params);
-  }
-
-  // ==========================================================================
-  // Backup Codes
-  // ==========================================================================
-
-  /**
-   * Regenerate identity backup codes (invalidates existing codes).
-   */
-  async regenerateBackupCodes(
-    identityId: string,
-  ): Promise<ApiResponse<{ backupCodes: string[] }>> {
-    return this.client.post(
-      `/api/identity/${encodeURIComponent(identityId)}/backup-codes/regenerate`,
-    );
-  }
-
-  /**
-   * Get remaining identity backup code count.
-   */
-  async getBackupCodesCount(
-    identityId: string,
-  ): Promise<ApiResponse<{ remaining: number }>> {
-    return this.client.get(
-      `/api/identity/${encodeURIComponent(identityId)}/backup-codes/count`,
-    );
   }
 }
 

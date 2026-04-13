@@ -322,8 +322,6 @@ export const Collections = {
   TOTP_CREDENTIALS: 'totp_credentials',
   /** WebAuthn/passkey credentials */
   WEBAUTHN_CREDENTIALS: 'webauthn_credentials',
-  /** MFA backup codes */
-  MFA_BACKUP_CODES: 'mfa_backup_codes',
   /** User identities collection */
   IDENTITIES: 'identities',
   /** Blocks between identities */
@@ -364,8 +362,6 @@ export const Collections = {
   PLATFORM_REPORT_EVENTS: 'platform_report_events',
   /** Per-accountHash identity creation counts (unique index on accountHash) */
   IDENTITY_COUNTS: 'identity_counts',
-  /** Identity-scoped backup / recovery codes */
-  IDENTITY_BACKUP_CODES: 'identity_backup_codes',
   /** Anonymised Klipy search term logs (no identity linkage) */
   KLIPY_SEARCH_LOGS: 'klipy_search_logs',
   /** Achievements awarded to identities */
@@ -486,10 +482,6 @@ async function createIndexes(): Promise<void> {
   const webauthnCredentials = database.collection(Collections.WEBAUTHN_CREDENTIALS);
   await webauthnCredentials.createIndex({ userId: 1 });
   await webauthnCredentials.createIndex({ credentialId: 1 }, { unique: true });
-
-  // MFA backup codes collection indexes
-  const mfaBackupCodes = database.collection(Collections.MFA_BACKUP_CODES);
-  await mfaBackupCodes.createIndex({ userId: 1 }, { unique: true });
 
   // Identities collection indexes
   const identities = database.collection(Collections.IDENTITIES);
@@ -614,10 +606,6 @@ async function createIndexes(): Promise<void> {
   // Identity counts collection indexes
   const identityCounts = database.collection(Collections.IDENTITY_COUNTS);
   await identityCounts.createIndex({ accountHash: 1 }, { unique: true });
-
-  // Identity backup codes — one document per identity
-  const identityBackupCodes = database.collection(Collections.IDENTITY_BACKUP_CODES);
-  await identityBackupCodes.createIndex({ identityId: 1 }, { unique: true });
 
   // Klipy search logs — time-series analytics (90-day retention)
   const klipySearchLogs = database.collection(Collections.KLIPY_SEARCH_LOGS);

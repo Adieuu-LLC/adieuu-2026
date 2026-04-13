@@ -8,7 +8,6 @@ import { Spinner } from '../../components/Spinner';
 import { Avatar } from '../../components/Avatar';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { BackupCodesDisplay } from '../../components/BackupCodesDisplay';
 import { useBlocks } from '../../hooks/useBlocks';
 import { useAuth } from '../../hooks/useAuth';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -312,110 +311,6 @@ function ForwardSecrecySettings() {
 }
 
 // ============================================================================
-// Backup Codes Section
-// ============================================================================
-
-function BackupCodesSection({ api }: { api: ReturnType<typeof createApiClient> }) {
-  const { t } = useTranslation();
-  const { identity } = useIdentity();
-  const toast = useToast();
-
-  const [remaining, setRemaining] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [regenerating, setRegenerating] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [newCodes, setNewCodes] = useState<string[] | null>(null);
-
-  useEffect(() => {
-    if (!identity) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const resp = await api.identity.getBackupCodesCount(identity.id);
-        if (!cancelled && resp.success && resp.data) {
-          setRemaining(resp.data.remaining);
-        }
-      } catch {
-        // Non-fatal
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [api, identity]);
-
-  const handleRegenerate = async () => {
-    if (!identity) return;
-    setRegenerating(true);
-    try {
-      const resp = await api.identity.regenerateBackupCodes(identity.id);
-      if (resp.success && resp.data) {
-        setNewCodes(resp.data.backupCodes);
-        setRemaining(resp.data.backupCodes.length);
-      }
-    } catch {
-      toast.error(t('identity.privacy.backupCodes.sectionTitle'), t('identity.privacy.backupCodes.regenerateError', 'Failed to regenerate codes.'));
-    } finally {
-      setRegenerating(false);
-      setShowConfirm(false);
-    }
-  };
-
-  if (newCodes) {
-    return (
-      <BackupCodesDisplay
-        codes={newCodes}
-        onConfirm={() => setNewCodes(null)}
-      />
-    );
-  }
-
-  return (
-    <div className="backup-codes-section">
-      <div className="sessions-header">
-        <div className="sessions-header-text">
-          <h3>{t('identity.privacy.backupCodes.sectionTitle')}</h3>
-          <p>{t('identity.privacy.backupCodes.sectionDescription')}</p>
-        </div>
-      </div>
-
-      {loading ? (
-        <Spinner size="sm" />
-      ) : (
-        <p className="backup-codes-remaining">
-          {remaining != null && remaining > 0
-            ? t('identity.privacy.backupCodes.remaining', { count: remaining })
-            : t('identity.privacy.backupCodes.noneRemaining')}
-        </p>
-      )}
-
-      <Button
-        variant="secondary"
-        size="sm"
-        onClick={() => setShowConfirm(true)}
-        disabled={regenerating}
-      >
-        {regenerating
-          ? <Spinner size="sm" />
-          : t('identity.privacy.backupCodes.regenerate')}
-      </Button>
-
-      <ConfirmDialog
-        open={showConfirm}
-        onOpenChange={setShowConfirm}
-        title={t('identity.privacy.backupCodes.regenerateTitle')}
-        description={t('identity.privacy.backupCodes.regenerateConfirm')}
-        confirmLabel={t('identity.privacy.backupCodes.regenerate')}
-        cancelLabel={t('common.cancel', 'Cancel')}
-        variant="danger"
-        loading={regenerating}
-        onConfirm={handleRegenerate}
-      />
-    </div>
-  );
-}
-
-// ============================================================================
 // GIF Visibility Settings
 // ============================================================================
 
@@ -578,12 +473,6 @@ export function IdentityPrivacy() {
 
             {isLoggedIn && identity && (
               <GifVisibilityCard identityId={identity.id} />
-            )}
-
-            {isLoggedIn && (
-              <Card variant="elevated" className="backup-codes-card">
-                <BackupCodesSection api={api} />
-              </Card>
             )}
 
             <Card variant="elevated">

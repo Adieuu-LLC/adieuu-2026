@@ -32,7 +32,6 @@ mock.module('../../db', () => ({
     AUDIT_LOGS: 'audit_logs',
     TOTP_CREDENTIALS: 'totp_credentials',
     WEBAUTHN_CREDENTIALS: 'webauthn_credentials',
-    MFA_BACKUP_CODES: 'mfa_backup_codes',
     BLOCKS: 'blocks',
     FRIEND_REQUESTS: 'friend_requests',
     FRIENDSHIPS: 'friendships',

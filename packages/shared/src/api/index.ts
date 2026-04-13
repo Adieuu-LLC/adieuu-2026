@@ -38,7 +38,6 @@ export {
   type TotpVerifyResponse,
   type WebAuthnRegisterStartResponse,
   type WebAuthnRegisterFinishResponse,
-  type BackupCodesResponse,
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
   // Identity types

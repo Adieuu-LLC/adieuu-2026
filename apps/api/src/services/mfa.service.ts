@@ -18,14 +18,11 @@ import {
   type VerifyAuthenticationResponseOpts,
 } from '@simplewebauthn/server';
 import type { AuthenticatorTransportFuture, RegistrationResponseJSON, AuthenticationResponseJSON } from '@simplewebauthn/server';
-import { createHash } from 'crypto';
 import { config } from '../config';
 import { encrypt, decrypt, generateSecureToken } from '../utils/crypto';
-import { randomUniformIndex } from '../utils/randomUniformIndex';
 import {
   getTotpRepository,
   getWebAuthnRepository,
-  getBackupCodesRepository,
 } from '../repositories';
 import type {
   TotpCredentialDocument,
@@ -59,10 +56,6 @@ elog.info('WebAuthn configuration loaded', {
   rpOrigins: RP_ORIGINS,
   rpName: RP_NAME,
 });
-
-// Backup codes configuration
-const BACKUP_CODE_COUNT = 10;
-const BACKUP_CODE_LENGTH = 8;
 
 // MFA challenge TTL (5 minutes)
 const MFA_CHALLENGE_TTL_SECONDS = 300;
@@ -243,9 +236,6 @@ export async function deleteTotp(
   await repo.delete(totpId);
 
   elog.info('TOTP deleted', { userId, totpId: totpId.substring(0, 8) });
-
-  // Clean up backup codes if MFA is now fully disabled
-  await cleanupBackupCodesIfMfaDisabled(userId);
 
   return { success: true };
 }
@@ -557,9 +547,6 @@ export async function deleteWebAuthnCredential(
 
   elog.info('WebAuthn credential deleted', { userId, credentialId: credentialId.substring(0, 8) });
 
-  // Clean up backup codes if MFA is now fully disabled
-  await cleanupBackupCodesIfMfaDisabled(userId);
-
   return { success: true };
 }
 
@@ -588,145 +575,8 @@ export async function renameWebAuthnCredential(
 }
 
 // ============================================================================
-// Backup Codes Service Functions
-// ============================================================================
-
-/**
- * Generate backup codes for a user
- * Returns plaintext codes (show once to user) and stores hashed versions
- */
-export async function generateBackupCodes(userId: string): Promise<string[]> {
-  const repo = getBackupCodesRepository();
-  const objectId = new ObjectId(userId);
-
-  // Generate plaintext codes
-  const codes: string[] = [];
-  const hashedCodes: string[] = [];
-
-  for (let i = 0; i < BACKUP_CODE_COUNT; i++) {
-    // Generate a code like "XXXX-XXXX"
-    const code = generateBackupCode();
-    codes.push(code);
-
-    // Hash for storage
-    const hashed = hashBackupCode(code, userId);
-    hashedCodes.push(hashed);
-  }
-
-  // Store hashed codes (replaces any existing)
-  await repo.create({
-    userId: objectId,
-    hashedCodes,
-    totalGenerated: BACKUP_CODE_COUNT,
-  });
-
-  elog.info('Backup codes generated', { userId, count: BACKUP_CODE_COUNT });
-
-  return codes;
-}
-
-/**
- * Verify and consume a backup code
- */
-export async function verifyBackupCode(
-  userId: string,
-  code: string
-): Promise<{ success: boolean; remaining?: number; error?: string }> {
-  const repo = getBackupCodesRepository();
-  const doc = await repo.findByUserId(userId);
-
-  if (!doc || doc.hashedCodes.length === 0) {
-    return { success: false, error: 'no_backup_codes' };
-  }
-
-  // Normalize code (remove dashes, uppercase)
-  const normalizedCode = code.replace(/-/g, '').toUpperCase();
-  const hashedInput = hashBackupCode(normalizedCode, userId);
-
-  // Find matching code
-  const index = doc.hashedCodes.indexOf(hashedInput);
-  if (index === -1) {
-    // Also try with the original format
-    const hashedOriginal = hashBackupCode(code.toUpperCase(), userId);
-    const originalIndex = doc.hashedCodes.indexOf(hashedOriginal);
-    if (originalIndex === -1) {
-      return { success: false, error: 'invalid_code' };
-    }
-    // Remove the used code
-    doc.hashedCodes.splice(originalIndex, 1);
-  } else {
-    // Remove the used code
-    doc.hashedCodes.splice(index, 1);
-  }
-
-  // Update stored codes
-  await repo.updateCodes(userId, doc.hashedCodes);
-
-  elog.info('Backup code used', { userId, remaining: doc.hashedCodes.length });
-
-  return { success: true, remaining: doc.hashedCodes.length };
-}
-
-/**
- * Get remaining backup codes count
- */
-export async function getBackupCodesCount(userId: string): Promise<number> {
-  const repo = getBackupCodesRepository();
-  const doc = await repo.findByUserId(userId);
-  return doc?.hashedCodes.length ?? 0;
-}
-
-// Helper to generate a single backup code
-function generateBackupCode(): string {
-  // 32 chars: 32 | 256 so rejection in randomUniformIndex never discards a byte (no extra RNG
-  // calls). If the alphabet changes, randomUniformIndex stays unbiased for any length 1..256.
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude confusing chars
-  let code = '';
-  for (let i = 0; i < BACKUP_CODE_LENGTH; i++) {
-    const idx = randomUniformIndex(chars.length);
-    code += chars[idx];
-  }
-
-  // Format as XXXX-XXXX
-  return code.slice(0, 4) + '-' + code.slice(4);
-}
-
-// Helper to hash a backup code
-function hashBackupCode(code: string, userId: string): string {
-  const normalized = code.replace(/-/g, '').toUpperCase();
-  const data = `${normalized}:${userId}:${config.security.otpSecret}`;
-  return createHash('sha256').update(data).digest('hex');
-}
-
-// ============================================================================
 // MFA Status Functions
 // ============================================================================
-
-/**
- * Clean up backup codes if the user has no active MFA methods.
- * This prevents orphaned backup codes from being used after MFA is disabled.
- */
-async function cleanupBackupCodesIfMfaDisabled(userId: string): Promise<void> {
-  const totpRepo = getTotpRepository();
-  const webauthnRepo = getWebAuthnRepository();
-  const backupRepo = getBackupCodesRepository();
-
-  // Check if user still has any active MFA methods
-  const [totpCredentials, webauthnCredentials] = await Promise.all([
-    totpRepo.findVerifiedByUserId(userId),
-    webauthnRepo.findByUserId(userId),
-  ]);
-
-  const hasActiveMfa = totpCredentials.length > 0 || webauthnCredentials.length > 0;
-
-  if (!hasActiveMfa) {
-    // User has no active MFA - delete backup codes for security
-    const deleted = await backupRepo.deleteForUser(userId);
-    if (deleted) {
-      elog.info('Backup codes deleted - MFA disabled', { userId });
-    }
-  }
-}
 
 /**
  * Get MFA status for a user
@@ -734,17 +584,14 @@ async function cleanupBackupCodesIfMfaDisabled(userId: string): Promise<void> {
 export async function getMfaStatus(userId: string): Promise<MfaStatus> {
   const totpRepo = getTotpRepository();
   const webauthnRepo = getWebAuthnRepository();
-  const backupRepo = getBackupCodesRepository();
 
-  const [totpCredentials, webauthnCredentials, backupCodes] = await Promise.all([
+  const [totpCredentials, webauthnCredentials] = await Promise.all([
     totpRepo.findVerifiedByUserId(userId),
     webauthnRepo.findByUserId(userId),
-    backupRepo.findByUserId(userId),
   ]);
 
   const totpEnabled = totpCredentials.length > 0;
   const webauthnEnabled = webauthnCredentials.length > 0;
-  const backupCodesRemaining = backupCodes?.hashedCodes.length ?? 0;
 
   return {
     enabled: totpEnabled || webauthnEnabled,
@@ -752,8 +599,6 @@ export async function getMfaStatus(userId: string): Promise<MfaStatus> {
     totpCount: totpCredentials.length,
     webauthnEnabled,
     webauthnCount: webauthnCredentials.length,
-    backupCodesExist: backupCodesRemaining > 0,
-    backupCodesRemaining,
   };
 }
 

@@ -1,6 +1,6 @@
 /**
  * MFA repositories
- * Data access layer for TOTP, WebAuthn, and backup codes
+ * Data access layer for TOTP and WebAuthn
  */
 
 import { ObjectId } from 'mongodb';
@@ -11,8 +11,6 @@ import type {
   CreateTotpInput,
   WebAuthnCredentialDocument,
   CreateWebAuthnInput,
-  MfaBackupCodesDocument,
-  CreateBackupCodesInput,
 } from '../models/mfa';
 
 // ============================================================================
@@ -152,68 +150,11 @@ export class WebAuthnRepository
 }
 
 // ============================================================================
-// Backup Codes Repository
-// ============================================================================
-
-export interface IBackupCodesRepository {
-  findByUserId(userId: string | ObjectId): Promise<MfaBackupCodesDocument | null>;
-  create(input: CreateBackupCodesInput): Promise<MfaBackupCodesDocument>;
-  updateCodes(userId: string | ObjectId, hashedCodes: string[]): Promise<void>;
-  deleteForUser(userId: string | ObjectId): Promise<boolean>;
-}
-
-export class BackupCodesRepository
-  extends BaseRepository<MfaBackupCodesDocument>
-  implements IBackupCodesRepository
-{
-  constructor() {
-    super(Collections.MFA_BACKUP_CODES);
-  }
-
-  async findByUserId(userId: string | ObjectId): Promise<MfaBackupCodesDocument | null> {
-    const objectId = this.toObjectId(userId);
-    return await this.findOne({ userId: objectId });
-  }
-
-  async create(input: CreateBackupCodesInput): Promise<MfaBackupCodesDocument> {
-    const objectId = this.toObjectId(input.userId);
-    
-    // Upsert - replace existing backup codes for this user
-    const doc: Omit<MfaBackupCodesDocument, '_id' | 'createdAt' | 'updatedAt'> = {
-      userId: objectId,
-      hashedCodes: input.hashedCodes,
-      totalGenerated: input.totalGenerated,
-      generatedAt: new Date(),
-    };
-
-    // Delete existing codes first (if any)
-    await this.collection.deleteMany({ userId: objectId });
-    
-    return await super.create(doc);
-  }
-
-  async updateCodes(userId: string | ObjectId, hashedCodes: string[]): Promise<void> {
-    const objectId = this.toObjectId(userId);
-    await this.collection.updateOne(
-      { userId: objectId },
-      { $set: { hashedCodes, updatedAt: new Date() } }
-    );
-  }
-
-  async deleteForUser(userId: string | ObjectId): Promise<boolean> {
-    const objectId = this.toObjectId(userId);
-    const result = await this.collection.deleteMany({ userId: objectId });
-    return result.deletedCount > 0;
-  }
-}
-
-// ============================================================================
 // Singleton Instances
 // ============================================================================
 
 let totpRepository: TotpRepository | null = null;
 let webauthnRepository: WebAuthnRepository | null = null;
-let backupCodesRepository: BackupCodesRepository | null = null;
 
 export function getTotpRepository(): TotpRepository {
   if (!totpRepository) {
@@ -227,11 +168,4 @@ export function getWebAuthnRepository(): WebAuthnRepository {
     webauthnRepository = new WebAuthnRepository();
   }
   return webauthnRepository;
-}
-
-export function getBackupCodesRepository(): BackupCodesRepository {
-  if (!backupCodesRepository) {
-    backupCodesRepository = new BackupCodesRepository();
-  }
-  return backupCodesRepository;
 }

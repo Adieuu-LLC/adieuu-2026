@@ -13,9 +13,6 @@ export {
   WebAuthnRepository,
   getWebAuthnRepository,
   type IWebAuthnRepository,
-  BackupCodesRepository,
-  getBackupCodesRepository,
-  type IBackupCodesRepository,
 } from './mfa.repository';
 export { IdentityRepository, getIdentityRepository, type IIdentityRepository } from './identity.repository';
 export { BlockRepository, getBlockRepository, type IBlockRepository } from './block.repository';

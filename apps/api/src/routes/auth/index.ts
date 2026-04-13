@@ -29,7 +29,6 @@ import {
   revokeAllSessionsHandler,
   verifyMfaTotpHandler,
   verifyMfaWebAuthnHandler,
-  verifyMfaBackupCodeHandler,
   getClientIp,
 } from './controller';
 import { z } from '@adieuu/shared/schemas';
@@ -238,7 +237,6 @@ router.post('/auth/verify', async (ctx) => {
       mfaOptions: {
         totp: result.mfaOptions.totpEnabled,
         webauthn: result.mfaOptions.webauthnEnabled,
-        backupCodes: result.mfaOptions.backupCodesExist,
       },
       webauthnChallenge: result.webauthnChallenge?.options,
     }, 'MFA verification required.');
@@ -503,46 +501,6 @@ router.post('/auth/mfa/webauthn', async (ctx) => {
   // Note: WebAuthn response is validated by the @simplewebauthn/server library
   const { response: webauthnResponse } = parsed.data;
   const result = await verifyMfaWebAuthnHandler(sanitizedMfaToken.value, webauthnResponse);
-
-  if (!result.success) {
-    if (result.error === 'invalid_token' || result.error === 'expired') {
-      return ctx.errors.unauthorized();
-    }
-    return ctx.errors.verificationFailed();
-  }
-
-  const response = success({ message: 'MFA verification successful' });
-  const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', result.cookie);
-  return new Response(response.body, { status: response.status, headers });
-});
-
-const MfaBackupCodeSchema = z.object({
-  mfaToken: z.string().min(1),
-  code: z.string().min(1),
-});
-
-/**
- * POST /auth/mfa/backup-code - Verify backup code during MFA login.
- *
- * After initial OTP verification returns mfaRequired, use this endpoint
- * to complete login with a backup code.
- */
-router.post('/auth/mfa/backup-code', async (ctx) => {
-  const parsed = MfaBackupCodeSchema.safeParse(ctx.body);
-
-  if (!parsed.success) {
-    return ctx.errors.badRequest();
-  }
-
-  const sanitizedMfaToken = sanitizeString(parsed.data.mfaToken, 'base64url');
-  const sanitizedCode = sanitizeString(parsed.data.code, 'authcode');
-
-  if (!sanitizedMfaToken.value || !sanitizedCode.value) {
-    return ctx.errors.badRequest();
-  }
-
-  const result = await verifyMfaBackupCodeHandler(sanitizedMfaToken.value, sanitizedCode.value);
 
   if (!result.success) {
     if (result.error === 'invalid_token' || result.error === 'expired') {

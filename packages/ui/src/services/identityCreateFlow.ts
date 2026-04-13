@@ -23,7 +23,6 @@ type ApiClient = ReturnType<typeof createApiClient>;
 export interface CreateIdentityFlowSuccess {
   ok: true;
   identity: PublicIdentity;
-  backupCodes?: string[];
   wrappingKey: Uint8Array;
   wrappingSalt: Uint8Array;
   signingPrivateKey: Uint8Array;
@@ -57,7 +56,7 @@ export async function runCreateIdentityFlow(
     return { ok: false, result: { success: false, error: errorMessage, errorCode } };
   }
 
-  const responseData = response.data as (PublicIdentity & { backupCodes?: string[] }) | undefined;
+  const responseData = response.data as PublicIdentity | undefined;
   if (!responseData) {
     return {
       ok: false,
@@ -69,7 +68,7 @@ export async function runCreateIdentityFlow(
     };
   }
 
-  const { backupCodes, ...createdIdentity } = responseData;
+  const createdIdentity = responseData;
 
   let e2eResult: Awaited<ReturnType<typeof generateE2EKeys>>;
   try {
@@ -238,7 +237,6 @@ export async function runCreateIdentityFlow(
   return {
     ok: true,
     identity: createdIdentity as PublicIdentity,
-    backupCodes,
     wrappingKey,
     wrappingSalt,
     signingPrivateKey: e2eResult.signingPrivateKey,

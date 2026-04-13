@@ -34,7 +34,7 @@ export function TotpSetup({ onComplete, onCancel }: TotpSetupProps) {
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
-  const [step, setStep] = useState<'name' | 'scan' | 'verify' | 'backup'>('name');
+  const [step, setStep] = useState<'name' | 'scan' | 'verify'>('name');
   const [name, setName] = useState('Authenticator');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +44,6 @@ export function TotpSetup({ onComplete, onCancel }: TotpSetupProps) {
     qrCodeUrl: string;
   } | null>(null);
   const [code, setCode] = useState('');
-  const [backupCodes, setBackupCodes] = useState<string[]>([]);
 
   const handleStartSetup = async () => {
     setLoading(true);
@@ -74,12 +73,7 @@ export function TotpSetup({ onComplete, onCancel }: TotpSetupProps) {
     try {
       const response = await api.mfa.verifyTotp(setupData.credentialId, code);
       if (response.success && response.data) {
-        if (response.data.backupCodes && response.data.backupCodes.length > 0) {
-          setBackupCodes(response.data.backupCodes);
-          setStep('backup');
-        } else {
-          onComplete();
-        }
+        onComplete();
       } else {
         setError('Invalid code. Please try again.');
       }
@@ -88,11 +82,6 @@ export function TotpSetup({ onComplete, onCancel }: TotpSetupProps) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleCopyBackupCodes = () => {
-    const codesText = backupCodes.join('\n');
-    navigator.clipboard.writeText(codesText);
   };
 
   return (
@@ -177,27 +166,6 @@ export function TotpSetup({ onComplete, onCancel }: TotpSetupProps) {
         </div>
       )}
 
-      {step === 'backup' && backupCodes.length > 0 && (
-        <div className="mfa-setup-step">
-          <h3>{t('account.security.mfa.backupCodes.title', 'Save Backup Codes')}</h3>
-          <p className="mfa-setup-description">
-            {t('account.security.mfa.backupCodes.description', 'Save these backup codes in a safe place. Each code can only be used once to sign in if you lose access to your authenticator.')}
-          </p>
-          <div className="mfa-backup-codes">
-            {backupCodes.map((code, i) => (
-              <code key={i} className="mfa-backup-code">{code}</code>
-            ))}
-          </div>
-          <Button variant="secondary" onClick={handleCopyBackupCodes} className="mfa-copy-btn">
-            {t('common.copy', 'Copy codes')}
-          </Button>
-          <div className="mfa-setup-actions">
-            <Button onClick={onComplete}>
-              {t('common.done', 'Done')}
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -217,11 +185,9 @@ export function WebAuthnSetup({ onComplete, onCancel }: WebAuthnSetupProps) {
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const { webauthn: webauthnBridge } = usePlatformCapabilities();
 
-  const [step, setStep] = useState<'name' | 'register' | 'backup'>('name');
   const [name, setName] = useState('Passkey');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [backupCodes, setBackupCodes] = useState<string[]>([]);
 
   const handleRegister = async () => {
     setLoading(true);
@@ -241,12 +207,7 @@ export function WebAuthnSetup({ onComplete, onCancel }: WebAuthnSetupProps) {
 
       const finishResponse = await api.mfa.finishWebAuthnRegistration(credential, name);
       if (finishResponse.success && finishResponse.data) {
-        if (finishResponse.data.backupCodes && finishResponse.data.backupCodes.length > 0) {
-          setBackupCodes(finishResponse.data.backupCodes);
-          setStep('backup');
-        } else {
-          onComplete();
-        }
+        onComplete();
       } else {
         setError('Registration failed');
       }
@@ -261,59 +222,30 @@ export function WebAuthnSetup({ onComplete, onCancel }: WebAuthnSetupProps) {
     }
   };
 
-  const handleCopyBackupCodes = () => {
-    const codesText = backupCodes.join('\n');
-    navigator.clipboard.writeText(codesText);
-  };
-
   return (
     <div className="mfa-setup">
-      {step === 'name' && (
-        <div className="mfa-setup-step">
-          <h3>{t('account.security.mfa.webauthn.setupTitle', 'Set up Passkey')}</h3>
-          <p className="mfa-setup-description">
-            {t('account.security.mfa.webauthn.setupDescription', 'Use Face ID, Touch ID, Windows Hello, or a security key to sign in without a code.')}
-          </p>
-          <Input
-            label={t('account.security.mfa.webauthn.nameLabel', 'Passkey name')}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Passkey"
-            hint={t('account.security.mfa.webauthn.nameHint', 'A name to help you identify this passkey')}
-          />
-          {error && <p className="mfa-error">{error}</p>}
-          <div className="mfa-setup-actions">
-            <Button variant="secondary" onClick={onCancel} disabled={loading}>
-              {t('common.cancel', 'Cancel')}
-            </Button>
-            <Button onClick={handleRegister} disabled={loading || !name.trim()}>
-              {loading ? <Spinner size="sm" /> : t('account.security.mfa.webauthn.register', 'Register Passkey')}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {step === 'backup' && backupCodes.length > 0 && (
-        <div className="mfa-setup-step">
-          <h3>{t('account.security.mfa.backupCodes.title', 'Save Backup Codes')}</h3>
-          <p className="mfa-setup-description">
-            {t('account.security.mfa.backupCodes.description', 'Save these backup codes in a safe place. Each code can only be used once to sign in if you lose access to your passkey.')}
-          </p>
-          <div className="mfa-backup-codes">
-            {backupCodes.map((code, i) => (
-              <code key={i} className="mfa-backup-code">{code}</code>
-            ))}
-          </div>
-          <Button variant="secondary" onClick={handleCopyBackupCodes} className="mfa-copy-btn">
-            {t('common.copy', 'Copy codes')}
+      <div className="mfa-setup-step">
+        <h3>{t('account.security.mfa.webauthn.setupTitle', 'Set up Passkey')}</h3>
+        <p className="mfa-setup-description">
+          {t('account.security.mfa.webauthn.setupDescription', 'Use Face ID, Touch ID, Windows Hello, or a security key to sign in without a code.')}
+        </p>
+        <Input
+          label={t('account.security.mfa.webauthn.nameLabel', 'Passkey name')}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Passkey"
+          hint={t('account.security.mfa.webauthn.nameHint', 'A name to help you identify this passkey')}
+        />
+        {error && <p className="mfa-error">{error}</p>}
+        <div className="mfa-setup-actions">
+          <Button variant="secondary" onClick={onCancel} disabled={loading}>
+            {t('common.cancel', 'Cancel')}
           </Button>
-          <div className="mfa-setup-actions">
-            <Button onClick={onComplete}>
-              {t('common.done', 'Done')}
-            </Button>
-          </div>
+          <Button onClick={handleRegister} disabled={loading || !name.trim()}>
+            {loading ? <Spinner size="sm" /> : t('account.security.mfa.webauthn.register', 'Register Passkey')}
+          </Button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -624,24 +556,6 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
         )}
       </div>
 
-      {/* Backup Codes Section */}
-      {status?.enabled && (
-        <div className="mfa-section mfa-section-backup">
-          <div className="mfa-section-header">
-            <div>
-              <h4>{t('account.security.mfa.backupCodes.title', 'Backup Codes')}</h4>
-              <p>
-                {status.backupCodesRemaining > 0
-                  ? t('account.security.mfa.backupCodes.remaining', '{{count}} backup codes remaining', { count: status.backupCodesRemaining })
-                  : t('account.security.mfa.backupCodes.noneRemaining', 'No backup codes remaining')
-                }
-              </p>
-            </div>
-            <RegenerateBackupCodes api={api} onRegenerate={fetchCredentials} />
-          </div>
-        </div>
-      )}
-
       {/* Delete confirmation dialog */}
       <ConfirmDialog
         open={confirmDelete !== null}
@@ -661,76 +575,5 @@ export function MfaCredentialsList({ onSetupTotp, onSetupWebAuthn }: MfaCredenti
         onConfirm={handleConfirmDelete}
       />
     </div>
-  );
-}
-
-// Helper component to regenerate backup codes
-function RegenerateBackupCodes({ api, onRegenerate }: { api: ReturnType<typeof createApiClient>; onRegenerate: () => void }) {
-  const { t } = useTranslation();
-  const [loading, setLoading] = useState(false);
-  const [codes, setCodes] = useState<string[] | null>(null);
-  const [showConfirm, setShowConfirm] = useState(false);
-
-  const handleRegenerate = async () => {
-    setLoading(true);
-    try {
-      const response = await api.mfa.regenerateBackupCodes();
-      if (response.success && response.data) {
-        setCodes(response.data.codes);
-        onRegenerate();
-      }
-    } catch (err) {
-      console.error('Failed to regenerate backup codes:', err);
-    } finally {
-      setLoading(false);
-      setShowConfirm(false);
-    }
-  };
-
-  const handleCopy = () => {
-    if (codes) {
-      navigator.clipboard.writeText(codes.join('\n'));
-    }
-  };
-
-  if (codes) {
-    return (
-      <div className="mfa-backup-codes-modal">
-        <h4>{t('account.security.mfa.backupCodes.newCodes', 'New Backup Codes')}</h4>
-        <p>{t('account.security.mfa.backupCodes.saveWarning', 'Save these codes in a safe place. They will not be shown again.')}</p>
-        <div className="mfa-backup-codes">
-          {codes.map((code, i) => (
-            <code key={i} className="mfa-backup-code">{code}</code>
-          ))}
-        </div>
-        <div className="mfa-setup-actions">
-          <Button variant="secondary" onClick={handleCopy}>
-            {t('common.copy', 'Copy codes')}
-          </Button>
-          <Button onClick={() => setCodes(null)}>
-            {t('common.done', 'Done')}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <Button variant="secondary" size="sm" onClick={() => setShowConfirm(true)} disabled={loading}>
-        {loading ? <Spinner size="sm" /> : t('account.security.mfa.backupCodes.regenerate', 'Regenerate codes')}
-      </Button>
-      <ConfirmDialog
-        open={showConfirm}
-        onOpenChange={setShowConfirm}
-        title={t('account.security.mfa.backupCodes.regenerateTitle', 'Regenerate Backup Codes')}
-        description={t('account.security.mfa.backupCodes.regenerateConfirm', 'This will invalidate your existing backup codes. Continue?')}
-        confirmLabel={t('account.security.mfa.backupCodes.regenerate', 'Regenerate codes')}
-        cancelLabel={t('common.cancel', 'Cancel')}
-        variant="danger"
-        loading={loading}
-        onConfirm={handleRegenerate}
-      />
-    </>
   );
 }

@@ -273,7 +273,6 @@ function useIdentityState(): IdentityContextValue {
       return {
         success: true,
         identity: flow.identity,
-        backupCodes: flow.backupCodes,
       };
     },
     [api, platform, session?.signedToken]

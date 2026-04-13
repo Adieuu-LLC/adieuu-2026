@@ -31,27 +31,23 @@ function createMockCollection() {
 
 const mockTotpCollection = createMockCollection();
 const mockWebAuthnCollection = createMockCollection();
-const mockBackupCollection = createMockCollection();
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 mock.module('../db', () => ({
   getCollection: mock((name: string) => {
     if (name === 'totp_credentials') return mockTotpCollection;
     if (name === 'webauthn_credentials') return mockWebAuthnCollection;
-    if (name === 'mfa_backup_codes') return mockBackupCollection;
     throw new Error(`Unexpected collection: ${name}`);
   }),
   Collections: {
     TOTP_CREDENTIALS: 'totp_credentials',
     WEBAUTHN_CREDENTIALS: 'webauthn_credentials',
-    MFA_BACKUP_CODES: 'mfa_backup_codes',
   },
 }));
 
 import {
   TotpRepository,
   WebAuthnRepository,
-  BackupCodesRepository,
 } from './mfa.repository';
 
 describe('mfa.repository', () => {
@@ -60,7 +56,7 @@ describe('mfa.repository', () => {
   });
 
   beforeEach(() => {
-    for (const col of [mockTotpCollection, mockWebAuthnCollection, mockBackupCollection]) {
+    for (const col of [mockTotpCollection, mockWebAuthnCollection]) {
       col.findOne.mockReset();
       col.find.mockReset();
       col.insertOne.mockReset();
@@ -128,40 +124,4 @@ describe('mfa.repository', () => {
     await repo.findByCredentialId('cred-id-1');
     expect(mockWebAuthnCollection.findOne).toHaveBeenCalledWith({ credentialId: 'cred-id-1' });
   });
-
-  test('BackupCodesRepository.create clears existing codes before insert', async () => {
-    const repo = new BackupCodesRepository();
-    const userId = new ObjectId();
-
-    await repo.create({
-      userId,
-      hashedCodes: ['h1', 'h2'],
-      totalGenerated: 2,
-    });
-
-    expect(mockBackupCollection.deleteMany).toHaveBeenCalledWith({ userId });
-    expect(mockBackupCollection.insertOne).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId,
-        hashedCodes: ['h1', 'h2'],
-        totalGenerated: 2,
-        generatedAt: expect.any(Date),
-        createdAt: expect.any(Date),
-        updatedAt: expect.any(Date),
-      }),
-      { session: undefined }
-    );
-  });
-
-  test('BackupCodesRepository.deleteForUser returns true only when rows removed', async () => {
-    const repo = new BackupCodesRepository();
-    const userId = new ObjectId();
-
-    mockBackupCollection.deleteMany.mockResolvedValueOnce({ deletedCount: 0 });
-    expect(await repo.deleteForUser(userId)).toBe(false);
-
-    mockBackupCollection.deleteMany.mockResolvedValueOnce({ deletedCount: 1 });
-    expect(await repo.deleteForUser(userId)).toBe(true);
-  });
 });
-

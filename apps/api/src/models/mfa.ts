@@ -152,37 +152,6 @@ export function toPublicWebAuthn(doc: WebAuthnCredentialDocument): PublicWebAuth
 }
 
 // ============================================================================
-// Backup Codes Model
-// ============================================================================
-
-/**
- * MFA backup codes document stored in MongoDB
- * One document per user containing all their backup codes
- */
-export interface MfaBackupCodesDocument extends BaseDocument {
-  /** Reference to the user document */
-  userId: ObjectId;
-
-  /** Array of hashed backup codes (unused codes only) */
-  hashedCodes: string[];
-
-  /** Total codes originally generated */
-  totalGenerated: number;
-
-  /** When the codes were generated */
-  generatedAt: Date;
-}
-
-/**
- * Backup codes creation input
- */
-export interface CreateBackupCodesInput {
-  userId: ObjectId;
-  hashedCodes: string[];
-  totalGenerated: number;
-}
-
-// ============================================================================
 // MFA Challenge Models (for pending authentication)
 // ============================================================================
 
@@ -223,8 +192,4 @@ export interface MfaStatus {
   /** WebAuthn credentials configured */
   webauthnEnabled: boolean;
   webauthnCount: number;
-
-  /** Whether backup codes exist */
-  backupCodesExist: boolean;
-  backupCodesRemaining: number;
 }

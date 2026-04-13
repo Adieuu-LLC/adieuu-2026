@@ -2,7 +2,7 @@
  * MFA (Multi-Factor Authentication) controller module.
  *
  * Contains the business logic for MFA endpoints including TOTP setup,
- * WebAuthn registration, and backup code management.
+ * WebAuthn registration.
  *
  * @module routes/mfa/controller
  */
@@ -18,8 +18,6 @@ import {
   deleteTotp,
   getMfaStatus,
   getMfaCredentials,
-  generateBackupCodes,
-  getBackupCodesCount,
   generateWebAuthnRegistrationOptions,
   verifyWebAuthnRegistration,
   deleteWebAuthnCredential,
@@ -155,14 +153,7 @@ export async function totpVerifyCtrl(ctx: RouteContext): Promise<Response> {
     return ctx.errors.notFound();
   }
 
-  // Generate backup codes if this is the first MFA method
-  const status = await getMfaStatus(auth.userId);
-  let backupCodes: string[] | undefined;
-  if (status.totpCount === 1 && !status.webauthnEnabled && !status.backupCodesExist) {
-    backupCodes = await generateBackupCodes(auth.userId);
-  }
-
-  return success({ verified: true, backupCodes });
+  return success({ verified: true });
 }
 
 export async function totpDeleteCtrl(ctx: RouteContext): Promise<Response> {
@@ -249,16 +240,8 @@ export async function webauthnRegisterFinishCtrl(ctx: RouteContext): Promise<Res
     return ctx.errors.badRequest();
   }
 
-  // Generate backup codes if this is the first MFA method
-  const status = await getMfaStatus(auth.userId);
-  let backupCodes: string[] | undefined;
-  if (status.webauthnCount === 1 && !status.totpEnabled && !status.backupCodesExist) {
-    backupCodes = await generateBackupCodes(auth.userId);
-  }
-
   return success({
     credential: toPublicWebAuthn(result.credential!),
-    backupCodes,
   });
 }
 
@@ -326,38 +309,4 @@ export async function webauthnDeleteCtrl(ctx: RouteContext): Promise<Response> {
   }
 
   return success(undefined, 'Passkey removed');
-}
-
-// ============================================================================
-// Backup Codes Controllers
-// ============================================================================
-
-export async function backupCodesRegenerateCtrl(ctx: RouteContext): Promise<Response> {
-  const auth = await requireAuth(ctx.request);
-  if (!auth) {
-    return ctx.errors.unauthorized();
-  }
-
-  // Check that user has MFA enabled
-  const status = await getMfaStatus(auth.userId);
-  if (!status.enabled) {
-    return ctx.errors.badRequest();
-  }
-
-  const codes = await generateBackupCodes(auth.userId);
-
-  return success({
-    codes,
-    message: 'Save these codes in a safe place. Each code can only be used once.',
-  });
-}
-
-export async function backupCodesCountCtrl(ctx: RouteContext): Promise<Response> {
-  const auth = await requireAuth(ctx.request);
-  if (!auth) {
-    return ctx.errors.unauthorized();
-  }
-
-  const count = await getBackupCodesCount(auth.userId);
-  return success({ remaining: count });
 }

@@ -18,8 +18,6 @@ import {
   webauthnRegisterFinishCtrl,
   webauthnRenameCtrl,
   webauthnDeleteCtrl,
-  backupCodesRegenerateCtrl,
-  backupCodesCountCtrl,
 } from './controller';
 
 const router = new Router();
@@ -106,26 +104,6 @@ router.patch('/mfa/webauthn/:credentialId', async (ctx) => {
  */
 router.delete('/mfa/webauthn/:credentialId', async (ctx) => {
   return await webauthnDeleteCtrl(ctx);
-});
-
-// ============================================================================
-// Backup Codes Endpoints
-// ============================================================================
-
-/**
- * POST /mfa/backup-codes/regenerate - Regenerate backup codes
- *
- * Generates new backup codes, invalidating any existing ones.
- */
-router.post('/mfa/backup-codes/regenerate', async (ctx) => {
-  return await backupCodesRegenerateCtrl(ctx);
-});
-
-/**
- * GET /mfa/backup-codes/count - Get remaining backup codes count
- */
-router.get('/mfa/backup-codes/count', async (ctx) => {
-  return await backupCodesCountCtrl(ctx);
 });
 
 export default router;

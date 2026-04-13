@@ -8,7 +8,6 @@ import { Spinner } from '../components/Spinner';
 import { Popover } from '../components/Popover';
 import { useToast } from '../components/Toast';
 import { Icon } from '../icons/Icon';
-import { BackupCodesDisplay } from '../components/BackupCodesDisplay';
 import { useIdentity, type LoginStatus, type WebDeviceChoice } from '../hooks/useIdentity';
 import { WebDeviceChoiceModal } from '../components/WebDeviceChoiceModal';
 import { stringArrayFromI18nReturn } from './identityModalUtils';
@@ -20,7 +19,7 @@ interface IdentityModalProps {
   unlockMode?: boolean;
 }
 
-type ModalView = 'choose' | 'login' | 'create' | 'unlock' | 'creating' | 'logging_in' | 'backup_codes';
+type ModalView = 'choose' | 'login' | 'create' | 'unlock' | 'creating' | 'logging_in';
 
 export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityModalProps) {
   const { t } = useTranslation();
@@ -54,9 +53,6 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   const [passphraseConfirm, setPassphraseConfirm] = useState('');
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
-
-  // Backup codes from identity creation
-  const [backupCodes, setBackupCodes] = useState<string[]>([]);
 
   // Rate limiting info
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
@@ -94,7 +90,6 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     setSuccess(null);
     setRetryAfter(null);
     setAttemptNumber(null);
-    setBackupCodes([]);
   };
 
   const handleClose = () => {
@@ -228,17 +223,12 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     setLoading(false);
 
     if (result.success) {
-      if (result.backupCodes && result.backupCodes.length > 0) {
-        setBackupCodes(result.backupCodes);
-        setView('backup_codes');
-      } else {
-        setSuccess(t('identity.create.success'));
-        setTimeout(() => {
-          resetForm();
-          setView('login');
-          setSuccess(null);
-        }, 1500);
-      }
+      setSuccess(t('identity.create.success'));
+      setTimeout(() => {
+        resetForm();
+        setView('login');
+        setSuccess(null);
+      }, 1500);
     } else {
       // On error, go back to create view to show the error
       setView('create');
@@ -570,19 +560,6 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
               <h2>{success ? t('identity.create.success') : t('identity.create.creatingTitle')}</h2>
               <p>{success ? t('identity.create.redirecting') : t('identity.create.creatingSubtitle')}</p>
             </div>
-          </div>
-        )}
-
-        {view === 'backup_codes' && backupCodes.length > 0 && (
-          <div className="identity-modal-content identity-modal-backup-codes">
-            <BackupCodesDisplay
-              codes={backupCodes}
-              onConfirm={() => {
-                setBackupCodes([]);
-                resetForm();
-                setView('login');
-              }}
-            />
           </div>
         )}
 

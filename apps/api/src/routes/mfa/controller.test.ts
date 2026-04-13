@@ -49,7 +49,6 @@ const mockMfaStatus = {
   totpCount: 0,
   webauthnEnabled: false,
   webauthnCount: 0,
-  backupCodesExist: false,
 };
 
 const mockGetMfaStatus = mock(() => Promise.resolve(mockMfaStatus));
@@ -75,14 +74,6 @@ const mockSavePendingTotp = mock(() => Promise.resolve({
 
 const mockVerifyAndActivateTotp = mock(() => Promise.resolve({ success: true }));
 const mockDeleteTotp = mock(() => Promise.resolve({ success: true }));
-
-const mockGenerateBackupCodes = mock(() => Promise.resolve([
-  'ABCD-EFGH',
-  'IJKL-MNOP',
-  'QRST-UVWX',
-]));
-
-const mockGetBackupCodesCount = mock(() => Promise.resolve(8));
 
 const mockGenerateWebAuthnRegistrationOptions = mock(() => Promise.resolve({
   options: {
@@ -116,8 +107,6 @@ mock.module('../../services/mfa.service', () => ({
   savePendingTotp: mockSavePendingTotp,
   verifyAndActivateTotp: mockVerifyAndActivateTotp,
   deleteTotp: mockDeleteTotp,
-  generateBackupCodes: mockGenerateBackupCodes,
-  getBackupCodesCount: mockGetBackupCodesCount,
   generateWebAuthnRegistrationOptions: mockGenerateWebAuthnRegistrationOptions,
   verifyWebAuthnRegistration: mockVerifyWebAuthnRegistration,
   deleteWebAuthnCredential: mockDeleteWebAuthnCredential,
@@ -175,8 +164,6 @@ describe('mfa routes', () => {
     mockSavePendingTotp.mockClear();
     mockVerifyAndActivateTotp.mockClear();
     mockDeleteTotp.mockClear();
-    mockGenerateBackupCodes.mockClear();
-    mockGetBackupCodesCount.mockClear();
     mockGenerateWebAuthnRegistrationOptions.mockClear();
     mockVerifyWebAuthnRegistration.mockClear();
     mockDeleteWebAuthnCredential.mockClear();
@@ -454,80 +441,4 @@ describe('mfa routes', () => {
     });
   });
 
-  describe('POST /mfa/backup-codes/regenerate', () => {
-    test('returns 401 without session', async () => {
-      const response = await makeRequest('/mfa/backup-codes/regenerate', {
-        method: 'POST',
-        body: {},
-      });
-
-      expect(response.status).toBe(401);
-    });
-
-    test('returns 400 if MFA is not enabled', async () => {
-      mockGetMfaStatus.mockImplementationOnce(() => Promise.resolve({
-        enabled: false,
-        totpEnabled: false,
-        totpCount: 0,
-        webauthnEnabled: false,
-        webauthnCount: 0,
-        backupCodesExist: false,
-      }));
-
-      const response = await makeRequest('/mfa/backup-codes/regenerate', {
-        method: 'POST',
-        body: {},
-        cookies: 'adieuu_session=test-session',
-      });
-
-      expect(response.status).toBe(400);
-    });
-
-    test('regenerates backup codes when MFA is enabled', async () => {
-      mockGetMfaStatus.mockImplementationOnce(() => Promise.resolve({
-        enabled: true,
-        totpEnabled: true,
-        totpCount: 1,
-        webauthnEnabled: false,
-        webauthnCount: 0,
-        backupCodesExist: true,
-      }));
-
-      const response = await makeRequest('/mfa/backup-codes/regenerate', {
-        method: 'POST',
-        body: {},
-        cookies: 'adieuu_session=test-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockGenerateBackupCodes).toHaveBeenCalledWith(mockSession.userId);
-
-      const body = await response.json() as { data: { codes: string[] } };
-      expect(body.data.codes).toBeDefined();
-      expect(Array.isArray(body.data.codes)).toBe(true);
-    });
-  });
-
-  describe('GET /mfa/backup-codes/count', () => {
-    test('returns 401 without session', async () => {
-      const response = await makeRequest('/mfa/backup-codes/count', {
-        method: 'GET',
-      });
-
-      expect(response.status).toBe(401);
-    });
-
-    test('returns backup codes count', async () => {
-      const response = await makeRequest('/mfa/backup-codes/count', {
-        method: 'GET',
-        cookies: 'adieuu_session=test-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockGetBackupCodesCount).toHaveBeenCalledWith(mockSession.userId);
-
-      const body = await response.json() as { data: { remaining: number } };
-      expect(body.data.remaining).toBe(8);
-    });
-  });
 });

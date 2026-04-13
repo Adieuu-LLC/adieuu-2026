@@ -28,7 +28,6 @@ import {
   getMfaStatus,
   verifyTotpCode,
   verifyWebAuthnAuthentication,
-  verifyBackupCode,
   generateWebAuthnAuthenticationOptions,
 } from '../../services/mfa.service';
 import { getSessionRepository } from '../../repositories/session.repository';
@@ -970,48 +969,6 @@ export async function verifyMfaWebAuthnHandler(
 
   elog.info('User authenticated with MFA (WebAuthn)', {
     userId: pendingLogin.userId,
-  });
-
-  return { success: true, cookie };
-}
-
-/**
- * Verify MFA with backup code during login.
- */
-export async function verifyMfaBackupCodeHandler(
-  mfaToken: string,
-  code: string
-): Promise<VerifyMfaResult> {
-  const pendingLogin = await getPendingLogin(mfaToken);
-
-  if (!pendingLogin) {
-    return { success: false, error: 'invalid_token' };
-  }
-
-  // Verify backup code
-  const result = await verifyBackupCode(pendingLogin.userId, code);
-
-  if (!result.success) {
-    return { success: false, error: 'invalid_code' };
-  }
-
-  // Clear pending login
-  await clearPendingLogin(mfaToken);
-
-  // Create session
-  const { cookie } = await createAccountSession(
-    new ObjectId(pendingLogin.userId),
-    pendingLogin.identifier,
-    pendingLogin.identifierType,
-    {
-      userAgent: pendingLogin.userAgent,
-      ipAddress: pendingLogin.ipAddress,
-    }
-  );
-
-  elog.info('User authenticated with MFA (backup code)', {
-    userId: pendingLogin.userId,
-    backupCodesRemaining: result.remaining,
   });
 
   return { success: true, cookie };

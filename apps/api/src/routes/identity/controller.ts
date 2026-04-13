@@ -34,10 +34,6 @@ import {
   type IdentityModerationBlock,
 } from '../../services/identity.service';
 import {
-  generateIdentityBackupCodes,
-  getIdentityBackupCodesCount,
-} from '../../services/identity-backup-codes.service';
-import {
   blockIdentity,
   unblockIdentity,
   checkIfBlocked,
@@ -205,20 +201,8 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
     return errors.badRequest(result.error ?? 'Identity creation failed.');
   }
 
-  let backupCodes: string[] | undefined;
-  if (result.identity?.id) {
-    try {
-      backupCodes = await generateIdentityBackupCodes(result.identity.id);
-    } catch (err) {
-      elog.error('Failed to generate identity backup codes during creation', {
-        identityId: result.identity.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-
   const response = success(
-    { ...result.identity, backupCodes },
+    result.identity,
     'Identity created successfully.',
   );
   if (result.cookie) {
@@ -1041,58 +1025,6 @@ export async function initializeE2ECtrl(ctx: RouteContext): Promise<Response> {
 }
 
 // ============================================================================
-// Identity Backup Codes Controllers
-// ============================================================================
-
-/**
- * Regenerate identity backup codes.
- * POST /identity/:id/backup-codes/regenerate
- */
-export async function regenerateIdentityBackupCodesCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
-
-  if (identity._id.toHexString() !== ctx.params.id) {
-    return errors.forbidden('Cannot regenerate backup codes for another identity.');
-  }
-
-  const backupCodes = await generateIdentityBackupCodes(identity._id.toHexString());
-
-  return success({ backupCodes }, 'Backup codes regenerated.');
-}
-
-/**
- * Get remaining identity backup code count.
- * GET /identity/:id/backup-codes/count
- */
-export async function getIdentityBackupCodesCountCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
-
-  if (identity._id.toHexString() !== ctx.params.id) {
-    return errors.forbidden('Cannot view backup codes for another identity.');
-  }
-
-  const remaining = await getIdentityBackupCodesCount(identity._id.toHexString());
-
-  return success({ remaining });
-}
-
-// ============================================================================
 // Passphrase Change Controller
 // ============================================================================
 
@@ -1157,5 +1089,5 @@ export async function changePassphraseCtrl(ctx: RouteContext): Promise<Response>
     return errors.badRequest(result.error ?? 'Passphrase change failed.');
   }
 
-  return success({ backupCodes: result.backupCodes }, 'Passphrase changed successfully.');
+  return success(undefined, 'Passphrase changed successfully.');
 }

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import type { PublicGroupInvite } from '@adieuu/shared';
 import { HoverCard } from '../../components/HoverCard';
 import { useConversations, type DecryptedConversation } from '../../hooks/useConversations';
@@ -94,7 +95,11 @@ export function GroupConversationSidebarHoverCard({
             const isAdmin = conversation.admins.includes(pid);
             const label = member?.displayName ?? member?.username ?? pid.slice(0, 8);
             return (
-              <div key={pid} className="invite-group-hover-card-member">
+              <Link
+                key={pid}
+                to={`/identity/${pid}`}
+                className="invite-group-hover-card-member invite-group-hover-card-member--link"
+              >
                 <div className="invite-group-hover-card-member-avatar">
                   {member?.avatarUrl ? (
                     <img
@@ -119,7 +124,7 @@ export function GroupConversationSidebarHoverCard({
                 {member?.username && (
                   <span className="invite-group-hover-card-member-username">@{member.username}</span>
                 )}
-              </div>
+              </Link>
             );
           })}
         </div>
@@ -141,7 +146,11 @@ export function GroupConversationSidebarHoverCard({
               const profile = participantProfiles[pid];
               const nameLabel = profile?.displayName ?? profile?.username ?? pid.slice(0, 8);
               return (
-                <div key={inv.id} className="invite-group-hover-card-member">
+                <Link
+                  key={inv.id}
+                  to={`/identity/${pid}`}
+                  className="invite-group-hover-card-member invite-group-hover-card-member--link"
+                >
                   <div className="invite-group-hover-card-member-avatar">
                     {profile?.avatarUrl ? (
                       <img
@@ -159,7 +168,7 @@ export function GroupConversationSidebarHoverCard({
                   {profile?.username && (
                     <span className="invite-group-hover-card-member-username">@{profile.username}</span>
                   )}
-                </div>
+                </Link>
               );
             })}
           </div>

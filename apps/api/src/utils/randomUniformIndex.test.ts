@@ -59,11 +59,3 @@ describe('randomUniformIndex', () => {
     expect(call).toBe(2);
   });
 });
-
-describe('backup code alphabet invariant', () => {
-  test('documented charset length divides 256 (no single-byte rejection for current alphabet)', () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    expect(chars.length).toBe(32);
-    expect(256 % chars.length).toBe(0);
-  });
-});

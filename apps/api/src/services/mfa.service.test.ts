@@ -1,5 +1,4 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { createHash } from 'crypto';
 import { ObjectId } from 'mongodb';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -80,13 +79,6 @@ let mockVerifyAuthenticationResult: {
 let mockVerifyRegistrationThrow: Error | null = null;
 let mockVerifyAuthenticationThrow: Error | null = null;
 
-const mockBackupRepo = {
-  findByUserId: mock(() => Promise.resolve(null)) as AnyMock,
-  updateCodes: mock(() => Promise.resolve()) as AnyMock,
-  create: mock(() => Promise.resolve(null)) as AnyMock,
-  deleteForUser: mock(() => Promise.resolve(false)) as AnyMock,
-};
-
 /** Single `on` / `off`, or `first-on-then-off`: first call connected, then disconnected (covers clearMfaChallenge early return). */
 type RedisConnectionMode = 'on' | 'off' | 'first-on-then-off';
 let redisConnectionMode: RedisConnectionMode = 'on';
@@ -136,7 +128,6 @@ mock.module('@simplewebauthn/server', () => ({
 mock.module('../repositories', () => ({
   getTotpRepository: () => mockTotpRepo,
   getWebAuthnRepository: () => mockWebAuthnRepo,
-  getBackupCodesRepository: () => mockBackupRepo,
 }));
 
 mock.module('../db', () => ({
@@ -153,13 +144,10 @@ import type { RegistrationResponseJSON, AuthenticationResponseJSON } from '@simp
 import {
   verifyAndActivateTotp,
   verifyTotpCode,
-  verifyBackupCode,
   getMfaStatus,
   createMfaLoginChallenge,
   getMfaLoginChallenge,
   clearMfaLoginChallenge,
-  generateBackupCodes,
-  getBackupCodesCount,
   generateTotpSetup,
   savePendingTotp,
   deleteTotp,
@@ -212,11 +200,6 @@ describe('mfa.service', () => {
     mockWebAuthnRepo.delete.mockReset();
     mockWebAuthnRepo.rename.mockReset();
 
-    mockBackupRepo.findByUserId.mockReset();
-    mockBackupRepo.updateCodes.mockReset();
-    mockBackupRepo.create.mockReset();
-    mockBackupRepo.deleteForUser.mockReset();
-
     generateRegistrationOptionsMock.mockClear();
     generateAuthenticationOptionsMock.mockClear();
 
@@ -233,11 +216,6 @@ describe('mfa.service', () => {
     mockWebAuthnRepo.updateCounter.mockResolvedValue(undefined);
     mockWebAuthnRepo.delete.mockResolvedValue(true);
     mockWebAuthnRepo.rename.mockResolvedValue(null);
-
-    mockBackupRepo.findByUserId.mockResolvedValue(null);
-    mockBackupRepo.updateCodes.mockResolvedValue(undefined);
-    mockBackupRepo.create.mockResolvedValue(null);
-    mockBackupRepo.deleteForUser.mockResolvedValue(false);
   });
 
   test('verifyAndActivateTotp rejects missing, unauthorized, or already verified credentials', async () => {
@@ -332,29 +310,7 @@ describe('mfa.service', () => {
     expect(mockTotpRepo.updateLastUsed).toHaveBeenCalledWith(totpDocId);
   });
 
-  test('verifyBackupCode consumes matching backup code and reports remaining count', async () => {
-    const code = 'ABCD-EFGH';
-    const normalized = code.replace(/-/g, '').toUpperCase();
-    const hashed = createHash('sha256')
-      .update(`${normalized}:${userId}:${mockConfig.security.otpSecret}`)
-      .digest('hex');
-
-    mockBackupRepo.findByUserId.mockResolvedValue({
-      _id: new ObjectId(),
-      userId: new ObjectId(userId),
-      hashedCodes: [hashed, 'other'],
-      totalGenerated: 2,
-      generatedAt: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-
-    const result = await verifyBackupCode(userId, code);
-    expect(result).toEqual({ success: true, remaining: 1 });
-    expect(mockBackupRepo.updateCodes).toHaveBeenCalledWith(userId, ['other']);
-  });
-
-  test('getMfaStatus reflects enabled methods and remaining backup codes', async () => {
+  test('getMfaStatus reflects enabled TOTP and WebAuthn methods', async () => {
     mockTotpRepo.findVerifiedByUserId.mockResolvedValue([{
       _id: new ObjectId(),
       userId: new ObjectId(userId),
@@ -376,21 +332,12 @@ describe('mfa.service', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     }]);
-    mockBackupRepo.findByUserId.mockResolvedValue({
-      _id: new ObjectId(),
-      userId: new ObjectId(userId),
-      hashedCodes: ['a', 'b'],
-      totalGenerated: 2,
-      generatedAt: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-
     const status = await getMfaStatus(userId);
     expect(status.enabled).toBe(true);
     expect(status.totpEnabled).toBe(true);
     expect(status.webauthnEnabled).toBe(true);
-    expect(status.backupCodesRemaining).toBe(2);
+    expect(status.totpCount).toBe(1);
+    expect(status.webauthnCount).toBe(1);
   });
 
   test('create/get/clear MFA login challenge handles redis and malformed data safely', async () => {
@@ -416,65 +363,6 @@ describe('mfa.service', () => {
 
     await clearMfaLoginChallenge('session-1');
     expect(redisDelMock).toHaveBeenCalled();
-  });
-
-  const backupCodePattern = /^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/;
-
-  test('generateBackupCodes returns formatted codes and persists hashed codes', async () => {
-    const codes = await generateBackupCodes(userId);
-    expect(codes).toHaveLength(10);
-    for (const c of codes) {
-      expect(c).toMatch(backupCodePattern);
-      expect(c.replace(/-/g, '')).toHaveLength(8);
-    }
-    expect(mockBackupRepo.create).toHaveBeenCalledTimes(1);
-    const createArg = mockBackupRepo.create.mock.calls[0]?.[0];
-    expect(createArg?.hashedCodes).toHaveLength(10);
-    expect(createArg?.totalGenerated).toBe(10);
-    for (const h of createArg?.hashedCodes ?? []) {
-      expect(h).toMatch(/^[a-f0-9]{64}$/);
-    }
-  });
-
-  test('getBackupCodesCount returns length or zero when absent', async () => {
-    expect(await getBackupCodesCount(userId)).toBe(0);
-
-    mockBackupRepo.findByUserId.mockResolvedValue({
-      _id: new ObjectId(),
-      userId: new ObjectId(userId),
-      hashedCodes: ['a', 'b', 'c'],
-      totalGenerated: 3,
-      generatedAt: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    expect(await getBackupCodesCount(userId)).toBe(3);
-  });
-
-  test('verifyBackupCode rejects missing codes or invalid input', async () => {
-    expect(await verifyBackupCode(userId, 'ABCD-EFGH')).toEqual({ success: false, error: 'no_backup_codes' });
-
-    mockBackupRepo.findByUserId.mockResolvedValue({
-      _id: new ObjectId(),
-      userId: new ObjectId(userId),
-      hashedCodes: [],
-      totalGenerated: 0,
-      generatedAt: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    expect(await verifyBackupCode(userId, 'ABCD-EFGH')).toEqual({ success: false, error: 'no_backup_codes' });
-
-    mockBackupRepo.findByUserId.mockResolvedValue({
-      _id: new ObjectId(),
-      userId: new ObjectId(userId),
-      hashedCodes: ['only-other-hash'],
-      totalGenerated: 1,
-      generatedAt: new Date(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    expect(await verifyBackupCode(userId, 'ZZZZ-ZZZZ')).toEqual({ success: false, error: 'invalid_code' });
   });
 
   test('generateTotpSetup returns otpauth URL and manual entry key', () => {
@@ -525,7 +413,7 @@ describe('mfa.service', () => {
     expect(await verifyTotpCode(userId, '000000')).toEqual({ success: false, error: 'invalid_code' });
   });
 
-  test('deleteTotp removes credential and deletes backup codes when MFA fully disabled', async () => {
+  test('deleteTotp removes credential when it is the last MFA method', async () => {
     mockTotpRepo.findById.mockResolvedValue({
       _id: totpDocId,
       userId: new ObjectId(userId),
@@ -537,12 +425,10 @@ describe('mfa.service', () => {
     });
     mockTotpRepo.findVerifiedByUserId.mockResolvedValue([]);
     mockWebAuthnRepo.findByUserId.mockResolvedValue([]);
-    mockBackupRepo.deleteForUser.mockResolvedValue(true);
 
     const result = await deleteTotp(totpDocId.toHexString(), userId);
     expect(result).toEqual({ success: true });
     expect(mockTotpRepo.delete).toHaveBeenCalledWith(totpDocId.toHexString());
-    expect(mockBackupRepo.deleteForUser).toHaveBeenCalledWith(userId);
   });
 
   test('deleteTotp rejects not_found or unauthorized', async () => {
@@ -828,7 +714,7 @@ describe('mfa.service', () => {
     expect(out).toEqual({ success: false, error: 'unauthorized' });
   });
 
-  test('deleteWebAuthnCredential removes passkey and may delete backup codes', async () => {
+  test('deleteWebAuthnCredential removes passkey when it is the last MFA method', async () => {
     const credId = new ObjectId().toHexString();
     mockWebAuthnRepo.findById.mockResolvedValue({
       _id: new ObjectId(credId),
@@ -844,12 +730,10 @@ describe('mfa.service', () => {
     });
     mockTotpRepo.findVerifiedByUserId.mockResolvedValue([]);
     mockWebAuthnRepo.findByUserId.mockResolvedValue([]);
-    mockBackupRepo.deleteForUser.mockResolvedValue(true);
 
     const result = await deleteWebAuthnCredential(credId, userId);
     expect(result).toEqual({ success: true });
     expect(mockWebAuthnRepo.delete).toHaveBeenCalledWith(credId);
-    expect(mockBackupRepo.deleteForUser).toHaveBeenCalledWith(userId);
   });
 
   test('renameWebAuthnCredential updates name when authorized', async () => {
@@ -1166,25 +1050,6 @@ describe('mfa.service', () => {
       updatedAt: new Date(),
     });
     expect(await renameWebAuthnCredential(credId, userId, 'n')).toEqual({ success: false, error: 'unauthorized' });
-  });
-
-  test('deleteTotp cleanup skips backup log when deleteForUser returns false', async () => {
-    mockTotpRepo.findById.mockResolvedValue({
-      _id: totpDocId,
-      userId: new ObjectId(userId),
-      encryptedSecret: encryptedABC,
-      name: 'totp',
-      verified: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    mockTotpRepo.findVerifiedByUserId.mockResolvedValue([]);
-    mockWebAuthnRepo.findByUserId.mockResolvedValue([]);
-    mockBackupRepo.deleteForUser.mockResolvedValue(false);
-
-    const result = await deleteTotp(totpDocId.toHexString(), userId);
-    expect(result).toEqual({ success: true });
-    expect(mockBackupRepo.deleteForUser).toHaveBeenCalledWith(userId);
   });
 
   test('createMfaLoginChallenge attaches webauthnChallenge when only WebAuthn is enabled', async () => {

@@ -203,10 +203,9 @@ mock.module('../../services/platform-capabilities.service', () => ({
 
 // Mock MFA service
 mock.module('../../services/mfa.service', () => ({
-  getMfaStatus: mock(() => Promise.resolve({ enabled: false, totpEnabled: false, webauthnEnabled: false, backupCodesExist: false })),
+  getMfaStatus: mock(() => Promise.resolve({ enabled: false, totpEnabled: false, webauthnEnabled: false, totpCount: 0, webauthnCount: 0 })),
   verifyTotpCode: mock(() => Promise.resolve({ success: false })),
   verifyWebAuthnAuthentication: mock(() => Promise.resolve({ success: false })),
-  verifyBackupCode: mock(() => Promise.resolve({ success: false })),
   generateWebAuthnAuthenticationOptions: mock(() => Promise.resolve(null)),
 }));
 

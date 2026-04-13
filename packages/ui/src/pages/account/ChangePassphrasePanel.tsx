@@ -6,14 +6,13 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Spinner } from '../../components/Spinner';
 import { Alert } from '../../components/Alert';
-import { BackupCodesDisplay } from '../../components/BackupCodesDisplay';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/Toast';
 import { decryptKeyBundle, encryptKeyBundle } from '../../services/e2eKeyService';
 import { getOrCreateWrappingSalt, reWrapDeviceKeys } from '../../services/deviceKeyStorage';
 
-type ChangePassphraseStep = 'form' | 'processing' | 'backup_codes';
+type ChangePassphraseStep = 'form' | 'processing';
 
 type ChangePassphrasePanelProps = {
   api: ReturnType<typeof createApiClient>;
@@ -34,14 +33,12 @@ export function ChangePassphrasePanel({ api }: ChangePassphrasePanelProps) {
   const [newPassphrase, setNewPassphrase] = useState('');
   const [confirmPassphrase, setConfirmPassphrase] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [backupCodes, setBackupCodes] = useState<string[]>([]);
 
   const resetForm = () => {
     setCurrentPassphrase('');
     setNewPassphrase('');
     setConfirmPassphrase('');
     setError(null);
-    setBackupCodes([]);
     setStep('form');
   };
 
@@ -113,13 +110,8 @@ export function ChangePassphrasePanel({ api }: ChangePassphrasePanelProps) {
         }
       }
 
-      if (result.data?.backupCodes && result.data.backupCodes.length > 0) {
-        setBackupCodes(result.data.backupCodes);
-        setStep('backup_codes');
-      } else {
-        toast.success(t('identity.privacy.changePassword.success'));
-        resetForm();
-      }
+      toast.success(t('identity.privacy.changePassword.success'));
+      resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : t('identity.privacy.changePassword.errorFailed'));
       setStep('form');
@@ -135,18 +127,6 @@ export function ChangePassphrasePanel({ api }: ChangePassphrasePanelProps) {
     );
   }
 
-  if (step === 'backup_codes') {
-    return (
-      <BackupCodesDisplay
-        codes={backupCodes}
-        onConfirm={() => {
-          toast.success(t('identity.privacy.changePassword.success'));
-          resetForm();
-        }}
-      />
-    );
-  }
-
   return (
     <div className="change-passphrase-settings">
       <div className="sessions-header">
@@ -157,7 +137,7 @@ export function ChangePassphrasePanel({ api }: ChangePassphrasePanelProps) {
       </div>
 
       <Alert variant="warning" className="change-passphrase-warning">
-        {t('identity.privacy.changePassword.invalidatesBackupCodes')}
+        {t('identity.privacy.changePassword.securityNote')}
       </Alert>
 
       {error && <Alert variant="error">{error}</Alert>}

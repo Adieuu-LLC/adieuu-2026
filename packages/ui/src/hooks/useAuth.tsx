@@ -19,7 +19,6 @@ export interface MfaChallenge {
   mfaOptions: {
     totp: boolean;
     webauthn: boolean;
-    backupCodes: boolean;
   };
   webauthnChallenge?: PublicKeyCredentialRequestOptionsJSON;
 }
@@ -34,7 +33,6 @@ export interface AuthContextValue extends AuthState {
   verifyOtp: (identifier: string, code: string) => Promise<VerifyOtpResult>;
   completeMfaTotp: (mfaToken: string, code: string) => Promise<{ success: boolean; error?: string }>;
   completeMfaWebAuthn: (mfaToken: string, webauthnChallenge: PublicKeyCredentialRequestOptionsJSON) => Promise<{ success: boolean; error?: string }>;
-  completeMfaBackupCode: (mfaToken: string, code: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   /** Refresh session status from server */
   refreshSession: () => Promise<void>;
@@ -216,20 +214,6 @@ function useAuthState(): AuthContextValue {
     }
   }, [api, refreshSession, webauthnBridge]);
 
-  const completeMfaBackupCode = useCallback(async (mfaToken: string, code: string) => {
-    const response = await api.auth.verifyMfaBackupCode(mfaToken, code);
-
-    if (!response.success) {
-      return {
-        success: false,
-        error: response.error?.message ?? 'Invalid backup code',
-      };
-    }
-
-    await refreshSession();
-    return { success: true };
-  }, [api, refreshSession]);
-
   // Inform the Electron main process of admin status so it can conditionally
   // allow DevTools shortcuts in production. No-op in browser contexts.
   useEffect(() => {
@@ -253,7 +237,6 @@ function useAuthState(): AuthContextValue {
     verifyOtp,
     completeMfaTotp,
     completeMfaWebAuthn,
-    completeMfaBackupCode,
     logout,
     refreshSession,
   };
