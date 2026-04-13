@@ -1,35 +1,31 @@
 export {
   ApiClient,
-  AuthApi,
-  AdminApi,
-  UsersApi,
-  MfaApi,
-  IdentityApi,
+  type ApiClientConfig,
+  type HttpClient,
+  type RequestOptions,
+} from './http-client';
+
+export {
   createApiClient,
   defaultConfig,
-  type ApiClientConfig,
-  type RequestOptions,
+} from './create-api-client';
+
+export { AuthApi } from './auth-api';
+export {
   type RequestOtpParams,
   type VerifyOtpParams,
   type VerifyOtpResponse,
+  type PublicKeyCredentialRequestOptionsJSON,
   type SessionInfo,
-  PLATFORM_SETTING_KEYS,
-  type PlatformSettingKey,
-  type AdminMetrics,
-  type PublicPlatformSetting,
-  type PutPlatformSettingBody,
-  type PlatformSettingValueType,
-  type PlatformAdminRow,
   type SessionDetails,
   type RevokeSessionsResponse,
-  type AuthSession,
   type AvatarInfo,
   type UserProfile,
-  type RequestEmailVerificationParams,
-  type VerifyEmailParams,
-  type RequestPhoneVerificationParams,
-  type VerifyPhoneParams,
-  // MFA types
+  type AuthSession,
+} from './auth-types';
+
+export {
+  MfaApi,
   type MfaStatus,
   type TotpCredential,
   type WebAuthnCredential,
@@ -39,65 +35,141 @@ export {
   type WebAuthnRegisterStartResponse,
   type WebAuthnRegisterFinishResponse,
   type PublicKeyCredentialCreationOptionsJSON,
-  type PublicKeyCredentialRequestOptionsJSON,
-  // Identity types
+} from './mfa-api';
+
+export {
+  UsersApi,
+  type RequestEmailVerificationParams,
+  type VerifyEmailParams,
+  type RequestPhoneVerificationParams,
+  type VerifyPhoneParams,
+} from './users-api';
+
+export { IdentityApi } from './identity-api';
+export {
   type CryptoProfile,
+  type ProfileVisibility,
+  type ProfilePrivacySettings,
+  type ProfileColors,
   type PublicIdentity,
   type PublicDevice,
+  type PublicIdentitySession,
   type IdentityPublicKeys,
   type EncryptedKeyBundle,
+  type InitializeE2EParams,
+  type RegisterDeviceParams,
+  type UpdateKeyBundleParams,
   type CreateIdentityParams,
   type LoginIdentityParams,
   type IdentityLoginResponse,
   type IdentityLoginErrorResponse,
-  type InitializeE2EParams,
-  type RegisterDeviceParams,
-  type UpdateKeyBundleParams,
-  type PublicIdentitySession,
-  // Blocked types
-  type BlockedIdentity,
-  type BlockCheckEitherResult,
-  // Friends types
-  FriendsApi,
-  type FriendshipStatus,
-  type PublicFriendRequest,
-  type FriendInfo,
-  type IncomingFriendRequestInfo,
-  // Pre-key types
+  type ChangePassphraseParams,
+} from './identity-types';
+
+export { type UpdateProfileParams } from './profile-update-types';
+
+export {
   type PublicSignedPreKey,
   type PublicOneTimePreKey,
   type ClaimedDevicePreKeys,
   type UploadPreKeysParams,
   type ClaimPreKeysParams,
   type PreKeyCountResponse,
-  // Notification types
+} from './pre-keys-types';
+
+export {
+  BlocksApi,
+  type BlockedIdentity,
+  type BlockCheckResult,
+  type BlockCheckEitherResult,
+} from './blocks-api';
+
+export {
+  NotificationsApi,
   type NotificationType,
   type NotificationData,
   type Notification,
   type NotificationCounts,
-  // Profile types
-  type ProfileVisibility,
-  type ProfilePrivacySettings,
-  type ProfileColors,
-  type UpdateProfileParams,
-  // Upload types
+} from './notifications-api';
+
+export {
+  FriendsApi,
+  type FriendshipStatus,
+  type PublicFriendRequest,
+  type FriendInfo,
+  type IncomingFriendRequestInfo,
+} from './friends-api';
+
+export {
+  AdminApi,
+  PLATFORM_SETTING_KEYS,
+  type PlatformSettingKey,
+  type AdminMetrics,
+  type PublicPlatformSetting,
+  type PutPlatformSettingBody,
+  type PlatformSettingValueType,
+  type PlatformAdminRow,
+} from './admin-api';
+
+export {
+  type ReportType,
+  type ReportSource,
+  type ModerationReportStatus,
+  type ReportCategory,
+  type ReportTargetRef,
+  type ReportResolution,
+  type PublicEvidenceAttachment,
+  type PublicMessageEvidence,
+  type PublicProfileEvidence,
+  type PublicReportEvidence,
+  type PublicReport,
+  type PublicReportEvent,
+  type ReportListParams,
+  type ReportListResponse,
+  type ModerationIdentityProfile,
+  type ReportDetailResponse,
+  type ResolveReportParams,
+  type ModerationModerator,
+  type ModeratorsListResponse,
+} from './moderation-types';
+
+export { ModerationApi } from './moderation-api';
+
+export {
+  ReportsApi,
+  type SubmitMessageReportParams,
+  type SubmitProfileReportParams,
+  type SubmitReportResponse,
+} from './reports-api';
+
+export {
+  ThemesApi,
+  type ThemeListParams,
+  type ThemeListResponse,
+  type MySharedThemeChecksumsResponse,
+} from './themes-api';
+
+export {
   UploadApi,
   type UploadPurpose,
   type UploadStatus,
+  type E2EMediaStatus,
   type RequestUploadParams,
   type RequestUploadResponse,
   type UploadStatusResponse,
-  // E2E media upload types
+} from './upload-api';
+
+export {
   E2EUploadApi,
-  type E2EMediaStatus,
   type RequestE2EUploadParams,
   type RequestE2EUploadResponse,
   type RequestScanUploadParams,
   type RequestScanUploadResponse,
   type E2EMediaStatusResponse,
   type E2EMediaDownloadResponse,
-  // Conversation types
-  ConversationsApi,
+} from './e2e-upload-api';
+
+export {
   type ConversationType,
   type PreKeyType,
   type MessageCryptoProfile,
@@ -111,49 +183,31 @@ export {
   type GroupInvitePreviewMember,
   type SendMessageParams,
   type FormerMember,
-  // Conversation preferences types
   type ConversationPreferences,
   type ConversationPreferencesPatch,
-  // Reaction types
-  ReactionsApi,
   type PublicReaction,
   type SendReactionParams,
-  // Moderation types
-  ModerationApi,
-  type PublicReport,
-  type PublicReportEvent,
-  type PublicReportEvidence,
-  type PublicMessageEvidence,
-  type PublicProfileEvidence,
-  type PublicEvidenceAttachment,
-  type ReportListParams,
-  type ReportListResponse,
-  type ReportDetailResponse,
-  type ModerationIdentityProfile,
-  type ResolveReportParams,
-  type ModerationModerator,
-  type ModeratorsListResponse,
-  type ReportType,
-  type ReportSource,
-  type ReportCategory,
-  // User report submission types
-  ReportsApi,
-  type SubmitMessageReportParams,
-  type SubmitProfileReportParams,
-  type SubmitReportResponse,
-  // Klipy GIF/sticker proxy types
+} from './conversations-types';
+
+export { ConversationsApi } from './conversations-api';
+
+export { ReactionsApi } from './reactions-api';
+
+export {
   KlipyApi,
   type KlipyItem,
   type KlipySearchResponse,
   type KlipySearchParams,
   type KlipyShareParams,
-  // Achievement types
+} from './klipy-api';
+
+export {
   AchievementsApi,
   type AchievementCategory,
   type PublicAchievementDefinition,
   type PublicAchievement,
   type AchievementStats,
-} from './client';
+} from './achievements-api';
 
 export {
   ChatClient,
