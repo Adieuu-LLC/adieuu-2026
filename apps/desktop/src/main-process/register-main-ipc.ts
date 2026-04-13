@@ -1,0 +1,113 @@
+import path from 'path';
+import fs from 'fs/promises';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { createCredential, getCredential } from '../webauthn-bridge';
+import { runtime } from './runtime';
+import { applyBadgeColor, createBadgedIcon, getBaseIcon } from './taskbar-badge';
+import { registerAutoUpdaterIpc } from './auto-updater';
+import { isAllowedAudioPath } from './audio-path';
+
+export function registerMainProcessIpc(options: {
+  isDev: boolean;
+  isMac: boolean;
+  iconPath: string;
+  sendToRenderer: (channel: string, ...args: unknown[]) => void;
+}): void {
+  const { isDev, isMac, iconPath, sendToRenderer } = options;
+
+  ipcMain.handle('webauthn:create', async (_event, optionsJSON: unknown) => {
+    return createCredential(optionsJSON);
+  });
+
+  ipcMain.handle('webauthn:get', async (_event, optionsJSON: unknown) => {
+    return getCredential(optionsJSON);
+  });
+
+  registerAutoUpdaterIpc({ isDev, sendToRenderer });
+
+  ipcMain.handle('get-pending-deep-link', () => {
+    const link = runtime.pendingDeepLinkPath;
+    runtime.pendingDeepLinkPath = null;
+    return link;
+  });
+
+  ipcMain.handle('set-platform-admin', (_event, isAdmin: unknown) => {
+    runtime.isPlatformAdminUser = isAdmin === true;
+  });
+
+  ipcMain.handle('window:minimize', () => {
+    runtime.mainWindow?.minimize();
+  });
+
+  ipcMain.handle('window:maximize', () => {
+    if (runtime.mainWindow?.isMaximized()) {
+      runtime.mainWindow.unmaximize();
+    } else {
+      runtime.mainWindow?.maximize();
+    }
+  });
+
+  ipcMain.handle('window:close', () => {
+    runtime.mainWindow?.close();
+  });
+
+  ipcMain.handle('window:isMaximized', () => {
+    return runtime.mainWindow?.isMaximized() ?? false;
+  });
+
+  ipcMain.handle('window:setBadgeCount', (_event, count: unknown, accentHex?: unknown) => {
+    if (typeof count !== 'number' || count < 0) return;
+    const rounded = Math.round(count);
+
+    if (typeof accentHex === 'string') {
+      applyBadgeColor(accentHex);
+    }
+
+    app.setBadgeCount(rounded);
+
+    if (!isMac && runtime.mainWindow && !runtime.mainWindow.isDestroyed()) {
+      const icon = rounded > 0 ? createBadgedIcon(iconPath, rounded) : getBaseIcon(iconPath);
+      if (icon) runtime.mainWindow.setIcon(icon);
+    }
+  });
+
+  ipcMain.handle('audio:pick-sound-file', async () => {
+    const parent = runtime.mainWindow ?? BrowserWindow.getFocusedWindow();
+    const dialogOptions: Electron.OpenDialogOptions = {
+      title: 'Choose notification sound',
+      properties: ['openFile'],
+      filters: [{ name: 'Audio', extensions: ['mp3', 'ogg', 'wav', 'm4a', 'flac', 'opus', 'oga'] }],
+    };
+    try {
+      const result = parent
+        ? await dialog.showOpenDialog(parent, dialogOptions)
+        : await dialog.showOpenDialog(dialogOptions);
+      if (result.canceled || !result.filePaths[0]) {
+        return null;
+      }
+      const filePath = result.filePaths[0];
+      if (!isAllowedAudioPath(filePath)) {
+        return null;
+      }
+      return { name: path.basename(filePath), path: filePath };
+    } catch (err) {
+      console.error('[audio:pick-sound-file] dialog failed:', err);
+      return null;
+    }
+  });
+
+  ipcMain.handle('audio:load-sound-file', async (_event, filePath: unknown) => {
+    if (typeof filePath !== 'string' || filePath.length === 0) {
+      return null;
+    }
+    if (!isAllowedAudioPath(filePath)) {
+      return null;
+    }
+    try {
+      const buf = await fs.readFile(filePath);
+      return buf.toString('base64');
+    } catch {
+      return null;
+    }
+  });
+}
