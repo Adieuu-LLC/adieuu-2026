@@ -1,0 +1,700 @@
+@use 'variables' as *;
+
+// ============================================================================
+// MFA Components
+// ============================================================================
+
+.mfa-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--spacing-2xl);
+}
+
+.mfa-credentials {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.mfa-status-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  border: 1px solid;
+
+  &.mfa-enabled {
+    background: var(--color-success-bg);
+    border-color: var(--color-success);
+  }
+
+  &.mfa-disabled {
+    background: var(--color-warning-bg);
+    border-color: var(--color-warning);
+  }
+}
+
+.mfa-status-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+
+  .icon-check {
+    color: var(--color-success);
+  }
+
+  .icon-warning {
+    color: var(--color-warning);
+  }
+}
+
+.mfa-status-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+
+  strong {
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+  }
+
+  span {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+  }
+}
+
+.mfa-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+
+  &-backup {
+    background: var(--color-bg-tertiary);
+  }
+
+  &-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--spacing-md);
+
+    h4 {
+      margin: 0;
+      color: var(--color-text-primary);
+      font-size: var(--font-size-md);
+      font-weight: var(--font-weight-semibold);
+    }
+
+    p {
+      margin: var(--spacing-xs) 0 0 0;
+      color: var(--color-text-secondary);
+      font-size: var(--font-size-sm);
+    }
+  }
+}
+
+.mfa-credential-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.mfa-credential-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-muted);
+}
+
+.mfa-credential-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.mfa-credential-name {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.mfa-credential-meta {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.mfa-credential-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
+.mfa-credential-edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  flex: 1;
+  min-width: 0;
+
+  &-actions {
+    display: flex;
+    gap: var(--spacing-xs);
+  }
+}
+
+.mfa-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+
+  &-synced {
+    background: var(--color-info-bg);
+    color: var(--color-info);
+  }
+}
+
+.mfa-empty {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+  margin: 0;
+}
+
+// MFA Setup Modal/Flow
+.mfa-setup {
+  display: flex;
+  flex-direction: column;
+
+  &-step {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+
+    h3 {
+      margin: 0;
+      color: var(--color-text-primary);
+      font-size: var(--font-size-lg);
+      font-weight: var(--font-weight-semibold);
+    }
+  }
+
+  &-description {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    margin: 0;
+    line-height: var(--line-height-relaxed);
+  }
+
+  &-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+  }
+}
+
+.mfa-error {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+// QR Code
+.mfa-qr-container {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-md);
+  background: white;
+  border-radius: var(--radius-md);
+  width: fit-content;
+  margin: 0 auto;
+}
+
+.mfa-qr-code {
+  width: 200px;
+  height: 200px;
+}
+
+.mfa-manual-key {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-md);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  text-align: center;
+
+  &-label {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+  }
+
+  &-value {
+    color: var(--color-accent-primary);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-md);
+    letter-spacing: 0.05em;
+    word-break: break-all;
+  }
+}
+
+// ============================================================================
+// Confirm Dialog Component
+// ============================================================================
+
+.confirm-dialog {
+  &-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: var(--z-modal-backdrop);
+    animation: fadeIn var(--transition-fast) ease-out;
+  }
+
+  &-positioner {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal);
+    padding: var(--spacing-lg);
+  }
+
+  &-content {
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-xl), var(--shadow-glow);
+    width: 100%;
+    max-width: 420px;
+    animation: slideUp var(--transition-normal) ease-out;
+    outline: none;
+
+    &[data-state="open"] {
+      animation: slideUp var(--transition-normal) ease-out;
+    }
+
+    &[data-state="closed"] {
+      animation: slideDown var(--transition-fast) ease-in;
+    }
+  }
+
+  &-header {
+    padding: var(--spacing-lg);
+    padding-bottom: 0;
+  }
+
+  &-title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    line-height: var(--line-height-tight);
+  }
+
+  &-body {
+    padding: var(--spacing-md) var(--spacing-lg);
+  }
+
+  &-description {
+    margin: 0;
+    font-size: var(--font-size-md);
+    color: var(--color-text-secondary);
+    line-height: var(--line-height-normal);
+  }
+
+  &-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-lg);
+    padding-top: var(--spacing-md);
+  }
+
+  &-danger .confirm-dialog-title {
+    color: var(--color-error);
+  }
+
+  &-loading {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+
+  &-spinner {
+    animation: spin 1s linear infinite;
+  }
+}
+
+// ============================================================================
+// Magic Rings (react-bits)
+// ============================================================================
+
+.magic-rings-container {
+  width: 100%;
+  height: 100%;
+}
+
+// ============================================================================
+// Shiny Text (react-bits)
+// ============================================================================
+
+.shiny-text {
+  display: inline-block;
+  background: linear-gradient(
+    var(--shiny-spread, 120deg),
+    var(--shiny-color, #b5b5b5) 0%,
+    var(--shiny-color, #b5b5b5) 35%,
+    var(--shiny-shine, #fff) 50%,
+    var(--shiny-color, #b5b5b5) 65%,
+    var(--shiny-color, #b5b5b5) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shiny-sweep var(--shiny-speed, 3s) linear infinite;
+
+  &--disabled {
+    animation: none;
+  }
+}
+
+@keyframes shiny-sweep {
+  0%   { background-position: 100% center; }
+  100% { background-position: -100% center; }
+}
+
+// ============================================================================
+// Border Glow (react-bits)
+// ============================================================================
+
+.border-glow-card {
+  --edge-proximity: 0;
+  --cursor-angle: 45deg;
+  --edge-sensitivity: 30;
+  --color-sensitivity: calc(var(--edge-sensitivity) + 20);
+  --border-radius: 28px;
+  --glow-padding: 40px;
+  --cone-spread: 25;
+
+  position: relative;
+  border-radius: var(--border-radius);
+  isolation: isolate;
+  transform: translate3d(0, 0, 0.01px);
+  display: grid;
+  border: 1px solid rgb(255 255 255 / 15%);
+  background: var(--card-bg, #060010);
+  overflow: visible;
+  box-shadow:
+    rgba(0, 0, 0, 0.1) 0px 1px 2px,
+    rgba(0, 0, 0, 0.1) 0px 2px 4px,
+    rgba(0, 0, 0, 0.1) 0px 4px 8px,
+    rgba(0, 0, 0, 0.1) 0px 8px 16px,
+    rgba(0, 0, 0, 0.1) 0px 16px 32px,
+    rgba(0, 0, 0, 0.1) 0px 32px 64px;
+
+  &::before,
+  &::after,
+  > .edge-light {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    transition: opacity 0.25s ease-out;
+    z-index: -1;
+  }
+
+  &:not(:hover):not(.sweep-active) {
+    &::before,
+    &::after,
+    > .edge-light {
+      opacity: 0;
+      transition: opacity 0.75s ease-in-out;
+    }
+  }
+
+  // coloured mesh-gradient border
+  &::before {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(var(--card-bg, #060010) 0 100%) padding-box,
+      linear-gradient(rgb(255 255 255 / 0%) 0% 100%) border-box,
+      var(--gradient-one, radial-gradient(at 80% 55%, hsla(268, 100%, 76%, 1) 0px, transparent 50%)) border-box,
+      var(--gradient-two, radial-gradient(at 69% 34%, hsla(349, 100%, 74%, 1) 0px, transparent 50%)) border-box,
+      var(--gradient-three, radial-gradient(at 8% 6%, hsla(136, 100%, 78%, 1) 0px, transparent 50%)) border-box,
+      var(--gradient-four, radial-gradient(at 41% 38%, hsla(192, 100%, 64%, 1) 0px, transparent 50%)) border-box,
+      var(--gradient-five, radial-gradient(at 86% 85%, hsla(186, 100%, 74%, 1) 0px, transparent 50%)) border-box,
+      var(--gradient-six, radial-gradient(at 82% 18%, hsla(52, 100%, 65%, 1) 0px, transparent 50%)) border-box,
+      var(--gradient-seven, radial-gradient(at 51% 4%, hsla(12, 100%, 72%, 1) 0px, transparent 50%)) border-box,
+      var(--gradient-base, linear-gradient(#c299ff 0 100%)) border-box;
+
+    opacity: calc(
+      (var(--edge-proximity) - var(--color-sensitivity)) /
+      (100 - var(--color-sensitivity))
+    );
+
+    mask-image:
+      conic-gradient(
+        from var(--cursor-angle) at center,
+        black calc(var(--cone-spread) * 1%),
+        transparent calc((var(--cone-spread) + 15) * 1%),
+        transparent calc((100 - var(--cone-spread) - 15) * 1%),
+        black calc((100 - var(--cone-spread)) * 1%)
+      );
+  }
+
+  // coloured mesh-gradient background fill near edges
+  &::after {
+    border: 1px solid transparent;
+    background:
+      var(--gradient-one, radial-gradient(at 80% 55%, hsla(268, 100%, 76%, 1) 0px, transparent 50%)) padding-box,
+      var(--gradient-two, radial-gradient(at 69% 34%, hsla(349, 100%, 74%, 1) 0px, transparent 50%)) padding-box,
+      var(--gradient-three, radial-gradient(at 8% 6%, hsla(136, 100%, 78%, 1) 0px, transparent 50%)) padding-box,
+      var(--gradient-four, radial-gradient(at 41% 38%, hsla(192, 100%, 64%, 1) 0px, transparent 50%)) padding-box,
+      var(--gradient-five, radial-gradient(at 86% 85%, hsla(186, 100%, 74%, 1) 0px, transparent 50%)) padding-box,
+      var(--gradient-six, radial-gradient(at 82% 18%, hsla(52, 100%, 65%, 1) 0px, transparent 50%)) padding-box,
+      var(--gradient-seven, radial-gradient(at 51% 4%, hsla(12, 100%, 72%, 1) 0px, transparent 50%)) padding-box,
+      var(--gradient-base, linear-gradient(#c299ff 0 100%)) padding-box;
+
+    mask-image:
+      linear-gradient(to bottom, black, black),
+      radial-gradient(ellipse at 50% 50%, black 40%, transparent 65%),
+      radial-gradient(ellipse at 66% 66%, black 5%, transparent 40%),
+      radial-gradient(ellipse at 33% 33%, black 5%, transparent 40%),
+      radial-gradient(ellipse at 66% 33%, black 5%, transparent 40%),
+      radial-gradient(ellipse at 33% 66%, black 5%, transparent 40%),
+      conic-gradient(from var(--cursor-angle) at center, transparent 5%, black 15%, black 85%, transparent 95%);
+
+    mask-composite: subtract, add, add, add, add, add;
+    opacity: calc(
+      var(--fill-opacity, 0.5) *
+      (var(--edge-proximity) - var(--color-sensitivity)) /
+      (100 - var(--color-sensitivity))
+    );
+    mix-blend-mode: soft-light;
+  }
+
+  // outer glow layer
+  > .edge-light {
+    inset: calc(var(--glow-padding) * -1);
+    pointer-events: none;
+    z-index: 1;
+
+    mask-image:
+      conic-gradient(
+        from var(--cursor-angle) at center,
+        black 2.5%, transparent 10%, transparent 90%, black 97.5%
+      );
+
+    opacity: calc(
+      (var(--edge-proximity) - var(--edge-sensitivity)) /
+      (100 - var(--edge-sensitivity))
+    );
+    mix-blend-mode: plus-lighter;
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset: var(--glow-padding);
+      border-radius: inherit;
+      box-shadow:
+        inset 0 0 0 1px var(--glow-color, hsl(40deg 80% 80% / 100%)),
+        inset 0 0 1px 0 var(--glow-color-60, hsl(40deg 80% 80% / 60%)),
+        inset 0 0 3px 0 var(--glow-color-50, hsl(40deg 80% 80% / 50%)),
+        inset 0 0 6px 0 var(--glow-color-40, hsl(40deg 80% 80% / 40%)),
+        inset 0 0 15px 0 var(--glow-color-30, hsl(40deg 80% 80% / 30%)),
+        inset 0 0 25px 2px var(--glow-color-20, hsl(40deg 80% 80% / 20%)),
+        inset 0 0 50px 2px var(--glow-color-10, hsl(40deg 80% 80% / 10%)),
+        0 0 1px 0 var(--glow-color-60, hsl(40deg 80% 80% / 60%)),
+        0 0 3px 0 var(--glow-color-50, hsl(40deg 80% 80% / 50%)),
+        0 0 6px 0 var(--glow-color-40, hsl(40deg 80% 80% / 40%)),
+        0 0 15px 0 var(--glow-color-30, hsl(40deg 80% 80% / 30%)),
+        0 0 25px 2px var(--glow-color-20, hsl(40deg 80% 80% / 20%)),
+        0 0 50px 2px var(--glow-color-10, hsl(40deg 80% 80% / 10%));
+    }
+  }
+}
+
+.border-glow-inner {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: auto;
+  z-index: 1;
+}
+
+// ============================================================================
+// Achievement Unlocked Modal
+// ============================================================================
+
+.achievement-glow-wrapper {
+  width: 100%;
+  max-width: 420px;
+
+  // Allow the rings to overflow beyond the card boundary
+  .border-glow-inner {
+    overflow: visible;
+  }
+
+  // Let the inner Dialog.Content fill the glow card
+  .confirm-dialog-content {
+    max-width: none;
+    border: none;
+    box-shadow: none;
+    overflow: visible;
+  }
+}
+
+.achievement-modal {
+  overflow: visible;
+  padding-top: 60px;
+  text-align: center;
+  position: relative;
+}
+
+.achievement-modal-rings {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% -50%;
+  width: 480px;
+  height: 480px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.achievement-modal-badge {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% -50%;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    145deg,
+    var(--color-accent-primary),
+    color-mix(in srgb, var(--color-accent-primary) 70%, #000)
+  );
+  color: #fff;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.35),
+    0 0 0 4px var(--color-bg-elevated),
+    0 0 40px color-mix(in srgb, var(--color-accent-primary) 40%, transparent);
+  z-index: 1;
+  font-size: 2rem;
+
+  &--animating {
+    animation: achievement-badge-pop 1.3s ease-out;
+  }
+}
+
+.achievement-modal-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent-primary);
+  margin: 0 0 var(--spacing-sm);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.achievement-modal-body {
+  padding: 0 var(--spacing-lg) var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.achievement-modal-name {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold, 700);
+  color: var(--color-text-primary);
+  margin-top: 10px;
+}
+
+.achievement-modal-description {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
+.achievement-modal-how {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.achievement-modal-category {
+  display: inline-block;
+  padding: 2px var(--spacing-sm);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
+  color: var(--color-accent-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium, 500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 10px;
+}
+
+.achievement-modal-stats {
+  margin: var(--spacing-xs) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+@keyframes achievement-badge-pop {
+  0% {
+    scale: 0.3;
+    rotate: 0deg;
+    opacity: 0;
+  }
+  30% {
+    scale: 1.15;
+    rotate: 12deg;
+    opacity: 1;
+  }
+  50% {
+    scale: 1.05;
+    rotate: -6deg;
+  }
+  70% {
+    scale: 1.12;
+    rotate: 4deg;
+  }
+  85% {
+    scale: 1.0;
+    rotate: -1deg;
+  }
+  100% {
+    scale: 1;
+    rotate: 0deg;
+    opacity: 1;
+  }
+}
+
