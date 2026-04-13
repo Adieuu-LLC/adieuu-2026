@@ -1,0 +1,59 @@
+/**
+ * Platform admin (dashboard, allowlist, etc.).
+ */
+export const admin = {
+    nav: {
+      link: 'Platform Admin',
+      dashboard: 'Dashboard',
+      platformAdmins: 'Platform Admins',
+      authAllowlist: 'Auth Allowlist',
+    },
+    dashboard: {
+      title: 'Admin dashboard',
+      subtitle: 'Platform usage and activity.',
+      stats: {
+        totalUsers: 'Total users',
+        totalIdentities: 'Identities',
+        active15m: 'Active identities (15 min)',
+        active24h: 'Active identities (24 h)',
+      },
+      chartTitle: 'Overview',
+      chartUsers: 'Users',
+      chartIdentities: 'Identities',
+      chartActive15m: 'Active 15m',
+      chartActive24h: 'Active 24h',
+      loadError: 'Failed to load metrics.',
+    },
+    platformAdmins: {
+      title: 'Platform admins',
+      subtitle: 'Users who can access platform administration.',
+      identifierPlaceholder: 'Email or phone (E.164)',
+      add: 'Add admin',
+      addError: 'Could not add admin. Check the identifier and try again.',
+      table: {
+        userId: 'User ID',
+        displayName: 'Name',
+        email: 'Email',
+        phone: 'Phone',
+        stale: 'Stale',
+        actions: 'Actions',
+        remove: 'Remove',
+      },
+      removeConfirm: 'Remove this user from platform admins?',
+      loadError: 'Failed to load admins.',
+      removeError: 'Failed to remove admin.',
+    },
+    authAllowlist: {
+      title: 'Auth allowlist',
+      subtitle: 'Restrict sign-in and sign-up to listed emails and phone numbers when enforcement is on.',
+      enforced: 'Enforce allowlist',
+      enforcedHint: 'When enabled, only listed identifiers can request or verify OTP.',
+      emailList: 'Allowed emails',
+      emailHint: 'One email per line, lowercase.',
+      phoneList: 'Allowed phone numbers',
+      phoneHint: 'One E.164 number per line (e.g. +15551234567).',
+      save: 'Save allowlist settings',
+      saveError: 'Failed to save settings.',
+      loadError: 'Failed to load settings.',
+    },
+} as const;
