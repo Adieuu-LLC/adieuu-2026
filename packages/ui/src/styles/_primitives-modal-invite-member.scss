@@ -1,0 +1,160 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Invite Member Modal
+// ============================================================================
+
+.invite-member-modal {
+  max-width: 480px;
+
+  .invite-member-modal-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    margin: var(--spacing-sm) var(--spacing-lg) 0;
+    background: var(--color-accent-glow);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    line-height: var(--line-height-normal);
+
+    .invite-member-modal-notice-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      margin-top: 2px;
+      color: var(--color-accent-primary);
+    }
+  }
+
+  .invite-member-modal-search {
+    padding: var(--spacing-sm) var(--spacing-lg);
+  }
+
+  .invite-member-modal-list {
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 0 var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .invite-member-modal-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-fast);
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+
+    &--former {
+      opacity: 0.8;
+    }
+  }
+
+  .invite-member-modal-item-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--color-bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    &-placeholder {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text-muted);
+    }
+  }
+
+  .invite-member-modal-item-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .invite-member-modal-item-name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .invite-member-modal-item-username {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  .invite-member-modal-item-left-badge {
+    font-size: var(--font-size-xs);
+    color: var(--color-warning, #f59e0b);
+    font-style: italic;
+  }
+
+  .invite-member-modal-item-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xxs);
+    margin-top: 2px;
+  }
+
+  .invite-member-modal-item-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+
+    &--member {
+      color: var(--color-text-muted);
+      background: var(--color-bg-tertiary);
+    }
+
+    &--invited {
+      color: var(--color-accent-primary);
+      background: color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
+    }
+  }
+
+  .invite-member-modal-item-status-done {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    flex-shrink: 0;
+    color: var(--color-accent-primary);
+
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+
+  .invite-member-modal-empty {
+    padding: var(--spacing-lg);
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+}

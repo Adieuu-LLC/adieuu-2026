@@ -1,0 +1,88 @@
+@use 'variables' as *;
+
+.conversation {
+  &-settings {
+    &-sidebar {
+      width: 280px;
+      height: 100%;
+      border-left: 1px solid var(--color-border);
+      background: var(--color-bg-secondary);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    &-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--spacing-md);
+      border-bottom: 1px solid var(--color-border-muted);
+
+      h3 {
+        margin: 0;
+        font-size: var(--font-size-sm);
+        font-weight: var(--font-weight-semibold);
+        color: var(--color-text-primary);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+    }
+
+    &-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+      padding: var(--spacing-md);
+    }
+
+    &-rename {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+
+      &-row {
+        display: flex;
+        gap: var(--spacing-xs);
+        align-items: flex-start;
+
+        input {
+          flex: 1;
+          min-width: 0;
+        }
+      }
+    }
+
+    &-color-display {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+    }
+
+    &-color-options {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    &-color-option {
+      display: flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      padding: 4px 0;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-secondary);
+      cursor: pointer;
+
+      input[type='radio'] {
+        accent-color: var(--color-primary);
+      }
+
+      &:hover {
+        color: var(--color-text-primary);
+      }
+    }
+  }
+}

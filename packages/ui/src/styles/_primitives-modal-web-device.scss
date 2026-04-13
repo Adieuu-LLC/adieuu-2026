@@ -1,0 +1,59 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Web Device Choice Modal
+// ============================================================================
+
+.web-device-choice-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.web-device-choice-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+
+  &:hover {
+    border-color: var(--color-text-tertiary);
+  }
+
+  &--selected {
+    border-color: var(--color-primary);
+  }
+
+  input[type="radio"] {
+    margin-top: 3px;
+    accent-color: var(--color-primary);
+  }
+}
+
+.web-device-choice-option-title {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.web-device-choice-option-desc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-top: var(--spacing-xs);
+  line-height: var(--line-height-normal);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+}

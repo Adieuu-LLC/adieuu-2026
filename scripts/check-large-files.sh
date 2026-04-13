@@ -5,7 +5,8 @@
 # Lists tracked files whose line count exceeds a threshold (default 750).
 # Intended for maintainability sweeps (see .cursor/rules/avoid-creating-large-files.mdc).
 #
-# Skips common binary extensions where line counts are meaningless.
+# Skips common binary extensions where line counts are meaningless, and lock files
+# (generated; line count is not a maintainability signal).
 #
 # Usage (works from any directory inside the repo):
 #   bash scripts/check-large-files.sh
@@ -51,10 +52,14 @@ cd "$REPO_ROOT" || {
 # Binary / asset extensions: line counts from wc are not useful.
 BINARY_RE='\.(mp3|m4a|wav|aac|flac|ogg|png|jpe?g|gif|webp|ico|woff2?|ttf|eot|pdf|zip|gz|br|wasm)$'
 
+# Lock / shrinkwrap files (any path segment): generated, huge, not reviewed like source.
+LOCK_RE='(^|/)(pnpm-lock\.yaml|npm-shrinkwrap\.json|package-lock\.json|yarn\.lock|bun\.lockb?|Cargo\.lock|poetry\.lock|Pipfile\.lock|Gemfile\.lock|composer\.lock)$'
+
 FILES=()
 while IFS= read -r -d '' f; do
   [[ -f "$f" ]] || continue
   [[ "$f" =~ $BINARY_RE ]] && continue
+  [[ "$f" =~ $LOCK_RE ]] && continue
   FILES+=("$f")
 done < <(git ls-files -z)
 

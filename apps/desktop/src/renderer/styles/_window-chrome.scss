@@ -1,0 +1,75 @@
+@use 'tokens' as *;
+
+body {
+  -webkit-app-region: no-drag;
+}
+
+// =============================================================================
+// Custom Window Title Bar (Windows/Linux)
+// =============================================================================
+
+.window-title-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: $title-bar-height;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  z-index: 9999;
+  -webkit-app-region: drag;
+}
+
+.window-drag-region {
+  flex: 1;
+  height: 100%;
+}
+
+.window-controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.window-control-btn {
+  width: 46px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-accent-primary);
+    outline-offset: -2px;
+  }
+
+  &.window-control-close:hover {
+    background: #e81123;
+    color: #fff;
+  }
+}
+
+// Offset main content for title bar on Windows/Linux
+.has-custom-title-bar {
+  .app-layout,
+  .auth-page {
+    padding-top: 32px;
+    min-height: calc(100vh - 32px); // Account for title bar padding
+
+    .app-content {
+      min-height: 90vh;
+      height: calc(100vh - $title-bar-height);
+    }
+  }
+}

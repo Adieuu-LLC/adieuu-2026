@@ -1,0 +1,139 @@
+// =============================================================================
+// Account Overview
+// =============================================================================
+
+.account-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+.account-avatar {
+  display: flex;
+  justify-content: center;
+
+  &-placeholder {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius-full);
+    background: linear-gradient(135deg, var(--color-accent-primary) 0%, var(--color-accent-secondary) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-inverse);
+  }
+}
+
+.account-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.account-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--color-border-muted);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover .account-edit-btn {
+    opacity: 1;
+  }
+}
+
+.account-detail-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.account-detail-value {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.account-detail-muted {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.account-status-good {
+  color: var(--color-success);
+}
+
+.account-detail-content {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.account-detail-display {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.account-edit-btn {
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+// =============================================================================
+// Verification Badges
+// =============================================================================
+
+.verification-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  cursor: help;
+
+  &.verification-verified {
+    color: var(--color-success);
+    background: var(--color-success-bg);
+  }
+
+  &.verification-pending {
+    color: var(--color-warning);
+    background: var(--color-warning-bg);
+  }
+}
+
+// =============================================================================
+// Account Edit Form
+// =============================================================================
+
+.account-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  width: 100%;
+  max-width: 320px;
+}
+
+.account-edit-info {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--spacing-xs) 0;
+}
+
+.account-edit-alert {
+  margin-bottom: var(--spacing-xs);
+}
+
+.account-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+}
