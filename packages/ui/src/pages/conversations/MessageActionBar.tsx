@@ -88,7 +88,7 @@ export function MessageActionBar({
                 : t('conversations.pinMessage', 'Pin message')
             }
           >
-            <Icon name="pin" className="message-action-bar-icon" />
+            <Icon name="locationPin" className="message-action-bar-icon" />
           </button>
         </Tooltip>
       )}

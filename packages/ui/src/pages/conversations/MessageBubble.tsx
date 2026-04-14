@@ -234,12 +234,12 @@ export const MessageBubble = memo(function MessageBubble({
           {canManagePin && !message.deleted && (
             isPinned ? (
               <Menu.Item value="unpin" className="dm-context-menu-item">
-                <Icon name="pin" className="dm-context-menu-item-icon" />
+                <Icon name="locationPin" className="dm-context-menu-item-icon" />
                 {t('conversations.unpinMessage', 'Unpin message')}
               </Menu.Item>
             ) : (
               <Menu.Item value="pin" className="dm-context-menu-item">
-                <Icon name="pin" className="dm-context-menu-item-icon" />
+                <Icon name="locationPin" className="dm-context-menu-item-icon" />
                 {t('conversations.pinMessage', 'Pin message')}
               </Menu.Item>
             )
@@ -427,7 +427,7 @@ export const MessageBubble = memo(function MessageBubble({
             </Tooltip>
             {isPinned && (
               <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
-                <Icon name="pin" />
+                <Icon name="locationPin" />
               </span>
             )}
             {message.forwardSecrecy !== undefined && (
@@ -594,7 +594,7 @@ export const MessageBubble = memo(function MessageBubble({
       <div className="dm-message-footer">
         {isPinned && (
           <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
-            <Icon name="pin" />
+            <Icon name="locationPin" />
           </span>
         )}
         <Tooltip content={formatAbsoluteTime(message.createdAt)} position="top">
