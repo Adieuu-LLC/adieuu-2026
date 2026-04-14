@@ -328,7 +328,7 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact-name: packaged-desktop-linux
-          - os: windows-latest-16-core
+          - os: windows-latest
             artifact-name: packaged-desktop-windows
           - os: macos-latest
             artifact-name: packaged-desktop-macos
