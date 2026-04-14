@@ -487,6 +487,13 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
           if (row) ordered.push(row);
         }
 
+        ordered.sort((a, b) => {
+          const ta = new Date(a.createdAt).getTime();
+          const tb = new Date(b.createdAt).getTime();
+          if (tb !== ta) return tb - ta;
+          return b.id.localeCompare(a.id);
+        });
+
         void resolveParticipants([...new Set(ordered.map((m) => m.fromIdentityId))]);
 
         return { messages: ordered, nextCursor };

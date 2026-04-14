@@ -39,6 +39,7 @@ export const conversations = {
     pinFailed: 'Could not pin message',
     unpinFailed: 'Could not unpin message',
     pins: 'Pins',
+    moreOptions: 'More options',
     pinsEmpty: 'No pinned messages yet.',
     pinsCouldNotLoad: 'Could not load pins.',
     loadPinnedFailed: 'Could not load pinned messages',

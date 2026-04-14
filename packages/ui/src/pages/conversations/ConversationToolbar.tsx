@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Menu, Portal } from '@ark-ui/react';
 import { Button } from '../../components/Button';
+import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 
 export function ConversationToolbar({
@@ -31,6 +33,7 @@ export function ConversationToolbar({
   onLeave: () => void;
 }) {
   const { t } = useTranslation();
+  const showMoreMenu = canDeleteConversation || isGroup;
 
   return (
     <div className="conversation-toolbar">
@@ -47,50 +50,78 @@ export function ConversationToolbar({
       </div>
       <div className="conversation-toolbar-right">
         {pinsSlot}
-        <Button
-          variant="ghost"
-          size="sm"
-          className={`conversation-toolbar-btn${showSettings ? ' active' : ''}`}
-          onClick={onToggleSettings}
-        >
-          <span className="conversation-toolbar-btn-icon" aria-hidden>
-            <Icon name="settings" size="sm" />
-          </span>
-          {t('conversations.settings', 'Settings')}
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={`conversation-toolbar-btn${showMembers ? ' active' : ''}`}
-          onClick={onToggleMembers}
-        >
-          <span className="conversation-toolbar-btn-icon" aria-hidden>
-            <Icon name="users" size="sm" />
-          </span>
-          {t('conversations.members', 'Members')}
-        </Button>
-        {canDeleteConversation && (
+        <Tooltip content={t('conversations.settings', 'Settings')} position="bottom">
           <Button
             variant="ghost"
             size="sm"
-            className="conversation-toolbar-btn conversation-toolbar-btn--danger"
-            onClick={onDeleteGroup}
+            type="button"
+            className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${showSettings ? ' active' : ''}`}
+            onClick={onToggleSettings}
+            aria-label={t('conversations.settings', 'Settings')}
+            aria-pressed={showSettings}
           >
             <span className="conversation-toolbar-btn-icon" aria-hidden>
-              <Icon name="trash" size="sm" />
+              <Icon name="settings" size="sm" />
             </span>
-            {isGroup
-              ? t('conversations.deleteGroup', 'Delete Group')
-              : t('conversations.deleteConversation', 'Delete conversation')}
           </Button>
-        )}
-        {isGroup && (
-          <Button variant="ghost" size="sm" className="conversation-toolbar-btn" onClick={onLeave}>
+        </Tooltip>
+        <Tooltip content={t('conversations.members', 'Members')} position="bottom">
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${showMembers ? ' active' : ''}`}
+            onClick={onToggleMembers}
+            aria-label={t('conversations.members', 'Members')}
+            aria-pressed={showMembers}
+          >
             <span className="conversation-toolbar-btn-icon" aria-hidden>
-              <Icon name="logout" size="sm" />
+              <Icon name="users" size="sm" />
             </span>
-            {t('conversations.leave', 'Leave')}
           </Button>
+        </Tooltip>
+        {showMoreMenu && (
+          <Menu.Root positioning={{ placement: 'bottom-end', gutter: 8 }}>
+            <Menu.Trigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                className="conversation-toolbar-btn conversation-toolbar-btn--icon-only"
+                aria-label={t('conversations.moreOptions', 'More options')}
+                aria-haspopup="menu"
+                title={t('conversations.moreOptions', 'More options')}
+              >
+                <span className="conversation-toolbar-btn-icon" aria-hidden>
+                  <Icon name="ellipsisVertical" size="sm" />
+                </span>
+              </Button>
+            </Menu.Trigger>
+            <Portal>
+              <Menu.Positioner>
+                <Menu.Content className="dm-context-menu conversation-toolbar-more-menu">
+                  {canDeleteConversation && (
+                    <Menu.Item
+                      value="delete"
+                      className="dm-context-menu-item dm-context-menu-item--danger"
+                      onClick={onDeleteGroup}
+                    >
+                      <Icon name="trash" className="dm-context-menu-item-icon" />
+                      {isGroup
+                        ? t('conversations.deleteGroup', 'Delete Group')
+                        : t('conversations.deleteConversation', 'Delete conversation')}
+                    </Menu.Item>
+                  )}
+                  {isGroup && (
+                    <Menu.Item value="leave" className="dm-context-menu-item" onClick={onLeave}>
+                      <Icon name="logout" className="dm-context-menu-item-icon" />
+                      {t('conversations.leave', 'Leave')}
+                    </Menu.Item>
+                  )}
+                </Menu.Content>
+              </Menu.Positioner>
+            </Portal>
+          </Menu.Root>
         )}
       </div>
     </div>

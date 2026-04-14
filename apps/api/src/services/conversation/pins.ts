@@ -31,8 +31,9 @@ export interface PinnedMessagesPageResult {
 }
 
 /**
- * Paginate pinned message ids (conversation order: oldest pin first) and return ciphertext payloads.
- * Any participant may list pins (read path).
+ * List pinned messages: loads all pin ids for the conversation (cap 50), sorts by message
+ * `createdAt` descending (newest first), then paginates that list. Cursor is the last message
+ * id in the current page. Any participant may list pins (read path).
  */
 export async function listPinnedMessagesPage(
   conversationId: string | ObjectId,
@@ -63,33 +64,40 @@ export async function listPinnedMessagesPage(
   }
 
   const pins = conversation.pinnedMessageIds ?? [];
-  let startIdx = 0;
-  const cursorHex = options?.cursor?.trim();
-  if (cursorHex && ObjectId.isValid(cursorHex)) {
-    const cursorId = new ObjectId(cursorHex);
-    const idx = pins.findIndex((id) => id.equals(cursorId));
-    startIdx = idx >= 0 ? idx + 1 : 0;
-  }
-
-  const slice = pins.slice(startIdx, startIdx + limit);
-  if (slice.length === 0) {
+  if (pins.length === 0) {
     return { success: true, messages: [], nextCursor: null };
   }
 
-  const docMap = await messageRepo.findByIdsInConversation(convObjId, slice);
-  const publicMessages: PublicMessage[] = [];
-  for (const pinId of slice) {
+  const docMap = await messageRepo.findByIdsInConversation(convObjId, pins);
+  const allPublic: PublicMessage[] = [];
+  for (const pinId of pins) {
     const doc = docMap.get(pinId.toHexString());
     if (doc) {
-      publicMessages.push(toPublicMessage(doc, requesterObjId));
+      allPublic.push(toPublicMessage(doc, requesterObjId));
     }
   }
 
-  const lastPinInPage = slice[slice.length - 1]!;
-  const hasMore = startIdx + limit < pins.length;
-  const nextCursor = hasMore ? lastPinInPage.toHexString() : null;
+  /** Newest messages first (pin list UX). Stable tie-break by id. */
+  allPublic.sort((a, b) => {
+    const ta = new Date(a.createdAt).getTime();
+    const tb = new Date(b.createdAt).getTime();
+    if (tb !== ta) return tb - ta;
+    return b.id.localeCompare(a.id);
+  });
 
-  return { success: true, messages: publicMessages, nextCursor };
+  let startIdx = 0;
+  const cursorHex = options?.cursor?.trim();
+  if (cursorHex && ObjectId.isValid(cursorHex)) {
+    const idx = allPublic.findIndex((m) => m.id === cursorHex);
+    startIdx = idx >= 0 ? idx + 1 : 0;
+  }
+
+  const page = allPublic.slice(startIdx, startIdx + limit);
+  const hasMore = startIdx + limit < allPublic.length;
+  const lastInPage = page[page.length - 1];
+  const nextCursor = hasMore && lastInPage ? lastInPage.id : null;
+
+  return { success: true, messages: page, nextCursor };
 }
 
 export async function pinMessage(

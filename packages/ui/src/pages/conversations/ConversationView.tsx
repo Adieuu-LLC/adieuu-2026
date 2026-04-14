@@ -566,12 +566,17 @@ export function ConversationView() {
             <ConversationPinsMenu
               conversationId={conversation.id}
               pinnedCount={conversation.pinnedMessageIds?.length ?? 0}
+              pinnedMessageIdsKey={(conversation.pinnedMessageIds ?? []).join(',')}
               loadPinnedMessagesPage={loadPinnedMessagesPage}
               scrollToMessageId={scrollToMessageId}
               onUnpin={handleUnpinMessage}
               canUnpin={canManagePinsUi}
               participantProfiles={participantProfiles}
               memberSettings={memberSettings}
+              gifsEnabled={
+                !(conversation.gifsDisabled ?? false) && !convGifHidden && !gifsGloballyDisabled
+              }
+              gifAnimateOnHoverOnly={effectiveGifAnimateOnHover}
             />
           }
           showSettings={showSettings}

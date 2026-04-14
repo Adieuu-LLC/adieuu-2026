@@ -188,19 +188,73 @@
     background: var(--color-bg-tertiary);
     color: var(--color-text-secondary);
   }
+
+  &-btn--icon-only.btn-sm {
+    min-width: 2.25rem;
+    padding: var(--spacing-xs);
+    justify-content: center;
+  }
+}
+
+// Portaled Ark menus (toolbar "more", message context, etc.)
+.dm-context-menu {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: var(--spacing-xs) 0;
+  min-width: 180px;
+  z-index: var(--z-popover, 600);
+
+  &-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    width: 100%;
+    padding: var(--spacing-xs) var(--spacing-md);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+
+    &--danger {
+      color: var(--color-error);
+
+      &:hover {
+        background: var(--color-error-bg);
+      }
+    }
+
+    &-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+    }
+  }
+}
+
+.conversation-toolbar-more-menu {
+  z-index: calc(var(--z-popover, 600) + 1);
 }
 
 .conversation-pins-popover {
   z-index: 1400;
   width: min(100vw - 2rem, 380px);
-  max-height: min(70vh, 420px);
+  max-height: min(360px, calc(100vh - 3rem));
   display: flex;
   flex-direction: column;
   padding: 0;
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
-  background: var(--color-surface-elevated);
+  background: var(--color-bg-elevated);
   box-shadow: var(--shadow-lg);
+  overflow: hidden;
 }
 
 .conversation-pins-popover-title {
@@ -214,9 +268,27 @@
 .conversation-pins-popover-scroll {
   flex: 1;
   min-height: 0;
-  max-height: min(60vh, 360px);
+  max-height: 300px;
   overflow-y: auto;
   padding: var(--spacing-xs);
+}
+
+.conversation-pins-popover-row-gifs,
+.conversation-pins-popover-row-media {
+  width: 100%;
+  max-width: 260px;
+  pointer-events: auto;
+
+  img,
+  video {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-sm);
+  }
+}
+
+.conversation-pins-popover-row-gifs {
+  margin: 2px 0 var(--spacing-xs);
 }
 
 .conversation-pins-popover-row {

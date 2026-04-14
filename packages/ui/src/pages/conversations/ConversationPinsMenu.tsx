@@ -9,6 +9,8 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
 import { formatMessageTime } from './conversationUtils';
 import { resolveToolbarParticipantName } from './conversationViewModel';
+import { MessageGifAttachment } from './MessageGifAttachment';
+import { MessageMediaAttachment } from './MessageMediaAttachment';
 
 function pinPreviewText(msg: DisplayMessage): string {
   if (msg.deleted) return '';
@@ -21,18 +23,32 @@ function pinPreviewText(msg: DisplayMessage): string {
   return `${t.slice(0, 160)}…`;
 }
 
+function sortPinsNewestFirst(messages: DisplayMessage[]): DisplayMessage[] {
+  return [...messages].sort((a, b) => {
+    const ta = new Date(a.createdAt).getTime();
+    const tb = new Date(b.createdAt).getTime();
+    if (tb !== ta) return tb - ta;
+    return b.id.localeCompare(a.id);
+  });
+}
+
 export function ConversationPinsMenu({
   conversationId,
   pinnedCount,
+  pinnedMessageIdsKey,
   loadPinnedMessagesPage,
   scrollToMessageId,
   onUnpin,
   canUnpin,
   participantProfiles,
   memberSettings,
+  gifsEnabled,
+  gifAnimateOnHoverOnly = false,
 }: {
   conversationId: string;
   pinnedCount: number;
+  /** Changes when pin membership/order updates (e.g. new pin while menu open). */
+  pinnedMessageIdsKey: string;
   loadPinnedMessagesPage: (
     conversationId: string,
     cursor?: string | null
@@ -42,6 +58,8 @@ export function ConversationPinsMenu({
   canUnpin: boolean;
   participantProfiles: Record<string, PublicIdentity>;
   memberSettings: MemberSettingsMap;
+  gifsEnabled: boolean;
+  gifAnimateOnHoverOnly?: boolean;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -63,14 +81,14 @@ export function ConversationPinsMenu({
     const res = await loadPinnedMessagesPage(conversationId, null);
     setLoading(false);
     if (!res) return;
-    setItems(res.messages);
+    setItems(sortPinsNewestFirst(res.messages));
     setNextCursor(res.nextCursor);
   }, [conversationId, pinnedCount, loadPinnedMessagesPage]);
 
   useEffect(() => {
     if (!open) return;
     void loadFirst();
-  }, [open, loadFirst]);
+  }, [open, loadFirst, pinnedMessageIdsKey]);
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore || loading) return;
@@ -87,7 +105,7 @@ export function ConversationPinsMenu({
           merged.push(m);
         }
       }
-      return merged;
+      return sortPinsNewestFirst(merged);
     });
     setNextCursor(res.nextCursor);
   }, [conversationId, nextCursor, loadingMore, loading, loadPinnedMessagesPage]);
@@ -124,20 +142,31 @@ export function ConversationPinsMenu({
   );
 
   return (
-    <Popover.Root open={open} onOpenChange={(d) => setOpen(d.open)}>
+    <Popover.Root
+      open={open}
+      onOpenChange={(d) => setOpen(d.open)}
+      closeOnInteractOutside
+      closeOnEscape
+      autoFocus={false}
+      positioning={{ placement: 'bottom-end', gutter: 8 }}
+      onInteractOutside={() => {
+        setOpen(false);
+      }}
+    >
       <Popover.Trigger asChild>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className={`conversation-toolbar-btn${open ? ' active' : ''}`}
+          className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${open ? ' active' : ''}`}
           aria-expanded={open}
           aria-haspopup="dialog"
+          aria-label={t('conversations.pins', 'Pins')}
+          title={t('conversations.pins', 'Pins')}
         >
           <span className="conversation-toolbar-btn-icon" aria-hidden>
-            <Icon name="pin" size="sm" />
+            <Icon name="locationPin" size="sm" />
           </span>
-          {t('conversations.pins', 'Pins')}
           {pinnedCount > 0 && (
             <span className="conversation-toolbar-pins-badge">{pinnedCount}</span>
           )}
@@ -172,22 +201,60 @@ export function ConversationPinsMenu({
                     memberSettings,
                     participantProfiles
                   );
+                  const raw = msg.decryptedContent ?? '';
+                  const parsed = parsePayload(raw);
                   const preview = pinPreviewText(msg);
                   const line =
                     preview || t('conversations.pinnedMessageFallback', 'Pinned message');
+                  const hasGif = parsed.gifAttachments.length > 0;
+                  const hasMedia = parsed.attachments.length > 0;
                   return (
                     <div key={msg.id} className="conversation-pins-popover-row">
-                      <button
-                        type="button"
+                      <div
+                        role="button"
+                        tabIndex={0}
                         className="conversation-pins-popover-row-main"
                         onClick={() => handleGoTo(msg.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            handleGoTo(msg.id);
+                          }
+                        }}
                       >
                         <span className="conversation-pins-popover-row-author">{author}</span>
+                        {hasGif && (
+                          <div
+                            className="conversation-pins-popover-row-gifs"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            {parsed.gifAttachments.map((gif, i) => (
+                              <MessageGifAttachment
+                                key={`${msg.id}-gif-${i}`}
+                                gif={gif}
+                                gifsEnabled={gifsEnabled}
+                                gifAnimateOnHoverOnly={gifAnimateOnHoverOnly}
+                              />
+                            ))}
+                          </div>
+                        )}
+                        {hasMedia && (
+                          <div
+                            className="conversation-pins-popover-row-media"
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            {parsed.attachments.map((att) => (
+                              <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
+                            ))}
+                          </div>
+                        )}
                         <span className="conversation-pins-popover-row-text">{line}</span>
                         <span className="conversation-pins-popover-row-time">
                           {formatMessageTime(msg.createdAt)}
                         </span>
-                      </button>
+                      </div>
                       {canUnpin && (
                         <Button
                           type="button"
@@ -195,7 +262,10 @@ export function ConversationPinsMenu({
                           size="sm"
                           className="conversation-pins-popover-unpin"
                           aria-label={t('conversations.unpinMessage', 'Unpin message')}
-                          onClick={() => void handleUnpin(msg.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleUnpin(msg.id);
+                          }}
                         >
                           <Icon name="x" size="sm" />
                         </Button>

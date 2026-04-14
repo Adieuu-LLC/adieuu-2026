@@ -28,6 +28,7 @@ export const APP_ICON_NAMES = {
   x: 'xmark',
   spaces: 'grid-2',
   ellipsis: 'ellipsis',
+  ellipsisVertical: 'ellipsis-vertical',
   smile: 'face-smile',
   smilePlus: 'face-smile-plus',
   send: 'paper-plane',
@@ -67,6 +68,7 @@ export const APP_ICON_NAMES = {
   filter: 'filter',
   sortAlpha: 'arrow-down-a-z',
   pin: 'thumbtack',
+  locationPin: 'location-pin',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;
