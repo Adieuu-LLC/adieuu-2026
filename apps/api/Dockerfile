@@ -13,11 +13,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY packages ./packages
 COPY apps ./apps
 
-ARG FONTAWESOME_TOKEN
-ENV FONTAWESOME_TOKEN=${FONTAWESOME_TOKEN}
-
+# Scoped install: @adieuu/api does not depend on UI; avoids npm.fontawesome.com (private kit).
 # Install devDependencies (turbo, typescript, etc.); do not set NODE_ENV=production here.
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --filter=@adieuu/api...
 RUN pnpm exec turbo run build --filter=@adieuu/api
 
 FROM oven/bun:1.2-slim AS runner

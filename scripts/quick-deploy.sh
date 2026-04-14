@@ -156,21 +156,14 @@ aws ecr get-login-password --region "$AWS_REGION" \
 # ---------------------------------------------------------------------------
 # Build, tag, push
 # ---------------------------------------------------------------------------
-FONTAWESOME_BUILD_ARG=""
-if [[ -n "${FONTAWESOME_TOKEN:-}" ]]; then
-  FONTAWESOME_BUILD_ARG="--build-arg FONTAWESOME_TOKEN=${FONTAWESOME_TOKEN}"
-fi
-
 for svc in "${SERVICES[@]}"; do
   step "Building $svc"
 
   ECR_URL="$(ecr_url_for "$svc")"
   [[ -n "$ECR_URL" ]] || die "No ECR URL for $svc. Check Terraform outputs."
 
-  # shellcheck disable=SC2086
   docker build --platform linux/amd64 \
     -f "$ROOT/apps/$svc/Dockerfile" \
-    $FONTAWESOME_BUILD_ARG \
     -t "${svc}:${IMAGE_TAG}" \
     "$ROOT"
 

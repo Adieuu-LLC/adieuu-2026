@@ -17,10 +17,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY packages ./packages
 COPY apps ./apps
 
-ARG FONTAWESOME_TOKEN
-ENV FONTAWESOME_TOKEN=${FONTAWESOME_TOKEN}
-
-RUN pnpm install --frozen-lockfile
+# Scoped install: @adieuu/chat does not depend on UI; avoids npm.fontawesome.com (private kit).
+RUN pnpm install --frozen-lockfile --filter=@adieuu/chat...
 RUN pnpm exec turbo run build --filter=@adieuu/chat
 RUN pnpm --filter @adieuu/chat deploy --prod /out
 

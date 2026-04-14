@@ -187,7 +187,6 @@ jobs:
         run: |
           IMG="${{ vars.DEPLOY_ECR_API_REPOSITORY_URL_ADIEUU }}"
           docker build --platform linux/arm64 -f apps/api/Dockerfile \
-            --build-arg FONTAWESOME_TOKEN="${FONTAWESOME_TOKEN}" \
             -t "api:${DEPLOY_SHA}" .
           docker tag "api:${DEPLOY_SHA}" "${IMG}:${DEPLOY_SHA}"
           docker tag "api:${DEPLOY_SHA}" "${IMG}:latest"
@@ -233,7 +232,6 @@ jobs:
         run: |
           IMG="${{ vars.DEPLOY_ECR_CHAT_REPOSITORY_URL_ADIEUU }}"
           docker build --platform linux/arm64 -f apps/chat/Dockerfile \
-            --build-arg FONTAWESOME_TOKEN="${FONTAWESOME_TOKEN}" \
             -t "chat:${DEPLOY_SHA}" .
           docker tag "chat:${DEPLOY_SHA}" "${IMG}:${DEPLOY_SHA}"
           docker tag "chat:${DEPLOY_SHA}" "${IMG}:latest"
