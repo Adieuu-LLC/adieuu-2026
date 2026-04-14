@@ -5,8 +5,8 @@
  * This file must be imported once at app startup (before any Icon component
  * renders) so that `findIconDefinition` can resolve icons by prefix + name.
  *
- * Pro+ packs have smaller icon sets; missing icons fall back to Sharp
- * DuoTone Solid at render time (handled by the Icon component).
+ * DuoTone Solid / Thin use the full app icon set for those styles; missing
+ * glyphs still fall back to Sharp DuoTone Solid at render time (Icon component).
  */
 
 import { library } from '@fortawesome/fontawesome-svg-core';
@@ -43,7 +43,7 @@ import {
   faFire as fasFire, faUserMinus as fasUserMinus,
   faBoxArchive as fasBoxArchive, faStar as fasStar,
   faFilter as fasFilter, faArrowDownAZ as fasArrowDownAZ,
-} from '@awesome.me/kit-888aad49e1/icons/classic/solid';
+} from '@adieuu-llc/fa-pro-solid-svg-icons';
 
 // ---------------------------------------------------------------------------
 // DuoTone Solid
@@ -77,7 +77,7 @@ import {
   faFire as fadFire, faUserMinus as fadUserMinus,
   faBoxArchive as fadBoxArchive, faStar as fadStar,
   faFilter as fadFilter, faArrowDownAZ as fadArrowDownAZ,
-} from '@awesome.me/kit-888aad49e1/icons/duotone/solid';
+} from '@adieuu-llc/pro-duotone-svg-icons';
 
 // ---------------------------------------------------------------------------
 // DuoTone Thin
@@ -111,7 +111,7 @@ import {
   faFire as fadtFire, faUserMinus as fadtUserMinus,
   faBoxArchive as fadtBoxArchive, faStar as fadtStar,
   faFilter as fadtFilter, faArrowDownAZ as fadtArrowDownAZ,
-} from '@awesome.me/kit-888aad49e1/icons/duotone/thin';
+} from '@adieuu-llc/fa-duotone-thin-svg-icons';
 
 // ---------------------------------------------------------------------------
 // Sharp DuoTone Solid
@@ -145,7 +145,7 @@ import {
   faFire as fasdsFire, faUserMinus as fasdsUserMinus,
   faBoxArchive as fasdsBoxArchive, faStar as fasdsStar,
   faFilter as fasdsFilter, faArrowDownAZ as fasdsArrowDownAZ,
-} from '@awesome.me/kit-888aad49e1/icons/sharp-duotone/solid';
+} from '@adieuu-llc/fa-sharp-duotone-solid-svg-icons';
 
 // ---------------------------------------------------------------------------
 // Sharp DuoTone Thin
@@ -179,28 +179,7 @@ import {
   faFire as fasdtFire, faUserMinus as fasdtUserMinus,
   faBoxArchive as fasdtBoxArchive, faStar as fasdtStar,
   faFilter as fasdtFilter, faArrowDownAZ as fasdtArrowDownAZ,
-} from '@awesome.me/kit-888aad49e1/icons/sharp-duotone/thin';
-
-// ---------------------------------------------------------------------------
-// Jelly Regular (Pro+ curated — partial icon set)
-// ---------------------------------------------------------------------------
-
-import {
-  faHouse as fajrHouse, faUsers as fajrUsers, faGear as fajrGear,
-  faCircleInfo as fajrCircleInfo, faKey as fajrKey, faBell as fajrBell,
-  faMagnifyingGlass as fajrSearch, faUser as fajrUser, faPalette as fajrPalette,
-  faLock as fajrLock, faPlus as fajrPlus, faCheck as fajrCheck,
-  faClock as fajrClock, faXmark as fajrX, faEllipsis as fajrEllipsis,
-  faFaceSmile as fajrSmile, faPaperPlane as fajrSend, faTrash as fajrTrash,
-  faCamera as fajrCamera, faImage as fajrImage, faGlobe as fajrGlobe,
-  faDesktop as fajrDesktop, faBars as fajrBars, faEye as fajrEye,
-  faThumbsUp as fajrThumbsUp, faTriangleExclamation as fajrWarning,
-  faCircleCheck as fajrSuccess, faCircleXmark as fajrError,
-  faArrowLeft as fajrArrowLeft, faCircle as fajrCircle,
-  faFire as fajrFire,
-  faBoxArchive as fajrBoxArchive, faStar as fajrStar,
-  faFilter as fajrFilter,
-} from '@awesome.me/kit-888aad49e1/icons/jelly/regular';
+} from '@adieuu-llc/fa-sharp-duotone-thin-svg-icons';
 
 // ---------------------------------------------------------------------------
 // Register everything with the FA library
@@ -271,15 +250,6 @@ const allIcons: IconDefinition[] = [
   fasdtTrophy, fasdtUserPlus, fasdtUserGroup, fasdtMobile, fasdtHeart, fasdtBan,
   fasdtFire, fasdtUserMinus,
   fasdtBoxArchive, fasdtStar, fasdtFilter, fasdtArrowDownAZ,
-
-  // Jelly Regular
-  fajrHouse, fajrUsers, fajrGear, fajrCircleInfo, fajrKey, fajrBell,
-  fajrSearch, fajrUser, fajrPalette, fajrLock, fajrPlus, fajrCheck,
-  fajrClock, fajrX, fajrEllipsis, fajrSmile, fajrSend, fajrTrash,
-  fajrCamera, fajrImage, fajrGlobe, fajrDesktop, fajrBars, fajrEye,
-  fajrThumbsUp, fajrWarning, fajrSuccess, fajrError, fajrArrowLeft,
-  fajrCircle, fajrFire,
-  fajrBoxArchive, fajrStar, fajrFilter,
 ];
 
 library.add(...allIcons);

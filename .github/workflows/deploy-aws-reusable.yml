@@ -26,11 +26,12 @@ concurrency:
 permissions:
   id-token: write
   contents: read
+  packages: read
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   NODE_VERSION: '25'
-  FONTAWESOME_TOKEN: ${{ secrets.FONTAWESOME_TOKEN }}
+  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
   AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
 

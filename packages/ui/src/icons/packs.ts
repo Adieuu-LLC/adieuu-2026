@@ -2,7 +2,7 @@
  * Icon pack definitions for FontAwesome 7 Pro.
  *
  * Each entry pairs a human-readable label with the FA prefix used at render
- * time and the Kit module import path used at registration time.
+ * time (icons are registered from `@adieuu-llc/*-svg-icons` GPR packages).
  */
 
 import type { IconPrefix } from '@fortawesome/fontawesome-svg-core';
@@ -26,9 +26,6 @@ export const ICON_PACKS: IconPackDefinition[] = [
 
   // Classic
   { id: 'classic-solid', family: 'Classic', weight: 'Solid', label: 'Classic Solid', prefix: 'fas' as IconPrefix },
-
-  // Curated
-  { id: 'jelly-regular', family: 'Curated', weight: 'Regular', label: 'Jelly Regular', prefix: 'fajr' as IconPrefix },
 ];
 
 export type IconPackId = (typeof ICON_PACKS)[number]['id'];

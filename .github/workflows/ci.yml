@@ -14,12 +14,13 @@ permissions:
   contents: read
   actions: write
   pull-requests: write
+  packages: read
 
 env:
   NODE_VERSION: '25'
   PNPM_VERSION: '9'
   TURBO_TELEMETRY_DISABLED: 1
-  FONTAWESOME_TOKEN: ${{ secrets.FONTAWESOME_TOKEN }}
+  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   lint-and-typecheck:

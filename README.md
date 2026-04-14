@@ -48,6 +48,7 @@ packages/
 
 - Node.js 25+
 - pnpm 9+
+- **GitHub Packages:** `@adieuu/ui` installs Font Awesome assets from this org’s GPR (`fa-pro-solid-svg-icons`, `pro-duotone-svg-icons`, `fa-duotone-thin-svg-icons`, `fa-sharp-duotone-*`, `fa-fontawesome-svg-core`, etc.—see `packages/ui/package.json`). `@fortawesome/fontawesome-svg-core` is an alias to `@adieuu-llc/fa-fontawesome-svg-core`. Authenticate before `pnpm install`, e.g. `export NODE_AUTH_TOKEN=$(gh auth token)` with **`read:packages`**. Ensure a user-level `.npmrc` does not send `@fortawesome` to `npm.fontawesome.com` if you no longer use that registry. CI uses `GITHUB_TOKEN` with `packages: read`.
 - For iOS: macOS + Xcode 15+
 - For Android: Android Studio + SDK 34+
 

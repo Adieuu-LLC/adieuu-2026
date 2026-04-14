@@ -13,7 +13,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY packages ./packages
 COPY apps ./apps
 
-# Scoped install: @adieuu/api does not depend on UI; avoids npm.fontawesome.com (private kit).
+# Scoped install: @adieuu/api does not depend on UI (avoids private @adieuu-llc icon packages on GPR).
 # Install devDependencies (turbo, typescript, etc.); do not set NODE_ENV=production here.
 RUN pnpm install --frozen-lockfile --filter=@adieuu/api...
 RUN pnpm exec turbo run build --filter=@adieuu/api

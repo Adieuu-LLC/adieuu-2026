@@ -17,7 +17,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY packages ./packages
 COPY apps ./apps
 
-# Scoped install: @adieuu/chat does not depend on UI; avoids npm.fontawesome.com (private kit).
+# Scoped install: @adieuu/chat does not depend on UI (avoids private @adieuu-llc icon packages on GPR).
 RUN pnpm install --frozen-lockfile --filter=@adieuu/chat...
 RUN pnpm exec turbo run build --filter=@adieuu/chat
 RUN pnpm --filter @adieuu/chat deploy --prod /out

@@ -21,7 +21,7 @@ on:
 
 env:
   NODE_VERSION: '25'
-  FONTAWESOME_TOKEN: ${{ secrets.FONTAWESOME_TOKEN }}
+  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 concurrency:
   # Only one release at a time
@@ -31,6 +31,7 @@ concurrency:
 permissions:
   contents: write
   actions: read
+  packages: read
 
 jobs:
   release:
@@ -282,6 +283,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      packages: read
     uses: ./.github/workflows/deploy-aws-reusable.yml
     secrets: inherit
 
@@ -338,6 +340,7 @@ jobs:
       id-token: write
       attestations: write
       artifact-metadata: write
+      packages: read
     env:
       ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
     steps:
