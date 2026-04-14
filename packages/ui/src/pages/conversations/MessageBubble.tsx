@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, memo } from 'react';
+import { useState, useEffect, useMemo, memo, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Menu, Portal, Popover } from '@ark-ui/react';
 import type { DisplayMessage } from '../../hooks/useConversations';
@@ -21,7 +21,7 @@ import {
   formatMessageTime,
   formatAbsoluteTime,
 } from './conversationUtils';
-import { MessageActionBar } from './MessageActionBar';
+import { MessageActionBar, MESSAGE_ACTION_BAR_POPOVER_POSITIONING } from './MessageActionBar';
 import { ReactionBar } from './ReactionBar';
 import { MessageMediaAttachment } from './MessageMediaAttachment';
 import { MessageGifAttachment } from './MessageGifAttachment';
@@ -280,33 +280,42 @@ export const MessageBubble = memo(function MessageBubble({
     />
   );
 
-  const contextReactionPickerPopover = (
-    <Popover.Root
-      open={showContextReactionPicker}
-      onOpenChange={(e) => setShowContextReactionPicker(e.open)}
-    >
-      <Portal>
-        <Popover.Positioner>
-          <Popover.Content className="emoji-picker-popover emoji-picker-popover--context">
-            <EmojiPicker
-              compact
-              onEmojiSelect={(emoji) => {
-                onReact(message.id, emoji);
-                setShowContextReactionPicker(false);
-              }}
-            />
-            <button
-              type="button"
-              className="emoji-picker-popover-close"
-              onClick={() => setShowContextReactionPicker(false)}
-            >
-              x
-            </button>
-          </Popover.Content>
-        </Popover.Positioner>
-      </Portal>
-    </Popover.Root>
-  );
+  function contextMenuWithReactionPicker(row: ReactElement) {
+    return (
+      <Popover.Root
+        open={showContextReactionPicker}
+        onOpenChange={(e) => setShowContextReactionPicker(e.open)}
+        positioning={MESSAGE_ACTION_BAR_POPOVER_POSITIONING}
+      >
+        <Menu.Root onSelect={handleContextAction}>
+          <Menu.ContextTrigger asChild>
+            <Popover.Anchor asChild>{row}</Popover.Anchor>
+          </Menu.ContextTrigger>
+          {contextMenuContent}
+        </Menu.Root>
+        <Portal>
+          <Popover.Positioner>
+            <Popover.Content className="emoji-picker-popover emoji-picker-popover--context">
+              <EmojiPicker
+                compact
+                onEmojiSelect={(emoji) => {
+                  onReact(message.id, emoji);
+                  setShowContextReactionPicker(false);
+                }}
+              />
+              <button
+                type="button"
+                className="emoji-picker-popover-close"
+                onClick={() => setShowContextReactionPicker(false)}
+              >
+                x
+              </button>
+            </Popover.Content>
+          </Popover.Positioner>
+        </Portal>
+      </Popover.Root>
+    );
+  }
 
   const senderColor = memberSettings[message.fromIdentityId]?.color;
   const senderNameStyle: React.CSSProperties | undefined = senderColor ? { color: senderColor } : undefined;
@@ -481,11 +490,7 @@ export const MessageBubble = memo(function MessageBubble({
 
     return (
       <>
-        <Menu.Root onSelect={handleContextAction}>
-          <Menu.ContextTrigger asChild>{messageRow}</Menu.ContextTrigger>
-          {contextMenuContent}
-        </Menu.Root>
-        {contextReactionPickerPopover}
+        {contextMenuWithReactionPicker(messageRow)}
         {!isOwn && (
           <ConfirmDialog
             open={blockConfirmOpen}
@@ -628,11 +633,7 @@ export const MessageBubble = memo(function MessageBubble({
 
   return (
     <>
-      <Menu.Root onSelect={handleContextAction}>
-        <Menu.ContextTrigger asChild>{bubbleRow}</Menu.ContextTrigger>
-        {contextMenuContent}
-      </Menu.Root>
-      {contextReactionPickerPopover}
+      {contextMenuWithReactionPicker(bubbleRow)}
       {!isOwn && (
         <ConfirmDialog
           open={blockConfirmOpen}
