@@ -17,7 +17,7 @@ import { getReactionRepository } from '../../repositories/reaction.repository';
 import { getE2EMediaRepository } from '../../repositories/e2e-media.repository';
 import { createNotification } from '../notification.service';
 import { checkAndAward } from '../achievement.service';
-import type { ConversationDocument } from '../../models/conversation';
+import { toPublicConversation, type ConversationDocument } from '../../models/conversation';
 import {
   toPublicMessage,
   type MessageDocument,
@@ -497,6 +497,22 @@ export async function deleteMessageForEveryone(
   }
 
   await messageRepo.markDeletedForEveryone(msgObjId);
+
+  await conversationRepo.pullPinnedMessage(convObjId, msgObjId);
+
+  const convAfterPin = await conversationRepo.findById(convObjId);
+  if (convAfterPin) {
+    const publicConv = toPublicConversation(convAfterPin);
+    await publishToParticipants(conversation.participants, requesterObjId, {
+      type: 'conversation_updated',
+      data: {
+        conversationId: convObjId.toHexString(),
+        action: 'pins_updated',
+        identityId: requesterObjId.toHexString(),
+        pinnedMessageIds: publicConv.pinnedMessageIds ?? [],
+      },
+    });
+  }
 
   const reactionRepo = getReactionRepository();
   await reactionRepo.deleteByMessage(msgObjId);

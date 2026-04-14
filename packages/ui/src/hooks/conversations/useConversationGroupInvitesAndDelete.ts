@@ -222,6 +222,36 @@ export function useConversationGroupInvitesAndDelete(
     [api, toDecrypted]
   );
 
+  const pinMessage = useCallback(
+    async (conversationId: string, messageId: string): Promise<boolean> => {
+      const resp = await api.conversations.pinMessage(conversationId, messageId);
+      if (!resp.success || !resp.data) return false;
+      const updated = toDecrypted(resp.data);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...updated, unreadCount: c.unreadCount } : c
+        )
+      );
+      return true;
+    },
+    [api, toDecrypted]
+  );
+
+  const unpinMessage = useCallback(
+    async (conversationId: string, messageId: string): Promise<boolean> => {
+      const resp = await api.conversations.unpinMessage(conversationId, messageId);
+      if (!resp.success || !resp.data) return false;
+      const updated = toDecrypted(resp.data);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...updated, unreadCount: c.unreadCount } : c
+        )
+      );
+      return true;
+    },
+    [api, toDecrypted]
+  );
+
   const deleteMessage = useCallback(
     async (conversationId: string, messageId: string, forEveryone: boolean): Promise<boolean> => {
       try {
@@ -245,6 +275,18 @@ export function useConversationGroupInvitesAndDelete(
               },
             };
           });
+          if (forEveryone) {
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.id === conversationId
+                  ? {
+                      ...c,
+                      pinnedMessageIds: (c.pinnedMessageIds ?? []).filter((pid) => pid !== messageId),
+                    }
+                  : c
+              )
+            );
+          }
           return true;
         }
       } catch {
@@ -252,7 +294,7 @@ export function useConversationGroupInvitesAndDelete(
       }
       return false;
     },
-    [api]
+    [api, setConversations]
   );
 
   const acceptInvite = useCallback(
@@ -334,6 +376,8 @@ export function useConversationGroupInvitesAndDelete(
     renameGroup,
     updateConversationMemberSettings,
     updateGifsDisabled,
+    pinMessage,
+    unpinMessage,
     deleteMessage,
     acceptInvite,
     declineInvite,

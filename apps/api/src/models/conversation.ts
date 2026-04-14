@@ -60,6 +60,12 @@ export interface ConversationDocument extends BaseDocument {
 
   /** Whether GIF/sticker content is disabled for this conversation (admin toggle) */
   gifsDisabled?: boolean;
+
+  /**
+   * Message ids pinned for this conversation (order: oldest pin first).
+   * Managed by group admins or, in DMs, by either participant.
+   */
+  pinnedMessageIds?: ObjectId[];
 }
 
 /**
@@ -90,6 +96,7 @@ export interface PublicConversation {
   lastMessageAt?: string;
   lastMessageId?: string;
   gifsDisabled?: boolean;
+  pinnedMessageIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -111,6 +118,11 @@ export function toPublicConversation(doc: ConversationDocument): PublicConversat
     lastMessageAt: doc.lastMessageAt?.toISOString(),
     lastMessageId: doc.lastMessageId?.toHexString(),
     gifsDisabled: doc.gifsDisabled,
+    ...(doc.pinnedMessageIds?.length
+      ? {
+          pinnedMessageIds: doc.pinnedMessageIds.map((id) => id.toHexString()),
+        }
+      : {}),
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };

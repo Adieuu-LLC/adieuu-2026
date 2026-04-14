@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
@@ -5,6 +6,7 @@ import { Icon } from '../../icons/Icon';
 export function ConversationToolbar({
   displayName,
   subtitle,
+  pinsSlot,
   showSettings,
   onToggleSettings,
   showMembers,
@@ -16,6 +18,8 @@ export function ConversationToolbar({
 }: {
   displayName: string;
   subtitle: string;
+  /** Pinned messages popover control (toolbar icon). */
+  pinsSlot?: ReactNode;
   showSettings: boolean;
   onToggleSettings: () => void;
   showMembers: boolean;
@@ -42,6 +46,7 @@ export function ConversationToolbar({
         </div>
       </div>
       <div className="conversation-toolbar-right">
+        {pinsSlot}
         <Button
           variant="ghost"
           size="sm"

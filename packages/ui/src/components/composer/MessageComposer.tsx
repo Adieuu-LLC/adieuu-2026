@@ -592,7 +592,7 @@ export function MessageComposer({
       const ac = shortcodeACRef.current;
       const suggestions = acSuggestionsRef.current;
       if (ac && suggestions.length > 0) {
-        if (e.key === 'Tab') {
+        if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
           e.preventDefault();
           const [, emoji] = suggestions[acSelectedIdxRef.current]!;
           const textarea = inputRef.current!;

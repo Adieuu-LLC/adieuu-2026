@@ -7,6 +7,7 @@ import type {
   ConversationType,
   FormerMember,
   GroupInvitePreview,
+  PinnedMessagesPageResponse,
   PublicConversation,
   PublicGroupInvite,
   PublicMessage,
@@ -254,6 +255,38 @@ export class ConversationsApi {
     return this.client.patch(
       `/api/conversations/${encodeURIComponent(conversationId)}/gifs`,
       { gifsDisabled }
+    );
+  }
+
+  async pinMessage(
+    conversationId: string,
+    messageId: string
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/pins`,
+      { messageId }
+    );
+  }
+
+  async unpinMessage(
+    conversationId: string,
+    messageId: string
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.delete(
+      `/api/conversations/${encodeURIComponent(conversationId)}/pins/${encodeURIComponent(messageId)}`
+    );
+  }
+
+  async getPinnedMessages(
+    conversationId: string,
+    options?: { limit?: number; cursor?: string }
+  ): Promise<ApiResponse<PinnedMessagesPageResponse>> {
+    const params = new URLSearchParams();
+    if (options?.limit != null) params.set('limit', String(options.limit));
+    if (options?.cursor) params.set('cursor', options.cursor);
+    const query = params.toString();
+    return this.client.get(
+      `/api/conversations/${encodeURIComponent(conversationId)}/pinned-messages${query ? `?${query}` : ''}`
     );
   }
 

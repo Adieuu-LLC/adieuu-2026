@@ -29,6 +29,7 @@ export interface PublicConversation {
   lastMessageAt?: string;
   lastMessageId?: string;
   gifsDisabled?: boolean;
+  pinnedMessageIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -108,6 +109,12 @@ export interface FormerMember {
   username: string;
   displayName: string;
   avatarUrl?: string;
+}
+
+/** Paginated pin list from GET .../pinned-messages */
+export interface PinnedMessagesPageResponse {
+  messages: PublicMessage[];
+  nextCursor: string | null;
 }
 
 export interface SendMessageParams {

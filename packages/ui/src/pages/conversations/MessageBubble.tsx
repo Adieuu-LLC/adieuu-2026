@@ -122,6 +122,10 @@ export const MessageBubble = memo(function MessageBubble({
   selfId,
   gifsEnabled,
   gifAnimateOnHoverOnly,
+  isPinned = false,
+  canManagePin = false,
+  onPin,
+  onUnpin,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
@@ -148,6 +152,10 @@ export const MessageBubble = memo(function MessageBubble({
   selfId?: string;
   gifsEnabled: boolean;
   gifAnimateOnHoverOnly: boolean;
+  isPinned?: boolean;
+  canManagePin?: boolean;
+  onPin?: () => void;
+  onUnpin?: () => void;
 }) {
   const { t } = useTranslation();
   const { block: blockIdentity } = useBlockContext();
@@ -204,6 +212,8 @@ export const MessageBubble = memo(function MessageBubble({
     else if (details.value === 'report') onReport(message.id);
     else if (details.value === 'delete-for-me') onDelete(message.id, false);
     else if (details.value === 'delete-for-everyone') onDelete(message.id, true);
+    else if (details.value === 'pin') onPin?.();
+    else if (details.value === 'unpin') onUnpin?.();
     else if (details.value === 'react') {
       window.setTimeout(() => {
         setShowContextReactionPicker(true);
@@ -220,6 +230,19 @@ export const MessageBubble = memo(function MessageBubble({
               <Icon name="reply" className="dm-context-menu-item-icon" />
               {t('conversations.reply', 'Reply')}
             </Menu.Item>
+          )}
+          {canManagePin && !message.deleted && (
+            isPinned ? (
+              <Menu.Item value="unpin" className="dm-context-menu-item">
+                <Icon name="pin" className="dm-context-menu-item-icon" />
+                {t('conversations.unpinMessage', 'Unpin message')}
+              </Menu.Item>
+            ) : (
+              <Menu.Item value="pin" className="dm-context-menu-item">
+                <Icon name="pin" className="dm-context-menu-item-icon" />
+                {t('conversations.pinMessage', 'Pin message')}
+              </Menu.Item>
+            )
           )}
           <Menu.Item value="react" className="dm-context-menu-item">
             <Icon name="smilePlus" className="dm-context-menu-item-icon" />
@@ -402,6 +425,11 @@ export const MessageBubble = memo(function MessageBubble({
                 {formatMessageTime(message.createdAt)}
               </span>
             </Tooltip>
+            {isPinned && (
+              <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
+                <Icon name="pin" />
+              </span>
+            )}
             {message.forwardSecrecy !== undefined && (
               <Tooltip
                 content={message.forwardSecrecy
@@ -556,6 +584,11 @@ export const MessageBubble = memo(function MessageBubble({
         {reactionBar}
       </div>
       <div className="dm-message-footer">
+        {isPinned && (
+          <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
+            <Icon name="pin" />
+          </span>
+        )}
         <Tooltip content={formatAbsoluteTime(message.createdAt)} position="top">
           <span className="dm-message-time">
             {formatMessageTime(message.createdAt)}
@@ -613,6 +646,8 @@ export const MessageBubble = memo(function MessageBubble({
   if (prev.memberColorDisplay !== next.memberColorDisplay) return false;
   if (prev.gifsEnabled !== next.gifsEnabled) return false;
   if (prev.gifAnimateOnHoverOnly !== next.gifAnimateOnHoverOnly) return false;
+  if (prev.isPinned !== next.isPinned) return false;
+  if (prev.canManagePin !== next.canManagePin) return false;
 
   const pm = prev.message;
   const nm = next.message;

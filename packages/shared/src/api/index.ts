@@ -182,6 +182,7 @@ export {
   type GroupInvitePreview,
   type GroupInvitePreviewMember,
   type SendMessageParams,
+  type PinnedMessagesPageResponse,
   type FormerMember,
   type ConversationPreferences,
   type ConversationPreferencesPatch,

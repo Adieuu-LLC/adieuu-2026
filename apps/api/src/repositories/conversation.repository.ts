@@ -50,6 +50,18 @@ export interface IConversationRepository {
     conversationId: ObjectId,
     gifsDisabled: boolean
   ): Promise<ConversationDocument | null>;
+  addPinnedMessage(
+    conversationId: ObjectId,
+    messageId: ObjectId
+  ): Promise<ConversationDocument | null>;
+  removePinnedMessage(
+    conversationId: ObjectId,
+    messageId: ObjectId
+  ): Promise<ConversationDocument | null>;
+  pullPinnedMessage(
+    conversationId: ObjectId,
+    messageId: ObjectId
+  ): Promise<void>;
 }
 
 export class ConversationRepository
@@ -263,6 +275,55 @@ export class ConversationRepository
       { returnDocument: 'after' }
     );
     return result as ConversationDocument | null;
+  }
+
+  /**
+   * Append a pinned message id if not already present (order preserved for new pins).
+   */
+  async addPinnedMessage(
+    conversationId: ObjectId,
+    messageId: ObjectId
+  ): Promise<ConversationDocument | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: conversationId },
+      {
+        $addToSet: { pinnedMessageIds: messageId },
+        $set: { updatedAt: new Date() },
+      },
+      { returnDocument: 'after' }
+    );
+    return result as ConversationDocument | null;
+  }
+
+  /**
+   * Remove a message id from the pin list.
+   */
+  async removePinnedMessage(
+    conversationId: ObjectId,
+    messageId: ObjectId
+  ): Promise<ConversationDocument | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: conversationId },
+      {
+        $pull: { pinnedMessageIds: messageId },
+        $set: { updatedAt: new Date() },
+      },
+      { returnDocument: 'after' }
+    );
+    return result as ConversationDocument | null;
+  }
+
+  /**
+   * Unpin when the message is deleted for everyone (idempotent).
+   */
+  async pullPinnedMessage(conversationId: ObjectId, messageId: ObjectId): Promise<void> {
+    await this.collection.updateOne(
+      { _id: conversationId },
+      {
+        $pull: { pinnedMessageIds: messageId },
+        $set: { updatedAt: new Date() },
+      }
+    );
   }
 }
 

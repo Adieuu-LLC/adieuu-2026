@@ -39,6 +39,9 @@ import {
   updateGifsDisabled,
   listPendingInvitesForConversation,
   revokeGroupInvite,
+  pinMessage,
+  unpinMessage,
+  listPinnedMessagesPage,
 } from '../../services/conversation.service';
 import { getConversationPreferencesRepository } from '../../repositories/conversation-preferences.repository';
 import { toPublicConversationPreferences } from '../../models/conversation-preferences';
@@ -508,6 +511,105 @@ router.patch('/conversations/:id/gifs', async (ctx) => {
   }
 
   return success(result.conversation, 'GIF settings updated.');
+});
+
+const PinMessageBodySchema = z.object({
+  messageId: z.string().length(24),
+});
+
+/**
+ * POST /conversations/:id/pins — Pin a message (DM: either participant; group: admin).
+ */
+router.post('/conversations/:id/pins', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const parseResult = PinMessageBodySchema.safeParse(ctx.body);
+  if (!parseResult.success) return ctx.errors.validationFailed();
+
+  const result = await pinMessage(sanitized.value, parseResult.data.messageId, identity._id);
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
+    if (result.errorCode === 'MESSAGE_NOT_FOUND') return errors.notFound('Message not found.');
+    if (result.errorCode === 'PIN_LIMIT') return errors.badRequest(result.error ?? 'Pin limit reached.');
+    return errors.badRequest(result.error ?? 'Failed to pin message.');
+  }
+
+  return success(result.conversation, 'Message pinned.');
+});
+
+/**
+ * DELETE /conversations/:id/pins/:messageId — Remove a pin.
+ */
+router.delete('/conversations/:id/pins/:messageId', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id, messageId } = ctx.params;
+  const sanitizedConv = sanitizeString(id ?? '', 'general');
+  const sanitizedMsg = sanitizeString(messageId ?? '', 'general');
+  if (!sanitizedConv.value || !isValidObjectId(sanitizedConv.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+  if (!sanitizedMsg.value || !isValidObjectId(sanitizedMsg.value)) {
+    return errors.badRequest('Invalid message ID.');
+  }
+
+  const result = await unpinMessage(sanitizedConv.value, sanitizedMsg.value, identity._id);
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
+    return errors.badRequest(result.error ?? 'Failed to unpin message.');
+  }
+
+  return success(result.conversation, 'Pin removed.');
+});
+
+/**
+ * GET /conversations/:id/pinned-messages — Paginated ciphertext for pinned messages (any participant).
+ */
+router.get('/conversations/:id/pinned-messages', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const limitParam = ctx.query.get('limit');
+  const cursorParam = ctx.query.get('cursor');
+  let limit: number | undefined;
+  if (limitParam) {
+    const n = parseInt(limitParam, 10);
+    if (!Number.isNaN(n)) limit = n;
+  }
+  const cursor = cursorParam?.trim() || undefined;
+
+  const result = await listPinnedMessagesPage(sanitized.value, identity._id, { limit, cursor });
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    return errors.badRequest(result.error ?? 'Failed to load pinned messages.');
+  }
+
+  return success({
+    messages: result.messages ?? [],
+    nextCursor: result.nextCursor ?? null,
+  });
 });
 
 // ---------------------------------------------------------------------------

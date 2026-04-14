@@ -147,6 +147,11 @@ export function handleConversationSocketMessage(
             defaultValue: 'You were removed from a group conversation',
           })
         );
+      } else if (action === 'pins_updated') {
+        const ids = message.data.pinnedMessageIds ?? [];
+        ctx.setConversations((prev) =>
+          prev.map((c) => (c.id === conversationId ? { ...c, pinnedMessageIds: ids } : c))
+        );
       } else if (action === 'gifs_disabled_updated') {
         const newVal = message.data.gifsDisabled ?? false;
         ctx.setConversations((prev) =>

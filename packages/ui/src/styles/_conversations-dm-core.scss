@@ -33,6 +33,15 @@
   min-height: 0;
 }
 
+.dm-message-pin-indicator {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--spacing-xs);
+  color: var(--color-text-secondary);
+  opacity: 0.85;
+  font-size: 0.75em;
+}
+
 .conversation-messages {
   flex: 1;
   min-height: 0;

@@ -88,6 +88,10 @@ export interface ConversationsContextValue {
     centerMessageId: string,
     options?: { before?: number; after?: number }
   ) => Promise<boolean>;
+  loadPinnedMessagesPage: (
+    conversationId: string,
+    cursor?: string | null
+  ) => Promise<{ messages: DisplayMessage[]; nextCursor: string | null } | null>;
   replyParentHydrationMap: Record<string, DisplayMessage>;
   ensureReplyParentHydration: (conversationId: string, parentMessageId: string) => Promise<void>;
   deleteMessage: (
@@ -105,6 +109,8 @@ export interface ConversationsContextValue {
   renameGroup: (conversationId: string, newName: string) => Promise<boolean>;
   updateMemberSettings: (conversationId: string, settings: MemberSettingsMap) => Promise<boolean>;
   updateGifsDisabled: (conversationId: string, gifsDisabled: boolean) => Promise<boolean>;
+  pinMessage: (conversationId: string, messageId: string) => Promise<boolean>;
+  unpinMessage: (conversationId: string, messageId: string) => Promise<boolean>;
   promoteToAdmin: (conversationId: string, identityId: string) => Promise<boolean>;
   terminateGroup: (conversationId: string) => Promise<boolean>;
 

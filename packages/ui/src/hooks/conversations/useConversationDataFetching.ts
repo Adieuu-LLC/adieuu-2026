@@ -5,6 +5,7 @@ import {
   type PublicConversation,
   type PublicGroupInvite,
   type PublicIdentity,
+  type PublicMessage,
 } from '@adieuu/shared';
 import { decryptMessageBatch } from '../../services/messageDecryptionPipeline';
 import {
@@ -20,6 +21,8 @@ import { applyFetchedMessagesToConversationState } from './messageStateUpdates';
 import type { ConversationMessagesState, DecryptedConversation, DisplayMessage } from './types';
 
 type ApiClient = ReturnType<typeof createApiClient>;
+
+const PINNED_MESSAGES_PAGE_LIMIT = 15;
 
 export interface ConversationDataFetchingParams {
   isLoggedIn: boolean;
@@ -419,6 +422,92 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
     [isLoggedIn, identity, api, getCurrentDeviceId, getWrappingKey, resolveParticipants]
   );
 
+  /**
+   * Fetch one page of pinned messages and decrypt. Reuses messages already in the scroll buffer
+   * or reply-hydration cache when possible.
+   */
+  const loadPinnedMessagesPage = useCallback(
+    async (
+      conversationId: string,
+      cursor?: string | null
+    ): Promise<{ messages: DisplayMessage[]; nextCursor: string | null } | null> => {
+      if (!isLoggedIn || !identity) return null;
+      try {
+        const resp = await api.conversations.getPinnedMessages(conversationId, {
+          limit: PINNED_MESSAGES_PAGE_LIMIT,
+          cursor: cursor ?? undefined,
+        });
+        if (!resp.data) return null;
+
+        const raw = resp.data.messages;
+        const nextCursor = resp.data.nextCursor;
+
+        const stateMsgs = messagesStateRef.current[conversationId]?.messages ?? [];
+        const hydrated = replyParentHydrationRef.current[conversationId] ?? {};
+
+        const toDecrypt: PublicMessage[] = [];
+        const prefilled = new Map<string, DisplayMessage>();
+
+        for (const m of raw) {
+          const local = stateMsgs.find((x) => x.id === m.id) ?? hydrated[m.id];
+          if (local) prefilled.set(m.id, local);
+          else toDecrypt.push(m);
+        }
+
+        let decrypted: DisplayMessage[] = [];
+        if (toDecrypt.length > 0) {
+          const deviceId = getCurrentDeviceId();
+          const wrappingKey = getWrappingKey();
+          const keys = await loadDecryptKeysQuiet(identity.id, deviceId, wrappingKey);
+          const shared = buildDecryptMessageBatchSharedFields({
+            identityId: identity.id,
+            wrappingKey,
+            keys,
+            signingKeyCache: signingKeyCache.current,
+            sessionKeyCache: sessionKeyCache.current,
+            api,
+            resolveParticipants,
+          });
+
+          decrypted = (await decryptMessageBatch({
+            ...shared,
+            messages: toDecrypt,
+            conversationId,
+            pagingCursor: undefined,
+            existingMessages: stateMsgs,
+          })) as DisplayMessage[];
+        }
+
+        const merged = new Map<string, DisplayMessage>([...prefilled]);
+        for (const d of decrypted) merged.set(d.id, d);
+
+        const ordered: DisplayMessage[] = [];
+        for (const r of raw) {
+          const row = merged.get(r.id);
+          if (row) ordered.push(row);
+        }
+
+        void resolveParticipants([...new Set(ordered.map((m) => m.fromIdentityId))]);
+
+        return { messages: ordered, nextCursor };
+      } catch (err) {
+        console.error('[useConversations] loadPinnedMessagesPage failed', { conversationId, cursor }, err);
+        toast.error(t('conversations.loadPinnedFailed', 'Could not load pinned messages'));
+        return null;
+      }
+    },
+    [
+      isLoggedIn,
+      identity,
+      api,
+      getCurrentDeviceId,
+      getWrappingKey,
+      resolveParticipants,
+      toast,
+      t,
+    ]
+  );
+
   const fetchInvites = useCallback(async () => {
     if (!isLoggedIn) return;
     try {
@@ -447,6 +536,7 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
     fetchMessages,
     fetchMessagesAround,
     ensureReplyParentHydration,
+    loadPinnedMessagesPage,
     fetchInvites,
     refresh,
   };

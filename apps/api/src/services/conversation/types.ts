@@ -25,7 +25,9 @@ export interface ConversationResult {
     | 'TARGET_IS_ADMIN'
     | 'TOO_MANY_PARTICIPANTS'
     | 'CANNOT_MESSAGE_SELF'
-    | 'INVALID_TYPE';
+    | 'INVALID_TYPE'
+    | 'MESSAGE_NOT_FOUND'
+    | 'PIN_LIMIT';
 }
 
 export interface MessageResult {

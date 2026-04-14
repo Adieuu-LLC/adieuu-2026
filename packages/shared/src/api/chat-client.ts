@@ -117,9 +117,11 @@ export interface ChatConversationUpdatedMessage extends ChatMessageBase {
       | 'renamed'
       | 'admin_promoted'
       | 'gifs_disabled_updated'
-      | 'pending_invites_changed';
+      | 'pending_invites_changed'
+      | 'pins_updated';
     identityId?: string;
     gifsDisabled?: boolean;
+    pinnedMessageIds?: string[];
     /** Present for action renamed — drives notification copy (group vs DM). */
     conversationType?: 'dm' | 'group';
   };

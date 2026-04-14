@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import type { ConversationDocument } from '../../models/conversation';
-import { isGroupAdmin } from './group-permissions';
+import { isGroupAdmin, canManageConversationPins } from './group-permissions';
 
 function baseConv(overrides: Partial<ConversationDocument>): ConversationDocument {
   const id = () => new ObjectId();
@@ -37,5 +37,44 @@ describe('isGroupAdmin', () => {
     });
     expect(isGroupAdmin(conv, creatorId)).toBe(true);
     expect(isGroupAdmin(conv, new ObjectId())).toBe(false);
+  });
+});
+
+describe('canManageConversationPins', () => {
+  test('DM: both participants can manage', () => {
+    const a = new ObjectId();
+    const b = new ObjectId();
+    const conv = baseConv({
+      type: 'dm',
+      participants: [a, b],
+      createdBy: a,
+      admins: [],
+    });
+    expect(canManageConversationPins(conv, a)).toBe(true);
+    expect(canManageConversationPins(conv, b)).toBe(true);
+  });
+
+  test('group: only admins', () => {
+    const adminId = new ObjectId();
+    const memberId = new ObjectId();
+    const conv = baseConv({
+      participants: [adminId, memberId],
+      createdBy: adminId,
+      admins: [adminId],
+    });
+    expect(canManageConversationPins(conv, adminId)).toBe(true);
+    expect(canManageConversationPins(conv, memberId)).toBe(false);
+  });
+
+  test('non-participant cannot manage', () => {
+    const a = new ObjectId();
+    const b = new ObjectId();
+    const conv = baseConv({
+      type: 'dm',
+      participants: [a, b],
+      createdBy: a,
+      admins: [],
+    });
+    expect(canManageConversationPins(conv, new ObjectId())).toBe(false);
   });
 });

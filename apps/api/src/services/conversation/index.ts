@@ -14,3 +14,4 @@ export * from './crud';
 export * from './messaging';
 export * from './group';
 export * from './invites';
+export * from './pins';

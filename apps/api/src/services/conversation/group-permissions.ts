@@ -20,3 +20,20 @@ export function isGroupAdmin(
   }
   return conversation.createdBy.equals(identityId);
 }
+
+/**
+ * Whether this identity may add or remove pinned messages.
+ * DMs: any participant. Groups: admins only (see {@link isGroupAdmin}).
+ */
+export function canManageConversationPins(
+  conversation: ConversationDocument,
+  identityId: ObjectId
+): boolean {
+  if (!conversation.participants.some((p) => p.equals(identityId))) {
+    return false;
+  }
+  if (conversation.type === 'dm') {
+    return true;
+  }
+  return isGroupAdmin(conversation, identityId);
+}

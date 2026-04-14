@@ -66,6 +66,7 @@ export const APP_ICON_NAMES = {
   star: 'star',
   filter: 'filter',
   sortAlpha: 'arrow-down-a-z',
+  pin: 'thumbtack',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;

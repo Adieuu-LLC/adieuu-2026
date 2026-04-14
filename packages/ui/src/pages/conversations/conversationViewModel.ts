@@ -115,3 +115,18 @@ export function getConversationHeaderCopy(
 
   return { otherParticipantIds, displayName, subtitle };
 }
+
+/**
+ * Matches server rules: DMs — any participant; groups — admins (with legacy createdBy fallback).
+ */
+export function canManageConversationPinsView(
+  conversation: DecryptedConversation | undefined,
+  identityId: string | undefined,
+): boolean {
+  if (!conversation || !identityId) return false;
+  if (!conversation.participants.includes(identityId)) return false;
+  if (conversation.type === 'dm') return true;
+  const admins = conversation.admins;
+  if (admins?.length) return admins.includes(identityId);
+  return conversation.createdBy === identityId;
+}

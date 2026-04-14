@@ -51,10 +51,12 @@ import { useConversationScrollOrchestration } from '../../hooks/conversations/us
 import {
   buildFlatChatItems,
   buildMessagesByIdMap,
+  canManageConversationPinsView,
   getConversationHeaderCopy,
   getLastMessagePreviewText,
   getReversedVisibleMessages,
 } from './conversationViewModel';
+import { ConversationPinsMenu } from './ConversationPinsMenu';
 import { buildForwardSecrecyUiLabels } from './forwardSecrecyLabels';
 
 export function ConversationView() {
@@ -81,6 +83,7 @@ export function ConversationView() {
     loadNewer,
     jumpToLatestMessages,
     fetchMessagesAround,
+    loadPinnedMessagesPage,
     replyParentHydrationMap,
     ensureReplyParentHydration,
     leaveGroup,
@@ -88,6 +91,8 @@ export function ConversationView() {
     promoteToAdmin,
     terminateGroup,
     deleteMessage,
+    pinMessage,
+    unpinMessage,
     renameGroup,
     updateMemberSettings,
     updateGifsDisabled,
@@ -465,6 +470,24 @@ export function ConversationView() {
     [id, deleteMessage]
   );
 
+  const handlePinMessage = useCallback(
+    async (messageId: string) => {
+      if (!id) return;
+      const ok = await pinMessage(id, messageId);
+      if (!ok) toast.error(t('conversations.pinFailed', 'Could not pin message'));
+    },
+    [id, pinMessage, toast, t]
+  );
+
+  const handleUnpinMessage = useCallback(
+    async (messageId: string) => {
+      if (!id) return;
+      const ok = await unpinMessage(id, messageId);
+      if (!ok) toast.error(t('conversations.unpinFailed', 'Could not unpin message'));
+    },
+    [id, unpinMessage, toast, t]
+  );
+
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportTargetMessageId, setReportTargetMessageId] = useState<string | undefined>();
 
@@ -531,12 +554,26 @@ export function ConversationView() {
   const canDeleteConversation =
     conversation.type === 'group' ? isCurrentUserAdmin : isTopicalDm;
 
+  const canManagePinsUi = canManageConversationPinsView(conversation, identity?.id);
+
   return (
     <div className="conversation-page">
       <div className="conversation-container">
         <ConversationToolbar
           displayName={displayName}
           subtitle={subtitle}
+          pinsSlot={
+            <ConversationPinsMenu
+              conversationId={conversation.id}
+              pinnedCount={conversation.pinnedMessageIds?.length ?? 0}
+              loadPinnedMessagesPage={loadPinnedMessagesPage}
+              scrollToMessageId={scrollToMessageId}
+              onUnpin={handleUnpinMessage}
+              canUnpin={canManagePinsUi}
+              participantProfiles={participantProfiles}
+              memberSettings={memberSettings}
+            />
+          }
           showSettings={showSettings}
           onToggleSettings={() => setShowSettings((v) => !v)}
           showMembers={showMembers}
@@ -592,6 +629,10 @@ export function ConversationView() {
               onReachNewer={handleReachNewer}
               t={t as any}
               gifsDisabledByAdmin={conversation.gifsDisabled ?? false}
+              pinnedMessageIds={conversation.pinnedMessageIds ?? []}
+              canManagePins={canManagePinsUi}
+              onPinMessage={handlePinMessage}
+              onUnpinMessage={handleUnpinMessage}
             />
 
             {isDmBlocked && (

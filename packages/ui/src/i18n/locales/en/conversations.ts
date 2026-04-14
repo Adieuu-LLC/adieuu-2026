@@ -31,6 +31,17 @@ export const conversations = {
     deleteConversation: 'Delete conversation',
     reactionSaveError: 'Could not save your reaction.',
     reactionRemoveError: 'Could not remove your reaction.',
+    pinnedMessages: 'Pinned messages',
+    pinnedMessage: 'Pinned',
+    pinnedMessageFallback: 'Pinned message',
+    pinMessage: 'Pin message',
+    unpinMessage: 'Unpin message',
+    pinFailed: 'Could not pin message',
+    unpinFailed: 'Could not unpin message',
+    pins: 'Pins',
+    pinsEmpty: 'No pinned messages yet.',
+    pinsCouldNotLoad: 'Could not load pins.',
+    loadPinnedFailed: 'Could not load pinned messages',
 
     leaveGroup: {
       title: 'Leave group?',

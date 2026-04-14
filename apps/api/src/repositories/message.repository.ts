@@ -25,6 +25,11 @@ export interface IMessageRepository {
     conversationId: ObjectId,
     messageId: ObjectId
   ): Promise<MessageDocument | null>;
+  /** Batch lookup; order is not preserved — caller reorders by pin list. */
+  findByIdsInConversation(
+    conversationId: ObjectId,
+    messageIds: ObjectId[]
+  ): Promise<Map<string, MessageDocument>>;
   findByClientMessageId(
     conversationId: ObjectId,
     clientMessageId: string
@@ -65,6 +70,24 @@ export class MessageRepository
     messageId: ObjectId
   ): Promise<MessageDocument | null> {
     return await this.findOne({ _id: messageId, conversationId });
+  }
+
+  async findByIdsInConversation(
+    conversationId: ObjectId,
+    messageIds: ObjectId[]
+  ): Promise<Map<string, MessageDocument>> {
+    const map = new Map<string, MessageDocument>();
+    if (messageIds.length === 0) return map;
+    const docs = (await this.collection
+      .find({
+        conversationId,
+        _id: { $in: messageIds },
+      })
+      .toArray()) as MessageDocument[];
+    for (const d of docs) {
+      map.set(d._id.toHexString(), d);
+    }
+    return map;
   }
 
   /**
