@@ -311,6 +311,14 @@
         cursor: not-allowed;
       }
 
+      &--pinned {
+        color: var(--color-accent-primary);
+
+        &:hover {
+          color: var(--color-accent-primary-hover, var(--color-accent-primary));
+        }
+      }
+
       &--emoji {
         font-size: 16px;
         line-height: 1;

@@ -20,6 +20,10 @@ export function MessageActionBar({
   onRemoveFavorite,
   onReply,
   onPopoverOpenChange,
+  canManagePin = false,
+  isPinned = false,
+  onPin,
+  onUnpin,
 }: {
   isOwn: boolean;
   onDeleteForSelf: () => void;
@@ -32,6 +36,10 @@ export function MessageActionBar({
   onRemoveFavorite: (emoji: string) => void;
   onReply?: () => void;
   onPopoverOpenChange?: (open: boolean) => void;
+  canManagePin?: boolean;
+  isPinned?: boolean;
+  onPin?: () => void;
+  onUnpin?: () => void;
 }) {
   const { t } = useTranslation();
   const [showFavPicker, setShowFavPicker] = useState(false);
@@ -58,6 +66,29 @@ export function MessageActionBar({
             aria-label={t('conversations.reply', 'Reply')}
           >
             <Icon name="reply" className="message-action-bar-icon" />
+          </button>
+        </Tooltip>
+      )}
+      {canManagePin && onPin && onUnpin && (
+        <Tooltip
+          content={
+            isPinned
+              ? t('conversations.unpinMessage', 'Unpin message')
+              : t('conversations.pinMessage', 'Pin message')
+          }
+          position="top"
+        >
+          <button
+            type="button"
+            className={`message-action-bar-btn${isPinned ? ' message-action-bar-btn--pinned' : ''}`}
+            onClick={() => (isPinned ? onUnpin() : onPin())}
+            aria-label={
+              isPinned
+                ? t('conversations.unpinMessage', 'Unpin message')
+                : t('conversations.pinMessage', 'Pin message')
+            }
+          >
+            <Icon name="pin" className="message-action-bar-icon" />
           </button>
         </Tooltip>
       )}

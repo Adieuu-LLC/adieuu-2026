@@ -468,6 +468,10 @@ export const MessageBubble = memo(function MessageBubble({
             onRemoveFavorite={onRemoveFavorite}
             onReply={onReply}
             onPopoverOpenChange={setActionBarPopoverOpen}
+            canManagePin={canManagePin}
+            isPinned={isPinned}
+            onPin={onPin}
+            onUnpin={onUnpin}
           />
         )}
       </div>
@@ -546,6 +550,10 @@ export const MessageBubble = memo(function MessageBubble({
             onRemoveFavorite={onRemoveFavorite}
             onReply={onReply}
             onPopoverOpenChange={setActionBarPopoverOpen}
+            canManagePin={canManagePin}
+            isPinned={isPinned}
+            onPin={onPin}
+            onUnpin={onUnpin}
           />
         )}
         <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`} style={bubbleTintStyle}>
