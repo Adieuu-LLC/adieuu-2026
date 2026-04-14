@@ -540,7 +540,6 @@ router.post('/conversations/:id/pins', async (ctx) => {
     if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
     if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
     if (result.errorCode === 'MESSAGE_NOT_FOUND') return errors.notFound('Message not found.');
-    if (result.errorCode === 'PIN_LIMIT') return errors.badRequest(result.error ?? 'Pin limit reached.');
     return errors.badRequest(result.error ?? 'Failed to pin message.');
   }
 

@@ -573,6 +573,10 @@ export function ConversationView() {
               canUnpin={canManagePinsUi}
               participantProfiles={participantProfiles}
               memberSettings={memberSettings}
+              messagesById={messagesById}
+              ensureReplyParentHydration={ensureReplyParentHydration}
+              identity={identity ?? undefined}
+              memberColorDisplay={memberColorDisplay}
               gifsEnabled={
                 !(conversation.gifsDisabled ?? false) && !convGifHidden && !gifsGloballyDisabled
               }

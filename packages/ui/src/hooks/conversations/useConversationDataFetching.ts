@@ -22,7 +22,7 @@ import type { ConversationMessagesState, DecryptedConversation, DisplayMessage }
 
 type ApiClient = ReturnType<typeof createApiClient>;
 
-const PINNED_MESSAGES_PAGE_LIMIT = 15;
+const PINNED_MESSAGES_PAGE_LIMIT = 10;
 
 export interface ConversationDataFetchingParams {
   isLoggedIn: boolean;

@@ -15,10 +15,8 @@ import type { ConversationResult } from './types';
 import { publishToParticipants } from './redis-events';
 import { canManageConversationPins } from './group-permissions';
 
-/** Maximum pinned messages per conversation (abuse guard). */
-export const MAX_PINNED_MESSAGES_PER_CONVERSATION = 50;
-
-export const DEFAULT_PINNED_MESSAGES_PAGE_LIMIT = 15;
+export const DEFAULT_PINNED_MESSAGES_PAGE_LIMIT = 10;
+/** Upper bound for a single list request (client typically uses {@link DEFAULT_PINNED_MESSAGES_PAGE_LIMIT}). */
 export const MAX_PINNED_MESSAGES_PAGE_LIMIT = 50;
 
 export interface PinnedMessagesPageResult {
@@ -31,7 +29,7 @@ export interface PinnedMessagesPageResult {
 }
 
 /**
- * List pinned messages: loads all pin ids for the conversation (cap 50), sorts by message
+ * List pinned messages: loads all pin ids for the conversation, sorts by message
  * `createdAt` descending (newest first), then paginates that list. Cursor is the last message
  * id in the current page. Any participant may list pins (read path).
  */
@@ -136,16 +134,6 @@ export async function pinMessage(
 
   if (message.deletedForEveryone) {
     return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
-  }
-
-  const existing = conversation.pinnedMessageIds ?? [];
-  const already = existing.some((id) => id.equals(msgObjId));
-  if (!already && existing.length >= MAX_PINNED_MESSAGES_PER_CONVERSATION) {
-    return {
-      success: false,
-      error: `You can pin at most ${MAX_PINNED_MESSAGES_PER_CONVERSATION} messages.`,
-      errorCode: 'PIN_LIMIT',
-    };
   }
 
   const updated = await conversationRepo.addPinnedMessage(convObjId, msgObjId);

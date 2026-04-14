@@ -10,14 +10,23 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { PublicIdentity } from '@adieuu/shared';
 import type { DisplayMessage } from '../../hooks/useConversations';
+import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
+import { IdentityHoverCard } from '../../components/IdentityHoverCard';
 import { parsePayload } from '../../services/messagePayload';
 import { Button } from '../../components/Button';
+import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
-import { formatMessageTime } from './conversationUtils';
-import { resolveToolbarParticipantName } from './conversationViewModel';
+import {
+  buildReplySnippet,
+  formatMessageTime,
+  resolveDisplayName,
+  resolveQuotedAuthorPreview,
+  type ReplyQuotePayload,
+} from './conversationUtils';
 import { MessageGifAttachment } from './MessageGifAttachment';
 import { MessageMediaAttachment } from './MessageMediaAttachment';
+import { ReplyQuoteButton } from './MessageBubble';
 
 function pinPreviewText(msg: DisplayMessage): string {
   if (msg.deleted) return '';
@@ -39,6 +48,21 @@ function sortPinsNewestFirst(messages: DisplayMessage[]): DisplayMessage[] {
   });
 }
 
+async function hydrateReplyParentsForPins(
+  messages: DisplayMessage[],
+  conversationId: string,
+  messagesById: Map<string, DisplayMessage>,
+  ensureReplyParentHydration: (cid: string, parentId: string) => Promise<void>,
+): Promise<void> {
+  const missing = new Set<string>();
+  for (const m of messages) {
+    const pid = m.replyToMessageId;
+    if (pid && !messagesById.has(pid)) missing.add(pid);
+  }
+  if (missing.size === 0) return;
+  await Promise.all([...missing].map((pid) => ensureReplyParentHydration(conversationId, pid)));
+}
+
 export function ConversationPinsMenu({
   conversationId,
   pinnedCount,
@@ -49,6 +73,10 @@ export function ConversationPinsMenu({
   canUnpin,
   participantProfiles,
   memberSettings,
+  messagesById,
+  ensureReplyParentHydration,
+  identity,
+  memberColorDisplay,
   gifsEnabled,
   gifAnimateOnHoverOnly = false,
 }: {
@@ -64,10 +92,17 @@ export function ConversationPinsMenu({
   canUnpin: boolean;
   participantProfiles: Record<string, PublicIdentity>;
   memberSettings: MemberSettingsMap;
+  messagesById: Map<string, DisplayMessage>;
+  ensureReplyParentHydration: (conversationId: string, parentMessageId: string) => Promise<void>;
+  identity: PublicIdentity | null | undefined;
+  memberColorDisplay: MemberColorDisplay;
   gifsEnabled: boolean;
   gifAnimateOnHoverOnly?: boolean;
 }) {
   const { t } = useTranslation();
+  const messagesByIdRef = useRef(messagesById);
+  messagesByIdRef.current = messagesById;
+
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<DisplayMessage[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -140,12 +175,21 @@ export function ConversationPinsMenu({
       return;
     }
     setLoading(true);
-    const res = await loadPinnedMessagesPage(conversationId, null);
-    setLoading(false);
-    if (!res) return;
-    setItems(sortPinsNewestFirst(res.messages));
-    setNextCursor(res.nextCursor);
-  }, [conversationId, pinnedCount, loadPinnedMessagesPage]);
+    try {
+      const res = await loadPinnedMessagesPage(conversationId, null);
+      if (!res) return;
+      await hydrateReplyParentsForPins(
+        res.messages,
+        conversationId,
+        messagesByIdRef.current,
+        ensureReplyParentHydration,
+      );
+      setItems(sortPinsNewestFirst(res.messages));
+      setNextCursor(res.nextCursor);
+    } finally {
+      setLoading(false);
+    }
+  }, [conversationId, pinnedCount, loadPinnedMessagesPage, ensureReplyParentHydration]);
 
   useEffect(() => {
     if (!open) return;
@@ -155,22 +199,38 @@ export function ConversationPinsMenu({
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMore || loading) return;
     setLoadingMore(true);
-    const res = await loadPinnedMessagesPage(conversationId, nextCursor);
-    setLoadingMore(false);
-    if (!res) return;
-    setItems((prev) => {
-      const seen = new Set(prev.map((m) => m.id));
-      const merged = [...prev];
-      for (const m of res.messages) {
-        if (!seen.has(m.id)) {
-          seen.add(m.id);
-          merged.push(m);
+    try {
+      const res = await loadPinnedMessagesPage(conversationId, nextCursor);
+      if (!res) return;
+      await hydrateReplyParentsForPins(
+        res.messages,
+        conversationId,
+        messagesByIdRef.current,
+        ensureReplyParentHydration,
+      );
+      setItems((prev) => {
+        const seen = new Set(prev.map((m) => m.id));
+        const merged = [...prev];
+        for (const m of res.messages) {
+          if (!seen.has(m.id)) {
+            seen.add(m.id);
+            merged.push(m);
+          }
         }
-      }
-      return sortPinsNewestFirst(merged);
-    });
-    setNextCursor(res.nextCursor);
-  }, [conversationId, nextCursor, loadingMore, loading, loadPinnedMessagesPage]);
+        return sortPinsNewestFirst(merged);
+      });
+      setNextCursor(res.nextCursor);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [
+    conversationId,
+    nextCursor,
+    loadingMore,
+    loading,
+    loadPinnedMessagesPage,
+    ensureReplyParentHydration,
+  ]);
 
   useEffect(() => {
     if (!open || !nextCursor || loadingMore || loading) return;
@@ -246,10 +306,31 @@ export function ConversationPinsMenu({
         )}
         {!loading &&
           items.map((msg) => {
-            const author = resolveToolbarParticipantName(
+            const isOwn = msg.fromIdentityId === identity?.id;
+            const senderColor = memberSettings[msg.fromIdentityId]?.color;
+            const senderNameStyle: CSSProperties | undefined = senderColor
+              ? { color: senderColor }
+              : undefined;
+            const avatarAccentStyle: CSSProperties | undefined =
+              senderColor && !isOwn && memberColorDisplay === 'name-and-accent'
+                ? { boxShadow: `0 0 0 2px ${senderColor}` }
+                : undefined;
+            const profile: PublicIdentity | undefined =
+              isOwn && identity ? identity : participantProfiles[msg.fromIdentityId];
+            const displayName = resolveDisplayName(
               msg.fromIdentityId,
+              participantProfiles,
               memberSettings,
-              participantProfiles
+              identity?.id,
+              t,
+            );
+            const avatarUrl = profile?.avatarUrl;
+            const avatarInner = avatarUrl ? (
+              <img src={avatarUrl} alt="" className="conversation-pins-panel-row-avatar-img" />
+            ) : (
+              <span className="conversation-pins-panel-row-avatar-placeholder" aria-hidden>
+                {(displayName.charAt(0) || '?').toUpperCase()}
+              </span>
             );
             const raw = msg.decryptedContent ?? '';
             const parsed = parsePayload(raw);
@@ -258,6 +339,22 @@ export function ConversationPinsMenu({
               preview || t('conversations.pinnedMessageFallback', 'Pinned message');
             const hasGif = parsed.gifAttachments.length > 0;
             const hasMedia = parsed.attachments.length > 0;
+            const parentForQuote = msg.replyToMessageId
+              ? messagesById.get(msg.replyToMessageId)
+              : undefined;
+            const replyQuote: ReplyQuotePayload | null =
+              msg.replyToMessageId && !msg.deleted
+                ? {
+                    text: buildReplySnippet(parentForQuote, t),
+                    quotedAuthor: resolveQuotedAuthorPreview(
+                      parentForQuote,
+                      participantProfiles,
+                      memberSettings,
+                      identity ?? null,
+                    ),
+                    onQuoteClick: () => handleGoTo(msg.replyToMessageId!),
+                  }
+                : null;
             return (
               <div key={msg.id} className="conversation-pins-panel-row">
                 <div
@@ -272,7 +369,46 @@ export function ConversationPinsMenu({
                     }
                   }}
                 >
-                  <span className="conversation-pins-panel-row-author">{author}</span>
+                  {replyQuote ? (
+                    <div
+                      className="conversation-pins-panel-row-reply-quote"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <ReplyQuoteButton replyQuote={replyQuote} />
+                    </div>
+                  ) : null}
+                  <div className="conversation-pins-panel-row-head">
+                    {profile ? (
+                      <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
+                        <div className="conversation-pins-panel-row-avatar" style={avatarAccentStyle}>
+                          {avatarInner}
+                        </div>
+                      </IdentityHoverCard>
+                    ) : (
+                      <div className="conversation-pins-panel-row-avatar" style={avatarAccentStyle}>
+                        {avatarInner}
+                      </div>
+                    )}
+                    <div className="conversation-pins-panel-row-head-main">
+                      <div className="conversation-pins-panel-row-head-line">
+                        {profile ? (
+                          <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
+                            <span className="conversation-pins-panel-row-author" style={senderNameStyle}>
+                              {displayName}
+                            </span>
+                          </IdentityHoverCard>
+                        ) : (
+                          <span className="conversation-pins-panel-row-author" style={senderNameStyle}>
+                            {displayName}
+                          </span>
+                        )}
+                        <span className="conversation-pins-panel-row-time-inline">
+                          {formatMessageTime(msg.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                   {hasGif && (
                     <div
                       className="conversation-pins-panel-row-gifs"
@@ -301,24 +437,26 @@ export function ConversationPinsMenu({
                     </div>
                   )}
                   <span className="conversation-pins-panel-row-text">{line}</span>
-                  <span className="conversation-pins-panel-row-time">
-                    {formatMessageTime(msg.createdAt)}
-                  </span>
                 </div>
                 {canUnpin && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="conversation-pins-panel-unpin"
-                    aria-label={t('conversations.unpinMessage', 'Unpin message')}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void handleUnpin(msg.id);
-                    }}
+                  <Tooltip
+                    content={t('conversations.removePinTooltip', 'Remove Pin')}
+                    position="left"
                   >
-                    <Icon name="x" size="sm" />
-                  </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="conversation-pins-panel-unpin"
+                      aria-label={t('conversations.removePinTooltip', 'Remove Pin')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleUnpin(msg.id);
+                      }}
+                    >
+                      <Icon name="x" size="sm" />
+                    </Button>
+                  </Tooltip>
                 )}
               </div>
             );
@@ -347,12 +485,16 @@ export function ConversationPinsMenu({
         title={t('conversations.pins', 'Pins')}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="conversation-toolbar-btn-icon" aria-hidden>
-          <Icon name="locationPin" size="sm" />
+        <span className="conversation-toolbar-pins-icon-wrap">
+          <span className="conversation-toolbar-btn-icon" aria-hidden>
+            <Icon name="locationPin" size="sm" />
+          </span>
+          {pinnedCount > 0 && (
+            <span className="conversation-toolbar-pins-badge" aria-hidden>
+              {pinnedCount > 99 ? '99+' : pinnedCount}
+            </span>
+          )}
         </span>
-        {pinnedCount > 0 && (
-          <span className="conversation-toolbar-pins-badge">{pinnedCount}</span>
-        )}
       </Button>
       {typeof document !== 'undefined' && panel ? createPortal(panel, document.body) : null}
     </div>

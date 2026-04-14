@@ -36,6 +36,7 @@ export const conversations = {
     pinnedMessageFallback: 'Pinned message',
     pinMessage: 'Pin message',
     unpinMessage: 'Unpin message',
+    removePinTooltip: 'Remove Pin',
     pinFailed: 'Could not pin message',
     unpinFailed: 'Could not unpin message',
     pins: 'Pins',

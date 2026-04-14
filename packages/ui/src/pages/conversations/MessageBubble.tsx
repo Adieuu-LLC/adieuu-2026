@@ -26,7 +26,7 @@ import { ReactionBar } from './ReactionBar';
 import { MessageMediaAttachment } from './MessageMediaAttachment';
 import { MessageGifAttachment } from './MessageGifAttachment';
 
-function ReplyQuoteButton({ replyQuote }: { replyQuote: ReplyQuotePayload }) {
+export function ReplyQuoteButton({ replyQuote }: { replyQuote: ReplyQuotePayload }) {
   const { text, quotedAuthor, onQuoteClick } = replyQuote;
   const ariaLabel = quotedAuthor ? `${quotedAuthor.displayName}: ${text}` : text;
 

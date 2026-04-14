@@ -26,8 +26,7 @@ export interface ConversationResult {
     | 'TOO_MANY_PARTICIPANTS'
     | 'CANNOT_MESSAGE_SELF'
     | 'INVALID_TYPE'
-    | 'MESSAGE_NOT_FOUND'
-    | 'PIN_LIMIT';
+    | 'MESSAGE_NOT_FOUND';
 }
 
 export interface MessageResult {
