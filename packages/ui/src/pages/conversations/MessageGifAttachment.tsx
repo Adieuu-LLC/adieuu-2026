@@ -19,11 +19,14 @@ export const MessageGifAttachment = memo(function MessageGifAttachment({
   gif,
   gifsEnabled,
   gifAnimateOnHoverOnly = false,
+  /** When true, sizes to the parent width (e.g. narrow pins column) instead of a fixed max width */
+  constrainToContainer = false,
 }: {
   gif: GifAttachment;
   gifsEnabled: boolean;
   /** When true and `gif.posterUrl` is set, still frame until hover/focus */
   gifAnimateOnHoverOnly?: boolean;
+  constrainToContainer?: boolean;
 }) {
   const { t } = useTranslation();
   const [revealed, setRevealed] = useState(false);
@@ -60,15 +63,25 @@ export const MessageGifAttachment = memo(function MessageGifAttachment({
   const displayWidth = Math.min(gif.width || MAX_DISPLAY_WIDTH, MAX_DISPLAY_WIDTH);
   const displayHeight = Math.round(displayWidth / aspectRatio);
 
-  const containerStyle: CSSProperties = {
-    width: displayWidth,
-    height: displayHeight,
-    maxWidth: MAX_DISPLAY_WIDTH,
-    backgroundImage: gif.blurPreview ? `url(${gif.blurPreview})` : undefined,
-    backgroundSize: 'cover',
-  };
+  const containerStyle: CSSProperties = constrainToContainer
+    ? {
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+        aspectRatio:
+          gif.width && gif.height ? `${gif.width} / ${gif.height}` : String(aspectRatio),
+        backgroundImage: gif.blurPreview ? `url(${gif.blurPreview})` : undefined,
+        backgroundSize: 'cover',
+      }
+    : {
+        width: displayWidth,
+        height: displayHeight,
+        maxWidth: MAX_DISPLAY_WIDTH,
+        backgroundImage: gif.blurPreview ? `url(${gif.blurPreview})` : undefined,
+        backgroundSize: 'cover',
+      };
 
-  const watermarkHeight = Math.round(displayHeight * 0.15);
+  const watermarkHeight = constrainToContainer ? 10 : Math.round(displayHeight * 0.15);
 
   const hoverHandlers = useHoverMode
     ? {
@@ -83,12 +96,17 @@ export const MessageGifAttachment = memo(function MessageGifAttachment({
     : {};
 
   return (
-    <div className="gif-attachment" style={containerStyle} {...hoverHandlers}>
+    <div
+      className={`gif-attachment${constrainToContainer ? ' gif-attachment--constrained' : ''}`}
+      style={containerStyle}
+      {...hoverHandlers}
+    >
       <img
         src={displaySrc}
         alt={gif.searchTerm || gif.type}
-        width={displayWidth}
-        height={displayHeight}
+        {...(constrainToContainer
+          ? {}
+          : { width: displayWidth, height: displayHeight })}
         loading="lazy"
         onLoad={() => setLoaded(true)}
         className={`gif-attachment__img${loaded ? ' gif-attachment__img--loaded' : ''}`}

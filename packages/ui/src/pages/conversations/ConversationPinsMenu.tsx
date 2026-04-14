@@ -335,8 +335,6 @@ export function ConversationPinsMenu({
             const raw = msg.decryptedContent ?? '';
             const parsed = parsePayload(raw);
             const preview = pinPreviewText(msg);
-            const line =
-              preview || t('conversations.pinnedMessageFallback', 'Pinned message');
             const hasGif = parsed.gifAttachments.length > 0;
             const hasMedia = parsed.attachments.length > 0;
             const parentForQuote = msg.replyToMessageId
@@ -369,74 +367,81 @@ export function ConversationPinsMenu({
                     }
                   }}
                 >
-                  {replyQuote ? (
-                    <div
-                      className="conversation-pins-panel-row-reply-quote"
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
-                    >
-                      <ReplyQuoteButton replyQuote={replyQuote} />
-                    </div>
-                  ) : null}
-                  <div className="conversation-pins-panel-row-head">
-                    {profile ? (
-                      <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
+                  <div className="conversation-pins-panel-row-body">
+                    <div className="conversation-pins-panel-row-avatar-col">
+                      {profile ? (
+                        <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
+                          <div className="conversation-pins-panel-row-avatar" style={avatarAccentStyle}>
+                            {avatarInner}
+                          </div>
+                        </IdentityHoverCard>
+                      ) : (
                         <div className="conversation-pins-panel-row-avatar" style={avatarAccentStyle}>
                           {avatarInner}
                         </div>
-                      </IdentityHoverCard>
-                    ) : (
-                      <div className="conversation-pins-panel-row-avatar" style={avatarAccentStyle}>
-                        {avatarInner}
-                      </div>
-                    )}
-                    <div className="conversation-pins-panel-row-head-main">
-                      <div className="conversation-pins-panel-row-head-line">
-                        {profile ? (
-                          <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
+                      )}
+                    </div>
+                    <div className="conversation-pins-panel-row-content-col">
+                      <div className="conversation-pins-panel-row-meta">
+                        <div className="conversation-pins-panel-row-author-cell">
+                          {profile ? (
+                            <IdentityHoverCard identity={profile} positioning={{ placement: 'right', gutter: 8 }}>
+                              <span className="conversation-pins-panel-row-author" style={senderNameStyle}>
+                                {displayName}
+                              </span>
+                            </IdentityHoverCard>
+                          ) : (
                             <span className="conversation-pins-panel-row-author" style={senderNameStyle}>
                               {displayName}
                             </span>
-                          </IdentityHoverCard>
-                        ) : (
-                          <span className="conversation-pins-panel-row-author" style={senderNameStyle}>
-                            {displayName}
-                          </span>
-                        )}
+                          )}
+                        </div>
                         <span className="conversation-pins-panel-row-time-inline">
                           {formatMessageTime(msg.createdAt)}
                         </span>
                       </div>
+                      {replyQuote ? (
+                        <div
+                          className="conversation-pins-panel-row-reply-quote"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <ReplyQuoteButton replyQuote={replyQuote} />
+                        </div>
+                      ) : null}
+                      {hasGif && (
+                        <div
+                          className="conversation-pins-panel-row-gifs"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          {parsed.gifAttachments.map((gif, i) => (
+                            <MessageGifAttachment
+                              key={`${msg.id}-gif-${i}`}
+                              gif={gif}
+                              gifsEnabled={gifsEnabled}
+                              gifAnimateOnHoverOnly={gifAnimateOnHoverOnly}
+                              constrainToContainer
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {hasMedia && (
+                        <div
+                          className="conversation-pins-panel-row-media"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          {parsed.attachments.map((att) => (
+                            <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
+                          ))}
+                        </div>
+                      )}
+                      {preview ? (
+                        <span className="conversation-pins-panel-row-text">{preview}</span>
+                      ) : null}
                     </div>
                   </div>
-                  {hasGif && (
-                    <div
-                      className="conversation-pins-panel-row-gifs"
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
-                    >
-                      {parsed.gifAttachments.map((gif, i) => (
-                        <MessageGifAttachment
-                          key={`${msg.id}-gif-${i}`}
-                          gif={gif}
-                          gifsEnabled={gifsEnabled}
-                          gifAnimateOnHoverOnly={gifAnimateOnHoverOnly}
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {hasMedia && (
-                    <div
-                      className="conversation-pins-panel-row-media"
-                      onClick={(e) => e.stopPropagation()}
-                      onKeyDown={(e) => e.stopPropagation()}
-                    >
-                      {parsed.attachments.map((att) => (
-                        <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
-                      ))}
-                    </div>
-                  )}
-                  <span className="conversation-pins-panel-row-text">{line}</span>
                 </div>
                 {canUnpin && (
                   <Tooltip

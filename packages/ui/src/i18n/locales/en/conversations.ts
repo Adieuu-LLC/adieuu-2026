@@ -33,7 +33,6 @@ export const conversations = {
     reactionRemoveError: 'Could not remove your reaction.',
     pinnedMessages: 'Pinned messages',
     pinnedMessage: 'Pinned',
-    pinnedMessageFallback: 'Pinned message',
     pinMessage: 'Pin message',
     unpinMessage: 'Unpin message',
     removePinTooltip: 'Remove Pin',
