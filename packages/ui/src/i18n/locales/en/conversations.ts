@@ -81,15 +81,33 @@ export const conversations = {
     memberSecurity: {
       link: 'Security',
       title: 'Security — {{name}}',
-      intro:
-        'Compare these device codes with your contact out-of-band to detect tampering. Codes are derived from identity and device keys shown only in shared conversations.',
+      summary:
+        'Each line below is a safety stamp for one of {{name}}\'s devices. Compare stamps with {{name}} by voice or in person—not only in this chat—so you both read the same text.',
+      accordionTitle: 'What are these for?',
+      introP1:
+        'You are looking at short safety codes—one line per device. Each line is a compact “stamp” that reflects how {{name}}\'s messages are protected on that device in this app. You do not need to know anything about cryptography; you only compare stamps.',
+      introP2:
+        'Why bother? If someone tampered with what the app received from the internet, or tried to impersonate {{name}}, your stamp and theirs might not match. Checking together helps you notice that.',
+      introP3:
+        'What to do: ask {{name}} to open the same security view on their side. Read the codes to each other outside this chat—on a phone or video call, or in person—so you are not using this conversation alone as proof.',
+      introP4:
+        'This is a practical safety check, not a guarantee of identity on its own. It is still one of the best simple steps you can take without being an expert.',
+      devicesHeading: 'Safety codes by device',
+      deviceListBlurb:
+        'Each block is one device. Agree which block you are comparing (the device id can help), then check that the full line of groups matches exactly what {{name}} sees for that same device in their app.',
+      deviceOrdinal: 'Device {{n}}',
+      deviceIdCaption: 'Device ID',
       loadError: 'Could not load security information.',
-      noDevices: 'No devices registered for this identity.',
-      showQr: 'Show QR codes',
+      noDevices: 'No devices are registered for this person yet, so there is nothing to compare.',
+      showQr: 'Show QR codes for the same text',
+      qrHelp:
+        'The QR image is the same code in scannable form—useful if you want to scan it or hold two phones side by side.',
+      codeCaption: 'Safety code (compare the full line)',
       spkUnavailable:
-        'Safety code unavailable (signed pre-key not exposed for this view).',
-      verifyFailed: 'Safety code could not be verified for this device.',
-      copied: 'Fingerprint copied',
+        'We cannot show a code for this device from here. Ask them to read their code from their own app, or try again later.',
+      verifyFailed:
+        'We could not confirm this device\'s code from here. Be cautious until you can verify another way.',
+      copied: 'Safety code copied',
       copyFailed: 'Could not copy to clipboard',
     },
 

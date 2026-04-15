@@ -630,7 +630,8 @@ export async function getIdentityKeysCtrl(ctx: RouteContext): Promise<Response> 
     return errors.forbidden('Cannot access this identity\'s keys.');
   }
 
-  const publicKeys = toIdentityPublicKeys(identity);
+  const includeDeviceNames = viewerIdentity._id.equals(identity._id);
+  const publicKeys = toIdentityPublicKeys(identity, { includeDeviceNames });
   if (!publicKeys) {
     return errors.notFound('Identity has not set up E2E encryption.');
   }

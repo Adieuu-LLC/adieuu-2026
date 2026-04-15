@@ -23,6 +23,8 @@ export interface HoverCardProps {
   closeDelay?: number;
   /** Called when the hover card opens or closes */
   onOpenChange?: (details: { open: boolean }) => void;
+  /** Controlled open state. Omit for uncontrolled (hover-driven) behaviour. */
+  open?: boolean;
 }
 
 /**
@@ -50,6 +52,7 @@ export function HoverCard({
   openDelay = 200,
   closeDelay = 300,
   onOpenChange,
+  open,
 }: HoverCardProps) {
   return (
     <ArkHoverCard.Root
@@ -57,6 +60,7 @@ export function HoverCard({
       openDelay={openDelay}
       closeDelay={closeDelay}
       onOpenChange={onOpenChange}
+      {...(open !== undefined ? { open } : {})}
     >
       <ArkHoverCard.Trigger asChild>{trigger}</ArkHoverCard.Trigger>
       <Portal>

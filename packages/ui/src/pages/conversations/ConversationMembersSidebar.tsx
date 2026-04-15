@@ -57,6 +57,8 @@ export function ConversationMembersSidebar({
 }) {
   const { t } = useTranslation();
   const [securityModal, setSecurityModal] = useState<{ id: string; label: string } | null>(null);
+  /** Which member/invite hover card is open (`member:id` | `invite:inviteId`); closed before Security dialog opens. */
+  const [memberHoverKey, setMemberHoverKey] = useState<string | null>(null);
 
   return (
     <div className="conversation-members-sidebar">
@@ -185,6 +187,11 @@ export function ConversationMembersSidebar({
                 <HoverCard
                   className="conversation-member-hover-card-content"
                   positioning={{ placement: 'left-start', gutter: 10 }}
+                  open={memberHoverKey === `member:${participantId}`}
+                  onOpenChange={(d) => {
+                    const key = `member:${participantId}`;
+                    setMemberHoverKey(d.open ? key : (cur) => (cur === key ? null : cur));
+                  }}
                   trigger={<div className="conversation-member-item">{rowInner}</div>}
                 >
                   <IdentityCard
@@ -198,6 +205,7 @@ export function ConversationMembersSidebar({
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
+                          setMemberHoverKey(null);
                           setSecurityModal({ id: participantId, label: displayedName });
                         }}
                       >
@@ -286,6 +294,11 @@ export function ConversationMembersSidebar({
                     <HoverCard
                       className="conversation-member-hover-card-content"
                       positioning={{ placement: 'left-start', gutter: 10 }}
+                      open={memberHoverKey === `invite:${inv.id}`}
+                      onOpenChange={(d) => {
+                        const key = `invite:${inv.id}`;
+                        setMemberHoverKey(d.open ? key : (cur) => (cur === key ? null : cur));
+                      }}
                       trigger={
                         <div className="conversation-member-item conversation-member-item--invited">
                           {invitedRowInner}
@@ -303,6 +316,7 @@ export function ConversationMembersSidebar({
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
+                              setMemberHoverKey(null);
                               setSecurityModal({ id: pid, label: displayedName });
                             }}
                           >

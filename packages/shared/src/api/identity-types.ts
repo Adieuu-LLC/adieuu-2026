@@ -73,9 +73,11 @@ export interface PublicIdentity {
 
 /**
  * Public device info for E2E encryption.
+ * `name` is only set when the authenticated viewer is this identity’s owner; otherwise empty.
  */
 export interface PublicDevice {
   deviceId: string;
+  /** Friendly label; empty when another user fetches keys (never expose names across identities). */
   name: string;
   ecdhPublicKey: string;
   kemPublicKey?: string;

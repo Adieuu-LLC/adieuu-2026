@@ -219,7 +219,8 @@ export interface PublicIdentity {
 }
 
 /**
- * Public device representation (safe to send to other users)
+ * Public device representation (safe to send to other users).
+ * `name` is only populated when the viewer is the device owner; otherwise empty (privacy).
  */
 export interface PublicDevice {
   deviceId: string;
@@ -271,22 +272,36 @@ export function isIdentityDeleted(doc: IdentityDocument): boolean {
   return isDeletedIdent(doc.ident);
 }
 
+export interface ToIdentityPublicKeysOptions {
+  /**
+   * When false, device `name` is omitted from the payload (empty string).
+   * Must be false for any viewer who is not the identity owner — device names are private.
+   * @default true
+   */
+  includeDeviceNames?: boolean;
+}
+
 /**
  * Convert an IdentityDocument to IdentityPublicKeys for E2E encryption.
  * Returns null if the identity doesn't have E2E keys set up.
  */
-export function toIdentityPublicKeys(doc: IdentityDocument): IdentityPublicKeys | null {
+export function toIdentityPublicKeys(
+  doc: IdentityDocument,
+  options?: ToIdentityPublicKeysOptions
+): IdentityPublicKeys | null {
   if (!doc.signingPublicKey) {
     return null;
   }
+
+  const includeDeviceNames = options?.includeDeviceNames !== false;
 
   return {
     identityId: doc._id.toHexString(),
     signingPublicKey: doc.signingPublicKey,
     preferredCryptoProfile: doc.preferredCryptoProfile ?? 'default',
-    devices: (doc.devices ?? []).map(d => ({
+    devices: (doc.devices ?? []).map((d) => ({
       deviceId: d.deviceId,
-      name: d.name,
+      name: includeDeviceNames ? d.name : '',
       ecdhPublicKey: d.ecdhPublicKey,
       kemPublicKey: d.kemPublicKey,
     })),

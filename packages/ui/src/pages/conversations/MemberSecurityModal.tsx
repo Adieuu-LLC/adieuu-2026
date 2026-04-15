@@ -5,7 +5,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Dialog, Portal } from '@ark-ui/react';
+import {
+  AccordionRoot,
+  AccordionItem,
+  AccordionItemTrigger,
+  AccordionItemContent,
+  AccordionItemIndicator,
+  Dialog,
+  Portal,
+} from '@ark-ui/react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   computeSafetyFingerprintDigestV2,
@@ -28,23 +36,30 @@ export interface MemberSecurityModalProps {
 type DeviceRow =
   | {
       deviceId: string;
-      name: string;
+      ordinal: number;
       kind: 'ok';
       display: string;
       qrPayload: string;
     }
   | {
       deviceId: string;
-      name: string;
+      ordinal: number;
       kind: 'noSpk' | 'verifyFailed';
     };
 
+/** Shorten long ids for display; full id remains in `title` for hover/copy elsewhere. */
+function abbreviateDeviceId(deviceId: string): string {
+  if (deviceId.length <= 28) return deviceId;
+  return `${deviceId.slice(0, 12)}…${deviceId.slice(-10)}`;
+}
+
 function buildDeviceRows(keys: IdentityPublicKeys): DeviceRow[] {
   const rows: DeviceRow[] = [];
-  for (const d of keys.devices) {
+  keys.devices.forEach((d, index) => {
+    const ordinal = index + 1;
     if (d.signedPreKey == null) {
-      rows.push({ deviceId: d.deviceId, name: d.name, kind: 'noSpk' });
-      continue;
+      rows.push({ deviceId: d.deviceId, ordinal, kind: 'noSpk' });
+      return;
     }
     try {
       const digest = computeSafetyFingerprintDigestV2({
@@ -62,15 +77,15 @@ function buildDeviceRows(keys: IdentityPublicKeys): DeviceRow[] {
       const qrPayload = display.replace(/\s+/g, '');
       rows.push({
         deviceId: d.deviceId,
-        name: d.name,
+        ordinal,
         kind: 'ok',
         display,
         qrPayload,
       });
     } catch {
-      rows.push({ deviceId: d.deviceId, name: d.name, kind: 'verifyFailed' });
+      rows.push({ deviceId: d.deviceId, ordinal, kind: 'verifyFailed' });
     }
-  }
+  });
   return rows;
 }
 
@@ -122,7 +137,7 @@ export function MemberSecurityModal({
     (text: string) => {
       void navigator.clipboard.writeText(text).then(
         () => {
-          toastSuccess(t('conversations.memberSecurity.copied', 'Fingerprint copied'));
+          toastSuccess(t('conversations.memberSecurity.copied', 'Safety code copied'));
         },
         () => {
           toastError(t('conversations.memberSecurity.copyFailed', 'Could not copy to clipboard'));
@@ -149,13 +164,6 @@ export function MemberSecurityModal({
             </div>
 
             <div className="confirm-dialog-body member-security-modal-body">
-              <Dialog.Description className="confirm-dialog-description member-security-modal-intro">
-                {t(
-                  'conversations.memberSecurity.intro',
-                  'Compare these device codes with your contact out-of-band to detect tampering.',
-                )}
-              </Dialog.Description>
-
               {loading && (
                 <p className="member-security-modal-status">{t('common.loading')}</p>
               )}
@@ -166,78 +174,117 @@ export function MemberSecurityModal({
                 </p>
               )}
 
-              {!loading && keys && deviceRows.length === 0 && (
-                <p className="member-security-modal-status">
-                  {t('conversations.memberSecurity.noDevices', 'No devices registered for this identity.')}
-                </p>
-              )}
-
-              {!loading && keys && deviceRows.length > 0 && (
+              {!loading && keys && (
                 <>
-                  <label className="member-security-modal-qr-toggle">
-                    <input
-                      type="checkbox"
-                      checked={showQr}
-                      onChange={(e) => setShowQr(e.target.checked)}
-                    />
-                    {t('conversations.memberSecurity.showQr', 'Show QR codes')}
-                  </label>
+                  <Dialog.Description className="confirm-dialog-description member-security-modal-summary">
+                    {t('conversations.memberSecurity.summary', { name: subjectLabel })}
+                  </Dialog.Description>
 
-                  <ul className="member-security-modal-device-list">
-                    {deviceRows.map((row) => (
-                      <li key={row.deviceId} className="member-security-modal-device">
-                        <div className="member-security-modal-device-header">
-                          <span className="member-security-modal-device-name">{row.name}</span>
-                          <span className="member-security-modal-device-id" title={row.deviceId}>
-                            {row.deviceId}
-                          </span>
+                  <AccordionRoot className="member-security-modal-accordion" collapsible defaultValue={[]}>
+                    <AccordionItem className="member-security-modal-accordion-item" value="explainer">
+                      <AccordionItemTrigger className="member-security-modal-accordion-trigger" type="button">
+                        <span>{t('conversations.memberSecurity.accordionTitle')}</span>
+                        <AccordionItemIndicator className="member-security-modal-accordion-indicator">
+                          <Icon name="chevronDown" />
+                        </AccordionItemIndicator>
+                      </AccordionItemTrigger>
+                      <AccordionItemContent className="member-security-modal-accordion-content">
+                        <div className="member-security-modal-education">
+                          <p>{t('conversations.memberSecurity.introP1', { name: subjectLabel })}</p>
+                          <p>{t('conversations.memberSecurity.introP2', { name: subjectLabel })}</p>
+                          <p>{t('conversations.memberSecurity.introP3', { name: subjectLabel })}</p>
+                          <p>{t('conversations.memberSecurity.introP4')}</p>
                         </div>
-                        {row.kind === 'ok' && (
-                          <>
-                            <code className="member-security-modal-fingerprint">
-                              {row.display}
-                            </code>
-                            <div className="member-security-modal-device-actions">
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => copyFingerprint(row.display)}
-                              >
-                                <Icon name="copy" />
-                                {t('common.copy')}
-                              </Button>
+                      </AccordionItemContent>
+                    </AccordionItem>
+                  </AccordionRoot>
+
+                  {deviceRows.length === 0 ? (
+                    <p className="member-security-modal-status">
+                      {t('conversations.memberSecurity.noDevices')}
+                    </p>
+                  ) : (
+                    <>
+                      <h3 className="member-security-modal-subheading">
+                        {t('conversations.memberSecurity.devicesHeading')}
+                      </h3>
+                      <p className="member-security-modal-device-list-blurb">
+                        {t('conversations.memberSecurity.deviceListBlurb', { name: subjectLabel })}
+                      </p>
+
+                      <label className="member-security-modal-qr-toggle">
+                        <input
+                          type="checkbox"
+                          checked={showQr}
+                          onChange={(e) => setShowQr(e.target.checked)}
+                        />
+                        {t('conversations.memberSecurity.showQr')}
+                      </label>
+                      {showQr && (
+                        <p className="member-security-modal-qr-help">
+                          {t('conversations.memberSecurity.qrHelp')}
+                        </p>
+                      )}
+
+                      <ul className="member-security-modal-device-list">
+                        {deviceRows.map((row) => (
+                          <li key={row.deviceId} className="member-security-modal-device">
+                            <div className="member-security-modal-device-header">
+                              <span className="member-security-modal-device-name">
+                                {t('conversations.memberSecurity.deviceOrdinal', { n: row.ordinal })}
+                              </span>
+                              <span className="member-security-modal-device-id-label">
+                                {t('conversations.memberSecurity.deviceIdCaption')}
+                              </span>
+                              <span className="member-security-modal-device-id">
+                                {abbreviateDeviceId(row.deviceId)}
+                              </span>
                             </div>
-                            {showQr && (
-                              <div className="member-security-modal-qr-wrap" aria-hidden={false}>
-                                <QRCodeSVG
-                                  value={row.qrPayload}
-                                  size={128}
-                                  className="member-security-modal-qr"
-                                />
-                              </div>
+                            {row.kind === 'ok' && (
+                              <>
+                                <p className="member-security-modal-code-caption">
+                                  {t('conversations.memberSecurity.codeCaption')}
+                                </p>
+                                <code className="member-security-modal-fingerprint">
+                                  {row.display}
+                                </code>
+                                <div className="member-security-modal-device-actions">
+                                  <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => copyFingerprint(row.display)}
+                                  >
+                                    <Icon name="copy" />
+                                    {t('common.copy')}
+                                  </Button>
+                                </div>
+                                {showQr && (
+                                  <div className="member-security-modal-qr-wrap" aria-hidden={false}>
+                                    <QRCodeSVG
+                                      value={row.qrPayload}
+                                      size={128}
+                                      className="member-security-modal-qr"
+                                    />
+                                  </div>
+                                )}
+                              </>
                             )}
-                          </>
-                        )}
-                        {row.kind === 'noSpk' && (
-                          <p className="member-security-modal-device-unavailable">
-                            {t(
-                              'conversations.memberSecurity.spkUnavailable',
-                              'Safety code unavailable (signed pre-key not exposed for this view).',
+                            {row.kind === 'noSpk' && (
+                              <p className="member-security-modal-device-unavailable">
+                                {t('conversations.memberSecurity.spkUnavailable')}
+                              </p>
                             )}
-                          </p>
-                        )}
-                        {row.kind === 'verifyFailed' && (
-                          <p className="member-security-modal-device-unavailable">
-                            {t(
-                              'conversations.memberSecurity.verifyFailed',
-                              'Safety code could not be verified for this device.',
+                            {row.kind === 'verifyFailed' && (
+                              <p className="member-security-modal-device-unavailable">
+                                {t('conversations.memberSecurity.verifyFailed')}
+                              </p>
                             )}
-                          </p>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
                 </>
               )}
             </div>

@@ -211,7 +211,8 @@ export async function claimPreKeysCtrl(ctx: RouteContext): Promise<Response> {
     return errors.forbidden('Cannot claim pre-keys for this identity.');
   }
 
-  const publicKeys = toIdentityPublicKeys(targetIdentity);
+  const includeDeviceNames = callerIdentity._id.equals(targetIdentity._id);
+  const publicKeys = toIdentityPublicKeys(targetIdentity, { includeDeviceNames });
   if (!publicKeys) {
     return errors.notFound('Identity has not set up E2E encryption.');
   }
