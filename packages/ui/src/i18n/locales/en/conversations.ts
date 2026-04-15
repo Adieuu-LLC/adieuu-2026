@@ -79,35 +79,49 @@ export const conversations = {
     memberSettingsUpdated: 'Member settings updated',
 
     memberSecurity: {
-      link: 'Security',
-      title: 'Security — {{name}}',
+      link: 'Device Signatures',
+      title: 'Device Signatures — {{name}}',
+      titleSelf: 'Your device signatures',
+      toolbarTooltip: 'Open your device signatures for this conversation',
+      toolbarAria: 'Device signatures',
       summary:
-        'Each line below is a safety stamp for one of {{name}}\'s devices. Compare stamps with {{name}} by voice or in person—not only in this chat—so you both read the same text.',
-      accordionTitle: 'What are these for?',
+        'Below are {{name}}\'s device signatures, unique to this conversation. You can use these signatures to help determine if the {{name}}\'s device (or messages) have been tampered with.',
+      summarySelf:
+        'Below are your device signatures for this conversation. Others here can use them to confirm your messages have not been tampered with.',
+      accordionTitle: 'Would you like to know more?',
       introP1:
-        'You are looking at short safety codes—one line per device. Each line is a compact “stamp” that reflects how {{name}}\'s messages are protected on that device in this app. You do not need to know anything about cryptography; you only compare stamps.',
+        'All DM and group conversations in Adieuu are end-to-end encrypted, meaning the messages are encrypted on user devices before they reach Adieuu servers. Each different device (phone, desktop, etc) a user logs in with has its own keys that it encrypts and signs messages with.',
+      introP1Self:
+        'All DM and group conversations in Adieuu are end-to-end encrypted, meaning the messages are encrypted on user devices before they reach Adieuu servers. Each different device (phone, desktop, etc) you use has its own keys to encrypt and sign messages.',
       introP2:
-        'Why bother? If someone tampered with what the app received from the internet, or tried to impersonate {{name}}, your stamp and theirs might not match. Checking together helps you notice that.',
+        'Much like a wax seal on an envelope, different signatures might indicate that someone tampered with {{name}}\'s messages, or tried to impersonate them.',
+      introP2Self:
+        'Much like a wax seal on an envelope, a signature that does not match what others expect might mean someone tampered with your messages, or tried to impersonate you.',
       introP3:
-        'What to do: ask {{name}} to open the same security view on their side. Read the codes to each other outside this chat—on a phone or video call, or in person—so you are not using this conversation alone as proof.',
+        'What to do: ask {{name}} to open their own device signatures in this conversation. Read the signatures to each other (if you want to be really safe, compare them in voice/video, in-person, etc). Note that signatures are also unique to conversation. In a different conversation, you will both have different signatures.',
+      introP3Self:
+        'What to do: when the other person is ready, stay on this screen and read your signatures to each other (if you want to be really safe, compare in voice/video, in-person, etc). Signatures are unique to each conversation—in another chat, you will both see different signatures.',
       introP4:
-        'This is a practical safety check, not a guarantee of identity on its own. It is still one of the best simple steps you can take without being an expert.',
-      devicesHeading: 'Safety codes by device',
+        'If the signatures do not match, it\'s possible that device (or its messages) are compromised.',
+      introP4Self:
+        'If the signatures do not match, it\'s possible that your device is compromised, or your messages are otherwise being tampered with before reaching the others.',
+      devicesHeading: 'Signatures by device',
       deviceListBlurb:
-        'Each block is one device. Agree which block you are comparing (the device id can help), then check that the full line of groups matches exactly what {{name}} sees for that same device in their app.',
+        'Each block below is one device. Agree which block you are comparing (the device id can help), then check that the full signature line matches exactly what {{name}} sees for that same device in their app. These signatures only apply to this conversation.',
+      deviceListBlurbSelf:
+        'Each block below is one of your devices. Agree which block you are comparing (the device id can help), then read your full signature line aloud so the other person can confirm it matches what they see for you in this conversation.',
       deviceOrdinal: 'Device {{n}}',
       deviceIdCaption: 'Device ID',
       loadError: 'Could not load security information.',
-      noDevices: 'No devices are registered for this person yet, so there is nothing to compare.',
-      showQr: 'Show QR codes for the same text',
-      qrHelp:
-        'The QR image is the same code in scannable form—useful if you want to scan it or hold two phones side by side.',
-      codeCaption: 'Safety code (compare the full line)',
+      noDevices: 'No devices are registered for this person yet, so there is nothing to compare (this is unlikely if the issue persists, contact Support).',
+      noDevicesSelf:
+        'No devices are registered for your account yet, so there is nothing to compare (this is unlikely if the issue persists, contact Support).',
+      codeCaption: 'Signature (compare the full line)',
       spkUnavailable:
-        'We cannot show a code for this device from here. Ask them to read their code from their own app, or try again later.',
+        'We cannot show a signature for this device from here. Ask them to read their code from their own app, or try again later.',
       verifyFailed:
         'We could not confirm this device\'s code from here. Be cautious until you can verify another way.',
-      copied: 'Safety code copied',
+      copied: 'Signature copied',
       copyFailed: 'Could not copy to clipboard',
     },
 

@@ -67,6 +67,7 @@ export function ConversationMessageList({
   canManagePins,
   onPinMessage,
   onUnpinMessage,
+  onOpenMemberSecurity,
 }: {
   conversationId: string | undefined;
   activeConversationId: string | null;
@@ -113,6 +114,7 @@ export function ConversationMessageList({
   canManagePins: boolean;
   onPinMessage: (messageId: string) => void;
   onUnpinMessage: (messageId: string) => void;
+  onOpenMemberSecurity?: (identityId: string, displayLabel: string) => void;
 }) {
   const { t: tLocal } = useTranslation();
 
@@ -253,6 +255,7 @@ export function ConversationMessageList({
             canManagePin={canManagePins}
             onPin={() => onPinMessage(msg.id)}
             onUnpin={() => onUnpinMessage(msg.id)}
+            onOpenMemberSecurity={onOpenMemberSecurity}
           />
         </>
       );
@@ -264,6 +267,7 @@ export function ConversationMessageList({
       onRemoveFavorite, fsInfo, messageLayout, memberColorDisplay,
       flashingMessageId, onReply, onLinkClick, onMentionClick,
       pinnedSet, canManagePins, onPinMessage, onUnpinMessage,
+      onOpenMemberSecurity,
     ],
   );
 

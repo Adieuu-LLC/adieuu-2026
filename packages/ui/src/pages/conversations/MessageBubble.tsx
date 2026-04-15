@@ -126,6 +126,7 @@ export const MessageBubble = memo(function MessageBubble({
   canManagePin = false,
   onPin,
   onUnpin,
+  onOpenMemberSecurity,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
@@ -156,6 +157,7 @@ export const MessageBubble = memo(function MessageBubble({
   canManagePin?: boolean;
   onPin?: () => void;
   onUnpin?: () => void;
+  onOpenMemberSecurity?: (identityId: string, displayLabel: string) => void;
 }) {
   const { t } = useTranslation();
   const { block: blockIdentity } = useBlockContext();
@@ -166,6 +168,31 @@ export const MessageBubble = memo(function MessageBubble({
   const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
   const countdown = useExpiryCountdown(message.expiresAt);
+
+  const memberSecurityHoverFooter =
+    onOpenMemberSecurity != null ? (
+      <button
+        type="button"
+        className="device-signatures-link-btn"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpenMemberSecurity(
+            message.fromIdentityId,
+            resolveDisplayName(
+              message.fromIdentityId,
+              participantProfiles,
+              memberSettings,
+              selfId,
+              t,
+            ),
+          );
+        }}
+      >
+        <Icon name="shield" />
+        {t('conversations.memberSecurity.link', 'Device Signatures')}
+      </button>
+    ) : undefined;
 
   const handleBlockConfirm = async () => {
     setBlockLoading(true);
@@ -421,6 +448,7 @@ export const MessageBubble = memo(function MessageBubble({
               <IdentityHoverCard
                 identity={profile}
                 positioning={{ placement: 'right', gutter: 8 }}
+                extraFooter={memberSecurityHoverFooter}
               >
                 <button type="button" className="dm-message-sender" style={senderNameStyle}>
                   {displayName}
@@ -535,6 +563,7 @@ export const MessageBubble = memo(function MessageBubble({
         <IdentityHoverCard
           identity={senderProfile}
           positioning={{ placement: 'right', gutter: 8 }}
+          extraFooter={memberSecurityHoverFooter}
         >
           <button type="button" className="dm-message-sender" style={senderNameStyle}>
             {resolveDisplayName(message.fromIdentityId, participantProfiles, memberSettings)}
@@ -657,6 +686,7 @@ export const MessageBubble = memo(function MessageBubble({
   if (prev.gifAnimateOnHoverOnly !== next.gifAnimateOnHoverOnly) return false;
   if (prev.isPinned !== next.isPinned) return false;
   if (prev.canManagePin !== next.canManagePin) return false;
+  if (prev.onOpenMemberSecurity !== next.onOpenMemberSecurity) return false;
 
   const pm = prev.message;
   const nm = next.message;

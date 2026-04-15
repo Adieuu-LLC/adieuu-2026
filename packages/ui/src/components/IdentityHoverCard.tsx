@@ -22,12 +22,15 @@ import { useBlockContext } from '../hooks/useBlockContext';
 export interface IdentityHoverCardContentProps {
   identity: PublicIdentity;
   extraMenuItems?: ReactNode;
+  /** Optional footer below actions (e.g. conversation-specific links). */
+  extraFooter?: ReactNode;
 }
 
 /** Panel body + report modal; use inside a {@link HoverCard} when the profile is already loaded. */
 export function IdentityHoverCardContent({
   identity,
   extraMenuItems,
+  extraFooter,
 }: IdentityHoverCardContentProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -145,6 +148,10 @@ export function IdentityHoverCardContent({
             </Menu.Root>
           )}
         </div>
+
+        {extraFooter != null && (
+          <div className="identity-hover-card-extra-footer">{extraFooter}</div>
+        )}
       </div>
 
       {!isSelf && (
@@ -166,6 +173,8 @@ export interface IdentityHoverCardProps {
   children: ReactElement;
   /** Optional extra actions rendered inside the ellipsis menu */
   extraMenuItems?: ReactNode;
+  /** Optional footer below primary actions (e.g. contextual links). */
+  extraFooter?: ReactNode;
   /** Positioning configuration forwarded to HoverCard */
   positioning?: {
     placement?:
@@ -186,6 +195,7 @@ export function IdentityHoverCard({
   identity,
   children,
   extraMenuItems,
+  extraFooter,
   positioning = { placement: 'right', gutter: 8 },
   openDelay = 300,
   closeDelay = 200,
@@ -198,7 +208,11 @@ export function IdentityHoverCard({
       openDelay={openDelay}
       closeDelay={closeDelay}
     >
-      <IdentityHoverCardContent identity={identity} extraMenuItems={extraMenuItems} />
+      <IdentityHoverCardContent
+        identity={identity}
+        extraMenuItems={extraMenuItems}
+        extraFooter={extraFooter}
+      />
     </HoverCard>
   );
 }

@@ -1,6 +1,6 @@
 /**
- * Security details for a conversation member: per-device safety fingerprints
- * and optional QR codes. Fetches public keys when opened (authorized for shared chats).
+ * Security details for a conversation member: per-device safety fingerprints.
+ * Fetches public keys when opened (authorized for shared chats).
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -14,7 +14,6 @@ import {
   Dialog,
   Portal,
 } from '@ark-ui/react';
-import { QRCodeSVG } from 'qrcode.react';
 import {
   computeSafetyFingerprintDigestV2,
   formatSafetyFingerprintDisplay,
@@ -30,6 +29,8 @@ export interface MemberSecurityModalProps {
   identityId: string | null;
   /** Display name for the dialog title */
   subjectLabel: string;
+  /** True when viewing the current user's signatures (copy is phrased for "you"). */
+  isSelfSubject?: boolean;
   identityApi: IdentityApi;
 }
 
@@ -39,7 +40,6 @@ type DeviceRow =
       ordinal: number;
       kind: 'ok';
       display: string;
-      qrPayload: string;
     }
   | {
       deviceId: string;
@@ -74,13 +74,11 @@ function buildDeviceRows(keys: IdentityPublicKeys): DeviceRow[] {
         },
       });
       const display = formatSafetyFingerprintDisplay(digest);
-      const qrPayload = display.replace(/\s+/g, '');
       rows.push({
         deviceId: d.deviceId,
         ordinal,
         kind: 'ok',
         display,
-        qrPayload,
       });
     } catch {
       rows.push({ deviceId: d.deviceId, ordinal, kind: 'verifyFailed' });
@@ -94,6 +92,7 @@ export function MemberSecurityModal({
   onOpenChange,
   identityId,
   subjectLabel,
+  isSelfSubject = false,
   identityApi,
 }: MemberSecurityModalProps) {
   const { t } = useTranslation();
@@ -101,13 +100,11 @@ export function MemberSecurityModal({
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [keys, setKeys] = useState<IdentityPublicKeys | null>(null);
-  const [showQr, setShowQr] = useState(false);
 
   useEffect(() => {
     if (!open || !identityId) {
       setKeys(null);
       setFetchError(null);
-      setShowQr(false);
       return;
     }
 
@@ -137,7 +134,7 @@ export function MemberSecurityModal({
     (text: string) => {
       void navigator.clipboard.writeText(text).then(
         () => {
-          toastSuccess(t('conversations.memberSecurity.copied', 'Safety code copied'));
+          toastSuccess(t('conversations.memberSecurity.copied', 'Signature copied'));
         },
         () => {
           toastError(t('conversations.memberSecurity.copyFailed', 'Could not copy to clipboard'));
@@ -159,7 +156,9 @@ export function MemberSecurityModal({
           <Dialog.Content className="confirm-dialog-content member-security-modal">
             <div className="confirm-dialog-header">
               <Dialog.Title className="confirm-dialog-title">
-                {t('conversations.memberSecurity.title', { name: subjectLabel })}
+                {isSelfSubject
+                  ? t('conversations.memberSecurity.titleSelf', 'Your device signatures')
+                  : t('conversations.memberSecurity.title', { name: subjectLabel })}
               </Dialog.Title>
             </div>
 
@@ -177,7 +176,9 @@ export function MemberSecurityModal({
               {!loading && keys && (
                 <>
                   <Dialog.Description className="confirm-dialog-description member-security-modal-summary">
-                    {t('conversations.memberSecurity.summary', { name: subjectLabel })}
+                    {isSelfSubject
+                      ? t('conversations.memberSecurity.summarySelf')
+                      : t('conversations.memberSecurity.summary', { name: subjectLabel })}
                   </Dialog.Description>
 
                   <AccordionRoot className="member-security-modal-accordion" collapsible defaultValue={[]}>
@@ -190,10 +191,26 @@ export function MemberSecurityModal({
                       </AccordionItemTrigger>
                       <AccordionItemContent className="member-security-modal-accordion-content">
                         <div className="member-security-modal-education">
-                          <p>{t('conversations.memberSecurity.introP1', { name: subjectLabel })}</p>
-                          <p>{t('conversations.memberSecurity.introP2', { name: subjectLabel })}</p>
-                          <p>{t('conversations.memberSecurity.introP3', { name: subjectLabel })}</p>
-                          <p>{t('conversations.memberSecurity.introP4')}</p>
+                          <p>
+                            {isSelfSubject
+                              ? t('conversations.memberSecurity.introP1Self')
+                              : t('conversations.memberSecurity.introP1')}
+                          </p>
+                          <p>
+                            {isSelfSubject
+                              ? t('conversations.memberSecurity.introP2Self')
+                              : t('conversations.memberSecurity.introP2', { name: subjectLabel })}
+                          </p>
+                          <p>
+                            {isSelfSubject
+                              ? t('conversations.memberSecurity.introP3Self')
+                              : t('conversations.memberSecurity.introP3', { name: subjectLabel })}
+                          </p>
+                          <p>
+                            {isSelfSubject
+                              ? t('conversations.memberSecurity.introP4Self')
+                              : t('conversations.memberSecurity.introP4')}
+                          </p>
                         </div>
                       </AccordionItemContent>
                     </AccordionItem>
@@ -201,7 +218,9 @@ export function MemberSecurityModal({
 
                   {deviceRows.length === 0 ? (
                     <p className="member-security-modal-status">
-                      {t('conversations.memberSecurity.noDevices')}
+                      {isSelfSubject
+                        ? t('conversations.memberSecurity.noDevicesSelf')
+                        : t('conversations.memberSecurity.noDevices')}
                     </p>
                   ) : (
                     <>
@@ -209,22 +228,10 @@ export function MemberSecurityModal({
                         {t('conversations.memberSecurity.devicesHeading')}
                       </h3>
                       <p className="member-security-modal-device-list-blurb">
-                        {t('conversations.memberSecurity.deviceListBlurb', { name: subjectLabel })}
+                        {isSelfSubject
+                          ? t('conversations.memberSecurity.deviceListBlurbSelf')
+                          : t('conversations.memberSecurity.deviceListBlurb', { name: subjectLabel })}
                       </p>
-
-                      <label className="member-security-modal-qr-toggle">
-                        <input
-                          type="checkbox"
-                          checked={showQr}
-                          onChange={(e) => setShowQr(e.target.checked)}
-                        />
-                        {t('conversations.memberSecurity.showQr')}
-                      </label>
-                      {showQr && (
-                        <p className="member-security-modal-qr-help">
-                          {t('conversations.memberSecurity.qrHelp')}
-                        </p>
-                      )}
 
                       <ul className="member-security-modal-device-list">
                         {deviceRows.map((row) => (
@@ -259,15 +266,6 @@ export function MemberSecurityModal({
                                     {t('common.copy')}
                                   </Button>
                                 </div>
-                                {showQr && (
-                                  <div className="member-security-modal-qr-wrap" aria-hidden={false}>
-                                    <QRCodeSVG
-                                      value={row.qrPayload}
-                                      size={128}
-                                      className="member-security-modal-qr"
-                                    />
-                                  </div>
-                                )}
                               </>
                             )}
                             {row.kind === 'noSpk' && (

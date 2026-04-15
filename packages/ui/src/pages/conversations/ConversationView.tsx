@@ -57,7 +57,9 @@ import {
   getReversedVisibleMessages,
 } from './conversationViewModel';
 import { ConversationPinsMenu } from './ConversationPinsMenu';
+import { MemberSecurityModal } from './MemberSecurityModal';
 import { buildForwardSecrecyUiLabels } from './forwardSecrecyLabels';
+import { Tooltip } from '../../components/Tooltip';
 
 export function ConversationView() {
   const { id } = useParams<{ id: string }>();
@@ -143,6 +145,9 @@ export function ConversationView() {
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [memberSecurityModal, setMemberSecurityModal] = useState<{ id: string; label: string } | null>(
+    null,
+  );
 
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [adminTransferOpen, setAdminTransferOpen] = useState(false);
@@ -196,6 +201,10 @@ export function ConversationView() {
 
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+
+  const openMemberSecurity = useCallback((identityId: string, displayLabel: string) => {
+    setMemberSecurityModal({ id: identityId, label: displayLabel });
+  }, []);
   const [gifVisibility] = useGifPreference(identity?.id ?? '');
   const gifsGloballyDisabled = gifVisibility === 'disabled';
   const [convGifHidden, setConvGifHidden] = useConversationGifHidden(id ?? '');
@@ -583,6 +592,27 @@ export function ConversationView() {
               gifAnimateOnHoverOnly={effectiveGifAnimateOnHover}
             />
           }
+          deviceSignaturesSlot={
+            identity?.id ? (
+              <Tooltip
+                content={t('conversations.memberSecurity.toolbarTooltip', 'Open your device signatures for this conversation')}
+                position="bottom"
+              >
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  className="conversation-toolbar-btn conversation-toolbar-btn--icon-only"
+                  onClick={() => openMemberSecurity(identity.id, t('conversations.you', 'You'))}
+                  aria-label={t('conversations.memberSecurity.toolbarAria', 'Device signatures')}
+                >
+                  <span className="conversation-toolbar-btn-icon" aria-hidden>
+                    <Icon name="key" size="sm" />
+                  </span>
+                </Button>
+              </Tooltip>
+            ) : null
+          }
           showSettings={showSettings}
           onToggleSettings={() => setShowSettings((v) => !v)}
           showMembers={showMembers}
@@ -642,6 +672,7 @@ export function ConversationView() {
               canManagePins={canManagePinsUi}
               onPinMessage={handlePinMessage}
               onUnpinMessage={handleUnpinMessage}
+              onOpenMemberSecurity={openMemberSecurity}
             />
 
             {isDmBlocked && (
@@ -737,11 +768,24 @@ export function ConversationView() {
                   ? handleRevokeInvite
                   : undefined
               }
-              identityApi={api.identity}
+              onOpenMemberSecurity={openMemberSecurity}
             />
           )}
         </div>
       </div>
+
+      <MemberSecurityModal
+        open={memberSecurityModal != null}
+        onOpenChange={(open) => {
+          if (!open) setMemberSecurityModal(null);
+        }}
+        identityId={memberSecurityModal?.id ?? null}
+        subjectLabel={memberSecurityModal?.label ?? ''}
+        isSelfSubject={
+          memberSecurityModal != null && memberSecurityModal.id === identity?.id
+        }
+        identityApi={api.identity}
+      />
 
       <ConversationDialogs
         conversationId={conversation.id}

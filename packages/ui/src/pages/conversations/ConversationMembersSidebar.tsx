@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import type { IdentityApi, PublicGroupInvite, PublicIdentity } from '@adieuu/shared';
+import type { PublicGroupInvite, PublicIdentity } from '@adieuu/shared';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import { Button } from '../../components/Button';
 import { HoverCard } from '../../components/HoverCard';
@@ -10,7 +10,6 @@ import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 import { resolveDisplayName } from './conversationUtils';
 import { MemberEditPanel } from './MemberEditPanel';
-import { MemberSecurityModal } from './MemberSecurityModal';
 
 export function ConversationMembersSidebar({
   participants,
@@ -32,7 +31,7 @@ export function ConversationMembersSidebar({
   pendingInvites,
   pendingInvitesLoading,
   onRevokeInvite,
-  identityApi,
+  onOpenMemberSecurity,
 }: {
   participants: string[];
   participantProfiles: Record<string, PublicIdentity>;
@@ -53,10 +52,9 @@ export function ConversationMembersSidebar({
   pendingInvites?: PublicGroupInvite[];
   pendingInvitesLoading?: boolean;
   onRevokeInvite?: (inviteId: string) => void | Promise<void>;
-  identityApi: IdentityApi;
+  onOpenMemberSecurity: (identityId: string, displayLabel: string) => void;
 }) {
   const { t } = useTranslation();
-  const [securityModal, setSecurityModal] = useState<{ id: string; label: string } | null>(null);
   /** Which member/invite hover card is open (`member:id` | `invite:inviteId`); closed before Security dialog opens. */
   const [memberHoverKey, setMemberHoverKey] = useState<string | null>(null);
 
@@ -201,16 +199,16 @@ export function ConversationMembersSidebar({
                     extraFooter={
                       <button
                         type="button"
-                        className="conversation-member-security-banner-btn"
+                        className="device-signatures-link-btn"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           setMemberHoverKey(null);
-                          setSecurityModal({ id: participantId, label: displayedName });
+                          onOpenMemberSecurity(participantId, displayedName);
                         }}
                       >
                         <Icon name="shield" />
-                        {t('conversations.memberSecurity.link', 'Security')}
+                        {t('conversations.memberSecurity.link', 'Device Signatures')}
                       </button>
                     }
                   />
@@ -312,16 +310,16 @@ export function ConversationMembersSidebar({
                         extraFooter={
                           <button
                             type="button"
-                            className="conversation-member-security-banner-btn"
+                            className="device-signatures-link-btn"
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
                               setMemberHoverKey(null);
-                              setSecurityModal({ id: pid, label: displayedName });
+                              onOpenMemberSecurity(pid, displayedName);
                             }}
                           >
                             <Icon name="shield" />
-                            {t('conversations.memberSecurity.link', 'Security')}
+                            {t('conversations.memberSecurity.link', 'Device Signatures')}
                           </button>
                         }
                       />
@@ -337,16 +335,6 @@ export function ConversationMembersSidebar({
           </div>
         </div>
       )}
-
-      <MemberSecurityModal
-        open={securityModal != null}
-        onOpenChange={(open) => {
-          if (!open) setSecurityModal(null);
-        }}
-        identityId={securityModal?.id ?? null}
-        subjectLabel={securityModal?.label ?? ''}
-        identityApi={identityApi}
-      />
     </div>
   );
 }
