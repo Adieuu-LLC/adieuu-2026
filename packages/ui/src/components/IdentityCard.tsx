@@ -7,7 +7,7 @@
  * with the full profile page and hover cards.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import type { PublicIdentity, FriendshipStatus } from '@adieuu/shared';
@@ -29,6 +29,8 @@ export interface IdentityCardProps {
   selfIdentityId?: string;
   /** Additional CSS class name */
   className?: string;
+  /** Optional footer below actions (e.g. contextual links); not shown in compact listings by default */
+  extraFooter?: ReactNode;
 }
 
 export function IdentityCard({
@@ -39,6 +41,7 @@ export function IdentityCard({
   onGetFriendshipStatus,
   selfIdentityId,
   className = '',
+  extraFooter,
 }: IdentityCardProps) {
   const { t } = useTranslation();
   const [friendStatus, setFriendStatus] = useState<FriendshipStatus>('none');
@@ -140,6 +143,10 @@ export function IdentityCard({
             </Button>
           )}
         </div>
+      )}
+
+      {extraFooter != null && (
+        <div className="identity-card-extra-footer">{extraFooter}</div>
       )}
     </div>
   );

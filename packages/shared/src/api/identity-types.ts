@@ -2,6 +2,8 @@
  * Identity and E2E types.
  */
 
+import type { PublicSignedPreKey } from './pre-keys-types';
+
 /**
  * Crypto profile type for E2E encryption.
  */
@@ -79,6 +81,8 @@ export interface PublicDevice {
   kemPublicKey?: string;
   registeredAt?: string;
   lastActiveAt?: string;
+  /** Active signed pre-key for handshakes; present when GET /keys is authorized. */
+  signedPreKey?: PublicSignedPreKey | null;
 }
 
 /**

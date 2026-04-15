@@ -77,7 +77,7 @@ import {
   faFire as fadFire, faUserMinus as fadUserMinus,
   faBoxArchive as fadBoxArchive, faStar as fadStar,
   faFilter as fadFilter, faArrowDownAZ as fadArrowDownAZ,
-} from '@adieuu-llc/pro-duotone-svg-icons';
+} from '@adieuu-llc/fa-pro-duotone-svg-icons';
 
 // ---------------------------------------------------------------------------
 // DuoTone Thin

@@ -78,6 +78,21 @@ export const conversations = {
     colorDisplayNameBubble: 'Name + message tint',
     memberSettingsUpdated: 'Member settings updated',
 
+    memberSecurity: {
+      link: 'Security',
+      title: 'Security — {{name}}',
+      intro:
+        'Compare these device codes with your contact out-of-band to detect tampering. Codes are derived from identity and device keys shown only in shared conversations.',
+      loadError: 'Could not load security information.',
+      noDevices: 'No devices registered for this identity.',
+      showQr: 'Show QR codes',
+      spkUnavailable:
+        'Safety code unavailable (signed pre-key not exposed for this view).',
+      verifyFailed: 'Safety code could not be verified for this device.',
+      copied: 'Fingerprint copied',
+      copyFailed: 'Could not copy to clipboard',
+    },
+
     settingsFs: 'Forward Secrecy',
     settingsFsHint: 'Default messages in this conversation to use forward secrecy. Messages without FS remain end-to-end encrypted but persist in history.',
     settingsRenameTitle: 'Conversation topic or name',

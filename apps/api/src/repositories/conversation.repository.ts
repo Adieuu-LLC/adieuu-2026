@@ -22,6 +22,11 @@ export interface IConversationRepository {
     participantA: ObjectId,
     participantB: ObjectId
   ): Promise<ConversationDocument | null>;
+  /** Any DM or group where both identities are participants (for key visibility). */
+  findAnyWithBothParticipants(
+    identityA: ObjectId,
+    identityB: ObjectId
+  ): Promise<ConversationDocument | null>;
   findForIdentity(
     identityId: ObjectId,
     limit: number,
@@ -91,6 +96,19 @@ export class ConversationRepository
         sort: { lastMessageAt: -1, createdAt: -1, _id: -1 },
       }
     );
+    return doc as ConversationDocument | null;
+  }
+
+  /**
+   * Returns any conversation (DM or group) that includes both identities.
+   */
+  async findAnyWithBothParticipants(
+    identityA: ObjectId,
+    identityB: ObjectId
+  ): Promise<ConversationDocument | null> {
+    const doc = await this.collection.findOne({
+      participants: { $all: [identityA, identityB] },
+    });
     return doc as ConversationDocument | null;
   }
 

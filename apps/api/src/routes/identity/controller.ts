@@ -46,6 +46,10 @@ import {
   type CryptoProfile,
   type IdentityDevice,
 } from '../../models/identity';
+import {
+  attachActiveSignedPreKeysToPublicKeys,
+  canViewerAccessTargetIdentityKeys,
+} from '../../services/identity-keys-access.service';
 import { toPublicIdentitySession } from '../../models/session';
 import { applyPrivacyFilter, areFriends } from './profile.controller';
 import { getClientIp } from '../auth/controller';
@@ -601,6 +605,16 @@ export async function getIdentityKeysCtrl(ctx: RouteContext): Promise<Response> 
     return errors.badRequest('Invalid identity ID.');
   }
 
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const viewerIdentity = await getIdentityFromSession(identitySessionId);
+  if (!viewerIdentity) {
+    return ctx.errors.unauthorized();
+  }
+
   const identityRepo = getIdentityRepository();
   const identity = await identityRepo.findByIdentityId(sanitized.value);
   
@@ -608,18 +622,28 @@ export async function getIdentityKeysCtrl(ctx: RouteContext): Promise<Response> 
     return errors.notFound('Identity not found.');
   }
 
+  const allowed = await canViewerAccessTargetIdentityKeys(
+    viewerIdentity._id,
+    identity._id
+  );
+  if (!allowed) {
+    return errors.forbidden('Cannot access this identity\'s keys.');
+  }
+
   const publicKeys = toIdentityPublicKeys(identity);
   if (!publicKeys) {
     return errors.notFound('Identity has not set up E2E encryption.');
   }
 
+  const withSpk = await attachActiveSignedPreKeysToPublicKeys(identity, publicKeys);
+
   // Debug logging for public keys retrieval
   if (process.env.LOGGING_INCLUDE_PUBLIC_KEY_SIGNS === 'true') {
     console.log('[Get Keys] Identity ID:', identity._id.toHexString());
-    console.log('[Get Keys] Signing public key:', publicKeys.signingPublicKey);
+    console.log('[Get Keys] Signing public key:', withSpk.signingPublicKey);
   }
 
-  return success(publicKeys);
+  return success(withSpk);
 }
 
 /**

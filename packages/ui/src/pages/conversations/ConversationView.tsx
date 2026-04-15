@@ -737,6 +737,7 @@ export function ConversationView() {
                   ? handleRevokeInvite
                   : undefined
               }
+              identityApi={api.identity}
             />
           )}
         </div>

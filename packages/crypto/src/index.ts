@@ -201,6 +201,15 @@ export {
   SPK_SIGNATURE_DOMAIN,
 } from './prekeys';
 
+// Safety fingerprint (Stage A transparency)
+export {
+  ADIEUU_SAFETY_FINGERPRINT_V2,
+  encodeSafetyFingerprintPreimageV2,
+  computeSafetyFingerprintDigestV2,
+  formatSafetyFingerprintDisplay,
+  type SafetyFingerprintFromApiInput,
+} from './safety/fingerprint';
+
 // DM (Direct Messaging)
 export {
   deriveConversationId,

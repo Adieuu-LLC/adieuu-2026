@@ -1,12 +1,16 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import type { PublicGroupInvite, PublicIdentity } from '@adieuu/shared';
+import type { IdentityApi, PublicGroupInvite, PublicIdentity } from '@adieuu/shared';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import { Button } from '../../components/Button';
+import { HoverCard } from '../../components/HoverCard';
+import { IdentityCard } from '../../components/IdentityCard';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 import { resolveDisplayName } from './conversationUtils';
 import { MemberEditPanel } from './MemberEditPanel';
+import { MemberSecurityModal } from './MemberSecurityModal';
 
 export function ConversationMembersSidebar({
   participants,
@@ -28,6 +32,7 @@ export function ConversationMembersSidebar({
   pendingInvites,
   pendingInvitesLoading,
   onRevokeInvite,
+  identityApi,
 }: {
   participants: string[];
   participantProfiles: Record<string, PublicIdentity>;
@@ -48,8 +53,10 @@ export function ConversationMembersSidebar({
   pendingInvites?: PublicGroupInvite[];
   pendingInvitesLoading?: boolean;
   onRevokeInvite?: (inviteId: string) => void | Promise<void>;
+  identityApi: IdentityApi;
 }) {
   const { t } = useTranslation();
+  const [securityModal, setSecurityModal] = useState<{ id: string; label: string } | null>(null);
 
   return (
     <div className="conversation-members-sidebar">
@@ -98,8 +105,8 @@ export function ConversationMembersSidebar({
           const isMemberAdmin = admins?.includes(participantId);
           const isEditing = editingMemberId === participantId;
 
-          return (
-            <div key={participantId} className="conversation-member-item">
+          const rowInner = (
+            <>
               <Link to={`/identity/${participantId}`} className="conversation-member-item-link">
                 <div className="conversation-member-avatar">
                   {profile?.avatarUrl ? (
@@ -169,6 +176,40 @@ export function ConversationMembersSidebar({
                   </>
                 )}
               </div>
+            </>
+          );
+
+          return (
+            <div key={participantId} className="conversation-member-item-wrap">
+              {profile ? (
+                <HoverCard
+                  className="conversation-member-hover-card-content"
+                  positioning={{ placement: 'left-start', gutter: 10 }}
+                  trigger={<div className="conversation-member-item">{rowInner}</div>}
+                >
+                  <IdentityCard
+                    identity={profile}
+                    showActions
+                    selfIdentityId={selfId}
+                    extraFooter={
+                      <button
+                        type="button"
+                        className="conversation-member-security-banner-btn"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSecurityModal({ id: participantId, label: displayedName });
+                        }}
+                      >
+                        <Icon name="shield" />
+                        {t('conversations.memberSecurity.link', 'Security')}
+                      </button>
+                    }
+                  />
+                </HoverCard>
+              ) : (
+                <div className="conversation-member-item">{rowInner}</div>
+              )}
               {isEditing && (
                 <MemberEditPanel
                   initialNickname={customisation?.nickname ?? ''}
@@ -201,8 +242,8 @@ export function ConversationMembersSidebar({
               const displayedName = profile?.displayName ?? profile?.username ?? pid.slice(0, 8);
               const initial = displayedName.charAt(0).toUpperCase();
 
-              return (
-                <div key={inv.id} className="conversation-member-item conversation-member-item--invited">
+              const invitedRowInner = (
+                <>
                   <Link to={`/identity/${pid}`} className="conversation-member-item-link">
                     <div className="conversation-member-avatar">
                       {profile?.avatarUrl ? (
@@ -236,12 +277,62 @@ export function ConversationMembersSidebar({
                       </Tooltip>
                     </div>
                   )}
+                </>
+              );
+
+              return (
+                <div key={inv.id} className="conversation-member-item-wrap">
+                  {profile ? (
+                    <HoverCard
+                      className="conversation-member-hover-card-content"
+                      positioning={{ placement: 'left-start', gutter: 10 }}
+                      trigger={
+                        <div className="conversation-member-item conversation-member-item--invited">
+                          {invitedRowInner}
+                        </div>
+                      }
+                    >
+                      <IdentityCard
+                        identity={profile}
+                        showActions
+                        selfIdentityId={selfId}
+                        extraFooter={
+                          <button
+                            type="button"
+                            className="conversation-member-security-banner-btn"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setSecurityModal({ id: pid, label: displayedName });
+                            }}
+                          >
+                            <Icon name="shield" />
+                            {t('conversations.memberSecurity.link', 'Security')}
+                          </button>
+                        }
+                      />
+                    </HoverCard>
+                  ) : (
+                    <div className="conversation-member-item conversation-member-item--invited">
+                      {invitedRowInner}
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
         </div>
       )}
+
+      <MemberSecurityModal
+        open={securityModal != null}
+        onOpenChange={(open) => {
+          if (!open) setSecurityModal(null);
+        }}
+        identityId={securityModal?.id ?? null}
+        subjectLabel={securityModal?.label ?? ''}
+        identityApi={identityApi}
+      />
     </div>
   );
 }

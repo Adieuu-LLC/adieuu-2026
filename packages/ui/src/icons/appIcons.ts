@@ -13,6 +13,7 @@ export const APP_ICON_NAMES = {
   settings: 'gear',
   info: 'circle-info',
   download: 'download',
+  copy: 'copy',
   logout: 'right-from-bracket',
   shield: 'shield-check',
   key: 'key',

@@ -26,6 +26,7 @@ import { sanitizeString } from '../../utils/sanitize';
 import { z } from '@adieuu/shared/schemas';
 import { ObjectId } from 'mongodb';
 import { verifySignedPreKey, fromBase64, type SignedPreKeyPublic } from '@adieuu/crypto';
+import { canViewerAccessTargetIdentityKeys } from '../../services/identity-keys-access.service';
 
 // ============================================================================
 // Zod Schemas
@@ -174,7 +175,7 @@ export async function uploadPreKeysCtrl(ctx: RouteContext): Promise<Response> {
  * POST /identity/:id/pre-keys/claim
  *
  * Claim pre-keys for all (or specified) devices of an identity.
- * Authenticated, any identity can claim (needed for sending DMs).
+ * Authenticated; caller must be self, friend, or share a conversation with target.
  *
  * Atomically consumes one OTPK per device. Returns signed pre-key
  * as fallback if no OTPKs are available.
@@ -200,6 +201,14 @@ export async function claimPreKeysCtrl(ctx: RouteContext): Promise<Response> {
   const targetIdentity = await identityRepo.findByIdentityId(sanitized.value);
   if (!targetIdentity) {
     return errors.notFound('Identity not found.');
+  }
+
+  const canAccess = await canViewerAccessTargetIdentityKeys(
+    callerIdentity._id,
+    targetIdentity._id
+  );
+  if (!canAccess) {
+    return errors.forbidden('Cannot claim pre-keys for this identity.');
   }
 
   const publicKeys = toIdentityPublicKeys(targetIdentity);

@@ -8,6 +8,7 @@
  */
 
 import type { BaseDocument } from './base';
+import type { PublicSignedPreKey } from './pre-key';
 
 /**
  * Visibility level for profile fields.
@@ -225,6 +226,7 @@ export interface PublicDevice {
   name: string;
   ecdhPublicKey: string;
   kemPublicKey?: string;
+  signedPreKey?: PublicSignedPreKey | null;
 }
 
 /**

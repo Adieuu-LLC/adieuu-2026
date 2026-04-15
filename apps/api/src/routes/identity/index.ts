@@ -309,12 +309,15 @@ router.post('/identity/:id/e2e/initialize', async (ctx) => {
 /**
  * GET /identity/:id/keys - Get public keys for an identity
  *
- * Returns the public signing key and device keys for E2E encryption.
- * This is a public endpoint - anyone can fetch keys to encrypt messages.
+ * Returns signing key, device keys, and active signed pre-keys per device (when present).
+ * Requires an identity session; caller must be self, friend, or share a conversation
+ * with the target (blocked pairs denied).
  *
  * @route GET /api/identity/:id/keys
  *
  * @returns 200 OK with public keys
+ * @returns 401 Unauthorized if not authenticated
+ * @returns 403 Forbidden if not allowed to view target keys
  * @returns 404 Not Found if identity has no E2E keys
  */
 router.get('/identity/:id/keys', async (ctx) => {
