@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { createApiClient } from '@adieuu/shared';
+import { createApiClient, type IdentityPublicKeys } from '@adieuu/shared';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
@@ -205,6 +205,12 @@ export function ConversationView() {
   const openMemberSecurity = useCallback((identityId: string, displayLabel: string) => {
     setMemberSecurityModal({ id: identityId, label: displayLabel });
   }, []);
+
+  const [peerPublicKeysById, setPeerPublicKeysById] = useState<Record<string, IdentityPublicKeys>>({});
+  const [verificationRevision, setVerificationRevision] = useState(0);
+  const bumpVerificationRevision = useCallback(() => {
+    setVerificationRevision((n) => n + 1);
+  }, []);
   const [gifVisibility] = useGifPreference(identity?.id ?? '');
   const gifsGloballyDisabled = gifVisibility === 'disabled';
   const [convGifHidden, setConvGifHidden] = useConversationGifHidden(id ?? '');
@@ -243,6 +249,26 @@ export function ConversationView() {
   }, [id, renameValue, renaming, renameGroup]);
 
   const conversation = conversations.find((c) => c.id === id);
+
+  useEffect(() => {
+    setPeerPublicKeysById({});
+  }, [conversation?.id]);
+
+  useEffect(() => {
+    if (!conversation?.id) return;
+    let cancelled = false;
+    const participants = conversation.participants;
+    void Promise.all(
+      participants.map(async (pid) => {
+        const res = await api.identity.getPublicKeys(pid);
+        if (cancelled || !res.success || !res.data) return;
+        setPeerPublicKeysById((prev) => ({ ...prev, [pid]: res.data! }));
+      }),
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [conversation?.id, conversation?.participants.join(','), api.identity]);
 
   const {
     pendingInvites,
@@ -673,6 +699,8 @@ export function ConversationView() {
               onPinMessage={handlePinMessage}
               onUnpinMessage={handleUnpinMessage}
               onOpenMemberSecurity={openMemberSecurity}
+              peerPublicKeysById={peerPublicKeysById}
+              verificationRevision={verificationRevision}
             />
 
             {isDmBlocked && (
@@ -779,12 +807,14 @@ export function ConversationView() {
         onOpenChange={(open) => {
           if (!open) setMemberSecurityModal(null);
         }}
+        conversationId={conversation?.id ?? null}
         identityId={memberSecurityModal?.id ?? null}
         subjectLabel={memberSecurityModal?.label ?? ''}
         isSelfSubject={
           memberSecurityModal != null && memberSecurityModal.id === identity?.id
         }
         identityApi={api.identity}
+        onVerificationChange={bumpVerificationRevision}
       />
 
       <ConversationDialogs

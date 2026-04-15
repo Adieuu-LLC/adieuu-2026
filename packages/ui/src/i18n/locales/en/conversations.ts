@@ -123,6 +123,12 @@ export const conversations = {
         'We could not confirm this device\'s code from here. Be cautious until you can verify another way.',
       copied: 'Signature copied',
       copyFailed: 'Could not copy to clipboard',
+      markVerified: 'Verified',
+      verifyPersistFailed: 'Could not update verification',
+      fingerprintMatchIndicator:
+        'This device matches your verified signature for this conversation.',
+      fingerprintMismatchIndicator:
+        'Verified signature no longer matches this device. Keys may have changed.',
     },
 
     settingsFs: 'Forward Secrecy',

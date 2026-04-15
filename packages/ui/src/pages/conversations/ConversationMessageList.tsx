@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { DisplayMessage } from '../../hooks/useConversations';
 import type { GroupedReaction } from '../../hooks/useReactions';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
-import type { PublicIdentity } from '@adieuu/shared';
+import type { IdentityPublicKeys, PublicIdentity } from '@adieuu/shared';
 import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
@@ -68,6 +68,8 @@ export function ConversationMessageList({
   onPinMessage,
   onUnpinMessage,
   onOpenMemberSecurity,
+  peerPublicKeysById,
+  verificationRevision,
 }: {
   conversationId: string | undefined;
   activeConversationId: string | null;
@@ -115,6 +117,8 @@ export function ConversationMessageList({
   onPinMessage: (messageId: string) => void;
   onUnpinMessage: (messageId: string) => void;
   onOpenMemberSecurity?: (identityId: string, displayLabel: string) => void;
+  peerPublicKeysById: Record<string, IdentityPublicKeys>;
+  verificationRevision: number;
 }) {
   const { t: tLocal } = useTranslation();
 
@@ -256,6 +260,8 @@ export function ConversationMessageList({
             onPin={() => onPinMessage(msg.id)}
             onUnpin={() => onUnpinMessage(msg.id)}
             onOpenMemberSecurity={onOpenMemberSecurity}
+            peerPublicKeysById={peerPublicKeysById}
+            verificationRevision={verificationRevision}
           />
         </>
       );
@@ -268,6 +274,8 @@ export function ConversationMessageList({
       flashingMessageId, onReply, onLinkClick, onMentionClick,
       pinnedSet, canManagePins, onPinMessage, onUnpinMessage,
       onOpenMemberSecurity,
+      peerPublicKeysById,
+      verificationRevision,
     ],
   );
 

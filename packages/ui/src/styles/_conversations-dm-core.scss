@@ -42,6 +42,28 @@
   font-size: 0.75em;
 }
 
+.dm-message-signature-trust {
+  display: inline-flex;
+  align-items: center;
+  margin-left: var(--spacing-xs);
+  vertical-align: middle;
+
+  &--ok {
+    color: var(--color-accent-primary);
+    opacity: 0.95;
+  }
+
+  &--bad {
+    color: var(--color-danger);
+    opacity: 1;
+  }
+
+  svg {
+    width: 0.85em;
+    height: 0.85em;
+  }
+}
+
 .conversation-messages {
   flex: 1;
   min-height: 0;

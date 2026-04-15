@@ -96,6 +96,11 @@ export interface MessagePayload {
   mentions?: MentionEntity[];
   /** GIF / sticker attachments (URL references, not E2E blobs) */
   gifAttachments?: GifAttachment[];
+  /**
+   * Sending client's device id (E2E only). Lets recipients attribute messages to a
+   * device for safety fingerprint verification UI.
+   */
+  senderDeviceId?: string;
 }
 
 /**
@@ -112,6 +117,8 @@ export interface ParsedMessagePayload {
   gifAttachments: GifAttachment[];
   /** Whether this was parsed from a structured payload (true) or legacy string (false) */
   isStructured: boolean;
+  /** Present when the sender's client embedded their device id (v1+ JSON payloads). */
+  senderDeviceId?: string;
 }
 
 /**
@@ -120,15 +127,17 @@ export interface ParsedMessagePayload {
  * For pure text messages with no attachments, returns the raw text string
  * (legacy format) to save bytes and maintain interop with older clients.
  *
- * For messages with attachments (or explicitly structured payloads),
+ * For messages with attachments, senderDeviceId, or other structured fields,
  * returns JSON.
  */
 export function serializePayload(payload: MessagePayload): string {
-  if (
-    !payload.attachments?.length &&
-    !payload.mentions?.length &&
-    !payload.gifAttachments?.length
-  ) {
+  const needsJson =
+    !!payload.senderDeviceId ||
+    !!payload.attachments?.length ||
+    !!payload.mentions?.length ||
+    !!payload.gifAttachments?.length;
+
+  if (!needsJson) {
     return payload.text ?? '';
   }
 
@@ -204,12 +213,18 @@ export function parsePayload(plaintext: string): ParsedMessagePayload {
     const rawGifs = Array.isArray(payload.gifAttachments) ? payload.gifAttachments : [];
     const validGifs = rawGifs.filter(isValidGifAttachment);
 
+    const senderDeviceId =
+      typeof payload.senderDeviceId === 'string' && payload.senderDeviceId.length > 0
+        ? payload.senderDeviceId
+        : undefined;
+
     return {
       text: typeof payload.text === 'string' ? payload.text : '',
       attachments: validAttachments,
       mentions: validMentions,
       gifAttachments: validGifs,
       isStructured: true,
+      ...(senderDeviceId ? { senderDeviceId } : {}),
     };
   } catch {
     return { text: plaintext, attachments: [], mentions: [], gifAttachments: [], isStructured: false };

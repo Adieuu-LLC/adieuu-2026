@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Popover, Portal } from '@ark-ui/react';
 import { convertShortcodes, SHORTCODE_ENTRIES } from '../../utils/emojiShortcodes';
 import { serializePayload, mediaPayload, gifPayload, type MediaAttachment, type MentionEntity, type GifAttachment } from '../../services/messagePayload';
+import { getOrCreateDeviceId } from '../../services/deviceInfo';
 import { uploadMediaFile, type MediaUploadResult } from '../../hooks/useConversationMediaUpload';
 import { stripExifMetadata } from '../../utils/imageProcessing';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
@@ -339,6 +340,7 @@ export function MessageComposer({
       const payload = gifPayload(convertedText, currentPendingGif);
       const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
       if (mentions.length > 0) payload.mentions = mentions;
+      payload.senderDeviceId = getOrCreateDeviceId();
       const plaintext = serializePayload(payload);
 
       const mentionedIdentityIds = mentions.length > 0
@@ -451,6 +453,7 @@ export function MessageComposer({
       const mediaText = convertShortcodes(text) || undefined;
       const payload = mediaPayload(mediaText, mediaAttachments);
       if (currentMentions.length > 0) payload.mentions = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
+      payload.senderDeviceId = getOrCreateDeviceId();
       const plaintext = serializePayload(payload);
       const e2eMediaIds = uploadedMedia.map((m) => m.e2eMediaId);
 
@@ -481,9 +484,12 @@ export function MessageComposer({
       const mentionedIdentityIds = mentions.length > 0
         ? [...new Set(mentions.map((m) => m.id))]
         : undefined;
-      const plaintext = mentions.length > 0
-        ? serializePayload({ version: 1, text: convertedText, mentions })
-        : convertedText;
+      const senderDeviceId = getOrCreateDeviceId();
+      const plaintext = serializePayload(
+        mentions.length > 0
+          ? { version: 1, text: convertedText, mentions, senderDeviceId }
+          : { version: 1, text: convertedText, senderDeviceId },
+      );
       const sent = await onSend(plaintext, {
         useForwardSecrecy: forwardSecrecy?.enabled,
         ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),

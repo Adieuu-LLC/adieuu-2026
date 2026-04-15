@@ -14,24 +14,31 @@ import {
   Dialog,
   Portal,
 } from '@ark-ui/react';
-import {
-  computeSafetyFingerprintDigestV2,
-  formatSafetyFingerprintDisplay,
-} from '@adieuu/crypto';
+import { Switch } from '@ark-ui/react';
 import type { IdentityApi, IdentityPublicKeys } from '@adieuu/shared';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
 import { useToast } from '../../components/Toast';
+import {
+  clearDeviceSignatureVerification,
+  getDeviceSignatureVerification,
+  setDeviceSignatureVerification,
+} from '../../services/deviceSignatureVerificationStorage';
+import { getSafetyFingerprintDisplayForDevice } from '../../services/safetyFingerprintDisplay';
 
 export interface MemberSecurityModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Conversation scope for stored verification state */
+  conversationId: string | null;
   identityId: string | null;
   /** Display name for the dialog title */
   subjectLabel: string;
   /** True when viewing the current user's signatures (copy is phrased for "you"). */
   isSelfSubject?: boolean;
   identityApi: IdentityApi;
+  /** Called after verification is toggled so message rows can re-evaluate */
+  onVerificationChange?: () => void;
 }
 
 type DeviceRow =
@@ -61,26 +68,15 @@ function buildDeviceRows(keys: IdentityPublicKeys): DeviceRow[] {
       rows.push({ deviceId: d.deviceId, ordinal, kind: 'noSpk' });
       return;
     }
-    try {
-      const digest = computeSafetyFingerprintDigestV2({
-        profile: keys.preferredCryptoProfile,
-        signingPublicKeyB64: keys.signingPublicKey,
-        deviceId: d.deviceId,
-        signedPreKey: {
-          keyId: d.signedPreKey.keyId,
-          ecdhPublicKey: d.signedPreKey.ecdhPublicKey,
-          kemPublicKey: d.signedPreKey.kemPublicKey,
-          signature: d.signedPreKey.signature,
-        },
-      });
-      const display = formatSafetyFingerprintDisplay(digest);
+    const display = getSafetyFingerprintDisplayForDevice(keys, d.deviceId);
+    if (display != null) {
       rows.push({
         deviceId: d.deviceId,
         ordinal,
         kind: 'ok',
         display,
       });
-    } catch {
+    } else {
       rows.push({ deviceId: d.deviceId, ordinal, kind: 'verifyFailed' });
     }
   });
@@ -90,16 +86,20 @@ function buildDeviceRows(keys: IdentityPublicKeys): DeviceRow[] {
 export function MemberSecurityModal({
   open,
   onOpenChange,
+  conversationId,
   identityId,
   subjectLabel,
   isSelfSubject = false,
   identityApi,
+  onVerificationChange,
 }: MemberSecurityModalProps) {
   const { t } = useTranslation();
   const { success: toastSuccess, error: toastError } = useToast();
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [keys, setKeys] = useState<IdentityPublicKeys | null>(null);
+  const [verifiedDeviceIds, setVerifiedDeviceIds] = useState<Record<string, boolean>>({});
+  const [verificationLoading, setVerificationLoading] = useState(false);
 
   useEffect(() => {
     if (!open || !identityId) {
@@ -129,6 +129,53 @@ export function MemberSecurityModal({
   }, [open, identityId, identityApi, t]);
 
   const deviceRows = useMemo(() => (keys ? buildDeviceRows(keys) : []), [keys]);
+
+  useEffect(() => {
+    if (!open || !conversationId || !identityId || !keys) {
+      setVerifiedDeviceIds({});
+      setVerificationLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setVerificationLoading(true);
+    const okDevices = buildDeviceRows(keys)
+      .filter((r): r is { deviceId: string; ordinal: number; kind: 'ok'; display: string } => r.kind === 'ok')
+      .map((r) => r.deviceId);
+
+    void Promise.all(
+      okDevices.map(async (deviceId) => {
+        const rec = await getDeviceSignatureVerification(conversationId, identityId, deviceId);
+        return [deviceId, !!rec] as const;
+      }),
+    ).then((pairs) => {
+      if (cancelled) return;
+      setVerifiedDeviceIds(Object.fromEntries(pairs));
+      setVerificationLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, conversationId, identityId, keys]);
+
+  const handleVerifiedChange = useCallback(
+    async (deviceId: string, display: string, checked: boolean) => {
+      if (!conversationId || !identityId) return;
+      try {
+        if (checked) {
+          await setDeviceSignatureVerification(conversationId, identityId, deviceId, display);
+        } else {
+          await clearDeviceSignatureVerification(conversationId, identityId, deviceId);
+        }
+        setVerifiedDeviceIds((prev) => ({ ...prev, [deviceId]: checked }));
+        onVerificationChange?.();
+      } catch {
+        toastError(t('conversations.memberSecurity.verifyPersistFailed', 'Could not update verification'));
+      }
+    },
+    [conversationId, identityId, onVerificationChange, toastError, t],
+  );
 
   const copyFingerprint = useCallback(
     (text: string) => {
@@ -266,6 +313,26 @@ export function MemberSecurityModal({
                                     {t('common.copy')}
                                   </Button>
                                 </div>
+                                {conversationId && (
+                                  <div className="member-security-modal-verify-row">
+                                    <Switch.Root
+                                      className="member-security-modal-verify-switch"
+                                      checked={!!verifiedDeviceIds[row.deviceId]}
+                                      disabled={verificationLoading}
+                                      onCheckedChange={(details) => {
+                                        void handleVerifiedChange(row.deviceId, row.display, details.checked);
+                                      }}
+                                    >
+                                      <Switch.Label className="member-security-modal-verify-label">
+                                        {t('conversations.memberSecurity.markVerified', 'Verified')}
+                                      </Switch.Label>
+                                      <Switch.Control className="member-security-modal-verify-control">
+                                        <Switch.Thumb className="member-security-modal-verify-thumb" />
+                                      </Switch.Control>
+                                      <Switch.HiddenInput />
+                                    </Switch.Root>
+                                  </div>
+                                )}
                               </>
                             )}
                             {row.kind === 'noSpk' && (

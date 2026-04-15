@@ -17,6 +17,16 @@ describe('serializePayload', () => {
     expect(result).toBe('hello');
   });
 
+  test('senderDeviceId forces JSON for plain text', () => {
+    const payload: MessagePayload = { version: 1, text: 'hello', senderDeviceId: 'device-abc' };
+    const result = serializePayload(payload);
+    expect(result.startsWith('{')).toBe(true);
+    const parsed = parsePayload(result);
+    expect(parsed.text).toBe('hello');
+    expect(parsed.senderDeviceId).toBe('device-abc');
+    expect(parsed.isStructured).toBe(true);
+  });
+
   test('empty text without mentions returns empty string', () => {
     const result = serializePayload({ version: 1 });
     expect(result).toBe('');

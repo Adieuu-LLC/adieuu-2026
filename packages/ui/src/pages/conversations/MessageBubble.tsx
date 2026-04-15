@@ -4,9 +4,11 @@ import { Menu, Portal, Popover } from '@ark-ui/react';
 import type { DisplayMessage } from '../../hooks/useConversations';
 import type { GroupedReaction } from '../../hooks/useReactions';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
-import type { PublicIdentity } from '@adieuu/shared';
+import type { IdentityPublicKeys, PublicIdentity } from '@adieuu/shared';
 import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
+import { getDeviceSignatureVerification } from '../../services/deviceSignatureVerificationStorage';
 import { parsePayload } from '../../services/messagePayload';
+import { getSafetyFingerprintDisplayForDevice } from '../../services/safetyFingerprintDisplay';
 import { renderFormattedMessage, injectMentionMarkers, type MentionRenderContext } from '../../utils/markdownParser';
 import { IdentityHoverCard } from '../../components/IdentityHoverCard';
 import { useBlockContext } from '../../hooks/useBlockContext';
@@ -127,6 +129,8 @@ export const MessageBubble = memo(function MessageBubble({
   onPin,
   onUnpin,
   onOpenMemberSecurity,
+  peerPublicKeysById = {},
+  verificationRevision = 0,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
@@ -158,6 +162,8 @@ export const MessageBubble = memo(function MessageBubble({
   onPin?: () => void;
   onUnpin?: () => void;
   onOpenMemberSecurity?: (identityId: string, displayLabel: string) => void;
+  peerPublicKeysById?: Record<string, IdentityPublicKeys>;
+  verificationRevision?: number;
 }) {
   const { t } = useTranslation();
   const { block: blockIdentity } = useBlockContext();
@@ -167,6 +173,7 @@ export const MessageBubble = memo(function MessageBubble({
   const [showContextReactionPicker, setShowContextReactionPicker] = useState(false);
   const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
+  const [deviceSignatureTrust, setDeviceSignatureTrust] = useState<'none' | 'match' | 'mismatch'>('none');
   const countdown = useExpiryCountdown(message.expiresAt);
 
   const memberSecurityHoverFooter =
@@ -233,6 +240,93 @@ export const MessageBubble = memo(function MessageBubble({
   const decryptionLabel = isFsExpired
     ? t('conversations.fsExpiredLabel', 'Forward secrecy key expired')
     : `Encrypted${message.decryptionError ? `: ${message.decryptionError}` : ''}`;
+
+  const peerKeysForSender = peerPublicKeysById[message.fromIdentityId];
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (message.deleted || !message.decryptedContent) {
+        setDeviceSignatureTrust('none');
+        return;
+      }
+      const sid = parsed.senderDeviceId;
+      const from = message.fromIdentityId;
+      const convId = message.conversationId;
+      if (!sid || !convId) {
+        setDeviceSignatureTrust('none');
+        return;
+      }
+      if (!peerKeysForSender) {
+        setDeviceSignatureTrust('none');
+        return;
+      }
+      const rec = await getDeviceSignatureVerification(convId, from, sid);
+      if (cancelled) return;
+      if (!rec) {
+        setDeviceSignatureTrust('none');
+        return;
+      }
+      const current = getSafetyFingerprintDisplayForDevice(peerKeysForSender, sid);
+      if (current == null) {
+        setDeviceSignatureTrust('none');
+        return;
+      }
+      setDeviceSignatureTrust(current === rec.verifiedDisplay ? 'match' : 'mismatch');
+    }
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    message.deleted,
+    message.decryptedContent,
+    message.fromIdentityId,
+    message.conversationId,
+    message.id,
+    parsed.senderDeviceId,
+    peerKeysForSender,
+    verificationRevision,
+  ]);
+
+  const deviceSignatureTrustIcon =
+    deviceSignatureTrust === 'match' ? (
+      <Tooltip
+        content={t(
+          'conversations.memberSecurity.fingerprintMatchIndicator',
+          'This device matches your verified signature for this conversation.',
+        )}
+        position="top"
+      >
+        <span
+          className="dm-message-signature-trust dm-message-signature-trust--ok"
+          aria-label={t(
+            'conversations.memberSecurity.fingerprintMatchIndicator',
+            'This device matches your verified signature for this conversation.',
+          )}
+        >
+          <Icon name="key" size="sm" />
+        </span>
+      </Tooltip>
+    ) : deviceSignatureTrust === 'mismatch' ? (
+      <Tooltip
+        content={t(
+          'conversations.memberSecurity.fingerprintMismatchIndicator',
+          'Verified signature no longer matches this device. Keys may have changed.',
+        )}
+        position="top"
+      >
+        <span
+          className="dm-message-signature-trust dm-message-signature-trust--bad"
+          aria-label={t(
+            'conversations.memberSecurity.fingerprintMismatchIndicator',
+            'Verified signature no longer matches this device. Keys may have changed.',
+          )}
+        >
+          <Icon name="error" size="sm" />
+        </span>
+      </Tooltip>
+    ) : null;
 
   function handleContextAction(details: { value: string }) {
     if (details.value === 'reply') onReply?.();
@@ -462,6 +556,7 @@ export const MessageBubble = memo(function MessageBubble({
                 {formatMessageTime(message.createdAt)}
               </span>
             </Tooltip>
+            {deviceSignatureTrustIcon}
             {isPinned && (
               <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
                 <Icon name="locationPin" />
@@ -626,16 +721,17 @@ export const MessageBubble = memo(function MessageBubble({
         {reactionBar}
       </div>
       <div className="dm-message-footer">
-        {isPinned && (
-          <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
-            <Icon name="locationPin" />
-          </span>
-        )}
         <Tooltip content={formatAbsoluteTime(message.createdAt)} position="top">
           <span className="dm-message-time">
             {formatMessageTime(message.createdAt)}
           </span>
         </Tooltip>
+        {deviceSignatureTrustIcon}
+        {isPinned && (
+          <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
+            <Icon name="locationPin" />
+          </span>
+        )}
         {message.forwardSecrecy !== undefined && (
           <Tooltip
             content={message.forwardSecrecy
@@ -687,6 +783,8 @@ export const MessageBubble = memo(function MessageBubble({
   if (prev.isPinned !== next.isPinned) return false;
   if (prev.canManagePin !== next.canManagePin) return false;
   if (prev.onOpenMemberSecurity !== next.onOpenMemberSecurity) return false;
+  if (prev.verificationRevision !== next.verificationRevision) return false;
+  if (prev.peerPublicKeysById !== next.peerPublicKeysById) return false;
 
   const pm = prev.message;
   const nm = next.message;
@@ -697,6 +795,7 @@ export const MessageBubble = memo(function MessageBubble({
   if (pm.expiresAt !== nm.expiresAt) return false;
   if (pm.decryptionError !== nm.decryptionError) return false;
   if (pm.replyToMessageId !== nm.replyToMessageId) return false;
+  if (pm.conversationId !== nm.conversationId) return false;
 
   if (prev.senderProfile?.id !== next.senderProfile?.id) return false;
   if (prev.senderProfile?.avatarUrl !== next.senderProfile?.avatarUrl) return false;
