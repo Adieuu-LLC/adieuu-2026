@@ -1,18 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import { ROUTE_TEST_IDENTITY_ID, parseAdieuuSessionCookie } from '../../test-fixtures/route-identity';
-
-/** Inline shapes so we do not import `block.service` before `mock.module` (import order + hoisting). */
-type BlockResult = {
-  success: boolean;
-  error?: string;
-  errorCode?: 'CANNOT_BLOCK_SELF' | 'ALREADY_BLOCKED' | 'NOT_FOUND' | 'IDENTITY_NOT_FOUND';
-};
-type UnblockResult = {
-  success: boolean;
-  error?: string;
-  errorCode?: 'BLOCK_NOT_FOUND';
-};
+import type { BlockResult, UnblockResult } from '../../services/block.service';
 
 const myIdentityId = ROUTE_TEST_IDENTITY_ID;
 const targetIdentityId = new ObjectId();
@@ -42,15 +31,8 @@ const getBlockedIdentitiesMock = mock(async () => ({ blocks: [], cursor: null as
 const getBlockedIdentityIdsMock = mock(async (): Promise<ObjectId[]> => []);
 const isBlockedByEitherMock = mock(async () => false);
 
-// Bun's `mock.restore()` is global; clear partial mocks from other files before re-registering (e.g. identity-keys-access).
-mock.restore();
-
 mock.module('../../services/session.service', () => ({
   requireIdentitySession: requireIdentitySessionMock,
-  // Pulled in via `utils/response` when `./index` loads; must exist if mocks run before the route graph.
-  buildLogoutCookie: mock(
-    () => 'adieuu_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax'
-  ),
 }));
 
 mock.module('../../services/identity.service', () => ({
@@ -75,8 +57,7 @@ mock.module('../../models/identity', () => ({
   toPublicIdentity: (x: unknown) => x,
 }));
 
-/** Dynamic import so `./index` loads after all `mock.module` calls (imports are hoisted above mocks). */
-const { blockRoutes } = await import('./index');
+import { blockRoutes } from './index';
 
 function makeRequest(
   path: string,
