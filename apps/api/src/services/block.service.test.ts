@@ -5,6 +5,10 @@ import { ObjectId } from 'mongodb';
 type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+// Ensure this file never inherits module mocks leaked by previous tests
+// when Bun runs many files in one process.
+mock.restore();
+
 const mockBlockRepo = {
   findBlock: mock(() => Promise.resolve(null)) as AnyMock,
   create: mock(() => Promise.resolve(null)) as AnyMock,
