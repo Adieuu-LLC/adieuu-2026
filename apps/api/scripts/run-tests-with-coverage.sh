@@ -14,9 +14,11 @@ mkdir -p "$API_ROOT/coverage/main"
 
 # Reporter/outfile flags only: split default suite. Explicit file args: isolate known flaky suites when possible.
 _reporter_only=1
+_main_passthrough_args=()
 for _a in "$@"; do
   case "$_a" in
     *.ts|*.tsx|src/*) _reporter_only=0 ;;
+    *) _main_passthrough_args+=("$_a") ;;
   esac
 done
 
@@ -45,7 +47,7 @@ run_split_with_coverage() {
 
   if [[ ${#main_tests[@]} -gt 0 ]]; then
     bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" \
-      "${main_tests[@]}"
+      "${main_tests[@]}" "${_main_passthrough_args[@]}"
   fi
 
   for f in "${isolated_tests[@]}"; do
