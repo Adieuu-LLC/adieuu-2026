@@ -1,7 +1,7 @@
 {
   "name": "adieuu",
   "private": true,
-  "packageManager": "pnpm@9.15.4",
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "build": "turbo run build",
     "build:packages": "pnpm run package:media-db-writer && pnpm run package:media-processor",

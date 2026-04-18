@@ -13,6 +13,7 @@ import { RouteContext } from '../../router';
 import { sanitizeString } from '../../utils/sanitize';
 import {
   getSessionIdFromRequest,
+  getSessionFromRequest,
   requireIdentitySession,
   buildLogoutCookie,
 } from '../../services/session.service';
@@ -327,9 +328,17 @@ export async function getIdentitySessionCtrl(ctx: RouteContext): Promise<Respons
     return ctx.errors.unauthorized();
   }
 
+  const rawSession = await getSessionFromRequest(ctx.request);
+  if (rawSession?.type === 'account') {
+    return ctx.errors.unauthorized();
+  }
+  if (!rawSession) {
+    return ctx.errors.sessionExpiredWithClearCookie();
+  }
+
   const result = await getIdentityFromSession(identitySessionId, { returnBlockDetails: true });
   if (!result) {
-    return ctx.errors.unauthorized();
+    return ctx.errors.sessionExpiredWithClearCookie();
   }
 
   if ('blocked' in result) {

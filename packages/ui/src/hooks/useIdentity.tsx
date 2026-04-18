@@ -82,8 +82,6 @@ function useIdentityState(): IdentityContextValue {
   const { apiBaseUrl, platform } = useAppConfig();
   const { status: authStatus, session, refreshSession } = useAuth();
 
-  const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
-
   // Derive identity counts from auth session
   const identityCount = session?.identityCount ?? 0;
   const maxIdentities = session?.maxIdentities ?? 1;
@@ -139,6 +137,25 @@ function useIdentityState(): IdentityContextValue {
     }
     currentDeviceIdRef.current = null;
   }, []);
+
+  const onSessionExpired = useCallback(() => {
+    clearSessionKeys();
+    setState((prev) => ({
+      status: prev.hasIdentity ? 'logged_out' : 'no_identity',
+      identity: null,
+      hasIdentity: prev.hasIdentity,
+      identityCount: prev.identityCount,
+      maxIdentities: prev.maxIdentities,
+      canCreateMore: prev.canCreateMore,
+      suspensionInfo: undefined,
+    }));
+    void refreshSession();
+  }, [clearSessionKeys, refreshSession]);
+
+  const api = useMemo(
+    () => createApiClient({ baseUrl: apiBaseUrl, onSessionExpired }),
+    [apiBaseUrl, onSessionExpired],
+  );
 
   // Check identity session status
   const refreshIdentitySession = useCallback(async () => {

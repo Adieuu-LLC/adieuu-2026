@@ -18,7 +18,11 @@ import { success } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
 import { MAX_IDENTITIES_PER_USER } from '../../services/identity.service';
 import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
-import { buildLogoutCookie, getSessionFromRequest } from '../../services/session.service';
+import {
+  buildLogoutCookie,
+  getSessionFromRequest,
+  getSessionIdFromRequest,
+} from '../../services/session.service';
 import {
   requestOtp,
   verifyOtpHandler,
@@ -282,6 +286,9 @@ router.get('/auth/session', async (ctx) => {
         isPlatformModerator: capabilities.isPlatformModerator,
         platformPermissions: capabilities.permissions,
       });
+    }
+    if (getSessionIdFromRequest(ctx.request)) {
+      return ctx.errors.sessionExpiredWithClearCookie();
     }
     return ctx.errors.unauthorized();
   }

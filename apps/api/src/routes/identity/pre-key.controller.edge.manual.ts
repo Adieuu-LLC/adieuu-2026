@@ -27,6 +27,13 @@ const getUnconsumedOtpkDigestMock = mock(async () => 'digest-placeholder');
 const purgeUnconsumedOneTimePreKeysMock = mock(async () => 0);
 const getConsumedOtpkKeyIdsMock = mock(async (): Promise<string[]> => []);
 
+/** Claim tests use distinct caller/target ObjectIds; real access check needs friends/DB — allow for unit tests. */
+const canViewerAccessTargetIdentityKeysMock = mock(() => Promise.resolve(true));
+
+mock.module('../../services/identity-keys-access.service', () => ({
+  canViewerAccessTargetIdentityKeys: canViewerAccessTargetIdentityKeysMock,
+}));
+
 mock.module('../../services/session.service', () => ({
   requireIdentitySession: mock((request: Request) => {
     const cookie = request.headers.get('Cookie') ?? '';
@@ -36,6 +43,7 @@ mock.module('../../services/session.service', () => ({
         identityId: ownerId.toHexString(),
         accountHash: 'a'.repeat(64),
         lastActivityAt: Date.now(),
+        expiresAt: Date.now() + 86_400_000,
       });
     }
     return Promise.resolve(null);
@@ -124,6 +132,9 @@ describe('pre-key.controller', () => {
       signingPublicKey: 'signing-public-key-base64',
       devices: [{ deviceId: 'device-1' }],
     };
+
+    canViewerAccessTargetIdentityKeysMock.mockReset();
+    canViewerAccessTargetIdentityKeysMock.mockImplementation(() => Promise.resolve(true));
 
     getIdentityFromSessionMock.mockReset();
     getIdentityFromSessionMock.mockImplementation(async () => currentIdentity);

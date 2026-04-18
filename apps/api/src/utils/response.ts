@@ -40,6 +40,7 @@
  */
 
 import { getErrorMessage, type Locale, type ErrorKey, DEFAULT_LOCALE } from '../i18n';
+import { buildLogoutCookie } from '../services/session.service';
 
 /**
  * Success response body structure.
@@ -168,7 +169,8 @@ export function error(
   code: string,
   message: string,
   status = 400,
-  details?: ApiErrorResponse['error']['details']
+  details?: ApiErrorResponse['error']['details'],
+  headers?: Record<string, string>
 ): Response {
   const body: ApiErrorResponse = {
     success: false,
@@ -182,7 +184,7 @@ export function error(
     },
   };
 
-  return Response.json(body, { status });
+  return Response.json(body, { status, headers });
 }
 
 /**
@@ -423,6 +425,16 @@ export const localizedErrors = {
   /** 401 - Session expired */
   sessionExpired: (locale?: Locale) =>
     localizedError('sessionExpired', 'SESSION_EXPIRED', 401, locale),
+
+  /**
+   * 401 - Session expired, with HTTP-only cookie cleared (stale session id in browser).
+   */
+  sessionExpiredWithClearCookie: (locale?: Locale) => {
+    const message = getErrorMessage('sessionExpired', locale);
+    return error('SESSION_EXPIRED', message, 401, undefined, {
+      'Set-Cookie': buildLogoutCookie(),
+    });
+  },
 
   /**
    * 413 - Payload too large

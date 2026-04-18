@@ -45,6 +45,7 @@ function createContextErrors(locale: Locale, maxBodySize: number): ContextErrors
     tooManyAttempts: verificationFailed,
     accountLocked: () => localizedErrors.accountLocked(locale),
     sessionExpired: () => localizedErrors.sessionExpired(locale),
+    sessionExpiredWithClearCookie: () => localizedErrors.sessionExpiredWithClearCookie(locale),
     payloadTooLarge: () => localizedErrors.payloadTooLarge(locale, maxBodySize),
     alreadyOwned: () => localizedErrors.alreadyOwned(locale),
     signInRestricted: () => localizedErrors.signInRestricted(locale),

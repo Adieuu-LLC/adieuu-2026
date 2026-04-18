@@ -18,7 +18,7 @@ const mockSessionRepo = {
   revoke: mock(() => Promise.resolve()) as AnyMock,
   revokeAllForUser: mock(() => Promise.resolve(0)) as AnyMock,
   revokeAllForIdentity: mock(() => Promise.resolve(0)) as AnyMock,
-  updateLastActivity: mock(() => Promise.resolve()) as AnyMock,
+  updateLastActivity: mock(() => Promise.resolve(new Date('2030-06-01T12:00:00.000Z'))) as AnyMock,
 };
 
 mock.module('../config', () => ({ config: mockConfig }));
@@ -89,7 +89,7 @@ describe('session.service', () => {
     mockSessionRepo.revoke.mockResolvedValue(undefined);
     mockSessionRepo.revokeAllForUser.mockResolvedValue(0);
     mockSessionRepo.revokeAllForIdentity.mockResolvedValue(0);
-    mockSessionRepo.updateLastActivity.mockResolvedValue(undefined);
+    mockSessionRepo.updateLastActivity.mockResolvedValue(new Date('2030-06-01T12:00:00.000Z'));
   });
 
   describe('createAccountSession', () => {
@@ -176,6 +176,7 @@ describe('session.service', () => {
         identifier: 'user@example.com',
         identifierType: 'email',
         lastActivityAt: 1_700_000_000_000,
+        expiresAt: new Date('2030-06-01T12:00:00.000Z').getTime(),
       });
       expect(mockSessionRepo.updateLastActivity).toHaveBeenCalledWith('sess-123');
     });
@@ -190,6 +191,7 @@ describe('session.service', () => {
         identityId: '507f1f77bcf86cd799439012',
         accountHash: 'hash-abc',
         lastActivityAt: 1_700_000_000_000,
+        expiresAt: new Date('2030-06-01T12:00:00.000Z').getTime(),
       });
     });
   });
@@ -262,6 +264,7 @@ describe('session.service', () => {
         identifier: 'user@example.com',
         identifierType: 'email',
         lastActivityAt: 1_700_000_000_000,
+        expiresAt: new Date('2030-06-01T12:00:00.000Z').getTime(),
       });
     });
 
@@ -289,6 +292,7 @@ describe('session.service', () => {
         identityId: '507f1f77bcf86cd799439012',
         accountHash: 'hash-abc',
         lastActivityAt: 1_700_000_000_000,
+        expiresAt: new Date('2030-06-01T12:00:00.000Z').getTime(),
       });
     });
 

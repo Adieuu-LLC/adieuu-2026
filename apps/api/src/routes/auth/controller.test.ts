@@ -140,6 +140,7 @@ const mockAccountSession = {
   identifier: 'test@example.com',
   identifierType: 'email' as const,
   lastActivityAt: Date.now(),
+  expiresAt: Date.now() + 86_400_000,
 };
 
 mock.module('../../services/session.service', () => ({

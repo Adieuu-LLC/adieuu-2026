@@ -26,6 +26,7 @@ const mockSession = {
   identifier: 'test@example.com',
   identifierType: 'email' as const,
   lastActivityAt: Date.now(),
+  expiresAt: Date.now() + 86_400_000,
 };
 
 // Mock session service

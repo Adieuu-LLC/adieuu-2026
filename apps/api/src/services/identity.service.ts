@@ -33,6 +33,7 @@ import {
   destroySession,
   destroyAllIdentitySessions,
   buildLogoutCookie,
+  getSession,
 } from './session.service';
 import { reconcileAchievements } from './achievement.service';
 import elog from '../utils/adieuuLogger';
@@ -598,12 +599,11 @@ export async function getIdentityFromSession(
 ): Promise<IdentityDocument | { blocked: IdentityModerationBlock } | null> {
   if (!sessionId) return null;
 
-  const sessionRepo = getSessionRepository();
-  const cached = await sessionRepo.getSession(sessionId);
-  if (!cached || cached.type !== 'identity' || !cached.identityId) return null;
+  const sessionData = await getSession(sessionId);
+  if (!sessionData || sessionData.type !== 'identity') return null;
 
   const identityRepo = getIdentityRepository();
-  const identity = await identityRepo.findByIdentityId(cached.identityId);
+  const identity = await identityRepo.findByIdentityId(sessionData.identityId);
   if (!identity) return null;
 
   const isBanned = !!identity.isBanned;

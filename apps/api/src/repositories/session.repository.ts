@@ -15,10 +15,8 @@ import type {
   CachedSessionData,
 } from '../models/session';
 import { toCachedSession } from '../models/session';
+import { SESSION_ACCOUNT_TTL_SECONDS, SESSION_IDENTITY_TTL_SECONDS } from '../constants/session';
 import elog from '../utils/adieuuLogger';
-
-/** Session cache TTL in seconds (matches session expiration) */
-const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
 /**
  * Session repository interface — unified for both account and identity sessions.
@@ -28,7 +26,8 @@ export interface ISessionRepository {
   findByUserId(userId: string | ObjectId): Promise<SessionDocument[]>;
   findByIdentityId(identityId: string | ObjectId): Promise<SessionDocument[]>;
   createSession(input: CreateSessionInput): Promise<SessionDocument>;
-  updateLastActivity(sessionId: string): Promise<void>;
+  /** Sliding renewal: extends expiresAt; returns new expiry or null if session missing/expired. */
+  updateLastActivity(sessionId: string): Promise<Date | null>;
   revoke(sessionId: string): Promise<void>;
   revokeAllForUser(userId: string | ObjectId): Promise<number>;
   revokeAllForIdentity(identityId: string | ObjectId): Promise<number>;
@@ -160,34 +159,37 @@ export class SessionRepository
   }
 
   /**
-   * Update last activity timestamp
-   * Updates both MongoDB and cache
+   * Sliding session renewal: bumps lastActivityAt and extends expiresAt by the
+   * configured TTL for the session type. Refreshes Redis cache TTL.
    */
-  async updateLastActivity(sessionId: string): Promise<void> {
-    const now = new Date();
+  async updateLastActivity(sessionId: string): Promise<Date | null> {
+    const session = await this.findOne({ sessionId, revoked: false });
+    if (!session) {
+      return null;
+    }
+    if (session.expiresAt < new Date()) {
+      await this.invalidateCache(sessionId);
+      return null;
+    }
 
-    // Update MongoDB
+    const now = new Date();
+    const ttlSeconds =
+      session.type === 'identity' ? SESSION_IDENTITY_TTL_SECONDS : SESSION_ACCOUNT_TTL_SECONDS;
+    const newExpiresAt = new Date(now.getTime() + ttlSeconds * 1000);
+
     await this.collection.updateOne(
       { sessionId },
-      { $set: { lastActivityAt: now, updatedAt: now } }
+      { $set: { lastActivityAt: now, expiresAt: newExpiresAt, updatedAt: now } }
     );
 
-    // Update cache (if exists)
-    if (isRedisConnected()) {
-      try {
-        const redis = getRedis();
-        const key = RedisKeys.session(sessionId);
-        const cached = await redis.get(key);
-
-        if (cached) {
-          const data: CachedSessionData = JSON.parse(cached);
-          data.lastActivityAt = now.getTime();
-          await redis.set(key, JSON.stringify(data), 'KEEPTTL');
-        }
-      } catch (error) {
-        elog.warn('Failed to update session cache', { error, sessionId });
-      }
-    }
+    const updated: SessionDocument = {
+      ...session,
+      lastActivityAt: now,
+      expiresAt: newExpiresAt,
+      updatedAt: now,
+    };
+    await this.setCache(sessionId, updated);
+    return newExpiresAt;
   }
 
   /**

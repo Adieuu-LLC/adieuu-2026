@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { ApiClient } from './http-client';
+import { API_ERROR_SESSION_EXPIRED } from '../constants/api-errors';
 
 describe('ApiClient', () => {
   it('returns success payload from JSON response', async () => {
@@ -39,6 +40,33 @@ describe('ApiClient', () => {
     expect(res.success).toBe(false);
     if (!res.success) {
       expect(res.error.code).toBe('TIMEOUT');
+    }
+  });
+
+  it('invokes onSessionExpired when API returns SESSION_EXPIRED', async () => {
+    let called = false;
+    const fetchImpl: typeof fetch = async () =>
+      new Response(
+        JSON.stringify({
+          success: false,
+          error: { code: API_ERROR_SESSION_EXPIRED, message: 'Session expired' },
+        }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } },
+      );
+
+    const client = new ApiClient({
+      baseUrl: 'http://example.test',
+      fetchImpl,
+      onSessionExpired: () => {
+        called = true;
+      },
+    });
+
+    const res = await client.get('/api/foo');
+    expect(called).toBe(true);
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.code).toBe(API_ERROR_SESSION_EXPIRED);
     }
   });
 

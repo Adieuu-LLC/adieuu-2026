@@ -1,6 +1,10 @@
 import { useState, useCallback, useEffect, createContext, useContext, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import { createApiClient, type SessionInfo, type PublicKeyCredentialRequestOptionsJSON } from '@adieuu/shared';
+import {
+  createApiClient,
+  type SessionInfo,
+  type PublicKeyCredentialRequestOptionsJSON,
+} from '@adieuu/shared';
 import { useAppConfig, usePlatformCapabilities } from '../config';
 
 // ============================================================================
@@ -68,13 +72,23 @@ function useAuthState(): AuthContextValue {
   const { apiBaseUrl } = useAppConfig();
   const { webauthn: webauthnBridge } = usePlatformCapabilities();
 
-  // Memoize the API client to avoid recreating on every render
-  const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
-
   const [state, setState] = useState<AuthState>({
     status: 'loading',
     session: null,
   });
+
+  const onSessionExpired = useCallback(() => {
+    setState({
+      status: 'unauthenticated',
+      session: null,
+    });
+  }, []);
+
+  // Memoize the API client to avoid recreating on every render
+  const api = useMemo(
+    () => createApiClient({ baseUrl: apiBaseUrl, onSessionExpired }),
+    [apiBaseUrl, onSessionExpired],
+  );
 
   // Check session status from server on mount
   const refreshSession = useCallback(async () => {

@@ -40,6 +40,8 @@ export interface ContextErrors {
   tooManyAttempts: () => Response;
   accountLocked: () => Response;
   sessionExpired: () => Response;
+  /** 401 SESSION_EXPIRED + clears adieuu_session (stale cookie). */
+  sessionExpiredWithClearCookie: () => Response;
   payloadTooLarge: () => Response;
   /**
    * Contact (email/phone) already owned by another account.

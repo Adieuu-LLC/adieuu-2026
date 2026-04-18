@@ -4,7 +4,7 @@
  */
 
 import { Router } from './router';
-import { securityHeaders, requestId, cors } from './middleware';
+import { securityHeaders, requestId, cors, sessionCookieRenewal } from './middleware';
 import { registerRoutes } from './routes';
 import { initializeDatabases, closeDatabases } from './db';
 import { config, validateProductionConfig } from './config';
@@ -24,6 +24,7 @@ const app = new Router({ maxBodySize: config.maxRequestBodyBytes });
 app.use(requestId());
 app.use(securityHeaders());
 app.use(cors());
+app.use(sessionCookieRenewal());
 
 // Register routes
 registerRoutes(app);

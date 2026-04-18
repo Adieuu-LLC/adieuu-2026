@@ -21,6 +21,7 @@ const requireIdentitySessionMock = mock((request: Request) => {
       identityId: myIdentityId.toHexString(),
       accountHash: 'a'.repeat(64),
       lastActivityAt: Date.now(),
+      expiresAt: Date.now() + 86_400_000,
     });
   }
   return Promise.resolve(null);

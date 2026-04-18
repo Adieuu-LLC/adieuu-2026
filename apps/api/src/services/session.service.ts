@@ -14,6 +14,7 @@
 
 import { ObjectId } from 'mongodb';
 import { getSessionRepository } from '../repositories/session.repository';
+import { SESSION_ACCOUNT_TTL_SECONDS, SESSION_IDENTITY_TTL_SECONDS } from '../constants/session';
 import { generateSecureToken } from '../utils/crypto';
 import { config } from '../config';
 import elog from '../utils/adieuuLogger';
@@ -22,10 +23,8 @@ import type { CachedSessionData } from '../models/session';
 /** Session configuration */
 const SESSION_CONFIG = {
   cookieName: 'adieuu_session',
-  /** Account session TTL in seconds (7 days) */
-  accountTtlSeconds: 7 * 24 * 60 * 60,
-  /** Identity session TTL in seconds (7 days) */
-  identityTtlSeconds: 7 * 24 * 60 * 60,
+  accountTtlSeconds: SESSION_ACCOUNT_TTL_SECONDS,
+  identityTtlSeconds: SESSION_IDENTITY_TTL_SECONDS,
   /** Session ID length in bytes (32 bytes = 256 bits) */
   idLength: 32,
 } as const;
@@ -40,6 +39,8 @@ export interface AccountSessionData {
   identifier: string;
   identifierType: 'email' | 'phone';
   lastActivityAt: number;
+  /** Unix ms — server-side session expiry after sliding renewal */
+  expiresAt: number;
 }
 
 export interface IdentitySessionData {
@@ -47,9 +48,14 @@ export interface IdentitySessionData {
   identityId: string;
   accountHash: string;
   lastActivityAt: number;
+  /** Unix ms — server-side session expiry after sliding renewal */
+  expiresAt: number;
 }
 
 export type SessionData = AccountSessionData | IdentitySessionData;
+
+/** One resolved session load per Request (avoids duplicate touches per request). */
+const sessionByRequest = new WeakMap<Request, Promise<SessionData | null>>();
 
 // ---------------------------------------------------------------------------
 // Create sessions
@@ -153,13 +159,13 @@ export async function getSession(sessionId: string): Promise<SessionData | null>
   const cached = await sessionRepo.getSession(sessionId);
   if (!cached) return null;
 
-  // Fire-and-forget activity update
-  sessionRepo.updateLastActivity(sessionId).catch(() => {});
+  const newExpiresAt = await sessionRepo.updateLastActivity(sessionId);
+  const expiresAtMs = newExpiresAt ? newExpiresAt.getTime() : cached.expiresAt;
 
-  return cachedToSessionData(cached);
+  return cachedToSessionData(cached, expiresAtMs);
 }
 
-function cachedToSessionData(cached: CachedSessionData): SessionData | null {
+function cachedToSessionData(cached: CachedSessionData, expiresAtMs: number): SessionData | null {
   if (cached.type === 'account') {
     if (!cached.userId || !cached.identifier || !cached.identifierType) return null;
     return {
@@ -168,6 +174,7 @@ function cachedToSessionData(cached: CachedSessionData): SessionData | null {
       identifier: cached.identifier,
       identifierType: cached.identifierType,
       lastActivityAt: cached.lastActivityAt,
+      expiresAt: expiresAtMs,
     };
   }
 
@@ -178,6 +185,7 @@ function cachedToSessionData(cached: CachedSessionData): SessionData | null {
       identityId: cached.identityId,
       accountHash: cached.accountHash,
       lastActivityAt: cached.lastActivityAt,
+      expiresAt: expiresAtMs,
     };
   }
 
@@ -208,7 +216,7 @@ export async function destroyAllIdentitySessions(identityId: string | ObjectId):
 // Cookie helpers
 // ---------------------------------------------------------------------------
 
-function buildSessionCookie(sessionId: string, maxAge: number): string {
+export function buildSessionCookie(sessionId: string, maxAge: number): string {
   const isProduction = config.env === 'production';
   const parts = [
     `${SESSION_CONFIG.cookieName}=${sessionId}`,
@@ -273,11 +281,20 @@ export function getSessionIdFromRequest(request: Request): string | null {
 
 /**
  * Gets any session from request cookies.
+ * Deduplicates within a single Request so handlers and middleware share one touch.
  */
 export async function getSessionFromRequest(request: Request): Promise<SessionData | null> {
-  const sessionId = getSessionIdFromRequest(request);
-  if (!sessionId) return null;
-  return getSession(sessionId);
+  const existing = sessionByRequest.get(request);
+  if (existing) return existing;
+
+  const promise = (async (): Promise<SessionData | null> => {
+    const sessionId = getSessionIdFromRequest(request);
+    if (!sessionId) return null;
+    return getSession(sessionId);
+  })();
+
+  sessionByRequest.set(request, promise);
+  return promise;
 }
 
 // ---------------------------------------------------------------------------

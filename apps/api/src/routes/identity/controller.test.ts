@@ -66,6 +66,7 @@ mock.module('../../services/session.service', () => ({
         identityId: mockIdentityId.toHexString(),
         accountHash: mockAccountHash,
         lastActivityAt: Date.now(),
+        expiresAt: Date.now() + 86_400_000,
       });
     }
     return Promise.resolve(null);

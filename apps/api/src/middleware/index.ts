@@ -69,6 +69,13 @@ export { requestId } from './request-id';
 export { cors } from './cors';
 
 /**
+ * Sliding session cookie renewal on successful API responses.
+ *
+ * @see {@link module:middleware/session-cookie-renewal}
+ */
+export { sessionCookieRenewal } from './session-cookie-renewal';
+
+/**
  * Re-export types for external use.
  */
 export type { CorsOptions } from './cors';

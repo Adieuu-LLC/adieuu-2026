@@ -149,23 +149,40 @@ describe('session.repository', () => {
     );
   });
 
-  test('updateLastActivity updates mongo and refreshes cached timestamp with KEEPTTL', async () => {
+  test('updateLastActivity extends expiresAt (sliding) and refreshes Redis with EX ttl', async () => {
+    const now = Date.now();
     redisGetValue = JSON.stringify({
       type: 'account',
       userId: new ObjectId().toHexString(),
       identifier: 'user@example.com',
       identifierType: 'email',
-      expiresAt: Date.now() + 60_000,
-      lastActivityAt: Date.now() - 60_000,
+      expiresAt: now + 60_000,
+      lastActivityAt: now - 60_000,
+    });
+
+    mockCollection.findOne.mockResolvedValue({
+      _id: new ObjectId(),
+      sessionId: 'session-1',
+      type: 'account',
+      userId: new ObjectId(),
+      identifier: 'user@example.com',
+      identifierType: 'email',
+      expiresAt: new Date(now + 60_000),
+      lastActivityAt: new Date(now - 60_000),
+      revoked: false,
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
     });
 
     const repo = new SessionRepository();
-    await repo.updateLastActivity('session-1');
+    const newExp = await repo.updateLastActivity('session-1');
 
+    expect(newExp).not.toBeNull();
     expect(mockCollection.updateOne).toHaveBeenCalledWith(
       { sessionId: 'session-1' },
       expect.objectContaining({
         $set: expect.objectContaining({
+          expiresAt: expect.any(Date),
           lastActivityAt: expect.any(Date),
           updatedAt: expect.any(Date),
         }),
@@ -174,7 +191,8 @@ describe('session.repository', () => {
     expect(redisSetMock).toHaveBeenCalledWith(
       'session:session-1',
       expect.any(String),
-      'KEEPTTL'
+      'EX',
+      expect.any(Number)
     );
   });
 

@@ -81,6 +81,7 @@ const sessionUser = {
   identityId: new ObjectId().toHexString(),
   accountHash: 'test-hash',
   lastActivityAt: Date.now(),
+  expiresAt: Date.now() + 86_400_000,
 };
 
 function adminHandler() {

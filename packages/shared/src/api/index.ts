@@ -1,3 +1,5 @@
+export { API_ERROR_SESSION_EXPIRED } from '../constants/api-errors';
+
 export {
   ApiClient,
   type ApiClientConfig,

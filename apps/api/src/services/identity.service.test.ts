@@ -83,6 +83,7 @@ const mockDestroyAllIdentitySessions = mock(() =>
   Promise.resolve(1),
 ) as AnyMock;
 const mockBuildLogoutCookie = mock(() => 'mock-logout-cookie') as AnyMock;
+const mockGetSession = mock(() => Promise.resolve(null)) as AnyMock;
 
 mock.module('./session.service', () => ({
   createIdentitySession: mockCreateIdentitySession,
@@ -91,6 +92,7 @@ mock.module('./session.service', () => ({
   requireIdentitySession: mock(() => Promise.resolve(null)),
   buildLogoutCookie: mockBuildLogoutCookie,
   getSessionIdFromRequest: mock(() => 'mock-session-id'),
+  getSession: mockGetSession,
 }));
 
 // --- Mock Redis (rate limiting) ---
@@ -203,6 +205,9 @@ describe('identity.service', () => {
     );
     mockBuildLogoutCookie.mockReset();
     mockBuildLogoutCookie.mockImplementation(() => 'mock-logout-cookie');
+
+    mockGetSession.mockReset();
+    mockGetSession.mockImplementation(() => Promise.resolve(null));
 
     mockRedis.get.mockReset();
     mockRedis.get.mockImplementation(() => Promise.resolve(null));
@@ -516,10 +521,10 @@ describe('identity.service', () => {
   describe('getIdentityFromSession', () => {
     test('returns identity when session is valid', async () => {
       const identity = makeMockIdentity();
-      mockSessionRepo.getSession.mockImplementation(() =>
+      mockGetSession.mockImplementation(() =>
         Promise.resolve({
           type: 'identity',
-          identityId: identity._id,
+          identityId: identity._id.toHexString(),
           accountHash: testAccountHash,
           expiresAt: Date.now() + 86_400_000,
           lastActivityAt: Date.now(),
@@ -539,18 +544,18 @@ describe('identity.service', () => {
     });
 
     test('returns null when session not found', async () => {
-      mockSessionRepo.getSession.mockImplementation(() =>
-        Promise.resolve(null),
-      );
+      mockGetSession.mockImplementation(() => Promise.resolve(null));
 
       expect(await getIdentityFromSession('nonexistent')).toBeNull();
     });
 
     test('returns null when session type is not identity', async () => {
-      mockSessionRepo.getSession.mockImplementation(() =>
+      mockGetSession.mockImplementation(() =>
         Promise.resolve({
           type: 'account',
-          userId: 'some-user-id',
+          userId: '507f1f77bcf86cd799439011',
+          identifier: 'u@example.com',
+          identifierType: 'email',
           expiresAt: Date.now() + 86_400_000,
           lastActivityAt: Date.now(),
         }),
@@ -561,10 +566,10 @@ describe('identity.service', () => {
 
     test('returns null for banned identity without block details', async () => {
       const identity = makeMockIdentity({ isBanned: true });
-      mockSessionRepo.getSession.mockImplementation(() =>
+      mockGetSession.mockImplementation(() =>
         Promise.resolve({
           type: 'identity',
-          identityId: identity._id,
+          identityId: identity._id.toHexString(),
           accountHash: testAccountHash,
           expiresAt: Date.now() + 86_400_000,
           lastActivityAt: Date.now(),
@@ -582,10 +587,10 @@ describe('identity.service', () => {
         isBanned: true,
         moderationReason: 'violation',
       });
-      mockSessionRepo.getSession.mockImplementation(() =>
+      mockGetSession.mockImplementation(() =>
         Promise.resolve({
           type: 'identity',
-          identityId: identity._id,
+          identityId: identity._id.toHexString(),
           accountHash: testAccountHash,
           expiresAt: Date.now() + 86_400_000,
           lastActivityAt: Date.now(),

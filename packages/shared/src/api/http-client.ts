@@ -3,6 +3,7 @@
  */
 
 import type { ApiResponse } from '../types';
+import { API_ERROR_SESSION_EXPIRED } from '../constants/api-errors';
 
 export interface ApiClientConfig {
   baseUrl: string;
@@ -12,6 +13,11 @@ export interface ApiClientConfig {
   timeout?: number;
   /** Inject fetch for tests or non-browser environments (defaults to `globalThis.fetch`) */
   fetchImpl?: typeof fetch;
+  /**
+   * Called when the API returns SESSION_EXPIRED (stale session cookie cleared server-side).
+   * Use to reset local auth state and prompt sign-in.
+   */
+  onSessionExpired?: () => void;
 }
 
 export interface RequestOptions {
@@ -35,6 +41,7 @@ export class ApiClient implements HttpClient {
   private defaultHeaders: Record<string, string>;
   private timeout: number;
   private fetchImpl: typeof fetch;
+  private onSessionExpired?: () => void;
 
   constructor(config: ApiClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
@@ -44,6 +51,7 @@ export class ApiClient implements HttpClient {
     };
     this.timeout = config.timeout ?? 30000;
     this.fetchImpl = config.fetchImpl ?? globalThis.fetch.bind(globalThis);
+    this.onSessionExpired = config.onSessionExpired;
   }
 
   private async request<T>(
@@ -72,8 +80,15 @@ export class ApiClient implements HttpClient {
 
       clearTimeout(timeoutId);
 
-      const data = await response.json();
-      return data as ApiResponse<T>;
+      const data = (await response.json()) as ApiResponse<T>;
+      if (
+        !data.success &&
+        data.error?.code === API_ERROR_SESSION_EXPIRED &&
+        this.onSessionExpired
+      ) {
+        this.onSessionExpired();
+      }
+      return data;
     } catch (error) {
       clearTimeout(timeoutId);
 
