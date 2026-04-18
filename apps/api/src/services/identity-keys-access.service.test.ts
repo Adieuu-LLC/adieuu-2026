@@ -2,7 +2,7 @@
  * @module services/identity-keys-access.service.test
  */
 
-import { describe, expect, mock, beforeEach, test } from 'bun:test';
+import { afterAll, describe, expect, mock, beforeEach, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 const areFriendsMock = mock(() => Promise.resolve(false));
 const findAnyWithBothParticipantsMock = mock(() => Promise.resolve(null));
@@ -20,11 +20,22 @@ mock.module('../repositories/conversation.repository', () => ({
   }),
 }));
 
+// Must expose every runtime export of `./block.service`; a partial mock poisons the
+// module for later test files (Bun `mock.module` + `mock.restore()` lifecycle).
 mock.module('./block.service', () => ({
+  blockIdentity: mock(() => Promise.resolve({ success: true })),
+  unblockIdentity: mock(() => Promise.resolve({ success: true })),
+  checkIfBlocked: mock(() => Promise.resolve({ blocked: false })),
+  getBlockedIdentities: mock(() => Promise.resolve({ blocks: [], cursor: null })),
+  getBlockedIdentityIds: mock(() => Promise.resolve([])),
   isBlockedByEither: isBlockedByEitherMock,
 }));
 
 describe('identity-keys-access', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     areFriendsMock.mockReset();
     findAnyWithBothParticipantsMock.mockReset();
