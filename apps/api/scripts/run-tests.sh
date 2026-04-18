@@ -7,26 +7,61 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Bun's mock.restore() in afterAll is global — it tears down ALL module mocks process-wide.
-# Run verification.controller.test.ts in its own process so other files' afterAll cleanup
-# cannot interfere with its mock.module() registrations mid-flight.
-if [[ $# -eq 0 ]]; then
-  mapfile -t _all_tests < <(find src -name '*.test.ts' -type f | LC_ALL=C sort)
-  _main_tests=()
-  _verification_tests=()
-  for f in "${_all_tests[@]}"; do
-    if [[ "$(basename "$f")" == 'verification.controller.test.ts' ]]; then
-      _verification_tests+=("$f")
+is_isolated_test() {
+  local name
+  name="$(basename "$1")"
+  [[ "$name" == 'verification.controller.test.ts' ||
+     "$name" == 'block.service.test.ts' ||
+     "$name" == 'identity-keys-access.service.test.ts' ]]
+}
+
+run_split_suites() {
+  local tests=("$@")
+  local main_tests=()
+  local isolated_tests=()
+  local f
+
+  for f in "${tests[@]}"; do
+    if is_isolated_test "$f"; then
+      isolated_tests+=("$f")
     else
-      _main_tests+=("$f")
+      main_tests+=("$f")
     fi
   done
-  bun test "${_main_tests[@]}"
-  if [[ ${#_verification_tests[@]} -gt 0 ]]; then
-    bun test "${_verification_tests[@]}"
+
+  if [[ ${#main_tests[@]} -gt 0 ]]; then
+    bun test "${main_tests[@]}"
   fi
+  for f in "${isolated_tests[@]}"; do
+    bun test "$f"
+  done
+}
+
+if [[ $# -eq 0 ]]; then
+  mapfile -t _all_tests < <(find src -name '*.test.ts' -type f | LC_ALL=C sort)
+  run_split_suites "${_all_tests[@]}"
 else
-  bun test "$@"
+  _explicit_tests=()
+  _passthrough_args=()
+  for arg in "$@"; do
+    case "$arg" in
+      --) ;;
+      *.test.ts|./*.test.ts|src/*.test.ts|./src/*.test.ts)
+        _explicit_tests+=("$arg")
+        ;;
+      *)
+        _passthrough_args+=("$arg")
+        ;;
+    esac
+  done
+
+  # When callers pass explicit test files (e.g. security suite), still isolate
+  # known global-mock-sensitive suites.
+  if [[ ${#_explicit_tests[@]} -gt 0 && ${#_passthrough_args[@]} -eq 0 ]]; then
+    run_split_suites "${_explicit_tests[@]}"
+  else
+    bun test "$@"
+  fi
 fi
 
 while IFS= read -r -d '' f; do

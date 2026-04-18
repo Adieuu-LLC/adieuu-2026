@@ -12,7 +12,7 @@ API_ROOT="$(pwd)"
 rm -rf coverage
 mkdir -p "$API_ROOT/coverage/main"
 
-# Reporter/outfile flags only: isolate verification tests in their own process. Explicit file args: passthrough.
+# Reporter/outfile flags only: split default suite. Explicit file args: isolate known flaky suites when possible.
 _reporter_only=1
 for _a in "$@"; do
   case "$_a" in
@@ -20,41 +20,77 @@ for _a in "$@"; do
   esac
 done
 
-if [[ $# -eq 0 ]] || [[ "$_reporter_only" -eq 1 ]]; then
-  mapfile -t _all_tests < <(find src -name '*.test.ts' -type f | LC_ALL=C sort)
-  _main_tests=()
-  _verification_tests=()
-  for f in "${_all_tests[@]}"; do
-    if [[ "$(basename "$f")" == 'verification.controller.test.ts' ]]; then
-      _verification_tests+=("$f")
+is_isolated_test() {
+  local name
+  name="$(basename "$1")"
+  [[ "$name" == 'verification.controller.test.ts' ||
+     "$name" == 'block.service.test.ts' ||
+     "$name" == 'identity-keys-access.service.test.ts' ]]
+}
+
+run_split_with_coverage() {
+  local tests=("$@")
+  local main_tests=()
+  local isolated_tests=()
+  local f
+  local idx=0
+
+  for f in "${tests[@]}"; do
+    if is_isolated_test "$f"; then
+      isolated_tests+=("$f")
     else
-      _main_tests+=("$f")
+      main_tests+=("$f")
     fi
   done
-  # Run main suite and verification suite in separate processes so that
-  # mock.restore() calls in afterAll blocks (which are global in Bun) cannot
-  # tear down module mocks across concurrent test files.
-  bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" \
-    "${_main_tests[@]}" "$@"
-  if [[ ${#_verification_tests[@]} -gt 0 ]]; then
-    mkdir -p "$API_ROOT/coverage/verification"
-    # Reporter/outfile flags are only passed to the main suite; the verification
-    # suite's results appear in stdout and failures are caught by set -e.
-    bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/verification" \
-      "${_verification_tests[@]}"
+
+  if [[ ${#main_tests[@]} -gt 0 ]]; then
+    bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" \
+      "${main_tests[@]}"
   fi
+
+  for f in "${isolated_tests[@]}"; do
+    idx=$((idx + 1))
+    local isolated_dir="$API_ROOT/coverage/isolated-$idx"
+    mkdir -p "$isolated_dir"
+    bun test --coverage --coverage-reporter=lcov --coverage-dir="$isolated_dir" "$f"
+  done
+}
+
+if [[ $# -eq 0 ]] || [[ "$_reporter_only" -eq 1 ]]; then
+  mapfile -t _all_tests < <(find src -name '*.test.ts' -type f | LC_ALL=C sort)
+  # Run global-mock-sensitive suites in their own processes so afterAll restore
+  # cannot race with module registration in parallel files.
+  run_split_with_coverage "${_all_tests[@]}"
 else
-  bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" "$@"
+  _explicit_tests=()
+  _passthrough_args=()
+  for arg in "$@"; do
+    case "$arg" in
+      --) ;;
+      *.test.ts|./*.test.ts|src/*.test.ts|./src/*.test.ts)
+        _explicit_tests+=("$arg")
+        ;;
+      *)
+        _passthrough_args+=("$arg")
+        ;;
+    esac
+  done
+
+  if [[ ${#_explicit_tests[@]} -gt 0 && ${#_passthrough_args[@]} -eq 0 ]]; then
+    run_split_with_coverage "${_explicit_tests[@]}"
+  else
+    bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" "$@"
+  fi
 fi
 unset _a _reporter_only
 
 mapfile -t EDGE < <(find src -name '*.edge.manual.ts' 2>/dev/null | sort)
 INFOS=()
-for _dir in main verification; do
-  if [[ -f "$API_ROOT/coverage/$_dir/lcov.info" ]]; then
-    INFOS+=("$API_ROOT/coverage/$_dir/lcov.info")
-  fi
+shopt -s nullglob
+for info in "$API_ROOT"/coverage/main/lcov.info "$API_ROOT"/coverage/verification/lcov.info "$API_ROOT"/coverage/isolated-*/lcov.info; do
+  INFOS+=("$info")
 done
+shopt -u nullglob
 
 i=0
 for f in "${EDGE[@]}"; do
