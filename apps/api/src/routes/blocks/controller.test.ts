@@ -28,6 +28,8 @@ const blockIdentityMock = mock(async (): Promise<BlockResult> => ({ success: tru
 const unblockIdentityMock = mock(async (): Promise<UnblockResult> => ({ success: true }));
 const checkIfBlockedMock = mock(async () => ({ blocked: false, blockedAt: null as string | null }));
 const getBlockedIdentitiesMock = mock(async () => ({ blocks: [], cursor: null as string | null }));
+const getBlockedIdentityIdsMock = mock(async (): Promise<ObjectId[]> => []);
+const isBlockedByEitherMock = mock(async () => false);
 
 mock.module('../../services/session.service', () => ({
   requireIdentitySession: requireIdentitySessionMock,
@@ -43,6 +45,8 @@ mock.module('../../services/block.service', () => ({
   unblockIdentity: unblockIdentityMock,
   checkIfBlocked: checkIfBlockedMock,
   getBlockedIdentities: getBlockedIdentitiesMock,
+  getBlockedIdentityIds: getBlockedIdentityIdsMock,
+  isBlockedByEither: isBlockedByEitherMock,
 }));
 
 mock.module('../../repositories/identity.repository', () => ({
@@ -84,6 +88,8 @@ describe('blocks routes', () => {
     unblockIdentityMock.mockClear();
     checkIfBlockedMock.mockClear();
     getBlockedIdentitiesMock.mockClear();
+    getBlockedIdentityIdsMock.mockClear();
+    isBlockedByEitherMock.mockClear();
 
     getIdentityFromSessionMock.mockResolvedValue({ _id: myIdentityId, username: 'me' });
     blockIdentityMock.mockResolvedValue({ success: true });
