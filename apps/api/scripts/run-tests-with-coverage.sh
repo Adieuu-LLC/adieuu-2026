@@ -88,7 +88,9 @@ mapfile -t EDGE < <(find src -name '*.edge.manual.ts' 2>/dev/null | sort)
 INFOS=()
 shopt -s nullglob
 for info in "$API_ROOT"/coverage/main/lcov.info "$API_ROOT"/coverage/verification/lcov.info "$API_ROOT"/coverage/isolated-*/lcov.info; do
-  INFOS+=("$info")
+  if [[ -f "$info" ]]; then
+    INFOS+=("$info")
+  fi
 done
 shopt -u nullglob
 
