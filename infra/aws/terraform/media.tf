@@ -6,9 +6,10 @@
 #
 # Conversation media uses a dual-upload approach for E2E privacy with content moderation:
 #   1. E2E encrypted media goes to a separate bucket (aws_s3_bucket.e2e_media) — no Lambda, no CDN
-#   2. A cleartext thumbnail (scan copy) goes to uploads/conv_scan/ in this bucket for Rekognition
-#      moderation. The existing expire-stale-uploads lifecycle rule (1 day) acts as a safety net;
-#      the Lambda deletes scan copies immediately after the moderation verdict.
+#   2. A cleartext thumbnail (scan copy) goes to uploads/conv_scan/ in this bucket for Rekognition.
+#      The media-processor deletes the raw object after moderation and does not retain processed/
+#      assets for conv_scan. The expire-stale-uploads rule (uploads/) and
+#      expire-conv-scan-processed-legacy (processed/conv_scan/) are safety nets for stragglers.
 #
 # Gated on enable_media_stack (requires public_dns_tls_enabled).
 
@@ -88,6 +89,24 @@ resource "aws_s3_bucket_lifecycle_configuration" "media" {
 
     noncurrent_version_expiration {
       noncurrent_days = 1
+    }
+  }
+
+  # Legacy processed WebP objects from older conv_scan pipeline (or failed deletes).
+  rule {
+    id     = "expire-conv-scan-processed-legacy"
+    status = "Enabled"
+
+    filter {
+      prefix = "processed/conv_scan/"
+    }
+
+    expiration {
+      days = 14
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 14
     }
   }
 }

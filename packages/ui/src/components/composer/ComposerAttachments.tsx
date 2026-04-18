@@ -31,6 +31,13 @@ export function ComposerAttachments({
                   <span className="conversation-composer-attachment-error-icon" title={att.uploadError}>
                     <Icon name="error" />
                   </span>
+                ) : att.uploadStatus === 'scanning' ? (
+                  <div className="conversation-composer-attachment-scanning">
+                    <Icon name="shield" className="conversation-composer-attachment-scanning-icon" />
+                    <span className="conversation-composer-attachment-scanning-text">
+                      {t('conversations.composerAttachmentScanning', 'Moderation')}
+                    </span>
+                  </div>
                 ) : (
                   <span className="conversation-composer-attachment-spinner" />
                 )}
@@ -41,7 +48,7 @@ export function ComposerAttachments({
                 <Icon name="success" />
               </div>
             )}
-            {att.uploadStatus === 'pending' && (
+            {(att.uploadStatus === 'pending' || att.uploadStatus === 'error') && (
               <button
                 type="button"
                 className="conversation-composer-attachment-remove"

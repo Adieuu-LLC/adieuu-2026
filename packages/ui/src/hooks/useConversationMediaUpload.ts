@@ -58,7 +58,7 @@ export interface UseConversationMediaUploadReturn {
   uploadMedia: (
     file: File,
     encryptedBlob: Blob,
-    options?: { stripExif?: boolean }
+    options?: { stripExif?: boolean; onUploadsComplete?: () => void }
   ) => Promise<MediaUploadResult | null>;
   reset: () => void;
   state: ConversationMediaUploadState;
@@ -74,7 +74,10 @@ export interface UseConversationMediaUploadReturn {
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 90;
 
-export { uploadMediaFile } from '../services/conversationMediaUploadFlow';
+export {
+  uploadMediaFile,
+  type UploadMediaFileOptions,
+} from '../services/conversationMediaUploadFlow';
 
 export function useConversationMediaUpload(
   options: UseConversationMediaUploadOptions = {}
@@ -144,7 +147,7 @@ export function useConversationMediaUpload(
     async (
       file: File,
       encryptedBlob: Blob,
-      uploadOptions?: { stripExif?: boolean }
+      uploadOptions?: { stripExif?: boolean; onUploadsComplete?: () => void }
     ): Promise<MediaUploadResult | null> => {
       abortRef.current?.abort();
       const abort = new AbortController();
@@ -156,6 +159,7 @@ export function useConversationMediaUpload(
       setScanHash(null);
 
       const stripExif = uploadOptions?.stripExif ?? true;
+      const onUploadsComplete = uploadOptions?.onUploadsComplete;
 
       try {
         setState('preparing');
@@ -264,6 +268,8 @@ export function useConversationMediaUpload(
         }
 
         setProgress(55);
+
+        onUploadsComplete?.();
 
         // Step 5: Poll for moderation
         setState('scanning');

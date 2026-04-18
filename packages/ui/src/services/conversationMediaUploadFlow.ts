@@ -8,14 +8,22 @@ import type { MediaUploadResult } from '../hooks/useConversationMediaUpload';
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLL_ATTEMPTS = 90;
 
+export type UploadMediaFileOptions = {
+  stripExif?: boolean;
+  signal?: AbortSignal;
+  /** Called after both S3 uploads and complete-* API calls succeed, before moderation polling. */
+  onUploadsComplete?: () => void;
+};
+
 export async function uploadMediaFile(
   api: ReturnType<typeof createApiClient>,
   file: File,
   encryptedBlob: Blob,
-  options?: { stripExif?: boolean; signal?: AbortSignal },
+  options?: UploadMediaFileOptions,
 ): Promise<MediaUploadResult> {
   const signal = options?.signal;
   const stripExif = options?.stripExif ?? true;
+  const onUploadsComplete = options?.onUploadsComplete;
 
   const [dimensions, thumbnail] = await Promise.all([
     getImageDimensions(file),
@@ -73,6 +81,8 @@ export async function uploadMediaFile(
   ]);
   if (!e2eComplete.success) throw new Error('Failed to finalise E2E upload');
   if (!scanComplete.success) throw new Error('Failed to finalise scan upload');
+
+  onUploadsComplete?.();
 
   for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));

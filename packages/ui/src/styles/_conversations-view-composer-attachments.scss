@@ -62,7 +62,8 @@
       }
     }
 
-    &-attachment:hover &-attachment-remove {
+    &-attachment:hover &-attachment-remove,
+    &-attachment--error &-attachment-remove {
       opacity: 1;
     }
 
@@ -83,6 +84,32 @@
       border-top-color: #fff;
       border-radius: 50%;
       animation: composer-spin 0.7s linear infinite;
+    }
+
+    &-attachment-scanning {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      padding: 0 4px;
+      text-align: center;
+    }
+
+    &-attachment-scanning-icon {
+      color: #fff;
+
+      svg {
+        width: 20px;
+        height: 20px;
+      }
+    }
+
+    &-attachment-scanning-text {
+      font-size: 10px;
+      line-height: 1.1;
+      font-weight: 600;
+      color: #fff;
     }
 
     @keyframes composer-spin {

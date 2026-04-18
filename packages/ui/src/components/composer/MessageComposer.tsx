@@ -390,7 +390,12 @@ export function MessageComposer({
 
             updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 15 });
 
-            const result = await uploadMediaFile(api, att.file, encryptedBlob, { stripExif });
+            const result = await uploadMediaFile(api, att.file, encryptedBlob, {
+              stripExif,
+              onUploadsComplete: () => {
+                updateAttachmentStatus(i, { uploadStatus: 'scanning', uploadProgress: 70 });
+              },
+            });
 
             updateAttachmentStatus(i, { uploadStatus: 'done', uploadProgress: 100 });
 

@@ -5,7 +5,7 @@
  * 1. Content moderation via Amazon Rekognition (when enabled)
  * 2. EXIF metadata stripping (when enabled)
  * 3. Resize and compress to WebP (when resize dimensions specified)
- * 4. Write processed file to processed/ prefix
+ * 4. Write processed file to processed/ prefix (skipped for purpose conv_scan — E2E scan copies)
  * 5. Invoke the DB writer Lambda to persist the result
  *
  * Processing flags are read from the S3 object's user metadata,
@@ -183,6 +183,21 @@ async function processRecord(record: S3EventRecord): Promise<void> {
       await invokeDbWriter(meta.mediaId, 'failed');
       return;
     }
+  }
+
+  // E2E scan copies (conv_scan): cleartext thumbnail exists only for Rekognition.
+  // Do not write to processed/; delete the raw object and mark media_uploads ready
+  // without a CDN asset (E2E ciphertext lives in the separate E2E bucket).
+  if (meta.purpose === 'conv_scan') {
+    console.log('conv_scan: deleting raw upload; marking ready without processed asset');
+    try {
+      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+    } catch (delErr) {
+      console.warn(`Failed to delete conv_scan raw upload: ${key}`, delErr);
+    }
+    await invokeDbWriter(meta.mediaId, 'ready');
+    console.log(`Completed conv_scan (no processed/): ${meta.mediaId}`);
+    return;
   }
 
   const getResult = await s3.send(
