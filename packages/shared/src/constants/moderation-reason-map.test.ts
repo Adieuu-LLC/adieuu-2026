@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import {
   mapModerationReasonToUserMessage,
   normalizeModerationReasonKey,
@@ -12,6 +12,7 @@ describe('moderation-reason-map', () => {
 
   it('maps known patterns to friendly messages', () => {
     expect(mapModerationReasonToUserMessage('content_moderation: Explicit Nudity')).toContain('sexual');
+    expect(mapModerationReasonToUserMessage('content_moderation: Explicit Nudity')).toContain('media');
     expect(mapModerationReasonToUserMessage('content_moderation: Violence')).toContain('violence');
     expect(mapModerationReasonToUserMessage('content_moderation: Child')).toContain('minors');
   });
@@ -25,6 +26,7 @@ describe('moderation-reason-map', () => {
   it('falls back to generic policy message for unknown labels', () => {
     const msg = mapModerationReasonToUserMessage('content_moderation: UnknownLabel123');
     expect(msg).toContain('content policy');
+    expect(msg).toContain('media');
   });
 
   it('maps drug-related hints without echoing raw label', () => {

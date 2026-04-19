@@ -33,7 +33,7 @@ export function mapModerationReasonToUserMessage(raw: string | null | undefined)
     lower.includes('csam') ||
     lower.includes('underage')
   ) {
-    return 'This image was blocked because it may depict minors in a way that is not allowed.';
+    return 'This media was blocked because it may depict minors in a way that is not allowed.';
   }
 
   // Sexual content
@@ -43,7 +43,7 @@ export function mapModerationReasonToUserMessage(raw: string | null | undefined)
     lower.includes('suggestive') ||
     lower.includes('sexual')
   ) {
-    return 'This image was blocked because it may contain sexual or nude content.';
+    return 'This media was blocked because it may contain sexual or nude content.';
   }
 
   // Violence / gore
@@ -54,7 +54,7 @@ export function mapModerationReasonToUserMessage(raw: string | null | undefined)
     lower.includes('gore') ||
     lower.includes('weapon')
   ) {
-    return 'This image was blocked because it may depict violence or graphic content.';
+    return 'This media was blocked because it may depict violence or graphic content.';
   }
 
   // Drugs / illegal activity hints
@@ -64,7 +64,7 @@ export function mapModerationReasonToUserMessage(raw: string | null | undefined)
     lower.includes('alcohol') ||
     lower.includes('gambling')
   ) {
-    return 'This image was blocked because it may depict content that is not allowed.';
+    return 'This media was blocked because it may depict content that is not allowed.';
   }
 
   // Hate symbols / offensive
@@ -74,9 +74,9 @@ export function mapModerationReasonToUserMessage(raw: string | null | undefined)
     lower.includes('extremist') ||
     lower.includes('symbol')
   ) {
-    return 'This image was blocked because it may depict offensive or prohibited content.';
+    return 'This media was blocked because it may depict offensive or prohibited content.';
   }
 
   // Generic policy violation (unknown label shape)
-  return 'This image was blocked because it did not pass our content policy.';
+  return 'This media was blocked because it did not pass our content policy.';
 }

@@ -98,7 +98,9 @@ export async function sendMessage(
       if (media.status === 'pending') {
         return { success: false, error: 'E2E media upload has not been completed', errorCode: 'INVALID_MEDIA' as const };
       }
-      if (media.status === 'gated' || media.moderationStatus === 'rejected') {
+      // Allow messages while moderation is still pending (gated + pending/error) or after pass (available).
+      // Block only when moderation has definitively rejected the scan copy.
+      if (media.moderationStatus === 'rejected') {
         return { success: false, error: 'E2E media has not cleared moderation', errorCode: 'INVALID_MEDIA' as const };
       }
     }

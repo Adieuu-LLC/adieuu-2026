@@ -1,46 +1,57 @@
-import { createApiClient, mapModerationReasonToUserMessage } from '@adieuu/shared';
-import {
-  generateThumbnail,
-  getImageDimensions,
-} from '../utils/imageProcessing';
-import type { MediaUploadResult } from '../hooks/useConversationMediaUpload';
+import { createApiClient } from '@adieuu/shared';
+import { generateThumbnail, getImageDimensions } from '../utils/imageProcessing';
+import { generateVideoFrameThumbnail, getVideoDimensions } from '../utils/videoProcessing';
 
-const POLL_INTERVAL_MS = 2000;
-const MAX_POLL_ATTEMPTS = 90;
+export interface MediaUploadResult {
+  e2eMediaId: string;
+  scanHash: string;
+  contentType: string;
+  fileName?: string;
+  width: number;
+  height: number;
+  sizeBytes: number;
+  exifPreserved: boolean;
+}
 
 export type UploadMediaFileOptions = {
   stripExif?: boolean;
   signal?: AbortSignal;
-  /** Called after both S3 uploads and complete-* API calls succeed, before moderation polling. */
+  /** Called after both S3 uploads and complete-* API calls succeed. */
   onUploadsComplete?: () => void;
 };
+
+function isVideoFile(file: File): boolean {
+  return file.type.startsWith('video/');
+}
 
 export async function uploadMediaFile(
   api: ReturnType<typeof createApiClient>,
   file: File,
   encryptedBlob: Blob,
-  options?: UploadMediaFileOptions,
+  options?: UploadMediaFileOptions
 ): Promise<MediaUploadResult> {
   const signal = options?.signal;
   const stripExif = options?.stripExif ?? true;
   const onUploadsComplete = options?.onUploadsComplete;
 
   const [dimensions, thumbnail] = await Promise.all([
-    getImageDimensions(file),
-    generateThumbnail(file),
+    isVideoFile(file) ? getVideoDimensions(file) : getImageDimensions(file),
+    isVideoFile(file) ? generateVideoFrameThumbnail(file) : generateThumbnail(file),
   ]);
 
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
+  const effectiveStripExif = isVideoFile(file) ? false : stripExif;
+
   const e2eRes = await api.e2eUploads.requestE2EUpload({
     contentType: file.type,
     contentLength: encryptedBlob.size,
-    stripExif,
+    stripExif: effectiveStripExif,
   });
   if (!e2eRes.success || !e2eRes.data) {
     throw new Error(
       (!e2eRes.success && 'error' in e2eRes ? e2eRes.error?.message : null) ??
-        'Failed to prepare E2E upload',
+        'Failed to prepare E2E upload'
     );
   }
   const { e2eMediaId: mediaId, uploadUrl: e2eUrl, scanHash: hash } = e2eRes.data;
@@ -53,7 +64,7 @@ export async function uploadMediaFile(
   if (!scanRes.success || !scanRes.data) {
     throw new Error(
       (!scanRes.success && 'error' in scanRes ? scanRes.error?.message : null) ??
-        'Failed to prepare scan upload',
+        'Failed to prepare scan upload'
     );
   }
   const { scanMediaId, uploadUrl: scanUrl } = scanRes.data;
@@ -84,28 +95,14 @@ export async function uploadMediaFile(
 
   onUploadsComplete?.();
 
-  for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-    const res = await api.e2eUploads.getE2EMediaStatus(mediaId);
-    if (!res.success || !res.data) continue;
-    if (res.data.status === 'available') {
-      return {
-        e2eMediaId: mediaId,
-        scanHash: hash,
-        contentType: file.type,
-        fileName: file.name,
-        width: dimensions.width,
-        height: dimensions.height,
-        sizeBytes: file.size,
-        exifPreserved: !stripExif,
-      };
-    }
-    if (res.data.moderationStatus === 'rejected') {
-      const friendly =
-        mapModerationReasonToUserMessage(res.data.moderationReason) ??
-        'Content has been rejected by moderation';
-      throw new Error(friendly);
-    }
-  }
-  throw new Error('Moderation scan timed out. Please try again.');
+  return {
+    e2eMediaId: mediaId,
+    scanHash: hash,
+    contentType: file.type,
+    fileName: file.name,
+    width: dimensions.width,
+    height: dimensions.height,
+    sizeBytes: file.size,
+    exifPreserved: isVideoFile(file) ? false : !stripExif,
+  };
 }

@@ -15,7 +15,7 @@
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
 
-/** Image MIME types accepted for conversation media (images only in this build). */
+/** Image MIME types accepted for conversation media (E2E encrypted). */
 export const IMAGE_MIME_TYPES = [
   'image/jpeg',
   'image/png',
@@ -161,7 +161,7 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
   },
   conv_media: {
     maxBytes: 25 * 1024 * 1024, // 25 MB
-    allowedContentTypes: [...IMAGE_MIME_TYPES],
+    allowedContentTypes: [...IMAGE_MIME_TYPES, ...VIDEO_MIME_TYPES],
     processingFlags: {
       stripExif: false,
       contentModeration: false,

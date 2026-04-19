@@ -11,6 +11,8 @@ export type {
 } from './composerTypes';
 export {
   ACCEPTED_IMAGE_TYPES,
+  ACCEPTED_VIDEO_TYPES,
+  isAcceptedConversationMediaType,
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_BYTES,
   PLACEHOLDER_VERB_KEYS,

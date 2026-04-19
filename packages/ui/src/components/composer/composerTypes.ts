@@ -47,7 +47,15 @@ export interface TrackedMention {
   length: number;
 }
 
-export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
+/** Video types accepted for E2E conversation uploads (frame is scanned as JPEG). */
+export const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'] as const;
+
+export function isAcceptedConversationMediaType(mime: string): boolean {
+  return (ACCEPTED_IMAGE_TYPES as readonly string[]).includes(mime) ||
+    (ACCEPTED_VIDEO_TYPES as readonly string[]).includes(mime);
+}
+
 export const MAX_ATTACHMENTS = 10;
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 

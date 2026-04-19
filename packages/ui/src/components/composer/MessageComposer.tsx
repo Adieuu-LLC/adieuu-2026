@@ -23,6 +23,8 @@ import type {
 } from './composerTypes';
 import {
   ACCEPTED_IMAGE_TYPES,
+  ACCEPTED_VIDEO_TYPES,
+  isAcceptedConversationMediaType,
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_BYTES,
   PLACEHOLDER_VERB_KEYS,
@@ -245,7 +247,7 @@ export function MessageComposer({
     let oversized = false;
     const newAttachments: PendingAttachment[] = [];
     for (const file of Array.from(files)) {
-      if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) continue;
+      if (!isAcceptedConversationMediaType(file.type)) continue;
       if (file.size > MAX_ATTACHMENT_BYTES) {
         oversized = true;
         continue;
@@ -382,7 +384,10 @@ export function MessageComposer({
           pendingAttachments.map(async (att, i) => {
             updateAttachmentStatus(i, { uploadStatus: 'encrypting', uploadProgress: 5 });
 
-            const fileToEncrypt = stripExif ? await stripExifMetadata(att.file) : att.file;
+            const fileToEncrypt =
+              stripExif && att.file.type.startsWith('image/')
+                ? await stripExifMetadata(att.file)
+                : att.file;
             const fileBytes = new Uint8Array(await fileToEncrypt.arrayBuffer());
             const mediaKey = randomBytes(32);
             const { ciphertext, nonce } = encryptBytes(mediaKey, fileBytes);
@@ -391,9 +396,9 @@ export function MessageComposer({
             updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 15 });
 
             const result = await uploadMediaFile(api, att.file, encryptedBlob, {
-              stripExif,
+              stripExif: stripExif && att.file.type.startsWith('image/'),
               onUploadsComplete: () => {
-                updateAttachmentStatus(i, { uploadStatus: 'scanning', uploadProgress: 70 });
+                updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 90 });
               },
             });
 
@@ -519,7 +524,7 @@ export function MessageComposer({
       let hasTextData = false;
       for (const item of Array.from(items)) {
         if (item.type === 'text/plain') hasTextData = true;
-        if (!item.type.startsWith('image/') || !ACCEPTED_IMAGE_TYPES.includes(item.type)) continue;
+        if (!isAcceptedConversationMediaType(item.type)) continue;
         const file = item.getAsFile();
         if (!file) continue;
         if (file.size > MAX_ATTACHMENT_BYTES) {
@@ -765,6 +770,7 @@ export function MessageComposer({
         onRemove={removeAttachment}
         stripExif={stripExif}
         onToggleExif={setStripExif}
+        showExifToggle={attachments.some((a) => a.file.type.startsWith('image/'))}
       />
       <div className={`conversation-composer-row${isMultiLine ? ' conversation-composer-row--multiline' : ''}`}>
         <ComposerShortcodeAutocomplete
@@ -780,7 +786,7 @@ export function MessageComposer({
         <input
           ref={fileInputRef}
           type="file"
-          accept={ACCEPTED_IMAGE_TYPES.join(',')}
+          accept={[...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES].join(',')}
           multiple
           onChange={handleFileSelect}
           style={{ display: 'none' }}

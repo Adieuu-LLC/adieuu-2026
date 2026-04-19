@@ -8,6 +8,11 @@ mock.module('../utils/imageProcessing', () => ({
   generateThumbnail: generateThumbnailMock,
 }));
 
+mock.module('../utils/videoProcessing', () => ({
+  getVideoDimensions: getImageDimensionsMock,
+  generateVideoFrameThumbnail: generateThumbnailMock,
+}));
+
 const flow = await import('./conversationMediaUploadFlow');
 
 describe('conversationMediaUploadFlow', () => {
@@ -23,14 +28,13 @@ describe('conversationMediaUploadFlow', () => {
     ).rejects.toThrow('nope');
   });
 
-  test('calls onUploadsComplete after completes and before status becomes available', async () => {
+  test('returns after completes without polling moderation status', async () => {
     const sequence: string[] = [];
     const originalFetch = globalThis.fetch;
-    const originalSetTimeout = globalThis.setTimeout;
-    globalThis.setTimeout = ((fn: TimerHandler) => {
-      if (typeof fn === 'function') queueMicrotask(fn as () => void);
-      return 0 as unknown as ReturnType<typeof setTimeout>;
-    }) as typeof setTimeout;
+    const getE2EMediaStatus = mock(async () => {
+      sequence.push('unexpected_status_poll');
+      return { success: true, data: { status: 'available', moderationStatus: 'passed' } };
+    });
 
     globalThis.fetch = mock(() =>
       Promise.resolve({
@@ -39,7 +43,6 @@ describe('conversationMediaUploadFlow', () => {
       })
     ) as typeof fetch;
 
-    let pollCount = 0;
     const api = {
       e2eUploads: {
         requestE2EUpload: async () => ({
@@ -62,20 +65,7 @@ describe('conversationMediaUploadFlow', () => {
           sequence.push('completeScan');
           return { success: true };
         },
-        getE2EMediaStatus: async () => {
-          pollCount += 1;
-          sequence.push(`poll${pollCount}`);
-          if (pollCount >= 2) {
-            return {
-              success: true,
-              data: { status: 'available', moderationStatus: 'passed' },
-            };
-          }
-          return {
-            success: true,
-            data: { status: 'gated', moderationStatus: 'pending' },
-          };
-        },
+        getE2EMediaStatus,
       },
     };
 
@@ -85,24 +75,16 @@ describe('conversationMediaUploadFlow', () => {
 
     try {
       const file = new File(['x'], 'x.jpg', { type: 'image/jpeg' });
-      await flow.uploadMediaFile(api as never, file, new Blob(['enc']), {
+      const result = await flow.uploadMediaFile(api as never, file, new Blob(['enc']), {
         onUploadsComplete,
       });
+      expect(result.e2eMediaId).toBe('mid');
     } finally {
       globalThis.fetch = originalFetch;
-      globalThis.setTimeout = originalSetTimeout;
     }
 
     expect(onUploadsComplete).toHaveBeenCalledTimes(1);
-    const idxComplete = sequence.indexOf('onUploadsComplete');
-    const idxPoll1 = sequence.indexOf('poll1');
-    expect(idxComplete).toBeLessThan(idxPoll1);
-    expect(sequence).toEqual([
-      'completeE2E',
-      'completeScan',
-      'onUploadsComplete',
-      'poll1',
-      'poll2',
-    ]);
+    expect(getE2EMediaStatus).not.toHaveBeenCalled();
+    expect(sequence).toEqual(['completeE2E', 'completeScan', 'onUploadsComplete']);
   });
 });

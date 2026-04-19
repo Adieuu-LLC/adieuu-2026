@@ -9,11 +9,14 @@ export function ComposerAttachments({
   onRemove,
   stripExif,
   onToggleExif,
+  showExifToggle = true,
 }: {
   attachments: PendingAttachment[];
   onRemove: (index: number) => void;
   stripExif: boolean;
   onToggleExif: (strip: boolean) => void;
+  /** Hide EXIF toggle when only video attachments are present (no image EXIF). */
+  showExifToggle?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -24,7 +27,18 @@ export function ComposerAttachments({
       <div className="conversation-composer-attachments-thumbs">
         {attachments.map((att, idx) => (
           <div key={att.previewUrl} className={`conversation-composer-attachment conversation-composer-attachment--${att.uploadStatus}`}>
-            <img src={att.previewUrl} alt="" className="conversation-composer-attachment-thumb" />
+            {att.file.type.startsWith('video/') ? (
+              <video
+                src={att.previewUrl}
+                className="conversation-composer-attachment-thumb"
+                muted
+                playsInline
+                preload="metadata"
+                aria-hidden
+              />
+            ) : (
+              <img src={att.previewUrl} alt="" className="conversation-composer-attachment-thumb" />
+            )}
             {att.uploadStatus !== 'pending' && att.uploadStatus !== 'done' && (
               <div className="conversation-composer-attachment-overlay">
                 {att.uploadStatus === 'error' ? (
@@ -68,6 +82,7 @@ export function ComposerAttachments({
           </div>
         ))}
       </div>
+      {showExifToggle && (
       <div className="conversation-composer-exif-row">
         <Checkbox.Root
           checked={!stripExif}
@@ -92,6 +107,7 @@ export function ComposerAttachments({
           </span>
         </Tooltip>
       </div>
+      )}
     </div>
   );
 }
