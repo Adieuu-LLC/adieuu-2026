@@ -9,8 +9,8 @@
  *    `identity_counts` collection.
  *
  * 2. **createSignedToken** — compact HS256 JWT carrying `{ sub: accountHash,
- *    maxIdentities, iat, exp }`. Short-lived (15 min); refreshed on every
- *    `GET /api/auth/session` call.
+ *    maxIdentities, maxVideoDurationSeconds, iat, exp }`. Short-lived (15 min);
+ *    refreshed on every `GET /api/auth/session` call.
  *
  * 3. **verifySignedToken** — validates signature, expiry, and structure.
  *
@@ -19,6 +19,7 @@
 
 import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../config';
+import { DEFAULT_MAX_VIDEO_DURATION_SECONDS } from '../constants/media-limits';
 
 /** Token lifetime in seconds (15 minutes). */
 const TOKEN_TTL_SECONDS = 15 * 60;
@@ -74,6 +75,11 @@ export interface AccountTokenPayload {
   sub: string;
   /** Maximum identities the account may create */
   maxIdentities: number;
+  /**
+   * Effective max video duration (seconds) for this account at token mint time
+   * (platform ceiling and optional per-account cap). Copied onto identity session at login.
+   */
+  maxVideoDurationSeconds: number;
   /** Issued-at (epoch seconds) */
   iat: number;
   /** Expiration (epoch seconds) */
@@ -90,11 +96,13 @@ export interface AccountTokenPayload {
 export function createSignedToken(
   accountHash: string,
   maxIdentities: number,
+  maxVideoDurationSeconds: number,
 ): string {
   const now = Math.floor(Date.now() / 1000);
   const payload: AccountTokenPayload = {
     sub: accountHash,
     maxIdentities,
+    maxVideoDurationSeconds,
     iat: now,
     exp: now + TOKEN_TTL_SECONDS,
   };
@@ -154,9 +162,16 @@ export function verifySignedToken(token: string): AccountTokenPayload | null {
     return null;
   }
 
+  let maxVideoDurationSeconds = payload.maxVideoDurationSeconds;
+  if (typeof maxVideoDurationSeconds !== 'number' || !Number.isFinite(maxVideoDurationSeconds)) {
+    maxVideoDurationSeconds = DEFAULT_MAX_VIDEO_DURATION_SECONDS;
+  } else if (maxVideoDurationSeconds < 1) {
+    maxVideoDurationSeconds = DEFAULT_MAX_VIDEO_DURATION_SECONDS;
+  }
+
   // Check expiry
   const now = Math.floor(Date.now() / 1000);
   if (payload.exp <= now) return null;
 
-  return payload;
+  return { ...payload, maxVideoDurationSeconds };
 }

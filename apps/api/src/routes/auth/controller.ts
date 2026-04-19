@@ -23,6 +23,10 @@ import {
   generateAccountHash,
   createSignedToken,
 } from '../../services/account-token.service';
+import {
+  getPlatformMaxVideoDurationSeconds,
+  resolveMaxVideoDurationSecondsForAccount,
+} from '../../services/media-limits.service';
 import { getIdentityCountRepository } from '../../repositories/identity-count.repository';
 import {
   getMfaStatus,
@@ -667,9 +671,16 @@ export async function getSessionHandler(request: Request): Promise<{
   const identityCountRepo = getIdentityCountRepository();
   const identityCount = await identityCountRepo.getCount(accountHash);
 
+  const platformVideoMax = await getPlatformMaxVideoDurationSeconds();
+  const maxVideoDurationSeconds = resolveMaxVideoDurationSecondsForAccount(
+    platformVideoMax,
+    user,
+  );
+
   const signedToken = createSignedToken(
     accountHash,
     user.maxIdentities ?? 2,
+    maxVideoDurationSeconds,
   );
 
   return { session, signedToken, identityCount };

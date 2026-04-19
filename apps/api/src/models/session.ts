@@ -45,6 +45,12 @@ export interface SessionDocument extends BaseDocument {
    */
   accountHash?: string;
 
+  /**
+   * Effective max video duration (seconds) bound from the account bridging token
+   * at identity login. Identity routes use this without loading User.
+   */
+  maxVideoDurationSeconds?: number;
+
   // -- Common fields --------------------------------------------------------
 
   /** Session expiration timestamp */
@@ -88,6 +94,7 @@ export interface CreateIdentitySessionInput {
   expiresAt: Date;
   userAgent?: string;
   ipAddress?: string;
+  maxVideoDurationSeconds?: number;
 }
 
 /**
@@ -111,6 +118,8 @@ export interface CachedSessionData {
   identityId?: string;
   /** Account hash (identity sessions only) */
   accountHash?: string;
+  /** Effective max video duration (seconds), identity sessions only */
+  maxVideoDurationSeconds?: number;
   /** Session expiration timestamp (ms) */
   expiresAt: number;
   /** Last activity timestamp (ms) */
@@ -219,6 +228,9 @@ export function toCachedSession(doc: SessionDocument): CachedSessionData {
   } else {
     base.identityId = doc.identityId?.toHexString();
     base.accountHash = doc.accountHash;
+    if (doc.maxVideoDurationSeconds !== undefined) {
+      base.maxVideoDurationSeconds = doc.maxVideoDurationSeconds;
+    }
   }
 
   return base;

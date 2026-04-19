@@ -185,7 +185,11 @@ export async function createIdentity(
   displayName: string,
   options?: {
     autoLogin?: boolean;
-    metadata?: { userAgent?: string; ipAddress?: string };
+    metadata?: {
+      userAgent?: string;
+      ipAddress?: string;
+      maxVideoDurationSeconds?: number;
+    };
   },
 ): Promise<IdentityCreationResult> {
   const autoLogin = options?.autoLogin ?? true;
@@ -274,12 +278,16 @@ export async function createIdentity(
  *
  * @param accountHash - HMAC-derived account hash
  * @param passphrase - The passphrase to verify
- * @param metadata - Optional session metadata
+ * @param metadata - Optional session metadata (include maxVideoDurationSeconds from verified bridging token)
  */
 export async function loginToIdentity(
   accountHash: string,
   passphrase: string,
-  metadata?: { userAgent?: string; ipAddress?: string },
+  metadata?: {
+    userAgent?: string;
+    ipAddress?: string;
+    maxVideoDurationSeconds?: number;
+  },
 ): Promise<IdentityLoginResult> {
   const identityRepo = getIdentityRepository();
 

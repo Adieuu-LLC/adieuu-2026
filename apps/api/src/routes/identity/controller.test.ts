@@ -50,6 +50,7 @@ mock.module('../../services/account-token.service', () => ({
     return {
       sub: mockAccountHash,
       maxIdentities: 2,
+      maxVideoDurationSeconds: 300,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 900,
     };
@@ -65,6 +66,7 @@ mock.module('../../services/session.service', () => ({
         type: 'identity' as const,
         identityId: mockIdentityId.toHexString(),
         accountHash: mockAccountHash,
+        maxVideoDurationSeconds: 300,
         lastActivityAt: Date.now(),
         expiresAt: Date.now() + 86_400_000,
       });

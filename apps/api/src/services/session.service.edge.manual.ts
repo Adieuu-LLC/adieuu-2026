@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import type { CachedSessionData } from '../models/session';
+import { DEFAULT_MAX_VIDEO_DURATION_SECONDS } from '../constants/media-limits';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
@@ -190,6 +191,7 @@ describe('session.service', () => {
         type: 'identity',
         identityId: '507f1f77bcf86cd799439012',
         accountHash: 'hash-abc',
+        maxVideoDurationSeconds: DEFAULT_MAX_VIDEO_DURATION_SECONDS,
         lastActivityAt: 1_700_000_000_000,
         expiresAt: new Date('2030-06-01T12:00:00.000Z').getTime(),
       });
@@ -291,6 +293,7 @@ describe('session.service', () => {
         type: 'identity',
         identityId: '507f1f77bcf86cd799439012',
         accountHash: 'hash-abc',
+        maxVideoDurationSeconds: DEFAULT_MAX_VIDEO_DURATION_SECONDS,
         lastActivityAt: 1_700_000_000_000,
         expiresAt: new Date('2030-06-01T12:00:00.000Z').getTime(),
       });

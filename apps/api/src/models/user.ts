@@ -38,6 +38,13 @@ export interface UserDocument extends BaseDocument {
 
   /** Maximum identities this account may create (default: 2, adjustable per-account) */
   maxIdentities?: number;
+
+  /**
+   * Optional per-account cap on video duration (seconds), e.g. subscription tier.
+   * Resolved against platform ceiling when minting the account→identity bridging token;
+   * identity sessions store the effective value — identity routes do not read User.
+   */
+  maxVideoDurationSeconds?: number;
 }
 
 /** Default identity lockout duration: 1 hour in milliseconds */

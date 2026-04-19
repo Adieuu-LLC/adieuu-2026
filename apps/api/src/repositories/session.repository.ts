@@ -147,6 +147,9 @@ export class SessionRepository
         ...base,
         identityId: input.identityId,
         accountHash: input.accountHash,
+        ...(input.maxVideoDurationSeconds !== undefined
+          ? { maxVideoDurationSeconds: input.maxVideoDurationSeconds }
+          : {}),
       };
     }
 

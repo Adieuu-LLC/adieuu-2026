@@ -19,6 +19,7 @@ import { generateSecureToken } from '../utils/crypto';
 import { config } from '../config';
 import elog from '../utils/adieuuLogger';
 import type { CachedSessionData } from '../models/session';
+import { DEFAULT_MAX_VIDEO_DURATION_SECONDS } from '../constants/media-limits';
 
 /** Session configuration */
 const SESSION_CONFIG = {
@@ -47,6 +48,8 @@ export interface IdentitySessionData {
   type: 'identity';
   identityId: string;
   accountHash: string;
+  /** Effective max video duration (seconds); legacy sessions may omit (use default). */
+  maxVideoDurationSeconds: number;
   lastActivityAt: number;
   /** Unix ms — server-side session expiry after sliding renewal */
   expiresAt: number;
@@ -101,7 +104,12 @@ export async function createAccountSession(
 export async function createIdentitySession(
   identityId: ObjectId,
   accountHash: string,
-  metadata?: { userAgent?: string; ipAddress?: string },
+  metadata?: {
+    userAgent?: string;
+    ipAddress?: string;
+    /** From verified account bridging token; stored on the identity session only. */
+    maxVideoDurationSeconds?: number;
+  },
 ): Promise<{ sessionId: string; cookie: string }> {
   const sessionId = generateSecureToken(SESSION_CONFIG.idLength);
   const expiresAt = new Date(Date.now() + SESSION_CONFIG.identityTtlSeconds * 1000);
@@ -116,6 +124,7 @@ export async function createIdentitySession(
     expiresAt,
     userAgent: metadata?.userAgent,
     ipAddress: metadata?.ipAddress,
+    maxVideoDurationSeconds: metadata?.maxVideoDurationSeconds,
   });
 
   elog.info('Identity session created', {
@@ -180,10 +189,17 @@ function cachedToSessionData(cached: CachedSessionData, expiresAtMs: number): Se
 
   if (cached.type === 'identity') {
     if (!cached.identityId || !cached.accountHash) return null;
+    const maxVideoDurationSeconds =
+      typeof cached.maxVideoDurationSeconds === 'number' &&
+      Number.isFinite(cached.maxVideoDurationSeconds) &&
+      cached.maxVideoDurationSeconds >= 1
+        ? Math.floor(cached.maxVideoDurationSeconds)
+        : DEFAULT_MAX_VIDEO_DURATION_SECONDS;
     return {
       type: 'identity',
       identityId: cached.identityId,
       accountHash: cached.accountHash,
+      maxVideoDurationSeconds,
       lastActivityAt: cached.lastActivityAt,
       expiresAt: expiresAtMs,
     };

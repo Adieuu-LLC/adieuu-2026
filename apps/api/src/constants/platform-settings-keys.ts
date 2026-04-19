@@ -8,6 +8,8 @@ export const PLATFORM_SETTING_KEYS = {
   AUTH_ALLOWLIST_PHONE: 'platform-auth-allowlist-phone',
   ADMIN_IDENTITY_LIST: 'platform-admin-identity-list',
   MODERATOR_IDENTITY_LIST: 'platform-moderator-identity-list',
+  /** Upper bound for video duration (seconds); per-account limits must not exceed this. */
+  MEDIA_MAX_VIDEO_DURATION_SECONDS: 'platform-media-max-video-duration-seconds',
 } as const;
 
 export type PlatformSettingKey =

@@ -192,7 +192,11 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
     displayName,
     {
       autoLogin: true,
-      metadata: { userAgent, ipAddress: clientIp },
+      metadata: {
+        userAgent,
+        ipAddress: clientIp,
+        maxVideoDurationSeconds: tokenPayload.maxVideoDurationSeconds,
+      },
     },
   );
 
@@ -239,7 +243,11 @@ export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
   const result = await loginToIdentity(
     tokenPayload.sub,
     passphrase,
-    { userAgent, ipAddress: clientIp },
+    {
+      userAgent,
+      ipAddress: clientIp,
+      maxVideoDurationSeconds: tokenPayload.maxVideoDurationSeconds,
+    },
   );
 
   if (!result.success) {

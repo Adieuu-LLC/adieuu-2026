@@ -5,6 +5,7 @@ import {
   createSignedToken,
   verifySignedToken,
 } from './account-token.service';
+import { DEFAULT_MAX_VIDEO_DURATION_SECONDS } from '../constants/media-limits';
 
 describe('account-token service', () => {
   describe('generateAccountHash', () => {
@@ -44,7 +45,7 @@ describe('account-token service', () => {
     const accountHash = generateAccountHash('acc-1', new Date('2025-01-01T00:00:00Z'));
 
     test('returns a JWT with three dot-separated parts', () => {
-      const token = createSignedToken(accountHash, 5);
+      const token = createSignedToken(accountHash, 5, DEFAULT_MAX_VIDEO_DURATION_SECONDS);
       const parts = token.split('.');
       expect(parts.length).toBe(3);
       parts.forEach((part) => {
@@ -53,20 +54,21 @@ describe('account-token service', () => {
     });
 
     test('verifySignedToken can parse the result', () => {
-      const token = createSignedToken(accountHash, 5);
+      const token = createSignedToken(accountHash, 5, DEFAULT_MAX_VIDEO_DURATION_SECONDS);
       const payload = verifySignedToken(token);
       expect(payload).not.toBeNull();
     });
 
     test('payload contains the expected sub and maxIdentities', () => {
-      const token = createSignedToken(accountHash, 3);
+      const token = createSignedToken(accountHash, 3, 120);
       const payload = verifySignedToken(token)!;
       expect(payload.sub).toBe(accountHash);
       expect(payload.maxIdentities).toBe(3);
+      expect(payload.maxVideoDurationSeconds).toBe(120);
     });
 
     test('payload iat and exp are numbers with exp ~15 min after iat', () => {
-      const token = createSignedToken(accountHash, 1);
+      const token = createSignedToken(accountHash, 1, DEFAULT_MAX_VIDEO_DURATION_SECONDS);
       const payload = verifySignedToken(token)!;
       expect(typeof payload.iat).toBe('number');
       expect(typeof payload.exp).toBe('number');
@@ -74,7 +76,7 @@ describe('account-token service', () => {
     });
 
     test('header declares HS256 algorithm', () => {
-      const token = createSignedToken(accountHash, 1);
+      const token = createSignedToken(accountHash, 1, DEFAULT_MAX_VIDEO_DURATION_SECONDS);
       const headerJson = Buffer.from(token.split('.')[0]!, 'base64url').toString('utf8');
       const header = JSON.parse(headerJson);
       expect(header.alg).toBe('HS256');
@@ -86,7 +88,7 @@ describe('account-token service', () => {
     const accountHash = generateAccountHash('acc-2', new Date('2025-02-01T00:00:00Z'));
 
     test('returns valid payload for a correctly signed token', () => {
-      const token = createSignedToken(accountHash, 10);
+      const token = createSignedToken(accountHash, 10, DEFAULT_MAX_VIDEO_DURATION_SECONDS);
       const payload = verifySignedToken(token);
       expect(payload).not.toBeNull();
       expect(payload!.sub).toBe(accountHash);
@@ -103,14 +105,14 @@ describe('account-token service', () => {
     });
 
     test('returns null for non-base64url signature', () => {
-      const token = createSignedToken(accountHash, 1);
+      const token = createSignedToken(accountHash, 1, DEFAULT_MAX_VIDEO_DURATION_SECONDS);
       const parts = token.split('.');
       const bad = `${parts[0]}.${parts[1]}.!!!not-base64url!!!`;
       expect(verifySignedToken(bad)).toBeNull();
     });
 
     test('returns null when payload is tampered', () => {
-      const token = createSignedToken(accountHash, 1);
+      const token = createSignedToken(accountHash, 1, DEFAULT_MAX_VIDEO_DURATION_SECONDS);
       const [header, payload, signature] = token.split('.') as [string, string, string];
 
       const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
@@ -121,7 +123,7 @@ describe('account-token service', () => {
     });
 
     test('returns null when signature is tampered', () => {
-      const token = createSignedToken(accountHash, 1);
+      const token = createSignedToken(accountHash, 1, DEFAULT_MAX_VIDEO_DURATION_SECONDS);
       const parts = token.split('.');
 
       const sigBytes = Buffer.from(parts[2]!, 'base64url');
@@ -132,7 +134,7 @@ describe('account-token service', () => {
     });
 
     test('returns null for an expired token', () => {
-      const token = createSignedToken(accountHash, 1);
+      const token = createSignedToken(accountHash, 1, DEFAULT_MAX_VIDEO_DURATION_SECONDS);
 
       const originalDateNow = Date.now;
       try {
@@ -144,7 +146,7 @@ describe('account-token service', () => {
     });
 
     test('returns valid payload when token is still within TTL', () => {
-      const token = createSignedToken(accountHash, 1);
+      const token = createSignedToken(accountHash, 1, DEFAULT_MAX_VIDEO_DURATION_SECONDS);
 
       const originalDateNow = Date.now;
       try {
