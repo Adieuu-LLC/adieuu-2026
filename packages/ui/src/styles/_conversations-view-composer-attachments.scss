@@ -22,8 +22,8 @@
 
     &-attachment {
       position: relative;
-      width: 80px;
-      height: 80px;
+      width: 88px;
+      height: 88px;
       flex-shrink: 0;
       border-radius: var(--radius-sm);
       overflow: hidden;
@@ -86,26 +86,17 @@
       animation: composer-spin 0.7s linear infinite;
     }
 
-    &-attachment-scanning {
+    &-attachment-stage {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 6px;
       padding: 0 4px;
       text-align: center;
     }
 
-    &-attachment-scanning-icon {
-      color: #fff;
-
-      svg {
-        width: 20px;
-        height: 20px;
-      }
-    }
-
-    &-attachment-scanning-text {
+    &-attachment-stage-text {
       font-size: 10px;
       line-height: 1.1;
       font-weight: 600;

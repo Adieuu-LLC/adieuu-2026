@@ -5,8 +5,10 @@ export const conversations = {
     mediaLoading: 'Loading...',
     mediaUploading: 'Uploading...',
     mediaScanning: 'Awaiting moderation...',
-    /** Short label on the composer chip while Rekognition scan runs (after upload completes). */
-    composerAttachmentScanning: 'Moderation',
+    /** Composer attachment chip while the file is uploading to storage. */
+    composerAttachmentUploading: 'Uploading',
+    /** Composer attachment chip while moderation scan runs (after upload completes). */
+    composerAttachmentModerating: 'Moderating',
     mediaRejected: 'This content has been removed',
     mediaModerationError: 'This content could not be verified and has been hidden for safety',
     mediaError: 'Failed to load media',

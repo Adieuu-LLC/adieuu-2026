@@ -31,11 +31,18 @@ export function ComposerAttachments({
                   <span className="conversation-composer-attachment-error-icon" title={att.uploadError}>
                     <Icon name="error" />
                   </span>
+                ) : att.uploadStatus === 'uploading' ? (
+                  <div className="conversation-composer-attachment-stage">
+                    <span className="conversation-composer-attachment-spinner" />
+                    <span className="conversation-composer-attachment-stage-text">
+                      {t('conversations.composerAttachmentUploading', 'Uploading')}
+                    </span>
+                  </div>
                 ) : att.uploadStatus === 'scanning' ? (
-                  <div className="conversation-composer-attachment-scanning">
-                    <Icon name="shield" className="conversation-composer-attachment-scanning-icon" />
-                    <span className="conversation-composer-attachment-scanning-text">
-                      {t('conversations.composerAttachmentScanning', 'Moderation')}
+                  <div className="conversation-composer-attachment-stage">
+                    <span className="conversation-composer-attachment-spinner" />
+                    <span className="conversation-composer-attachment-stage-text">
+                      {t('conversations.composerAttachmentModerating', 'Moderating')}
                     </span>
                   </div>
                 ) : (
