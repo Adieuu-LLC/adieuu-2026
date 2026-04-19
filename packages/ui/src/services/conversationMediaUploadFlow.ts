@@ -1,4 +1,4 @@
-import { createApiClient } from '@adieuu/shared';
+import { createApiClient, mapModerationReasonToUserMessage } from '@adieuu/shared';
 import {
   generateThumbnail,
   getImageDimensions,
@@ -101,7 +101,10 @@ export async function uploadMediaFile(
       };
     }
     if (res.data.moderationStatus === 'rejected') {
-      throw new Error('Content has been rejected by moderation');
+      const friendly =
+        mapModerationReasonToUserMessage(res.data.moderationReason) ??
+        'Content has been rejected by moderation';
+      throw new Error(friendly);
     }
   }
   throw new Error('Moderation scan timed out. Please try again.');

@@ -35,6 +35,7 @@ import {
   DetectModerationLabelsCommand,
 } from '@aws-sdk/client-rekognition';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
+import { logProcessorEvent } from './logging';
 
 const s3 = new S3Client({});
 const rekognition = new RekognitionClient({});
@@ -88,13 +89,22 @@ async function invokeDbWriter(
   mediaId: string,
   status: 'ready' | 'rejected' | 'failed',
   processedS3Key?: string,
-  rejectionReason?: string
+  rejectionReason?: string,
+  context?: { purpose?: string; s3Key?: string }
 ): Promise<void> {
   const payload = JSON.stringify({
     mediaId,
     status,
     processedS3Key,
     rejectionReason,
+  });
+
+  logProcessorEvent({
+    event: 'db_writer_invoke_start',
+    mediaId,
+    purpose: context?.purpose,
+    s3Key: context?.s3Key,
+    dbWriterStatus: status,
   });
 
   try {
@@ -110,11 +120,33 @@ async function invokeDbWriter(
       const responsePayload = result.Payload
         ? new TextDecoder().decode(result.Payload)
         : 'no payload';
+      logProcessorEvent({
+        event: 'db_writer_invoke_lambda_error',
+        mediaId,
+        purpose: context?.purpose,
+        dbWriterStatus: status,
+        dbWriterFunctionError: result.FunctionError,
+      });
       console.error(
         `DB writer invocation error (${result.FunctionError}): ${responsePayload}`
       );
+    } else {
+      logProcessorEvent({
+        event: 'db_writer_invoke_ok',
+        mediaId,
+        purpose: context?.purpose,
+        dbWriterStatus: status,
+      });
     }
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logProcessorEvent({
+      event: 'db_writer_invoke_failed',
+      mediaId,
+      purpose: context?.purpose,
+      dbWriterStatus: status,
+      dbWriterInvokeError: message,
+    });
     console.error('DB writer invocation failed:', err);
   }
 }
@@ -166,21 +198,44 @@ async function processRecord(record: S3EventRecord): Promise<void> {
           .join(', ');
         console.warn(`Content moderation flagged: ${labelNames}`);
 
+        const top = labels[0];
+        logProcessorEvent({
+          event: 'rekognition_moderation_flagged',
+          mediaId: meta.mediaId,
+          purpose: meta.purpose,
+          s3Key: key,
+          contentModeration: true,
+          moderationLabelCount: labels.length,
+          topLabel: top?.Name,
+        });
+
         await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 
         await invokeDbWriter(
           meta.mediaId,
           'rejected',
           undefined,
-          `content_moderation: ${labels[0]?.Name}`
+          `content_moderation: ${labels[0]?.Name}`,
+          { purpose: meta.purpose, s3Key: key }
         );
         return;
       }
 
       console.log('Content moderation passed');
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logProcessorEvent({
+        event: 'rekognition_error',
+        mediaId: meta.mediaId,
+        purpose: meta.purpose,
+        s3Key: key,
+        rekognitionError: message,
+      });
       console.error('Rekognition error:', err);
-      await invokeDbWriter(meta.mediaId, 'failed');
+      await invokeDbWriter(meta.mediaId, 'failed', undefined, undefined, {
+        purpose: meta.purpose,
+        s3Key: key,
+      });
       return;
     }
   }
@@ -195,7 +250,10 @@ async function processRecord(record: S3EventRecord): Promise<void> {
     } catch (delErr) {
       console.warn(`Failed to delete conv_scan raw upload: ${key}`, delErr);
     }
-    await invokeDbWriter(meta.mediaId, 'ready');
+    await invokeDbWriter(meta.mediaId, 'ready', undefined, undefined, {
+      purpose: meta.purpose,
+      s3Key: key,
+    });
     console.log(`Completed conv_scan (no processed/): ${meta.mediaId}`);
     return;
   }
@@ -234,7 +292,10 @@ async function processRecord(record: S3EventRecord): Promise<void> {
     );
   } catch (err) {
     console.error('Image processing error:', err);
-    await invokeDbWriter(meta.mediaId, 'failed');
+    await invokeDbWriter(meta.mediaId, 'failed', undefined, undefined, {
+      purpose: meta.purpose,
+      s3Key: key,
+    });
     return;
   }
 
@@ -256,7 +317,10 @@ async function processRecord(record: S3EventRecord): Promise<void> {
     console.log(`Uploaded processed file: ${processedKey}`);
   } catch (err) {
     console.error('Failed to upload processed file:', err);
-    await invokeDbWriter(meta.mediaId, 'failed');
+    await invokeDbWriter(meta.mediaId, 'failed', undefined, undefined, {
+      purpose: meta.purpose,
+      s3Key: key,
+    });
     return;
   }
 
@@ -266,7 +330,10 @@ async function processRecord(record: S3EventRecord): Promise<void> {
     console.warn(`Failed to delete raw upload: ${key}`);
   }
 
-  await invokeDbWriter(meta.mediaId, 'ready', processedKey);
+  await invokeDbWriter(meta.mediaId, 'ready', processedKey, undefined, {
+    purpose: meta.purpose,
+    s3Key: key,
+  });
   console.log(`Completed processing: ${meta.mediaId}`);
 }
 

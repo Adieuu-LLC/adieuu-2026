@@ -17,10 +17,7 @@
  */
 
 import { useState, useCallback, useRef, useMemo } from 'react';
-import {
-  createApiClient,
-  type E2EMediaStatus,
-} from '@adieuu/shared';
+import { createApiClient, mapModerationReasonToUserMessage } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import {
   generateThumbnail,
@@ -117,8 +114,13 @@ export function useConversationMediaUpload(
     [onError]
   );
 
+  type PollOutcome =
+    | { kind: 'available' }
+    | { kind: 'rejected'; moderationReason: string | null }
+    | { kind: 'timeout' };
+
   const pollE2EStatus = useCallback(
-    async (mediaId: string, abort: AbortController): Promise<E2EMediaStatus | null> => {
+    async (mediaId: string, abort: AbortController): Promise<PollOutcome | null> => {
       for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
         if (abort.signal.aborted) return null;
 
@@ -132,13 +134,16 @@ export function useConversationMediaUpload(
         setProgress(60 + Math.min(i, 35));
 
         if (res.data.status === 'available') {
-          return 'available';
+          return { kind: 'available' };
         }
         if (res.data.moderationStatus === 'rejected') {
-          return 'gated';
+          return {
+            kind: 'rejected',
+            moderationReason: res.data.moderationReason ?? null,
+          };
         }
       }
-      return null;
+      return { kind: 'timeout' };
     },
     [api]
   );
@@ -274,10 +279,11 @@ export function useConversationMediaUpload(
         // Step 5: Poll for moderation
         setState('scanning');
 
-        const finalStatus = await pollE2EStatus(mediaId, abort);
+        const pollResult = await pollE2EStatus(mediaId, abort);
         if (abort.signal.aborted) return null;
+        if (!pollResult) return null;
 
-        if (finalStatus === 'available') {
+        if (pollResult.kind === 'available') {
           setState('available');
           setProgress(100);
 
@@ -296,8 +302,11 @@ export function useConversationMediaUpload(
           return result;
         }
 
-        if (finalStatus === 'gated') {
-          fail('Content has been rejected by moderation', 'rejected');
+        if (pollResult.kind === 'rejected') {
+          const friendly =
+            mapModerationReasonToUserMessage(pollResult.moderationReason) ??
+            'Content has been rejected by moderation';
+          fail(friendly, 'rejected');
           return null;
         }
 

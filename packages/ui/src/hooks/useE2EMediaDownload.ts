@@ -17,7 +17,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { createApiClient } from '@adieuu/shared';
+import { createApiClient, mapModerationReasonToUserMessage } from '@adieuu/shared';
 import { decrypt as decryptSymmetric, fromBase64 } from '@adieuu/crypto';
 import { useAppConfig } from '../config';
 import type { MediaAttachment } from '../services/messagePayload';
@@ -114,9 +114,13 @@ export function useE2EMediaDownload(
             downloadUrl = await pollUntilAvailable(abort);
             if (abort.signal.aborted) return null;
           } else if (code === 'FORBIDDEN' || code === 'REJECTED' || code === 'MODERATION_ERROR') {
-            const reason =
+            const rawReason =
               firstAttempt.error?.details?.moderationReason ??
               firstAttempt.error?.message;
+            const reason =
+              mapModerationReasonToUserMessage(
+                typeof rawReason === 'string' ? rawReason : undefined,
+              ) ?? rawReason;
             const entry: CachedMedia = {
               url: '',
               state: 'rejected',
@@ -211,9 +215,13 @@ export function useE2EMediaDownload(
 
         const code = res.error?.code;
         if (code === 'FORBIDDEN' || code === 'REJECTED' || code === 'MODERATION_ERROR') {
-          const reason =
+          const rawReason =
             res.error?.details?.moderationReason ??
             res.error?.message;
+          const reason =
+            mapModerationReasonToUserMessage(
+              typeof rawReason === 'string' ? rawReason : undefined,
+            ) ?? rawReason;
           const entry: CachedMedia = {
             url: '',
             state: 'rejected',

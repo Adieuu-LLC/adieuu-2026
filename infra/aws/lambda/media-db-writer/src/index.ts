@@ -14,7 +14,8 @@ import {
   SecretsManagerClient,
   GetSecretValueCommand,
 } from '@aws-sdk/client-secrets-manager';
-import { MongoClient } from 'mongodb';
+import { MongoClient, type ObjectId } from 'mongodb';
+import { logModerationEvent } from './logging';
 
 const MONGODB_SECRET_ARN = process.env.MONGODB_SECRET_ARN!;
 const MONGODB_SECRET_KEY = process.env.MONGODB_SECRET_KEY || 'MONGODB_URI';
@@ -116,6 +117,22 @@ async function getMongoClient(): Promise<MongoClient> {
   return cachedMongoClient;
 }
 
+/** Resolve Mongo ObjectId or 24-char hex string to hex identity id. */
+function bsonIdentityToHexString(v: unknown): string | undefined {
+  if (v == null) return undefined;
+  if (typeof v === 'string') {
+    return /^[a-f0-9]{24}$/i.test(v) ? v.toLowerCase() : undefined;
+  }
+  if (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as ObjectId).toHexString === 'function'
+  ) {
+    return (v as ObjectId).toHexString();
+  }
+  return undefined;
+}
+
 export async function handler(event: WriterEvent): Promise<WriterResult> {
   const { mediaId, status, processedS3Key, rejectionReason } = event;
 
@@ -123,7 +140,15 @@ export async function handler(event: WriterEvent): Promise<WriterResult> {
     return { success: false, error: 'Missing required fields: mediaId, status' };
   }
 
-  console.log(`Updating media upload: ${mediaId} -> ${status}`);
+  console.log(
+    JSON.stringify({
+      source: 'media-db-writer',
+      event: 'media_upload_update_start',
+      mediaId,
+      status,
+      hasRejectionReason: rejectionReason != null,
+    })
+  );
 
   try {
     const client = await getMongoClient();
@@ -191,27 +216,60 @@ export async function handler(event: WriterEvent): Promise<WriterResult> {
 
     // Create an automated platform report when content is rejected
     if (status === 'rejected' && rejectionReason) {
+      const scanHashForReport = (mediaDoc as Record<string, unknown>).scanHash as
+        | string
+        | undefined;
+      const idempotencyKey = `rekog:${mediaId}`;
+
       try {
         const reportsCollection = db.collection(PLATFORM_REPORTS_COLLECTION);
-        const idempotencyKey = `rekog:${mediaId}`;
         const existing = await reportsCollection.findOne({ idempotencyKey });
-        if (!existing) {
-          const identityId =
-            (mediaDoc as Record<string, unknown>).identityId as string | undefined;
-          const scanHash =
-            (mediaDoc as Record<string, unknown>).scanHash as string | undefined;
+        if (existing) {
+          const existingId =
+            (existing as { _id?: { toHexString(): string } })._id?.toHexString?.() ??
+            String((existing as { _id?: unknown })._id);
+          logModerationEvent({
+            event: 'automated_report_deduped',
+            mediaId,
+            scanHash: scanHashForReport,
+            status,
+            rejectionReason,
+            idempotencyKey,
+            reportAction: 'deduped_skip',
+            reportId: existingId,
+          });
+        } else {
+          const identityFromMedia = bsonIdentityToHexString(
+            (mediaDoc as Record<string, unknown>).identityId
+          );
 
           let targetType: string = 'media_upload';
           let targetId: string = mediaId;
-          if (scanHash) {
-            const e2eDoc = await db.collection(E2E_MEDIA_COLLECTION).findOne({ scanHash });
+          let e2eMatched = false;
+          let identityFromE2e: string | undefined;
+
+          if (scanHashForReport) {
+            const e2eDoc = await db
+              .collection(E2E_MEDIA_COLLECTION)
+              .findOne({ scanHash: scanHashForReport });
             if (e2eDoc) {
-              targetType = 'e2e_media';
-              targetId = (e2eDoc._id as { toHexString(): string }).toHexString();
+              e2eMatched = true;
+              const e2eMediaId = (e2eDoc as Record<string, unknown>).e2eMediaId as
+                | string
+                | undefined;
+              if (e2eMediaId) {
+                targetType = 'e2e_media';
+                targetId = e2eMediaId;
+              }
+              identityFromE2e = bsonIdentityToHexString(
+                (e2eDoc as Record<string, unknown>).identityId
+              );
             }
           }
 
-          const labelName = rejectionReason.replace('content_moderation: ', '');
+          const targetIdentityId = identityFromMedia ?? identityFromE2e;
+
+          const labelName = rejectionReason.replace(/^content_moderation:\s*/i, '').trim();
           const category = labelName.toLowerCase().includes('child')
             ? 'csam'
             : labelName.toLowerCase().includes('violence')
@@ -219,23 +277,69 @@ export async function handler(event: WriterEvent): Promise<WriterResult> {
               : 'illegal_content';
 
           const now = new Date();
-          await reportsCollection.insertOne({
+          const insertDoc = {
             reportType: 'content',
             source: 'automated_rekognition',
             status: 'open',
             category,
             scopeType: 'platform',
             targetRef: { type: targetType, id: targetId },
-            targetIdentityId: identityId ?? undefined,
-            detectionMetadata: { rejectionReason, mediaId, scanHash },
+            targetIdentityId,
+            detectionMetadata: {
+              rejectionReason,
+              mediaId,
+              scanHash: scanHashForReport,
+              e2eMatched,
+            },
             idempotencyKey,
             createdAt: now,
             updatedAt: now,
+          };
+
+          logModerationEvent({
+            event: 'automated_report_insert_attempt',
+            mediaId,
+            scanHash: scanHashForReport,
+            status,
+            rejectionReason,
+            idempotencyKey,
+            targetRefType: targetType,
+            targetRefId: targetId,
+            targetIdentityId,
+            category,
+            e2eMatched,
           });
 
-          console.log(`Created platform report for rejected media: ${mediaId}`);
+          const insertResult = await reportsCollection.insertOne(insertDoc);
+
+          const insertedId = insertResult.insertedId?.toHexString?.() ?? String(insertResult.insertedId);
+          logModerationEvent({
+            event: 'automated_report_created',
+            mediaId,
+            scanHash: scanHashForReport,
+            idempotencyKey,
+            reportAction: 'created',
+            reportId: insertedId,
+            targetRefType: targetType,
+            targetRefId: targetId,
+            targetIdentityId,
+            category,
+            e2eMatched,
+          });
         }
       } catch (reportErr) {
+        const err = reportErr as Error;
+        logModerationEvent({
+          event: 'automated_report_error',
+          mediaId,
+          scanHash: scanHashForReport,
+          status,
+          rejectionReason,
+          idempotencyKey,
+          reportAction: 'error',
+          errorName: err.name,
+          errorMessage: err.message,
+        });
         console.error('Failed to create platform report (non-fatal):', reportErr);
       }
     }
