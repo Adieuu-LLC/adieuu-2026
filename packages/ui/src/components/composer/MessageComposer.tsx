@@ -4,7 +4,11 @@ import { Popover, Portal } from '@ark-ui/react';
 import { convertShortcodes, SHORTCODE_ENTRIES } from '../../utils/emojiShortcodes';
 import { serializePayload, mediaPayload, gifPayload, type MediaAttachment, type MentionEntity, type GifAttachment } from '../../services/messagePayload';
 import { getOrCreateDeviceId } from '../../services/deviceInfo';
-import { uploadMediaFile, type MediaUploadResult } from '../../hooks/useConversationMediaUpload';
+import {
+  uploadE2EMediaOnly,
+  uploadModerationScanCopy,
+  type MediaUploadResult,
+} from '../../hooks/useConversationMediaUpload';
 import { stripExifMetadata } from '../../utils/imageProcessing';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
 import { createApiClient } from '@adieuu/shared';
@@ -395,7 +399,7 @@ export function MessageComposer({
 
             updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 15 });
 
-            const result = await uploadMediaFile(api, att.file, encryptedBlob, {
+            const e2eResult = await uploadE2EMediaOnly(api, att.file, encryptedBlob, {
               stripExif: stripExif && att.file.type.startsWith('image/'),
               onUploadsComplete: () => {
                 updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 90 });
@@ -403,6 +407,19 @@ export function MessageComposer({
             });
 
             updateAttachmentStatus(i, { uploadStatus: 'done', uploadProgress: 100 });
+
+            const { scanThumbnail, ...result } = e2eResult;
+
+            void uploadModerationScanCopy(api, result.scanHash, scanThumbnail).catch((err) => {
+              console.error('[Composer] Moderation scan upload failed', err);
+              toastError(
+                t('conversations.uploadFailed', 'Upload failed'),
+                t(
+                  'conversations.scanUploadFailedDesc',
+                  'Preview upload for safety checks did not finish. The attachment may stay pending until you retry.',
+                ),
+              );
+            });
 
             return {
               ...result,

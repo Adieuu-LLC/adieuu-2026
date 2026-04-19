@@ -48,7 +48,12 @@ export interface UseConversationMediaUploadReturn {
   moderationStatus: string | null;
 }
 
-export { uploadMediaFile, type UploadMediaFileOptions } from '../services/conversationMediaUploadFlow';
+export {
+  uploadMediaFile,
+  uploadE2EMediaOnly,
+  uploadModerationScanCopy,
+  type UploadMediaFileOptions,
+} from '../services/conversationMediaUploadFlow';
 
 export function useConversationMediaUpload(
   options: UseConversationMediaUploadOptions = {}

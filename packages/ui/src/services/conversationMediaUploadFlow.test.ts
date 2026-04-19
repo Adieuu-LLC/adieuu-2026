@@ -87,4 +87,50 @@ describe('conversationMediaUploadFlow', () => {
     expect(getE2EMediaStatus).not.toHaveBeenCalled();
     expect(sequence).toEqual(['completeE2E', 'completeScan', 'onUploadsComplete']);
   });
+
+  test('uploadE2EMediaOnly finalises E2E only and does not upload scan copy', async () => {
+    const sequence: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mock(() =>
+      Promise.resolve({ ok: true, status: 200 })
+    ) as typeof fetch;
+
+    const api = {
+      e2eUploads: {
+        requestE2EUpload: async () => ({
+          success: true,
+          data: {
+            e2eMediaId: 'mid',
+            uploadUrl: 'https://e2e.example/put',
+            scanHash: 'a'.repeat(64),
+          },
+        }),
+        requestScanUpload: async () => {
+          sequence.push('unexpected_requestScan');
+          return { success: false, error: { message: 'no' } };
+        },
+        completeE2EUpload: async () => {
+          sequence.push('completeE2E');
+          return { success: true };
+        },
+        completeScanUpload: async () => {
+          sequence.push('unexpected_completeScan');
+          return { success: true };
+        },
+      },
+    };
+
+    try {
+      const file = new File(['x'], 'x.jpg', { type: 'image/jpeg' });
+      const r = await flow.uploadE2EMediaOnly(api as never, file, new Blob(['enc']), {
+        onUploadsComplete: () => sequence.push('onUploadsComplete'),
+      });
+      expect(r.e2eMediaId).toBe('mid');
+      expect(r.scanThumbnail).toBeInstanceOf(Blob);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+
+    expect(sequence).toEqual(['completeE2E', 'onUploadsComplete']);
+  });
 });
