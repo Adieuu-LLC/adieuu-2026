@@ -1,5 +1,10 @@
 import type { PublicIdentity } from '@adieuu/shared';
 
+/** Full API client (identity provider uses one instance with session-expiry handling). */
+export type PlatformApiClient = ReturnType<
+  typeof import('@adieuu/shared').createApiClient
+>;
+
 /**
  * Identity session status:
  * - `loading`: Initial state, checking session
@@ -95,6 +100,8 @@ export interface LoginIdentityOptions {
 }
 
 export interface IdentityContextValue extends IdentityState {
+  /** Shared API client; use for requests that must honor identity session expiry. */
+  api: PlatformApiClient;
   createIdentity: (
     passphrase: string,
     username: string,

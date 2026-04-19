@@ -43,6 +43,7 @@ export type {
   LoginIdentityOptions,
   LoginIdentityResult,
   LoginStatus,
+  PlatformApiClient,
   SuspensionInfo,
   UnlockIdentityResult,
   WebDeviceChoice,
@@ -856,6 +857,7 @@ function useIdentityState(): IdentityContextValue {
 
   return useMemo(() => ({
     ...state,
+    api,
     createIdentity,
     loginToIdentity,
     unlockIdentity,
@@ -869,6 +871,7 @@ function useIdentityState(): IdentityContextValue {
     getCurrentDeviceId,
   }), [
     state,
+    api,
     createIdentity,
     loginToIdentity,
     unlockIdentity,

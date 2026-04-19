@@ -15,6 +15,7 @@ import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
+import { ReportEvidenceGifSection } from './ReportEvidenceGifSection';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -584,6 +585,14 @@ export function ReportDetail() {
                             </span>
                           ))}
                         </div>
+                      )}
+                      {msg.gifAttachments && msg.gifAttachments.length > 0 && (
+                        <ReportEvidenceGifSection
+                          items={msg.gifAttachments}
+                          labelGif={t('moderation.detail.evidenceGif')}
+                          labelSticker={t('moderation.detail.evidenceSticker')}
+                          altPreview={t('moderation.detail.evidenceGifAlt')}
+                        />
                       )}
                     </div>
                   ))}

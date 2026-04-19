@@ -37,6 +37,22 @@ export interface PublicEvidenceAttachment {
   sizeBytes?: number;
 }
 
+/** GIF/sticker metadata from decrypted message payload (URL references). */
+export interface PublicEvidenceGifAttachment {
+  provider: 'klipy';
+  type: 'gif' | 'sticker';
+  url: string;
+  posterUrl?: string;
+  previewUrl: string;
+  tinyUrl: string;
+  blurPreview: string;
+  width: number;
+  height: number;
+  searchTerm: string;
+  title?: string;
+  slug: string;
+}
+
 export interface PublicMessageEvidence {
   messageId: string;
   fromIdentityId: string;
@@ -45,6 +61,7 @@ export interface PublicMessageEvidence {
   signatureVerified: boolean;
   isTargetMessage: boolean;
   attachments?: PublicEvidenceAttachment[];
+  gifAttachments?: PublicEvidenceGifAttachment[];
   createdAt: string;
 }
 

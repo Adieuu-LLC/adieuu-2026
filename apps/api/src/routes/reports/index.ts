@@ -9,7 +9,8 @@
  */
 
 import { Router } from '../../router';
-import { success } from '../../utils/response';
+import { success, error } from '../../utils/response';
+import { getErrorMessage } from '../../i18n';
 import {
   getIdentitySessionIdFromRequest,
   getIdentityFromSession,
@@ -17,6 +18,7 @@ import {
 import {
   submitMessageReport,
   submitProfileReport,
+  type ReportSubmissionResult,
 } from '../../services/report-submission.service';
 import { checkRateLimit, type RateLimitConfig } from '../../services/rate-limit.service';
 import { REPORT_CATEGORIES } from '../../models/report';
@@ -50,6 +52,28 @@ const SubmitReportSchema = z.discriminatedUnion('type', [
   SubmitProfileReportSchema,
 ]);
 
+function reportSubmissionErrorResponse(result: ReportSubmissionResult): Response {
+  const message = result.error ?? 'Request failed';
+  const code = result.errorCode ?? 'BAD_REQUEST';
+
+  switch (result.errorCode) {
+    case 'DUPLICATE_REPORT':
+      return error(code, message, 409);
+    case 'MESSAGE_NOT_FOUND':
+    case 'CONVERSATION_NOT_FOUND':
+    case 'IDENTITY_NOT_FOUND':
+      return error(code, message, 404);
+    case 'NOT_PARTICIPANT':
+      return error(code, message, 403);
+    case 'MISSING_SESSION_KEY':
+    case 'DECRYPTION_FAILED':
+    case 'DELETED_MESSAGE':
+      return error(code, message, 400);
+    default:
+      return error('BAD_REQUEST', message, 400);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // POST /reports — submit a manual report
 // ---------------------------------------------------------------------------
@@ -59,19 +83,17 @@ router.post('/reports', async (ctx) => {
   if (!identitySessionId) return ctx.errors.unauthorized();
 
   const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!identity) return ctx.errors.sessionExpiredWithClearCookie();
 
   const identityId = identity._id.toHexString();
 
   // Rate limit
   const rl = await checkRateLimit('report:submit', identityId, REPORT_RATE_LIMIT);
   if (!rl.allowed) {
-    return new Response(JSON.stringify({ error: 'Too many reports. Please try again later.' }), {
-      status: 429,
-      headers: {
-        'Content-Type': 'application/json',
-        'Retry-After': String(rl.resetAt - Math.floor(Date.now() / 1000)),
-      },
+    const message = getErrorMessage('rateLimited', ctx.locale);
+    const retryAfter = Math.max(0, rl.resetAt - Math.floor(Date.now() / 1000));
+    return error('RATE_LIMITED', message, 429, undefined, {
+      'Retry-After': String(retryAfter),
     });
   }
 
@@ -90,23 +112,7 @@ router.post('/reports', async (ctx) => {
     });
 
     if (!result.success) {
-      switch (result.errorCode) {
-        case 'DUPLICATE_REPORT':
-          return ctx.errors.badRequest();
-        case 'MESSAGE_NOT_FOUND':
-          return ctx.errors.notFound();
-        case 'CONVERSATION_NOT_FOUND':
-          return ctx.errors.notFound();
-        case 'NOT_PARTICIPANT':
-          return ctx.errors.forbidden();
-        case 'DELETED_MESSAGE':
-          return ctx.errors.badRequest();
-        case 'MISSING_SESSION_KEY':
-        case 'DECRYPTION_FAILED':
-          return ctx.errors.badRequest();
-        default:
-          return ctx.errors.badRequest();
-      }
+      return reportSubmissionErrorResponse(result);
     }
 
     return success({ reportId: result.reportId }, 'Report submitted.');
@@ -124,14 +130,7 @@ router.post('/reports', async (ctx) => {
   });
 
   if (!result.success) {
-    switch (result.errorCode) {
-      case 'DUPLICATE_REPORT':
-        return ctx.errors.badRequest();
-      case 'IDENTITY_NOT_FOUND':
-        return ctx.errors.notFound();
-      default:
-        return ctx.errors.badRequest();
-    }
+    return reportSubmissionErrorResponse(result);
   }
 
   return success({ reportId: result.reportId }, 'Report submitted.');

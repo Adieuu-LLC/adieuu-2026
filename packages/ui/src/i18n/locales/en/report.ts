@@ -20,7 +20,7 @@ export const report = {
     reasonPlaceholder: 'Describe what happened...',
     consentStepTitle: 'Privacy disclosure',
     messageConsent:
-      'By submitting this report, the reported message and up to 3 surrounding messages will be decrypted and shared with platform moderators in plaintext, including any media attachments. No other messages will be affected.',
+      'By submitting this report, the reported message and up to 3 surrounding messages will be decrypted and shared with platform moderators in plaintext, including uploaded media, GIFs, stickers, and any other content in those messages. No other messages will be affected.',
     profileConsent:
       "The reported profile's current display name, bio, and avatar will be shared with moderators.",
     next: 'Next',
@@ -32,4 +32,7 @@ export const report = {
     errorDuplicate: 'You have already reported this.',
     errorRateLimit: 'Too many reports. Please try again later.',
     errorDecryption: 'Unable to verify message evidence. Please try again.',
+    errorSessionExpired: 'Your session expired. Please sign in again and try submitting the report.',
+    errorNetwork: 'Could not reach the server. Check your connection and try again.',
+    errorTimeout: 'The request took too long. Please try again.',
 } as const;

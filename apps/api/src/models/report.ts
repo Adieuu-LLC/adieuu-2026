@@ -72,6 +72,22 @@ export interface EvidenceAttachment {
   sizeBytes?: number;
 }
 
+/** GIF/sticker metadata from decrypted message payload (URL references, not E2E blobs). */
+export interface EvidenceGifAttachment {
+  provider: 'klipy';
+  type: 'gif' | 'sticker';
+  url: string;
+  posterUrl?: string;
+  previewUrl: string;
+  tinyUrl: string;
+  blurPreview: string;
+  width: number;
+  height: number;
+  searchTerm: string;
+  title?: string;
+  slug: string;
+}
+
 export interface MessageEvidence {
   messageId: string;
   fromIdentityId: string;
@@ -80,6 +96,8 @@ export interface MessageEvidence {
   signatureVerified: boolean;
   isTargetMessage: boolean;
   attachments?: EvidenceAttachment[];
+  /** Klipy GIF/sticker references from the decrypted payload */
+  gifAttachments?: EvidenceGifAttachment[];
   createdAt: string;
 }
 

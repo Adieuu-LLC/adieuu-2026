@@ -121,6 +121,7 @@ export {
   type ReportTargetRef,
   type ReportResolution,
   type PublicEvidenceAttachment,
+  type PublicEvidenceGifAttachment,
   type PublicMessageEvidence,
   type PublicProfileEvidence,
   type PublicReportEvidence,

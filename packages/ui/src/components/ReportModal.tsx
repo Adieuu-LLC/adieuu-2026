@@ -8,15 +8,15 @@
  * @module components/ReportModal
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Dialog, Portal, Select, createListCollection } from '@ark-ui/react';
 import { Button } from './Button';
 import { Icon } from '../icons/Icon';
 import { useTranslation } from 'react-i18next';
-import { createApiClient, type ReportCategory } from '@adieuu/shared';
-import { useAppConfig } from '../config';
+import { API_ERROR_SESSION_EXPIRED, type ReportCategory } from '@adieuu/shared';
 import { useToast } from './Toast';
 import { useReportEvidence } from '../hooks/useReportEvidence';
+import { useIdentity } from '../hooks/useIdentity';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,10 +54,41 @@ export function ReportModal({
   targetIdentityId,
 }: ReportModalProps) {
   const { t } = useTranslation();
-  const { apiBaseUrl } = useAppConfig();
-  const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const { api } = useIdentity();
   const toast = useToast();
   const { gatherEvidence } = useReportEvidence();
+
+  const reportErrorToast = useCallback(
+    (code: string | undefined) => {
+      switch (code) {
+        case API_ERROR_SESSION_EXPIRED:
+          toast.error(t('report.title'), t('report.errorSessionExpired'));
+          return;
+        case 'RATE_LIMITED':
+          toast.error(t('report.title'), t('report.errorRateLimit'));
+          return;
+        case 'DUPLICATE_REPORT':
+          toast.error(t('report.title'), t('report.errorDuplicate'));
+          return;
+        case 'MISSING_SESSION_KEY':
+        case 'DECRYPTION_FAILED':
+          toast.error(t('report.title'), t('report.errorDecryption'));
+          return;
+        case 'UNAUTHORIZED':
+          toast.error(t('report.title'), t('report.errorSessionExpired'));
+          return;
+        case 'TIMEOUT':
+          toast.error(t('report.title'), t('report.errorTimeout'));
+          return;
+        case 'NETWORK_ERROR':
+          toast.error(t('report.title'), t('report.errorNetwork'));
+          return;
+        default:
+          toast.error(t('report.title'), t('report.errorGeneric'));
+      }
+    },
+    [t, toast],
+  );
 
   const categoryCollection = useMemo(
     () =>
@@ -121,7 +152,10 @@ export function ReportModal({
           sessionKeys: evidence.sessionKeys,
         });
 
-        if (!resp.data) throw new Error(resp.error?.message ?? 'Unknown error');
+        if (!resp.success || !resp.data) {
+          reportErrorToast(resp.error?.code);
+          return;
+        }
       } else if (mode === 'profile' && targetIdentityId) {
         const resp = await api.reports.submitProfileReport({
           type: 'profile',
@@ -130,7 +164,10 @@ export function ReportModal({
           reason: reason.trim() || undefined,
         });
 
-        if (!resp.data) throw new Error(resp.error?.message ?? 'Unknown error');
+        if (!resp.success || !resp.data) {
+          reportErrorToast(resp.error?.code);
+          return;
+        }
       }
 
       toast.success(t('report.title'), t('report.success'));

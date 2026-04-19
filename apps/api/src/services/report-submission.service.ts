@@ -31,6 +31,7 @@ import type {
   ReportDocument,
   MessageEvidence,
   EvidenceAttachment,
+  EvidenceGifAttachment,
   ReportEvidence,
 } from '../models/report';
 import { checkAndAward } from './achievement.service';
@@ -76,6 +77,7 @@ interface ParsedAttachment {
 interface ParsedPayload {
   text: string;
   attachments: ParsedAttachment[];
+  gifAttachments: EvidenceGifAttachment[];
 }
 
 function isValidAttachment(a: unknown): a is ParsedAttachment {
@@ -89,22 +91,46 @@ function isValidAttachment(a: unknown): a is ParsedAttachment {
   );
 }
 
+function isValidGifAttachment(a: unknown): a is EvidenceGifAttachment {
+  if (typeof a !== 'object' || a === null) return false;
+  const obj = a as Record<string, unknown>;
+  if (
+    obj.provider !== 'klipy' ||
+    (obj.type !== 'gif' && obj.type !== 'sticker') ||
+    typeof obj.url !== 'string' ||
+    typeof obj.previewUrl !== 'string' ||
+    typeof obj.tinyUrl !== 'string' ||
+    typeof obj.blurPreview !== 'string' ||
+    typeof obj.width !== 'number' ||
+    typeof obj.height !== 'number' ||
+    typeof obj.searchTerm !== 'string' ||
+    typeof obj.slug !== 'string'
+  ) {
+    return false;
+  }
+  if (obj.posterUrl !== undefined && typeof obj.posterUrl !== 'string') return false;
+  if (obj.title !== undefined && typeof obj.title !== 'string') return false;
+  return true;
+}
+
 function parseMessagePayload(plaintext: string): ParsedPayload {
   if (!plaintext.startsWith('{')) {
-    return { text: plaintext, attachments: [] };
+    return { text: plaintext, attachments: [], gifAttachments: [] };
   }
   try {
     const parsed = JSON.parse(plaintext) as Record<string, unknown>;
     if (typeof parsed.version !== 'number' || parsed.version < 1) {
-      return { text: plaintext, attachments: [] };
+      return { text: plaintext, attachments: [], gifAttachments: [] };
     }
     const rawAttachments = Array.isArray(parsed.attachments) ? parsed.attachments : [];
+    const rawGifs = Array.isArray(parsed.gifAttachments) ? parsed.gifAttachments : [];
     return {
       text: typeof parsed.text === 'string' ? parsed.text : '',
       attachments: rawAttachments.filter(isValidAttachment),
+      gifAttachments: rawGifs.filter(isValidGifAttachment),
     };
   } catch {
-    return { text: plaintext, attachments: [] };
+    return { text: plaintext, attachments: [], gifAttachments: [] };
   }
 }
 
@@ -265,6 +291,8 @@ export async function submitMessageReport(
       sizeBytes: a.sizeBytes,
     }));
 
+    const gifAttachments = parsed.gifAttachments;
+
     messageEvidence.push({
       messageId: msgId,
       fromIdentityId: senderId,
@@ -273,6 +301,7 @@ export async function submitMessageReport(
       signatureVerified,
       isTargetMessage: msgId === params.targetMessageId,
       attachments: attachments.length > 0 ? attachments : undefined,
+      gifAttachments: gifAttachments.length > 0 ? gifAttachments : undefined,
       createdAt: msg.createdAt.toISOString(),
     });
   }
