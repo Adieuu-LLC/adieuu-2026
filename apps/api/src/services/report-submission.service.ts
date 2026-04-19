@@ -36,9 +36,9 @@ import type {
 } from '../models/report';
 import { checkAndAward } from './achievement.service';
 import elog from '../utils/adieuuLogger';
+import { isReportContextMessageCount } from '@adieuu/shared';
 
 const MESSAGE_SIGN_DOMAIN = 'adieuu-msg-v1';
-const CONTEXT_MESSAGE_COUNT = 3;
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -56,7 +56,8 @@ export interface ReportSubmissionResult {
     | 'MISSING_SESSION_KEY'
     | 'DECRYPTION_FAILED'
     | 'DUPLICATE_REPORT'
-    | 'DELETED_MESSAGE';
+    | 'DELETED_MESSAGE'
+    | 'BAD_REQUEST';
 }
 
 // ---------------------------------------------------------------------------
@@ -179,6 +180,8 @@ export interface SubmitMessageReportParams {
   targetMessageId: string;
   category: ReportCategory;
   reason?: string;
+  /** Messages before and after the target (same count each side). */
+  contextMessageCount: number;
   sessionKeys: Record<string, string>;
 }
 
@@ -191,6 +194,11 @@ export async function submitMessageReport(
   const conversationRepo = getConversationRepository();
   const identityRepo = getIdentityRepository();
   const reportRepo = getReportRepository();
+
+  if (!isReportContextMessageCount(params.contextMessageCount)) {
+    return { success: false, error: 'Invalid context window', errorCode: 'BAD_REQUEST' };
+  }
+  const contextN = params.contextMessageCount;
 
   // 1. Look up the target message
   let targetObjectId: ObjectId;
@@ -226,10 +234,10 @@ export async function submitMessageReport(
     return { success: false, error: 'You have already reported this message', errorCode: 'DUPLICATE_REPORT' };
   }
 
-  // 4. Gather evidence window (target + up to 3 before + 3 after)
+  // 4. Gather evidence window (target + up to N before + N after)
   const [messagesBefore, messagesAfter] = await Promise.all([
-    messageRepo.findBefore(targetMsg.conversationId, targetObjectId, CONTEXT_MESSAGE_COUNT),
-    messageRepo.findAfter(targetMsg.conversationId, targetObjectId, CONTEXT_MESSAGE_COUNT),
+    messageRepo.findBefore(targetMsg.conversationId, targetObjectId, contextN),
+    messageRepo.findAfter(targetMsg.conversationId, targetObjectId, contextN),
   ]);
 
   const evidenceMessages: MessageDocument[] = [
@@ -310,6 +318,7 @@ export async function submitMessageReport(
   const targetIdentityId = targetMsg.fromIdentityId.toHexString();
   const evidence: ReportEvidence = {
     type: 'message',
+    contextMessageCount: contextN,
     messageEvidence,
   };
 

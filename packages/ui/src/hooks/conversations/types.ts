@@ -86,8 +86,15 @@ export interface ConversationsContextValue {
   fetchMessagesAround: (
     conversationId: string,
     centerMessageId: string,
-    options?: { before?: number; after?: number }
-  ) => Promise<boolean>;
+    options?: {
+      before?: number;
+      after?: number;
+      /** Do not replace conversation buffer (e.g. gathering report evidence keys). */
+      skipStateUpdate?: boolean;
+      /** With skipStateUpdate: suppress failure toast (caller shows error). */
+      silent?: boolean;
+    }
+  ) => Promise<DisplayMessage[] | null>;
   loadPinnedMessagesPage: (
     conversationId: string,
     cursor?: string | null

@@ -1,4 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  AccordionRoot,
+  AccordionItem,
+  AccordionItemTrigger,
+  AccordionItemContent,
+  AccordionItemIndicator,
+} from '@ark-ui/react';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -15,7 +22,8 @@ import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
-import { ReportEvidenceGifSection } from './ReportEvidenceGifSection';
+import { ModerationEvidenceMessageRow } from './ModerationEvidenceMessageRow';
+import { splitMessageEvidenceForModeration } from './moderationEvidenceSplit';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -330,6 +338,14 @@ export function ReportDetail() {
   const fmtId = (identityId: string | undefined) =>
     formatIdentity(identityId, identityProfiles, t('moderation.detail.unknownAlias'));
 
+  const messageEvidenceSplit = useMemo(() => {
+    if (report?.evidence?.type !== 'message' || !report.evidence.messageEvidence) return null;
+    return splitMessageEvidenceForModeration(
+      report.evidence.messageEvidence,
+      report.evidence.contextMessageCount,
+    );
+  }, [report]);
+
   if (loading) {
     return (
       <div className="admin-page" style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
@@ -524,78 +540,121 @@ export function ReportDetail() {
           {/* Evidence tab */}
           <TabContent value="evidence">
             {/* Message evidence */}
-            {report.evidence?.type === 'message' && report.evidence.messageEvidence && (
+            {report.evidence?.type === 'message' && report.evidence.messageEvidence && messageEvidenceSplit && (
               <>
                 <h3 className="admin-card-title">{t('moderation.detail.evidenceMessages')}</h3>
+                {report.evidence.contextMessageCount != null && (
+                  <p style={{ fontSize: '0.75rem', opacity: 0.65, marginBottom: '0.75rem' }}>
+                    {t('moderation.detail.contextWindowLabel', { count: report.evidence.contextMessageCount })}
+                  </p>
+                )}
                 <div className="moderation-evidence-messages">
-                  {report.evidence.messageEvidence.map((msg) => (
-                    <div
-                      key={msg.messageId}
-                      className={`moderation-evidence-message ${msg.isTargetMessage ? 'moderation-evidence-message--target' : ''}`}
-                      style={{
-                        padding: '0.75rem',
-                        borderRadius: '0.5rem',
-                        marginBottom: '0.5rem',
-                        background: msg.isTargetMessage
-                          ? 'var(--color-danger-bg, rgba(220,38,38,0.1))'
-                          : 'var(--color-surface-alt, rgba(0,0,0,0.03))',
-                        border: msg.isTargetMessage ? '1px solid var(--color-danger, #dc2626)' : '1px solid transparent',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', opacity: 0.7, marginBottom: '0.25rem' }}>
-                        <span>
-                          <span>{fmtId(msg.fromIdentityId)}</span>
-                          {msg.isTargetMessage && (
-                            <span style={{ marginLeft: '0.5rem', fontWeight: 600, color: 'var(--color-danger, #dc2626)' }}>
-                              {t('moderation.detail.targetMessage')}
-                            </span>
-                          )}
-                          {!msg.isTargetMessage && (
-                            <span style={{ marginLeft: '0.5rem' }}>
-                              {t('moderation.detail.contextMessage')}
-                            </span>
-                          )}
-                        </span>
-                        <span>{new Date(msg.createdAt).toLocaleString()}</span>
-                      </div>
-                      <p style={{ margin: '0.25rem 0', whiteSpace: 'pre-wrap' }}>{msg.decryptedText}</p>
-                      <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.75rem', marginTop: '0.25rem' }}>
-                        <span style={{ color: msg.signatureVerified ? 'var(--color-success, green)' : 'var(--color-warning, orange)' }}>
-                          {msg.signatureVerified
-                            ? t('moderation.detail.signatureVerified')
-                            : t('moderation.detail.signatureUnverified')}
-                        </span>
-                      </div>
-                      {msg.attachments && msg.attachments.length > 0 && (
-                        <div style={{ marginTop: '0.5rem', fontSize: '0.8125rem' }}>
-                          {msg.attachments.map((att) => (
-                            <span
-                              key={att.e2eMediaId}
-                              className="moderation-evidence-attachment"
+                  {messageEvidenceSplit.fallbackFlat ? (
+                    report.evidence.messageEvidence.map((msg) => (
+                      <ModerationEvidenceMessageRow key={msg.messageId} msg={msg} fmtId={fmtId} />
+                    ))
+                  ) : (
+                    <>
+                      {messageEvidenceSplit.olderContext.length > 0 && (
+                        <AccordionRoot
+                          className="moderation-evidence-extra-accordion"
+                          collapsible
+                          defaultValue={[]}
+                        >
+                          <AccordionItem value="older-extra" className="moderation-evidence-accordion-item">
+                            <AccordionItemTrigger
+                              className="moderation-evidence-accordion-trigger"
+                              type="button"
                               style={{
-                                display: 'inline-block',
-                                padding: '0.25rem 0.5rem',
-                                marginRight: '0.25rem',
-                                borderRadius: '0.25rem',
-                                background: 'var(--color-surface-alt, rgba(0,0,0,0.05))',
-                                fontSize: '0.75rem',
+                                width: '100%',
+                                textAlign: 'left',
+                                padding: '0.5rem 0.75rem',
+                                marginBottom: '0.5rem',
+                                borderRadius: '0.375rem',
+                                border: '1px solid var(--color-border-subtle, rgba(0,0,0,0.1))',
+                                background: 'var(--color-surface-alt, rgba(0,0,0,0.03))',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '0.5rem',
                               }}
                             >
-                              {att.fileName || att.contentType} ({att.sizeBytes ? `${Math.round(att.sizeBytes / 1024)}KB` : att.e2eMediaId})
-                            </span>
-                          ))}
-                        </div>
+                              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+                                {t('moderation.detail.evidenceOlderExpand', {
+                                  count: messageEvidenceSplit.olderContext.length,
+                                })}
+                              </span>
+                              <AccordionItemIndicator>
+                                <Icon name="chevronDown" size="xs" />
+                              </AccordionItemIndicator>
+                            </AccordionItemTrigger>
+                            <AccordionItemContent>
+                              {messageEvidenceSplit.olderContext.map((msg) => (
+                                <ModerationEvidenceMessageRow key={msg.messageId} msg={msg} fmtId={fmtId} />
+                              ))}
+                            </AccordionItemContent>
+                          </AccordionItem>
+                        </AccordionRoot>
                       )}
-                      {msg.gifAttachments && msg.gifAttachments.length > 0 && (
-                        <ReportEvidenceGifSection
-                          items={msg.gifAttachments}
-                          labelGif={t('moderation.detail.evidenceGif')}
-                          labelSticker={t('moderation.detail.evidenceSticker')}
-                          altPreview={t('moderation.detail.evidenceGifAlt')}
+                      {messageEvidenceSplit.primaryBefore.map((msg) => (
+                        <ModerationEvidenceMessageRow key={msg.messageId} msg={msg} fmtId={fmtId} />
+                      ))}
+                      {messageEvidenceSplit.target && (
+                        <ModerationEvidenceMessageRow
+                          key={messageEvidenceSplit.target.messageId}
+                          msg={messageEvidenceSplit.target}
+                          fmtId={fmtId}
                         />
                       )}
-                    </div>
-                  ))}
+                      {messageEvidenceSplit.primaryAfter.map((msg) => (
+                        <ModerationEvidenceMessageRow key={msg.messageId} msg={msg} fmtId={fmtId} />
+                      ))}
+                      {messageEvidenceSplit.newerContext.length > 0 && (
+                        <AccordionRoot
+                          className="moderation-evidence-extra-accordion"
+                          collapsible
+                          defaultValue={[]}
+                        >
+                          <AccordionItem value="newer-extra" className="moderation-evidence-accordion-item">
+                            <AccordionItemTrigger
+                              className="moderation-evidence-accordion-trigger"
+                              type="button"
+                              style={{
+                                width: '100%',
+                                textAlign: 'left',
+                                padding: '0.5rem 0.75rem',
+                                marginTop: '0.25rem',
+                                marginBottom: '0.5rem',
+                                borderRadius: '0.375rem',
+                                border: '1px solid var(--color-border-subtle, rgba(0,0,0,0.1))',
+                                background: 'var(--color-surface-alt, rgba(0,0,0,0.03))',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '0.5rem',
+                              }}
+                            >
+                              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+                                {t('moderation.detail.evidenceNewerExpand', {
+                                  count: messageEvidenceSplit.newerContext.length,
+                                })}
+                              </span>
+                              <AccordionItemIndicator>
+                                <Icon name="chevronDown" size="xs" />
+                              </AccordionItemIndicator>
+                            </AccordionItemTrigger>
+                            <AccordionItemContent>
+                              {messageEvidenceSplit.newerContext.map((msg) => (
+                                <ModerationEvidenceMessageRow key={msg.messageId} msg={msg} fmtId={fmtId} />
+                              ))}
+                            </AccordionItemContent>
+                          </AccordionItem>
+                        </AccordionRoot>
+                      )}
+                    </>
+                  )}
                 </div>
               </>
             )}

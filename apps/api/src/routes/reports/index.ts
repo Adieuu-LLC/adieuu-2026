@@ -23,6 +23,7 @@ import {
 import { checkRateLimit, type RateLimitConfig } from '../../services/rate-limit.service';
 import { REPORT_CATEGORIES } from '../../models/report';
 import { z } from '@adieuu/shared/schemas';
+import { isReportContextMessageCount } from '@adieuu/shared';
 
 const router = new Router();
 
@@ -37,6 +38,11 @@ const SubmitMessageReportSchema = z.object({
   targetMessageId: z.string().length(24),
   category: z.enum(REPORT_CATEGORIES as unknown as [string, ...string[]]),
   reason: z.string().max(500).optional(),
+  contextMessageCount: z
+    .number()
+    .refine((n): n is 3 | 5 | 10 | 25 => isReportContextMessageCount(n), {
+      message: 'Invalid contextMessageCount',
+    }),
   sessionKeys: z.record(z.string().length(24), z.string().min(1).max(500)),
 });
 
@@ -68,6 +74,7 @@ function reportSubmissionErrorResponse(result: ReportSubmissionResult): Response
     case 'MISSING_SESSION_KEY':
     case 'DECRYPTION_FAILED':
     case 'DELETED_MESSAGE':
+    case 'BAD_REQUEST':
       return error(code, message, 400);
     default:
       return error('BAD_REQUEST', message, 400);
@@ -108,6 +115,7 @@ router.post('/reports', async (ctx) => {
       targetMessageId: data.targetMessageId,
       category: data.category as typeof REPORT_CATEGORIES[number],
       reason: data.reason,
+      contextMessageCount: data.contextMessageCount,
       sessionKeys: data.sessionKeys,
     });
 

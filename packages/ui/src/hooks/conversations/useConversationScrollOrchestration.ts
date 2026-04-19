@@ -47,7 +47,7 @@ export function useConversationScrollOrchestration(params: {
     conversationId: string,
     messageId: string,
     context: { before: number; after: number },
-  ) => Promise<boolean>;
+  ) => Promise<DisplayMessage[] | null>;
   searchParams: URLSearchParams;
   setSearchParams: SetURLSearchParams;
   setShowSettings: Dispatch<SetStateAction<boolean>>;
@@ -313,9 +313,9 @@ export function useConversationScrollOrchestration(params: {
         void fetchMessagesAround(id, targetId, {
           before: REPLY_JUMP_CONTEXT_BEFORE,
           after: REPLY_JUMP_CONTEXT_AFTER,
-        }).then((ok) => {
+        }).then((messages) => {
           replyAroundFetchPendingRef.current = false;
-          if (!ok) pendingScrollToRef.current = null;
+          if (messages == null) pendingScrollToRef.current = null;
         });
       }
     },

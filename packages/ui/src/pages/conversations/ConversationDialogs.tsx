@@ -135,6 +135,7 @@ export function ConversationDialogs({
         onOpenChange={setReportModalOpen}
         mode="message"
         targetMessageId={reportTargetMessageId}
+        conversationId={conversationId}
       />
 
       {pendingLinkHref && (

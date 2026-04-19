@@ -93,6 +93,7 @@ describe('report-submission.service', () => {
     const result = await submitMessageReport(reporterIdentityId, new ObjectId().toHexString(), {
       targetMessageId,
       category: 'spam',
+      contextMessageCount: 3,
       sessionKeys: {},
     });
 
@@ -104,6 +105,7 @@ describe('report-submission.service', () => {
     const result = await submitMessageReport(reporterIdentityId, new ObjectId().toHexString(), {
       targetMessageId,
       category: 'spam',
+      contextMessageCount: 3,
       sessionKeys: {},
     });
 

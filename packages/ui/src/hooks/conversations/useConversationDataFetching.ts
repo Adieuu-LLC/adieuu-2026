@@ -217,25 +217,34 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
     async (
       conversationId: string,
       centerMessageId: string,
-      options?: { before?: number; after?: number },
-    ): Promise<boolean> => {
-      if (!isLoggedIn || !identity) return false;
+      options?: {
+        before?: number;
+        after?: number;
+        skipStateUpdate?: boolean;
+        silent?: boolean;
+      },
+    ): Promise<DisplayMessage[] | null> => {
+      if (!isLoggedIn || !identity) return null;
       const before = options?.before ?? REPLY_JUMP_CONTEXT_BEFORE;
       const after = options?.after ?? REPLY_JUMP_CONTEXT_AFTER;
+      const skipStateUpdate = options?.skipStateUpdate ?? false;
+      const silent = options?.silent ?? false;
 
-      setMessagesState((prev) => ({
-        ...prev,
-        [conversationId]: {
-          ...(prev[conversationId] ?? {
-            messages: [],
-            olderCursor: null,
-            newerPaginationAfterId: null,
-            hasNewerPages: false,
+      if (!skipStateUpdate) {
+        setMessagesState((prev) => ({
+          ...prev,
+          [conversationId]: {
+            ...(prev[conversationId] ?? {
+              messages: [],
+              olderCursor: null,
+              newerPaginationAfterId: null,
+              hasNewerPages: false,
+              loading: true,
+            }),
             loading: true,
-          }),
-          loading: true,
-        },
-      }));
+          },
+        }));
+      }
 
       try {
         const resp = await api.conversations.getMessagesAround(conversationId, centerMessageId, {
@@ -243,24 +252,28 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
           after,
         });
         if (!resp.data) {
-          toast.error(
-            t('conversations.loadMessageContextFailed', 'Could not load messages'),
-            typeof resp.error === 'string' ? resp.error : undefined,
-          );
-          setMessagesState((prev) => ({
-            ...prev,
-            [conversationId]: {
-              ...(prev[conversationId] ?? {
-                messages: [],
-                olderCursor: null,
-                newerPaginationAfterId: null,
-                hasNewerPages: false,
+          if (!silent) {
+            toast.error(
+              t('conversations.loadMessageContextFailed', 'Could not load messages'),
+              typeof resp.error === 'string' ? resp.error : undefined,
+            );
+          }
+          if (!skipStateUpdate) {
+            setMessagesState((prev) => ({
+              ...prev,
+              [conversationId]: {
+                ...(prev[conversationId] ?? {
+                  messages: [],
+                  olderCursor: null,
+                  newerPaginationAfterId: null,
+                  hasNewerPages: false,
+                  loading: false,
+                }),
                 loading: false,
-              }),
-              loading: false,
-            },
-          }));
-          return false;
+              },
+            }));
+          }
+          return null;
         }
 
         const deviceId = getCurrentDeviceId();
@@ -284,47 +297,53 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
           existingMessages: [],
         });
 
-        const unreadCount =
-          conversationsRef.current.find((c) => c.id === conversationId)?.unreadCount ?? 0;
-        setMessagesState((prev) =>
-          applyFetchedMessagesToConversationState(prev, {
-            conversationId,
-            mergeLatest: false,
-            newMessages,
-            cursor: resp.data!.cursor,
-            hasNewerPagesFromApi: resp.data!.hasNewerPages,
-            unreadCount,
-            isAtBottom: isAtBottomRef.current,
-          })
-        );
-
-        if (
-          conversationId === activeConversationIdRef.current &&
-          document.hasFocus() &&
-          isAtBottomRef.current
-        ) {
-          setConversations((prev) =>
-            prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c)),
+        if (!skipStateUpdate) {
+          const unreadCount =
+            conversationsRef.current.find((c) => c.id === conversationId)?.unreadCount ?? 0;
+          setMessagesState((prev) =>
+            applyFetchedMessagesToConversationState(prev, {
+              conversationId,
+              mergeLatest: false,
+              newMessages,
+              cursor: resp.data!.cursor,
+              hasNewerPagesFromApi: resp.data!.hasNewerPages,
+              unreadCount,
+              isAtBottom: isAtBottomRef.current,
+            })
           );
+
+          if (
+            conversationId === activeConversationIdRef.current &&
+            document.hasFocus() &&
+            isAtBottomRef.current
+          ) {
+            setConversations((prev) =>
+              prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c)),
+            );
+          }
         }
-        return true;
+        return newMessages;
       } catch (err) {
         console.error('[useConversations] fetchMessagesAround failed', { conversationId, centerMessageId }, err);
-        toast.error(t('conversations.loadMessageContextFailed', 'Could not load messages'));
-        setMessagesState((prev) => ({
-          ...prev,
-          [conversationId]: {
-            ...(prev[conversationId] ?? {
-              messages: [],
-              olderCursor: null,
-              newerPaginationAfterId: null,
-              hasNewerPages: false,
+        if (!silent) {
+          toast.error(t('conversations.loadMessageContextFailed', 'Could not load messages'));
+        }
+        if (!skipStateUpdate) {
+          setMessagesState((prev) => ({
+            ...prev,
+            [conversationId]: {
+              ...(prev[conversationId] ?? {
+                messages: [],
+                olderCursor: null,
+                newerPaginationAfterId: null,
+                hasNewerPages: false,
+                loading: false,
+              }),
               loading: false,
-            }),
-            loading: false,
-          },
-        }));
-        return false;
+            },
+          }));
+        }
+        return null;
       }
     },
     [

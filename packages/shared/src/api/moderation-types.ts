@@ -77,6 +77,8 @@ export interface PublicProfileEvidence {
 
 export interface PublicReportEvidence {
   type: 'message' | 'profile';
+  /** Messages before/after the target included in this report (manual message reports). */
+  contextMessageCount?: number;
   messageEvidence?: PublicMessageEvidence[];
   profileEvidence?: PublicProfileEvidence;
 }

@@ -13,7 +13,13 @@ import { Dialog, Portal, Select, createListCollection } from '@ark-ui/react';
 import { Button } from './Button';
 import { Icon } from '../icons/Icon';
 import { useTranslation } from 'react-i18next';
-import { API_ERROR_SESSION_EXPIRED, type ReportCategory } from '@adieuu/shared';
+import {
+  API_ERROR_SESSION_EXPIRED,
+  REPORT_CONTEXT_MESSAGE_COUNTS,
+  isReportContextMessageCount,
+  type ReportCategory,
+  type ReportContextMessageCount,
+} from '@adieuu/shared';
 import { useToast } from './Toast';
 import { useReportEvidence } from '../hooks/useReportEvidence';
 import { useIdentity } from '../hooks/useIdentity';
@@ -30,6 +36,8 @@ export interface ReportModalProps {
   targetMessageId?: string;
   /** For profile reports: the ID of the identity being reported */
   targetIdentityId?: string;
+  /** For message reports: conversation containing the reported message (required to load context). */
+  conversationId?: string;
 }
 
 const CATEGORIES: { value: ReportCategory; labelKey: string }[] = [
@@ -52,6 +60,7 @@ export function ReportModal({
   mode,
   targetMessageId,
   targetIdentityId,
+  conversationId,
 }: ReportModalProps) {
   const { t } = useTranslation();
   const { api } = useIdentity();
@@ -101,15 +110,28 @@ export function ReportModal({
     [t],
   );
 
+  const contextCollection = useMemo(
+    () =>
+      createListCollection({
+        items: REPORT_CONTEXT_MESSAGE_COUNTS.map((n) => ({
+          value: String(n),
+          label: t('report.contextOption', { count: n }),
+        })),
+      }),
+    [t],
+  );
+
   const [step, setStep] = useState<'form' | 'consent'>('form');
   const [category, setCategory] = useState<ReportCategory | ''>('');
   const [reason, setReason] = useState('');
+  const [contextMessageCount, setContextMessageCount] = useState<ReportContextMessageCount>(3);
   const [submitting, setSubmitting] = useState(false);
 
   const reset = () => {
     setStep('form');
     setCategory('');
     setReason('');
+    setContextMessageCount(3);
     setSubmitting(false);
   };
 
@@ -133,7 +155,13 @@ export function ReportModal({
 
     try {
       if (mode === 'message' && targetMessageId) {
-        const evidence = await gatherEvidence(targetMessageId);
+        if (!conversationId) {
+          toast.error(t('report.title'), t('report.errorNoConversation'));
+          setSubmitting(false);
+          return;
+        }
+
+        const evidence = await gatherEvidence(targetMessageId, conversationId, contextMessageCount);
 
         if (evidence.missingKeys.length > 0) {
           toast.error(
@@ -149,6 +177,7 @@ export function ReportModal({
           targetMessageId,
           category,
           reason: reason.trim() || undefined,
+          contextMessageCount,
           sessionKeys: evidence.sessionKeys,
         });
 
@@ -242,6 +271,51 @@ export function ReportModal({
                     </Select.Root>
                   </div>
 
+                  {mode === 'message' && (
+                    <div className="input-wrapper">
+                      <label className="input-label">{t('report.contextLabel')}</label>
+                      <p className="input-hint" style={{ marginBottom: '0.35rem', fontSize: '0.8125rem', opacity: 0.75 }}>
+                        {t('report.contextHint')}
+                      </p>
+                      <Select.Root
+                        collection={contextCollection}
+                        value={[String(contextMessageCount)]}
+                        onValueChange={(details) => {
+                          const raw = details.value[0];
+                          const n = raw ? Number(raw) : 3;
+                          if (isReportContextMessageCount(n)) {
+                            setContextMessageCount(n);
+                          }
+                        }}
+                        positioning={{ sameWidth: true }}
+                      >
+                        <Select.Control className="report-select-control">
+                          <Select.Trigger className="report-select-trigger">
+                            <Select.ValueText placeholder={t('report.contextLabel')} />
+                            <Select.Indicator className="report-select-indicator">
+                              <Icon name="chevronDown" size="xs" />
+                            </Select.Indicator>
+                          </Select.Trigger>
+                        </Select.Control>
+
+                        <Portal>
+                          <Select.Positioner>
+                            <Select.Content className="report-select-content">
+                              {contextCollection.items.map((item) => (
+                                <Select.Item key={item.value} item={item} className="report-select-item">
+                                  <Select.ItemText>{item.label}</Select.ItemText>
+                                  <Select.ItemIndicator className="report-select-item-indicator">
+                                    <Icon name="check" size="xs" />
+                                  </Select.ItemIndicator>
+                                </Select.Item>
+                              ))}
+                            </Select.Content>
+                          </Select.Positioner>
+                        </Portal>
+                      </Select.Root>
+                    </div>
+                  )}
+
                   <div className="input-wrapper">
                     <label className="input-label">{t('report.reasonLabel')}</label>
                     <textarea
@@ -262,7 +336,7 @@ export function ReportModal({
                   <p className="report-modal-consent-title">{t('report.consentStepTitle')}</p>
                   <p className="report-modal-consent-text">
                     {mode === 'message'
-                      ? t('report.messageConsent')
+                      ? t('report.messageConsentDynamic', { count: contextMessageCount })
                       : t('report.profileConsent')}
                   </p>
                 </>

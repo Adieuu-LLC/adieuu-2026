@@ -1,17 +1,15 @@
 /**
  * Hook for gathering cryptographic evidence for message reports.
  *
- * Identifies the evidence window (target message + up to 3 before/after)
- * and retrieves the per-message session keys required for server-side
- * verification and decryption.
+ * Loads a server-aligned window around the target (same bounds as the report API),
+ * then collects per-message session keys for server-side verification.
  *
  * @module hooks/useReportEvidence
  */
 
 import { useCallback } from 'react';
-import { useConversations, type DisplayMessage } from './useConversations';
-
-const CONTEXT_COUNT = 3;
+import type { ReportContextMessageCount } from '@adieuu/shared';
+import { useConversations } from './useConversations';
 
 export interface ReportEvidenceResult {
   evidenceMessageIds: string[];
@@ -19,35 +17,39 @@ export interface ReportEvidenceResult {
   missingKeys: string[];
 }
 
-/**
- * Returns a callback that, given a target message ID, computes the evidence
- * window from the currently loaded conversation messages and gathers the
- * session keys for each message.
- */
 export function useReportEvidence() {
-  const { activeMessages, getSessionKeysForMessages } = useConversations();
+  const { getSessionKeysForMessages, fetchMessagesAround } = useConversations();
 
   const gatherEvidence = useCallback(
-    async (targetMessageId: string): Promise<ReportEvidenceResult> => {
-      const targetIdx = activeMessages.findIndex((m) => m.id === targetMessageId);
-      if (targetIdx === -1) {
-        return { evidenceMessageIds: [], sessionKeys: {}, missingKeys: [] };
+    async (
+      targetMessageId: string,
+      conversationId: string,
+      contextMessageCount: ReportContextMessageCount,
+    ): Promise<ReportEvidenceResult> => {
+      const msgs = await fetchMessagesAround(conversationId, targetMessageId, {
+        before: contextMessageCount,
+        after: contextMessageCount,
+        skipStateUpdate: true,
+        silent: true,
+      });
+
+      if (msgs == null) {
+        return { evidenceMessageIds: [], sessionKeys: {}, missingKeys: [targetMessageId] };
       }
 
-      const start = Math.max(0, targetIdx - CONTEXT_COUNT);
-      const end = Math.min(activeMessages.length, targetIdx + CONTEXT_COUNT + 1);
-      const window: DisplayMessage[] = activeMessages
-        .slice(start, end)
-        .filter((m) => !m.deleted && m.messageType !== 'system');
+      const window = msgs.filter((m) => !m.deleted && m.messageType !== 'system');
+
+      if (!window.some((m) => m.id === targetMessageId)) {
+        return { evidenceMessageIds: [], sessionKeys: {}, missingKeys: [targetMessageId] };
+      }
 
       const messageIds = window.map((m) => m.id);
       const sessionKeys = await getSessionKeysForMessages(messageIds);
-
       const missingKeys = messageIds.filter((id) => !(id in sessionKeys));
 
       return { evidenceMessageIds: messageIds, sessionKeys, missingKeys };
     },
-    [activeMessages, getSessionKeysForMessages],
+    [fetchMessagesAround, getSessionKeysForMessages],
   );
 
   return { gatherEvidence };

@@ -113,6 +113,8 @@ export interface ProfileEvidence {
 
 export interface ReportEvidence {
   type: 'message' | 'profile';
+  /** For manual message reports: how many messages before/after the target were included. */
+  contextMessageCount?: number;
   messageEvidence?: MessageEvidence[];
   profileEvidence?: ProfileEvidence;
 }
