@@ -9,11 +9,11 @@ const DEFAULT_THUMBNAIL_MAX_DIM = 512;
 const DEFAULT_THUMBNAIL_QUALITY = 0.8;
 
 /**
- * Read intrinsic width/height from a video file (metadata only).
+ * Read intrinsic width/height and duration from a video file (metadata only).
  */
 export async function getVideoDimensions(
   file: File
-): Promise<{ width: number; height: number }> {
+): Promise<{ width: number; height: number; durationSeconds: number }> {
   const url = URL.createObjectURL(file);
   try {
     const video = document.createElement('video');
@@ -29,7 +29,12 @@ export async function getVideoDimensions(
     if (!width || !height) {
       throw new Error('Invalid video dimensions');
     }
-    return { width, height };
+    console.info("vid dims", width, height);
+    const durationSeconds = video.duration;
+    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+      throw new Error('Invalid video duration');
+    }
+    return { width, height, durationSeconds };
   } finally {
     URL.revokeObjectURL(url);
   }

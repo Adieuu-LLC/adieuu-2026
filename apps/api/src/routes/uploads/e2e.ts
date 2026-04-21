@@ -20,7 +20,9 @@ import { success, error, errors } from '../../utils/response';
 import {
   getIdentitySessionIdFromRequest,
   getIdentityFromSession,
+  getIdentityUploadContext,
 } from '../../services/identity.service';
+import { VIDEO_MIME_TYPES } from '../../models/media-upload';
 import {
   requestE2EUpload,
   completeE2EUpload,
@@ -32,11 +34,23 @@ import {
 
 const router = new Router();
 
-const RequestE2EUploadSchema = z.object({
-  contentType: z.string().min(1).max(100),
-  contentLength: z.number().int().positive(),
-  stripExif: z.boolean().default(true),
-});
+const RequestE2EUploadSchema = z
+  .object({
+    contentType: z.string().min(1).max(100),
+    contentLength: z.number().int().positive(),
+    stripExif: z.boolean().default(true),
+    declaredDurationSeconds: z.number().positive().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const isVideo = (VIDEO_MIME_TYPES as readonly string[]).includes(data.contentType);
+    if (isVideo && data.declaredDurationSeconds === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'declaredDurationSeconds is required for video content types',
+        path: ['declaredDurationSeconds'],
+      });
+    }
+  });
 
 const RequestScanUploadSchema = z.object({
   scanHash: z.string().length(64),
@@ -66,8 +80,8 @@ router.post('/uploads/e2e/request', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
+  const uploadCtx = await getIdentityUploadContext(identitySessionId);
+  if (!uploadCtx) {
     return ctx.errors.unauthorized();
   }
 
@@ -79,8 +93,10 @@ router.post('/uploads/e2e/request', async (ctx) => {
   const result = await requestE2EUpload({
     contentType: parseResult.data.contentType,
     contentLength: parseResult.data.contentLength,
-    identityId: identity._id.toHexString(),
+    identityId: uploadCtx.identity._id.toHexString(),
     stripExif: parseResult.data.stripExif,
+    maxVideoDurationSeconds: uploadCtx.maxVideoDurationSeconds,
+    declaredDurationSeconds: parseResult.data.declaredDurationSeconds,
   });
 
   if (!result.success) {
@@ -88,6 +104,10 @@ router.post('/uploads/e2e/request', async (ctx) => {
       case 'RATE_LIMITED':
         return errors.rateLimited(result.error);
       case 'UPLOAD_DISABLED':
+        return errors.badRequest(result.error);
+      case 'VIDEO_DURATION_EXCEEDED':
+        return errors.badRequest(result.error);
+      case 'VIDEO_DURATION_REQUIRED':
         return errors.badRequest(result.error);
       default:
         return errors.badRequest(result.error);

@@ -30,10 +30,23 @@ function isVideoFile(file: File): boolean {
 async function buildDimensionsAndScanThumbnail(file: File): Promise<{
   dimensions: { width: number; height: number };
   thumbnail: Blob;
+  durationSeconds?: number;
 }> {
+  if (isVideoFile(file)) {
+    const [meta, thumbnail] = await Promise.all([
+      getVideoDimensions(file),
+      generateVideoFrameThumbnail(file),
+    ]);
+    return {
+      dimensions: { width: meta.width, height: meta.height },
+      thumbnail,
+      durationSeconds: meta.durationSeconds,
+    };
+  }
+
   const [dimensions, thumbnail] = await Promise.all([
-    isVideoFile(file) ? getVideoDimensions(file) : getImageDimensions(file),
-    isVideoFile(file) ? generateVideoFrameThumbnail(file) : generateThumbnail(file),
+    getImageDimensions(file),
+    generateThumbnail(file),
   ]);
   return { dimensions, thumbnail };
 }
@@ -52,7 +65,8 @@ export async function uploadE2EMediaOnly(
   const stripExif = options?.stripExif ?? true;
   const onUploadsComplete = options?.onUploadsComplete;
 
-  const { dimensions, thumbnail } = await buildDimensionsAndScanThumbnail(file);
+  const { dimensions, thumbnail, durationSeconds } =
+    await buildDimensionsAndScanThumbnail(file);
 
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
@@ -62,6 +76,7 @@ export async function uploadE2EMediaOnly(
     contentType: file.type,
     contentLength: encryptedBlob.size,
     stripExif: effectiveStripExif,
+    ...(durationSeconds !== undefined ? { declaredDurationSeconds: durationSeconds } : {}),
   });
   if (!e2eRes.success || !e2eRes.data) {
     throw new Error(

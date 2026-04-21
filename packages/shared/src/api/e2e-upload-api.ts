@@ -6,6 +6,8 @@ export interface RequestE2EUploadParams {
   contentType: string;
   contentLength: number;
   stripExif?: boolean;
+  /** Required for video/* — duration in seconds from client metadata (enforced vs session limit). */
+  declaredDurationSeconds?: number;
 }
 
 export interface RequestE2EUploadResponse {

@@ -32,6 +32,7 @@ import { deriveScanHash } from '../utils/crypto';
 import {
   UPLOAD_PURPOSE_CONFIG,
   UPLOAD_RATE_LIMIT,
+  VIDEO_MIME_TYPES,
   type UploadPurpose,
 } from '../models/media-upload';
 import type { E2EMediaStatus } from '../models/e2e-media';
@@ -62,6 +63,10 @@ function generateMediaId(): string {
   return `${timestamp}-${randomPart}`;
 }
 
+function isVideoContentType(contentType: string): boolean {
+  return (VIDEO_MIME_TYPES as readonly string[]).includes(contentType);
+}
+
 function contentTypeToExtension(contentType: string): string {
   const map: Record<string, string> = {
     'image/jpeg': 'jpg',
@@ -84,6 +89,10 @@ export interface RequestE2EUploadInput {
   contentLength: number;
   identityId: string;
   stripExif: boolean;
+  /** From identity session — ceiling for video duration (seconds). */
+  maxVideoDurationSeconds: number;
+  /** Client-reported duration in seconds; required when contentType is video. */
+  declaredDurationSeconds?: number;
 }
 
 export interface RequestE2EUploadResult {
@@ -93,7 +102,13 @@ export interface RequestE2EUploadResult {
   scanHash?: string;
   expiresIn?: number;
   error?: string;
-  errorCode?: 'INVALID_CONTENT_TYPE' | 'FILE_TOO_LARGE' | 'RATE_LIMITED' | 'UPLOAD_DISABLED';
+  errorCode?:
+    | 'INVALID_CONTENT_TYPE'
+    | 'FILE_TOO_LARGE'
+    | 'RATE_LIMITED'
+    | 'UPLOAD_DISABLED'
+    | 'VIDEO_DURATION_REQUIRED'
+    | 'VIDEO_DURATION_EXCEEDED';
 }
 
 export async function requestE2EUpload(
@@ -118,6 +133,24 @@ export async function requestE2EUpload(
       error: `Content type '${input.contentType}' is not allowed for conversation media`,
       errorCode: 'INVALID_CONTENT_TYPE',
     };
+  }
+
+  if (isVideoContentType(input.contentType)) {
+    const d = input.declaredDurationSeconds;
+    if (d === undefined || !Number.isFinite(d) || d <= 0) {
+      return {
+        success: false,
+        error: 'Video uploads must include a positive declaredDurationSeconds value',
+        errorCode: 'VIDEO_DURATION_REQUIRED',
+      };
+    }
+    if (d > input.maxVideoDurationSeconds) {
+      return {
+        success: false,
+        error: `Video exceeds maximum duration of ${input.maxVideoDurationSeconds} seconds`,
+        errorCode: 'VIDEO_DURATION_EXCEEDED',
+      };
+    }
   }
 
   if (input.contentLength > purposeConfig.maxBytes) {

@@ -34,6 +34,7 @@ import {
   destroyAllIdentitySessions,
   buildLogoutCookie,
   getSession,
+  type IdentitySessionData,
 } from './session.service';
 import { reconcileAchievements } from './achievement.service';
 import elog from '../utils/adieuuLogger';
@@ -585,6 +586,37 @@ export interface IdentityModerationBlock {
 }
 
 /**
+ * Loads identity + moderation state from an already-resolved identity session.
+ */
+async function loadIdentityFromIdentitySession(
+  sessionData: IdentitySessionData,
+  opts?: { returnBlockDetails?: boolean },
+): Promise<IdentityDocument | { blocked: IdentityModerationBlock } | null> {
+  const identityRepo = getIdentityRepository();
+  const identity = await identityRepo.findByIdentityId(sessionData.identityId);
+  if (!identity) return null;
+
+  const isBanned = !!identity.isBanned;
+  const isSuspended = !!identity.suspendedUntil && identity.suspendedUntil > new Date();
+
+  if (isBanned || isSuspended) {
+    if (opts?.returnBlockDetails) {
+      return {
+        blocked: {
+          type: isBanned ? 'banned' : 'suspended',
+          moderationReason: identity.moderationReason,
+          moderationReportId: identity.moderationReportId,
+          suspendedUntil: isSuspended ? identity.suspendedUntil!.toISOString() : undefined,
+        },
+      };
+    }
+    return null;
+  }
+
+  return identity;
+}
+
+/**
  * Get identity by session.
  *
  * Resolves the identity from an identity-type session. Returns null if the
@@ -610,28 +642,29 @@ export async function getIdentityFromSession(
   const sessionData = await getSession(sessionId);
   if (!sessionData || sessionData.type !== 'identity') return null;
 
-  const identityRepo = getIdentityRepository();
-  const identity = await identityRepo.findByIdentityId(sessionData.identityId);
-  if (!identity) return null;
+  return loadIdentityFromIdentitySession(sessionData, opts);
+}
 
-  const isBanned = !!identity.isBanned;
-  const isSuspended = !!identity.suspendedUntil && identity.suspendedUntil > new Date();
+/**
+ * Identity plus session-bound media limits (no User lookup).
+ * Use for upload routes that must enforce account-derived caps.
+ */
+export async function getIdentityUploadContext(sessionId: string): Promise<{
+  identity: IdentityDocument;
+  maxVideoDurationSeconds: number;
+} | null> {
+  if (!sessionId) return null;
 
-  if (isBanned || isSuspended) {
-    if (opts?.returnBlockDetails) {
-      return {
-        blocked: {
-          type: isBanned ? 'banned' : 'suspended',
-          moderationReason: identity.moderationReason,
-          moderationReportId: identity.moderationReportId,
-          suspendedUntil: isSuspended ? identity.suspendedUntil!.toISOString() : undefined,
-        },
-      };
-    }
-    return null;
-  }
+  const sessionData = await getSession(sessionId);
+  if (!sessionData || sessionData.type !== 'identity') return null;
 
-  return identity;
+  const resolved = await loadIdentityFromIdentitySession(sessionData, {});
+  if (!resolved || 'blocked' in resolved) return null;
+
+  return {
+    identity: resolved,
+    maxVideoDurationSeconds: sessionData.maxVideoDurationSeconds,
+  };
 }
 
 /**

@@ -9,7 +9,11 @@ mock.module('../utils/imageProcessing', () => ({
 }));
 
 mock.module('../utils/videoProcessing', () => ({
-  getVideoDimensions: getImageDimensionsMock,
+  getVideoDimensions: mock(async () => ({
+    width: 100,
+    height: 100,
+    durationSeconds: 12,
+  })),
   generateVideoFrameThumbnail: generateThumbnailMock,
 }));
 

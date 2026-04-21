@@ -70,6 +70,7 @@ describe('e2e-upload.service', () => {
       contentType: 'application/pdf',
       contentLength: 1024,
       stripExif: true,
+      maxVideoDurationSeconds: 300,
     });
     expect(result.success).toBe(false);
     expect(result.errorCode).toBe('INVALID_CONTENT_TYPE');
@@ -83,6 +84,7 @@ describe('e2e-upload.service', () => {
       contentType: 'image/jpeg',
       contentLength: 1024,
       stripExif: true,
+      maxVideoDurationSeconds: 300,
     });
 
     expect(result.success).toBe(true);
@@ -94,6 +96,46 @@ describe('e2e-upload.service', () => {
       scanHash: string;
     };
     expect(created.scanHash).toBe(deriveScanHash(identityId, created.e2eMediaId));
+  });
+
+  test('requestE2EUpload requires declared duration for video', async () => {
+    const result = await requestE2EUpload({
+      identityId: '507f1f77bcf86cd799439011',
+      contentType: 'video/mp4',
+      contentLength: 1024,
+      stripExif: false,
+      maxVideoDurationSeconds: 300,
+    });
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('VIDEO_DURATION_REQUIRED');
+    expect(createE2EMediaMock).not.toHaveBeenCalled();
+  });
+
+  test('requestE2EUpload rejects video when declared duration exceeds session limit', async () => {
+    const result = await requestE2EUpload({
+      identityId: '507f1f77bcf86cd799439011',
+      contentType: 'video/mp4',
+      contentLength: 1024,
+      stripExif: false,
+      maxVideoDurationSeconds: 60,
+      declaredDurationSeconds: 120,
+    });
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('VIDEO_DURATION_EXCEEDED');
+    expect(createE2EMediaMock).not.toHaveBeenCalled();
+  });
+
+  test('requestE2EUpload accepts video when duration is within session limit', async () => {
+    const result = await requestE2EUpload({
+      identityId: '507f1f77bcf86cd799439011',
+      contentType: 'video/mp4',
+      contentLength: 1024,
+      stripExif: false,
+      maxVideoDurationSeconds: 300,
+      declaredDurationSeconds: 45,
+    });
+    expect(result.success).toBe(true);
+    expect(createE2EMediaMock).toHaveBeenCalledTimes(1);
   });
 
   test('requestScanUpload rejects malformed scan hash', async () => {
