@@ -8,6 +8,9 @@ dist/
 out/
 .next/
 
+# Local Lambda repackage fingerprint cache (see package-lambdas.sh)
+.lambda-package-fingerprints
+
 # Turborepo
 .turbo/
 
