@@ -1,8 +1,7 @@
 import { createApiClient } from '@adieuu/shared';
 import { generateThumbnail, getImageDimensions } from '../utils/imageProcessing';
 import {
-  generateVideoFrameThumbnail,
-  getVideoDimensions,
+  getVideoDimensionsAndScanThumbnail,
   probeVideoPlayableInBrowser,
 } from '../utils/videoProcessing';
 
@@ -65,13 +64,10 @@ async function buildDimensionsAndScanThumbnail(file: File): Promise<{
   durationSeconds?: number;
 }> {
   if (isVideoFile(file)) {
-    const [meta, thumbnail] = await Promise.all([
-      getVideoDimensions(file),
-      generateVideoFrameThumbnail(file),
-    ]);
+    const meta = await getVideoDimensionsAndScanThumbnail(file);
     return {
       dimensions: { width: meta.width, height: meta.height },
-      thumbnail,
+      thumbnail: meta.thumbnail,
       durationSeconds: meta.durationSeconds,
     };
   }

@@ -197,12 +197,15 @@ try {
           const ab = await r.arrayBuffer();
           const file = new File([ab], sampleName, { type: contentType });
           const mod = globalThis.__VP;
-          const dims = await mod.getVideoDimensions(file);
-          const thumb = await mod.generateVideoFrameThumbnail(file);
+          const out = await mod.getVideoDimensionsAndScanThumbnail(file);
           return {
-            dims,
-            thumbSize: thumb.size,
-            thumbType: thumb.type,
+            dims: {
+              width: out.width,
+              height: out.height,
+              durationSeconds: out.durationSeconds,
+            },
+            thumbSize: out.thumbnail.size,
+            thumbType: out.thumbnail.type,
           };
         },
         { sampleName: name, contentType: type }

@@ -9,12 +9,12 @@ mock.module('../utils/imageProcessing', () => ({
 }));
 
 mock.module('../utils/videoProcessing', () => ({
-  getVideoDimensions: mock(async () => ({
+  getVideoDimensionsAndScanThumbnail: mock(async () => ({
     width: 100,
     height: 100,
     durationSeconds: 12,
+    thumbnail: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/jpeg' }),
   })),
-  generateVideoFrameThumbnail: generateThumbnailMock,
   probeVideoPlayableInBrowser: mock(async () => true),
 }));
 
