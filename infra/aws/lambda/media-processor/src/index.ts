@@ -33,6 +33,7 @@ import {
 import {
   RekognitionClient,
   DetectModerationLabelsCommand,
+  StartContentModerationCommand,
 } from '@aws-sdk/client-rekognition';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { logProcessorEvent } from './logging';
@@ -48,6 +49,10 @@ const MODERATION_CONFIDENCE = parseInt(
   10
 );
 const DB_WRITER_FUNCTION_NAME = process.env.DB_WRITER_FUNCTION_NAME!;
+const REKOGNITION_NOTIFICATION_ROLE_ARN =
+  process.env.REKOGNITION_NOTIFICATION_ROLE_ARN ?? '';
+const REKOGNITION_NOTIFICATION_SNS_TOPIC_ARN =
+  process.env.REKOGNITION_NOTIFICATION_SNS_TOPIC_ARN ?? '';
 
 interface ProcessingMetadata {
   mediaId: string;
@@ -151,6 +156,64 @@ async function invokeDbWriter(
   }
 }
 
+async function startConvScanVideoContentModeration(
+  key: string,
+  meta: ProcessingMetadata,
+): Promise<void> {
+  if (!REKOGNITION_NOTIFICATION_ROLE_ARN || !REKOGNITION_NOTIFICATION_SNS_TOPIC_ARN) {
+    console.error(
+      'conv_scan video: missing REKOGNITION_NOTIFICATION_ROLE_ARN or REKOGNITION_NOTIFICATION_SNS_TOPIC_ARN'
+    );
+    await invokeDbWriter(
+      meta.mediaId,
+      'failed',
+      undefined,
+      undefined,
+      { purpose: meta.purpose, s3Key: key }
+    );
+    return;
+  }
+
+  try {
+    const out = await rekognition.send(
+      new StartContentModerationCommand({
+        Video: {
+          S3Object: { Bucket: BUCKET, Name: key },
+        },
+        MinConfidence: MODERATION_CONFIDENCE,
+        NotificationChannel: {
+          RoleArn: REKOGNITION_NOTIFICATION_ROLE_ARN,
+          SNSTopicArn: REKOGNITION_NOTIFICATION_SNS_TOPIC_ARN,
+        },
+        JobTag: meta.mediaId,
+        ClientRequestToken: `${meta.mediaId}-${Date.now()}`,
+      })
+    );
+    console.log(
+      `StartContentModeration queued for conv_scan video ${meta.mediaId}, jobId=${out.JobId}`
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logProcessorEvent({
+      event: 'rekognition_start_content_moderation_error',
+      mediaId: meta.mediaId,
+      purpose: meta.purpose,
+      s3Key: key,
+      error: message,
+    });
+    console.error('StartContentModeration failed:', err);
+    try {
+      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+    } catch {
+      /* ignore */
+    }
+    await invokeDbWriter(meta.mediaId, 'failed', undefined, undefined, {
+      purpose: meta.purpose,
+      s3Key: key,
+    });
+  }
+}
+
 async function processRecord(record: S3EventRecord): Promise<void> {
   const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '));
 
@@ -173,11 +236,32 @@ async function processRecord(record: S3EventRecord): Promise<void> {
 
   console.log(`Media ID: ${meta.mediaId}, Purpose: ${meta.purpose}`);
 
-  if (CONTENT_MODERATION && meta.contentModeration) {
-    // TODO [VIDEO SUPPORT]: For video files, use StartContentModeration (async)
-    // instead of DetectModerationLabels (sync). Requires an SNS topic for
-    // the callback and a separate handler to process the async result.
-    console.log('Running content moderation...');
+  const contentType = headResult.ContentType ?? '';
+  const isVideo = contentType.startsWith('video/');
+
+  if (isVideo && meta.purpose !== 'conv_scan') {
+    console.error(`Unexpected video object for purpose ${meta.purpose}: ${key}`);
+    await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+    await invokeDbWriter(meta.mediaId, 'failed', undefined, undefined, {
+      purpose: meta.purpose,
+      s3Key: key,
+    });
+    return;
+  }
+
+  // Conversation scan: full MP4 — async Rekognition (SNS → completion Lambda → DB writer).
+  if (
+    meta.purpose === 'conv_scan' &&
+    isVideo &&
+    CONTENT_MODERATION &&
+    meta.contentModeration
+  ) {
+    await startConvScanVideoContentModeration(key, meta);
+    return;
+  }
+
+  if (CONTENT_MODERATION && meta.contentModeration && !isVideo) {
+    console.log('Running image content moderation...');
     try {
       const moderationResult = await rekognition.send(
         new DetectModerationLabelsCommand({

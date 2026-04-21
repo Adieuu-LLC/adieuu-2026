@@ -81,6 +81,20 @@ describe('web app CSP', () => {
         expect(scriptSrc).toContain(hash);
       }
     });
+
+    it('includes unpkg for ffmpeg.wasm core (video transcoding)', () => {
+      const directives = parseDirectives(csp);
+      const scriptSrc = directives.get('script-src') ?? [];
+      expect(scriptSrc).toContain('https://unpkg.com');
+    });
+  });
+
+  describe('worker-src', () => {
+    it("includes blob: for ffmpeg web workers", () => {
+      const directives = parseDirectives(csp);
+      const workerSrc = directives.get('worker-src') ?? [];
+      expect(workerSrc).toContain('blob:');
+    });
   });
 
   describe('img-src', () => {
@@ -125,6 +139,12 @@ describe('web app CSP', () => {
       const directives = parseDirectives(csp);
       const connectSrc = directives.get('connect-src') ?? [];
       expect(connectSrc.some((v) => v.includes('e2e-media') && v.includes('s3.'))).toBe(true);
+    });
+
+    it('includes unpkg for ffmpeg-core.wasm fetch', () => {
+      const directives = parseDirectives(csp);
+      const connectSrc = directives.get('connect-src') ?? [];
+      expect(connectSrc).toContain('https://unpkg.com');
     });
   });
 

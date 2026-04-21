@@ -209,3 +209,107 @@ resource "aws_cloudwatch_metric_alarm" "redis_cpu_high" {
     CacheClusterId = element(sort(tolist(aws_elasticache_replication_group.redis[0].member_clusters)), 0)
   }
 }
+
+# ---------------------------------------------------------------------------
+# Media Lambdas (S3 -> processor -> DB writer; Rekognition video completion)
+# ---------------------------------------------------------------------------
+
+resource "aws_cloudwatch_metric_alarm" "lambda_media_processor_errors" {
+  count = local.media_enabled ? 1 : 0
+
+  alarm_name          = "${local.name_prefix}-lambda-media-processor-errors"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "Media processor Lambda reported errors"
+  alarm_actions       = local.alarm_actions
+
+  dimensions = {
+    FunctionName = aws_lambda_function.media_processor[0].function_name
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "lambda_media_processor_throttles" {
+  count = local.media_enabled ? 1 : 0
+
+  alarm_name          = "${local.name_prefix}-lambda-media-processor-throttles"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Throttles"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "Media processor Lambda is being throttled"
+  alarm_actions       = local.alarm_actions
+
+  dimensions = {
+    FunctionName = aws_lambda_function.media_processor[0].function_name
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "lambda_media_video_complete_errors" {
+  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+
+  alarm_name          = "${local.name_prefix}-lambda-media-video-complete-errors"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "Rekognition video moderation completion Lambda errors"
+  alarm_actions       = local.alarm_actions
+
+  dimensions = {
+    FunctionName = aws_lambda_function.media_video_moderation_complete[0].function_name
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "lambda_media_video_complete_duration_high" {
+  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+
+  alarm_name          = "${local.name_prefix}-lambda-media-video-complete-duration-high"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "Duration"
+  namespace           = "AWS/Lambda"
+  period              = 60
+  statistic           = "Average"
+  threshold           = 120000
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "Video moderation completion Lambda average duration > 120s (check Rekognition/GetContentModeration)"
+  alarm_actions       = local.alarm_actions
+
+  dimensions = {
+    FunctionName = aws_lambda_function.media_video_moderation_complete[0].function_name
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "lambda_media_db_writer_errors" {
+  count = local.media_enabled ? 1 : 0
+
+  alarm_name          = "${local.name_prefix}-lambda-media-db-writer-errors"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "Errors"
+  namespace           = "AWS/Lambda"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "Media DB writer Lambda reported errors"
+  alarm_actions       = local.alarm_actions
+
+  dimensions = {
+    FunctionName = aws_lambda_function.media_db_writer[0].function_name
+  }
+}

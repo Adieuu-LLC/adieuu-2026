@@ -4,7 +4,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "build": "turbo run build",
-    "build:packages": "pnpm run package:media-db-writer && pnpm run package:media-processor",
+    "build:packages": "pnpm run package:media-db-writer && pnpm run package:media-processor && pnpm run package:media-video-moderation-complete",
     "dev": "turbo run dev --filter=@adieuu/api --filter=@adieuu/web --filter=@adieuu/chat",
     "dev:web": "turbo run dev --filter=@adieuu/web",
     "dev:api": "turbo run dev --filter=@adieuu/api",
@@ -13,6 +13,7 @@
     "dev:proxy": "caddy run",
     "package:media-db-writer": "cd infra/aws/lambda/media-db-writer && pnpm run package",
     "package:media-processor": "cd infra/aws/lambda/media-processor && pnpm run package",
+    "package:media-video-moderation-complete": "cd infra/aws/lambda/media-video-moderation-complete && pnpm run package",
     "services:up": "docker compose up -d",
     "services:down": "docker compose down",
     "services:logs": "docker compose logs -f",

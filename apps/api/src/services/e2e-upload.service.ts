@@ -74,8 +74,6 @@ function contentTypeToExtension(contentType: string): string {
     'image/webp': 'webp',
     'image/gif': 'gif',
     'video/mp4': 'mp4',
-    'video/webm': 'webm',
-    'video/quicktime': 'mov',
   };
   return map[contentType] ?? 'bin';
 }
@@ -480,30 +478,38 @@ export async function requestScanUpload(
   const ext = contentTypeToExtension(input.contentType);
   const s3Key = `uploads/conv_scan/${scanMediaId}.${ext}`;
   const purpose: UploadPurpose = 'conv_scan';
+  const isVideoScan = input.contentType.startsWith('video/');
+
+  const metadata: Record<string, string> = {
+    'media-id': scanMediaId,
+    purpose,
+    'identity-id': input.identityId,
+    'strip-exif': String(!isVideoScan && purposeConfig.processingFlags.stripExif),
+    'content-moderation': String(purposeConfig.processingFlags.contentModeration),
+  };
+  if (!isVideoScan && purposeConfig.processingFlags.resize) {
+    metadata['resize-max-width'] = String(purposeConfig.processingFlags.resize.maxWidth);
+    metadata['resize-max-height'] = String(purposeConfig.processingFlags.resize.maxHeight);
+  }
 
   const command = new PutObjectCommand({
     Bucket: config.s3.mediaBucket,
     Key: s3Key,
     ContentType: input.contentType,
     ContentLength: input.contentLength,
-    Metadata: {
-      'media-id': scanMediaId,
-      purpose,
-      'identity-id': input.identityId,
-      'strip-exif': String(purposeConfig.processingFlags.stripExif),
-      'content-moderation': String(purposeConfig.processingFlags.contentModeration),
-      ...(purposeConfig.processingFlags.resize
-        ? {
-            'resize-max-width': String(purposeConfig.processingFlags.resize.maxWidth),
-            'resize-max-height': String(purposeConfig.processingFlags.resize.maxHeight),
-          }
-        : {}),
-    },
+    Metadata: metadata,
   });
 
   const uploadUrl = await getSignedUrl(getS3Client(), command, {
     expiresIn: PRESIGNED_PUT_EXPIRY_SECONDS,
   });
+
+  const processingFlags = isVideoScan
+    ? {
+        stripExif: false,
+        contentModeration: purposeConfig.processingFlags.contentModeration,
+      }
+    : purposeConfig.processingFlags;
 
   await mediaRepo.create({
     mediaId: scanMediaId,
@@ -512,7 +518,7 @@ export async function requestScanUpload(
     contentType: input.contentType,
     contentLength: input.contentLength,
     status: 'pending',
-    processingFlags: purposeConfig.processingFlags,
+    processingFlags,
     scanHash: input.scanHash,
   } as Omit<import('../models/media-upload').MediaUploadDocument, '_id' | 'createdAt' | 'updatedAt'>);
 

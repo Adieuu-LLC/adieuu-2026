@@ -395,7 +395,7 @@ variable "media_domain_name" {
 
 variable "enable_media_content_moderation" {
   type        = bool
-  description = "Enable Amazon Rekognition content moderation (CSAM, violence, etc.) in the media processor Lambda. Adds rekognition:DetectModerationLabels permission."
+  description = "Enable Amazon Rekognition in the media stack: DetectModerationLabels (images), StartContentModeration + SNS completion Lambda (conv_scan MP4), plus IAM/SNS/topic resources."
   default     = true
 }
 
@@ -407,6 +407,17 @@ variable "media_moderation_confidence_threshold" {
   validation {
     condition     = var.media_moderation_confidence_threshold >= 0 && var.media_moderation_confidence_threshold <= 100
     error_message = "media_moderation_confidence_threshold must be between 0 and 100."
+  }
+}
+
+variable "media_video_completion_lambda_reserved_concurrency" {
+  type        = number
+  description = "Reserved concurrency for the Rekognition video moderation completion Lambda (isolates from account burst)."
+  default     = 10
+
+  validation {
+    condition     = var.media_video_completion_lambda_reserved_concurrency >= 1 && var.media_video_completion_lambda_reserved_concurrency <= 1000
+    error_message = "Use 1–1000 or lower to fit account limits."
   }
 }
 

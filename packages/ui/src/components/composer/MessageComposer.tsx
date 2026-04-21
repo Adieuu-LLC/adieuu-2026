@@ -7,6 +7,7 @@ import { getOrCreateDeviceId } from '../../services/deviceInfo';
 import {
   uploadE2EMediaOnly,
   uploadModerationScanCopy,
+  prepareConversationMediaFileForUpload,
   type MediaUploadResult,
 } from '../../hooks/useConversationMediaUpload';
 import { stripExifMetadata } from '../../utils/imageProcessing';
@@ -388,10 +389,14 @@ export function MessageComposer({
           pendingAttachments.map(async (att, i) => {
             updateAttachmentStatus(i, { uploadStatus: 'encrypting', uploadProgress: 5 });
 
-            const fileToEncrypt =
-              stripExif && att.file.type.startsWith('image/')
-                ? await stripExifMetadata(att.file)
-                : att.file;
+            const preparedMedia = await prepareConversationMediaFileForUpload(att.file);
+            let fileToEncrypt: File = preparedMedia;
+            if (stripExif && preparedMedia.type.startsWith('image/')) {
+              const stripped = await stripExifMetadata(preparedMedia);
+              fileToEncrypt = new File([stripped], preparedMedia.name, {
+                type: stripped.type || preparedMedia.type,
+              });
+            }
             const fileBytes = new Uint8Array(await fileToEncrypt.arrayBuffer());
             const mediaKey = randomBytes(32);
             const { ciphertext, nonce } = encryptBytes(mediaKey, fileBytes);
@@ -399,8 +404,8 @@ export function MessageComposer({
 
             updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 15 });
 
-            const e2eResult = await uploadE2EMediaOnly(api, att.file, encryptedBlob, {
-              stripExif: stripExif && att.file.type.startsWith('image/'),
+            const e2eResult = await uploadE2EMediaOnly(api, fileToEncrypt, encryptedBlob, {
+              stripExif: stripExif && fileToEncrypt.type.startsWith('image/'),
               onUploadsComplete: () => {
                 updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 90 });
               },
@@ -408,9 +413,9 @@ export function MessageComposer({
 
             updateAttachmentStatus(i, { uploadStatus: 'done', uploadProgress: 100 });
 
-            const { scanThumbnail, ...result } = e2eResult;
+            const { moderationScan, ...result } = e2eResult;
 
-            void uploadModerationScanCopy(api, result.scanHash, scanThumbnail).catch((err) => {
+            void uploadModerationScanCopy(api, result.scanHash, moderationScan).catch((err) => {
               console.error('[Composer] Moderation scan upload failed', err);
               toastError(
                 t('conversations.uploadFailed', 'Upload failed'),

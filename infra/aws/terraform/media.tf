@@ -433,6 +433,7 @@ resource "aws_iam_role_policy" "media_processor" {
           Effect = "Allow"
           Action = [
             "rekognition:DetectModerationLabels",
+            "rekognition:StartContentModeration",
           ]
           Resource = "*"
         },
@@ -457,12 +458,18 @@ resource "aws_lambda_function" "media_processor" {
   layers = [aws_lambda_layer_version.sharp[0].arn]
 
   environment {
-    variables = {
-      MEDIA_BUCKET             = aws_s3_bucket.media[0].id
-      CONTENT_MODERATION       = var.enable_media_content_moderation ? "true" : "false"
-      MODERATION_CONFIDENCE    = tostring(var.media_moderation_confidence_threshold)
-      DB_WRITER_FUNCTION_NAME  = aws_lambda_function.media_db_writer[0].function_name
-    }
+    variables = merge(
+      {
+        MEDIA_BUCKET            = aws_s3_bucket.media[0].id
+        CONTENT_MODERATION      = var.enable_media_content_moderation ? "true" : "false"
+        MODERATION_CONFIDENCE   = tostring(var.media_moderation_confidence_threshold)
+        DB_WRITER_FUNCTION_NAME = aws_lambda_function.media_db_writer[0].function_name
+      },
+      local.media_enabled && var.enable_media_content_moderation ? {
+        REKOGNITION_NOTIFICATION_ROLE_ARN = aws_iam_role.rekognition_video_sns_publish[0].arn
+        REKOGNITION_NOTIFICATION_SNS_TOPIC_ARN = aws_sns_topic.rekognition_video_moderation[0].arn
+      } : {},
+    )
   }
 
   tags = local.common_tags
@@ -687,6 +694,185 @@ resource "aws_lambda_event_source_mapping" "media_uploads" {
   batch_size                         = 1
   maximum_batching_window_in_seconds = 0
   enabled                            = true
+}
+
+# ---------------------------------------------------------------------------
+# Rekognition Video: SNS topic + async completion Lambda
+#
+# Topic name must start with "AmazonRekognition" (Rekognition service requirement).
+# ---------------------------------------------------------------------------
+
+resource "aws_sns_topic" "rekognition_video_moderation" {
+  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+
+  name = "AmazonRekognition-${local.name_prefix}-user-video-moderation"
+
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-rekognition-video-moderation" })
+}
+
+resource "aws_iam_role" "rekognition_video_sns_publish" {
+  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+
+  name = "${local.name_prefix}-rekognition-sns-publish-video"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "rekognition.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      },
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "rekognition_video_sns_publish" {
+  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+
+  name = "rekognition-sns-publish"
+  role = aws_iam_role.rekognition_video_sns_publish[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "sns:Publish",
+        ]
+        Resource = aws_sns_topic.rekognition_video_moderation[0].arn
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role" "media_video_moderation_complete" {
+  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+
+  name = "${local.name_prefix}-media-video-moderation-complete"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      },
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "media_video_moderation_complete" {
+  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+
+  name = "media-video-moderation-complete"
+  role = aws_iam_role.media_video_moderation_complete[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "RekognitionReadResults"
+        Effect = "Allow"
+        Action = [
+          "rekognition:GetContentModeration",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "S3DeleteScanUpload"
+        Effect = "Allow"
+        Action = [
+          "s3:DeleteObject",
+        ]
+        Resource = "${aws_s3_bucket.media[0].arn}/uploads/conv_scan/*"
+      },
+      {
+        Sid    = "InvokeDbWriter"
+        Effect = "Allow"
+        Action = [
+          "lambda:InvokeFunction",
+        ]
+        Resource = aws_lambda_function.media_db_writer[0].arn
+      },
+      {
+        Sid    = "CloudWatchLogs"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+        ]
+        Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
+      },
+    ]
+  })
+}
+
+resource "aws_lambda_function" "media_video_moderation_complete" {
+  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+
+  function_name = "${local.name_prefix}-media-video-moderation-complete"
+  role          = aws_iam_role.media_video_moderation_complete[0].arn
+  handler       = "index.handler"
+  runtime       = "nodejs20.x"
+  timeout       = 120
+  memory_size   = 512
+
+  filename         = "${path.module}/../lambda/media-video-moderation-complete/dist/function.zip"
+  source_code_hash = fileexists("${path.module}/../lambda/media-video-moderation-complete/dist/function.zip") ? filebase64sha256("${path.module}/../lambda/media-video-moderation-complete/dist/function.zip") : null
+
+  reserved_concurrent_executions = var.media_video_completion_lambda_reserved_concurrency
+
+  environment {
+    variables = {
+      MEDIA_BUCKET            = aws_s3_bucket.media[0].id
+      MODERATION_CONFIDENCE   = tostring(var.media_moderation_confidence_threshold)
+      DB_WRITER_FUNCTION_NAME = aws_lambda_function.media_db_writer[0].function_name
+    }
+  }
+
+  tags = local.common_tags
+
+  depends_on = [
+    aws_iam_role_policy.media_video_moderation_complete[0],
+  ]
+
+  lifecycle {
+    ignore_changes = [filename, source_code_hash]
+  }
+}
+
+resource "aws_lambda_permission" "media_video_moderation_sns" {
+  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+
+  statement_id  = "AllowSNSInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.media_video_moderation_complete[0].function_name
+  principal     = "sns.amazonaws.com"
+  source_arn    = aws_sns_topic.rekognition_video_moderation[0].arn
+}
+
+resource "aws_sns_topic_subscription" "rekognition_video_to_lambda" {
+  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+
+  topic_arn = aws_sns_topic.rekognition_video_moderation[0].arn
+  protocol  = "lambda"
+  endpoint  = aws_lambda_function.media_video_moderation_complete[0].arn
+
+  depends_on = [
+    aws_lambda_permission.media_video_moderation_sns,
+  ]
 }
 
 # ---------------------------------------------------------------------------

@@ -13,8 +13,29 @@ export interface MediaUploadResult {
   exifPreserved: boolean;
 }
 
-/** E2E phase result plus the JPEG thumbnail used for the anonymised scan copy (upload separately). */
-export type ConversationE2EUploadResult = MediaUploadResult & { scanThumbnail: Blob };
+/** Cleartext payload for the moderation scan upload (thumbnail JPEG or full MP4). */
+export type ModerationScanPayload = {
+  body: Blob;
+  contentType: 'image/jpeg' | 'video/mp4';
+};
+
+/** E2E phase result plus scan assets for the moderation pipeline (upload scan copy separately). */
+export type ConversationE2EUploadResult = MediaUploadResult & {
+  scanThumbnail: Blob;
+  moderationScan: ModerationScanPayload;
+};
+
+/**
+ * Ensure video is MP4 (server accepts MP4 only). Idempotent if already MP4.
+ * Call with the same File you encrypt and pass to {@link uploadE2EMediaOnly}.
+ */
+export async function prepareConversationMediaFileForUpload(file: File): Promise<File> {
+  if (!file.type.startsWith('video/') || file.type === 'video/mp4') {
+    return file;
+  }
+  const { transcodeVideoToMp4 } = await import('../utils/videoTranscode');
+  return transcodeVideoToMp4(file);
+}
 
 export type UploadMediaFileOptions = {
   stripExif?: boolean;
@@ -57,10 +78,12 @@ async function buildDimensionsAndScanThumbnail(file: File): Promise<{
  */
 export async function uploadE2EMediaOnly(
   api: ReturnType<typeof createApiClient>,
-  file: File,
+  rawFile: File,
   encryptedBlob: Blob,
   options?: UploadMediaFileOptions
 ): Promise<ConversationE2EUploadResult> {
+  const file = await prepareConversationMediaFileForUpload(rawFile);
+
   const signal = options?.signal;
   const stripExif = options?.stripExif ?? true;
   const onUploadsComplete = options?.onUploadsComplete;
@@ -99,6 +122,10 @@ export async function uploadE2EMediaOnly(
 
   onUploadsComplete?.();
 
+  const moderationScan: ModerationScanPayload = isVideoFile(file)
+    ? { body: file, contentType: 'video/mp4' }
+    : { body: thumbnail, contentType: 'image/jpeg' };
+
   return {
     e2eMediaId: mediaId,
     scanHash: hash,
@@ -109,24 +136,26 @@ export async function uploadE2EMediaOnly(
     sizeBytes: file.size,
     exifPreserved: isVideoFile(file) ? false : !stripExif,
     scanThumbnail: thumbnail,
+    moderationScan,
   };
 }
 
 /**
- * Upload cleartext JPEG thumbnail for Rekognition; run after message send so it cannot delay send.
+ * Upload cleartext scan copy for Rekognition (JPEG frame for images, full MP4 for video).
+ * Run after message send so it cannot delay send.
  */
 export async function uploadModerationScanCopy(
   api: ReturnType<typeof createApiClient>,
   scanHash: string,
-  scanThumbnail: Blob,
+  payload: ModerationScanPayload,
   options?: { signal?: AbortSignal }
 ): Promise<void> {
   const signal = options?.signal;
 
   const scanRes = await api.e2eUploads.requestScanUpload({
     scanHash,
-    contentType: 'image/jpeg',
-    contentLength: scanThumbnail.size,
+    contentType: payload.contentType,
+    contentLength: payload.body.size,
   });
   if (!scanRes.success || !scanRes.data) {
     throw new Error(
@@ -138,8 +167,8 @@ export async function uploadModerationScanCopy(
 
   const scanPut = await fetch(scanUrl, {
     method: 'PUT',
-    headers: { 'Content-Type': 'image/jpeg' },
-    body: scanThumbnail,
+    headers: { 'Content-Type': payload.contentType },
+    body: payload.body,
     signal,
   });
   if (!scanPut.ok) throw new Error(`Scan upload failed (${scanPut.status})`);
@@ -159,11 +188,13 @@ export async function uploadMediaFile(
   options?: UploadMediaFileOptions
 ): Promise<MediaUploadResult> {
   const signal = options?.signal;
-  const { scanThumbnail, ...rest } = await uploadE2EMediaOnly(api, file, encryptedBlob, {
-    ...options,
-    onUploadsComplete: undefined,
-  });
-  await uploadModerationScanCopy(api, rest.scanHash, scanThumbnail, { signal });
+  const { moderationScan, scanThumbnail: _scanThumb, ...rest } =
+    await uploadE2EMediaOnly(api, file, encryptedBlob, {
+      ...options,
+      onUploadsComplete: undefined,
+    });
+  void _scanThumb;
+  await uploadModerationScanCopy(api, rest.scanHash, moderationScan, { signal });
   options?.onUploadsComplete?.();
   return rest;
 }

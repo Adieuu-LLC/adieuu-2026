@@ -23,16 +23,8 @@ export const IMAGE_MIME_TYPES = [
   'image/gif',
 ] as const;
 
-/**
- * Video MIME types for future support. Not accepted by upload endpoints yet.
- * Video moderation requires the async Rekognition pipeline (StartContentModeration
- * + SNS callback) and ffmpeg in the Lambda — scoped as a separate follow-up.
- */
-export const VIDEO_MIME_TYPES = [
-  'video/mp4',
-  'video/webm',
-  'video/quicktime',
-] as const;
+/** Video MIME accepted for conversation media and scan copies (MP4 only; client transcodes others). */
+export const VIDEO_MIME_TYPES = ['video/mp4'] as const;
 
 /**
  * Upload purpose determines allowed content types, size limits,
@@ -168,8 +160,8 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
     },
   },
   conv_scan: {
-    maxBytes: 2 * 1024 * 1024, // 2 MB (thumbnail only)
-    allowedContentTypes: [...IMAGE_MIME_TYPES],
+    maxBytes: 25 * 1024 * 1024, // image thumbnails or full MP4 scan copies
+    allowedContentTypes: [...IMAGE_MIME_TYPES, ...VIDEO_MIME_TYPES],
     processingFlags: {
       stripExif: true,
       resize: { maxWidth: 512, maxHeight: 512 },

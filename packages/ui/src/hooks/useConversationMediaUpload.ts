@@ -52,7 +52,9 @@ export {
   uploadMediaFile,
   uploadE2EMediaOnly,
   uploadModerationScanCopy,
+  prepareConversationMediaFileForUpload,
   type UploadMediaFileOptions,
+  type ModerationScanPayload,
 } from '../services/conversationMediaUploadFlow';
 
 export function useConversationMediaUpload(

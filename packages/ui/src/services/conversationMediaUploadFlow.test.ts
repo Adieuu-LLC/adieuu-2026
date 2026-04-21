@@ -17,6 +17,10 @@ mock.module('../utils/videoProcessing', () => ({
   generateVideoFrameThumbnail: generateThumbnailMock,
 }));
 
+mock.module('../utils/videoTranscode', () => ({
+  transcodeVideoToMp4: mock(async (f: File) => f),
+}));
+
 const flow = await import('./conversationMediaUploadFlow');
 
 describe('conversationMediaUploadFlow', () => {
@@ -131,6 +135,7 @@ describe('conversationMediaUploadFlow', () => {
       });
       expect(r.e2eMediaId).toBe('mid');
       expect(r.scanThumbnail).toBeInstanceOf(Blob);
+      expect(r.moderationScan.contentType).toBe('image/jpeg');
     } finally {
       globalThis.fetch = originalFetch;
     }
