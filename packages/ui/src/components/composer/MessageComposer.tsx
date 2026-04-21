@@ -11,6 +11,7 @@ import {
   type MediaUploadResult,
 } from '../../hooks/useConversationMediaUpload';
 import { stripExifMetadata } from '../../utils/imageProcessing';
+import { withTimeout } from '../../utils/withTimeout';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
 import { createApiClient } from '@adieuu/shared';
 import { EmojiPicker } from '../EmojiPicker';
@@ -38,6 +39,11 @@ import { detectShortcodeQuery, detectMentionQuery, updateMentionOffsets } from '
 import { ComposerAttachments } from './ComposerAttachments';
 import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete } from './ComposerAutocomplete';
 import { ComposerTTLMenu } from './ComposerTTLMenu';
+
+/** Covers ffmpeg load/transcode; avoids indefinite spinner on blocked workers (e.g. CSP). */
+const PREPARE_MEDIA_TIMEOUT_MS = 5 * 60 * 1000;
+/** Whole attachment: transcode + encrypt + upload on slow networks. */
+const FULL_MEDIA_ATTACHMENT_TIMEOUT_MS = 30 * 60 * 1000;
 
 export function MessageComposer({
   channelId,
@@ -382,55 +388,71 @@ export function MessageComposer({
         encryptionNonce: string;
       }
 
-      let uploadedMedia: UploadedMedia[];
+      let uploadedMedia: UploadedMedia[] | undefined;
 
       try {
         const settled = await Promise.allSettled(
           pendingAttachments.map(async (att, i) => {
-            updateAttachmentStatus(i, { uploadStatus: 'encrypting', uploadProgress: 5 });
+            return withTimeout(
+              (async () => {
+                updateAttachmentStatus(i, { uploadStatus: 'encrypting', uploadProgress: 5 });
 
-            const preparedMedia = await prepareConversationMediaFileForUpload(att.file);
-            let fileToEncrypt: File = preparedMedia;
-            if (stripExif && preparedMedia.type.startsWith('image/')) {
-              const stripped = await stripExifMetadata(preparedMedia);
-              fileToEncrypt = new File([stripped], preparedMedia.name, {
-                type: stripped.type || preparedMedia.type,
-              });
-            }
-            const fileBytes = new Uint8Array(await fileToEncrypt.arrayBuffer());
-            const mediaKey = randomBytes(32);
-            const { ciphertext, nonce } = encryptBytes(mediaKey, fileBytes);
-            const encryptedBlob = new Blob([ciphertext.buffer as ArrayBuffer], { type: 'application/octet-stream' });
+                const preparedMedia = await withTimeout(
+                  prepareConversationMediaFileForUpload(att.file),
+                  PREPARE_MEDIA_TIMEOUT_MS,
+                  t(
+                    'conversations.mediaPrepareTimeout',
+                    'Video processing took too long. Check your connection or try a smaller file.',
+                  ),
+                );
+                let fileToEncrypt: File = preparedMedia;
+                if (stripExif && preparedMedia.type.startsWith('image/')) {
+                  const stripped = await stripExifMetadata(preparedMedia);
+                  fileToEncrypt = new File([stripped], preparedMedia.name, {
+                    type: stripped.type || preparedMedia.type,
+                  });
+                }
+                const fileBytes = new Uint8Array(await fileToEncrypt.arrayBuffer());
+                const mediaKey = randomBytes(32);
+                const { ciphertext, nonce } = encryptBytes(mediaKey, fileBytes);
+                const encryptedBlob = new Blob([ciphertext.buffer as ArrayBuffer], { type: 'application/octet-stream' });
 
-            updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 15 });
+                updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 15 });
 
-            const e2eResult = await uploadE2EMediaOnly(api, fileToEncrypt, encryptedBlob, {
-              stripExif: stripExif && fileToEncrypt.type.startsWith('image/'),
-              onUploadsComplete: () => {
-                updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 90 });
-              },
-            });
+                const e2eResult = await uploadE2EMediaOnly(api, fileToEncrypt, encryptedBlob, {
+                  stripExif: stripExif && fileToEncrypt.type.startsWith('image/'),
+                  onUploadsComplete: () => {
+                    updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 90 });
+                  },
+                });
 
-            updateAttachmentStatus(i, { uploadStatus: 'done', uploadProgress: 100 });
+                updateAttachmentStatus(i, { uploadStatus: 'done', uploadProgress: 100 });
 
-            const { moderationScan, ...result } = e2eResult;
+                const { moderationScan, ...result } = e2eResult;
 
-            void uploadModerationScanCopy(api, result.scanHash, moderationScan).catch((err) => {
-              console.error('[Composer] Moderation scan upload failed', err);
-              toastError(
-                t('conversations.uploadFailed', 'Upload failed'),
-                t(
-                  'conversations.scanUploadFailedDesc',
-                  'Preview upload for safety checks did not finish. The attachment may stay pending until you retry.',
-                ),
-              );
-            });
+                void uploadModerationScanCopy(api, result.scanHash, moderationScan).catch((err) => {
+                  console.error('[Composer] Moderation scan upload failed', err);
+                  toastError(
+                    t('conversations.uploadFailed', 'Upload failed'),
+                    t(
+                      'conversations.scanUploadFailedDesc',
+                      'Preview upload for safety checks did not finish. The attachment may stay pending until you retry.',
+                    ),
+                  );
+                });
 
-            return {
-              ...result,
-              encryptionKey: toBase64(mediaKey),
-              encryptionNonce: toBase64(nonce),
-            };
+                return {
+                  ...result,
+                  encryptionKey: toBase64(mediaKey),
+                  encryptionNonce: toBase64(nonce),
+                };
+              })(),
+              FULL_MEDIA_ATTACHMENT_TIMEOUT_MS,
+              t(
+                'conversations.mediaAttachmentTimeout',
+                'Processing this attachment took too long. Try again or use a smaller file.',
+              ),
+            );
           }),
         );
 
@@ -452,7 +474,6 @@ export function MessageComposer({
 
         if (firstError) {
           toastError(t('conversations.uploadFailed', 'Upload failed'), firstError);
-          setUploadingMedia(false);
           return;
         }
 
@@ -463,11 +484,12 @@ export function MessageComposer({
           t('conversations.uploadFailed', 'Upload failed'),
           err instanceof Error ? err.message : t('conversations.uploadFailedDesc', 'One or more attachments could not be uploaded.')
         );
-        setUploadingMedia(false);
         return;
+      } finally {
+        setUploadingMedia(false);
       }
 
-      setUploadingMedia(false);
+      if (!uploadedMedia) return;
 
       const mediaAttachments: MediaAttachment[] = uploadedMedia.map((m) => ({
         e2eMediaId: m.e2eMediaId,
