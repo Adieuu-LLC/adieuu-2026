@@ -60,4 +60,6 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
-snek.mp4
+
+# Local video samples for scripts/test-video-processing.mjs (not committed)
+video-tests/
