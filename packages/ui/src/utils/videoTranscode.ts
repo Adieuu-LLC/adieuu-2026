@@ -31,11 +31,23 @@ async function getLoadedFFmpeg(): Promise<FFmpeg> {
   return loadPromise;
 }
 
+export type TranscodeVideoToMp4Options = {
+  /**
+   * Re-encode to H.264/AAC even when the container is already MP4 (e.g. HEVC
+   * or other codecs the browser cannot decode for dimensions/thumbnails).
+   */
+  force?: boolean;
+};
+
 /**
- * Returns a new File with type video/mp4. Passes through if already MP4.
+ * Returns a new File with type video/mp4. Passes through if already MP4 unless
+ * {@link TranscodeVideoToMp4Options.force} is true.
  */
-export async function transcodeVideoToMp4(file: File): Promise<File> {
-  if (file.type === 'video/mp4') {
+export async function transcodeVideoToMp4(
+  file: File,
+  options?: TranscodeVideoToMp4Options
+): Promise<File> {
+  if (!options?.force && file.type === 'video/mp4') {
     return file;
   }
   if (!file.type.startsWith('video/')) {
@@ -44,12 +56,14 @@ export async function transcodeVideoToMp4(file: File): Promise<File> {
 
   const ffmpeg = await getLoadedFFmpeg();
   const ext =
-    file.name.match(/\.[^.]+$/)?.[0]?.toLowerCase() ??
-    (file.type.includes('webm')
-      ? '.webm'
-      : file.type.includes('quicktime')
-        ? '.mov'
-        : '.bin');
+    file.type === 'video/mp4'
+      ? '.mp4'
+      : (file.name.match(/\.[^.]+$/)?.[0]?.toLowerCase() ??
+        (file.type.includes('webm')
+          ? '.webm'
+          : file.type.includes('quicktime')
+            ? '.mov'
+            : '.bin'));
   const inputName = `in${ext}`;
   await ffmpeg.writeFile(inputName, await fetchFile(file));
   await ffmpeg.exec([

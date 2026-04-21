@@ -15,6 +15,7 @@ mock.module('../utils/videoProcessing', () => ({
     durationSeconds: 12,
   })),
   generateVideoFrameThumbnail: generateThumbnailMock,
+  probeVideoPlayableInBrowser: mock(async () => true),
 }));
 
 mock.module('../utils/videoTranscode', () => ({

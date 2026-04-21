@@ -1,6 +1,10 @@
 import { createApiClient } from '@adieuu/shared';
 import { generateThumbnail, getImageDimensions } from '../utils/imageProcessing';
-import { generateVideoFrameThumbnail, getVideoDimensions } from '../utils/videoProcessing';
+import {
+  generateVideoFrameThumbnail,
+  getVideoDimensions,
+  probeVideoPlayableInBrowser,
+} from '../utils/videoProcessing';
 
 export interface MediaUploadResult {
   e2eMediaId: string;
@@ -26,14 +30,21 @@ export type ConversationE2EUploadResult = MediaUploadResult & {
 };
 
 /**
- * Ensure video is MP4 (server accepts MP4 only). Idempotent if already MP4.
+ * Ensure video is MP4 (server accepts MP4 only) and the browser can decode it
+ * for dimensions/thumbnails (H.264). HEVC-in-MP4 and other opaque MP4s are
+ * re-encoded to H.264/AAC via ffmpeg.wasm.
  * Call with the same File you encrypt and pass to {@link uploadE2EMediaOnly}.
  */
 export async function prepareConversationMediaFileForUpload(file: File): Promise<File> {
-  if (!file.type.startsWith('video/') || file.type === 'video/mp4') {
+  if (!file.type.startsWith('video/')) {
     return file;
   }
   const { transcodeVideoToMp4 } = await import('../utils/videoTranscode');
+  if (file.type === 'video/mp4') {
+    const playable = await probeVideoPlayableInBrowser(file);
+    if (playable) return file;
+    return transcodeVideoToMp4(file, { force: true });
+  }
   return transcodeVideoToMp4(file);
 }
 
