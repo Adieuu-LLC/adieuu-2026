@@ -43,6 +43,12 @@ const desktopCspManifest: Record<string, string[]> = {
     'https://downloads.adieuu.com',
   ],
   'media-src': ["'self'"],
+  /**
+   * `blob:` (from @adieuu/ui): ffmpeg.wasm workers.
+   * `'self'`: Vite worker chunks load from `adieuu://app/assets/worker-*.js` in the
+   * packaged shell — they are not blob URLs, so `blob:` alone blocks transcoding.
+   */
+  'worker-src': ["'self'"],
 };
 
 export const cspManifest = mergeCspManifests(

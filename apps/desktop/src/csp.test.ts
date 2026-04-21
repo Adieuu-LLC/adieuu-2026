@@ -154,6 +154,20 @@ describe('desktop app CSP', () => {
     });
   });
 
+  describe('worker-src', () => {
+    it("includes 'self' for Vite worker bundles (adieuu://app/assets/worker-*.js)", () => {
+      const directives = parseDirectives(csp);
+      const workerSrc = directives.get('worker-src') ?? [];
+      expect(workerSrc).toContain("'self'");
+    });
+
+    it("includes 'blob:' for ffmpeg.wasm workers", () => {
+      const directives = parseDirectives(csp);
+      const workerSrc = directives.get('worker-src') ?? [];
+      expect(workerSrc).toContain('blob:');
+    });
+  });
+
   describe('style-src', () => {
     it('does not reference external font services', () => {
       const directives = parseDirectives(csp);
