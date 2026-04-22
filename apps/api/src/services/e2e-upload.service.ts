@@ -323,6 +323,7 @@ export async function abandonE2EUpload(
       removeDbRows: true,
       s3Client: getS3Client(),
       mediaBucket: config.s3.mediaBucket,
+      skipIfOpenModerationReports: true,
     });
   } catch (err) {
     elog.error('conv_scan purge failed during E2E abandon — continuing with E2E delete', {

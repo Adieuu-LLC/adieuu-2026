@@ -20,6 +20,7 @@ const countConvScanByScanHashMock = mock(() => Promise.resolve(0)) as AnyMock;
 const countConvScanNonTerminalMock = mock(() => Promise.resolve(0)) as AnyMock;
 const mediaFindManyMock = mock(() => Promise.resolve([])) as AnyMock;
 const mediaDeleteManyConvScanMock = mock(() => Promise.resolve(0)) as AnyMock;
+const countOpenAutomatedByScanHashMock = mock(() => Promise.resolve(0)) as AnyMock;
 const s3SendMock = mock(() => Promise.resolve({})) as AnyMock;
 
 mock.module('@aws-sdk/client-s3', () => ({
@@ -74,6 +75,12 @@ mock.module('../repositories/message.repository', () => ({
   }),
 }));
 
+mock.module('../repositories/report.repository', () => ({
+  getReportRepository: () => ({
+    countOpenAutomatedByScanHash: countOpenAutomatedByScanHashMock,
+  }),
+}));
+
 mock.module('../repositories/conversation.repository', () => ({
   getConversationRepository: () => ({
     findById: mock(() => Promise.resolve(null)),
@@ -124,6 +131,7 @@ describe('e2e-upload.service', () => {
     countConvScanNonTerminalMock.mockReset();
     mediaFindManyMock.mockReset();
     mediaDeleteManyConvScanMock.mockReset();
+    countOpenAutomatedByScanHashMock.mockReset();
     s3SendMock.mockReset();
     createE2EMediaMock.mockImplementation(() => Promise.resolve(undefined));
     countRecentByIdentityMock.mockImplementation(() => Promise.resolve(0));
@@ -145,6 +153,7 @@ describe('e2e-upload.service', () => {
     countConvScanNonTerminalMock.mockImplementation(() => Promise.resolve(0));
     mediaFindManyMock.mockImplementation(() => Promise.resolve([]));
     mediaDeleteManyConvScanMock.mockImplementation(() => Promise.resolve(0));
+    countOpenAutomatedByScanHashMock.mockImplementation(() => Promise.resolve(0));
     s3SendMock.mockImplementation(() =>
       Promise.resolve({
         Contents: [],
@@ -252,6 +261,29 @@ describe('e2e-upload.service', () => {
     expect(s3SendMock).toHaveBeenCalled();
     expect(deleteByE2EMediaIdMock).toHaveBeenCalledWith(e2eMediaId);
     expect(mediaDeleteManyConvScanMock).toHaveBeenCalledWith(scanHash);
+  });
+
+  test('abandonE2EUpload skips conv_scan purge when an open moderation report exists', async () => {
+    countOpenAutomatedByScanHashMock.mockImplementation(() => Promise.resolve(1));
+    const identityId = '507f1f77bcf86cd799439011';
+    const e2eMediaId = 'e2e-test-open-report';
+    const scanHash = 'd'.repeat(64);
+    const doc = {
+      e2eMediaId,
+      identityId: new ObjectId(identityId),
+      status: 'pending' as const,
+      s3Bucket: 'e2e-bucket',
+      s3Key: 'uploads/x',
+      scanHash,
+    };
+    findByE2EMediaIdAndIdentityMock.mockImplementation(() => Promise.resolve(doc));
+    findByE2EMediaIdMock.mockImplementation(() => Promise.resolve(doc));
+    findConversationByE2EMediaIdMock.mockImplementation(() => Promise.resolve(null));
+    deleteByE2EMediaIdMock.mockImplementation(() => Promise.resolve(true));
+
+    const result = await abandonE2EUpload(e2eMediaId, identityId);
+    expect(result.success).toBe(true);
+    expect(mediaDeleteManyConvScanMock).not.toHaveBeenCalled();
   });
 
   test('abandonE2EUpload refuses when a message references the media', async () => {

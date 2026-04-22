@@ -2,8 +2,8 @@
  * Rekognition StartContentModeration completion handler.
  *
  * Subscribes to SNS (topic publish permissions held by Rekognition service role).
- * On SUCCEEDED, loads moderation labels via GetContentModeration, updates via DB writer,
- * deletes the scan copy from S3.
+ * On SUCCEEDED, loads moderation labels via GetContentModeration, updates via DB writer.
+ * Pass: deletes scan copy from S3. Reject: retains scan copy until API purges after report closes.
  */
 
 import type { SNSEvent } from 'aws-lambda';
@@ -30,6 +30,8 @@ interface RekognitionVideoNotification {
   JobId: string;
   Status: string;
   API?: string;
+  /** Set by media-processor StartContentModeration (primary mediaId for DB writer). */
+  JobTag?: string;
   Video?: {
     S3ObjectName?: string;
     S3Bucket?: string;
@@ -122,9 +124,10 @@ export async function handler(event: SNSEvent): Promise<void> {
       continue;
     }
 
-    const mediaId = mediaIdFromObjectKey(key);
+    const mediaId =
+      (msg.JobTag && msg.JobTag.length > 0 ? msg.JobTag : null) ?? mediaIdFromObjectKey(key);
     if (!mediaId) {
-      console.error(`Could not parse mediaId from key: ${key}`);
+      console.error(`Could not parse mediaId from key/JobTag: ${key}`);
       continue;
     }
 
@@ -148,20 +151,20 @@ export async function handler(event: SNSEvent): Promise<void> {
       const labels = await collectModerationLabels(msg.JobId);
       const bad = flaggedLabels(labels);
 
-      try {
-        await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
-      } catch (delErr) {
-        console.warn(`Failed to delete scan object ${key}:`, delErr);
-      }
-
       if (bad.length > 0) {
         const top = bad[0];
+        // Keep conv_scan MP4 for moderator review; API purges after report is resolved/closed.
         await invokeDbWriter(
           mediaId,
           'rejected',
           `content_moderation: ${top?.Name ?? 'unknown'}`
         );
       } else {
+        try {
+          await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+        } catch (delErr) {
+          console.warn(`Failed to delete scan object ${key}:`, delErr);
+        }
         await invokeDbWriter(mediaId, 'ready');
       }
     } catch (err) {

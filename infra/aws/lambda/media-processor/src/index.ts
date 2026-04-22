@@ -329,7 +329,10 @@ async function processRecord(record: S3EventRecord): Promise<void> {
           topLabel: top?.Name,
         });
 
-        await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+        // conv_scan: retain cleartext until moderators close the report (API purge).
+        if (meta.purpose !== 'conv_scan') {
+          await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+        }
 
         await invokeDbWriter(
           meta.mediaId,

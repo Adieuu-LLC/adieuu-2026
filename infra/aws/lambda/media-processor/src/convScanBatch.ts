@@ -269,8 +269,7 @@ export async function processConvScanSealBatch(d: ConvScanSealBatchDeps): Promis
           topLabel: top?.Name,
           batchScanHash: d.scanHash,
         });
-        const allToDelete = convScanKeysToDelete(keys, prefix, d.sealKey);
-        await deleteKeys(d.s3, d.bucket, allToDelete);
+        // Retain nested conv_scan cleartext for human review; API purges after report is terminal.
         await d.invokeDbWriter(
           d.primaryMediaId,
           'rejected',

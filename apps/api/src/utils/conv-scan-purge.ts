@@ -12,6 +12,7 @@ import {
 import type { Filter } from 'mongodb';
 import type { MediaUploadDocument, UploadPurpose } from '../models/media-upload';
 import { getMediaUploadRepository } from '../repositories/media-upload.repository';
+import { getReportRepository } from '../repositories/report.repository';
 import elog from './adieuuLogger';
 
 const CONV_SCAN_PURGE_DOC_LIMIT = 128;
@@ -21,6 +22,11 @@ export type PurgeConvScanOptions = {
   removeDbRows: boolean;
   s3Client: S3Client;
   mediaBucket: string | undefined;
+  /**
+   * When true, skip if an open/escalated automated Rekognition report still references
+   * this scanHash (preserves evidence for moderators).
+   */
+  skipIfOpenModerationReports?: boolean;
 };
 
 /**
@@ -32,6 +38,17 @@ export async function purgeConvScanCleartextArtifacts(
   options: PurgeConvScanOptions
 ): Promise<void> {
   if (!scanHash || scanHash.length !== 64) return;
+
+  if (options.skipIfOpenModerationReports) {
+    const n = await getReportRepository().countOpenAutomatedByScanHash(scanHash);
+    if (n > 0) {
+      elog.info('Skip conv_scan purge: open automated moderation report for scanHash', {
+        scanHash,
+        openReports: n,
+      });
+      return;
+    }
+  }
 
   const mediaRepo = getMediaUploadRepository();
   const docs = await mediaRepo.findMany(

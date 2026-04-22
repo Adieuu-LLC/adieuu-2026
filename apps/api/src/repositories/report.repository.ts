@@ -67,6 +67,15 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
     return await this.findOne({ idempotencyKey: key } as Filter<ReportDocument>);
   }
 
+  /** Open/escalated automated reports still tied to this scan session (evidence not yet released). */
+  async countOpenAutomatedByScanHash(scanHash: string): Promise<number> {
+    return await this.count({
+      source: 'automated_rekognition',
+      status: { $in: ['open', 'escalated'] },
+      'detectionMetadata.scanHash': scanHash,
+    } as Filter<ReportDocument>);
+  }
+
   async list(options: ReportListOptions = {}): Promise<ReportListResult> {
     const page = Math.max(1, options.page ?? 1);
     const limit = Math.min(100, Math.max(1, options.limit ?? 25));
@@ -177,6 +186,10 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
     await this.collection.createIndex({ scopeType: 1, scopeId: 1, status: 1 });
     await this.collection.createIndex({ targetIdentityId: 1, createdAt: -1 });
     await this.collection.createIndex({ reporterIdentityId: 1, createdAt: -1 });
+    await this.collection.createIndex(
+      { 'detectionMetadata.scanHash': 1, status: 1 },
+      { sparse: true }
+    );
   }
 }
 

@@ -15,8 +15,14 @@ import { getReportRepository } from '../../repositories/report.repository';
 import { getReportEventRepository } from '../../repositories/report-event.repository';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { executeEnforcement } from '../../services/moderation-enforcement.service';
+import { purgeConvScanEvidenceForTerminalReport } from '../../services/conv-scan-moderation-cleanup.service';
 import { PLATFORM_PERMISSIONS } from '../../constants/platform-permissions';
-import { REPORT_CATEGORIES, REPORT_STATUSES, type ReportStatus } from '../../models/report';
+import {
+  REPORT_CATEGORIES,
+  REPORT_STATUSES,
+  type ReportDocument,
+  type ReportStatus,
+} from '../../models/report';
 import { z } from '@adieuu/shared/schemas';
 import { isValidObjectId } from '../../utils/isValidObjectId';
 
@@ -536,6 +542,10 @@ router.post('/moderation/reports/:id/resolve', async (ctx): Promise<Response> =>
     metadata: { from: report.status, to: 'resolved', actions: body.data },
   });
 
+  if (updated) {
+    await purgeConvScanEvidenceForTerminalReport(updated as ReportDocument);
+  }
+
   return success(toPublicReport(updated as unknown as Record<string, unknown>));
 });
 
@@ -581,6 +591,10 @@ router.post('/moderation/reports/:id/close', async (ctx): Promise<Response> => {
     body: `Report closed (invalid): ${body.data.reason}`,
     metadata: { from: report.status, to: 'closed' },
   });
+
+  if (updated) {
+    await purgeConvScanEvidenceForTerminalReport(updated as ReportDocument);
+  }
 
   return success(toPublicReport(updated as unknown as Record<string, unknown>));
 });

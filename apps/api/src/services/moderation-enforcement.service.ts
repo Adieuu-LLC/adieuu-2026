@@ -153,8 +153,8 @@ async function removeContent(targetRef: { type: string; id: string }): Promise<b
     case 'e2e_media':
       return await deleteE2EMedia(targetRef.id);
     case 'media_upload':
-      // Regular media uploads are already deleted from S3 by the processor on rejection.
-      // The DB record is updated to 'rejected' by the db-writer Lambda.
+      // conv_scan copies may remain until moderators resolve/close (API purge). Non-scan
+      // uploads are typically removed by the processor on rejection.
       return true;
     default:
       elog.warn('Unsupported target type for content removal', { targetRef });
