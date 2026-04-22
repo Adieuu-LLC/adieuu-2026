@@ -14,12 +14,8 @@
  * This Lambda runs OUTSIDE the VPC (needs only public S3 + Rekognition).
  * Database access is isolated to the DB writer Lambda for security.
  *
- * TODO [VIDEO SUPPORT]: When adding video moderation, this Lambda will need:
- * - ffmpeg layer for frame extraction / transcoding
- * - Async Rekognition pipeline: StartContentModeration -> SNS topic -> callback handler
- * - The callback handler should update the DB via the DB writer Lambda
- * - See AsyncModerationResult in apps/api/src/models/e2e-media.ts for the type definitions
- * - VIDEO_MIME_TYPES in apps/api/src/models/media-upload.ts lists the accepted types
+ * Full-MP4 conv_scan moderation runs only in the sealed-batch path (`convScanBatch.ts`, nested
+ * `uploads/conv_scan/{scanHash}/` + `.sealed`), when enabled. Flat `conv_scan` video keys are rejected below.
  */
 
 import type { S3Event, S3EventRecord, SQSEvent } from 'aws-lambda';
@@ -285,14 +281,25 @@ async function processRecord(record: S3EventRecord): Promise<void> {
     return;
   }
 
-  // Conversation scan: full MP4 — async Rekognition (SNS → completion Lambda → DB writer).
-  if (
-    meta.purpose === 'conv_scan' &&
-    isVideo &&
-    CONTENT_MODERATION &&
-    meta.contentModeration
-  ) {
-    await startConvScanVideoContentModeration(key, meta);
+  // Flat conv_scan video (non-nested layout): never processed on this path. Valid uploads use
+  // `uploads/conv_scan/{scanHash}/` payloads plus `.sealed` (see convScanBatch); optional MP4 there only.
+  if (meta.purpose === 'conv_scan' && isVideo) {
+    logProcessorEvent({
+      event: 'conv_scan_flat_video_rejected',
+      mediaId: meta.mediaId,
+      purpose: meta.purpose,
+      s3Key: key,
+    });
+    console.warn(`conv_scan video at non-nested path not supported: ${key}`);
+    try {
+      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+    } catch {
+      /* best-effort */
+    }
+    await invokeDbWriter(meta.mediaId, 'failed', undefined, 'conv_scan_flat_video_not_supported', {
+      purpose: meta.purpose,
+      s3Key: key,
+    });
     return;
   }
 
