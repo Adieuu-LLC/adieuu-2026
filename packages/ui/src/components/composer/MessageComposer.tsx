@@ -2,17 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Popover, Portal } from '@ark-ui/react';
 import { convertShortcodes, SHORTCODE_ENTRIES } from '../../utils/emojiShortcodes';
-import { serializePayload, mediaPayload, gifPayload, type MediaAttachment, type MentionEntity, type GifAttachment } from '../../services/messagePayload';
+import { serializePayload, gifPayload, type MentionEntity, type GifAttachment } from '../../services/messagePayload';
 import { getOrCreateDeviceId } from '../../services/deviceInfo';
-import {
-  uploadE2EMediaOnly,
-  uploadModerationScanCopy,
-  prepareConversationMediaFileForUpload,
-  type MediaUploadResult,
-} from '../../hooks/useConversationMediaUpload';
-import { stripExifMetadata } from '../../utils/imageProcessing';
-import { withTimeout } from '../../utils/withTimeout';
-import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
 import { createApiClient } from '@adieuu/shared';
 import { EmojiPicker } from '../EmojiPicker';
 import { GifPicker } from '../GifPicker';
@@ -39,12 +30,7 @@ import { detectShortcodeQuery, detectMentionQuery, updateMentionOffsets } from '
 import { ComposerAttachments } from './ComposerAttachments';
 import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete } from './ComposerAutocomplete';
 import { ComposerTTLMenu } from './ComposerTTLMenu';
-import { useConversationScanJobs } from '../../context/ConversationScanJobsContext';
-
-/** Covers ffmpeg load/transcode; avoids indefinite spinner on blocked workers (e.g. CSP). */
-const PREPARE_MEDIA_TIMEOUT_MS = 5 * 60 * 1000;
-/** Whole attachment: transcode + encrypt + upload on slow networks. */
-const FULL_MEDIA_ATTACHMENT_TIMEOUT_MS = 30 * 60 * 1000;
+import { useMediaOutbox } from '../../services/mediaOutbox';
 
 export function MessageComposer({
   channelId,
@@ -81,7 +67,7 @@ export function MessageComposer({
   const { warning: toastWarning, error: toastError } = useToast();
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
-  const scanJobsCtx = useConversationScanJobs();
+  const { enqueueMediaSend } = useMediaOutbox();
 
   const placeholder = useMemo(() => {
     if (placeholderOverride) return placeholderOverride;
@@ -98,7 +84,6 @@ export function MessageComposer({
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [pendingGif, setPendingGif] = useState<GifAttachment | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
-  const [uploadingMedia, setUploadingMedia] = useState(false);
   const [stripExif, setStripExif] = useState(true);
   const [ttlSeconds, setTtlSeconds] = useState<number | undefined>(undefined);
   const [shortcodeAC, setShortcodeAC] = useState<{ query: string; colonIdx: number } | null>(null);
@@ -332,14 +317,10 @@ export function MessageComposer({
     el.style.overflowY = scrollH >= 500 ? 'auto' : 'hidden';
   }, [messageText]);
 
-  const updateAttachmentStatus = useCallback((index: number, patch: Partial<PendingAttachment>) => {
-    setAttachments((prev) => prev.map((a, i) => (i === index ? { ...a, ...patch } : a)));
-  }, []);
-
   const handleSend = useCallback(async () => {
     if (disabled) return;
     const text = messageTextRef.current.trim();
-    if (!channelId || (!text && attachments.length === 0 && !pendingGif) || sending || uploadingMedia) return;
+    if (!channelId || (!text && attachments.length === 0 && !pendingGif) || sending) return;
 
     const currentPendingGif = pendingGif;
     const pendingAttachments = [...attachments];
@@ -383,182 +364,31 @@ export function MessageComposer({
     }
 
     if (pendingAttachments.length > 0) {
-      setUploadingMedia(true);
-
-      interface UploadedMedia extends MediaUploadResult {
-        encryptionKey: string;
-        encryptionNonce: string;
-      }
-
-      let uploadedMedia: UploadedMedia[] | undefined;
-
       try {
-        const settled = await Promise.allSettled(
-          pendingAttachments.map(async (att, i) => {
-            return withTimeout(
-              (async () => {
-                updateAttachmentStatus(i, { uploadStatus: 'encrypting', uploadProgress: 5 });
-
-                const preparedMedia = await withTimeout(
-                  prepareConversationMediaFileForUpload(att.file),
-                  PREPARE_MEDIA_TIMEOUT_MS,
-                  t(
-                    'conversations.mediaPrepareTimeout',
-                    'Video processing took too long. Check your connection or try a smaller file.',
-                  ),
-                );
-                let fileToEncrypt: File = preparedMedia;
-                if (stripExif && preparedMedia.type.startsWith('image/')) {
-                  const stripped = await stripExifMetadata(preparedMedia);
-                  fileToEncrypt = new File([stripped], preparedMedia.name, {
-                    type: stripped.type || preparedMedia.type,
-                  });
-                }
-                const fileBytes = new Uint8Array(await fileToEncrypt.arrayBuffer());
-                const mediaKey = randomBytes(32);
-                const { ciphertext, nonce } = encryptBytes(mediaKey, fileBytes);
-                const encryptedBlob = new Blob([ciphertext.buffer as ArrayBuffer], { type: 'application/octet-stream' });
-
-                updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 15 });
-
-                const e2eResult = await uploadE2EMediaOnly(api, fileToEncrypt, encryptedBlob, {
-                  stripExif: stripExif && fileToEncrypt.type.startsWith('image/'),
-                  onUploadsComplete: () => {
-                    updateAttachmentStatus(i, { uploadStatus: 'uploading', uploadProgress: 90 });
-                  },
-                });
-
-                updateAttachmentStatus(i, { uploadStatus: 'done', uploadProgress: 100 });
-
-                const { moderationScan, ...result } = e2eResult;
-
-                const scanFailedToast = () => {
-                  toastError(
-                    t('conversations.uploadFailed', 'Upload failed'),
-                    t(
-                      'conversations.scanUploadFailedDesc',
-                      'Preview upload for safety checks did not finish. The attachment may stay pending until you retry.',
-                    ),
-                  );
-                };
-
-                if (scanJobsCtx) {
-                  const { jobId, signal } = scanJobsCtx.startJob({
-                    fileName: fileToEncrypt.name,
-                    e2eMediaId: result.e2eMediaId,
-                  });
-                  void uploadModerationScanCopy(api, result.scanHash, moderationScan, { signal })
-                    .then(() => {
-                      scanJobsCtx.completeJob(jobId);
-                    })
-                    .catch((err: unknown) => {
-                      console.error('[Composer] Moderation scan upload failed', err);
-                      if (err instanceof DOMException && err.name === 'AbortError') {
-                        scanJobsCtx.cancelJob(jobId);
-                        return;
-                      }
-                      const msg =
-                        err instanceof Error ? err.message : t('conversations.uploadFailed', 'Upload failed');
-                      scanJobsCtx.failJob(jobId, msg);
-                      scanFailedToast();
-                    });
-                } else {
-                  void uploadModerationScanCopy(api, result.scanHash, moderationScan).catch((err) => {
-                    console.error('[Composer] Moderation scan upload failed', err);
-                    scanFailedToast();
-                  });
-                }
-
-                return {
-                  ...result,
-                  encryptionKey: toBase64(mediaKey),
-                  encryptionNonce: toBase64(nonce),
-                };
-              })(),
-              FULL_MEDIA_ATTACHMENT_TIMEOUT_MS,
-              t(
-                'conversations.mediaAttachmentTimeout',
-                'Processing this attachment took too long. Try again or use a smaller file.',
-              ),
-            );
-          }),
-        );
-
-        const results: UploadedMedia[] = [];
-        let firstError: string | undefined;
-
-        for (let i = 0; i < settled.length; i++) {
-          const s = settled[i]!;
-          if (s.status === 'fulfilled') {
-            results.push(s.value);
-          } else {
-            const errorMsg = s.reason instanceof Error
-              ? s.reason.message
-              : t('conversations.uploadFailed', 'Upload failed');
-            updateAttachmentStatus(i, { uploadStatus: 'error', uploadError: errorMsg });
-            firstError ??= errorMsg;
-          }
-        }
-
-        if (firstError) {
-          toastError(t('conversations.uploadFailed', 'Upload failed'), firstError);
-          return;
-        }
-
-        uploadedMedia = results;
+        await enqueueMediaSend({
+          conversationId: channelId,
+          caption: text,
+          mentions: currentMentions,
+          replyToMessageId: replyContext?.messageId,
+          ttlSeconds,
+          useForwardSecrecy: forwardSecrecy?.enabled ?? false,
+          stripExif,
+          files: pendingAttachments.map((a) => a.file),
+        });
       } catch (err) {
-        console.error('[Composer] Media upload failed:', err);
+        console.error('[Composer] Media outbox enqueue failed:', err);
         toastError(
           t('conversations.uploadFailed', 'Upload failed'),
-          err instanceof Error ? err.message : t('conversations.uploadFailedDesc', 'One or more attachments could not be uploaded.')
+          err instanceof Error ? err.message : t('conversations.uploadFailedDesc', 'One or more attachments could not be uploaded.'),
         );
         return;
-      } finally {
-        setUploadingMedia(false);
       }
-
-      if (!uploadedMedia) return;
-
-      const mediaAttachments: MediaAttachment[] = uploadedMedia.map((m) => ({
-        e2eMediaId: m.e2eMediaId,
-        scanHash: m.scanHash,
-        contentType: m.contentType,
-        fileName: m.fileName,
-        width: m.width,
-        height: m.height,
-        sizeBytes: m.sizeBytes,
-        exifPreserved: m.exifPreserved,
-        encryptionKey: m.encryptionKey,
-        encryptionNonce: m.encryptionNonce,
-      }));
-
-      const mediaText = convertShortcodes(text) || undefined;
-      const payload = mediaPayload(mediaText, mediaAttachments);
-      if (currentMentions.length > 0) payload.mentions = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
-      payload.senderDeviceId = getOrCreateDeviceId();
-      const plaintext = serializePayload(payload);
-      const e2eMediaIds = uploadedMedia.map((m) => m.e2eMediaId);
-
-      const mentionedIdentityIds = currentMentions.length > 0
-        ? [...new Set(currentMentions.map((m) => m.identityId))]
-        : undefined;
-
-      const sent = await onSend(plaintext, {
-        useForwardSecrecy: forwardSecrecy?.enabled,
-        ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
-        ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
-        e2eMediaIds,
-        mentionedIdentityIds,
-      });
 
       replyContext?.onCancel();
       setAttachments((prev) => {
         prev.forEach((a) => URL.revokeObjectURL(a.previewUrl));
         return [];
       });
-      if (sent != null) {
-        onSendSucceeded?.();
-      }
       inputRef.current?.focus();
     } else {
       const convertedText = convertShortcodes(text);
@@ -584,7 +414,7 @@ export function MessageComposer({
       }
       inputRef.current?.focus();
     }
-  }, [disabled, channelId, sending, uploadingMedia, onSend, forwardSecrecy, replyContext, onSendSucceeded, attachments, pendingGif, stripExif, api, updateAttachmentStatus, toastError, t, ttlSeconds, scanJobsCtx]);
+  }, [disabled, channelId, sending, onSend, forwardSecrecy, replyContext, onSendSucceeded, attachments, pendingGif, stripExif, api, toastError, t, ttlSeconds, enqueueMediaSend]);
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
@@ -938,7 +768,7 @@ export function MessageComposer({
           onCopy={handleCopy}
           rows={1}
           readOnly={disabled}
-          disabled={disabled || sending || uploadingMedia}
+          disabled={disabled || sending}
         />
         <div className="conversation-composer-row__right" style={disabled ? { display: 'none' } : undefined}>
           <Tooltip
@@ -949,7 +779,7 @@ export function MessageComposer({
               type="button"
               className="conversation-attach-btn"
               onClick={() => fileInputRef.current?.click()}
-              disabled={sending || uploadingMedia || attachments.length >= MAX_ATTACHMENTS}
+              disabled={sending || attachments.length >= MAX_ATTACHMENTS}
             >
               <Icon name="image" />
             </button>
@@ -968,7 +798,7 @@ export function MessageComposer({
                     type="button"
                     className="conversation-gif-btn"
                     title={t('gif.composerButton', 'GIF')}
-                    disabled={sending || uploadingMedia}
+                    disabled={sending}
                   >
                     <span className="conversation-gif-btn__label">GIF</span>
                   </button>
@@ -993,7 +823,7 @@ export function MessageComposer({
                     type="button"
                     className="conversation-sticker-btn"
                     title={t('gif.stickerButton', 'Stickers')}
-                    disabled={sending || uploadingMedia}
+                    disabled={sending}
                   >
                     <Icon name="noteSticky" />
                   </button>

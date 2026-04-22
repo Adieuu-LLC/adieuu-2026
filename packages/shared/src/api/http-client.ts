@@ -66,15 +66,30 @@ export class ApiClient implements HttpClient {
       ...options?.headers,
     };
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), this.timeout);
+
+    let fetchSignal: AbortSignal;
+    if (options?.signal) {
+      const anyFn = (
+        AbortSignal as typeof AbortSignal & {
+          any?: (signals: AbortSignal[]) => AbortSignal;
+        }
+      ).any;
+      fetchSignal =
+        typeof anyFn === 'function'
+          ? anyFn([options.signal, timeoutController.signal])
+          : options.signal;
+    } else {
+      fetchSignal = timeoutController.signal;
+    }
 
     try {
       const response = await this.fetchImpl(url, {
         method,
         headers,
         body: body ? JSON.stringify(body) : undefined,
-        signal: options?.signal ?? controller.signal,
+        signal: fetchSignal,
         credentials: 'include',
       });
 

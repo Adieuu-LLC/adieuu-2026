@@ -76,10 +76,21 @@ export interface ConversationsContextValue {
       expiresInSeconds?: number;
       useForwardSecrecy?: boolean;
       replyToMessageId?: string;
+      e2eMediaIds?: string[];
+      mentionedIdentityIds?: string[];
       /** When true, do not merge the sent message into local message state (caller will refresh, e.g. jump to latest). */
       skipMessageStateUpdate?: boolean;
+      /** When true, do not toggle global `sending` (e.g. background media outbox). */
+      suppressGlobalSending?: boolean;
+      /** Aborts in-flight send (e.g. media outbox cancel). */
+      signal?: AbortSignal;
     }
   ) => Promise<PublicMessage | SendMessageErrorResult | null>;
+
+  /**
+   * True when the given conversation's buffer is at the live tail (same heuristic as the composer adapter).
+   */
+  computeAtLiveTail: (conversationId: string) => boolean;
   loadOlder: () => Promise<void>;
   loadNewer: () => Promise<void>;
   jumpToLatestMessages: (conversationId: string) => Promise<void>;

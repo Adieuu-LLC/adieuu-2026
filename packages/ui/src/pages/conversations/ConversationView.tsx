@@ -57,8 +57,8 @@ import {
   getReversedVisibleMessages,
 } from './conversationViewModel';
 import { ConversationPinsMenu } from './ConversationPinsMenu';
-import { ConversationScanJobsProvider } from '../../context/ConversationScanJobsContext';
-import { ConversationScanJobsMenu } from './ConversationScanJobsMenu';
+import { useMediaOutbox } from '../../services/mediaOutbox';
+import { ConversationMediaOutboxMenu } from './ConversationMediaOutboxMenu';
 import { MemberSecurityModal } from './MemberSecurityModal';
 import { buildForwardSecrecyUiLabels } from './forwardSecrecyLabels';
 import { Tooltip } from '../../components/Tooltip';
@@ -141,6 +141,16 @@ export function ConversationView() {
     markConversationRead,
     messageLayoutKey,
   });
+
+  const { registerConversationOutboxHooks } = useMediaOutbox();
+
+  useEffect(() => {
+    if (!id) return;
+    registerConversationOutboxHooks(id, { markJustSent, scrollToBottom });
+    return () => {
+      registerConversationOutboxHooks(id, null);
+    };
+  }, [id, markJustSent, scrollToBottom, registerConversationOutboxHooks]);
 
   const [replyingTo, setReplyingTo] = useState<DisplayMessage | null>(null);
   const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
@@ -594,8 +604,7 @@ export function ConversationView() {
   const canManagePinsUi = canManageConversationPinsView(conversation, identity?.id);
 
   return (
-    <ConversationScanJobsProvider conversationId={conversation.id}>
-      <div className="conversation-page">
+    <div className="conversation-page">
         <div className="conversation-container">
           <ConversationToolbar
             displayName={displayName}
@@ -621,7 +630,7 @@ export function ConversationView() {
                 gifAnimateOnHoverOnly={effectiveGifAnimateOnHover}
               />
             }
-            mediaJobsSlot={<ConversationScanJobsMenu conversationId={conversation.id} />}
+            mediaJobsSlot={<ConversationMediaOutboxMenu conversationId={conversation.id} />}
             deviceSignaturesSlot={
               identity?.id ? (
                 <Tooltip
@@ -855,6 +864,5 @@ export function ConversationView() {
         onCloseLinkModal={() => setPendingLinkHref(null)}
       />
       </div>
-    </ConversationScanJobsProvider>
   );
 }

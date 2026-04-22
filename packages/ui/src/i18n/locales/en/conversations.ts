@@ -339,4 +339,26 @@ export const conversations = {
     unarchiveToast: 'Conversation unarchived',
     favoriteAddedToast: 'Added to favourites',
     favoriteRemovedToast: 'Removed from favourites',
+
+    /** Outbox send blocked (e.g. other user blocked you). */
+    sendBlocked: 'Message could not be sent',
+
+    mediaOutbox: {
+        panelTitle: 'Pending media sends',
+        closePanel: 'Close',
+        empty: 'No pending uploads for this chat.',
+        toolbarAria: 'Pending media uploads',
+        toolbarTitle: 'Pending uploads',
+        cancel: 'Cancel send',
+        retry: 'Retry',
+        dismiss: 'Dismiss',
+        stageQueued: 'Queued',
+        stagePreparing: 'Preparing media…',
+        stageEncrypting: 'Encrypting…',
+        stageUploading: 'Uploading…',
+        stageSending: 'Sending message…',
+        stageScan: 'Safety scan uploading…',
+        stageFailed: 'Failed',
+        stageCancelled: 'Cancelled',
+    },
 } as const;

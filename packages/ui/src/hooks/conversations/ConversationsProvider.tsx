@@ -478,6 +478,18 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     [identity, getWrappingKey],
   );
 
+  const computeAtLiveTail = useCallback((conversationId: string) => {
+    const state = messagesStateRef.current[conversationId];
+    const conv = conversationsRef.current.find((c) => c.id === conversationId);
+    const hadNewerPages = state?.hasNewerPages ?? false;
+    const headBefore = state?.messages[0]?.id;
+    const lastBefore = conv?.lastMessageId;
+    return (
+      !hadNewerPages &&
+      (lastBefore == null ? headBefore == null : headBefore === lastBefore)
+    );
+  }, []);
+
   // -------------------------------------------------------------------------
   // Context value
   // -------------------------------------------------------------------------
@@ -506,6 +518,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       createDM,
       createGroup,
       sendTextMessage,
+      computeAtLiveTail,
       loadOlder,
       loadNewer,
       jumpToLatestMessages,
@@ -543,7 +556,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     pendingInvitesRefreshSignal,
     participantProfiles, loading, sending,
     setActiveConversation, setIsAtBottom, markConversationRead,
-    createDM, createGroup, sendTextMessage, loadOlder, loadNewer, jumpToLatestMessages,
+    createDM, createGroup, sendTextMessage, computeAtLiveTail, loadOlder, loadNewer, jumpToLatestMessages,
     fetchMessagesAround, ensureReplyParentHydration, loadPinnedMessagesPage,
     deleteMessage, addMember, removeMember, leaveGroup, renameGroup,
     updateConversationMemberSettings, updateGifsDisabled, pinMessage, unpinMessage, promoteToAdmin, terminateGroup,

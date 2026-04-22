@@ -70,6 +70,7 @@ export const APP_ICON_NAMES = {
   sortAlpha: 'arrow-down-a-z',
   pin: 'thumbtack',
   locationPin: 'location-pin',
+  rotateRight: 'arrow-rotate-right',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;

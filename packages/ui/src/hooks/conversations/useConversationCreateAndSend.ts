@@ -150,6 +150,9 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
         e2eMediaIds?: string[];
         mentionedIdentityIds?: string[];
         skipMessageStateUpdate?: boolean;
+        /** When true, do not toggle global `sending` (e.g. background media outbox). */
+        suppressGlobalSending?: boolean;
+        signal?: AbortSignal;
       }
     ): Promise<PublicMessage | SendMessageErrorResult | null> => {
       if (!isLoggedIn || !identity) return null;
@@ -159,13 +162,21 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
 
       const useFs = options?.useForwardSecrecy ?? false;
       const expiresInSeconds = options?.expiresInSeconds;
+      const signal = options?.signal;
 
-      setSending(true);
+      const throwIfAborted = () => {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      };
+
+      const manageSending = options?.suppressGlobalSending !== true;
+      if (manageSending) setSending(true);
       try {
+        throwIfAborted();
         const signingKey = getSigningKey();
         if (!signingKey) throw new Error('No signing key available');
 
         const recipients = await fetchRecipientKeys(conversation.participants, useFs);
+        throwIfAborted();
         if (recipients.length === 0) throw new Error('No recipient keys available');
 
         const cryptoProfile = identity.preferredCryptoProfile ?? 'default';
@@ -175,6 +186,7 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
           signingKey,
           cryptoProfile as 'default' | 'cnsa2'
         );
+        throwIfAborted();
 
         const clientMessageId = crypto.randomUUID();
 
@@ -191,7 +203,12 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
           ...(options?.mentionedIdentityIds?.length ? { mentionedIdentityIds: options.mentionedIdentityIds } : {}),
         };
 
-        const resp = await api.conversations.sendMessage(conversationId, sendParams);
+        const resp = await api.conversations.sendMessage(
+          conversationId,
+          sendParams,
+          signal ? { signal } : undefined
+        );
+        throwIfAborted();
 
         if (resp.data) {
           const displayMsg: DisplayMessage = {
@@ -238,9 +255,12 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
           return { errorCode: 'BLOCKED' };
         }
       } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          throw err;
+        }
         console.error('[Conversations] Failed to send message:', err);
       } finally {
-        setSending(false);
+        if (manageSending) setSending(false);
       }
       return null;
     },

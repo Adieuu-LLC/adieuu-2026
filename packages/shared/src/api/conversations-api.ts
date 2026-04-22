@@ -1,6 +1,6 @@
 import type { ApiResponse } from '../types';
 import type { MessagePaginationDirection } from '../messaging/messagePagination';
-import type { HttpClient } from './http-client';
+import type { HttpClient, RequestOptions } from './http-client';
 import type {
   ConversationPreferences,
   ConversationPreferencesPatch,
@@ -67,11 +67,13 @@ export class ConversationsApi {
 
   async sendMessage(
     conversationId: string,
-    params: SendMessageParams
+    params: SendMessageParams,
+    requestOptions?: RequestOptions
   ): Promise<ApiResponse<PublicMessage>> {
     return this.client.post(
       `/api/conversations/${encodeURIComponent(conversationId)}/messages`,
-      params
+      params,
+      requestOptions
     );
   }
 
