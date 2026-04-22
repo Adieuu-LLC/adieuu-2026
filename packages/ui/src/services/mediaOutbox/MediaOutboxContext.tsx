@@ -207,6 +207,17 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
     void refreshCache().then(() => pumpRef.current());
   }, [refreshCache]);
 
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      const pending = cacheRef.current.filter((j) => !isTerminal(j.stage));
+      if (pending.length === 0) return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    globalThis.addEventListener('beforeunload', onBeforeUnload);
+    return () => globalThis.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
+
   const enqueueMediaSend = useCallback(
     async (input: MediaOutboxEnqueueInput): Promise<string> => {
       const id =
@@ -236,6 +247,7 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
         ttlSeconds: input.ttlSeconds,
         useForwardSecrecy: input.useForwardSecrecy,
         stripExif: input.stripExif,
+        ...(input.sendMp4WithoutReencode === true ? { sendMp4WithoutReencode: true } : {}),
         attachmentBlobs,
       };
       await mediaOutboxPutJob(record);

@@ -15,6 +15,13 @@ export type ModerationFrameTimeOptions = {
   /** Target spacing between samples (product range ~5–10s). */
   intervalSec?: number;
   earlySeekSec?: number;
+  /**
+   * Random offset applied per sample in `[-jitterSec, +jitterSec]` (seconds).
+   * Use `0` for a fixed grid (tests, reproducibility).
+   */
+  jitterSec?: number;
+  /** Uniform [0,1); inject in tests for deterministic jitter. */
+  random?: () => number;
 };
 
 /** Defaults for {@link buildModerationFrameTimes} (exported for tests and tuning). */
@@ -24,6 +31,9 @@ export const DEFAULT_MODERATION_FRAME_TIME_OPTIONS = {
   intervalSec: 7,
   earlySeekSec: 0.1,
 } as const;
+
+/** Default half-width of per-sample time jitter (seconds); plan ~5–10s windows with jitter. */
+export const DEFAULT_MODERATION_FRAME_JITTER_SEC = 2;
 
 /**
  * Above this duration (seconds), moderation uses multiple JPEG grids (one conv_scan part each)
@@ -66,6 +76,8 @@ export function buildModerationFrameTimes(
   options?: ModerationFrameTimeOptions
 ): number[] {
   const o = { ...DEFAULT_MODERATION_FRAME_TIME_OPTIONS, ...options };
+  const jitterSec = options?.jitterSec ?? DEFAULT_MODERATION_FRAME_JITTER_SEC;
+  const rng = jitterSec > 0 ? (options?.random ?? Math.random) : () => 0.5;
   if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
     throw new Error('Invalid video duration');
   }
@@ -74,7 +86,8 @@ export function buildModerationFrameTimes(
   const times: number[] = [];
   let t = Math.min(o.earlySeekSec, end);
   while (t <= end + 1e-9 && times.length < o.maxFrames) {
-    times.push(clampSeek(t, durationSeconds));
+    const jitter = jitterSec > 0 ? (rng() * 2 - 1) * jitterSec : 0;
+    times.push(clampSeek(t + jitter, durationSeconds));
     t += o.intervalSec;
   }
 
@@ -210,6 +223,8 @@ export async function buildVideoModerationScanPayloads(
     maxFrames,
     intervalSec,
     earlySeekSec,
+    jitterSec,
+    random,
     ...loadOpts
   } = options ?? {};
 
@@ -226,12 +241,14 @@ export async function buildVideoModerationScanPayloads(
 
     const timeOpts =
       partCount === 1
-        ? { minFrames, maxFrames, intervalSec, earlySeekSec }
+        ? { minFrames, maxFrames, intervalSec, earlySeekSec, jitterSec, random }
         : {
             minFrames: 2,
             maxFrames: 6,
             intervalSec: 7,
             earlySeekSec: 0.05,
+            jitterSec,
+            random,
           };
 
     const mergedTimeOpts = { ...DEFAULT_MODERATION_FRAME_TIME_OPTIONS, ...timeOpts };

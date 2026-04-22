@@ -479,6 +479,7 @@ resource "aws_lambda_function" "media_processor" {
         CONTENT_MODERATION      = var.enable_media_content_moderation ? "true" : "false"
         MODERATION_CONFIDENCE   = tostring(var.media_moderation_confidence_threshold)
         DB_WRITER_FUNCTION_NAME = aws_lambda_function.media_db_writer[0].function_name
+        ALLOW_LEGACY_CONV_SCAN_VIDEO = var.allow_legacy_conv_scan_video_moderation ? "true" : "false"
       },
       local.media_enabled && var.enable_media_content_moderation ? {
         REKOGNITION_NOTIFICATION_ROLE_ARN = aws_iam_role.rekognition_video_sns_publish[0].arn

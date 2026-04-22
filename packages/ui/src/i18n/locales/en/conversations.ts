@@ -352,6 +352,9 @@ export const conversations = {
         cancel: 'Cancel send',
         retry: 'Retry',
         dismiss: 'Dismiss',
+        /** Shown inline in the thread while an outbox job is active. */
+        inlinePendingOne: 'Sending media…',
+        inlinePendingMany: 'Sending {{count}} media…',
         stageQueued: 'Queued',
         stagePreparing: 'Preparing media…',
         stageEncrypting: 'Encrypting…',
@@ -361,4 +364,9 @@ export const conversations = {
         stageFailed: 'Failed',
         stageCancelled: 'Cancelled',
     },
+
+    /** MP4-only: skip ffmpeg when the browser cannot decode (e.g. HEVC). */
+    sendMp4NoReencode: 'No re-encoding (MP4 only)',
+    sendMp4NoReencodeHelp:
+      'Send the original MP4 bytes without converting to H.264. Playback and safety scans may fail on some devices; use only when you understand the trade-off.',
 } as const;

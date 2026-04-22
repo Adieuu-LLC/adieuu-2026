@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test';
+import type { MediaOutboxJobRecord } from '../../services/mediaOutbox/mediaOutboxTypes';
 
 mock.module('../../services/messagePayload', () => ({
   parsePayload: (raw: string) => {
@@ -16,6 +17,7 @@ const {
   getLastMessagePreviewText,
   buildMessagesByIdMap,
   buildFlatChatItems,
+  mergePendingOutboxIntoFlatItems,
   getConversationHeaderCopy,
 } = await import('./conversationViewModel');
 
@@ -68,6 +70,36 @@ describe('buildMessagesByIdMap', () => {
     const hydration = { a: { id: 'a', messageType: 'user' as const, x: 2 } as any };
     const m = buildMessagesByIdMap(active, hydration);
     expect((m.get('a') as any).x).toBe(1);
+  });
+});
+
+describe('mergePendingOutboxIntoFlatItems', () => {
+  test('appends row when jobs are pending for conversation', () => {
+    const base = buildFlatChatItems([], 0, Date.now());
+    const jobs: MediaOutboxJobRecord[] = [
+      {
+        id: 'j1',
+        conversationId: 'c1',
+        stage: 'queued',
+        createdAt: 1,
+        updatedAt: 1,
+        caption: '',
+        mentionsJson: '[]',
+        useForwardSecrecy: false,
+        stripExif: true,
+        attachmentBlobs: [],
+      },
+    ];
+    const merged = mergePendingOutboxIntoFlatItems(base, 'c1', jobs);
+    expect(merged.length).toBe(1);
+    expect(merged[0]).toEqual(
+      expect.objectContaining({ type: 'pending-outbox', pendingCount: 1 })
+    );
+  });
+
+  test('skips when no conversation id', () => {
+    const base = buildFlatChatItems([], 0, Date.now());
+    expect(mergePendingOutboxIntoFlatItems(base, undefined, [])).toBe(base);
   });
 });
 

@@ -193,6 +193,21 @@ export function ConversationMessageList({
         );
       }
 
+      if (item.type === 'pending-outbox') {
+        const pendingLabel =
+          item.pendingCount === 1
+            ? tLocal('conversations.mediaOutbox.inlinePendingOne', 'Sending media…')
+            : tLocal('conversations.mediaOutbox.inlinePendingMany', 'Sending {{count}} media…', {
+                count: item.pendingCount,
+              });
+        return (
+          <div className="dm-pending-outbox-row" role="status" aria-live="polite">
+            <span className="dm-pending-outbox-row__spinner spinner spinner-sm" aria-hidden />
+            <span className="dm-pending-outbox-row__text">{pendingLabel}</span>
+          </div>
+        );
+      }
+
       const msg = item.msg;
       const unreadMarker = item.isFirstUnread ? (
         <div className="dm-unread-separator">

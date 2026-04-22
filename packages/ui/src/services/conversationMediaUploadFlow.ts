@@ -7,6 +7,9 @@ import {
 import { sha256HexLower } from '../utils/blobDigest';
 import { buildVideoModerationScanPayloads } from '../utils/videoModerationFrames';
 
+const VIDEO_SCAN_PREP_FAILED =
+  'Could not build video frames for the safety scan. Try re-encoding to a standard H.264 MP4, or turn off "No re-encoding (MP4 only)" if it is enabled.';
+
 export interface MediaUploadResult {
   e2eMediaId: string;
   scanHash: string;
@@ -34,15 +37,25 @@ export type ConversationE2EUploadResult = MediaUploadResult & {
   moderationScan: ModerationScanPayload | ModerationScanPayload[];
 };
 
+export type PrepareConversationMediaOptions = {
+  signal?: AbortSignal;
+  /**
+   * When true and the file is `video/mp4`, skip ffmpeg re-encoding even if the
+   * browser cannot decode it (e.g. HEVC). Playback and scan frames are best-effort.
+   * Other containers still require transcoding because the API accepts MP4 only.
+   */
+  sendMp4WithoutReencode?: boolean;
+};
+
 /**
  * Ensure video is MP4 (server accepts MP4 only) and the browser can decode it
  * for dimensions/thumbnails (H.264). HEVC-in-MP4 and other opaque MP4s are
- * re-encoded to H.264/AAC via ffmpeg.wasm.
+ * re-encoded to H.264/AAC via ffmpeg.wasm unless {@link PrepareConversationMediaOptions.sendMp4WithoutReencode} is set.
  * Call with the same File you encrypt and pass to {@link uploadE2EMediaOnly}.
  */
 export async function prepareConversationMediaFileForUpload(
   file: File,
-  options?: { signal?: AbortSignal }
+  options?: PrepareConversationMediaOptions
 ): Promise<File> {
   const signal = options?.signal;
   const throwIfAborted = () => {
@@ -55,6 +68,9 @@ export async function prepareConversationMediaFileForUpload(
   const { transcodeVideoToMp4 } = await import('../utils/videoTranscode');
   throwIfAborted();
   if (file.type === 'video/mp4') {
+    if (options?.sendMp4WithoutReencode === true) {
+      return file;
+    }
     const playable = await probeVideoPlayableInBrowser(file);
     throwIfAborted();
     if (playable) return file;
@@ -68,6 +84,11 @@ export type UploadMediaFileOptions = {
   signal?: AbortSignal;
   /** Called after E2E blob is stored and completeE2EUpload succeeds. */
   onUploadsComplete?: () => void;
+  /**
+   * When true, `rawFile` was already passed through {@link prepareConversationMediaFileForUpload}
+   * (same bytes as `encryptedBlob` was derived from). Avoids duplicate transcode work in the media outbox.
+   */
+  alreadyPrepared?: boolean;
 };
 
 function isVideoFile(file: File): boolean {
@@ -106,7 +127,9 @@ export async function uploadE2EMediaOnly(
   options?: UploadMediaFileOptions
 ): Promise<ConversationE2EUploadResult> {
   const signal = options?.signal;
-  const file = await prepareConversationMediaFileForUpload(rawFile, { signal });
+  const file = options?.alreadyPrepared
+    ? rawFile
+    : await prepareConversationMediaFileForUpload(rawFile, { signal });
   const stripExif = options?.stripExif ?? true;
   const onUploadsComplete = options?.onUploadsComplete;
 
@@ -154,8 +177,13 @@ export async function uploadE2EMediaOnly(
 
   let moderationScan: ModerationScanPayload | ModerationScanPayload[];
   if (isVideoFile(file)) {
-    const payloads = await buildVideoModerationScanPayloads(file);
-    moderationScan = payloads.length === 1 ? payloads[0]! : payloads;
+    try {
+      const payloads = await buildVideoModerationScanPayloads(file);
+      moderationScan = payloads.length === 1 ? payloads[0]! : payloads;
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new Error(`${VIDEO_SCAN_PREP_FAILED} (${detail})`);
+    }
   } else {
     moderationScan = { body: thumbnail, contentType: 'image/jpeg' };
   }

@@ -16,6 +16,7 @@ import {
   MEDIA_OUTBOX_ATTACHMENT_PIPELINE_TIMEOUT_MS,
   MEDIA_OUTBOX_PREPARE_TIMEOUT_MS,
 } from './mediaOutboxConstants';
+import { reportMediaOutboxTelemetry } from './mediaOutboxTelemetry';
 
 export type MediaOutboxApi = ReturnType<typeof createApiClient>;
 
@@ -92,7 +93,10 @@ async function runE2eForAttachments(
     const rawFile = new File([att.blob], att.name, { type: att.type });
 
     const preparedMedia = await withTimeout(
-      prepareConversationMediaFileForUpload(rawFile, { signal: abortSignal }),
+      prepareConversationMediaFileForUpload(rawFile, {
+        signal: abortSignal,
+        sendMp4WithoutReencode: job.sendMp4WithoutReencode === true,
+      }),
       MEDIA_OUTBOX_PREPARE_TIMEOUT_MS,
       t(
         'conversations.mediaPrepareTimeout',
@@ -117,6 +121,7 @@ async function runE2eForAttachments(
       uploadE2EMediaOnly(api, fileToEncrypt, encryptedBlob, {
         stripExif: job.stripExif && fileToEncrypt.type.startsWith('image/'),
         signal: abortSignal,
+        alreadyPrepared: true,
       }),
       MEDIA_OUTBOX_ATTACHMENT_PIPELINE_TIMEOUT_MS,
       t(
@@ -220,7 +225,9 @@ export async function processMediaOutboxJob(jobId: string, deps: MediaOutboxProc
   if (!job) return;
   if (job.stage === 'cancelled' || job.stage === 'completed' || job.stage === 'failed') return;
 
+  const conversationId = job.conversationId;
   const createdE2eIdsForAbandon: string[] = [];
+  const startedAt = job.createdAt;
 
   const now = () => Date.now();
 
@@ -256,6 +263,8 @@ export async function processMediaOutboxJob(jobId: string, deps: MediaOutboxProc
       }
 
       throwIfAborted(deps.abortSignal);
+      // D1: Message `createdAt` is assigned by the API when this send completes (after E2E upload),
+      // not when the user first enqueued the outbox job.
       await sendMessageForJob(job, deps);
 
       const p4 = await patch({
@@ -273,6 +282,12 @@ export async function processMediaOutboxJob(jobId: string, deps: MediaOutboxProc
     await runScanUploads(job, deps);
 
     await patch({ stage: 'completed', errorMessage: undefined });
+    reportMediaOutboxTelemetry({
+      kind: 'job_completed',
+      jobId,
+      conversationId,
+      durationMs: Math.max(0, now() - startedAt),
+    });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       const latest = await deps.loadJob(jobId);
@@ -282,9 +297,22 @@ export async function processMediaOutboxJob(jobId: string, deps: MediaOutboxProc
         await abandonOrphanE2ECreations(deps.api, ids);
       }
       await patch({ stage: 'cancelled', errorMessage: undefined });
+      reportMediaOutboxTelemetry({
+        kind: 'job_cancelled',
+        jobId,
+        conversationId,
+        durationMs: Math.max(0, now() - startedAt),
+      });
       return;
     }
     const msg = err instanceof Error ? err.message : 'Failed';
     await patch({ stage: 'failed', errorMessage: msg });
+    reportMediaOutboxTelemetry({
+      kind: 'job_failed',
+      jobId,
+      conversationId,
+      durationMs: Math.max(0, now() - startedAt),
+      errorMessage: msg,
+    });
   }
 }

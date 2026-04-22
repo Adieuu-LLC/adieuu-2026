@@ -53,6 +53,7 @@ export {
   uploadE2EMediaOnly,
   uploadModerationScanCopy,
   prepareConversationMediaFileForUpload,
+  type PrepareConversationMediaOptions,
   type UploadMediaFileOptions,
   type ModerationScanPayload,
 } from '../services/conversationMediaUploadFlow';

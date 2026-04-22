@@ -10,6 +10,9 @@ export function ComposerAttachments({
   stripExif,
   onToggleExif,
   showExifToggle = true,
+  sendMp4WithoutReencode,
+  onToggleSendMp4WithoutReencode,
+  showMp4NoReencodeToggle = false,
 }: {
   attachments: PendingAttachment[];
   onRemove: (index: number) => void;
@@ -17,6 +20,10 @@ export function ComposerAttachments({
   onToggleExif: (strip: boolean) => void;
   /** Hide EXIF toggle when only video attachments are present (no image EXIF). */
   showExifToggle?: boolean;
+  /** When all videos are MP4, allow skipping ffmpeg for opaque / HEVC files. */
+  sendMp4WithoutReencode?: boolean;
+  onToggleSendMp4WithoutReencode?: (value: boolean) => void;
+  showMp4NoReencodeToggle?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -107,6 +114,32 @@ export function ComposerAttachments({
           </span>
         </Tooltip>
       </div>
+      )}
+      {showMp4NoReencodeToggle && onToggleSendMp4WithoutReencode !== undefined && (
+        <div className="conversation-composer-exif-row">
+          <Checkbox.Root
+            checked={sendMp4WithoutReencode === true}
+            onCheckedChange={(e) => onToggleSendMp4WithoutReencode(e.checked === true)}
+            className="conversation-composer-exif-toggle"
+          >
+            <Checkbox.Control className="conversation-composer-exif-control" />
+            <Checkbox.Label className="conversation-composer-exif-label">
+              {t('conversations.sendMp4NoReencode', 'No re-encoding (MP4 only)')}
+            </Checkbox.Label>
+            <Checkbox.HiddenInput />
+          </Checkbox.Root>
+          <Tooltip
+            content={t(
+              'conversations.sendMp4NoReencodeHelp',
+              'Send the original MP4 bytes without converting to H.264. Playback and safety scans may fail on some devices; use only when you understand the trade-off.'
+            )}
+            position="top"
+          >
+            <span className="conversation-composer-exif-info">
+              <Icon name="info" />
+            </span>
+          </Tooltip>
+        </div>
       )}
     </div>
   );

@@ -410,6 +410,12 @@ variable "media_moderation_confidence_threshold" {
   }
 }
 
+variable "allow_legacy_conv_scan_video_moderation" {
+  type        = bool
+  description = "When true (default), media-processor still runs Rekognition StartContentModeration for a single MP4 under uploads/conv_scan/{hash}/. Set false to require frame JPEG batches only after all clients migrate."
+  default     = true
+}
+
 variable "media_video_completion_lambda_reserved_concurrency" {
   type        = number
   description = "Reserved concurrency for the Rekognition video moderation completion Lambda (isolates from account burst)."

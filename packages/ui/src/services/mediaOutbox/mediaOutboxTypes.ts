@@ -50,6 +50,11 @@ export interface MediaOutboxJobRecord {
   ttlSeconds?: number;
   useForwardSecrecy: boolean;
   stripExif: boolean;
+  /**
+   * When true, MP4 attachments skip ffmpeg re-encoding in {@link prepareConversationMediaFileForUpload}
+   * (HEVC / opaque MP4). Best-effort decode for thumbnails and scan frames.
+   */
+  sendMp4WithoutReencode?: boolean;
   /** Raw user files (only present until E2E checkpoint; may be cleared after). */
   attachmentBlobs: { name: string; type: string; blob: Blob }[];
   /** After all E2E uploads succeed; enables resume if send or scan fails. */
@@ -66,5 +71,7 @@ export interface MediaOutboxEnqueueInput {
   ttlSeconds?: number;
   useForwardSecrecy: boolean;
   stripExif: boolean;
+  /** See {@link MediaOutboxJobRecord.sendMp4WithoutReencode}. */
+  sendMp4WithoutReencode?: boolean;
   files: File[];
 }

@@ -3,8 +3,11 @@
  * Adjust here for performance experiments or product limits.
  */
 
-/** Max concurrent media outbox pipelines app-wide (prepare + E2E + send + scan). */
-export const MEDIA_OUTBOX_MAX_CONCURRENT_JOBS = 1;
+/**
+ * Max concurrent media outbox pipelines app-wide (prepare + E2E + send + scan).
+ * Phase C target: allow more than one pending send without saturating low-power devices.
+ */
+export const MEDIA_OUTBOX_MAX_CONCURRENT_JOBS = 2;
 
 export const MEDIA_OUTBOX_IDB_NAME = 'adieuu-media-outbox';
 export const MEDIA_OUTBOX_IDB_VERSION = 1;

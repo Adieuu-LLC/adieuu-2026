@@ -28,7 +28,8 @@ export type ReplyQuotePayload = {
 
 export type ChatItem =
   | { type: 'day-separator'; date: Date; key: string }
-  | { type: 'message'; msg: DisplayMessage; key: string; isFirstUnread?: boolean };
+  | { type: 'message'; msg: DisplayMessage; key: string; isFirstUnread?: boolean }
+  | { type: 'pending-outbox'; key: string; pendingCount: number };
 
 export function resolveDisplayName(
   identityId: string,

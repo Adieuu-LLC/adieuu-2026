@@ -5,6 +5,34 @@ import type { DecryptedConversation } from '../../hooks/conversations/types';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import { parsePayload } from '../../services/messagePayload';
 import { type ChatItem, isSameDay } from './conversationUtils';
+import type { MediaOutboxJobRecord } from '../../services/mediaOutbox/mediaOutboxTypes';
+
+const PENDING_OUTBOX_INLINE_STAGES = new Set<MediaOutboxJobRecord['stage']>([
+  'queued',
+  'preparing',
+  'encrypting',
+  'uploading_e2e',
+  'sending',
+  'scan_upload',
+]);
+
+/**
+ * Appends a non-interactive row when this conversation has media outbox jobs
+ * actively in flight (failed jobs stay chrome-only so copy stays accurate).
+ */
+export function mergePendingOutboxIntoFlatItems(
+  items: ChatItem[],
+  conversationId: string | undefined,
+  jobs: MediaOutboxJobRecord[]
+): ChatItem[] {
+  if (!conversationId) return items;
+  const pending = jobs.filter(
+    (j) => j.conversationId === conversationId && PENDING_OUTBOX_INLINE_STAGES.has(j.stage)
+  );
+  if (pending.length === 0) return items;
+  const key = `pending-outbox:${conversationId}:${[...pending.map((p) => p.id)].sort().join(',')}`;
+  return [...items, { type: 'pending-outbox', key, pendingCount: pending.length }];
+}
 
 export function getReversedVisibleMessages(
   activeMessages: DisplayMessage[],

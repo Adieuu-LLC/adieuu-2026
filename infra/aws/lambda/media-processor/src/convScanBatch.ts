@@ -18,6 +18,12 @@ const CONV_SCAN_PREFIX = 'uploads/conv_scan/';
 const NESTED_SCAN_HASH_RE = /^uploads\/conv_scan\/([0-9a-f]{64})\//;
 const SEAL_SUFFIX = '/.sealed';
 
+/**
+ * When `false`, sealed batches that contain a full MP4 under conv_scan fail fast (frame JPEG path only).
+ * Set `ALLOW_LEGACY_CONV_SCAN_VIDEO=false` in the Lambda environment after all clients use frame scans.
+ */
+const ALLOW_LEGACY_CONV_SCAN_VIDEO = process.env.ALLOW_LEGACY_CONV_SCAN_VIDEO !== 'false';
+
 /** Max image (or single legacy video) objects processed in one sealed batch. */
 export const CONV_SCAN_BATCH_MAX_OBJECTS = 32;
 
@@ -242,6 +248,24 @@ export async function processConvScanSealBatch(d: ConvScanSealBatchDeps): Promis
   }
 
   if (videos.length === 1) {
+    if (!ALLOW_LEGACY_CONV_SCAN_VIDEO) {
+      d.logProcessorEvent({
+        event: 'conv_scan_legacy_video_disabled',
+        mediaId: d.primaryMediaId,
+        scanHash: d.scanHash,
+        s3Key: d.sealKey,
+      });
+      const allToDelete = convScanKeysToDelete(keys, prefix, d.sealKey);
+      await deleteKeys(d.s3, d.bucket, allToDelete);
+      await d.invokeDbWriter(
+        d.primaryMediaId,
+        'failed',
+        undefined,
+        'legacy_conv_scan_video_disabled',
+        { purpose: d.purpose, s3Key: d.sealKey }
+      );
+      return;
+    }
     const vk = videos[0]!.key;
     await deleteKeys(d.s3, d.bucket, convScanKeysToDelete([], prefix, d.sealKey));
     await d.startConvScanVideoContentModeration(vk, { ...metaBase, mediaId: d.primaryMediaId });

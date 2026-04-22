@@ -55,9 +55,10 @@ import {
   getConversationHeaderCopy,
   getLastMessagePreviewText,
   getReversedVisibleMessages,
+  mergePendingOutboxIntoFlatItems,
 } from './conversationViewModel';
 import { ConversationPinsMenu } from './ConversationPinsMenu';
-import { useMediaOutbox } from '../../services/mediaOutbox';
+import { useMediaOutbox, useMediaOutboxJobList } from '../../services/mediaOutbox';
 import { ConversationMediaOutboxMenu } from './ConversationMediaOutboxMenu';
 import { MemberSecurityModal } from './MemberSecurityModal';
 import { buildForwardSecrecyUiLabels } from './forwardSecrecyLabels';
@@ -143,6 +144,7 @@ export function ConversationView() {
   });
 
   const { registerConversationOutboxHooks } = useMediaOutbox();
+  const mediaOutboxJobs = useMediaOutboxJobList();
 
   useEffect(() => {
     if (!id) return;
@@ -372,9 +374,14 @@ export function ConversationView() {
   }, [reversedMessages]);
 
   const flatItems = useMemo(
-    () => buildFlatChatItems(reversedMessages, unreadCount, Date.now()),
+    () =>
+      mergePendingOutboxIntoFlatItems(
+        buildFlatChatItems(reversedMessages, unreadCount, Date.now()),
+        id,
+        mediaOutboxJobs
+      ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [reversedMessages, unreadCount, expiryTick]
+    [reversedMessages, unreadCount, expiryTick, id, mediaOutboxJobs]
   );
 
   const {

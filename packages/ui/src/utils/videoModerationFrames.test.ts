@@ -19,11 +19,33 @@ describe('buildModerationFrameTimes', () => {
       earlySeekSec: 0.1,
       minFrames: 3,
       maxFrames: 12,
+      jitterSec: 0,
     });
     expect(times.length).toBe(12);
     expect(times[0]).toBeCloseTo(0.1, 5);
     expect(times[1]).toBeCloseTo(7.1, 5);
     expect(times[11]).toBeLessThanOrEqual(119.95);
+  });
+
+  test('jitter shifts samples when rng is fixed', () => {
+    const noJit = buildModerationFrameTimes(30, {
+      intervalSec: 10,
+      earlySeekSec: 0.1,
+      minFrames: 2,
+      maxFrames: 4,
+      jitterSec: 0,
+    });
+    const withJit = buildModerationFrameTimes(30, {
+      intervalSec: 10,
+      earlySeekSec: 0.1,
+      minFrames: 2,
+      maxFrames: 4,
+      jitterSec: 2,
+      random: () => 1,
+    });
+    expect(noJit[0]).toBeCloseTo(0.1, 5);
+    expect(withJit[0]).toBeCloseTo(Math.min(0.1 + 2, 30 - 0.05), 5);
+    expect(withJit[1]! - noJit[1]!).toBeCloseTo(2, 5);
   });
 
   test('short video: fills toward minFrames', () => {
@@ -32,6 +54,7 @@ describe('buildModerationFrameTimes', () => {
       maxFrames: 12,
       intervalSec: 7,
       earlySeekSec: 0.1,
+      jitterSec: 0,
     });
     expect(times.length).toBeGreaterThanOrEqual(1);
     expect(times.length).toBeLessThanOrEqual(12);
@@ -42,7 +65,7 @@ describe('buildModerationFrameTimes', () => {
   });
 
   test('tiny duration still returns one sample', () => {
-    const times = buildModerationFrameTimes(0.2);
+    const times = buildModerationFrameTimes(0.2, { jitterSec: 0 });
     expect(times.length).toBeGreaterThanOrEqual(1);
     expect(times.every((t) => t <= 0.15)).toBe(true);
   });

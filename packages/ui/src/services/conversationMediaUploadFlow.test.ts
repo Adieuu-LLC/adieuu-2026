@@ -19,8 +19,12 @@ mock.module('../utils/videoProcessing', () => ({
   probeVideoPlayableInBrowser: mock(async () => true),
 }));
 
+let transcodeCallCount = 0;
 mock.module('../utils/videoTranscode', () => ({
-  transcodeVideoToMp4: mock(async (f: File) => f),
+  transcodeVideoToMp4: mock(async (f: File) => {
+    transcodeCallCount += 1;
+    return f;
+  }),
 }));
 
 const buildVideoModerationScanPayloadsMock = mock(
@@ -38,6 +42,7 @@ const flow = await import('./conversationMediaUploadFlow');
 
 describe('conversationMediaUploadFlow', () => {
   beforeEach(() => {
+    transcodeCallCount = 0;
     buildVideoModerationScanPayloadsMock.mockImplementation(async () => [
       { body: new Blob(['grid'], { type: 'image/jpeg' }), contentType: 'image/jpeg' },
     ]);
@@ -256,6 +261,72 @@ describe('conversationMediaUploadFlow', () => {
       const r = await flow.uploadE2EMediaOnly(api as never, file, new Blob(['enc']));
       expect(Array.isArray(r.moderationScan)).toBe(true);
       expect((r.moderationScan as { body: Blob }[]).length).toBe(2);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('uploadE2EMediaOnly with alreadyPrepared does not transcode again', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mock(() =>
+      Promise.resolve({ ok: true, status: 200 })
+    ) as typeof fetch;
+
+    const api = {
+      e2eUploads: {
+        requestE2EUpload: async () => ({
+          success: true,
+          data: {
+            e2eMediaId: 'mid',
+            uploadUrl: 'https://e2e.example/put',
+            scanHash: 'a'.repeat(64),
+          },
+        }),
+        completeE2EUpload: async () => ({ success: true }),
+      },
+    };
+
+    try {
+      const raw = new File(['x'], 'clip.mp4', { type: 'video/mp4' });
+      const prepared = await flow.prepareConversationMediaFileForUpload(raw, {
+        sendMp4WithoutReencode: true,
+      });
+      expect(transcodeCallCount).toBe(0);
+      await flow.uploadE2EMediaOnly(api as never, prepared, new Blob(['enc']), { alreadyPrepared: true });
+      expect(transcodeCallCount).toBe(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  test('uploadE2EMediaOnly wraps video moderation scan errors', async () => {
+    buildVideoModerationScanPayloadsMock.mockImplementationOnce(async () => {
+      throw new Error('seek failed');
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = mock(() =>
+      Promise.resolve({ ok: true, status: 200 })
+    ) as typeof fetch;
+
+    const api = {
+      e2eUploads: {
+        requestE2EUpload: async () => ({
+          success: true,
+          data: {
+            e2eMediaId: 'mid',
+            uploadUrl: 'https://e2e.example/put',
+            scanHash: 'a'.repeat(64),
+          },
+        }),
+        completeE2EUpload: async () => ({ success: true }),
+      },
+    };
+
+    try {
+      const file = new File(['x'], 'clip.mp4', { type: 'video/mp4' });
+      await expect(flow.uploadE2EMediaOnly(api as never, file, new Blob(['enc']))).rejects.toThrow(
+        /Could not build video frames/
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }

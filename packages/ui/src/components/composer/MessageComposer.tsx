@@ -85,6 +85,7 @@ export function MessageComposer({
   const [pendingGif, setPendingGif] = useState<GifAttachment | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [stripExif, setStripExif] = useState(true);
+  const [sendMp4WithoutReencode, setSendMp4WithoutReencode] = useState(false);
   const [ttlSeconds, setTtlSeconds] = useState<number | undefined>(undefined);
   const [shortcodeAC, setShortcodeAC] = useState<{ query: string; colonIdx: number } | null>(null);
   const [acSelectedIdx, setAcSelectedIdx] = useState(0);
@@ -92,6 +93,17 @@ export function MessageComposer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageTextRef = useRef(messageText);
   messageTextRef.current = messageText;
+
+  const videoAttachments = useMemo(
+    () => attachments.filter((a) => a.file.type.startsWith('video/')),
+    [attachments]
+  );
+  const allVideosAreMp4 =
+    videoAttachments.length > 0 && videoAttachments.every((a) => a.file.type === 'video/mp4');
+
+  useEffect(() => {
+    if (!allVideosAreMp4) setSendMp4WithoutReencode(false);
+  }, [allVideosAreMp4]);
 
   const acSuggestions = useMemo(() => {
     if (!shortcodeAC) return [];
@@ -373,6 +385,7 @@ export function MessageComposer({
           ttlSeconds,
           useForwardSecrecy: forwardSecrecy?.enabled ?? false,
           stripExif,
+          ...(sendMp4WithoutReencode && allVideosAreMp4 ? { sendMp4WithoutReencode: true } : {}),
           files: pendingAttachments.map((a) => a.file),
         });
       } catch (err) {
@@ -385,6 +398,7 @@ export function MessageComposer({
       }
 
       replyContext?.onCancel();
+      setSendMp4WithoutReencode(false);
       setAttachments((prev) => {
         prev.forEach((a) => URL.revokeObjectURL(a.previewUrl));
         return [];
@@ -414,7 +428,25 @@ export function MessageComposer({
       }
       inputRef.current?.focus();
     }
-  }, [disabled, channelId, sending, onSend, forwardSecrecy, replyContext, onSendSucceeded, attachments, pendingGif, stripExif, api, toastError, t, ttlSeconds, enqueueMediaSend]);
+  }, [
+    disabled,
+    channelId,
+    sending,
+    onSend,
+    forwardSecrecy,
+    replyContext,
+    onSendSucceeded,
+    attachments,
+    pendingGif,
+    stripExif,
+    sendMp4WithoutReencode,
+    allVideosAreMp4,
+    api,
+    toastError,
+    t,
+    ttlSeconds,
+    enqueueMediaSend,
+  ]);
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
@@ -673,6 +705,9 @@ export function MessageComposer({
         stripExif={stripExif}
         onToggleExif={setStripExif}
         showExifToggle={attachments.some((a) => a.file.type.startsWith('image/'))}
+        showMp4NoReencodeToggle={allVideosAreMp4}
+        sendMp4WithoutReencode={sendMp4WithoutReencode}
+        onToggleSendMp4WithoutReencode={setSendMp4WithoutReencode}
       />
       <div className={`conversation-composer-row${isMultiLine ? ' conversation-composer-row--multiline' : ''}`}>
         <ComposerShortcodeAutocomplete
