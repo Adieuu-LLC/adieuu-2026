@@ -109,6 +109,9 @@ export class ApiClient implements HttpClient {
 
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
+          if (options?.signal?.aborted) {
+            throw new DOMException('Aborted', 'AbortError');
+          }
           return {
             success: false,
             error: {

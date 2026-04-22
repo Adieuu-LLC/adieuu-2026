@@ -26,6 +26,7 @@ import { VIDEO_MIME_TYPES } from '../../models/media-upload';
 import {
   requestE2EUpload,
   completeE2EUpload,
+  abandonE2EUpload,
   getE2EMediaStatus,
   getE2EMediaDownload,
   requestScanUpload,
@@ -176,6 +177,51 @@ router.post('/uploads/e2e/:mediaId/complete', async (ctx) => {
   }
 
   return success(undefined, 'E2E media upload marked as complete.');
+});
+
+// ============================================================================
+// E2E media: Abandon (delete orphan session before/without message send)
+// ============================================================================
+
+/**
+ * DELETE /uploads/e2e/:mediaId - Remove pending/gated E2E blob owned by the caller
+ *
+ * @route DELETE /api/uploads/e2e/:mediaId
+ */
+router.delete('/uploads/e2e/:mediaId', async (ctx) => {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  const { mediaId } = ctx.params;
+  if (!mediaId || mediaId.length > 100) {
+    return ctx.errors.badRequest();
+  }
+
+  const result = await abandonE2EUpload(mediaId, identity._id.toHexString());
+
+  if (!result.success) {
+    switch (result.errorCode) {
+      case 'NOT_FOUND':
+        return errors.notFound(result.error);
+      case 'REFERENCED':
+        return error('REFERENCED', result.error ?? 'E2E media is referenced by a message', 409);
+      case 'UPLOAD_DISABLED':
+        return errors.badRequest(result.error);
+      case 'DELETE_FAILED':
+        return errors.badRequest(result.error);
+      default:
+        return errors.badRequest(result.error);
+    }
+  }
+
+  return success(undefined, 'E2E media abandoned.');
 });
 
 // ============================================================================

@@ -87,6 +87,15 @@ export class MediaUploadRepository extends BaseRepository<MediaUploadDocument> {
     } as Filter<MediaUploadDocument>);
   }
 
+  /** Remove all conv_scan tracking rows for a scan session (e.g. abandoned E2E upload). */
+  async deleteManyConvScanByScanHash(scanHash: string): Promise<number> {
+    const result = await this.collection.deleteMany({
+      scanHash,
+      purpose: 'conv_scan' as UploadPurpose,
+    } as Filter<MediaUploadDocument>);
+    return result.deletedCount;
+  }
+
   async countRecentByIdentity(
     identityId: string | ObjectId,
     windowSeconds: number

@@ -1,5 +1,5 @@
 import type { ApiResponse } from '../types';
-import type { HttpClient } from './http-client';
+import type { HttpClient, RequestOptions } from './http-client';
 import type {
   ChangePassphraseParams,
   CreateIdentityParams,
@@ -137,9 +137,13 @@ export class IdentityApi {
    * @param identityId - Identity ID
    * @returns Public keys for E2E encryption
    */
-  async getPublicKeys(identityId: string): Promise<ApiResponse<IdentityPublicKeys>> {
+  async getPublicKeys(
+    identityId: string,
+    requestOptions?: RequestOptions
+  ): Promise<ApiResponse<IdentityPublicKeys>> {
     return this.client.get(
-      `/api/identity/${encodeURIComponent(identityId)}/keys`
+      `/api/identity/${encodeURIComponent(identityId)}/keys`,
+      requestOptions
     );
   }
 
@@ -298,11 +302,13 @@ export class IdentityApi {
    */
   async claimPreKeys(
     identityId: string,
-    params?: ClaimPreKeysParams
+    params?: ClaimPreKeysParams,
+    requestOptions?: RequestOptions
   ): Promise<ApiResponse<{ devices: ClaimedDevicePreKeys[] }>> {
     return this.client.post(
       `/api/identity/${encodeURIComponent(identityId)}/pre-keys/claim`,
-      params ?? {}
+      params ?? {},
+      requestOptions
     );
   }
 

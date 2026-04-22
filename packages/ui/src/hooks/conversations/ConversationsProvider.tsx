@@ -173,22 +173,39 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
    * and all devices use static key wrapping. E2EE is still maintained.
    */
   const fetchRecipientKeys = useCallback(
-    async (participantIds: string[], useForwardSecrecy = false): Promise<RecipientKeys[]> => {
+    async (
+      participantIds: string[],
+      useForwardSecrecy = false,
+      signal?: AbortSignal
+    ): Promise<RecipientKeys[]> => {
+      const throwIfAborted = () => {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      };
       const recipients: RecipientKeys[] = [];
 
       for (const pid of participantIds) {
         try {
-          const keysResp = await api.identity.getPublicKeys(pid);
+          throwIfAborted();
+          const keysResp = await api.identity.getPublicKeys(
+            pid,
+            signal ? { signal } : undefined
+          );
           if (!keysResp.data) continue;
 
           let preKeys: ClaimedDevicePreKeys[] = [];
           if (useForwardSecrecy) {
             try {
-              const claimResp = await api.identity.claimPreKeys(pid);
+              throwIfAborted();
+              const claimResp = await api.identity.claimPreKeys(
+                pid,
+                undefined,
+                signal ? { signal } : undefined
+              );
               if (claimResp.data?.devices) {
                 preKeys = claimResp.data.devices;
               }
-            } catch {
+            } catch (err) {
+              if (err instanceof DOMException && err.name === 'AbortError') throw err;
               // Pre-keys unavailable -- will use static key wrapping
             }
           }
@@ -200,7 +217,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
             devices: keysResp.data.devices,
             preKeys,
           });
-        } catch {
+        } catch (err) {
+          if (err instanceof DOMException && err.name === 'AbortError') throw err;
           // Skip participants whose keys can't be fetched
         }
       }

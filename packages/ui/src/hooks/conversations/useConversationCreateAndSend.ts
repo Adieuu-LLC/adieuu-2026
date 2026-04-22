@@ -26,7 +26,11 @@ export interface ConversationCreateAndSendParams {
   api: ApiClient;
   conversations: DecryptedConversation[];
   getSigningKey: () => Uint8Array | null | undefined;
-  fetchRecipientKeys: (participantIds: string[], useForwardSecrecy?: boolean) => Promise<RecipientKeys[]>;
+  fetchRecipientKeys: (
+    participantIds: string[],
+    useForwardSecrecy?: boolean,
+    signal?: AbortSignal
+  ) => Promise<RecipientKeys[]>;
   toDecrypted: (conv: PublicConversation) => DecryptedConversation;
   resolveParticipants: (ids: string[]) => Promise<Record<string, PublicIdentity>>;
   setConversations: Dispatch<SetStateAction<DecryptedConversation[]>>;
@@ -175,7 +179,11 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
         const signingKey = getSigningKey();
         if (!signingKey) throw new Error('No signing key available');
 
-        const recipients = await fetchRecipientKeys(conversation.participants, useFs);
+        const recipients = await fetchRecipientKeys(
+          conversation.participants,
+          useFs,
+          signal
+        );
         throwIfAborted();
         if (recipients.length === 0) throw new Error('No recipient keys available');
 
@@ -209,6 +217,10 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
           signal ? { signal } : undefined
         );
         throwIfAborted();
+
+        if (!resp.success && signal?.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
 
         if (resp.data) {
           const displayMsg: DisplayMessage = {
@@ -257,6 +269,9 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           throw err;
+        }
+        if (signal?.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
         }
         console.error('[Conversations] Failed to send message:', err);
       } finally {

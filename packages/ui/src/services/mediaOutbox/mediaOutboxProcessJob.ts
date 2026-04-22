@@ -44,6 +44,20 @@ function throwIfAborted(signal: AbortSignal) {
   if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
 }
 
+async function abandonOrphanE2ECreations(api: MediaOutboxApi, e2eMediaIds: string[]): Promise<void> {
+  const unique = [...new Set(e2eMediaIds)];
+  for (const id of unique) {
+    try {
+      const res = await api.e2eUploads.abandonE2EUpload(id);
+      if (!res.success && res.error?.code !== 'NOT_FOUND') {
+        console.warn('[MediaOutbox] abandon E2E failed', id, res.error);
+      }
+    } catch (e) {
+      console.warn('[MediaOutbox] abandon E2E threw', id, e);
+    }
+  }
+}
+
 function toPersistedScan(
   m: ModerationScanPayload | ModerationScanPayload[]
 ): MediaOutboxPersistedScanPart | MediaOutboxPersistedScanPart[] {
@@ -66,7 +80,8 @@ function toModerationScanPayload(
 
 async function runE2eForAttachments(
   job: MediaOutboxJobRecord,
-  deps: MediaOutboxProcessDeps
+  deps: MediaOutboxProcessDeps,
+  createdE2eIdsForAbandon: string[]
 ): Promise<MediaOutboxE2eSnapshotItem[]> {
   const { api, abortSignal, t } = deps;
   const out: MediaOutboxE2eSnapshotItem[] = [];
@@ -77,7 +92,7 @@ async function runE2eForAttachments(
     const rawFile = new File([att.blob], att.name, { type: att.type });
 
     const preparedMedia = await withTimeout(
-      prepareConversationMediaFileForUpload(rawFile),
+      prepareConversationMediaFileForUpload(rawFile, { signal: abortSignal }),
       MEDIA_OUTBOX_PREPARE_TIMEOUT_MS,
       t(
         'conversations.mediaPrepareTimeout',
@@ -111,6 +126,7 @@ async function runE2eForAttachments(
     );
 
     const { moderationScan, ...result } = e2eResult;
+    createdE2eIdsForAbandon.push(result.e2eMediaId);
     out.push({
       e2eMediaId: result.e2eMediaId,
       scanHash: result.scanHash,
@@ -204,6 +220,8 @@ export async function processMediaOutboxJob(jobId: string, deps: MediaOutboxProc
   if (!job) return;
   if (job.stage === 'cancelled' || job.stage === 'completed' || job.stage === 'failed') return;
 
+  const createdE2eIdsForAbandon: string[] = [];
+
   const now = () => Date.now();
 
   const patch = async (partial: Partial<MediaOutboxJobRecord>): Promise<MediaOutboxJobRecord | null> => {
@@ -223,7 +241,7 @@ export async function processMediaOutboxJob(jobId: string, deps: MediaOutboxProc
         job = p1;
         throwIfAborted(deps.abortSignal);
 
-        const snapshot = await runE2eForAttachments(job, deps);
+        const snapshot = await runE2eForAttachments(job, deps, createdE2eIdsForAbandon);
         const p2 = await patch({
           e2eSnapshot: snapshot,
           attachmentBlobs: [],
@@ -257,6 +275,12 @@ export async function processMediaOutboxJob(jobId: string, deps: MediaOutboxProc
     await patch({ stage: 'completed', errorMessage: undefined });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
+      const latest = await deps.loadJob(jobId);
+      if (latest && latest.messageSendCompleted !== true) {
+        const fromSnap = latest.e2eSnapshot?.map((x) => x.e2eMediaId) ?? [];
+        const ids = [...new Set([...fromSnap, ...createdE2eIdsForAbandon])];
+        await abandonOrphanE2ECreations(deps.api, ids);
+      }
       await patch({ stage: 'cancelled', errorMessage: undefined });
       return;
     }

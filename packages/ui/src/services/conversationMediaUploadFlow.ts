@@ -40,17 +40,27 @@ export type ConversationE2EUploadResult = MediaUploadResult & {
  * re-encoded to H.264/AAC via ffmpeg.wasm.
  * Call with the same File you encrypt and pass to {@link uploadE2EMediaOnly}.
  */
-export async function prepareConversationMediaFileForUpload(file: File): Promise<File> {
+export async function prepareConversationMediaFileForUpload(
+  file: File,
+  options?: { signal?: AbortSignal }
+): Promise<File> {
+  const signal = options?.signal;
+  const throwIfAborted = () => {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  };
+
   if (!file.type.startsWith('video/')) {
     return file;
   }
   const { transcodeVideoToMp4 } = await import('../utils/videoTranscode');
+  throwIfAborted();
   if (file.type === 'video/mp4') {
     const playable = await probeVideoPlayableInBrowser(file);
+    throwIfAborted();
     if (playable) return file;
-    return transcodeVideoToMp4(file, { force: true });
+    return transcodeVideoToMp4(file, { force: true, signal });
   }
-  return transcodeVideoToMp4(file);
+  return transcodeVideoToMp4(file, { signal });
 }
 
 export type UploadMediaFileOptions = {
@@ -95,9 +105,8 @@ export async function uploadE2EMediaOnly(
   encryptedBlob: Blob,
   options?: UploadMediaFileOptions
 ): Promise<ConversationE2EUploadResult> {
-  const file = await prepareConversationMediaFileForUpload(rawFile);
-
   const signal = options?.signal;
+  const file = await prepareConversationMediaFileForUpload(rawFile, { signal });
   const stripExif = options?.stripExif ?? true;
   const onUploadsComplete = options?.onUploadsComplete;
 
@@ -108,12 +117,15 @@ export async function uploadE2EMediaOnly(
 
   const effectiveStripExif = isVideoFile(file) ? false : stripExif;
 
-  const e2eRes = await api.e2eUploads.requestE2EUpload({
-    contentType: file.type,
-    contentLength: encryptedBlob.size,
-    stripExif: effectiveStripExif,
-    ...(durationSeconds !== undefined ? { declaredDurationSeconds: durationSeconds } : {}),
-  });
+  const e2eRes = await api.e2eUploads.requestE2EUpload(
+    {
+      contentType: file.type,
+      contentLength: encryptedBlob.size,
+      stripExif: effectiveStripExif,
+      ...(durationSeconds !== undefined ? { declaredDurationSeconds: durationSeconds } : {}),
+    },
+    signal ? { signal } : undefined
+  );
   if (!e2eRes.success || !e2eRes.data) {
     throw new Error(
       (!e2eRes.success && 'error' in e2eRes ? e2eRes.error?.message : null) ??
@@ -130,10 +142,15 @@ export async function uploadE2EMediaOnly(
   });
   if (!e2ePut.ok) throw new Error(`E2E upload failed (${e2ePut.status})`);
 
-  const e2eComplete = await api.e2eUploads.completeE2EUpload(mediaId);
+  const e2eComplete = await api.e2eUploads.completeE2EUpload(
+    mediaId,
+    signal ? { signal } : undefined
+  );
   if (!e2eComplete.success) throw new Error('Failed to finalise E2E upload');
 
   onUploadsComplete?.();
+
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   let moderationScan: ModerationScanPayload | ModerationScanPayload[];
   if (isVideoFile(file)) {
@@ -177,11 +194,14 @@ export async function uploadModerationScanCopy(
   const scanMediaIds: string[] = [];
 
   for (const part of parts) {
-    const scanRes = await api.e2eUploads.requestScanUpload({
-      scanHash,
-      contentType: part.contentType,
-      contentLength: part.body.size,
-    });
+    const scanRes = await api.e2eUploads.requestScanUpload(
+      {
+        scanHash,
+        contentType: part.contentType,
+        contentLength: part.body.size,
+      },
+      signal ? { signal } : undefined
+    );
     if (!scanRes.success || !scanRes.data) {
       throw new Error(
         (!scanRes.success && 'error' in scanRes ? scanRes.error?.message : null) ??
@@ -198,7 +218,10 @@ export async function uploadModerationScanCopy(
     });
     if (!scanPut.ok) throw new Error(`Scan upload failed (${scanPut.status})`);
 
-    const scanComplete = await api.e2eUploads.completeScanUpload(scanMediaId);
+    const scanComplete = await api.e2eUploads.completeScanUpload(
+      scanMediaId,
+      signal ? { signal } : undefined
+    );
     if (!scanComplete.success) throw new Error('Failed to finalise scan upload');
 
     scanMediaIds.push(scanMediaId);
@@ -217,11 +240,14 @@ export async function uploadModerationScanCopy(
     parts: manifestParts,
   };
 
-  const sealRes = await api.e2eUploads.sealConvScanSession({
-    scanHash,
-    scanMediaIds,
-    manifest,
-  });
+  const sealRes = await api.e2eUploads.sealConvScanSession(
+    {
+      scanHash,
+      scanMediaIds,
+      manifest,
+    },
+    signal ? { signal } : undefined
+  );
   if (!sealRes.success) {
     throw new Error(
       (!sealRes.success && 'error' in sealRes ? sealRes.error?.message : null) ??

@@ -1,5 +1,5 @@
 import type { ApiResponse, ConvScanSealManifestV1 } from '../types';
-import type { HttpClient } from './http-client';
+import type { HttpClient, RequestOptions } from './http-client';
 import type { E2EMediaStatus } from './upload-api';
 
 export interface RequestE2EUploadParams {
@@ -53,48 +53,75 @@ export class E2EUploadApi {
   constructor(private client: HttpClient) {}
 
   async requestE2EUpload(
-    params: RequestE2EUploadParams
+    params: RequestE2EUploadParams,
+    requestOptions?: RequestOptions
   ): Promise<ApiResponse<RequestE2EUploadResponse>> {
-    return this.client.post('/api/uploads/e2e/request', params);
+    return this.client.post('/api/uploads/e2e/request', params, requestOptions);
   }
 
-  async completeE2EUpload(e2eMediaId: string): Promise<ApiResponse<void>> {
+  async completeE2EUpload(
+    e2eMediaId: string,
+    requestOptions?: RequestOptions
+  ): Promise<ApiResponse<void>> {
     return this.client.post(
       `/api/uploads/e2e/${encodeURIComponent(e2eMediaId)}/complete`,
-      {}
+      {},
+      requestOptions
+    );
+  }
+
+  async abandonE2EUpload(
+    e2eMediaId: string,
+    requestOptions?: RequestOptions
+  ): Promise<ApiResponse<void>> {
+    return this.client.delete(
+      `/api/uploads/e2e/${encodeURIComponent(e2eMediaId)}`,
+      requestOptions
     );
   }
 
   async getE2EMediaStatus(
-    e2eMediaId: string
+    e2eMediaId: string,
+    requestOptions?: RequestOptions
   ): Promise<ApiResponse<E2EMediaStatusResponse>> {
     return this.client.get(
-      `/api/uploads/e2e/${encodeURIComponent(e2eMediaId)}/status`
+      `/api/uploads/e2e/${encodeURIComponent(e2eMediaId)}/status`,
+      requestOptions
     );
   }
 
   async getE2EMediaDownload(
-    e2eMediaId: string
+    e2eMediaId: string,
+    requestOptions?: RequestOptions
   ): Promise<ApiResponse<E2EMediaDownloadResponse>> {
     return this.client.get(
-      `/api/uploads/e2e/${encodeURIComponent(e2eMediaId)}/download`
+      `/api/uploads/e2e/${encodeURIComponent(e2eMediaId)}/download`,
+      requestOptions
     );
   }
 
   async requestScanUpload(
-    params: RequestScanUploadParams
+    params: RequestScanUploadParams,
+    requestOptions?: RequestOptions
   ): Promise<ApiResponse<RequestScanUploadResponse>> {
-    return this.client.post('/api/uploads/scan/request', params);
+    return this.client.post('/api/uploads/scan/request', params, requestOptions);
   }
 
-  async completeScanUpload(scanMediaId: string): Promise<ApiResponse<void>> {
+  async completeScanUpload(
+    scanMediaId: string,
+    requestOptions?: RequestOptions
+  ): Promise<ApiResponse<void>> {
     return this.client.post(
       `/api/uploads/scan/${encodeURIComponent(scanMediaId)}/complete`,
-      {}
+      {},
+      requestOptions
     );
   }
 
-  async sealConvScanSession(params: SealConvScanSessionParams): Promise<ApiResponse<void>> {
-    return this.client.post('/api/uploads/scan/seal', params);
+  async sealConvScanSession(
+    params: SealConvScanSessionParams,
+    requestOptions?: RequestOptions
+  ): Promise<ApiResponse<void>> {
+    return this.client.post('/api/uploads/scan/seal', params, requestOptions);
   }
 }

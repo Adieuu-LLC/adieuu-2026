@@ -7,6 +7,10 @@ type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
 const createE2EMediaMock = mock(() => Promise.resolve(undefined)) as AnyMock;
 const countRecentByIdentityMock = mock(() => Promise.resolve(0)) as AnyMock;
 const findByScanHashMock = mock(() => Promise.resolve(null)) as AnyMock;
+const findByE2EMediaIdMock = mock(() => Promise.resolve(null)) as AnyMock;
+const findByE2EMediaIdAndIdentityMock = mock(() => Promise.resolve(null)) as AnyMock;
+const deleteByE2EMediaIdMock = mock(() => Promise.resolve(true)) as AnyMock;
+const findConversationByE2EMediaIdMock = mock(() => Promise.resolve(null)) as AnyMock;
 const mediaCreateMock = mock(() => Promise.resolve(undefined)) as AnyMock;
 const findByMediaIdMock = mock(() => Promise.resolve(null)) as AnyMock;
 const updateStatusMock = mock(() => Promise.resolve(undefined)) as AnyMock;
@@ -14,6 +18,8 @@ const countPendingConvScanMock = mock(() => Promise.resolve(0)) as AnyMock;
 const findUploadedNestedMock = mock(() => Promise.resolve([] as string[])) as AnyMock;
 const countConvScanByScanHashMock = mock(() => Promise.resolve(0)) as AnyMock;
 const countConvScanNonTerminalMock = mock(() => Promise.resolve(0)) as AnyMock;
+const mediaFindManyMock = mock(() => Promise.resolve([])) as AnyMock;
+const mediaDeleteManyConvScanMock = mock(() => Promise.resolve(0)) as AnyMock;
 const s3SendMock = mock(() => Promise.resolve({})) as AnyMock;
 
 mock.module('@aws-sdk/client-s3', () => ({
@@ -29,6 +35,12 @@ mock.module('@aws-sdk/client-s3', () => ({
   DeleteObjectCommand: class DeleteObjectCommand {
     constructor(public input?: unknown) {}
   },
+  ListObjectsV2Command: class ListObjectsV2Command {
+    constructor(public input?: unknown) {}
+  },
+  DeleteObjectsCommand: class DeleteObjectsCommand {
+    constructor(public input?: unknown) {}
+  },
 }));
 
 mock.module('../repositories/e2e-media.repository', () => ({
@@ -36,6 +48,9 @@ mock.module('../repositories/e2e-media.repository', () => ({
     countRecentByIdentity: countRecentByIdentityMock,
     createE2EMedia: createE2EMediaMock,
     findByScanHash: findByScanHashMock,
+    findByE2EMediaId: findByE2EMediaIdMock,
+    findByE2EMediaIdAndIdentity: findByE2EMediaIdAndIdentityMock,
+    deleteByE2EMediaId: deleteByE2EMediaIdMock,
   }),
 }));
 
@@ -48,12 +63,14 @@ mock.module('../repositories/media-upload.repository', () => ({
     findUploadedNestedConvScanMediaIdsByScanHash: findUploadedNestedMock,
     countConvScanByScanHash: countConvScanByScanHashMock,
     countConvScanNonTerminalByScanHash: countConvScanNonTerminalMock,
+    findMany: mediaFindManyMock,
+    deleteManyConvScanByScanHash: mediaDeleteManyConvScanMock,
   }),
 }));
 
 mock.module('../repositories/message.repository', () => ({
   getMessageRepository: () => ({
-    findConversationByE2EMediaId: mock(() => Promise.resolve(null)),
+    findConversationByE2EMediaId: findConversationByE2EMediaIdMock,
   }),
 }));
 
@@ -78,6 +95,7 @@ mock.module('../config', () => ({
 }));
 
 import {
+  abandonE2EUpload,
   completeScanUpload,
   requestE2EUpload,
   requestScanUpload,
@@ -93,6 +111,10 @@ describe('e2e-upload.service', () => {
     createE2EMediaMock.mockReset();
     countRecentByIdentityMock.mockReset();
     findByScanHashMock.mockReset();
+    findByE2EMediaIdMock.mockReset();
+    findByE2EMediaIdAndIdentityMock.mockReset();
+    deleteByE2EMediaIdMock.mockReset();
+    findConversationByE2EMediaIdMock.mockReset();
     mediaCreateMock.mockReset();
     findByMediaIdMock.mockReset();
     updateStatusMock.mockReset();
@@ -100,6 +122,8 @@ describe('e2e-upload.service', () => {
     findUploadedNestedMock.mockReset();
     countConvScanByScanHashMock.mockReset();
     countConvScanNonTerminalMock.mockReset();
+    mediaFindManyMock.mockReset();
+    mediaDeleteManyConvScanMock.mockReset();
     s3SendMock.mockReset();
     createE2EMediaMock.mockImplementation(() => Promise.resolve(undefined));
     countRecentByIdentityMock.mockImplementation(() => Promise.resolve(0));
@@ -108,6 +132,10 @@ describe('e2e-upload.service', () => {
         identityId: new ObjectId('507f1f77bcf86cd799439011'),
       })
     );
+    findByE2EMediaIdMock.mockImplementation(() => Promise.resolve(null));
+    findByE2EMediaIdAndIdentityMock.mockImplementation(() => Promise.resolve(null));
+    deleteByE2EMediaIdMock.mockImplementation(() => Promise.resolve(true));
+    findConversationByE2EMediaIdMock.mockImplementation(() => Promise.resolve(null));
     mediaCreateMock.mockImplementation(() => Promise.resolve(undefined));
     findByMediaIdMock.mockImplementation(() => Promise.resolve(null));
     updateStatusMock.mockImplementation(() => Promise.resolve(undefined));
@@ -115,7 +143,14 @@ describe('e2e-upload.service', () => {
     findUploadedNestedMock.mockImplementation(() => Promise.resolve([]));
     countConvScanByScanHashMock.mockImplementation(() => Promise.resolve(0));
     countConvScanNonTerminalMock.mockImplementation(() => Promise.resolve(0));
-    s3SendMock.mockImplementation(() => Promise.resolve({}));
+    mediaFindManyMock.mockImplementation(() => Promise.resolve([]));
+    mediaDeleteManyConvScanMock.mockImplementation(() => Promise.resolve(0));
+    s3SendMock.mockImplementation(() =>
+      Promise.resolve({
+        Contents: [],
+        IsTruncated: false,
+      })
+    );
   });
 
   test('requestE2EUpload rejects unsupported content type', async () => {
@@ -190,6 +225,75 @@ describe('e2e-upload.service', () => {
     });
     expect(result.success).toBe(true);
     expect(createE2EMediaMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('abandonE2EUpload deletes pending media when unreferenced', async () => {
+    const identityId = '507f1f77bcf86cd799439011';
+    const e2eMediaId = 'e2e-test-1';
+    const scanHash = 'c'.repeat(64);
+    const doc = {
+      e2eMediaId,
+      identityId: new ObjectId(identityId),
+      status: 'pending' as const,
+      s3Bucket: 'e2e-bucket',
+      s3Key: 'uploads/x',
+      scanHash,
+    };
+    findByE2EMediaIdAndIdentityMock.mockImplementation(() => Promise.resolve(doc));
+    findByE2EMediaIdMock.mockImplementation(() => Promise.resolve(doc));
+    findConversationByE2EMediaIdMock.mockImplementation(() => Promise.resolve(null));
+    deleteByE2EMediaIdMock.mockImplementation(() => Promise.resolve(true));
+    mediaFindManyMock.mockImplementation(() =>
+      Promise.resolve([{ s3Key: `uploads/conv_scan/${scanHash}/thumb.jpg` }])
+    );
+
+    const result = await abandonE2EUpload(e2eMediaId, identityId);
+    expect(result.success).toBe(true);
+    expect(s3SendMock).toHaveBeenCalled();
+    expect(deleteByE2EMediaIdMock).toHaveBeenCalledWith(e2eMediaId);
+    expect(mediaDeleteManyConvScanMock).toHaveBeenCalledWith(scanHash);
+  });
+
+  test('abandonE2EUpload refuses when a message references the media', async () => {
+    const identityId = '507f1f77bcf86cd799439011';
+    const e2eMediaId = 'e2e-test-2';
+    const doc = {
+      e2eMediaId,
+      identityId: new ObjectId(identityId),
+      status: 'gated' as const,
+      s3Bucket: 'e2e-bucket',
+      s3Key: 'k',
+    };
+    findByE2EMediaIdAndIdentityMock.mockImplementation(() => Promise.resolve(doc));
+    findConversationByE2EMediaIdMock.mockImplementation(() => Promise.resolve(new ObjectId()));
+
+    const result = await abandonE2EUpload(e2eMediaId, identityId);
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('REFERENCED');
+    expect(deleteByE2EMediaIdMock).not.toHaveBeenCalled();
+  });
+
+  test('abandonE2EUpload returns NOT_FOUND for wrong owner', async () => {
+    findByE2EMediaIdAndIdentityMock.mockImplementation(() => Promise.resolve(null));
+    const result = await abandonE2EUpload('mid', '507f1f77bcf86cd799439011');
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('NOT_FOUND');
+  });
+
+  test('abandonE2EUpload rejects available state', async () => {
+    const identityId = '507f1f77bcf86cd799439011';
+    const doc = {
+      e2eMediaId: 'mid',
+      identityId: new ObjectId(identityId),
+      status: 'available' as const,
+      s3Bucket: 'e2e-bucket',
+      s3Key: 'k',
+    };
+    findByE2EMediaIdAndIdentityMock.mockImplementation(() => Promise.resolve(doc));
+
+    const result = await abandonE2EUpload('mid', identityId);
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('INVALID_STATUS');
   });
 
   test('requestScanUpload rejects malformed scan hash', async () => {

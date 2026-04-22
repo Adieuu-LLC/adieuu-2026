@@ -37,16 +37,25 @@ export type TranscodeVideoToMp4Options = {
    * or other codecs the browser cannot decode for dimensions/thumbnails).
    */
   force?: boolean;
+  /** Checked between ffmpeg steps; {@link ffmpeg.exec} is not interruptible. */
+  signal?: AbortSignal;
 };
 
 /**
  * Returns a new File with type video/mp4. Passes through if already MP4 unless
  * {@link TranscodeVideoToMp4Options.force} is true.
  */
+function throwIfAborted(signal: AbortSignal | undefined) {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+}
+
 export async function transcodeVideoToMp4(
   file: File,
   options?: TranscodeVideoToMp4Options
 ): Promise<File> {
+  const signal = options?.signal;
+  throwIfAborted(signal);
+
   if (!options?.force && file.type === 'video/mp4') {
     return file;
   }
@@ -55,6 +64,7 @@ export async function transcodeVideoToMp4(
   }
 
   const ffmpeg = await getLoadedFFmpeg();
+  throwIfAborted(signal);
   const ext =
     file.type === 'video/mp4'
       ? '.mp4'
@@ -66,6 +76,7 @@ export async function transcodeVideoToMp4(
             : '.bin'));
   const inputName = `in${ext}`;
   await ffmpeg.writeFile(inputName, await fetchFile(file));
+  throwIfAborted(signal);
   await ffmpeg.exec([
     '-i',
     inputName,
@@ -84,6 +95,7 @@ export async function transcodeVideoToMp4(
     'out.mp4',
   ]);
 
+  throwIfAborted(signal);
   const data = await ffmpeg.readFile('out.mp4');
   if (typeof data === 'string') {
     throw new Error('ffmpeg readFile returned unexpected text for binary output');

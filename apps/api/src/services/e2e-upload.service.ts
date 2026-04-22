@@ -43,6 +43,7 @@ import {
   convScanSealObjectKey,
   isNestedConvScanS3Key,
 } from '../utils/conv-scan-keys';
+import { purgeConvScanCleartextArtifacts } from '../utils/conv-scan-purge';
 
 const PRESIGNED_PUT_EXPIRY_SECONDS = 300; // 5 minutes
 const PRESIGNED_GET_EXPIRY_SECONDS = 900; // 15 minutes
@@ -262,6 +263,85 @@ export async function completeE2EUpload(
 
   elog.info('E2E media upload marked as complete (gated)', { e2eMediaId });
 
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Abandon E2E upload (uploader-only; no message may reference the media)
+// ---------------------------------------------------------------------------
+
+export interface AbandonE2EUploadResult {
+  success: boolean;
+  error?: string;
+  errorCode?: 'NOT_FOUND' | 'REFERENCED' | 'INVALID_STATUS' | 'DELETE_FAILED' | 'UPLOAD_DISABLED';
+}
+
+/**
+ * Remove a never-sent E2E blob created for an outbox send that was cancelled,
+ * or similar orphan sessions. Refuses when a live message references the id
+ * or when the record is already {@link E2EMediaStatus | available}.
+ */
+export async function abandonE2EUpload(
+  e2eMediaId: string,
+  identityId: string
+): Promise<AbandonE2EUploadResult> {
+  if (!config.s3.e2eMediaBucket) {
+    return {
+      success: false,
+      error: 'E2E media uploads are not configured',
+      errorCode: 'UPLOAD_DISABLED',
+    };
+  }
+
+  const repo = getE2EMediaRepository();
+  const doc = await repo.findByE2EMediaIdAndIdentity(e2eMediaId, identityId);
+
+  if (!doc) {
+    return { success: false, error: 'E2E media upload not found', errorCode: 'NOT_FOUND' };
+  }
+
+  const messageRepo = getMessageRepository();
+  const referencedConversationId = await messageRepo.findConversationByE2EMediaId(e2eMediaId);
+  if (referencedConversationId) {
+    return {
+      success: false,
+      error: 'E2E media is referenced by a message',
+      errorCode: 'REFERENCED',
+    };
+  }
+
+  if (doc.status !== 'pending' && doc.status !== 'uploaded' && doc.status !== 'gated') {
+    return {
+      success: false,
+      error: `Cannot abandon upload in '${doc.status}' state`,
+      errorCode: 'INVALID_STATUS',
+    };
+  }
+
+  try {
+    await purgeConvScanCleartextArtifacts(doc.scanHash, {
+      removeDbRows: true,
+      s3Client: getS3Client(),
+      mediaBucket: config.s3.mediaBucket,
+    });
+  } catch (err) {
+    elog.error('conv_scan purge failed during E2E abandon — continuing with E2E delete', {
+      e2eMediaId,
+      scanHash: doc.scanHash,
+      err,
+    });
+  }
+
+  const deleted = await deleteE2EMedia(e2eMediaId);
+  if (!deleted) {
+    return {
+      success: false,
+      error: 'Failed to delete E2E media from storage',
+      errorCode: 'DELETE_FAILED',
+    };
+  }
+
+  elog.info('E2E media abandoned by uploader', { e2eMediaId });
   return { success: true };
 }
 
@@ -894,6 +974,22 @@ export async function deleteE2EMedia(e2eMediaId: string): Promise<boolean> {
   const repo = getE2EMediaRepository();
   const doc = await repo.findByE2EMediaId(e2eMediaId);
   if (!doc) return false;
+
+  if (doc.scanHash) {
+    try {
+      await purgeConvScanCleartextArtifacts(doc.scanHash, {
+        removeDbRows: false,
+        s3Client: getS3Client(),
+        mediaBucket: config.s3.mediaBucket,
+      });
+    } catch (err) {
+      elog.error('conv_scan S3 purge failed during E2E media delete', {
+        e2eMediaId,
+        scanHash: doc.scanHash,
+        err,
+      });
+    }
+  }
 
   try {
     const client = getS3Client();

@@ -13,6 +13,7 @@ export function useConversationReactionHandlers(params: {
   fetchRecipientKeys: (
     participantIds: string[],
     useForwardSecrecy?: boolean,
+    signal?: AbortSignal
   ) => Promise<RecipientKeys[]>;
   scrollToBottomIfPinned: () => void;
 }) {

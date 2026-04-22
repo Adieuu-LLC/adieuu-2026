@@ -23,7 +23,7 @@ describe('ApiClient', () => {
     }
   });
 
-  it('maps AbortError to TIMEOUT', async () => {
+  it('maps AbortError to TIMEOUT when no user signal', async () => {
     const fetchImpl: typeof fetch = async () => {
       const err = new Error('aborted');
       err.name = 'AbortError';
@@ -41,6 +41,27 @@ describe('ApiClient', () => {
     if (!res.success) {
       expect(res.error.code).toBe('TIMEOUT');
     }
+  });
+
+  it('rethrows AbortError when the request signal is aborted (user cancel)', async () => {
+    const fetchImpl: typeof fetch = async () => {
+      const err = new Error('aborted');
+      err.name = 'AbortError';
+      throw err;
+    };
+
+    const client = new ApiClient({
+      baseUrl: 'http://example.test',
+      fetchImpl,
+      timeout: 5000,
+    });
+
+    const ac = new AbortController();
+    ac.abort();
+
+    await expect(client.get('/api/foo', { signal: ac.signal })).rejects.toMatchObject({
+      name: 'AbortError',
+    });
   });
 
   it('invokes onSessionExpired when API returns SESSION_EXPIRED', async () => {

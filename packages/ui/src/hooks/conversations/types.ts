@@ -143,7 +143,11 @@ export interface ConversationsContextValue {
   revokeGroupInvite: (conversationId: string, inviteId: string) => Promise<boolean>;
   prefetchParticipantProfiles: (identityIds: string[]) => Promise<Record<string, PublicIdentity>>;
 
-  fetchRecipientKeys: (participantIds: string[], useForwardSecrecy?: boolean) => Promise<RecipientKeys[]>;
+  fetchRecipientKeys: (
+    participantIds: string[],
+    useForwardSecrecy?: boolean,
+    signal?: AbortSignal
+  ) => Promise<RecipientKeys[]>;
 
   getSessionKeysForMessages: (messageIds: string[]) => Promise<Record<string, string>>;
 
