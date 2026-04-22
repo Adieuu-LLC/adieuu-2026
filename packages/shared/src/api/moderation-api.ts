@@ -1,6 +1,7 @@
 import type { ApiResponse } from '../types';
 import type { HttpClient } from './http-client';
 import type {
+  ModerationScanEvidenceResponse,
   ModeratorsListResponse,
   PublicReport,
   PublicReportEvent,
@@ -33,6 +34,12 @@ export class ModerationApi {
 
   async getReport(id: string): Promise<ApiResponse<ReportDetailResponse>> {
     return this.client.get(`/api/moderation/reports/${encodeURIComponent(id)}`);
+  }
+
+  async getReportScanEvidence(id: string): Promise<ApiResponse<ModerationScanEvidenceResponse>> {
+    return this.client.get(
+      `/api/moderation/reports/${encodeURIComponent(id)}/scan-evidence`
+    );
   }
 
   async assignReport(id: string, identityId: string): Promise<ApiResponse<PublicReport>> {

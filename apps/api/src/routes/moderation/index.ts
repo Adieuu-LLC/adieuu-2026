@@ -8,7 +8,7 @@
 
 import { ObjectId } from 'mongodb';
 import { Router, type RouteContext } from '../../router';
-import { success } from '../../utils/response';
+import { error, success } from '../../utils/response';
 import { requireIdentitySession } from '../../services/session.service';
 import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
 import { getReportRepository } from '../../repositories/report.repository';
@@ -16,6 +16,7 @@ import { getReportEventRepository } from '../../repositories/report-event.reposi
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { executeEnforcement } from '../../services/moderation-enforcement.service';
 import { purgeConvScanEvidenceForTerminalReport } from '../../services/conv-scan-moderation-cleanup.service';
+import { getModerationScanEvidenceForReport } from '../../services/moderation-scan-evidence.service';
 import { PLATFORM_PERMISSIONS } from '../../constants/platform-permissions';
 import {
   REPORT_CATEGORIES,
@@ -134,6 +135,39 @@ router.get('/moderation/reports', async (ctx): Promise<Response> => {
     page: result.page,
     limit: result.limit,
   });
+});
+
+// ---------------------------------------------------------------------------
+// GET /moderation/reports/:id/scan-evidence — presigned URLs for Rekognition scan copies
+// ---------------------------------------------------------------------------
+
+router.get('/moderation/reports/:id/scan-evidence', async (ctx): Promise<Response> => {
+  const auth = await requireModeratorSession(ctx.request, ctx.errors);
+  if (!auth.ok) return auth.error;
+
+  const canRead =
+    auth.caps.permissions.includes(PLATFORM_PERMISSIONS.READ_CONTENT_REPORTS) ||
+    auth.caps.permissions.includes(PLATFORM_PERMISSIONS.READ_ABUSE_REPORTS);
+  if (!canRead) return ctx.errors.forbidden();
+
+  const id = ctx.params.id;
+  if (!id || !isValidObjectId(id)) return ctx.errors.badRequest();
+
+  const result = await getModerationScanEvidenceForReport(id);
+  if (!result.ok) {
+    switch (result.errorCode) {
+      case 'NOT_FOUND':
+        return error('NOT_FOUND', result.message, 404);
+      case 'NO_SCAN_HASH':
+        return error('BAD_REQUEST', result.message, 400);
+      case 'UPLOAD_DISABLED':
+        return error('BAD_REQUEST', result.message, 400);
+      default:
+        return error('BAD_REQUEST', result.message, 400);
+    }
+  }
+
+  return success(result.data);
 });
 
 // ---------------------------------------------------------------------------

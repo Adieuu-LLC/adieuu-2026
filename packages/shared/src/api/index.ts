@@ -134,6 +134,8 @@ export {
   type ResolveReportParams,
   type ModerationModerator,
   type ModeratorsListResponse,
+  type ModerationScanEvidenceItem,
+  type ModerationScanEvidenceResponse,
 } from './moderation-types';
 
 export { ModerationApi } from './moderation-api';

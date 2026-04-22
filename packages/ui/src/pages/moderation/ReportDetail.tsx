@@ -23,6 +23,7 @@ import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
 import { ModerationEvidenceMessageRow } from './ModerationEvidenceMessageRow';
+import { ReportModerationScanEvidence } from './ReportModerationScanEvidence';
 import { splitMessageEvidenceForModeration } from './moderationEvidenceSplit';
 
 // ---------------------------------------------------------------------------
@@ -346,6 +347,11 @@ export function ReportDetail() {
     );
   }, [report]);
 
+  const hasScanEvidenceSession = useMemo(() => {
+    const h = report?.detectionMetadata?.scanHash;
+    return typeof h === 'string' && /^[0-9a-f]{64}$/i.test(h);
+  }, [report?.detectionMetadata?.scanHash]);
+
   if (loading) {
     return (
       <div className="admin-page" style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
@@ -539,6 +545,8 @@ export function ReportDetail() {
 
           {/* Evidence tab */}
           <TabContent value="evidence">
+            {hasScanEvidenceSession && <ReportModerationScanEvidence reportId={report.id} api={api} />}
+
             {/* Message evidence */}
             {report.evidence?.type === 'message' && report.evidence.messageEvidence && messageEvidenceSplit && (
               <>
@@ -707,13 +715,9 @@ export function ReportDetail() {
               </>
             )}
 
-            {/* No evidence (automated reports) */}
-            {!report.evidence && (
-              <p style={{ opacity: 0.6, fontSize: '0.875rem' }}>
-                {report.source === 'automated_rekognition'
-                  ? t('moderation.detail.detectionMetadata')
-                  : t('moderation.detail.noEvents')}
-              </p>
+            {/* No structured evidence (e.g. manual report without message/profile payload) */}
+            {!report.evidence && !hasScanEvidenceSession && (
+              <p style={{ opacity: 0.6, fontSize: '0.875rem' }}>{t('moderation.detail.noEvents')}</p>
             )}
           </TabContent>
 

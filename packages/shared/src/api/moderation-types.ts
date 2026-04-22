@@ -167,3 +167,15 @@ export interface ModerationModerator {
 export interface ModeratorsListResponse {
   moderators: ModerationModerator[];
 }
+
+/** Presigned S3 GET for one conv_scan object (moderator-only API). */
+export interface ModerationScanEvidenceItem {
+  mediaId: string;
+  contentType: string;
+  downloadUrl: string;
+}
+
+export interface ModerationScanEvidenceResponse {
+  expiresInSeconds: number;
+  items: ModerationScanEvidenceItem[];
+}

@@ -75,6 +75,15 @@ export const moderation = {
       unassignSuccess: 'Report unassigned.',
       copiedAliasId: 'Alias ID copied to clipboard.',
       detectionMetadata: 'Detection metadata',
+      scanEvidenceTitle: 'Scan preview (cleartext)',
+      scanEvidenceLoadError: 'Could not load scan previews.',
+      scanEvidenceEmpty:
+        'No scan files are available. They may not have finished uploading yet, or evidence was already purged after this report was closed.',
+      scanEvidencePartLabel: 'Part {{index}}',
+      scanEvidenceRefresh: 'Refresh URLs',
+      scanEvidenceExpiresHint:
+        'These links expire after about {{minutes}} minutes. Refresh if previews stop loading.',
+      scanEvidenceVideoUnsupported: 'Video playback is not supported in this browser.',
       reporterReason: 'Reporter notes',
       tabEvidence: 'Evidence',
       tabTargetHistory: 'Target History',
