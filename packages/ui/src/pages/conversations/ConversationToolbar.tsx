@@ -9,6 +9,7 @@ export function ConversationToolbar({
   displayName,
   subtitle,
   pinsSlot,
+  mediaJobsSlot,
   deviceSignaturesSlot,
   showSettings,
   onToggleSettings,
@@ -23,6 +24,8 @@ export function ConversationToolbar({
   subtitle: string;
   /** Pinned messages popover control (toolbar icon). */
   pinsSlot?: ReactNode;
+  /** Background moderation scan upload status (toolbar icon + panel). */
+  mediaJobsSlot?: ReactNode;
   /** Quick access to the viewer's own device signatures (e.g. key icon). */
   deviceSignaturesSlot?: ReactNode;
   showSettings: boolean;
@@ -53,6 +56,7 @@ export function ConversationToolbar({
       </div>
       <div className="conversation-toolbar-right">
         {pinsSlot}
+        {mediaJobsSlot}
         {deviceSignaturesSlot}
         <Tooltip content={t('conversations.settings', 'Settings')} position="bottom">
           <Button

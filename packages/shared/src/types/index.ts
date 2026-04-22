@@ -13,6 +13,11 @@ export type {
   UserThemePreferences,
 } from './theme';
 
+export type {
+  ConvScanSealManifestPartV1,
+  ConvScanSealManifestV1,
+} from './conv-scan-manifest';
+
 export { TOKEN_TO_CSS_VAR, THEME_TOKEN_KEYS } from './theme';
 
 // Infer types from schemas for single source of truth

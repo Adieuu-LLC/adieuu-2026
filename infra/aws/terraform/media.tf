@@ -382,6 +382,21 @@ resource "aws_iam_role_policy" "media_processor" {
     Statement = concat(
       [
         {
+          Sid    = "S3ListConvScanPrefixes"
+          Effect = "Allow"
+          Action = [
+            "s3:ListBucket",
+          ]
+          Resource = aws_s3_bucket.media[0].arn
+          Condition = {
+            StringLike = {
+              "s3:prefix" = [
+                "uploads/conv_scan/*",
+              ]
+            }
+          }
+        },
+        {
           Sid    = "S3ReadUploads"
           Effect = "Allow"
           Action = [
@@ -449,7 +464,7 @@ resource "aws_lambda_function" "media_processor" {
   role          = aws_iam_role.media_processor[0].arn
   handler       = "index.handler"
   runtime       = "nodejs20.x"
-  timeout       = 60
+  timeout       = 120
   memory_size   = 1024
 
   filename         = "${path.module}/../lambda/media-processor/dist/function.zip"

@@ -37,6 +37,12 @@ import {
 } from '@aws-sdk/client-rekognition';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { logProcessorEvent } from './logging';
+import {
+  shouldDeferNestedConvScanObject,
+  isConvScanSealObjectKey,
+  parseNestedConvScanScanHashFromKey,
+  processConvScanSealBatch,
+} from './convScanBatch';
 
 const s3 = new S3Client({});
 const rekognition = new RekognitionClient({});
@@ -231,6 +237,36 @@ async function processRecord(record: S3EventRecord): Promise<void> {
 
   if (!meta) {
     console.error(`Missing metadata on ${key}, skipping`);
+    return;
+  }
+
+  if (shouldDeferNestedConvScanObject(key, meta.purpose)) {
+    console.log(`Nested conv_scan payload; awaiting .sealed: ${key}`);
+    return;
+  }
+
+  const nestedScanHash = parseNestedConvScanScanHashFromKey(key);
+  if (
+    meta.purpose === 'conv_scan' &&
+    isConvScanSealObjectKey(key) &&
+    nestedScanHash
+  ) {
+    await processConvScanSealBatch({
+      bucket: BUCKET,
+      sealKey: key,
+      scanHash: nestedScanHash,
+      primaryMediaId: meta.mediaId,
+      purpose: meta.purpose,
+      identityId: meta.identityId,
+      stripExif: meta.stripExif,
+      contentModeration: meta.contentModeration,
+      moderationConfidence: MODERATION_CONFIDENCE,
+      s3,
+      rekognition,
+      invokeDbWriter,
+      logProcessorEvent,
+      startConvScanVideoContentModeration,
+    });
     return;
   }
 

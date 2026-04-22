@@ -168,6 +168,7 @@ export {
   type RequestE2EUploadResponse,
   type RequestScanUploadParams,
   type RequestScanUploadResponse,
+  type SealConvScanSessionParams,
   type E2EMediaStatusResponse,
   type E2EMediaDownloadResponse,
 } from './e2e-upload-api';

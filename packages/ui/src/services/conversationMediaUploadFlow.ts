@@ -1,9 +1,11 @@
-import { createApiClient } from '@adieuu/shared';
+import { createApiClient, type ConvScanSealManifestV1 } from '@adieuu/shared';
 import { generateThumbnail, getImageDimensions } from '../utils/imageProcessing';
 import {
   getVideoDimensionsAndScanThumbnail,
   probeVideoPlayableInBrowser,
 } from '../utils/videoProcessing';
+import { sha256HexLower } from '../utils/blobDigest';
+import { buildVideoModerationScanPayloads } from '../utils/videoModerationFrames';
 
 export interface MediaUploadResult {
   e2eMediaId: string;
@@ -16,7 +18,10 @@ export interface MediaUploadResult {
   exifPreserved: boolean;
 }
 
-/** Cleartext payload for the moderation scan upload (thumbnail JPEG or full MP4). */
+/**
+ * Cleartext payload for the moderation scan upload.
+ * Images: thumbnail JPEG. Video: composite JPEG grid of sampled frames (image Rekognition path).
+ */
 export type ModerationScanPayload = {
   body: Blob;
   contentType: 'image/jpeg' | 'video/mp4';
@@ -25,7 +30,8 @@ export type ModerationScanPayload = {
 /** E2E phase result plus scan assets for the moderation pipeline (upload scan copy separately). */
 export type ConversationE2EUploadResult = MediaUploadResult & {
   scanThumbnail: Blob;
-  moderationScan: ModerationScanPayload;
+  /** One thumbnail/grid for images; one or more segment grids for long video. */
+  moderationScan: ModerationScanPayload | ModerationScanPayload[];
 };
 
 /**
@@ -129,9 +135,13 @@ export async function uploadE2EMediaOnly(
 
   onUploadsComplete?.();
 
-  const moderationScan: ModerationScanPayload = isVideoFile(file)
-    ? { body: file, contentType: 'video/mp4' }
-    : { body: thumbnail, contentType: 'image/jpeg' };
+  let moderationScan: ModerationScanPayload | ModerationScanPayload[];
+  if (isVideoFile(file)) {
+    const payloads = await buildVideoModerationScanPayloads(file);
+    moderationScan = payloads.length === 1 ? payloads[0]! : payloads;
+  } else {
+    moderationScan = { body: thumbnail, contentType: 'image/jpeg' };
+  }
 
   return {
     e2eMediaId: mediaId,
@@ -148,40 +158,76 @@ export async function uploadE2EMediaOnly(
 }
 
 /**
- * Upload cleartext scan copy for Rekognition (JPEG frame for images, full MP4 for video).
+ * Upload cleartext scan copy for Rekognition (JPEG thumbnail for images, JPEG frame grid for video).
+ * Pass multiple parts for a multi-part scan session; all parts are completed then the session is sealed.
  * Run after message send so it cannot delay send.
  */
 export async function uploadModerationScanCopy(
   api: ReturnType<typeof createApiClient>,
   scanHash: string,
-  payload: ModerationScanPayload,
+  payload: ModerationScanPayload | ModerationScanPayload[],
   options?: { signal?: AbortSignal }
 ): Promise<void> {
   const signal = options?.signal;
+  const parts = Array.isArray(payload) ? payload : [payload];
+  if (parts.length === 0) {
+    throw new Error('At least one moderation scan part is required');
+  }
 
-  const scanRes = await api.e2eUploads.requestScanUpload({
+  const scanMediaIds: string[] = [];
+
+  for (const part of parts) {
+    const scanRes = await api.e2eUploads.requestScanUpload({
+      scanHash,
+      contentType: part.contentType,
+      contentLength: part.body.size,
+    });
+    if (!scanRes.success || !scanRes.data) {
+      throw new Error(
+        (!scanRes.success && 'error' in scanRes ? scanRes.error?.message : null) ??
+          'Failed to prepare scan upload'
+      );
+    }
+    const { scanMediaId, uploadUrl: scanUrl } = scanRes.data;
+
+    const scanPut = await fetch(scanUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': part.contentType },
+      body: part.body,
+      signal,
+    });
+    if (!scanPut.ok) throw new Error(`Scan upload failed (${scanPut.status})`);
+
+    const scanComplete = await api.e2eUploads.completeScanUpload(scanMediaId);
+    if (!scanComplete.success) throw new Error('Failed to finalise scan upload');
+
+    scanMediaIds.push(scanMediaId);
+  }
+
+  const manifestParts = await Promise.all(
+    parts.map(async (part, i) => ({
+      mediaId: scanMediaIds[i]!,
+      contentSha256: await sha256HexLower(part.body),
+    }))
+  );
+  manifestParts.sort((a, b) => a.mediaId.localeCompare(b.mediaId));
+
+  const manifest: ConvScanSealManifestV1 = {
+    version: 1,
+    parts: manifestParts,
+  };
+
+  const sealRes = await api.e2eUploads.sealConvScanSession({
     scanHash,
-    contentType: payload.contentType,
-    contentLength: payload.body.size,
+    scanMediaIds,
+    manifest,
   });
-  if (!scanRes.success || !scanRes.data) {
+  if (!sealRes.success) {
     throw new Error(
-      (!scanRes.success && 'error' in scanRes ? scanRes.error?.message : null) ??
-        'Failed to prepare scan upload'
+      (!sealRes.success && 'error' in sealRes ? sealRes.error?.message : null) ??
+        'Failed to seal scan session'
     );
   }
-  const { scanMediaId, uploadUrl: scanUrl } = scanRes.data;
-
-  const scanPut = await fetch(scanUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': payload.contentType },
-    body: payload.body,
-    signal,
-  });
-  if (!scanPut.ok) throw new Error(`Scan upload failed (${scanPut.status})`);
-
-  const scanComplete = await api.e2eUploads.completeScanUpload(scanMediaId);
-  if (!scanComplete.success) throw new Error('Failed to finalise scan upload');
 }
 
 /**

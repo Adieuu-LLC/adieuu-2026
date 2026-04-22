@@ -182,9 +182,32 @@ export async function handler(event: WriterEvent): Promise<WriterResult> {
 
     console.log(`Updated media upload: ${mediaId}, status: ${status}`);
 
+    const scanHash = (mediaDoc as Record<string, unknown>).scanHash as string | undefined;
+    const purpose = (mediaDoc as Record<string, unknown>).purpose as string | undefined;
+
+    if (
+      scanHash &&
+      purpose === 'conv_scan' &&
+      (status === 'ready' || status === 'rejected' || status === 'failed')
+    ) {
+      const siblingFields: Record<string, unknown> = {
+        status,
+        updatedAt: new Date(),
+      };
+      if (rejectionReason !== undefined) siblingFields.rejectionReason = rejectionReason;
+      const siblingRes = await collection.updateMany(
+        { scanHash, purpose: 'conv_scan', mediaId: { $ne: mediaId } },
+        { $set: siblingFields }
+      );
+      if (siblingRes.modifiedCount > 0) {
+        console.log(
+          `Updated ${siblingRes.modifiedCount} sibling conv_scan media_upload row(s) to status=${status}`
+        );
+      }
+    }
+
     // If this is a scan copy (conv_scan), propagate moderation status to the
     // companion E2E media record via scanHash.
-    const scanHash = (mediaDoc as Record<string, unknown>).scanHash as string | undefined;
     if (scanHash && (status === 'ready' || status === 'rejected' || status === 'failed')) {
       const e2eCollection = db.collection(E2E_MEDIA_COLLECTION);
       const moderationStatus =

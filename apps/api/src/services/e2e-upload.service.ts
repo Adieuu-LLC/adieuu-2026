@@ -22,6 +22,7 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import type { ConvScanSealManifestV1 } from '@adieuu/shared';
 import { config } from '../config';
 import { ObjectId } from 'mongodb';
 import { getE2EMediaRepository } from '../repositories/e2e-media.repository';
@@ -37,6 +38,11 @@ import {
 } from '../models/media-upload';
 import type { E2EMediaStatus } from '../models/e2e-media';
 import elog from '../utils/adieuuLogger';
+import {
+  convScanManifestObjectKey,
+  convScanSealObjectKey,
+  isNestedConvScanS3Key,
+} from '../utils/conv-scan-keys';
 
 const PRESIGNED_PUT_EXPIRY_SECONDS = 300; // 5 minutes
 const PRESIGNED_GET_EXPIRY_SECONDS = 900; // 15 minutes
@@ -230,7 +236,7 @@ export async function requestE2EUpload(
 export interface CompleteE2EUploadResult {
   success: boolean;
   error?: string;
-  errorCode?: 'NOT_FOUND' | 'INVALID_STATUS' | 'FORBIDDEN';
+  errorCode?: 'NOT_FOUND' | 'INVALID_STATUS' | 'FORBIDDEN' | 'SEAL_FAILED';
 }
 
 export async function completeE2EUpload(
@@ -411,7 +417,14 @@ export interface RequestScanUploadResult {
   uploadUrl?: string;
   expiresIn?: number;
   error?: string;
-  errorCode?: 'INVALID_CONTENT_TYPE' | 'FILE_TOO_LARGE' | 'RATE_LIMITED' | 'UPLOAD_DISABLED' | 'INVALID_SCAN_HASH';
+  errorCode?:
+    | 'INVALID_CONTENT_TYPE'
+    | 'FILE_TOO_LARGE'
+    | 'RATE_LIMITED'
+    | 'UPLOAD_DISABLED'
+    | 'INVALID_SCAN_HASH'
+    | 'SCAN_SESSION_NOT_FOUND'
+    | 'FORBIDDEN';
 }
 
 export async function requestScanUpload(
@@ -430,6 +443,23 @@ export async function requestScanUpload(
       success: false,
       error: 'Invalid scan hash',
       errorCode: 'INVALID_SCAN_HASH',
+    };
+  }
+
+  const e2eRepo = getE2EMediaRepository();
+  const e2eSession = await e2eRepo.findByScanHash(input.scanHash);
+  if (!e2eSession) {
+    return {
+      success: false,
+      error: 'No E2E upload session for this scan hash',
+      errorCode: 'SCAN_SESSION_NOT_FOUND',
+    };
+  }
+  if (!e2eSession.identityId.equals(new ObjectId(input.identityId))) {
+    return {
+      success: false,
+      error: 'Not allowed to upload scan copies for this session',
+      errorCode: 'FORBIDDEN',
     };
   }
 
@@ -459,7 +489,6 @@ export async function requestScanUpload(
     };
   }
 
-  const e2eRepo = getE2EMediaRepository();
   const recentCount = await e2eRepo.countRecentByIdentity(
     input.identityId,
     UPLOAD_RATE_LIMIT.windowSeconds
@@ -476,7 +505,7 @@ export async function requestScanUpload(
 
   const scanMediaId = generateMediaId();
   const ext = contentTypeToExtension(input.contentType);
-  const s3Key = `uploads/conv_scan/${scanMediaId}.${ext}`;
+  const s3Key = `uploads/conv_scan/${input.scanHash}/${scanMediaId}.${ext}`;
   const purpose: UploadPurpose = 'conv_scan';
   const isVideoScan = input.contentType.startsWith('video/');
 
@@ -541,7 +570,8 @@ export async function requestScanUpload(
 // ---------------------------------------------------------------------------
 
 export async function completeScanUpload(
-  scanMediaId: string
+  scanMediaId: string,
+  options?: { identityId?: string }
 ): Promise<CompleteE2EUploadResult> {
   const repo = getMediaUploadRepository();
   const doc = await repo.findByMediaId(scanMediaId);
@@ -565,6 +595,293 @@ export async function completeScanUpload(
   await repo.updateStatus(scanMediaId, 'uploaded');
 
   elog.info('Scan copy upload marked as complete', { scanMediaId });
+
+  if (doc.scanHash && isNestedConvScanS3Key(doc.s3Key) && !options?.identityId) {
+    elog.error('conv_scan nested upload completed without identityId; seal not written', {
+      scanMediaId,
+    });
+    return {
+      success: false,
+      error: 'Failed to finalise scan session',
+      errorCode: 'SEAL_FAILED',
+    };
+  }
+
+  if (
+    doc.scanHash &&
+    isNestedConvScanS3Key(doc.s3Key) &&
+    config.s3.mediaBucket &&
+    options?.identityId
+  ) {
+    const pending = await repo.countPendingConvScanByScanHash(doc.scanHash);
+    if (pending === 0) {
+      const sealResult = await putConvScanSealObject(
+        doc.scanHash,
+        scanMediaId,
+        options.identityId
+      );
+      if (!sealResult.ok) {
+        return {
+          success: false,
+          error: sealResult.error,
+          errorCode: 'SEAL_FAILED',
+        };
+      }
+    }
+  }
+
+  return { success: true };
+}
+
+const CONV_SCAN_MANIFEST_JSON_MAX_BYTES = 65536;
+
+async function putConvScanManifestObject(
+  scanHash: string,
+  manifest: ConvScanSealManifestV1,
+  identityId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!config.s3.mediaBucket) {
+    return { ok: false, error: 'Media uploads are not configured' };
+  }
+  const key = convScanManifestObjectKey(scanHash);
+  const body = JSON.stringify(manifest);
+  if (Buffer.byteLength(body, 'utf8') > CONV_SCAN_MANIFEST_JSON_MAX_BYTES) {
+    return { ok: false, error: 'Manifest too large' };
+  }
+  try {
+    await getS3Client().send(
+      new PutObjectCommand({
+        Bucket: config.s3.mediaBucket,
+        Key: key,
+        Body: Buffer.from(body, 'utf8'),
+        ContentType: 'application/json',
+        Metadata: {
+          purpose: 'conv_scan',
+          'identity-id': identityId,
+          'strip-exif': 'false',
+          'content-moderation': 'false',
+        },
+      })
+    );
+    elog.info('conv_scan manifest written', { scanHash, key });
+    return { ok: true };
+  } catch (err) {
+    elog.error('Failed to write conv_scan manifest', { scanHash, key, err });
+    return { ok: false, error: 'Failed to finalise scan session' };
+  }
+}
+
+async function putConvScanSealObject(
+  scanHash: string,
+  primaryScanMediaId: string,
+  identityId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!config.s3.mediaBucket) {
+    return { ok: false, error: 'Media uploads are not configured' };
+  }
+  const sealKey = convScanSealObjectKey(scanHash);
+  try {
+    await getS3Client().send(
+      new PutObjectCommand({
+        Bucket: config.s3.mediaBucket,
+        Key: sealKey,
+        Body: Buffer.from('{}'),
+        ContentType: 'application/json',
+        Metadata: {
+          'media-id': primaryScanMediaId,
+          purpose: 'conv_scan',
+          'identity-id': identityId,
+          'strip-exif': 'false',
+          'content-moderation': 'false',
+        },
+      })
+    );
+    elog.info('conv_scan seal object written', { primaryScanMediaId, sealKey });
+    return { ok: true };
+  } catch (err) {
+    elog.error('Failed to write conv_scan seal object', { primaryScanMediaId, sealKey, err });
+    return { ok: false, error: 'Failed to finalise scan session' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Scan session: explicit seal (multi-part)
+// ---------------------------------------------------------------------------
+
+export interface SealConvScanSessionInput {
+  scanHash: string;
+  identityId: string;
+  /** When set, must be the full set of uploaded part mediaIds for this scanHash (order ignored). */
+  scanMediaIds?: string[];
+  /** Optional v1 manifest (validated against uploaded parts; written to S3 before `.sealed`). */
+  manifest?: ConvScanSealManifestV1;
+}
+
+export interface SealConvScanSessionResult {
+  success: boolean;
+  error?: string;
+  errorCode?:
+    | 'NOT_FOUND'
+    | 'FORBIDDEN'
+    | 'INVALID_STATUS'
+    | 'INVALID_PARTS'
+    | 'PENDING_PARTS'
+    | 'SEAL_FAILED'
+    | 'UPLOAD_DISABLED'
+    | 'INVALID_MANIFEST';
+}
+
+export async function sealConvScanUploadSession(
+  input: SealConvScanSessionInput
+): Promise<SealConvScanSessionResult> {
+  if (!config.s3.mediaBucket) {
+    return {
+      success: false,
+      error: 'Media uploads are not configured',
+      errorCode: 'UPLOAD_DISABLED',
+    };
+  }
+
+  if (!input.scanHash || input.scanHash.length !== 64) {
+    return { success: false, error: 'Invalid scan hash', errorCode: 'INVALID_STATUS' };
+  }
+
+  const e2eRepo = getE2EMediaRepository();
+  const e2e = await e2eRepo.findByScanHash(input.scanHash);
+  if (!e2e) {
+    return { success: false, error: 'E2E media session not found for scan hash', errorCode: 'NOT_FOUND' };
+  }
+
+  if (!e2e.identityId.equals(new ObjectId(input.identityId))) {
+    return { success: false, error: 'Not allowed to seal this scan session', errorCode: 'FORBIDDEN' };
+  }
+
+  const mediaRepo = getMediaUploadRepository();
+  const pending = await mediaRepo.countPendingConvScanByScanHash(input.scanHash);
+  if (pending > 0) {
+    return {
+      success: false,
+      error: 'All scan parts must be uploaded before sealing',
+      errorCode: 'PENDING_PARTS',
+    };
+  }
+
+  const uploadedIds = (await mediaRepo.findUploadedNestedConvScanMediaIdsByScanHash(input.scanHash))
+    .slice()
+    .sort();
+
+  if (uploadedIds.length === 0) {
+    const totalParts = await mediaRepo.countConvScanByScanHash(input.scanHash);
+    if (totalParts === 0) {
+      return {
+        success: false,
+        error: 'No uploaded scan parts to seal',
+        errorCode: 'INVALID_STATUS',
+      };
+    }
+    const nonTerminal = await mediaRepo.countConvScanNonTerminalByScanHash(input.scanHash);
+    if (nonTerminal === 0) {
+      elog.info('conv_scan seal skipped; session already finalised', { scanHash: input.scanHash });
+      return { success: true };
+    }
+    return {
+      success: false,
+      error: 'No uploaded scan parts to seal',
+      errorCode: 'INVALID_STATUS',
+    };
+  }
+
+  if (input.scanMediaIds !== undefined) {
+    const provided = [...new Set(input.scanMediaIds)].sort();
+    if (
+      provided.length !== uploadedIds.length ||
+      !provided.every((id, i) => id === uploadedIds[i])
+    ) {
+      return {
+        success: false,
+        error: 'scanMediaIds must list every uploaded part for this session',
+        errorCode: 'INVALID_PARTS',
+      };
+    }
+  }
+
+  let manifestToWrite: ConvScanSealManifestV1 | undefined;
+  if (input.manifest !== undefined) {
+    const sortedParts = [...input.manifest.parts].sort((a, b) =>
+      a.mediaId.localeCompare(b.mediaId)
+    );
+    const seen = new Set<string>();
+    for (const p of sortedParts) {
+      if (seen.has(p.mediaId)) {
+        return {
+          success: false,
+          error: 'Duplicate manifest mediaId',
+          errorCode: 'INVALID_MANIFEST',
+        };
+      }
+      seen.add(p.mediaId);
+      if (
+        p.contentSha256 !== undefined &&
+        !/^[0-9a-f]{64}$/i.test(p.contentSha256)
+      ) {
+        return {
+          success: false,
+          error: 'Invalid contentSha256 in manifest',
+          errorCode: 'INVALID_MANIFEST',
+        };
+      }
+    }
+    if (sortedParts.length !== uploadedIds.length) {
+      return {
+        success: false,
+        error: 'Manifest parts must match uploaded scan parts',
+        errorCode: 'INVALID_MANIFEST',
+      };
+    }
+    for (let i = 0; i < uploadedIds.length; i++) {
+      if (sortedParts[i]!.mediaId !== uploadedIds[i]) {
+        return {
+          success: false,
+          error: 'Manifest parts must match uploaded scan parts',
+          errorCode: 'INVALID_MANIFEST',
+        };
+      }
+    }
+    manifestToWrite = {
+      version: 1,
+      parts: sortedParts.map((p) => ({
+        mediaId: p.mediaId,
+        ...(p.contentSha256 !== undefined
+          ? { contentSha256: p.contentSha256.toLowerCase() }
+          : {}),
+      })),
+    };
+    const json = JSON.stringify(manifestToWrite);
+    if (Buffer.byteLength(json, 'utf8') > CONV_SCAN_MANIFEST_JSON_MAX_BYTES) {
+      return {
+        success: false,
+        error: 'Manifest too large',
+        errorCode: 'INVALID_MANIFEST',
+      };
+    }
+  }
+
+  if (manifestToWrite !== undefined) {
+    const manResult = await putConvScanManifestObject(
+      input.scanHash,
+      manifestToWrite,
+      input.identityId
+    );
+    if (!manResult.ok) {
+      return { success: false, error: manResult.error, errorCode: 'SEAL_FAILED' };
+    }
+  }
+
+  const primaryMediaId = uploadedIds[0]!;
+  const sealResult = await putConvScanSealObject(input.scanHash, primaryMediaId, input.identityId);
+  if (!sealResult.ok) {
+    return { success: false, error: sealResult.error, errorCode: 'SEAL_FAILED' };
+  }
 
   return { success: true };
 }

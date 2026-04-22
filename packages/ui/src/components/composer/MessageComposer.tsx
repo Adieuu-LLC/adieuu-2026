@@ -39,6 +39,7 @@ import { detectShortcodeQuery, detectMentionQuery, updateMentionOffsets } from '
 import { ComposerAttachments } from './ComposerAttachments';
 import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete } from './ComposerAutocomplete';
 import { ComposerTTLMenu } from './ComposerTTLMenu';
+import { useConversationScanJobs } from '../../context/ConversationScanJobsContext';
 
 /** Covers ffmpeg load/transcode; avoids indefinite spinner on blocked workers (e.g. CSP). */
 const PREPARE_MEDIA_TIMEOUT_MS = 5 * 60 * 1000;
@@ -80,6 +81,7 @@ export function MessageComposer({
   const { warning: toastWarning, error: toastError } = useToast();
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const scanJobsCtx = useConversationScanJobs();
 
   const placeholder = useMemo(() => {
     if (placeholderOverride) return placeholderOverride;
@@ -430,8 +432,7 @@ export function MessageComposer({
 
                 const { moderationScan, ...result } = e2eResult;
 
-                void uploadModerationScanCopy(api, result.scanHash, moderationScan).catch((err) => {
-                  console.error('[Composer] Moderation scan upload failed', err);
+                const scanFailedToast = () => {
                   toastError(
                     t('conversations.uploadFailed', 'Upload failed'),
                     t(
@@ -439,7 +440,34 @@ export function MessageComposer({
                       'Preview upload for safety checks did not finish. The attachment may stay pending until you retry.',
                     ),
                   );
-                });
+                };
+
+                if (scanJobsCtx) {
+                  const { jobId, signal } = scanJobsCtx.startJob({
+                    fileName: fileToEncrypt.name,
+                    e2eMediaId: result.e2eMediaId,
+                  });
+                  void uploadModerationScanCopy(api, result.scanHash, moderationScan, { signal })
+                    .then(() => {
+                      scanJobsCtx.completeJob(jobId);
+                    })
+                    .catch((err: unknown) => {
+                      console.error('[Composer] Moderation scan upload failed', err);
+                      if (err instanceof DOMException && err.name === 'AbortError') {
+                        scanJobsCtx.cancelJob(jobId);
+                        return;
+                      }
+                      const msg =
+                        err instanceof Error ? err.message : t('conversations.uploadFailed', 'Upload failed');
+                      scanJobsCtx.failJob(jobId, msg);
+                      scanFailedToast();
+                    });
+                } else {
+                  void uploadModerationScanCopy(api, result.scanHash, moderationScan).catch((err) => {
+                    console.error('[Composer] Moderation scan upload failed', err);
+                    scanFailedToast();
+                  });
+                }
 
                 return {
                   ...result,
@@ -556,7 +584,7 @@ export function MessageComposer({
       }
       inputRef.current?.focus();
     }
-  }, [disabled, channelId, sending, uploadingMedia, onSend, forwardSecrecy, replyContext, onSendSucceeded, attachments, pendingGif, stripExif, api, updateAttachmentStatus, toastError, t, ttlSeconds]);
+  }, [disabled, channelId, sending, uploadingMedia, onSend, forwardSecrecy, replyContext, onSendSucceeded, attachments, pendingGif, stripExif, api, updateAttachmentStatus, toastError, t, ttlSeconds, scanJobsCtx]);
 
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {

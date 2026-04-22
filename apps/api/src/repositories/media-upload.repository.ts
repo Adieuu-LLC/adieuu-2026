@@ -3,10 +3,12 @@
  * Data access layer for media upload tracking with MongoDB persistence.
  */
 
-import { ObjectId } from 'mongodb';
+import { ObjectId, type Filter } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
-import type { MediaUploadDocument, UploadStatus } from '../models/media-upload';
+import type { MediaUploadDocument, UploadPurpose, UploadStatus } from '../models/media-upload';
+
+const CONV_SCAN_NON_TERMINAL: UploadStatus[] = ['pending', 'uploaded', 'processing'];
 import { withUpdatedAt } from '../models/base';
 
 export class MediaUploadRepository extends BaseRepository<MediaUploadDocument> {
@@ -44,6 +46,45 @@ export class MediaUploadRepository extends BaseRepository<MediaUploadDocument> {
     );
 
     return result as MediaUploadDocument | null;
+  }
+
+  /** Pending conv_scan rows for this scanHash (multi-part uploads). */
+  async countPendingConvScanByScanHash(scanHash: string): Promise<number> {
+    return await this.count({
+      scanHash,
+      purpose: 'conv_scan' as UploadPurpose,
+      status: 'pending',
+    } as Filter<MediaUploadDocument>);
+  }
+
+  /** Uploaded conv_scan mediaIds for a session (nested layout only). */
+  async findUploadedNestedConvScanMediaIdsByScanHash(scanHash: string): Promise<string[]> {
+    const docs = await this.findMany(
+      {
+        scanHash,
+        purpose: 'conv_scan' as UploadPurpose,
+        status: 'uploaded',
+        s3Key: { $regex: /^uploads\/conv_scan\/[0-9a-f]{64}\// },
+      } as Filter<MediaUploadDocument>,
+      64
+    );
+    return docs.map((d) => d.mediaId);
+  }
+
+  async countConvScanByScanHash(scanHash: string): Promise<number> {
+    return await this.count({
+      scanHash,
+      purpose: 'conv_scan' as UploadPurpose,
+    } as Filter<MediaUploadDocument>);
+  }
+
+  /** Rows still in flight for moderation (not ready / rejected / failed). */
+  async countConvScanNonTerminalByScanHash(scanHash: string): Promise<number> {
+    return await this.count({
+      scanHash,
+      purpose: 'conv_scan' as UploadPurpose,
+      status: { $in: CONV_SCAN_NON_TERMINAL },
+    } as Filter<MediaUploadDocument>);
   }
 
   async countRecentByIdentity(

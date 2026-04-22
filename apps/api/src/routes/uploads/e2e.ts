@@ -30,6 +30,7 @@ import {
   getE2EMediaDownload,
   requestScanUpload,
   completeScanUpload,
+  sealConvScanUploadSession,
 } from '../../services/e2e-upload.service';
 
 const router = new Router();
@@ -56,6 +57,22 @@ const RequestScanUploadSchema = z.object({
   scanHash: z.string().length(64),
   contentType: z.string().min(1).max(100),
   contentLength: z.number().int().positive(),
+});
+
+const ConvScanManifestPartSchema = z.object({
+  mediaId: z.string().min(1).max(120),
+  contentSha256: z.string().length(64).regex(/^[0-9a-f]+$/i).optional(),
+});
+
+const ConvScanManifestSchema = z.object({
+  version: z.literal(1),
+  parts: z.array(ConvScanManifestPartSchema).min(1).max(32),
+});
+
+const SealConvScanSessionSchema = z.object({
+  scanHash: z.string().length(64),
+  scanMediaIds: z.array(z.string().min(1).max(120)).max(64).optional(),
+  manifest: ConvScanManifestSchema.optional(),
 });
 
 // ============================================================================
@@ -295,6 +312,10 @@ router.post('/uploads/scan/request', async (ctx) => {
         return errors.rateLimited(result.error);
       case 'UPLOAD_DISABLED':
         return errors.badRequest(result.error);
+      case 'SCAN_SESSION_NOT_FOUND':
+        return errors.notFound(result.error);
+      case 'FORBIDDEN':
+        return error('FORBIDDEN', result.error ?? 'Forbidden', 403);
       default:
         return errors.badRequest(result.error);
     }
@@ -332,18 +353,74 @@ router.post('/uploads/scan/:mediaId/complete', async (ctx) => {
     return ctx.errors.badRequest();
   }
 
-  const result = await completeScanUpload(mediaId);
+  const result = await completeScanUpload(mediaId, {
+    identityId: identity._id.toHexString(),
+  });
 
   if (!result.success) {
     switch (result.errorCode) {
       case 'NOT_FOUND':
         return errors.notFound(result.error);
+      case 'SEAL_FAILED':
+        return errors.badRequest(result.error);
       default:
         return errors.badRequest(result.error);
     }
   }
 
   return success(undefined, 'Scan copy upload marked as complete.');
+});
+
+// ============================================================================
+// Scan session: Seal (multi-part)
+// ============================================================================
+
+/**
+ * POST /uploads/scan/seal - Write `.sealed` when all parts are uploaded (optional part list validation).
+ *
+ * @route POST /api/uploads/scan/seal
+ */
+router.post('/uploads/scan/seal', async (ctx) => {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  const parseResult = SealConvScanSessionSchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const result = await sealConvScanUploadSession({
+    scanHash: parseResult.data.scanHash,
+    identityId: identity._id.toHexString(),
+    scanMediaIds: parseResult.data.scanMediaIds,
+    manifest: parseResult.data.manifest,
+  });
+
+  if (!result.success) {
+    switch (result.errorCode) {
+      case 'NOT_FOUND':
+        return errors.notFound(result.error);
+      case 'FORBIDDEN':
+        return error('FORBIDDEN', result.error ?? 'Forbidden', 403);
+      case 'UPLOAD_DISABLED':
+        return errors.badRequest(result.error);
+      case 'SEAL_FAILED':
+        return errors.badRequest(result.error);
+      case 'INVALID_MANIFEST':
+        return errors.badRequest(result.error);
+      default:
+        return errors.badRequest(result.error);
+    }
+  }
+
+  return success(undefined, 'Scan session sealed.');
 });
 
 export const e2eUploadRoutes = router;

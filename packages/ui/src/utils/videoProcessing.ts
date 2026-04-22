@@ -36,32 +36,28 @@ function readValidatedVideoMetadata(video: HTMLVideoElement): {
   return { width, height, durationSeconds };
 }
 
-/**
- * Seek to a representative frame and encode a JPEG; {@link video} must already
- * have intrinsic dimensions loaded.
- */
-async function captureThumbnailFromLoadedVideo(
-  video: HTMLVideoElement,
-  maxDim: number,
-  quality: number
-): Promise<Blob> {
-  const seekTime =
-    Number.isFinite(video.duration) && video.duration > 0
-      ? Math.min(0.1, video.duration * 0.1)
-      : 0;
-
+async function seekVideoToTime(video: HTMLVideoElement, seekTimeSec: number): Promise<void> {
+  const t = Math.min(
+    Math.max(0, seekTimeSec),
+    Math.max(0, video.duration - 0.05)
+  );
   await new Promise<void>((resolve, reject) => {
-    if (Math.abs(video.currentTime - seekTime) < 1e-4) {
+    if (Math.abs(video.currentTime - t) < 1e-4) {
       queueMicrotask(() => resolve());
       return;
     }
     video.onseeked = () => resolve();
     video.onerror = () => reject(new Error('Failed to seek video'));
-    video.currentTime = seekTime;
+    video.currentTime = t;
   });
-
   await waitForSeekPaintReady(video);
+}
 
+async function encodeLoadedVideoFrameToJpeg(
+  video: HTMLVideoElement,
+  maxDim: number,
+  quality: number
+): Promise<Blob> {
   const w = video.videoWidth;
   const h = video.videoHeight;
   if (!w || !h) {
@@ -78,6 +74,67 @@ async function captureThumbnailFromLoadedVideo(
 
   ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
   return await canvas.convertToBlob({ type: 'image/jpeg', quality });
+}
+
+/**
+ * Seek to a representative frame and encode a JPEG; {@link video} must already
+ * have intrinsic dimensions loaded.
+ */
+async function captureThumbnailFromLoadedVideo(
+  video: HTMLVideoElement,
+  maxDim: number,
+  quality: number
+): Promise<Blob> {
+  const seekTime =
+    Number.isFinite(video.duration) && video.duration > 0
+      ? Math.min(0.1, video.duration * 0.1)
+      : 0;
+  await seekVideoToTime(video, seekTime);
+  return encodeLoadedVideoFrameToJpeg(video, maxDim, quality);
+}
+
+/**
+ * One decode load: seek to each timestamp (sorted, de-duplicated) and capture a JPEG.
+ * Use for multi-frame moderation composites.
+ */
+export async function captureVideoFrameThumbnailsAtTimes(
+  file: File,
+  seekTimesSec: number[],
+  options?: VideoLoadOptions & {
+    maxThumbnailDim?: number;
+    thumbnailQuality?: number;
+  }
+): Promise<Blob[]> {
+  const maxDim = options?.maxThumbnailDim ?? DEFAULT_THUMBNAIL_MAX_DIM;
+  const quality = options?.thumbnailQuality ?? DEFAULT_THUMBNAIL_QUALITY;
+  const url = URL.createObjectURL(file);
+  try {
+    const video = document.createElement('video');
+    await waitUntilVideoHasIntrinsicSize(video, url, options);
+    readValidatedVideoMetadata(video);
+
+    const end = Math.max(0, video.duration - 0.05);
+    const sorted = [...seekTimesSec]
+      .filter((t) => Number.isFinite(t))
+      .map((t) => Math.min(Math.max(0, t), end))
+      .sort((a, b) => a - b);
+
+    const merged: number[] = [];
+    for (const t of sorted) {
+      if (merged.length === 0 || Math.abs(merged[merged.length - 1]! - t) >= 0.25) {
+        merged.push(t);
+      }
+    }
+
+    const out: Blob[] = [];
+    for (const t of merged) {
+      await seekVideoToTime(video, t);
+      out.push(await encodeLoadedVideoFrameToJpeg(video, maxDim, quality));
+    }
+    return out;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { ApiResponse } from '../types';
+import type { ApiResponse, ConvScanSealManifestV1 } from '../types';
 import type { HttpClient } from './http-client';
 import type { E2EMediaStatus } from './upload-api';
 
@@ -27,6 +27,14 @@ export interface RequestScanUploadResponse {
   scanMediaId: string;
   uploadUrl: string;
   expiresIn: number;
+}
+
+export interface SealConvScanSessionParams {
+  scanHash: string;
+  /** When set, must include every uploaded part mediaId for this scan session. */
+  scanMediaIds?: string[];
+  /** Optional; validated server-side and stored as `manifest.json` under the scan prefix. */
+  manifest?: ConvScanSealManifestV1;
 }
 
 export interface E2EMediaStatusResponse {
@@ -84,5 +92,9 @@ export class E2EUploadApi {
       `/api/uploads/scan/${encodeURIComponent(scanMediaId)}/complete`,
       {}
     );
+  }
+
+  async sealConvScanSession(params: SealConvScanSessionParams): Promise<ApiResponse<void>> {
+    return this.client.post('/api/uploads/scan/seal', params);
   }
 }

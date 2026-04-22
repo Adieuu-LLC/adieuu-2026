@@ -505,6 +505,110 @@
   height: 1px;
 }
 
+// Moderation scan uploads flyout (mirrors .conversation-pins-panel)
+.conversation-scan-jobs-anchor {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+
+.conversation-scan-jobs-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  min-width: 240px;
+  overflow: hidden;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.conversation-scan-jobs-panel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+  padding: var(--spacing-xs) var(--spacing-sm) var(--spacing-xs) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.conversation-scan-jobs-panel-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.conversation-scan-jobs-panel-close.btn-sm {
+  flex-shrink: 0;
+  min-width: 2rem;
+  padding: 2px 6px;
+}
+
+.conversation-scan-jobs-panel-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--spacing-xs);
+}
+
+.conversation-scan-jobs-empty {
+  padding: var(--spacing-md);
+  margin: 0;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.conversation-scan-jobs-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+}
+
+.conversation-scan-jobs-row + .conversation-scan-jobs-row {
+  margin-top: 2px;
+}
+
+.conversation-scan-jobs-row-icon {
+  flex-shrink: 0;
+  line-height: 0;
+  padding-top: 2px;
+}
+
+.conversation-scan-jobs-row-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.conversation-scan-jobs-row-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-scan-jobs-row-status {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.conversation-scan-jobs-row-actions {
+  flex-shrink: 0;
+  display: inline-flex;
+  gap: 2px;
+}
+
+.conversation-scan-jobs-row-btn {
+  min-width: 2rem;
+  padding: 2px;
+}
+
 // ============================================================================
 // Conversation Page Responsive
 // ============================================================================
