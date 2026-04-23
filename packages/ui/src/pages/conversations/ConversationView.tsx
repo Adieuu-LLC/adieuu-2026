@@ -30,6 +30,7 @@ import { useMemberColorPreference } from '../../hooks/useMemberColorPreference';
 import { extractDomain } from '../../utils/urlParsing';
 import { isDomainTrusted } from '../../hooks/useExternalLinkPreferences';
 import { clearMediaCache } from '../../hooks/useE2EMediaDownload';
+import { endMessageSearchSessionAndWipeCache } from '../../services/messageSearch/messageSearchSessionEnd';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { useMessageAchievements } from '../../hooks/useMessageAchievements';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
@@ -320,8 +321,38 @@ export function ConversationView() {
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
 
-  const [showMessageSearch, setShowMessageSearch] = useState(false);
+  const [messageSearchSessionActive, setMessageSearchSessionActive] = useState(false);
+  const [messageSearchSidebarVisible, setMessageSearchSidebarVisible] = useState(false);
   const [messageSearchCacheMode] = useMessageSearchCacheMode(identity?.id ?? '');
+
+  const handleMessageSearchEndSession = useCallback(() => {
+    setMessageSearchSessionActive(false);
+    setMessageSearchSidebarVisible(false);
+  }, []);
+
+  const handleToggleMessageSearch = useCallback(() => {
+    if (!messageSearchSessionActive) {
+      setMessageSearchSessionActive(true);
+      setMessageSearchSidebarVisible(true);
+      setShowSettings(false);
+      setShowMembers(false);
+      return;
+    }
+    if (id && identity?.id) {
+      endMessageSearchSessionAndWipeCache({
+        identityId: identity.id,
+        conversationId: id,
+        adminDisallowPersistentCache: conversation?.disallowPersistentMessageSearchCache ?? false,
+      });
+    }
+    handleMessageSearchEndSession();
+  }, [
+    messageSearchSessionActive,
+    id,
+    identity?.id,
+    conversation?.disallowPersistentMessageSearchCache,
+    handleMessageSearchEndSession,
+  ]);
 
   const showArtifacts = identity ? loadShowMessageArtifacts(identity.id) : false;
 
@@ -440,6 +471,11 @@ export function ConversationView() {
     resetScrollRefsOnConversationIdChange();
     clearMediaCache();
   }, [id, resetScrollRefsOnConversationIdChange]);
+
+  useEffect(() => {
+    setMessageSearchSessionActive(false);
+    setMessageSearchSidebarVisible(false);
+  }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -677,15 +713,26 @@ export function ConversationView() {
               ) : null
             }
             searchSlot={
-              <Tooltip content={t('conversations.messageSearch.toolbarAria', 'Search messages')} position="bottom">
+              <Tooltip
+                content={
+                  messageSearchSessionActive
+                    ? t('conversations.messageSearch.endSearch', 'End search')
+                    : t('conversations.messageSearch.toolbarAria', 'Search messages')
+                }
+                position="bottom"
+              >
                 <Button
                   variant="ghost"
                   size="sm"
                   type="button"
-                  className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${showMessageSearch ? ' active' : ''}`}
-                  onClick={() => setShowMessageSearch((v) => !v)}
-                  aria-label={t('conversations.messageSearch.toolbarAria', 'Search messages')}
-                  aria-pressed={showMessageSearch}
+                  className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${messageSearchSessionActive ? ' active' : ''}`}
+                  onClick={handleToggleMessageSearch}
+                  aria-label={
+                    messageSearchSessionActive
+                      ? t('conversations.messageSearch.endSearch', 'End search')
+                      : t('conversations.messageSearch.toolbarAria', 'Search messages')
+                  }
+                  aria-pressed={messageSearchSessionActive}
                 >
                   <span className="conversation-toolbar-btn-icon" aria-hidden>
                     <Icon name="search" size="sm" />
@@ -694,9 +741,23 @@ export function ConversationView() {
               </Tooltip>
             }
             showSettings={showSettings}
-            onToggleSettings={() => setShowSettings((v) => !v)}
+            onToggleSettings={() => {
+              setShowSettings((prev) => {
+                if (!prev) {
+                  setMessageSearchSidebarVisible(false);
+                }
+                return !prev;
+              });
+            }}
             showMembers={showMembers}
-            onToggleMembers={() => setShowMembers((v) => !v)}
+            onToggleMembers={() => {
+              setShowMembers((prev) => {
+                if (!prev) {
+                  setMessageSearchSidebarVisible(false);
+                }
+                return !prev;
+              });
+            }}
             isGroup={conversation.type === 'group'}
             canDeleteConversation={canDeleteConversation}
             onDeleteGroup={() => setDeleteGroupOpen(true)}
@@ -707,22 +768,6 @@ export function ConversationView() {
 
           <div className="conversation-body">
             <div className="conversation-main">
-            {showMessageSearch && id && (
-              <ConversationMessageSearchPanel
-                open
-                conversationId={id}
-                identityId={identity?.id ?? ''}
-                adminDisallowPersistentCache={conversation.disallowPersistentMessageSearchCache ?? false}
-                getActiveMessages={getActiveMessages}
-                participantProfiles={participantProfiles}
-                cacheMode={messageSearchCacheMode}
-                loadOlder={() => loadOlder()}
-                messagesLoading={messagesLoading}
-                olderCursor={activeMessagesOlderCursor}
-                onClose={() => setShowMessageSearch(false)}
-                onPickMessage={(messageId) => void scrollToMessageId(messageId)}
-              />
-            )}
             <ConversationMessageList
               conversationId={id}
               activeConversationId={activeConversationId}
@@ -873,6 +918,25 @@ export function ConversationView() {
                   : undefined
               }
               onOpenMemberSecurity={openMemberSecurity}
+            />
+          )}
+
+          {messageSearchSessionActive && id && (
+            <ConversationMessageSearchPanel
+              conversationId={id}
+              identityId={identity?.id ?? ''}
+              sidebarVisible={messageSearchSidebarVisible}
+              adminDisallowPersistentCache={conversation.disallowPersistentMessageSearchCache ?? false}
+              getActiveMessages={getActiveMessages}
+              participantProfiles={participantProfiles}
+              cacheMode={messageSearchCacheMode}
+              loadOlder={() => loadOlder()}
+              messagesLoading={messagesLoading}
+              olderCursor={activeMessagesOlderCursor}
+              onEndSearchSession={handleMessageSearchEndSession}
+              onPickMessage={(messageId) => {
+                void scrollToMessageId(messageId);
+              }}
             />
           )}
         </div>

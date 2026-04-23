@@ -395,6 +395,13 @@ export const conversations = {
         title: 'Search messages',
         placeholder: 'Search…',
         close: 'Close',
+        newSearch: 'New search',
+        startSearch: 'Start search',
+        modifySearch: 'Modify search',
+        endSearch: 'End search',
+        recentSearches: 'Recent searches',
+        recentSearchesShort: 'Recent Searches',
+        recentNoKeywords: 'Any text',
         adminNoPersistent:
             'This conversation requires that local search data is not kept after you close search.',
         filterHasReplies: 'Has replies',

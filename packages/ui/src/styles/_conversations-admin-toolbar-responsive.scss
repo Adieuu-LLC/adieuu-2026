@@ -621,7 +621,8 @@
 
 @media (max-width: $mobile-breakpoint) {
   .conversation-members-sidebar,
-  .conversation-settings-sidebar {
+  .conversation-settings-sidebar,
+  .conversation-search-sidebar {
     position: absolute;
     right: 0;
     top: 0;
