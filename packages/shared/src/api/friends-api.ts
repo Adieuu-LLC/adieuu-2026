@@ -8,6 +8,15 @@ import type { PublicIdentity } from './identity-types';
 export type FriendshipStatus = 'none' | 'friends' | 'pending_incoming' | 'pending_outgoing';
 
 /**
+ * From GET /friends/status/:id — `friendsSince` is set when `status` is `friends`
+ * (when the mutual friendship was created, ISO 8601).
+ */
+export interface FriendshipStatusResult {
+  status: FriendshipStatus;
+  friendsSince?: string;
+}
+
+/**
  * Public friend request
  */
 export interface PublicFriendRequest {
@@ -136,7 +145,7 @@ export class FriendsApi {
   /**
    * Get friendship status with an identity.
    */
-  async getFriendshipStatus(identityId: string): Promise<ApiResponse<{ status: FriendshipStatus }>> {
+  async getFriendshipStatus(identityId: string): Promise<ApiResponse<FriendshipStatusResult>> {
     return this.client.get(`/api/friends/status/${encodeURIComponent(identityId)}`);
   }
 }

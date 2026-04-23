@@ -97,6 +97,7 @@ export {
 export {
   FriendsApi,
   type FriendshipStatus,
+  type FriendshipStatusResult,
   type PublicFriendRequest,
   type FriendInfo,
   type IncomingFriendRequestInfo,

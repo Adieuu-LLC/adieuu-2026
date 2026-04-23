@@ -20,6 +20,10 @@ import type { FriendshipDocument } from '../models/friendship';
  */
 export interface IFriendshipRepository {
   areFriends(identityA: ObjectId, identityB: ObjectId): Promise<boolean>;
+  /**
+   * Directed edge: viewer (identityId) → friend. Used to read e.g. `createdAt` for “friends since”.
+   */
+  findByViewerAndFriend(identityId: ObjectId, friendIdentityId: ObjectId): Promise<FriendshipDocument | null>;
   createMutual(identityA: ObjectId, identityB: ObjectId): Promise<void>;
   remove(identityA: ObjectId, identityB: ObjectId): Promise<boolean>;
   getFriends(identityId: ObjectId, limit?: number, cursor?: ObjectId): Promise<FriendshipDocument[]>;
@@ -41,11 +45,18 @@ export class FriendshipRepository
    * Check if two identities are friends
    */
   async areFriends(identityA: ObjectId, identityB: ObjectId): Promise<boolean> {
-    const friendship = await this.findOne({
-      identityId: identityA,
-      friendIdentityId: identityB,
-    });
+    const friendship = await this.findByViewerAndFriend(identityA, identityB);
     return friendship !== null;
+  }
+
+  async findByViewerAndFriend(
+    identityId: ObjectId,
+    friendIdentityId: ObjectId
+  ): Promise<FriendshipDocument | null> {
+    return (await this.findOne({
+      identityId,
+      friendIdentityId,
+    })) as FriendshipDocument | null;
   }
 
   /**

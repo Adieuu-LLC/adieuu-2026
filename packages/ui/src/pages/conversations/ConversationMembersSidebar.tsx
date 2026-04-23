@@ -10,6 +10,7 @@ import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 import { resolveDisplayName } from './conversationUtils';
 import { MemberEditPanel } from './MemberEditPanel';
+import { useFriends } from '../../hooks/useFriends';
 
 export function ConversationMembersSidebar({
   participants,
@@ -55,6 +56,7 @@ export function ConversationMembersSidebar({
   onOpenMemberSecurity: (identityId: string, displayLabel: string) => void;
 }) {
   const { t } = useTranslation();
+  const { getFriendshipStatus } = useFriends();
   /** Which member/invite hover card is open (`member:id` | `invite:inviteId`); closed before Security dialog opens. */
   const [memberHoverKey, setMemberHoverKey] = useState<string | null>(null);
 
@@ -196,6 +198,8 @@ export function ConversationMembersSidebar({
                     identity={profile}
                     showActions
                     selfIdentityId={selfId}
+                    onGetFriendshipStatus={selfId ? getFriendshipStatus : undefined}
+                    showFriendshipLength={!isSelf}
                     extraFooter={
                       <button
                         type="button"

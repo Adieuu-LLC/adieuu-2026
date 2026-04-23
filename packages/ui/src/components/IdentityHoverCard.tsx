@@ -7,20 +7,27 @@
  * full profile page.
  */
 
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, type ReactElement, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Menu, Portal } from '@ark-ui/react';
 import type { PublicIdentity } from '@adieuu/shared';
+import { formatFriendsForLine } from '../utils/friendshipDuration';
 import { HoverCard } from './HoverCard';
 import { Button } from './Button';
 import { ReportModal } from './ReportModal';
 import { Icon } from '../icons/Icon';
 import { useIdentity } from '../hooks/useIdentity';
 import { useBlockContext } from '../hooks/useBlockContext';
+import { useFriends } from '../hooks/useFriends';
 
 export interface IdentityHoverCardContentProps {
   identity: PublicIdentity;
+  /**
+   * When you already know “friends since” (e.g. friends list). Otherwise we resolve from
+   * the friends list cache or GET /friends/status.
+   */
+  friendsSince?: string;
   extraMenuItems?: ReactNode;
   /** Optional footer below actions (e.g. conversation-specific links). */
   extraFooter?: ReactNode;
@@ -29,6 +36,7 @@ export interface IdentityHoverCardContentProps {
 /** Panel body + report modal; use inside a {@link HoverCard} when the profile is already loaded. */
 export function IdentityHoverCardContent({
   identity,
+  friendsSince: friendsSinceProp,
   extraMenuItems,
   extraFooter,
 }: IdentityHoverCardContentProps) {
@@ -36,9 +44,42 @@ export function IdentityHoverCardContent({
   const navigate = useNavigate();
   const { identity: selfIdentity } = useIdentity();
   const { isBlocked, requestBlockConfirm } = useBlockContext();
+  const { friends, getFriendshipStatus } = useFriends();
   const [reportOpen, setReportOpen] = useState(false);
+  const [fetchedFriendsSince, setFetchedFriendsSince] = useState<string | undefined>(undefined);
+
+  const friendsSinceFromList = useMemo(
+    () => friends.find((f) => f.identity.id === identity.id)?.friendsSince,
+    [friends, identity.id]
+  );
+  const effectiveFromPropOrList = friendsSinceProp ?? friendsSinceFromList;
 
   const isSelf = selfIdentity?.id === identity.id;
+
+  useEffect(() => {
+    if (isSelf || !selfIdentity) {
+      setFetchedFriendsSince(undefined);
+      return;
+    }
+    if (effectiveFromPropOrList) {
+      setFetchedFriendsSince(undefined);
+      return;
+    }
+    let cancelled = false;
+    void getFriendshipStatus(identity.id).then((r) => {
+      if (cancelled) return;
+      if (r.status === 'friends' && r.friendsSince) {
+        setFetchedFriendsSince(r.friendsSince);
+      } else {
+        setFetchedFriendsSince(undefined);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [identity.id, isSelf, selfIdentity, effectiveFromPropOrList, getFriendshipStatus]);
+
+  const friendsSinceResolved = effectiveFromPropOrList ?? fetchedFriendsSince;
   const blocked = isBlocked(identity.id);
   const colors = identity.profileColors;
 
@@ -79,6 +120,14 @@ export function IdentityHoverCardContent({
             {identity.displayName}
           </span>
           <span className="identity-hover-card-username">@{identity.username}</span>
+          {!isSelf && friendsSinceResolved && (
+            <span
+              className="identity-hover-card-friendship"
+              title={new Date(friendsSinceResolved).toLocaleString()}
+            >
+              {formatFriendsForLine(friendsSinceResolved, t)}
+            </span>
+          )}
           {identity.bio && (
             <p className="identity-hover-card-bio">{identity.bio}</p>
           )}
@@ -169,6 +218,8 @@ export function IdentityHoverCardContent({
 export interface IdentityHoverCardProps {
   /** The identity whose profile is displayed in the hover card */
   identity: PublicIdentity;
+  /** When known (e.g. from friends list), skip a status request */
+  friendsSince?: string;
   /** The element that triggers the hover card */
   children: ReactElement;
   /** Optional extra actions rendered inside the ellipsis menu */
@@ -193,6 +244,7 @@ export interface IdentityHoverCardProps {
 
 export function IdentityHoverCard({
   identity,
+  friendsSince,
   children,
   extraMenuItems,
   extraFooter,
@@ -210,6 +262,7 @@ export function IdentityHoverCard({
     >
       <IdentityHoverCardContent
         identity={identity}
+        friendsSince={friendsSince}
         extraMenuItems={extraMenuItems}
         extraFooter={extraFooter}
       />

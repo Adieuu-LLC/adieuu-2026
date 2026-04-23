@@ -10,7 +10,8 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import type { PublicIdentity, FriendshipStatus } from '@adieuu/shared';
+import type { PublicIdentity, FriendshipStatus, FriendshipStatusResult } from '@adieuu/shared';
+import { formatFriendsForLine } from '../utils/friendshipDuration';
 import { Button } from './Button';
 import { Icon } from '../icons/Icon';
 
@@ -23,8 +24,10 @@ export interface IdentityCardProps {
   showFriendAction?: boolean;
   /** Function to send a friend request */
   onSendFriendRequest?: (identityId: string) => Promise<boolean>;
-  /** Function to get friendship status */
-  onGetFriendshipStatus?: (identityId: string) => Promise<FriendshipStatus>;
+  /** Function to get friendship status (and `friendsSince` when you are friends) */
+  onGetFriendshipStatus?: (identityId: string) => Promise<FriendshipStatusResult>;
+  /** When set with `onGetFriendshipStatus`, show “Friends for …” for mutual friends (e.g. member hover) without the add-friend control */
+  showFriendshipLength?: boolean;
   /** The current identity's ID (to hide actions for self) */
   selfIdentityId?: string;
   /** Additional CSS class name */
@@ -39,25 +42,29 @@ export function IdentityCard({
   showFriendAction = false,
   onSendFriendRequest,
   onGetFriendshipStatus,
+  showFriendshipLength = false,
   selfIdentityId,
   className = '',
   extraFooter,
 }: IdentityCardProps) {
   const { t } = useTranslation();
   const [friendStatus, setFriendStatus] = useState<FriendshipStatus>('none');
+  const [friendsSinceIso, setFriendsSinceIso] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
 
   const isSelf = selfIdentityId === identity.id;
 
   useEffect(() => {
-    if (!showFriendAction || !onGetFriendshipStatus || isSelf) return;
+    if ((!showFriendAction && !showFriendshipLength) || !onGetFriendshipStatus || isSelf) return;
 
     let cancelled = false;
-    onGetFriendshipStatus(identity.id).then((status) => {
-      if (!cancelled) setFriendStatus(status);
+    onGetFriendshipStatus(identity.id).then((result) => {
+      if (cancelled) return;
+      setFriendStatus(result.status);
+      setFriendsSinceIso(result.friendsSince ?? null);
     });
     return () => { cancelled = true; };
-  }, [identity.id, showFriendAction, onGetFriendshipStatus, isSelf]);
+  }, [identity.id, showFriendAction, showFriendshipLength, onGetFriendshipStatus, isSelf]);
 
   const handleSendRequest = useCallback(async () => {
     if (!onSendFriendRequest || isSending) return;
@@ -116,6 +123,11 @@ export function IdentityCard({
         <div className="identity-card-info">
           <h3 className="identity-card-name" style={nameStyle}>{identity.displayName}</h3>
           <span className="identity-card-username">@{identity.username}</span>
+          {friendStatus === 'friends' && friendsSinceIso && (
+            <span className="identity-card-friendship" title={new Date(friendsSinceIso).toLocaleString()}>
+              {formatFriendsForLine(friendsSinceIso, t)}
+            </span>
+          )}
         </div>
       </div>
 

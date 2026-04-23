@@ -385,9 +385,12 @@ router.get('/friends/status/:identityId', async (ctx) => {
     return errors.badRequest('Invalid identity ID.');
   }
 
-  const status = await getFriendshipStatus(identity._id, sanitized.value);
+  const result = await getFriendshipStatus(identity._id, sanitized.value);
 
-  return success({ status });
+  return success({
+    status: result.status,
+    ...(result.friendsSince != null ? { friendsSince: result.friendsSince } : {}),
+  });
 });
 
 export const friendRoutes = router;

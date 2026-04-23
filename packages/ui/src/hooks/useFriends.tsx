@@ -21,6 +21,7 @@ import {
   type FriendInfo,
   type IncomingFriendRequestInfo,
   type FriendshipStatus,
+  type FriendshipStatusResult,
   type ChatIncomingMessage,
 } from '@adieuu/shared';
 import { useTranslation } from 'react-i18next';
@@ -56,8 +57,8 @@ export interface FriendsContextValue {
   removeFriend: (identityId: string) => Promise<boolean>;
   /** Search through friends (local first, then server) */
   searchFriends: (query: string) => Promise<FriendInfo[]>;
-  /** Get the friendship status with an identity */
-  getFriendshipStatus: (identityId: string) => Promise<FriendshipStatus>;
+  /** Get the friendship status with an identity (includes `friendsSince` when you are friends) */
+  getFriendshipStatus: (identityId: string) => Promise<FriendshipStatusResult>;
   /** Refresh friends data from the server */
   refresh: () => Promise<void>;
 }
@@ -229,16 +230,16 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
     return [];
   }, [api, friends]);
 
-  const getFriendshipStatus = useCallback(async (identityId: string): Promise<FriendshipStatus> => {
+  const getFriendshipStatus = useCallback(async (identityId: string): Promise<FriendshipStatusResult> => {
     try {
       const res = await api.friends.getFriendshipStatus(identityId);
       if (res.success && res.data) {
-        return res.data.status;
+        return res.data;
       }
     } catch {
       // Fall through
     }
-    return 'none';
+    return { status: 'none' as const };
   }, [api]);
 
   // --------------------------------------------------------------------------

@@ -21,6 +21,7 @@ const mockRequestRepo = {
 
 const mockFriendshipRepo = {
   areFriends: mock(() => Promise.resolve(false)) as AnyMock,
+  findByViewerAndFriend: mock(() => Promise.resolve(null)) as AnyMock,
   createMutual: mock(() => Promise.resolve()) as AnyMock,
   remove: mock(() => Promise.resolve(false)) as AnyMock,
   getFriends: mock(() => Promise.resolve([])) as AnyMock,
@@ -149,6 +150,7 @@ describe('friend.service', () => {
     mockRequestRepo.deleteByPair.mockReset();
 
     mockFriendshipRepo.areFriends.mockReset();
+    mockFriendshipRepo.findByViewerAndFriend.mockReset();
     mockFriendshipRepo.createMutual.mockReset();
     mockFriendshipRepo.remove.mockReset();
     mockFriendshipRepo.getFriends.mockReset();
@@ -178,6 +180,7 @@ describe('friend.service', () => {
     mockRequestRepo.deleteByPair.mockResolvedValue(0);
 
     mockFriendshipRepo.areFriends.mockResolvedValue(false);
+    mockFriendshipRepo.findByViewerAndFriend.mockResolvedValue(null);
     mockFriendshipRepo.createMutual.mockResolvedValue(undefined);
     mockFriendshipRepo.remove.mockResolvedValue(false);
     mockFriendshipRepo.getFriends.mockResolvedValue([]);
@@ -519,39 +522,44 @@ describe('friend.service', () => {
   // getFriendshipStatus
   // ---------------------------------------------------------------------------
 
-  test('getFriendshipStatus returns friends when already friends', async () => {
-    mockFriendshipRepo.areFriends.mockResolvedValue(true);
+  test('getFriendshipStatus returns friends with friendsSince when already friends', async () => {
+    const friendsSince = new Date('2026-02-15T00:00:00.000Z');
+    mockFriendshipRepo.findByViewerAndFriend.mockResolvedValue({
+      _id: new ObjectId(),
+      identityId: identityA,
+      friendIdentityId: identityB,
+      createdAt: friendsSince,
+      updatedAt: friendsSince,
+    });
 
-    const status = await getFriendshipStatus(identityA, identityB);
-    expect(status).toBe('friends');
+    const out = await getFriendshipStatus(identityA, identityB);
+    expect(out.status).toBe('friends');
+    expect(out.friendsSince).toBe(friendsSince.toISOString());
   });
 
   test('getFriendshipStatus returns pending_outgoing when request sent', async () => {
-    mockFriendshipRepo.areFriends.mockResolvedValue(false);
     mockRequestRepo.findPendingBetween.mockResolvedValue(
       makeFriendRequestDoc({ fromIdentityId: identityA, toIdentityId: identityB })
     );
 
-    const status = await getFriendshipStatus(identityA, identityB);
-    expect(status).toBe('pending_outgoing');
+    const out = await getFriendshipStatus(identityA, identityB);
+    expect(out.status).toBe('pending_outgoing');
   });
 
   test('getFriendshipStatus returns pending_incoming when request received', async () => {
-    mockFriendshipRepo.areFriends.mockResolvedValue(false);
     mockRequestRepo.findPendingBetween.mockResolvedValue(
       makeFriendRequestDoc({ fromIdentityId: identityB, toIdentityId: identityA })
     );
 
-    const status = await getFriendshipStatus(identityA, identityB);
-    expect(status).toBe('pending_incoming');
+    const out = await getFriendshipStatus(identityA, identityB);
+    expect(out.status).toBe('pending_incoming');
   });
 
   test('getFriendshipStatus returns none when no relationship exists', async () => {
-    mockFriendshipRepo.areFriends.mockResolvedValue(false);
     mockRequestRepo.findPendingBetween.mockResolvedValue(null);
 
-    const status = await getFriendshipStatus(identityA, identityB);
-    expect(status).toBe('none');
+    const out = await getFriendshipStatus(identityA, identityB);
+    expect(out.status).toBe('none');
   });
 
   // ---------------------------------------------------------------------------

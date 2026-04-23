@@ -124,6 +124,12 @@
   margin: 0;
 }
 
+.profile-view-friendship {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: var(--spacing-xs) 0 0 0;
+}
+
 .profile-view-bio {
   font-size: var(--font-size-md);
   color: var(--color-text-primary);

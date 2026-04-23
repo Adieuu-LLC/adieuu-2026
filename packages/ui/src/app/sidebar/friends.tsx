@@ -42,13 +42,16 @@ export function FriendsSidebarButton({
 
 function FriendProfileHoverCard({
   identity,
+  friendsSince,
   children,
 }: {
   identity: PublicIdentity;
+  /** From `FriendInfo` when already in the friends list */
+  friendsSince?: string;
   children: ReactElement;
 }) {
   return (
-    <IdentityHoverCard identity={identity}>
+    <IdentityHoverCard identity={identity} friendsSince={friendsSince}>
       {children}
     </IdentityHoverCard>
   );
@@ -258,6 +261,7 @@ export function FriendsPanel({
               <FriendProfileHoverCard
                 key={friend.identity.id}
                 identity={friend.identity}
+                friendsSince={friend.friendsSince}
               >
                 <button
                   type="button"

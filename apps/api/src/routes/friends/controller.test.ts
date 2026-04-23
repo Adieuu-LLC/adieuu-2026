@@ -6,7 +6,7 @@ import type {
   FriendshipResult,
   FriendInfo,
   IncomingFriendRequestInfo,
-  FriendshipStatus,
+  FriendshipStatusResult,
 } from '../../services/friend.service';
 import type { PublicFriendRequest } from '../../models/friend-request';
 
@@ -60,7 +60,9 @@ const getOutgoingRequestsMock = mock(async () => ({
   cursor: null as string | null,
 }));
 const getIncomingRequestCountMock = mock(async () => 0);
-const getFriendshipStatusMock = mock(async (): Promise<FriendshipStatus> => 'none');
+const getFriendshipStatusMock = mock(
+  async (): Promise<FriendshipStatusResult> => ({ status: 'none' })
+);
 
 mock.module('../../services/session.service', () => ({
   requireIdentitySession: requireIdentitySessionMock,
@@ -154,7 +156,7 @@ describe('friends routes', () => {
     getIncomingRequestsMock.mockResolvedValue({ requests: [], cursor: null, count: 0 });
     getOutgoingRequestsMock.mockResolvedValue({ requests: [], cursor: null });
     getIncomingRequestCountMock.mockResolvedValue(0);
-    getFriendshipStatusMock.mockResolvedValue('none');
+    getFriendshipStatusMock.mockResolvedValue({ status: 'none' });
   });
 
   // ---------------------------------------------------------------------------
@@ -538,13 +540,15 @@ describe('friends routes', () => {
     expect(response.status).toBe(400);
   });
 
-  test('GET /friends/status/:identityId returns status', async () => {
-    getFriendshipStatusMock.mockResolvedValueOnce('friends');
+  test('GET /friends/status/:identityId returns status and friendsSince when friends', async () => {
+    const since = '2026-01-01T00:00:00.000Z';
+    getFriendshipStatusMock.mockResolvedValueOnce({ status: 'friends', friendsSince: since });
     const response = await friendRoutes.handler()(makeRequest(`/friends/status/${targetIdentityId.toHexString()}`, {
       cookies: AUTH_COOKIE,
     }));
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { data: { status: string } };
+    const body = (await response.json()) as { data: { status: string; friendsSince?: string } };
     expect(body.data.status).toBe('friends');
+    expect(body.data.friendsSince).toBe(since);
   });
 });

@@ -31,6 +31,14 @@ import elog from '../utils/adieuuLogger';
 export type FriendshipStatus = 'none' | 'friends' | 'pending_incoming' | 'pending_outgoing';
 
 /**
+ * Status plus optional `friendsSince` (ISO 8601) when the viewer and target are friends.
+ */
+export interface FriendshipStatusResult {
+  status: FriendshipStatus;
+  friendsSince?: string;
+}
+
+/**
  * Result of a friend request operation
  */
 export interface FriendRequestResult {
@@ -507,32 +515,37 @@ export async function getIncomingRequestCount(
 }
 
 /**
- * Get friendship status between two identities.
+ * Get friendship status between two identities. When the pair are friends, includes
+ * `friendsSince` from the viewer→friendship row (when the link was created).
  */
 export async function getFriendshipStatus(
   identityId: string | ObjectId,
   otherIdentityId: string | ObjectId
-): Promise<FriendshipStatus> {
+): Promise<FriendshipStatusResult> {
   const friendshipRepo = getFriendshipRepository();
   const requestRepo = getFriendRequestRepository();
 
   const identityObjId = identityId instanceof ObjectId ? identityId : new ObjectId(identityId);
   const otherObjId = otherIdentityId instanceof ObjectId ? otherIdentityId : new ObjectId(otherIdentityId);
 
-  // Check friendship first (most common query)
-  const areFriends = await friendshipRepo.areFriends(identityObjId, otherObjId);
-  if (areFriends) return 'friends';
+  const friendship = await friendshipRepo.findByViewerAndFriend(identityObjId, otherObjId);
+  if (friendship) {
+    return {
+      status: 'friends',
+      friendsSince: friendship.createdAt.toISOString(),
+    };
+  }
 
   // Check pending requests
   const pendingRequest = await requestRepo.findPendingBetween(identityObjId, otherObjId);
   if (pendingRequest) {
     if (pendingRequest.fromIdentityId.toHexString() === identityObjId.toHexString()) {
-      return 'pending_outgoing';
+      return { status: 'pending_outgoing' };
     }
-    return 'pending_incoming';
+    return { status: 'pending_incoming' };
   }
 
-  return 'none';
+  return { status: 'none' };
 }
 
 // ---------------------------------------------------------------------------

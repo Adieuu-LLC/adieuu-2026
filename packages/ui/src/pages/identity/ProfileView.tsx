@@ -28,6 +28,7 @@ import { useFriends } from '../../hooks/useFriends';
 import { useBlockContext } from '../../hooks/useBlockContext';
 import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 import { useAppConfig } from '../../config';
+import { formatFriendsForLine } from '../../utils/friendshipDuration';
 
 type LoadingState = 'loading' | 'loaded' | 'not_found' | 'error';
 
@@ -49,6 +50,7 @@ export function IdentityProfileView() {
   const [profile, setProfile] = useState<PublicIdentity | null>(null);
   const [loadState, setLoadState] = useState<LoadingState>('loading');
   const [friendStatus, setFriendStatus] = useState<FriendshipStatus>('none');
+  const [friendsSinceIso, setFriendsSinceIso] = useState<string | null>(null);
   const [friendActionLoading, setFriendActionLoading] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [achievements, setAchievements] = useState<PublicAchievement[]>([]);
@@ -108,8 +110,10 @@ export function IdentityProfileView() {
     if (!id || isSelf || !isIdentityLoggedIn) return;
 
     let cancelled = false;
-    getFriendStatus(id).then((status) => {
-      if (!cancelled) setFriendStatus(status);
+    getFriendStatus(id).then((result) => {
+      if (cancelled) return;
+      setFriendStatus(result.status);
+      setFriendsSinceIso(result.friendsSince ?? null);
     });
     return () => { cancelled = true; };
   }, [id, isSelf, isIdentityLoggedIn, getFriendStatus]);
@@ -156,7 +160,10 @@ export function IdentityProfileView() {
     if (!id || friendActionLoading) return;
     setFriendActionLoading(true);
     const ok = await removeFriend(id);
-    if (ok) setFriendStatus('none');
+    if (ok) {
+      setFriendStatus('none');
+      setFriendsSinceIso(null);
+    }
     setFriendActionLoading(false);
   }, [id, removeFriend, friendActionLoading]);
 
@@ -269,6 +276,14 @@ export function IdentityProfileView() {
                     {profile.displayName}
                   </h1>
                   <p className="profile-view-username">@{profile.username}</p>
+                  {friendStatus === 'friends' && friendsSinceIso && (
+                    <p
+                      className="profile-view-friendship"
+                      title={new Date(friendsSinceIso).toLocaleString()}
+                    >
+                      {formatFriendsForLine(friendsSinceIso, t)}
+                    </p>
+                  )}
                 </div>
                 {isSelf && (
                   <Link to="/identity/profile">
