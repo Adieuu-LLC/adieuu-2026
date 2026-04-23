@@ -214,6 +214,7 @@ export {
 export {
   ADIEUU_DEVICE_STATIC_ATTESTATION_V1,
   ADIEUU_DEVICE_TRUST_FINGERPRINT_V3,
+  DEVICE_TRUST_FINGERPRINT_DISPLAY_VERSION,
   encodeDeviceStaticKeyAttestationPreimage,
   signDeviceStaticKeyAttestation,
   verifyDeviceStaticKeyAttestation,

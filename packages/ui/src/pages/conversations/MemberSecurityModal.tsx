@@ -15,6 +15,7 @@ import {
   Portal,
 } from '@ark-ui/react';
 import { Switch } from '@ark-ui/react';
+import { DEVICE_TRUST_FINGERPRINT_DISPLAY_VERSION } from '@adieuu/crypto';
 import type { IdentityApi, IdentityPublicKeys } from '@adieuu/shared';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
@@ -289,7 +290,9 @@ export function MemberSecurityModal({
                                 {t('conversations.memberSecurity.deviceOrdinal', { n: row.ordinal })}
                               </span>
                               <span className="member-security-modal-device-id-label">
-                                {t('conversations.memberSecurity.deviceIdCaption')}
+                                {t('conversations.memberSecurity.deviceIdCaption', {
+                                  version: DEVICE_TRUST_FINGERPRINT_DISPLAY_VERSION,
+                                })}
                               </span>
                               <span className="member-security-modal-device-id">
                                 {abbreviateDeviceId(row.deviceId)}

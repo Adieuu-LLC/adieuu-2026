@@ -125,6 +125,7 @@ export interface PublicConversation {
    * Total stored message documents (incl. system and tombstones). Set on single-get, not on list.
    */
   messageCount?: number;
+  participantJoinedAtByIdentityId?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }
@@ -152,6 +153,17 @@ export function toPublicConversation(doc: ConversationDocument): PublicConversat
     ...(doc.pinnedMessageIds?.length
       ? {
           pinnedMessageIds: doc.pinnedMessageIds.map((id) => id.toHexString()),
+        }
+      : {}),
+    ...(doc.participantJoinedAtByIdentityId &&
+    Object.keys(doc.participantJoinedAtByIdentityId).length > 0
+      ? {
+          participantJoinedAtByIdentityId: Object.fromEntries(
+            Object.entries(doc.participantJoinedAtByIdentityId).map(([id, at]) => [
+              id,
+              at instanceof Date ? at.toISOString() : new Date(String(at)).toISOString(),
+            ])
+          ),
         }
       : {}),
     createdAt: doc.createdAt.toISOString(),

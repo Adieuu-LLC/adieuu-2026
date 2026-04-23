@@ -18,6 +18,9 @@ export const ADIEUU_DEVICE_STATIC_ATTESTATION_V1 = 'adieuu-device-static-v1';
 /** Domain tag for v3 device-trust display digest preimage. */
 export const ADIEUU_DEVICE_TRUST_FINGERPRINT_V3 = 'adieuu-device-trust-v3';
 
+/** User-visible scheme version for device-trust fingerprints (shown in security UI). */
+export const DEVICE_TRUST_FINGERPRINT_DISPLAY_VERSION = 3;
+
 function le32(n: number): Uint8Array {
   const b = new Uint8Array(4);
   new DataView(b.buffer).setUint32(0, n >>> 0, true);

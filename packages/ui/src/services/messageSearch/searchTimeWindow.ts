@@ -28,6 +28,25 @@ export function getSearchWindowRange(
   return { startMs: now - PRESET_TO_MS[preset], endMs };
 }
 
+/**
+ * Same as {@link getSearchWindowRange}, but messages before the viewer joined cannot be
+ * decrypted; clamp `startMs` to membership start when known.
+ */
+export function getEffectiveSearchWindowRange(
+  preset: MessageSearchTimeRangePresetId,
+  now: number,
+  selfParticipantJoinedAtMs: number | null | undefined
+): { startMs: number; endMs: number } {
+  const { startMs, endMs } = getSearchWindowRange(preset, now);
+  if (
+    selfParticipantJoinedAtMs == null ||
+    !Number.isFinite(selfParticipantJoinedAtMs)
+  ) {
+    return { startMs, endMs };
+  }
+  return { startMs: Math.max(startMs, selfParticipantJoinedAtMs), endMs };
+}
+
 export const MESSAGE_SEARCH_TIME_PRESETS: {
   id: MessageSearchTimeRangePresetId;
   i18nKey: string;

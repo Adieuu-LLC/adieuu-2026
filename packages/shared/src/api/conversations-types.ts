@@ -41,6 +41,11 @@ export interface PublicConversation {
    * Omitted in list responses; set on `GET /conversations/:id`.
    */
   messageCount?: number;
+  /**
+   * When each identity became a member (ISO timestamps). Clients should not search or
+   * page for ciphertext from before their own entry. Omitted on legacy rows until backfilled.
+   */
+  participantJoinedAtByIdentityId?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }

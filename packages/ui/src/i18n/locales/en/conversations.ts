@@ -157,7 +157,7 @@ export const conversations = {
       deviceListBlurbSelf:
         'Each block below is one of your devices. Agree which block you are comparing (the device id can help), then read your full line aloud so the other person can confirm it matches what they see for you anywhere in the app.',
       deviceOrdinal: 'Device {{n}}',
-      deviceIdCaption: 'Device ID',
+      deviceIdCaption: 'Device ID v{{version}}',
       loadError: 'Could not load security information.',
       noDevices: 'No devices are registered for this person yet, so there is nothing to compare (this is unlikely if the issue persists, contact Support).',
       noDevicesSelf:

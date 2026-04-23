@@ -30,7 +30,7 @@ import {
 import { searchMessageRows } from '../../services/messageSearch/messageSearchQuery';
 import {
   DEFAULT_SEARCH_TIME_PRESET,
-  getSearchWindowRange,
+  getEffectiveSearchWindowRange,
   MESSAGE_SEARCH_TIME_PRESETS,
 } from '../../services/messageSearch/searchTimeWindow';
 
@@ -53,6 +53,11 @@ export interface ConversationMessageSearchPanelProps {
   /** After local cache wipe; parent clears session flags. */
   onEndSearchSession: () => void;
   onPickMessage: (messageId: string) => void;
+  /**
+   * When known (from {@link PublicConversation.participantJoinedAtByIdentityId}), search
+   * and background fetch do not extend before this instant.
+   */
+  selfParticipantJoinedAtMs: number | null;
 }
 
 type Phase = 'hub' | 'criteria' | 'results';
@@ -90,6 +95,7 @@ export function ConversationMessageSearchPanel({
   olderCursor,
   onEndSearchSession,
   onPickMessage,
+  selfParticipantJoinedAtMs,
 }: ConversationMessageSearchPanelProps) {
   const { t } = useTranslation();
   const recentsInitial = useMemo(
@@ -162,13 +168,21 @@ export function ConversationMessageSearchPanel({
   }, [getActiveMessages]);
 
   const loadRowsFromIdb = useCallback(async () => {
-    const { startMs, endMs } = getSearchWindowRange(timePreset, Date.now());
+    const { startMs, endMs } = getEffectiveSearchWindowRange(
+      timePreset,
+      Date.now(),
+      selfParticipantJoinedAtMs
+    );
     const rows = await messageSearchCacheListConversation(conversationId, { startMs, endMs });
     setIndexRows(rows);
-  }, [conversationId, timePreset]);
+  }, [conversationId, timePreset, selfParticipantJoinedAtMs]);
 
   const fillWindowFromServer = useCallback(async () => {
-    const { startMs } = getSearchWindowRange(timePreset, Date.now());
+    const { startMs } = getEffectiveSearchWindowRange(
+      timePreset,
+      Date.now(),
+      selfParticipantJoinedAtMs
+    );
     for (let i = 0; i < 48; i++) {
       const list = getActiveMessages();
       const oldest = list[list.length - 1];
@@ -186,7 +200,14 @@ export function ConversationMessageSearchPanel({
       await loadOlder();
       await sleep(120);
     }
-  }, [getActiveMessages, loadOlder, messagesLoading, olderCursor, timePreset]);
+  }, [
+    getActiveMessages,
+    loadOlder,
+    messagesLoading,
+    olderCursor,
+    timePreset,
+    selfParticipantJoinedAtMs,
+  ]);
 
   const refreshIndex = useCallback(async () => {
     setBusy(true);
