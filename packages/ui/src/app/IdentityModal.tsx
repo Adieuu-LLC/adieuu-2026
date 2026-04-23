@@ -93,6 +93,10 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   };
 
   const handleClose = () => {
+    // Web device choice renders in a portal; clicks can still hit this overlay.
+    // Never dismiss the identity shell until the user confirms that flow.
+    if (webDeviceChoiceOpen) return;
+
     resetForm();
     setView(unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose');
     onClose();
