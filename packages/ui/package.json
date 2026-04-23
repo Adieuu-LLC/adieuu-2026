@@ -1,6 +1,6 @@
 {
   "name": "@adieuu/ui",
-  "version": "0.1.103",
+  "version": "0.1.104",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
