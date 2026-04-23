@@ -65,6 +65,8 @@ export interface ConversationsContextValue {
 
   setActiveConversation: (id: string | null) => void;
   setIsAtBottom: (value: boolean) => void;
+  /** Merges `GET /conversations/:id` (e.g. `messageCount`) into local state. */
+  fetchConversationById: (conversationId: string) => Promise<void>;
   markConversationRead: (conversationId: string) => void;
 
   createDM: (

@@ -41,8 +41,10 @@ function resetMocks() {
   mockSort.mockReset();
   mockLimit.mockReset();
   mockToArray.mockReset();
+  mockCollection.countDocuments.mockReset();
 
   mockToArray.mockResolvedValue([]);
+  mockCollection.countDocuments.mockResolvedValue(0);
   mockLimit.mockReturnValue({ toArray: mockToArray });
   mockSort.mockReturnValue({ limit: mockLimit });
   mockFind.mockReturnValue({ sort: mockSort });
@@ -97,5 +99,14 @@ describe('MessageRepository', () => {
       conversationId,
       _id: { $gt: cursor },
     });
+  });
+
+  test('countByConversation counts only by conversationId', async () => {
+    mockCollection.countDocuments.mockResolvedValueOnce(42);
+    const repo = new MessageRepository();
+    const n = await repo.countByConversation(conversationId);
+
+    expect(n).toBe(42);
+    expect(mockCollection.countDocuments).toHaveBeenCalledWith({ conversationId });
   });
 });

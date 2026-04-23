@@ -36,6 +36,11 @@ export interface PublicConversation {
    */
   disallowPersistentMessageSearchCache?: boolean;
   pinnedMessageIds?: string[];
+  /**
+   * Total stored message documents for this thread (incl. system and tombstones).
+   * Omitted in list responses; set on `GET /conversations/:id`.
+   */
+  messageCount?: number;
   createdAt: string;
   updatedAt: string;
 }

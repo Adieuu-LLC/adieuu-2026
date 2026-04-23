@@ -12,6 +12,8 @@ mock.module('../../services/messagePayload', () => ({
   },
 }));
 
+const { formatConversationSinceDate } = await import('./conversationUtils');
+
 const {
   getReversedVisibleMessages,
   getLastMessagePreviewText,
@@ -136,5 +138,32 @@ describe('getConversationHeaderCopy', () => {
     );
     expect(otherParticipantIds).toEqual(['other']);
     expect(displayName).toContain('Bob');
+  });
+
+  test('uses messages-since subtitle when messageCount is set', () => {
+    const createdAt = '2001-02-21T00:00:00.000Z';
+    const t = (k: string, o: { count: number; date: string } | string) => {
+      if (typeof o === 'string') return o;
+      if (k === 'conversations.headerSubtitleMessagesSince') {
+        return `${o.count} messages since ${o.date}`;
+      }
+      return k;
+    };
+    const { subtitle } = getConversationHeaderCopy(
+      {
+        type: 'group',
+        participants: ['a', 'b'],
+        messageCount: 251,
+        createdAt,
+        decryptedName: 'Team',
+        encryptedName: 'x',
+        nameNonce: 'n',
+      } as any,
+      'a',
+      {},
+      {},
+      t as any,
+    );
+    expect(subtitle).toBe(`251 messages since ${formatConversationSinceDate(createdAt)}`);
   });
 });

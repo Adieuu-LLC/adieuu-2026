@@ -201,10 +201,32 @@
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
   }
 
-  &-btn--icon-only.btn-sm {
-    min-width: 2.25rem;
-    padding: var(--spacing-xs);
-    justify-content: center;
+  &-btn--icon-only {
+    transition:
+      color var(--transition-fast),
+      background-color var(--transition-fast);
+
+    &.btn-sm {
+      min-width: 2.25rem;
+      padding: var(--spacing-xs);
+      justify-content: center;
+    }
+
+    &:hover:not(:disabled),
+    &:focus-visible {
+      color: var(--color-accent-primary);
+      background: color-mix(in srgb, var(--color-accent-primary) 10%, var(--color-bg-primary));
+    }
+
+    &.active {
+      color: var(--color-accent-primary);
+      background: color-mix(in srgb, var(--color-accent-primary) 16%, var(--color-bg-primary));
+    }
+
+    .conversation-toolbar-btn-icon {
+      color: inherit;
+      opacity: 1;
+    }
   }
 }
 

@@ -506,7 +506,7 @@ export const MessageBubble = memo(function MessageBubble({
 
     const messageRow = (
       <div
-        className={`dm-message dm-message--linear${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
+        className={`dm-message dm-message--linear${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
         style={linearHoverStyle}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => {
@@ -555,7 +555,8 @@ export const MessageBubble = memo(function MessageBubble({
             {deviceSignatureTrustIcon}
             {isPinned && (
               <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
-                <Icon name="locationPin" />
+                <Icon name="locationPin" size="sm" />
+                <span className="dm-message-pin-indicator__label">{t('conversations.pinnedMessage', 'Pinned')}</span>
               </span>
             )}
             {message.forwardSecrecy !== undefined && (
@@ -644,7 +645,7 @@ export const MessageBubble = memo(function MessageBubble({
 
   const bubbleRow = (
     <div
-      className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
+      className={`dm-message${applyOwnAlignment ? ' dm-message--own' : ''}${isPinned ? ' dm-message--pinned' : ''}${isFlashHighlight ? ' dm-message--flash-highlight' : ''}`}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => {
         if (!actionBarPopoverOpen) setShowActions(false);
@@ -725,7 +726,8 @@ export const MessageBubble = memo(function MessageBubble({
         {deviceSignatureTrustIcon}
         {isPinned && (
           <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
-            <Icon name="locationPin" />
+            <Icon name="locationPin" size="sm" />
+            <span className="dm-message-pin-indicator__label">{t('conversations.pinnedMessage', 'Pinned')}</span>
           </span>
         )}
         {message.forwardSecrecy !== undefined && (

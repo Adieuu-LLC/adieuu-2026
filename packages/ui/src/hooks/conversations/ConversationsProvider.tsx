@@ -234,6 +234,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
 
   const {
     fetchConversations,
+    fetchConversationById,
     fetchMessages,
     fetchMessagesAround,
     ensureReplyParentHydration,
@@ -539,6 +540,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       sending,
       setActiveConversation,
       setIsAtBottom,
+      fetchConversationById,
       markConversationRead,
       createDM,
       createGroup,
@@ -581,7 +583,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     conversations, activeConversationId, messagesState, replyParentHydration, invites,
     pendingInvitesRefreshSignal,
     participantProfiles, loading, sending,
-    setActiveConversation, setIsAtBottom, markConversationRead,
+    setActiveConversation, setIsAtBottom, fetchConversationById, markConversationRead,
     createDM, createGroup, sendTextMessage, computeAtLiveTail, loadOlder, loadNewer, jumpToLatestMessages,
     fetchMessagesAround, ensureReplyParentHydration, loadPinnedMessagesPage,
     deleteMessage, addMember, removeMember, leaveGroup, renameGroup,

@@ -36,10 +36,23 @@
 .dm-message-pin-indicator {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   margin-left: var(--spacing-xs);
-  color: var(--color-text-secondary);
-  opacity: 0.85;
-  font-size: 0.75em;
+  color: var(--color-accent-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.2;
+
+  svg {
+    flex-shrink: 0;
+    width: 0.85em;
+    height: 0.85em;
+    opacity: 0.95;
+  }
+
+  &__label {
+    white-space: nowrap;
+  }
 }
 
 .dm-message-signature-trust {
@@ -262,6 +275,28 @@
         right: var(--spacing-sm);
         left: auto;
         transform: none;
+      }
+    }
+
+    &--pinned {
+      box-shadow: inset 3px 0 0 0 var(--color-accent-primary);
+      background: color-mix(in srgb, var(--color-accent-primary) 7%, var(--color-bg-primary));
+
+      &.dm-message--linear:hover {
+        background: color-mix(
+          in srgb,
+          var(--color-accent-primary) 9%,
+          var(--member-hover-bg, var(--color-bg-hover))
+        );
+      }
+
+      &:not(.dm-message--linear) {
+        padding: var(--spacing-xxs) 0;
+        border-radius: var(--radius-md);
+      }
+
+      &.dm-message--own:not(.dm-message--linear) {
+        background: color-mix(in srgb, var(--color-accent-primary) 10%, var(--color-bg-primary));
       }
     }
 

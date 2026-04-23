@@ -121,6 +121,10 @@ export interface PublicConversation {
   gifsDisabled?: boolean;
   disallowPersistentMessageSearchCache?: boolean;
   pinnedMessageIds?: string[];
+  /**
+   * Total stored message documents (incl. system and tombstones). Set on single-get, not on list.
+   */
+  messageCount?: number;
   createdAt: string;
   updatedAt: string;
 }

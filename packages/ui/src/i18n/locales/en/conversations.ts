@@ -47,6 +47,8 @@ export const conversations = {
     group: 'Group',
     members: 'Members',
     directMessage: 'Direct message',
+    /** Header subtitle when `messageCount` is known (from GET /conversations/:id). */
+    headerSubtitleMessagesSince: '{{count}} messages since {{date}}',
     settings: 'Settings',
     settingsTabPersonal: 'For you',
     settingsTabConversation: 'Conversation',

@@ -4,7 +4,7 @@ import type { DisplayMessage } from '../../hooks/useConversations';
 import type { DecryptedConversation } from '../../hooks/conversations/types';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import { parsePayload } from '../../services/messagePayload';
-import { type ChatItem, isSameDay } from './conversationUtils';
+import { type ChatItem, formatConversationSinceDate, isSameDay } from './conversationUtils';
 import type { MediaOutboxJobRecord } from '../../services/mediaOutbox/mediaOutboxTypes';
 
 const PENDING_OUTBOX_INLINE_STAGES = new Set<MediaOutboxJobRecord['stage']>([
@@ -137,9 +137,14 @@ export function getConversationHeaderCopy(
         : otherParticipantIds.map(resolveToolbarName).join(', ');
 
   const subtitle =
-    conversation.type === 'group'
-      ? `${conversation.participants.length} ${t('conversations.members', 'members')}`
-      : t('conversations.directMessage', 'Direct message');
+    conversation.messageCount !== undefined
+      ? t('conversations.headerSubtitleMessagesSince', {
+          count: conversation.messageCount,
+          date: formatConversationSinceDate(conversation.createdAt),
+        })
+      : conversation.type === 'group'
+        ? `${conversation.participants.length} ${t('conversations.members', 'members')}`
+        : t('conversations.directMessage', 'Direct message');
 
   return { otherParticipantIds, displayName, subtitle };
 }

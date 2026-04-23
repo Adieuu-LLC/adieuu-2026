@@ -38,6 +38,11 @@ export interface IMessageRepository {
   markDeletedForEveryone(messageId: ObjectId): Promise<boolean>;
   markDeletedForIdentity(messageId: ObjectId, identityId: ObjectId): Promise<boolean>;
   deleteByConversation(conversationId: ObjectId): Promise<number>;
+  /**
+   * All message documents for the conversation, with no filter on type or deletion flags
+   * (avoids splitting totals into an enumerable side channel).
+   */
+  countByConversation(conversationId: ObjectId): Promise<number>;
   countByParticipant(conversationId: ObjectId, identityId: ObjectId): Promise<number>;
   hasMessageNewerThan(
     conversationId: ObjectId,
@@ -272,6 +277,12 @@ export class MessageRepository
       .sort({ _id: 1 })
       .limit(limit)
       .toArray() as MessageDocument[];
+  }
+
+  async countByConversation(conversationId: ObjectId): Promise<number> {
+    return await this.collection.countDocuments({ conversationId } as Parameters<
+      typeof this.collection.countDocuments
+    >[0]);
   }
 
   /**

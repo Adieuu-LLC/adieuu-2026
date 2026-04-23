@@ -162,6 +162,15 @@ export function formatMessageTime(dateStr: string): string {
   return `${date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })} at ${time}`;
 }
 
+/** Locale-aware calendar date for conversation header "since …" (no time of day). */
+export function formatConversationSinceDate(iso: string): string {
+  return new Date(iso).toLocaleDateString([], {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 export function formatAbsoluteTime(dateStr: string): string {
   return new Date(dateStr).toLocaleString([], {
     weekday: 'long',

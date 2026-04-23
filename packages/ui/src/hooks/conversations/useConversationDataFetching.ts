@@ -599,8 +599,30 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
     await Promise.all([fetchConversations(), fetchInvites()]);
   }, [fetchConversations, fetchInvites]);
 
+  const fetchConversationById = useCallback(
+    async (conversationId: string) => {
+      if (!isLoggedIn) return;
+      try {
+        const resp = await api.conversations.get(conversationId);
+        if (!resp.data) return;
+        const next = toDecrypted(resp.data);
+        void resolveParticipants(next.participants);
+        setConversations((prev) => {
+          const i = prev.findIndex((c) => c.id === conversationId);
+          if (i === -1) return [...prev, { ...next, unreadCount: 0 }];
+          const prevRow = prev[i]!;
+          return prev.map((c) => (c.id === conversationId ? { ...next, unreadCount: prevRow.unreadCount } : c));
+        });
+      } catch (err) {
+        console.error('[useConversations] fetchConversationById failed', { conversationId }, err);
+      }
+    },
+    [isLoggedIn, api, toDecrypted, setConversations, resolveParticipants]
+  );
+
   return {
     fetchConversations,
+    fetchConversationById,
     fetchMessages,
     fetchMessagesAround,
     ensureReplyParentHydration,

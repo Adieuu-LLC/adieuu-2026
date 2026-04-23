@@ -47,6 +47,7 @@ import {
 import { getConversationPreferencesRepository } from '../../repositories/conversation-preferences.repository';
 import { toPublicConversationPreferences } from '../../models/conversation-preferences';
 import { ObjectId } from 'mongodb';
+import { getMessageRepository } from '../../repositories/message.repository';
 import { z } from '@adieuu/shared/schemas';
 import { isValidObjectId } from '../../utils';
 import type { PublicMessage } from '../../models/message';
@@ -402,7 +403,9 @@ router.get('/conversations/:id', async (ctx) => {
     return errors.badRequest(result.error ?? 'Failed to get conversation.');
   }
 
-  return success(result.conversation);
+  const messageRepo = getMessageRepository();
+  const messageCount = await messageRepo.countByConversation(new ObjectId(sanitized.value));
+  return success({ ...result.conversation, messageCount });
 });
 
 /**

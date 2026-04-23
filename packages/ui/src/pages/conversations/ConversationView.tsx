@@ -85,6 +85,7 @@ export function ConversationView() {
     participantProfiles,
     setActiveConversation,
     setIsAtBottom,
+    fetchConversationById,
     markConversationRead,
     sendTextMessage,
     loadOlder,
@@ -159,6 +160,11 @@ export function ConversationView() {
       registerConversationOutboxHooks(id, null);
     };
   }, [id, markJustSent, scrollToBottom, registerConversationOutboxHooks]);
+
+  useEffect(() => {
+    if (!id) return;
+    void fetchConversationById(id);
+  }, [id, fetchConversationById]);
 
   const [replyingTo, setReplyingTo] = useState<DisplayMessage | null>(null);
   const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
