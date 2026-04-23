@@ -4,16 +4,27 @@ import { useTranslation } from 'react-i18next';
 import { useSidebar } from '../../components/Sidebar';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth, type AuthStatus } from '../../hooks/useAuth';
+import type { IdentityStatus } from '../../hooks/useIdentity.types';
 import { useIdentity } from '../../hooks/useIdentity';
 import { IdentityModal } from '../IdentityModal';
 import { SuspensionModal } from '../../components/SuspensionModal';
+
+/** Account routes and sidebar entry are for account (OTP) sessions only, not while in an active alias context. */
+export function isAccountSidebarHidden(authStatus: AuthStatus, identityStatus: IdentityStatus): boolean {
+  return (
+    authStatus === 'identity_mode' ||
+    identityStatus === 'logged_in' ||
+    identityStatus === 'locked' ||
+    identityStatus === 'suspended'
+  );
+}
 
 export function AccountFlyout() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, status: authStatus } = useAuth();
   const { isExpanded, closeMobile } = useSidebar();
   const { status: identityStatus } = useIdentity();
 
@@ -30,7 +41,7 @@ export function AccountFlyout() {
     closeMobile();
   };
 
-  if (identityStatus === 'logged_in') {
+  if (isAccountSidebarHidden(authStatus, identityStatus)) {
     return null;
   }
 

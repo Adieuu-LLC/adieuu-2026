@@ -415,9 +415,6 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
             </form>
 
             <div className="identity-modal-footer">
-              <Button variant="ghost" size="sm" disabled={loading} onClick={() => setView('login')}>
-                {t('identity.unlock.loginDifferent')}
-              </Button>
               <Button
                 variant="ghost"
                 size="sm"

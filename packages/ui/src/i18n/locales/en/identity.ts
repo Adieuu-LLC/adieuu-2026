@@ -295,7 +295,6 @@ export const identity = {
       submitButton: 'Unlock',
       success: 'Unlocked!',
       errorInvalid: 'Invalid password. Please try again.',
-      loginDifferent: 'Login to a different alias',
       logoutButton: 'Fully Logout',
     },
     // Delete confirmation

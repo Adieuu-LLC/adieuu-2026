@@ -25,6 +25,7 @@ import {
 import { ServiceStatus } from '../pages/ServiceStatus';
 import { ConversationView, NewConversation } from '../pages/conversations';
 import { useAuth } from '../hooks/useAuth';
+import { isAccountSidebarHidden } from './sidebar/identity';
 import { TourProvider, useTourContext, useAppearanceTour } from '../hooks/useTourContext';
 import { CipherStoreProvider } from '../hooks/useCipherStore';
 import { ChatSocketProvider } from '../hooks/useChatSocket';
@@ -131,12 +132,14 @@ function ProtectedLayoutContent() {
  * Auth route wrapper - redirects to home if already authenticated
  */
 /**
- * Account routes (email/phone session, MFA, billing-adjacent controls) are hidden
- * while the user has their alias unlocked — same rule as the account flyout in the sidebar.
+ * Account routes (email/phone session, MFA, billing-adjacent controls) are not available
+ * in an active alias context (identity session, unlocked alias, lock screen, or suspension)
+ * — same rule as the account flyout in the sidebar.
  */
 function AccountSessionOnlyOutlet() {
+  const { status: authStatus } = useAuth();
   const { status: identityStatus } = useIdentity();
-  if (identityStatus === 'logged_in') {
+  if (isAccountSidebarHidden(authStatus, identityStatus)) {
     return <Navigate to="/identity/profile" replace />;
   }
   return <Outlet />;
