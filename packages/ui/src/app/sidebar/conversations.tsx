@@ -12,6 +12,7 @@ import { SidebarConversationDmHoverCard } from './SidebarConversationDmHoverCard
 import { GroupConversationSidebarHoverCard } from './GroupConversationSidebarHoverCard';
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { useConversations, type DecryptedConversation } from '../../hooks/useConversations';
+import { getSidebarListAvatarMemberIds } from '../../pages/conversations/conversationViewModel';
 import { useConversationPreferences } from '../../hooks/useConversationPreferences';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useTheme } from '../../hooks/useTheme';
@@ -203,29 +204,51 @@ function ConversationListItem({
     return p?.displayName ?? p?.username ?? pid;
   };
 
-  const avatarMembers = otherParticipants.slice(0, 3);
+  const listAvatarPids = getSidebarListAvatarMemberIds(
+    isGroup,
+    conversation.participants,
+    identity?.id,
+  );
+
+  const singleLargeAvatar = (opts: { withDmBadge: boolean }) => (
+    <div className="conversation-list-item-avatar">
+      {listAvatarPids[0] && participantProfiles[listAvatarPids[0]!]?.avatarUrl ? (
+        <img
+          src={participantProfiles[listAvatarPids[0]!]!.avatarUrl!}
+          alt=""
+          className="conversation-list-item-avatar-img"
+        />
+      ) : (
+        <span className="conversation-list-item-avatar-placeholder">
+          {displayName.charAt(0).toUpperCase()}
+        </span>
+      )}
+      {opts.withDmBadge ? <span className="conversation-list-item-dm-badge">DM</span> : null}
+    </div>
+  );
 
   const avatarEl = isDm ? (
-    <div className="conversation-list-item-avatar">
-      <span className="conversation-list-item-avatar-placeholder">
-        {displayName.charAt(0).toUpperCase()}
-      </span>
-      <span className="conversation-list-item-dm-badge">DM</span>
-    </div>
-  ) : avatarMembers.length > 1 ? (
+    singleLargeAvatar({ withDmBadge: true })
+  ) : listAvatarPids.length > 1 ? (
     <div className="conversation-list-item-avatar-stack">
-      {avatarMembers.map((pid) => (
-        <span key={pid} className="conversation-list-item-avatar-stack-item">
-          {resolveDisplay(pid).charAt(0).toUpperCase()}
-        </span>
-      ))}
+      {listAvatarPids.map((pid) => {
+        const p = participantProfiles[pid];
+        const initial = resolveDisplay(pid).charAt(0).toUpperCase();
+        return (
+          <span key={pid} className="conversation-list-item-avatar-stack-item">
+            {p?.avatarUrl ? (
+              <img src={p.avatarUrl} alt="" className="conversation-list-item-avatar-stack-item-img" />
+            ) : (
+              <span className="conversation-list-item-avatar-stack-item-placeholder">
+                {initial}
+              </span>
+            )}
+          </span>
+        );
+      })}
     </div>
   ) : (
-    <div className="conversation-list-item-avatar">
-      <span className="conversation-list-item-avatar-placeholder">
-        {displayName.charAt(0).toUpperCase()}
-      </span>
-    </div>
+    singleLargeAvatar({ withDmBadge: false })
   );
 
   const itemClasses = [

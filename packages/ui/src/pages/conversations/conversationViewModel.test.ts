@@ -20,6 +20,8 @@ const {
   mergePendingOutboxIntoFlatItems,
   getConversationHeaderCopy,
   formatPinPreviewForToolbar,
+  getToolbarAvatarMemberIds,
+  getSidebarListAvatarMemberIds,
 } = await import('./conversationViewModel');
 
 const tFn = (key: string, fallbackOrOpts: string | Record<string, unknown>) => {
@@ -54,6 +56,38 @@ describe('getLastMessagePreviewText', () => {
       { id: '2', messageType: 'user' as const, deleted: false, decryptedContent: '{"text":"hello"}' },
     ];
     expect(getLastMessagePreviewText(messages as any)).toBe('hello');
+  });
+});
+
+describe('getToolbarAvatarMemberIds', () => {
+  test('1:1 dm uses the other participant', () => {
+    expect(
+      getToolbarAvatarMemberIds('dm', ['self', 'u1'], 'self'),
+    ).toEqual(['u1']);
+  });
+
+  test('group uses first 3 members in list order', () => {
+    expect(
+      getToolbarAvatarMemberIds('group', ['a', 'b', 'c', 'd'], undefined),
+    ).toEqual(['a', 'b', 'c']);
+  });
+
+  test('group with two people shows both members (stack of 2)', () => {
+    expect(getToolbarAvatarMemberIds('group', ['a', 'b'], 'a')).toEqual(['a', 'b']);
+  });
+});
+
+describe('getSidebarListAvatarMemberIds', () => {
+  test('dm: single other', () => {
+    expect(getSidebarListAvatarMemberIds(false, ['a', 'self'], 'self')).toEqual(['a']);
+  });
+
+  test('group: first 3 members in list order', () => {
+    expect(getSidebarListAvatarMemberIds(true, ['a', 'b', 'c', 'd'], undefined)).toEqual(['a', 'b', 'c']);
+  });
+
+  test('group with two people shows both in stack', () => {
+    expect(getSidebarListAvatarMemberIds(true, ['a', 'b'], 'a')).toEqual(['a', 'b']);
   });
 });
 

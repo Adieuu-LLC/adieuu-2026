@@ -49,6 +49,51 @@ export function getReversedVisibleMessages(
     });
 }
 
+/**
+ * Header avatars: same order as the members list (`participants` array).
+ * Group with exactly two people: both members (stack of 2). Larger groups: first 3 members.
+ * DM: the sole other in 1:1; otherwise up to 3 other participants in list order.
+ */
+export function getToolbarAvatarMemberIds(
+  conversationType: 'dm' | 'group',
+  participants: string[],
+  identityId: string | undefined,
+): string[] {
+  if (participants.length === 0) return [];
+  if (conversationType === 'group') {
+    if (participants.length === 2) {
+      return participants.slice(0, 2);
+    }
+    return participants.slice(0, 3);
+  }
+  const others = participants.filter((p) => p !== identityId);
+  if (others.length === 0) return [];
+  if (others.length === 1) {
+    return [others[0]!];
+  }
+  return others.slice(0, 3);
+}
+
+/**
+ * Conversation list avatars: same member-order rules as the toolbar, without needing message state.
+ */
+export function getSidebarListAvatarMemberIds(
+  isGroup: boolean,
+  participants: string[],
+  identityId: string | undefined,
+): string[] {
+  if (!isGroup) {
+    const others = participants.filter((p) => p !== identityId);
+    if (others.length === 0) return [];
+    return [others[0]!];
+  }
+  if (participants.length === 0) return [];
+  if (participants.length === 2) {
+    return participants.slice(0, 2);
+  }
+  return participants.slice(0, 3);
+}
+
 export function getLastMessagePreviewText(activeMessages: DisplayMessage[]): string | undefined {
   for (let i = activeMessages.length - 1; i >= 0; i--) {
     const msg = activeMessages[i]!;

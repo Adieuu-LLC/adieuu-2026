@@ -691,7 +691,8 @@
     padding: var(--spacing-xs) var(--spacing-sm);
     min-height: 48px;
 
-    &-avatar {
+    &-avatar,
+    &-avatar-group {
       width: 32px;
       height: 32px;
     }

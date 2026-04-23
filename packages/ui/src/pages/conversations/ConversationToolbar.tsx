@@ -5,8 +5,50 @@ import { Button } from '../../components/Button';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 
+export type ConversationToolbarAvatarMember = {
+  id: string;
+  displayName: string;
+  avatarUrl?: string;
+};
+
+function ToolbarAvatarOrStack({ members, titleFallbackLetter }: { members: ConversationToolbarAvatarMember[]; titleFallbackLetter: string }) {
+  if (members.length === 0) {
+    return (
+      <span className="conversation-toolbar-avatar-placeholder">
+        {titleFallbackLetter}
+      </span>
+    );
+  }
+  if (members.length === 1) {
+    const m = members[0]!;
+    return m.avatarUrl ? (
+      <img src={m.avatarUrl} alt="" className="conversation-toolbar-avatar-img" />
+    ) : (
+      <span className="conversation-toolbar-avatar-placeholder">
+        {m.displayName.charAt(0).toUpperCase()}
+      </span>
+    );
+  }
+  return (
+    <div className="conversation-toolbar-avatar-stack">
+      {members.map((m) => (
+        <span key={m.id} className="conversation-toolbar-avatar-stack-item">
+          {m.avatarUrl ? (
+            <img src={m.avatarUrl} alt="" className="conversation-toolbar-avatar-stack-item-img" />
+          ) : (
+            <span className="conversation-toolbar-avatar-stack-item-placeholder">
+              {m.displayName.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function ConversationToolbar({
   displayName,
+  avatarMembers,
   subtitle,
   pinsSlot,
   searchSlot,
@@ -22,6 +64,8 @@ export function ConversationToolbar({
   onLeave,
 }: {
   displayName: string;
+  /** Resolved participant avatars for the left chip (1 image or a stack for groups / multi-DM). */
+  avatarMembers?: ConversationToolbarAvatarMember[];
   /** Plain fallback (members / “Direct message”) or rich node (e.g. latest pin control). */
   subtitle: ReactNode;
   /** Pinned messages popover control (toolbar icon). */
@@ -48,10 +92,18 @@ export function ConversationToolbar({
   return (
     <div className="conversation-toolbar">
       <div className="conversation-toolbar-left">
-        <div className="conversation-toolbar-avatar">
-          <span className="conversation-toolbar-avatar-placeholder">
-            {displayName.charAt(0).toUpperCase()}
-          </span>
+        <div
+          className={
+            avatarMembers && avatarMembers.length > 1
+              ? 'conversation-toolbar-avatar-group'
+              : 'conversation-toolbar-avatar'
+          }
+          aria-hidden
+        >
+          <ToolbarAvatarOrStack
+            members={avatarMembers ?? []}
+            titleFallbackLetter={displayName.charAt(0).toUpperCase()}
+          />
         </div>
         <div className="conversation-toolbar-info">
           <span className="conversation-toolbar-title">{displayName}</span>

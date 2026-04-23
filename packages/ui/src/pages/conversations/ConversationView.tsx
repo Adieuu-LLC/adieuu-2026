@@ -58,7 +58,9 @@ import {
   getConversationHeaderCopy,
   getLastMessagePreviewText,
   getReversedVisibleMessages,
+  getToolbarAvatarMemberIds,
   mergePendingOutboxIntoFlatItems,
+  resolveToolbarParticipantName,
 } from './conversationViewModel';
 import { ConversationPinsMenu } from './ConversationPinsMenu';
 import { useMediaOutbox, useMediaOutboxJobList } from '../../services/mediaOutbox';
@@ -431,6 +433,20 @@ export function ConversationView() {
     );
   }, [conversation, identity?.id, participantProfiles, memberSettings, t]);
 
+  const toolbarAvatarMembers = useMemo(() => {
+    if (!conversation) return [];
+    const ids = getToolbarAvatarMemberIds(
+      conversation.type,
+      conversation.participants,
+      identity?.id,
+    );
+    return ids.map((pid) => ({
+      id: pid,
+      displayName: resolveToolbarParticipantName(pid, memberSettings, participantProfiles),
+      avatarUrl: participantProfiles[pid]?.avatarUrl,
+    }));
+  }, [conversation, identity?.id, memberSettings, participantProfiles]);
+
   const pinnedIdsKey = useMemo(
     () => (conversation?.pinnedMessageIds ?? []).join(','),
     [conversation?.pinnedMessageIds]
@@ -723,6 +739,7 @@ export function ConversationView() {
         <div className="conversation-container">
           <ConversationToolbar
             displayName={displayName}
+            avatarMembers={toolbarAvatarMembers}
             subtitle={toolbarSubtitle!}
             pinsSlot={
               <ConversationPinsMenu

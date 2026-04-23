@@ -84,6 +84,69 @@
       }
     }
 
+    // Multi-member group avatars: no single large circle/letter (only the stacked chips).
+    &-avatar-group {
+      position: relative;
+      width: 40px;
+      height: 36px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+      overflow: visible;
+    }
+
+    &-avatar-stack {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-width: 40px;
+      min-height: 32px;
+    }
+
+    &-avatar-stack-item {
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--color-bg-tertiary);
+      border: 2px solid var(--color-bg-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+
+      &:nth-child(1) {
+        top: 0;
+        left: 0;
+        z-index: 3;
+      }
+
+      &:nth-child(2) {
+        top: 4px;
+        left: 10px;
+        z-index: 2;
+      }
+
+      &:nth-child(3) {
+        top: 10px;
+        left: 2px;
+        z-index: 1;
+      }
+    }
+
+    &-avatar-stack-item-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    &-avatar-stack-item-placeholder {
+      font-size: 9px;
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text-muted);
+    }
+
     &-info {
       display: flex;
       flex-direction: column;
