@@ -10,12 +10,19 @@
  * - error: generic error state with retry
  */
 
-import { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, memo, useMemo, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { MediaAttachment } from '../services/messagePayload';
+import {
+  getContainedMediaDisplaySize,
+  MEDIA_MESSAGE_INLINE_MAX_PX,
+} from '../utils/mediaMessageDisplaySize';
 
 export type MediaMessageState = 'loading' | 'uploading' | 'scanning' | 'available' | 'rejected' | 'error';
+
+/** `grid`: multi-attachment tile (tighter cap, see .dm-message-attachments). */
+export type MediaMessageLayout = 'default' | 'grid';
 
 export interface MediaMessageProps {
   attachment: MediaAttachment;
@@ -28,6 +35,8 @@ export interface MediaMessageProps {
   /** Error message */
   errorMessage?: string;
   onRetry?: () => void;
+  /** Layout context so placeholder size matches the eventual media box */
+  layout?: MediaMessageLayout;
 }
 
 export const MediaMessage = memo(function MediaMessage({
@@ -38,6 +47,7 @@ export const MediaMessage = memo(function MediaMessage({
   rejectionReason,
   errorMessage,
   onRetry,
+  layout = 'default',
 }: MediaMessageProps) {
   const { t } = useTranslation();
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -74,6 +84,42 @@ export const MediaMessage = memo(function MediaMessage({
       ? `${attachment.width} / ${attachment.height}`
       : undefined;
 
+  /** Same "contain" box as .media-message-image / grid tile so loading UI is not full-width then very tall. */
+  const { placeholderSizeStyle, placeholderClassName } = useMemo(() => {
+    const w = attachment.width;
+    const h = attachment.height;
+    if (!w || !h) {
+      return { placeholderSizeStyle: undefined as CSSProperties | undefined, placeholderClassName: '' };
+    }
+    const maxW = layout === 'grid' ? 280 : MEDIA_MESSAGE_INLINE_MAX_PX;
+    const maxH = layout === 'grid' ? 200 : MEDIA_MESSAGE_INLINE_MAX_PX;
+    const { width, height } = getContainedMediaDisplaySize(w, h, maxW, maxH);
+    if (width <= 0 || height <= 0) {
+      return { placeholderSizeStyle: undefined, placeholderClassName: '' };
+    }
+    return {
+      placeholderSizeStyle: {
+        width,
+        height,
+        maxWidth: '100%',
+        boxSizing: 'border-box' as const,
+      },
+      placeholderClassName: 'media-message-placeholder--sized',
+    };
+  }, [attachment.width, attachment.height, layout]);
+
+  const phClass = (extra?: string) =>
+    `media-message-placeholder${placeholderClassName ? ` ${placeholderClassName}` : ''}${extra ? ` ${extra}` : ''}`;
+
+  const mergePlaceholderStyle = (base?: CSSProperties): CSSProperties =>
+    placeholderSizeStyle ? { ...base, ...placeholderSizeStyle } : { ...base, aspectRatio };
+
+  const imageSizeStyle: CSSProperties | undefined = placeholderSizeStyle
+    ? { width: placeholderSizeStyle.width, height: placeholderSizeStyle.height, maxWidth: '100%' }
+    : aspectRatio
+      ? { aspectRatio }
+      : undefined;
+
   return (
     <div
       className="media-message"
@@ -81,7 +127,7 @@ export const MediaMessage = memo(function MediaMessage({
       data-e2e-media-id={attachment.e2eMediaId}
     >
       {state === 'loading' && (
-        <div className="media-message-placeholder" style={{ aspectRatio }}>
+        <div className={phClass()} style={mergePlaceholderStyle()}>
           <span className="media-message-spinner" />
           <span className="media-message-status-text">
             {t('conversations.mediaLoading', 'Loading...')}
@@ -90,7 +136,7 @@ export const MediaMessage = memo(function MediaMessage({
       )}
 
       {state === 'uploading' && (
-        <div className="media-message-placeholder" style={{ aspectRatio }}>
+        <div className={phClass()} style={mergePlaceholderStyle()}>
           <div className="media-message-progress">
             <div
               className="media-message-progress-bar"
@@ -104,7 +150,7 @@ export const MediaMessage = memo(function MediaMessage({
       )}
 
       {state === 'scanning' && (
-        <div className="media-message-placeholder" style={{ aspectRatio }}>
+        <div className={phClass()} style={mergePlaceholderStyle()}>
           <span className="media-message-spinner" />
           <span className="media-message-status-text">
             {t('conversations.mediaScanning', 'Awaiting moderation...')}
@@ -124,12 +170,10 @@ export const MediaMessage = memo(function MediaMessage({
             src={imageUrl}
             alt={attachment.fileName ?? ''}
             className="media-message-image"
-            style={{ aspectRatio, opacity: loaded ? 1 : 0 }}
+            style={{ ...imageSizeStyle, opacity: loaded ? 1 : 0 }}
             onLoad={() => setLoaded(true)}
           />
-          {!loaded && (
-            <div className="media-message-placeholder" style={{ aspectRatio }} />
-          )}
+          {!loaded && <div className={phClass()} style={mergePlaceholderStyle()} />}
         </button>
       )}
 
@@ -140,7 +184,7 @@ export const MediaMessage = memo(function MediaMessage({
             controls
             playsInline
             className="media-message-image"
-            style={{ aspectRatio }}
+            style={imageSizeStyle}
             aria-label={attachment.fileName ?? t('conversations.videoAttachment', 'Video attachment')}
           />
         </div>

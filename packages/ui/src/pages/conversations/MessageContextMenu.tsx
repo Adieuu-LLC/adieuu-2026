@@ -59,13 +59,16 @@ export function MessageContextMenuFrame({
   const gifUrlForDownload = gifAtt?.url ?? null;
   const gifCopyUrl = contextStash.gifDisplayUrl || gifAtt?.url || null;
   const gifSuggestedName = contextStash.gifSuggestedName || 'gif.webp';
+  const isKlipyGifOrSticker = Boolean(gifAtt?.provider === 'klipy');
+  const klipyAssetUrlForClipboard = gifAtt?.url ?? null;
 
   const isLinkMode = Boolean(contextStash.linkHref);
   const showCopySelection = !isLinkMode && contextStash.selection.trim().length > 0;
   const showE2eDownload = Boolean(e2eAtt && e2eUrl);
   const showE2eCopyImage = Boolean(e2eAtt && e2eUrl && e2eAttachmentSupportsCopyImage(e2eAtt));
-  const showGifDownload = Boolean(gifAtt && gifUrlForDownload);
-  const showGifCopyImage = Boolean(gifAtt && gifCopyUrl);
+  const showGifDownload = Boolean(gifAtt && gifUrlForDownload && !isKlipyGifOrSticker);
+  const showGifCopyImage = Boolean(gifAtt && gifCopyUrl && !isKlipyGifOrSticker);
+  const showKlipyAssetLinkCopy = Boolean(isKlipyGifOrSticker && klipyAssetUrlForClipboard);
 
   const onClipboardMenuSelect = useCallback(
     async (value: string) => {
@@ -114,6 +117,15 @@ export function MessageContextMenuFrame({
         }
         return;
       }
+      if (value === 'copy-klipy-asset-link' && klipyAssetUrlForClipboard) {
+        const ok = await copyPlainTextToClipboard(klipyAssetUrlForClipboard);
+        if (ok) {
+          success(t('conversations.contextMenu.copied', 'Copied'));
+        } else {
+          toastError(t('conversations.contextMenu.copyFailed', 'Could not copy to clipboard'));
+        }
+        return;
+      }
       if (value === 'download-e2e' && e2eUrl && e2eAtt) {
         const name = suggestedFileNameForE2eAttachment(e2eAtt);
         const ok = await downloadUrlWithSaveFile(e2eUrl, name, (data, suggestedName) =>
@@ -150,6 +162,7 @@ export function MessageContextMenuFrame({
       gifCopyUrl,
       gifSuggestedName,
       gifUrlForDownload,
+      klipyAssetUrlForClipboard,
       messagePlainText,
       success,
       t,
@@ -169,6 +182,7 @@ export function MessageContextMenuFrame({
         value === 'copy-message' ||
         value === 'copy-image-e2e' ||
         value === 'copy-image-gif' ||
+        value === 'copy-klipy-asset-link' ||
         value === 'download-e2e' ||
         value === 'download-gif'
       ) {
@@ -187,7 +201,7 @@ export function MessageContextMenuFrame({
           <Menu.Content className="dm-context-menu">
             {isLinkMode && contextStash.linkHref && (
               <Menu.Item value="copy-link" className="dm-context-menu-item">
-                <Icon name="copy" className="dm-context-menu-item-icon" />
+                <Icon name="link" className="dm-context-menu-item-icon" />
                 {t('conversations.contextMenu.copyLink', 'Copy link')}
               </Menu.Item>
             )}
@@ -198,7 +212,7 @@ export function MessageContextMenuFrame({
               </Menu.Item>
             )}
             <Menu.Item value="copy-message" className="dm-context-menu-item">
-              <Icon name="copy" className="dm-context-menu-item-icon" />
+              <Icon name="message" className="dm-context-menu-item-icon" />
               {t('conversations.contextMenu.copyMessage', 'Copy message')}
             </Menu.Item>
             {showE2eDownload && (
@@ -217,6 +231,17 @@ export function MessageContextMenuFrame({
               <Menu.Item value="download-gif" className="dm-context-menu-item">
                 <Icon name="download" className="dm-context-menu-item-icon" />
                 {t('conversations.contextMenu.download', 'Download')}
+              </Menu.Item>
+            )}
+            {showKlipyAssetLinkCopy && (
+              <Menu.Item value="copy-klipy-asset-link" className="dm-context-menu-item">
+                <Icon
+                  name={gifAtt?.type === 'sticker' ? 'noteSticky' : 'film'}
+                  className="dm-context-menu-item-icon"
+                />
+                {gifAtt?.type === 'sticker'
+                  ? t('conversations.contextMenu.copyStickerLink', 'Copy sticker link')
+                  : t('conversations.contextMenu.copyGifLink', 'Copy GIF link')}
               </Menu.Item>
             )}
             {showGifCopyImage && (
@@ -239,6 +264,8 @@ export function MessageContextMenuFrame({
       showE2eCopyImage,
       showGifCopyImage,
       showGifDownload,
+      showKlipyAssetLinkCopy,
+      gifAtt?.type,
       chatMenuItems,
       t,
     ],

@@ -69,6 +69,11 @@
   .media-message-placeholder {
     min-height: 80px;
   }
+
+  .media-message-placeholder--rejected,
+  .media-message-placeholder--error {
+    max-height: 200px;
+  }
 }
 
 // ============================================================================
@@ -77,7 +82,7 @@
 
 .media-message {
   margin-top: var(--spacing-xs);
-  max-width: 360px;
+  max-width: 300px;
   border-radius: var(--radius-md);
   overflow: hidden;
 
@@ -91,6 +96,20 @@
     background: var(--color-bg-muted);
     border-radius: var(--radius-md);
     padding: var(--spacing-md);
+
+    /* Known intrinsic size: match getContainedMediaDisplaySize; avoid min-height + padding overhang */
+    &--sized {
+      min-height: 0;
+      padding: var(--spacing-xs);
+    }
+
+    /* When only aspect-ratio is set, avoid full column width + extreme height (same cap as .media-message-image) */
+    &--rejected,
+    &--error {
+      max-width: 100%;
+      max-height: 300px;
+      width: fit-content;
+    }
 
     &--rejected {
       background: color-mix(in srgb, var(--color-error) 10%, transparent);
@@ -156,7 +175,7 @@
   &-image {
     display: block;
     max-width: 100%;
-    max-height: 360px;
+    max-height: 300px;
     object-fit: contain;
     border-radius: var(--radius-md);
     transition: opacity 0.2s ease;

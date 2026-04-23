@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, type ReactElement } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Menu, Portal, Switch } from '@ark-ui/react';
@@ -261,8 +261,6 @@ function ConversationListItem({
     </button>
   );
 
-  const contextTriggerRow = <Menu.ContextTrigger asChild>{row}</Menu.ContextTrigger>;
-
   const contextMenu = (
     <Portal>
       <Menu.Positioner>
@@ -315,30 +313,42 @@ function ConversationListItem({
     </Portal>
   );
 
-  const menuShell = (trigger: ReactElement) => (
-    <Menu.Root onSelect={handleContextAction}>
-      {trigger}
-      {contextMenu}
-    </Menu.Root>
-  );
-
   if (isDm && otherParticipants.length === 1) {
-    return menuShell(
-      <SidebarConversationDmHoverCard otherUserId={otherParticipants[0]!}>
-        {contextTriggerRow}
-      </SidebarConversationDmHoverCard>,
+    return (
+      <Menu.Root onSelect={handleContextAction}>
+        <Menu.ContextTrigger asChild>
+          <div className="conversation-list-item-context-anchor">
+            <SidebarConversationDmHoverCard otherUserId={otherParticipants[0]!}>
+              {row}
+            </SidebarConversationDmHoverCard>
+          </div>
+        </Menu.ContextTrigger>
+        {contextMenu}
+      </Menu.Root>
     );
   }
 
   if (isGroup) {
-    return menuShell(
-      <GroupConversationSidebarHoverCard conversation={conversation} displayName={displayName}>
-        {contextTriggerRow}
-      </GroupConversationSidebarHoverCard>,
+    return (
+      <Menu.Root onSelect={handleContextAction}>
+        <Menu.ContextTrigger asChild>
+          <div className="conversation-list-item-context-anchor">
+            <GroupConversationSidebarHoverCard conversation={conversation} displayName={displayName}>
+              {row}
+            </GroupConversationSidebarHoverCard>
+          </div>
+        </Menu.ContextTrigger>
+        {contextMenu}
+      </Menu.Root>
     );
   }
 
-  return menuShell(contextTriggerRow);
+  return (
+    <Menu.Root onSelect={handleContextAction}>
+      <Menu.ContextTrigger asChild>{row}</Menu.ContextTrigger>
+      {contextMenu}
+    </Menu.Root>
+  );
 }
 
 // ============================================================================
@@ -552,10 +562,10 @@ export function ConversationsSidebarSection({
             <div className="sidebar-conversations-list">
               {favoritesList.length > 0 && (
                 <>
-                  <div className="sidebar-conversations-section-header">
+                  {/* <div className="sidebar-conversations-section-header">
                     <Icon name="star" className="sidebar-conversations-section-icon" />
                     <span>{t('conversations.favorites.section')}</span>
-                  </div>
+                  </div> */}
                   {favoritesList.map(renderItem)}
                 </>
               )}

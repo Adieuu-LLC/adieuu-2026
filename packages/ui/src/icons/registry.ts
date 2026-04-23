@@ -43,6 +43,8 @@ import {
   faFire as fasFire, faUserMinus as fasUserMinus,
   faBoxArchive as fasBoxArchive, faStar as fasStar,
   faFilter as fasFilter, faArrowDownAZ as fasArrowDownAZ,
+  faCopy as fasCopy, faFiles as fasFiles, faBorderAll as fasBorderAll, faLink as fasLink,
+  faArrowUpFromBracket as fasArrowUpFromBracket, faFilm as fasFilm,
 } from '@adieuu-llc/fa-pro-solid-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -77,6 +79,8 @@ import {
   faFire as fadFire, faUserMinus as fadUserMinus,
   faBoxArchive as fadBoxArchive, faStar as fadStar,
   faFilter as fadFilter, faArrowDownAZ as fadArrowDownAZ,
+  faCopy as fadCopy, faFiles as fadFiles, faBorderAll as fadBorderAll, faLink as fadLink,
+  faArrowUpFromBracket as fadArrowUpFromBracket, faFilm as fadFilm,
 } from '@adieuu-llc/fa-pro-duotone-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -111,6 +115,8 @@ import {
   faFire as fadtFire, faUserMinus as fadtUserMinus,
   faBoxArchive as fadtBoxArchive, faStar as fadtStar,
   faFilter as fadtFilter, faArrowDownAZ as fadtArrowDownAZ,
+  faCopy as fadtCopy, faFiles as fadtFiles, faBorderAll as fadtBorderAll, faLink as fadtLink,
+  faArrowUpFromBracket as fadtArrowUpFromBracket, faFilm as fadtFilm,
 } from '@adieuu-llc/fa-duotone-thin-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -145,6 +151,8 @@ import {
   faFire as fasdsFire, faUserMinus as fasdsUserMinus,
   faBoxArchive as fasdsBoxArchive, faStar as fasdsStar,
   faFilter as fasdsFilter, faArrowDownAZ as fasdsArrowDownAZ,
+  faCopy as fasdsCopy, faFiles as fasdsFiles, faBorderAll as fasdsBorderAll, faLink as fasdsLink,
+  faArrowUpFromBracket as fasdsArrowUpFromBracket, faFilm as fasdsFilm,
 } from '@adieuu-llc/fa-sharp-duotone-solid-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -179,6 +187,8 @@ import {
   faFire as fasdtFire, faUserMinus as fasdtUserMinus,
   faBoxArchive as fasdtBoxArchive, faStar as fasdtStar,
   faFilter as fasdtFilter, faArrowDownAZ as fasdtArrowDownAZ,
+  faCopy as fasdtCopy, faFiles as fasdtFiles, faBorderAll as fasdtBorderAll, faLink as fasdtLink,
+  faArrowUpFromBracket as fasdtArrowUpFromBracket, faFilm as fasdtFilm,
 } from '@adieuu-llc/fa-sharp-duotone-thin-svg-icons';
 
 // ---------------------------------------------------------------------------
@@ -198,6 +208,7 @@ const allIcons: IconDefinition[] = [
   fasTrophy, fasUserPlus, fasUserGroup, fasMobile, fasHeart, fasBan,
   fasFire, fasUserMinus,
   fasBoxArchive, fasStar, fasFilter, fasArrowDownAZ,
+  fasCopy, fasFiles, fasBorderAll, fasLink, fasArrowUpFromBracket, fasFilm,
 
   // DuoTone Solid
   fadHouse, fadMessage, fadReply, fadUsers, fadGear, fadCircleInfo, fadDownload,
@@ -211,6 +222,7 @@ const allIcons: IconDefinition[] = [
   fadTrophy, fadUserPlus, fadUserGroup, fadMobile, fadHeart, fadBan,
   fadFire, fadUserMinus,
   fadBoxArchive, fadStar, fadFilter, fadArrowDownAZ,
+  fadCopy, fadFiles, fadBorderAll, fadLink, fadArrowUpFromBracket, fadFilm,
 
   // DuoTone Thin
   fadtHouse, fadtMessage, fadtReply, fadtUsers, fadtGear, fadtCircleInfo, fadtDownload,
@@ -224,6 +236,7 @@ const allIcons: IconDefinition[] = [
   fadtTrophy, fadtUserPlus, fadtUserGroup, fadtMobile, fadtHeart, fadtBan,
   fadtFire, fadtUserMinus,
   fadtBoxArchive, fadtStar, fadtFilter, fadtArrowDownAZ,
+  fadtCopy, fadtFiles, fadtBorderAll, fadtLink, fadtArrowUpFromBracket, fadtFilm,
 
   // Sharp DuoTone Solid
   fasdsHouse, fasdsMessage, fasdsReply, fasdsUsers, fasdsGear, fasdsCircleInfo, fasdsDownload,
@@ -237,6 +250,7 @@ const allIcons: IconDefinition[] = [
   fasdsTrophy, fasdsUserPlus, fasdsUserGroup, fasdsMobile, fasdsHeart, fasdsBan,
   fasdsFire, fasdsUserMinus,
   fasdsBoxArchive, fasdsStar, fasdsFilter, fasdsArrowDownAZ,
+  fasdsCopy, fasdsFiles, fasdsBorderAll, fasdsLink, fasdsArrowUpFromBracket, fasdsFilm,
 
   // Sharp DuoTone Thin
   fasdtHouse, fasdtMessage, fasdtReply, fasdtUsers, fasdtGear, fasdtCircleInfo, fasdtDownload,
@@ -250,6 +264,7 @@ const allIcons: IconDefinition[] = [
   fasdtTrophy, fasdtUserPlus, fasdtUserGroup, fasdtMobile, fasdtHeart, fasdtBan,
   fasdtFire, fasdtUserMinus,
   fasdtBoxArchive, fasdtStar, fasdtFilter, fasdtArrowDownAZ,
+  fasdtCopy, fasdtFiles, fasdtBorderAll, fasdtLink, fasdtArrowUpFromBracket, fasdtFilm,
 ];
 
 library.add(...allIcons);

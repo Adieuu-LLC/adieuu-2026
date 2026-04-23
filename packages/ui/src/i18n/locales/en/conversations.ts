@@ -5,7 +5,10 @@ export const conversations = {
     contextMenu: {
         copy: 'Copy',
         copyAll: 'Copy all',
+        selectAll: 'Select all',
         paste: 'Paste',
+        copyGifLink: 'Copy GIF link',
+        copyStickerLink: 'Copy sticker link',
         copySelection: 'Copy selection',
         copyMessage: 'Copy message',
         copyLink: 'Copy link',
@@ -38,6 +41,8 @@ export const conversations = {
     mediaModerationError: 'This content could not be verified and has been hidden for safety',
     mediaError: 'Failed to load media',
     expandMedia: 'Click to expand',
+    /** Composer attach control (images + video). */
+    attachMedia: 'Attach image or video',
     mediaLightbox: 'Image preview',
     group: 'Group',
     members: 'Members',

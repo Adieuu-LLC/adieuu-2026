@@ -4,6 +4,12 @@
 // Conversation List Item
 // ============================================================================
 
+/** Full-width anchor for Menu.ContextTrigger when a HoverCard wraps the row (fixes menu positioning). */
+.conversation-list-item-context-anchor {
+  display: block;
+  width: 100%;
+}
+
 .conversation-list-item {
   display: flex;
   align-items: center;

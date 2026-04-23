@@ -29,6 +29,7 @@ import { captureMessageContextStash } from '../../utils/contextMenuMedia';
 import { ReactionBar } from './ReactionBar';
 import { MessageMediaAttachment } from './MessageMediaAttachment';
 import { MessageGifAttachment } from './MessageGifAttachment';
+import type { MediaMessageLayout } from '../../components/MediaMessage';
 
 export function ReplyQuoteButton({ replyQuote }: { replyQuote: ReplyQuotePayload }) {
   const { text, quotedAuthor, onQuoteClick } = replyQuote;
@@ -221,6 +222,7 @@ export const MessageBubble = memo(function MessageBubble({
 
   const rawContent = message.decryptedContent ?? '';
   const parsed = useMemo(() => parsePayload(rawContent), [rawContent]);
+  const mediaAttachmentLayout: MediaMessageLayout = parsed.attachments.length > 1 ? 'grid' : 'default';
   const content = parsed.text;
   const mentionRenderCtx: MentionRenderContext | undefined = useMemo(() => ({
     profiles: participantProfiles,
@@ -480,12 +482,12 @@ export const MessageBubble = memo(function MessageBubble({
         {parsed.attachments.length > 1 ? (
           <div className="dm-message-attachments">
             {parsed.attachments.map((att) => (
-              <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
+              <MessageMediaAttachment key={att.e2eMediaId} attachment={att} layout={mediaAttachmentLayout} />
             ))}
           </div>
         ) : (
           parsed.attachments.map((att) => (
-            <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
+            <MessageMediaAttachment key={att.e2eMediaId} attachment={att} layout={mediaAttachmentLayout} />
           ))
         )}
         {parsed.gifAttachments.map((gif, i) => (
@@ -693,12 +695,12 @@ export const MessageBubble = memo(function MessageBubble({
               {parsed.attachments.length > 1 ? (
                 <div className="dm-message-attachments">
                   {parsed.attachments.map((att) => (
-                    <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
+                    <MessageMediaAttachment key={att.e2eMediaId} attachment={att} layout={mediaAttachmentLayout} />
                   ))}
                 </div>
               ) : (
                 parsed.attachments.map((att) => (
-                  <MessageMediaAttachment key={att.e2eMediaId} attachment={att} />
+                  <MessageMediaAttachment key={att.e2eMediaId} attachment={att} layout={mediaAttachmentLayout} />
                 ))
               )}
               {parsed.gifAttachments.map((gif, i) => (

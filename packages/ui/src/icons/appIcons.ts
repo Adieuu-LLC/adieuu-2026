@@ -14,6 +14,14 @@ export const APP_ICON_NAMES = {
   info: 'circle-info',
   download: 'download',
   copy: 'copy',
+  /** Copy entire text field (e.g. composer). */
+  copyAll: 'files',
+  /** Text field “select all” (e.g. composer context menu). */
+  selectAll: 'border-all',
+  link: 'link',
+  /** Upload / attach (image, video, files). */
+  upload: 'arrow-up-from-bracket',
+  film: 'film',
   logout: 'right-from-bracket',
   shield: 'shield-check',
   key: 'key',

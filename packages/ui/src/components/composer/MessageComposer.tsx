@@ -567,6 +567,18 @@ export function MessageComposer({
         }
         return;
       }
+      if (v === 'select-all') {
+        const ta = inputRef.current;
+        if (!ta) {
+          return;
+        }
+        ta.focus();
+        const len = messageTextRef.current.length;
+        requestAnimationFrame(() => {
+          ta.setSelectionRange(0, len);
+        });
+        return;
+      }
       if (v === 'paste') {
         const pasted = await readPlainTextFromClipboard();
         if (pasted == null) {
@@ -882,7 +894,7 @@ export function MessageComposer({
         />
         <div className="conversation-composer-row__right" style={disabled ? { display: 'none' } : undefined}>
           <Tooltip
-            content={t('conversations.attachMedia', 'Attach image')}
+            content={t('conversations.attachMedia')}
             position="top"
           >
             <button
@@ -891,7 +903,7 @@ export function MessageComposer({
               onClick={() => fileInputRef.current?.click()}
               disabled={sending || attachments.length >= MAX_ATTACHMENTS}
             >
-              <Icon name="image" />
+              <Icon name="upload" />
             </button>
           </Tooltip>
           {!gifsDisabled && (
@@ -986,8 +998,12 @@ export function MessageComposer({
               {t('conversations.contextMenu.copy', 'Copy')}
             </Menu.Item>
             <Menu.Item value="copy-all" className="dm-context-menu-item" disabled={disabled || sending}>
-              <Icon name="copy" className="dm-context-menu-item-icon" />
+              <Icon name="copyAll" className="dm-context-menu-item-icon" />
               {t('conversations.contextMenu.copyAll', 'Copy all')}
+            </Menu.Item>
+            <Menu.Item value="select-all" className="dm-context-menu-item" disabled={disabled || sending}>
+              <Icon name="selectAll" className="dm-context-menu-item-icon" />
+              {t('conversations.contextMenu.selectAll', 'Select all')}
             </Menu.Item>
             <Menu.Item value="paste" className="dm-context-menu-item" disabled={disabled || sending}>
               <Icon name="fileImport" className="dm-context-menu-item-icon" />
