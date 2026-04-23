@@ -22,7 +22,8 @@ export function ConversationToolbar({
   onLeave,
 }: {
   displayName: string;
-  subtitle: string;
+  /** Plain fallback (members / “Direct message”) or rich node (e.g. latest pin control). */
+  subtitle: ReactNode;
   /** Pinned messages popover control (toolbar icon). */
   pinsSlot?: ReactNode;
   /** E2E message search (opens local plaintext search). */
@@ -54,7 +55,11 @@ export function ConversationToolbar({
         </div>
         <div className="conversation-toolbar-info">
           <span className="conversation-toolbar-title">{displayName}</span>
-          <span className="conversation-toolbar-subtitle">{subtitle}</span>
+          {typeof subtitle === 'string' ? (
+            <span className="conversation-toolbar-subtitle">{subtitle}</span>
+          ) : (
+            subtitle
+          )}
         </div>
       </div>
       <div className="conversation-toolbar-right">

@@ -6,7 +6,7 @@
  * from the global stylesheet.
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
 import { createApiClient, type IdentityPublicKeys } from '@adieuu/shared';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -54,6 +54,7 @@ import {
   buildFlatChatItems,
   buildMessagesByIdMap,
   canManageConversationPinsView,
+  formatPinPreviewForToolbar,
   getConversationHeaderCopy,
   getLastMessagePreviewText,
   getReversedVisibleMessages,
@@ -330,6 +331,7 @@ export function ConversationView() {
   const [messageSearchSessionActive, setMessageSearchSessionActive] = useState(false);
   const [messageSearchSidebarVisible, setMessageSearchSidebarVisible] = useState(false);
   const [messageSearchCacheMode] = useMessageSearchCacheMode(identity?.id ?? '');
+  const [headlinePinMessageId, setHeadlinePinMessageId] = useState<string | null>(null);
 
   const handleMessageSearchEndSession = useCallback(() => {
     setMessageSearchSessionActive(false);
@@ -418,6 +420,42 @@ export function ConversationView() {
     [activeMessages, replyParentHydrationMap]
   );
 
+  const headerCopy = useMemo(() => {
+    if (!conversation) return null;
+    return getConversationHeaderCopy(
+      conversation,
+      identity?.id,
+      participantProfiles,
+      memberSettings,
+      t
+    );
+  }, [conversation, identity?.id, participantProfiles, memberSettings, t]);
+
+  const pinnedIdsKey = useMemo(
+    () => (conversation?.pinnedMessageIds ?? []).join(','),
+    [conversation?.pinnedMessageIds]
+  );
+
+  useEffect(() => {
+    if (!id || !pinnedIdsKey) {
+      setHeadlinePinMessageId(null);
+      return;
+    }
+    let cancelled = false;
+    void loadPinnedMessagesPage(id, null).then((page) => {
+      if (cancelled) return;
+      setHeadlinePinMessageId(page?.messages[0]?.id ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, pinnedIdsKey, loadPinnedMessagesPage]);
+
+  useEffect(() => {
+    if (!id || !headlinePinMessageId) return;
+    void ensureReplyParentHydration(id, headlinePinMessageId);
+  }, [id, headlinePinMessageId, ensureReplyParentHydration]);
+
   const [expiryTick, setExpiryTick] = useState(0);
 
   useEffect(() => {
@@ -470,6 +508,24 @@ export function ConversationView() {
     setFlashingMessageId,
     activeMessagesRef,
   });
+
+  const toolbarSubtitle: ReactNode = useMemo(() => {
+    if (!headerCopy) return null;
+    if (!headlinePinMessageId) return headerCopy.subtitle;
+    const msg = messagesById.get(headlinePinMessageId);
+    const text = formatPinPreviewForToolbar(msg, t);
+    return (
+      <button
+        type="button"
+        className="conversation-toolbar-subtitle conversation-toolbar-subtitle--latest-pin"
+        onClick={() => void scrollToMessageId(headlinePinMessageId)}
+        title={t('conversations.headerLatestPinTooltip', 'Open the newest pinned message (by send time)')}
+      >
+        <Icon name="locationPin" size="sm" aria-hidden />
+        <span className="conversation-toolbar-subtitle-latest-pin-text">{text}</span>
+      </button>
+    );
+  }, [headerCopy, headlinePinMessageId, messagesById, t, scrollToMessageId]);
 
   useEffect(() => {
     setReplyingTo(null);
@@ -648,14 +704,7 @@ export function ConversationView() {
   const {
     otherParticipantIds: otherParticipants,
     displayName,
-    subtitle,
-  } = getConversationHeaderCopy(
-    conversation,
-    identity?.id,
-    participantProfiles,
-    memberSettings,
-    t
-  );
+  } = headerCopy!;
 
   const isDmBlocked = conversation.type === 'dm' && otherParticipants.length === 1 && checkBlocked(otherParticipants[0]!);
 
@@ -674,7 +723,7 @@ export function ConversationView() {
         <div className="conversation-container">
           <ConversationToolbar
             displayName={displayName}
-            subtitle={subtitle}
+            subtitle={toolbarSubtitle!}
             pinsSlot={
               <ConversationPinsMenu
                 conversationId={conversation.id}

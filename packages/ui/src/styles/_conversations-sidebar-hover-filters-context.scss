@@ -42,6 +42,26 @@
     color: var(--color-text-muted);
   }
 
+  &-meta-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 2px;
+  }
+
+  &-meta-line,
+  &-started {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    line-height: 1.35;
+  }
+
+  &-started {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+  }
+
   &-inviter {
     display: flex;
     align-items: baseline;

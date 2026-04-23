@@ -318,7 +318,7 @@ function ConversationListItem({
       <Menu.Root onSelect={handleContextAction}>
         <Menu.ContextTrigger asChild>
           <div className="conversation-list-item-context-anchor">
-            <SidebarConversationDmHoverCard otherUserId={otherParticipants[0]!}>
+            <SidebarConversationDmHoverCard conversation={conversation} otherUserId={otherParticipants[0]!}>
               {row}
             </SidebarConversationDmHoverCard>
           </div>

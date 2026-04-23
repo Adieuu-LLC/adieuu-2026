@@ -47,8 +47,18 @@ export const conversations = {
     group: 'Group',
     members: 'Members',
     directMessage: 'Direct message',
-    /** Header subtitle when `messageCount` is known (from GET /conversations/:id). */
-    headerSubtitleMessagesSince: '{{count}} messages since {{date}}',
+    /** Sidebar hover: e.g. "120 messages" (count from GET /conversations/:id). */
+    sidebarHoverMessageCount: '{{count}} messages',
+    /** Sidebar hover: second line; `left` is "N members" or "N participants", `right` is message count or an ellipsis while loading. */
+    sidebarHoverMetaBulletMessages: '{{left}} • {{right}}',
+    /** Sidebar hover: `right` when message count still loading. */
+    sidebarHoverMessagesLoading: '…',
+    /** Sidebar hover: start date under meta line. */
+    sidebarHoverSince: 'Since {{date}}',
+    headerLatestPinLoading: 'Loading…',
+    headerLatestPinUnavailable: 'Pinned message unavailable',
+    headerLatestPinSystem: 'System message',
+    headerLatestPinTooltip: 'Open the newest pinned message (by send time)',
     settings: 'Settings',
     settingsTabPersonal: 'For you',
     settingsTabConversation: 'Conversation',

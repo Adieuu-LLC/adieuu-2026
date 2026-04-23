@@ -141,6 +141,40 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+
+    &--latest-pin {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--spacing-xs);
+      max-width: min(100%, 28rem);
+      margin: 0;
+      padding: 2px 0;
+      font: inherit;
+      text-align: left;
+      color: var(--color-accent-primary);
+      background: none;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      overflow: hidden;
+      white-space: nowrap;
+
+      &:hover {
+        text-decoration: underline;
+        color: var(--color-accent-primary);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--color-border-focus);
+        outline-offset: 1px;
+      }
+    }
+  }
+
+  &-subtitle-latest-pin-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
   }
 
   &-right {

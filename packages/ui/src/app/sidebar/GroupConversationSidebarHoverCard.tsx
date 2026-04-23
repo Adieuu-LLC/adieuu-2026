@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import type { PublicGroupInvite } from '@adieuu/shared';
 import { HoverCard } from '../../components/HoverCard';
 import { useConversations, type DecryptedConversation } from '../../hooks/useConversations';
+import { ConversationSidebarHoverMeta } from './ConversationSidebarHoverMeta';
 
 function memberSortKey(
   pid: string,
@@ -26,7 +27,7 @@ export function GroupConversationSidebarHoverCard({
   children: ReactElement;
 }) {
   const { t } = useTranslation();
-  const { participantProfiles, prefetchParticipantProfiles, listPendingGroupInvites } =
+  const { participantProfiles, prefetchParticipantProfiles, listPendingGroupInvites, fetchConversationById } =
     useConversations();
   const [pendingInvites, setPendingInvites] = useState<PublicGroupInvite[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
@@ -44,6 +45,7 @@ export function GroupConversationSidebarHoverCard({
 
   const handleOpen = useCallback(async () => {
     void prefetchParticipantProfiles(conversation.participants);
+    void fetchConversationById(conversation.id);
     if (invitesFetchedRef.current) return;
     invitesFetchedRef.current = true;
     setInvitesLoading(true);
@@ -62,6 +64,7 @@ export function GroupConversationSidebarHoverCard({
     conversation.participants,
     listPendingGroupInvites,
     prefetchParticipantProfiles,
+    fetchConversationById,
   ]);
 
   return (
@@ -77,12 +80,7 @@ export function GroupConversationSidebarHoverCard({
     >
       <div className="invite-group-hover-card-header">
         <span className="invite-group-hover-card-name">{displayName}</span>
-        <span className="invite-group-hover-card-count">
-          {t('conversations.invites.previewMemberCount', {
-            count: conversation.participants.length,
-            defaultValue: '{{count}} members',
-          })}
-        </span>
+        <ConversationSidebarHoverMeta conversation={conversation} />
       </div>
 
       <div className="invite-group-hover-card-members">

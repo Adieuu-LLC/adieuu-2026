@@ -12,8 +12,6 @@ mock.module('../../services/messagePayload', () => ({
   },
 }));
 
-const { formatConversationSinceDate } = await import('./conversationUtils');
-
 const {
   getReversedVisibleMessages,
   getLastMessagePreviewText,
@@ -21,6 +19,7 @@ const {
   buildFlatChatItems,
   mergePendingOutboxIntoFlatItems,
   getConversationHeaderCopy,
+  formatPinPreviewForToolbar,
 } = await import('./conversationViewModel');
 
 const tFn = (key: string, fallbackOrOpts: string | Record<string, unknown>) => {
@@ -140,30 +139,27 @@ describe('getConversationHeaderCopy', () => {
     expect(displayName).toContain('Bob');
   });
 
-  test('uses messages-since subtitle when messageCount is set', () => {
-    const createdAt = '2001-02-21T00:00:00.000Z';
-    const t = (k: string, o: { count: number; date: string } | string) => {
-      if (typeof o === 'string') return o;
-      if (k === 'conversations.headerSubtitleMessagesSince') {
-        return `${o.count} messages since ${o.date}`;
-      }
-      return k;
-    };
+  test('group subtitle is member count when no toolbar pin override', () => {
     const { subtitle } = getConversationHeaderCopy(
-      {
-        type: 'group',
-        participants: ['a', 'b'],
-        messageCount: 251,
-        createdAt,
-        decryptedName: 'Team',
-        encryptedName: 'x',
-        nameNonce: 'n',
-      } as any,
+      { type: 'group', participants: ['a', 'b', 'c'] } as any,
       'a',
       {},
       {},
+      tFn as any,
+    );
+    expect(subtitle).toBe('3 members');
+  });
+});
+
+describe('formatPinPreviewForToolbar', () => {
+  test('formatPinPreviewForToolbar truncates long text', () => {
+    const t = (k: string) => k;
+    const long = 'x'.repeat(100);
+    const text = formatPinPreviewForToolbar(
+      { decryptedContent: JSON.stringify({ text: long, attachments: [] }) } as any,
       t as any,
     );
-    expect(subtitle).toBe(`251 messages since ${formatConversationSinceDate(createdAt)}`);
+    expect(text.length).toBeLessThanOrEqual(72);
+    expect(text.endsWith('…')).toBe(true);
   });
 });

@@ -4,7 +4,7 @@ import type { DisplayMessage } from '../../hooks/useConversations';
 import type { DecryptedConversation } from '../../hooks/conversations/types';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import { parsePayload } from '../../services/messagePayload';
-import { type ChatItem, formatConversationSinceDate, isSameDay } from './conversationUtils';
+import { type ChatItem, isSameDay } from './conversationUtils';
 import type { MediaOutboxJobRecord } from '../../services/mediaOutbox/mediaOutboxTypes';
 
 const PENDING_OUTBOX_INLINE_STAGES = new Set<MediaOutboxJobRecord['stage']>([
@@ -137,16 +137,36 @@ export function getConversationHeaderCopy(
         : otherParticipantIds.map(resolveToolbarName).join(', ');
 
   const subtitle =
-    conversation.messageCount !== undefined
-      ? t('conversations.headerSubtitleMessagesSince', {
-          count: conversation.messageCount,
-          date: formatConversationSinceDate(conversation.createdAt),
-        })
-      : conversation.type === 'group'
-        ? `${conversation.participants.length} ${t('conversations.members', 'members')}`
-        : t('conversations.directMessage', 'Direct message');
+    conversation.type === 'group'
+      ? `${conversation.participants.length} ${t('conversations.members', 'members')}`
+      : t('conversations.directMessage', 'Direct message');
 
   return { otherParticipantIds, displayName, subtitle };
+}
+
+export const TOOLBAR_PIN_PREVIEW_MAX = 70;
+
+/**
+ * Truncated preview for the header “latest pin” line (user message text or fallbacks).
+ */
+export function formatPinPreviewForToolbar(
+  message: DisplayMessage | undefined,
+  t: TFunction
+): string {
+  if (!message) return t('conversations.headerLatestPinLoading', 'Loading…');
+  if (message.deleted) {
+    return t('conversations.headerLatestPinUnavailable', 'Pinned message unavailable');
+  }
+  if (message.messageType === 'system') {
+    return t('conversations.headerLatestPinSystem', 'System message');
+  }
+  const raw = message.decryptedContent ?? '';
+  if (!raw) return t('conversations.headerLatestPinLoading', 'Loading…');
+  const { text } = parsePayload(raw);
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return t('conversations.pinnedMessage', 'Pinned');
+  if (cleaned.length <= TOOLBAR_PIN_PREVIEW_MAX) return cleaned;
+  return `${cleaned.slice(0, TOOLBAR_PIN_PREVIEW_MAX)}…`;
 }
 
 /**
