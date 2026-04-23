@@ -287,6 +287,15 @@ export function ConversationView() {
 
   const conversation = conversations.find((c) => c.id === id);
 
+  const selfParticipantJoinedAtMs = useMemo(() => {
+    const selfId = identity?.id;
+    if (!selfId || !conversation?.participantJoinedAtByIdentityId) return null;
+    const iso = conversation.participantJoinedAtByIdentityId[selfId];
+    if (!iso) return null;
+    const ms = Date.parse(iso);
+    return Number.isFinite(ms) ? ms : null;
+  }, [conversation?.participantJoinedAtByIdentityId, identity?.id]);
+
   useEffect(() => {
     setPeerPublicKeysById({});
   }, [conversation?.id]);
@@ -1009,6 +1018,7 @@ export function ConversationView() {
               onPickMessage={(messageId) => {
                 void scrollToMessageId(messageId);
               }}
+              selfParticipantJoinedAtMs={selfParticipantJoinedAtMs}
             />
           )}
         </div>

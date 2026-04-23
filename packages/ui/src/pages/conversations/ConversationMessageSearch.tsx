@@ -53,10 +53,7 @@ export interface ConversationMessageSearchPanelProps {
   /** After local cache wipe; parent clears session flags. */
   onEndSearchSession: () => void;
   onPickMessage: (messageId: string) => void;
-  /**
-   * When known (from {@link PublicConversation.participantJoinedAtByIdentityId}), search
-   * and background fetch do not extend before this instant.
-   */
+  /** When known, search and background fetch do not extend before this instant (epoch ms). */
   selfParticipantJoinedAtMs: number | null;
 }
 
