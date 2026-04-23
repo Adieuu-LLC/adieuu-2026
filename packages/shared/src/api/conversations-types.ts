@@ -29,6 +29,12 @@ export interface PublicConversation {
   lastMessageAt?: string;
   lastMessageId?: string;
   gifsDisabled?: boolean;
+  /**
+   * When true, conversation admins require that members not retain a persistent local
+   * plaintext message search cache; clients only hold decrypted search material for
+   * active search sessions, then wipe.
+   */
+  disallowPersistentMessageSearchCache?: boolean;
   pinnedMessageIds?: string[];
   createdAt: string;
   updatedAt: string;

@@ -390,4 +390,31 @@ export const conversations = {
     sendMp4NoReencode: 'No re-encoding (MP4 only)',
     sendMp4NoReencodeHelp:
       'Send the original MP4 bytes without converting to H.264. Playback and safety scans may fail on some devices; use only when you understand the trade-off.',
+
+    messageSearch: {
+        title: 'Search messages',
+        placeholder: 'Search…',
+        close: 'Close',
+        adminNoPersistent:
+            'This conversation requires that local search data is not kept after you close search.',
+        filterHasReplies: 'Has replies',
+        filterRepliesOnly: 'Replies only',
+        filterHasAttachments: 'Has attachments',
+        filterAuthor: 'Author',
+        filterAuthorAll: 'Anyone',
+        timeRangeLabel: 'Time range',
+        timeRange7d: 'Last 7 days',
+        timeRange14d: 'Last 2 weeks',
+        timeRange30d: 'Last month',
+        timeRange90d: 'Last 3 months',
+        timeRange180d: 'Last 6 months',
+        timeRange365d: 'Last year',
+        timeRangeAll: 'All time',
+        loading: 'Loading…',
+        noResults: 'No messages match.',
+        toolbarAria: 'Search messages',
+        settingsDisallowTitle: 'Disallow persistent local search cache',
+        settingsDisallowHint:
+            'Members cannot keep decrypted message text on their device for search after they close search. Search still works during an active search session.',
+    },
 } as const;

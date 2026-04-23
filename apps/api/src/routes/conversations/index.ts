@@ -37,6 +37,7 @@ import {
   getFormerMembers,
   updateMemberSettings,
   updateGifsDisabled,
+  updateDisallowPersistentMessageSearchCache,
   listPendingInvitesForConversation,
   revokeGroupInvite,
   pinMessage,
@@ -511,6 +512,43 @@ router.patch('/conversations/:id/gifs', async (ctx) => {
   }
 
   return success(result.conversation, 'GIF settings updated.');
+});
+
+const UpdateMessageSearchCacheSchema = z.object({
+  disallowPersistentMessageSearchCache: z.boolean(),
+});
+
+/**
+ * PATCH /conversations/:id/message-search-cache — Enforce or clear a ban on
+ * persistent local message search caches. Groups: admin only. DMs: either participant.
+ */
+router.patch('/conversations/:id/message-search-cache', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const parseResult = UpdateMessageSearchCacheSchema.safeParse(ctx.body);
+  if (!parseResult.success) return ctx.errors.validationFailed();
+
+  const result = await updateDisallowPersistentMessageSearchCache(
+    sanitized.value,
+    identity._id,
+    parseResult.data.disallowPersistentMessageSearchCache
+  );
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
+    return errors.badRequest(result.error ?? 'Failed to update message search policy.');
+  }
+
+  return success(result.conversation, 'Message search policy updated.');
 });
 
 const PinMessageBodySchema = z.object({

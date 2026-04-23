@@ -136,6 +136,10 @@ export interface ConversationsContextValue {
   renameGroup: (conversationId: string, newName: string) => Promise<boolean>;
   updateMemberSettings: (conversationId: string, settings: MemberSettingsMap) => Promise<boolean>;
   updateGifsDisabled: (conversationId: string, gifsDisabled: boolean) => Promise<boolean>;
+  updateMessageSearchCachePolicy: (
+    conversationId: string,
+    disallowPersistentMessageSearchCache: boolean
+  ) => Promise<boolean>;
   pinMessage: (conversationId: string, messageId: string) => Promise<boolean>;
   unpinMessage: (conversationId: string, messageId: string) => Promise<boolean>;
   promoteToAdmin: (conversationId: string, identityId: string) => Promise<boolean>;

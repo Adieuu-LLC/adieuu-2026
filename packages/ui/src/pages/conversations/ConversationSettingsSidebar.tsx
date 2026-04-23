@@ -18,6 +18,8 @@ export function ConversationSettingsSidebar({
   memberColorDisplay,
   gifsDisabledByAdmin,
   onGifsDisabledByAdminToggle,
+  disallowPersistentMessageSearchCache,
+  onMessageSearchCachePolicyToggle,
   gifsHiddenForMe,
   onGifsHiddenForMeToggle,
   gifAnimateOnHoverOnly,
@@ -35,6 +37,8 @@ export function ConversationSettingsSidebar({
   memberColorDisplay: MemberColorDisplay;
   gifsDisabledByAdmin?: boolean;
   onGifsDisabledByAdminToggle?: (disabled: boolean) => void;
+  disallowPersistentMessageSearchCache?: boolean;
+  onMessageSearchCachePolicyToggle?: (disallow: boolean) => void;
   gifsHiddenForMe?: boolean;
   onGifsHiddenForMeToggle?: (hidden: boolean) => void;
   gifAnimateOnHoverOnly?: boolean;
@@ -172,6 +176,22 @@ export function ConversationSettingsSidebar({
                 'This disables GIF and sticker content for all members',
               )}
             </span>
+          </span>
+        </label>
+      )}
+
+      {(isAdmin || !isGroup) && onMessageSearchCachePolicyToggle && (
+        <label className="app-settings-toggle">
+          <input
+            type="checkbox"
+            checked={disallowPersistentMessageSearchCache ?? false}
+            onChange={(e) => onMessageSearchCachePolicyToggle(e.target.checked)}
+          />
+          <span className="app-settings-toggle-label">
+            <span className="app-settings-toggle-title">
+              {t('conversations.messageSearch.settingsDisallowTitle')}
+            </span>
+            <span className="app-settings-toggle-hint">{t('conversations.messageSearch.settingsDisallowHint')}</span>
           </span>
         </label>
       )}

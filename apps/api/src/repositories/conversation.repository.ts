@@ -55,6 +55,10 @@ export interface IConversationRepository {
     conversationId: ObjectId,
     gifsDisabled: boolean
   ): Promise<ConversationDocument | null>;
+  updateDisallowPersistentMessageSearchCache(
+    conversationId: ObjectId,
+    disallowPersistentMessageSearchCache: boolean
+  ): Promise<ConversationDocument | null>;
   addPinnedMessage(
     conversationId: ObjectId,
     messageId: ObjectId
@@ -290,6 +294,23 @@ export class ConversationRepository
       {
         $set: {
           gifsDisabled,
+          updatedAt: new Date(),
+        },
+      },
+      { returnDocument: 'after' }
+    );
+    return result as ConversationDocument | null;
+  }
+
+  async updateDisallowPersistentMessageSearchCache(
+    conversationId: ObjectId,
+    disallowPersistentMessageSearchCache: boolean
+  ): Promise<ConversationDocument | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: conversationId },
+      {
+        $set: {
+          disallowPersistentMessageSearchCache,
           updatedAt: new Date(),
         },
       },

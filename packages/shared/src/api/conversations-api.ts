@@ -260,6 +260,16 @@ export class ConversationsApi {
     );
   }
 
+  async updateMessageSearchCachePolicy(
+    conversationId: string,
+    disallowPersistentMessageSearchCache: boolean
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.patch(
+      `/api/conversations/${encodeURIComponent(conversationId)}/message-search-cache`,
+      { disallowPersistentMessageSearchCache }
+    );
+  }
+
   async pinMessage(
     conversationId: string,
     messageId: string

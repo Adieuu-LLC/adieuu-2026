@@ -157,6 +157,13 @@ export function handleConversationSocketMessage(
         ctx.setConversations((prev) =>
           prev.map((c) => (c.id === conversationId ? { ...c, gifsDisabled: newVal } : c))
         );
+      } else if (action === 'message_search_cache_policy_updated') {
+        const newVal = message.data.disallowPersistentMessageSearchCache ?? false;
+        ctx.setConversations((prev) =>
+          prev.map((c) =>
+            c.id === conversationId ? { ...c, disallowPersistentMessageSearchCache: newVal } : c
+          )
+        );
       } else {
         ctx.fetchConversations();
         if (conversationId === ctx.activeConversationId) {

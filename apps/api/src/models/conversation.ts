@@ -70,6 +70,12 @@ export interface ConversationDocument extends BaseDocument {
   gifsDisabled?: boolean;
 
   /**
+   * When true, members must not retain a persistent local plaintext message search
+   * cache; clients only use decrypted material during active search, then wipe.
+   */
+  disallowPersistentMessageSearchCache?: boolean;
+
+  /**
    * Message ids pinned for this conversation (order: oldest pin first).
    * Managed by group admins or, in DMs, by either participant.
    */
@@ -113,6 +119,7 @@ export interface PublicConversation {
   lastMessageAt?: string;
   lastMessageId?: string;
   gifsDisabled?: boolean;
+  disallowPersistentMessageSearchCache?: boolean;
   pinnedMessageIds?: string[];
   createdAt: string;
   updatedAt: string;
@@ -135,6 +142,9 @@ export function toPublicConversation(doc: ConversationDocument): PublicConversat
     lastMessageAt: doc.lastMessageAt?.toISOString(),
     lastMessageId: doc.lastMessageId?.toHexString(),
     gifsDisabled: doc.gifsDisabled,
+    ...(doc.disallowPersistentMessageSearchCache === true
+      ? { disallowPersistentMessageSearchCache: true }
+      : {}),
     ...(doc.pinnedMessageIds?.length
       ? {
           pinnedMessageIds: doc.pinnedMessageIds.map((id) => id.toHexString()),

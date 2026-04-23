@@ -222,6 +222,27 @@ export function useConversationGroupInvitesAndDelete(
     [api, toDecrypted]
   );
 
+  const updateMessageSearchCachePolicy = useCallback(
+    async (
+      conversationId: string,
+      disallowPersistentMessageSearchCache: boolean
+    ): Promise<boolean> => {
+      const resp = await api.conversations.updateMessageSearchCachePolicy(
+        conversationId,
+        disallowPersistentMessageSearchCache
+      );
+      if (!resp.success || !resp.data) return false;
+      const updated = toDecrypted(resp.data);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...updated, unreadCount: c.unreadCount } : c
+        )
+      );
+      return true;
+    },
+    [api, toDecrypted]
+  );
+
   const pinMessage = useCallback(
     async (conversationId: string, messageId: string): Promise<boolean> => {
       const resp = await api.conversations.pinMessage(conversationId, messageId);
@@ -376,6 +397,7 @@ export function useConversationGroupInvitesAndDelete(
     renameGroup,
     updateConversationMemberSettings,
     updateGifsDisabled,
+    updateMessageSearchCachePolicy,
     pinMessage,
     unpinMessage,
     deleteMessage,

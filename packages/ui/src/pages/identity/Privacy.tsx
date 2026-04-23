@@ -17,6 +17,10 @@ import {
   useGifAnimateOnHoverOnlyPreference,
   type GifVisibility,
 } from '../../hooks/useGifPreference';
+import {
+  useMessageSearchCacheMode,
+  useMessageSearchRetention,
+} from '../../hooks/useMessageSearchPreferences';
 import { usePreKeys } from '../../hooks/usePreKeys';
 import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 import { useAppConfig } from '../../config';
@@ -321,6 +325,51 @@ const GIF_VISIBILITY_OPTIONS: { value: GifVisibility; labelKey: string }[] = [
   { value: 'disabled', labelKey: 'gif.privacyDisabled' },
 ];
 
+function MessageSearchPrivacyCard({ identityId }: { identityId: string }) {
+  const { t } = useTranslation();
+  const [retention, setRetention] = useMessageSearchRetention(identityId);
+  const [mode, setMode] = useMessageSearchCacheMode(identityId);
+
+  return (
+    <Card variant="elevated" className="app-settings-card">
+      <h2 className="app-settings-section-title">{t('identity.privacy.messageSearchTitle')}</h2>
+      <p className="app-settings-section-desc">{t('identity.privacy.messageSearchDescription')}</p>
+
+      <label className="app-settings-toggle app-settings-toggle--stacked">
+        <span className="app-settings-toggle-label">
+          <span className="app-settings-toggle-title">{t('identity.privacy.messageSearchRetentionLabel')}</span>
+        </span>
+        <select
+          className="activity-interval-select"
+          value={retention}
+          onChange={(e) => setRetention(e.target.value as typeof retention)}
+        >
+          <option value="wipe_immediately">{t('identity.privacy.messageSearchRetentionWipeNow')}</option>
+          <option value="never">{t('identity.privacy.messageSearchRetentionNever')}</option>
+          <option value="after_1h">{t('identity.privacy.messageSearchRetentionAfter1h')}</option>
+          <option value="after_1d">{t('identity.privacy.messageSearchRetentionAfter1d')}</option>
+          <option value="after_7d">{t('identity.privacy.messageSearchRetentionAfter7d')}</option>
+          <option value="after_30d">{t('identity.privacy.messageSearchRetentionAfter30d')}</option>
+        </select>
+      </label>
+
+      <label className="app-settings-toggle app-settings-toggle--stacked">
+        <span className="app-settings-toggle-label">
+          <span className="app-settings-toggle-title">{t('identity.privacy.messageSearchModeLabel')}</span>
+        </span>
+        <select
+          className="activity-interval-select"
+          value={mode}
+          onChange={(e) => setMode(e.target.value as typeof mode)}
+        >
+          <option value="on_demand">{t('identity.privacy.messageSearchModeOnDemand')}</option>
+          <option value="warm">{t('identity.privacy.messageSearchModeWarm')}</option>
+        </select>
+      </label>
+    </Card>
+  );
+}
+
 function GifVisibilityCard({ identityId }: { identityId: string }) {
   const { t } = useTranslation();
   const [value, setValue] = useGifPreference(identityId);
@@ -474,6 +523,8 @@ export function IdentityPrivacy() {
             {isLoggedIn && identity && (
               <GifVisibilityCard identityId={identity.id} />
             )}
+
+            {isLoggedIn && identity && <MessageSearchPrivacyCard identityId={identity.id} />}
 
             <Card variant="elevated">
               <h2 className="card-section-title">{t('blocked.title')}</h2>

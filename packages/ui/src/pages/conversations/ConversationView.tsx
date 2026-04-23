@@ -35,6 +35,7 @@ import { useMessageAchievements } from '../../hooks/useMessageAchievements';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import { MessageComposer } from '../../components/composer';
 import { ConversationToolbar } from './ConversationToolbar';
+import { ConversationMessageSearchPanel } from './ConversationMessageSearch';
 import { ConversationSettingsSidebar } from './ConversationSettingsSidebar';
 import { ConversationMembersSidebar } from './ConversationMembersSidebar';
 import { ConversationDialogs } from './ConversationDialogs';
@@ -63,6 +64,7 @@ import { ConversationMediaOutboxMenu } from './ConversationMediaOutboxMenu';
 import { MemberSecurityModal } from './MemberSecurityModal';
 import { buildForwardSecrecyUiLabels } from './forwardSecrecyLabels';
 import { Tooltip } from '../../components/Tooltip';
+import { useMessageSearchCacheMode } from '../../hooks/useMessageSearchPreferences';
 
 export function ConversationView() {
   const { id } = useParams<{ id: string }>();
@@ -103,6 +105,7 @@ export function ConversationView() {
     renameGroup,
     updateMemberSettings,
     updateGifsDisabled,
+    updateMessageSearchCachePolicy,
     memberSettings,
     fetchRecipientKeys,
     listPendingGroupInvites,
@@ -252,6 +255,14 @@ export function ConversationView() {
     [id, updateGifsDisabled],
   );
 
+  const handleMessageSearchCachePolicyToggle = useCallback(
+    async (disallow: boolean) => {
+      if (!id) return;
+      await updateMessageSearchCachePolicy(id, disallow);
+    },
+    [id, updateMessageSearchCachePolicy],
+  );
+
   const handleToggleFs = useCallback(() => {
     setUseFs((v) => !v);
   }, []);
@@ -305,8 +316,12 @@ export function ConversationView() {
 
   const activeMessagesRef = useRef(activeMessages);
   activeMessagesRef.current = activeMessages;
+  const getActiveMessages = useCallback(() => activeMessagesRef.current, []);
   const conversationRef = useRef(conversation);
   conversationRef.current = conversation;
+
+  const [showMessageSearch, setShowMessageSearch] = useState(false);
+  const [messageSearchCacheMode] = useMessageSearchCacheMode(identity?.id ?? '');
 
   const showArtifacts = identity ? loadShowMessageArtifacts(identity.id) : false;
 
@@ -661,6 +676,23 @@ export function ConversationView() {
                 </Tooltip>
               ) : null
             }
+            searchSlot={
+              <Tooltip content={t('conversations.messageSearch.toolbarAria', 'Search messages')} position="bottom">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${showMessageSearch ? ' active' : ''}`}
+                  onClick={() => setShowMessageSearch((v) => !v)}
+                  aria-label={t('conversations.messageSearch.toolbarAria', 'Search messages')}
+                  aria-pressed={showMessageSearch}
+                >
+                  <span className="conversation-toolbar-btn-icon" aria-hidden>
+                    <Icon name="search" size="sm" />
+                  </span>
+                </Button>
+              </Tooltip>
+            }
             showSettings={showSettings}
             onToggleSettings={() => setShowSettings((v) => !v)}
             showMembers={showMembers}
@@ -675,6 +707,22 @@ export function ConversationView() {
 
           <div className="conversation-body">
             <div className="conversation-main">
+            {showMessageSearch && id && (
+              <ConversationMessageSearchPanel
+                open
+                conversationId={id}
+                identityId={identity?.id ?? ''}
+                adminDisallowPersistentCache={conversation.disallowPersistentMessageSearchCache ?? false}
+                getActiveMessages={getActiveMessages}
+                participantProfiles={participantProfiles}
+                cacheMode={messageSearchCacheMode}
+                loadOlder={() => loadOlder()}
+                messagesLoading={messagesLoading}
+                olderCursor={activeMessagesOlderCursor}
+                onClose={() => setShowMessageSearch(false)}
+                onPickMessage={(messageId) => void scrollToMessageId(messageId)}
+              />
+            )}
             <ConversationMessageList
               conversationId={id}
               activeConversationId={activeConversationId}
@@ -784,6 +832,8 @@ export function ConversationView() {
               memberColorDisplay={memberColorDisplay}
               gifsDisabledByAdmin={conversation.gifsDisabled ?? false}
               onGifsDisabledByAdminToggle={handleGifsDisabledByAdminToggle}
+              disallowPersistentMessageSearchCache={conversation.disallowPersistentMessageSearchCache ?? false}
+              onMessageSearchCachePolicyToggle={handleMessageSearchCachePolicyToggle}
               gifsHiddenForMe={convGifHidden}
               onGifsHiddenForMeToggle={gifsGloballyDisabled ? undefined : setConvGifHidden}
               gifAnimateOnHoverOnly={effectiveGifAnimateOnHover}
