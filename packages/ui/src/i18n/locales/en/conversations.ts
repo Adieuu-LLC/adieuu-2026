@@ -2,6 +2,31 @@
  * Chat UI: DMs, groups, composer, moderation hooks for media.
  */
 export const conversations = {
+    contextMenu: {
+        copy: 'Copy',
+        copyAll: 'Copy all',
+        paste: 'Paste',
+        copySelection: 'Copy selection',
+        copyMessage: 'Copy message',
+        copyLink: 'Copy link',
+        copyImage: 'Copy image',
+        download: 'Download',
+        copied: 'Copied',
+        copyFailed: 'Could not copy to clipboard',
+        pasteFailed: 'Could not paste from clipboard',
+        downloadFailed: 'Could not download file',
+        fileSaved: 'File saved',
+        mediaNotReady: 'This attachment is not ready to download yet.',
+        pasteNoEditable:
+            'Paste is available when a text field is focused, or when pasting on this page in your browser’s default way (for example, Ctrl/cmd+V or long-press).',
+        archive: 'Archive',
+        unarchive: 'Unarchive',
+        keepArchived: 'Keep archived on new messages',
+        addFavorite: 'Add to Favourites',
+        removeFavorite: 'Remove from Favourites',
+        editConversation: 'Edit Conversation',
+    },
+
     mediaLoading: 'Loading...',
     mediaUploading: 'Uploading...',
     mediaScanning: 'Awaiting moderation...',
@@ -320,15 +345,6 @@ export const conversations = {
       sortRecent: 'Recent',
       sortAlpha: 'A\u2013Z',
       showArchived: 'Show archived',
-    },
-
-    contextMenu: {
-      archive: 'Archive',
-      unarchive: 'Unarchive',
-      keepArchived: 'Keep archived on new messages',
-      addFavorite: 'Add to Favourites',
-      removeFavorite: 'Remove from Favourites',
-      editConversation: 'Edit Conversation',
     },
 
     favorites: {

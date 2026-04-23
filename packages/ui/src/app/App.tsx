@@ -38,6 +38,7 @@ import { KeyStorageBanner } from '../components/KeyStorageBanner';
 import { WebSecurityBanner } from '../components/WebSecurityBanner';
 import { UpdateOverlay } from '../components/UpdateOverlay';
 import { AchievementListener } from '../components/AchievementListener';
+import { AppPlainTextContextMenu } from '../components/AppPlainTextContextMenu';
 import { UpdateProvider } from '../hooks/useUpdateContext';
 import { AppSidebar } from './AppSidebar';
 import {
@@ -121,6 +122,7 @@ function ProtectedLayoutContent() {
       </AppLayout>
       <UpdateOverlay />
       <AchievementListener />
+      <AppPlainTextContextMenu />
     </>
   );
 }

@@ -218,6 +218,12 @@
   min-width: 180px;
   z-index: var(--z-popover, 600);
 
+  &-separator {
+    height: 1px;
+    margin: var(--spacing-xs) 0;
+    background: var(--color-border);
+  }
+
   &-item {
     display: flex;
     align-items: center;

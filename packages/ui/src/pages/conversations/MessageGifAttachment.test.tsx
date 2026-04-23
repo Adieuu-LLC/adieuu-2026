@@ -108,7 +108,8 @@ describe('MessageGifAttachment', () => {
       <MessageGifAttachment gif={withPoster} gifsEnabled={true} gifAnimateOnHoverOnly={true} />,
     );
     expect(html).toContain('https://static.klipy.com/hd.jpg');
-    expect(html).not.toContain('hd.webp');
+    expect(html).toContain('data-gif-display-url="https://static.klipy.com/hd.jpg"');
+    expect(html).toMatch(/<img[^>]+src="https:\/\/static\.klipy\.com\/hd\.jpg"/);
     expect(html).toContain('tabindex="0"');
   });
 

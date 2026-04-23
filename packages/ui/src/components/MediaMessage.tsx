@@ -75,7 +75,11 @@ export const MediaMessage = memo(function MediaMessage({
       : undefined;
 
   return (
-    <div className="media-message" data-state={state}>
+    <div
+      className="media-message"
+      data-state={state}
+      data-e2e-media-id={attachment.e2eMediaId}
+    >
       {state === 'loading' && (
         <div className="media-message-placeholder" style={{ aspectRatio }}>
           <span className="media-message-spinner" />

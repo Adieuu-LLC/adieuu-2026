@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Popover, Portal } from '@ark-ui/react';
+import { Popover, Portal, Menu } from '@ark-ui/react';
 import { convertShortcodes, SHORTCODE_ENTRIES } from '../../utils/emojiShortcodes';
 import { serializePayload, gifPayload, type MentionEntity, type GifAttachment } from '../../services/messagePayload';
 import { getOrCreateDeviceId } from '../../services/deviceInfo';
@@ -10,6 +10,7 @@ import { GifPicker } from '../GifPicker';
 import { Tooltip } from '../Tooltip';
 import { useToast } from '../Toast';
 import { Icon } from '../../icons/Icon';
+import { copyPlainTextToClipboard, readPlainTextFromClipboard } from '../../utils/contextMenuClipboard';
 import { useAppConfig } from '../../config';
 import type {
   ComposerSendFn,
@@ -511,6 +512,74 @@ export function MessageComposer({
     showComposerToast(t('conversations.copied', 'Copied'));
   }, [showComposerToast, t]);
 
+  const insertPlainTextAtCaret = useCallback(
+    (inserted: string) => {
+      const ta = inputRef.current;
+      if (!ta || disabled) {
+        return;
+      }
+      const oldText = messageTextRef.current;
+      const start = ta.selectionStart ?? 0;
+      const end = ta.selectionEnd ?? oldText.length;
+      const newText = oldText.slice(0, start) + inserted + oldText.slice(end);
+      const newPos = start + inserted.length;
+      handleUpdateMentionOffsets(oldText, newText, newPos);
+      setMessageText(newText, newPos);
+      handleShortcodeDetect(newText, newPos);
+      handleMentionDetect(newText, newPos);
+      requestAnimationFrame(() => {
+        ta.focus();
+        ta.setSelectionRange(newPos, newPos);
+      });
+    },
+    [disabled, handleMentionDetect, handleShortcodeDetect, setMessageText, handleUpdateMentionOffsets],
+  );
+
+  const handleComposerContextMenu = useCallback(
+    async (details: { value: string | null }) => {
+      const v = details.value;
+      if (v === 'copy') {
+        const ta = inputRef.current;
+        const text = messageTextRef.current;
+        if (!ta) {
+          return;
+        }
+        const a = ta.selectionStart ?? 0;
+        const b = ta.selectionEnd ?? text.length;
+        const sel = text.slice(a, b);
+        if (!sel) {
+          return;
+        }
+        const ok = await copyPlainTextToClipboard(sel);
+        if (ok) {
+          showComposerToast(t('conversations.copied', 'Copied'));
+        } else {
+          toastError(t('conversations.contextMenu.copyFailed', 'Could not copy to clipboard'));
+        }
+        return;
+      }
+      if (v === 'copy-all') {
+        const ok = await copyPlainTextToClipboard(messageText);
+        if (ok) {
+          showComposerToast(t('conversations.copied', 'Copied'));
+        } else {
+          toastError(t('conversations.contextMenu.copyFailed', 'Could not copy to clipboard'));
+        }
+        return;
+      }
+      if (v === 'paste') {
+        const pasted = await readPlainTextFromClipboard();
+        if (pasted == null) {
+          toastError(t('conversations.contextMenu.pasteFailed', 'Could not paste from clipboard'));
+          return;
+        }
+        insertPlainTextAtCaret(pasted);
+        showComposerToast(t('conversations.pasted', 'Pasted'));
+      }
+    },
+    [insertPlainTextAtCaret, messageText, t, showComposerToast, toastError],
+  );
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       const mAc = mentionACRef.current;
@@ -652,7 +721,13 @@ export function MessageComposer({
   }, [setMessageText]);
 
   return (
-    <div className={`conversation-composer${disabled ? ' conversation-composer--disabled' : ''}`}>
+    <Menu.Root
+      onSelect={(d) => {
+        void handleComposerContextMenu({ value: d.value as string | null });
+      }}
+    >
+      <Menu.ContextTrigger asChild>
+        <div className={`conversation-composer${disabled ? ' conversation-composer--disabled' : ''}`}>
       {composerToast && (
         <div className="conversation-composer-mini-toast" role="status" aria-live="polite">
           {composerToast}
@@ -902,5 +977,25 @@ export function MessageComposer({
         </div>
       </div>
     </div>
+      </Menu.ContextTrigger>
+      <Portal>
+        <Menu.Positioner>
+          <Menu.Content className="dm-context-menu">
+            <Menu.Item value="copy" className="dm-context-menu-item" disabled={disabled || sending}>
+              <Icon name="copy" className="dm-context-menu-item-icon" />
+              {t('conversations.contextMenu.copy', 'Copy')}
+            </Menu.Item>
+            <Menu.Item value="copy-all" className="dm-context-menu-item" disabled={disabled || sending}>
+              <Icon name="copy" className="dm-context-menu-item-icon" />
+              {t('conversations.contextMenu.copyAll', 'Copy all')}
+            </Menu.Item>
+            <Menu.Item value="paste" className="dm-context-menu-item" disabled={disabled || sending}>
+              <Icon name="fileImport" className="dm-context-menu-item-icon" />
+              {t('conversations.contextMenu.paste', 'Paste')}
+            </Menu.Item>
+          </Menu.Content>
+        </Menu.Positioner>
+      </Portal>
+    </Menu.Root>
   );
 }

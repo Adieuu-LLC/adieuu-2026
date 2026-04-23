@@ -301,6 +301,8 @@ function renderTextWithUrls(text: string, ctx: RenderCtx): ReactNode[] {
       <span
         key={ctx.k++}
         className="dm-link"
+        data-href={seg.href}
+        data-link-kind="url"
         role="link"
         tabIndex={0}
         onClick={(e) => {

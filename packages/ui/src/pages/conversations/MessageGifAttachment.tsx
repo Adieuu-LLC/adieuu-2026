@@ -95,9 +95,17 @@ export const MessageGifAttachment = memo(function MessageGifAttachment({
       }
     : {};
 
+  const suggestedNameBase =
+    (gif.title || gif.searchTerm || gif.slug).replace(/[/\\?%*:|"<>]/g, '_').slice(0, 80) || 'gif';
+
   return (
     <div
       className={`gif-attachment${constrainToContainer ? ' gif-attachment--constrained' : ''}`}
+      data-gif-slug={gif.slug}
+      data-gif-url={gif.url}
+      data-gif-type={gif.type}
+      data-gif-display-url={displaySrc}
+      data-gif-suggested-name={`${suggestedNameBase}.webp`}
       style={containerStyle}
       {...hoverHandlers}
     >

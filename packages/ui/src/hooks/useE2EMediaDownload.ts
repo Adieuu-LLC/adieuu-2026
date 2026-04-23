@@ -50,6 +50,13 @@ export function clearMediaCache(): void {
   inflightDownloads.clear();
 }
 
+/** Decrypted object URL for context-menu copy/save, when available. */
+export function getE2eDecryptedObjectUrlIfAvailable(e2eMediaId: string): string | null {
+  const c = mediaCache.get(e2eMediaId);
+  if (c?.state === 'available' && c.url) return c.url;
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------

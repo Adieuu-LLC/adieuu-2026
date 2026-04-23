@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo, memo, type ReactElement } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo, type ReactElement } from 'react';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Menu, Portal, Popover } from '@ark-ui/react';
+import { Menu } from '@ark-ui/react';
 import type { DisplayMessage } from '../../hooks/useConversations';
 import type { GroupedReaction } from '../../hooks/useReactions';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
@@ -14,7 +15,6 @@ import { IdentityHoverCard } from '../../components/IdentityHoverCard';
 import { useBlockContext } from '../../hooks/useBlockContext';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { useToast } from '../../components/Toast';
-import { EmojiPicker } from '../../components/EmojiPicker';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 import {
@@ -23,7 +23,9 @@ import {
   formatMessageTime,
   formatAbsoluteTime,
 } from './conversationUtils';
-import { MessageActionBar, MESSAGE_ACTION_BAR_POPOVER_POSITIONING } from './MessageActionBar';
+import { MessageActionBar } from './MessageActionBar';
+import { MessageContextMenuFrame } from './MessageContextMenu';
+import { captureMessageContextStash } from '../../utils/contextMenuMedia';
 import { ReactionBar } from './ReactionBar';
 import { MessageMediaAttachment } from './MessageMediaAttachment';
 import { MessageGifAttachment } from './MessageGifAttachment';
@@ -171,6 +173,7 @@ export const MessageBubble = memo(function MessageBubble({
   const [showActions, setShowActions] = useState(false);
   const [actionBarPopoverOpen, setActionBarPopoverOpen] = useState(false);
   const [showContextReactionPicker, setShowContextReactionPicker] = useState(false);
+  const [messageContextStash, setMessageContextStash] = useState(() => captureMessageContextStash(null));
   const [blockConfirmOpen, setBlockConfirmOpen] = useState(false);
   const [blockLoading, setBlockLoading] = useState(false);
   const [deviceSignatureTrust, setDeviceSignatureTrust] = useState<'none' | 'match' | 'mismatch'>('none');
@@ -328,66 +331,68 @@ export const MessageBubble = memo(function MessageBubble({
       </Tooltip>
     ) : null;
 
-  function handleContextAction(details: { value: string }) {
-    if (details.value === 'reply') onReply?.();
-    else if (details.value === 'report') onReport(message.id);
-    else if (details.value === 'delete-for-me') onDelete(message.id, false);
-    else if (details.value === 'delete-for-everyone') onDelete(message.id, true);
-    else if (details.value === 'pin') onPin?.();
-    else if (details.value === 'unpin') onUnpin?.();
-    else if (details.value === 'react') {
-      window.setTimeout(() => {
-        setShowContextReactionPicker(true);
-      }, 0);
-    }
-  }
+  const handleChatContextAction = useCallback(
+    (value: string) => {
+      if (value === 'reply') onReply?.();
+      else if (value === 'report') onReport(message.id);
+      else if (value === 'delete-for-me') onDelete(message.id, false);
+      else if (value === 'delete-for-everyone') onDelete(message.id, true);
+      else if (value === 'pin') onPin?.();
+      else if (value === 'unpin') onUnpin?.();
+      else if (value === 'react') {
+        window.setTimeout(() => {
+          setShowContextReactionPicker(true);
+        }, 0);
+      }
+    },
+    [isOwn, message.id, onDelete, onPin, onReply, onReport, onUnpin],
+  );
 
-  const contextMenuContent = (
-    <Portal>
-      <Menu.Positioner>
-        <Menu.Content className="dm-context-menu">
-          {onReply && !message.deleted && (
-            <Menu.Item value="reply" className="dm-context-menu-item">
-              <Icon name="reply" className="dm-context-menu-item-icon" />
-              {t('conversations.reply', 'Reply')}
-            </Menu.Item>
-          )}
-          {canManagePin && !message.deleted && (
-            isPinned ? (
-              <Menu.Item value="unpin" className="dm-context-menu-item">
-                <Icon name="locationPin" className="dm-context-menu-item-icon" />
-                {t('conversations.unpinMessage', 'Unpin message')}
-              </Menu.Item>
-            ) : (
-              <Menu.Item value="pin" className="dm-context-menu-item">
-                <Icon name="locationPin" className="dm-context-menu-item-icon" />
-                {t('conversations.pinMessage', 'Pin message')}
-              </Menu.Item>
-            )
-          )}
-          <Menu.Item value="react" className="dm-context-menu-item">
-            <Icon name="smilePlus" className="dm-context-menu-item-icon" />
-            React
+  const messageContextMenuChatItems = useMemo(
+    () => (
+      <>
+        {onReply && !message.deleted && (
+          <Menu.Item value="reply" className="dm-context-menu-item">
+            <Icon name="reply" className="dm-context-menu-item-icon" />
+            {t('conversations.reply', 'Reply')}
           </Menu.Item>
-          {!isOwn && !message.deleted && (
-            <Menu.Item value="report" className="dm-context-menu-item dm-context-menu-item--danger">
-              <Icon name="warning" className="dm-context-menu-item-icon" />
-              {t('report.reportMessage', 'Report Message')}
+        )}
+        {canManagePin && !message.deleted && (
+          isPinned ? (
+            <Menu.Item value="unpin" className="dm-context-menu-item">
+              <Icon name="locationPin" className="dm-context-menu-item-icon" />
+              {t('conversations.unpinMessage', 'Unpin message')}
             </Menu.Item>
-          )}
-          <Menu.Item value="delete-for-me" className="dm-context-menu-item">
+          ) : (
+            <Menu.Item value="pin" className="dm-context-menu-item">
+              <Icon name="locationPin" className="dm-context-menu-item-icon" />
+              {t('conversations.pinMessage', 'Pin message')}
+            </Menu.Item>
+          )
+        )}
+        <Menu.Item value="react" className="dm-context-menu-item">
+          <Icon name="smilePlus" className="dm-context-menu-item-icon" />
+          React
+        </Menu.Item>
+        {!isOwn && !message.deleted && (
+          <Menu.Item value="report" className="dm-context-menu-item dm-context-menu-item--danger">
+            <Icon name="warning" className="dm-context-menu-item-icon" />
+            {t('report.reportMessage', 'Report Message')}
+          </Menu.Item>
+        )}
+        <Menu.Item value="delete-for-me" className="dm-context-menu-item">
+          <Icon name="trash" className="dm-context-menu-item-icon" />
+          Delete for me
+        </Menu.Item>
+        {isOwn && (
+          <Menu.Item value="delete-for-everyone" className="dm-context-menu-item dm-context-menu-item--danger">
             <Icon name="trash" className="dm-context-menu-item-icon" />
-            Delete for me
+            Delete for everyone
           </Menu.Item>
-          {isOwn && (
-            <Menu.Item value="delete-for-everyone" className="dm-context-menu-item dm-context-menu-item--danger">
-              <Icon name="trash" className="dm-context-menu-item-icon" />
-              Delete for everyone
-            </Menu.Item>
-          )}
-        </Menu.Content>
-      </Menu.Positioner>
-    </Portal>
+        )}
+      </>
+    ),
+    [canManagePin, isOwn, isPinned, message.deleted, onReply, t],
   );
 
   const reactionBar = (
@@ -401,40 +406,29 @@ export const MessageBubble = memo(function MessageBubble({
     />
   );
 
+  const onStashMessageContext = useCallback((e: React.MouseEvent) => {
+    const next = captureMessageContextStash(e.target);
+    flushSync(() => {
+      setMessageContextStash(next);
+    });
+  }, []);
+
   function contextMenuWithReactionPicker(row: ReactElement) {
     return (
-      <Popover.Root
-        open={showContextReactionPicker}
-        onOpenChange={(e) => setShowContextReactionPicker(e.open)}
-        positioning={MESSAGE_ACTION_BAR_POPOVER_POSITIONING}
-      >
-        <Menu.Root onSelect={handleContextAction}>
-          <Menu.ContextTrigger asChild>
-            <Popover.Anchor asChild>{row}</Popover.Anchor>
-          </Menu.ContextTrigger>
-          {contextMenuContent}
-        </Menu.Root>
-        <Portal>
-          <Popover.Positioner>
-            <Popover.Content className="emoji-picker-popover emoji-picker-popover--context">
-              <EmojiPicker
-                compact
-                onEmojiSelect={(emoji) => {
-                  onReact(message.id, emoji);
-                  setShowContextReactionPicker(false);
-                }}
-              />
-              <button
-                type="button"
-                className="emoji-picker-popover-close"
-                onClick={() => setShowContextReactionPicker(false)}
-              >
-                x
-              </button>
-            </Popover.Content>
-          </Popover.Positioner>
-        </Portal>
-      </Popover.Root>
+      <MessageContextMenuFrame
+        messageRow={row}
+        onStashContext={onStashMessageContext}
+        contextStash={messageContextStash}
+        messagePlainText={content}
+        parsedAttachments={parsed.attachments}
+        gifAttachments={parsed.gifAttachments}
+        showContextReactionPicker={showContextReactionPicker}
+        onShowContextReactionPicker={setShowContextReactionPicker}
+        onReact={onReact}
+        messageId={message.id}
+        onContextAction={handleChatContextAction}
+        chatMenuItems={messageContextMenuChatItems}
+      />
     );
   }
 
