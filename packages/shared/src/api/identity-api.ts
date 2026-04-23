@@ -12,6 +12,7 @@ import type {
   PublicIdentity,
   PublicIdentitySession,
   RegisterDeviceParams,
+  PutDeviceStaticKeyAttestationParams,
   UpdateKeyBundleParams,
 } from './identity-types';
 import type {
@@ -242,6 +243,20 @@ export class IdentityApi {
   ): Promise<ApiResponse<void>> {
     return this.client.patch(
       `/api/identity/${encodeURIComponent(identityId)}/devices/${encodeURIComponent(deviceId)}`,
+      params
+    );
+  }
+
+  /**
+   * Upload Ed25519 attestation over this device's static public keys (device-trust v3).
+   */
+  async putDeviceStaticKeyAttestation(
+    identityId: string,
+    deviceId: string,
+    params: PutDeviceStaticKeyAttestationParams
+  ): Promise<ApiResponse<{ updated: boolean }>> {
+    return this.client.put(
+      `/api/identity/${encodeURIComponent(identityId)}/devices/${encodeURIComponent(deviceId)}/static-key-attestation`,
       params
     );
   }

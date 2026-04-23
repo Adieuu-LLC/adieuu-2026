@@ -51,6 +51,7 @@ import {
   attachActiveSignedPreKeysToPublicKeys,
   canViewerAccessTargetIdentityKeys,
 } from '../../services/identity-keys-access.service';
+import { verifyDeviceStoredStaticKeyAttestation } from '../../services/device-static-attestation.service';
 import { toPublicIdentitySession } from '../../models/session';
 import { applyPrivacyFilter, areFriends } from './profile.controller';
 import { getClientIp } from '../auth/controller';
@@ -545,6 +546,12 @@ const RegisterDeviceSchema = z.object({
   name: z.string().min(1).max(100),
   ecdhPublicKey: z.string().min(32).max(200),
   kemPublicKey: z.string().min(32).max(2000).optional(),
+  /** Ed25519 attestation (base64) over static device keys */
+  staticKeyAttestation: z.string().min(32).max(200).optional(),
+});
+
+const PutStaticKeyAttestationSchema = z.object({
+  signature: z.string().min(32).max(200),
 });
 
 const StoreKeyBundleSchema = z.object({
@@ -584,7 +591,7 @@ export async function registerDeviceCtrl(ctx: RouteContext): Promise<Response> {
     return ctx.errors.validationFailed();
   }
 
-  const { deviceId, name, ecdhPublicKey, kemPublicKey } = parseResult.data;
+  const { deviceId, name, ecdhPublicKey, kemPublicKey, staticKeyAttestation } = parseResult.data;
   const identityRepo = getIdentityRepository();
 
   const existingDevices = await identityRepo.getDevices(identity._id);
@@ -601,6 +608,13 @@ export async function registerDeviceCtrl(ctx: RouteContext): Promise<Response> {
     registeredAt: now,
     lastActiveAt: now,
   };
+
+  if (staticKeyAttestation) {
+    if (!verifyDeviceStoredStaticKeyAttestation(identity, device, staticKeyAttestation)) {
+      return errors.badRequest('Invalid static key attestation.');
+    }
+    device.staticKeyAttestation = staticKeyAttestation;
+  }
 
   const added = await identityRepo.addDevice(identity._id, device);
   if (!added) {
@@ -781,6 +795,7 @@ export async function listDevicesCtrl(ctx: RouteContext): Promise<Response> {
       name: d.name,
       ecdhPublicKey: d.ecdhPublicKey,
       kemPublicKey: d.kemPublicKey,
+      staticKeyAttestation: d.staticKeyAttestation,
       registeredAt: d.registeredAt.toISOString(),
       lastActiveAt: d.lastActiveAt.toISOString(),
     })),
@@ -881,6 +896,65 @@ export async function updateDeviceCtrl(ctx: RouteContext): Promise<Response> {
   }
 
   return success(undefined, 'Device updated.');
+}
+
+/**
+ * PUT /identity/:id/devices/:deviceId/static-key-attestation
+ *
+ * Owner uploads Ed25519 attestation over this device's static public keys.
+ */
+export async function putDeviceStaticKeyAttestationCtrl(ctx: RouteContext): Promise<Response> {
+  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
+  if (!identitySessionId) {
+    return ctx.errors.unauthorized();
+  }
+
+  const identity = await getIdentityFromSession(identitySessionId);
+  if (!identity) {
+    return ctx.errors.unauthorized();
+  }
+
+  if (identity._id.toHexString() !== ctx.params.id) {
+    return errors.forbidden('Cannot update device attestation for another identity.');
+  }
+
+  const { deviceId } = ctx.params;
+  const sanitizedDeviceId = sanitizeString(deviceId ?? '', 'general');
+  if (!sanitizedDeviceId.value) {
+    return errors.badRequest('Invalid device ID.');
+  }
+
+  const parseResult = PutStaticKeyAttestationSchema.safeParse(ctx.body);
+  if (!parseResult.success) {
+    return ctx.errors.validationFailed();
+  }
+
+  const { signature } = parseResult.data;
+  const identityRepo = getIdentityRepository();
+  const devices = await identityRepo.getDevices(identity._id);
+  const device = devices.find(d => d.deviceId === sanitizedDeviceId.value);
+  if (!device) {
+    return errors.notFound('Device not found.');
+  }
+
+  if (!verifyDeviceStoredStaticKeyAttestation(identity, device, signature)) {
+    return errors.badRequest('Invalid static key attestation.');
+  }
+
+  if (device.staticKeyAttestation === signature) {
+    return success({ updated: false }, 'Static key attestation unchanged.');
+  }
+
+  const updated = await identityRepo.setDeviceStaticKeyAttestation(
+    identity._id,
+    sanitizedDeviceId.value,
+    signature
+  );
+  if (!updated) {
+    return errors.internal('Failed to store static key attestation.');
+  }
+
+  return success({ updated: true }, 'Static key attestation stored.');
 }
 
 // ============================================================================

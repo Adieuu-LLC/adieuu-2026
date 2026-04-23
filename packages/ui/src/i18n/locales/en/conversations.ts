@@ -128,12 +128,12 @@ export const conversations = {
       link: 'Device Signatures',
       title: 'Device Signatures — {{name}}',
       titleSelf: 'Your device signatures',
-      toolbarTooltip: 'Open your device signatures for this conversation',
+      toolbarTooltip: 'Open your device signatures',
       toolbarAria: 'Device signatures',
       summary:
-        'Below are {{name}}\'s device signatures, unique to this conversation. You can use these signatures to help determine if the {{name}}\'s device (or messages) have been tampered with.',
+        'Below are {{name}}\'s device trust fingerprints. Each line is stable for that device until they change keys, and is the same in every conversation. You can mark a device verified to compare against future messages.',
       summarySelf:
-        'Below are your device signatures for this conversation. Others here can use them to confirm your messages have not been tampered with.',
+        'Below are your device trust fingerprints. Others can compare these lines to what they see for you in any chat. Each line stays the same until you replace keys on that device.',
       accordionTitle: 'Would you like to know more?',
       introP1:
         'All DM and group conversations in Adieuu are end-to-end encrypted, meaning the messages are encrypted on user devices before they reach Adieuu servers. Each different device (phone, desktop, etc) a user logs in with has its own keys that it encrypts and signs messages with.',
@@ -144,18 +144,18 @@ export const conversations = {
       introP2Self:
         'Much like a wax seal on an envelope, a signature that does not match what others expect might mean someone tampered with your messages, or tried to impersonate you.',
       introP3:
-        'What to do: ask {{name}} to open their own device signatures in this conversation. Read the signatures to each other (if you want to be really safe, compare them in voice/video, in-person, etc). Note that signatures are also unique to conversation. In a different conversation, you will both have different signatures.',
+        'What to do: ask {{name}} to open Device Signatures in their app. Read the full fingerprint lines to each other (voice/video or in-person if you want to be careful). The same device shows the same line in every conversation.',
       introP3Self:
-        'What to do: when the other person is ready, stay on this screen and read your signatures to each other (if you want to be really safe, compare in voice/video, in-person, etc). Signatures are unique to each conversation—in another chat, you will both see different signatures.',
+        'What to do: when the other person is ready, read your fingerprint lines aloud so they can confirm they match what they see for your devices in their app. Your lines are the same in every chat until you change keys on a device.',
       introP4:
         'If the signatures do not match, it\'s possible that device (or its messages) are compromised.',
       introP4Self:
         'If the signatures do not match, it\'s possible that your device is compromised, or your messages are otherwise being tampered with before reaching the others.',
       devicesHeading: 'Signatures by device',
       deviceListBlurb:
-        'Each block below is one device. Agree which block you are comparing (the device id can help), then check that the full signature line matches exactly what {{name}} sees for that same device in their app. These signatures only apply to this conversation.',
+        'Each block below is one device. Agree which block you are comparing (the device id can help), then check that the full line matches exactly what {{name}} sees for that device—the line is identical in any conversation.',
       deviceListBlurbSelf:
-        'Each block below is one of your devices. Agree which block you are comparing (the device id can help), then read your full signature line aloud so the other person can confirm it matches what they see for you in this conversation.',
+        'Each block below is one of your devices. Agree which block you are comparing (the device id can help), then read your full line aloud so the other person can confirm it matches what they see for you anywhere in the app.',
       deviceOrdinal: 'Device {{n}}',
       deviceIdCaption: 'Device ID',
       loadError: 'Could not load security information.',
@@ -167,14 +167,18 @@ export const conversations = {
         'We cannot show a signature for this device from here. Ask them to read their code from their own app, or try again later.',
       verifyFailed:
         'We could not confirm this device\'s code from here. Be cautious until you can verify another way.',
+      attestationPending:
+        'No trust fingerprint yet for this device—{{name}} needs to update to the latest app and sign in so their device can publish a signature.',
+      attestationPendingSelf:
+        'No trust fingerprint for this device yet. Update to the latest app and stay signed in; your device will publish a signature automatically.',
       copied: 'Signature copied',
       copyFailed: 'Could not copy to clipboard',
       markVerified: 'Verified',
       verifyPersistFailed: 'Could not update verification',
       fingerprintMatchIndicator:
-        'This device matches your verified signature for this conversation.',
+        'This device matches your verified fingerprint.',
       fingerprintMismatchIndicator:
-        'Verified signature no longer matches this device. Keys may have changed.',
+        'Verified fingerprint no longer matches this device. Keys may have changed.',
     },
 
     settingsFs: 'Forward Secrecy',

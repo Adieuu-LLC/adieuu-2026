@@ -1,35 +1,33 @@
 /**
- * Derives the same safety fingerprint display string as the member security modal
- * for a given identity public key bundle and device id.
+ * Device-trust v3 fingerprint display (static keys + Ed25519 attestation).
  */
 
 import {
-  computeSafetyFingerprintDigestV2,
+  computeDeviceTrustFingerprintDigestV3,
   formatSafetyFingerprintDisplay,
 } from '@adieuu/crypto';
 import type { IdentityPublicKeys } from '@adieuu/shared';
 
 /**
- * Returns the formatted fingerprint line for `deviceId`, or null if the device
- * is missing, has no signed pre-key, or the SPK does not verify.
+ * Returns the formatted fingerprint line for `deviceId`, or null if static keys or
+ * attestation are missing, or verification fails.
  */
 export function getSafetyFingerprintDisplayForDevice(
   keys: IdentityPublicKeys,
   deviceId: string,
 ): string | null {
   const device = keys.devices.find((d) => d.deviceId === deviceId);
-  if (device?.signedPreKey == null) return null;
+  if (!device?.ecdhPublicKey || !device.staticKeyAttestation) {
+    return null;
+  }
   try {
-    const digest = computeSafetyFingerprintDigestV2({
-      profile: keys.preferredCryptoProfile,
+    const digest = computeDeviceTrustFingerprintDigestV3({
+      profile: keys.preferredCryptoProfile ?? 'default',
       signingPublicKeyB64: keys.signingPublicKey,
       deviceId: device.deviceId,
-      signedPreKey: {
-        keyId: device.signedPreKey.keyId,
-        ecdhPublicKey: device.signedPreKey.ecdhPublicKey,
-        kemPublicKey: device.signedPreKey.kemPublicKey,
-        signature: device.signedPreKey.signature,
-      },
+      ecdhPublicKeyB64: device.ecdhPublicKey,
+      kemPublicKeyB64: device.kemPublicKey,
+      staticKeyAttestationB64: device.staticKeyAttestation,
     });
     return formatSafetyFingerprintDisplay(digest);
   } catch {

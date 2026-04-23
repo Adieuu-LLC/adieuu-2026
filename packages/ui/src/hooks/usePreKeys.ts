@@ -40,6 +40,7 @@ import {
   deleteSessionKeysForSpk,
   clearAllSessionKeys,
 } from '../services/preKeyStorage';
+import { ensureDeviceStaticKeyAttestationUploaded } from '../services/deviceStaticKeyAttestationUpload';
 
 export interface UsePreKeysResult {
   /** Whether a rotation is currently in progress */
@@ -179,6 +180,13 @@ export function usePreKeys(): UsePreKeysResult {
 
       // Also check OTPK replenishment (runs on app open and periodic checks)
       await performReplenishCheck();
+
+      void ensureDeviceStaticKeyAttestationUploaded({
+        identityId: identity.id,
+        deviceId,
+        signingPrivateKey: signingKey,
+        identityApi: api.identity,
+      });
 
       // Schedule next check
       timerRef.current = rescheduleTimer(

@@ -81,6 +81,8 @@ export interface PublicDevice {
   name: string;
   ecdhPublicKey: string;
   kemPublicKey?: string;
+  /** Ed25519 attestation over static keys; present after device owner uploads (device-trust v3). */
+  staticKeyAttestation?: string;
   registeredAt?: string;
   lastActiveAt?: string;
   /** Active signed pre-key for handshakes; present when GET /keys is authorized. */
@@ -154,6 +156,13 @@ export interface RegisterDeviceParams {
   name: string;
   ecdhPublicKey: string;
   kemPublicKey?: string;
+  /** Optional Ed25519 attestation (base64) over static keys */
+  staticKeyAttestation?: string;
+}
+
+/** Body for PUT .../devices/:deviceId/static-key-attestation */
+export interface PutDeviceStaticKeyAttestationParams {
+  signature: string;
 }
 
 /**

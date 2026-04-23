@@ -79,6 +79,11 @@ export interface IdentityDevice {
   ecdhPublicKey: string;
   /** ML-KEM public key for post-quantum (base64, optional) */
   kemPublicKey?: string;
+  /**
+   * Ed25519 signature (base64) over static device keys under the identity signing key.
+   * Used for device-trust fingerprints (v3).
+   */
+  staticKeyAttestation?: string;
   /** When this device was registered */
   registeredAt: Date;
   /** Last time this device was active */
@@ -227,6 +232,8 @@ export interface PublicDevice {
   name: string;
   ecdhPublicKey: string;
   kemPublicKey?: string;
+  /** Present when the device owner has uploaded a static-key attestation */
+  staticKeyAttestation?: string;
   signedPreKey?: PublicSignedPreKey | null;
 }
 
@@ -304,6 +311,7 @@ export function toIdentityPublicKeys(
       name: includeDeviceNames ? d.name : '',
       ecdhPublicKey: d.ecdhPublicKey,
       kemPublicKey: d.kemPublicKey,
+      staticKeyAttestation: d.staticKeyAttestation,
     })),
   };
 }

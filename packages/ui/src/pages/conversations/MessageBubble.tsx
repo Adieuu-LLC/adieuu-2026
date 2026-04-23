@@ -257,8 +257,7 @@ export const MessageBubble = memo(function MessageBubble({
       }
       const sid = parsed.senderDeviceId;
       const from = message.fromIdentityId;
-      const convId = message.conversationId;
-      if (!sid || !convId) {
+      if (!sid) {
         setDeviceSignatureTrust('none');
         return;
       }
@@ -266,7 +265,7 @@ export const MessageBubble = memo(function MessageBubble({
         setDeviceSignatureTrust('none');
         return;
       }
-      const rec = await getDeviceSignatureVerification(convId, from, sid);
+      const rec = await getDeviceSignatureVerification(from, sid);
       if (cancelled) return;
       if (!rec) {
         setDeviceSignatureTrust('none');
@@ -287,7 +286,6 @@ export const MessageBubble = memo(function MessageBubble({
     message.deleted,
     message.decryptedContent,
     message.fromIdentityId,
-    message.conversationId,
     message.id,
     parsed.senderDeviceId,
     peerKeysForSender,
@@ -299,7 +297,7 @@ export const MessageBubble = memo(function MessageBubble({
       <Tooltip
         content={t(
           'conversations.memberSecurity.fingerprintMatchIndicator',
-          'This device matches your verified signature for this conversation.',
+          'This device matches your verified fingerprint.',
         )}
         position="top"
       >
@@ -307,7 +305,7 @@ export const MessageBubble = memo(function MessageBubble({
           className="dm-message-signature-trust dm-message-signature-trust--ok"
           aria-label={t(
             'conversations.memberSecurity.fingerprintMatchIndicator',
-            'This device matches your verified signature for this conversation.',
+            'This device matches your verified fingerprint.',
           )}
         >
           <Icon name="key" size="sm" />
@@ -317,7 +315,7 @@ export const MessageBubble = memo(function MessageBubble({
       <Tooltip
         content={t(
           'conversations.memberSecurity.fingerprintMismatchIndicator',
-          'Verified signature no longer matches this device. Keys may have changed.',
+          'Verified fingerprint no longer matches this device. Keys may have changed.',
         )}
         position="top"
       >
@@ -325,7 +323,7 @@ export const MessageBubble = memo(function MessageBubble({
           className="dm-message-signature-trust dm-message-signature-trust--bad"
           aria-label={t(
             'conversations.memberSecurity.fingerprintMismatchIndicator',
-            'Verified signature no longer matches this device. Keys may have changed.',
+            'Verified fingerprint no longer matches this device. Keys may have changed.',
           )}
         >
           <Icon name="error" size="sm" />

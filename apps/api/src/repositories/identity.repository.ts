@@ -48,6 +48,11 @@ export interface IIdentityRepository {
   removeDevice(identityId: string | ObjectId, deviceId: string): Promise<boolean>;
   updateDeviceActivity(identityId: string | ObjectId, deviceId: string): Promise<boolean>;
   updateDeviceName(identityId: string | ObjectId, deviceId: string, name: string): Promise<boolean>;
+  setDeviceStaticKeyAttestation(
+    identityId: string | ObjectId,
+    deviceId: string,
+    staticKeyAttestation: string
+  ): Promise<boolean>;
   getDevices(identityId: string | ObjectId): Promise<IdentityDevice[]>;
   clearModerationFields(identityId: string | ObjectId): Promise<boolean>;
   changeIdent(identityId: string | ObjectId, newIdent: string, newHashVersion: number, options?: { session?: ClientSession }): Promise<boolean>;
@@ -412,6 +417,30 @@ export class IdentityRepository
     );
 
     // Return true if document was matched (even if name was same, so modifiedCount = 0)
+    return result.matchedCount === 1;
+  }
+
+  /**
+   * Store Ed25519 attestation over static device keys (device-trust v3).
+   */
+  async setDeviceStaticKeyAttestation(
+    identityId: string | ObjectId,
+    deviceId: string,
+    staticKeyAttestation: string
+  ): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const now = new Date();
+
+    const result = await this.collection.updateOne(
+      { _id: objectId, 'devices.deviceId': deviceId },
+      {
+        $set: {
+          'devices.$.staticKeyAttestation': staticKeyAttestation,
+          updatedAt: now,
+        },
+      }
+    );
+
     return result.matchedCount === 1;
   }
 

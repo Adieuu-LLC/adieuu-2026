@@ -210,6 +210,19 @@ export {
   type SafetyFingerprintFromApiInput,
 } from './safety/fingerprint';
 
+// Device-trust fingerprint v3 + static key attestation
+export {
+  ADIEUU_DEVICE_STATIC_ATTESTATION_V1,
+  ADIEUU_DEVICE_TRUST_FINGERPRINT_V3,
+  encodeDeviceStaticKeyAttestationPreimage,
+  signDeviceStaticKeyAttestation,
+  verifyDeviceStaticKeyAttestation,
+  encodeDeviceTrustFingerprintPreimageV3,
+  computeDeviceTrustFingerprintDigestV3,
+  type DeviceStaticKeyAttestationMaterial,
+  type DeviceTrustFingerprintV3FromApiInput,
+} from './safety/device-trust-fingerprint';
+
 // DM (Direct Messaging)
 export {
   deriveConversationId,

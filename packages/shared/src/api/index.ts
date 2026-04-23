@@ -60,6 +60,7 @@ export {
   type EncryptedKeyBundle,
   type InitializeE2EParams,
   type RegisterDeviceParams,
+  type PutDeviceStaticKeyAttestationParams,
   type UpdateKeyBundleParams,
   type CreateIdentityParams,
   type LoginIdentityParams,

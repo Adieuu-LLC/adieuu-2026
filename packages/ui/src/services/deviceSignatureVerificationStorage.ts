@@ -1,10 +1,10 @@
 /**
- * Per-conversation, per-peer-device verification of safety fingerprint display strings.
+ * Global (cross-conversation) per-peer-device verification of device-trust fingerprint lines.
  * Stored in IndexedDB (local only).
  */
 
 const DB_NAME = 'adieuu-device-signature-verification';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = 'verifications';
 
 export interface DeviceSignatureVerificationRecord {
@@ -13,8 +13,8 @@ export interface DeviceSignatureVerificationRecord {
   verifiedAt: string;
 }
 
-function compoundKey(conversationId: string, peerIdentityId: string, deviceId: string): string {
-  return `${conversationId}\u0000${peerIdentityId}\u0000${deviceId}`;
+function compoundKey(peerIdentityId: string, deviceId: string): string {
+  return `${peerIdentityId}\u0000${deviceId}`;
 }
 
 function openDb(): Promise<IDBDatabase> {
@@ -26,9 +26,12 @@ function openDb(): Promise<IDBDatabase> {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onerror = () => reject(req.error ?? new Error('IndexedDB open failed'));
     req.onsuccess = () => resolve(req.result);
-    req.onupgradeneeded = () => {
+    req.onupgradeneeded = (event) => {
       const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) {
+      if (event.oldVersion < 2) {
+        if (db.objectStoreNames.contains(STORE)) {
+          db.deleteObjectStore(STORE);
+        }
         db.createObjectStore(STORE);
       }
     };
@@ -43,7 +46,6 @@ function idbRequest<T>(req: IDBRequest<T>): Promise<T> {
 }
 
 export async function getDeviceSignatureVerification(
-  conversationId: string,
   peerIdentityId: string,
   deviceId: string,
 ): Promise<DeviceSignatureVerificationRecord | null> {
@@ -51,7 +53,7 @@ export async function getDeviceSignatureVerification(
     const db = await openDb();
     const tx = db.transaction(STORE, 'readonly');
     const store = tx.objectStore(STORE);
-    const key = compoundKey(conversationId, peerIdentityId, deviceId);
+    const key = compoundKey(peerIdentityId, deviceId);
     const raw = await idbRequest(store.get(key) as IDBRequest<DeviceSignatureVerificationRecord | undefined>);
     db.close();
     return raw ?? null;
@@ -61,7 +63,6 @@ export async function getDeviceSignatureVerification(
 }
 
 export async function setDeviceSignatureVerification(
-  conversationId: string,
   peerIdentityId: string,
   deviceId: string,
   verifiedDisplay: string,
@@ -69,7 +70,7 @@ export async function setDeviceSignatureVerification(
   const db = await openDb();
   const tx = db.transaction(STORE, 'readwrite');
   const store = tx.objectStore(STORE);
-  const key = compoundKey(conversationId, peerIdentityId, deviceId);
+  const key = compoundKey(peerIdentityId, deviceId);
   const record: DeviceSignatureVerificationRecord = {
     verifiedDisplay,
     verifiedAt: new Date().toISOString(),
@@ -79,14 +80,13 @@ export async function setDeviceSignatureVerification(
 }
 
 export async function clearDeviceSignatureVerification(
-  conversationId: string,
   peerIdentityId: string,
   deviceId: string,
 ): Promise<void> {
   const db = await openDb();
   const tx = db.transaction(STORE, 'readwrite');
   const store = tx.objectStore(STORE);
-  const key = compoundKey(conversationId, peerIdentityId, deviceId);
+  const key = compoundKey(peerIdentityId, deviceId);
   await idbRequest(store.delete(key));
   db.close();
 }

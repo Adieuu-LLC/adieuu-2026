@@ -46,4 +46,18 @@ describe('toIdentityPublicKeys', () => {
     const keys = toIdentityPublicKeys(baseDoc as never, { includeDeviceNames: false });
     expect(keys?.devices[0]?.name).toBe('');
   });
+
+  test('includes staticKeyAttestation on devices when present', () => {
+    const doc = {
+      ...baseDoc,
+      devices: [
+        {
+          ...baseDoc.devices[0],
+          staticKeyAttestation: 'c2lnYXR1cmU',
+        },
+      ],
+    };
+    const keys = toIdentityPublicKeys(doc as never);
+    expect(keys?.devices[0]?.staticKeyAttestation).toBe('c2lnYXR1cmU');
+  });
 });

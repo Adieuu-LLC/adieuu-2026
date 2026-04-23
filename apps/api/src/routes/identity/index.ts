@@ -38,6 +38,7 @@ import {
   listDevicesCtrl,
   removeDeviceCtrl,
   updateDeviceCtrl,
+  putDeviceStaticKeyAttestationCtrl,
   initializeE2ECtrl,
   listIdentitySessionsCtrl,
   revokeIdentitySessionCtrl,
@@ -435,6 +436,17 @@ router.delete('/identity/:id/devices/:deviceId', async (ctx) => {
  */
 router.patch('/identity/:id/devices/:deviceId', async (ctx) => {
   return await updateDeviceCtrl(ctx);
+});
+
+/**
+ * PUT /identity/:id/devices/:deviceId/static-key-attestation
+ *
+ * Stores Ed25519 attestation over the device's static ECDH/KEM keys (device-trust v3).
+ *
+ * @route PUT /api/identity/:id/devices/:deviceId/static-key-attestation
+ */
+router.put('/identity/:id/devices/:deviceId/static-key-attestation', async (ctx) => {
+  return await putDeviceStaticKeyAttestationCtrl(ctx);
 });
 
 // ============================================================================

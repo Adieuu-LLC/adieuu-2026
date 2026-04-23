@@ -340,6 +340,44 @@ describe('IdentityRepository', () => {
     });
   });
 
+  describe('setDeviceStaticKeyAttestation', () => {
+    test('sets attestation on matching device', async () => {
+      mockCollection.updateOne.mockImplementation(() =>
+        Promise.resolve({ matchedCount: 1, modifiedCount: 1 })
+      );
+
+      const result = await repo.setDeviceStaticKeyAttestation(
+        mockIdentity._id,
+        'device-123',
+        'YmFzZTY0LXNpZw'
+      );
+
+      expect(result).toBe(true);
+      expect(mockCollection.updateOne).toHaveBeenCalledWith(
+        { _id: expect.any(ObjectId), 'devices.deviceId': 'device-123' },
+        expect.objectContaining({
+          $set: expect.objectContaining({
+            'devices.$.staticKeyAttestation': 'YmFzZTY0LXNpZw',
+          }),
+        })
+      );
+    });
+
+    test('returns false when device not found', async () => {
+      mockCollection.updateOne.mockImplementation(() =>
+        Promise.resolve({ matchedCount: 0, modifiedCount: 0 })
+      );
+
+      const result = await repo.setDeviceStaticKeyAttestation(
+        mockIdentity._id,
+        'nonexistent',
+        'YmFzZTY0LXNpZw'
+      );
+
+      expect(result).toBe(false);
+    });
+  });
+
   describe('getDevices', () => {
     test('returns empty array when no devices', async () => {
       mockCollection.findOne.mockImplementation(() =>

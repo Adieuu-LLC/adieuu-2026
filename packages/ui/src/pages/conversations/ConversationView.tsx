@@ -1019,7 +1019,6 @@ export function ConversationView() {
         onOpenChange={(open) => {
           if (!open) setMemberSecurityModal(null);
         }}
-        conversationId={conversation?.id ?? null}
         identityId={memberSecurityModal?.id ?? null}
         subjectLabel={memberSecurityModal?.label ?? ''}
         isSelfSubject={

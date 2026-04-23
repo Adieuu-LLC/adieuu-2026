@@ -1,5 +1,5 @@
 /**
- * Security details for a conversation member: per-device safety fingerprints.
+ * Security details for a conversation member: per-device trust fingerprints (v3).
  * Fetches public keys when opened (authorized for shared chats).
  */
 
@@ -29,8 +29,6 @@ import { getSafetyFingerprintDisplayForDevice } from '../../services/safetyFinge
 export interface MemberSecurityModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Conversation scope for stored verification state */
-  conversationId: string | null;
   identityId: string | null;
   /** Display name for the dialog title */
   subjectLabel: string;
@@ -51,7 +49,7 @@ type DeviceRow =
   | {
       deviceId: string;
       ordinal: number;
-      kind: 'noSpk' | 'verifyFailed';
+      kind: 'noDeviceKeys' | 'attestationPending' | 'verifyFailed';
     };
 
 /** Shorten long ids for display; full id remains in `title` for hover/copy elsewhere. */
@@ -64,8 +62,12 @@ function buildDeviceRows(keys: IdentityPublicKeys): DeviceRow[] {
   const rows: DeviceRow[] = [];
   keys.devices.forEach((d, index) => {
     const ordinal = index + 1;
-    if (d.signedPreKey == null) {
-      rows.push({ deviceId: d.deviceId, ordinal, kind: 'noSpk' });
+    if (!d.ecdhPublicKey) {
+      rows.push({ deviceId: d.deviceId, ordinal, kind: 'noDeviceKeys' });
+      return;
+    }
+    if (!d.staticKeyAttestation) {
+      rows.push({ deviceId: d.deviceId, ordinal, kind: 'attestationPending' });
       return;
     }
     const display = getSafetyFingerprintDisplayForDevice(keys, d.deviceId);
@@ -86,7 +88,6 @@ function buildDeviceRows(keys: IdentityPublicKeys): DeviceRow[] {
 export function MemberSecurityModal({
   open,
   onOpenChange,
-  conversationId,
   identityId,
   subjectLabel,
   isSelfSubject = false,
@@ -131,7 +132,7 @@ export function MemberSecurityModal({
   const deviceRows = useMemo(() => (keys ? buildDeviceRows(keys) : []), [keys]);
 
   useEffect(() => {
-    if (!open || !conversationId || !identityId || !keys) {
+    if (!open || !identityId || !keys) {
       setVerifiedDeviceIds({});
       setVerificationLoading(false);
       return;
@@ -145,7 +146,7 @@ export function MemberSecurityModal({
 
     void Promise.all(
       okDevices.map(async (deviceId) => {
-        const rec = await getDeviceSignatureVerification(conversationId, identityId, deviceId);
+        const rec = await getDeviceSignatureVerification(identityId, deviceId);
         return [deviceId, !!rec] as const;
       }),
     ).then((pairs) => {
@@ -157,16 +158,16 @@ export function MemberSecurityModal({
     return () => {
       cancelled = true;
     };
-  }, [open, conversationId, identityId, keys]);
+  }, [open, identityId, keys]);
 
   const handleVerifiedChange = useCallback(
     async (deviceId: string, display: string, checked: boolean) => {
-      if (!conversationId || !identityId) return;
+      if (!identityId) return;
       try {
         if (checked) {
-          await setDeviceSignatureVerification(conversationId, identityId, deviceId, display);
+          await setDeviceSignatureVerification(identityId, deviceId, display);
         } else {
-          await clearDeviceSignatureVerification(conversationId, identityId, deviceId);
+          await clearDeviceSignatureVerification(identityId, deviceId);
         }
         setVerifiedDeviceIds((prev) => ({ ...prev, [deviceId]: checked }));
         onVerificationChange?.();
@@ -174,7 +175,7 @@ export function MemberSecurityModal({
         toastError(t('conversations.memberSecurity.verifyPersistFailed', 'Could not update verification'));
       }
     },
-    [conversationId, identityId, onVerificationChange, toastError, t],
+    [identityId, onVerificationChange, toastError, t],
   );
 
   const copyFingerprint = useCallback(
@@ -313,7 +314,7 @@ export function MemberSecurityModal({
                                     {t('common.copy')}
                                   </Button>
                                 </div>
-                                {conversationId && (
+                                {identityId && (
                                   <div className="member-security-modal-verify-row">
                                     <Switch.Root
                                       className="member-security-modal-verify-switch"
@@ -335,9 +336,16 @@ export function MemberSecurityModal({
                                 )}
                               </>
                             )}
-                            {row.kind === 'noSpk' && (
+                            {row.kind === 'noDeviceKeys' && (
                               <p className="member-security-modal-device-unavailable">
                                 {t('conversations.memberSecurity.spkUnavailable')}
+                              </p>
+                            )}
+                            {row.kind === 'attestationPending' && (
+                              <p className="member-security-modal-device-unavailable">
+                                {isSelfSubject
+                                  ? t('conversations.memberSecurity.attestationPendingSelf')
+                                  : t('conversations.memberSecurity.attestationPending', { name: subjectLabel })}
                               </p>
                             )}
                             {row.kind === 'verifyFailed' && (
