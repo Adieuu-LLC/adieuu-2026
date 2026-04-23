@@ -26,6 +26,8 @@ describe('applyFetchedMessagesToConversationState', () => {
         newerPaginationAfterId: 'old1',
         hasNewerPages: false,
         loading: true,
+        showManualLoadOlder: false,
+        showManualLoadNewer: false,
       },
     };
     const next = applyFetchedMessagesToConversationState(prev, {
@@ -52,6 +54,8 @@ describe('applyFetchedMessagesToConversationState', () => {
         newerPaginationAfterId: 'a',
         hasNewerPages: false,
         loading: true,
+        showManualLoadOlder: false,
+        showManualLoadNewer: false,
       },
     };
     const next = applyFetchedMessagesToConversationState(prev, {
@@ -75,6 +79,8 @@ describe('applyFetchedMessagesToConversationState', () => {
         newerPaginationAfterId: 'new',
         hasNewerPages: false,
         loading: true,
+        showManualLoadOlder: false,
+        showManualLoadNewer: false,
       },
     };
     const next = applyFetchedMessagesToConversationState(prev, {
@@ -99,6 +105,8 @@ describe('applyFetchedMessagesToConversationState', () => {
         newerPaginationAfterId: 'mid',
         hasNewerPages: true,
         loading: true,
+        showManualLoadOlder: false,
+        showManualLoadNewer: false,
       },
     };
     const next = applyFetchedMessagesToConversationState(prev, {

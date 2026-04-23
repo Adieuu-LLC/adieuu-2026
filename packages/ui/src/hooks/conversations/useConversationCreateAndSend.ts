@@ -240,6 +240,8 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
                   newerPaginationAfterId: null,
                   hasNewerPages: false,
                   loading: false,
+                  showManualLoadOlder: false,
+                  showManualLoadNewer: false,
                 }),
                 messages: [displayMsg, ...(prev[conversationId]?.messages ?? [])],
                 newerPaginationAfterId: displayMsg.id,

@@ -20,6 +20,7 @@ export interface IMessageRepository {
     limit: number,
     cursor?: ObjectId,
     direction?: 'asc' | 'desc',
+    minCreatedAt?: Date,
   ): Promise<MessageDocument[]>;
   findByIdInConversation(
     conversationId: ObjectId,
@@ -38,8 +39,16 @@ export interface IMessageRepository {
   markDeletedForIdentity(messageId: ObjectId, identityId: ObjectId): Promise<boolean>;
   deleteByConversation(conversationId: ObjectId): Promise<number>;
   countByParticipant(conversationId: ObjectId, identityId: ObjectId): Promise<number>;
-  hasMessageNewerThan(conversationId: ObjectId, thanId: ObjectId): Promise<boolean>;
-  hasMessageOlderThan(conversationId: ObjectId, thanId: ObjectId): Promise<boolean>;
+  hasMessageNewerThan(
+    conversationId: ObjectId,
+    thanId: ObjectId,
+    minCreatedAt?: Date
+  ): Promise<boolean>;
+  hasMessageOlderThan(
+    conversationId: ObjectId,
+    thanId: ObjectId,
+    minCreatedAt?: Date
+  ): Promise<boolean>;
 }
 
 export class MessageRepository
@@ -103,9 +112,12 @@ export class MessageRepository
     limit = 50,
     cursor?: ObjectId,
     direction?: 'asc' | 'desc',
+    minCreatedAt?: Date,
   ): Promise<MessageDocument[]> {
-    const filter: Record<string, unknown> = { conversationId };
-
+    const filter: Filter<MessageDocument> = { conversationId };
+    if (minCreatedAt) {
+      filter.createdAt = { $gte: minCreatedAt };
+    }
     if (cursor) {
       filter._id = direction === 'asc' ? { $lt: cursor } : { $gt: cursor };
     }
@@ -123,11 +135,13 @@ export class MessageRepository
   async hasMessageNewerThan(
     conversationId: ObjectId,
     thanId: ObjectId,
+    minCreatedAt?: Date
   ): Promise<boolean> {
-    const doc = await this.collection.findOne(
-      { conversationId, _id: { $gt: thanId } } as Filter<MessageDocument>,
-      { projection: { _id: 1 } }
-    );
+    const filter: Filter<MessageDocument> = { conversationId, _id: { $gt: thanId } };
+    if (minCreatedAt) {
+      filter.createdAt = { $gte: minCreatedAt };
+    }
+    const doc = await this.collection.findOne(filter, { projection: { _id: 1 } });
     return doc !== null;
   }
 
@@ -137,11 +151,13 @@ export class MessageRepository
   async hasMessageOlderThan(
     conversationId: ObjectId,
     thanId: ObjectId,
+    minCreatedAt?: Date
   ): Promise<boolean> {
-    const doc = await this.collection.findOne(
-      { conversationId, _id: { $lt: thanId } } as Filter<MessageDocument>,
-      { projection: { _id: 1 } }
-    );
+    const filter: Filter<MessageDocument> = { conversationId, _id: { $lt: thanId } };
+    if (minCreatedAt) {
+      filter.createdAt = { $gte: minCreatedAt };
+    }
+    const doc = await this.collection.findOne(filter, { projection: { _id: 1 } });
     return doc !== null;
   }
 
@@ -224,9 +240,14 @@ export class MessageRepository
     conversationId: ObjectId,
     messageId: ObjectId,
     limit: number,
+    minCreatedAt?: Date
   ): Promise<MessageDocument[]> {
+    const filter: Filter<MessageDocument> = { conversationId, _id: { $lt: messageId } };
+    if (minCreatedAt) {
+      filter.createdAt = { $gte: minCreatedAt };
+    }
     return await this.collection
-      .find({ conversationId, _id: { $lt: messageId } })
+      .find(filter)
       .sort({ _id: -1 })
       .limit(limit)
       .toArray() as MessageDocument[];
@@ -240,9 +261,14 @@ export class MessageRepository
     conversationId: ObjectId,
     messageId: ObjectId,
     limit: number,
+    minCreatedAt?: Date
   ): Promise<MessageDocument[]> {
+    const filter: Filter<MessageDocument> = { conversationId, _id: { $gt: messageId } };
+    if (minCreatedAt) {
+      filter.createdAt = { $gte: minCreatedAt };
+    }
     return await this.collection
-      .find({ conversationId, _id: { $gt: messageId } })
+      .find(filter)
       .sort({ _id: 1 })
       .limit(limit)
       .toArray() as MessageDocument[];

@@ -21,6 +21,7 @@ import {
 } from './conversationUtils';
 import { SystemMessageRow } from './SystemMessageRow';
 import { MessageBubble } from './MessageBubble';
+import { scrollViewportCanScroll } from './conversationScrollUtils';
 
 export function ConversationMessageList({
   conversationId,
@@ -61,6 +62,10 @@ export function ConversationMessageList({
   onReachOlder,
   hasNewerPages,
   onReachNewer,
+  showManualLoadOlder,
+  showManualLoadNewer,
+  onManualLoadOlder,
+  onManualLoadNewer,
   t,
   gifsDisabledByAdmin,
   pinnedMessageIds,
@@ -110,6 +115,10 @@ export function ConversationMessageList({
   onReachOlder: () => void;
   hasNewerPages: boolean;
   onReachNewer: () => void;
+  showManualLoadOlder: boolean;
+  showManualLoadNewer: boolean;
+  onManualLoadOlder: () => void;
+  onManualLoadNewer: () => void;
   t: (key: string, fallback: string) => string;
   gifsDisabledByAdmin?: boolean;
   pinnedMessageIds: string[];
@@ -132,9 +141,17 @@ export function ConversationMessageList({
   const topSentinelRef = useRef<HTMLDivElement | null>(null);
   const bottomSentinelRef = useRef<HTMLDivElement | null>(null);
   const restoredForConvRef = useRef<string | null>(null);
+  /** When false, the top sentinel is intersecting but we already requested an older page; re-arm when it stops intersecting. */
+  const olderPagingRearmRef = useRef(true);
+  const newerPagingRearmRef = useRef(true);
 
   useEffect(() => {
     restoredForConvRef.current = null;
+  }, [conversationId]);
+
+  useEffect(() => {
+    olderPagingRearmRef.current = true;
+    newerPagingRearmRef.current = true;
   }, [conversationId]);
 
   useLayoutEffect(() => {
@@ -155,8 +172,16 @@ export function ConversationMessageList({
     if (!root || !sentinel) return;
     const io = new IntersectionObserver(
       (entries) => {
-        if (!entries[0]?.isIntersecting) return;
+        const e = entries[0];
+        if (!e) return;
+        if (!e.isIntersecting) {
+          olderPagingRearmRef.current = true;
+          return;
+        }
         if (!hasMoreOlder || messagesLoading) return;
+        if (!scrollViewportCanScroll(root)) return;
+        if (!olderPagingRearmRef.current) return;
+        olderPagingRearmRef.current = false;
         onReachOlder();
       },
       { root, rootMargin: '120px 0px 0px 0px', threshold: 0 },
@@ -171,8 +196,16 @@ export function ConversationMessageList({
     if (!root || !sentinel) return;
     const io = new IntersectionObserver(
       (entries) => {
-        if (!entries[0]?.isIntersecting) return;
+        const e = entries[0];
+        if (!e) return;
+        if (!e.isIntersecting) {
+          newerPagingRearmRef.current = true;
+          return;
+        }
         if (!hasNewerPages || messagesLoading) return;
+        if (!scrollViewportCanScroll(root)) return;
+        if (!newerPagingRearmRef.current) return;
+        newerPagingRearmRef.current = false;
         onReachNewer();
       },
       { root, rootMargin: '0px 0px 120px 0px', threshold: 0 },
@@ -326,6 +359,34 @@ export function ConversationMessageList({
           onWheel={onUserScrollIntent}
           onTouchMove={onUserScrollIntent}
         >
+          {showManualLoadOlder || showManualLoadNewer ? (
+            <div
+              className="dm-messages-manual-paging"
+              role="region"
+              aria-label={tLocal('conversations.manualPagingRegion', 'Load message history')}
+            >
+              {showManualLoadOlder ? (
+                <button
+                  type="button"
+                  className="dm-messages-manual-paging__btn"
+                  onClick={onManualLoadOlder}
+                  disabled={messagesLoading || !hasMoreOlder}
+                >
+                  {t('conversations.viewOlderMessages', 'View older messages')}
+                </button>
+              ) : null}
+              {showManualLoadNewer ? (
+                <button
+                  type="button"
+                  className="dm-messages-manual-paging__btn"
+                  onClick={onManualLoadNewer}
+                  disabled={messagesLoading || !hasNewerPages}
+                >
+                  {t('conversations.viewNewerMessages', 'View newer messages')}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {messagesLoading && reversedMessagesLength > 0 ? (
             <div className="dm-messages-history-loading" aria-busy="true">
               <span className="spinner spinner-sm" />

@@ -36,6 +36,8 @@ export function applyFetchedMessagesToConversationState(
   if (mergeLatest) {
     const existing = prev[conversationId]?.messages ?? [];
     const keepOlderCursor = prev[conversationId]?.olderCursor ?? null;
+    const keepManualOlder = prev[conversationId]?.showManualLoadOlder ?? false;
+    const keepManualNewer = prev[conversationId]?.showManualLoadNewer ?? false;
     const ids = new Set(existing.map((m) => m.id));
     const added = newMessages.filter((m) => !ids.has(m.id));
     if (added.length === 0) return prev;
@@ -51,6 +53,8 @@ export function applyFetchedMessagesToConversationState(
         newerPaginationAfterId: messages[0]?.id ?? null,
         hasNewerPages: hasNewerPagesFromApi ?? false,
         loading: false,
+        showManualLoadOlder: keepManualOlder,
+        showManualLoadNewer: keepManualNewer,
       },
     };
   }
@@ -74,6 +78,8 @@ export function applyFetchedMessagesToConversationState(
   if (!isAtBottom && mergedLen > MAX_LOADED_MESSAGES) {
     hasNewerPages = true;
   }
+  const keepManualOlder = prev[conversationId]?.showManualLoadOlder ?? false;
+  const keepManualNewer = prev[conversationId]?.showManualLoadNewer ?? false;
   return {
     ...prev,
     [conversationId]: {
@@ -82,6 +88,8 @@ export function applyFetchedMessagesToConversationState(
       newerPaginationAfterId: messages[0]?.id ?? null,
       hasNewerPages,
       loading: false,
+      showManualLoadOlder: keepManualOlder,
+      showManualLoadNewer: keepManualNewer,
     },
   };
 }

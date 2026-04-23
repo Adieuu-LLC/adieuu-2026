@@ -86,6 +86,8 @@ export function ConversationView() {
     sendTextMessage,
     loadOlder,
     loadNewer,
+    activeShowManualLoadOlder,
+    activeShowManualLoadNewer,
     jumpToLatestMessages,
     fetchMessagesAround,
     loadPinnedMessagesPage,
@@ -712,6 +714,10 @@ export function ConversationView() {
               onReachOlder={handleReachOlder}
               hasNewerPages={activeMessagesHasNewerPages}
               onReachNewer={handleReachNewer}
+              showManualLoadOlder={activeShowManualLoadOlder}
+              showManualLoadNewer={activeShowManualLoadNewer}
+              onManualLoadOlder={() => void loadOlder()}
+              onManualLoadNewer={() => void loadNewer()}
               t={t as any}
               gifsDisabledByAdmin={conversation.gifsDisabled ?? false}
               pinnedMessageIds={conversation.pinnedMessageIds ?? []}

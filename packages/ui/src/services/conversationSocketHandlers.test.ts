@@ -10,8 +10,14 @@ function createContext() {
   let conversations = [{ id: 'conv-1', unreadCount: 0, lastMessageAt: '' }];
   let activeConversationId: string | null = 'conv-1';
   let invites: Array<{ id: string }> = [];
-  let messagesState: Record<string, { messages: Array<{ id: string; fromIdentityId: string }>; olderCursor: string | null; loading: boolean }> = {
-    'conv-1': { messages: [{ id: 'm-1', fromIdentityId: 'me-1' }], olderCursor: null, loading: false },
+  let messagesState: Record<string, { messages: Array<{ id: string; fromIdentityId: string }>; olderCursor: string | null; loading: boolean; showManualLoadOlder?: boolean; showManualLoadNewer?: boolean }> = {
+    'conv-1': {
+      messages: [{ id: 'm-1', fromIdentityId: 'me-1' }],
+      olderCursor: null,
+      loading: false,
+      showManualLoadOlder: false,
+      showManualLoadNewer: false,
+    },
   };
 
   const ctx: ConversationSocketHandlerContext = {

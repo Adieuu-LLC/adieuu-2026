@@ -55,6 +55,18 @@ export function computeIsAtBottom(
   return distanceFromBottom <= thresholdPx;
 }
 
+/** Sub-pixel tolerance so `scrollHeight` / `clientHeight` rounding does not flip overflow. */
+export const SCROLL_OVERFLOW_EPS_PX = 2;
+
+/**
+ * True when the scroll viewport can scroll (content taller than the visible area).
+ * Used to avoid auto-paging the message list when the thread is "short" in visible height:
+ * the edge sentinels stay intersecting and would otherwise chain-fetch older/newer pages.
+ */
+export function scrollViewportCanScroll(viewport: HTMLElement): boolean {
+  return viewport.scrollHeight > viewport.clientHeight + SCROLL_OVERFLOW_EPS_PX;
+}
+
 export function computeScrollTopAfterPrepend(
   prevScrollTop: number,
   prevScrollHeight: number,

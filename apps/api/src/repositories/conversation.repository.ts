@@ -153,11 +153,14 @@ export class ConversationRepository
     conversationId: ObjectId,
     identityId: ObjectId
   ): Promise<boolean> {
+    const now = new Date();
+    const joinKey = `participantJoinedAtByIdentityId.${identityId.toHexString()}`;
+    const $set: Record<string, unknown> = { updatedAt: now, [joinKey]: now };
     const result = await this.collection.updateOne(
       { _id: conversationId, participants: { $ne: identityId } },
       {
         $addToSet: { participants: identityId },
-        $set: { updatedAt: new Date() },
+        $set,
       }
     );
     return result.modifiedCount === 1;

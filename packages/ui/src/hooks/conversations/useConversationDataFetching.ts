@@ -19,6 +19,11 @@ import { buildDecryptMessageBatchSharedFields } from './decryptMessageBatchShare
 import { loadDecryptKeysQuiet, loadDecryptKeysVerbose } from './conversationDecryptKeys';
 import { applyFetchedMessagesToConversationState } from './messageStateUpdates';
 import type { ConversationMessagesState, DecryptedConversation, DisplayMessage } from './types';
+import { loadShowMessageArtifacts } from '../../services/preKeyService';
+import {
+  computeManualLoadHints,
+  countVisibleInThreadBatch,
+} from '../../pages/conversations/messageThreadVisibility';
 
 type ApiClient = ReturnType<typeof createApiClient>;
 
@@ -128,6 +133,8 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
               newerPaginationAfterId: null,
               hasNewerPages: false,
               loading: true,
+              showManualLoadOlder: false,
+              showManualLoadNewer: false,
             }),
             loading: true,
           },
@@ -168,8 +175,11 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
 
           const unreadCount =
             conversationsRef.current.find((c) => c.id === conversationId)?.unreadCount ?? 0;
-          setMessagesState((prev) =>
-            applyFetchedMessagesToConversationState(prev, {
+          const nowMs = Date.now();
+          const showArt = loadShowMessageArtifacts(identity.id);
+          const visibleInBatch = countVisibleInThreadBatch(newMessages, showArt, nowMs);
+          setMessagesState((prev) => {
+            const next = applyFetchedMessagesToConversationState(prev, {
               conversationId,
               mergeLatest: !!mergeLatest,
               newMessages,
@@ -178,8 +188,24 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
               hasNewerPagesFromApi: resp.data!.hasNewerPages,
               unreadCount,
               isAtBottom: isAtBottomRef.current,
-            })
-          );
+            });
+            const st = next[conversationId];
+            if (!st) return next;
+            const p = prev[conversationId];
+            const { showManualLoadOlder, showManualLoadNewer } = computeManualLoadHints({
+              prevOlder: p?.showManualLoadOlder ?? false,
+              prevNewer: p?.showManualLoadNewer ?? false,
+              mergedState: st,
+              newMessages,
+              direction,
+              mergeLatest: !!mergeLatest,
+              visibleInBatch,
+            });
+            return {
+              ...next,
+              [conversationId]: { ...st, showManualLoadOlder, showManualLoadNewer },
+            };
+          });
 
           if (
             conversationId === activeConversationIdRef.current &&
@@ -204,8 +230,12 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
               newerPaginationAfterId: null,
               hasNewerPages: false,
               loading: false,
+              showManualLoadOlder: false,
+              showManualLoadNewer: false,
             }),
             loading: false,
+            showManualLoadOlder: false,
+            showManualLoadNewer: false,
           },
         }));
       }
@@ -240,6 +270,8 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
               newerPaginationAfterId: null,
               hasNewerPages: false,
               loading: true,
+              showManualLoadOlder: false,
+              showManualLoadNewer: false,
             }),
             loading: true,
           },
@@ -268,6 +300,8 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
                   newerPaginationAfterId: null,
                   hasNewerPages: false,
                   loading: false,
+                  showManualLoadOlder: false,
+                  showManualLoadNewer: false,
                 }),
                 loading: false,
               },
@@ -300,8 +334,8 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
         if (!skipStateUpdate) {
           const unreadCount =
             conversationsRef.current.find((c) => c.id === conversationId)?.unreadCount ?? 0;
-          setMessagesState((prev) =>
-            applyFetchedMessagesToConversationState(prev, {
+          setMessagesState((prev) => {
+            const next = applyFetchedMessagesToConversationState(prev, {
               conversationId,
               mergeLatest: false,
               newMessages,
@@ -309,8 +343,14 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
               hasNewerPagesFromApi: resp.data!.hasNewerPages,
               unreadCount,
               isAtBottom: isAtBottomRef.current,
-            })
-          );
+            });
+            const st = next[conversationId];
+            if (!st) return next;
+            return {
+              ...next,
+              [conversationId]: { ...st, showManualLoadOlder: false, showManualLoadNewer: false },
+            };
+          });
 
           if (
             conversationId === activeConversationIdRef.current &&
@@ -338,6 +378,8 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
                 newerPaginationAfterId: null,
                 hasNewerPages: false,
                 loading: false,
+                showManualLoadOlder: false,
+                showManualLoadNewer: false,
               }),
               loading: false,
             },

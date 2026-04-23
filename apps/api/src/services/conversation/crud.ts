@@ -15,6 +15,7 @@ import { checkAndAward } from '../achievement.service';
 import {
   toPublicConversation,
   MAX_GROUP_PARTICIPANTS,
+  newParticipantJoinMapForIds,
   type PublicConversation,
 } from '../../models/conversation';
 import { toPublicGroupInvite } from '../../models/group-invite';
@@ -81,6 +82,7 @@ export async function createConversation(
       participants: allParticipants,
       createdBy: creatorObjId,
       admins: [],
+      participantJoinedAtByIdentityId: newParticipantJoinMapForIds(allParticipants),
     });
 
     const publicConv = toPublicConversation(conversation);
@@ -169,6 +171,7 @@ export async function createConversation(
       admins: [creatorObjId],
       encryptedName,
       nameNonce,
+      participantJoinedAtByIdentityId: newParticipantJoinMapForIds(initialParticipants),
     });
 
     const publicConv = toPublicConversation(conversation);

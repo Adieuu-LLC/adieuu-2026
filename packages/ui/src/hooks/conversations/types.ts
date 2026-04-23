@@ -37,6 +37,13 @@ export interface ConversationMessagesState {
   /** More messages exist toward the present than are currently in the buffer (or were evicted by trim). */
   hasNewerPages: boolean;
   loading: boolean;
+  /**
+   * The last paged request (older/initial) returned only non-visible messages; show a CTA
+   * so the user can fetch the next page on demand (avoids auto chain-fetching unreadable history).
+   */
+  showManualLoadOlder: boolean;
+  /** Same for paging toward the present (e.g. gap of undecryptable messages). */
+  showManualLoadNewer: boolean;
 }
 
 export const EMPTY_MESSAGES: DisplayMessage[] = [];
@@ -93,6 +100,8 @@ export interface ConversationsContextValue {
   computeAtLiveTail: (conversationId: string) => boolean;
   loadOlder: () => Promise<void>;
   loadNewer: () => Promise<void>;
+  activeShowManualLoadOlder: boolean;
+  activeShowManualLoadNewer: boolean;
   jumpToLatestMessages: (conversationId: string) => Promise<void>;
   fetchMessagesAround: (
     conversationId: string,

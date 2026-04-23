@@ -16,6 +16,14 @@ export type ConversationType = 'dm' | 'group';
 export const MAX_GROUP_PARTICIPANTS = 25;
 export const MAX_GROUP_NAME_LENGTH = 100;
 
+/** One shared join instant for all initial participants (conversation creation). */
+export function newParticipantJoinMapForIds(
+  participantIds: ObjectId[],
+  at: Date = new Date()
+): Record<string, Date> {
+  return Object.fromEntries(participantIds.map((p) => [p.toHexString(), at]));
+}
+
 /**
  * Conversation document stored in MongoDB
  */
@@ -66,6 +74,13 @@ export interface ConversationDocument extends BaseDocument {
    * Managed by group admins or, in DMs, by either participant.
    */
   pinnedMessageIds?: ObjectId[];
+
+  /**
+   * When each identity became a member (thread creation, direct add, or invite accept).
+   * Used server-side to omit pre-join ciphertext from paginated message lists. Omitted on legacy
+   * rows until backfilled; absence means no time-based filter.
+   */
+  participantJoinedAtByIdentityId?: Record<string, Date>;
 }
 
 /**
@@ -78,6 +93,8 @@ export interface CreateConversationInput {
   admins?: ObjectId[];
   encryptedName?: string;
   nameNonce?: string;
+  /** When present, sets per-member join times at creation. */
+  participantJoinedAtByIdentityId?: Record<string, Date>;
 }
 
 /**

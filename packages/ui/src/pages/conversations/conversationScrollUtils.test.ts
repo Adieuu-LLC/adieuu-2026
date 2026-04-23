@@ -6,6 +6,7 @@ import {
   computeScrollTopAfterPrepend,
   readDistanceFromBottom,
   applyDistanceFromBottom,
+  scrollViewportCanScroll,
 } from './conversationScrollUtils';
 
 describe('trimMessagesBuffer', () => {
@@ -59,6 +60,20 @@ describe('computeIsAtBottom', () => {
 describe('computeScrollTopAfterPrepend', () => {
   it('adjusts scrollTop by height delta', () => {
     expect(computeScrollTopAfterPrepend(120, 800, 1100)).toBe(420);
+  });
+});
+
+describe('scrollViewportCanScroll', () => {
+  it('is false when content does not exceed viewport (including epsilon)', () => {
+    const el = { scrollHeight: 400, clientHeight: 400 } as unknown as HTMLElement;
+    expect(scrollViewportCanScroll(el)).toBe(false);
+    const narrow = { scrollHeight: 402, clientHeight: 400 } as unknown as HTMLElement;
+    expect(scrollViewportCanScroll(narrow)).toBe(false);
+  });
+
+  it('is true when content clearly exceeds viewport', () => {
+    const el = { scrollHeight: 2000, clientHeight: 400 } as unknown as HTMLElement;
+    expect(scrollViewportCanScroll(el)).toBe(true);
   });
 });
 

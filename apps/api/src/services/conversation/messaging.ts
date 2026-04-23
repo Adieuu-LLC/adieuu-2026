@@ -28,6 +28,17 @@ import elog from '../../utils/adieuuLogger';
 import type { MessagePagePayload, MessageResult } from './types';
 import { publishConversationEvent, publishToParticipants } from './redis-events';
 
+function minCreatedAtForRequester(
+  conversation: ConversationDocument,
+  requester: ObjectId
+): Date | undefined {
+  const m = conversation.participantJoinedAtByIdentityId;
+  if (!m) return undefined;
+  const v = m[requester.toHexString()];
+  if (v == null) return undefined;
+  return v instanceof Date ? v : new Date(String(v));
+}
+
 export async function sendMessage(
   conversationId: string | ObjectId,
   senderIdentityId: string | ObjectId,
@@ -212,6 +223,7 @@ async function buildMessagePagePayload(
   messageRepo: ReturnType<typeof getMessageRepository>,
   docs: MessageDocument[],
   nextOlderCursor: string | null,
+  minCreatedAtForRequester?: Date,
 ): Promise<MessagePagePayload> {
   const publicMessages = docs.map((m) => toPublicMessage(m, requesterObjId));
   const bounds = messagePageBoundsFromNewestFirst(publicMessages);
@@ -225,6 +237,7 @@ async function buildMessagePagePayload(
       hasNewerPages = await messageRepo.hasMessageNewerThan(
         convObjId,
         new ObjectId(bounds.pageNewestId),
+        minCreatedAtForRequester,
       );
     } else {
       hasNewerPages = derived;
@@ -277,11 +290,13 @@ export async function getMessages(
     return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
   }
 
+  const minJoin = minCreatedAtForRequester(conversation, requesterObjId);
+
   if (hasCursor && direction === 'newer') {
     const anchorObjId = new ObjectId(cursor!);
     // Next page toward the present: the *oldest* N messages with _id > anchor (ascending),
     // not the globally newest N (descending would jump to the live tail).
-    const ascChunk = await messageRepo.findAfter(convObjId, anchorObjId, limit + 1);
+    const ascChunk = await messageRepo.findAfter(convObjId, anchorObjId, limit + 1, minJoin);
     const hasMoreInDirection = ascChunk.length > limit;
     const pageAsc = hasMoreInDirection ? ascChunk.slice(0, limit) : ascChunk;
     if (pageAsc.length === 0) {
@@ -295,7 +310,7 @@ export async function getMessages(
     }
     const newestFirst = [...pageAsc].reverse();
     const tail = newestFirst[newestFirst.length - 1]!;
-    const hasMoreOlder = await messageRepo.hasMessageOlderThan(convObjId, tail._id);
+    const hasMoreOlder = await messageRepo.hasMessageOlderThan(convObjId, tail._id, minJoin);
     return buildMessagePagePayload(
       conversation,
       convObjId,
@@ -303,12 +318,19 @@ export async function getMessages(
       messageRepo,
       newestFirst,
       hasMoreOlder ? tail._id.toHexString() : null,
+      minJoin,
     );
   }
 
   if (hasCursor && direction === 'older') {
     const anchorObjId = new ObjectId(cursor!);
-    const messages = await messageRepo.findByConversation(convObjId, limit + 1, anchorObjId, 'asc');
+    const messages = await messageRepo.findByConversation(
+      convObjId,
+      limit + 1,
+      anchorObjId,
+      'asc',
+      minJoin
+    );
     const hasMoreOlder = messages.length > limit;
     const result = hasMoreOlder ? messages.slice(0, limit) : messages;
     if (result.length === 0) {
@@ -328,10 +350,17 @@ export async function getMessages(
       messageRepo,
       result,
       hasMoreOlder ? tail._id.toHexString() : null,
+      minJoin,
     );
   }
 
-  const messages = await messageRepo.findByConversation(convObjId, limit + 1, undefined);
+  const messages = await messageRepo.findByConversation(
+    convObjId,
+    limit + 1,
+    undefined,
+    undefined,
+    minJoin
+  );
   const hasMoreOlder = messages.length > limit;
   const result = hasMoreOlder ? messages.slice(0, limit) : messages;
   if (result.length === 0) {
@@ -351,6 +380,7 @@ export async function getMessages(
     messageRepo,
     result,
     hasMoreOlder ? tail._id.toHexString() : null,
+    minJoin,
   );
 }
 
@@ -388,14 +418,20 @@ export async function getMessagesAround(
     return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
   }
 
+  const minJoin = minCreatedAtForRequester(conversation, requesterObjId);
+
   const centerObjId = new ObjectId(centerMessageId);
   const centerDoc = await messageRepo.findByIdInConversation(convObjId, centerObjId);
   if (!centerDoc) {
     return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
   }
 
-  const newerDocs = await messageRepo.findAfter(convObjId, centerObjId, al);
-  const olderDocs = await messageRepo.findBefore(convObjId, centerObjId, bl);
+  if (minJoin && centerDoc.createdAt.getTime() < minJoin.getTime()) {
+    return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+
+  const newerDocs = await messageRepo.findAfter(convObjId, centerObjId, al, minJoin);
+  const olderDocs = await messageRepo.findBefore(convObjId, centerObjId, bl, minJoin);
 
   const combined: MessageDocument[] = [centerDoc, ...newerDocs, ...olderDocs];
   combined.sort((a, b) => {
@@ -406,7 +442,7 @@ export async function getMessagesAround(
   });
 
   const tail = combined[combined.length - 1]!;
-  const hasMoreOlder = await messageRepo.hasMessageOlderThan(convObjId, tail._id);
+  const hasMoreOlder = await messageRepo.hasMessageOlderThan(convObjId, tail._id, minJoin);
   return buildMessagePagePayload(
     conversation,
     convObjId,
@@ -414,6 +450,7 @@ export async function getMessagesAround(
     messageRepo,
     combined,
     hasMoreOlder ? tail._id.toHexString() : null,
+    minJoin,
   );
 }
 

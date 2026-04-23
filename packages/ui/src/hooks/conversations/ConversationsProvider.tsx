@@ -291,6 +291,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
               newerPaginationAfterId: null,
               hasNewerPages: false,
               loading: true,
+              showManualLoadOlder: false,
+              showManualLoadNewer: false,
             },
           }));
         }
@@ -328,6 +330,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           newerPaginationAfterId: null,
           hasNewerPages: false,
           loading: true,
+          showManualLoadOlder: false,
+          showManualLoadNewer: false,
         },
       }));
       await fetchMessages(conversationId, undefined, true);
@@ -524,6 +528,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       activeMessages: activeState?.messages ?? EMPTY_MESSAGES,
       activeMessagesOlderCursor: activeState?.olderCursor ?? null,
       activeMessagesHasNewerPages: activeState?.hasNewerPages ?? false,
+      activeShowManualLoadOlder: activeState?.showManualLoadOlder ?? false,
+      activeShowManualLoadNewer: activeState?.showManualLoadNewer ?? false,
       invites,
       participantProfiles,
       memberSettings: activeConversation?.decryptedMemberSettings ?? EMPTY_MEMBER_SETTINGS,
