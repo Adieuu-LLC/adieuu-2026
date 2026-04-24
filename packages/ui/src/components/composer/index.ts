@@ -1,4 +1,5 @@
 export { MessageComposer } from './MessageComposer';
+export type { MessageComposerHandle, MessageComposerProps } from './MessageComposer';
 export type {
   ComposerSendFn,
   ComposerSendOptions,

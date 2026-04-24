@@ -43,6 +43,13 @@ export const conversations = {
     expandMedia: 'Click to expand',
     /** Composer attach control (images + video). */
     attachMedia: 'Attach image or video',
+    /** Paste looked like media but we could not read bytes (e.g. some app clipboard formats). */
+    pasteMediaUnreadableTitle: 'Could not use clipboard content',
+    pasteMediaUnreadableDesc:
+        'We noticed a paste that may include an image or video, but could not read usable media. Try saving the file and attaching it, or copying from another app.',
+    /** Conversation drag-and-drop overlay. */
+    dropFilesToAttach: 'Drop to attach',
+    dropFilesToAttachHint: 'Images and videos you can send in chat',
     mediaLightbox: 'Image preview',
     group: 'Group',
     members: 'Members',

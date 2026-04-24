@@ -6,7 +6,7 @@
  * from the global stylesheet.
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type ReactNode, type DragEvent } from 'react';
 import { createApiClient, type IdentityPublicKeys } from '@adieuu/shared';
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -34,7 +34,7 @@ import { endMessageSearchSessionAndWipeCache } from '../../services/messageSearc
 import { ChatConnectionBanner } from '../../components/ChatConnectionBanner';
 import { useMessageAchievements } from '../../hooks/useMessageAchievements';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
-import { MessageComposer } from '../../components/composer';
+import { MessageComposer, type MessageComposerHandle } from '../../components/composer';
 import { ConversationToolbar } from './ConversationToolbar';
 import { ConversationMessageSearchPanel } from './ConversationMessageSearch';
 import { ConversationSettingsSidebar } from './ConversationSettingsSidebar';
@@ -183,6 +183,7 @@ export function ConversationView() {
   const [pendingLinkHref, setPendingLinkHref] = useState<string | null>(null);
 
   const mentionInsertRef = useRef<((identityId: string) => void) | null>(null);
+  const composerRef = useRef<MessageComposerHandle | null>(null);
   const handleMentionClick = useCallback((identityId: string) => {
     mentionInsertRef.current?.(identityId);
   }, []);
@@ -441,6 +442,63 @@ export function ConversationView() {
       t
     );
   }, [conversation, identity?.id, participantProfiles, memberSettings, t]);
+
+  const composerInteractionDisabled = useMemo(() => {
+    if (!conversation || !headerCopy) return true;
+    const { otherParticipantIds: otherParticipants } = headerCopy;
+    const dmBlocked =
+      conversation.type === 'dm' && otherParticipants.length === 1 && checkBlocked(otherParticipants[0]!);
+    return dmBlocked || blockedByOther;
+  }, [conversation, headerCopy, checkBlocked, blockedByOther]);
+
+  const [conversationDropActive, setConversationDropActive] = useState(false);
+
+  useEffect(() => {
+    setConversationDropActive(false);
+  }, [id]);
+
+  const handleConversationDragEnter = useCallback(
+    (e: DragEvent) => {
+      if (composerInteractionDisabled) return;
+      if (![...e.dataTransfer.types].includes('Files')) return;
+      e.preventDefault();
+      setConversationDropActive(true);
+    },
+    [composerInteractionDisabled],
+  );
+
+  const handleConversationDragLeave = useCallback(
+    (e: DragEvent) => {
+      if (composerInteractionDisabled) return;
+      const related = e.relatedTarget as Node | null;
+      if (related && (e.currentTarget as HTMLElement).contains(related)) return;
+      setConversationDropActive(false);
+    },
+    [composerInteractionDisabled],
+  );
+
+  const handleConversationDragOver = useCallback(
+    (e: DragEvent) => {
+      if (composerInteractionDisabled) return;
+      if (![...e.dataTransfer.types].includes('Files')) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    },
+    [composerInteractionDisabled],
+  );
+
+  const handleConversationDrop = useCallback(
+    (e: DragEvent) => {
+      if (composerInteractionDisabled) return;
+      e.preventDefault();
+      setConversationDropActive(false);
+      const { files } = e.dataTransfer;
+      if (files?.length) {
+        composerRef.current?.addMediaFiles(files);
+      }
+    },
+    [composerInteractionDisabled],
+  );
 
   const toolbarAvatarMembers = useMemo(() => {
     if (!conversation) return [];
@@ -848,7 +906,24 @@ export function ConversationView() {
           <ChatConnectionBanner />
 
           <div className="conversation-body">
-            <div className="conversation-main">
+            <div
+              className="conversation-main conversation-main-drop-target"
+              onDragEnter={handleConversationDragEnter}
+              onDragLeave={handleConversationDragLeave}
+              onDragOver={handleConversationDragOver}
+              onDrop={handleConversationDrop}
+            >
+            {conversationDropActive ? (
+              <div className="conversation-main-drop-overlay" aria-hidden>
+                <Icon name="upload" className="conversation-main-drop-overlay__icon" />
+                <span className="conversation-main-drop-overlay__title">
+                  {t('conversations.dropFilesToAttach', 'Drop to attach')}
+                </span>
+                <span className="conversation-main-drop-overlay__hint">
+                  {t('conversations.dropFilesToAttachHint', 'Images and videos you can send in chat')}
+                </span>
+              </div>
+            ) : null}
             <ConversationMessageList
               conversationId={id}
               activeConversationId={activeConversationId}
@@ -930,6 +1005,7 @@ export function ConversationView() {
               </div>
             )}
             <MessageComposer
+              ref={composerRef}
               channelId={id!}
               sending={sending}
               onSend={composerSend}

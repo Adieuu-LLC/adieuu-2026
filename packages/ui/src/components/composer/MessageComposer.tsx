@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Popover, Portal, Menu } from '@ark-ui/react';
 import { convertShortcodes, SHORTCODE_ENTRIES } from '../../utils/emojiShortcodes';
@@ -22,32 +22,29 @@ import type {
 import {
   ACCEPTED_IMAGE_TYPES,
   ACCEPTED_VIDEO_TYPES,
-  isAcceptedConversationMediaType,
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_BYTES,
   PLACEHOLDER_VERB_KEYS,
 } from './composerTypes';
+import {
+  gatherConversationMediaFromDataTransfer,
+  gatherConversationMediaFromFileList,
+  readClipboardMediaFilesViaApi,
+  shouldInterceptPasteForMediaInspection,
+  clipboardPasteSuggestsNonPlainMedia,
+} from './conversationMediaFromClipboard';
 import { detectShortcodeQuery, detectMentionQuery, updateMentionOffsets } from './composerUtils';
 import { ComposerAttachments } from './ComposerAttachments';
 import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete } from './ComposerAutocomplete';
 import { ComposerTTLMenu } from './ComposerTTLMenu';
 import { useMediaOutbox } from '../../services/mediaOutbox';
 
-export function MessageComposer({
-  channelId,
-  sending,
-  onSend,
-  forwardSecrecy,
-  replyContext,
-  onSendSucceeded,
-  mentionSource,
-  placeholder: placeholderOverride,
-  placeholderTarget,
-  mentionInsertRef,
-  gifsDisabled,
-  lastMessageText,
-  disabled,
-}: {
+export type MessageComposerHandle = {
+  /** Add image/video files using the same validation as the attach button (sniffing, caps). */
+  addMediaFiles: (files: FileList | File[]) => void;
+};
+
+export type MessageComposerProps = {
   channelId: string;
   sending: boolean;
   onSend: ComposerSendFn;
@@ -63,7 +60,26 @@ export function MessageComposer({
   lastMessageText?: string;
   /** When true, disables all input and hides action buttons (e.g. when conversation is blocked). */
   disabled?: boolean;
-}) {
+};
+
+export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposerProps>(function MessageComposer(
+  {
+  channelId,
+  sending,
+  onSend,
+  forwardSecrecy,
+  replyContext,
+  onSendSucceeded,
+  mentionSource,
+  placeholder: placeholderOverride,
+  placeholderTarget,
+  mentionInsertRef,
+  gifsDisabled,
+  lastMessageText,
+  disabled,
+}: MessageComposerProps,
+  ref,
+) {
   const { t } = useTranslation();
   const { warning: toastWarning, error: toastError } = useToast();
   const { apiBaseUrl } = useAppConfig();
@@ -251,33 +267,50 @@ export function MessageComposer({
     composerToastTimer.current = setTimeout(() => setComposerToast(null), 1500);
   }, []);
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
+  const warnAttachmentTooLarge = useCallback(() => {
+    const maxMb = Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024));
+    toastWarning(
+      t('conversations.fileTooLarge', 'File too large'),
+      t('conversations.fileTooLargeDesc', 'Attachments must be under {{maxMb}} MB.', { maxMb }),
+    );
+  }, [toastWarning, t]);
 
-    let oversized = false;
-    const newAttachments: PendingAttachment[] = [];
-    for (const file of Array.from(files)) {
-      if (!isAcceptedConversationMediaType(file.type)) continue;
-      if (file.size > MAX_ATTACHMENT_BYTES) {
-        oversized = true;
-        continue;
+  const commitMediaFilesToAttachments = useCallback(
+    (files: File[], options?: { toastLabel?: string }) => {
+      if (files.length === 0) return;
+      if (options?.toastLabel) {
+        showComposerToast(options.toastLabel);
       }
-      if (attachments.length + newAttachments.length >= MAX_ATTACHMENTS) break;
-      newAttachments.push({ file, previewUrl: URL.createObjectURL(file), uploadStatus: 'pending', uploadProgress: 0 });
-    }
+      setAttachments((prev) => {
+        const remaining = MAX_ATTACHMENTS - prev.length;
+        if (remaining <= 0) return prev;
+        const toAdd = files.slice(0, remaining).map((file) => ({
+          file,
+          previewUrl: URL.createObjectURL(file),
+          uploadStatus: 'pending' as const,
+          uploadProgress: 0,
+        }));
+        return [...prev, ...toAdd];
+      });
+    },
+    [showComposerToast],
+  );
 
-    if (oversized) {
-      const maxMb = Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024));
-      toastWarning(
-        t('conversations.fileTooLarge', 'File too large'),
-        t('conversations.fileTooLargeDesc', 'Attachments must be under {{maxMb}} MB.', { maxMb })
-      );
-    }
-
-    setAttachments((prev) => [...prev, ...newAttachments].slice(0, MAX_ATTACHMENTS));
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [attachments.length, toastWarning, t]);
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files) return;
+      void (async () => {
+        const { files: resolved, oversized } = await gatherConversationMediaFromFileList(files);
+        if (oversized) warnAttachmentTooLarge();
+        if (resolved.length > 0) {
+          commitMediaFilesToAttachments(resolved, { toastLabel: t('conversations.pasted', 'Pasted') });
+        }
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      })();
+    },
+    [commitMediaFilesToAttachments, warnAttachmentTooLarge, t],
+  );
 
   const removeAttachment = useCallback((index: number) => {
     setAttachments((prev) => {
@@ -449,65 +482,6 @@ export function MessageComposer({
     enqueueMediaSend,
   ]);
 
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-
-      let oversized = false;
-      const imageFiles: File[] = [];
-      let hasTextData = false;
-      for (const item of Array.from(items)) {
-        if (item.type === 'text/plain') hasTextData = true;
-        if (!isAcceptedConversationMediaType(item.type)) continue;
-        const file = item.getAsFile();
-        if (!file) continue;
-        if (file.size > MAX_ATTACHMENT_BYTES) {
-          oversized = true;
-          continue;
-        }
-        imageFiles.push(file);
-      }
-
-      if (imageFiles.length === 0 && !oversized) {
-        if (hasTextData) showComposerToast(t('conversations.pasted', 'Pasted'));
-        return;
-      }
-
-      e.preventDefault();
-
-      if (oversized) {
-        const maxMb = Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024));
-        toastWarning(
-          t('conversations.fileTooLarge', 'File too large'),
-          t('conversations.fileTooLargeDesc', 'Attachments must be under {{maxMb}} MB.', { maxMb })
-        );
-      }
-
-      if (imageFiles.length === 0) return;
-
-      showComposerToast(t('conversations.pasted', 'Pasted'));
-
-      setAttachments((prev) => {
-        const remaining = MAX_ATTACHMENTS - prev.length;
-        if (remaining <= 0) return prev;
-        const toAdd = imageFiles.slice(0, remaining).map((file) => {
-          const ext = file.type.split('/')[1] ?? 'png';
-          const named = new File(
-            [file],
-            file.name && file.name !== 'image.png'
-              ? file.name
-              : `pasted-${Date.now()}.${ext}`,
-            { type: file.type }
-          );
-          return { file: named, previewUrl: URL.createObjectURL(named), uploadStatus: 'pending' as const, uploadProgress: 0 };
-        });
-        return [...prev, ...toAdd];
-      });
-    },
-    [toastWarning, t, showComposerToast]
-  );
-
   const handleCopy = useCallback(() => {
     showComposerToast(t('conversations.copied', 'Copied'));
   }, [showComposerToast, t]);
@@ -533,6 +507,77 @@ export function MessageComposer({
       });
     },
     [disabled, handleMentionDetect, handleShortcodeDetect, setMessageText, handleUpdateMentionOffsets],
+  );
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const cd = e.clipboardData;
+      if (!cd) return;
+
+      if (!shouldInterceptPasteForMediaInspection(cd)) {
+        let hasTextData = false;
+        for (const item of Array.from(cd.items)) {
+          if (item.type === 'text/plain') hasTextData = true;
+        }
+        if (hasTextData) showComposerToast(t('conversations.pasted', 'Pasted'));
+        return;
+      }
+
+      e.preventDefault();
+      const textFallback = cd.getData('text/plain');
+      void (async () => {
+        let { files, oversized } = await gatherConversationMediaFromDataTransfer(cd);
+        if (files.length === 0 && !oversized) {
+          const apiRes = await readClipboardMediaFilesViaApi();
+          files = apiRes.files;
+          oversized = oversized || apiRes.oversized;
+        }
+        if (oversized) warnAttachmentTooLarge();
+        if (files.length > 0) {
+          commitMediaFilesToAttachments(files, { toastLabel: t('conversations.pasted', 'Pasted') });
+          return;
+        }
+        if (textFallback) {
+          insertPlainTextAtCaret(textFallback);
+          showComposerToast(t('conversations.pasted', 'Pasted'));
+          return;
+        }
+        if (!oversized && clipboardPasteSuggestsNonPlainMedia(cd)) {
+          toastWarning(
+            t('conversations.pasteMediaUnreadableTitle', 'Could not use clipboard content'),
+            t(
+              'conversations.pasteMediaUnreadableDesc',
+              'We noticed a paste that may include an image or video, but could not read usable media. Try saving the file and attaching it, or copying from another app.',
+            ),
+          );
+        }
+      })();
+    },
+    [
+      showComposerToast,
+      t,
+      toastWarning,
+      warnAttachmentTooLarge,
+      commitMediaFilesToAttachments,
+      insertPlainTextAtCaret,
+    ],
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      addMediaFiles: (list: FileList | File[]) => {
+        if (disabled || sending) return;
+        void (async () => {
+          const { files: resolved, oversized } = await gatherConversationMediaFromFileList(list);
+          if (oversized) warnAttachmentTooLarge();
+          if (resolved.length > 0) {
+            commitMediaFilesToAttachments(resolved, { toastLabel: t('conversations.pasted', 'Pasted') });
+          }
+        })();
+      },
+    }),
+    [disabled, sending, warnAttachmentTooLarge, commitMediaFilesToAttachments, t],
   );
 
   const handleComposerContextMenu = useCallback(
@@ -581,15 +626,42 @@ export function MessageComposer({
       }
       if (v === 'paste') {
         const pasted = await readPlainTextFromClipboard();
+        if (pasted != null && pasted.length > 0) {
+          insertPlainTextAtCaret(pasted);
+          showComposerToast(t('conversations.pasted', 'Pasted'));
+          return;
+        }
+        const { files: clipFiles, oversized: clipOversized } = await readClipboardMediaFilesViaApi();
+        if (clipOversized) {
+          warnAttachmentTooLarge();
+        }
+        if (clipFiles.length > 0) {
+          commitMediaFilesToAttachments(clipFiles, { toastLabel: t('conversations.pasted', 'Pasted') });
+          return;
+        }
         if (pasted == null) {
           toastError(t('conversations.contextMenu.pasteFailed', 'Could not paste from clipboard'));
           return;
         }
-        insertPlainTextAtCaret(pasted);
-        showComposerToast(t('conversations.pasted', 'Pasted'));
+        toastWarning(
+          t('conversations.pasteMediaUnreadableTitle', 'Could not use clipboard content'),
+          t(
+            'conversations.pasteMediaUnreadableDesc',
+            'We noticed a paste that may include an image or video, but could not read usable media. Try saving the file and attaching it, or copying from another app.',
+          ),
+        );
       }
     },
-    [insertPlainTextAtCaret, messageText, t, showComposerToast, toastError],
+    [
+      insertPlainTextAtCaret,
+      messageText,
+      t,
+      showComposerToast,
+      toastError,
+      toastWarning,
+      warnAttachmentTooLarge,
+      commitMediaFilesToAttachments,
+    ],
   );
 
   const handleKeyDown = useCallback(
@@ -1014,4 +1086,6 @@ export function MessageComposer({
       </Portal>
     </Menu.Root>
   );
-}
+});
+
+MessageComposer.displayName = 'MessageComposer';
