@@ -2,7 +2,7 @@
  * E2EE conversation-scoped message search (client-side plaintext index).
  */
 
-import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Checkbox, Select, Portal, createListCollection } from '@ark-ui/react';
@@ -28,6 +28,7 @@ import {
   type StoredMessageSearchCriteria,
 } from '../../services/messageSearch/recentMessageSearchCriteria';
 import { searchMessageRows } from '../../services/messageSearch/messageSearchQuery';
+import { formatSearchElapsedMs } from '../../services/messageSearch/formatSearchElapsed';
 import {
   DEFAULT_SEARCH_TIME_PRESET,
   getEffectiveSearchWindowRange,
@@ -108,10 +109,31 @@ export function ConversationMessageSearchPanel({
   const [filterRepliesOnly, setFilterRepliesOnly] = useState(false);
   const [filterHasAttachments, setFilterHasAttachments] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [searchPaused, setSearchPaused] = useState(false);
+  const [searchTick, setSearchTick] = useState(0);
   const [indexRows, setIndexRows] = useState<MessageSearchCacheRow[]>([]);
+  /** Shown in the results view after a run fully completes (including when there are 0 query matches). */
+  const [searchRunCompleteSummary, setSearchRunCompleteSummary] = useState<{
+    durationMs: number;
+    indexedCount: number;
+    resultCount: number;
+  } | null>(null);
+  const [resultSort, setResultSort] = useState<'newest' | 'oldest'>('newest');
+
+  const searchRunIdRef = useRef(0);
+  const pauseRequestedRef = useRef(false);
+  const searchAccumulatedActiveMsRef = useRef(0);
+  const searchSegmentStartMsRef = useRef(0);
+  const exitedByPauseRef = useRef(false);
+  const lastIndexedCountRef = useRef(0);
+  /** Kept in sync in loadRows and cleared on new search, for end-of-run metrics. */
+  const indexRowsDataRef = useRef<MessageSearchCacheRow[]>([]);
+  const searchFiltersForMetricsRef = useRef<MessageSearchFilters | null>(null);
+  const resultSortForMetricsRef = useRef<'newest' | 'oldest'>('newest');
 
   const timeRangeId = useId();
   const authorLabelId = useId();
+  const resultSortLabelId = useId();
 
   const timeCollection = useMemo(
     () =>
@@ -150,9 +172,70 @@ export function ConversationMessageSearchPanel({
     [authorId, filterHasAttachments, filterHasReplies, filterRepliesOnly, query]
   );
 
+  searchFiltersForMetricsRef.current = searchFilters;
+  resultSortForMetricsRef.current = resultSort;
+
   const results = useMemo(
-    () => searchMessageRows(indexRows, searchFilters, 'newest'),
-    [indexRows, searchFilters]
+    () => searchMessageRows(indexRows, searchFilters, resultSort),
+    [indexRows, searchFilters, resultSort]
+  );
+
+  useEffect(() => {
+    if (!busy || searchPaused) {
+      return;
+    }
+    const id = window.setInterval(() => {
+      setSearchTick((n) => n + 1);
+    }, 200);
+    return () => {
+      window.clearInterval(id);
+    };
+  }, [busy, searchPaused]);
+
+  const activeSearchElapsedMs = useMemo(() => {
+    if (searchPaused) {
+      return searchAccumulatedActiveMsRef.current;
+    }
+    if (!busy) {
+      return searchAccumulatedActiveMsRef.current;
+    }
+    return (
+      searchAccumulatedActiveMsRef.current + (Date.now() - searchSegmentStartMsRef.current)
+    );
+  }, [searchTick, busy, searchPaused]);
+
+  const displaySearchTimeMs = useMemo(() => {
+    if (searchRunCompleteSummary != null && !busy && !searchPaused) {
+      return searchRunCompleteSummary.durationMs;
+    }
+    return activeSearchElapsedMs;
+  }, [searchRunCompleteSummary, activeSearchElapsedMs, busy, searchPaused]);
+
+  const displayIndexedCount = useMemo(() => {
+    if (searchRunCompleteSummary != null && !busy && !searchPaused) {
+      return searchRunCompleteSummary.indexedCount;
+    }
+    return indexRows.length;
+  }, [searchRunCompleteSummary, indexRows.length, busy, searchPaused]);
+
+  const displayResultCount = useMemo(() => {
+    if (searchRunCompleteSummary != null && !busy && !searchPaused) {
+      return searchRunCompleteSummary.resultCount;
+    }
+    return results.length;
+  }, [searchRunCompleteSummary, results.length, busy, searchPaused]);
+
+  const resultSortCollection = useMemo(
+    () =>
+      createListCollection({
+        items: [
+          { id: 'newest' as const, label: t('conversations.messageSearch.sortNewestFirst', 'Newest first') },
+          { id: 'oldest' as const, label: t('conversations.messageSearch.sortOldestFirst', 'Oldest first') },
+        ],
+        itemToValue: (item) => item.id,
+        itemToString: (item) => item.label,
+      }),
+    [t]
   );
 
   const syncBufferToIdb = useCallback(async () => {
@@ -164,59 +247,175 @@ export function ConversationMessageSearchPanel({
     }
   }, [getActiveMessages]);
 
-  const loadRowsFromIdb = useCallback(async () => {
-    const { startMs, endMs } = getEffectiveSearchWindowRange(
-      timePreset,
-      Date.now(),
-      selfParticipantJoinedAtMs
-    );
-    const rows = await messageSearchCacheListConversation(conversationId, { startMs, endMs });
-    setIndexRows(rows);
-  }, [conversationId, timePreset, selfParticipantJoinedAtMs]);
+  const loadRowsFromIdb = useCallback(
+    async (expectedRunId: number) => {
+      const { startMs, endMs } = getEffectiveSearchWindowRange(
+        timePreset,
+        Date.now(),
+        selfParticipantJoinedAtMs
+      );
+      const rows = await messageSearchCacheListConversation(conversationId, { startMs, endMs });
+      if (expectedRunId !== searchRunIdRef.current) {
+        return;
+      }
+      lastIndexedCountRef.current = rows.length;
+      indexRowsDataRef.current = rows;
+      setIndexRows(rows);
+    },
+    [conversationId, timePreset, selfParticipantJoinedAtMs]
+  );
 
-  const fillWindowFromServer = useCallback(async () => {
-    const { startMs } = getEffectiveSearchWindowRange(
-      timePreset,
-      Date.now(),
-      selfParticipantJoinedAtMs
-    );
-    for (let i = 0; i < 48; i++) {
-      const list = getActiveMessages();
-      const oldest = list[list.length - 1];
-      const oldestMs = oldest ? Date.parse(oldest.createdAt) : Number.NaN;
-      if (oldest == null || !Number.isFinite(oldestMs) || oldestMs <= startMs) {
-        break;
-      }
-      if (!olderCursor) {
-        break;
-      }
-      if (messagesLoading) {
+  const cancelOngoingSearchRun = useCallback(() => {
+    searchRunIdRef.current += 1;
+    setBusy(false);
+    setSearchPaused(false);
+  }, []);
+
+  const checkPause = useCallback((): boolean => {
+    if (!pauseRequestedRef.current) {
+      return false;
+    }
+    pauseRequestedRef.current = false;
+    searchAccumulatedActiveMsRef.current += Date.now() - searchSegmentStartMsRef.current;
+    setSearchPaused(true);
+    setBusy(false);
+    exitedByPauseRef.current = true;
+    return true;
+  }, []);
+
+  const runIndexingPipeline = useCallback(
+    async (runId: number) => {
+      const { startMs } = getEffectiveSearchWindowRange(
+        timePreset,
+        Date.now(),
+        selfParticipantJoinedAtMs
+      );
+      for (let i = 0; i < 48; i++) {
+        if (runId !== searchRunIdRef.current) {
+          return;
+        }
+        if (checkPause()) {
+          return;
+        }
+        const list = getActiveMessages();
+        const oldest = list[list.length - 1];
+        const oldestMs = oldest ? Date.parse(oldest.createdAt) : Number.NaN;
+        if (oldest == null || !Number.isFinite(oldestMs) || oldestMs <= startMs) {
+          break;
+        }
+        if (!olderCursor) {
+          break;
+        }
+        if (messagesLoading) {
+          await sleep(120);
+          if (runId !== searchRunIdRef.current) {
+            return;
+          }
+          if (checkPause()) {
+            return;
+          }
+          continue;
+        }
+        await loadOlder();
         await sleep(120);
-        continue;
+        if (runId !== searchRunIdRef.current) {
+          return;
+        }
+        if (checkPause()) {
+          return;
+        }
+        await syncBufferToIdb();
+        if (runId !== searchRunIdRef.current) {
+          return;
+        }
+        await loadRowsFromIdb(runId);
+        if (runId !== searchRunIdRef.current) {
+          return;
+        }
+        if (checkPause()) {
+          return;
+        }
       }
-      await loadOlder();
-      await sleep(120);
-    }
-  }, [
-    getActiveMessages,
-    loadOlder,
-    messagesLoading,
-    olderCursor,
-    timePreset,
-    selfParticipantJoinedAtMs,
-  ]);
+      await syncBufferToIdb();
+      if (runId !== searchRunIdRef.current) {
+        return;
+      }
+      if (checkPause()) {
+        return;
+      }
+      await loadRowsFromIdb(runId);
+    },
+    [
+      checkPause,
+      getActiveMessages,
+      loadOlder,
+      loadRowsFromIdb,
+      messagesLoading,
+      olderCursor,
+      selfParticipantJoinedAtMs,
+      syncBufferToIdb,
+      timePreset,
+    ]
+  );
 
-  const refreshIndex = useCallback(async () => {
-    setBusy(true);
-    try {
-      await syncBufferToIdb();
-      await fillWindowFromServer();
-      await syncBufferToIdb();
-      await loadRowsFromIdb();
-    } finally {
-      setBusy(false);
-    }
-  }, [fillWindowFromServer, loadRowsFromIdb, syncBufferToIdb]);
+  const runMessageSearch = useCallback(
+    async (mode: 'new' | 'resume') => {
+      searchRunIdRef.current += 1;
+      const runId = searchRunIdRef.current;
+      pauseRequestedRef.current = false;
+      exitedByPauseRef.current = false;
+      setSearchRunCompleteSummary(null);
+      if (mode === 'new') {
+        setIndexRows([]);
+        lastIndexedCountRef.current = 0;
+        indexRowsDataRef.current = [];
+      }
+      setSearchPaused(false);
+      if (mode === 'new') {
+        searchAccumulatedActiveMsRef.current = 0;
+      }
+      searchSegmentStartMsRef.current = Date.now();
+      setSearchTick(0);
+      setBusy(true);
+      try {
+        await syncBufferToIdb();
+        if (runId !== searchRunIdRef.current) {
+          return;
+        }
+        if (checkPause()) {
+          return;
+        }
+        await loadRowsFromIdb(runId);
+        if (runId !== searchRunIdRef.current) {
+          return;
+        }
+        if (checkPause()) {
+          return;
+        }
+        await runIndexingPipeline(runId);
+      } finally {
+        if (runId === searchRunIdRef.current && !exitedByPauseRef.current) {
+          const durationMs =
+            searchAccumulatedActiveMsRef.current +
+            (Date.now() - searchSegmentStartMsRef.current);
+          const filters = searchFiltersForMetricsRef.current;
+          const sort = resultSortForMetricsRef.current;
+          const resultCount =
+            filters != null
+              ? searchMessageRows(indexRowsDataRef.current, filters, sort).length
+              : 0;
+          setSearchRunCompleteSummary({
+            durationMs,
+            indexedCount: lastIndexedCountRef.current,
+            resultCount,
+          });
+          setBusy(false);
+          setSearchPaused(false);
+        }
+      }
+    },
+    [checkPause, loadRowsFromIdb, runIndexingPipeline, syncBufferToIdb]
+  );
 
   useEffect(() => {
     if (adminDisallowPersistentCache || cacheMode !== 'warm') {
@@ -253,21 +452,40 @@ export function ConversationMessageSearchPanel({
     setPhase('criteria');
   }, []);
 
-  const handleStartSearch = useCallback(async () => {
-    await refreshIndex();
+  const handleStartSearch = useCallback(() => {
     addRecentMessageSearchCriteria(identityId, conversationId, searchFilters, timePreset);
     setRecentsVersion((n) => n + 1);
     setPhase('results');
-  }, [conversationId, identityId, refreshIndex, searchFilters, timePreset]);
+    void runMessageSearch('new');
+  }, [conversationId, identityId, runMessageSearch, searchFilters, timePreset]);
+
+  const handleResumeSearch = useCallback(() => {
+    void runMessageSearch('resume');
+  }, [runMessageSearch]);
+
+  const handlePauseSearch = useCallback(() => {
+    pauseRequestedRef.current = true;
+  }, []);
+
+  const handleResultPick = useCallback(
+    (messageId: string) => {
+      if (busy) {
+        pauseRequestedRef.current = true;
+      }
+      onPickMessage(messageId);
+    },
+    [busy, onPickMessage]
+  );
 
   const endSearchWithWipe = useCallback(() => {
+    cancelOngoingSearchRun();
     endMessageSearchSessionAndWipeCache({
       identityId,
       conversationId,
       adminDisallowPersistentCache,
     });
     onEndSearchSession();
-  }, [adminDisallowPersistentCache, conversationId, identityId, onEndSearchSession]);
+  }, [adminDisallowPersistentCache, cancelOngoingSearchRun, conversationId, identityId, onEndSearchSession]);
 
   const recents = useMemo(
     () => loadRecentMessageSearchCriteria(identityId, conversationId),
@@ -339,9 +557,6 @@ export function ConversationMessageSearchPanel({
                   return;
                 }
                 e.preventDefault();
-                if (busy) {
-                  return;
-                }
                 void handleStartSearch();
               }}
               placeholder={t('conversations.messageSearch.placeholder', 'Search…')}
@@ -492,16 +707,11 @@ export function ConversationMessageSearchPanel({
             </Select.Root>
           </div>
 
-          {busy && (
-            <p className="conversation-search-sidebar__status">{t('conversations.messageSearch.loading', 'Loading…')}</p>
-          )}
-
           <div className="conversation-search-sidebar__actions conversation-search-sidebar__actions--start">
             <Button
               type="button"
               className="conversation-search-sidebar__start-btn"
-              onClick={() => void handleStartSearch()}
-              disabled={busy}
+              onClick={handleStartSearch}
             >
               {t('conversations.messageSearch.startSearch', 'Start search')}
             </Button>
@@ -532,7 +742,10 @@ export function ConversationMessageSearchPanel({
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => setPhase('criteria')}
+              onClick={() => {
+                cancelOngoingSearchRun();
+                setPhase('criteria');
+              }}
             >
               {t('conversations.messageSearch.modifySearch', 'Modify search')}
             </Button>
@@ -540,10 +753,114 @@ export function ConversationMessageSearchPanel({
               {t('conversations.messageSearch.endSearch', 'End search')}
             </Button>
           </div>
-          {busy && (
-            <p className="conversation-search-sidebar__status">{t('conversations.messageSearch.loading', 'Loading…')}</p>
+          {(busy || searchPaused || searchRunCompleteSummary != null) && (
+            <div
+              className="conversation-search-sidebar__indexing"
+              role="status"
+              aria-live="polite"
+            >
+              <div className="conversation-search-sidebar__indexing-head">
+                <p className="conversation-search-sidebar__indexing-title">
+                  {searchPaused
+                    ? t('conversations.messageSearch.searchPaused', 'Search paused')
+                    : busy
+                      ? t('conversations.messageSearch.searching', 'Searching…')
+                      : t('conversations.messageSearch.searchComplete', 'Search complete')}
+                </p>
+                {(searchPaused || busy) && (
+                  <Button
+                    type="button"
+                    className="conversation-search-sidebar__indexing-action-btn"
+                    variant="secondary"
+                    size="sm"
+                    onClick={searchPaused ? handleResumeSearch : handlePauseSearch}
+                  >
+                    {searchPaused
+                      ? t('conversations.messageSearch.resumeSearch', 'Resume search')
+                      : t('conversations.messageSearch.pauseSearch', 'Pause search')}
+                  </Button>
+                )}
+              </div>
+              <p className="conversation-search-sidebar__indexing-stats">
+                {displayResultCount === 1
+                  ? t('conversations.messageSearch.searchStatusLineOne', {
+                      time: formatSearchElapsedMs(displaySearchTimeMs),
+                      indexedCount: displayIndexedCount,
+                      defaultValue:
+                        '{{time}} · 1 result found across {{indexedCount}} messages indexed',
+                    })
+                  : t('conversations.messageSearch.searchStatusLineMany', {
+                      time: formatSearchElapsedMs(displaySearchTimeMs),
+                      resultCount: displayResultCount,
+                      indexedCount: displayIndexedCount,
+                      defaultValue:
+                        '{{time}} · {{resultCount}} results found across {{indexedCount}} messages indexed',
+                    })}
+              </p>
+              {searchPaused && (
+                <p className="conversation-search-sidebar__indexing-hint">
+                  {t(
+                    'conversations.messageSearch.searchPausedHint',
+                    'Resume to keep loading older messages and update results.',
+                  )}
+                </p>
+              )}
+            </div>
           )}
-          <ul className="conversation-search-sidebar__results">
+          <div className="conversation-search-sidebar__results-sort">
+            <span className="conversation-search-sidebar__field-label" id={resultSortLabelId}>
+              {t('conversations.messageSearch.sortLabel', 'Sort')}
+            </span>
+            <Select.Root
+              collection={resultSortCollection}
+              value={[resultSort]}
+              onValueChange={(d) => {
+                const v = d.value[0];
+                if (v === 'newest' || v === 'oldest') {
+                  setResultSort(v);
+                }
+              }}
+              positioning={{ placement: 'bottom-start', sameWidth: true, strategy: 'fixed' }}
+            >
+              <Select.Control className="conversation-search-sidebar__select-control">
+                <Select.Trigger
+                  className="conversation-search-sidebar__select-trigger"
+                  aria-labelledby={resultSortLabelId}
+                >
+                  <Select.ValueText className="conversation-search-sidebar__select-value" />
+                  <Select.Indicator
+                    className="conversation-search-sidebar__select-chevron"
+                    aria-hidden
+                  >
+                    ▾
+                  </Select.Indicator>
+                </Select.Trigger>
+              </Select.Control>
+              <Portal>
+                <Select.Positioner className="conversation-search-sidebar__select-positioner">
+                  <Select.Content className="conversation-search-sidebar__select-content">
+                    <Select.List className="conversation-search-sidebar__select-list">
+                      {resultSortCollection.items.map((item) => (
+                        <Select.Item
+                          key={item.id}
+                          item={item}
+                          className="conversation-search-sidebar__select-item"
+                        >
+                          <Select.ItemText className="conversation-search-sidebar__select-item-text">
+                            {item.label}
+                          </Select.ItemText>
+                          <Select.ItemIndicator className="conversation-search-sidebar__select-item-indicator">
+                            ✓
+                          </Select.ItemIndicator>
+                        </Select.Item>
+                      ))}
+                    </Select.List>
+                  </Select.Content>
+                </Select.Positioner>
+              </Portal>
+            </Select.Root>
+          </div>
+          <ul className="conversation-search-sidebar__results" aria-label={t('conversations.messageSearch.resultsListAria', 'Search results')}>
             {results.map((r) => {
               const name = participantProfiles[r.row.authorId]?.displayName
                 ?? participantProfiles[r.row.authorId]?.username
@@ -553,7 +870,7 @@ export function ConversationMessageSearchPanel({
                   <button
                     type="button"
                     className="conversation-search-sidebar__result"
-                    onClick={() => onPickMessage(r.row.messageId)}
+                    onClick={() => handleResultPick(r.row.messageId)}
                   >
                     <span className="conversation-search-sidebar__result-meta">
                       {name} · {new Date(r.row.timestamp).toLocaleString()}
@@ -564,7 +881,7 @@ export function ConversationMessageSearchPanel({
               );
             })}
           </ul>
-          {results.length === 0 && !busy && (
+          {results.length === 0 && !busy && !searchPaused && (
             <p className="conversation-search-sidebar__empty">
               {t('conversations.messageSearch.noResults', 'No messages match.')}
             </p>
