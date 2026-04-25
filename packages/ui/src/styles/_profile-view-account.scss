@@ -175,3 +175,140 @@
 .account-status-error {
   color: var(--color-error);
 }
+
+// About > Updates (desktop): page spacing and update card layout
+.about-updates-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2xl);
+}
+
+.about-updates-header.page-header {
+  margin-bottom: 0;
+}
+
+.desktop-updates-panel {
+  .account-overview,
+  .account-details {
+    gap: 0;
+  }
+
+  .account-detail-row {
+    align-items: flex-start;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-md) 0 0;
+    border-bottom: none;
+  }
+
+  .account-detail-label {
+    flex-shrink: 0;
+    min-width: 5.75rem;
+    padding-top: 2px;
+    line-height: 1.45;
+  }
+
+  .account-detail-content {
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+
+  .account-update-section {
+    width: 100%;
+    gap: var(--spacing-md);
+  }
+
+  .desktop-updates-win-log-hint {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--color-bg-tertiary) 85%, transparent);
+    border: 1px solid var(--color-border-muted);
+    line-height: 1.45;
+  }
+
+  .desktop-updates-in-app-log-hint {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    background: color-mix(in srgb, var(--color-bg-tertiary) 85%, transparent);
+    border: 1px solid var(--color-border-muted);
+    line-height: 1.45;
+
+    > p {
+      margin: 0 0 var(--spacing-sm);
+    }
+
+    > p:last-of-type {
+      margin-bottom: 0;
+    }
+  }
+
+  .desktop-updates-logs-diagnostics {
+    margin-top: var(--spacing-lg);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--color-border-muted);
+  }
+
+  .desktop-updates-logs-diagnostics .desktop-updates-win-log-hint + .desktop-updates-in-app-log-hint {
+    margin-top: var(--spacing-md);
+  }
+
+  .desktop-updates-log-path {
+    display: block;
+    margin-top: var(--spacing-xs);
+    font-size: var(--font-size-xs);
+    word-break: break-all;
+    white-space: pre-wrap;
+    color: var(--color-text-secondary);
+    background: var(--color-bg-secondary, transparent);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+  }
+
+  .desktop-updates-installer-log-link {
+    display: inline;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: none;
+    font: inherit;
+    color: var(--color-accent-primary);
+    text-decoration: underline;
+    cursor: pointer;
+    text-align: inherit;
+
+    &:hover {
+      color: var(--color-accent-secondary, var(--color-accent-primary));
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-accent-primary);
+      outline-offset: 2px;
+    }
+  }
+
+  .desktop-updates-cache-tools {
+    margin-top: var(--spacing-lg);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--color-border-muted);
+  }
+
+  .desktop-updates-cache-tools__title {
+    margin: 0 0 var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+  }
+
+  .desktop-updates-cache-tools__hint {
+    margin: 0 0 var(--spacing-md);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    line-height: 1.45;
+  }
+
+  .desktop-updates-cache-tools__post-clear {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+}

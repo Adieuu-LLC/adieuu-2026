@@ -157,6 +157,14 @@ export function useUpdateCheck(): UseUpdateCheckResult {
       setStatus('error');
     }));
 
+    cleanups.push(electron.on('installer-cache-cleared', () => {
+      setNewVersion(null);
+      setErrorMessage(null);
+      setDownloadProgress(null);
+      setInstalling(false);
+      setStatus('idle');
+    }));
+
     return () => {
       cleanups.forEach((fn) => fn());
     };

@@ -85,6 +85,10 @@ These YAML files contain the current version, download URLs, file sizes, and SHA
 
 **Result:** The full installation directory is replaced, but only the diff is downloaded. This is the "differential update" or "delta update" mechanism.
 
+**Installer diagnostics (support):** A custom `build/installer.nsh` (see `apps/desktop/build/installer.nsh`) appends to `%LOCALAPPDATA%\Adieuu\logs\installer.log` at NSIS `preInit` (start of every run, including silent updates) and after the main `customInstall` step. End users can share that file with support if an install appears to hang. The in-app Updates page (Windows) includes a control to open that file with the default application (`open-windows-installer-log` → `shell.openPath` in the main process) plus the path in copy.
+
+**In-app electron-updater log (all desktop OSes, including Linux):** The main process appends timestamped lines to `userData/logs/update.log` (e.g. `~/.config/<app>/logs/update.log` on typical Linux) for `checking-for-update`, `update-*` results, throttled `download-progress`, `update-downloaded`, `error`, and related IPC (download/install/check/clear cache). The About → Updates page exposes `get-in-app-update-log-path` (for display) and `open-in-app-update-log` (creates the file with a short header if missing, then `shell.openPath`). This is the primary support log for in-app update behaviour on Linux, macOS, and Windows; Windows still has the separate NSIS `installer.log` above for the NSIS process itself.
+
 ### 2.4 macOS (zip)
 
 **What electron-builder produces:**

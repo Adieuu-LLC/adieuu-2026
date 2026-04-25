@@ -1,11 +1,12 @@
 import path from 'path';
 import fs from 'fs/promises';
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { createCredential, getCredential } from '../webauthn-bridge';
 import { runtime } from './runtime';
 import { applyBadgeColor, createBadgedIcon, getBaseIcon } from './taskbar-badge';
 import { registerAutoUpdaterIpc } from './auto-updater';
 import { isAllowedAudioPath } from './audio-path';
+import { ensureInAppUpdateLogFileForOpen, getInAppUpdateLogPath } from './update-in-app-log';
 
 export function registerMainProcessIpc(options: {
   isDev: boolean;
@@ -33,6 +34,52 @@ export function registerMainProcessIpc(options: {
 
   ipcMain.handle('set-platform-admin', (_event, isAdmin: unknown) => {
     runtime.isPlatformAdminUser = isAdmin === true;
+  });
+
+  ipcMain.handle('restart-app', () => {
+    app.relaunch();
+    app.exit(0);
+  });
+
+  /** Opens %LOCALAPPDATA%\\Adieuu\\logs\\installer.log with the default app (Windows only). */
+  ipcMain.handle('open-windows-installer-log', async () => {
+    if (process.platform !== 'win32') {
+      return { ok: false as const, error: 'Only available on Windows.' };
+    }
+    const localAppData = process.env.LOCALAPPDATA;
+    if (localAppData == null || localAppData.length === 0) {
+      return { ok: false as const, error: 'LOCALAPPDATA is not available.' };
+    }
+    const logFile = path.join(localAppData, 'Adieuu', 'logs', 'installer.log');
+    const message = await shell.openPath(logFile);
+    if (message.length > 0) {
+      return { ok: false as const, error: message };
+    }
+    return { ok: true as const };
+  });
+
+  /** Absolute path to userData/logs/update.log (electron-updater in-app log on all OSes). */
+  ipcMain.handle('get-in-app-update-log-path', () => ({ path: getInAppUpdateLogPath() }));
+
+  /** Opens the in-app update log with the system default app (e.g. editor for .log). */
+  ipcMain.handle('open-in-app-update-log', async () => {
+    try {
+      await ensureInAppUpdateLogFileForOpen();
+      const p = getInAppUpdateLogPath();
+      const message = await shell.openPath(p);
+      if (message.length > 0) {
+        // Linux: xdg-open often reports exit code 4 ("The action failed") even when the handler opened
+        // the file; Chromium maps that to this string. Treat as success to avoid a false error toast.
+        if (process.platform === 'linux' && message === 'The action failed') {
+          return { ok: true as const };
+        }
+        return { ok: false as const, error: message };
+      }
+      return { ok: true as const };
+    } catch (e) {
+      const err = e instanceof Error ? e.message : String(e);
+      return { ok: false as const, error: err };
+    }
   });
 
   ipcMain.handle('window:minimize', () => {

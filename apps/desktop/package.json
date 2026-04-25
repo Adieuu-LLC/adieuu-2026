@@ -79,6 +79,9 @@
         "nsis"
       ]
     },
+    "nsis": {
+      "include": "build/installer.nsh"
+    },
     "mac": {
       "target": [
         "dmg",

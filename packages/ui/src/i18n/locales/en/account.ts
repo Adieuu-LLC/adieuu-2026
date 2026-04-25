@@ -57,6 +57,25 @@ export const account = {
       restartToUpdate: 'Restart',
       autoDownload: 'Automatically download updates',
       autoDownloadDescription: 'When enabled, updates are downloaded in the background as soon as they are found.',
+      clearInstallerCache: 'Clear local installer cache',
+      clearInstallerCacheDescription:
+        'Issues updating? This will remove partially downloaded or stuck update files so the next download starts fresh. Your messages and account data are not affected.',
+      clearInstallerCacheButton: 'Clear cache',
+      clearingInstallerCache: 'Clearing…',
+      clearInstallerCacheSuccess: 'Installer cache cleared.',
+      clearInstallerCacheRestartHint:
+        'Restart the app before checking for updates again, especially if a download was stuck. This gives you a clean state.',
+      restartAppNow: 'Restart now',
+      restartHintDismiss: 'Not now',
+      clearInstallerCacheError: 'Could not clear the installer cache.',
+      windowsInstallLogSupport:
+        'On Windows, if the update installer hangs or fails, <openLogLink>open installer.log</openLogLink> in your default app. The file is at %LOCALAPPDATA%\\Adieuu\\logs\\installer.log (you can also paste the logs folder in File Explorer). You can share that file with support. If opening fails, the file may not exist until an installer has run once. New lines are appended each time the installer runs.',
+      openInstallerLogError: 'Could not open the log file',
+      inAppUpdateLogSupport:
+        'In-app update activity (checks, download progress, cache clears, and errors) is recorded in <openLogLink>update.log</openLogLink> next to your Adieuu profile. Full path:',
+      inAppUpdateLogSupportWindows:
+        'The app also records electron-updater activity in a separate in-app <openLogLink>update.log</openLogLink> (in addition to the Windows installer log above). Full path:',
+      openInAppUpdateLogError: 'Could not open update.log',
     },
 
     // Notification settings (Account)

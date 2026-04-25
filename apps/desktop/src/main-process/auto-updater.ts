@@ -3,11 +3,17 @@ import fs from 'fs/promises';
 import { app, ipcMain } from 'electron';
 import electronUpdater from 'electron-updater';
 import {
+  removeUpdaterCacheDirectory,
+  resolveUpdaterCacheDirectory,
+  type ClearInstallerCacheResult,
+} from './clear-installer-cache';
+import {
   DEFAULT_UPDATE_PREFS,
   MIN_CHECK_INTERVAL_MINUTES,
   normalizeUpdatePreferences,
   type UpdatePreferences,
 } from './update-preferences';
+import { appendInAppUpdateLog } from './update-in-app-log';
 
 const { autoUpdater } = electronUpdater;
 
@@ -37,6 +43,7 @@ export async function writeUpdatePreferences(prefs: UpdatePreferences): Promise<
 }
 
 let updateCheckTimer: ReturnType<typeof setInterval> | null = null;
+let lastProgressLogBucket = -1;
 
 export function resetElectronUpdaterQuitAndInstallGuard(): void {
   const updater = autoUpdater as unknown as { quitAndInstallCalled?: boolean };
@@ -86,8 +93,14 @@ export async function initAutoUpdater(options: {
     );
   }
 
+  autoUpdater.on('checking-for-update', () => {
+    void appendInAppUpdateLog('checking-for-update');
+  });
+
   autoUpdater.on('update-available', (info) => {
+    lastProgressLogBucket = -1;
     console.info('[AutoUpdater] Update available:', info.version);
+    void appendInAppUpdateLog(`update-available version=${info.version} autoDownload=${String(autoUpdater.autoDownload)}`);
     sendToRenderer('update-available', {
       version: info.version,
       releaseNotes: info.releaseNotes,
@@ -95,11 +108,27 @@ export async function initAutoUpdater(options: {
     });
   });
 
-  autoUpdater.on('update-not-available', () => {
+  autoUpdater.on('update-not-available', (info) => {
+    lastProgressLogBucket = -1;
+    const v = info != null && typeof (info as { version?: string }).version === 'string'
+      ? (info as { version: string }).version
+      : null;
+    void appendInAppUpdateLog(
+      v != null
+        ? `update-not-available latest=${v}`
+        : 'update-not-available',
+    );
     sendToRenderer('update-not-available');
   });
 
   autoUpdater.on('download-progress', (progress) => {
+    const bucket = Math.floor(progress.percent / 25);
+    if (bucket !== lastProgressLogBucket) {
+      lastProgressLogBucket = bucket;
+      void appendInAppUpdateLog(
+        `download-progress ${progress.percent.toFixed(1)}% ${progress.transferred}/${progress.total} bytes`,
+      );
+    }
     sendToRenderer('download-progress', {
       percent: progress.percent,
       transferred: progress.transferred,
@@ -110,6 +139,8 @@ export async function initAutoUpdater(options: {
   autoUpdater.on('update-downloaded', (info) => {
     resetElectronUpdaterQuitAndInstallGuard();
     console.info('[AutoUpdater] Update downloaded:', info.version);
+    lastProgressLogBucket = -1;
+    void appendInAppUpdateLog(`update-downloaded version=${info.version}`);
     sendToRenderer('update-downloaded', {
       version: info.version,
     });
@@ -117,6 +148,8 @@ export async function initAutoUpdater(options: {
 
   autoUpdater.on('error', (err) => {
     console.error('[AutoUpdater] Error:', err.message);
+    void appendInAppUpdateLog(`error ${err.message}`);
+    lastProgressLogBucket = -1;
     sendToRenderer('update-error', { message: err.message });
   });
 
@@ -140,10 +173,13 @@ export function registerAutoUpdaterIpc(options: {
   const { isDev, sendToRenderer } = options;
 
   ipcMain.handle('download-update', async () => {
+    void appendInAppUpdateLog('download-update IPC (manual) started');
     try {
       await autoUpdater.downloadUpdate();
+      void appendInAppUpdateLog('download-update IPC completed');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Download failed';
+      void appendInAppUpdateLog(`download-update IPC failed: ${message}`);
       console.error('[AutoUpdater] Download failed:', message);
       sendToRenderer('update-error', { message });
     }
@@ -152,8 +188,10 @@ export function registerAutoUpdaterIpc(options: {
   ipcMain.handle('install-update', () => {
     if (isDev) {
       console.info('[AutoUpdater] Dev mode: install-update called (no-op)');
+      void appendInAppUpdateLog('install-update IPC (dev no-op)');
       return;
     }
+    void appendInAppUpdateLog('install-update IPC → quitAndInstall');
     autoUpdater.quitAndInstall();
   });
 
@@ -190,12 +228,42 @@ export function registerAutoUpdaterIpc(options: {
   });
 
   ipcMain.handle('check-for-updates', async () => {
+    void appendInAppUpdateLog('check-for-updates IPC (manual) started');
     try {
       await autoUpdater.checkForUpdates();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Update check failed';
+      void appendInAppUpdateLog(`check-for-updates IPC failed: ${message}`);
       console.error('[AutoUpdater] Manual check failed:', message);
       sendToRenderer('update-error', { message });
+    }
+  });
+
+  ipcMain.handle('clear-installer-cache', async (): Promise<ClearInstallerCacheResult> => {
+    void appendInAppUpdateLog('clear-installer-cache IPC started');
+    try {
+      const cacheDir = await resolveUpdaterCacheDirectory(app);
+      await removeUpdaterCacheDirectory(cacheDir);
+      try {
+        const updater = autoUpdater as unknown as { downloadedUpdateHelper: null };
+        updater.downloadedUpdateHelper = null;
+        resetElectronUpdaterQuitAndInstallGuard();
+      } catch (e) {
+        console.warn('[AutoUpdater] Could not reset downloadedUpdateHelper (cache still cleared):', e);
+      }
+      try {
+        sendToRenderer('installer-cache-cleared');
+      } catch (e) {
+        console.warn('[AutoUpdater] Could not notify renderer of cache clear:', e);
+      }
+      void appendInAppUpdateLog(`clear-installer-cache ok path=${cacheDir}`);
+      console.info('[AutoUpdater] Cleared installer cache:', cacheDir);
+      return { ok: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not clear update cache';
+      void appendInAppUpdateLog(`clear-installer-cache failed: ${message}`);
+      console.error('[AutoUpdater] Clear installer cache failed:', message);
+      return { ok: false, error: message };
     }
   });
 }

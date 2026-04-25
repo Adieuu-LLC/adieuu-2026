@@ -84,7 +84,8 @@ contextBridge.exposeInMainWorld('electron', {
     const allowedChannels = [
       'install-update', 'download-update',
       'get-pending-deep-link', 'get-update-preferences', 'set-update-preferences',
-      'check-for-updates', 'set-platform-admin',
+      'check-for-updates', 'clear-installer-cache', 'open-windows-installer-log', 'open-in-app-update-log',
+      'get-in-app-update-log-path', 'restart-app', 'set-platform-admin',
     ];
     if (allowedChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);
@@ -93,7 +94,10 @@ contextBridge.exposeInMainWorld('electron', {
   },
 
   on: (channel: string, callback: (...args: unknown[]) => void): (() => void) => {
-    const allowedChannels = ['update-available', 'update-not-available', 'download-progress', 'update-downloaded', 'update-error', 'deep-link'];
+    const allowedChannels = [
+      'update-available', 'update-not-available', 'download-progress', 'update-downloaded', 'update-error',
+      'installer-cache-cleared', 'deep-link',
+    ];
     if (allowedChannels.includes(channel)) {
       const wrapper = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args);
       ipcRenderer.on(channel, wrapper);
