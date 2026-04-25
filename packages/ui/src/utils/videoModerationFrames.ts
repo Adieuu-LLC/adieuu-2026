@@ -4,8 +4,9 @@
  */
 
 import {
-  captureVideoFrameThumbnailsAtTimes,
+  captureVideoFrameJpegsAtUniqueSeekTimes,
   getVideoDimensions,
+  mergeSeekTimesForVideoCapture,
   type VideoLoadOptions,
 } from './videoProcessing';
 
@@ -198,6 +199,11 @@ export type BuildVideoModerationScanCompositeOptions = VideoLoadOptions &
 export type BuildVideoModerationScanPayloadsOptions = BuildVideoModerationScanCompositeOptions & {
   /** When set (e.g. in tests), skips duration-based part count. */
   partCountOverride?: number;
+  /**
+   * When set, skips a redundant video load to read duration (e.g. already obtained from
+   * {@link getVideoDimensionsAndScanThumbnail} in the E2E upload path).
+   */
+  precomputedVideoDurationSeconds?: number;
 };
 
 export type VideoModerationScanPayload = {
@@ -215,6 +221,7 @@ export async function buildVideoModerationScanPayloads(
 ): Promise<VideoModerationScanPayload[]> {
   const {
     partCountOverride,
+    precomputedVideoDurationSeconds,
     gridMaxCellDim,
     gridJpegQuality,
     thumbMaxDim,
@@ -228,12 +235,23 @@ export async function buildVideoModerationScanPayloads(
     ...loadOpts
   } = options ?? {};
 
-  const { durationSeconds } = await getVideoDimensions(file, loadOpts);
+  const durationSeconds =
+    precomputedVideoDurationSeconds !== undefined
+      ? precomputedVideoDurationSeconds
+      : (await getVideoDimensions(file, loadOpts)).durationSeconds;
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    throw new Error('Invalid video duration');
+  }
   const partCount =
     partCountOverride ?? moderationVideoScanPartCountForDuration(durationSeconds);
 
-  const payloads: VideoModerationScanPayload[] = [];
+  const captureOpts = {
+    ...loadOpts,
+    maxThumbnailDim: thumbMaxDim,
+    thumbnailQuality: thumbQuality,
+  };
 
+  const perPartMerged: number[][] = [];
   for (let i = 0; i < partCount; i++) {
     const t0 = (durationSeconds * i) / partCount;
     const t1 = (durationSeconds * (i + 1)) / partCount;
@@ -257,11 +275,25 @@ export async function buildVideoModerationScanPayloads(
     const absoluteTimes = localTimes.map((t) =>
       Math.min(Math.max(0, t0 + t), durationSeconds - 0.05)
     );
+    perPartMerged.push(mergeSeekTimesForVideoCapture(absoluteTimes, durationSeconds));
+  }
 
-    const thumbs = await captureVideoFrameThumbnailsAtTimes(file, absoluteTimes, {
-      ...loadOpts,
-      maxThumbnailDim: thumbMaxDim,
-      thumbnailQuality: thumbQuality,
+  const allUniqueSeeks = [...new Set(perPartMerged.flat())].sort((a, b) => a - b);
+  const frameMap = await captureVideoFrameJpegsAtUniqueSeekTimes(
+    file,
+    allUniqueSeeks,
+    captureOpts
+  );
+
+  const payloads: VideoModerationScanPayload[] = [];
+  for (let i = 0; i < partCount; i++) {
+    const merged = perPartMerged[i]!;
+    const thumbs = merged.map((t) => {
+      const b = frameMap.get(t);
+      if (!b) {
+        throw new Error('Missing video frame for moderation sample');
+      }
+      return b;
     });
     const body = await composeModerationScanFrameGrid(thumbs, {
       maxCellDim: gridMaxCellDim,

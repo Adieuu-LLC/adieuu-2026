@@ -25,6 +25,7 @@
     }
   },
   "scripts": {
+    "postinstall": "node scripts/copy-ffmpeg-core.mjs",
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "bun test --preload ./src/test.setup.ts",
@@ -45,6 +46,7 @@
     "@ark-ui/react": "5.31.0",
     "@emoji-mart/data": "1.2.1",
     "@emoji-mart/react": "1.1.1",
+    "@ffmpeg/core": "0.12.6",
     "@ffmpeg/ffmpeg": "0.12.15",
     "@ffmpeg/util": "0.12.2",
     "@fortawesome/fontawesome-svg-core": "npm:@adieuu-llc/fa-fontawesome-svg-core@7.2.0",

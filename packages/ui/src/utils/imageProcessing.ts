@@ -14,6 +14,39 @@ const DEFAULT_THUMBNAIL_QUALITY = 0.8;
 const DEFAULT_STRIP_QUALITY = 0.92;
 
 /**
+ * One decode: read dimensions and build a downscaled scan thumbnail JPEG.
+ * Prefer over separate {@link getImageDimensions} + {@link generateThumbnail} on the same file.
+ */
+export async function getImageDimensionsAndThumbnailJpeg(
+  file: File,
+  maxDim = DEFAULT_THUMBNAIL_MAX_DIM,
+  quality = DEFAULT_THUMBNAIL_QUALITY
+): Promise<{
+  width: number;
+  height: number;
+  thumbnail: Blob;
+}> {
+  const bitmap = await createImageBitmap(file);
+  const { width, height } = bitmap;
+  const scale = Math.min(1, maxDim / Math.max(width, height));
+  const targetWidth = Math.round(width * scale);
+  const targetHeight = Math.round(height * scale);
+
+  const canvas = new OffscreenCanvas(targetWidth, targetHeight);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    bitmap.close();
+    throw new Error('Failed to create 2D canvas context');
+  }
+
+  ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+  bitmap.close();
+
+  const thumbnail = await canvas.convertToBlob({ type: 'image/jpeg', quality });
+  return { width, height, thumbnail };
+}
+
+/**
  * Generate a thumbnail of an image, downscaled to fit within maxDim x maxDim.
  * The output is always JPEG for consistent scan copy size and no alpha channel
  * (Rekognition processes JPEG well).
@@ -28,22 +61,8 @@ export async function generateThumbnail(
   maxDim = DEFAULT_THUMBNAIL_MAX_DIM,
   quality = DEFAULT_THUMBNAIL_QUALITY
 ): Promise<Blob> {
-  const bitmap = await createImageBitmap(file);
-
-  const { width, height } = bitmap;
-  const scale = Math.min(1, maxDim / Math.max(width, height));
-  const targetWidth = Math.round(width * scale);
-  const targetHeight = Math.round(height * scale);
-
-  const canvas = new OffscreenCanvas(targetWidth, targetHeight);
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Failed to create 2D canvas context');
-
-  ctx.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
-  bitmap.close();
-
-  const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
-  return blob;
+  const { thumbnail } = await getImageDimensionsAndThumbnailJpeg(file, maxDim, quality);
+  return thumbnail;
 }
 
 /**

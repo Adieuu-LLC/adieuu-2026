@@ -94,7 +94,30 @@ async function captureThumbnailFromLoadedVideo(
 }
 
 /**
- * One decode load: seek to each timestamp (sorted, de-duplicated) and capture a JPEG.
+ * Per-segment seek merge: two samples closer than 250ms re-use the same frame (matches
+ * {@link captureVideoFrameThumbnailsAtTimes} and moderation segment logic).
+ */
+export function mergeSeekTimesForVideoCapture(
+  seekTimesSec: number[],
+  durationOrEnd: number
+): number[] {
+  const end = Math.max(0, durationOrEnd - 0.05);
+  const sorted = [...seekTimesSec]
+    .filter((t) => Number.isFinite(t))
+    .map((t) => Math.min(Math.max(0, t), end))
+    .sort((a, b) => a - b);
+
+  const merged: number[] = [];
+  for (const t of sorted) {
+    if (merged.length === 0 || Math.abs(merged[merged.length - 1]! - t) >= 0.25) {
+      merged.push(t);
+    }
+  }
+  return merged;
+}
+
+/**
+ * One decode load: seek to each timestamp (merged with {@link mergeSeekTimesForVideoCapture}).
  * Use for multi-frame moderation composites.
  */
 export async function captureVideoFrameThumbnailsAtTimes(
@@ -111,30 +134,71 @@ export async function captureVideoFrameThumbnailsAtTimes(
   try {
     const video = document.createElement('video');
     await waitUntilVideoHasIntrinsicSize(video, url, options);
-    readValidatedVideoMetadata(video);
-
-    const end = Math.max(0, video.duration - 0.05);
-    const sorted = [...seekTimesSec]
-      .filter((t) => Number.isFinite(t))
-      .map((t) => Math.min(Math.max(0, t), end))
-      .sort((a, b) => a - b);
-
-    const merged: number[] = [];
-    for (const t of sorted) {
-      if (merged.length === 0 || Math.abs(merged[merged.length - 1]! - t) >= 0.25) {
-        merged.push(t);
-      }
-    }
-
-    const out: Blob[] = [];
-    for (const t of merged) {
-      await seekVideoToTime(video, t);
-      out.push(await encodeLoadedVideoFrameToJpeg(video, maxDim, quality));
-    }
-    return out;
+    const { durationSeconds } = readValidatedVideoMetadata(video);
+    const merged = mergeSeekTimesForVideoCapture(seekTimesSec, durationSeconds);
+    return await captureJpegsAtSeekTimesOnLoadedVideo(
+      video,
+      merged,
+      maxDim,
+      quality
+    );
   } finally {
     URL.revokeObjectURL(url);
   }
+}
+
+/**
+ * Seeks in ascending order; times must be pre-merged (no 250ms de-dupe). One blob per time.
+ * Returns a map keyed by each requested seek time (for stable look-up of merged segment lists).
+ */
+export async function captureVideoFrameJpegsAtUniqueSeekTimes(
+  file: File,
+  uniqueSeekTimesSec: number[],
+  options?: VideoLoadOptions & {
+    maxThumbnailDim?: number;
+    thumbnailQuality?: number;
+  }
+): Promise<Map<number, Blob>> {
+  const maxDim = options?.maxThumbnailDim ?? DEFAULT_THUMBNAIL_MAX_DIM;
+  const quality = options?.thumbnailQuality ?? DEFAULT_THUMBNAIL_QUALITY;
+  const map = new Map<number, Blob>();
+  const unique = [...new Set(uniqueSeekTimesSec)]
+    .filter((t) => Number.isFinite(t))
+    .sort((a, b) => a - b);
+  if (unique.length === 0) {
+    return map;
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const video = document.createElement('video');
+    await waitUntilVideoHasIntrinsicSize(video, url, options);
+    readValidatedVideoMetadata(video);
+    const end = Math.max(0, video.duration - 0.05);
+    for (const t of unique) {
+      const safe = Math.min(Math.max(0, t), end);
+      await seekVideoToTime(video, safe);
+      const blob = await encodeLoadedVideoFrameToJpeg(video, maxDim, quality);
+      map.set(t, blob);
+    }
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  return map;
+}
+
+/** Used only after intrinsic size is available; caller owns the blob URL. */
+async function captureJpegsAtSeekTimesOnLoadedVideo(
+  video: HTMLVideoElement,
+  mergedSeekTimesSec: number[],
+  maxDim: number,
+  quality: number
+): Promise<Blob[]> {
+  const out: Blob[] = [];
+  for (const t of mergedSeekTimesSec) {
+    await seekVideoToTime(video, t);
+    out.push(await encodeLoadedVideoFrameToJpeg(video, maxDim, quality));
+  }
+  return out;
 }
 
 /**

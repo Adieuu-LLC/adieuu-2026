@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import * as videoModerationFramesReal from '../utils/videoModerationFrames';
 
-const getImageDimensionsMock = mock(async () => ({ width: 100, height: 100 }));
-const generateThumbnailMock = mock(async () => new Blob(['thumb'], { type: 'image/jpeg' }));
+const getImageDimensionsAndThumbnailJpegMock = mock(async () => ({
+  width: 100,
+  height: 100,
+  thumbnail: new Blob(['thumb'], { type: 'image/jpeg' }),
+}));
 
 mock.module('../utils/imageProcessing', () => ({
-  getImageDimensions: getImageDimensionsMock,
-  generateThumbnail: generateThumbnailMock,
+  getImageDimensionsAndThumbnailJpeg: getImageDimensionsAndThumbnailJpegMock,
 }));
 
 mock.module('../utils/videoProcessing', () => ({
@@ -25,6 +27,7 @@ mock.module('../utils/videoTranscode', () => ({
     transcodeCallCount += 1;
     return f;
   }),
+  preloadFfmpegCore: mock(() => Promise.resolve()),
 }));
 
 const buildVideoModerationScanPayloadsMock = mock(

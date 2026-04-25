@@ -1,34 +1,70 @@
 /**
  * Transcode non-MP4 browser video to H.264/AAC MP4 for server acceptance.
- * Loads ffmpeg.wasm on first use (large download).
+ * Loads ffmpeg.wasm on first use: prefers same-origin `public/ffmpeg-core/` (see postinstall
+ * copy script); fetches from unpkg if the local load fails.
  */
 
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 
 const FFMPEG_CORE_VERSION = '0.12.6';
-const FFMPEG_CORE_BASE = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`;
+const FFMPEG_UNPKG_ESM = `https://unpkg.com/@ffmpeg/core@${FFMPEG_CORE_VERSION}/dist/esm`;
 
 let loadPromise: Promise<FFmpeg> | null = null;
+
+function resolveFfmpegCoreBaseUrlForBrowser(): string {
+  if (typeof window === 'undefined') {
+    return FFMPEG_UNPKG_ESM;
+  }
+  try {
+    const env = (import.meta as ImportMeta & { env?: { BASE_URL?: string } }).env;
+    const basePath = env?.BASE_URL ?? '/';
+    return new URL('ffmpeg-core/', new URL(basePath, window.location.origin).href).href;
+  } catch {
+    return FFMPEG_UNPKG_ESM;
+  }
+}
+
+async function loadFfmpegFromBase(ffmpeg: FFmpeg, base: string): Promise<void> {
+  const withSlash = base.endsWith('/') ? base : `${base}/`;
+  await ffmpeg.load({
+    coreURL: await toBlobURL(`${withSlash}ffmpeg-core.js`, 'text/javascript'),
+    wasmURL: await toBlobURL(`${withSlash}ffmpeg-core.wasm`, 'application/wasm'),
+  });
+}
 
 async function getLoadedFFmpeg(): Promise<FFmpeg> {
   if (!loadPromise) {
     loadPromise = (async () => {
-      const ffmpeg = new FFmpeg();
-      await ffmpeg.load({
-        coreURL: await toBlobURL(
-          `${FFMPEG_CORE_BASE}/ffmpeg-core.js`,
-          'text/javascript'
-        ),
-        wasmURL: await toBlobURL(
-          `${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`,
-          'application/wasm'
-        ),
-      });
-      return ffmpeg;
+      if (typeof window === 'undefined') {
+        const ffmpeg = new FFmpeg();
+        await loadFfmpegFromBase(ffmpeg, FFMPEG_UNPKG_ESM);
+        return ffmpeg;
+      }
+      const localBase = resolveFfmpegCoreBaseUrlForBrowser();
+      const first = new FFmpeg();
+      try {
+        await loadFfmpegFromBase(first, localBase);
+        return first;
+      } catch {
+        const fallback = new FFmpeg();
+        await loadFfmpegFromBase(fallback, FFMPEG_UNPKG_ESM);
+        return fallback;
+      }
     })();
   }
   return loadPromise;
+}
+
+/**
+ * Preloads the ffmpeg.wasm engine (e.g. when opening the message composer) so the first
+ * transcode is not blocked on a large network fetch + wasm compile.
+ */
+export function preloadFfmpegCore(): Promise<void> {
+  if (typeof window === 'undefined') {
+    return Promise.resolve();
+  }
+  return getLoadedFFmpeg().then(() => undefined);
 }
 
 export type TranscodeVideoToMp4Options = {

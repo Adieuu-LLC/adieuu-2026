@@ -86,6 +86,10 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const { enqueueMediaSend } = useMediaOutbox();
 
+  useEffect(() => {
+    void import('../../utils/videoTranscode').then((m) => m.preloadFfmpegCore());
+  }, []);
+
   const placeholder = useMemo(() => {
     if (placeholderOverride) return placeholderOverride;
     if (!placeholderTarget) return t('conversations.messagePlaceholder', 'Type a message...');

@@ -1,5 +1,5 @@
 import { createApiClient, type ConvScanSealManifestV1 } from '@adieuu/shared';
-import { generateThumbnail, getImageDimensions } from '../utils/imageProcessing';
+import { getImageDimensionsAndThumbnailJpeg } from '../utils/imageProcessing';
 import {
   getVideoDimensionsAndScanThumbnail,
   probeVideoPlayableInBrowser,
@@ -109,11 +109,8 @@ async function buildDimensionsAndScanThumbnail(file: File): Promise<{
     };
   }
 
-  const [dimensions, thumbnail] = await Promise.all([
-    getImageDimensions(file),
-    generateThumbnail(file),
-  ]);
-  return { dimensions, thumbnail };
+  const { width, height, thumbnail } = await getImageDimensionsAndThumbnailJpeg(file);
+  return { dimensions: { width, height }, thumbnail };
 }
 
 /**
@@ -178,7 +175,11 @@ export async function uploadE2EMediaOnly(
   let moderationScan: ModerationScanPayload | ModerationScanPayload[];
   if (isVideoFile(file)) {
     try {
-      const payloads = await buildVideoModerationScanPayloads(file);
+      const payloads = await buildVideoModerationScanPayloads(file, {
+        ...(durationSeconds !== undefined
+          ? { precomputedVideoDurationSeconds: durationSeconds }
+          : {}),
+      });
       moderationScan = payloads.length === 1 ? payloads[0]! : payloads;
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
