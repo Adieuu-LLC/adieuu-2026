@@ -81,50 +81,54 @@ export function MessageEditHistoryLabel({ message, className, variant = 'header'
             className="message-edit-history-popover"
             onClick={(ev) => ev.stopPropagation()}
           >
-            <div className="message-edit-history-popover__title">
-              {t('conversations.editHistoryTitle')}
-            </div>
-            {loading && (
-              <p className="message-edit-history-popover__status" role="status">
-                {t('conversations.editHistoryLoading')}
-              </p>
-            )}
-            {!loading && fetchFailed && (
-              <p className="message-edit-history-popover__error">
-                {t('conversations.loadEditHistoryFailed')}
-              </p>
-            )}
-            {!loading && !fetchFailed && entries && entries.length === 0 && (
-              <p className="message-edit-history-popover__empty">
-                {t('conversations.editHistoryEmpty')}
-              </p>
-            )}
-            {!loading && !fetchFailed && entries && entries.length > 0 && (
-              <ol className="message-edit-history-popover__list">
-                {entries.map((e, i) => (
-                  <li key={`${e.replacedAt}-${i}`} className="message-edit-history-popover__item">
-                    <div className="message-edit-history-popover__meta" title={formatAbsoluteTime(e.replacedAt)}>
-                      <span className="message-edit-history-popover__version">
-                        {t('conversations.editHistoryVersion', { n: i + 1 })}
-                      </span>
-                      <span className="message-edit-history-popover__time">
-                        {formatAbsoluteTime(e.replacedAt)}
-                      </span>
-                    </div>
-                    {e.decryptionError || !e.plaintext ? (
-                      <p className="message-edit-history-popover__unable">
-                        {e.decryptionError
-                          ? t('conversations.editHistoryUnableDecrypt')
-                          : t('conversations.editHistoryNoPlaintext')}
-                      </p>
-                    ) : (
-                      <p className="message-edit-history-popover__text">
-                        {parsePayload(e.plaintext).text || t('conversations.editHistoryNoText')}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ol>
+            {open && (
+              <>
+                <div className="message-edit-history-popover__title">
+                  {t('conversations.editHistoryTitle')}
+                </div>
+                {loading && (
+                  <p className="message-edit-history-popover__status" role="status">
+                    {t('conversations.editHistoryLoading')}
+                  </p>
+                )}
+                {!loading && fetchFailed && (
+                  <p className="message-edit-history-popover__error">
+                    {t('conversations.loadEditHistoryFailed')}
+                  </p>
+                )}
+                {!loading && !fetchFailed && entries && entries.length === 0 && (
+                  <p className="message-edit-history-popover__empty">
+                    {t('conversations.editHistoryEmpty')}
+                  </p>
+                )}
+                {!loading && !fetchFailed && entries && entries.length > 0 && (
+                  <ol className="message-edit-history-popover__list">
+                    {entries.map((e, i) => (
+                      <li key={`${e.replacedAt}-${i}`} className="message-edit-history-popover__item">
+                        <div className="message-edit-history-popover__meta" title={formatAbsoluteTime(e.replacedAt)}>
+                          <span className="message-edit-history-popover__version">
+                            {t('conversations.editHistoryVersion', { n: i + 1 })}
+                          </span>
+                          <span className="message-edit-history-popover__time">
+                            {formatAbsoluteTime(e.replacedAt)}
+                          </span>
+                        </div>
+                        {e.decryptionError || !e.plaintext ? (
+                          <p className="message-edit-history-popover__unable">
+                            {e.decryptionError
+                              ? t('conversations.editHistoryUnableDecrypt')
+                              : t('conversations.editHistoryNoPlaintext')}
+                          </p>
+                        ) : (
+                          <p className="message-edit-history-popover__text">
+                            {parsePayload(e.plaintext).text || t('conversations.editHistoryNoText')}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </>
             )}
           </Popover.Content>
         </Popover.Positioner>
