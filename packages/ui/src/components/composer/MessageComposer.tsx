@@ -60,6 +60,15 @@ export type MessageComposerProps = {
   lastMessageText?: string;
   /** When true, disables all input and hides action buttons (e.g. when conversation is blocked). */
   disabled?: boolean;
+  /** When set, the composer is in “edit message” mode (text-only; send updates the message). */
+  editContext?: { messageId: string; onCancel: () => void } | null;
+  /**
+   * When this value changes, the input is replaced with `editingInitialPlaintext` (for edit mode).
+   * Use a stable value like the message id or a monotonic key.
+   */
+  editingMessageKey?: string | null;
+  /** Plain text (plus shortcodes) to load when entering edit mode. */
+  editingInitialPlaintext?: string;
 };
 
 export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposerProps>(function MessageComposer(
@@ -77,6 +86,9 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   gifsDisabled,
   lastMessageText,
   disabled,
+  editContext,
+  editingMessageKey,
+  editingInitialPlaintext,
 }: MessageComposerProps,
   ref,
 ) {
@@ -352,6 +364,27 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     return () => window.cancelAnimationFrame(id);
   }, [replyContext]);
 
+  const prevEditKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (editContext && editingMessageKey) {
+      if (prevEditKey.current !== editingMessageKey) {
+        setMessageText(editingInitialPlaintext ?? '', (editingInitialPlaintext ?? '').length);
+        mentionEntriesRef.current = [];
+        prevEditKey.current = editingMessageKey;
+        window.requestAnimationFrame(() => {
+          const ta = inputRef.current;
+          if (ta) {
+            ta.focus();
+            const len = ta.value.length;
+            ta.setSelectionRange(len, len);
+          }
+        });
+      }
+    } else {
+      prevEditKey.current = null;
+    }
+  }, [editContext, editingMessageKey, editingInitialPlaintext, setMessageText]);
+
   const [isMultiLine, setIsMultiLine] = useState(false);
 
   useEffect(() => {
@@ -371,6 +404,13 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     if (disabled) return;
     const text = messageTextRef.current.trim();
     if (!channelId || (!text && attachments.length === 0 && !pendingGif) || sending) return;
+
+    if (editContext && (attachments.length > 0 || pendingGif)) {
+      toastError(
+        t('conversations.editNoAttachments', 'Remove attachments to edit a message.'),
+      );
+      return;
+    }
 
     const currentPendingGif = pendingGif;
     const pendingAttachments = [...attachments];
@@ -454,17 +494,27 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           ? { version: 1, text: convertedText, mentions, senderDeviceId }
           : { version: 1, text: convertedText, senderDeviceId },
       );
-      const sent = await onSend(plaintext, {
-        useForwardSecrecy: forwardSecrecy?.enabled,
-        ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
-        ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
-        mentionedIdentityIds,
-      });
-      replyContext?.onCancel();
-      if (sent != null) {
-        onSendSucceeded?.();
+      if (editContext) {
+        const sent = await onSend(plaintext, {
+          useForwardSecrecy: forwardSecrecy?.enabled,
+        });
+        if (sent != null) {
+          onSendSucceeded?.();
+        }
+        inputRef.current?.focus();
+      } else {
+        const sent = await onSend(plaintext, {
+          useForwardSecrecy: forwardSecrecy?.enabled,
+          ...(replyContext ? { replyToMessageId: replyContext.messageId } : {}),
+          ...(ttlSeconds ? { expiresInSeconds: ttlSeconds } : {}),
+          mentionedIdentityIds,
+        });
+        replyContext?.onCancel();
+        if (sent != null) {
+          onSendSucceeded?.();
+        }
+        inputRef.current?.focus();
       }
-      inputRef.current?.focus();
     }
   }, [
     disabled,
@@ -473,6 +523,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     onSend,
     forwardSecrecy,
     replyContext,
+    editContext,
     onSendSucceeded,
     attachments,
     pendingGif,
@@ -821,7 +872,23 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           {composerToast}
         </div>
       )}
-      {replyContext && (
+      {editContext && (
+        <div className="conversation-composer-reply">
+          <Icon name="pen" className="conversation-composer-reply-icon" />
+          <span className="conversation-composer-reply-text" title={t('conversations.editingMessage', 'Editing message')}>
+            {t('conversations.editingMessage', 'Editing message')}
+          </span>
+          <button
+            type="button"
+            className="conversation-composer-reply-cancel"
+            onClick={editContext.onCancel}
+            aria-label={t('conversations.cancelEdit', 'Cancel edit')}
+          >
+            <Icon name="x" />
+          </button>
+        </div>
+      )}
+      {!editContext && replyContext && (
         <div className="conversation-composer-reply">
           <Icon name="reply" className="conversation-composer-reply-icon" />
           <button

@@ -38,10 +38,24 @@ export function applyFetchedMessagesToConversationState(
     const keepOlderCursor = prev[conversationId]?.olderCursor ?? null;
     const keepManualOlder = prev[conversationId]?.showManualLoadOlder ?? false;
     const keepManualNewer = prev[conversationId]?.showManualLoadNewer ?? false;
-    const ids = new Set(existing.map((m) => m.id));
-    const added = newMessages.filter((m) => !ids.has(m.id));
-    if (added.length === 0) return prev;
-    let messages = [...added, ...existing];
+    const existingIds = new Set(existing.map((m) => m.id));
+    const replaced = existing.map((m) => {
+      const upd = newMessages.find((n) => n.id === m.id);
+      if (!upd) return m;
+      if (
+        upd.ciphertext === m.ciphertext &&
+        (upd.revisionCount ?? 0) === (m.revisionCount ?? 0) &&
+        upd.lastEditedAt === m.lastEditedAt
+      ) {
+        return m;
+      }
+      return upd;
+    });
+    const added = newMessages.filter((m) => !existingIds.has(m.id));
+    if (added.length === 0 && replaced.every((m, i) => m === existing[i])) {
+      return prev;
+    }
+    let messages = [...added, ...replaced];
     if (messages.length > 0) {
       messages = trimMessagesBuffer(messages, isAtBottom, unreadCount);
     }

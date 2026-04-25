@@ -9,7 +9,7 @@
  */
 
 import { Router } from '../../router';
-import { success, errors } from '../../utils/response';
+import { success, errors, error } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
 import {
   getIdentityFromSession,
@@ -20,6 +20,8 @@ import {
   getConversation,
   listConversations,
   sendMessage,
+  editMessage,
+  getMessage,
   getMessages,
   getMessagesAround,
   deleteMessageForSelf,
@@ -100,6 +102,31 @@ const SendMessageSchema = z.object({
   expiresInSeconds: z.number().int().min(30).max(1209600).optional(),
   replyToMessageId: z.string().length(24).optional(),
   mentionedIdentityIds: z.array(z.string().length(24)).max(200).optional(),
+});
+
+const EditMessageSchema = z.object({
+  ciphertext: z.string().min(1).max(1_000_000),
+  nonce: z.string().min(1).max(100),
+  wrappedKeys: z.array(
+    z.object({
+      identityId: z.string().length(24),
+      ephemeralPublicKey: z.string().min(1).max(200),
+      kemCiphertext: z.string().min(1).max(3000),
+      wrappedSessionKey: z.string().min(1).max(500),
+      wrappingNonce: z.string().min(1).max(100),
+      preKeyType: z.enum(['static', 'spk', 'otpk']),
+      signedPreKeyId: z.string().uuid().optional(),
+      oneTimePreKeyId: z.string().uuid().optional(),
+      spkKemCiphertext: z.string().max(3000).optional(),
+      otpkKemCiphertext: z.string().max(3000).optional(),
+      routingTag: z.string().max(100).optional(),
+    })
+  )
+    .min(1)
+    .max(200),
+  signature: z.string().min(1).max(500),
+  cryptoProfile: z.enum(['default', 'cnsa2']),
+  clientEditId: z.string().uuid(),
 });
 
 const AddMemberSchema = z.object({
@@ -820,6 +847,82 @@ router.get('/conversations/:id/messages/around/:messageId', async (ctx) => {
     pageNewestId,
     hasNewerPages,
   });
+});
+
+/**
+ * GET /conversations/:id/messages/:messageId — one message. Use `?include=revisionHistory` for E2E edit history.
+ */
+router.get('/conversations/:id/messages/:messageId', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id, messageId } = ctx.params;
+  const sanitizedConv = sanitizeString(id ?? '', 'general');
+  if (!sanitizedConv.value || !isValidObjectId(sanitizedConv.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+  const sanitizedMsg = sanitizeString(messageId ?? '', 'general');
+  if (!sanitizedMsg.value || !isValidObjectId(sanitizedMsg.value)) {
+    return errors.badRequest('Invalid message ID.');
+  }
+
+  const includeRev = ctx.query.get('include') === 'revisionHistory';
+
+  const result = await getMessage(sanitizedConv.value, sanitizedMsg.value, identity._id, {
+    includeRevisionHistory: includeRev,
+  });
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'MESSAGE_NOT_FOUND') return errors.notFound('Message not found.');
+    return errors.badRequest(result.error ?? 'Failed to load message.');
+  }
+
+  return success(result.message, 'Message loaded.');
+});
+
+/**
+ * PATCH /conversations/:id/messages/:messageId — edit message (E2E replacement + history append)
+ */
+router.patch('/conversations/:id/messages/:messageId', async (ctx) => {
+  const identity = await requireIdentity(ctx.request);
+  if (!identity) return ctx.errors.unauthorized();
+
+  const { id, messageId } = ctx.params;
+  const sanitizedConv = sanitizeString(id ?? '', 'general');
+  if (!sanitizedConv.value || !isValidObjectId(sanitizedConv.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+  const sanitizedMsg = sanitizeString(messageId ?? '', 'general');
+  if (!sanitizedMsg.value || !isValidObjectId(sanitizedMsg.value)) {
+    return errors.badRequest('Invalid message ID.');
+  }
+
+  const parseResult = EditMessageSchema.safeParse(ctx.body);
+  if (!parseResult.success) return ctx.errors.validationFailed();
+
+  const result = await editMessage(sanitizedConv.value, sanitizedMsg.value, identity._id, parseResult.data);
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'BLOCKED') return errors.forbidden('Cannot message this identity.');
+    if (result.errorCode === 'MESSAGE_NOT_FOUND') return errors.notFound('Message not found.');
+    if (result.errorCode === 'MAX_EDITS_REACHED') {
+      return error(
+        'MAX_EDITS_REACHED',
+        'This message was edited the maximum number of times. Send a new message to continue.',
+        400
+      );
+    }
+    if (result.errorCode === 'NOT_SENDER') return ctx.errors.unauthorized();
+    if (result.errorCode === 'TOMBSTONE') return errors.badRequest('This message is no longer available.');
+    if (result.errorCode === 'SYSTEM_MESSAGE') return errors.badRequest('This message cannot be edited.');
+    return errors.badRequest(result.error ?? 'Failed to edit message.');
+  }
+
+  return success(result.message, 'Message updated.');
 });
 
 /**

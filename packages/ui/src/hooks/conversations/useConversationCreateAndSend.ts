@@ -5,6 +5,7 @@ import {
   type PublicMessage,
   type PublicIdentity,
   type SendMessageParams,
+  type EditMessageParams,
 } from '@adieuu/shared';
 import {
   encryptMessage,
@@ -284,5 +285,117 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
     [isLoggedIn, identity, conversations, getSigningKey, fetchRecipientKeys, api]
   );
 
-  return { createDM, createGroup, sendTextMessage };
+  const editTextMessage = useCallback(
+    async (
+      conversationId: string,
+      messageId: string,
+      plaintext: string,
+      options?: {
+        useForwardSecrecy?: boolean;
+        signal?: AbortSignal;
+      }
+    ): Promise<PublicMessage | SendMessageErrorResult | null> => {
+      if (!isLoggedIn || !identity) return null;
+
+      const conversation = conversations.find((c) => c.id === conversationId);
+      if (!conversation) return null;
+
+      const useFs = options?.useForwardSecrecy ?? false;
+      const signal = options?.signal;
+
+      const throwIfAborted = () => {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+      };
+
+      setSending(true);
+      try {
+        throwIfAborted();
+        const signingKey = getSigningKey();
+        if (!signingKey) throw new Error('No signing key available');
+
+        const recipients = await fetchRecipientKeys(
+          conversation.participants,
+          useFs,
+          signal
+        );
+        throwIfAborted();
+        if (recipients.length === 0) throw new Error('No recipient keys available');
+
+        const cryptoProfile = identity.preferredCryptoProfile ?? 'default';
+        const encrypted = encryptMessage(
+          plaintext,
+          recipients,
+          signingKey,
+          cryptoProfile as 'default' | 'cnsa2'
+        );
+        throwIfAborted();
+
+        const clientEditId = crypto.randomUUID();
+        const editParams: EditMessageParams = {
+          ciphertext: encrypted.ciphertext,
+          nonce: encrypted.nonce,
+          wrappedKeys: encrypted.wrappedKeys,
+          signature: encrypted.signature,
+          cryptoProfile: encrypted.cryptoProfile,
+          clientEditId,
+        };
+
+        const resp = await api.conversations.editMessage(
+          conversationId,
+          messageId,
+          editParams,
+          signal ? { signal } : undefined
+        );
+        throwIfAborted();
+
+        if (!resp.success && signal?.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
+
+        if (resp.data) {
+          const displayMsg: DisplayMessage = {
+            ...resp.data,
+            decryptedContent: plaintext,
+            signatureVerified: true,
+            forwardSecrecy: useFs,
+          };
+
+          setMessagesState((prev) => {
+            const cur = prev[conversationId];
+            if (!cur) return prev;
+            return {
+              ...prev,
+              [conversationId]: {
+                ...cur,
+                messages: cur.messages.map((m) => (m.id === messageId ? displayMsg : m)),
+              },
+            };
+          });
+
+          return resp.data;
+        }
+
+        if (resp.error?.code === 'MAX_EDITS_REACHED') {
+          return { errorCode: 'MAX_EDITS_REACHED' };
+        }
+        if (resp.error?.code === 'FORBIDDEN') {
+          return { errorCode: 'BLOCKED' };
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          throw err;
+        }
+        if (signal?.aborted) {
+          throw new DOMException('Aborted', 'AbortError');
+        }
+        console.error('[Conversations] Failed to edit message:', err);
+      } finally {
+        setSending(false);
+      }
+      return null;
+    },
+    [isLoggedIn, identity, conversations, getSigningKey, fetchRecipientKeys, api, setMessagesState]
+  );
+
+  return { createDM, createGroup, sendTextMessage, editTextMessage };
 }

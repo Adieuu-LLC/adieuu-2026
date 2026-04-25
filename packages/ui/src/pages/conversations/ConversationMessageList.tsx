@@ -46,6 +46,7 @@ export function ConversationMessageList({
   onAddFavorite,
   onRemoveFavorite,
   onReply,
+  onStartEdit,
   onLinkClick,
   onMentionClick,
   scrollToMessageId,
@@ -98,6 +99,7 @@ export function ConversationMessageList({
   onAddFavorite: (emoji: string) => void;
   onRemoveFavorite: (emoji: string) => void;
   onReply: (msg: DisplayMessage) => void;
+  onStartEdit: (msg: DisplayMessage) => void;
   onLinkClick: (href: string) => void;
   onMentionClick: (identityId: string) => void;
   scrollToMessageId: (id: string) => void;
@@ -297,6 +299,7 @@ export function ConversationMessageList({
             memberColorDisplay={memberColorDisplay}
             replyQuote={replyQuote}
             onReply={() => onReply(msg)}
+            onStartEdit={() => onStartEdit(msg)}
             isFlashHighlight={flashingMessageId === msg.id}
             onLinkClick={onLinkClick}
             onMentionClick={onMentionClick}
@@ -319,7 +322,7 @@ export function ConversationMessageList({
       scrollToMessageId, onDeleteMessage, onReact, onToggleReaction,
       onReportMessage, getGroupedReactions, favoriteEmojis, onAddFavorite,
       onRemoveFavorite, fsInfo, messageLayout, memberColorDisplay,
-      flashingMessageId, onReply, onLinkClick, onMentionClick,
+      flashingMessageId, onReply, onStartEdit, onLinkClick, onMentionClick,
       pinnedSet, canManagePins, onPinMessage, onUnpinMessage,
       onOpenMemberSecurity,
       peerPublicKeysById,

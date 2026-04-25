@@ -96,6 +96,14 @@ export interface ConversationsContextValue {
     }
   ) => Promise<PublicMessage | SendMessageErrorResult | null>;
 
+  /** Replace text for an existing message (E2E); max 3 edits per message server-side. */
+  editTextMessage: (
+    conversationId: string,
+    messageId: string,
+    plaintext: string,
+    options?: { useForwardSecrecy?: boolean; signal?: AbortSignal }
+  ) => Promise<PublicMessage | SendMessageErrorResult | null>;
+
   /**
    * True when the given conversation's buffer is at the live tail (same heuristic as the composer adapter).
    */

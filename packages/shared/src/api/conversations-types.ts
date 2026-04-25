@@ -69,6 +69,15 @@ export interface SerializedWrappedKey {
   routingTag?: string;
 }
 
+export interface PublicMessageRevision {
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: SerializedWrappedKey[];
+  signature: string;
+  cryptoProfile: MessageCryptoProfile;
+  replacedAt: string;
+}
+
 export interface PublicMessage {
   id: string;
   conversationId: string;
@@ -81,11 +90,18 @@ export interface PublicMessage {
   signature?: string;
   cryptoProfile: MessageCryptoProfile;
   clientMessageId: string;
+  e2eMediaIds?: string[];
   expiresAt?: string;
   deleted: boolean;
   createdAt: string;
   /** When set, this message is a reply to another message in the same conversation */
   replyToMessageId?: string;
+  /** Number of successful edits (0 if never edited). */
+  revisionCount: number;
+  /** ISO-8601 time of the most recent successful edit, if any. */
+  lastEditedAt?: string;
+  /** Full prior ciphertext snapshots; only on responses that request revision history. */
+  encryptedRevisionHistory?: PublicMessageRevision[];
 }
 
 export interface PublicGroupInvite {
@@ -145,6 +161,15 @@ export interface SendMessageParams {
   e2eMediaIds?: string[];
   /** Identity IDs of participants @mentioned in this message (unencrypted metadata for notification routing). */
   mentionedIdentityIds?: string[];
+}
+
+export interface EditMessageParams {
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: SerializedWrappedKey[];
+  signature: string;
+  cryptoProfile: MessageCryptoProfile;
+  clientEditId: string;
 }
 
 export interface ConversationPreferences {

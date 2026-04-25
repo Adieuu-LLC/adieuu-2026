@@ -40,6 +40,10 @@ export interface ConversationsSocketEffectsParams {
       direction?: 'older' | 'newer'
     ) => Promise<void>
   >;
+  /** Replace one message in buffer after a remote edit (E2E ciphertext update). */
+  refreshMessageInConversationRef: MutableRefObject<
+    (conversationId: string, messageId: string) => Promise<void>
+  >;
   refreshRef: MutableRefObject<() => Promise<void>>;
   fireNotificationRef: MutableRefObject<
     (
@@ -82,6 +86,7 @@ export function useConversationsSocketEffects(params: ConversationsSocketEffects
     participantProfilesRef,
     fetchConversationsRef,
     fetchMessagesRef,
+    refreshMessageInConversationRef,
     refreshRef,
     fireNotificationRef,
     navigateRef,
@@ -130,6 +135,8 @@ export function useConversationsSocketEffects(params: ConversationsSocketEffects
             mergeLatest,
             direction
           ),
+        refreshMessageInConversation: (conversationId, messageId) =>
+          void refreshMessageInConversationRef.current(conversationId, messageId),
         fireNotification: (title, body, options) =>
           fireNotificationRef.current(title, body, options),
         navigate: (path) => navigateRef.current(path),

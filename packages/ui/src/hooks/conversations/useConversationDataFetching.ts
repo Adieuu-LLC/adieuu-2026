@@ -400,6 +400,62 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
     ]
   );
 
+  const refreshMessageInConversation = useCallback(
+    async (conversationId: string, messageId: string) => {
+      if (!isLoggedIn || !identity) return;
+      try {
+        const resp = await api.conversations.getMessage(conversationId, messageId);
+        if (!resp.data) return;
+        const deviceId = getCurrentDeviceId();
+        const wrappingKey = getWrappingKey();
+        const keys = await loadDecryptKeysVerbose(identity.id, deviceId, wrappingKey);
+        const shared = buildDecryptMessageBatchSharedFields({
+          identityId: identity.id,
+          wrappingKey,
+          keys,
+          signingKeyCache: signingKeyCache.current,
+          sessionKeyCache: sessionKeyCache.current,
+          api,
+          resolveParticipants,
+        });
+        const existing = messagesStateRef.current[conversationId]?.messages ?? [];
+        const [decrypted] = await decryptMessageBatch({
+          ...shared,
+          messages: [resp.data as PublicMessage],
+          conversationId,
+          pagingCursor: undefined,
+          existingMessages: existing,
+        });
+        if (!decrypted) return;
+        setMessagesState((p) => {
+          const st = p[conversationId];
+          if (!st?.messages.some((m) => m.id === messageId)) return p;
+          return {
+            ...p,
+            [conversationId]: {
+              ...st,
+              messages: st.messages.map((m) => (m.id === messageId ? (decrypted as DisplayMessage) : m)),
+            },
+          };
+        });
+      } catch (err) {
+        console.error('[useConversations] refreshMessageInConversation failed', { conversationId, messageId }, err);
+      }
+    },
+    [
+      isLoggedIn,
+      identity,
+      api,
+      getCurrentDeviceId,
+      getWrappingKey,
+      resolveParticipants,
+      signingKeyCache,
+      sessionKeyCache,
+      messagesStateRef,
+      setMessagesState,
+    ]
+  );
+
   const ensureReplyParentHydration = useCallback(
     async (conversationId: string, parentMessageId: string): Promise<void> => {
       if (!isLoggedIn || !identity) return;
@@ -625,6 +681,7 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
     fetchConversationById,
     fetchMessages,
     fetchMessagesAround,
+    refreshMessageInConversation,
     ensureReplyParentHydration,
     loadPinnedMessagesPage,
     fetchInvites,

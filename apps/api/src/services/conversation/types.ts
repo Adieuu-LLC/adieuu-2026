@@ -42,7 +42,10 @@ export interface MessageResult {
     | 'NOT_SENDER'
     | 'INVALID_REPLY_TARGET'
     | 'INVALID_MEDIA'
-    | 'INVALID_MESSAGE_QUERY';
+    | 'INVALID_MESSAGE_QUERY'
+    | 'MAX_EDITS_REACHED'
+    | 'TOMBSTONE'
+    | 'SYSTEM_MESSAGE';
 }
 
 export interface GroupInviteResult {

@@ -21,6 +21,7 @@ export type ChatMessageType =
   | 'conversation_created'
   | 'conversation_updated'
   | 'conversation_message'
+  | 'conversation_message_edited'
   | 'group_invite_received'
   | 'group_invite_accepted'
   | 'group_invite_revoked'
@@ -161,6 +162,18 @@ export interface ChatConversationMessageMessage extends ChatMessageBase {
   };
 }
 
+export interface ChatConversationMessageEditedMessage extends ChatMessageBase {
+  type: 'conversation_message_edited';
+  data: {
+    conversationId: string;
+    messageId: string;
+    fromIdentityId: string;
+    lastEditedAt: string;
+    revisionCount: number;
+    expiresAt?: string;
+  };
+}
+
 export interface ChatGroupInviteReceivedMessage extends ChatMessageBase {
   type: 'group_invite_received';
   data: {
@@ -278,6 +291,7 @@ export type ChatIncomingMessage =
   | ChatConversationCreatedMessage
   | ChatConversationUpdatedMessage
   | ChatConversationMessageMessage
+  | ChatConversationMessageEditedMessage
   | ChatGroupInviteReceivedMessage
   | ChatGroupInviteAcceptedMessage
   | ChatGroupInviteRevokedMessage

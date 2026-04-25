@@ -237,6 +237,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     fetchConversationById,
     fetchMessages,
     fetchMessagesAround,
+    refreshMessageInConversation,
     ensureReplyParentHydration,
     loadPinnedMessagesPage,
     fetchInvites,
@@ -270,6 +271,8 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   fetchConversationsRef.current = fetchConversations;
   const fetchMessagesRef = useRef(fetchMessages);
   fetchMessagesRef.current = fetchMessages;
+  const refreshMessageInConversationRef = useRef(refreshMessageInConversation);
+  refreshMessageInConversationRef.current = refreshMessageInConversation;
 
   // -------------------------------------------------------------------------
   // Active conversation
@@ -340,7 +343,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     [isLoggedIn, identity, fetchMessages],
   );
 
-  const { createDM, createGroup, sendTextMessage } = useConversationCreateAndSend({
+  const { createDM, createGroup, sendTextMessage, editTextMessage } = useConversationCreateAndSend({
     isLoggedIn,
     identity,
     api,
@@ -461,6 +464,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     participantProfilesRef,
     fetchConversationsRef,
     fetchMessagesRef,
+    refreshMessageInConversationRef,
     refreshRef,
     fireNotificationRef,
     navigateRef,
@@ -545,6 +549,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       createDM,
       createGroup,
       sendTextMessage,
+      editTextMessage,
       computeAtLiveTail,
       loadOlder,
       loadNewer,
@@ -584,7 +589,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     pendingInvitesRefreshSignal,
     participantProfiles, loading, sending,
     setActiveConversation, setIsAtBottom, fetchConversationById, markConversationRead,
-    createDM, createGroup, sendTextMessage, computeAtLiveTail, loadOlder, loadNewer, jumpToLatestMessages,
+    createDM, createGroup, sendTextMessage, editTextMessage, computeAtLiveTail, loadOlder, loadNewer, jumpToLatestMessages,
     fetchMessagesAround, ensureReplyParentHydration, loadPinnedMessagesPage,
     deleteMessage, addMember, removeMember, leaveGroup, renameGroup,
     updateConversationMemberSettings, updateGifsDisabled, updateMessageSearchCachePolicy, pinMessage, unpinMessage, promoteToAdmin, terminateGroup,

@@ -72,6 +72,20 @@ export interface SerializedWrappedKey {
 }
 
 /**
+ * A superseded E2E snapshot (same shape as a single message's encrypted payload),
+ * plus when it was replaced by a newer version.
+ */
+export interface EncryptedMessageRevision {
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: SerializedWrappedKey[];
+  signature: string;
+  cryptoProfile: CryptoProfile;
+  /** Server time when this version was superseded by an edit. */
+  replacedAt: Date;
+}
+
+/**
  * Message document stored in MongoDB
  */
 export interface MessageDocument extends BaseDocument {
@@ -126,6 +140,18 @@ export interface MessageDocument extends BaseDocument {
 
   /** Identities that deleted this message for themselves only */
   deletedFor: ObjectId[];
+
+  /**
+   * Prior E2E snapshots (oldest to newest), from successful edits.
+   * Capped at `MAX_MESSAGE_REVISIONS` in `apps/api/src/constants/messages.ts`.
+   */
+  encryptedRevisionHistory?: EncryptedMessageRevision[];
+
+  /** Set on each successful edit (for clients). Omitted for messages never edited. */
+  lastEditedAt?: Date;
+
+  /** Idempotency key for the last successful edit. */
+  lastClientEditId?: string;
 }
 
 /**
@@ -145,6 +171,18 @@ export interface CreateMessageInput {
   e2eMediaIds?: string[];
   expiresAt?: Date;
   replyToMessageId?: ObjectId;
+}
+
+/**
+ * A stored revision, safe for the wire (timestamps as ISO-8601).
+ */
+export interface PublicMessageRevision {
+  ciphertext: string;
+  nonce: string;
+  wrappedKeys: SerializedWrappedKey[];
+  signature: string;
+  cryptoProfile: CryptoProfile;
+  replacedAt: string;
 }
 
 /**
@@ -169,7 +207,32 @@ export interface PublicMessage {
   createdAt: string;
   /** Present when this message is a reply to another message in the same conversation */
   replyToMessageId?: string;
+  /** Number of successful edits (length of `encryptedRevisionHistory` on the server). 0 if never edited. */
+  revisionCount: number;
+  /** ISO-8601 time of the most recent successful edit, if any. */
+  lastEditedAt?: string;
+  /** Omitted in list views unless the client asked for full history. */
+  encryptedRevisionHistory?: PublicMessageRevision[];
 }
+
+function toPublicMessageRevisions(
+  history: EncryptedMessageRevision[] | undefined
+): PublicMessageRevision[] {
+  if (!history?.length) return [];
+  return history.map((h) => ({
+    ciphertext: h.ciphertext,
+    nonce: h.nonce,
+    wrappedKeys: h.wrappedKeys,
+    signature: h.signature,
+    cryptoProfile: h.cryptoProfile,
+    replacedAt: h.replacedAt.toISOString(),
+  }));
+}
+
+export type ToPublicMessageOptions = {
+  /** When true, include full `encryptedRevisionHistory` in the response. */
+  includeRevisionHistory?: boolean;
+};
 
 /**
  * Convert a MessageDocument to PublicMessage (safe for client).
@@ -178,8 +241,13 @@ export interface PublicMessage {
  */
 export function toPublicMessage(
   doc: MessageDocument,
-  requestingIdentityId?: ObjectId
+  requestingIdentityId?: ObjectId,
+  options?: ToPublicMessageOptions
 ): PublicMessage {
+  const includeRevisionHistory = options?.includeRevisionHistory === true;
+  const revisionCount = doc.encryptedRevisionHistory?.length ?? 0;
+  const lastEditedAt = doc.lastEditedAt?.toISOString();
+
   const isDeletedForRequester =
     doc.deletedForEveryone ||
     (requestingIdentityId &&
@@ -196,6 +264,7 @@ export function toPublicMessage(
       clientMessageId: doc.clientMessageId,
       deleted: true,
       createdAt: doc.createdAt.toISOString(),
+      revisionCount: 0,
       ...(doc.replyToMessageId
         ? { replyToMessageId: doc.replyToMessageId.toHexString() }
         : {}),
@@ -218,6 +287,11 @@ export function toPublicMessage(
     expiresAt: doc.expiresAt?.toISOString(),
     deleted: false,
     createdAt: doc.createdAt.toISOString(),
+    revisionCount,
+    ...(lastEditedAt ? { lastEditedAt } : {}),
+    ...(includeRevisionHistory && revisionCount > 0
+      ? { encryptedRevisionHistory: toPublicMessageRevisions(doc.encryptedRevisionHistory) }
+      : {}),
     ...(doc.replyToMessageId
       ? { replyToMessageId: doc.replyToMessageId.toHexString() }
       : {}),

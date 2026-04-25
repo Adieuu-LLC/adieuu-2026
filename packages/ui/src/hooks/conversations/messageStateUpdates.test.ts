@@ -3,7 +3,7 @@ import { MAX_LOADED_MESSAGES } from '../../pages/conversations/conversationScrol
 import { applyFetchedMessagesToConversationState } from './messageStateUpdates';
 import type { ConversationMessagesState, DisplayMessage } from './types';
 
-function msg(id: string): DisplayMessage {
+function msg(id: string, overrides?: Partial<DisplayMessage>): DisplayMessage {
   return {
     id,
     conversationId: 'c1',
@@ -14,6 +14,10 @@ function msg(id: string): DisplayMessage {
     wrappedKeys: [],
     signature: 's',
     cryptoProfile: 'default',
+    clientMessageId: '00000000-0000-4000-8000-000000000000',
+    deleted: false,
+    revisionCount: 0,
+    ...overrides,
   } as DisplayMessage;
 }
 
@@ -44,6 +48,32 @@ describe('applyFetchedMessagesToConversationState', () => {
     expect(next.c1?.olderCursor).toBe('cur-old');
     expect(next.c1?.hasNewerPages).toBe(true);
     expect(next.c1?.loading).toBe(false);
+  });
+
+  test('mergeLatest replaces in place when the same id has updated ciphertext (edit)', () => {
+    const prev: Record<string, ConversationMessagesState> = {
+      c1: {
+        messages: [msg('a', { ciphertext: 'old' })],
+        olderCursor: null,
+        newerPaginationAfterId: 'a',
+        hasNewerPages: false,
+        loading: false,
+        showManualLoadOlder: false,
+        showManualLoadNewer: false,
+      },
+    };
+    const next = applyFetchedMessagesToConversationState(prev, {
+      conversationId: 'c1',
+      mergeLatest: true,
+      newMessages: [msg('a', { ciphertext: 'new', revisionCount: 1 })],
+      direction: undefined,
+      cursor: undefined,
+      hasNewerPagesFromApi: false,
+      unreadCount: 0,
+      isAtBottom: true,
+    });
+    expect(next.c1?.messages[0]?.ciphertext).toBe('new');
+    expect(next.c1?.messages[0]?.revisionCount).toBe(1);
   });
 
   test('mergeLatest returns prev when no new ids', () => {

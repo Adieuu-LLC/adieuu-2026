@@ -20,6 +20,7 @@ function createContext() {
     },
   };
 
+  const refreshCalls: Array<{ c: string; m: string }> = [];
   const ctx: ConversationSocketHandlerContext = {
     setConversations: (updater) => {
       conversations = updater(conversations as never) as never;
@@ -44,6 +45,9 @@ function createContext() {
     decryptGroupName: () => 'group',
     fetchConversations: () => undefined,
     fetchMessages: () => undefined,
+    refreshMessageInConversation: (c, m) => {
+      refreshCalls.push({ c, m });
+    },
     fireNotification: (title, body) => notifications.push({ title, body }),
     navigate: () => undefined,
     resolveParticipants: async () => ({}),
@@ -56,6 +60,7 @@ function createContext() {
 
   return {
     ctx,
+    refreshCalls,
     get conversations() {
       return conversations;
     },
@@ -86,6 +91,22 @@ describe('conversationSocketHandlers', () => {
     handleConversationSocketMessage(msg, h.ctx);
     expect(h.conversations[0]?.unreadCount).toBe(1);
     expect(h.notifications.length).toBe(1);
+  });
+
+  test('handles conversation_message_edited by refreshing that message in the active thread', () => {
+    const h = createContext();
+    const msg = {
+      type: 'conversation_message_edited',
+      data: {
+        conversationId: 'conv-1',
+        messageId: 'm-1',
+        fromIdentityId: 'sender-1',
+        lastEditedAt: new Date().toISOString(),
+        revisionCount: 1,
+      },
+    } as ChatIncomingMessage;
+    handleConversationSocketMessage(msg, h.ctx);
+    expect(h.refreshCalls).toEqual([{ c: 'conv-1', m: 'm-1' }]);
   });
 
   test('handles conversation_message_deleted by marking message deleted', () => {

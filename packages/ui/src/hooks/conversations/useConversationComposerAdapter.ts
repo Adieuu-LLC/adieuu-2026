@@ -31,6 +31,15 @@ export function useConversationComposerAdapter(params: {
   setBlockedByOther: (v: boolean) => void;
   replyingTo: DisplayMessage | null;
   setReplyingTo: (v: DisplayMessage | null) => void;
+  editingMessage: DisplayMessage | null;
+  setEditingMessage: (v: DisplayMessage | null) => void;
+  editTextMessage: (
+    convId: string,
+    messageId: string,
+    plaintext: string,
+    options?: { useForwardSecrecy?: boolean }
+  ) => Promise<unknown>;
+  onEditMaxReached: () => void;
   participantProfiles: Record<string, PublicIdentity>;
   memberSettings: MemberSettingsMap;
   t: TFunction;
@@ -52,6 +61,10 @@ export function useConversationComposerAdapter(params: {
     setBlockedByOther,
     replyingTo,
     setReplyingTo,
+    editingMessage,
+    setEditingMessage,
+    editTextMessage,
+    onEditMaxReached,
     participantProfiles,
     memberSettings,
     t,
@@ -61,6 +74,19 @@ export function useConversationComposerAdapter(params: {
   const composerSend: ComposerSendFn = useCallback(
     async (plaintext, options) => {
       if (!conversationId) return null;
+      if (editingMessage) {
+        const r = await editTextMessage(conversationId, editingMessage.id, plaintext, {
+          useForwardSecrecy: options?.useForwardSecrecy,
+        });
+        if (r != null && typeof r === 'object' && 'errorCode' in r) {
+          if ((r as { errorCode: string }).errorCode === 'MAX_EDITS_REACHED') {
+            onEditMaxReached();
+          }
+        } else if (r != null && typeof r === 'object' && !('errorCode' in r)) {
+          setEditingMessage(null);
+        }
+        return r;
+      }
       const hadNewerPages = activeMessagesHasNewerPages;
       const headBefore = activeMessagesRef.current[0]?.id;
       const lastBefore = conversationRef.current?.lastMessageId;
@@ -98,6 +124,10 @@ export function useConversationComposerAdapter(params: {
     },
     [
       conversationId,
+      editingMessage,
+      editTextMessage,
+      setEditingMessage,
+      onEditMaxReached,
       sendTextMessage,
       checkMessageAchievements,
       activeMessagesHasNewerPages,

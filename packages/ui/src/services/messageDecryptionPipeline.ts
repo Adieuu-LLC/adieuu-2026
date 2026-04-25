@@ -108,8 +108,12 @@ export async function decryptMessageBatch(params: DecryptMessageBatchParams): Pr
         return { ...m, decryptedContent: undefined, signatureVerified: undefined };
       }
 
-      const preserved = existingById.get(m.id);
-      if (preserved) return preserved;
+      const prior = existingById.get(m.id);
+      if (prior && prior.ciphertext !== m.ciphertext) {
+        sessionKeyCache.delete(m.id);
+        void deletePersistedSessionKey(m.id, identityId).catch(() => undefined);
+      }
+      if (prior && prior.ciphertext === m.ciphertext) return prior;
 
       let cached = sessionKeyCache.get(m.id);
       if (!cached && wrappingKey) {

@@ -121,6 +121,7 @@ export const MessageBubble = memo(function MessageBubble({
   memberColorDisplay,
   replyQuote,
   onReply,
+  onStartEdit,
   isFlashHighlight,
   onLinkClick,
   onMentionClick,
@@ -154,6 +155,7 @@ export const MessageBubble = memo(function MessageBubble({
   memberColorDisplay: MemberColorDisplay;
   replyQuote?: ReplyQuotePayload | null;
   onReply?: () => void;
+  onStartEdit?: () => void;
   isFlashHighlight?: boolean;
   onLinkClick: (href: string) => void;
   onMentionClick?: (identityId: string) => void;
@@ -337,6 +339,7 @@ export const MessageBubble = memo(function MessageBubble({
       else if (value === 'report') onReport(message.id);
       else if (value === 'delete-for-me') onDelete(message.id, false);
       else if (value === 'delete-for-everyone') onDelete(message.id, true);
+      else if (value === 'edit') onStartEdit?.();
       else if (value === 'pin') onPin?.();
       else if (value === 'unpin') onUnpin?.();
       else if (value === 'react') {
@@ -345,7 +348,7 @@ export const MessageBubble = memo(function MessageBubble({
         }, 0);
       }
     },
-    [isOwn, message.id, onDelete, onPin, onReply, onReport, onUnpin],
+    [isOwn, message.id, onDelete, onPin, onReply, onReport, onStartEdit, onUnpin],
   );
 
   const messageContextMenuChatItems = useMemo(
@@ -355,6 +358,12 @@ export const MessageBubble = memo(function MessageBubble({
           <Menu.Item value="reply" className="dm-context-menu-item">
             <Icon name="reply" className="dm-context-menu-item-icon" />
             {t('conversations.reply', 'Reply')}
+          </Menu.Item>
+        )}
+        {isOwn && onStartEdit && !message.deleted && (message.messageType === 'user' || !message.messageType) && (message.revisionCount ?? 0) < 3 && (
+          <Menu.Item value="edit" className="dm-context-menu-item">
+            <Icon name="pen" className="dm-context-menu-item-icon" />
+            {t('conversations.editMessage', 'Edit message')}
           </Menu.Item>
         )}
         {canManagePin && !message.deleted && (
@@ -392,7 +401,7 @@ export const MessageBubble = memo(function MessageBubble({
         )}
       </>
     ),
-    [canManagePin, isOwn, isPinned, message.deleted, onReply, t],
+    [canManagePin, isOwn, isPinned, message.deleted, message.messageType, message.revisionCount, onReply, onStartEdit, t],
   );
 
   const reactionBar = (
@@ -550,6 +559,11 @@ export const MessageBubble = memo(function MessageBubble({
                 {formatMessageTime(message.createdAt)}
               </span>
             </Tooltip>
+            {(message.revisionCount ?? 0) > 0 && (
+              <span className="dm-message-edited-label" title={message.lastEditedAt ?? undefined}>
+                {t('conversations.messageEdited', 'Edited')}
+              </span>
+            )}
             {deviceSignatureTrustIcon}
             {isPinned && (
               <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
@@ -721,6 +735,11 @@ export const MessageBubble = memo(function MessageBubble({
             {formatMessageTime(message.createdAt)}
           </span>
         </Tooltip>
+        {(message.revisionCount ?? 0) > 0 && (
+          <span className="dm-message-edited-label" title={message.lastEditedAt ?? undefined}>
+            {t('conversations.messageEdited', 'Edited')}
+          </span>
+        )}
         {deviceSignatureTrustIcon}
         {isPinned && (
           <span className="dm-message-pin-indicator" title={t('conversations.pinnedMessage', 'Pinned')}>
@@ -786,6 +805,9 @@ export const MessageBubble = memo(function MessageBubble({
   const nm = next.message;
   if (pm.id !== nm.id) return false;
   if (pm.decryptedContent !== nm.decryptedContent) return false;
+  if (pm.ciphertext !== nm.ciphertext) return false;
+  if ((pm.revisionCount ?? 0) !== (nm.revisionCount ?? 0)) return false;
+  if (pm.lastEditedAt !== nm.lastEditedAt) return false;
   if (pm.deleted !== nm.deleted) return false;
   if (pm.forwardSecrecy !== nm.forwardSecrecy) return false;
   if (pm.expiresAt !== nm.expiresAt) return false;

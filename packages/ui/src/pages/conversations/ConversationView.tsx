@@ -69,6 +69,7 @@ import { MemberSecurityModal } from './MemberSecurityModal';
 import { buildForwardSecrecyUiLabels } from './forwardSecrecyLabels';
 import { Tooltip } from '../../components/Tooltip';
 import { useMessageSearchCacheMode } from '../../hooks/useMessageSearchPreferences';
+import { parsePayload } from '../../services/messagePayload';
 
 export function ConversationView() {
   const { id } = useParams<{ id: string }>();
@@ -91,6 +92,7 @@ export function ConversationView() {
     fetchConversationById,
     markConversationRead,
     sendTextMessage,
+    editTextMessage,
     loadOlder,
     loadNewer,
     activeShowManualLoadOlder,
@@ -170,6 +172,7 @@ export function ConversationView() {
   }, [id, fetchConversationById]);
 
   const [replyingTo, setReplyingTo] = useState<DisplayMessage | null>(null);
+  const [editingMessage, setEditingMessage] = useState<DisplayMessage | null>(null);
   const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -751,7 +754,40 @@ export function ConversationView() {
     []
   );
 
+  const handleStartEdit = useCallback(
+    (msg: DisplayMessage) => {
+      const raw = msg.decryptedContent ?? '';
+      const parsed = parsePayload(raw);
+      if (parsed.gifAttachments.length > 0 || parsed.attachments.length > 0) {
+        toast.error(
+          t(
+            'conversations.editNoAttachments',
+            'You can only edit text. Messages with attachments cannot be edited yet.',
+          ),
+        );
+        return;
+      }
+      setReplyingTo(null);
+      setEditingMessage(msg);
+    },
+    [t, toast]
+  );
+
+  const onEditMaxReached = useCallback(() => {
+    toast.error(
+      t(
+        'conversations.messageEditMax',
+        'This message was edited the maximum number of times. Send a new message to continue.',
+      ),
+    );
+  }, [t, toast]);
+
   const checkMessageAchievements = useMessageAchievements();
+
+  const editingInitialPlaintext = useMemo(() => {
+    if (!editingMessage?.decryptedContent) return '';
+    return parsePayload(editingMessage.decryptedContent).text;
+  }, [editingMessage]);
 
   const { composerSend, composerReplyContext, composerMentionSource } = useConversationComposerAdapter({
     conversationId: id,
@@ -769,6 +805,10 @@ export function ConversationView() {
     setBlockedByOther,
     replyingTo,
     setReplyingTo,
+    editingMessage,
+    setEditingMessage,
+    editTextMessage,
+    onEditMaxReached,
     participantProfiles,
     memberSettings,
     t,
@@ -947,6 +987,7 @@ export function ConversationView() {
               onAddFavorite={addFavorite}
               onRemoveFavorite={removeFavorite}
               onReply={setReplyingTo}
+              onStartEdit={handleStartEdit}
               onLinkClick={handleLinkClick}
               onMentionClick={handleMentionClick}
               scrollToMessageId={scrollToMessageId}
@@ -1010,13 +1051,20 @@ export function ConversationView() {
               sending={sending}
               onSend={composerSend}
               forwardSecrecy={{ enabled: useFs, onToggle: handleToggleFs }}
-              replyContext={composerReplyContext}
+              replyContext={editingMessage ? null : composerReplyContext}
               mentionSource={composerMentionSource}
               placeholderTarget={displayName}
               mentionInsertRef={mentionInsertRef}
               gifsDisabled={(conversation.gifsDisabled ?? false) || convGifHidden || gifsGloballyDisabled}
               lastMessageText={lastMessageText}
               disabled={isDmBlocked || blockedByOther}
+              editContext={
+                editingMessage
+                  ? { messageId: editingMessage.id, onCancel: () => setEditingMessage(null) }
+                  : null
+              }
+              editingMessageKey={editingMessage?.id ?? null}
+              editingInitialPlaintext={editingInitialPlaintext}
             />
           </div>
 

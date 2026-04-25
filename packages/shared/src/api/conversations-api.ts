@@ -12,6 +12,7 @@ import type {
   PublicGroupInvite,
   PublicMessage,
   SendMessageParams,
+  EditMessageParams,
 } from './conversations-types';
 
 export class ConversationsApi {
@@ -128,6 +129,35 @@ export class ConversationsApi {
     const query = params.toString();
     return this.client.get(
       `/api/conversations/${encodeURIComponent(conversationId)}/messages/around/${encodeURIComponent(centerMessageId)}${query ? `?${query}` : ''}`
+    );
+  }
+
+  /**
+   * Load one message. Use `include=revisionHistory` to fetch E2E edit history blobs.
+   */
+  async getMessage(
+    conversationId: string,
+    messageId: string,
+    options?: { include?: 'revisionHistory' }
+  ): Promise<ApiResponse<PublicMessage>> {
+    const params = new URLSearchParams();
+    if (options?.include) params.set('include', options.include);
+    const query = params.toString();
+    return this.client.get(
+      `/api/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}${query ? `?${query}` : ''}`
+    );
+  }
+
+  async editMessage(
+    conversationId: string,
+    messageId: string,
+    params: EditMessageParams,
+    requestOptions?: RequestOptions
+  ): Promise<ApiResponse<PublicMessage>> {
+    return this.client.patch(
+      `/api/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}`,
+      params,
+      requestOptions
     );
   }
 

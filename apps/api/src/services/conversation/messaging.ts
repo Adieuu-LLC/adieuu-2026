@@ -22,7 +22,9 @@ import {
   toPublicMessage,
   type MessageDocument,
   type CreateMessageInput,
+  type SerializedWrappedKey,
 } from '../../models/message';
+import type { CryptoProfile } from '../../models/identity';
 import { deleteE2EMedia } from '../e2e-upload.service';
 import elog from '../../utils/adieuuLogger';
 import type { MessagePagePayload, MessageResult } from './types';
@@ -216,6 +218,172 @@ export async function sendMessage(
 
   return { success: true, message: publicMessage };
 }
+
+/**
+ * Edit an existing user message (E2E re-encrypt). Sender-only; enforces same rules as
+ * send for block membership; caps revision history.
+ */
+export async function editMessage(
+  conversationId: string | ObjectId,
+  messageId: string | ObjectId,
+  senderIdentityId: string | ObjectId,
+  input: {
+    ciphertext: string;
+    nonce: string;
+    wrappedKeys: SerializedWrappedKey[];
+    signature: string;
+    cryptoProfile: CryptoProfile;
+    clientEditId: string;
+  }
+): Promise<MessageResult> {
+  const conversationRepo = getConversationRepository();
+  const messageRepo = getMessageRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const msgObjId = messageId instanceof ObjectId ? messageId : new ObjectId(messageId as string);
+  const senderObjId =
+    senderIdentityId instanceof ObjectId
+      ? senderIdentityId
+      : new ObjectId(senderIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  const isParticipant = conversation.participants.some((p) => p.equals(senderObjId));
+  if (!isParticipant) {
+    return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  const blockRepo = getBlockRepository();
+  let blockedPairSet: Set<string> | undefined;
+
+  if (conversation.type === 'dm') {
+    const otherParticipant = conversation.participants.find((p) => !p.equals(senderObjId));
+    if (otherParticipant) {
+      const blocked = await blockRepo.isBlockedByEither(senderObjId, otherParticipant);
+      if (blocked) {
+        return { success: false, error: 'Cannot message this identity', errorCode: 'BLOCKED' };
+      }
+    }
+  } else if (conversation.type === 'group') {
+    const relatedIds = await blockRepo.getBlockRelatedIdentityIds(senderObjId);
+    if (relatedIds.length > 0) {
+      blockedPairSet = new Set(relatedIds.map((id) => id.toHexString()));
+    }
+  }
+
+  const { ciphertext, nonce, wrappedKeys, signature, cryptoProfile, clientEditId } = input;
+
+  const result = await messageRepo.applyMessageEdit(
+    convObjId,
+    msgObjId,
+    senderObjId,
+    clientEditId,
+    { ciphertext, nonce, wrappedKeys, signature, cryptoProfile }
+  );
+
+  if (result.idempotentReplay && result.doc) {
+    return { success: true, message: toPublicMessage(result.doc, senderObjId) };
+  }
+
+  if (result.errorCode === 'MAX_EDITS_REACHED') {
+    return {
+      success: false,
+      error: 'Maximum edits for this message reached.',
+      errorCode: 'MAX_EDITS_REACHED',
+    };
+  }
+  if (result.errorCode === 'NOT_SENDER') {
+    return { success: false, error: 'Only the sender can edit this message', errorCode: 'NOT_SENDER' };
+  }
+  if (result.errorCode === 'TOMBSTONE') {
+    return { success: false, error: 'This message is no longer available', errorCode: 'TOMBSTONE' };
+  }
+  if (result.errorCode === 'SYSTEM_MESSAGE') {
+    return { success: false, error: 'System messages cannot be edited', errorCode: 'SYSTEM_MESSAGE' };
+  }
+  if (result.errorCode === 'NOT_FOUND' || !result.doc) {
+    return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+
+  const message = result.doc;
+
+  // Fan-out: same as send — exclude ineligible in groups
+  const deliveryRecipients = blockedPairSet
+    ? conversation.participants.filter(
+        (p) => !p.equals(senderObjId) && !blockedPairSet!.has(p.toHexString())
+      )
+    : conversation.participants.filter((p) => !p.equals(senderObjId));
+
+  const revisionCount = message.encryptedRevisionHistory?.length ?? 0;
+  const messageEvent = {
+    type: 'conversation_message_edited' as const,
+    data: {
+      conversationId: convObjId.toHexString(),
+      messageId: msgObjId.toHexString(),
+      fromIdentityId: senderObjId.toHexString(),
+      lastEditedAt: message.lastEditedAt?.toISOString() ?? new Date().toISOString(),
+      revisionCount,
+      ...(message.expiresAt ? { expiresAt: message.expiresAt.toISOString() } : {}),
+    },
+  };
+  await Promise.all(
+    deliveryRecipients.map((id) => publishConversationEvent(id.toHexString(), messageEvent))
+  );
+
+  // Achievements: optional — small edit count, skip or add later
+
+  return { success: true, message: toPublicMessage(message, senderObjId) };
+}
+
+/**
+ * Load a single message by id; optionally include full E2E revision history.
+ */
+export async function getMessage(
+  conversationId: string | ObjectId,
+  messageId: string | ObjectId,
+  requesterIdentityId: string | ObjectId,
+  options?: { includeRevisionHistory?: boolean }
+): Promise<MessageResult> {
+  const conversationRepo = getConversationRepository();
+  const messageRepo = getMessageRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const msgObjId = messageId instanceof ObjectId ? messageId : new ObjectId(messageId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+  if (!conversation.participants.some((p) => p.equals(requesterObjId))) {
+    return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  const message = await messageRepo.findByIdInConversation(convObjId, msgObjId);
+  if (!message) {
+    return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+  const minJoin = minCreatedAtForRequester(conversation, requesterObjId);
+  if (minJoin && message.createdAt.getTime() < minJoin.getTime()) {
+    return { success: false, error: 'Message not found', errorCode: 'MESSAGE_NOT_FOUND' };
+  }
+
+  return {
+    success: true,
+    message: toPublicMessage(message, requesterObjId, {
+      includeRevisionHistory: options?.includeRevisionHistory,
+    }),
+  };
+}
+
 async function buildMessagePagePayload(
   conversation: ConversationDocument,
   convObjId: ObjectId,

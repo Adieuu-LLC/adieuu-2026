@@ -60,6 +60,7 @@ export interface ConversationSocketHandlerContext {
     mergeLatest?: boolean,
     direction?: 'older' | 'newer'
   ) => void;
+  refreshMessageInConversation: (conversationId: string, messageId: string) => void;
   fireNotification: (
     title: string,
     body: string,
@@ -403,6 +404,14 @@ export function handleConversationSocketMessage(
                 }),
           { isViewingConvo: isViewing, onClick: navToMessage, expiresAt, isMention }
         );
+      }
+      break;
+    }
+
+    case 'conversation_message_edited': {
+      const { conversationId, messageId } = message.data;
+      if (conversationId === ctx.activeConversationId) {
+        void ctx.refreshMessageInConversation(conversationId, messageId);
       }
       break;
     }

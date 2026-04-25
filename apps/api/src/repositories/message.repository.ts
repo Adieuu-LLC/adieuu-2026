@@ -12,7 +12,9 @@ import { Collections } from '../db';
 import type {
   MessageDocument,
   CreateMessageInput,
+  EncryptedMessageRevision,
 } from '../models/message';
+import { MAX_MESSAGE_REVISIONS } from '../constants/messages';
 
 export interface IMessageRepository {
   findByConversation(
@@ -54,6 +56,28 @@ export interface IMessageRepository {
     thanId: ObjectId,
     minCreatedAt?: Date
   ): Promise<boolean>;
+  /**
+   * Idempotent: if `lastClientEditId` already equals `clientEditId`, returns the current doc
+   * without writing. Otherwise appends a snapshot of the current ciphertext to history and
+   * replaces the top-level fields with the new payload.
+   */
+  applyMessageEdit(
+    conversationId: ObjectId,
+    messageId: ObjectId,
+    senderIdentityId: ObjectId,
+    clientEditId: string,
+    newPayload: {
+      ciphertext: string;
+      nonce: string;
+      wrappedKeys: MessageDocument['wrappedKeys'];
+      signature: string;
+      cryptoProfile: MessageDocument['cryptoProfile'];
+    }
+  ): Promise<{
+    doc: MessageDocument | null;
+    errorCode: 'NOT_FOUND' | 'NOT_SENDER' | 'MAX_EDITS_REACHED' | 'SYSTEM_MESSAGE' | 'TOMBSTONE' | null;
+    idempotentReplay?: boolean;
+  }>;
 }
 
 export class MessageRepository
@@ -190,7 +214,12 @@ export class MessageRepository
           nonce: '',
           wrappedKeys: [],
           signature: '',
+          encryptedRevisionHistory: [] as EncryptedMessageRevision[],
           updatedAt: new Date(),
+        },
+        $unset: {
+          lastClientEditId: '',
+          lastEditedAt: '',
         },
       }
     );
@@ -298,6 +327,116 @@ export class MessageRepository
       fromIdentityId: identityId,
       messageType: { $ne: 'system' },
     } as Parameters<typeof this.collection.countDocuments>[0]);
+  }
+
+  async applyMessageEdit(
+    conversationId: ObjectId,
+    messageId: ObjectId,
+    senderIdentityId: ObjectId,
+    clientEditId: string,
+    newPayload: {
+      ciphertext: string;
+      nonce: string;
+      wrappedKeys: MessageDocument['wrappedKeys'];
+      signature: string;
+      cryptoProfile: MessageDocument['cryptoProfile'];
+    }
+  ): Promise<{
+    doc: MessageDocument | null;
+    errorCode: 'NOT_FOUND' | 'NOT_SENDER' | 'MAX_EDITS_REACHED' | 'SYSTEM_MESSAGE' | 'TOMBSTONE' | null;
+    idempotentReplay?: boolean;
+  }> {
+    const found = (await this.findOne({
+      _id: messageId,
+      conversationId,
+    })) as MessageDocument | null;
+    if (!found) {
+      return { doc: null, errorCode: 'NOT_FOUND' };
+    }
+    if (!found.fromIdentityId.equals(senderIdentityId)) {
+      return { doc: null, errorCode: 'NOT_SENDER' };
+    }
+    if (found.deletedForEveryone) {
+      return { doc: null, errorCode: 'TOMBSTONE' };
+    }
+    if (found.messageType === 'system') {
+      return { doc: null, errorCode: 'SYSTEM_MESSAGE' };
+    }
+    if (found.lastClientEditId === clientEditId) {
+      return { doc: found, errorCode: null, idempotentReplay: true };
+    }
+
+    const historyLen = found.encryptedRevisionHistory?.length ?? 0;
+    if (historyLen >= MAX_MESSAGE_REVISIONS) {
+      return { doc: null, errorCode: 'MAX_EDITS_REACHED' };
+    }
+
+    const now = new Date();
+    const priorSnapshot: EncryptedMessageRevision = {
+      ciphertext: found.ciphertext,
+      nonce: found.nonce,
+      wrappedKeys: found.wrappedKeys,
+      signature: found.signature,
+      cryptoProfile: found.cryptoProfile,
+      replacedAt: now,
+    };
+    const newHistory = [...(found.encryptedRevisionHistory ?? []), priorSnapshot];
+
+    const filter: Filter<MessageDocument> = {
+      _id: messageId,
+      conversationId,
+      fromIdentityId: senderIdentityId,
+      deletedForEveryone: { $ne: true },
+      messageType: { $ne: 'system' },
+      $expr: {
+        $eq: [{ $size: { $ifNull: ['$encryptedRevisionHistory', []] } }, historyLen],
+      },
+    };
+    if (found.lastClientEditId === undefined) {
+      (filter as Record<string, unknown>)['$or'] = [
+        { lastClientEditId: { $exists: false } },
+        { lastClientEditId: null },
+      ];
+    } else {
+      (filter as Record<string, unknown>)['lastClientEditId'] = found.lastClientEditId;
+    }
+
+    const res = await this.collection.updateOne(filter, {
+      $set: {
+        ciphertext: newPayload.ciphertext,
+        nonce: newPayload.nonce,
+        wrappedKeys: newPayload.wrappedKeys,
+        signature: newPayload.signature,
+        cryptoProfile: newPayload.cryptoProfile,
+        encryptedRevisionHistory: newHistory,
+        lastClientEditId: clientEditId,
+        lastEditedAt: now,
+        updatedAt: now,
+      },
+    });
+
+    if (res.matchedCount === 0) {
+      const reRead = (await this.findOne({
+        _id: messageId,
+        conversationId,
+      })) as MessageDocument | null;
+      if (reRead?.lastClientEditId === clientEditId) {
+        return { doc: reRead, errorCode: null, idempotentReplay: true };
+      }
+      if (reRead) {
+        const l = reRead.encryptedRevisionHistory?.length ?? 0;
+        if (l >= MAX_MESSAGE_REVISIONS) {
+          return { doc: null, errorCode: 'MAX_EDITS_REACHED' };
+        }
+      }
+      return { doc: null, errorCode: 'NOT_FOUND' };
+    }
+
+    const after = (await this.findByIdInConversation(
+      conversationId,
+      messageId
+    )) as MessageDocument | null;
+    return { doc: after, errorCode: null };
   }
 }
 
