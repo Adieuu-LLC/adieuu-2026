@@ -675,6 +675,28 @@
       color: var(--color-text-tertiary);
     }
 
+    &-edited-label {
+      display: inline;
+      font-size: var(--font-size-xs);
+      color: var(--color-text-tertiary);
+      line-height: 1.2;
+      font-weight: var(--font-weight-normal, 400);
+      font-family: inherit;
+      margin: 0;
+      padding: 0;
+      border: none;
+      background: none;
+      cursor: pointer;
+      text-decoration: none;
+      vertical-align: baseline;
+      border-radius: var(--radius-sm);
+
+      &:hover {
+        text-decoration: underline;
+        color: var(--color-text-secondary);
+      }
+    }
+
     &-footer {
       display: flex;
       align-items: center;
@@ -886,6 +908,19 @@
         background: var(--color-bg-hover);
       }
 
+      &[data-disabled],
+      &[data-state='disabled'],
+      &[aria-disabled='true'] {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      &[data-disabled]:hover,
+      &[data-state='disabled']:hover,
+      &[aria-disabled='true']:hover {
+        background: transparent;
+      }
+
       &--danger {
         color: var(--color-error);
 
@@ -901,4 +936,107 @@
       }
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// E2E message edit history popover
+// ---------------------------------------------------------------------------
+.message-edit-history-popover {
+  z-index: 60;
+  max-width: min(22rem, 92vw);
+  max-height: min(20rem, 50vh);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated, var(--color-bg-secondary));
+  border: 1px solid var(--color-border);
+  box-shadow: 0 4px 20px color-mix(in srgb, var(--color-bg-base) 25%, transparent);
+
+  &__title {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0 0 var(--spacing-xs);
+    flex-shrink: 0;
+  }
+
+  &__status,
+  &__empty,
+  &__error {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+  }
+
+  &__error {
+    color: var(--color-error);
+  }
+
+  &__list {
+    margin: 0;
+    padding: 0 0 0 1.1rem;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+
+  &__item {
+    list-style: decimal;
+    padding-left: var(--spacing-xs);
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+    margin-bottom: 2px;
+  }
+
+  &__version {
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+  }
+
+  &__time {
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__text {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-relaxed, 1.5);
+    color: var(--color-text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &__unable {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    font-style: italic;
+    color: var(--color-text-tertiary);
+  }
+}
+
+// Message action bar: disabled edit (max E2E revisions) — keep icon visible, tooltip on wrapper
+.message-action-bar-edit-disabled-wrap {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.message-action-bar-btn--disabled:disabled,
+.message-action-bar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

@@ -912,7 +912,7 @@ router.patch('/conversations/:id/messages/:messageId', async (ctx) => {
     if (result.errorCode === 'MAX_EDITS_REACHED') {
       return error(
         'MAX_EDITS_REACHED',
-        'This message was edited the maximum number of times. Send a new message to continue.',
+        'You can\'t edit this message anymore.',
         400
       );
     }

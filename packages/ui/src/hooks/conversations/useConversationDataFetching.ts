@@ -18,7 +18,12 @@ import {
 import { buildDecryptMessageBatchSharedFields } from './decryptMessageBatchShared';
 import { loadDecryptKeysQuiet, loadDecryptKeysVerbose } from './conversationDecryptKeys';
 import { applyFetchedMessagesToConversationState } from './messageStateUpdates';
-import type { ConversationMessagesState, DecryptedConversation, DisplayMessage } from './types';
+import type {
+  ConversationMessagesState,
+  DecryptedConversation,
+  DisplayMessage,
+  MessageEditHistoryEntry,
+} from './types';
 import { loadShowMessageArtifacts } from '../../services/preKeyService';
 import {
   computeManualLoadHints,
@@ -400,6 +405,84 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
     ]
   );
 
+  const loadMessageEditHistory = useCallback(
+    async (conversationId: string, message: DisplayMessage): Promise<MessageEditHistoryEntry[] | null> => {
+      if (!isLoggedIn || !identity) return null;
+      try {
+        const resp = await api.conversations.getMessage(conversationId, message.id, {
+          include: 'revisionHistory',
+        });
+        const raw = resp.data;
+        if (!raw?.encryptedRevisionHistory?.length) {
+          return [];
+        }
+        const deviceId = getCurrentDeviceId();
+        const wrappingKey = getWrappingKey();
+        const keys = await loadDecryptKeysVerbose(identity.id, deviceId, wrappingKey);
+        const shared = buildDecryptMessageBatchSharedFields({
+          identityId: identity.id,
+          wrappingKey,
+          keys,
+          signingKeyCache: signingKeyCache.current,
+          sessionKeyCache: sessionKeyCache.current,
+          api,
+          resolveParticipants,
+        });
+        const toDecrypt: PublicMessage[] = raw.encryptedRevisionHistory.map((rev, i) => ({
+          id: `${raw.id}__e2e_rev__${i}`,
+          conversationId: raw.conversationId,
+          fromIdentityId: raw.fromIdentityId,
+          messageType: raw.messageType,
+          ciphertext: rev.ciphertext,
+          nonce: rev.nonce,
+          wrappedKeys: rev.wrappedKeys,
+          signature: rev.signature,
+          cryptoProfile: rev.cryptoProfile,
+          clientMessageId: raw.clientMessageId,
+          e2eMediaIds: raw.e2eMediaIds,
+          replyToMessageId: raw.replyToMessageId,
+          expiresAt: raw.expiresAt,
+          deleted: false,
+          createdAt: raw.createdAt,
+          revisionCount: 0,
+        }));
+        const decrypted = (await decryptMessageBatch({
+          ...shared,
+          messages: toDecrypt,
+          conversationId,
+          pagingCursor: undefined,
+          existingMessages: [],
+          persistSideEffects: false,
+        })) as DisplayMessage[];
+        return raw.encryptedRevisionHistory.map((rev, i) => ({
+          replacedAt: rev.replacedAt,
+          plaintext: decrypted[i]?.decryptedContent,
+          decryptionError: decrypted[i]?.decryptionError,
+        }));
+      } catch (err) {
+        console.error(
+          '[useConversations] loadMessageEditHistory failed',
+          { conversationId, messageId: message.id },
+          err
+        );
+        toast.error(t('conversations.loadEditHistoryFailed'));
+        return null;
+      }
+    },
+    [
+      isLoggedIn,
+      identity,
+      api,
+      getCurrentDeviceId,
+      getWrappingKey,
+      resolveParticipants,
+      toast,
+      t,
+      signingKeyCache,
+      sessionKeyCache,
+    ]
+  );
+
   const refreshMessageInConversation = useCallback(
     async (conversationId: string, messageId: string) => {
       if (!isLoggedIn || !identity) return;
@@ -681,6 +764,7 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
     fetchConversationById,
     fetchMessages,
     fetchMessagesAround,
+    loadMessageEditHistory,
     refreshMessageInConversation,
     ensureReplyParentHydration,
     loadPinnedMessagesPage,

@@ -11,6 +11,11 @@ export interface DisplayMessageLike extends PublicMessage {
 export interface DecryptMessageBatchParams {
   messages: PublicMessage[];
   conversationId: string;
+  /**
+   * When false, skips session-key persistence, OTPK deletion, and session cache writes (e.g. read-only
+   * decrypts such as E2E edit history previews).
+   */
+  persistSideEffects?: boolean;
   /** Set when paging (older or newer); skips reusing prior decrypt shortcuts from initial load. */
   pagingCursor?: string;
   identityId: string;
@@ -53,6 +58,8 @@ export interface DecryptMessageBatchParams {
 export async function decryptMessageBatch(params: DecryptMessageBatchParams): Promise<DisplayMessageLike[]> {
   const {
     messages,
+    conversationId: _conversationId,
+    persistSideEffects = true,
     pagingCursor,
     identityId,
     wrappingKey,
@@ -254,7 +261,9 @@ export async function decryptMessageBatch(params: DecryptMessageBatchParams): Pr
               undefined,
               candidate
             );
-            sessionKeyCache.set(m.id, result.sessionKey);
+            if (persistSideEffects) {
+              sessionKeyCache.set(m.id, result.sessionKey);
+            }
             return {
               ...m,
               decryptedContent: result.plaintext,
@@ -297,25 +306,27 @@ export async function decryptMessageBatch(params: DecryptMessageBatchParams): Pr
           resolvedWrappedKey
         );
 
-        sessionKeyCache.set(m.id, result.sessionKey);
-        if (wrappingKey && resolvedWrappedKey.preKeyType !== 'static') {
-          storeSessionKey(
-            m.id,
-            identityId,
-            result.sessionKey,
-            wrappingKey,
-            resolvedWrappedKey.signedPreKeyId
-          ).catch(() => undefined);
-        }
+        if (persistSideEffects) {
+          sessionKeyCache.set(m.id, result.sessionKey);
+          if (wrappingKey && resolvedWrappedKey.preKeyType !== 'static') {
+            storeSessionKey(
+              m.id,
+              identityId,
+              result.sessionKey,
+              wrappingKey,
+              resolvedWrappedKey.signedPreKeyId
+            ).catch(() => undefined);
+          }
 
-        if (
-          resolvedWrappedKey.preKeyType === 'otpk' &&
-          resolvedWrappedKey.oneTimePreKeyId &&
-          !deletedOtpkIds.has(resolvedWrappedKey.oneTimePreKeyId)
-        ) {
-          deletedOtpkIds.add(resolvedWrappedKey.oneTimePreKeyId);
-          deleteOneTimePreKey(resolvedWrappedKey.oneTimePreKeyId, identityId).catch(() => undefined);
-          notifyOtpkConsumed();
+          if (
+            resolvedWrappedKey.preKeyType === 'otpk' &&
+            resolvedWrappedKey.oneTimePreKeyId &&
+            !deletedOtpkIds.has(resolvedWrappedKey.oneTimePreKeyId)
+          ) {
+            deletedOtpkIds.add(resolvedWrappedKey.oneTimePreKeyId);
+            deleteOneTimePreKey(resolvedWrappedKey.oneTimePreKeyId, identityId).catch(() => undefined);
+            notifyOtpkConsumed();
+          }
         }
 
         return {

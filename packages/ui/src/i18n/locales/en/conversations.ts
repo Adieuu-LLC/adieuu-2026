@@ -276,6 +276,33 @@ export const conversations = {
     replyDeleted: 'Message deleted',
     replySystem: 'System message',
 
+    /** Default composer field when a playful placeholder verb is not active. */
+    messagePlaceholder: 'Type a message…',
+    /** Banner while changing an already-sent message. */
+    editingMessage: 'Editing',
+    /** Dismiss inline edit in the composer. */
+    cancelEdit: 'Cancel edit',
+    /** Text-only v1: media blocks entering edit mode (toast + in-composer). */
+    editNoAttachments: 'Only text can be edited. Remove attachments first.',
+    /** Context menu and message action bar. */
+    editMessage: 'Edit',
+    /** Inline label next to the sent time after an E2E replace. */
+    messageEdited: 'Edited',
+    /** Max E2E revisions: toast, disabled pen control, and context `title` when the row is non-actionable. */
+    messageEditMax: 'Edit limit reached. Send a new message.',
+    /** Rare: “Edited” control has no `lastEditedAt` (native `title` hint). */
+    viewEditHistory: 'History',
+    /** Popover heading for prior ciphertext snapshots. */
+    editHistoryTitle: 'Earlier versions',
+    editHistoryLoading: 'Loading…',
+    loadEditHistoryFailed: "Couldn't load earlier versions",
+    editHistoryEmpty: 'No earlier versions',
+    /** Row label: `n` is 1-based, oldest prior version first. */
+    editHistoryVersion: 'v{{n}}',
+    editHistoryUnableDecrypt: "Can't decrypt this version",
+    editHistoryNoPlaintext: 'No text',
+    editHistoryNoText: '—',
+
     notifications: {
       newMessage: 'New message',
       newMessageBody: 'Message from {{name}}',

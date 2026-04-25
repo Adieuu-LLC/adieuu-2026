@@ -7,6 +7,7 @@
 export type {
   DecryptedConversation,
   DisplayMessage,
+  MessageEditHistoryEntry,
   SendMessageErrorResult,
   ConversationsContextValue,
 } from './conversations';

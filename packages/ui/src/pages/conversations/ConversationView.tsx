@@ -759,12 +759,7 @@ export function ConversationView() {
       const raw = msg.decryptedContent ?? '';
       const parsed = parsePayload(raw);
       if (parsed.gifAttachments.length > 0 || parsed.attachments.length > 0) {
-        toast.error(
-          t(
-            'conversations.editNoAttachments',
-            'You can only edit text. Messages with attachments cannot be edited yet.',
-          ),
-        );
+        toast.error(t('conversations.editNoAttachments'));
         return;
       }
       setReplyingTo(null);
@@ -774,12 +769,7 @@ export function ConversationView() {
   );
 
   const onEditMaxReached = useCallback(() => {
-    toast.error(
-      t(
-        'conversations.messageEditMax',
-        'This message was edited the maximum number of times. Send a new message to continue.',
-      ),
-    );
+    toast.error(t('conversations.messageEditMax'));
   }, [t, toast]);
 
   const checkMessageAchievements = useMessageAchievements();

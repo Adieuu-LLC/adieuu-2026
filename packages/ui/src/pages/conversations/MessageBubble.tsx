@@ -24,6 +24,7 @@ import {
   formatAbsoluteTime,
 } from './conversationUtils';
 import { MessageActionBar } from './MessageActionBar';
+import { MessageEditHistoryLabel } from './MessageEditHistoryLabel';
 import { MessageContextMenuFrame } from './MessageContextMenu';
 import { captureMessageContextStash } from '../../utils/contextMenuMedia';
 import { ReactionBar } from './ReactionBar';
@@ -181,6 +182,18 @@ export const MessageBubble = memo(function MessageBubble({
   const [blockLoading, setBlockLoading] = useState(false);
   const [deviceSignatureTrust, setDeviceSignatureTrust] = useState<'none' | 'match' | 'mismatch'>('none');
   const countdown = useExpiryCountdown(message.expiresAt);
+  const canShowEditControl =
+    isOwn &&
+    !!onStartEdit &&
+    !message.deleted &&
+    (message.messageType === 'user' || !message.messageType);
+  const canStartEdit = canShowEditControl && (message.revisionCount ?? 0) < 3;
+  const editMaxedReason = t('conversations.messageEditMax');
+  const actionBarEditAction = !canShowEditControl
+    ? undefined
+    : canStartEdit
+      ? ({ state: 'enabled' as const, onClick: () => onStartEdit!() })
+      : ({ state: 'disabled' as const, reason: editMaxedReason });
 
   const memberSecurityHoverFooter =
     onOpenMemberSecurity != null ? (
@@ -339,7 +352,10 @@ export const MessageBubble = memo(function MessageBubble({
       else if (value === 'report') onReport(message.id);
       else if (value === 'delete-for-me') onDelete(message.id, false);
       else if (value === 'delete-for-everyone') onDelete(message.id, true);
-      else if (value === 'edit') onStartEdit?.();
+      else if (value === 'edit') {
+        if (!canStartEdit) return;
+        onStartEdit?.();
+      }
       else if (value === 'pin') onPin?.();
       else if (value === 'unpin') onUnpin?.();
       else if (value === 'react') {
@@ -348,7 +364,7 @@ export const MessageBubble = memo(function MessageBubble({
         }, 0);
       }
     },
-    [isOwn, message.id, onDelete, onPin, onReply, onReport, onStartEdit, onUnpin],
+    [canStartEdit, isOwn, message.id, onDelete, onPin, onReply, onReport, onStartEdit, onUnpin],
   );
 
   const messageContextMenuChatItems = useMemo(
@@ -360,10 +376,15 @@ export const MessageBubble = memo(function MessageBubble({
             {t('conversations.reply', 'Reply')}
           </Menu.Item>
         )}
-        {isOwn && onStartEdit && !message.deleted && (message.messageType === 'user' || !message.messageType) && (message.revisionCount ?? 0) < 3 && (
-          <Menu.Item value="edit" className="dm-context-menu-item">
+        {canShowEditControl && (
+          <Menu.Item
+            value="edit"
+            className="dm-context-menu-item"
+            disabled={!canStartEdit}
+            title={!canStartEdit ? editMaxedReason : undefined}
+          >
             <Icon name="pen" className="dm-context-menu-item-icon" />
-            {t('conversations.editMessage', 'Edit message')}
+            {t('conversations.editMessage')}
           </Menu.Item>
         )}
         {canManagePin && !message.deleted && (
@@ -401,7 +422,7 @@ export const MessageBubble = memo(function MessageBubble({
         )}
       </>
     ),
-    [canManagePin, isOwn, isPinned, message.deleted, message.messageType, message.revisionCount, onReply, onStartEdit, t],
+    [canManagePin, canShowEditControl, canStartEdit, editMaxedReason, isOwn, isPinned, message.deleted, onReply, t],
   );
 
   const reactionBar = (
@@ -560,9 +581,7 @@ export const MessageBubble = memo(function MessageBubble({
               </span>
             </Tooltip>
             {(message.revisionCount ?? 0) > 0 && (
-              <span className="dm-message-edited-label" title={message.lastEditedAt ?? undefined}>
-                {t('conversations.messageEdited', 'Edited')}
-              </span>
+              <MessageEditHistoryLabel message={message} className="dm-message-edited-label" />
             )}
             {deviceSignatureTrustIcon}
             {isPinned && (
@@ -608,6 +627,7 @@ export const MessageBubble = memo(function MessageBubble({
             onAddFavorite={onAddFavorite}
             onRemoveFavorite={onRemoveFavorite}
             onReply={onReply}
+            editAction={actionBarEditAction}
             onPopoverOpenChange={setActionBarPopoverOpen}
             canManagePin={canManagePin}
             isPinned={isPinned}
@@ -687,6 +707,7 @@ export const MessageBubble = memo(function MessageBubble({
             onAddFavorite={onAddFavorite}
             onRemoveFavorite={onRemoveFavorite}
             onReply={onReply}
+            editAction={actionBarEditAction}
             onPopoverOpenChange={setActionBarPopoverOpen}
             canManagePin={canManagePin}
             isPinned={isPinned}
@@ -736,9 +757,11 @@ export const MessageBubble = memo(function MessageBubble({
           </span>
         </Tooltip>
         {(message.revisionCount ?? 0) > 0 && (
-          <span className="dm-message-edited-label" title={message.lastEditedAt ?? undefined}>
-            {t('conversations.messageEdited', 'Edited')}
-          </span>
+          <MessageEditHistoryLabel
+            message={message}
+            className="dm-message-edited-label"
+            variant="footer"
+          />
         )}
         {deviceSignatureTrustIcon}
         {isPinned && (
@@ -814,6 +837,9 @@ export const MessageBubble = memo(function MessageBubble({
   if (pm.decryptionError !== nm.decryptionError) return false;
   if (pm.replyToMessageId !== nm.replyToMessageId) return false;
   if (pm.conversationId !== nm.conversationId) return false;
+  if (pm.messageType !== nm.messageType) return false;
+
+  if (prev.onStartEdit !== next.onStartEdit) return false;
 
   if (prev.senderProfile?.id !== next.senderProfile?.id) return false;
   if (prev.senderProfile?.avatarUrl !== next.senderProfile?.avatarUrl) return false;

@@ -104,7 +104,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
 
   const placeholder = useMemo(() => {
     if (placeholderOverride) return placeholderOverride;
-    if (!placeholderTarget) return t('conversations.messagePlaceholder', 'Type a message...');
+    if (!placeholderTarget) return t('conversations.messagePlaceholder');
     const key = PLACEHOLDER_VERB_KEYS[Math.floor(Math.random() * PLACEHOLDER_VERB_KEYS.length)]!;
     const verb = t(`conversations.placeholderVerbs.${key}` as const);
     return `${verb} ${placeholderTarget}...`;
@@ -406,9 +406,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     if (!channelId || (!text && attachments.length === 0 && !pendingGif) || sending) return;
 
     if (editContext && (attachments.length > 0 || pendingGif)) {
-      toastError(
-        t('conversations.editNoAttachments', 'Remove attachments to edit a message.'),
-      );
+      toastError(t('conversations.editNoAttachments'));
       return;
     }
 
@@ -875,14 +873,14 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       {editContext && (
         <div className="conversation-composer-reply">
           <Icon name="pen" className="conversation-composer-reply-icon" />
-          <span className="conversation-composer-reply-text" title={t('conversations.editingMessage', 'Editing message')}>
-            {t('conversations.editingMessage', 'Editing message')}
+          <span className="conversation-composer-reply-text" title={t('conversations.editingMessage')}>
+            {t('conversations.editingMessage')}
           </span>
           <button
             type="button"
             className="conversation-composer-reply-cancel"
             onClick={editContext.onCancel}
-            aria-label={t('conversations.cancelEdit', 'Cancel edit')}
+            aria-label={t('conversations.cancelEdit')}
           >
             <Icon name="x" />
           </button>

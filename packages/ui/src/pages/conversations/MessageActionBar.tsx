@@ -19,6 +19,7 @@ export function MessageActionBar({
   onAddFavorite,
   onRemoveFavorite,
   onReply,
+  editAction,
   onPopoverOpenChange,
   canManagePin = false,
   isPinned = false,
@@ -35,6 +36,11 @@ export function MessageActionBar({
   onAddFavorite: (emoji: string) => void;
   onRemoveFavorite: (emoji: string) => void;
   onReply?: () => void;
+  /**
+   * Show edit: enabled with click handler, or disabled (e.g. max E2E revisions) with a reason for tooltips.
+   * Omit to hide the control entirely.
+   */
+  editAction?: { state: 'enabled'; onClick: () => void } | { state: 'disabled'; reason: string };
   onPopoverOpenChange?: (open: boolean) => void;
   canManagePin?: boolean;
   isPinned?: boolean;
@@ -68,6 +74,34 @@ export function MessageActionBar({
             <Icon name="reply" className="message-action-bar-icon" />
           </button>
         </Tooltip>
+      )}
+      {editAction && (
+        editAction.state === 'enabled' ? (
+          <Tooltip content={t('conversations.editMessage')} position="top">
+            <button
+              type="button"
+              className="message-action-bar-btn"
+              onClick={editAction.onClick}
+              aria-label={t('conversations.editMessage')}
+            >
+              <Icon name="pen" className="message-action-bar-icon" />
+            </button>
+          </Tooltip>
+        ) : (
+          <Tooltip content={editAction.reason} position="top">
+            <span className="message-action-bar-edit-disabled-wrap">
+              <button
+                type="button"
+                className="message-action-bar-btn message-action-bar-btn--disabled"
+                disabled
+                aria-label={editAction.reason}
+                title={editAction.reason}
+              >
+                <Icon name="pen" className="message-action-bar-icon" />
+              </button>
+            </span>
+          </Tooltip>
+        )
       )}
       {canManagePin && onPin && onUnpin && (
         <Tooltip

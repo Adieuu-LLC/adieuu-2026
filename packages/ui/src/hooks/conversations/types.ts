@@ -21,6 +21,13 @@ export interface DisplayMessage extends PublicMessage {
   forwardSecrecy?: boolean;
 }
 
+/** One prior ciphertext version after E2E edit (decrypted in the client for history UI). */
+export interface MessageEditHistoryEntry {
+  replacedAt: string;
+  plaintext?: string;
+  decryptionError?: string;
+}
+
 export interface SendMessageErrorResult {
   errorCode: string;
 }
@@ -103,6 +110,9 @@ export interface ConversationsContextValue {
     plaintext: string,
     options?: { useForwardSecrecy?: boolean; signal?: AbortSignal }
   ) => Promise<PublicMessage | SendMessageErrorResult | null>;
+
+  /** Fetches and decrypts `encryptedRevisionHistory` for a message (read-only, no pre-key side effects). */
+  loadMessageEditHistory: (conversationId: string, message: DisplayMessage) => Promise<MessageEditHistoryEntry[] | null>;
 
   /**
    * True when the given conversation's buffer is at the live tail (same heuristic as the composer adapter).
