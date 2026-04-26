@@ -45,6 +45,26 @@ export interface UserDocument extends BaseDocument {
    * identity sessions store the effective value — identity routes do not read User.
    */
   maxVideoDurationSeconds?: number;
+
+  /** IP-derived jurisdiction information, refreshed at login and periodically. */
+  geo?: UserGeo;
+}
+
+/**
+ * Resolved jurisdiction from an IP geolocation lookup.
+ * Raw IPs are never stored; only a keyed hash for staleness checks.
+ */
+export interface UserGeo {
+  /** Canonical jurisdiction code, e.g. 'US-TN', 'IT', 'DE' */
+  jurisdiction: string;
+  /** ISO 3166-1 alpha-2 country code */
+  countryCode: string;
+  /** ISO 3166-2 region/state code (US/CA states only) */
+  regionCode?: string;
+  /** SHA-256(ip + accountHashSecret) for staleness comparison */
+  ipHash: string;
+  /** When this lookup was last refreshed */
+  checkedAt: Date;
 }
 
 /** Default identity lockout duration: 1 hour in milliseconds */

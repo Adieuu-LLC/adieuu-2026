@@ -10,6 +10,8 @@ export const PLATFORM_SETTING_KEYS = {
   MODERATOR_IDENTITY_LIST: 'platform-moderator-identity-list',
   /** Upper bound for video duration (seconds); per-account limits must not exceed this. */
   MEDIA_MAX_VIDEO_DURATION_SECONDS: 'platform-media-max-video-duration-seconds',
+  /** Whether IP-based geo lookups are enabled at runtime. */
+  GEO_LOOKUP_ENABLED: 'platform-geo-lookup-enabled',
 } as const;
 
 export type PlatformSettingKey =

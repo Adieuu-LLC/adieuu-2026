@@ -11,6 +11,7 @@ import { config, validateProductionConfig } from './config';
 import {
   ensureAdminIdentityListPlatformSettingExists,
   ensureModeratorIdentityListPlatformSettingExists,
+  ensureGeoLookupPlatformSettingExists,
 } from './services/platform-settings.service';
 import { elog } from './utils';
 
@@ -39,6 +40,7 @@ async function start(): Promise<void> {
   try {
     await ensureAdminIdentityListPlatformSettingExists();
     await ensureModeratorIdentityListPlatformSettingExists();
+    await ensureGeoLookupPlatformSettingExists();
   } catch (error) {
     elog.warn('Could not ensure platform settings exist', { error });
     if (config.features.requireDatabase) {

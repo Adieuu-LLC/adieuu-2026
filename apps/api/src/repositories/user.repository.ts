@@ -6,7 +6,7 @@
 import { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
-import type { UserDocument, CreateUserInput, UpdateUserInput } from '../models/user';
+import type { UserDocument, CreateUserInput, UpdateUserInput, UserGeo } from '../models/user';
 import { DEFAULT_IDENTITY_LOCKOUT_DURATION } from '../models/user';
 import { withTimestamps } from '../models/base';
 
@@ -25,6 +25,7 @@ export interface IUserRepository {
   lockAccount(id: string | ObjectId, until: Date): Promise<void>;
   unlockAccount(id: string | ObjectId): Promise<void>;
   recordLogin(id: string | ObjectId): Promise<void>;
+  updateGeo(id: string | ObjectId, geo: UserGeo): Promise<void>;
 }
 
 /**
@@ -276,6 +277,22 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
     }
 
     return { lockedOut: false };
+  }
+
+  /**
+   * Persist a resolved geo lookup on the user document.
+   */
+  async updateGeo(id: string | ObjectId, geo: UserGeo): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          geo,
+          updatedAt: new Date(),
+        },
+      },
+    );
   }
 }
 

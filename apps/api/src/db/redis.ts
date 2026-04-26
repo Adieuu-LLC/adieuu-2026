@@ -417,6 +417,12 @@ export const RedisKeys = {
   /** Progressive throttle tier for Klipy search (0-3). */
   klipyThrottleTier: (identityId: string) =>
     `klipy:throttle:${identityId}`,
+
+  /** Cached IPLocate result keyed by hashed IP. */
+  geoIpLookup: (ipHash: string) => `geo:ip:${ipHash}`,
+
+  /** Short-lived negative cache for IPs IPLocate cannot resolve. */
+  geoNegativeLookup: (ipHash: string) => `geo:ip_neg:${ipHash}`,
 } as const;
 
 /**

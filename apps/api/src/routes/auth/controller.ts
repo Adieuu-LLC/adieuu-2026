@@ -45,6 +45,7 @@ import { hashIdentifier, hashIp, encrypt, generateSecureToken } from '../../util
 import { addJitter } from '../../utils/timing';
 import { config } from '../../config';
 import { isAuthIdentifierAllowed } from '../../services/platform-settings.service';
+import { refreshUserGeoIfStale } from '../../services/geo/geo.service';
 import { getEmailTemplate, getSmsMessage, type Locale, DEFAULT_LOCALE } from '../../i18n';
 import { getRedis, isRedisConnected } from '../../db';
 import elog from '../../utils/adieuuLogger';
@@ -633,6 +634,10 @@ export async function verifyOtpHandler(
     ipAddress: sanitizedIp.value,
   });
 
+  await refreshUserGeoIfStale(user, sanitizedIp.value).catch((err) => {
+    elog.warn('Geo refresh failed at login', { error: err, userId });
+  });
+
   elog.info('User authenticated successfully', {
     identifierHash,
     identifierType,
@@ -655,6 +660,7 @@ export async function getSessionHandler(request: Request): Promise<{
   session: AccountSessionData;
   signedToken: string;
   identityCount: number;
+  geo?: { jurisdiction: string; countryCode: string; regionCode?: string; checkedAt: string };
 } | null> {
   const session = await requireAccountSession(request);
   if (!session) return null;
@@ -683,7 +689,16 @@ export async function getSessionHandler(request: Request): Promise<{
     maxVideoDurationSeconds,
   );
 
-  return { session, signedToken, identityCount };
+  const geo = user.geo
+    ? {
+        jurisdiction: user.geo.jurisdiction,
+        countryCode: user.geo.countryCode,
+        regionCode: user.geo.regionCode,
+        checkedAt: user.geo.checkedAt.toISOString(),
+      }
+    : undefined;
+
+  return { session, signedToken, identityCount, geo };
 }
 
 /**
@@ -937,6 +952,16 @@ export async function verifyMfaTotpHandler(
     }
   );
 
+  if (pendingLogin.ipAddress) {
+    const userRepo = getUserRepository();
+    const mfaUser = await userRepo.findById(pendingLogin.userId);
+    if (mfaUser) {
+      await refreshUserGeoIfStale(mfaUser, pendingLogin.ipAddress).catch((err) => {
+        elog.warn('Geo refresh failed at MFA TOTP login', { error: err, userId: pendingLogin.userId });
+      });
+    }
+  }
+
   elog.info('User authenticated with MFA (TOTP)', {
     userId: pendingLogin.userId,
   });
@@ -977,6 +1002,16 @@ export async function verifyMfaWebAuthnHandler(
       ipAddress: pendingLogin.ipAddress,
     }
   );
+
+  if (pendingLogin.ipAddress) {
+    const userRepo = getUserRepository();
+    const mfaUser = await userRepo.findById(pendingLogin.userId);
+    if (mfaUser) {
+      await refreshUserGeoIfStale(mfaUser, pendingLogin.ipAddress).catch((err) => {
+        elog.warn('Geo refresh failed at MFA WebAuthn login', { error: err, userId: pendingLogin.userId });
+      });
+    }
+  }
 
   elog.info('User authenticated with MFA (WebAuthn)', {
     userId: pendingLogin.userId,

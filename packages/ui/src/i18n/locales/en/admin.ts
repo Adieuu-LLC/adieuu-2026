@@ -23,6 +23,8 @@ export const admin = {
       chartActive15m: 'Active 15m',
       chartActive24h: 'Active 24h',
       loadError: 'Failed to load metrics.',
+      geoLabel: 'Your jurisdiction',
+      geoCheckedAt: 'Last checked: {{date}}',
     },
     platformAdmins: {
       title: 'Platform admins',

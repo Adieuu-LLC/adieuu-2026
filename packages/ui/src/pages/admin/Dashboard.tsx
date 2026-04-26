@@ -11,12 +11,14 @@ import {
 } from 'recharts';
 import { createApiClient, type AdminMetrics } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
+import { useAuth } from '../../hooks/useAuth';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 
 export function AdminDashboard() {
   const { t } = useTranslation();
   const { apiBaseUrl } = useAppConfig();
+  const { session } = useAuth();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
@@ -92,6 +94,18 @@ export function AdminDashboard() {
               <div className="admin-stat-value">{metrics.activeIdentities24h}</div>
             </Card>
           </div>
+
+          {session?.geo && (
+            <Card className="admin-stat-card">
+              <div className="admin-stat-label">{t('admin.dashboard.geoLabel')}</div>
+              <div className="admin-stat-value">{session.geo.jurisdiction}</div>
+              <div className="admin-stat-label" style={{ marginTop: '0.25rem', fontSize: '0.75rem' }}>
+                {t('admin.dashboard.geoCheckedAt', {
+                  date: new Date(session.geo.checkedAt).toLocaleDateString(),
+                })}
+              </div>
+            </Card>
+          )}
 
           <Card className="admin-chart-card">
             <h2 className="admin-section-title">{t('admin.dashboard.chartTitle')}</h2>

@@ -314,6 +314,26 @@ export const config = {
     initializeCollections: optionalEnvBool('INITIALIZE_COLLECTIONS', false),
   },
 
+  /** IP geolocation configuration (IPLocate.io) */
+  geo: {
+    /** Whether geo lookups are enabled (platform setting overrides this) */
+    enabled: optionalEnvBool('GEO_LOOKUP_ENABLED', false),
+    iplocate: {
+      /** IPLocate.io API key (server-side only) */
+      apiKey: optionalEnv('IPLOCATE_API_KEY', ''),
+      /** IPLocate.io API base URL */
+      baseUrl: optionalEnv('IPLOCATE_BASE_URL', 'https://www.iplocate.io/api/lookup'),
+      /** Request timeout in milliseconds */
+      timeoutMs: optionalEnvInt('IPLOCATE_TIMEOUT_MS', 2500),
+    },
+    /** TTL for cached IP lookup results in Redis (seconds) */
+    cacheTtlSeconds: optionalEnvInt('GEO_CACHE_TTL_SECONDS', 86_400),
+    /** How often to re-check a user's jurisdiction (days) */
+    recheckIntervalDays: optionalEnvInt('GEO_RECHECK_INTERVAL_DAYS', 30),
+    /** Must be true in production for geo lookups to function (requires trusted proxy) */
+    trustProxyHeaders: optionalEnvBool('TRUST_PROXY_HEADERS', false),
+  },
+
   /** Klipy GIF/sticker API proxy configuration */
   klipy: {
     /** Klipy API key (required in production; empty disables the proxy in dev) */

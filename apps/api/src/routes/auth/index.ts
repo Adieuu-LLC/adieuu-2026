@@ -293,7 +293,7 @@ router.get('/auth/session', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  const { session, signedToken, identityCount } = result;
+  const { session, signedToken, identityCount, geo } = result;
 
   return success({
     identifier: session.identifier,
@@ -301,6 +301,7 @@ router.get('/auth/session', async (ctx) => {
     identityCount,
     maxIdentities: MAX_IDENTITIES_PER_USER,
     signedToken,
+    geo,
   });
 });
 

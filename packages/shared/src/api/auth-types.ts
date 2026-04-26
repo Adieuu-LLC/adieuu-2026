@@ -66,6 +66,19 @@ export interface SessionInfo {
   isPlatformModerator: boolean;
   /** Effective platform-level permissions for the current identity (identity mode) */
   platformPermissions: string[];
+  /** IP-derived jurisdiction (account mode only, omits ipHash for privacy). */
+  geo?: SessionGeoInfo;
+}
+
+/**
+ * Subset of the server-side UserGeo exposed to the client.
+ * Never includes ipHash or raw IP.
+ */
+export interface SessionGeoInfo {
+  jurisdiction: string;
+  countryCode: string;
+  regionCode?: string;
+  checkedAt: string;
 }
 
 /**

@@ -50,3 +50,29 @@ bun test ./src/path/to/file.edge.manual.ts
 ### Script requirements
 
 The runners are **bash** scripts (`scripts/run-tests.sh`, `scripts/run-tests-with-coverage.sh`). Use Linux, macOS, or Git Bash on Windows.
+
+## IP Geolocation
+
+The API can resolve the requesting client's jurisdiction (country + US/CA state) from their IP address using [IPLocate.io](https://www.iplocate.io/).
+
+### Quick start
+
+1. Obtain an IPLocate API key and set `IPLOCATE_API_KEY` in your `.env`.
+2. Enable lookups: set `GEO_LOOKUP_ENABLED=true` or flip the `platform-geo-lookup-enabled` platform setting via the admin UI.
+3. In production, `TRUST_PROXY_HEADERS=true` is **required** or lookups will be silently skipped. Your reverse proxy must strip/overwrite `X-Forwarded-For` and `X-Real-IP` from untrusted hops.
+
+### Environment variables
+
+| Variable | Default | Notes |
+|---|---|---|
+| `IPLOCATE_API_KEY` | _(empty)_ | Server-side only; never exposed to the client. |
+| `IPLOCATE_BASE_URL` | `https://www.iplocate.io/api/lookup` | Override for testing against a stub server. |
+| `IPLOCATE_TIMEOUT_MS` | `2500` | Per-request timeout. |
+| `GEO_LOOKUP_ENABLED` | `false` | The platform setting takes precedence when set. |
+| `GEO_CACHE_TTL_SECONDS` | `86400` | How long a positive IP lookup stays in Redis. |
+| `GEO_RECHECK_INTERVAL_DAYS` | `30` | Per-user staleness window. |
+| `TRUST_PROXY_HEADERS` | `false` | Must be `true` in production for reliable IP extraction. |
+
+### Rate limits
+
+IPLocate's free tier allows 1,000 lookups per day. With the 24-hour Redis cache and the 30-day per-user check, typical traffic stays well within that budget. If you approach the limit, either upgrade the plan or extend `GEO_RECHECK_INTERVAL_DAYS`.

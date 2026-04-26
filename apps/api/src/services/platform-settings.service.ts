@@ -386,3 +386,24 @@ export async function ensureModeratorIdentityListPlatformSettingExists(): Promis
 
   elog.info('Created default platform moderator list setting', { key });
 }
+
+/**
+ * Ensures the geo-lookup-enabled setting exists with a `false` default.
+ * Idempotent — safe to call on every startup.
+ */
+export async function ensureGeoLookupPlatformSettingExists(): Promise<void> {
+  const repo = getPlatformSettingsRepository();
+  const key = PLATFORM_SETTING_KEYS.GEO_LOOKUP_ENABLED;
+  const existing = await repo.findByKey(key);
+  if (existing) return;
+
+  await upsertPlatformSetting({
+    key,
+    description: 'Whether IP-based geolocation lookups are enabled',
+    valueType: 'boolean',
+    value: false,
+    lastUpdatedBy: PLATFORM_SETTING_BOOTSTRAP_ACTOR,
+  });
+
+  elog.info('Created default geo lookup enabled setting', { key });
+}
