@@ -5,7 +5,7 @@ import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
 import { useToast } from '../../components/Toast';
-import { createApiClient, type SubscriptionStatus } from '@adieuu/shared';
+import { createApiClient, type SubscriptionStatus, type PurchasableProductId } from '@adieuu/shared';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppConfig } from '../../config';
 import '../../styles/_subscription.scss';
@@ -17,12 +17,21 @@ const FREE_FEATURES = [
   'mediaSharing',
 ] as const;
 
-const VANGUARD_FEATURES = [
+const ACCESS_FEATURES = [
   ...FREE_FEATURES,
   'prioritySupport',
   'earlyAccess',
+] as const;
+
+const INSIDER_FEATURES = [
+  ...ACCESS_FEATURES,
   'extendedMedia',
-  'badge',
+  'largerUploads',
+] as const;
+
+const LIFETIME_EXTRA_FEATURES = [
+  'lifetimeAccess',
+  'supporterBadge',
 ] as const;
 
 function formatDate(iso: string): string {
@@ -47,7 +56,12 @@ export function AccountSubscription() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(false);
 
-  const isVanguard = status?.activeSubscriptions?.includes('vanguard') ?? false;
+  const hasAccess = status?.activeSubscriptions?.includes('access') ?? false;
+  const hasInsider = status?.activeSubscriptions?.includes('insider') ?? false;
+  const isLifetime = status?.isLifetime ?? false;
+  const hasVanguard = status?.entitlements?.includes('vanguard') ?? false;
+  const hasFounder = status?.entitlements?.includes('founder') ?? false;
+  const hasPaidPlan = hasAccess || hasInsider;
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -83,10 +97,10 @@ export function AccountSubscription() {
     }
   }, [searchParams, setSearchParams, toast, t, refreshSession, loadStatus]);
 
-  const handleSubscribe = async () => {
+  const handleCheckout = async (product: PurchasableProductId) => {
     setActionLoading(true);
     try {
-      const res = await api.subscription.createCheckoutSession('vanguard');
+      const res = await api.subscription.createCheckoutSession(product);
       if (res.success && res.data?.url) {
         window.location.href = res.data.url;
         return;
@@ -146,9 +160,11 @@ export function AccountSubscription() {
       <h1 className="page-title">{t('account.subscription.title')}</h1>
       <p className="page-subtitle">{t('account.subscription.subtitle')}</p>
 
+      {/* Recurring annual subscriptions */}
+      <h2 className="subscription-section-heading">{t('account.subscription.sections.annual')}</h2>
       <div className="subscription-grid">
         {/* Free tier */}
-        <Card className={`subscription-tier-card ${!isVanguard ? 'subscription-tier-current' : ''}`}>
+        <Card className={`subscription-tier-card ${!hasPaidPlan ? 'subscription-tier-current' : ''}`}>
           <div className="subscription-tier-header">
             <h2 className="subscription-tier-name">{t('account.subscription.tiers.free.name')}</h2>
             <p className="subscription-tier-price">$0</p>
@@ -164,38 +180,36 @@ export function AccountSubscription() {
               </li>
             ))}
           </ul>
-          {!isVanguard && (
+          {!hasPaidPlan && (
             <div className="subscription-tier-badge">
               {t('account.subscription.currentPlan')}
             </div>
           )}
         </Card>
 
-        {/* Vanguard tier */}
-        <Card className={`subscription-tier-card subscription-tier-featured ${isVanguard ? 'subscription-tier-current' : ''}`}>
+        {/* Access tier */}
+        <Card className={`subscription-tier-card ${hasAccess && !hasInsider ? 'subscription-tier-current' : ''}`}>
           <div className="subscription-tier-header">
-            <h2 className="subscription-tier-name">{t('account.subscription.tiers.vanguard.name')}</h2>
-            {/* Price is intentionally not hardcoded; it comes from Stripe */}
+            <h2 className="subscription-tier-name">{t('account.subscription.tiers.access.name')}</h2>
           </div>
           <p className="subscription-tier-description">
-            {t('account.subscription.tiers.vanguard.description')}
+            {t('account.subscription.tiers.access.description')}
           </p>
           <ul className="subscription-feature-list">
-            {VANGUARD_FEATURES.map((f) => (
+            {ACCESS_FEATURES.map((f) => (
               <li key={f} className="subscription-feature-item">
                 <span className="subscription-feature-check" aria-hidden="true">&#10003;</span>
                 {t(`account.subscription.features.${f}`)}
               </li>
             ))}
           </ul>
-
-          {isVanguard ? (
+          {hasAccess && !hasInsider ? (
             <div className="subscription-tier-status">
               <div className="subscription-tier-badge">
                 {t('account.subscription.currentPlan')}
                 {statusLabel && <span className="subscription-status-label">{statusLabel}</span>}
               </div>
-              {status?.currentPeriodEnd && (
+              {!isLifetime && status?.currentPeriodEnd && (
                 <p className="subscription-period-info">
                   {status.cancelAtPeriodEnd
                     ? t('account.subscription.cancelAtPeriodEnd')
@@ -211,14 +225,143 @@ export function AccountSubscription() {
                 {actionLoading ? <Spinner size="sm" /> : t('account.subscription.manageBilling')}
               </Button>
             </div>
+          ) : !hasInsider && (
+            <Button
+              onClick={() => handleCheckout('access')}
+              disabled={actionLoading}
+              variant="secondary"
+              className="subscription-subscribe-btn"
+            >
+              {actionLoading ? <Spinner size="sm" /> : t('account.subscription.subscribe')}
+            </Button>
+          )}
+        </Card>
+
+        {/* Insider tier */}
+        <Card className={`subscription-tier-card subscription-tier-featured ${hasInsider ? 'subscription-tier-current' : ''}`}>
+          <div className="subscription-tier-header">
+            <h2 className="subscription-tier-name">{t('account.subscription.tiers.insider.name')}</h2>
+          </div>
+          <p className="subscription-tier-description">
+            {t('account.subscription.tiers.insider.description')}
+          </p>
+          <ul className="subscription-feature-list">
+            {INSIDER_FEATURES.map((f) => (
+              <li key={f} className="subscription-feature-item">
+                <span className="subscription-feature-check" aria-hidden="true">&#10003;</span>
+                {t(`account.subscription.features.${f}`)}
+              </li>
+            ))}
+          </ul>
+          {hasInsider ? (
+            <div className="subscription-tier-status">
+              <div className="subscription-tier-badge">
+                {t('account.subscription.currentPlan')}
+                {isLifetime && <span className="subscription-status-label">{t('account.subscription.lifetime')}</span>}
+                {!isLifetime && statusLabel && <span className="subscription-status-label">{statusLabel}</span>}
+              </div>
+              {(hasVanguard || hasFounder) && (
+                <p className="subscription-entitlement-info">
+                  {hasFounder
+                    ? t('account.subscription.entitlements.founder')
+                    : t('account.subscription.entitlements.vanguard')}
+                </p>
+              )}
+              {!isLifetime && status?.currentPeriodEnd && (
+                <p className="subscription-period-info">
+                  {status.cancelAtPeriodEnd
+                    ? t('account.subscription.cancelAtPeriodEnd')
+                    : t('account.subscription.renewsOn', { date: formatDate(status.currentPeriodEnd) })}
+                </p>
+              )}
+              {status?.hasStripeCustomer && (
+                <Button
+                  onClick={handleManage}
+                  disabled={actionLoading}
+                  variant="secondary"
+                  className="subscription-manage-btn"
+                >
+                  {actionLoading ? <Spinner size="sm" /> : t('account.subscription.manageBilling')}
+                </Button>
+              )}
+            </div>
           ) : (
             <Button
-              onClick={handleSubscribe}
+              onClick={() => handleCheckout('insider')}
               disabled={actionLoading}
               variant="primary"
               className="subscription-subscribe-btn"
             >
               {actionLoading ? <Spinner size="sm" /> : t('account.subscription.subscribe')}
+            </Button>
+          )}
+        </Card>
+      </div>
+
+      {/* Lifetime purchases */}
+      <h2 className="subscription-section-heading">{t('account.subscription.sections.lifetime')}</h2>
+      <p className="subscription-section-description">{t('account.subscription.sections.lifetimeDescription')}</p>
+      <div className="subscription-grid">
+        {/* Vanguard */}
+        <Card className={`subscription-tier-card ${hasVanguard ? 'subscription-tier-current' : ''}`}>
+          <div className="subscription-tier-header">
+            <h2 className="subscription-tier-name">{t('account.subscription.tiers.vanguard.name')}</h2>
+          </div>
+          <p className="subscription-tier-description">
+            {t('account.subscription.tiers.vanguard.description')}
+          </p>
+          <ul className="subscription-feature-list">
+            {[...INSIDER_FEATURES, ...LIFETIME_EXTRA_FEATURES].map((f) => (
+              <li key={f} className="subscription-feature-item">
+                <span className="subscription-feature-check" aria-hidden="true">&#10003;</span>
+                {t(`account.subscription.features.${f}`)}
+              </li>
+            ))}
+          </ul>
+          {hasVanguard ? (
+            <div className="subscription-tier-badge">
+              {t('account.subscription.owned')}
+            </div>
+          ) : !hasFounder && (
+            <Button
+              onClick={() => handleCheckout('vanguard')}
+              disabled={actionLoading}
+              variant="secondary"
+              className="subscription-subscribe-btn"
+            >
+              {actionLoading ? <Spinner size="sm" /> : t('account.subscription.buyOnce')}
+            </Button>
+          )}
+        </Card>
+
+        {/* Founder */}
+        <Card className={`subscription-tier-card subscription-tier-featured ${hasFounder ? 'subscription-tier-current' : ''}`}>
+          <div className="subscription-tier-header">
+            <h2 className="subscription-tier-name">{t('account.subscription.tiers.founder.name')}</h2>
+          </div>
+          <p className="subscription-tier-description">
+            {t('account.subscription.tiers.founder.description')}
+          </p>
+          <ul className="subscription-feature-list">
+            {[...INSIDER_FEATURES, ...LIFETIME_EXTRA_FEATURES].map((f) => (
+              <li key={f} className="subscription-feature-item">
+                <span className="subscription-feature-check" aria-hidden="true">&#10003;</span>
+                {t(`account.subscription.features.${f}`)}
+              </li>
+            ))}
+          </ul>
+          {hasFounder ? (
+            <div className="subscription-tier-badge">
+              {t('account.subscription.owned')}
+            </div>
+          ) : (
+            <Button
+              onClick={() => handleCheckout('founder')}
+              disabled={actionLoading}
+              variant="primary"
+              className="subscription-subscribe-btn"
+            >
+              {actionLoading ? <Spinner size="sm" /> : t('account.subscription.buyOnce')}
             </Button>
           )}
         </Card>

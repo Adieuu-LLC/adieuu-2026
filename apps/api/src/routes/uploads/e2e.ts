@@ -115,6 +115,7 @@ router.post('/uploads/e2e/request', async (ctx) => {
     stripExif: parseResult.data.stripExif,
     maxVideoDurationSeconds: uploadCtx.maxVideoDurationSeconds,
     declaredDurationSeconds: parseResult.data.declaredDurationSeconds,
+    subscriptions: uploadCtx.subscriptions,
   });
 
   if (!result.success) {

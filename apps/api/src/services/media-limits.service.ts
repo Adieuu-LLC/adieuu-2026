@@ -6,7 +6,13 @@
 import { PLATFORM_SETTING_KEYS } from '../constants/platform-settings-keys';
 import { DEFAULT_MAX_VIDEO_DURATION_SECONDS } from '../constants/media-limits';
 import type { UserDocument } from '../models/user';
+import type { SubscriptionTierId } from '@adieuu/shared';
+import type { UploadPurpose } from '../models/media-upload';
+import { UPLOAD_PURPOSE_CONFIG } from '../models/media-upload';
 import { getPlatformSettingsRepository } from '../repositories/platform-settings.repository';
+
+/** Multiplier applied to base upload byte limits for Insider-tier subscribers. */
+const INSIDER_UPLOAD_MULTIPLIER = 2;
 
 function clampPositiveInt(n: number, fallback: number): number {
   if (!Number.isFinite(n) || n < 1) return fallback;
@@ -38,4 +44,25 @@ export function resolveMaxVideoDurationSecondsForAccount(
     return platform;
   }
   return Math.min(platform, clampPositiveInt(accountCap, platform));
+}
+
+/**
+ * Resolves the effective max upload size (bytes) for a given purpose,
+ * taking subscription tiers into account. Insider subscribers get a
+ * doubled file size limit for attachment-style purposes.
+ */
+export function resolveMaxUploadBytes(
+  purpose: UploadPurpose,
+  subscriptions: SubscriptionTierId[],
+): number {
+  const base = UPLOAD_PURPOSE_CONFIG[purpose].maxBytes;
+  const hasInsider = subscriptions.includes('insider');
+  if (!hasInsider) return base;
+
+  const scalable: ReadonlySet<UploadPurpose> = new Set([
+    'dm_attachment',
+    'conv_media',
+  ]);
+  if (!scalable.has(purpose)) return base;
+  return base * INSIDER_UPLOAD_MULTIPLIER;
 }

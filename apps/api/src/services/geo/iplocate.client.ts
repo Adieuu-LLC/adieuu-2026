@@ -23,7 +23,10 @@ export interface IpLocateResult {
  * so the caller can decide whether to cache a negative result, retry,
  * or proceed without geo data.
  */
-export async function lookupIp(ip: string): Promise<IpLocateResult | null> {
+export async function lookupIp(
+  ip: string,
+  fetchFn: typeof fetch = globalThis.fetch,
+): Promise<IpLocateResult | null> {
   const { baseUrl, apiKey, timeoutMs } = config.geo.iplocate;
 
   try {
@@ -32,7 +35,7 @@ export async function lookupIp(ip: string): Promise<IpLocateResult | null> {
       url.searchParams.set('apikey', apiKey);
     }
 
-    const response = await fetch(url.toString(), {
+    const response = await fetchFn(url.toString(), {
       method: 'GET',
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(timeoutMs),

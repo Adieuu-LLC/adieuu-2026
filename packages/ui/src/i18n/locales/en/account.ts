@@ -306,7 +306,17 @@ export const account = {
       changePlan: 'Change Plan',
       manageBilling: 'Manage Subscription',
       subscribe: 'Subscribe',
+      buyOnce: 'Buy Once',
+      owned: 'Owned',
+      lifetime: 'Lifetime',
       unavailable: 'Subscriptions are temporarily unavailable. Please check back later.',
+
+      // Section headings
+      sections: {
+        annual: 'Annual Plans',
+        lifetime: 'Lifetime Access',
+        lifetimeDescription: 'One-time purchase. Insider access forever, plus exclusive entitlements.',
+      },
 
       // Tier names and descriptions
       tiers: {
@@ -314,10 +324,28 @@ export const account = {
           name: 'Free',
           description: 'Everything you need to get started.',
         },
+        access: {
+          name: 'Access',
+          description: 'Priority support and early access to new features.',
+        },
+        insider: {
+          name: 'Insider',
+          description: 'Everything in Access, plus larger uploads and extended media.',
+        },
         vanguard: {
           name: 'Vanguard',
-          description: 'For those who want to go further and support the platform.',
+          description: 'Lifetime Insider access for early supporters of the platform.',
         },
+        founder: {
+          name: 'Founder',
+          description: 'The highest tier of lifetime Insider access, for founding supporters.',
+        },
+      },
+
+      // Entitlement labels
+      entitlements: {
+        vanguard: 'Vanguard supporter',
+        founder: 'Founding supporter',
       },
 
       // Feature comparison
@@ -329,7 +357,9 @@ export const account = {
         prioritySupport: 'Priority support',
         earlyAccess: 'Early access to new features',
         extendedMedia: 'Extended media capabilities',
-        badge: 'Vanguard supporter badge',
+        largerUploads: 'Larger file uploads',
+        lifetimeAccess: 'Lifetime access (no renewal)',
+        supporterBadge: 'Exclusive supporter badge',
       },
 
       // Status labels
@@ -349,7 +379,7 @@ export const account = {
       renewsOn: 'Renews on {{date}}',
 
       // Toasts
-      checkoutSuccess: 'Subscription activated! Welcome aboard.',
+      checkoutSuccess: 'Purchase successful! Welcome aboard.',
       checkoutCancelled: 'Checkout cancelled. No changes were made.',
       errorLoading: 'Could not load subscription details.',
       errorCheckout: 'Could not start checkout. Please try again.',

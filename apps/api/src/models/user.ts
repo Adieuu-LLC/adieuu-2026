@@ -81,10 +81,15 @@ export interface UserGeo {
  */
 export interface UserBilling {
   activeSubscriptions: SubscriptionTierId[];
+  entitlements: string[];
+  /** True when access was granted via a one-time lifetime purchase (no renewal). */
+  isLifetime: boolean;
   status?: 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused';
   currentPeriodEnd?: Date;
   cancelAtPeriodEnd?: boolean;
   stripeSubscriptionId?: string;
+  /** Stripe Payment Intent id for one-time purchases. */
+  stripePaymentIntentId?: string;
   updatedAt: Date;
 }
 

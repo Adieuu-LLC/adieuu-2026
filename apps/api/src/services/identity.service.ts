@@ -657,6 +657,7 @@ export async function getIdentityFromSession(
 export async function getIdentityUploadContext(sessionId: string): Promise<{
   identity: IdentityDocument;
   maxVideoDurationSeconds: number;
+  subscriptions: SubscriptionTierId[];
 } | null> {
   if (!sessionId) return null;
 
@@ -669,6 +670,7 @@ export async function getIdentityUploadContext(sessionId: string): Promise<{
   return {
     identity: resolved,
     maxVideoDurationSeconds: sessionData.maxVideoDurationSeconds,
+    subscriptions: sessionData.subscriptions ?? [],
   };
 }
 

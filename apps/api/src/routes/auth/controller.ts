@@ -685,12 +685,15 @@ export async function getSessionHandler(request: Request): Promise<{
     user,
   );
 
+  const subscriptions = user.billing?.activeSubscriptions ?? [];
+  const entitlements = user.billing?.entitlements ?? [];
+
   const signedToken = createSignedToken(
     accountHash,
     user.maxIdentities ?? 2,
     maxVideoDurationSeconds,
-    user.billing?.activeSubscriptions ?? [],
-    [],
+    subscriptions,
+    entitlements,
   );
 
   const geo = user.geo
@@ -701,9 +704,6 @@ export async function getSessionHandler(request: Request): Promise<{
         checkedAt: user.geo.checkedAt.toISOString(),
       }
     : undefined;
-
-  const subscriptions = user.billing?.activeSubscriptions ?? [];
-  const entitlements: string[] = [];
 
   return { session, signedToken, identityCount, geo, subscriptions, entitlements };
 }

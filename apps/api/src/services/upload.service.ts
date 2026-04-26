@@ -20,6 +20,7 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import type { SubscriptionTierId } from '@adieuu/shared';
 import { config } from '../config';
 import { getMediaUploadRepository } from '../repositories/media-upload.repository';
 import {
@@ -28,6 +29,7 @@ import {
   type UploadPurpose,
   type MediaUploadDocument,
 } from '../models/media-upload';
+import { resolveMaxUploadBytes } from './media-limits.service';
 import elog from '../utils/adieuuLogger';
 
 const PRESIGNED_URL_EXPIRY_SECONDS = 300; // 5 minutes
@@ -69,6 +71,8 @@ export interface RequestUploadInput {
   contentType: string;
   contentLength: number;
   identityId: string;
+  /** Active subscription tiers (from identity session) for limit resolution. */
+  subscriptions?: SubscriptionTierId[];
 }
 
 export interface RequestUploadResult {
@@ -117,10 +121,11 @@ export async function requestUpload(
     };
   }
 
-  if (input.contentLength > purposeConfig.maxBytes) {
+  const maxBytes = resolveMaxUploadBytes(input.purpose, input.subscriptions ?? []);
+  if (input.contentLength > maxBytes) {
     return {
       success: false,
-      error: `File exceeds maximum size of ${(purposeConfig.maxBytes / (1024 * 1024)).toFixed(0)} MB`,
+      error: `File exceeds maximum size of ${(maxBytes / (1024 * 1024)).toFixed(0)} MB`,
       errorCode: 'FILE_TOO_LARGE',
     };
   }

@@ -83,7 +83,11 @@ Subscription management is handled via Stripe. Users purchase through Stripe-hos
 
 ### Quick start
 
-1. Create a Product (e.g. "Vanguard") and a recurring monthly Price in the [Stripe Dashboard](https://dashboard.stripe.com/).
+1. Create Products and Prices in the [Stripe Dashboard](https://dashboard.stripe.com/):
+   - **Access** — recurring annual subscription.
+   - **Insider** — recurring annual subscription (higher tier; includes Access).
+   - **Vanguard** — one-time payment (lifetime Insider + `vanguard` entitlement).
+   - **Founder** — one-time payment (lifetime Insider + `founder` entitlement).
 2. Configure the Customer Portal in Dashboard > Settings > Billing > Customer Portal (enable cancellation, payment method updates).
 3. Add a webhook endpoint pointing at `<your-api-url>/api/webhooks/stripe` for events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`.
 4. Copy secrets into your `.env`.
@@ -97,7 +101,10 @@ Subscription management is handled via Stripe. Users purchase through Stripe-hos
 | `STRIPE_SECRET_KEY` | _(empty)_ | Server-side only; never exposed to the client. |
 | `STRIPE_PUBLISHABLE_KEY` | _(empty)_ | Safe for client; exposed via the subscription config endpoint. |
 | `STRIPE_WEBHOOK_SECRET` | _(empty)_ | Signing secret from the Stripe webhook configuration. |
-| `STRIPE_PRICE_ACCESS_MONTHLY` | _(empty)_ | Price ID for the Vanguard monthly subscription. |
+| `STRIPE_PRICE_ACCESS_ANNUAL` | _(empty)_ | Price ID for the Access annual subscription. |
+| `STRIPE_PRICE_INSIDER_ANNUAL` | _(empty)_ | Price ID for the Insider annual subscription. |
+| `STRIPE_PRICE_VANGUARD_LIFETIME` | _(empty)_ | Price ID for the Vanguard one-time lifetime purchase. |
+| `STRIPE_PRICE_FOUNDER_LIFETIME` | _(empty)_ | Price ID for the Founder one-time lifetime purchase. |
 | `STRIPE_SUCCESS_URL` | `WEB_APP_URL/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}` | Redirect after successful checkout. |
 | `STRIPE_CANCEL_URL` | `WEB_APP_URL/account/subscription?status=cancelled` | Redirect when user cancels checkout. |
 | `STRIPE_PORTAL_RETURN_URL` | `WEB_APP_URL/account/subscription` | Return URL from the Customer Portal. |

@@ -104,7 +104,10 @@ single_nat_gateway        = true
 #   # Stripe billing. STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET go in Secrets Manager (api_container_secrets).
 #   # STRIPE_ENABLED         = "false"   # routes return 503 when false; flip after Dashboard setup
 #   # STRIPE_PUBLISHABLE_KEY = "pk_test_..." # safe for client; exposed via subscription config endpoint
-#   # STRIPE_PRICE_ACCESS_MONTHLY = "price_..." # Price ID from Stripe Dashboard
+#   # STRIPE_PRICE_ACCESS_ANNUAL    = "price_..." # Access annual subscription
+#   # STRIPE_PRICE_INSIDER_ANNUAL   = "price_..." # Insider annual subscription
+#   # STRIPE_PRICE_VANGUARD_LIFETIME = "price_..." # Vanguard one-time lifetime purchase
+#   # STRIPE_PRICE_FOUNDER_LIFETIME  = "price_..." # Founder one-time lifetime purchase
 #   # STRIPE_SUCCESS_URL     = "https://app.example.com/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}"
 #   # STRIPE_CANCEL_URL      = "https://app.example.com/account/subscription?status=cancelled"
 #   # STRIPE_PORTAL_RETURN_URL = "https://app.example.com/account/subscription"

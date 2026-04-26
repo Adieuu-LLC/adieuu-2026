@@ -124,7 +124,10 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | `IPLOCATE_TIMEOUT_MS` | Optional; default `2500`. |
 | `STRIPE_ENABLED` | `true` / `false` (default `false`). Routes return 503 when disabled; flip after Stripe Dashboard setup. |
 | `STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (`pk_test_...` / `pk_live_...`). Safe for client; exposed via subscription endpoint. |
-| `STRIPE_PRICE_ACCESS_MONTHLY` | Stripe Price ID for the Vanguard monthly subscription (created in the Dashboard). |
+| `STRIPE_PRICE_ACCESS_ANNUAL` | Stripe Price ID for the Access annual subscription. |
+| `STRIPE_PRICE_INSIDER_ANNUAL` | Stripe Price ID for the Insider annual subscription. |
+| `STRIPE_PRICE_VANGUARD_LIFETIME` | Stripe Price ID for the Vanguard one-time lifetime purchase. |
+| `STRIPE_PRICE_FOUNDER_LIFETIME` | Stripe Price ID for the Founder one-time lifetime purchase. |
 | `STRIPE_SUCCESS_URL` | Optional; defaults to `WEB_APP_URL/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}`. |
 | `STRIPE_CANCEL_URL` | Optional; defaults to `WEB_APP_URL/account/subscription?status=cancelled`. |
 | `STRIPE_PORTAL_RETURN_URL` | Optional; defaults to `WEB_APP_URL/account/subscription`. |

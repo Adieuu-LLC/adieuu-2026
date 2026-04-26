@@ -1,5 +1,5 @@
 /**
- * Billing service — Stripe subscription management.
+ * Billing service — Stripe subscription and one-time purchase management.
  *
  * Provides checkout session creation, portal session creation,
  * customer management, and webhook event processing. Stripe is the
@@ -9,47 +9,84 @@
  */
 
 import type Stripe from 'stripe';
-import type { SubscriptionTierId } from '@adieuu/shared';
+import type { SubscriptionTierId, PurchasableProductId } from '@adieuu/shared';
 import { getStripe } from './stripe.client';
 import { config } from '../../config';
-import { SUBSCRIPTION_TIERS } from '../../constants/subscription-tiers';
+import {
+  PURCHASABLE_PRODUCTS,
+  type ProductMeta,
+  type StripePriceConfigKey,
+} from '../../constants/subscription-tiers';
 import { getUserRepository } from '../../repositories/user.repository';
 import { getCollection, Collections } from '../../db';
 import type { UserDocument, UserBilling } from '../../models/user';
 import elog from '../../utils/adieuuLogger';
 
 // ---------------------------------------------------------------------------
-// Price ↔ tier mapping
+// Price <-> product mapping
 // ---------------------------------------------------------------------------
 
-function buildPriceToTierMap(): Map<string, SubscriptionTierId> {
-  const map = new Map<string, SubscriptionTierId>();
-  for (const [tierId, meta] of Object.entries(SUBSCRIPTION_TIERS)) {
+function buildPriceToProductMap(): Map<string, ProductMeta> {
+  const map = new Map<string, ProductMeta>();
+  for (const meta of Object.values(PURCHASABLE_PRODUCTS)) {
     const priceId = config.stripe.prices[meta.priceConfigKey];
     if (priceId) {
-      map.set(priceId, tierId as SubscriptionTierId);
+      map.set(priceId, meta);
     }
   }
   return map;
 }
 
-let priceToTierCache: Map<string, SubscriptionTierId> | null = null;
+let priceToProductCache: Map<string, ProductMeta> | null = null;
 
-function getPriceToTierMap(): Map<string, SubscriptionTierId> {
-  if (!priceToTierCache) {
-    priceToTierCache = buildPriceToTierMap();
+function getPriceToProductMap(): Map<string, ProductMeta> {
+  if (!priceToProductCache) {
+    priceToProductCache = buildPriceToProductMap();
   }
-  return priceToTierCache;
+  return priceToProductCache;
 }
 
+/**
+ * Maps Stripe Price IDs to the effective subscription tier ids they grant.
+ * Exposed for tests and internal use.
+ */
 export function tierIdsForPriceIds(priceIds: string[]): SubscriptionTierId[] {
-  const map = getPriceToTierMap();
-  const tiers: SubscriptionTierId[] = [];
+  const map = getPriceToProductMap();
+  const tiers = new Set<SubscriptionTierId>();
   for (const pid of priceIds) {
-    const tid = map.get(pid);
-    if (tid) tiers.push(tid);
+    const meta = map.get(pid);
+    if (meta) {
+      for (const t of meta.grantsTiers) tiers.add(t);
+    }
   }
-  return tiers;
+  return [...tiers];
+}
+
+/**
+ * Resolves entitlements from Stripe Price IDs.
+ */
+export function entitlementsForPriceIds(priceIds: string[]): string[] {
+  const map = getPriceToProductMap();
+  const ents = new Set<string>();
+  for (const pid of priceIds) {
+    const meta = map.get(pid);
+    if (meta) {
+      for (const e of meta.grantsEntitlements) ents.add(e);
+    }
+  }
+  return [...ents];
+}
+
+/**
+ * Returns whether any of the given price IDs map to a lifetime product.
+ */
+function isLifetimeForPriceIds(priceIds: string[]): boolean {
+  const map = getPriceToProductMap();
+  for (const pid of priceIds) {
+    const meta = map.get(pid);
+    if (meta?.isLifetime) return true;
+  }
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,35 +115,47 @@ export async function getOrCreateStripeCustomer(user: UserDocument): Promise<str
 // Checkout + Portal
 // ---------------------------------------------------------------------------
 
-export async function createCheckoutSessionForTier(
+export async function createCheckoutSessionForProduct(
   user: UserDocument,
-  tierId: SubscriptionTierId,
+  productId: PurchasableProductId,
 ): Promise<{ url: string }> {
-  const tierMeta = SUBSCRIPTION_TIERS[tierId];
-  if (!tierMeta) {
-    throw new Error(`Unknown subscription tier: ${tierId}`);
+  const productMeta = PURCHASABLE_PRODUCTS[productId];
+  if (!productMeta) {
+    throw new Error(`Unknown product: ${productId}`);
   }
 
-  const priceId = config.stripe.prices[tierMeta.priceConfigKey];
+  const priceId = config.stripe.prices[productMeta.priceConfigKey];
   if (!priceId) {
-    throw new Error(`No Stripe price configured for tier ${tierId}`);
+    throw new Error(`No Stripe price configured for product ${productId}`);
   }
 
   const stripe = getStripe();
   const customerId = await getOrCreateStripeCustomer(user);
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
+  const sessionParams: Stripe.Checkout.SessionCreateParams = {
+    mode: productMeta.checkoutMode,
     customer: customerId,
     client_reference_id: user._id.toHexString(),
     line_items: [{ price: priceId, quantity: 1 }],
     allow_promotion_codes: true,
-    subscription_data: {
-      metadata: { userId: user._id.toHexString() },
-    },
     success_url: config.stripe.successUrl,
     cancel_url: config.stripe.cancelUrl,
-  });
+    metadata: { userId: user._id.toHexString(), productId },
+  };
+
+  if (productMeta.checkoutMode === 'subscription') {
+    sessionParams.subscription_data = {
+      metadata: { userId: user._id.toHexString(), productId },
+    };
+  }
+
+  if (productMeta.checkoutMode === 'payment') {
+    sessionParams.payment_intent_data = {
+      metadata: { userId: user._id.toHexString(), productId },
+    };
+  }
+
+  const session = await stripe.checkout.sessions.create(sessionParams);
 
   if (!session.url) {
     throw new Error('Stripe did not return a checkout URL');
@@ -161,32 +210,100 @@ async function markEventProcessed(eventId: string): Promise<boolean> {
 }
 
 /**
- * Derives the billing summary from the current Stripe subscription state.
- * Always re-fetches the subscription to avoid relying on stale event data.
+ * Derives the billing summary from a Stripe subscription.
+ * Always re-fetches to avoid relying on stale event data.
  */
-async function deriveUserBilling(
+async function deriveSubscriptionBilling(
   stripe: Stripe,
   stripeSubscriptionId: string,
+  existingBilling?: UserBilling,
 ): Promise<UserBilling> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sub: any = await stripe.subscriptions.retrieve(stripeSubscriptionId);
 
   const priceIds = (sub.items?.data ?? []).map((item: any) => item.price?.id).filter(Boolean) as string[];
-  const activeSubscriptions = tierIdsForPriceIds(priceIds);
+  const subTiers = tierIdsForPriceIds(priceIds);
+  const subEntitlements = entitlementsForPriceIds(priceIds);
 
   const periodEndRaw = sub.current_period_end ?? sub.currentPeriodEnd;
   const periodEnd = typeof periodEndRaw === 'number'
     ? new Date(periodEndRaw * 1000)
     : undefined;
 
+  const activeTiers = mergeWithExistingLifetime(subTiers, existingBilling);
+  const activeEntitlements = mergeEntitlements(subEntitlements, existingBilling);
+  const isLifetime = existingBilling?.isLifetime ?? false;
+
   return {
-    activeSubscriptions,
+    activeSubscriptions: activeTiers,
+    entitlements: activeEntitlements,
+    isLifetime,
     status: (sub.status ?? undefined) as UserBilling['status'],
     currentPeriodEnd: periodEnd,
     cancelAtPeriodEnd: sub.cancel_at_period_end ?? sub.cancelAtPeriodEnd ?? false,
     stripeSubscriptionId: sub.id,
+    stripePaymentIntentId: existingBilling?.stripePaymentIntentId,
     updatedAt: new Date(),
   };
+}
+
+/**
+ * Builds billing state for a one-time lifetime purchase.
+ */
+function deriveLifetimeBilling(
+  priceIds: string[],
+  paymentIntentId: string | undefined,
+  existingBilling?: UserBilling,
+): UserBilling {
+  const purchaseTiers = tierIdsForPriceIds(priceIds);
+  const purchaseEntitlements = entitlementsForPriceIds(priceIds);
+
+  const mergedTiers = new Set<SubscriptionTierId>([
+    ...purchaseTiers,
+    ...(existingBilling?.activeSubscriptions ?? []),
+  ]);
+  const mergedEntitlements = new Set<string>([
+    ...purchaseEntitlements,
+    ...(existingBilling?.entitlements ?? []),
+  ]);
+
+  return {
+    activeSubscriptions: [...mergedTiers],
+    entitlements: [...mergedEntitlements],
+    isLifetime: true,
+    status: 'active',
+    currentPeriodEnd: existingBilling?.currentPeriodEnd,
+    cancelAtPeriodEnd: existingBilling?.cancelAtPeriodEnd ?? false,
+    stripeSubscriptionId: existingBilling?.stripeSubscriptionId,
+    stripePaymentIntentId: paymentIntentId ?? existingBilling?.stripePaymentIntentId,
+    updatedAt: new Date(),
+  };
+}
+
+/** Preserves lifetime tiers when updating from a subscription event. */
+function mergeWithExistingLifetime(
+  newTiers: SubscriptionTierId[],
+  existing?: UserBilling,
+): SubscriptionTierId[] {
+  if (!existing?.isLifetime) return newTiers;
+  const merged = new Set<SubscriptionTierId>([
+    ...newTiers,
+    ...existing.activeSubscriptions,
+  ]);
+  return [...merged];
+}
+
+/** Preserves existing entitlements when updating from a subscription event. */
+function mergeEntitlements(
+  newEntitlements: string[],
+  existing?: UserBilling,
+): string[] {
+  if (!existing?.entitlements?.length) return newEntitlements;
+  const merged = new Set<string>([
+    ...newEntitlements,
+    ...existing.entitlements,
+  ]);
+  return [...merged];
 }
 
 async function handleSubscriptionEvent(
@@ -208,7 +325,7 @@ async function handleSubscriptionEvent(
     return;
   }
 
-  const billing = await deriveUserBilling(stripe, subscription.id);
+  const billing = await deriveSubscriptionBilling(stripe, subscription.id, user.billing);
   await userRepo.updateBilling(user._id, billing);
 
   elog.info('Billing updated from Stripe subscription event', {
@@ -223,8 +340,6 @@ async function handleCheckoutCompleted(
   stripe: Stripe,
   session: Stripe.Checkout.Session,
 ): Promise<void> {
-  if (session.mode !== 'subscription' || !session.subscription) return;
-
   const userId = session.client_reference_id ?? session.metadata?.userId;
   if (!userId) {
     elog.warn('Checkout session missing userId', { sessionId: session.id });
@@ -242,19 +357,53 @@ async function handleCheckoutCompleted(
     await userRepo.updateStripeCustomerId(user._id, session.customer);
   }
 
-  const subscriptionId =
-    typeof session.subscription === 'string'
-      ? session.subscription
-      : session.subscription.id;
+  if (session.mode === 'subscription' && session.subscription) {
+    const subscriptionId =
+      typeof session.subscription === 'string'
+        ? session.subscription
+        : session.subscription.id;
 
-  const billing = await deriveUserBilling(stripe, subscriptionId);
-  await userRepo.updateBilling(user._id, billing);
+    const billing = await deriveSubscriptionBilling(stripe, subscriptionId, user.billing);
+    await userRepo.updateBilling(user._id, billing);
 
-  elog.info('Billing created from checkout completion', {
-    userId,
-    subscriptionId,
-    tiers: billing.activeSubscriptions,
-  });
+    elog.info('Billing created from subscription checkout', {
+      userId,
+      subscriptionId,
+      tiers: billing.activeSubscriptions,
+    });
+    return;
+  }
+
+  if (session.mode === 'payment') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fullSession: any = await stripe.checkout.sessions.retrieve(session.id, {
+      expand: ['line_items'],
+    });
+
+    const priceIds: string[] = (fullSession.line_items?.data ?? [])
+      .map((li: any) => li.price?.id)
+      .filter(Boolean);
+
+    if (!priceIds.length) {
+      elog.warn('One-time checkout had no resolvable price IDs', { sessionId: session.id });
+      return;
+    }
+
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id;
+
+    const billing = deriveLifetimeBilling(priceIds, paymentIntentId, user.billing);
+    await userRepo.updateBilling(user._id, billing);
+
+    elog.info('Billing created from one-time purchase checkout', {
+      userId,
+      paymentIntentId,
+      tiers: billing.activeSubscriptions,
+      entitlements: billing.entitlements,
+    });
+  }
 }
 
 async function handleSubscriptionDeleted(
@@ -272,8 +421,30 @@ async function handleSubscriptionDeleted(
   const user = await userRepo.findById(userId);
   if (!user) return;
 
+  if (user.billing?.isLifetime) {
+    const billing: UserBilling = {
+      activeSubscriptions: user.billing.activeSubscriptions,
+      entitlements: user.billing.entitlements,
+      isLifetime: true,
+      status: 'active',
+      cancelAtPeriodEnd: false,
+      stripeSubscriptionId: subscription.id,
+      stripePaymentIntentId: user.billing.stripePaymentIntentId,
+      updatedAt: new Date(),
+    };
+    await userRepo.updateBilling(user._id, billing);
+
+    elog.info('Recurring subscription deleted; lifetime access preserved', {
+      userId,
+      subscriptionId: subscription.id,
+    });
+    return;
+  }
+
   const billing: UserBilling = {
     activeSubscriptions: [],
+    entitlements: [],
+    isLifetime: false,
     status: 'canceled',
     cancelAtPeriodEnd: false,
     stripeSubscriptionId: subscription.id,

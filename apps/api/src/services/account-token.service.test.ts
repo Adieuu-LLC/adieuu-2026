@@ -36,14 +36,14 @@ describe('generateAccountHash', () => {
 
 describe('createSignedToken / verifySignedToken', () => {
   test('round-trips a token with subscriptions and entitlements', () => {
-    const token = createSignedToken('hash', 2, 60, ['vanguard'], []);
+    const token = createSignedToken('hash', 2, 60, ['insider'], ['vanguard']);
     const payload = verifySignedToken(token);
     expect(payload).not.toBeNull();
     expect(payload!.sub).toBe('hash');
     expect(payload!.maxIdentities).toBe(2);
     expect(payload!.maxVideoDurationSeconds).toBe(60);
-    expect(payload!.subscriptions).toEqual(['vanguard']);
-    expect(payload!.entitlements).toEqual([]);
+    expect(payload!.subscriptions).toEqual(['insider']);
+    expect(payload!.entitlements).toEqual(['vanguard']);
   });
 
   test('defaults subscriptions and entitlements for legacy tokens (missing arrays)', () => {

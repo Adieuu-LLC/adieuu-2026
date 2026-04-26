@@ -12,9 +12,9 @@ import { success } from '../../../utils/response';
 import { requireAccountSession } from '../../../services/session.service';
 import { getUserRepository } from '../../../repositories/user.repository';
 import { config } from '../../../config';
-import { SUBSCRIPTION_TIER_IDS, type SubscriptionTierId } from '@adieuu/shared';
+import { PURCHASABLE_PRODUCT_IDS, type PurchasableProductId } from '@adieuu/shared';
 import {
-  createCheckoutSessionForTier,
+  createCheckoutSessionForProduct,
   createBillingPortalSession,
 } from '../../../services/billing/billing.service';
 import { checkRateLimit, type RateLimitConfig } from '../../../services/rate-limit.service';
@@ -49,6 +49,8 @@ router.get('/account/subscription', async (ctx) => {
 
   return success({
     activeSubscriptions: user.billing?.activeSubscriptions ?? [],
+    entitlements: user.billing?.entitlements ?? [],
+    isLifetime: user.billing?.isLifetime ?? false,
     status: user.billing?.status ?? null,
     currentPeriodEnd: user.billing?.currentPeriodEnd?.toISOString() ?? null,
     cancelAtPeriodEnd: user.billing?.cancelAtPeriodEnd ?? false,
@@ -59,7 +61,7 @@ router.get('/account/subscription', async (ctx) => {
 /**
  * POST /account/subscription/checkout
  *
- * Creates a Stripe Checkout Session for the given tier and returns the URL
+ * Creates a Stripe Checkout Session for the given product and returns the URL
  * for the client to redirect to.
  *
  * @route POST /api/account/subscription/checkout
@@ -78,10 +80,10 @@ router.post('/account/subscription/checkout', async (ctx) => {
   const rl = await checkRateLimit('subscription:checkout', session.userId, CHECKOUT_RATE_LIMIT);
   if (!rl.allowed) return ctx.errors.rateLimited();
 
-  const body = ctx.body as { tier?: string } | undefined;
-  const tier = body?.tier;
+  const body = ctx.body as { product?: string } | undefined;
+  const product = body?.product;
 
-  if (!tier || !SUBSCRIPTION_TIER_IDS.includes(tier as SubscriptionTierId)) {
+  if (!product || !PURCHASABLE_PRODUCT_IDS.includes(product as PurchasableProductId)) {
     return ctx.errors.validationFailed();
   }
 
@@ -90,7 +92,7 @@ router.post('/account/subscription/checkout', async (ctx) => {
   if (!user) return ctx.errors.notFound();
 
   try {
-    const result = await createCheckoutSessionForTier(user, tier as SubscriptionTierId);
+    const result = await createCheckoutSessionForProduct(user, product as PurchasableProductId);
     return success(result);
   } catch (err) {
     return ctx.errors.internal();

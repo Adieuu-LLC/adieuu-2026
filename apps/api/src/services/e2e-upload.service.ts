@@ -22,8 +22,9 @@ import {
   DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import type { ConvScanSealManifestV1 } from '@adieuu/shared';
+import type { ConvScanSealManifestV1, SubscriptionTierId } from '@adieuu/shared';
 import { config } from '../config';
+import { resolveMaxUploadBytes } from './media-limits.service';
 import { ObjectId } from 'mongodb';
 import { getE2EMediaRepository } from '../repositories/e2e-media.repository';
 import { getMediaUploadRepository } from '../repositories/media-upload.repository';
@@ -98,6 +99,8 @@ export interface RequestE2EUploadInput {
   maxVideoDurationSeconds: number;
   /** Client-reported duration in seconds; required when contentType is video. */
   declaredDurationSeconds?: number;
+  /** Active subscription tiers (from identity session) for limit resolution. */
+  subscriptions?: SubscriptionTierId[];
 }
 
 export interface RequestE2EUploadResult {
@@ -158,10 +161,11 @@ export async function requestE2EUpload(
     }
   }
 
-  if (input.contentLength > purposeConfig.maxBytes) {
+  const maxBytes = resolveMaxUploadBytes('conv_media', input.subscriptions ?? []);
+  if (input.contentLength > maxBytes) {
     return {
       success: false,
-      error: `File exceeds maximum size of ${(purposeConfig.maxBytes / (1024 * 1024)).toFixed(0)} MB`,
+      error: `File exceeds maximum size of ${(maxBytes / (1024 * 1024)).toFixed(0)} MB`,
       errorCode: 'FILE_TOO_LARGE',
     };
   }

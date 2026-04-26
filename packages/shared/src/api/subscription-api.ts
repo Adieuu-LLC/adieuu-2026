@@ -1,9 +1,11 @@
 import type { ApiResponse } from '../types';
 import type { HttpClient } from './http-client';
-import type { SubscriptionTierId } from '../subscriptions';
+import type { SubscriptionTierId, PurchasableProductId } from '../subscriptions';
 
 export interface SubscriptionStatus {
   activeSubscriptions: SubscriptionTierId[];
+  entitlements: string[];
+  isLifetime: boolean;
   status: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
@@ -17,8 +19,8 @@ export class SubscriptionApi {
     return this.client.get('/api/account/subscription');
   }
 
-  async createCheckoutSession(tier: SubscriptionTierId): Promise<ApiResponse<{ url: string }>> {
-    return this.client.post('/api/account/subscription/checkout', { tier });
+  async createCheckoutSession(product: PurchasableProductId): Promise<ApiResponse<{ url: string }>> {
+    return this.client.post('/api/account/subscription/checkout', { product });
   }
 
   async createPortalSession(): Promise<ApiResponse<{ url: string }>> {

@@ -1,6 +1,4 @@
-import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
-
-const originalFetch = globalThis.fetch;
+import { afterAll, describe, expect, test, mock } from 'bun:test';
 
 mock.module('../../config', () => ({
   config: {
@@ -25,17 +23,12 @@ mock.module('../../utils/adieuuLogger', () => ({
 import { lookupIp } from './iplocate.client';
 
 afterAll(() => {
-  globalThis.fetch = originalFetch;
   mock.restore();
-});
-
-beforeEach(() => {
-  globalThis.fetch = originalFetch;
 });
 
 describe('lookupIp', () => {
   test('returns parsed result on 200', async () => {
-    globalThis.fetch = mock(() =>
+    const fakeFetch = mock(() =>
       Promise.resolve(
         new Response(
           JSON.stringify({
@@ -48,7 +41,7 @@ describe('lookupIp', () => {
       ),
     ) as unknown as typeof fetch;
 
-    const result = await lookupIp('1.2.3.4');
+    const result = await lookupIp('1.2.3.4', fakeFetch);
     expect(result).toEqual({
       countryCode: 'US',
       subdivisionName: 'Tennessee',
@@ -57,45 +50,45 @@ describe('lookupIp', () => {
   });
 
   test('returns null on non-200', async () => {
-    globalThis.fetch = mock(() =>
+    const fakeFetch = mock(() =>
       Promise.resolve(new Response('rate limited', { status: 429 })),
     ) as unknown as typeof fetch;
 
-    const result = await lookupIp('1.2.3.4');
+    const result = await lookupIp('1.2.3.4', fakeFetch);
     expect(result).toBeNull();
   });
 
   test('returns null on network error', async () => {
-    globalThis.fetch = mock(() =>
+    const fakeFetch = mock(() =>
       Promise.reject(new Error('network down')),
     ) as unknown as typeof fetch;
 
-    const result = await lookupIp('1.2.3.4');
+    const result = await lookupIp('1.2.3.4', fakeFetch);
     expect(result).toBeNull();
   });
 
   test('returns null when response has no country_code', async () => {
-    globalThis.fetch = mock(() =>
+    const fakeFetch = mock(() =>
       Promise.resolve(
         new Response(JSON.stringify({ city: 'London' }), { status: 200 }),
       ),
     ) as unknown as typeof fetch;
 
-    const result = await lookupIp('1.2.3.4');
+    const result = await lookupIp('1.2.3.4', fakeFetch);
     expect(result).toBeNull();
   });
 
   test('returns null on malformed JSON', async () => {
-    globalThis.fetch = mock(() =>
+    const fakeFetch = mock(() =>
       Promise.resolve(new Response('not json', { status: 200 })),
     ) as unknown as typeof fetch;
 
-    const result = await lookupIp('1.2.3.4');
+    const result = await lookupIp('1.2.3.4', fakeFetch);
     expect(result).toBeNull();
   });
 
   test('handles missing optional fields', async () => {
-    globalThis.fetch = mock(() =>
+    const fakeFetch = mock(() =>
       Promise.resolve(
         new Response(
           JSON.stringify({ country_code: 'DE' }),
@@ -104,7 +97,7 @@ describe('lookupIp', () => {
       ),
     ) as unknown as typeof fetch;
 
-    const result = await lookupIp('5.6.7.8');
+    const result = await lookupIp('5.6.7.8', fakeFetch);
     expect(result).toEqual({
       countryCode: 'DE',
       subdivisionName: undefined,

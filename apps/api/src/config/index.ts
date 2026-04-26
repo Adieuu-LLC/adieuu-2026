@@ -377,7 +377,10 @@ export const config = {
     publishableKey: optionalEnv('STRIPE_PUBLISHABLE_KEY', ''),
     /** Stripe price IDs (created in the Stripe Dashboard, referenced by env) */
     prices: {
-      vanguardMonthly: optionalEnv('STRIPE_PRICE_ACCESS_MONTHLY', ''),
+      accessAnnual: optionalEnv('STRIPE_PRICE_ACCESS_ANNUAL', ''),
+      insiderAnnual: optionalEnv('STRIPE_PRICE_INSIDER_ANNUAL', ''),
+      vanguardLifetime: optionalEnv('STRIPE_PRICE_VANGUARD_LIFETIME', ''),
+      founderLifetime: optionalEnv('STRIPE_PRICE_FOUNDER_LIFETIME', ''),
     },
     successUrl: optionalEnv(
       'STRIPE_SUCCESS_URL',
