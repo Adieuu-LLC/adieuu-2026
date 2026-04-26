@@ -8,21 +8,26 @@
  */
 
 import { Router } from '../../../router';
-import { success } from '../../../utils/response';
+import { success, error } from '../../../utils/response';
 import { requireAccountSession } from '../../../services/session.service';
 import { getUserRepository } from '../../../repositories/user.repository';
 import { config } from '../../../config';
 import { PURCHASABLE_PRODUCT_IDS, type PurchasableProductId } from '@adieuu/shared';
 import {
+  BillingConfigurationError,
+  billingErrorLogFields,
   createCheckoutSessionForProduct,
   createBillingPortalSession,
 } from '../../../services/billing/billing.service';
 import { checkRateLimit, type RateLimitConfig } from '../../../services/rate-limit.service';
+import elog from '../../../utils/adieuuLogger';
 
 const router = new Router();
 
-const CHECKOUT_RATE_LIMIT: RateLimitConfig = { limit: 5, windowSeconds: 300 };
-const PORTAL_RATE_LIMIT: RateLimitConfig = { limit: 10, windowSeconds: 300 };
+/** Stripe checkout session creation — generous window so retries, double-clicks, and config mistakes do not quickly lock users out. */
+const CHECKOUT_RATE_LIMIT: RateLimitConfig = { limit: 30, windowSeconds: 3600 };
+/** Billing portal sessions — same idea; users may open/close portal several times while sorting payment methods. */
+const PORTAL_RATE_LIMIT: RateLimitConfig = { limit: 45, windowSeconds: 3600 };
 
 /**
  * GET /account/subscription
@@ -95,6 +100,23 @@ router.post('/account/subscription/checkout', async (ctx) => {
     const result = await createCheckoutSessionForProduct(user, product as PurchasableProductId);
     return success(result);
   } catch (err) {
+    if (err instanceof BillingConfigurationError) {
+      elog.error('Subscription checkout: billing not fully configured', {
+        userId: session.userId,
+        product,
+        ...billingErrorLogFields(err),
+      });
+      return error(
+        'SERVICE_UNAVAILABLE',
+        'Subscriptions are temporarily unavailable. Please try again later.',
+        503,
+      );
+    }
+    elog.error('Subscription checkout failed', {
+      userId: session.userId,
+      product,
+      ...billingErrorLogFields(err),
+    }, err instanceof Error ? err : undefined);
     return ctx.errors.internal();
   }
 });
@@ -132,6 +154,10 @@ router.post('/account/subscription/portal', async (ctx) => {
     const result = await createBillingPortalSession(user);
     return success(result);
   } catch (err) {
+    elog.error('Subscription portal session failed', {
+      userId: session.userId,
+      ...billingErrorLogFields(err),
+    }, err instanceof Error ? err : undefined);
     return ctx.errors.internal();
   }
 });

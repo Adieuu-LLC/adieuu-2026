@@ -8,7 +8,7 @@
  * synchronously.
  */
 
-import type Stripe from 'stripe';
+import Stripe from 'stripe';
 import type { SubscriptionTierId, PurchasableProductId } from '@adieuu/shared';
 import { getStripe } from './stripe.client';
 import { config } from '../../config';
@@ -21,6 +21,36 @@ import { getUserRepository } from '../../repositories/user.repository';
 import { getCollection, Collections } from '../../db';
 import type { UserDocument, UserBilling } from '../../models/user';
 import elog from '../../utils/adieuuLogger';
+
+/** Thrown when Stripe is enabled but a required price id env var is missing (ops misconfiguration). */
+export class BillingConfigurationError extends Error {
+  constructor(
+    message: string,
+    public readonly productId?: PurchasableProductId,
+  ) {
+    super(message);
+    this.name = 'BillingConfigurationError';
+  }
+}
+
+/**
+ * Structured fields for logging billing/Stripe failures (safe for log aggregation).
+ */
+export function billingErrorLogFields(err: unknown): Record<string, unknown> {
+  if (err instanceof Stripe.errors.StripeError) {
+    return {
+      stripeType: err.type,
+      stripeCode: err.code,
+      stripeParam: err.param,
+      stripeMessage: err.message,
+      stripeStatusCode: err.statusCode,
+    };
+  }
+  if (err instanceof Error) {
+    return { errorName: err.name, errorMessage: err.message };
+  }
+  return { error: String(err) };
+}
 
 // ---------------------------------------------------------------------------
 // Price <-> product mapping
@@ -126,7 +156,10 @@ export async function createCheckoutSessionForProduct(
 
   const priceId = config.stripe.prices[productMeta.priceConfigKey];
   if (!priceId) {
-    throw new Error(`No Stripe price configured for product ${productId}`);
+    throw new BillingConfigurationError(
+      `No Stripe price configured for product ${productId} (check env for ${productMeta.priceConfigKey})`,
+      productId,
+    );
   }
 
   const stripe = getStripe();

@@ -501,6 +501,23 @@ export function validateProductionConfig(): void {
     errors.push('KLIPY_API_KEY must be set in production');
   }
 
+  if (config.stripe.enabled) {
+    if (!config.stripe.secretKey) {
+      errors.push('STRIPE_SECRET_KEY must be set when STRIPE_ENABLED is true');
+    }
+    const stripePriceEnvs: [keyof typeof config.stripe.prices, string][] = [
+      ['accessAnnual', 'STRIPE_PRICE_ACCESS_ANNUAL'],
+      ['insiderAnnual', 'STRIPE_PRICE_INSIDER_ANNUAL'],
+      ['vanguardLifetime', 'STRIPE_PRICE_VANGUARD_LIFETIME'],
+      ['founderLifetime', 'STRIPE_PRICE_FOUNDER_LIFETIME'],
+    ];
+    for (const [key, envName] of stripePriceEnvs) {
+      if (!config.stripe.prices[key]) {
+        errors.push(`${envName} must be set when STRIPE_ENABLED is true`);
+      }
+    }
+  }
+
   if (errors.length > 0) {
     throw new Error(`Production configuration errors:\n  - ${errors.join('\n  - ')}`);
   }
