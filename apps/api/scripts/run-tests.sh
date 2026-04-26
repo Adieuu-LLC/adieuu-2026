@@ -10,9 +10,13 @@ cd "$(dirname "$0")/.."
 is_isolated_test() {
   local name
   name="$(basename "$1")"
+  # geo.service.test.ts mocks ./iplocate.client globally (Bun's mock.module is
+  # process-wide), which leaks into iplocate.client.test.ts depending on file
+  # load order. Run it in its own process so the mock cannot leak.
   [[ "$name" == 'verification.controller.test.ts' ||
      "$name" == 'block.service.test.ts' ||
-     "$name" == 'identity-keys-access.service.test.ts' ]]
+     "$name" == 'identity-keys-access.service.test.ts' ||
+     "$name" == 'geo.service.test.ts' ]]
 }
 
 run_split_suites() {
