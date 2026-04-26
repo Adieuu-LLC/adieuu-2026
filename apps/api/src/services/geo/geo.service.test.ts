@@ -65,6 +65,7 @@ mock.module('../../utils/adieuuLogger', () => ({
     info: mock(() => {}),
     warn: mock(() => {}),
     error: mock(() => {}),
+    debug: mock(() => {}),
   },
 }));
 
