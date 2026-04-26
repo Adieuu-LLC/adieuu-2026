@@ -11,8 +11,14 @@
 ; final taskkill /F /T /IM sweep. Electron uses several Adieuu.exe processes; the
 ; default NSIS KILL macro does not use /T, so process trees and stray PIDs are
 ; more likely to stay behind and block upgrades/uninstall. See allowOnlyOneInstallerInstance.nsh
-; in app-builder. When defining customCheckAppRunning, we must include getProcessInfo + Var pid
-; (app-builder only adds those when the macro is NOT defined).
+; in app-builder. When defining customCheckAppRunning, we must reproduce the
+; setup app-builder normally does in the !else branch of CHECK_APP_RUNNING,
+; otherwise NSIS warns (and -WX fails the build):
+;   - !include "getProcessInfo.nsh" + Var pid (used by KILL_PROCESS)
+;   - !insertmacro IS_POWERSHELL_AVAILABLE (declares Var IsPowerShellAvailable,
+;     used by FIND_PROCESS/KILL_PROCESS in newer app-builder for CIM-based
+;     process detection)
+; If electron-builder adds new helpers to that branch in future, mirror them here.
 
 !include "getProcessInfo.nsh"
 Var pid
@@ -31,6 +37,10 @@ Var pid
 !macroend
 
 !macro customCheckAppRunning
+  ; Must come before _CHECK_APP_RUNNING: declares Var IsPowerShellAvailable
+  ; and probes powershell.exe at $PowerShellPath (set by the enclosing
+  ; CHECK_APP_RUNNING macro before our macro is expanded).
+  !insertmacro IS_POWERSHELL_AVAILABLE
   !insertmacro _CHECK_APP_RUNNING
   !insertmacro AdieuuPostKillStrayAppProcesses
 !macroend
