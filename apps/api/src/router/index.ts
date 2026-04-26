@@ -2,7 +2,8 @@
  * Simple router for Bun.serve
  */
 
-import { DEFAULT_MAX_REQUEST_BODY_BYTES } from '../constants/http';
+import { DEFAULT_ANONYMOUS_MAX_REQUEST_BODY_BYTES, DEFAULT_MAX_REQUEST_BODY_BYTES } from '../constants/http';
+import { resolveRequestBodyByteLimit } from './resolve-body-limit';
 import type { HttpMethod, Route, RouteHandler, RouteContext, ContextErrors, Middleware, RouterOptions } from './types';
 import { localizedErrors } from '../utils/response';
 import { parseAcceptLanguage, type Locale } from '../i18n';
@@ -113,10 +114,13 @@ export class Router {
   private middlewares: Middleware[] = [];
   private prefix: string;
   private maxBodySize: number;
+  private anonymousMaxBodySize: number;
 
   constructor(options: RouterOptions = {}) {
     this.prefix = options.prefix ?? '';
     this.maxBodySize = options.maxBodySize ?? DEFAULT_MAX_REQUEST_BODY_BYTES;
+    const anon = options.anonymousMaxBodySize ?? DEFAULT_ANONYMOUS_MAX_REQUEST_BODY_BYTES;
+    this.anonymousMaxBodySize = Math.min(anon, this.maxBodySize);
   }
 
   /**
@@ -239,15 +243,20 @@ export class Router {
 
       // Parse locale from Accept-Language for localized error messages
       const locale = parseAcceptLanguage(request.headers.get('Accept-Language'));
-      const contextErrors = createContextErrors(locale, this.maxBodySize);
 
       // Find matching route
       const match = this.findRoute(method, path);
 
       if (!match) {
         // Generic message to avoid leaking route structure
-        return contextErrors.notFound();
+        return createContextErrors(locale, this.maxBodySize).notFound();
       }
+
+      const effectiveMaxBody = await resolveRequestBodyByteLimit(request, path, method, {
+        authenticated: this.maxBodySize,
+        anonymous: this.anonymousMaxBodySize,
+      });
+      const contextErrors = createContextErrors(locale, effectiveMaxBody);
 
       // Parse body for POST/PUT/PATCH/DELETE
       let body: unknown;
@@ -257,7 +266,7 @@ export class Router {
         const contentLength = request.headers.get('Content-Length');
         if (contentLength) {
           const size = parseInt(contentLength, 10);
-          if (!isNaN(size) && size > this.maxBodySize) {
+          if (!isNaN(size) && size > effectiveMaxBody) {
             return contextErrors.payloadTooLarge();
           }
         }
@@ -267,7 +276,7 @@ export class Router {
           try {
             // Read body with size limit (handles chunked encoding where Content-Length may be absent)
             const text = await request.text();
-            if (Buffer.byteLength(text, 'utf8') > this.maxBodySize) {
+            if (Buffer.byteLength(text, 'utf8') > effectiveMaxBody) {
               return contextErrors.payloadTooLarge();
             }
             rawBody = text;

@@ -430,13 +430,13 @@ describe('response utilities', () => {
 
   describe('localizedErrors.payloadTooLarge', () => {
     test('returns 413 with error.details.maxBytes when limit is provided', async () => {
-      const response = localizedErrors.payloadTooLarge('en', 102_400);
+      const response = localizedErrors.payloadTooLarge('en', 256_000);
       expect(response.status).toBe(413);
       const body = await response.json() as ApiErrorResponse;
       expect(body.error.code).toBe('PAYLOAD_TOO_LARGE');
-      expect(body.error.details?.maxBytes).toBe(102_400);
-      expect(body.error.message).toContain('100.0');
-      expect(body.error.message).toContain('102400');
+      expect(body.error.details?.maxBytes).toBe(256_000);
+      expect(body.error.message).toContain('250.0');
+      expect(body.error.message).toContain('256000');
     });
   });
 });

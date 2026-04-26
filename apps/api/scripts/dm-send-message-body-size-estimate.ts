@@ -174,5 +174,5 @@ const e2eJson = JSON.stringify(e2eInitializeMax);
 const e2eBytes = Buffer.byteLength(e2eJson, 'utf8');
 console.log(`  At zod maxima: ${e2eBytes.toLocaleString()} bytes (${(e2eBytes / 1024).toFixed(1)} KiB)`);
 console.log(
-  '  (Your ~8750-byte request was slightly above the managed WAF 8 KiB rule; a 100 KiB cap is ample for this endpoint.)'
+  '  (Your ~8750-byte request was slightly above the managed WAF 8 KiB rule; the configured API body cap is ample for this endpoint.)'
 );

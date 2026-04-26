@@ -98,7 +98,7 @@ variable "api_max_request_body_bytes" {
     when using the default. Injected as MAX_REQUEST_BODY_BYTES on the API task and
     used by the ALB WAF rule block-request-body-over-max (when enable_waf is true).
   EOT
-  default     = 102400
+  default     = 256000
 
   validation {
     condition     = var.api_max_request_body_bytes >= 8192 && var.api_max_request_body_bytes <= 16777216

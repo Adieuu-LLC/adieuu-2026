@@ -97,7 +97,7 @@ Subscription management is handled via Stripe. Users purchase through Stripe-hos
 | `STRIPE_SECRET_KEY` | _(empty)_ | Server-side only; never exposed to the client. |
 | `STRIPE_PUBLISHABLE_KEY` | _(empty)_ | Safe for client; exposed via the subscription config endpoint. |
 | `STRIPE_WEBHOOK_SECRET` | _(empty)_ | Signing secret from the Stripe webhook configuration. |
-| `STRIPE_PRICE_VANGUARD_MONTHLY` | _(empty)_ | Price ID for the Vanguard monthly subscription. |
+| `STRIPE_PRICE_ACCESS_MONTHLY` | _(empty)_ | Price ID for the Vanguard monthly subscription. |
 | `STRIPE_SUCCESS_URL` | `WEB_APP_URL/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}` | Redirect after successful checkout. |
 | `STRIPE_CANCEL_URL` | `WEB_APP_URL/account/subscription?status=cancelled` | Redirect when user cancels checkout. |
 | `STRIPE_PORTAL_RETURN_URL` | `WEB_APP_URL/account/subscription` | Return URL from the Customer Portal. |

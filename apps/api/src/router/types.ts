@@ -91,6 +91,14 @@ export interface Route {
 export interface RouterOptions {
   /** Base path prefix for all routes (e.g., '/api') */
   prefix?: string;
-  /** Maximum request body size in bytes (default: 100 KiB from `constants/http`) */
+  /**
+   * Maximum request body in bytes for authenticated or allowlisted unauthenticated
+   * routes (default: 250 KiB from `constants/http`).
+   */
   maxBodySize?: number;
+  /**
+   * Stricter cap when there is no resolvable session (default: 16 KiB from
+   * `constants/http`). Capped in config to not exceed `maxBodySize`.
+   */
+  anonymousMaxBodySize?: number;
 }

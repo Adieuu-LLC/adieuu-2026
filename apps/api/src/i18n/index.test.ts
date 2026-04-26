@@ -94,7 +94,7 @@ describe('i18n', () => {
       for (const key of keys) {
         const message =
           key === 'payloadTooLarge'
-            ? getErrorMessage(key, 'en', { maxKb: '100.0', maxBytes: 102400 })
+            ? getErrorMessage(key, 'en', { maxKb: '250.0', maxBytes: 256000 })
             : getErrorMessage(key);
         expect(typeof message).toBe('string');
         expect(message.length).toBeGreaterThan(0);

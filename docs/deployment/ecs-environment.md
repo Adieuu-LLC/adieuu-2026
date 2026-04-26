@@ -20,7 +20,13 @@ This document lists **environment variables** the **API** (`apps/api`) and **cha
 
 | Variable | Reason |
 |----------|--------|
-| `MAX_REQUEST_BODY_BYTES` | Set from Terraform `api_max_request_body_bytes` (default `102400`, 100 KiB; same as `DEFAULT_MAX_REQUEST_BODY_BYTES` in `@adieuu/shared`). Aligns the Bun router with the ALB WAF rule `block-request-body-over-max`. Change the limit via `api_max_request_body_bytes` in `terraform.tfvars`, not by setting this key in `api_environment`. |
+| `MAX_REQUEST_BODY_BYTES` | Set from Terraform `api_max_request_body_bytes` (default `256000`, 250 KiB; same as `DEFAULT_MAX_REQUEST_BODY_BYTES` in `@adieuu/shared`). Aligns the Bun router with the ALB WAF rule `block-request-body-over-max`. Change the limit via `api_max_request_body_bytes` in `terraform.tfvars`, not by setting this key in `api_environment`. |
+
+**Optional in `api_environment` (not Terraform-managed by default):**
+
+| Variable | Reason |
+|----------|--------|
+| `ANONYMOUS_MAX_REQUEST_BODY_BYTES` | App-side stricter cap (default `16384`, 16 KiB) for JSON bodies when no `adieuu_session` can be loaded, except allowlisted paths (e.g. `POST /api/webhooks/stripe`). Capped in code to `MAX_REQUEST_BODY_BYTES`. ALB WAF still uses a single `api_max_request_body_bytes` for all paths. |
 
 If you add these keys to the maps anyway, they are **ignored** when building the task definition so ECS does not receive duplicate names.
 

@@ -22,7 +22,10 @@
  * ```
  */
 
-import { DEFAULT_MAX_REQUEST_BODY_BYTES } from '../constants/http';
+import {
+  DEFAULT_ANONYMOUS_MAX_REQUEST_BODY_BYTES,
+  DEFAULT_MAX_REQUEST_BODY_BYTES,
+} from '../constants/http';
 
 /**
  * Retrieves a required environment variable.
@@ -112,6 +115,12 @@ function optionalEnvBool(name: string, defaultValue: boolean): boolean {
   return value.toLowerCase() === 'true' || value === '1';
 }
 
+const _maxRequestBodyBytes = optionalEnvInt('MAX_REQUEST_BODY_BYTES', DEFAULT_MAX_REQUEST_BODY_BYTES);
+const _anonymousMaxRequestBodyBytes = Math.min(
+  optionalEnvInt('ANONYMOUS_MAX_REQUEST_BODY_BYTES', DEFAULT_ANONYMOUS_MAX_REQUEST_BODY_BYTES),
+  _maxRequestBodyBytes,
+);
+
 /**
  * Application configuration object.
  * 
@@ -156,10 +165,18 @@ export const config = {
   host: optionalEnv('HOST', '0.0.0.0'),
 
   /**
-   * Maximum request body size in bytes (JSON and raw body).
-   * In AWS, Terraform sets `MAX_REQUEST_BODY_BYTES` from `api_max_request_body_bytes` (must match ALB WAF).
+   * Maximum request body size in bytes (JSON and raw body) for authenticated
+   * clients, signed webhooks, and other allowlisted paths. In AWS, Terraform
+   * sets `MAX_REQUEST_BODY_BYTES` from `api_max_request_body_bytes` (must match ALB WAF).
    */
-  maxRequestBodyBytes: optionalEnvInt('MAX_REQUEST_BODY_BYTES', DEFAULT_MAX_REQUEST_BODY_BYTES),
+  maxRequestBodyBytes: _maxRequestBodyBytes,
+
+  /**
+   * Max body size in bytes for requests with no resolvable `adieuu_session`
+   * (except allowlisted paths such as `/api/webhooks/stripe`). Capped to `maxRequestBodyBytes`.
+   * @see `resolveRequestBodyByteLimit` in the router
+   */
+  anonymousMaxRequestBodyBytes: _anonymousMaxRequestBodyBytes,
 
   /** CORS configuration */
   cors: {
@@ -360,7 +377,7 @@ export const config = {
     publishableKey: optionalEnv('STRIPE_PUBLISHABLE_KEY', ''),
     /** Stripe price IDs (created in the Stripe Dashboard, referenced by env) */
     prices: {
-      vanguardMonthly: optionalEnv('STRIPE_PRICE_VANGUARD_MONTHLY', ''),
+      vanguardMonthly: optionalEnv('STRIPE_PRICE_ACCESS_MONTHLY', ''),
     },
     successUrl: optionalEnv(
       'STRIPE_SUCCESS_URL',
