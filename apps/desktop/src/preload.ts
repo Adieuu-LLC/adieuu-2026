@@ -29,6 +29,12 @@ contextBridge.exposeInMainWorld('electron', {
     electron: process.versions.electron,
   },
 
+  /** Open https URLs in the system browser (Stripe Checkout). */
+  openExternal: (url: string) =>
+    ipcRenderer.invoke('app:open-external-url', url) as Promise<
+      { ok: true } | { ok: false; error: string }
+    >,
+
   // Window controls (for custom title bar on Windows/Linux)
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
@@ -147,6 +153,9 @@ declare global {
         create: (options: unknown) => Promise<unknown>;
         get: (options: unknown) => Promise<unknown>;
       };
+      openExternal: (
+        url: string,
+      ) => Promise<{ ok: true } | { ok: false; error: string }>;
       invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
       on: (channel: string, callback: (...args: unknown[]) => void) => () => void;
     };

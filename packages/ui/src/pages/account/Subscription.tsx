@@ -4,10 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
+import { CheckoutPendingBanner } from '../../components/CheckoutPendingBanner';
 import { useToast } from '../../components/Toast';
 import { createApiClient, type SubscriptionStatus, type PurchasableProductId } from '@adieuu/shared';
 import { useAuth } from '../../hooks/useAuth';
-import { useAppConfig } from '../../config';
+import { useAppConfig, usePlatformCapabilities } from '../../config';
+import { useCheckoutPolling, type UseCheckoutPollingRun } from '../../hooks/useCheckoutPolling';
+import { openCheckoutOrPortalUrl } from '../../utils/open-checkout-url';
 import '../../styles/_subscription.scss';
 
 const FREE_FEATURES = [
@@ -44,8 +47,9 @@ function formatDate(iso: string): string {
 
 export function AccountSubscription() {
   const { t } = useTranslation();
-  const { session, refreshSession } = useAuth();
+  const { refreshSession } = useAuth();
   const { apiBaseUrl } = useAppConfig();
+  const { openExternal } = usePlatformCapabilities();
   const toast = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -55,6 +59,9 @@ export function AccountSubscription() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [pollRun, setPollRun] = useState<UseCheckoutPollingRun | null>(null);
+
+  const { phase, cancel } = useCheckoutPolling(api, pollRun);
 
   const hasAccess = status?.activeSubscriptions?.includes('access') ?? false;
   const hasInsider = status?.activeSubscriptions?.includes('insider') ?? false;
@@ -63,22 +70,34 @@ export function AccountSubscription() {
   const hasFounder = status?.entitlements?.includes('founder') ?? false;
   const hasPaidPlan = hasAccess || hasInsider;
 
-  const loadStatus = useCallback(async () => {
-    setLoading(true);
-    setError(false);
-    try {
-      const res = await api.subscription.getStatus();
-      if (res.success && res.data) {
-        setStatus(res.data);
-      } else {
-        setError(true);
+  const loadStatus = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) {
+        setLoading(true);
+        setError(false);
       }
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [api]);
+      try {
+        const res = await api.subscription.getStatus();
+        if (res.success && res.data) {
+          setStatus(res.data);
+          if (!opts?.silent) {
+            setError(false);
+          }
+        } else if (!opts?.silent) {
+          setError(true);
+        }
+      } catch {
+        if (!opts?.silent) {
+          setError(true);
+        }
+      } finally {
+        if (!opts?.silent) {
+          setLoading(false);
+        }
+      }
+    },
+    [api],
+  );
 
   useEffect(() => {
     loadStatus();
@@ -97,12 +116,38 @@ export function AccountSubscription() {
     }
   }, [searchParams, setSearchParams, toast, t, refreshSession, loadStatus]);
 
+  useEffect(() => {
+    if (phase === 'completed') {
+      toast.success(t('account.subscription.checkoutSuccess'));
+      void refreshSession();
+      void loadStatus({ silent: true });
+      setPollRun(null);
+    } else if (phase === 'timeout') {
+      toast.info(t('account.subscription.pending.timeout'));
+      setPollRun(null);
+    } else if (phase === 'cancelled') {
+      setPollRun(null);
+    }
+  }, [phase, toast, t, refreshSession, loadStatus]);
+
   const handleCheckout = async (product: PurchasableProductId) => {
+    if (!status) {
+      return;
+    }
     setActionLoading(true);
     try {
       const res = await api.subscription.createCheckoutSession(product);
       if (res.success && res.data?.url) {
-        window.location.href = res.data.url;
+        const baseline: SubscriptionStatus =
+          typeof structuredClone === 'function'
+            ? structuredClone(status)
+            : {
+                ...status,
+                activeSubscriptions: [...status.activeSubscriptions],
+                entitlements: [...status.entitlements],
+              };
+        await openCheckoutOrPortalUrl(res.data.url, openExternal);
+        setPollRun({ baseline });
         return;
       }
       toast.error(t('account.subscription.errorCheckout'));
@@ -118,7 +163,7 @@ export function AccountSubscription() {
     try {
       const res = await api.subscription.createPortalSession();
       if (res.success && res.data?.url) {
-        window.location.href = res.data.url;
+        await openCheckoutOrPortalUrl(res.data.url, openExternal);
         return;
       }
       toast.error(t('account.subscription.errorPortal'));
@@ -159,6 +204,14 @@ export function AccountSubscription() {
     <div className="subscription-page">
       <h1 className="page-title">{t('account.subscription.title')}</h1>
       <p className="page-subtitle">{t('account.subscription.subtitle')}</p>
+
+      {pollRun && phase === 'pending' ? (
+        <CheckoutPendingBanner
+          onCancel={() => {
+            cancel();
+          }}
+        />
+      ) : null}
 
       {/* Recurring annual subscriptions */}
       <h2 className="subscription-section-heading">{t('account.subscription.sections.annual')}</h2>

@@ -409,5 +409,29 @@ export const account = {
       errorLoading: 'Could not load subscription details.',
       errorCheckout: 'Could not start checkout. Please try again.',
       errorPortal: 'Could not open billing portal. Please try again.',
+
+      pending: {
+        message:
+          'Waiting for your purchase to finish processing. You can keep using the app; this updates automatically when your plan changes.',
+        cancel: 'Stop waiting',
+        timeout:
+          'We could not confirm your purchase yet. If you completed payment, your plan may still update shortly — check back on this page or restart the app.',
+      },
+    },
+
+    checkout: {
+      complete: {
+        titleSuccess: 'Purchase complete',
+        bodySuccess:
+          'Thank you. Return to the Adieuu desktop app to continue — your plan updates there automatically after payment finishes processing.',
+        titleCancelled: 'Checkout cancelled',
+        bodyCancelled: 'No payment was completed. You can close this tab and return to the app whenever you like.',
+        titleUnknown: 'Checkout finished',
+        bodyUnknown:
+          'You can close this tab and return to the Adieuu desktop app. If you completed a purchase, your plan will update there shortly.',
+        openApp: 'Open Adieuu',
+        devHint:
+          'Development desktop builds use this link instead: {{devLink}}',
+      },
     },
 } as const;

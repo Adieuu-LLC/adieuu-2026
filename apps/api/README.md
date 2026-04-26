@@ -105,6 +105,6 @@ Subscription management is handled via Stripe. Users purchase through Stripe-hos
 | `STRIPE_PRICE_INSIDER_ANNUAL` | _(empty)_ | Price ID for the Insider annual subscription. |
 | `STRIPE_PRICE_VANGUARD_LIFETIME` | _(empty)_ | Price ID for the Vanguard one-time lifetime purchase. |
 | `STRIPE_PRICE_FOUNDER_LIFETIME` | _(empty)_ | Price ID for the Founder one-time lifetime purchase. |
-| `STRIPE_SUCCESS_URL` | `WEB_APP_URL/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}` | Redirect after successful checkout. |
-| `STRIPE_CANCEL_URL` | `WEB_APP_URL/account/subscription?status=cancelled` | Redirect when user cancels checkout. |
+| `STRIPE_SUCCESS_URL` | `WEB_APP_URL/checkout/complete?status=success&session_id={CHECKOUT_SESSION_ID}` | Redirect after successful checkout. |
+| `STRIPE_CANCEL_URL` | `WEB_APP_URL/checkout/complete?status=cancelled` | Redirect when user cancels checkout. |
 | `STRIPE_PORTAL_RETURN_URL` | `WEB_APP_URL/account/subscription` | Return URL from the Customer Portal. |

@@ -36,6 +36,13 @@ function base64ToUint8(base64: string): Uint8Array {
  * contents are additionally encrypted with OS-level keys.
  */
 export const desktopCapabilities: PlatformCapabilities = {
+  openExternal: async (url: string): Promise<void> => {
+    const result = await window.electron.openExternal(url);
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+  },
+
   // --------------------------------------------------------------------------
   // Secure Storage (safeStorage + local file via IPC)
   // --------------------------------------------------------------------------

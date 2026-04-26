@@ -1,0 +1,46 @@
+.checkout-complete-page {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ark-space-6, 1.5rem);
+}
+
+.checkout-complete-card {
+  max-width: 32rem;
+  width: 100%;
+}
+
+.checkout-complete-title {
+  margin-top: 0;
+  margin-bottom: var(--ark-space-3, 0.75rem);
+  font-size: var(--ark-font-size-xl, 1.25rem);
+}
+
+.checkout-complete-body {
+  margin: 0 0 var(--ark-space-5, 1.25rem);
+  color: var(--ark-color-text-muted, inherit);
+  line-height: 1.5;
+}
+
+.checkout-complete-actions {
+  margin-bottom: var(--ark-space-4, 1rem);
+}
+
+.checkout-complete-dev-hint {
+  margin-top: var(--ark-space-4, 1rem);
+  font-size: var(--ark-font-size-sm, 0.875rem);
+}
+
+.checkout-pending-banner__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ark-space-3, 0.75rem);
+}
+
+.checkout-pending-banner__message {
+  margin: 0;
+  flex: 1 1 12rem;
+}

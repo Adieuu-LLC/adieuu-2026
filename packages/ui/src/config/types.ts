@@ -152,6 +152,12 @@ export interface PlatformCapabilities {
   secureStorage: SecureStorage;
   fileSystem: FileSystem;
   notifications: Notifications;
+  /**
+   * Open a URL in the system default browser (e.g. Stripe Checkout).
+   * Desktop implements via Electron `shell.openExternal` (https only).
+   * Web typically omits this; callers fall back to same-tab navigation.
+   */
+  openExternal?: (url: string) => Promise<void>;
   /** Present when native sound file pick/load is available (Electron). */
   audio?: AudioCapabilities;
   /** Present when WebAuthn must be delegated to a different origin context (packaged desktop). */

@@ -128,8 +128,8 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | `STRIPE_PRICE_INSIDER_ANNUAL` | Stripe Price ID for the Insider annual subscription. |
 | `STRIPE_PRICE_VANGUARD_LIFETIME` | Stripe Price ID for the Vanguard one-time lifetime purchase. |
 | `STRIPE_PRICE_FOUNDER_LIFETIME` | Stripe Price ID for the Founder one-time lifetime purchase. |
-| `STRIPE_SUCCESS_URL` | Optional; defaults to `WEB_APP_URL/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}`. |
-| `STRIPE_CANCEL_URL` | Optional; defaults to `WEB_APP_URL/account/subscription?status=cancelled`. |
+| `STRIPE_SUCCESS_URL` | Optional; defaults to `WEB_APP_URL/checkout/complete?status=success&session_id={CHECKOUT_SESSION_ID}`. |
+| `STRIPE_CANCEL_URL` | Optional; defaults to `WEB_APP_URL/checkout/complete?status=cancelled`. |
 | `STRIPE_PORTAL_RETURN_URL` | Optional; defaults to `WEB_APP_URL/account/subscription`. |
 
 **Platform settings (MongoDB, not env):** The API stores typed configuration in the `platform_settings` collection (see `apps/api/src/constants/platform-settings-keys.ts`). Most knobs are Mongo-only; **geo** also reads **`platform-geo-lookup-enabled`** (boolean) so operators can toggle lookups without redeploying. Auth allowlist and admin account list are edited via **`/api/admin/platform-settings`** (session cookie + user id in `platform-admin-account-list`). Seed the first admin ObjectIds in MongoDB (or Atlas) before calling those routes.

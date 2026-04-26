@@ -14,6 +14,7 @@ import {
   AccountSubscription,
   ThemeBrowser,
 } from '../pages/account';
+import { CheckoutComplete } from '../pages/checkout/CheckoutComplete';
 import {
   IdentityAppearance,
   IdentityCiphers,
@@ -257,6 +258,7 @@ export function App() {
 
       {/* Utility Routes (no auth required) */}
       <Route path="/service-status" element={<ServiceStatus />} />
+      <Route path="/checkout/complete" element={<CheckoutComplete />} />
 
       {/* Catch-all redirect */}
       <Route path="*" element={<Navigate to="/" replace />} />

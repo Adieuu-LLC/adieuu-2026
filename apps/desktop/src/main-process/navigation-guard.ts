@@ -25,6 +25,9 @@ export function registerWillNavigateGuard(
 
       const allowed = ALLOWED_NAVIGATION_HOSTS.includes(parsedUrl.hostname);
 
+      // Intentionally do not allow-list hosts such as checkout.stripe.com: payment
+      // flows must use shell.openExternal (see app:open-external-url) so they run
+      // in the system browser, not inside this window.
       if (!allowed) {
         event.preventDefault();
       }

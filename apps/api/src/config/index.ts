@@ -384,11 +384,11 @@ export const config = {
     },
     successUrl: optionalEnv(
       'STRIPE_SUCCESS_URL',
-      `${optionalEnv('WEB_APP_URL', 'http://localhost:3000')}/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}`,
+      `${optionalEnv('WEB_APP_URL', 'http://localhost:3000')}/checkout/complete?status=success&session_id={CHECKOUT_SESSION_ID}`,
     ),
     cancelUrl: optionalEnv(
       'STRIPE_CANCEL_URL',
-      `${optionalEnv('WEB_APP_URL', 'http://localhost:3000')}/account/subscription?status=cancelled`,
+      `${optionalEnv('WEB_APP_URL', 'http://localhost:3000')}/checkout/complete?status=cancelled`,
     ),
     portalReturnUrl: optionalEnv(
       'STRIPE_PORTAL_RETURN_URL',

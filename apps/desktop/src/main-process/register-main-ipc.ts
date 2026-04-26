@@ -7,6 +7,7 @@ import { applyBadgeColor, createBadgedIcon, getBaseIcon } from './taskbar-badge'
 import { registerAutoUpdaterIpc } from './auto-updater';
 import { isAllowedAudioPath } from './audio-path';
 import { ensureInAppUpdateLogFileForOpen, getInAppUpdateLogPath } from './update-in-app-log';
+import { openExternalHttpsUrl } from './open-external-https';
 
 export function registerMainProcessIpc(options: {
   isDev: boolean;
@@ -31,6 +32,13 @@ export function registerMainProcessIpc(options: {
     runtime.pendingDeepLinkPath = null;
     return link;
   });
+
+  ipcMain.handle(
+    'app:open-external-url',
+    async (_event, url: unknown): Promise<{ ok: true } | { ok: false; error: string }> => {
+      return openExternalHttpsUrl(url);
+    },
+  );
 
   ipcMain.handle('set-platform-admin', (_event, isAdmin: unknown) => {
     runtime.isPlatformAdminUser = isAdmin === true;
