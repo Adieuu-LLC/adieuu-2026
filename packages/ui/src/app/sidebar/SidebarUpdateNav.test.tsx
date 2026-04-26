@@ -1,13 +1,14 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
+// Importing the shared mock guarantees it is registered even if Bun's preload
+// ordering means another test file is processed first.
+import { resetReactRouterDomMock } from '../../test/react-router-dom-mock';
 
 let mockContext: {
   status: string;
   downloadProgress: { percent: number; transferred: number; total: number } | null;
   installing: boolean;
 };
-
-const navigate = mock(() => {});
 
 mock.module('../../hooks/useUpdateContext', () => ({
   useUpdateContext: () => mockContext,
@@ -20,10 +21,6 @@ mock.module('../../hooks/usePlatform', () => ({
 const closeMobile = mock(() => {});
 mock.module('../../components/Sidebar', () => ({
   useSidebar: () => ({ closeMobile }),
-}));
-
-mock.module('react-router-dom', () => ({
-  useNavigate: () => navigate,
 }));
 
 mock.module('react-i18next', () => ({
@@ -48,6 +45,11 @@ mock.module('../../icons/Icon', () => ({
 const { SidebarUpdateNav } = await import('./SidebarUpdateNav');
 
 describe('SidebarUpdateNav', () => {
+  beforeEach(() => {
+    resetReactRouterDomMock();
+    closeMobile.mockClear();
+  });
+
   test('renders nothing when resolver hides (up-to-date)', () => {
     mockContext = {
       status: 'up-to-date',

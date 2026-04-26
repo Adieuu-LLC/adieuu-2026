@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
-
-let searchParams = new URLSearchParams();
-
-mock.module('react-router-dom', () => ({
-  useSearchParams: () => [searchParams],
-}));
+// Importing the shared mock guarantees it is registered even if Bun's preload
+// ordering means another test file is processed first.
+import {
+  resetReactRouterDomMock,
+  setMockSearchParams,
+} from '../../test/react-router-dom-mock';
 
 mock.module('react-i18next', () => ({
   useTranslation: () => ({
@@ -22,12 +22,11 @@ const { CheckoutComplete } = await import('./CheckoutComplete');
 
 describe('CheckoutComplete', () => {
   beforeEach(() => {
-    searchParams = new URLSearchParams();
+    resetReactRouterDomMock();
   });
 
   test('renders success copy when status=success', () => {
-    searchParams.delete('status');
-    searchParams.set('status', 'success');
+    setMockSearchParams('status=success');
     const html = renderToStaticMarkup(<CheckoutComplete />);
     expect(html).toContain('account.checkout.complete.titleSuccess');
     expect(html).toContain('adieuu://open/account/subscription');
@@ -35,14 +34,13 @@ describe('CheckoutComplete', () => {
   });
 
   test('renders cancelled copy when status=cancelled', () => {
-    searchParams.delete('status');
-    searchParams.set('status', 'cancelled');
+    setMockSearchParams('status=cancelled');
     const html = renderToStaticMarkup(<CheckoutComplete />);
     expect(html).toContain('account.checkout.complete.titleCancelled');
   });
 
   test('renders unknown copy when status missing', () => {
-    searchParams.delete('status');
+    setMockSearchParams('');
     const html = renderToStaticMarkup(<CheckoutComplete />);
     expect(html).toContain('account.checkout.complete.titleUnknown');
   });

@@ -8,5 +8,5 @@
     "declarationMap": true
   },
   "include": ["src/**/*"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test.setup.ts"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test.setup.ts", "src/test/**"]
 }

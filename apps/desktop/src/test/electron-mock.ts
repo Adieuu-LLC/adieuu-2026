@@ -74,6 +74,10 @@ export const mockSafeStorage = {
   },
 };
 
+export const mockShell = {
+  openExternal: mock((_url: string, _options?: unknown): Promise<void> => Promise.resolve()),
+};
+
 // ---------------------------------------------------------------------------
 // Register the mock — called exactly once when this module is first imported
 // ---------------------------------------------------------------------------
@@ -84,4 +88,5 @@ mock.module('electron', () => ({
   ipcRenderer: mockIpcRenderer,
   contextBridge: mockContextBridge,
   safeStorage: mockSafeStorage,
+  shell: mockShell,
 }));
