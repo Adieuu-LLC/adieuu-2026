@@ -58,6 +58,9 @@ Store strings the app must not log in git. Typical keys:
 | `TEXTMAGIC_USERNAME` | SMS in production. |
 | `TEXTMAGIC_API_KEY` | SMS in production. |
 | `KLIPY_API_KEY` | Required in production. Klipy GIF/sticker API key (https://partner.klipy.com/). |
+| `IPLOCATE_API_KEY` | IPLocate.io API key when IP geolocation is enabled (`apps/api` `config.geo`). Server-side only. |
+| `STRIPE_SECRET_KEY` | Stripe secret key (`sk_test_...` / `sk_live_...`). Required when `STRIPE_ENABLED=true`. Server-side only. |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`). Required when `STRIPE_ENABLED=true`. |
 
 Use **`REDIS_URL`** in Secrets Manager (or plain env) **only** when Redis is **not** the Terraform-managed ElastiCache cluster — e.g. you set **`create_elasticache_redis = false`** and point **`REDIS_URL`** at an external endpoint yourself.
 
@@ -113,8 +116,20 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | `RATE_LIMIT_GLOBAL_USER_WINDOW` | Default `60`. |
 | `RATE_LIMIT_GLOBAL_IP` | Default `1000`. |
 | `RATE_LIMIT_GLOBAL_IP_WINDOW` | Default `60`. |
+| `GEO_LOOKUP_ENABLED` | `true` / `false` (default `false`). Env default only: the **`platform-geo-lookup-enabled`** platform setting in Mongo overrides this when present. |
+| `TRUST_PROXY_HEADERS` | `true` / `false` (default `false`). Set **`true`** in production behind the ALB so **`X-Forwarded-For`** / **`X-Real-IP`** reflect the real client; if `NODE_ENV=production` and this is `false`, geo resolution returns null (see `apps/api` geo service). |
+| `GEO_CACHE_TTL_SECONDS` | Redis TTL for cached IP lookups (default `86400`). |
+| `GEO_RECHECK_INTERVAL_DAYS` | Per-user staleness window before refresh at login (default `30`). |
+| `IPLOCATE_BASE_URL` | Optional; default `https://www.iplocate.io/api/lookup`. |
+| `IPLOCATE_TIMEOUT_MS` | Optional; default `2500`. |
+| `STRIPE_ENABLED` | `true` / `false` (default `false`). Routes return 503 when disabled; flip after Stripe Dashboard setup. |
+| `STRIPE_PUBLISHABLE_KEY` | Stripe publishable key (`pk_test_...` / `pk_live_...`). Safe for client; exposed via subscription endpoint. |
+| `STRIPE_PRICE_ACCESS_MONTHLY` | Stripe Price ID for the Vanguard monthly subscription (created in the Dashboard). |
+| `STRIPE_SUCCESS_URL` | Optional; defaults to `WEB_APP_URL/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}`. |
+| `STRIPE_CANCEL_URL` | Optional; defaults to `WEB_APP_URL/account/subscription?status=cancelled`. |
+| `STRIPE_PORTAL_RETURN_URL` | Optional; defaults to `WEB_APP_URL/account/subscription`. |
 
-**Platform settings (MongoDB, not env):** The API stores typed configuration in the `platform_settings` collection (see `apps/api/src/constants/platform-settings-keys.ts`). There are **no extra ECS environment variables** for this. Auth allowlist and admin account list are edited via **`/api/admin/platform-settings`** (session cookie + user id in `platform-admin-account-list`). Seed the first admin ObjectIds in MongoDB (or Atlas) before calling those routes.
+**Platform settings (MongoDB, not env):** The API stores typed configuration in the `platform_settings` collection (see `apps/api/src/constants/platform-settings-keys.ts`). Most knobs are Mongo-only; **geo** also reads **`platform-geo-lookup-enabled`** (boolean) so operators can toggle lookups without redeploying. Auth allowlist and admin account list are edited via **`/api/admin/platform-settings`** (session cookie + user id in `platform-admin-account-list`). Seed the first admin ObjectIds in MongoDB (or Atlas) before calling those routes.
 
 ### Chat (`apps/chat`) — additional non-secret keys
 

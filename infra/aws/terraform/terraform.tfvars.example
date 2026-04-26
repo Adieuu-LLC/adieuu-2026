@@ -94,6 +94,20 @@ single_nat_gateway        = true
 #   # RATE_LIMIT_AUTH_REQUEST_IDENTIFIER = "3"
 #   # RATE_LIMIT_AUTH_REQUEST_IDENTIFIER_WINDOW = "900"
 #   # ...see ecs-environment.md for remaining RATE_LIMIT_* keys
+#   # IP geolocation (IPLocate.io). Set TRUST_PROXY_HEADERS=true behind the ALB so client IP is trusted.
+#   # GEO_LOOKUP_ENABLED = "false"  # default; or "true" after IPLOCATE_API_KEY is in Secrets Manager. Runtime toggle also: platform-geo-lookup-enabled in Mongo.
+#   # TRUST_PROXY_HEADERS = "true"
+#   # GEO_CACHE_TTL_SECONDS      = "86400"
+#   # GEO_RECHECK_INTERVAL_DAYS  = "30"
+#   # IPLOCATE_BASE_URL          = "https://www.iplocate.io/api/lookup"
+#   # IPLOCATE_TIMEOUT_MS        = "2500"
+#   # Stripe billing. STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET go in Secrets Manager (api_container_secrets).
+#   # STRIPE_ENABLED         = "false"   # routes return 503 when false; flip after Dashboard setup
+#   # STRIPE_PUBLISHABLE_KEY = "pk_test_..." # safe for client; exposed via subscription config endpoint
+#   # STRIPE_PRICE_ACCESS_MONTHLY = "price_..." # Price ID from Stripe Dashboard
+#   # STRIPE_SUCCESS_URL     = "https://app.example.com/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}"
+#   # STRIPE_CANCEL_URL      = "https://app.example.com/account/subscription?status=cancelled"
+#   # STRIPE_PORTAL_RETURN_URL = "https://app.example.com/account/subscription"
 # }
 #
 # chat_environment = {
@@ -113,7 +127,8 @@ single_nat_gateway        = true
 # Prefer one JSON secret per service; for a key inside JSON use :KeyName:: at the end of the ARN.
 # Typical API keys: MONGODB_URI, CSRF_SECRET, SESSION_SECRET, OTP_SECRET, ACCOUNT_HASH_SECRET,
 # TOKEN_SIGNING_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, TEXTMAGIC_USERNAME,
-# TEXTMAGIC_API_KEY (see ecs-environment.md).
+# TEXTMAGIC_API_KEY, KLIPY_API_KEY, IPLOCATE_API_KEY, STRIPE_SECRET_KEY,
+# STRIPE_WEBHOOK_SECRET (see ecs-environment.md).
 # Typical chat keys: MONGODB_URI (and optionally REDIS_URL if not from ElastiCache / plain env).
 #
 # api_container_secrets = {
@@ -127,6 +142,10 @@ single_nat_gateway        = true
 #   AWS_SECRET_ACCESS_KEY = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:AWS_SECRET_ACCESS_KEY::"
 #   TEXTMAGIC_USERNAME    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:TEXTMAGIC_USERNAME::"
 #   TEXTMAGIC_API_KEY     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:TEXTMAGIC_API_KEY::"
+#   KLIPY_API_KEY         = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:KLIPY_API_KEY::"
+#   IPLOCATE_API_KEY      = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:IPLOCATE_API_KEY::"
+#   STRIPE_SECRET_KEY     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:STRIPE_SECRET_KEY::"
+#   STRIPE_WEBHOOK_SECRET = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:STRIPE_WEBHOOK_SECRET::"
 # }
 # chat_container_secrets = {
 #   MONGODB_URI = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/chat-AbCdEf:MONGODB_URI::"
