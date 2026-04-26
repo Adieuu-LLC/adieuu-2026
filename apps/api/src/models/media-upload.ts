@@ -135,7 +135,7 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
     },
   },
   dm_attachment: {
-    maxBytes: 25 * 1024 * 1024, // 25 MB
+    maxBytes: 50 * 1024 * 1024, // 50 MB
     allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
     processingFlags: {
       stripExif: false,
@@ -152,7 +152,7 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
     },
   },
   conv_media: {
-    maxBytes: 25 * 1024 * 1024, // 25 MB
+    maxBytes: 50 * 1024 * 1024, // 50 MB
     allowedContentTypes: [...IMAGE_MIME_TYPES, ...VIDEO_MIME_TYPES],
     processingFlags: {
       stripExif: false,
@@ -160,7 +160,7 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
     },
   },
   conv_scan: {
-    maxBytes: 25 * 1024 * 1024, // image thumbnails or full MP4 scan copies
+    maxBytes: 50 * 1024 * 1024, // image thumbnails or full MP4 scan copies
     allowedContentTypes: [...IMAGE_MIME_TYPES, ...VIDEO_MIME_TYPES],
     processingFlags: {
       stripExif: true,

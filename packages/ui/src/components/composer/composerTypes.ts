@@ -57,7 +57,7 @@ export function isAcceptedConversationMediaType(mime: string): boolean {
 }
 
 export const MAX_ATTACHMENTS = 10;
-export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 
 export const PLACEHOLDER_VERB_KEYS = [
   'message',
