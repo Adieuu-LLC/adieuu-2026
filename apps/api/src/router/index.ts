@@ -251,6 +251,7 @@ export class Router {
 
       // Parse body for POST/PUT/PATCH/DELETE
       let body: unknown;
+      let rawBody: string | undefined;
       if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
         // Check Content-Length to prevent DoS via large payloads
         const contentLength = request.headers.get('Content-Length');
@@ -269,6 +270,7 @@ export class Router {
             if (Buffer.byteLength(text, 'utf8') > this.maxBodySize) {
               return contextErrors.payloadTooLarge();
             }
+            rawBody = text;
             // Only parse if there's actual content (empty body is valid for some requests)
             if (text.length > 0) {
               body = JSON.parse(text);
@@ -290,6 +292,7 @@ export class Router {
         query: url.searchParams,
         requestId,
         body,
+        rawBody,
         locale,
         errors: contextErrors,
       };

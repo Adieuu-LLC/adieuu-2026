@@ -661,6 +661,8 @@ export async function getSessionHandler(request: Request): Promise<{
   signedToken: string;
   identityCount: number;
   geo?: { jurisdiction: string; countryCode: string; regionCode?: string; checkedAt: string };
+  subscriptions: string[];
+  entitlements: string[];
 } | null> {
   const session = await requireAccountSession(request);
   if (!session) return null;
@@ -687,6 +689,8 @@ export async function getSessionHandler(request: Request): Promise<{
     accountHash,
     user.maxIdentities ?? 2,
     maxVideoDurationSeconds,
+    user.billing?.activeSubscriptions ?? [],
+    [],
   );
 
   const geo = user.geo
@@ -698,7 +702,10 @@ export async function getSessionHandler(request: Request): Promise<{
       }
     : undefined;
 
-  return { session, signedToken, identityCount, geo };
+  const subscriptions = user.billing?.activeSubscriptions ?? [];
+  const entitlements: string[] = [];
+
+  return { session, signedToken, identityCount, geo, subscriptions, entitlements };
 }
 
 /**

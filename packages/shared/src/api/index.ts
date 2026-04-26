@@ -213,6 +213,11 @@ export {
 } from './klipy-api';
 
 export {
+  SubscriptionApi,
+  type SubscriptionStatus,
+} from './subscription-api';
+
+export {
   AchievementsApi,
   type AchievementCategory,
   type PublicAchievementDefinition,

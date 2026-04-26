@@ -22,6 +22,7 @@
     "ioredis": "5.9.3",
     "mongodb": "6.21.0",
     "otpauth": "9.5.0",
+    "stripe": "22.1.0",
     "winston": "3.19.0",
     "winston-transport": "4.9.0"
   },

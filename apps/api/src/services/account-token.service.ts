@@ -20,6 +20,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../config';
 import { DEFAULT_MAX_VIDEO_DURATION_SECONDS } from '../constants/media-limits';
+import type { SubscriptionTierId } from '@adieuu/shared';
 
 /** Token lifetime in seconds (15 minutes). */
 const TOKEN_TTL_SECONDS = 15 * 60;
@@ -80,6 +81,10 @@ export interface AccountTokenPayload {
    * (platform ceiling and optional per-account cap). Copied onto identity session at login.
    */
   maxVideoDurationSeconds: number;
+  /** Active subscription tier ids (empty array for free users) */
+  subscriptions: SubscriptionTierId[];
+  /** Feature entitlements (reserved; always empty for now) */
+  entitlements: string[];
   /** Issued-at (epoch seconds) */
   iat: number;
   /** Expiration (epoch seconds) */
@@ -97,12 +102,16 @@ export function createSignedToken(
   accountHash: string,
   maxIdentities: number,
   maxVideoDurationSeconds: number,
+  subscriptions: SubscriptionTierId[] = [],
+  entitlements: string[] = [],
 ): string {
   const now = Math.floor(Date.now() / 1000);
   const payload: AccountTokenPayload = {
     sub: accountHash,
     maxIdentities,
     maxVideoDurationSeconds,
+    subscriptions,
+    entitlements,
     iat: now,
     exp: now + TOKEN_TTL_SECONDS,
   };
@@ -169,9 +178,13 @@ export function verifySignedToken(token: string): AccountTokenPayload | null {
     maxVideoDurationSeconds = DEFAULT_MAX_VIDEO_DURATION_SECONDS;
   }
 
+  // Default new array fields for tokens minted before this addition
+  const subscriptions = Array.isArray(payload.subscriptions) ? payload.subscriptions : [];
+  const entitlements = Array.isArray(payload.entitlements) ? payload.entitlements : [];
+
   // Check expiry
   const now = Math.floor(Date.now() / 1000);
   if (payload.exp <= now) return null;
 
-  return { ...payload, maxVideoDurationSeconds };
+  return { ...payload, maxVideoDurationSeconds, subscriptions, entitlements };
 }

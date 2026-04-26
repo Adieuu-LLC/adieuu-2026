@@ -8,3 +8,4 @@ export * from './api';
 export * from './utils/jsonUtf8';
 export * from './utils/themeChecksum';
 export * from './messaging/messagePagination';
+export * from './subscriptions';

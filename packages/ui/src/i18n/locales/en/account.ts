@@ -297,4 +297,62 @@ export const account = {
         unknownLocation: 'Unknown location',
       },
     },
+
+    // Subscription management
+    subscription: {
+      title: 'Subscription',
+      subtitle: 'Choose a plan that works for you.',
+      currentPlan: 'Current Plan',
+      changePlan: 'Change Plan',
+      manageBilling: 'Manage Subscription',
+      subscribe: 'Subscribe',
+      unavailable: 'Subscriptions are temporarily unavailable. Please check back later.',
+
+      // Tier names and descriptions
+      tiers: {
+        free: {
+          name: 'Free',
+          description: 'Everything you need to get started.',
+        },
+        vanguard: {
+          name: 'Vanguard',
+          description: 'For those who want to go further and support the platform.',
+        },
+      },
+
+      // Feature comparison
+      features: {
+        messaging: 'End-to-end encrypted messaging',
+        aliases: 'Up to 2 aliases',
+        voiceMessages: 'Voice messages',
+        mediaSharing: 'Photo and video sharing',
+        prioritySupport: 'Priority support',
+        earlyAccess: 'Early access to new features',
+        extendedMedia: 'Extended media capabilities',
+        badge: 'Vanguard supporter badge',
+      },
+
+      // Status labels
+      status: {
+        active: 'Active',
+        trialing: 'Trial',
+        pastDue: 'Past Due',
+        canceled: 'Cancelled',
+        unpaid: 'Unpaid',
+        incomplete: 'Incomplete',
+        paused: 'Paused',
+      },
+
+      // Period and cancellation
+      periodEnd: 'Current period ends {{date}}',
+      cancelAtPeriodEnd: 'Your subscription will cancel at the end of this period.',
+      renewsOn: 'Renews on {{date}}',
+
+      // Toasts
+      checkoutSuccess: 'Subscription activated! Welcome aboard.',
+      checkoutCancelled: 'Checkout cancelled. No changes were made.',
+      errorLoading: 'Could not load subscription details.',
+      errorCheckout: 'Could not start checkout. Please try again.',
+      errorPortal: 'Could not open billing portal. Please try again.',
+    },
 } as const;

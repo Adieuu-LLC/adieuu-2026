@@ -65,6 +65,8 @@ export interface RouteContext {
   requestId: string;
   /** Parsed JSON body (if applicable) */
   body?: unknown;
+  /** Raw request body text (available when body was parsed from JSON) */
+  rawBody?: string;
   /** Detected locale from Accept-Language header */
   locale: Locale;
   /** Localized error response factories */

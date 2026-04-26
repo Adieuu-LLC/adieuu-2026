@@ -27,6 +27,8 @@ import { reportRoutes } from './reports';
 import { klipyRoutes } from './klipy';
 import { achievementRoutes } from './achievements';
 import { blockRoutes } from './blocks';
+import { stripeWebhookRoutes } from './webhooks/stripe';
+import { subscriptionRoutes } from './account/subscription';
 
 /**
  * Registers all application routes with the main router.
@@ -107,4 +109,10 @@ export function registerRoutes(app: Router): void {
 
   // Identity blocking (block, unblock, list, check)
   app.merge(blockRoutes, '/api');
+
+  // Account subscription management (checkout, portal, status)
+  app.merge(subscriptionRoutes, '/api');
+
+  // Stripe webhook (subscription events)
+  app.merge(stripeWebhookRoutes, '/api');
 }

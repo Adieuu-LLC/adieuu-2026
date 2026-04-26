@@ -11,6 +11,7 @@ import { Login, Verify, MfaVerify } from '../pages/auth';
 import {
   AccountOverview,
   AccountSecurity,
+  AccountSubscription,
   ThemeBrowser,
 } from '../pages/account';
 import {
@@ -210,6 +211,7 @@ export function App() {
           <Route path="/account/overview" element={<AccountOverview />} />
           <Route path="/account/security" element={<Navigate to="/account/security/authentication" replace />} />
           <Route path="/account/security/:tab" element={<AccountSecurity />} />
+          <Route path="/account/subscription" element={<AccountSubscription />} />
           <Route path="/account/settings" element={<Navigate to="/identity/notifications" replace />} />
           <Route path="/account/appearance" element={<Navigate to="/identity/appearance" replace />} />
           <Route path="/account/appearance/community" element={<ThemeBrowser />} />

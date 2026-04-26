@@ -197,6 +197,8 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
         userAgent,
         ipAddress: clientIp,
         maxVideoDurationSeconds: tokenPayload.maxVideoDurationSeconds,
+        subscriptions: tokenPayload.subscriptions,
+        entitlements: tokenPayload.entitlements,
       },
     },
   );
@@ -248,6 +250,8 @@ export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
       userAgent,
       ipAddress: clientIp,
       maxVideoDurationSeconds: tokenPayload.maxVideoDurationSeconds,
+      subscriptions: tokenPayload.subscriptions,
+      entitlements: tokenPayload.entitlements,
     },
   );
 

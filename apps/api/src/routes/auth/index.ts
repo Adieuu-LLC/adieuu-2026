@@ -285,6 +285,8 @@ router.get('/auth/session', async (ctx) => {
         isPlatformAdmin: capabilities.isPlatformAdmin,
         isPlatformModerator: capabilities.isPlatformModerator,
         platformPermissions: capabilities.permissions,
+        subscriptions: rawSession.subscriptions,
+        entitlements: rawSession.entitlements,
       });
     }
     if (getSessionIdFromRequest(ctx.request)) {
@@ -293,7 +295,7 @@ router.get('/auth/session', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  const { session, signedToken, identityCount, geo } = result;
+  const { session, signedToken, identityCount, geo, subscriptions, entitlements } = result;
 
   return success({
     identifier: session.identifier,
@@ -302,6 +304,8 @@ router.get('/auth/session', async (ctx) => {
     maxIdentities: MAX_IDENTITIES_PER_USER,
     signedToken,
     geo,
+    subscriptions,
+    entitlements,
   });
 });
 

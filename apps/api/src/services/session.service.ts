@@ -20,6 +20,7 @@ import { config } from '../config';
 import elog from '../utils/adieuuLogger';
 import type { CachedSessionData } from '../models/session';
 import { DEFAULT_MAX_VIDEO_DURATION_SECONDS } from '../constants/media-limits';
+import type { SubscriptionTierId } from '@adieuu/shared';
 
 /** Session configuration */
 const SESSION_CONFIG = {
@@ -50,6 +51,10 @@ export interface IdentitySessionData {
   accountHash: string;
   /** Effective max video duration (seconds); legacy sessions may omit (use default). */
   maxVideoDurationSeconds: number;
+  /** Active subscription tier ids bound at identity login. */
+  subscriptions: SubscriptionTierId[];
+  /** Feature entitlements bound at identity login. */
+  entitlements: string[];
   lastActivityAt: number;
   /** Unix ms — server-side session expiry after sliding renewal */
   expiresAt: number;
@@ -109,6 +114,8 @@ export async function createIdentitySession(
     ipAddress?: string;
     /** From verified account bridging token; stored on the identity session only. */
     maxVideoDurationSeconds?: number;
+    subscriptions?: SubscriptionTierId[];
+    entitlements?: string[];
   },
 ): Promise<{ sessionId: string; cookie: string }> {
   const sessionId = generateSecureToken(SESSION_CONFIG.idLength);
@@ -125,6 +132,8 @@ export async function createIdentitySession(
     userAgent: metadata?.userAgent,
     ipAddress: metadata?.ipAddress,
     maxVideoDurationSeconds: metadata?.maxVideoDurationSeconds,
+    subscriptions: metadata?.subscriptions,
+    entitlements: metadata?.entitlements,
   });
 
   elog.info('Identity session created', {
@@ -200,6 +209,8 @@ function cachedToSessionData(cached: CachedSessionData, expiresAtMs: number): Se
       identityId: cached.identityId,
       accountHash: cached.accountHash,
       maxVideoDurationSeconds,
+      subscriptions: cached.subscriptions ?? [],
+      entitlements: cached.entitlements ?? [],
       lastActivityAt: cached.lastActivityAt,
       expiresAt: expiresAtMs,
     };

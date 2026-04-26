@@ -2,6 +2,8 @@
  * Auth-related request/response types shared with Users API.
  */
 
+import type { SubscriptionTierId } from '../subscriptions';
+
 export interface RequestOtpParams {
   identifier: string;
   type: 'email' | 'sms';
@@ -68,6 +70,10 @@ export interface SessionInfo {
   platformPermissions: string[];
   /** IP-derived jurisdiction (account mode only, omits ipHash for privacy). */
   geo?: SessionGeoInfo;
+  /** Active subscription tier ids (both account and identity mode). */
+  subscriptions?: SubscriptionTierId[];
+  /** Reserved feature entitlements (always [] for now). */
+  entitlements?: string[];
 }
 
 /**

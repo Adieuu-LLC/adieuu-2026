@@ -368,6 +368,8 @@ export const Collections = {
   IDENTITY_ACHIEVEMENTS: 'identity_achievements',
   /** Per-identity conversation preferences (archive, favorites) */
   CONVERSATION_PREFERENCES: 'conversation_preferences',
+  /** Stripe webhook event idempotency (TTL-indexed by processedAt) */
+  STRIPE_PROCESSED_EVENTS: 'stripe_processed_events',
 } as const;
 
 /**
@@ -632,6 +634,11 @@ async function createIndexes(): Promise<void> {
     { unique: true },
   );
   await conversationPreferences.createIndex({ identityId: 1 });
+
+  // Stripe webhook idempotency — TTL auto-deletes after 30 days
+  const stripeEvents = database.collection(Collections.STRIPE_PROCESSED_EVENTS);
+  await stripeEvents.createIndex({ eventId: 1 }, { unique: true });
+  await stripeEvents.createIndex({ processedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
 
   elog.debug('MongoDB indexes created/verified');
 }

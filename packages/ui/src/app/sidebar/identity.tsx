@@ -79,6 +79,9 @@ export function AccountFlyout() {
           <Link to="/account/security" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/account/security') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('account.security.title')}
           </Link>
+          <Link to="/account/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('account.subscription.title')}
+          </Link>
           <div className="sidebar-flyout-divider" />
           <button
             type="button"

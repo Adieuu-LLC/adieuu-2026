@@ -348,6 +348,34 @@ export const config = {
     cacheTtlTrending: optionalEnvInt('KLIPY_CACHE_TTL_TRENDING', 120),
   },
 
+  /** Stripe subscription billing configuration */
+  stripe: {
+    /** Whether Stripe integration is enabled (routes return 503 when false) */
+    enabled: optionalEnvBool('STRIPE_ENABLED', false),
+    /** Stripe secret key (server-side only, never exposed to the client) */
+    secretKey: optionalEnv('STRIPE_SECRET_KEY', ''),
+    /** Stripe webhook signing secret */
+    webhookSecret: optionalEnv('STRIPE_WEBHOOK_SECRET', ''),
+    /** Stripe publishable key (safe for client, exposed via subscription config endpoint) */
+    publishableKey: optionalEnv('STRIPE_PUBLISHABLE_KEY', ''),
+    /** Stripe price IDs (created in the Stripe Dashboard, referenced by env) */
+    prices: {
+      vanguardMonthly: optionalEnv('STRIPE_PRICE_VANGUARD_MONTHLY', ''),
+    },
+    successUrl: optionalEnv(
+      'STRIPE_SUCCESS_URL',
+      `${optionalEnv('WEB_APP_URL', 'http://localhost:3000')}/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}`,
+    ),
+    cancelUrl: optionalEnv(
+      'STRIPE_CANCEL_URL',
+      `${optionalEnv('WEB_APP_URL', 'http://localhost:3000')}/account/subscription?status=cancelled`,
+    ),
+    portalReturnUrl: optionalEnv(
+      'STRIPE_PORTAL_RETURN_URL',
+      `${optionalEnv('WEB_APP_URL', 'http://localhost:3000')}/account/subscription`,
+    ),
+  },
+
   /**
    * Rate limiting configuration.
    * Set RATE_LIMIT_ENABLED=false to disable all rate limiting (dev only).

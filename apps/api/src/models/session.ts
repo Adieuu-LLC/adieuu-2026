@@ -8,6 +8,7 @@
 
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
+import type { SubscriptionTierId } from '@adieuu/shared';
 
 /** Session type discriminator */
 export type SessionType = 'account' | 'identity';
@@ -50,6 +51,12 @@ export interface SessionDocument extends BaseDocument {
    * at identity login. Identity routes use this without loading User.
    */
   maxVideoDurationSeconds?: number;
+
+  /** Active subscription tier ids bound from the account bridging token (identity sessions only). */
+  subscriptions?: SubscriptionTierId[];
+
+  /** Feature entitlements bound from the account bridging token (identity sessions only). */
+  entitlements?: string[];
 
   // -- Common fields --------------------------------------------------------
 
@@ -95,6 +102,8 @@ export interface CreateIdentitySessionInput {
   userAgent?: string;
   ipAddress?: string;
   maxVideoDurationSeconds?: number;
+  subscriptions?: SubscriptionTierId[];
+  entitlements?: string[];
 }
 
 /**
@@ -120,6 +129,10 @@ export interface CachedSessionData {
   accountHash?: string;
   /** Effective max video duration (seconds), identity sessions only */
   maxVideoDurationSeconds?: number;
+  /** Active subscription tier ids (identity sessions only) */
+  subscriptions?: SubscriptionTierId[];
+  /** Feature entitlements (identity sessions only) */
+  entitlements?: string[];
   /** Session expiration timestamp (ms) */
   expiresAt: number;
   /** Last activity timestamp (ms) */
@@ -230,6 +243,12 @@ export function toCachedSession(doc: SessionDocument): CachedSessionData {
     base.accountHash = doc.accountHash;
     if (doc.maxVideoDurationSeconds !== undefined) {
       base.maxVideoDurationSeconds = doc.maxVideoDurationSeconds;
+    }
+    if (doc.subscriptions) {
+      base.subscriptions = doc.subscriptions;
+    }
+    if (doc.entitlements) {
+      base.entitlements = doc.entitlements;
     }
   }
 

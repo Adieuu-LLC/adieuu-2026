@@ -24,6 +24,7 @@ import {
   CURRENT_HASH_VERSION,
   MIN_PASSPHRASE_LENGTH,
 } from '../utils/identity-hash';
+import type { SubscriptionTierId } from '@adieuu/shared';
 import { config } from '../config';
 import { getRedis, isRedisConnected, RedisKeys, withTransaction } from '../db';
 import { getKeyBundleRepository } from '../repositories/key-bundle.repository';
@@ -42,7 +43,7 @@ import type { IdentityDocument, PublicIdentity } from '../models/identity';
 import { toPublicIdentity } from '../models/identity';
 
 /** Maximum identities per user (exported for auth session response) */
-export const MAX_IDENTITIES_PER_USER = 2;
+export const MAX_IDENTITIES_PER_USER = 1;
 
 /** Backoff delays in milliseconds for failed attempts */
 const BACKOFF_DELAYS = [
@@ -190,6 +191,8 @@ export async function createIdentity(
       userAgent?: string;
       ipAddress?: string;
       maxVideoDurationSeconds?: number;
+      subscriptions?: SubscriptionTierId[];
+      entitlements?: string[];
     };
   },
 ): Promise<IdentityCreationResult> {
@@ -288,6 +291,8 @@ export async function loginToIdentity(
     userAgent?: string;
     ipAddress?: string;
     maxVideoDurationSeconds?: number;
+    subscriptions?: SubscriptionTierId[];
+    entitlements?: string[];
   },
 ): Promise<IdentityLoginResult> {
   const identityRepo = getIdentityRepository();

@@ -76,3 +76,28 @@ The API can resolve the requesting client's jurisdiction (country + US/CA state)
 ### Rate limits
 
 IPLocate's free tier allows 1,000 lookups per day. With the 24-hour Redis cache and the 30-day per-user check, typical traffic stays well within that budget. If you approach the limit, either upgrade the plan or extend `GEO_RECHECK_INTERVAL_DAYS`.
+
+## Stripe Billing
+
+Subscription management is handled via Stripe. Users purchase through Stripe-hosted Checkout and manage subscriptions through the Stripe Customer Portal. Webhook events keep the local user document in sync.
+
+### Quick start
+
+1. Create a Product (e.g. "Vanguard") and a recurring monthly Price in the [Stripe Dashboard](https://dashboard.stripe.com/).
+2. Configure the Customer Portal in Dashboard > Settings > Billing > Customer Portal (enable cancellation, payment method updates).
+3. Add a webhook endpoint pointing at `<your-api-url>/api/webhooks/stripe` for events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`.
+4. Copy secrets into your `.env`.
+5. Set `STRIPE_ENABLED=true`.
+
+### Environment variables
+
+| Variable | Default | Notes |
+|---|---|---|
+| `STRIPE_ENABLED` | `false` | Routes return 503 when disabled. |
+| `STRIPE_SECRET_KEY` | _(empty)_ | Server-side only; never exposed to the client. |
+| `STRIPE_PUBLISHABLE_KEY` | _(empty)_ | Safe for client; exposed via the subscription config endpoint. |
+| `STRIPE_WEBHOOK_SECRET` | _(empty)_ | Signing secret from the Stripe webhook configuration. |
+| `STRIPE_PRICE_VANGUARD_MONTHLY` | _(empty)_ | Price ID for the Vanguard monthly subscription. |
+| `STRIPE_SUCCESS_URL` | `WEB_APP_URL/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}` | Redirect after successful checkout. |
+| `STRIPE_CANCEL_URL` | `WEB_APP_URL/account/subscription?status=cancelled` | Redirect when user cancels checkout. |
+| `STRIPE_PORTAL_RETURN_URL` | `WEB_APP_URL/account/subscription` | Return URL from the Customer Portal. |

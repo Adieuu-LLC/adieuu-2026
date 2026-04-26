@@ -192,6 +192,8 @@ describe('session.service', () => {
         identityId: '507f1f77bcf86cd799439012',
         accountHash: 'hash-abc',
         maxVideoDurationSeconds: DEFAULT_MAX_VIDEO_DURATION_SECONDS,
+        subscriptions: [],
+        entitlements: [],
         lastActivityAt: 1_700_000_000_000,
         expiresAt: new Date('2030-06-01T12:00:00.000Z').getTime(),
       });
@@ -294,6 +296,8 @@ describe('session.service', () => {
         identityId: '507f1f77bcf86cd799439012',
         accountHash: 'hash-abc',
         maxVideoDurationSeconds: DEFAULT_MAX_VIDEO_DURATION_SECONDS,
+        subscriptions: [],
+        entitlements: [],
         lastActivityAt: 1_700_000_000_000,
         expiresAt: new Date('2030-06-01T12:00:00.000Z').getTime(),
       });

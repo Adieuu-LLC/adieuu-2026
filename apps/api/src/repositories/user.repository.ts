@@ -6,7 +6,7 @@
 import { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
-import type { UserDocument, CreateUserInput, UpdateUserInput, UserGeo } from '../models/user';
+import type { UserDocument, CreateUserInput, UpdateUserInput, UserGeo, UserBilling } from '../models/user';
 import { DEFAULT_IDENTITY_LOCKOUT_DURATION } from '../models/user';
 import { withTimestamps } from '../models/base';
 
@@ -26,6 +26,8 @@ export interface IUserRepository {
   unlockAccount(id: string | ObjectId): Promise<void>;
   recordLogin(id: string | ObjectId): Promise<void>;
   updateGeo(id: string | ObjectId, geo: UserGeo): Promise<void>;
+  updateStripeCustomerId(id: string | ObjectId, stripeCustomerId: string): Promise<void>;
+  updateBilling(id: string | ObjectId, billing: UserBilling): Promise<void>;
 }
 
 /**
@@ -289,6 +291,38 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
       {
         $set: {
           geo,
+          updatedAt: new Date(),
+        },
+      },
+    );
+  }
+
+  /**
+   * Set the Stripe customer ID on the user document.
+   */
+  async updateStripeCustomerId(id: string | ObjectId, stripeCustomerId: string): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          stripeCustomerId,
+          updatedAt: new Date(),
+        },
+      },
+    );
+  }
+
+  /**
+   * Persist the denormalised billing summary from a Stripe webhook.
+   */
+  async updateBilling(id: string | ObjectId, billing: UserBilling): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          billing,
           updatedAt: new Date(),
         },
       },

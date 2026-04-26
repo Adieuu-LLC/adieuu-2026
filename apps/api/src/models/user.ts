@@ -5,6 +5,7 @@
 
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
+import type { SubscriptionTierId } from '@adieuu/shared';
 
 /**
  * User document stored in MongoDB
@@ -48,6 +49,12 @@ export interface UserDocument extends BaseDocument {
 
   /** IP-derived jurisdiction information, refreshed at login and periodically. */
   geo?: UserGeo;
+
+  /** Stripe customer ID (server-side only; never returned to the client). */
+  stripeCustomerId?: string;
+
+  /** Denormalised billing summary kept in sync by Stripe webhooks. */
+  billing?: UserBilling;
 }
 
 /**
@@ -65,6 +72,20 @@ export interface UserGeo {
   ipHash: string;
   /** When this lookup was last refreshed */
   checkedAt: Date;
+}
+
+/**
+ * Denormalised billing state kept in sync by Stripe webhooks.
+ * Stripe remains the source of truth; this summary avoids synchronous
+ * Stripe calls during login and JWT minting.
+ */
+export interface UserBilling {
+  activeSubscriptions: SubscriptionTierId[];
+  status?: 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused';
+  currentPeriodEnd?: Date;
+  cancelAtPeriodEnd?: boolean;
+  stripeSubscriptionId?: string;
+  updatedAt: Date;
 }
 
 /** Default identity lockout duration: 1 hour in milliseconds */

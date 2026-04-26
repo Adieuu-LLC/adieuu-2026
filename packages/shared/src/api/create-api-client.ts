@@ -1,4 +1,5 @@
 import { AchievementsApi } from './achievements-api';
+import { SubscriptionApi } from './subscription-api';
 import { AdminApi } from './admin-api';
 import { ApiClient, type ApiClientConfig } from './http-client';
 import { AuthApi } from './auth-api';
@@ -42,6 +43,7 @@ export function createApiClient(config: ApiClientConfig) {
     reactions: new ReactionsApi(client),
     klipy: new KlipyApi(client),
     achievements: new AchievementsApi(client),
+    subscription: new SubscriptionApi(client),
   };
 }
 
