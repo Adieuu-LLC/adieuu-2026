@@ -35,7 +35,7 @@ import {
   generateWebAuthnAuthenticationOptions,
 } from '../../services/mfa.service';
 import { getSessionRepository } from '../../repositories/session.repository';
-import { toPublicSession, type PublicSession } from '../../models/session';
+import { maskIpAddress, toPublicSession, type PublicSession } from '../../models/session';
 import type { MfaStatus } from '../../models/mfa';
 import { ObjectId } from 'mongodb';
 import { getUserRepository } from '../../repositories/user.repository';
@@ -660,6 +660,7 @@ export async function getSessionHandler(request: Request): Promise<{
   session: AccountSessionData;
   signedToken: string;
   identityCount: number;
+  maskedIp?: string;
   geo?: { jurisdiction: string; countryCode: string; regionCode?: string; checkedAt: string };
   subscriptions: string[];
   entitlements: string[];
@@ -705,7 +706,9 @@ export async function getSessionHandler(request: Request): Promise<{
       }
     : undefined;
 
-  return { session, signedToken, identityCount, geo, subscriptions, entitlements };
+  const maskedIp = maskIpAddress(getClientIp(request));
+
+  return { session, signedToken, identityCount, maskedIp, geo, subscriptions, entitlements };
 }
 
 /**

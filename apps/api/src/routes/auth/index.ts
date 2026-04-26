@@ -295,7 +295,7 @@ router.get('/auth/session', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  const { session, signedToken, identityCount, geo, subscriptions, entitlements } = result;
+  const { session, signedToken, identityCount, maskedIp, geo, subscriptions, entitlements } = result;
 
   return success({
     identifier: session.identifier,
@@ -303,6 +303,7 @@ router.get('/auth/session', async (ctx) => {
     identityCount,
     maxIdentities: MAX_IDENTITIES_PER_USER,
     signedToken,
+    maskedIp,
     geo,
     subscriptions,
     entitlements,

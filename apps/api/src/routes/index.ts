@@ -29,6 +29,7 @@ import { achievementRoutes } from './achievements';
 import { blockRoutes } from './blocks';
 import { stripeWebhookRoutes } from './webhooks/stripe';
 import { subscriptionRoutes } from './account/subscription';
+import { geoRoutes } from './geo';
 
 /**
  * Registers all application routes with the main router.
@@ -112,6 +113,9 @@ export function registerRoutes(app: Router): void {
 
   // Account subscription management (checkout, portal, status)
   app.merge(subscriptionRoutes, '/api');
+
+  // Jurisdiction / regulatory reference (account session)
+  app.merge(geoRoutes, '/api');
 
   // Stripe webhook (subscription events)
   app.merge(stripeWebhookRoutes, '/api');

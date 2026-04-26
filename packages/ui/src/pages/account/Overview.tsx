@@ -8,7 +8,12 @@ import { Alert } from '../../components/Alert';
 import { Tooltip } from '../../components/Tooltip';
 import { Spinner } from '../../components/Spinner';
 import { useToast } from '../../components/Toast';
-import { createApiClient, type UserProfile } from '@adieuu/shared';
+import {
+  createApiClient,
+  expandedJurisdictionCodesForRequirements,
+  type PublicJurisdictionRequirement,
+  type UserProfile,
+} from '@adieuu/shared';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppConfig } from '../../config';
 
@@ -58,6 +63,10 @@ export function AccountOverview() {
   const [displayNameInput, setDisplayNameInput] = useState('');
   const [savingDisplayName, setSavingDisplayName] = useState(false);
 
+  // Jurisdiction requirements (regulatory reference)
+  const [jurisdictionReqs, setJurisdictionReqs] = useState<PublicJurisdictionRequirement[]>([]);
+  const [jreqLoading, setJreqLoading] = useState(false);
+
   // Load profile on mount
   const loadProfile = useCallback(async () => {
     try {
@@ -79,6 +88,36 @@ export function AccountOverview() {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  const geo = session?.geo;
+
+  useEffect(() => {
+    if (!geo) {
+      setJurisdictionReqs([]);
+      return;
+    }
+    const codes = expandedJurisdictionCodesForRequirements(geo);
+    let cancelled = false;
+    setJreqLoading(true);
+    void (async () => {
+      const res = await api.geo.getJurisdictionRequirements(codes);
+      if (cancelled) return;
+      if (res.success && res.data) {
+        const sorted = [...res.data].sort((a, b) => {
+          const r = a.region.localeCompare(b.region);
+          if (r !== 0) return r;
+          return a.jurisdictionName.localeCompare(b.jurisdictionName);
+        });
+        setJurisdictionReqs(sorted);
+      } else {
+        setJurisdictionReqs([]);
+      }
+      setJreqLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, geo]);
 
 
   // Request email verification
@@ -594,6 +633,166 @@ export function AccountOverview() {
             </div>
           </div>
         </Card>
+
+        {session != null ? (
+          <Card variant="elevated" className="slide-up" style={{ marginTop: '1.5rem' }}>
+            <h2 className="page-title" style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>
+              {t('account.overview.location.title')}
+            </h2>
+            <p className="page-subtitle" style={{ marginBottom: '1rem' }}>
+              {t('account.overview.location.subtitle')}
+            </p>
+            {session.maskedIp != null && session.maskedIp !== '' ? (
+              <div className="account-detail-row">
+                <span className="account-detail-label">{t('account.overview.location.maskedIp')}</span>
+                <span className="account-detail-value">{session.maskedIp}</span>
+              </div>
+            ) : (
+              <div className="account-detail-row">
+                <span className="account-detail-label">{t('account.overview.location.maskedIp')}</span>
+                <span className="account-detail-value account-detail-muted">{t('common.notSet')}</span>
+              </div>
+            )}
+            {geo ? (
+              <>
+                <div className="account-detail-row">
+                  <span className="account-detail-label">{t('account.overview.location.jurisdiction')}</span>
+                  <span className="account-detail-value">{geo.jurisdiction}</span>
+                </div>
+                <div className="account-detail-row">
+                  <span className="account-detail-label">{t('account.overview.location.countryCode')}</span>
+                  <span className="account-detail-value">{geo.countryCode}</span>
+                </div>
+                {geo.regionCode != null && geo.regionCode !== '' && (
+                  <div className="account-detail-row">
+                    <span className="account-detail-label">{t('account.overview.location.regionCode')}</span>
+                    <span className="account-detail-value">{geo.regionCode}</span>
+                  </div>
+                )}
+                <div className="account-detail-row">
+                  <span className="account-detail-label">{t('account.overview.location.lastChecked')}</span>
+                  <span className="account-detail-value">
+                    {new Date(geo.checkedAt).toLocaleString()}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <p className="account-detail-muted" style={{ margin: 0 }}>
+                {t('account.overview.location.unavailable')}
+              </p>
+            )}
+          </Card>
+        ) : null}
+
+        {geo != null && (
+          <Card variant="elevated" className="slide-up" style={{ marginTop: '1.5rem' }}>
+            <h2 className="page-title" style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>
+              {t('account.overview.compliance.title')}
+            </h2>
+            <p className="page-subtitle" style={{ marginBottom: '1rem' }}>
+              {t('account.overview.compliance.subtitle')}
+            </p>
+            <Alert variant="info" className="account-edit-alert" style={{ marginBottom: '1rem' }}>
+              {t('account.overview.compliance.ageVerificationPlanned')}
+            </Alert>
+            {jreqLoading && (
+              <div className="loading-container">
+                <Spinner size="md" />
+              </div>
+            )}
+            {!jreqLoading && jurisdictionReqs.length === 0 && geo && (
+              <p className="account-detail-muted" style={{ margin: 0 }}>
+                {t('account.overview.compliance.empty')}
+              </p>
+            )}
+            {!jreqLoading && jurisdictionReqs.length > 0 && (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {jurisdictionReqs.map((row) => (
+                  <li
+                    key={row.jurisdiction}
+                    style={{
+                      border: '1px solid var(--color-border-subtle, rgba(0,0,0,0.1))',
+                      borderRadius: '8px',
+                      padding: '1rem',
+                      marginBottom: '0.75rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'baseline' }}>
+                      <strong>{row.jurisdictionName}</strong>
+                      <span className="account-detail-muted" style={{ fontSize: '0.875rem' }}>
+                        {row.jurisdiction} — {row.region}
+                      </span>
+                      {row.status === 'proposed' && (
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            textTransform: 'uppercase',
+                            fontWeight: 600,
+                            opacity: 0.8,
+                          }}
+                        >
+                          {t('account.overview.compliance.proposed')}
+                        </span>
+                      )}
+                    </div>
+                    {row.regulatoryBody != null && row.regulatoryBody !== '' && (
+                      <p style={{ margin: '0.5rem 0 0', fontSize: '0.9rem' }}>
+                        <span className="account-detail-muted">{t('account.overview.compliance.regulatoryBody')}: </span>
+                        {row.regulatoryBody}
+                      </p>
+                    )}
+                    {row.legislation.length > 0 && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <span className="account-detail-label" style={{ display: 'block', marginBottom: '0.25rem' }}>
+                          {t('account.overview.compliance.legislation')}
+                        </span>
+                        <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+                          {row.legislation.map((leg) => (
+                            <li key={leg.name}>
+                              {leg.url != null && leg.url !== '' ? (
+                                <a href={leg.url} target="_blank" rel="noopener noreferrer">
+                                  {leg.name}
+                                </a>
+                              ) : (
+                                leg.name
+                              )}
+                              {leg.enactmentDate != null && leg.enactmentDate !== '' && (
+                                <span className="account-detail-muted" style={{ marginLeft: '0.25rem' }}>
+                                  ({leg.enactmentDate})
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {row.requirements.length > 0 && (
+                      <p style={{ margin: '0.5rem 0 0', fontSize: '0.9rem' }}>
+                        <span className="account-detail-muted">{t('account.overview.compliance.requirements')}: </span>
+                        {row.requirements
+                          .map((r) => r.replaceAll('_', ' '))
+                          .join(' · ')}
+                      </p>
+                    )}
+                    {row.compatibleMethods.length > 0 && (
+                      <p style={{ margin: '0.5rem 0 0', fontSize: '0.9rem' }}>
+                        <span className="account-detail-muted">{t('account.overview.compliance.methods')}: </span>
+                        {row.compatibleMethods
+                          .map((m) => m.replaceAll('_', ' '))
+                          .join(' · ')}
+                      </p>
+                    )}
+                    {row.notes != null && row.notes !== '' && (
+                      <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }} className="account-detail-muted">
+                        {t('account.overview.compliance.notes')}: {row.notes}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        )}
 
       </div>
     </div>

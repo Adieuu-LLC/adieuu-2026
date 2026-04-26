@@ -62,6 +62,10 @@ export interface SessionInfo {
    * Refreshed on every GET /api/auth/session call. Present in account mode.
    */
   signedToken?: string;
+  /**
+   * Client IP for this request, masked (e.g. "192.168.*.*"). Account mode only.
+   */
+  maskedIp?: string;
   /** Whether this identity can access platform admin APIs and UI (identity mode) */
   isPlatformAdmin: boolean;
   /** Whether this identity can access the platform moderation panel (identity mode) */

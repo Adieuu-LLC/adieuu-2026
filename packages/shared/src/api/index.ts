@@ -225,6 +225,14 @@ export {
   type AchievementStats,
 } from './achievements-api';
 
+export { GeoApi } from './geo-api';
+export {
+  type PublicJurisdictionRequirement,
+  type JurisdictionLegislationRef,
+  type JurisdictionRequirementStatus,
+} from '../geo/jurisdiction-types';
+export { expandedJurisdictionCodesForRequirements, type GeoSessionSlice } from '../geo/jurisdiction-lookup';
+
 export {
   ChatClient,
   createChatClient,

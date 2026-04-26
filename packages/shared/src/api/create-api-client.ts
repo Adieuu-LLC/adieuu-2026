@@ -17,6 +17,7 @@ import { ReportsApi } from './reports-api';
 import { ThemesApi } from './themes-api';
 import { UploadApi } from './upload-api';
 import { UsersApi } from './users-api';
+import { GeoApi } from './geo-api';
 
 /**
  * Creates an API client instance with all API modules.
@@ -44,6 +45,7 @@ export function createApiClient(config: ApiClientConfig) {
     klipy: new KlipyApi(client),
     achievements: new AchievementsApi(client),
     subscription: new SubscriptionApi(client),
+    geo: new GeoApi(client),
   };
 }
 

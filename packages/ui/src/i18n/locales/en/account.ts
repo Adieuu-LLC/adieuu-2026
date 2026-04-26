@@ -76,6 +76,31 @@ export const account = {
       inAppUpdateLogSupportWindows:
         'The app also records electron-updater activity in a separate in-app <openLogLink>update.log</openLogLink> (in addition to the Windows installer log above). Full path:',
       openInAppUpdateLogError: 'Could not open update.log',
+      // Location & regulatory context (account session)
+      location: {
+        title: 'Location (account)',
+        subtitle:
+          'How we see your connection for compliance and support. This is not shown in alias (identity) sessions.',
+        maskedIp: 'Connection IP (masked)',
+        jurisdiction: 'Jurisdiction',
+        countryCode: 'Country',
+        regionCode: 'Region / state',
+        lastChecked: 'Last geo check',
+        unavailable: 'Location is not available yet. It is refreshed when you sign in and periodically after that, if location lookup is enabled for your account.',
+      },
+      compliance: {
+        title: 'Regulatory context',
+        subtitle:
+          'Summary of public age-assurance and related rules that may apply in your area. This is not legal advice. In-product age verification is not yet available.',
+        proposed: 'Proposed / not in force',
+        ageVerificationPlanned: 'We plan to support age verification for applicable regions in a future release.',
+        legislation: 'Relevant law or instrument',
+        requirements: 'Requirements we track',
+        methods: 'Compatible verification methods (industry)',
+        notes: 'Notes',
+        regulatoryBody: 'Regulator',
+        empty: 'No matching regulatory rows are loaded for this jurisdiction. You can still use Adieuu where our terms and your local law allow.',
+      },
     },
 
     // Notification settings (Account)

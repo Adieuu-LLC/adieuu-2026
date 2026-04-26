@@ -370,6 +370,8 @@ export const Collections = {
   CONVERSATION_PREFERENCES: 'conversation_preferences',
   /** Stripe webhook event idempotency (TTL-indexed by processedAt) */
   STRIPE_PROCESSED_EVENTS: 'stripe_processed_events',
+  /** Jurisdiction regulatory matrix (age verification, etc.) */
+  JURISDICTION_REQUIREMENTS: 'jurisdiction_requirements',
 } as const;
 
 /**
@@ -639,6 +641,10 @@ async function createIndexes(): Promise<void> {
   const stripeEvents = database.collection(Collections.STRIPE_PROCESSED_EVENTS);
   await stripeEvents.createIndex({ eventId: 1 }, { unique: true });
   await stripeEvents.createIndex({ processedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60 });
+
+  // Jurisdiction requirements — one document per jurisdiction code
+  const jurisdictionRequirements = database.collection(Collections.JURISDICTION_REQUIREMENTS);
+  await jurisdictionRequirements.createIndex({ jurisdiction: 1 }, { unique: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

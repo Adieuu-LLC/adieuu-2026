@@ -165,7 +165,7 @@ export interface PublicSession {
  * Mask IP address for privacy (show first two octets only)
  * e.g., "192.168.1.100" -> "192.168.*.*"
  */
-function maskIpAddress(ip?: string): string | undefined {
+export function maskIpAddress(ip?: string): string | undefined {
   if (!ip) return undefined;
   const parts = ip.split('.');
   if (parts.length === 4) {
