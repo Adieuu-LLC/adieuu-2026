@@ -89,74 +89,83 @@ Var pid
 ; ("unknown variable/constant") because our installer.nsh is included via the
 ; shared header *before* multiUser.nsh — and electron-builder runs makensis
 ; with -WX, turning the warning into a build failure.
+;
+; Each Function is also guarded so it is *only* defined in the pass where its
+; calling macro is actually inserted by app-builder; otherwise NSIS emits
+; warning 6010 ("install function ... not referenced") for the dead code.
+;   - AdieuuLogCustomInitDiagnostics — called from customInit, which app-builder
+;     only inserts in the installer pass (!ifndef BUILD_UNINSTALLER branch in
+;     installer.nsi).
+;   - un.AdieuuLogUninstallDiagnostics — called from customUnInit, which is
+;     only inserted (and only valid) in the uninstaller pass.
 !macro customHeader
-  Function AdieuuLogCustomInitDiagnostics
-    Push $0
-    Push $1
-    Push $2
-    Push $3
-    Push $4
-    Push $5
-    Push $6
-    Push $7
-    Push $8
-    ClearErrors
-    FileOpen $8 "$LOCALAPPDATA\Adieuu\logs\installer.log" a
-    IfErrors adieuu_custominit_log_done
-    FileWrite $8 "---- customInit (path resolved) ----$\r$\n"
-    FileWrite $8 "installMode: $installMode$\r$\n"
-    FileWrite $8 "Shell context (SetShellVarContext): see installMode; CurrentUser=per-user, all=per-machine.$\r$\n"
-    FileWrite $8 "INSTDIR: $INSTDIR$\r$\n"
-    FileWrite $8 "Expected EXE: $INSTDIR\${APP_EXECUTABLE_FILENAME}$\r$\n"
-    ${If} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
-      FileWrite $8 "Main EXE present before install: yes (upgrade/repair over existing?)$\r$\n"
-    ${Else}
-      FileWrite $8 "Main EXE present before install: no (fresh or moved)$\r$\n"
-    ${EndIf}
-    ; Per-user: INSTDIR is writable in .onInit. Per-machine: target is under Program Files;
-    ; elevation may happen only in the install Section — avoid false "write failed" here.
-    ${if} $installMode == "CurrentUser"
-      CreateDirectory "$INSTDIR"
+  !ifndef BUILD_UNINSTALLER
+    Function AdieuuLogCustomInitDiagnostics
+      Push $0
+      Push $1
+      Push $2
+      Push $3
+      Push $4
+      Push $5
+      Push $6
+      Push $7
+      Push $8
       ClearErrors
-      FileOpen $0 "$INSTDIR\adieuu_write_probe.deleteme" w
-      IfErrors adieuu_write_probe_fail
-      FileWrite $0 "ok"
-      FileClose $0
-      Delete "$INSTDIR\adieuu_write_probe.deleteme"
-      FileWrite $8 "Write test: can create+delete a file in INSTDIR: ok (per-user)$\r$\n"
-      Goto adieuu_custominit_tasklist
-      adieuu_write_probe_fail:
-      FileWrite $8 "Write test: FAILED (cannot create file in INSTDIR) — check permissions, AV, or controlled folder access.$\r$\n"
-      ClearErrors
-    ${else}
-      FileWrite $8 "Write test: skipped in .onInit for per-machine (Program Files; elevation may apply during install).$\r$\n"
-    ${endif}
-    adieuu_custominit_tasklist:
-    ; Process check (broad) — 0=tasklist success, 1/…=tasklist error
-    nsExec::ExecToStack "cmd /c tasklist /FI IMAGENAME eq ${APP_EXECUTABLE_FILENAME} /NH 2^>^&1"
-    Pop $0
-    Pop $1
-    FileWrite $8 "tasklist filter ${APP_EXECUTABLE_FILENAME} (tasklist exit=$0): $1$\r$\n"
-    !ifndef nsProcess::FindProcess
-      !include "nsProcess.nsh"
-    !endif
-    ${nsProcess::FindProcess} "${APP_EXECUTABLE_FILENAME}" $0
-    FileWrite $8 "nsProcess::FindProcess ${APP_EXECUTABLE_FILENAME} result: $0 (0=process still running per app-builder nsProcess; nonzero=not found; compare to tasklist line)$\r$\n"
-    FileClose $8
-    adieuu_custominit_log_done:
-    Pop $8
-    Pop $7
-    Pop $6
-    Pop $5
-    Pop $4
-    Pop $3
-    Pop $2
-    Pop $1
-    Pop $0
-  FunctionEnd
+      FileOpen $8 "$LOCALAPPDATA\Adieuu\logs\installer.log" a
+      IfErrors adieuu_custominit_log_done
+      FileWrite $8 "---- customInit (path resolved) ----$\r$\n"
+      FileWrite $8 "installMode: $installMode$\r$\n"
+      FileWrite $8 "Shell context (SetShellVarContext): see installMode; CurrentUser=per-user, all=per-machine.$\r$\n"
+      FileWrite $8 "INSTDIR: $INSTDIR$\r$\n"
+      FileWrite $8 "Expected EXE: $INSTDIR\${APP_EXECUTABLE_FILENAME}$\r$\n"
+      ${If} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+        FileWrite $8 "Main EXE present before install: yes (upgrade/repair over existing?)$\r$\n"
+      ${Else}
+        FileWrite $8 "Main EXE present before install: no (fresh or moved)$\r$\n"
+      ${EndIf}
+      ; Per-user: INSTDIR is writable in .onInit. Per-machine: target is under Program Files;
+      ; elevation may happen only in the install Section — avoid false "write failed" here.
+      ${if} $installMode == "CurrentUser"
+        CreateDirectory "$INSTDIR"
+        ClearErrors
+        FileOpen $0 "$INSTDIR\adieuu_write_probe.deleteme" w
+        IfErrors adieuu_write_probe_fail
+        FileWrite $0 "ok"
+        FileClose $0
+        Delete "$INSTDIR\adieuu_write_probe.deleteme"
+        FileWrite $8 "Write test: can create+delete a file in INSTDIR: ok (per-user)$\r$\n"
+        Goto adieuu_custominit_tasklist
+        adieuu_write_probe_fail:
+        FileWrite $8 "Write test: FAILED (cannot create file in INSTDIR) — check permissions, AV, or controlled folder access.$\r$\n"
+        ClearErrors
+      ${else}
+        FileWrite $8 "Write test: skipped in .onInit for per-machine (Program Files; elevation may apply during install).$\r$\n"
+      ${endif}
+      adieuu_custominit_tasklist:
+      ; Process check (broad) — 0=tasklist success, 1/…=tasklist error
+      nsExec::ExecToStack "cmd /c tasklist /FI IMAGENAME eq ${APP_EXECUTABLE_FILENAME} /NH 2^>^&1"
+      Pop $0
+      Pop $1
+      FileWrite $8 "tasklist filter ${APP_EXECUTABLE_FILENAME} (tasklist exit=$0): $1$\r$\n"
+      !ifndef nsProcess::FindProcess
+        !include "nsProcess.nsh"
+      !endif
+      ${nsProcess::FindProcess} "${APP_EXECUTABLE_FILENAME}" $0
+      FileWrite $8 "nsProcess::FindProcess ${APP_EXECUTABLE_FILENAME} result: $0 (0=process still running per app-builder nsProcess; nonzero=not found; compare to tasklist line)$\r$\n"
+      FileClose $8
+      adieuu_custominit_log_done:
+      Pop $8
+      Pop $7
+      Pop $6
+      Pop $5
+      Pop $4
+      Pop $3
+      Pop $2
+      Pop $1
+      Pop $0
+    FunctionEnd
+  !endif
 
-  ; un.* functions are only meaningful when the uninstall section is included
-  ; (i.e. during the uninstaller compile pass), so guard accordingly.
   !ifdef BUILD_UNINSTALLER
     Function un.AdieuuLogUninstallDiagnostics
       Push $0
