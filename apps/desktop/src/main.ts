@@ -101,15 +101,36 @@ app.whenReady().then(() => {
   void initAutoUpdater({ isDev, sendToRenderer });
 });
 
+function cleanupBeforeExit(): void {
+  clearUpdateCheckTimer();
+  destroyBridgeWindow();
+}
+
+function handleTerminationSignal(signal: string): void {
+  console.info(`[Main] Received ${signal}, exiting`);
+  cleanupBeforeExit();
+  app.exit(0);
+}
+
+process.on('SIGTERM', () => handleTerminationSignal('SIGTERM'));
+process.on('SIGINT', () => handleTerminationSignal('SIGINT'));
+process.on('SIGHUP', () => handleTerminationSignal('SIGHUP'));
+
+const QUIT_TIMEOUT_MS = 5_000;
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
+    const quitTimeout = setTimeout(() => {
+      console.error('[Main] Graceful quit timed out, forcing exit');
+      process.exit(0);
+    }, QUIT_TIMEOUT_MS);
+    quitTimeout.unref();
     app.quit();
   }
 });
 
 app.on('will-quit', () => {
-  clearUpdateCheckTimer();
-  destroyBridgeWindow();
+  cleanupBeforeExit();
 });
 
 app.on('activate', () => {
