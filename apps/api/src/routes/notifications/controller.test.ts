@@ -1,58 +1,8 @@
 import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
-import { ROUTE_TEST_IDENTITY_ID, parseAdieuuSessionCookie } from '../../test-fixtures/route-identity';
+import { ROUTE_TEST_IDENTITY_ID, testIdentityEnrichment } from '../../test-fixtures/route-identity';
 
-// Mock config
-mock.module('../../config', () => ({
-  config: {
-    env: 'test',
-    cors: { origins: '*', credentials: false },
-    mongodb: { uri: 'mongodb://localhost:27017', dbName: 'test' },
-    redis: { url: 'redis://localhost:6379' },
-    security: {
-      sessionSecret: 'test-secret',
-      otpSecret: 'test-otp-secret',
-    },
-    cookie: {
-      domain: '',
-    },
-  },
-}));
-
-// Test identity data (stable across route tests; matches other controller mocks)
 const mockIdentityId = ROUTE_TEST_IDENTITY_ID;
-const mockIdentity = {
-  _id: mockIdentityId,
-  ident: 'test-hash',
-  hashVersion: 1,
-  username: 'testuser',
-  displayName: 'Test User',
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  lastActiveAt: new Date(),
-};
-
-// Mock session service
-mock.module('../../services/session.service', () => ({
-  requireIdentitySession: mock((request: Request) => {
-    const cookie = request.headers.get('Cookie') ?? '';
-    if (cookie.includes('adieuu_session=')) {
-      return Promise.resolve({
-        type: 'identity',
-        identityId: mockIdentityId.toHexString(),
-        lastActivityAt: Date.now(),
-        expiresAt: Date.now() + 86_400_000,
-      });
-    }
-    return Promise.resolve(null);
-  }),
-}));
-
-// Mock identity service
-mock.module('../../services/identity.service', () => ({
-  getIdentityFromSession: mock(() => Promise.resolve(mockIdentity)),
-  getIdentitySessionIdFromRequest: mock((request: Request) => parseAdieuuSessionCookie(request)),
-}));
 
 // Mock notification service
 const mockGetNotifications = mock(() => Promise.resolve({
@@ -87,6 +37,8 @@ mock.module('../../services/notification.service', () => ({
 
 // Import after mocking
 import { notificationRoutes } from './index';
+
+notificationRoutes.use(testIdentityEnrichment(mockIdentityId));
 
 describe('notifications routes', () => {
   afterAll(() => {

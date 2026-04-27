@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
-import { ROUTE_TEST_IDENTITY_ID, parseAdieuuSessionCookie } from '../../test-fixtures/route-identity';
+import { ROUTE_TEST_IDENTITY_ID, testIdentityEnrichment } from '../../test-fixtures/route-identity';
 import type {
   FriendRequestResult,
   FriendshipResult,
@@ -12,23 +12,6 @@ import type { PublicFriendRequest } from '../../models/friend-request';
 
 const myIdentityId = ROUTE_TEST_IDENTITY_ID;
 const targetIdentityId = new ObjectId();
-
-const requireIdentitySessionMock = mock((request: Request) => {
-  const cookie = request.headers.get('Cookie') ?? '';
-  if (cookie.includes('adieuu_session=')) {
-    return Promise.resolve({
-      type: 'identity' as const,
-      identityId: myIdentityId.toHexString(),
-      lastActivityAt: Date.now(),
-      expiresAt: Date.now() + 86_400_000,
-    });
-  }
-  return Promise.resolve(null);
-});
-const getIdentityFromSessionMock = mock(async () => ({
-  _id: myIdentityId,
-  username: 'me',
-}));
 
 const sendFriendRequestMock = mock(async (): Promise<FriendRequestResult> => ({
   success: true,
@@ -63,15 +46,6 @@ const getFriendshipStatusMock = mock(
   async (): Promise<FriendshipStatusResult> => ({ status: 'none' })
 );
 
-mock.module('../../services/session.service', () => ({
-  requireIdentitySession: requireIdentitySessionMock,
-}));
-
-mock.module('../../services/identity.service', () => ({
-  getIdentityFromSession: getIdentityFromSessionMock,
-  getIdentitySessionIdFromRequest: mock((request: Request) => parseAdieuuSessionCookie(request)),
-}));
-
 mock.module('../../services/friend.service', () => ({
   sendFriendRequest: sendFriendRequestMock,
   acceptFriendRequest: acceptFriendRequestMock,
@@ -86,15 +60,9 @@ mock.module('../../services/friend.service', () => ({
   getFriendshipStatus: getFriendshipStatusMock,
 }));
 
-mock.module('../../repositories/identity.repository', () => ({
-  getIdentityRepository: () => ({}),
-}));
-
-mock.module('../../models/identity', () => ({
-  toPublicIdentity: (x: unknown) => x,
-}));
-
 import { friendRoutes } from './index';
+
+friendRoutes.use(testIdentityEnrichment(myIdentityId, { username: 'me' }));
 
 function makeRequest(
   path: string,
@@ -121,8 +89,6 @@ describe('friends routes', () => {
   });
 
   beforeEach(() => {
-    requireIdentitySessionMock.mockClear();
-    getIdentityFromSessionMock.mockClear();
     sendFriendRequestMock.mockClear();
     acceptFriendRequestMock.mockClear();
     ignoreFriendRequestMock.mockClear();
@@ -135,7 +101,6 @@ describe('friends routes', () => {
     getIncomingRequestCountMock.mockClear();
     getFriendshipStatusMock.mockClear();
 
-    getIdentityFromSessionMock.mockResolvedValue({ _id: myIdentityId, username: 'me' });
     sendFriendRequestMock.mockResolvedValue({
       success: true,
       request: {

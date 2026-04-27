@@ -85,13 +85,20 @@ const mockDestroyAllIdentitySessions = mock(() =>
 const mockBuildLogoutCookie = mock(() => 'mock-logout-cookie') as AnyMock;
 const mockGetSession = mock(() => Promise.resolve(null)) as AnyMock;
 
+const mockGetSessionIdFromRequest = mock((request: Request) => {
+  const cookieHeader = request.headers.get('Cookie');
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(/adieuu_session=([^;.]+)/);
+  return match?.[1] ?? null;
+});
+
 mock.module('./session.service', () => ({
   createIdentitySession: mockCreateIdentitySession,
   destroySession: mockDestroySession,
   destroyAllIdentitySessions: mockDestroyAllIdentitySessions,
   requireIdentitySession: mock(() => Promise.resolve(null)),
   buildLogoutCookie: mockBuildLogoutCookie,
-  getSessionIdFromRequest: mock(() => 'mock-session-id'),
+  getSessionIdFromRequest: mockGetSessionIdFromRequest,
   getSession: mockGetSession,
 }));
 

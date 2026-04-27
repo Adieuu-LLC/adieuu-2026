@@ -14,7 +14,6 @@ let currentIdentity = {
   devices: [{ deviceId: 'device-1' }],
 };
 
-const getIdentityFromSessionMock = mock(async () => currentIdentity);
 const findByIdentityIdMock = mock(async (): Promise<IdentityDocument | null> => null);
 const verifySignedPreKeyMock = mock(() => true);
 
@@ -34,24 +33,6 @@ mock.module('../../services/identity-keys-access.service', () => ({
   canViewerAccessTargetIdentityKeys: canViewerAccessTargetIdentityKeysMock,
 }));
 
-mock.module('../../services/session.service', () => ({
-  requireIdentitySession: mock((request: Request) => {
-    const cookie = request.headers.get('Cookie') ?? '';
-    if (cookie.includes('adieuu_session=')) {
-      return Promise.resolve({
-        type: 'identity',
-        identityId: ownerId.toHexString(),
-        lastActivityAt: Date.now(),
-        expiresAt: Date.now() + 86_400_000,
-      });
-    }
-    return Promise.resolve(null);
-  }),
-}));
-
-mock.module('../../services/identity.service', () => ({
-  getIdentityFromSession: getIdentityFromSessionMock,
-}));
 
 mock.module('../../repositories/identity.repository', () => ({
   getIdentityRepository: () => ({
@@ -103,10 +84,9 @@ function makeCtx(options: {
   body?: unknown;
   authenticated?: boolean;
 }) {
+  const isAuth = options.authenticated !== false;
   const request = new Request('http://localhost', {
-    headers: options.authenticated === false
-      ? undefined
-      : { Cookie: 'adieuu_session=session' },
+    headers: isAuth ? { Cookie: 'adieuu_session=session' } : undefined,
   });
 
   return {
@@ -114,6 +94,15 @@ function makeCtx(options: {
     params: options.params,
     body: options.body ?? {},
     query: new URLSearchParams(),
+    identitySession: isAuth
+      ? {
+          identity: currentIdentity as never,
+          sessionId: 'test-session',
+          maxVideoDurationSeconds: 300,
+          subscriptions: [],
+          entitlements: [],
+        }
+      : null,
     errors: {
       unauthorized: () => new Response(JSON.stringify({ success: false }), { status: 401 }),
       validationFailed: () => new Response(JSON.stringify({ success: false }), { status: 400 }),
@@ -135,8 +124,6 @@ describe('pre-key.controller', () => {
     canViewerAccessTargetIdentityKeysMock.mockReset();
     canViewerAccessTargetIdentityKeysMock.mockImplementation(() => Promise.resolve(true));
 
-    getIdentityFromSessionMock.mockReset();
-    getIdentityFromSessionMock.mockImplementation(async () => currentIdentity);
     findByIdentityIdMock.mockReset();
     verifySignedPreKeyMock.mockReset();
     verifySignedPreKeyMock.mockReturnValue(true);

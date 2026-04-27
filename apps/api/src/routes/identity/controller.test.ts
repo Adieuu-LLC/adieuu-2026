@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
-import { ROUTE_TEST_IDENTITY_ID, parseAdieuuSessionCookie } from '../../test-fixtures/route-identity';
+import { ROUTE_TEST_IDENTITY_ID, testIdentityEnrichment } from '../../test-fixtures/route-identity';
 
 // Mock config
 mock.module('../../config', () => ({
@@ -183,12 +183,14 @@ mock.module('../../services/identity.service', () => ({
     }
     return Promise.resolve(mockIdentity);
   }),
-  getIdentitySessionIdFromRequest: mock((request: Request) => parseAdieuuSessionCookie(request)),
+  getIdentitySessionIdFromRequest: mock(() => null),
   MIN_PASSPHRASE_LENGTH: 8,
 }));
 
 // Import after mocking
 import { identityRoutes } from './index';
+
+identityRoutes.use(testIdentityEnrichment(mockIdentityId));
 
 describe('identity routes', () => {
   afterAll(() => {
@@ -299,7 +301,7 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity/logout', {
         method: 'POST',
         body: {},
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(200);
@@ -312,7 +314,6 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity/logout', {
         method: 'POST',
         body: {},
-        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(200);
@@ -323,7 +324,6 @@ describe('identity routes', () => {
     test('returns 401 without identity session cookie', async () => {
       const response = await makeRequest('/identity/session', {
         method: 'GET',
-        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(401);
@@ -334,7 +334,6 @@ describe('identity routes', () => {
     test('returns 401 without identity session cookie', async () => {
       const response = await makeRequest('/identity', {
         method: 'DELETE',
-        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(401);
@@ -407,7 +406,6 @@ describe('identity routes', () => {
     test('returns 401 without identity session', async () => {
       const response = await makeRequest('/identity/blocklist', {
         method: 'GET',
-        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(401);
@@ -416,7 +414,7 @@ describe('identity routes', () => {
     test('returns blocked identities with identity session', async () => {
       const response = await makeRequest('/identity/blocklist', {
         method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(200);
@@ -426,7 +424,7 @@ describe('identity routes', () => {
     test('respects limit parameter', async () => {
       const response = await makeRequest('/identity/blocklist?limit=25', {
         method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(200);
@@ -440,7 +438,7 @@ describe('identity routes', () => {
     test('caps limit at 100', async () => {
       const response = await makeRequest('/identity/blocklist?limit=200', {
         method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(200);
@@ -457,7 +455,6 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity/blocklist', {
         method: 'POST',
         body: { identityId: mockTargetIdentityId.toHexString() },
-        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(401);
@@ -467,7 +464,7 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity/blocklist', {
         method: 'POST',
         body: { identityId: 'invalid-id' },
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(400);
@@ -477,7 +474,7 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity/blocklist', {
         method: 'POST',
         body: {},
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(400);
@@ -487,7 +484,7 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity/blocklist', {
         method: 'POST',
         body: { identityId: mockTargetIdentityId.toHexString() },
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(200);
@@ -506,7 +503,7 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity/blocklist', {
         method: 'POST',
         body: { identityId: mockIdentity._id.toHexString() },
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(400);
@@ -521,7 +518,7 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity/blocklist', {
         method: 'POST',
         body: { identityId: mockTargetIdentityId.toHexString() },
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(400);
@@ -536,7 +533,7 @@ describe('identity routes', () => {
       const response = await makeRequest('/identity/blocklist', {
         method: 'POST',
         body: { identityId: mockTargetIdentityId.toHexString() },
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(404);
@@ -547,7 +544,6 @@ describe('identity routes', () => {
     test('returns 401 without identity session', async () => {
       const response = await makeRequest(`/identity/blocklist/${mockTargetIdentityId.toHexString()}`, {
         method: 'DELETE',
-        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(401);
@@ -556,7 +552,7 @@ describe('identity routes', () => {
     test('returns 400 for invalid identity ID', async () => {
       const response = await makeRequest('/identity/blocklist/invalid-id', {
         method: 'DELETE',
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(400);
@@ -565,7 +561,7 @@ describe('identity routes', () => {
     test('unblocks identity with valid ID', async () => {
       const response = await makeRequest(`/identity/blocklist/${mockTargetIdentityId.toHexString()}`, {
         method: 'DELETE',
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(200);
@@ -583,7 +579,7 @@ describe('identity routes', () => {
 
       const response = await makeRequest(`/identity/blocklist/${mockTargetIdentityId.toHexString()}`, {
         method: 'DELETE',
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(404);
@@ -594,7 +590,6 @@ describe('identity routes', () => {
     test('returns 401 without identity session', async () => {
       const response = await makeRequest(`/identity/blocklist/check/${mockTargetIdentityId.toHexString()}`, {
         method: 'GET',
-        cookies: 'adieuu_session=test-session',
       });
 
       expect(response.status).toBe(401);
@@ -603,7 +598,7 @@ describe('identity routes', () => {
     test('returns 400 for invalid identity ID', async () => {
       const response = await makeRequest('/identity/blocklist/check/invalid-id', {
         method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(400);
@@ -612,7 +607,7 @@ describe('identity routes', () => {
     test('returns blocked status', async () => {
       const response = await makeRequest(`/identity/blocklist/check/${mockTargetIdentityId.toHexString()}`, {
         method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(200);
@@ -633,7 +628,7 @@ describe('identity routes', () => {
 
       const response = await makeRequest(`/identity/blocklist/check/${mockTargetIdentityId.toHexString()}`, {
         method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
+        cookies: 'adieuu_session=session',
       });
 
       expect(response.status).toBe(200);

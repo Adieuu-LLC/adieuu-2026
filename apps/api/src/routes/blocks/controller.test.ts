@@ -1,27 +1,10 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
-import { ROUTE_TEST_IDENTITY_ID, parseAdieuuSessionCookie } from '../../test-fixtures/route-identity';
+import { ROUTE_TEST_IDENTITY_ID, testIdentityEnrichment } from '../../test-fixtures/route-identity';
 import type { BlockResult, UnblockResult } from '../../services/block.service';
 
 const myIdentityId = ROUTE_TEST_IDENTITY_ID;
 const targetIdentityId = new ObjectId();
-
-const requireIdentitySessionMock = mock((request: Request) => {
-  const cookie = request.headers.get('Cookie') ?? '';
-  if (cookie.includes('adieuu_session=')) {
-    return Promise.resolve({
-      type: 'identity' as const,
-      identityId: myIdentityId.toHexString(),
-      lastActivityAt: Date.now(),
-      expiresAt: Date.now() + 86_400_000,
-    });
-  }
-  return Promise.resolve(null);
-});
-const getIdentityFromSessionMock = mock(async () => ({
-  _id: myIdentityId,
-  username: 'me',
-}));
 
 const blockIdentityMock = mock(async (): Promise<BlockResult> => ({ success: true }));
 const unblockIdentityMock = mock(async (): Promise<UnblockResult> => ({ success: true }));
@@ -29,15 +12,6 @@ const checkIfBlockedMock = mock(async () => ({ blocked: false, blockedAt: null a
 const getBlockedIdentitiesMock = mock(async () => ({ blocks: [], cursor: null as string | null }));
 const getBlockedIdentityIdsMock = mock(async (): Promise<ObjectId[]> => []);
 const isBlockedByEitherMock = mock(async () => false);
-
-mock.module('../../services/session.service', () => ({
-  requireIdentitySession: requireIdentitySessionMock,
-}));
-
-mock.module('../../services/identity.service', () => ({
-  getIdentityFromSession: getIdentityFromSessionMock,
-  getIdentitySessionIdFromRequest: mock((request: Request) => parseAdieuuSessionCookie(request)),
-}));
 
 mock.module('../../services/block.service', () => ({
   blockIdentity: blockIdentityMock,
@@ -57,6 +31,8 @@ mock.module('../../models/identity', () => ({
 }));
 
 import { blockRoutes } from './index';
+
+blockRoutes.use(testIdentityEnrichment(myIdentityId, { username: 'me' }));
 
 function makeRequest(
   path: string,
@@ -81,8 +57,6 @@ describe('blocks routes', () => {
   });
 
   beforeEach(() => {
-    requireIdentitySessionMock.mockClear();
-    getIdentityFromSessionMock.mockClear();
     blockIdentityMock.mockClear();
     unblockIdentityMock.mockClear();
     checkIfBlockedMock.mockClear();
@@ -90,7 +64,6 @@ describe('blocks routes', () => {
     getBlockedIdentityIdsMock.mockClear();
     isBlockedByEitherMock.mockClear();
 
-    getIdentityFromSessionMock.mockResolvedValue({ _id: myIdentityId, username: 'me' });
     blockIdentityMock.mockResolvedValue({ success: true });
     unblockIdentityMock.mockResolvedValue({ success: true });
     checkIfBlockedMock.mockResolvedValue({ blocked: false, blockedAt: null });
