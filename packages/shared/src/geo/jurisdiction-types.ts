@@ -6,6 +6,7 @@ export interface JurisdictionLegislationRef {
   name: string;
   url?: string;
   enactmentDate?: string;
+  notes?: string;
 }
 
 export type JurisdictionRequirementStatus = 'enacted' | 'proposed';

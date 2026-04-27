@@ -761,6 +761,11 @@ export function AccountOverview() {
                                   ({leg.enactmentDate})
                                 </span>
                               )}
+                              {leg.notes != null && leg.notes !== '' && (
+                                <p className="account-detail-muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+                                  {leg.notes}
+                                </p>
+                              )}
                             </li>
                           ))}
                         </ul>

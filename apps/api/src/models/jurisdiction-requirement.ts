@@ -11,6 +11,8 @@ export interface LegislationRef {
   url?: string;
   /** Human-readable, e.g. "1st October 2024" */
   enactmentDate?: string;
+  /** Optional supplementary notes displayed alongside the legislation entry */
+  notes?: string;
 }
 
 export type JurisdictionRequirementStatus = 'enacted' | 'proposed';
