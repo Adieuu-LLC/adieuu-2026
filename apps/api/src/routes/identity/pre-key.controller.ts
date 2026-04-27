@@ -13,10 +13,6 @@
 
 import { success, errors } from '../../utils/response';
 import type { RouteContext } from '../../router';
-import {
-  getIdentityFromSession,
-  getIdentitySessionIdFromRequest,
-} from '../../services/identity.service';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getPreKeyRepository } from '../../repositories/pre-key.repository';
 import { toIdentityPublicKeys } from '../../models/identity';
@@ -66,15 +62,8 @@ const ClaimPreKeysSchema = z.object({
  * Authenticated, owner only.
  */
 export async function uploadPreKeysCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot upload pre-keys for another identity.');
@@ -181,15 +170,8 @@ export async function uploadPreKeysCtrl(ctx: RouteContext): Promise<Response> {
  * as fallback if no OTPKs are available.
  */
 export async function claimPreKeysCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const callerIdentity = await getIdentityFromSession(identitySessionId);
-  if (!callerIdentity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const callerIdentity = ctx.identitySession.identity;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -251,15 +233,8 @@ export async function claimPreKeysCtrl(ctx: RouteContext): Promise<Response> {
  * Authenticated, owner only.
  */
 export async function purgeOneTimePreKeysCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot purge pre-keys for another identity.');
@@ -291,15 +266,8 @@ export async function purgeOneTimePreKeysCtrl(ctx: RouteContext): Promise<Respon
  * Authenticated, owner only. Used to decide when to replenish.
  */
 export async function getPreKeyCountCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot query pre-key count for another identity.');

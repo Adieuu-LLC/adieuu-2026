@@ -35,6 +35,7 @@ import {
   destroyAllIdentitySessions,
   buildLogoutCookie,
   getSession,
+  getSessionIdFromRequest,
   type IdentitySessionData,
 } from './session.service';
 import { reconcileAchievements } from './achievement.service';
@@ -638,8 +639,11 @@ export interface IdentityModerationBlock {
 
 /**
  * Loads identity + moderation state from an already-resolved identity session.
+ *
+ * Exported for use by the identity session middleware, which resolves the
+ * session once and attaches the identity to the request context.
  */
-async function loadIdentityFromIdentitySession(
+export async function loadIdentityFromIdentitySession(
   sessionData: IdentitySessionData,
   opts?: { returnBlockDetails?: boolean },
 ): Promise<IdentityDocument | { blocked: IdentityModerationBlock } | null> {
@@ -762,25 +766,13 @@ export function buildIdentityLogoutCookie(): string {
 }
 
 /**
- * Extracts identity session ID from request cookies.
- * Now reads the unified `adieuu_session` cookie.
+ * Extracts the identity session ID from request cookies.
+ *
+ * Delegates to {@link getSessionIdFromRequest} which correctly parses the
+ * `sessionId.grantKey` cookie format, returning only the session ID portion.
  */
 export function getIdentitySessionIdFromRequest(request: Request): string | null {
-  const cookieHeader = request.headers.get('Cookie');
-  if (!cookieHeader) return null;
-
-  const cookies = cookieHeader.split(';').reduce(
-    (acc, cookie) => {
-      const [key, value] = cookie.trim().split('=');
-      if (key && value) {
-        acc[key] = value;
-      }
-      return acc;
-    },
-    {} as Record<string, string>,
-  );
-
-  return cookies['adieuu_session'] ?? null;
+  return getSessionIdFromRequest(request);
 }
 
 // Re-export constants for use in routes

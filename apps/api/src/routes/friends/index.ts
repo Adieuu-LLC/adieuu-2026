@@ -16,10 +16,6 @@ import { Router } from '../../router';
 import { success, errors } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
 import {
-  getIdentityFromSession,
-  getIdentitySessionIdFromRequest,
-} from '../../services/identity.service';
-import {
   sendFriendRequest,
   acceptFriendRequest,
   ignoreFriendRequest,
@@ -36,16 +32,6 @@ import { z } from '@adieuu/shared/schemas';
 import { isValidObjectId } from '../../utils';
 
 const router = new Router();
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-async function requireIdentity(request: Request) {
-  const sessionId = getIdentitySessionIdFromRequest(request);
-  if (!sessionId) return null;
-  return await getIdentityFromSession(sessionId);
-}
 
 // ---------------------------------------------------------------------------
 // Friend request schemas
@@ -66,8 +52,8 @@ const SendRequestSchema = z.object({
  * @requestBody { identityId: string }
  */
 router.post('/friends/requests', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const parseResult = SendRequestSchema.safeParse(ctx.body);
   if (!parseResult.success) return ctx.errors.validationFailed();
@@ -104,8 +90,8 @@ router.post('/friends/requests', async (ctx) => {
  * @route POST /api/friends/requests/:id/accept
  */
 router.post('/friends/requests/:id/accept', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -135,8 +121,8 @@ router.post('/friends/requests/:id/accept', async (ctx) => {
  * @route POST /api/friends/requests/:id/ignore
  */
 router.post('/friends/requests/:id/ignore', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -166,8 +152,8 @@ router.post('/friends/requests/:id/ignore', async (ctx) => {
  * @route DELETE /api/friends/requests/:id
  */
 router.delete('/friends/requests/:id', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -199,8 +185,8 @@ router.delete('/friends/requests/:id', async (ctx) => {
  * @queryParam cursor (string, optional): Pagination cursor
  */
 router.get('/friends/requests/incoming', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const limitParam = ctx.query.get('limit');
   const cursor = ctx.query.get('cursor');
@@ -234,8 +220,8 @@ router.get('/friends/requests/incoming', async (ctx) => {
  * @queryParam cursor (string, optional): Pagination cursor
  */
 router.get('/friends/requests/outgoing', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const limitParam = ctx.query.get('limit');
   const cursor = ctx.query.get('cursor');
@@ -266,8 +252,8 @@ router.get('/friends/requests/outgoing', async (ctx) => {
  * @route GET /api/friends/requests/count
  */
 router.get('/friends/requests/count', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const count = await getIncomingRequestCount(identity._id);
 
@@ -286,8 +272,8 @@ router.get('/friends/requests/count', async (ctx) => {
  * @queryParam cursor (string, optional): Pagination cursor
  */
 router.get('/friends', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const limitParam = ctx.query.get('limit');
   const cursor = ctx.query.get('cursor');
@@ -320,8 +306,8 @@ router.get('/friends', async (ctx) => {
  * @queryParam limit (number, optional): Max results (default 20, max 50)
  */
 router.get('/friends/search', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const query = ctx.query.get('q');
   if (!query || query.trim().length < 2) {
@@ -349,8 +335,8 @@ router.get('/friends/search', async (ctx) => {
  * @route DELETE /api/friends/:identityId
  */
 router.delete('/friends/:identityId', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { identityId } = ctx.params;
   const sanitized = sanitizeString(identityId ?? '', 'general');
@@ -376,8 +362,8 @@ router.delete('/friends/:identityId', async (ctx) => {
  * @route GET /api/friends/status/:identityId
  */
 router.get('/friends/status/:identityId', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { identityId } = ctx.params;
   const sanitized = sanitizeString(identityId ?? '', 'general');

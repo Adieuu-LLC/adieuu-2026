@@ -83,6 +83,14 @@ export { sessionCookieRenewal } from './session-cookie-renewal';
 export { requireActiveSubscription } from './require-subscription';
 
 /**
+ * Identity session enrichment and enforcement middleware.
+ *
+ * @see {@link module:middleware/identity-session}
+ */
+export { enrichIdentitySession, requireIdentitySession } from './identity-session';
+
+/**
  * Re-export types for external use.
  */
 export type { CorsOptions } from './cors';
+export type { IdentityContext } from './identity-session';

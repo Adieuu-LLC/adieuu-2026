@@ -13,8 +13,6 @@ import { RouteContext } from '../../router';
 import { sanitizeString } from '../../utils/sanitize';
 import {
   getSessionIdFromRequest,
-  getSessionFromRequest,
-  requireIdentitySession,
   buildLogoutCookie,
 } from '../../services/session.service';
 import { verifySignedToken } from '../../services/account-token.service';
@@ -28,11 +26,8 @@ import {
   loginToIdentity,
   logoutFromIdentity,
   deleteIdentity,
-  getIdentityFromSession,
-  getIdentitySessionIdFromRequest,
   changePassphrase,
   MIN_PASSPHRASE_LENGTH,
-  type IdentityModerationBlock,
 } from '../../services/identity.service';
 import {
   blockIdentity,
@@ -102,13 +97,10 @@ export async function searchIdentitiesCtrl(ctx: RouteContext): Promise<Response>
 
   let excludeIds;
   let viewerIdentityId: string | undefined;
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (identitySessionId) {
-    const identity = await getIdentityFromSession(identitySessionId);
-    if (identity) {
-      excludeIds = await getBlockedIdentityIds(identity._id);
-      viewerIdentityId = identity._id.toHexString();
-    }
+  if (ctx.identitySession) {
+    const { identity } = ctx.identitySession;
+    excludeIds = await getBlockedIdentityIds(identity._id);
+    viewerIdentityId = identity._id.toHexString();
   }
 
   const identityRepo = getIdentityRepository();
@@ -141,17 +133,14 @@ export async function getIdentityByIdCtrl(ctx: RouteContext): Promise<Response> 
   const publicProfile = toPublicIdentity(identity);
 
   let viewerRelation: 'self' | 'friend' | 'stranger' = 'stranger';
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (identitySessionId) {
-    const viewerIdentity = await getIdentityFromSession(identitySessionId);
-    if (viewerIdentity) {
-      if (viewerIdentity._id.equals(identity._id)) {
-        viewerRelation = 'self';
-      } else {
-        const friends = await areFriends(viewerIdentity._id, identity._id);
-        if (friends) {
-          viewerRelation = 'friend';
-        }
+  if (ctx.identitySession) {
+    const viewerIdentity = ctx.identitySession.identity;
+    if (viewerIdentity._id.equals(identity._id)) {
+      viewerRelation = 'self';
+    } else {
+      const friends = await areFriends(viewerIdentity._id, identity._id);
+      if (friends) {
+        viewerRelation = 'friend';
       }
     }
   }
@@ -327,10 +316,9 @@ export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
 }
 
 export async function logoutIdentityCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-
-  if (identitySessionId) {
-    await logoutFromIdentity(identitySessionId);
+  const sessionId = getSessionIdFromRequest(ctx.request);
+  if (sessionId) {
+    await logoutFromIdentity(sessionId);
   }
 
   const response = success(undefined, 'Identity logout successful.');
@@ -340,56 +328,18 @@ export async function logoutIdentityCtrl(ctx: RouteContext): Promise<Response> {
 }
 
 export async function getIdentitySessionCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const rawSession = await getSessionFromRequest(ctx.request);
-  if (rawSession?.type === 'account') {
-    return ctx.errors.unauthorized();
-  }
-  if (!rawSession) {
+  if (!ctx.identitySession) {
     return ctx.errors.sessionExpiredWithClearCookie();
   }
 
-  const result = await getIdentityFromSession(identitySessionId, { returnBlockDetails: true });
-  if (!result) {
-    return ctx.errors.sessionExpiredWithClearCookie();
-  }
-
-  if ('blocked' in result) {
-    const block = (result as { blocked: IdentityModerationBlock }).blocked;
-    const code = block.type === 'banned' ? 'IDENTITY_BANNED' : 'IDENTITY_SUSPENDED';
-    return errorResponse(
-      code,
-      block.type === 'banned'
-        ? 'This alias has been permanently banned.'
-        : 'This alias is currently suspended.',
-      403,
-      {
-        moderationReason: block.moderationReason,
-        moderationReportId: block.moderationReportId,
-        suspendedUntil: block.suspendedUntil,
-      },
-    );
-  }
-
-  return success(toPublicIdentity(result));
+  return success(toPublicIdentity(ctx.identitySession.identity));
 }
 
 export async function deleteIdentityCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity, sessionId } = ctx.identitySession;
 
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
-
-  const result = await deleteIdentity(identity._id, identitySessionId);
+  const result = await deleteIdentity(identity._id, sessionId);
   if (!result.success) {
     return errors.badRequest(result.error ?? 'Identity deletion failed.');
   }
@@ -405,16 +355,8 @@ export async function deleteIdentityCtrl(ctx: RouteContext): Promise<Response> {
 // ============================================================================
 
 export async function getBlocklistCtrl(ctx: RouteContext): Promise<Response> {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   // Parse pagination params
   const limitParam = ctx.query.get('limit');
@@ -442,16 +384,8 @@ export async function getBlocklistCtrl(ctx: RouteContext): Promise<Response> {
 }
 
 export async function addToBlocklistCtrl(ctx: RouteContext): Promise<Response> {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   // Validate request body
   const parseResult = BlockIdentitySchema.safeParse(ctx.body);
@@ -486,16 +420,8 @@ export async function addToBlocklistCtrl(ctx: RouteContext): Promise<Response> {
 }
 
 export async function removeFromBlocklistCtrl(ctx: RouteContext): Promise<Response> {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { identityId } = ctx.params;
 
@@ -518,16 +444,8 @@ export async function removeFromBlocklistCtrl(ctx: RouteContext): Promise<Respon
 }
 
 export async function checkBlocklistCtrl(ctx: RouteContext): Promise<Response> {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { identityId } = ctx.params;
 
@@ -580,15 +498,8 @@ const InitializeE2ESchema = z.object({
  * POST /identity/:id/devices
  */
 export async function registerDeviceCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot register device for another identity.');
@@ -644,15 +555,8 @@ export async function getIdentityKeysCtrl(ctx: RouteContext): Promise<Response> 
     return errors.badRequest('Invalid identity ID.');
   }
 
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const viewerIdentity = await getIdentityFromSession(identitySessionId);
-  if (!viewerIdentity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const viewerIdentity = ctx.identitySession.identity;
 
   const identityRepo = getIdentityRepository();
   const identity = await identityRepo.findByIdentityId(sanitized.value);
@@ -691,15 +595,8 @@ export async function getIdentityKeysCtrl(ctx: RouteContext): Promise<Response> 
  * PUT /identity/:id/bundle
  */
 export async function storeKeyBundleCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot store key bundle for another identity.');
@@ -736,15 +633,8 @@ export async function storeKeyBundleCtrl(ctx: RouteContext): Promise<Response> {
  * GET /identity/:id/bundle
  */
 export async function getKeyBundleCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot retrieve key bundle for another identity.');
@@ -780,15 +670,8 @@ export async function getKeyBundleCtrl(ctx: RouteContext): Promise<Response> {
  * GET /identity/:id/devices
  */
 export async function listDevicesCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot list devices for another identity.');
@@ -815,15 +698,8 @@ export async function listDevicesCtrl(ctx: RouteContext): Promise<Response> {
  * DELETE /identity/:id/devices/:deviceId
  */
 export async function removeDeviceCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot remove device for another identity.');
@@ -850,15 +726,8 @@ export async function removeDeviceCtrl(ctx: RouteContext): Promise<Response> {
  * PATCH /identity/:id/devices/:deviceId
  */
 export async function updateDeviceCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot update device for another identity.');
@@ -912,15 +781,8 @@ export async function updateDeviceCtrl(ctx: RouteContext): Promise<Response> {
  * Owner uploads Ed25519 attestation over this device's static public keys.
  */
 export async function putDeviceStaticKeyAttestationCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot update device attestation for another identity.');
@@ -974,15 +836,8 @@ export async function putDeviceStaticKeyAttestationCtrl(ctx: RouteContext): Prom
  * GET /identity/:id/sessions
  */
 export async function listIdentitySessionsCtrl(ctx: RouteContext): Promise<Response> {
-  const currentSessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!currentSessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(currentSessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity, sessionId: currentSessionId } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot list sessions for another identity.');
@@ -1003,15 +858,8 @@ export async function listIdentitySessionsCtrl(ctx: RouteContext): Promise<Respo
  * DELETE /identity/:id/sessions/:sessionId
  */
 export async function revokeIdentitySessionCtrl(ctx: RouteContext): Promise<Response> {
-  const currentSessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!currentSessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(currentSessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity, sessionId: currentSessionId } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot revoke sessions for another identity.');
@@ -1043,15 +891,8 @@ export async function revokeIdentitySessionCtrl(ctx: RouteContext): Promise<Resp
  * DELETE /identity/:id/sessions
  */
 export async function revokeAllOtherIdentitySessionsCtrl(ctx: RouteContext): Promise<Response> {
-  const currentSessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!currentSessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(currentSessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity, sessionId: currentSessionId } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot revoke sessions for another identity.');
@@ -1073,15 +914,8 @@ export async function revokeAllOtherIdentitySessionsCtrl(ctx: RouteContext): Pro
  * POST /identity/:id/e2e/initialize
  */
 export async function initializeE2ECtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   if (identity._id.toHexString() !== ctx.params.id) {
     return errors.forbidden('Cannot initialize E2E for another identity.');
@@ -1166,15 +1000,8 @@ const ChangePassphraseSchema = z.object({
  * POST /identity/change-passphrase
  */
 export async function changePassphraseCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const parseResult = ChangePassphraseSchema.safeParse(ctx.body);
   if (!parseResult.success) {

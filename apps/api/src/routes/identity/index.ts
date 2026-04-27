@@ -56,10 +56,6 @@ import {
   getProfileCtrl,
 } from './profile.controller';
 import { success } from '../../utils/response';
-import {
-  getIdentitySessionIdFromRequest,
-  getIdentityFromSession,
-} from '../../services/identity.service';
 
 const router = new Router();
 
@@ -700,15 +696,7 @@ const EncryptedPrefsBodySchema = z.object({
  * @query prefsId - The derived preferences ID
  */
 router.get('/identity/me/preferences', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
 
   const url = new URL(ctx.request.url, 'http://localhost');
   const prefsId = url.searchParams.get('prefsId');
@@ -740,15 +728,7 @@ router.get('/identity/me/preferences', async (ctx) => {
  * @route PUT /api/identity/me/preferences
  */
 router.put('/identity/me/preferences', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
 
   const parseResult = EncryptedPrefsBodySchema.safeParse(ctx.body);
   if (!parseResult.success) {

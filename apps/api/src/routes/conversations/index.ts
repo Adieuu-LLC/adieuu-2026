@@ -12,10 +12,6 @@ import { Router } from '../../router';
 import { success, errors, error } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
 import {
-  getIdentityFromSession,
-  getIdentitySessionIdFromRequest,
-} from '../../services/identity.service';
-import {
   createConversation,
   getConversation,
   listConversations,
@@ -55,16 +51,6 @@ import { isValidObjectId } from '../../utils';
 import type { PublicMessage } from '../../models/message';
 
 const router = new Router();
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-async function requireIdentity(request: Request) {
-  const sessionId = getIdentitySessionIdFromRequest(request);
-  if (!sessionId) return null;
-  return await getIdentityFromSession(sessionId);
-}
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -160,8 +146,8 @@ const UpdateMemberSettingsSchema = z.object({
  * POST /conversations - Create a DM or group conversation
  */
 router.post('/conversations', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const parseResult = CreateConversationSchema.safeParse(ctx.body);
   if (!parseResult.success) return ctx.errors.validationFailed();
@@ -210,8 +196,8 @@ router.post('/conversations', async (ctx) => {
  * GET /conversations - List conversations for authenticated identity
  */
 router.get('/conversations', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const limitParam = ctx.query.get('limit');
   const cursor = ctx.query.get('cursor');
@@ -252,8 +238,8 @@ const UpdatePreferencesSchema = z.object({
  * GET /conversations/preferences - List all conversation preferences for the authenticated identity
  */
 router.get('/conversations/preferences', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const repo = getConversationPreferencesRepository();
   const docs = await repo.findForIdentity(identity._id);
@@ -265,8 +251,8 @@ router.get('/conversations/preferences', async (ctx) => {
  * PATCH /conversations/:id/preferences - Upsert conversation preferences
  */
 router.patch('/conversations/preferences/:id', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -306,8 +292,8 @@ router.patch('/conversations/preferences/:id', async (ctx) => {
  * GET /conversations/invites - List pending group invites
  */
 router.get('/conversations/invites', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const limitParam = ctx.query.get('limit');
   const cursor = ctx.query.get('cursor');
@@ -336,8 +322,8 @@ router.get('/conversations/invites', async (ctx) => {
  * GET /conversations/invites/:id/preview - Preview group details for a pending invite
  */
 router.get('/conversations/invites/:id/preview', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -361,8 +347,8 @@ router.get('/conversations/invites/:id/preview', async (ctx) => {
  * POST /conversations/invites/:id/accept - Accept a group invite
  */
 router.post('/conversations/invites/:id/accept', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -385,8 +371,8 @@ router.post('/conversations/invites/:id/accept', async (ctx) => {
  * POST /conversations/invites/:id/decline - Decline a group invite
  */
 router.post('/conversations/invites/:id/decline', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -413,8 +399,8 @@ router.post('/conversations/invites/:id/decline', async (ctx) => {
  * GET /conversations/:id - Get a single conversation
  */
 router.get('/conversations/:id', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -440,8 +426,8 @@ router.get('/conversations/:id', async (ctx) => {
  * (group: admins; DM: any participant)
  */
 router.patch('/conversations/:id', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -474,8 +460,8 @@ router.patch('/conversations/:id', async (ctx) => {
  * DMs: any participant. Groups: admin only.
  */
 router.patch('/conversations/:id/member-settings', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -516,8 +502,8 @@ const UpdateGifsDisabledSchema = z.object({
  * Groups: admin only. DMs: either participant.
  */
 router.patch('/conversations/:id/gifs', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -553,8 +539,8 @@ const UpdateMessageSearchCacheSchema = z.object({
  * persistent local message search caches. Groups: admin only. DMs: either participant.
  */
 router.patch('/conversations/:id/message-search-cache', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -589,8 +575,8 @@ const PinMessageBodySchema = z.object({
  * POST /conversations/:id/pins — Pin a message (DM: either participant; group: admin).
  */
 router.post('/conversations/:id/pins', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -618,8 +604,8 @@ router.post('/conversations/:id/pins', async (ctx) => {
  * DELETE /conversations/:id/pins/:messageId — Remove a pin.
  */
 router.delete('/conversations/:id/pins/:messageId', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id, messageId } = ctx.params;
   const sanitizedConv = sanitizeString(id ?? '', 'general');
@@ -647,8 +633,8 @@ router.delete('/conversations/:id/pins/:messageId', async (ctx) => {
  * GET /conversations/:id/pinned-messages — Paginated ciphertext for pinned messages (any participant).
  */
 router.get('/conversations/:id/pinned-messages', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -687,8 +673,8 @@ router.get('/conversations/:id/pinned-messages', async (ctx) => {
  * POST /conversations/:id/messages - Send an encrypted message
  */
 router.post('/conversations/:id/messages', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -729,8 +715,8 @@ router.post('/conversations/:id/messages', async (ctx) => {
  * GET /conversations/:id/messages - Get messages (paginated)
  */
 router.get('/conversations/:id/messages', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -795,8 +781,8 @@ router.get('/conversations/:id/messages', async (ctx) => {
  * GET /conversations/:id/messages/around/:messageId — window around a message (reply jump / deep link).
  */
 router.get('/conversations/:id/messages/around/:messageId', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id, messageId } = ctx.params;
   const sanitizedConv = sanitizeString(id ?? '', 'general');
@@ -853,8 +839,8 @@ router.get('/conversations/:id/messages/around/:messageId', async (ctx) => {
  * GET /conversations/:id/messages/:messageId — one message. Use `?include=revisionHistory` for E2E edit history.
  */
 router.get('/conversations/:id/messages/:messageId', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id, messageId } = ctx.params;
   const sanitizedConv = sanitizeString(id ?? '', 'general');
@@ -886,8 +872,8 @@ router.get('/conversations/:id/messages/:messageId', async (ctx) => {
  * PATCH /conversations/:id/messages/:messageId — edit message (E2E replacement + history append)
  */
 router.patch('/conversations/:id/messages/:messageId', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id, messageId } = ctx.params;
   const sanitizedConv = sanitizeString(id ?? '', 'general');
@@ -929,8 +915,8 @@ router.patch('/conversations/:id/messages/:messageId', async (ctx) => {
  * DELETE /conversations/:id/messages/:messageId - Delete a message for self
  */
 router.delete('/conversations/:id/messages/:messageId', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id, messageId } = ctx.params;
 
@@ -960,8 +946,8 @@ router.delete('/conversations/:id/messages/:messageId', async (ctx) => {
  * DELETE /conversations/:id/messages/:messageId/everyone - Delete a message for everyone (sender only)
  */
 router.delete('/conversations/:id/messages/:messageId/everyone', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id, messageId } = ctx.params;
 
@@ -996,8 +982,8 @@ router.delete('/conversations/:id/messages/:messageId/everyone', async (ctx) => 
  * POST /conversations/:id/members - Add a member to a group (creator only)
  */
 router.post('/conversations/:id/members', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -1052,8 +1038,8 @@ router.post('/conversations/:id/members', async (ctx) => {
  * DELETE /conversations/:id/members/:identityId - Remove a member (creator only)
  */
 router.delete('/conversations/:id/members/:identityId', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id, identityId } = ctx.params;
 
@@ -1083,8 +1069,8 @@ router.delete('/conversations/:id/members/:identityId', async (ctx) => {
  * GET /conversations/:id/former-members - List former members who left (admin only)
  */
 router.get('/conversations/:id/former-members', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -1108,8 +1094,8 @@ router.get('/conversations/:id/former-members', async (ctx) => {
  * GET /conversations/:id/pending-invites - Pending group invites for this conversation
  */
 router.get('/conversations/:id/pending-invites', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -1132,8 +1118,8 @@ router.get('/conversations/:id/pending-invites', async (ctx) => {
  * DELETE /conversations/:id/invites/:inviteId - Revoke a pending group invite (admin only)
  */
 router.delete('/conversations/:id/invites/:inviteId', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id, inviteId } = ctx.params;
   const sanitizedConv = sanitizeString(id ?? '', 'general');
@@ -1162,8 +1148,8 @@ router.delete('/conversations/:id/invites/:inviteId', async (ctx) => {
  * POST /conversations/:id/leave - Leave a group conversation
  */
 router.post('/conversations/:id/leave', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -1189,8 +1175,8 @@ router.post('/conversations/:id/leave', async (ctx) => {
  * POST /conversations/:id/admins - Promote a member to admin
  */
 router.post('/conversations/:id/admins', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -1223,8 +1209,8 @@ router.post('/conversations/:id/admins', async (ctx) => {
  * DELETE /conversations/:id - Terminate (delete) a group (admin) or topical DM (either participant)
  */
 router.delete('/conversations/:id', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   const sanitized = sanitizeString(id ?? '', 'general');
@@ -1280,8 +1266,8 @@ const SendReactionSchema = z.object({
  * POST /conversations/:id/messages/:messageId/reactions - Add a reaction
  */
 router.post('/conversations/:id/messages/:messageId/reactions', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id, messageId } = ctx.params;
 
@@ -1316,8 +1302,8 @@ router.post('/conversations/:id/messages/:messageId/reactions', async (ctx) => {
  * DELETE /conversations/:id/reactions/:reactionId - Remove a reaction
  */
 router.delete('/conversations/:id/reactions/:reactionId', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id, reactionId } = ctx.params;
 
@@ -1348,8 +1334,8 @@ router.delete('/conversations/:id/reactions/:reactionId', async (ctx) => {
  * GET /conversations/:id/reactions - Batch-fetch reactions for messages
  */
 router.get('/conversations/:id/reactions', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
 

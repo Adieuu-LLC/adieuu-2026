@@ -16,10 +16,6 @@ import { ObjectId } from 'mongodb';
 import type { RouteContext } from '../../router/types';
 import { success, errors } from '../../utils/response';
 import { sanitizeString } from '../../utils';
-import {
-  getIdentitySessionIdFromRequest,
-  getIdentityFromSession,
-} from '../../services/identity.service';
 import { checkAndAward } from '../../services/achievement.service';
 import { publishProfileUpdated } from '../../services/profile-event.service';
 import { contrastRatio } from '../../utils/color';
@@ -131,15 +127,8 @@ export function applyPrivacyFilter(
  * PATCH /identity/me/profile - Update own profile.
  */
 export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const parseResult = UpdateProfileSchema.safeParse(ctx.body);
   if (!parseResult.success) {
@@ -303,17 +292,14 @@ export async function getProfileCtrl(ctx: RouteContext): Promise<Response> {
   // Determine viewer identity (optional — unauthenticated viewers see public only)
   let viewerRelation: 'self' | 'friend' | 'stranger' = 'stranger';
 
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (identitySessionId) {
-    const viewerIdentity = await getIdentityFromSession(identitySessionId);
-    if (viewerIdentity) {
-      if (viewerIdentity._id.equals(doc._id)) {
-        viewerRelation = 'self';
-      } else {
-        const friends = await areFriends(viewerIdentity._id, doc._id);
-        if (friends) {
-          viewerRelation = 'friend';
-        }
+  if (ctx.identitySession) {
+    const viewerIdentity = ctx.identitySession.identity;
+    if (viewerIdentity._id.equals(doc._id)) {
+      viewerRelation = 'self';
+    } else {
+      const friends = await areFriends(viewerIdentity._id, doc._id);
+      if (friends) {
+        viewerRelation = 'friend';
       }
     }
   }

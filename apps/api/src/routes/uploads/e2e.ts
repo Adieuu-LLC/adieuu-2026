@@ -17,11 +17,6 @@
 import { Router } from '../../router';
 import { z } from '@adieuu/shared/schemas';
 import { success, error, errors } from '../../utils/response';
-import {
-  getIdentitySessionIdFromRequest,
-  getIdentityFromSession,
-  getIdentityUploadContext,
-} from '../../services/identity.service';
 import { VIDEO_MIME_TYPES } from '../../models/media-upload';
 import {
   requestE2EUpload,
@@ -93,15 +88,8 @@ const SealConvScanSessionSchema = z.object({
  * @returns 200 OK with { e2eMediaId, uploadUrl, scanHash, expiresIn }
  */
 router.post('/uploads/e2e/request', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const uploadCtx = await getIdentityUploadContext(identitySessionId);
-  if (!uploadCtx) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity, maxVideoDurationSeconds, subscriptions } = ctx.identitySession;
 
   const parseResult = RequestE2EUploadSchema.safeParse(ctx.body);
   if (!parseResult.success) {
@@ -111,11 +99,11 @@ router.post('/uploads/e2e/request', async (ctx) => {
   const result = await requestE2EUpload({
     contentType: parseResult.data.contentType,
     contentLength: parseResult.data.contentLength,
-    identityId: uploadCtx.identity._id.toHexString(),
+    identityId: identity._id.toHexString(),
     stripExif: parseResult.data.stripExif,
-    maxVideoDurationSeconds: uploadCtx.maxVideoDurationSeconds,
+    maxVideoDurationSeconds,
     declaredDurationSeconds: parseResult.data.declaredDurationSeconds,
-    subscriptions: uploadCtx.subscriptions,
+    subscriptions,
   });
 
   if (!result.success) {
@@ -151,15 +139,8 @@ router.post('/uploads/e2e/request', async (ctx) => {
  * @route POST /api/uploads/e2e/:mediaId/complete
  */
 router.post('/uploads/e2e/:mediaId/complete', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { mediaId } = ctx.params;
   if (!mediaId || mediaId.length > 100) {
@@ -190,15 +171,8 @@ router.post('/uploads/e2e/:mediaId/complete', async (ctx) => {
  * @route DELETE /api/uploads/e2e/:mediaId
  */
 router.delete('/uploads/e2e/:mediaId', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { mediaId } = ctx.params;
   if (!mediaId || mediaId.length > 100) {
@@ -237,15 +211,8 @@ router.delete('/uploads/e2e/:mediaId', async (ctx) => {
  * @returns 200 OK with { e2eMediaId, status, moderationStatus, moderationReason }
  */
 router.get('/uploads/e2e/:mediaId/status', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { mediaId } = ctx.params;
   if (!mediaId || mediaId.length > 100) {
@@ -274,15 +241,8 @@ router.get('/uploads/e2e/:mediaId/status', async (ctx) => {
  * @returns 403 Forbidden when content was rejected
  */
 router.get('/uploads/e2e/:mediaId/download', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { mediaId } = ctx.params;
   if (!mediaId || mediaId.length > 100) {
@@ -331,15 +291,8 @@ router.get('/uploads/e2e/:mediaId/download', async (ctx) => {
  * @returns 200 OK with { scanMediaId, uploadUrl, expiresIn }
  */
 router.post('/uploads/scan/request', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const parseResult = RequestScanUploadSchema.safeParse(ctx.body);
   if (!parseResult.success) {
@@ -385,15 +338,8 @@ router.post('/uploads/scan/request', async (ctx) => {
  * @route POST /api/uploads/scan/:mediaId/complete
  */
 router.post('/uploads/scan/:mediaId/complete', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { mediaId } = ctx.params;
   if (!mediaId || mediaId.length > 100) {
@@ -428,15 +374,8 @@ router.post('/uploads/scan/:mediaId/complete', async (ctx) => {
  * @route POST /api/uploads/scan/seal
  */
 router.post('/uploads/scan/seal', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const parseResult = SealConvScanSessionSchema.safeParse(ctx.body);
   if (!parseResult.success) {

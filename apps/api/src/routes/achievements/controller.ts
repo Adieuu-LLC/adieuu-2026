@@ -6,13 +6,8 @@
  * and retrieving global stats.
  */
 
-import { ObjectId } from 'mongodb';
 import type { RouteContext } from '../../router/types';
 import { success, errors } from '../../utils/response';
-import {
-  getIdentitySessionIdFromRequest,
-  getIdentityFromSession,
-} from '../../services/identity.service';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import {
   getAllDefinitions,
@@ -38,15 +33,8 @@ export async function getDefinitionsCtrl(ctx: RouteContext): Promise<Response> {
  * Requires identity session.
  */
 export async function getMyAchievementsCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const achievements = await getIdentityAchievements(identity._id);
   return success({ achievements });
@@ -74,16 +62,13 @@ export async function getIdentityAchievementsCtrl(ctx: RouteContext): Promise<Re
 
   let viewerRelation: 'self' | 'friend' | 'stranger' = 'stranger';
 
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (identitySessionId) {
-    const viewerIdentity = await getIdentityFromSession(identitySessionId);
-    if (viewerIdentity) {
-      if (viewerIdentity._id.equals(targetDoc._id)) {
-        viewerRelation = 'self';
-      } else {
-        const friends = await areFriends(viewerIdentity._id, targetDoc._id);
-        if (friends) viewerRelation = 'friend';
-      }
+  if (ctx.identitySession) {
+    const viewerIdentity = ctx.identitySession.identity;
+    if (viewerIdentity._id.equals(targetDoc._id)) {
+      viewerRelation = 'self';
+    } else {
+      const friends = await areFriends(viewerIdentity._id, targetDoc._id);
+      if (friends) viewerRelation = 'friend';
     }
   }
 
@@ -135,15 +120,8 @@ export async function getGlobalStatsCtrl(ctx: RouteContext): Promise<Response> {
  * Only actions in the CLAIMABLE_ACTIONS whitelist are accepted.
  */
 export async function claimAchievementCtrl(ctx: RouteContext): Promise<Response> {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { action } = ctx.body as { action?: string };
   if (!action || !CLAIMABLE_ACTIONS.has(action)) {

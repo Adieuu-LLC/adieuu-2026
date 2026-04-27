@@ -16,10 +16,6 @@ import { Router } from '../../router';
 import { success, errors } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
 import {
-  getIdentityFromSession,
-  getIdentitySessionIdFromRequest,
-} from '../../services/identity.service';
-import {
   blockIdentity,
   unblockIdentity,
   checkIfBlocked,
@@ -59,16 +55,8 @@ const BlockIdentitySchema = z.object({
  * @returns 404 Not Found if identity doesn't exist
  */
 router.post('/blocks', async (ctx) => {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   // Validate request body
   const parseResult = BlockIdentitySchema.safeParse(ctx.body);
@@ -116,16 +104,8 @@ router.post('/blocks', async (ctx) => {
  * @returns 404 Not Found if block doesn't exist
  */
 router.delete('/blocks/:identityId', async (ctx) => {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { identityId } = ctx.params;
 
@@ -162,16 +142,8 @@ router.delete('/blocks/:identityId', async (ctx) => {
  * @returns 401 Unauthorized if not authenticated
  */
 router.get('/blocks', async (ctx) => {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   // Parse pagination params
   const limitParam = ctx.query.get('limit');
@@ -212,16 +184,8 @@ router.get('/blocks', async (ctx) => {
  * @returns 401 Unauthorized if not authenticated
  */
 router.get('/blocks/check/:identityId', async (ctx) => {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { identityId } = ctx.params;
 
@@ -253,15 +217,8 @@ router.get('/blocks/check/:identityId', async (ctx) => {
  * @returns 401 Unauthorized if not authenticated
  */
 router.get('/blocks/check-either/:identityId', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { identityId } = ctx.params;
 

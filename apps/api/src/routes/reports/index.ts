@@ -12,10 +12,6 @@ import { Router } from '../../router';
 import { success, error } from '../../utils/response';
 import { getErrorMessage } from '../../i18n';
 import {
-  getIdentitySessionIdFromRequest,
-  getIdentityFromSession,
-} from '../../services/identity.service';
-import {
   submitMessageReport,
   submitProfileReport,
   type ReportSubmissionResult,
@@ -86,11 +82,8 @@ function reportSubmissionErrorResponse(result: ReportSubmissionResult): Response
 // ---------------------------------------------------------------------------
 
 router.post('/reports', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) return ctx.errors.unauthorized();
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) return ctx.errors.sessionExpiredWithClearCookie();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const identityId = identity._id.toHexString();
 

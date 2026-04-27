@@ -17,10 +17,6 @@ import { Router } from '../../router';
 import { z } from '@adieuu/shared/schemas';
 import { success, errors } from '../../utils/response';
 import {
-  getIdentitySessionIdFromRequest,
-  getIdentityFromSession,
-} from '../../services/identity.service';
-import {
   requestUpload,
   completeUpload,
   getUploadStatus,
@@ -57,15 +53,8 @@ const RequestUploadSchema = z.object({
  * @returns 429 Too Many Requests if rate limited
  */
 router.post('/uploads/request', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const parseResult = RequestUploadSchema.safeParse(ctx.body);
   if (!parseResult.success) {
@@ -111,15 +100,8 @@ router.post('/uploads/request', async (ctx) => {
  * @returns 404 Not Found if upload doesn't exist or doesn't belong to caller
  */
 router.post('/uploads/:mediaId/complete', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { mediaId } = ctx.params;
   if (!mediaId || mediaId.length > 100) {
@@ -154,15 +136,8 @@ router.post('/uploads/:mediaId/complete', async (ctx) => {
  * @returns 404 Not Found if upload doesn't exist or doesn't belong to caller
  */
 router.get('/uploads/:mediaId/status', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { mediaId } = ctx.params;
   if (!mediaId || mediaId.length > 100) {

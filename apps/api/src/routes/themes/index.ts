@@ -13,10 +13,6 @@ import { z, CommunityThemeUploadSchema } from '@adieuu/shared/schemas';
 import { computeColorChecksum } from '@adieuu/shared';
 import { getCommunityThemeRepository } from '../../repositories/community-theme.repository';
 import { toPublicCommunityTheme } from '../../models/community-theme';
-import {
-  getIdentitySessionIdFromRequest,
-  getIdentityFromSession,
-} from '../../services/identity.service';
 import { checkRateLimit } from '../../services/rate-limit.service';
 
 const router = new Router();
@@ -78,15 +74,8 @@ router.get('/themes', async (ctx) => {
  * @route GET /api/themes/me/shared-checksums
  */
 router.get('/themes/me/shared-checksums', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const repo = getCommunityThemeRepository();
   const checksums = await repo.listColorChecksumsByAuthor(identity._id);
@@ -124,15 +113,8 @@ router.get('/themes/:id', async (ctx) => {
  * @route POST /api/themes
  */
 router.post('/themes', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const rateLimitResult = await checkRateLimit(
     'theme_upload',
@@ -186,15 +168,8 @@ router.post('/themes', async (ctx) => {
  * @route DELETE /api/themes/:id
  */
 router.delete('/themes/:id', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   if (!id || !ObjectId.isValid(id)) {
@@ -219,15 +194,8 @@ router.delete('/themes/:id', async (ctx) => {
  * @route POST /api/themes/:id/upvote
  */
 router.post('/themes/:id/upvote', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   if (!id || !ObjectId.isValid(id)) {
@@ -257,15 +225,8 @@ router.post('/themes/:id/upvote', async (ctx) => {
  * @route POST /api/themes/:id/report
  */
 router.post('/themes/:id/report', async (ctx) => {
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const { id } = ctx.params;
   if (!id || !ObjectId.isValid(id)) {

@@ -11,10 +11,6 @@
 import { Router } from '../../router';
 import { success } from '../../utils/response';
 import {
-  getIdentitySessionIdFromRequest,
-  getIdentityFromSession,
-} from '../../services/identity.service';
-import {
   checkRateLimit,
   getKlipySearchConfig,
   escalateKlipyThrottle,
@@ -33,12 +29,6 @@ const router = new Router();
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-async function requireIdentity(request: Request) {
-  const sessionId = getIdentitySessionIdFromRequest(request);
-  if (!sessionId) return null;
-  return getIdentityFromSession(sessionId);
-}
 
 function parseType(raw: string | null): KlipyContentType | null {
   if (raw === 'gif' || raw === 'sticker') return raw;
@@ -60,8 +50,8 @@ for (const type of ['gifs', 'stickers'] as const) {
   const contentType: KlipyContentType = type === 'gifs' ? 'gif' : 'sticker';
 
   router.get(`/klipy/${type}/search`, async (ctx) => {
-    const identity = await requireIdentity(ctx.request);
-    if (!identity) return ctx.errors.unauthorized();
+    if (!ctx.identitySession) return ctx.errors.unauthorized();
+    const { identity } = ctx.identitySession;
 
     const identityId = identity._id.toHexString();
     const q = ctx.query.get('q')?.trim();
@@ -104,8 +94,8 @@ for (const type of ['gifs', 'stickers'] as const) {
   // -------------------------------------------------------------------------
 
   router.get(`/klipy/${type}/trending`, async (ctx) => {
-    const identity = await requireIdentity(ctx.request);
-    if (!identity) return ctx.errors.unauthorized();
+    if (!ctx.identitySession) return ctx.errors.unauthorized();
+    const { identity } = ctx.identitySession;
 
     const identityId = identity._id.toHexString();
 
@@ -150,8 +140,8 @@ const ShareSchema = z.object({
 });
 
 router.post('/klipy/share', async (ctx) => {
-  const identity = await requireIdentity(ctx.request);
-  if (!identity) return ctx.errors.unauthorized();
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const parseResult = ShareSchema.safeParse(ctx.body);
   if (!parseResult.success) return ctx.errors.validationFailed();

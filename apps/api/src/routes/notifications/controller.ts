@@ -10,10 +10,6 @@
 import { success, errors } from '../../utils/response';
 import { RouteContext } from '../../router';
 import {
-  getIdentityFromSession,
-  getIdentitySessionIdFromRequest,
-} from '../../services/identity.service';
-import {
   getNotifications,
   markNotificationsAsRead,
   markNotificationsAsUnread,
@@ -64,16 +60,8 @@ function validateNotificationIds(
 }
 
 export async function getNotificationsCtrl(ctx: RouteContext): Promise<Response> {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   // Parse query params
   const since = ctx.query.get('since');
@@ -119,16 +107,8 @@ export async function getNotificationsCtrl(ctx: RouteContext): Promise<Response>
 }
 
 export async function markNotificationsAsReadCtrl(ctx: RouteContext): Promise<Response> {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const validation = validateNotificationIds(ctx);
   if (!validation.valid) {
@@ -143,16 +123,8 @@ export async function markNotificationsAsReadCtrl(ctx: RouteContext): Promise<Re
 }
 
 export async function markNotificationsAsUnreadCtrl(ctx: RouteContext): Promise<Response> {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const validation = validateNotificationIds(ctx);
   if (!validation.valid) {
@@ -167,16 +139,8 @@ export async function markNotificationsAsUnreadCtrl(ctx: RouteContext): Promise<
 }
 
 export async function deleteNotificationsCtrl(ctx: RouteContext): Promise<Response> {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const validation = validateNotificationIds(ctx);
   if (!validation.valid) {
@@ -191,16 +155,8 @@ export async function deleteNotificationsCtrl(ctx: RouteContext): Promise<Respon
 }
 
 export async function getNotificationCountsCtrl(ctx: RouteContext): Promise<Response> {
-  // Require identity session
-  const identitySessionId = getIdentitySessionIdFromRequest(ctx.request);
-  if (!identitySessionId) {
-    return ctx.errors.unauthorized();
-  }
-
-  const identity = await getIdentityFromSession(identitySessionId);
-  if (!identity) {
-    return ctx.errors.unauthorized();
-  }
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
 
   const counts = await getNotificationCounts(identity._id);
 

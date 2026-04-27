@@ -3,6 +3,7 @@
  */
 
 import type { Locale } from '../i18n';
+import type { IdentityContext } from '../middleware/identity-session';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD';
 
@@ -71,6 +72,12 @@ export interface RouteContext {
   locale: Locale;
   /** Localized error response factories */
   errors: ContextErrors;
+  /**
+   * Resolved identity session data, populated by `enrichIdentitySession`
+   * middleware. `null` when no identity session is present or resolution
+   * failed; `undefined` only before the middleware runs.
+   */
+  identitySession?: IdentityContext | null;
 }
 
 export type RouteHandler = (ctx: RouteContext) => Response | Promise<Response>;
