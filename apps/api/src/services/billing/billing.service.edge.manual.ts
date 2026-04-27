@@ -9,10 +9,12 @@ const mockSubscriptionRetrieve: any = mock((): any =>
   Promise.resolve({
     id: 'sub_123',
     status: 'active',
-    current_period_end: Math.floor(Date.now() / 1000) + 86400,
-    cancel_at_period_end: false,
+    cancel_at: null,
     items: {
-      data: [{ price: { id: 'price_access_annual' } }],
+      data: [{
+        price: { id: 'price_access_annual' },
+        current_period_end: Math.floor(Date.now() / 1000) + 86400,
+      }],
     },
   }),
 );
@@ -323,9 +325,8 @@ describe('applySubscriptionChange', () => {
     mockSubscriptionRetrieve.mockResolvedValueOnce({
       id: 'sub_new',
       status: 'active',
-      current_period_end: Math.floor(Date.now() / 1000) + 86400,
-      cancel_at_period_end: false,
-      items: { data: [{ price: { id: 'price_access_annual' } }] },
+      cancel_at: null,
+      items: { data: [{ price: { id: 'price_access_annual' }, current_period_end: Math.floor(Date.now() / 1000) + 86400 }] },
     });
 
     const event = fakeStripeEvent('customer.subscription.created', {
@@ -353,9 +354,8 @@ describe('applySubscriptionChange', () => {
     mockSubscriptionRetrieve.mockResolvedValueOnce({
       id: 'sub_access',
       status: 'active',
-      current_period_end: Math.floor(Date.now() / 1000) + 365 * 86400,
-      cancel_at_period_end: false,
-      items: { data: [{ price: { id: 'price_access_annual' } }] },
+      cancel_at: null,
+      items: { data: [{ price: { id: 'price_access_annual' }, current_period_end: Math.floor(Date.now() / 1000) + 365 * 86400 }] },
     });
 
     const event = fakeStripeEvent('checkout.session.completed', {
@@ -383,9 +383,8 @@ describe('applySubscriptionChange', () => {
     mockSubscriptionRetrieve.mockResolvedValueOnce({
       id: 'sub_1',
       status: 'active',
-      current_period_end: Math.floor(Date.now() / 1000) + 86400,
-      cancel_at_period_end: false,
-      items: { data: [{ price: { id: 'price_access_annual' } }] },
+      cancel_at: null,
+      items: { data: [{ price: { id: 'price_access_annual' }, current_period_end: Math.floor(Date.now() / 1000) + 86400 }] },
     });
 
     const event = fakeStripeEvent('checkout.session.completed', {
@@ -523,9 +522,8 @@ describe('applySubscriptionChange', () => {
     mockSubscriptionRetrieve.mockResolvedValueOnce({
       id: 'sub_upd',
       status: 'past_due',
-      current_period_end: Math.floor(Date.now() / 1000) + 86400,
-      cancel_at_period_end: true,
-      items: { data: [{ price: { id: 'price_insider_annual' } }] },
+      cancel_at: Math.floor(Date.now() / 1000) + 86400,
+      items: { data: [{ price: { id: 'price_insider_annual' }, current_period_end: Math.floor(Date.now() / 1000) + 86400 }] },
     });
 
     const event = fakeStripeEvent('customer.subscription.updated', {
@@ -578,9 +576,8 @@ describe('applySubscriptionChange', () => {
     mockSubscriptionRetrieve.mockResolvedValueOnce({
       id: 'sub_recurring',
       status: 'active',
-      current_period_end: Math.floor(Date.now() / 1000) + 86400,
-      cancel_at_period_end: false,
-      items: { data: [{ price: { id: 'price_access_annual' } }] },
+      cancel_at: null,
+      items: { data: [{ price: { id: 'price_access_annual' }, current_period_end: Math.floor(Date.now() / 1000) + 86400 }] },
     });
 
     const event = fakeStripeEvent('customer.subscription.updated', {
@@ -662,9 +659,8 @@ describe('applySubscriptionChange', () => {
     mockSubscriptionRetrieve.mockResolvedValueOnce({
       id: 'sub_inv',
       status: 'active',
-      current_period_end: Math.floor(Date.now() / 1000) + 365 * 86400,
-      cancel_at_period_end: false,
-      items: { data: [{ price: { id: 'price_insider_annual' } }] },
+      cancel_at: null,
+      items: { data: [{ price: { id: 'price_insider_annual' }, current_period_end: Math.floor(Date.now() / 1000) + 365 * 86400 }] },
       metadata: { userId: user._id.toHexString() },
     });
 

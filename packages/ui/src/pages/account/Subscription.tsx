@@ -264,9 +264,11 @@ export function AccountSubscription() {
               </div>
               {!isLifetime && status?.currentPeriodEnd && (
                 <p className="subscription-period-info">
-                  {status.cancelAtPeriodEnd
-                    ? t('account.subscription.cancelAtPeriodEnd')
-                    : t('account.subscription.renewsOn', { date: formatDate(status.currentPeriodEnd) })}
+                  {status.cancelAt
+                    ? t('account.subscription.cancelsOn', { date: formatDate(status.cancelAt) })
+                    : status.cancelAtPeriodEnd
+                      ? t('account.subscription.cancelAtPeriodEnd')
+                      : t('account.subscription.renewsOn', { date: formatDate(status.currentPeriodEnd) })}
                 </p>
               )}
               <Button
@@ -322,9 +324,11 @@ export function AccountSubscription() {
               )}
               {!isLifetime && status?.currentPeriodEnd && (
                 <p className="subscription-period-info">
-                  {status.cancelAtPeriodEnd
-                    ? t('account.subscription.cancelAtPeriodEnd')
-                    : t('account.subscription.renewsOn', { date: formatDate(status.currentPeriodEnd) })}
+                  {status.cancelAt
+                    ? t('account.subscription.cancelsOn', { date: formatDate(status.cancelAt) })
+                    : status.cancelAtPeriodEnd
+                      ? t('account.subscription.cancelAtPeriodEnd')
+                      : t('account.subscription.renewsOn', { date: formatDate(status.currentPeriodEnd) })}
                 </p>
               )}
               {status?.hasStripeCustomer && (

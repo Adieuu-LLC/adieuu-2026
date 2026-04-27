@@ -76,6 +76,13 @@ export { cors } from './cors';
 export { sessionCookieRenewal } from './session-cookie-renewal';
 
 /**
+ * Subscription enforcement for account sessions on protected routes.
+ *
+ * @see {@link module:middleware/require-subscription}
+ */
+export { requireActiveSubscription } from './require-subscription';
+
+/**
  * Re-export types for external use.
  */
 export type { CorsOptions } from './cors';

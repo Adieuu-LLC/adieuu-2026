@@ -51,6 +51,11 @@ import { getRedis, isRedisConnected } from '../../db';
 import elog from '../../utils/adieuuLogger';
 import type { UserDocument } from '../../models/user';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
+import { getStripe } from '../../services/billing/stripe.client';
+import {
+  deriveSubscriptionBilling,
+  billingErrorLogFields,
+} from '../../services/billing/billing.service';
 
 /** OTP expiration time in minutes */
 const OTP_EXPIRES_IN_MINUTES = 10;
@@ -647,12 +652,49 @@ export async function verifyOtpHandler(
   return { success: true, cookie, user };
 }
 
+/** Skip re-fetch if billing was updated less than this many ms ago. */
+const BILLING_FRESHNESS_MS = 5 * 60 * 1000; // 5 minutes
+
 /**
- * Gets the current session from a request.
- *
- * @param request - The incoming request with session cookie
- * @returns Session data if valid, null otherwise
+ * Re-fetches billing from Stripe if stale, so the session always
+ * reflects current subscription state.
  */
+async function reconcileBillingIfStale(user: UserDocument): Promise<UserDocument> {
+  if (
+    !config.stripe?.enabled ||
+    !user.billing?.stripeSubscriptionId ||
+    (user.billing.updatedAt && Date.now() - user.billing.updatedAt.getTime() < BILLING_FRESHNESS_MS)
+  ) {
+    return user;
+  }
+
+  try {
+    const stripe = getStripe();
+    const freshBilling = await deriveSubscriptionBilling(
+      stripe,
+      user.billing.stripeSubscriptionId,
+      user.billing,
+    );
+
+    const userRepo = getUserRepository();
+    await userRepo.updateBilling(user._id, freshBilling);
+
+    elog.info('Login-time billing reconciliation completed', {
+      userId: user._id.toHexString(),
+      oldStatus: user.billing.status,
+      newStatus: freshBilling.status,
+    });
+
+    return { ...user, billing: freshBilling };
+  } catch (err) {
+    elog.warn('Login-time billing reconciliation failed; using cached billing', {
+      userId: user._id.toHexString(),
+      ...billingErrorLogFields(err),
+    });
+    return user;
+  }
+}
+
 /**
  * Gets the current account session and generates a fresh signedToken.
  */
@@ -669,8 +711,11 @@ export async function getSessionHandler(request: Request): Promise<{
   if (!session) return null;
 
   const userRepo = getUserRepository();
-  const user = await userRepo.findById(session.userId);
+  let user = await userRepo.findById(session.userId);
   if (!user) return null;
+
+  // Reconcile billing with Stripe if stale
+  user = await reconcileBillingIfStale(user);
 
   const accountHash = generateAccountHash(
     session.userId,
@@ -689,12 +734,22 @@ export async function getSessionHandler(request: Request): Promise<{
   const subscriptions = user.billing?.activeSubscriptions ?? [];
   const entitlements = user.billing?.entitlements ?? [];
 
+  const billingMeta = user.billing
+    ? {
+        currentPeriodEnd: user.billing.currentPeriodEnd
+          ? Math.floor(user.billing.currentPeriodEnd.getTime() / 1000)
+          : undefined,
+        isLifetime: user.billing.isLifetime || undefined,
+      }
+    : undefined;
+
   const signedToken = createSignedToken(
     accountHash,
     user.maxIdentities ?? 2,
     maxVideoDurationSeconds,
     subscriptions,
     entitlements,
+    billingMeta,
   );
 
   const geo = user.geo

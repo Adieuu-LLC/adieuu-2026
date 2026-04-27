@@ -61,6 +61,7 @@ router.get('/account/subscription', async (ctx) => {
     status: user.billing?.status ?? null,
     currentPeriodEnd: user.billing?.currentPeriodEnd?.toISOString() ?? null,
     cancelAtPeriodEnd: user.billing?.cancelAtPeriodEnd ?? false,
+    cancelAt: user.billing?.cancelAt?.toISOString() ?? null,
     hasStripeCustomer: !!user.stripeCustomerId,
   });
 });

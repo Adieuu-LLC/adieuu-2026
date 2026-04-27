@@ -38,6 +38,13 @@ import {
   type IdentitySessionData,
 } from './session.service';
 import { reconcileAchievements } from './achievement.service';
+import {
+  buildAndEncryptGrants,
+  evaluateSubscriptionGrants,
+  hasActiveSubscriptionGrant,
+  type EvaluatedGrants,
+} from './billing/subscription-grants';
+import type { UserBilling } from '../models/user';
 import elog from '../utils/adieuuLogger';
 import type { IdentityDocument, PublicIdentity } from '../models/identity';
 import { toPublicIdentity } from '../models/identity';
@@ -63,6 +70,31 @@ const LOCKOUT_DURATION_SECONDS = 60 * 60;
 
 /** Rate limit window in seconds (tracks attempts within this window) */
 const RATE_LIMIT_WINDOW_SECONDS = 60 * 60;
+
+/**
+ * Constructs a minimal UserBilling-compatible object from token metadata
+ * for encrypted grant construction.
+ */
+function buildBillingFromMetadata(
+  metadata?: {
+    subscriptions?: SubscriptionTierId[];
+    entitlements?: string[];
+    currentPeriodEnd?: number;
+    isLifetime?: boolean;
+  },
+): UserBilling | undefined {
+  if (!metadata?.subscriptions?.length && !metadata?.entitlements?.length) return undefined;
+  return {
+    activeSubscriptions: metadata.subscriptions ?? [],
+    entitlements: metadata.entitlements ?? [],
+    isLifetime: metadata.isLifetime ?? false,
+    currentPeriodEnd: metadata.currentPeriodEnd
+      ? new Date(metadata.currentPeriodEnd * 1000)
+      : undefined,
+    cancelAtPeriodEnd: false,
+    updatedAt: new Date(),
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -193,6 +225,8 @@ export async function createIdentity(
       maxVideoDurationSeconds?: number;
       subscriptions?: SubscriptionTierId[];
       entitlements?: string[];
+      currentPeriodEnd?: number;
+      isLifetime?: boolean;
     };
   },
 ): Promise<IdentityCreationResult> {
@@ -256,9 +290,13 @@ export async function createIdentity(
   // Session creation is best-effort: it touches Redis as well as MongoDB,
   // and a failure here is recoverable (user can simply log in).
   if (autoLogin) {
+    const grants = buildAndEncryptGrants(buildBillingFromMetadata(options?.metadata));
+    const sessionMeta = grants
+      ? { ...options?.metadata, encryptedSubscriptionGrants: grants.ciphertext, grantDecryptionKey: grants.key }
+      : options?.metadata;
     const { sessionId, cookie } = await createIdentitySession(
       identity._id,
-      options?.metadata,
+      sessionMeta,
     );
 
     return {
@@ -292,6 +330,10 @@ export async function loginToIdentity(
     maxVideoDurationSeconds?: number;
     subscriptions?: SubscriptionTierId[];
     entitlements?: string[];
+    /** Unix seconds — subscription period end for encrypted grant construction. */
+    currentPeriodEnd?: number;
+    /** Whether the account holds a lifetime purchase. */
+    isLifetime?: boolean;
   },
 ): Promise<IdentityLoginResult> {
   const identityRepo = getIdentityRepository();
@@ -401,10 +443,16 @@ export async function loginToIdentity(
   // Update last active
   await identityRepo.updateLastActive(identity._id);
 
+  // Build encrypted subscription grants for the identity session
+  const grants = buildAndEncryptGrants(buildBillingFromMetadata(metadata));
+  const sessionMeta = grants
+    ? { ...metadata, encryptedSubscriptionGrants: grants.ciphertext, grantDecryptionKey: grants.key }
+    : metadata;
+
   // Create identity session (unified adieuu_session with type=identity)
   const { sessionId, cookie } = await createIdentitySession(
     identity._id,
-    metadata,
+    sessionMeta,
   );
 
   // Retroactively award any achievements the identity already qualifies for
@@ -651,16 +699,50 @@ export async function getIdentityFromSession(
 /**
  * Identity plus session-bound media limits (no User lookup).
  * Use for upload routes that must enforce account-derived caps.
+ *
+ * When encrypted grants are present, evaluates them and returns
+ * the evaluated grants for downstream feature gating. Returns `null`
+ * (effectively forces logout) when no active subscription is found.
  */
-export async function getIdentityUploadContext(sessionId: string): Promise<{
+export async function getIdentityUploadContext(
+  sessionId: string,
+  grantKey?: string | null,
+): Promise<{
   identity: IdentityDocument;
   maxVideoDurationSeconds: number;
   subscriptions: SubscriptionTierId[];
+  grants?: EvaluatedGrants;
 } | null> {
   if (!sessionId) return null;
 
   const sessionData = await getSession(sessionId);
   if (!sessionData || sessionData.type !== 'identity') return null;
+
+  // Evaluate encrypted grants if present
+  if (sessionData.encryptedSubscriptionGrants && grantKey) {
+    const grants = evaluateSubscriptionGrants(
+      sessionData.encryptedSubscriptionGrants,
+      grantKey,
+    );
+
+    if (!hasActiveSubscriptionGrant(grants)) {
+      await destroySession(sessionId);
+      elog.info('Identity session destroyed: no active subscription grants', {
+        identityId: sessionData.identityId,
+      });
+      return null;
+    }
+
+    const resolved = await loadIdentityFromIdentitySession(sessionData, {});
+    if (!resolved || 'blocked' in resolved) return null;
+
+    return {
+      identity: resolved,
+      maxVideoDurationSeconds: sessionData.maxVideoDurationSeconds,
+      subscriptions: sessionData.subscriptions ?? [],
+      grants,
+    };
+  }
 
   const resolved = await loadIdentityFromIdentitySession(sessionData, {});
   if (!resolved || 'blocked' in resolved) return null;

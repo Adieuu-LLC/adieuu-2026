@@ -247,11 +247,122 @@ async function markEventProcessed(eventId: string): Promise<boolean> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Stripe field extraction helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Extracts the latest `current_period_end` across all subscription items.
+ *
+ * Since Stripe API `2025-03-31.basil`, `current_period_end` lives on each
+ * SubscriptionItem rather than the top-level Subscription object. For
+ * multi-item subscriptions we take the latest end date.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function extractItemPeriodEnd(sub: any, subscriptionId?: string): Date | undefined {
+  const items = sub.items?.data;
+  if (!Array.isArray(items) || items.length === 0) {
+    elog.warn('Subscription has no items.data; cannot determine period end', {
+      subscriptionId: subscriptionId ?? sub.id,
+    });
+    return undefined;
+  }
+
+  let latest: number | undefined;
+  for (const item of items) {
+    const raw = item.current_period_end;
+    if (typeof raw === 'number') {
+      if (latest === undefined || raw > latest) {
+        latest = raw;
+      }
+    } else if (raw !== undefined && raw !== null) {
+      elog.warn('Subscription item current_period_end is not a number', {
+        subscriptionId: subscriptionId ?? sub.id,
+        itemId: item.id,
+        typeFound: typeof raw,
+      });
+    }
+  }
+
+  if (latest === undefined) {
+    elog.warn('No valid current_period_end found on any subscription item', {
+      subscriptionId: subscriptionId ?? sub.id,
+      itemCount: items.length,
+    });
+    return undefined;
+  }
+
+  return new Date(latest * 1000);
+}
+
+/**
+ * Extracts cancellation intent from a Stripe Subscription.
+ *
+ * Prefers the newer `cancel_at` (Unix timestamp or null) over the deprecated
+ * `cancel_at_period_end` boolean. Returns both a precise `cancelAt` Date and
+ * a backward-compatible `cancelAtPeriodEnd` boolean.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function extractCancelIntent(sub: any): {
+  cancelAt: Date | undefined;
+  cancelAtPeriodEnd: boolean;
+} {
+  const cancelAtRaw = sub.cancel_at;
+
+  if (typeof cancelAtRaw === 'number') {
+    return {
+      cancelAt: new Date(cancelAtRaw * 1000),
+      cancelAtPeriodEnd: true,
+    };
+  }
+
+  // Fallback to deprecated boolean for backward compat with older API shapes
+  const legacyFlag = sub.cancel_at_period_end ?? sub.cancelAtPeriodEnd;
+  if (legacyFlag === true) {
+    return { cancelAt: undefined, cancelAtPeriodEnd: true };
+  }
+
+  return { cancelAt: undefined, cancelAtPeriodEnd: false };
+}
+
+/**
+ * Safely extracts subscription status, logging if the value is unexpected.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function extractSubscriptionStatus(sub: any): UserBilling['status'] {
+  const status = sub.status;
+  if (typeof status !== 'string') {
+    elog.warn('Subscription status is not a string', {
+      subscriptionId: sub.id,
+      typeFound: typeof status,
+    });
+    return undefined;
+  }
+
+  const known: ReadonlySet<string> = new Set([
+    'active', 'trialing', 'past_due', 'canceled', 'unpaid',
+    'incomplete', 'incomplete_expired', 'paused',
+  ]);
+
+  if (!known.has(status)) {
+    elog.warn('Subscription has unrecognised status; storing as-is', {
+      subscriptionId: sub.id,
+      status,
+    });
+  }
+
+  return status as UserBilling['status'];
+}
+
+// ---------------------------------------------------------------------------
+// Billing derivation
+// ---------------------------------------------------------------------------
+
 /**
  * Derives the billing summary from a Stripe subscription.
  * Always re-fetches to avoid relying on stale event data.
  */
-async function deriveSubscriptionBilling(
+export async function deriveSubscriptionBilling(
   stripe: Stripe,
   stripeSubscriptionId: string,
   existingBilling?: UserBilling,
@@ -263,10 +374,9 @@ async function deriveSubscriptionBilling(
   const subTiers = tierIdsForPriceIds(priceIds);
   const subEntitlements = entitlementsForPriceIds(priceIds);
 
-  const periodEndRaw = sub.current_period_end ?? sub.currentPeriodEnd;
-  const periodEnd = typeof periodEndRaw === 'number'
-    ? new Date(periodEndRaw * 1000)
-    : undefined;
+  const periodEnd = extractItemPeriodEnd(sub, stripeSubscriptionId);
+  const { cancelAt, cancelAtPeriodEnd } = extractCancelIntent(sub);
+  const status = extractSubscriptionStatus(sub);
 
   const activeTiers = mergeWithExistingLifetime(subTiers, existingBilling);
   const activeEntitlements = mergeEntitlements(subEntitlements, existingBilling);
@@ -276,9 +386,10 @@ async function deriveSubscriptionBilling(
     activeSubscriptions: activeTiers,
     entitlements: activeEntitlements,
     isLifetime,
-    status: (sub.status ?? undefined) as UserBilling['status'],
+    status,
     currentPeriodEnd: periodEnd,
-    cancelAtPeriodEnd: sub.cancel_at_period_end ?? sub.cancelAtPeriodEnd ?? false,
+    cancelAtPeriodEnd,
+    cancelAt,
     stripeSubscriptionId: sub.id,
     stripePaymentIntentId: existingBilling?.stripePaymentIntentId,
     updatedAt: new Date(),
@@ -312,6 +423,7 @@ function deriveLifetimeBilling(
     status: 'active',
     currentPeriodEnd: existingBilling?.currentPeriodEnd,
     cancelAtPeriodEnd: existingBilling?.cancelAtPeriodEnd ?? false,
+    cancelAt: existingBilling?.cancelAt,
     stripeSubscriptionId: existingBilling?.stripeSubscriptionId,
     stripePaymentIntentId: paymentIntentId ?? existingBilling?.stripePaymentIntentId,
     updatedAt: new Date(),
@@ -471,7 +583,9 @@ async function handleSubscriptionDeleted(
       entitlements: user.billing.entitlements,
       isLifetime: true,
       status: 'active',
+      currentPeriodEnd: undefined,
       cancelAtPeriodEnd: false,
+      cancelAt: undefined,
       stripeSubscriptionId: subscription.id,
       stripePaymentIntentId: user.billing.stripePaymentIntentId,
       updatedAt: new Date(),
@@ -490,7 +604,9 @@ async function handleSubscriptionDeleted(
     entitlements: [],
     isLifetime: false,
     status: 'canceled',
+    currentPeriodEnd: undefined,
     cancelAtPeriodEnd: false,
+    cancelAt: undefined,
     stripeSubscriptionId: subscription.id,
     updatedAt: new Date(),
   };

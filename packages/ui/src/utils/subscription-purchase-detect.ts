@@ -7,6 +7,8 @@ function fingerprint(s: SubscriptionStatus): string {
     life: s.isLifetime,
     st: s.status,
     hc: s.hasStripeCustomer,
+    pe: s.currentPeriodEnd,
+    ca: s.cancelAt,
   });
 }
 

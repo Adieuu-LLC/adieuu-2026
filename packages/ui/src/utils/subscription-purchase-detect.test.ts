@@ -9,6 +9,7 @@ const base = (): SubscriptionStatus => ({
   status: null,
   currentPeriodEnd: null,
   cancelAtPeriodEnd: false,
+  cancelAt: null,
   hasStripeCustomer: false,
 });
 
@@ -47,5 +48,28 @@ describe('subscriptionPurchaseApplied', () => {
     const before = { ...base(), activeSubscriptions: ['access' as const, 'insider' as const] };
     const after = { ...base(), activeSubscriptions: ['insider' as const, 'access' as const] };
     expect(subscriptionPurchaseApplied(before, after)).toBe(false);
+  });
+
+  // 7i. Purchase detection fingerprint updates
+  test('currentPeriodEnd change (null -> date) detected', () => {
+    const before = base();
+    const after = { ...base(), currentPeriodEnd: '2026-12-31T00:00:00.000Z' };
+    expect(subscriptionPurchaseApplied(before, after)).toBe(true);
+  });
+
+  test('cancelAt change detected', () => {
+    const before = base();
+    const after = { ...base(), cancelAt: '2026-12-31T00:00:00.000Z' };
+    expect(subscriptionPurchaseApplied(before, after)).toBe(true);
+  });
+
+  test('unchanged currentPeriodEnd with changed tiers still detected', () => {
+    const before = { ...base(), currentPeriodEnd: '2026-12-31T00:00:00.000Z' };
+    const after = {
+      ...base(),
+      currentPeriodEnd: '2026-12-31T00:00:00.000Z',
+      activeSubscriptions: ['access' as const],
+    };
+    expect(subscriptionPurchaseApplied(before, after)).toBe(true);
   });
 });

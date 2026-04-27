@@ -87,6 +87,8 @@ export interface UserBilling {
   status?: 'active' | 'trialing' | 'past_due' | 'canceled' | 'unpaid' | 'incomplete' | 'incomplete_expired' | 'paused';
   currentPeriodEnd?: Date;
   cancelAtPeriodEnd?: boolean;
+  /** Precise cancellation timestamp from Stripe (`cancel_at`). */
+  cancelAt?: Date;
   stripeSubscriptionId?: string;
   /** Stripe Payment Intent id for one-time purchases. */
   stripePaymentIntentId?: string;

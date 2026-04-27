@@ -51,6 +51,18 @@ export interface SessionDocument extends BaseDocument {
   /** Feature entitlements bound from the account bridging token (identity sessions only). */
   entitlements?: string[];
 
+  /**
+   * AES-256-GCM encrypted subscription/entitlement grant data (base64).
+   * The decryption key is embedded in the session cookie, not stored in the DB.
+   */
+  encryptedSubscriptionGrants?: string;
+
+  /**
+   * Hard ceiling on identity session lifetime (30 days from creation).
+   * Whichever of this or the 7-day activity window is hit first applies.
+   */
+  absoluteExpiresAt?: Date;
+
   // -- Common fields --------------------------------------------------------
 
   /** Session expiration timestamp */
@@ -96,6 +108,8 @@ export interface CreateIdentitySessionInput {
   maxVideoDurationSeconds?: number;
   subscriptions?: SubscriptionTierId[];
   entitlements?: string[];
+  encryptedSubscriptionGrants?: string;
+  absoluteExpiresAt?: Date;
 }
 
 /**
@@ -123,6 +137,10 @@ export interface CachedSessionData {
   subscriptions?: SubscriptionTierId[];
   /** Feature entitlements (identity sessions only) */
   entitlements?: string[];
+  /** Encrypted subscription grant blob (identity sessions only) */
+  encryptedSubscriptionGrants?: string;
+  /** 30-day absolute TTL (ms, identity sessions only) */
+  absoluteExpiresAt?: number;
   /** Session expiration timestamp (ms) */
   expiresAt: number;
   /** Last activity timestamp (ms) */
@@ -238,6 +256,12 @@ export function toCachedSession(doc: SessionDocument): CachedSessionData {
     }
     if (doc.entitlements) {
       base.entitlements = doc.entitlements;
+    }
+    if (doc.encryptedSubscriptionGrants) {
+      base.encryptedSubscriptionGrants = doc.encryptedSubscriptionGrants;
+    }
+    if (doc.absoluteExpiresAt) {
+      base.absoluteExpiresAt = doc.absoluteExpiresAt.getTime();
     }
   }
 

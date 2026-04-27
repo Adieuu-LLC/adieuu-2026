@@ -4,7 +4,7 @@
  */
 
 import { Router } from './router';
-import { securityHeaders, requestId, cors, sessionCookieRenewal } from './middleware';
+import { securityHeaders, requestId, cors, sessionCookieRenewal, requireActiveSubscription } from './middleware';
 import { registerRoutes } from './routes';
 import { initializeDatabases, closeDatabases } from './db';
 import { config, validateProductionConfig } from './config';
@@ -30,6 +30,7 @@ app.use(requestId());
 app.use(securityHeaders());
 app.use(cors());
 app.use(sessionCookieRenewal());
+app.use(requireActiveSubscription());
 
 // Register routes
 registerRoutes(app);

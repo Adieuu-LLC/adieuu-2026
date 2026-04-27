@@ -199,6 +199,8 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
         maxVideoDurationSeconds: tokenPayload.maxVideoDurationSeconds,
         subscriptions: tokenPayload.subscriptions,
         entitlements: tokenPayload.entitlements,
+        currentPeriodEnd: tokenPayload.currentPeriodEnd,
+        isLifetime: tokenPayload.isLifetime,
       },
     },
   );
@@ -252,6 +254,8 @@ export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
       maxVideoDurationSeconds: tokenPayload.maxVideoDurationSeconds,
       subscriptions: tokenPayload.subscriptions,
       entitlements: tokenPayload.entitlements,
+      currentPeriodEnd: tokenPayload.currentPeriodEnd,
+      isLifetime: tokenPayload.isLifetime,
     },
   );
 

@@ -85,6 +85,10 @@ export interface AccountTokenPayload {
   subscriptions: SubscriptionTierId[];
   /** Feature entitlements (reserved; always empty for now) */
   entitlements: string[];
+  /** Subscription period end (Unix seconds), used to build encrypted grants at identity login. */
+  currentPeriodEnd?: number;
+  /** Whether the user holds a lifetime purchase. */
+  isLifetime?: boolean;
   /** Issued-at (epoch seconds) */
   iat: number;
   /** Expiration (epoch seconds) */
@@ -104,6 +108,7 @@ export function createSignedToken(
   maxVideoDurationSeconds: number,
   subscriptions: SubscriptionTierId[] = [],
   entitlements: string[] = [],
+  billingMeta?: { currentPeriodEnd?: number; isLifetime?: boolean },
 ): string {
   const now = Math.floor(Date.now() / 1000);
   const payload: AccountTokenPayload = {
@@ -112,6 +117,8 @@ export function createSignedToken(
     maxVideoDurationSeconds,
     subscriptions,
     entitlements,
+    currentPeriodEnd: billingMeta?.currentPeriodEnd,
+    isLifetime: billingMeta?.isLifetime,
     iat: now,
     exp: now + TOKEN_TTL_SECONDS,
   };

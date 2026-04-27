@@ -54,6 +54,10 @@ export interface IdentitySessionData {
   subscriptions: SubscriptionTierId[];
   /** Feature entitlements bound at identity login. */
   entitlements: string[];
+  /** Encrypted subscription grant blob (base64 ciphertext). */
+  encryptedSubscriptionGrants?: string;
+  /** 30-day absolute session TTL (Unix ms). */
+  absoluteExpiresAt?: number;
   lastActivityAt: number;
   /** Unix ms — server-side session expiry after sliding renewal */
   expiresAt: number;
@@ -102,8 +106,15 @@ export async function createAccountSession(
   return { sessionId, cookie };
 }
 
+/** 30 days in milliseconds — absolute identity session TTL. */
+const IDENTITY_ABSOLUTE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
 /**
  * Creates a new identity session.
+ *
+ * When `encryptedSubscriptionGrants` is provided, the decryption key is
+ * embedded in the cookie value as `sessionId.base64Key`. The ciphertext
+ * is stored in the Mongo session document.
  */
 export async function createIdentitySession(
   identityId: ObjectId,
@@ -114,10 +125,16 @@ export async function createIdentitySession(
     maxVideoDurationSeconds?: number;
     subscriptions?: SubscriptionTierId[];
     entitlements?: string[];
+    /** Base64-encoded ciphertext for subscription grant blob. */
+    encryptedSubscriptionGrants?: string;
+    /** Base64-encoded AES-256-GCM key for the grant blob (goes into the cookie). */
+    grantDecryptionKey?: string;
   },
 ): Promise<{ sessionId: string; cookie: string }> {
   const sessionId = generateSecureToken(SESSION_CONFIG.idLength);
-  const expiresAt = new Date(Date.now() + SESSION_CONFIG.identityTtlSeconds * 1000);
+  const now = Date.now();
+  const expiresAt = new Date(now + SESSION_CONFIG.identityTtlSeconds * 1000);
+  const absoluteExpiresAt = new Date(now + IDENTITY_ABSOLUTE_TTL_MS);
 
   const sessionRepo = getSessionRepository();
 
@@ -131,15 +148,22 @@ export async function createIdentitySession(
     maxVideoDurationSeconds: metadata?.maxVideoDurationSeconds,
     subscriptions: metadata?.subscriptions,
     entitlements: metadata?.entitlements,
+    encryptedSubscriptionGrants: metadata?.encryptedSubscriptionGrants,
+    absoluteExpiresAt,
   });
 
   elog.info('Identity session created', {
     sessionIdPrefix: sessionId.substring(0, 8) + '...',
     identityIdPrefix: identityId.toHexString().substring(0, 8) + '...',
     expiresInSeconds: SESSION_CONFIG.identityTtlSeconds,
+    hasEncryptedGrants: !!metadata?.encryptedSubscriptionGrants,
   });
 
-  const cookie = buildSessionCookie(sessionId, SESSION_CONFIG.identityTtlSeconds);
+  const cookieValue = metadata?.grantDecryptionKey
+    ? `${sessionId}.${metadata.grantDecryptionKey}`
+    : sessionId;
+
+  const cookie = buildSessionCookie(cookieValue, SESSION_CONFIG.identityTtlSeconds);
   return { sessionId, cookie };
 }
 
@@ -195,6 +219,12 @@ function cachedToSessionData(cached: CachedSessionData, expiresAtMs: number): Se
 
   if (cached.type === 'identity') {
     if (!cached.identityId) return null;
+
+    // Enforce 30-day absolute TTL
+    if (cached.absoluteExpiresAt && Date.now() >= cached.absoluteExpiresAt) {
+      return null;
+    }
+
     const maxVideoDurationSeconds =
       typeof cached.maxVideoDurationSeconds === 'number' &&
       Number.isFinite(cached.maxVideoDurationSeconds) &&
@@ -207,6 +237,8 @@ function cachedToSessionData(cached: CachedSessionData, expiresAtMs: number): Se
       maxVideoDurationSeconds,
       subscriptions: cached.subscriptions ?? [],
       entitlements: cached.entitlements ?? [],
+      encryptedSubscriptionGrants: cached.encryptedSubscriptionGrants,
+      absoluteExpiresAt: cached.absoluteExpiresAt,
       lastActivityAt: cached.lastActivityAt,
       expiresAt: expiresAtMs,
     };
@@ -284,7 +316,37 @@ export function buildLogoutCookie(): string {
 // Request helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Parses the raw cookie value into `{ sessionId, grantKey }`.
+ *
+ * Cookie format is either `sessionId` (legacy) or `sessionId.base64Key`
+ * (identity sessions with encrypted grants). Only splits on the first `.`.
+ */
+export function parseSessionCookie(rawValue: string): { sessionId: string; grantKey: string | null } {
+  const dotIdx = rawValue.indexOf('.');
+  if (dotIdx === -1) return { sessionId: rawValue, grantKey: null };
+  return {
+    sessionId: rawValue.substring(0, dotIdx),
+    grantKey: rawValue.substring(dotIdx + 1) || null,
+  };
+}
+
 export function getSessionIdFromRequest(request: Request): string | null {
+  const raw = getRawSessionCookie(request);
+  if (!raw) return null;
+  return parseSessionCookie(raw).sessionId;
+}
+
+/**
+ * Returns the grant decryption key from the cookie, if present.
+ */
+export function getGrantKeyFromRequest(request: Request): string | null {
+  const raw = getRawSessionCookie(request);
+  if (!raw) return null;
+  return parseSessionCookie(raw).grantKey;
+}
+
+function getRawSessionCookie(request: Request): string | null {
   const cookieHeader = request.headers.get('Cookie');
   if (!cookieHeader) return null;
 

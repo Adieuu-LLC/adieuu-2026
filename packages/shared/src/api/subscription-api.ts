@@ -9,6 +9,7 @@ export interface SubscriptionStatus {
   status: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  cancelAt: string | null;
   hasStripeCustomer: boolean;
 }
 
