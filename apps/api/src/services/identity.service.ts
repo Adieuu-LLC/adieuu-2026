@@ -39,12 +39,7 @@ import {
   type IdentitySessionData,
 } from './session.service';
 import { reconcileAchievements } from './achievement.service';
-import {
-  buildAndEncryptGrants,
-  evaluateSubscriptionGrants,
-  hasActiveSubscriptionGrant,
-  type EvaluatedGrants,
-} from './billing/subscription-grants';
+import { buildAndEncryptGrants } from './billing/subscription-grants';
 import type { UserBilling } from '../models/user';
 import elog from '../utils/adieuuLogger';
 import type { IdentityDocument, PublicIdentity } from '../models/identity';
@@ -698,64 +693,6 @@ export async function getIdentityFromSession(
   if (!sessionData || sessionData.type !== 'identity') return null;
 
   return loadIdentityFromIdentitySession(sessionData, opts);
-}
-
-/**
- * Identity plus session-bound media limits (no User lookup).
- * Use for upload routes that must enforce account-derived caps.
- *
- * When encrypted grants are present, evaluates them and returns
- * the evaluated grants for downstream feature gating. Returns `null`
- * (effectively forces logout) when no active subscription is found.
- */
-export async function getIdentityUploadContext(
-  sessionId: string,
-  grantKey?: string | null,
-): Promise<{
-  identity: IdentityDocument;
-  maxVideoDurationSeconds: number;
-  subscriptions: SubscriptionTierId[];
-  grants?: EvaluatedGrants;
-} | null> {
-  if (!sessionId) return null;
-
-  const sessionData = await getSession(sessionId);
-  if (!sessionData || sessionData.type !== 'identity') return null;
-
-  // Evaluate encrypted grants if present
-  if (sessionData.encryptedSubscriptionGrants && grantKey) {
-    const grants = evaluateSubscriptionGrants(
-      sessionData.encryptedSubscriptionGrants,
-      grantKey,
-    );
-
-    if (!hasActiveSubscriptionGrant(grants)) {
-      await destroySession(sessionId);
-      elog.info('Identity session destroyed: no active subscription grants', {
-        identityId: sessionData.identityId,
-      });
-      return null;
-    }
-
-    const resolved = await loadIdentityFromIdentitySession(sessionData, {});
-    if (!resolved || 'blocked' in resolved) return null;
-
-    return {
-      identity: resolved,
-      maxVideoDurationSeconds: sessionData.maxVideoDurationSeconds,
-      subscriptions: sessionData.subscriptions ?? [],
-      grants,
-    };
-  }
-
-  const resolved = await loadIdentityFromIdentitySession(sessionData, {});
-  if (!resolved || 'blocked' in resolved) return null;
-
-  return {
-    identity: resolved,
-    maxVideoDurationSeconds: sessionData.maxVideoDurationSeconds,
-    subscriptions: sessionData.subscriptions ?? [],
-  };
 }
 
 /**

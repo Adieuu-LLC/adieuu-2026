@@ -64,7 +64,15 @@ describe('evaluateBillingAccess', () => {
     expect(evaluateBillingAccess(makeBilling({ status: 'trialing' }))).toBeNull();
   });
 
-  test('isLifetime + active -> null (allowed)', () => {
+  test('isLifetime + active subscription -> null (allowed)', () => {
     expect(evaluateBillingAccess(makeBilling({ isLifetime: true }))).toBeNull();
+  });
+
+  test('isLifetime + empty activeSubscriptions -> null (allowed)', () => {
+    expect(evaluateBillingAccess(makeBilling({ isLifetime: true, activeSubscriptions: [] }))).toBeNull();
+  });
+
+  test('isLifetime + denied status -> null (lifetime overrides status)', () => {
+    expect(evaluateBillingAccess(makeBilling({ isLifetime: true, status: 'canceled' }))).toBeNull();
   });
 });

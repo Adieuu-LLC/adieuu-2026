@@ -198,6 +198,11 @@ export async function getSession(sessionId: string): Promise<SessionData | null>
   const cached = await sessionRepo.getSession(sessionId);
   if (!cached) return null;
 
+  if (cached.type === 'identity' && cached.absoluteExpiresAt && Date.now() >= cached.absoluteExpiresAt) {
+    await destroySession(sessionId);
+    return null;
+  }
+
   const newExpiresAt = await sessionRepo.updateLastActivity(sessionId);
   const expiresAtMs = newExpiresAt ? newExpiresAt.getTime() : cached.expiresAt;
 
@@ -219,11 +224,6 @@ function cachedToSessionData(cached: CachedSessionData, expiresAtMs: number): Se
 
   if (cached.type === 'identity') {
     if (!cached.identityId) return null;
-
-    // Enforce 30-day absolute TTL
-    if (cached.absoluteExpiresAt && Date.now() >= cached.absoluteExpiresAt) {
-      return null;
-    }
 
     const maxVideoDurationSeconds =
       typeof cached.maxVideoDurationSeconds === 'number' &&
@@ -352,10 +352,12 @@ function getRawSessionCookie(request: Request): string | null {
 
   const cookies = cookieHeader.split(';').reduce(
     (acc, cookie) => {
-      const [key, value] = cookie.trim().split('=');
-      if (key && value) {
-        acc[key] = value;
-      }
+      const trimmed = cookie.trim();
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx === -1) return acc;
+      const key = trimmed.substring(0, eqIdx);
+      const value = trimmed.substring(eqIdx + 1);
+      if (key && value) acc[key] = value;
       return acc;
     },
     {} as Record<string, string>,

@@ -48,7 +48,11 @@ function isExemptPath(pathname: string): boolean {
  * when access should be denied.
  */
 export function evaluateBillingAccess(billing: UserBilling | undefined): 'SUBSCRIPTION_REQUIRED' | 'SUBSCRIPTION_EXPIRED' | null {
-  if (!billing || billing.activeSubscriptions.length === 0) {
+  if (!billing) return 'SUBSCRIPTION_REQUIRED';
+
+  if (billing.isLifetime) return null;
+
+  if (billing.activeSubscriptions.length === 0) {
     return 'SUBSCRIPTION_REQUIRED';
   }
 
