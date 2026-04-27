@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 import type { UserBilling } from '../models/user';
+import type { ResolvedAccess } from '../services/billing/resolve-access';
 
 type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
 
@@ -38,66 +39,93 @@ function makeBilling(overrides: Partial<UserBilling> = {}): UserBilling {
   };
 }
 
+function makeResolved(overrides: Partial<ResolvedAccess> = {}): ResolvedAccess {
+  return {
+    subscriptions: ['access'],
+    entitlements: [],
+    isLifetime: false,
+    ...overrides,
+  };
+}
+
 describe('evaluateBillingAccess', () => {
   // 7c. Subscription guard middleware
   test('active with subscriptions -> null (allowed)', () => {
-    expect(evaluateBillingAccess(makeBilling())).toBeNull();
+    expect(evaluateBillingAccess(makeResolved(), makeBilling())).toBeNull();
   });
 
   test('active with access + insider -> null', () => {
-    expect(evaluateBillingAccess(makeBilling({ activeSubscriptions: ['access', 'insider'] }))).toBeNull();
+    const billing = makeBilling({ activeSubscriptions: ['access', 'insider'] });
+    const resolved = makeResolved({ subscriptions: ['access', 'insider'] });
+    expect(evaluateBillingAccess(resolved, billing)).toBeNull();
   });
 
-  test('empty activeSubscriptions -> SUBSCRIPTION_REQUIRED', () => {
-    expect(evaluateBillingAccess(makeBilling({ activeSubscriptions: [] }))).toBe('SUBSCRIPTION_REQUIRED');
+  test('empty subscriptions -> SUBSCRIPTION_REQUIRED', () => {
+    const resolved = makeResolved({ subscriptions: [] });
+    expect(evaluateBillingAccess(resolved, makeBilling({ activeSubscriptions: [] }))).toBe('SUBSCRIPTION_REQUIRED');
   });
 
-  test('undefined billing -> SUBSCRIPTION_REQUIRED', () => {
-    expect(evaluateBillingAccess(undefined)).toBe('SUBSCRIPTION_REQUIRED');
+  test('no billing and no overrides -> SUBSCRIPTION_REQUIRED', () => {
+    const resolved = makeResolved({ subscriptions: [] });
+    expect(evaluateBillingAccess(resolved, undefined)).toBe('SUBSCRIPTION_REQUIRED');
   });
 
   test('status canceled -> SUBSCRIPTION_EXPIRED', () => {
-    expect(evaluateBillingAccess(makeBilling({ status: 'canceled' }))).toBe('SUBSCRIPTION_EXPIRED');
+    const billing = makeBilling({ status: 'canceled' });
+    const resolved = makeResolved();
+    expect(evaluateBillingAccess(resolved, billing)).toBe('SUBSCRIPTION_EXPIRED');
   });
 
   test('status unpaid -> SUBSCRIPTION_EXPIRED', () => {
-    expect(evaluateBillingAccess(makeBilling({ status: 'unpaid' }))).toBe('SUBSCRIPTION_EXPIRED');
+    const billing = makeBilling({ status: 'unpaid' });
+    const resolved = makeResolved();
+    expect(evaluateBillingAccess(resolved, billing)).toBe('SUBSCRIPTION_EXPIRED');
   });
 
   test('status incomplete_expired -> SUBSCRIPTION_EXPIRED', () => {
-    expect(evaluateBillingAccess(makeBilling({ status: 'incomplete_expired' }))).toBe('SUBSCRIPTION_EXPIRED');
+    const billing = makeBilling({ status: 'incomplete_expired' });
+    const resolved = makeResolved();
+    expect(evaluateBillingAccess(resolved, billing)).toBe('SUBSCRIPTION_EXPIRED');
   });
 
   test('status past_due within 48h grace -> null (allowed)', () => {
-    expect(
-      evaluateBillingAccess(
-        makeBilling({ status: 'past_due', updatedAt: new Date(Date.now() - PAST_DUE_GRACE_MS + 10000) }),
-      ),
-    ).toBeNull();
+    const billing = makeBilling({ status: 'past_due', updatedAt: new Date(Date.now() - PAST_DUE_GRACE_MS + 10000) });
+    expect(evaluateBillingAccess(makeResolved(), billing)).toBeNull();
   });
 
   test('status past_due beyond 48h grace -> SUBSCRIPTION_EXPIRED', () => {
-    expect(
-      evaluateBillingAccess(
-        makeBilling({ status: 'past_due', updatedAt: new Date(Date.now() - PAST_DUE_GRACE_MS - 10000) }),
-      ),
-    ).toBe('SUBSCRIPTION_EXPIRED');
+    const billing = makeBilling({ status: 'past_due', updatedAt: new Date(Date.now() - PAST_DUE_GRACE_MS - 10000) });
+    expect(evaluateBillingAccess(makeResolved(), billing)).toBe('SUBSCRIPTION_EXPIRED');
   });
 
   test('status trialing -> null (allowed)', () => {
-    expect(evaluateBillingAccess(makeBilling({ status: 'trialing' }))).toBeNull();
+    expect(evaluateBillingAccess(makeResolved(), makeBilling({ status: 'trialing' }))).toBeNull();
   });
 
   test('isLifetime + active subscription -> null (allowed)', () => {
-    expect(evaluateBillingAccess(makeBilling({ isLifetime: true }))).toBeNull();
+    const resolved = makeResolved({ isLifetime: true });
+    expect(evaluateBillingAccess(resolved, makeBilling({ isLifetime: true }))).toBeNull();
   });
 
   test('isLifetime + empty activeSubscriptions -> null (allowed)', () => {
-    expect(evaluateBillingAccess(makeBilling({ isLifetime: true, activeSubscriptions: [] }))).toBeNull();
+    const resolved = makeResolved({ subscriptions: [], isLifetime: true });
+    expect(evaluateBillingAccess(resolved, makeBilling({ isLifetime: true, activeSubscriptions: [] }))).toBeNull();
   });
 
   test('isLifetime + denied status -> null (lifetime overrides status)', () => {
-    expect(evaluateBillingAccess(makeBilling({ isLifetime: true, status: 'canceled' }))).toBeNull();
+    const resolved = makeResolved({ isLifetime: true });
+    expect(evaluateBillingAccess(resolved, makeBilling({ isLifetime: true, status: 'canceled' }))).toBeNull();
+  });
+
+  test('overrides provide subscription with canceled billing -> null (allowed)', () => {
+    const billing = makeBilling({ status: 'canceled', activeSubscriptions: ['access'] });
+    const resolved = makeResolved({ subscriptions: ['access', 'insider'] });
+    expect(evaluateBillingAccess(resolved, billing)).toBeNull();
+  });
+
+  test('overrides provide subscription with no billing -> null (allowed)', () => {
+    const resolved = makeResolved({ subscriptions: ['insider'] });
+    expect(evaluateBillingAccess(resolved, undefined)).toBeNull();
   });
 });
 
@@ -175,7 +203,7 @@ describe('requireActiveSubscription middleware', () => {
     expect(mockFindById).not.toHaveBeenCalled();
   });
 
-  test('account session with active billing -> passes through', async () => {
+  test('account session with active billing -> passes through and attaches context', async () => {
     mockGetSessionFromRequest.mockResolvedValue({
       type: 'account',
       userId: 'user-1',
@@ -184,14 +212,15 @@ describe('requireActiveSubscription middleware', () => {
       lastActivityAt: Date.now(),
       expiresAt: Date.now() + 86_400_000,
     });
-    mockFindById.mockResolvedValue({
-      _id: 'user-1',
-      billing: makeBilling(),
-    });
+    const user = { _id: 'user-1', billing: makeBilling() };
+    mockFindById.mockResolvedValue(user);
 
-    const ctx = makeCtx('/api/themes');
+    const ctx = makeCtx('/api/themes') as any;
     const res = await middleware(ctx, nextOk);
     expect(res.status).toBe(200);
+    expect(ctx.accountUser).toBe(user);
+    expect(ctx.resolvedAccess).toBeDefined();
+    expect(ctx.resolvedAccess.subscriptions).toContain('access');
   });
 
   test('account session with no billing -> 403 SUBSCRIPTION_REQUIRED', async () => {

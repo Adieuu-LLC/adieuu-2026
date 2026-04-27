@@ -19,6 +19,7 @@ import {
   createCheckoutSessionForProduct,
   createBillingPortalSession,
 } from '../../../services/billing/billing.service';
+import { resolveEffectiveAccess } from '../../../services/billing/resolve-access';
 import { checkRateLimit, type RateLimitConfig } from '../../../services/rate-limit.service';
 import elog from '../../../utils/adieuuLogger';
 
@@ -54,10 +55,12 @@ router.get('/account/subscription', async (ctx) => {
 
   elog.debug('Subscription status requested', { userId: session.userId });
 
+  const resolved = resolveEffectiveAccess(user);
+
   return success({
-    activeSubscriptions: user.billing?.activeSubscriptions ?? [],
-    entitlements: user.billing?.entitlements ?? [],
-    isLifetime: user.billing?.isLifetime ?? false,
+    activeSubscriptions: resolved.subscriptions,
+    entitlements: resolved.entitlements,
+    isLifetime: resolved.isLifetime,
     status: user.billing?.status ?? null,
     currentPeriodEnd: user.billing?.currentPeriodEnd?.toISOString() ?? null,
     cancelAtPeriodEnd: user.billing?.cancelAtPeriodEnd ?? false,

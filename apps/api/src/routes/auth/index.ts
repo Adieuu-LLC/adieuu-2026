@@ -272,7 +272,7 @@ router.post('/auth/verify', async (ctx) => {
  * - Does not expose sensitive session internals
  */
 router.get('/auth/session', async (ctx) => {
-  const result = await getSessionHandler(ctx.request);
+  const result = await getSessionHandler(ctx.request, ctx.accountUser ?? undefined);
 
   if (!result) {
     // No account session — check if there's an identity session so the

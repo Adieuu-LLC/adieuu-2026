@@ -4,6 +4,8 @@
 
 import type { Locale } from '../i18n';
 import type { IdentityContext } from '../middleware/identity-session';
+import type { ResolvedAccess } from '../services/billing/resolve-access';
+import type { UserDocument } from '../models/user';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS' | 'HEAD';
 
@@ -78,6 +80,20 @@ export interface RouteContext {
    * failed; `undefined` only before the middleware runs.
    */
   identitySession?: IdentityContext | null;
+
+  /**
+   * Effective subscriptions/entitlements for the current account session,
+   * with admin overrides merged in. Populated by `requireActiveSubscription`.
+   * `undefined` for identity sessions or before the middleware runs.
+   */
+  resolvedAccess?: ResolvedAccess;
+
+  /**
+   * The loaded `UserDocument` for the current account session.
+   * Populated by `requireActiveSubscription` to avoid duplicate Mongo
+   * fetches downstream. `undefined` for identity sessions.
+   */
+  accountUser?: UserDocument;
 }
 
 export type RouteHandler = (ctx: RouteContext) => Response | Promise<Response>;

@@ -56,6 +56,7 @@ import {
   deriveSubscriptionBilling,
   billingErrorLogFields,
 } from '../../services/billing/billing.service';
+import { resolveEffectiveAccess } from '../../services/billing/resolve-access';
 
 /** OTP expiration time in minutes */
 const OTP_EXPIRES_IN_MINUTES = 10;
@@ -697,8 +698,14 @@ async function reconcileBillingIfStale(user: UserDocument): Promise<UserDocument
 
 /**
  * Gets the current account session and generates a fresh signedToken.
+ *
+ * Accepts an optional pre-loaded `UserDocument` to avoid a duplicate Mongo
+ * fetch when the subscription middleware has already loaded the user.
  */
-export async function getSessionHandler(request: Request): Promise<{
+export async function getSessionHandler(
+  request: Request,
+  preloadedUser?: UserDocument,
+): Promise<{
   session: AccountSessionData;
   signedToken: string;
   identityCount: number;
@@ -710,12 +717,17 @@ export async function getSessionHandler(request: Request): Promise<{
   const session = await requireAccountSession(request);
   if (!session) return null;
 
-  const userRepo = getUserRepository();
-  let user = await userRepo.findById(session.userId);
+  let user = preloadedUser ?? null;
+  if (!user) {
+    const userRepo = getUserRepository();
+    user = await userRepo.findById(session.userId);
+  }
   if (!user) return null;
 
   // Reconcile billing with Stripe if stale
   user = await reconcileBillingIfStale(user);
+
+  const resolved = resolveEffectiveAccess(user);
 
   const accountHash = generateAccountHash(
     session.userId,
@@ -731,15 +743,14 @@ export async function getSessionHandler(request: Request): Promise<{
     user,
   );
 
-  const subscriptions = user.billing?.activeSubscriptions ?? [];
-  const entitlements = user.billing?.entitlements ?? [];
+  const { subscriptions, entitlements, isLifetime } = resolved;
 
-  const billingMeta = user.billing
+  const billingMeta = user.billing || isLifetime
     ? {
-        currentPeriodEnd: user.billing.currentPeriodEnd
+        currentPeriodEnd: user.billing?.currentPeriodEnd
           ? Math.floor(user.billing.currentPeriodEnd.getTime() / 1000)
           : undefined,
-        isLifetime: user.billing.isLifetime || undefined,
+        isLifetime: isLifetime || undefined,
       }
     : undefined;
 

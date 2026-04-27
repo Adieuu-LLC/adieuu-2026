@@ -40,6 +40,7 @@ import {
 } from './session.service';
 import { reconcileAchievements } from './achievement.service';
 import { buildAndEncryptGrants } from './billing/subscription-grants';
+import { resolveIdentityOverrides } from './billing/resolve-access';
 import type { UserBilling } from '../models/user';
 import elog from '../utils/adieuuLogger';
 import type { IdentityDocument, PublicIdentity } from '../models/identity';
@@ -78,13 +79,29 @@ function buildBillingFromMetadata(
     currentPeriodEnd?: number;
     isLifetime?: boolean;
   },
+  identity?: IdentityDocument,
 ): UserBilling | undefined {
-  if (!metadata?.subscriptions?.length && !metadata?.entitlements?.length) return undefined;
+  const identityOv = identity ? resolveIdentityOverrides(identity) : undefined;
+
+  const subs = [...new Set<SubscriptionTierId>([
+    ...(metadata?.subscriptions ?? []),
+    ...(identityOv?.subscriptions ?? []),
+  ])];
+  const ents = [...new Set<string>([
+    ...(metadata?.entitlements ?? []),
+    ...(identityOv?.entitlements ?? []),
+  ])];
+
+  if (!subs.length && !ents.length) return undefined;
+
+  const hasLifetimeIdentityOverride = identity?.subscriptionOverrides?.some((o) => !o.expiresAt)
+    || (identity?.entitlementOverrides?.length ?? 0) > 0;
+
   return {
-    activeSubscriptions: metadata.subscriptions ?? [],
-    entitlements: metadata.entitlements ?? [],
-    isLifetime: metadata.isLifetime ?? false,
-    currentPeriodEnd: metadata.currentPeriodEnd
+    activeSubscriptions: subs,
+    entitlements: ents,
+    isLifetime: (metadata?.isLifetime ?? false) || !!hasLifetimeIdentityOverride,
+    currentPeriodEnd: metadata?.currentPeriodEnd
       ? new Date(metadata.currentPeriodEnd * 1000)
       : undefined,
     cancelAtPeriodEnd: false,
@@ -286,7 +303,7 @@ export async function createIdentity(
   // Session creation is best-effort: it touches Redis as well as MongoDB,
   // and a failure here is recoverable (user can simply log in).
   if (autoLogin) {
-    const grants = buildAndEncryptGrants(buildBillingFromMetadata(options?.metadata));
+    const grants = buildAndEncryptGrants(buildBillingFromMetadata(options?.metadata, identity));
     const sessionMeta = grants
       ? { ...options?.metadata, encryptedSubscriptionGrants: grants.ciphertext, grantDecryptionKey: grants.key }
       : options?.metadata;
@@ -440,7 +457,7 @@ export async function loginToIdentity(
   await identityRepo.updateLastActive(identity._id);
 
   // Build encrypted subscription grants for the identity session
-  const grants = buildAndEncryptGrants(buildBillingFromMetadata(metadata));
+  const grants = buildAndEncryptGrants(buildBillingFromMetadata(metadata, identity));
   const sessionMeta = grants
     ? { ...metadata, encryptedSubscriptionGrants: grants.ciphertext, grantDecryptionKey: grants.key }
     : metadata;

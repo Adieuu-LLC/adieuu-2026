@@ -33,6 +33,7 @@ import {
   hasActiveSubscriptionGrant,
   type EvaluatedGrants,
 } from '../services/billing/subscription-grants';
+import { resolveIdentityOverrides } from '../services/billing/resolve-access';
 import type { IdentityDocument } from '../models/identity';
 import type { SubscriptionTierId } from '@adieuu/shared';
 import { error } from '../utils/response';
@@ -164,14 +165,21 @@ export function enrichIdentitySession() {
       return next();
     }
 
-    // -- Attach to context ---------------------------------------------------
+    // -- Merge identity-level overrides and attach to context ----------------
+    const identityOverrides = resolveIdentityOverrides(result);
     ctx.identitySession = {
       identity: result,
       sessionId,
       grants,
       maxVideoDurationSeconds: identitySession.maxVideoDurationSeconds,
-      subscriptions: identitySession.subscriptions ?? [],
-      entitlements: identitySession.entitlements ?? [],
+      subscriptions: [...new Set<SubscriptionTierId>([
+        ...(identitySession.subscriptions ?? []),
+        ...identityOverrides.subscriptions,
+      ])],
+      entitlements: [...new Set<string>([
+        ...(identitySession.entitlements ?? []),
+        ...identityOverrides.entitlements,
+      ])],
     };
 
     return next();

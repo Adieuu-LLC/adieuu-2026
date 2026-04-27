@@ -6,12 +6,17 @@
  * enforcement is handled via encrypted grants on the session (see
  * subscription-grants.ts).
  *
+ * On success, attaches `ctx.accountUser` and `ctx.resolvedAccess` so
+ * downstream route handlers can reuse them without a duplicate Mongo fetch.
+ *
  * @module middleware/require-subscription
  */
 
 import { getSessionFromRequest, type AccountSessionData } from '../services/session.service';
 import { getUserRepository } from '../repositories/user.repository';
-import type { UserBilling } from '../models/user';
+import type { UserDocument, UserBilling } from '../models/user';
+import type { ResolvedAccess } from '../services/billing/resolve-access';
+import { resolveEffectiveAccess } from '../services/billing/resolve-access';
 import { error } from '../utils/response';
 import elog from '../utils/adieuuLogger';
 
@@ -42,28 +47,36 @@ function isExemptPath(pathname: string): boolean {
 }
 
 /**
- * Evaluates whether billing state permits access.
+ * Evaluates whether the resolved access (billing + overrides) permits access.
  *
  * Returns `null` when access is allowed, or a response-ready error code string
  * when access should be denied.
+ *
+ * When overrides alone provide subscriptions the user is granted access
+ * regardless of Stripe `billing.status`.
  */
-export function evaluateBillingAccess(billing: UserBilling | undefined): 'SUBSCRIPTION_REQUIRED' | 'SUBSCRIPTION_EXPIRED' | null {
-  if (!billing) return 'SUBSCRIPTION_REQUIRED';
+export function evaluateBillingAccess(
+  resolved: ResolvedAccess,
+  billing: UserBilling | undefined,
+): 'SUBSCRIPTION_REQUIRED' | 'SUBSCRIPTION_EXPIRED' | null {
+  if (resolved.isLifetime) return null;
 
-  if (billing.isLifetime) return null;
-
-  if (billing.activeSubscriptions.length === 0) {
+  if (resolved.subscriptions.length === 0) {
     return 'SUBSCRIPTION_REQUIRED';
   }
 
+  if (!billing) return null;
+
   if (billing.status && DENIED_STATUSES.has(billing.status)) {
-    return 'SUBSCRIPTION_EXPIRED';
+    const hasOverrideSubs = resolved.subscriptions.length > (billing.activeSubscriptions?.length ?? 0);
+    if (!hasOverrideSubs) return 'SUBSCRIPTION_EXPIRED';
   }
 
   if (billing.status === 'past_due') {
     const elapsed = Date.now() - billing.updatedAt.getTime();
     if (elapsed > PAST_DUE_GRACE_MS) {
-      return 'SUBSCRIPTION_EXPIRED';
+      const hasOverrideSubs = resolved.subscriptions.length > (billing.activeSubscriptions?.length ?? 0);
+      if (!hasOverrideSubs) return 'SUBSCRIPTION_EXPIRED';
     }
   }
 
@@ -76,10 +89,12 @@ export function evaluateBillingAccess(billing: UserBilling | undefined): 'SUBSCR
  * Exempt paths (auth, subscription management, webhooks, health) are
  * passed through without checking. Identity sessions are also passed
  * through -- their access is governed by encrypted grants elsewhere.
+ *
+ * On success, populates `ctx.accountUser` and `ctx.resolvedAccess`.
  */
 export function requireActiveSubscription() {
   return async (
-    ctx: { request: Request; url: URL },
+    ctx: { request: Request; url: URL; accountUser?: UserDocument; resolvedAccess?: ResolvedAccess },
     next: () => Promise<Response>,
   ): Promise<Response> => {
     if (isExemptPath(ctx.url.pathname)) {
@@ -100,7 +115,11 @@ export function requireActiveSubscription() {
       return next();
     }
 
-    const denial = evaluateBillingAccess(user.billing);
+    const resolved = resolveEffectiveAccess(user);
+    ctx.accountUser = user;
+    ctx.resolvedAccess = resolved;
+
+    const denial = evaluateBillingAccess(resolved, user.billing);
     if (denial) {
       elog.info('Subscription guard denied access', {
         userId: accountSession.userId,

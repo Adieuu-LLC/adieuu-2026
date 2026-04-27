@@ -55,6 +55,11 @@ export interface UserDocument extends BaseDocument {
 
   /** Denormalised billing summary kept in sync by Stripe webhooks. */
   billing?: UserBilling;
+
+  /** Admin-granted subscription tier overrides, merged additively with Stripe billing. */
+  subscriptionOverrides?: SubscriptionOverride[];
+  /** Admin-granted entitlement overrides (lifetime), merged additively with Stripe billing. */
+  entitlementOverrides?: string[];
 }
 
 /**
@@ -72,6 +77,17 @@ export interface UserGeo {
   ipHash: string;
   /** When this lookup was last refreshed */
   checkedAt: Date;
+}
+
+/**
+ * An admin-granted subscription tier override that is merged additively
+ * with Stripe-managed billing. Lives outside of `UserBilling` so that
+ * Stripe sync never clobbers it.
+ */
+export interface SubscriptionOverride {
+  tier: SubscriptionTierId;
+  /** When the override expires. Omit for lifetime (no expiry). */
+  expiresAt?: Date;
 }
 
 /**

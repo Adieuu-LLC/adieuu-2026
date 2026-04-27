@@ -10,6 +10,7 @@
 
 import type { BaseDocument } from './base';
 import type { PublicSignedPreKey } from './pre-key';
+import type { SubscriptionOverride } from './user';
 
 /**
  * Visibility level for profile fields.
@@ -157,6 +158,11 @@ export interface IdentityDocument extends BaseDocument {
   moderationReason?: string;
   /** Platform moderation: report ID that triggered the latest enforcement action */
   moderationReportId?: string;
+
+  /** Admin-granted subscription tier overrides, merged additively with account-level access. */
+  subscriptionOverrides?: SubscriptionOverride[];
+  /** Admin-granted entitlement overrides (lifetime), merged additively with account-level access. */
+  entitlementOverrides?: string[];
 }
 
 /**
