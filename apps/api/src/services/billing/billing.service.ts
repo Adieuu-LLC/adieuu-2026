@@ -367,10 +367,12 @@ export async function deriveSubscriptionBilling(
   stripeSubscriptionId: string,
   existingBilling?: UserBilling,
 ): Promise<UserBilling> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sub: any = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+  const sub = await stripe.subscriptions.retrieve(stripeSubscriptionId);
 
-  const priceIds = (sub.items?.data ?? []).map((item: any) => item.price?.id).filter(Boolean) as string[];
+  const priceIds = (sub.items?.data ?? []).map((item) => {
+    const price = item.price;
+    return typeof price === 'string' ? price : price?.id;
+  }).filter(Boolean) as string[];
   const subTiers = tierIdsForPriceIds(priceIds);
   const subEntitlements = entitlementsForPriceIds(priceIds);
 

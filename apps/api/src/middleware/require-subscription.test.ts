@@ -1,6 +1,30 @@
-import { describe, expect, test } from 'bun:test';
-import { evaluateBillingAccess, PAST_DUE_GRACE_MS } from './require-subscription';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { describe, expect, test, mock, beforeEach } from 'bun:test';
 import type { UserBilling } from '../models/user';
+
+type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
+
+// ---------------------------------------------------------------------------
+// Mocks for middleware tests (must be registered before import)
+// ---------------------------------------------------------------------------
+
+const mockGetSessionFromRequest = mock(() => Promise.resolve(null)) as AnyMock;
+
+mock.module('../services/session.service', () => ({
+  getSessionFromRequest: mockGetSessionFromRequest,
+}));
+
+const mockFindById = mock(() => Promise.resolve(null)) as AnyMock;
+
+mock.module('../repositories/user.repository', () => ({
+  getUserRepository: () => ({ findById: mockFindById }),
+}));
+
+mock.module('../utils/adieuuLogger', () => ({
+  default: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+}));
+
+import { evaluateBillingAccess, PAST_DUE_GRACE_MS, requireActiveSubscription } from './require-subscription';
 
 function makeBilling(overrides: Partial<UserBilling> = {}): UserBilling {
   return {
@@ -74,5 +98,159 @@ describe('evaluateBillingAccess', () => {
 
   test('isLifetime + denied status -> null (lifetime overrides status)', () => {
     expect(evaluateBillingAccess(makeBilling({ isLifetime: true, status: 'canceled' }))).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7c (extended). requireActiveSubscription middleware
+// ---------------------------------------------------------------------------
+
+describe('requireActiveSubscription middleware', () => {
+  const middleware = requireActiveSubscription();
+  const nextOk = () => Promise.resolve(new Response(null, { status: 200 }));
+
+  function makeCtx(pathname: string) {
+    return {
+      request: new Request('http://localhost' + pathname),
+      url: new URL('http://localhost' + pathname),
+    };
+  }
+
+  beforeEach(() => {
+    mockGetSessionFromRequest.mockReset();
+    mockFindById.mockReset();
+  });
+
+  test('exempt path /api/auth/session -> passes through without checking', async () => {
+    const ctx = makeCtx('/api/auth/session');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+    expect(mockGetSessionFromRequest).not.toHaveBeenCalled();
+  });
+
+  test('exempt path /api/webhooks/stripe -> passes through', async () => {
+    const ctx = makeCtx('/api/webhooks/stripe');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+  });
+
+  test('exempt path /api/health -> passes through', async () => {
+    const ctx = makeCtx('/api/health');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+  });
+
+  test('exempt path /api/account/subscription -> passes through', async () => {
+    const ctx = makeCtx('/api/account/subscription');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+  });
+
+  test('exempt path /api/releases -> passes through', async () => {
+    const ctx = makeCtx('/api/releases');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+  });
+
+  test('no session -> passes through (identity or unauthenticated)', async () => {
+    mockGetSessionFromRequest.mockResolvedValue(null);
+    const ctx = makeCtx('/api/themes');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+  });
+
+  test('identity session type -> passes through (enforced elsewhere)', async () => {
+    mockGetSessionFromRequest.mockResolvedValue({
+      type: 'identity',
+      identityId: 'id-1',
+      maxVideoDurationSeconds: 300,
+      subscriptions: [],
+      entitlements: [],
+      lastActivityAt: Date.now(),
+      expiresAt: Date.now() + 86_400_000,
+    });
+    const ctx = makeCtx('/api/themes');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+    expect(mockFindById).not.toHaveBeenCalled();
+  });
+
+  test('account session with active billing -> passes through', async () => {
+    mockGetSessionFromRequest.mockResolvedValue({
+      type: 'account',
+      userId: 'user-1',
+      identifier: 'u@example.com',
+      identifierType: 'email',
+      lastActivityAt: Date.now(),
+      expiresAt: Date.now() + 86_400_000,
+    });
+    mockFindById.mockResolvedValue({
+      _id: 'user-1',
+      billing: makeBilling(),
+    });
+
+    const ctx = makeCtx('/api/themes');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+  });
+
+  test('account session with no billing -> 403 SUBSCRIPTION_REQUIRED', async () => {
+    mockGetSessionFromRequest.mockResolvedValue({
+      type: 'account',
+      userId: 'user-1',
+      identifier: 'u@example.com',
+      identifierType: 'email',
+      lastActivityAt: Date.now(),
+      expiresAt: Date.now() + 86_400_000,
+    });
+    mockFindById.mockResolvedValue({
+      _id: 'user-1',
+      billing: undefined,
+    });
+
+    const ctx = makeCtx('/api/themes');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(403);
+
+    const body = await res.json() as { error: { code: string } };
+    expect(body.error.code).toBe('SUBSCRIPTION_REQUIRED');
+  });
+
+  test('account session with canceled status -> 403 SUBSCRIPTION_EXPIRED', async () => {
+    mockGetSessionFromRequest.mockResolvedValue({
+      type: 'account',
+      userId: 'user-1',
+      identifier: 'u@example.com',
+      identifierType: 'email',
+      lastActivityAt: Date.now(),
+      expiresAt: Date.now() + 86_400_000,
+    });
+    mockFindById.mockResolvedValue({
+      _id: 'user-1',
+      billing: makeBilling({ status: 'canceled' }),
+    });
+
+    const ctx = makeCtx('/api/themes');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(403);
+
+    const body = await res.json() as { error: { code: string } };
+    expect(body.error.code).toBe('SUBSCRIPTION_EXPIRED');
+  });
+
+  test('account session with user not found -> passes through', async () => {
+    mockGetSessionFromRequest.mockResolvedValue({
+      type: 'account',
+      userId: 'user-1',
+      identifier: 'u@example.com',
+      identifierType: 'email',
+      lastActivityAt: Date.now(),
+      expiresAt: Date.now() + 86_400_000,
+    });
+    mockFindById.mockResolvedValue(null);
+
+    const ctx = makeCtx('/api/themes');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
   });
 });
