@@ -8,6 +8,8 @@
  */
 
 import { checkMongoHealth, checkRedisHealth } from '../../db';
+import { config } from '../../config';
+import { checkStripeServiceHealth } from '../../services/billing/stripe.client';
 
 /**
  * Represents the health status of an individual dependency.
@@ -39,6 +41,8 @@ export interface HealthStatus {
   checks: {
     mongodb: HealthCheck;
     redis: HealthCheck;
+    /** Present only when `STRIPE_ENABLED` is true. Down degrades health but does not make the API unhealthy on its own. */
+    stripe?: HealthCheck;
   };
 }
 
@@ -88,14 +92,16 @@ function determineOverallStatus(checks: HealthStatus['checks']): HealthStatus['s
  * ```
  */
 export async function getHealthStatus(): Promise<HealthStatus> {
-  const [mongoHealth, redisHealth] = await Promise.all([
+  const [mongoHealth, redisHealth, stripeHealth] = await Promise.all([
     checkMongoHealth(),
     checkRedisHealth(),
+    config.stripe.enabled ? checkStripeServiceHealth() : Promise.resolve(undefined),
   ]);
 
-  const checks = {
+  const checks: HealthStatus['checks'] = {
     mongodb: mongoHealth,
     redis: redisHealth,
+    ...(stripeHealth !== undefined ? { stripe: stripeHealth } : {}),
   };
 
   return {

@@ -52,6 +52,8 @@ router.get('/account/subscription', async (ctx) => {
   const user = await userRepo.findById(session.userId);
   if (!user) return ctx.errors.notFound();
 
+  elog.debug('Subscription status requested', { userId: session.userId });
+
   return success({
     activeSubscriptions: user.billing?.activeSubscriptions ?? [],
     entitlements: user.billing?.entitlements ?? [],
@@ -98,7 +100,12 @@ router.post('/account/subscription/checkout', async (ctx) => {
 
   try {
     const result = await createCheckoutSessionForProduct(user, product as PurchasableProductId);
-    return success(result);
+    elog.info('Subscription checkout session created', {
+      userId: session.userId,
+      product,
+      sessionId: result.sessionId,
+    });
+    return success({ url: result.url });
   } catch (err) {
     if (err instanceof BillingConfigurationError) {
       elog.error('Subscription checkout: billing not fully configured', {
@@ -152,6 +159,7 @@ router.post('/account/subscription/portal', async (ctx) => {
 
   try {
     const result = await createBillingPortalSession(user);
+    elog.info('Subscription billing portal session created', { userId: session.userId });
     return success(result);
   } catch (err) {
     elog.error('Subscription portal session failed', {

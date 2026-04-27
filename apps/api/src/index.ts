@@ -14,6 +14,7 @@ import {
   ensureGeoLookupPlatformSettingExists,
 } from './services/platform-settings.service';
 import { elog } from './utils';
+import { verifyStripeCredentials } from './services/billing/stripe.client';
 
 // Validate production configuration
 validateProductionConfig();
@@ -39,6 +40,10 @@ registerRoutes(app);
 async function start(): Promise<void> {
   // Initialize database connections
   await initializeDatabases();
+
+  if (config.stripe.enabled) {
+    await verifyStripeCredentials();
+  }
 
   try {
     await ensureAdminIdentityListPlatformSettingExists();

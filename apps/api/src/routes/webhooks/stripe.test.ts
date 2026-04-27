@@ -12,23 +12,26 @@ mock.module('../../config', () => ({
   },
 }));
 
-const mockConstructEvent = mock((body: string, sig: string, secret: string) => {
+const mockConstructEventAsync = mock((body: string, sig: string, secret: string) => {
   if (sig === 'valid-sig') {
-    return { id: 'evt_123', type: 'checkout.session.completed', data: { object: {} } };
+    return Promise.resolve({ id: 'evt_123', type: 'checkout.session.completed', data: { object: {} } });
   }
-  throw new Error('Invalid signature');
+  return Promise.reject(new Error('Invalid signature'));
 });
 
 mock.module('../../services/billing/stripe.client', () => ({
   getStripe: () => ({
     webhooks: {
-      constructEvent: mockConstructEvent,
+      constructEventAsync: mockConstructEventAsync,
     },
   }),
 }));
 
 mock.module('../../services/billing/billing.service', () => ({
   applySubscriptionChange: mockApplySubscriptionChange,
+  billingErrorLogFields: (err: unknown) => ({
+    errorMessage: err instanceof Error ? err.message : String(err),
+  }),
 }));
 
 mock.module('../../utils/adieuuLogger', () => ({
@@ -46,7 +49,7 @@ afterAll(() => {
 
 beforeEach(() => {
   mockApplySubscriptionChange.mockReset();
-  mockConstructEvent.mockClear();
+  mockConstructEventAsync.mockClear();
 });
 
 describe('POST /webhooks/stripe', () => {

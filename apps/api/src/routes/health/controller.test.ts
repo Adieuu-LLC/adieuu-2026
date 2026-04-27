@@ -14,6 +14,10 @@ const mockCheckRedisHealth = mock((): Promise<HealthCheckResult> => Promise.reso
   latencyMs: 2,
 }));
 
+mock.module('../../config', () => ({
+  config: { stripe: { enabled: false } },
+}));
+
 // Mock db submodules to prevent loading real config
 mock.module('../../db/mongo', () => ({
   checkMongoHealth: mockCheckMongoHealth,

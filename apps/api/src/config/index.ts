@@ -505,6 +505,14 @@ export function validateProductionConfig(): void {
     if (!config.stripe.secretKey) {
       errors.push('STRIPE_SECRET_KEY must be set when STRIPE_ENABLED is true');
     }
+    if (!config.stripe.webhookSecret) {
+      errors.push('STRIPE_WEBHOOK_SECRET must be set when STRIPE_ENABLED is true');
+    } else if (!config.stripe.webhookSecret.startsWith('whsec_')) {
+      errors.push('STRIPE_WEBHOOK_SECRET must be a valid Stripe signing secret (whsec_...) when STRIPE_ENABLED is true');
+    }
+    if (!config.stripe.publishableKey) {
+      errors.push('STRIPE_PUBLISHABLE_KEY must be set when STRIPE_ENABLED is true');
+    }
     const stripePriceEnvs: [keyof typeof config.stripe.prices, string][] = [
       ['accessAnnual', 'STRIPE_PRICE_ACCESS_ANNUAL'],
       ['insiderAnnual', 'STRIPE_PRICE_INSIDER_ANNUAL'],

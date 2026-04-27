@@ -11,7 +11,10 @@
 import { Router } from '../../router';
 import { config } from '../../config';
 import { getStripe } from '../../services/billing/stripe.client';
-import { applySubscriptionChange } from '../../services/billing/billing.service';
+import {
+  applySubscriptionChange,
+  billingErrorLogFields,
+} from '../../services/billing/billing.service';
 import elog from '../../utils/adieuuLogger';
 
 const router = new Router();
@@ -39,21 +42,33 @@ router.post('/webhooks/stripe', async (ctx) => {
     });
   }
 
+  if (!config.stripe.webhookSecret) {
+    elog.error('STRIPE_WEBHOOK_SECRET is empty; webhook verification will fail for all events');
+    return new Response(JSON.stringify({ error: 'Webhook not configured' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   let event;
   try {
     const stripe = getStripe();
-    event = stripe.webhooks.constructEvent(
+    event = await stripe.webhooks.constructEventAsync(
       ctx.rawBody,
       sig,
       config.stripe.webhookSecret,
     );
-  } catch {
-    elog.warn('Stripe webhook signature verification failed');
+  } catch (err) {
+    elog.warn('Stripe webhook signature verification failed', {
+      ...billingErrorLogFields(err),
+    });
     return new Response(JSON.stringify({ error: 'Invalid signature' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
   }
+
+  elog.info('Stripe webhook event verified', { eventId: event.id, type: event.type });
 
   try {
     await applySubscriptionChange(event);

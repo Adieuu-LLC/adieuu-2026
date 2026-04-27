@@ -138,6 +138,11 @@ export async function getOrCreateStripeCustomer(user: UserDocument): Promise<str
   const userRepo = getUserRepository();
   await userRepo.updateStripeCustomerId(user._id, customer.id);
 
+  elog.info('Stripe customer created', {
+    userId: user._id.toHexString(),
+    customerId: customer.id,
+  });
+
   return customer.id;
 }
 
@@ -148,7 +153,7 @@ export async function getOrCreateStripeCustomer(user: UserDocument): Promise<str
 export async function createCheckoutSessionForProduct(
   user: UserDocument,
   productId: PurchasableProductId,
-): Promise<{ url: string }> {
+): Promise<{ url: string; sessionId: string }> {
   const productMeta = PURCHASABLE_PRODUCTS[productId];
   if (!productMeta) {
     throw new Error(`Unknown product: ${productId}`);
@@ -194,7 +199,7 @@ export async function createCheckoutSessionForProduct(
     throw new Error('Stripe did not return a checkout URL');
   }
 
-  return { url: session.url };
+  return { url: session.url, sessionId: session.id };
 }
 
 export async function createBillingPortalSession(
@@ -436,7 +441,13 @@ async function handleCheckoutCompleted(
       tiers: billing.activeSubscriptions,
       entitlements: billing.entitlements,
     });
+    return;
   }
+
+  elog.warn('Checkout session completed with unexpected or incomplete mode', {
+    sessionId: session.id,
+    mode: session.mode,
+  });
 }
 
 async function handleSubscriptionDeleted(
@@ -497,7 +508,7 @@ async function handleSubscriptionDeleted(
  */
 export async function applySubscriptionChange(event: Stripe.Event): Promise<void> {
   if (await isEventAlreadyProcessed(event.id)) {
-    elog.debug('Skipping already-processed Stripe event', { eventId: event.id });
+    elog.info('Skipping already-processed Stripe event', { eventId: event.id, type: event.type });
     return;
   }
 
@@ -526,6 +537,11 @@ export async function applySubscriptionChange(event: Stripe.Event): Promise<void
         const subscriptionId = typeof invoiceSub === 'string' ? invoiceSub : invoiceSub.id;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const sub = (await stripe.subscriptions.retrieve(subscriptionId)) as any;
+        elog.info('Invoice event triggered subscription re-fetch', {
+          eventId: event.id,
+          type: event.type,
+          subscriptionId,
+        });
         await handleSubscriptionEvent(stripe, sub);
       }
       break;
