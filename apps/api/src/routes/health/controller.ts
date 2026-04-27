@@ -9,7 +9,6 @@
 
 import { checkMongoHealth, checkRedisHealth } from '../../db';
 import { config } from '../../config';
-import { checkStripeServiceHealth } from '../../services/billing/stripe.client';
 
 /**
  * Represents the health status of an individual dependency.
@@ -92,10 +91,17 @@ function determineOverallStatus(checks: HealthStatus['checks']): HealthStatus['s
  * ```
  */
 export async function getHealthStatus(): Promise<HealthStatus> {
+  // Dynamic import so Stripe is not loaded when billing is disabled (e.g. tests, lean deploys).
+  const stripeHealthPromise = config.stripe.enabled
+    ? import('../../services/billing/stripe.client').then((mod) =>
+        mod.checkStripeServiceHealth(),
+      )
+    : Promise.resolve(undefined);
+
   const [mongoHealth, redisHealth, stripeHealth] = await Promise.all([
     checkMongoHealth(),
     checkRedisHealth(),
-    config.stripe.enabled ? checkStripeServiceHealth() : Promise.resolve(undefined),
+    stripeHealthPromise,
   ]);
 
   const checks: HealthStatus['checks'] = {

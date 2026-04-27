@@ -18,12 +18,6 @@ mock.module('../../config', () => ({
   config: { stripe: { enabled: false } },
 }));
 
-mock.module('../../services/billing/stripe.client', () => ({
-  checkStripeServiceHealth: mock(() =>
-    Promise.resolve({ status: 'up' as const, latencyMs: 1 }),
-  ),
-}));
-
 // Mock db submodules to prevent loading real config
 mock.module('../../db/mongo', () => ({
   checkMongoHealth: mockCheckMongoHealth,
