@@ -187,7 +187,6 @@ export interface SubmitMessageReportParams {
 
 export async function submitMessageReport(
   reporterIdentityId: string,
-  reporterUserId: string,
   params: SubmitMessageReportParams,
 ): Promise<ReportSubmissionResult> {
   const messageRepo = getMessageRepository();
@@ -330,7 +329,6 @@ export async function submitMessageReport(
     targetRef: { type: 'message', id: params.targetMessageId },
     targetIdentityId,
     reporterIdentityId,
-    reporterUserId,
     evidence,
     reporterReason: params.reason,
     idempotencyKey,
@@ -380,7 +378,6 @@ export interface SubmitProfileReportParams {
 
 export async function submitProfileReport(
   reporterIdentityId: string,
-  reporterUserId: string,
   params: SubmitProfileReportParams,
 ): Promise<ReportSubmissionResult> {
   const identityRepo = getIdentityRepository();
@@ -423,7 +420,6 @@ export async function submitProfileReport(
     targetRef: { type: 'identity', id: params.targetIdentityId },
     targetIdentityId: params.targetIdentityId,
     reporterIdentityId,
-    reporterUserId,
     evidence,
     reporterReason: params.reason,
     idempotencyKey,

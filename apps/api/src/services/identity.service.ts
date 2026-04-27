@@ -258,7 +258,6 @@ export async function createIdentity(
   if (autoLogin) {
     const { sessionId, cookie } = await createIdentitySession(
       identity._id,
-      accountHash,
       options?.metadata,
     );
 
@@ -405,7 +404,6 @@ export async function loginToIdentity(
   // Create identity session (unified adieuu_session with type=identity)
   const { sessionId, cookie } = await createIdentitySession(
     identity._id,
-    accountHash,
     metadata,
   );
 

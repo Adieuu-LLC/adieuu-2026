@@ -87,12 +87,6 @@ export async function createMainWindow(options: {
       return;
     }
 
-    if (!isDev && !runtime.isPlatformAdminUser) {
-      if ((ctrlOrCmd && input.shift && input.code === 'KeyI') || input.code === 'F12') {
-        event.preventDefault();
-        return;
-      }
-    }
   });
 
   if (isDev) {

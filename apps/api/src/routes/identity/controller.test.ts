@@ -65,7 +65,6 @@ mock.module('../../services/session.service', () => ({
       return Promise.resolve({
         type: 'identity' as const,
         identityId: mockIdentityId.toHexString(),
-        accountHash: mockAccountHash,
         maxVideoDurationSeconds: 300,
         lastActivityAt: Date.now(),
         expiresAt: Date.now() + 86_400_000,

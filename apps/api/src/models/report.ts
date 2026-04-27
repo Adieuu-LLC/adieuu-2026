@@ -139,13 +139,9 @@ export interface ReportDocument extends BaseDocument {
 
   /** Identity ID of the alias that posted the reported content (where applicable) */
   targetIdentityId?: string;
-  /** User ID backing the target identity (where resolvable) */
-  targetUserId?: string;
 
   /** Identity ID of the user who filed the report (null for automated) */
   reporterIdentityId?: string;
-  /** User ID backing the reporter identity (where resolvable) */
-  reporterUserId?: string;
 
   /** User ID of the moderator assigned to this report */
   assignedTo?: string;
@@ -182,9 +178,7 @@ export interface CreateReportInput {
   scopeId?: string;
   targetRef: ReportTargetRef;
   targetIdentityId?: string;
-  targetUserId?: string;
   reporterIdentityId?: string;
-  reporterUserId?: string;
   detectionMetadata?: Record<string, unknown>;
   evidence?: ReportEvidence;
   reporterReason?: string;

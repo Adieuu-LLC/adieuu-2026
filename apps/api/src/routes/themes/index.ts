@@ -121,12 +121,6 @@ router.get('/themes/:id', async (ctx) => {
 /**
  * POST /themes - Upload/share a theme publicly.
  *
- * Resolves the alias via `getIdentityFromSession` (same as GET /identity/session
- * and DELETE /themes/:id). Do not use `requireIdentitySession` here: it goes
- * through `getSession` → `cachedToSessionData`, which rejects identity sessions
- * missing `accountHash`, while `getIdentityFromSession` only requires
- * `type === 'identity'` and `identityId`.
- *
  * @route POST /api/themes
  */
 router.post('/themes', async (ctx) => {

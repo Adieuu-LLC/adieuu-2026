@@ -90,7 +90,7 @@ describe('report-submission.service', () => {
       Promise.resolve({ _id: new ObjectId() })
     );
 
-    const result = await submitMessageReport(reporterIdentityId, new ObjectId().toHexString(), {
+    const result = await submitMessageReport(reporterIdentityId, {
       targetMessageId,
       category: 'spam',
       contextMessageCount: 3,
@@ -102,7 +102,7 @@ describe('report-submission.service', () => {
   });
 
   test('returns MISSING_SESSION_KEY when evidence key is absent', async () => {
-    const result = await submitMessageReport(reporterIdentityId, new ObjectId().toHexString(), {
+    const result = await submitMessageReport(reporterIdentityId, {
       targetMessageId,
       category: 'spam',
       contextMessageCount: 3,

@@ -79,7 +79,6 @@ import { adminRoutes } from './index';
 const sessionUser = {
   type: 'identity' as const,
   identityId: new ObjectId().toHexString(),
-  accountHash: 'test-hash',
   lastActivityAt: Date.now(),
   expiresAt: Date.now() + 86_400_000,
 };

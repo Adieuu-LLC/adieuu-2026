@@ -61,7 +61,6 @@ function makeIdentityCached(overrides?: Partial<CachedSessionData>): CachedSessi
   return {
     type: 'identity',
     identityId: '507f1f77bcf86cd799439012',
-    accountHash: 'hash-abc',
     expiresAt: Date.now() + 86_400_000,
     lastActivityAt: 1_700_000_000_000,
     ...overrides,
@@ -134,7 +133,7 @@ describe('session.service', () => {
   describe('createIdentitySession', () => {
     test('stores an identity session and returns sessionId + cookie', async () => {
       const identityId = new ObjectId();
-      const result = await createIdentitySession(identityId, 'hashed-account', {
+      const result = await createIdentitySession(identityId, {
         userAgent: 'test-agent',
         ipAddress: '10.0.0.1',
       });
@@ -144,7 +143,6 @@ describe('session.service', () => {
           sessionId: 'mock-session-id-token',
           type: 'identity',
           identityId,
-          accountHash: 'hashed-account',
           userAgent: 'test-agent',
           ipAddress: '10.0.0.1',
         }),
@@ -190,7 +188,6 @@ describe('session.service', () => {
       expect(result).toEqual({
         type: 'identity',
         identityId: '507f1f77bcf86cd799439012',
-        accountHash: 'hash-abc',
         maxVideoDurationSeconds: DEFAULT_MAX_VIDEO_DURATION_SECONDS,
         subscriptions: [],
         entitlements: [],
@@ -294,7 +291,6 @@ describe('session.service', () => {
       expect(result).toEqual({
         type: 'identity',
         identityId: '507f1f77bcf86cd799439012',
-        accountHash: 'hash-abc',
         maxVideoDurationSeconds: DEFAULT_MAX_VIDEO_DURATION_SECONDS,
         subscriptions: [],
         entitlements: [],

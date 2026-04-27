@@ -266,9 +266,10 @@ function useIdentityState(): IdentityContextValue {
 
   const createIdentity = useCallback(
     async (passphrase: string, username: string, displayName: string): Promise<CreateIdentityResult> => {
-      const signedToken = session?.signedToken;
+      const freshSession = await refreshSession();
+      const signedToken = freshSession?.signedToken;
       if (!signedToken) {
-        return { success: false, error: 'No signed token available. Please refresh your session.', errorCode: 'VALIDATION_ERROR' };
+        return { success: false, error: 'Session expired. Please sign in again.', errorCode: 'VALIDATION_ERROR' };
       }
 
       const flow = await runCreateIdentityFlow(api, platform, signedToken, passphrase, username, displayName);
@@ -293,14 +294,15 @@ function useIdentityState(): IdentityContextValue {
         identity: flow.identity,
       };
     },
-    [api, platform, session?.signedToken]
+    [api, platform, refreshSession]
   );
 
   const loginToIdentity = useCallback(
     async (passphrase: string, options?: LoginIdentityOptions): Promise<LoginIdentityResult> => {
-      const signedToken = session?.signedToken;
+      const freshSession = await refreshSession();
+      const signedToken = freshSession?.signedToken;
       if (!signedToken) {
-        return { success: false, error: 'No signed token available. Please refresh your session.' };
+        return { success: false, error: 'Session expired. Please sign in again.' };
       }
 
       const onStatus = options?.onStatusChange;
@@ -668,7 +670,7 @@ function useIdentityState(): IdentityContextValue {
         error: 'Unexpected response',
       };
     },
-    [api, platform, session?.signedToken]
+    [api, platform, refreshSession]
   );
 
   const unlockIdentity = useCallback(

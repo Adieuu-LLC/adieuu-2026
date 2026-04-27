@@ -38,8 +38,8 @@ export interface AuthContextValue extends AuthState {
   completeMfaTotp: (mfaToken: string, code: string) => Promise<{ success: boolean; error?: string }>;
   completeMfaWebAuthn: (mfaToken: string, webauthnChallenge: PublicKeyCredentialRequestOptionsJSON) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  /** Refresh session status from server */
-  refreshSession: () => Promise<void>;
+  /** Refresh session status from server. Returns the fresh session or null. */
+  refreshSession: () => Promise<SessionInfo | null>;
 }
 
 // ============================================================================
@@ -91,7 +91,7 @@ function useAuthState(): AuthContextValue {
   );
 
   // Check session status from server on mount
-  const refreshSession = useCallback(async () => {
+  const refreshSession = useCallback(async (): Promise<SessionInfo | null> => {
     try {
       const response = await api.auth.getSession();
 
@@ -101,37 +101,30 @@ function useAuthState(): AuthContextValue {
         // Server returns { sessionType: 'identity' } when the cookie
         // holds an identity session instead of an account session.
         if ('sessionType' in data && data.sessionType === 'identity') {
-          setState({
-            status: 'identity_mode',
-            session: {
-              isPlatformAdmin: (data.isPlatformAdmin as boolean) ?? false,
-              isPlatformModerator: (data.isPlatformModerator as boolean) ?? false,
-              platformPermissions: (data.platformPermissions as string[]) ?? [],
-            },
-          });
-          return;
+          const identitySession: SessionInfo = {
+            isPlatformAdmin: (data.isPlatformAdmin as boolean) ?? false,
+            isPlatformModerator: (data.isPlatformModerator as boolean) ?? false,
+            platformPermissions: (data.platformPermissions as string[]) ?? [],
+          };
+          setState({ status: 'identity_mode', session: identitySession });
+          return identitySession;
         }
 
-        setState({
-          status: 'authenticated',
-          session: {
-            ...response.data,
-            isPlatformAdmin: false,
-            isPlatformModerator: false,
-            platformPermissions: [],
-          },
-        });
+        const accountSession: SessionInfo = {
+          ...response.data,
+          isPlatformAdmin: false,
+          isPlatformModerator: false,
+          platformPermissions: [],
+        };
+        setState({ status: 'authenticated', session: accountSession });
+        return accountSession;
       } else {
-        setState({
-          status: 'unauthenticated',
-          session: null,
-        });
+        setState({ status: 'unauthenticated', session: null });
+        return null;
       }
     } catch {
-      setState({
-        status: 'unauthenticated',
-        session: null,
-      });
+      setState({ status: 'unauthenticated', session: null });
+      return null;
     }
   }, [api]);
 

@@ -525,7 +525,6 @@ describe('identity.service', () => {
         Promise.resolve({
           type: 'identity',
           identityId: identity._id.toHexString(),
-          accountHash: testAccountHash,
           maxVideoDurationSeconds: 300,
           expiresAt: Date.now() + 86_400_000,
           lastActivityAt: Date.now(),
@@ -571,7 +570,6 @@ describe('identity.service', () => {
         Promise.resolve({
           type: 'identity',
           identityId: identity._id.toHexString(),
-          accountHash: testAccountHash,
           maxVideoDurationSeconds: 300,
           expiresAt: Date.now() + 86_400_000,
           lastActivityAt: Date.now(),
@@ -593,7 +591,6 @@ describe('identity.service', () => {
         Promise.resolve({
           type: 'identity',
           identityId: identity._id.toHexString(),
-          accountHash: testAccountHash,
           maxVideoDurationSeconds: 300,
           expiresAt: Date.now() + 86_400_000,
           lastActivityAt: Date.now(),

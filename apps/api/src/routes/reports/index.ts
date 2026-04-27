@@ -111,7 +111,7 @@ router.post('/reports', async (ctx) => {
 
   if (data.type === 'message') {
     // Prevent self-report
-    const result = await submitMessageReport(identityId, '', {
+    const result = await submitMessageReport(identityId, {
       targetMessageId: data.targetMessageId,
       category: data.category as typeof REPORT_CATEGORIES[number],
       reason: data.reason,
@@ -131,7 +131,7 @@ router.post('/reports', async (ctx) => {
     return ctx.errors.badRequest();
   }
 
-  const result = await submitProfileReport(identityId, '', {
+  const result = await submitProfileReport(identityId, {
     targetIdentityId: data.targetIdentityId,
     category: data.category as typeof REPORT_CATEGORIES[number],
     reason: data.reason,

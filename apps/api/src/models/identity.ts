@@ -1,10 +1,11 @@
 /**
  * Identity model
- * Represents a user identity in the system
+ * Represents a user identity in the system.
  *
  * SECURITY NOTE: Identities are intentionally unlinkable to Users.
- * The `ident` hash is derived from: passphrase + userId + userCreatedAt
- * Without the passphrase, it's impossible to link an Identity to a User.
+ * The `ident` hash is derived from: SHA3-256(Argon2id(passphrase, salt=accountHash))
+ * where accountHash is an HMAC of the account ID, never stored on the identity.
+ * Without the passphrase, it is impossible to link an Identity to a User.
  */
 
 import type { BaseDocument } from './base';
@@ -96,7 +97,7 @@ export interface IdentityDevice {
 export interface IdentityDocument extends BaseDocument {
   /**
    * Unique identifier hash for the identity.
-   * Generated from: SHA3-256(Argon2id(passphrase, salt=userId+createdAt))
+   * Generated from: SHA3-256(Argon2id(passphrase, salt=accountHash))
    * Set to 'deleted' when identity is soft-deleted.
    */
   ident: string;

@@ -48,7 +48,6 @@ export interface AccountSessionData {
 export interface IdentitySessionData {
   type: 'identity';
   identityId: string;
-  accountHash: string;
   /** Effective max video duration (seconds); legacy sessions may omit (use default). */
   maxVideoDurationSeconds: number;
   /** Active subscription tier ids bound at identity login. */
@@ -108,7 +107,6 @@ export async function createAccountSession(
  */
 export async function createIdentitySession(
   identityId: ObjectId,
-  accountHash: string,
   metadata?: {
     userAgent?: string;
     ipAddress?: string;
@@ -127,7 +125,6 @@ export async function createIdentitySession(
     sessionId,
     type: 'identity',
     identityId,
-    accountHash,
     expiresAt,
     userAgent: metadata?.userAgent,
     ipAddress: metadata?.ipAddress,
@@ -197,7 +194,7 @@ function cachedToSessionData(cached: CachedSessionData, expiresAtMs: number): Se
   }
 
   if (cached.type === 'identity') {
-    if (!cached.identityId || !cached.accountHash) return null;
+    if (!cached.identityId) return null;
     const maxVideoDurationSeconds =
       typeof cached.maxVideoDurationSeconds === 'number' &&
       Number.isFinite(cached.maxVideoDurationSeconds) &&
@@ -207,7 +204,6 @@ function cachedToSessionData(cached: CachedSessionData, expiresAtMs: number): Se
     return {
       type: 'identity',
       identityId: cached.identityId,
-      accountHash: cached.accountHash,
       maxVideoDurationSeconds,
       subscriptions: cached.subscriptions ?? [],
       entitlements: cached.entitlements ?? [],

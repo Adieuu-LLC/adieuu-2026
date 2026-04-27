@@ -146,7 +146,6 @@ export class SessionRepository
       doc = {
         ...base,
         identityId: input.identityId,
-        accountHash: input.accountHash,
         ...(input.maxVideoDurationSeconds !== undefined
           ? { maxVideoDurationSeconds: input.maxVideoDurationSeconds }
           : {}),

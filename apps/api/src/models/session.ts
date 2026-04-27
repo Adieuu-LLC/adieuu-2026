@@ -40,13 +40,6 @@ export interface SessionDocument extends BaseDocument {
   identityId?: ObjectId;
 
   /**
-   * HMAC-derived account hash (identity sessions only).
-   * Ephemeral — cleaned up when the session expires.
-   * Used for passphrase re-verification on destructive actions.
-   */
-  accountHash?: string;
-
-  /**
    * Effective max video duration (seconds) bound from the account bridging token
    * at identity login. Identity routes use this without loading User.
    */
@@ -97,7 +90,6 @@ export interface CreateIdentitySessionInput {
   sessionId: string;
   type: 'identity';
   identityId: ObjectId;
-  accountHash: string;
   expiresAt: Date;
   userAgent?: string;
   ipAddress?: string;
@@ -125,8 +117,6 @@ export interface CachedSessionData {
   identifierType?: 'email' | 'phone';
   /** Identity ID as hex string (identity sessions only) */
   identityId?: string;
-  /** Account hash (identity sessions only) */
-  accountHash?: string;
   /** Effective max video duration (seconds), identity sessions only */
   maxVideoDurationSeconds?: number;
   /** Active subscription tier ids (identity sessions only) */
@@ -240,7 +230,6 @@ export function toCachedSession(doc: SessionDocument): CachedSessionData {
     base.identifierType = doc.identifierType;
   } else {
     base.identityId = doc.identityId?.toHexString();
-    base.accountHash = doc.accountHash;
     if (doc.maxVideoDurationSeconds !== undefined) {
       base.maxVideoDurationSeconds = doc.maxVideoDurationSeconds;
     }
