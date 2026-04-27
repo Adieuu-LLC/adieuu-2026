@@ -16,7 +16,9 @@ is_isolated_test() {
   [[ "$name" == 'verification.controller.test.ts' ||
      "$name" == 'block.service.test.ts' ||
      "$name" == 'identity-keys-access.service.test.ts' ||
-     "$name" == 'geo.service.test.ts' ]]
+     "$name" == 'geo.service.test.ts' ||
+     "$name" == 'identity-session.test.ts' ||
+     "$name" == 'identity.service.test.ts' ]]
 }
 
 run_split_suites() {
