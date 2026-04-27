@@ -255,7 +255,6 @@ describe('identity.service', () => {
       });
       expect(mockCreateIdentitySession).toHaveBeenCalledWith(
         identity._id,
-        testAccountHash,
         undefined,
       );
     });
@@ -346,7 +345,6 @@ describe('identity.service', () => {
       );
       expect(mockCreateIdentitySession).toHaveBeenCalledWith(
         identity._id,
-        testAccountHash,
         undefined,
       );
     });
