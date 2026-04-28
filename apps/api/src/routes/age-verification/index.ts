@@ -39,14 +39,9 @@ router.post('/age-verification/start', async (ctx) => {
   const user = await userRepo.findById(session.userId);
   if (!user) return ctx.errors.unauthorized();
 
-  const jurisdiction = user.geo?.jurisdiction;
-  if (!jurisdiction) {
-    return errorResponse(
-      'JURISDICTION_UNRESOLVED',
-      'Unable to determine your jurisdiction. Use opt-in if you wish to verify voluntarily.',
-      400,
-    );
-  }
+  const jurisdiction = user.geo?.jurisdiction
+    ?? user.geo?.countryCode?.toUpperCase()
+    ?? 'US';
 
   const callbackBaseUrl = config.apiBaseUrl;
 

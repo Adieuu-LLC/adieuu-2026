@@ -42,6 +42,7 @@ const EXEMPT_PREFIXES: readonly string[] = [
   '/api/releases',
   '/api/users/me',
   '/api/geo/requirements',
+  '/api/age-verification',
 ];
 
 function isExemptPath(pathname: string): boolean {

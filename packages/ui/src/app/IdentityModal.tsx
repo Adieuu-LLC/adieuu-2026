@@ -11,7 +11,7 @@ import { Icon } from '../icons/Icon';
 import { useIdentity, type LoginStatus, type WebDeviceChoice } from '../hooks/useIdentity';
 import { useAuth } from '../hooks/useAuth';
 import { WebDeviceChoiceModal } from '../components/WebDeviceChoiceModal';
-import { AgeVerificationModal } from '../components/AgeVerificationModal';
+import { useAgeVerification } from '../hooks/useAgeVerification';
 import { stringArrayFromI18nReturn } from './identityModalUtils';
 
 interface IdentityModalProps {
@@ -45,9 +45,11 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
   const [view, setView] = useState<ModalView>(initialView);
 
-  // Submodal state
-  const [avModalOpen, setAvModalOpen] = useState(false);
+  // Age verification
+  const av = useAgeVerification();
   const [avOptInMode, setAvOptInMode] = useState(false);
+  const [avOptInCountry, setAvOptInCountry] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -58,6 +60,18 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
       setView('unlock');
     }
   }, [unlockMode, isOpen]);
+
+  // Sync view when aliasGate changes (e.g. after AV approval refreshes session)
+  useEffect(() => {
+    if (!aliasGate || aliasGate.allowed) {
+      if (view.startsWith('age_verification') || view === 'geofenced') {
+        av.cancel();
+        setAvOptInMode(false);
+        setAvOptInCountry('');
+        setView(unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose');
+      }
+    }
+  }, [aliasGate, av, canCreateMore, hasIdentity, unlockMode, view]);
 
   useEffect(() => {
     if (view !== 'login' && view !== 'unlock') {
@@ -124,6 +138,9 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     // Never dismiss the identity shell until the user confirms that flow.
     if (webDeviceChoiceOpen) return;
 
+    av.cancel();
+    setAvOptInMode(false);
+    setAvOptInCountry('');
     resetForm();
     setView(unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose');
     onClose();
@@ -654,13 +671,103 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
             <div className="identity-modal-header">
               <Icon name="lock" className="identity-modal-icon" />
               <h2>{t('compliance.ageVerification.title')}</h2>
-              <p>{t('compliance.ageVerification.description')}</p>
             </div>
-            <div className="identity-modal-actions">
-              <Button variant="primary" size="lg" onClick={() => setAvModalOpen(true)}>
-                {t('compliance.ageVerification.startButton')}
-              </Button>
-            </div>
+
+            {av.status === 'idle' && (
+              <>
+                <p className="identity-modal-av-description">
+                  {avOptInMode
+                    ? t('compliance.advisory.optInDescription')
+                    : t('compliance.ageVerification.description')}
+                  {aliasGate?.jurisdiction && (
+                    <span className="identity-modal-av-jurisdiction">
+                      {' '}({aliasGate.jurisdiction})
+                    </span>
+                  )}
+                </p>
+                {avOptInMode && (
+                  <div className="identity-modal-av-opt-in">
+                    <Input
+                      label={t('compliance.advisory.countryLabel')}
+                      placeholder="US"
+                      value={avOptInCountry}
+                      onChange={(e) => setAvOptInCountry(e.target.value)}
+                      maxLength={2}
+                    />
+                  </div>
+                )}
+                <div className="identity-modal-actions">
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    onClick={() => {
+                      if (avOptInMode) {
+                        av.optIn(avOptInCountry.trim().toUpperCase() || undefined);
+                      } else {
+                        av.start();
+                      }
+                    }}
+                    disabled={avOptInMode && avOptInCountry.trim().length !== 2}
+                  >
+                    {t('compliance.ageVerification.startButton')}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {av.status === 'starting' && (
+              <div className="identity-modal-creating">
+                <div className="identity-creating-loader">
+                  <Spinner size="md" />
+                  <p>{t('compliance.ageVerification.starting')}</p>
+                </div>
+              </div>
+            )}
+
+            {(av.status === 'awaiting_user' || av.status === 'polling') && (
+              <div className="identity-modal-creating">
+                <div className="identity-creating-loader">
+                  <Spinner size="md" />
+                  <p>
+                    {av.status === 'awaiting_user'
+                      ? t('compliance.ageVerification.awaitingUser')
+                      : t('compliance.ageVerification.processing')}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {av.status === 'approved' && (
+              <Alert variant="success">
+                {t('compliance.ageVerification.approved')}
+              </Alert>
+            )}
+
+            {av.status === 'failed' && (
+              <>
+                <Alert variant="error">
+                  {t('compliance.ageVerification.failedMessage')}
+                </Alert>
+                <div className="identity-modal-actions">
+                  <Button variant="primary" size="lg" onClick={() => av.start()}>
+                    {t('compliance.ageVerification.retryButton')}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {av.status === 'expired' && (
+              <>
+                <Alert variant="warning">
+                  {t('compliance.ageVerification.expiredMessage')}
+                </Alert>
+                <div className="identity-modal-actions">
+                  <Button variant="primary" size="lg" onClick={() => av.start()}>
+                    {t('compliance.ageVerification.retryButton')}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -717,7 +824,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => { setAvOptInMode(true); setAvModalOpen(true); }}
+              onClick={() => { setAvOptInMode(true); setView('age_verification_required'); }}
             >
               {t('compliance.advisory.optInButton')}
             </Button>
@@ -730,15 +837,6 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
         onChoice={onWebDeviceChoiceSelected}
       />
 
-      <AgeVerificationModal
-        open={avModalOpen}
-        onClose={() => { setAvModalOpen(false); setAvOptInMode(false); }}
-        jurisdiction={aliasGate?.jurisdiction}
-        retryAfter={aliasGate?.retryAfter ?? session?.ageVerification?.retryAfter}
-        expirationCount={session?.ageVerification?.expirationCount}
-        gateCode={aliasGate?.code}
-        isOptIn={avOptInMode}
-      />
     </div>
   );
 }
