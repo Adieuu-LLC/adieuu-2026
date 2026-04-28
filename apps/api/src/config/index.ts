@@ -256,6 +256,8 @@ export const config = {
     provider: optionalEnv('EMAIL_PROVIDER', 'ses'),
     /** From address for outgoing emails */
     fromAddress: optionalEnv('EMAIL_FROM_ADDRESS', 'noreply@adieuu.com'),
+    /** Friendly sender name shown in email clients */
+    fromName: optionalEnv('EMAIL_FROM_NAME', 'Adieuu'),
     /** AWS region for SES */
     awsRegion: optionalEnv('AWS_REGION', 'us-east-1'),
     /** AWS access key ID (optional - uses default credential chain if not set) */

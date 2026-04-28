@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from 'b
 const mockConfig: {
   email: {
     fromAddress: string;
+    fromName: string;
     awsRegion: string;
     awsAccessKeyId: string | undefined;
     awsSecretAccessKey: string | undefined;
@@ -10,6 +11,7 @@ const mockConfig: {
 } = {
   email: {
     fromAddress: 'sender@example.com',
+    fromName: 'TestApp',
     awsRegion: 'us-east-1',
     awsAccessKeyId: 'AKIATESTACCESSKEY',
     awsSecretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
@@ -110,7 +112,8 @@ describe('SesEmailProvider', () => {
         );
         const body = init?.body as string;
         expect(body).toContain('Action=SendEmail');
-        expect(body).toContain('Source=sender%40example.com');
+        const expectedSource = new URLSearchParams({ Source: '"TestApp" <sender@example.com>' }).toString();
+        expect(body).toContain(expectedSource);
         expect(body).toContain('Destination.ToAddresses.member.1=to%40example.com');
         expect(body).toContain('Message.Subject.Data=Hello');
         expect(body).toContain('Message.Body.Text.Data=Plain');

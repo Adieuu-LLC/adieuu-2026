@@ -41,6 +41,12 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     }
   }, [unlockMode, isOpen]);
 
+  useEffect(() => {
+    if (view !== 'login' && view !== 'unlock') {
+      setPasswordVisible(false);
+    }
+  }, [view]);
+
   // Refocus the unlock passphrase input after a failed attempt
   useEffect(() => {
     if (view === 'unlock' && error && !loading) {
@@ -63,6 +69,8 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
   // Ref for refocusing the unlock passphrase input after a failed attempt
   const unlockInputRef = useRef<HTMLInputElement>(null);
+
+  const [passwordVisible, setPasswordVisible] = useState(false);
 
   // Web device choice modal state
   const [webDeviceChoiceOpen, setWebDeviceChoiceOpen] = useState(false);
@@ -90,6 +98,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     setSuccess(null);
     setRetryAfter(null);
     setAttemptNumber(null);
+    setPasswordVisible(false);
   };
 
   const handleClose = () => {
@@ -271,6 +280,23 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
   const passphraseStrength = passphrasesMatch ? getPassphraseStrength(passphrase) : null;
 
+  const passwordVisibilityToggle = (
+    <button
+      type="button"
+      className="input-password-toggle"
+      onClick={() => setPasswordVisible((v) => !v)}
+      disabled={loading}
+      aria-label={
+        passwordVisible
+          ? t('identity.passwordVisibility.hide')
+          : t('identity.passwordVisibility.show')
+      }
+      aria-pressed={passwordVisible}
+    >
+      <Icon name={passwordVisible ? 'eyeSlash' : 'eye'} />
+    </button>
+  );
+
   if (!isOpen) return null;
 
   return (
@@ -331,12 +357,14 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
               }}
             >
               <Input
-                type="password"
+                type={passwordVisible ? 'text' : 'password'}
                 placeholder={t('identity.login.passwordPlaceholder')}
                 value={passphrase}
                 onChange={(e) => setPassphrase(e.target.value)}
                 disabled={loading}
                 autoFocus
+                autoComplete="current-password"
+                rightIcon={passwordVisibilityToggle}
               />
 
               {attemptNumber && attemptNumber >= 3 && (
@@ -395,12 +423,14 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
             >
               <Input
                 ref={unlockInputRef}
-                type="password"
+                type={passwordVisible ? 'text' : 'password'}
                 placeholder={t('identity.unlock.passwordPlaceholder')}
                 value={passphrase}
                 onChange={(e) => setPassphrase(e.target.value)}
                 disabled={loading}
                 autoFocus
+                autoComplete="current-password"
+                rightIcon={passwordVisibilityToggle}
               />
 
               <div className="identity-modal-buttons">

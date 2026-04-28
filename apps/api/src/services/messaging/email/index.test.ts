@@ -5,6 +5,7 @@ const mockConfig = {
   email: {
     provider: 'console' as 'console' | 'ses',
     fromAddress: 'from@test.com',
+    fromName: 'TestApp',
     awsRegion: 'us-east-1',
     awsAccessKeyId: undefined as string | undefined,
     awsSecretAccessKey: undefined as string | undefined,

@@ -53,6 +53,7 @@ export const APP_ICON_NAMES = {
   desktop: 'desktop',
   bars: 'bars',
   eye: 'eye',
+  eyeSlash: 'eye-slash',
   thumbsUp: 'thumbs-up',
   warning: 'triangle-exclamation',
   success: 'circle-check',

@@ -34,6 +34,7 @@ mock.module('./config', () => ({
     email: {
       provider: 'console',
       fromAddress: 'noreply@test.example.com',
+      fromName: 'TestApp',
       awsRegion: 'us-east-1',
       awsAccessKeyId: undefined,
       awsSecretAccessKey: undefined,

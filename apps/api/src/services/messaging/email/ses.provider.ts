@@ -91,6 +91,9 @@ export class SesEmailProvider implements IEmailProvider {
   /** Verified sender email address */
   private readonly fromAddress: string;
 
+  /** Friendly sender name shown in email clients */
+  private readonly fromName: string;
+
   /**
    * Creates a new SES email provider instance
    *
@@ -101,6 +104,7 @@ export class SesEmailProvider implements IEmailProvider {
     this.accessKeyId = config.email.awsAccessKeyId;
     this.secretAccessKey = config.email.awsSecretAccessKey;
     this.fromAddress = config.email.fromAddress;
+    this.fromName = config.email.fromName;
   }
 
   /**
@@ -198,7 +202,10 @@ export class SesEmailProvider implements IEmailProvider {
   private buildSendEmailBody(options: EmailOptions): string {
     const params = new URLSearchParams();
     params.append('Action', 'SendEmail');
-    params.append('Source', this.fromAddress);
+    const source = this.fromName
+      ? `"${this.fromName}" <${this.fromAddress}>`
+      : this.fromAddress;
+    params.append('Source', source);
     params.append('Destination.ToAddresses.member.1', options.to);
     params.append('Message.Subject.Data', options.subject);
     params.append('Message.Body.Text.Data', options.text);

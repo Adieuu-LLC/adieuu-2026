@@ -8,6 +8,11 @@ export const identity = {
     loginToExistingButton: 'Login to Existing Alias',
     createAliasButton: 'Create Alias',
     createButton: 'Create Alias',
+    /** Aria labels for password show/hide controls (login, unlock, etc.) */
+    passwordVisibility: {
+      show: 'Show password',
+      hide: 'Hide password',
+    },
     logoutButton: 'Logout',
     loggedInAs: 'Logged in as',
     // Menu items for identity flyout

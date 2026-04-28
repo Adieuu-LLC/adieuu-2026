@@ -30,6 +30,7 @@
  * ```
  */
 
+import { config } from '../../../config';
 import type { IEmailProvider, EmailOptions, EmailResult } from '../types';
 import elog from '../../../utils/adieuuLogger';
 
@@ -81,7 +82,12 @@ export class ConsoleEmailProvider implements IEmailProvider {
   async send(options: EmailOptions): Promise<EmailResult> {
     const messageId = `console-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+    const from = config.email.fromName
+      ? `"${config.email.fromName}" <${config.email.fromAddress}>`
+      : config.email.fromAddress;
+
     elog.info('Email sent (console provider)', {
+      from,
       to: options.to,
       subject: options.subject,
       textLength: options.text.length,
@@ -89,8 +95,8 @@ export class ConsoleEmailProvider implements IEmailProvider {
       messageId,
     });
 
-    // Also log full content at debug level for development inspection
     elog.debug('Email content (console provider)', {
+      from,
       to: options.to,
       subject: options.subject,
       text: options.text,
