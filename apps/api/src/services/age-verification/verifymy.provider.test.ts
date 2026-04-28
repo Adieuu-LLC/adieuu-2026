@@ -221,7 +221,7 @@ describe('VerifyMyProvider', () => {
       expect(fetchCalls[0]!.init.method).toBe('GET');
 
       const authHeader = (fetchCalls[0]!.init.headers as Record<string, string>)['Authorization'];
-      const expectedHmac = createHmac('sha256', MOCK_API_SECRET).update('').digest('hex');
+      const expectedHmac = createHmac('sha256', MOCK_API_SECRET).update('/api/v3/verifications/vid-status').digest('hex');
       expect(authHeader).toBe(`hmac ${MOCK_API_KEY}:${expectedHmac}`);
 
       expect(result.verificationId).toBe('vid-status');
