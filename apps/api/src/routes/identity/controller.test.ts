@@ -328,6 +328,15 @@ describe('identity routes', () => {
 
       expect(response.status).toBe(401);
     });
+
+    test('does not clear session cookie when identity session is absent', async () => {
+      const response = await makeRequest('/identity/session', {
+        method: 'GET',
+      });
+
+      const setCookie = response.headers.get('Set-Cookie');
+      expect(setCookie).toBeNull();
+    });
   });
 
   describe('DELETE /identity', () => {

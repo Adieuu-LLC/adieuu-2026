@@ -329,7 +329,7 @@ export async function logoutIdentityCtrl(ctx: RouteContext): Promise<Response> {
 
 export async function getIdentitySessionCtrl(ctx: RouteContext): Promise<Response> {
   if (!ctx.identitySession) {
-    return ctx.errors.sessionExpiredWithClearCookie();
+    return ctx.errors.unauthorized();
   }
 
   return success(toPublicIdentity(ctx.identitySession.identity));

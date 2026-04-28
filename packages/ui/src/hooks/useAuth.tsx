@@ -2,10 +2,14 @@ import { useState, useCallback, useEffect, createContext, useContext, useMemo } 
 import type { ReactNode } from 'react';
 import {
   createApiClient,
+  API_ERROR_SESSION_EXPIRED,
   type SessionInfo,
   type PublicKeyCredentialRequestOptionsJSON,
 } from '@adieuu/shared';
 import { useAppConfig, usePlatformCapabilities } from '../config';
+
+/** Delay (ms) before retrying the initial session check on cold start. */
+const MOUNT_RETRY_DELAY_MS = 750;
 
 // ============================================================================
 // Auth State Types
@@ -90,12 +94,14 @@ function useAuthState(): AuthContextValue {
     [apiBaseUrl, onSessionExpired],
   );
 
-  // Check session status from server on mount
-  const refreshSession = useCallback(async (): Promise<SessionInfo | null> => {
+  // Check session status from server.
+  // `retryOnce` is used only on mount: if the cookie store hasn't loaded yet
+  // (cold start timing), the server returns UNAUTHORIZED even though a valid
+  // cookie exists. A single delayed retry covers that window without slowing
+  // normal startup.
+  const refreshSession = useCallback(async (retryOnce = false): Promise<SessionInfo | null> => {
     try {
       const response = await api.auth.getSession();
-
-      console.info("refreshSession()")
 
       if (response.success && response.data) {
         const data = response.data as unknown as Record<string, unknown>;
@@ -121,18 +127,30 @@ function useAuthState(): AuthContextValue {
         setState({ status: 'authenticated', session: accountSession });
         return accountSession;
       } else {
+        const code = response.error?.code;
+        // SESSION_EXPIRED is definitive — the server cleared the cookie.
+        // Any other failure on mount may be a cold-start timing issue
+        // where the cookie hasn't been sent yet; retry once.
+        if (retryOnce && code !== API_ERROR_SESSION_EXPIRED) {
+          await new Promise((r) => setTimeout(r, MOUNT_RETRY_DELAY_MS));
+          return refreshSession(false);
+        }
         setState({ status: 'unauthenticated', session: null });
         return null;
       }
     } catch {
+      if (retryOnce) {
+        await new Promise((r) => setTimeout(r, MOUNT_RETRY_DELAY_MS));
+        return refreshSession(false);
+      }
       setState({ status: 'unauthenticated', session: null });
       return null;
     }
   }, [api]);
 
-  // Check session on mount
+  // Check session on mount (retry-enabled for cold-start cookie timing)
   useEffect(() => {
-    refreshSession();
+    refreshSession(true);
   }, [refreshSession]);
 
   const requestOtp = useCallback(async (identifier: string, type: 'email' | 'sms') => {
