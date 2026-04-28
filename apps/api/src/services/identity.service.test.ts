@@ -429,13 +429,34 @@ describe('identity.service', () => {
   });
 
   describe('logoutFromIdentity', () => {
-    test('calls destroySession with session ID', async () => {
-      await logoutFromIdentity('test-session-id');
+    test('destroys an identity session and returns true', async () => {
+      mockGetSession.mockImplementationOnce(() =>
+        Promise.resolve({ type: 'identity', identityId: 'id-1' }),
+      );
+      const result = await logoutFromIdentity('test-session-id');
+      expect(result).toBe(true);
       expect(mockDestroySession).toHaveBeenCalledWith('test-session-id');
     });
 
-    test('does nothing for empty session ID', async () => {
-      await logoutFromIdentity('');
+    test('refuses to destroy an account session and returns false', async () => {
+      mockGetSession.mockImplementationOnce(() =>
+        Promise.resolve({ type: 'account', userId: 'u-1' }),
+      );
+      const result = await logoutFromIdentity('test-session-id');
+      expect(result).toBe(false);
+      expect(mockDestroySession).not.toHaveBeenCalled();
+    });
+
+    test('returns false for an expired or missing session', async () => {
+      mockGetSession.mockImplementationOnce(() => Promise.resolve(null));
+      const result = await logoutFromIdentity('test-session-id');
+      expect(result).toBe(false);
+      expect(mockDestroySession).not.toHaveBeenCalled();
+    });
+
+    test('returns false for empty session ID', async () => {
+      const result = await logoutFromIdentity('');
+      expect(result).toBe(false);
       expect(mockDestroySession).not.toHaveBeenCalled();
     });
   });

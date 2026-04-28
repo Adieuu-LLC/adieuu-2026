@@ -175,7 +175,7 @@ mock.module('../../services/block.service', () => ({
 mock.module('../../services/identity.service', () => ({
   createIdentity: mock(() => Promise.resolve({ success: true, identity: mockIdentity })),
   loginToIdentity: mock(() => Promise.resolve({ success: false, errorCode: 'INVALID_PASSPHRASE' })),
-  logoutFromIdentity: mock(() => Promise.resolve()),
+  logoutFromIdentity: mock(() => Promise.resolve(true)),
   deleteIdentity: mock(() => Promise.resolve({ success: true })),
   getIdentityFromSession: mock((sessionId: string) => {
     if (!sessionId || sessionId === 'test-session') {

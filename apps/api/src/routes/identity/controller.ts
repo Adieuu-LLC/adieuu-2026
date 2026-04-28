@@ -317,14 +317,17 @@ export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
 
 export async function logoutIdentityCtrl(ctx: RouteContext): Promise<Response> {
   const sessionId = getSessionIdFromRequest(ctx.request);
-  if (sessionId) {
-    await logoutFromIdentity(sessionId);
-  }
+  const destroyed = sessionId ? await logoutFromIdentity(sessionId) : false;
 
   const response = success(undefined, 'Identity logout successful.');
-  const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', buildLogoutCookie());
-  return new Response(response.body, { status: response.status, headers });
+
+  if (destroyed || !sessionId) {
+    const headers = new Headers(response.headers);
+    headers.set('Set-Cookie', buildLogoutCookie());
+    return new Response(response.body, { status: response.status, headers });
+  }
+
+  return response;
 }
 
 export async function getIdentitySessionCtrl(ctx: RouteContext): Promise<Response> {

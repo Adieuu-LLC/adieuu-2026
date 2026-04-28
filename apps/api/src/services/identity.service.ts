@@ -592,10 +592,23 @@ export async function changePassphrase(
 
 /**
  * Logout from identity session.
+ *
+ * Verifies the session is actually an identity session before destroying it
+ * so a misrouted cookie (e.g. account session) cannot be inadvertently
+ * revoked through the identity logout path.
+ *
+ * @returns `true` if an identity session was destroyed, `false` otherwise.
  */
-export async function logoutFromIdentity(sessionId: string): Promise<void> {
-  if (!sessionId) return;
+export async function logoutFromIdentity(sessionId: string): Promise<boolean> {
+  if (!sessionId) return false;
+
+  const session = await getSession(sessionId);
+  if (!session || session.type !== 'identity') {
+    return false;
+  }
+
   await destroySession(sessionId);
+  return true;
 }
 
 /**
