@@ -40,6 +40,18 @@ export function parseCookies(cookieHeader: string | null): Record<string, string
 }
 
 /**
+ * Strips the optional `.grantKey` suffix from a raw session cookie value.
+ *
+ * Identity session cookies may carry an encrypted-grant decryption key
+ * appended after the first dot (`sessionId.base64Key`). The chat service
+ * only needs the session ID for validation; the grant key is irrelevant here.
+ */
+function stripGrantKey(raw: string): string {
+  const dotIdx = raw.indexOf('.');
+  return dotIdx === -1 ? raw : raw.substring(0, dotIdx);
+}
+
+/**
  * Extracts session ID from request
  * Checks both cookies (web) and query params (mobile/cross-domain)
  */
@@ -49,8 +61,9 @@ export function extractSessionId(
 ): string | null {
   // Try cookie first (web clients)
   const cookies = parseCookies(cookieHeader);
-  const cookieSessionId = cookies['adieuu_session'];
-  if (cookieSessionId) {
+  const rawCookieValue = cookies['adieuu_session'];
+  if (rawCookieValue) {
+    const cookieSessionId = stripGrantKey(rawCookieValue);
     logger.debug('extractSessionId: from cookie', {
       sessionIdPrefix: cookieSessionId.substring(0, 8) + '...',
     });
