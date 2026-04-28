@@ -39,12 +39,14 @@ const mockCreateVerification = mock(async (input: unknown) => ({
   updatedAt: new Date(),
 }));
 const mockFindByProviderVerificationId = mock(async (_id: string): Promise<AgeVerificationDocument | null> => null);
+const mockFindByUserIdAndStatus = mock(async (): Promise<AgeVerificationDocument[]> => []);
 const mockUpdateStatus = mock(async () => {});
 
 mock.module('../../repositories/age-verification.repository', () => ({
   getAgeVerificationRepository: () => ({
     createVerification: mockCreateVerification,
     findByProviderVerificationId: mockFindByProviderVerificationId,
+    findByUserIdAndStatus: mockFindByUserIdAndStatus,
     updateStatus: mockUpdateStatus,
   }),
 }));
@@ -100,6 +102,7 @@ beforeEach(() => {
   mockGetAgeVerificationPolicy.mockReset();
   mockCreateVerification.mockReset();
   mockFindByProviderVerificationId.mockReset();
+  mockFindByUserIdAndStatus.mockReset();
   mockUpdateStatus.mockReset();
   mockUpdateAgeVerification.mockReset();
   mockFindById.mockReset();
@@ -304,7 +307,7 @@ describe('checkVerificationStatus', () => {
     const result = await checkVerificationStatus(user, 'pv-123');
 
     expect(result.status).toBe('expired');
-    const avUpdate = mockUpdateAgeVerification.mock.calls[0]![1] as unknown as { expirationCount: number; lastExpiredAt: Date };
+    const avUpdate = mockUpdateAgeVerification.mock.calls[1]![1] as unknown as { expirationCount: number; lastExpiredAt: Date };
     expect(avUpdate.expirationCount).toBe(2);
     expect(avUpdate.lastExpiredAt).toBeInstanceOf(Date);
   });
