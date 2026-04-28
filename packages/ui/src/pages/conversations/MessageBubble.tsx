@@ -250,8 +250,8 @@ export const MessageBubble = memo(function MessageBubble({
     const markedText = parsed.mentions.length > 0
       ? injectMentionMarkers(content, parsed.mentions)
       : content;
-    return renderFormattedMessage(markedText, onLinkClick, mentionRenderCtx);
-  }, [content, parsed.mentions, onLinkClick, mentionRenderCtx]);
+    return renderFormattedMessage(markedText, onLinkClick, mentionRenderCtx, parsed.customEmojis);
+  }, [content, parsed.mentions, parsed.customEmojis, onLinkClick, mentionRenderCtx]);
   const hasDecryptionError = !message.decryptedContent && !message.deleted;
   const isFsExpired = hasDecryptionError && message.decryptionError?.startsWith('forward-secrecy-expired:');
   const decryptionDisplayText = isFsExpired

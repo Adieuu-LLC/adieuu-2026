@@ -240,6 +240,7 @@ describe('identityHasSubscription / identityHasEntitlement', () => {
     maxVideoDurationSeconds: 300,
     subscriptions: ['insider'],
     entitlements: ['founder'],
+    isLifetime: false,
   };
 
   test('identityHasSubscription returns true for present tier', () => {

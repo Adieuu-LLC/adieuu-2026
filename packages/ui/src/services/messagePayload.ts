@@ -12,6 +12,8 @@
  * @module services/messagePayload
  */
 
+import type { CustomEmojiPayloadEntry } from '@adieuu/shared';
+
 /**
  * Media attachment metadata embedded in the encrypted payload.
  * This data is invisible to the server — only participants who decrypt
@@ -97,6 +99,12 @@ export interface MessagePayload {
   /** GIF / sticker attachments (URL references, not E2E blobs) */
   gifAttachments?: GifAttachment[];
   /**
+   * Custom emoji lookup map keyed by shortcode. Populated by the sender so
+   * recipients can render custom emojis without additional API calls.
+   * Only present when the message text contains custom emoji shortcodes.
+   */
+  customEmojis?: Record<string, CustomEmojiPayloadEntry>;
+  /**
    * Sending client's device id (E2E only). Lets recipients attribute messages to a
    * device for safety fingerprint verification UI.
    */
@@ -115,6 +123,8 @@ export interface ParsedMessagePayload {
   mentions: MentionEntity[];
   /** GIF/sticker attachments (empty array if none) */
   gifAttachments: GifAttachment[];
+  /** Custom emoji map keyed by shortcode (empty object if none) */
+  customEmojis: Record<string, CustomEmojiPayloadEntry>;
   /** Whether this was parsed from a structured payload (true) or legacy string (false) */
   isStructured: boolean;
   /** Present when the sender's client embedded their device id (v1+ JSON payloads). */
@@ -193,16 +203,49 @@ export function isValidGifAttachment(a: unknown): a is GifAttachment {
  * A string is treated as legacy if it does not parse as a valid
  * MessagePayload with a recognised version field.
  */
+function isValidCustomEmojiEntry(e: unknown): e is CustomEmojiPayloadEntry {
+  if (typeof e !== 'object' || e === null) return false;
+  const obj = e as Record<string, unknown>;
+  return (
+    typeof obj.id === 'string' &&
+    typeof obj.url === 'string' &&
+    typeof obj.name === 'string' &&
+    typeof obj.animated === 'boolean'
+  );
+}
+
+function parseCustomEmojisMap(
+  raw: unknown,
+): Record<string, CustomEmojiPayloadEntry> {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {};
+  const result: Record<string, CustomEmojiPayloadEntry> = {};
+  for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
+    if (isValidCustomEmojiEntry(val)) {
+      result[key] = val;
+    }
+  }
+  return result;
+}
+
 export function parsePayload(plaintext: string): ParsedMessagePayload {
+  const empty: ParsedMessagePayload = {
+    text: plaintext,
+    attachments: [],
+    mentions: [],
+    gifAttachments: [],
+    customEmojis: {},
+    isStructured: false,
+  };
+
   if (!plaintext.startsWith('{')) {
-    return { text: plaintext, attachments: [], mentions: [], gifAttachments: [], isStructured: false };
+    return empty;
   }
 
   try {
     const parsed = JSON.parse(plaintext) as Record<string, unknown>;
 
     if (typeof parsed.version !== 'number' || parsed.version < 1) {
-      return { text: plaintext, attachments: [], mentions: [], gifAttachments: [], isStructured: false };
+      return empty;
     }
 
     const payload = parsed as unknown as MessagePayload;
@@ -212,6 +255,7 @@ export function parsePayload(plaintext: string): ParsedMessagePayload {
     const validMentions = rawMentions.filter(isValidMention);
     const rawGifs = Array.isArray(payload.gifAttachments) ? payload.gifAttachments : [];
     const validGifs = rawGifs.filter(isValidGifAttachment);
+    const customEmojis = parseCustomEmojisMap(payload.customEmojis);
 
     const senderDeviceId =
       typeof payload.senderDeviceId === 'string' && payload.senderDeviceId.length > 0
@@ -223,11 +267,12 @@ export function parsePayload(plaintext: string): ParsedMessagePayload {
       attachments: validAttachments,
       mentions: validMentions,
       gifAttachments: validGifs,
+      customEmojis,
       isStructured: true,
       ...(senderDeviceId ? { senderDeviceId } : {}),
     };
   } catch {
-    return { text: plaintext, attachments: [], mentions: [], gifAttachments: [], isStructured: false };
+    return empty;
   }
 }
 

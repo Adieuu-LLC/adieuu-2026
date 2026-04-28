@@ -248,6 +248,9 @@ export function IdentityFlyout() {
           <Link to="/identity/devices" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/devices') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('identity.menu.devices')}
           </Link>
+          <Link to="/identity/emojis" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/emojis') ? 'sidebar-flyout-item-active' : ''}`}>
+            {t('identity.menu.emojis')}
+          </Link>
           <Link to="/identity/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/identity/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
             {t('identity.menu.subscription')}
           </Link>

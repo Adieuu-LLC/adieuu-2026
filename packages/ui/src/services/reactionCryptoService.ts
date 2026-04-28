@@ -56,14 +56,16 @@ const REACTION_SIGN_DOMAIN = 'adieuu-reaction-v1';
 // Types
 // ============================================================================
 
+export interface ReactionCustomEmoji {
+  id: string;
+  url: string;
+  name: string;
+  animated: boolean;
+}
+
 export interface DecryptedReactionContent {
   emoji: string;
-  customEmoji?: {
-    id: string;
-    key: string;
-    name: string;
-    animated: boolean;
-  };
+  customEmoji?: ReactionCustomEmoji;
   fromIdentityId: string;
   version: 1;
 }
@@ -74,6 +76,7 @@ export interface DecryptedReaction {
   conversationId: string;
   fromIdentityId: string;
   emoji: string;
+  customEmoji?: ReactionCustomEmoji;
   verified: boolean;
   createdAt: string;
 }
@@ -90,10 +93,12 @@ export function encryptReaction(
   fromIdentityId: string,
   recipients: RecipientKeys[],
   signingPrivateKey: Uint8Array,
-  senderCryptoProfile: CryptoProfile = 'default'
+  senderCryptoProfile: CryptoProfile = 'default',
+  customEmoji?: ReactionCustomEmoji
 ): EncryptedMessage {
   const content: DecryptedReactionContent = {
     emoji,
+    ...(customEmoji ? { customEmoji } : {}),
     fromIdentityId,
     version: 1,
   };
@@ -309,6 +314,7 @@ export function decryptReaction(
     conversationId: reaction.conversationId,
     fromIdentityId: reaction.fromIdentityId,
     emoji: content.emoji,
+    ...(content.customEmoji ? { customEmoji: content.customEmoji } : {}),
     verified,
     createdAt: reaction.createdAt,
     sessionKey,

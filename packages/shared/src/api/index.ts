@@ -206,6 +206,15 @@ export {
 
 export { ConversationsApi } from './conversations-api';
 
+export { CustomEmojiApi } from './custom-emoji-api';
+export {
+  type PublicCustomEmoji,
+  type CustomEmojiListResponse,
+  type CreateCustomEmojiParams,
+  type UpdateCustomEmojiParams,
+  type CustomEmojiPayloadEntry,
+} from './custom-emoji-types';
+
 export { ReactionsApi } from './reactions-api';
 
 export {

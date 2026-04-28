@@ -68,6 +68,7 @@ function makeIdentitySession(overrides: Partial<IdentitySessionData> = {}): Iden
     maxVideoDurationSeconds: 300,
     subscriptions: [],
     entitlements: [],
+    isLifetime: false,
     lastActivityAt: Date.now(),
     expiresAt: Date.now() + 86_400_000,
     ...overrides,

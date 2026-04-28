@@ -5,6 +5,7 @@ import { ApiClient, type ApiClientConfig } from './http-client';
 import { AuthApi } from './auth-api';
 import { BlocksApi } from './blocks-api';
 import { ConversationsApi } from './conversations-api';
+import { CustomEmojiApi } from './custom-emoji-api';
 import { E2EUploadApi } from './e2e-upload-api';
 import { FriendsApi } from './friends-api';
 import { IdentityApi } from './identity-api';
@@ -41,6 +42,7 @@ export function createApiClient(config: ApiClientConfig) {
     uploads: new UploadApi(client),
     e2eUploads: new E2EUploadApi(client),
     conversations: new ConversationsApi(client),
+    customEmojis: new CustomEmojiApi(client),
     reactions: new ReactionsApi(client),
     klipy: new KlipyApi(client),
     achievements: new AchievementsApi(client),

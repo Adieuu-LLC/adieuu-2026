@@ -168,8 +168,8 @@ export function MessageActionBar({
                 <Popover.Content className="emoji-picker-popover">
                   <EmojiPicker
                     compact
-                    onEmojiSelect={(emoji) => {
-                      onAddFavorite(emoji);
+                    onEmojiSelect={(result) => {
+                      if (result.native) onAddFavorite(result.native);
                       setShowFavPicker(false);
                     }}
                   />
@@ -194,8 +194,8 @@ export function MessageActionBar({
             <Popover.Content className="emoji-picker-popover">
               <EmojiPicker
                 compact
-                onEmojiSelect={(emoji) => {
-                  onReact(emoji);
+                onEmojiSelect={(result) => {
+                  if (result.native) onReact(result.native);
                 }}
               />
             </Popover.Content>

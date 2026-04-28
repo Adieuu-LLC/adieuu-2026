@@ -18,6 +18,8 @@ export function ConversationSettingsSidebar({
   memberColorDisplay,
   gifsDisabledByAdmin,
   onGifsDisabledByAdminToggle,
+  customEmojisDisabledByAdmin,
+  onCustomEmojisDisabledByAdminToggle,
   disallowPersistentMessageSearchCache,
   onMessageSearchCachePolicyToggle,
   gifsHiddenForMe,
@@ -37,6 +39,8 @@ export function ConversationSettingsSidebar({
   memberColorDisplay: MemberColorDisplay;
   gifsDisabledByAdmin?: boolean;
   onGifsDisabledByAdminToggle?: (disabled: boolean) => void;
+  customEmojisDisabledByAdmin?: boolean;
+  onCustomEmojisDisabledByAdminToggle?: (disabled: boolean) => void;
   disallowPersistentMessageSearchCache?: boolean;
   onMessageSearchCachePolicyToggle?: (disallow: boolean) => void;
   gifsHiddenForMe?: boolean;
@@ -47,7 +51,7 @@ export function ConversationSettingsSidebar({
   const { t } = useTranslation();
 
   const hasConversationTab =
-    (isGroup && isAdmin) || (!isGroup && !!onGifsDisabledByAdminToggle);
+    (isGroup && isAdmin) || (!isGroup && (!!onGifsDisabledByAdminToggle || !!onCustomEmojisDisabledByAdminToggle));
 
   const personalControls = (
     <>
@@ -174,6 +178,27 @@ export function ConversationSettingsSidebar({
               {t(
                 'gif.conversationDisabledByAdminHint',
                 'This disables GIF and sticker content for all members',
+              )}
+            </span>
+          </span>
+        </label>
+      )}
+
+      {(isAdmin || !isGroup) && onCustomEmojisDisabledByAdminToggle && (
+        <label className="app-settings-toggle">
+          <input
+            type="checkbox"
+            checked={customEmojisDisabledByAdmin ?? false}
+            onChange={(e) => onCustomEmojisDisabledByAdminToggle(e.target.checked)}
+          />
+          <span className="app-settings-toggle-label">
+            <span className="app-settings-toggle-title">
+              {t('customEmoji.conversationDisabledByAdmin', 'Disable custom emojis')}
+            </span>
+            <span className="app-settings-toggle-hint">
+              {t(
+                'customEmoji.conversationDisabledByAdminHint',
+                'This disables custom emoji usage for all members',
               )}
             </span>
           </span>

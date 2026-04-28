@@ -191,6 +191,7 @@ describe('session.service', () => {
         maxVideoDurationSeconds: DEFAULT_MAX_VIDEO_DURATION_SECONDS,
         subscriptions: [],
         entitlements: [],
+        isLifetime: false,
         lastActivityAt: 1_700_000_000_000,
         expiresAt: new Date('2030-06-01T12:00:00.000Z').getTime(),
       });
@@ -294,6 +295,7 @@ describe('session.service', () => {
         maxVideoDurationSeconds: DEFAULT_MAX_VIDEO_DURATION_SECONDS,
         subscriptions: [],
         entitlements: [],
+        isLifetime: false,
         lastActivityAt: 1_700_000_000_000,
         expiresAt: new Date('2030-06-01T12:00:00.000Z').getTime(),
       });

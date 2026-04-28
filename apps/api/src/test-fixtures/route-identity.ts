@@ -48,6 +48,7 @@ export function testIdentityEnrichment(
         maxVideoDurationSeconds: 300,
         subscriptions: [],
         entitlements: [],
+        isLifetime: false,
       };
     } else {
       ctx.identitySession = null;

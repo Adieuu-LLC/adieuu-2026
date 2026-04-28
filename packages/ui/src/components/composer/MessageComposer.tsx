@@ -5,7 +5,8 @@ import { convertShortcodes, SHORTCODE_ENTRIES } from '../../utils/emojiShortcode
 import { serializePayload, gifPayload, type MentionEntity, type GifAttachment } from '../../services/messagePayload';
 import { getOrCreateDeviceId } from '../../services/deviceInfo';
 import { createApiClient } from '@adieuu/shared';
-import { EmojiPicker } from '../EmojiPicker';
+import { EmojiPicker, type EmojiSelectResult } from '../EmojiPicker';
+import type { PublicCustomEmoji, CustomEmojiPayloadEntry } from '@adieuu/shared';
 import { GifPicker } from '../GifPicker';
 import { Tooltip } from '../Tooltip';
 import { useToast } from '../Toast';
@@ -39,6 +40,13 @@ import { ComposerShortcodeAutocomplete, ComposerMentionAutocomplete } from './Co
 import { ComposerTTLMenu } from './ComposerTTLMenu';
 import { useMediaOutbox } from '../../services/mediaOutbox';
 
+type ShortcodeSuggestion = [string, string] | { type: 'custom'; emoji: PublicCustomEmoji };
+
+function acSuggestionKey(s: ShortcodeSuggestion | undefined): string {
+  if (!s) return '';
+  return Array.isArray(s) ? s[0] : s.emoji.shortcode;
+}
+
 export type MessageComposerHandle = {
   /** Add image/video files using the same validation as the attach button (sniffing, caps). */
   addMediaFiles: (files: FileList | File[]) => void;
@@ -56,6 +64,8 @@ export type MessageComposerProps = {
   placeholderTarget?: string;
   mentionInsertRef?: React.MutableRefObject<((identityId: string) => void) | null>;
   gifsDisabled?: boolean;
+  customEmojisDisabled?: boolean;
+  customEmojis?: PublicCustomEmoji[];
   /** Plain-text of the most recent conversation message (for sticker search seeding). */
   lastMessageText?: string;
   /** When true, disables all input and hides action buttons (e.g. when conversation is blocked). */
@@ -84,6 +94,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   placeholderTarget,
   mentionInsertRef,
   gifsDisabled,
+  customEmojisDisabled,
+  customEmojis,
   lastMessageText,
   disabled,
   editContext,
@@ -141,14 +153,21 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   const acSuggestions = useMemo(() => {
     if (!shortcodeAC) return [];
     const q = shortcodeAC.query.toLowerCase();
-    const prefix: [string, string][] = [];
-    const substring: [string, string][] = [];
+    const prefix: ShortcodeSuggestion[] = [];
+    const substring: ShortcodeSuggestion[] = [];
     for (const [code, emoji] of SHORTCODE_ENTRIES) {
       if (code.startsWith(q)) prefix.push([code, emoji]);
       else if (code.includes(q)) substring.push([code, emoji]);
     }
-    return [...prefix, ...substring].slice(0, 3);
-  }, [shortcodeAC]);
+    if (!customEmojisDisabled && customEmojis) {
+      for (const ce of customEmojis) {
+        const sc = ce.shortcode.toLowerCase();
+        if (sc.startsWith(q)) prefix.push({ type: 'custom', emoji: ce });
+        else if (sc.includes(q)) substring.push({ type: 'custom', emoji: ce });
+      }
+    }
+    return [...prefix, ...substring].slice(0, 6);
+  }, [shortcodeAC, customEmojis, customEmojisDisabled]);
 
   const shortcodeACRef = useRef(shortcodeAC);
   shortcodeACRef.current = shortcodeAC;
@@ -487,11 +506,34 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         ? [...new Set(mentions.map((m) => m.id))]
         : undefined;
       const senderDeviceId = getOrCreateDeviceId();
-      const plaintext = serializePayload(
-        mentions.length > 0
-          ? { version: 1, text: convertedText, mentions, senderDeviceId }
-          : { version: 1, text: convertedText, senderDeviceId },
-      );
+
+      let customEmojiMap: Record<string, CustomEmojiPayloadEntry> | undefined;
+      if (!customEmojisDisabled && customEmojis?.length) {
+        const shortcodePattern = /:([a-z0-9_]{2,32}):/gi;
+        let match: RegExpExecArray | null;
+        while ((match = shortcodePattern.exec(convertedText)) !== null) {
+          const sc = match[1]?.toLowerCase();
+          if (!sc) continue;
+          const ce = customEmojis.find((e) => e.shortcode === sc);
+          if (ce) {
+            if (!customEmojiMap) customEmojiMap = {};
+            customEmojiMap[sc] = {
+              id: ce.id,
+              url: ce.cdnUrl,
+              name: ce.name,
+              animated: ce.animated,
+            };
+          }
+        }
+      }
+
+      const plaintext = serializePayload({
+        version: 1,
+        text: convertedText,
+        ...(mentions.length > 0 ? { mentions } : {}),
+        ...(customEmojiMap ? { customEmojis: customEmojiMap } : {}),
+        senderDeviceId,
+      });
       if (editContext) {
         const sent = await onSend(plaintext, {
           useForwardSecrecy: forwardSecrecy?.enabled,
@@ -750,12 +792,13 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       if (ac && suggestions.length > 0) {
         if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
           e.preventDefault();
-          const [, emoji] = suggestions[acSelectedIdxRef.current]!;
+          const selected = suggestions[acSelectedIdxRef.current]!;
+          const insertText = Array.isArray(selected) ? selected[1] : `:${selected.emoji.shortcode}:`;
           const textarea = inputRef.current!;
           const text = messageTextRef.current;
           const cursor = textarea.selectionStart ?? text.length;
-          const newText = text.slice(0, ac.colonIdx) + emoji + text.slice(cursor);
-          const newPos = ac.colonIdx + emoji.length;
+          const newText = text.slice(0, ac.colonIdx) + insertText + text.slice(cursor);
+          const newPos = ac.colonIdx + insertText.length;
           setMessageText(newText, newPos);
           setShortcodeAC(null);
           requestAnimationFrame(() => {
@@ -824,17 +867,23 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
-  const handleEmojiSelect = useCallback((emoji: string) => {
+  const handleEmojiSelect = useCallback((result: EmojiSelectResult) => {
+    const inserted = result.native
+      ? result.native
+      : result.custom
+        ? `:${result.custom.shortcode}:`
+        : '';
+    if (!inserted) return;
     const textarea = inputRef.current;
     if (!textarea) {
-      setMessageText(messageTextRef.current + emoji);
+      setMessageText(messageTextRef.current + inserted);
       return;
     }
     const current = messageTextRef.current;
     const start = textarea.selectionStart ?? current.length;
     const end = textarea.selectionEnd ?? current.length;
-    const newPos = start + emoji.length;
-    setMessageText(current.slice(0, start) + emoji + current.slice(end), newPos);
+    const newPos = start + inserted.length;
+    setMessageText(current.slice(0, start) + inserted + current.slice(end), newPos);
     setShowEmojiPicker(false);
     requestAnimationFrame(() => {
       textarea.focus();
@@ -1001,7 +1050,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
             mentionSuggestions.length > 0
               ? `mention-ac-option-${mentionSuggestions[mentionAcSelectedIdx]?.id}`
               : acSuggestions.length > 0
-                ? `emoji-ac-option-${acSuggestions[acSelectedIdx]![0]}`
+                ? `emoji-ac-option-${acSuggestionKey(acSuggestions[acSelectedIdx])}`
                 : undefined
           }
           onChange={(e) => {
@@ -1122,7 +1171,10 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
             <Portal>
               <Popover.Positioner>
                 <Popover.Content className="emoji-picker-popover">
-                  <EmojiPicker onEmojiSelect={handleEmojiSelect} />
+                  <EmojiPicker
+                    onEmojiSelect={handleEmojiSelect}
+                    customEmojis={!customEmojisDisabled ? customEmojis : undefined}
+                  />
                 </Popover.Content>
               </Popover.Positioner>
             </Portal>

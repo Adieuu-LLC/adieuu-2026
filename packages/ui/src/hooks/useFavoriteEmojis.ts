@@ -4,6 +4,9 @@
  * Manages up to 3 favourite emoji per identity, stored in localStorage.
  * Favourites appear as quick-react buttons in the message hover menu.
  *
+ * Supports both native Unicode emojis (stored as the emoji string)
+ * and custom emojis (stored as "custom:<id>").
+ *
  * Storage: localStorage per identity (key: adieuu-favorite-emojis-{identityId}).
  * Server sync via encrypted identity preferences is planned for a future release.
  *
@@ -14,6 +17,20 @@ import { useState, useCallback, useEffect } from 'react';
 
 const STORAGE_KEY_PREFIX = 'adieuu-favorite-emojis-';
 const MAX_FAVORITES = 3;
+
+export const CUSTOM_EMOJI_FAVORITE_PREFIX = 'custom:';
+
+export function isCustomEmojiFavorite(value: string): boolean {
+  return value.startsWith(CUSTOM_EMOJI_FAVORITE_PREFIX);
+}
+
+export function customEmojiFavoriteId(value: string): string {
+  return value.slice(CUSTOM_EMOJI_FAVORITE_PREFIX.length);
+}
+
+export function toCustomEmojiFavorite(emojiId: string): string {
+  return `${CUSTOM_EMOJI_FAVORITE_PREFIX}${emojiId}`;
+}
 
 function loadFavorites(identityId: string): string[] {
   try {

@@ -13,8 +13,8 @@
  * @module utils/markdownParser
  */
 
-import { type ReactNode } from 'react';
-import type { PublicIdentity } from '@adieuu/shared';
+import { type ReactNode, type ReactElement, createElement } from 'react';
+import type { PublicIdentity, CustomEmojiPayloadEntry } from '@adieuu/shared';
 import type { MentionEntity } from '../services/messagePayload';
 import type { MemberSettingsMap } from '../services/conversationCryptoService';
 import { IdentityHoverCard } from '../components/IdentityHoverCard';
@@ -364,10 +364,68 @@ function renderBlock(block: Block, ctx: RenderCtx): ReactNode {
  * Returns a self-contained `<div className="dm-message-text">` wrapper,
  * or `null` when `text` is empty.
  */
+/**
+ * Recursively walk a React tree and replace text segments containing
+ * `:shortcode:` with interleaved text + `<img>` elements.
+ */
+function injectCustomEmojis(
+  node: ReactNode,
+  emojis: Record<string, CustomEmojiPayloadEntry>,
+  keyRef: { k: number },
+): ReactNode {
+  if (typeof node === 'string') {
+    const pattern = /:([a-z0-9_]{2,32}):/gi;
+    const parts: ReactNode[] = [];
+    let lastIdx = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(node)) !== null) {
+      const sc = match[1]?.toLowerCase();
+      if (!sc) continue;
+      const entry = emojis[sc];
+      if (!entry) continue;
+      if (match.index > lastIdx) {
+        parts.push(node.slice(lastIdx, match.index));
+      }
+      parts.push(
+        createElement('img', {
+          key: `ce-${keyRef.k++}`,
+          src: entry.url,
+          alt: `:${sc}:`,
+          title: entry.name,
+          className: 'dm-custom-emoji-inline',
+          width: 20,
+          height: 20,
+          loading: 'lazy',
+        }),
+      );
+      lastIdx = pattern.lastIndex;
+    }
+    if (parts.length === 0) return node;
+    if (lastIdx < node.length) parts.push(node.slice(lastIdx));
+    return parts;
+  }
+
+  if (Array.isArray(node)) {
+    return node.map((child) => injectCustomEmojis(child, emojis, keyRef));
+  }
+
+  if (node && typeof node === 'object' && 'props' in node) {
+    const el = node as ReactElement;
+    const children = el.props.children;
+    if (children == null) return node;
+    const mapped = injectCustomEmojis(children, emojis, keyRef);
+    if (mapped === children) return node;
+    return { ...el, props: { ...el.props, children: mapped } };
+  }
+
+  return node;
+}
+
 export function renderFormattedMessage(
   text: string,
   onLinkClick: (href: string) => void,
   mentionCtx?: MentionRenderContext,
+  customEmojis?: Record<string, CustomEmojiPayloadEntry>,
 ): ReactNode | null {
   if (!text) return null;
 
@@ -375,9 +433,15 @@ export function renderFormattedMessage(
   const blocks = parseBlocks(text);
   if (blocks.length === 0) return null;
 
-  return (
+  let content: ReactNode = (
     <div className="dm-message-text">
       {blocks.map((block) => renderBlock(block, ctx))}
     </div>
   );
+
+  if (customEmojis && Object.keys(customEmojis).length > 0) {
+    content = injectCustomEmojis(content, customEmojis, { k: ctx.k });
+  }
+
+  return content;
 }

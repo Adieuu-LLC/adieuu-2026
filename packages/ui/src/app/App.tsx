@@ -18,6 +18,7 @@ import { CheckoutComplete } from '../pages/checkout/CheckoutComplete';
 import {
   IdentityAppearance,
   IdentityCiphers,
+  IdentityCustomEmojis,
   IdentityDevices,
   IdentityNotifications,
   IdentityPrivacy,
@@ -230,6 +231,7 @@ export function App() {
         <Route path="/identity/privacy" element={<IdentityPrivacy />} />
         <Route path="/identity/devices" element={<IdentityDevices />} />
         <Route path="/identity/ciphers" element={<IdentityCiphers />} />
+        <Route path="/identity/emojis" element={<IdentityCustomEmojis />} />
         <Route path="/identity/subscription" element={<Navigate to="/identity/subscription/manage" replace />} />
         <Route path="/identity/subscription/:tab" element={<AccountSubscription />} />
 

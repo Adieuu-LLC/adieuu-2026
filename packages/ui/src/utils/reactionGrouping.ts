@@ -1,4 +1,4 @@
-import type { DecryptedReaction } from '../services/reactionCryptoService';
+import type { DecryptedReaction, ReactionCustomEmoji } from '../services/reactionCryptoService';
 
 /** Local-only reaction row id while the create request is in flight (not a server id). */
 export const OPTIMISTIC_REACTION_ID_PREFIX = '__optimistic__:';
@@ -23,6 +23,7 @@ function stripStaleOptimisticForFetched(
 
 export interface GroupedReaction {
   emoji: string;
+  customEmoji?: ReactionCustomEmoji;
   count: number;
   reactionIds: string[];
   fromIdentityIds: string[];
@@ -61,16 +62,27 @@ export function groupReactions(
 
   const groups = new Map<
     string,
-    { count: number; reactionIds: string[]; fromIdentityIds: string[] }
+    {
+      emoji: string;
+      customEmoji?: ReactionCustomEmoji;
+      count: number;
+      reactionIds: string[];
+      fromIdentityIds: string[];
+    }
   >();
   for (const reaction of verified) {
-    const existing = groups.get(reaction.emoji);
+    const groupKey = reaction.customEmoji
+      ? `custom:${reaction.customEmoji.id}`
+      : reaction.emoji;
+    const existing = groups.get(groupKey);
     if (existing) {
       existing.count++;
       existing.reactionIds.push(reaction.id);
       existing.fromIdentityIds.push(reaction.fromIdentityId);
     } else {
-      groups.set(reaction.emoji, {
+      groups.set(groupKey, {
+        emoji: reaction.emoji,
+        customEmoji: reaction.customEmoji,
         count: 1,
         reactionIds: [reaction.id],
         fromIdentityIds: [reaction.fromIdentityId],
@@ -78,14 +90,18 @@ export function groupReactions(
     }
   }
 
-  return Array.from(groups.entries()).map(([emoji, data]) => ({
-    emoji,
+  return Array.from(groups.entries()).map(([groupKey, data]) => ({
+    emoji: data.emoji,
+    ...(data.customEmoji ? { customEmoji: data.customEmoji } : {}),
     count: data.count,
     reactionIds: data.reactionIds,
     fromIdentityIds: data.fromIdentityIds,
     isOwn: selfId ? data.fromIdentityIds.includes(selfId) : false,
     ownReactionId: selfId
-      ? verified.find((r) => r.emoji === emoji && r.fromIdentityId === selfId)?.id
+      ? verified.find((r) => {
+          const rKey = r.customEmoji ? `custom:${r.customEmoji.id}` : r.emoji;
+          return rKey === groupKey && r.fromIdentityId === selfId;
+        })?.id
       : undefined,
   }));
 }

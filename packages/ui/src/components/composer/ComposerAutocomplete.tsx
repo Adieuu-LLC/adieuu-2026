@@ -1,11 +1,16 @@
+import type { PublicCustomEmoji } from '@adieuu/shared';
 import type { MentionableUser } from './composerTypes';
+
+export type ShortcodeSuggestion =
+  | [code: string, emoji: string]
+  | { type: 'custom'; emoji: PublicCustomEmoji };
 
 export function ComposerShortcodeAutocomplete({
   suggestions,
   selectedIdx,
   onSelect,
 }: {
-  suggestions: [string, string][];
+  suggestions: ShortcodeSuggestion[];
   selectedIdx: number;
   onSelect: (code: string, emoji: string) => void;
 }) {
@@ -13,22 +18,39 @@ export function ComposerShortcodeAutocomplete({
 
   return (
     <ul className="conversation-composer-emoji-ac" role="listbox" id="emoji-ac-listbox">
-      {suggestions.map(([code, emoji], i) => (
-        <li
-          key={code}
-          id={`emoji-ac-option-${code}`}
-          role="option"
-          aria-selected={i === selectedIdx}
-          className={`conversation-composer-emoji-ac-item${i === selectedIdx ? ' conversation-composer-emoji-ac-item--selected' : ''}`}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onSelect(code, emoji);
-          }}
-        >
-          <span className="conversation-composer-emoji-ac-emoji">{emoji}</span>
-          <span className="conversation-composer-emoji-ac-code">:{code}:</span>
-        </li>
-      ))}
+      {suggestions.map((item, i) => {
+        const isCustom = !Array.isArray(item) && item.type === 'custom';
+        const code = isCustom ? item.emoji.shortcode : (item as [string, string])[0];
+        const display = isCustom ? null : (item as [string, string])[1];
+        const key = isCustom ? `custom-${item.emoji.id}` : code;
+
+        return (
+          <li
+            key={key}
+            id={`emoji-ac-option-${key}`}
+            role="option"
+            aria-selected={i === selectedIdx}
+            className={`conversation-composer-emoji-ac-item${i === selectedIdx ? ' conversation-composer-emoji-ac-item--selected' : ''}`}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onSelect(code, display ?? `:${code}:`);
+            }}
+          >
+            {isCustom ? (
+              <img
+                src={item.emoji.cdnUrl}
+                alt={item.emoji.name}
+                className="conversation-composer-emoji-ac-emoji conversation-composer-emoji-ac-emoji--custom"
+                width={20}
+                height={20}
+              />
+            ) : (
+              <span className="conversation-composer-emoji-ac-emoji">{display}</span>
+            )}
+            <span className="conversation-composer-emoji-ac-code">:{code}:</span>
+          </li>
+        );
+      })}
     </ul>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useRef, useLayoutEffect, useCallback, memo } from 'react';
 import type { GroupedReaction } from '../../hooks/useReactions';
+import type { ReactionCustomEmoji } from '../../services/reactionCryptoService';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
 import type { PublicIdentity } from '@adieuu/shared';
 import { Tooltip } from '../../components/Tooltip';
@@ -9,6 +10,7 @@ export const ReactionChip = memo(
   function ReactionChip({
     messageId,
     emoji,
+    customEmoji,
     count,
     isOwn,
     ownReactionId,
@@ -17,6 +19,7 @@ export const ReactionChip = memo(
   }: {
     messageId: string;
     emoji: string;
+    customEmoji?: ReactionCustomEmoji;
     count: number;
     isOwn: boolean;
     ownReactionId: string | undefined;
@@ -54,7 +57,20 @@ export const ReactionChip = memo(
     return (
       <Tooltip content={tooltipContent} position="top">
         <button type="button" className={chipClass} onClick={handleClick}>
-          <span className="message-reaction-chip-emoji">{emoji}</span>
+          <span className="message-reaction-chip-emoji">
+            {customEmoji ? (
+              <img
+                src={customEmoji.url}
+                alt={customEmoji.name}
+                className="message-reaction-chip-custom-emoji"
+                width={18}
+                height={18}
+                loading="lazy"
+              />
+            ) : (
+              emoji
+            )}
+          </span>
           <span className={countClass}>{count}</span>
         </button>
       </Tooltip>
@@ -91,9 +107,10 @@ export const ReactionBar = memo(function ReactionBar({
     <div className="message-reaction-bar">
       {reactions.map((r) => (
         <ReactionChip
-          key={`${messageId}:${r.emoji}`}
+          key={`${messageId}:${r.customEmoji ? `custom:${r.customEmoji.id}` : r.emoji}`}
           messageId={messageId}
           emoji={r.emoji}
+          customEmoji={r.customEmoji}
           count={r.count}
           isOwn={r.isOwn}
           ownReactionId={r.ownReactionId}

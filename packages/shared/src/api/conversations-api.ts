@@ -290,6 +290,16 @@ export class ConversationsApi {
     );
   }
 
+  async updateCustomEmojisDisabled(
+    conversationId: string,
+    customEmojisDisabled: boolean
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.patch(
+      `/api/conversations/${encodeURIComponent(conversationId)}/custom-emojis`,
+      { customEmojisDisabled }
+    );
+  }
+
   async updateMessageSearchCachePolicy(
     conversationId: string,
     disallowPersistentMessageSearchCache: boolean

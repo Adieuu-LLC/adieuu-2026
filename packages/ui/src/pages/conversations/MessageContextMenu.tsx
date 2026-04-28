@@ -302,8 +302,8 @@ export function MessageContextMenuFrame({
           <Popover.Content className="emoji-picker-popover emoji-picker-popover--context">
             <EmojiPicker
               compact
-              onEmojiSelect={(emoji) => {
-                onReact(messageId, emoji);
+              onEmojiSelect={(result) => {
+                if (result.native) onReact(messageId, result.native);
                 onShowContextReactionPicker(false);
               }}
             />

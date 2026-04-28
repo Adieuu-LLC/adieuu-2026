@@ -30,6 +30,10 @@ export const en = {
   gif,
   achievements,
   compliance,
+  customEmoji: {
+    conversationDisabledByAdmin: 'Disable custom emojis',
+    conversationDisabledByAdminHint: 'This disables custom emoji usage for all members',
+  },
 } as const;
 
 export type TranslationKeys = typeof en;

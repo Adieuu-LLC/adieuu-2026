@@ -91,7 +91,7 @@ router.post('/custom-emojis', async (ctx) => {
     return error(result.errorCode!, result.error!, httpStatus);
   }
 
-  return success(result.data, 201);
+  return success(result.data, undefined, 201);
 });
 
 /**
@@ -101,7 +101,7 @@ router.get('/custom-emojis/:id', async (ctx) => {
   const guard = requireIdentitySession(ctx);
   if (guard) return guard;
 
-  const { id } = ctx.params;
+  const id = ctx.params.id ?? '';
   if (!isValidObjectId(id)) return ctx.errors.badRequest();
 
   const result = await getCustomEmoji(id);
@@ -120,7 +120,7 @@ router.patch('/custom-emojis/:id', async (ctx) => {
   if (guard) return guard;
   const { identity } = ctx.identitySession!;
 
-  const { id } = ctx.params;
+  const id = ctx.params.id ?? '';
   if (!isValidObjectId(id)) return ctx.errors.badRequest();
 
   const parsed = UpdateSchema.safeParse(ctx.body);
@@ -156,7 +156,7 @@ router.delete('/custom-emojis/:id', async (ctx) => {
   if (guard) return guard;
   const { identity } = ctx.identitySession!;
 
-  const { id } = ctx.params;
+  const id = ctx.params.id ?? '';
   if (!isValidObjectId(id)) return ctx.errors.badRequest();
 
   const result = await deleteCustomEmoji({
@@ -170,7 +170,7 @@ router.delete('/custom-emojis/:id', async (ctx) => {
     return error(result.errorCode!, result.error!, 400);
   }
 
-  return success(null, 204);
+  return success(null, undefined, 204);
 });
 
 export const customEmojiRoutes = router;

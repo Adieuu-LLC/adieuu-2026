@@ -23,6 +23,7 @@ export const identity = {
       notifications: 'Notifications',
       ciphers: 'Ciphers',
       devices: 'Devices',
+      emojis: 'Custom Emojis',
       subscription: 'Subscription',
     },
     // Actions for identity interactions
@@ -541,6 +542,24 @@ export const identity = {
         whyAccountSignInP3:
           'An Alias session does not include those account-held secrets, so the service cannot complete the password change until you sign into your Account.',
       },
+    },
+    // Custom emoji management
+    customEmojis: {
+      title: 'Custom Emojis',
+      subtitle: 'Upload and manage custom emojis you can use in conversations.',
+      usage: '{{used}} of {{limit}} slots used',
+      add: 'Add Emoji',
+      limitReached: 'You have reached your custom emoji limit. Upgrade your subscription for more.',
+      empty: 'You haven\'t added any custom emojis yet.',
+      createTitle: 'Add Custom Emoji',
+      selectFile: 'Select image',
+      changeFile: 'Change file',
+      shortcodeLabel: 'Shortcode',
+      nameLabel: 'Display name',
+      save: 'Save Emoji',
+      saving: 'Saving...',
+      deleteTitle: 'Delete custom emoji?',
+      deleteDescription: 'This emoji will be permanently deleted. Messages that already contain it will show the shortcode text instead.',
     },
     // Appearance page (alias-scoped)
     appearance: {
