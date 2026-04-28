@@ -59,6 +59,7 @@ import {
 import { resolveEffectiveAccess } from '../../services/billing/resolve-access';
 import { evaluateAliasGate, type AliasGateResult } from '../../services/age-verification/alias-gate';
 import { isAgeVerificationEnabled } from '../../services/age-verification/av-settings';
+import { checkVerificationStatus } from '../../services/age-verification/age-verification.service';
 import type { AgeVerificationStatus } from '../../models/user';
 
 /** OTP expiration time in minutes */
@@ -797,6 +798,7 @@ export async function getSessionHandler(
     verifiedAt?: string;
     retryAfter?: string;
     expirationCount?: number;
+    providerVerificationId?: string;
   } | undefined;
   let aliasGate: {
     allowed: boolean;
@@ -808,6 +810,23 @@ export async function getSessionHandler(
   } | undefined;
 
   const avEnabled = await isAgeVerificationEnabled();
+
+  // Resilient status sync: if the user has a pending verification, check with
+  // the provider unless we already checked within the last 30 seconds.
+  const STATUS_CHECK_DEBOUNCE_MS = 30_000;
+  if (avEnabled && user.ageVerification?.status === 'pending' && user.ageVerification.providerVerificationId) {
+    const lastCheck = user.ageVerification.lastStatusCheckAt?.getTime() ?? 0;
+    if (Date.now() - lastCheck > STATUS_CHECK_DEBOUNCE_MS) {
+      try {
+        await checkVerificationStatus(user, user.ageVerification.providerVerificationId);
+        const avUserRepo = getUserRepository();
+        user = (await avUserRepo.findById(user._id)) ?? user;
+      } catch {
+        // Provider timeout -- fall through to stale local state
+      }
+    }
+  }
+
   if (avEnabled) {
     const av = user.ageVerification;
     if (av) {
@@ -827,6 +846,7 @@ export async function getSessionHandler(
         verifiedAt: av.verifiedAt?.toISOString(),
         retryAfter,
         expirationCount: av.expirationCount,
+        providerVerificationId: av.status === 'pending' ? av.providerVerificationId : undefined,
       };
     }
 

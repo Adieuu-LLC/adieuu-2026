@@ -103,6 +103,8 @@ export interface UserAgeVerification {
   expirationCount: number;
   /** When the most recent expiration occurred (drives 24h and 30-day cooldowns). */
   lastExpiredAt?: Date;
+  /** When we last queried the provider for status (drives /me debounce). */
+  lastStatusCheckAt?: Date;
 }
 
 /**

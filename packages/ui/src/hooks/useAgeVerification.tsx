@@ -30,13 +30,15 @@ export interface UseAgeVerificationReturn {
   status: AgeVerificationUIStatus;
   verificationId?: string;
   ageGate?: Record<string, MethodAttemptInfo>;
+  /** Seconds until the next status poll, or null when not polling. */
+  secondsUntilNextPoll: number | null;
   start: () => Promise<void>;
   optIn: (country?: string) => Promise<void>;
   cancel: () => void;
 }
 
-const POLL_INTERVAL_MS = 3000;
-const MAX_POLL_INTERVAL_MS = 15000;
+const POLL_INTERVAL_MS = 15000;
+const MAX_POLL_INTERVAL_MS = 30000;
 
 export function useAgeVerification(): UseAgeVerificationReturn {
   const { apiBaseUrl } = useAppConfig();
@@ -46,16 +48,38 @@ export function useAgeVerification(): UseAgeVerificationReturn {
   const [status, setStatus] = useState<AgeVerificationUIStatus>('idle');
   const [verificationId, setVerificationId] = useState<string>();
   const [ageGate, setAgeGate] = useState<Record<string, MethodAttemptInfo>>();
+  const [secondsUntilNextPoll, setSecondsUntilNextPoll] = useState<number | null>(null);
   const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const cancelledRef = useRef(false);
   const providerVerificationIdRef = useRef<string>();
+
+  const stopCountdown = useCallback(() => {
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+    setSecondsUntilNextPoll(null);
+  }, []);
+
+  const startCountdown = useCallback((intervalMs: number) => {
+    stopCountdown();
+    setSecondsUntilNextPoll(Math.ceil(intervalMs / 1000));
+    countdownRef.current = setInterval(() => {
+      setSecondsUntilNextPoll((prev) => {
+        if (prev === null || prev <= 1) return null;
+        return prev - 1;
+      });
+    }, 1000);
+  }, [stopCountdown]);
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
       clearTimeout(pollingRef.current);
       pollingRef.current = null;
     }
-  }, []);
+    stopCountdown();
+  }, [stopCountdown]);
 
   const cancel = useCallback(() => {
     cancelledRef.current = true;
@@ -115,16 +139,18 @@ export function useAgeVerification(): UseAgeVerificationReturn {
 
         if (!cancelledRef.current) {
           const nextInterval = Math.min(interval * 1.5, MAX_POLL_INTERVAL_MS);
+          startCountdown(nextInterval);
           pollingRef.current = setTimeout(() => pollStatus(pvId, nextInterval), nextInterval);
         }
       } catch {
         if (!cancelledRef.current) {
           const nextInterval = Math.min(interval * 2, MAX_POLL_INTERVAL_MS);
+          startCountdown(nextInterval);
           pollingRef.current = setTimeout(() => pollStatus(pvId, nextInterval), nextInterval);
         }
       }
     },
-    [apiBaseUrl, refreshSession, stopPolling],
+    [apiBaseUrl, refreshSession, startCountdown, stopPolling],
   );
 
   const startFlow = useCallback(
@@ -172,12 +198,14 @@ export function useAgeVerification(): UseAgeVerificationReturn {
         if (data.redirectUrl) {
           setStatus('awaiting_user');
           await openVerificationUrl(data.redirectUrl, platform);
+          startCountdown(POLL_INTERVAL_MS);
           pollingRef.current = setTimeout(
             () => pollStatus(data.providerVerificationId, POLL_INTERVAL_MS),
             POLL_INTERVAL_MS,
           );
         } else {
           setStatus('polling');
+          startCountdown(POLL_INTERVAL_MS);
           pollingRef.current = setTimeout(
             () => pollStatus(data.providerVerificationId, POLL_INTERVAL_MS),
             POLL_INTERVAL_MS,
@@ -187,7 +215,7 @@ export function useAgeVerification(): UseAgeVerificationReturn {
         setStatus('failed');
       }
     },
-    [apiBaseUrl, platform, pollStatus, refreshSession],
+    [apiBaseUrl, platform, pollStatus, refreshSession, startCountdown],
   );
 
   const start = useCallback(() => startFlow('age-verification/start'), [startFlow]);
@@ -216,5 +244,5 @@ export function useAgeVerification(): UseAgeVerificationReturn {
   // Cleanup on unmount
   useEffect(() => () => stopPolling(), [stopPolling]);
 
-  return { status, verificationId, ageGate, start, optIn, cancel };
+  return { status, verificationId, ageGate, secondsUntilNextPoll, start, optIn, cancel };
 }

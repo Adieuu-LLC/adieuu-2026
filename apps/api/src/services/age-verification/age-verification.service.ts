@@ -6,8 +6,6 @@
  * check first, then interactive redirect with the least invasive method.
  */
 
-import { ObjectId } from 'mongodb';
-import { config } from '../../config';
 import type { UserDocument, UserAgeVerification } from '../../models/user';
 import type { AgeVerificationDocument } from '../../models/age-verification';
 import { getAgeVerificationRepository } from '../../repositories/age-verification.repository';
@@ -35,8 +33,11 @@ export interface StatusResult {
 }
 
 /**
- * Starts a new verification for a user. Attempts a background check
- * first if PII is available and the jurisdiction allows it.
+ * Starts a verification for a user, reusing an existing non-terminal attempt
+ * when one exists and the hosted URL is still valid.
+ *
+ * Attempts a background check first if PII is available and the jurisdiction
+ * allows it.
  */
 export async function startVerification(
   user: UserDocument,
@@ -51,6 +52,43 @@ export async function startVerification(
   const repo = getAgeVerificationRepository();
   const userRepo = getUserRepository();
 
+  // Check for an existing non-terminal attempt before creating a new one
+  const existing = await repo.findByUserIdAndStatus(user._id, ['started', 'pending']);
+  if (existing.length > 0) {
+    const candidate = existing[0]!;
+
+    // Best-effort provider status check -- if it fails, still return the
+    // existing attempt rather than orphaning it by creating a new one.
+    let stillActive = true;
+    try {
+      const providerStatus = await provider.getVerificationStatus(candidate.providerVerificationId);
+      if (providerStatus.status !== 'started' && providerStatus.status !== 'pending') {
+        stillActive = false;
+        await syncTerminalStatus(candidate, providerStatus, provider.id, user, repo, userRepo);
+      }
+    } catch (err) {
+      elog.warn('Provider status check failed for existing attempt, returning cached', {
+        providerVerificationId: candidate.providerVerificationId,
+        error: err,
+      });
+    }
+
+    if (stillActive) {
+      if (user.ageVerification) {
+        await userRepo.updateAgeVerification(user._id, {
+          ...user.ageVerification,
+          lastStatusCheckAt: new Date(),
+        });
+      }
+      return {
+        verificationId: candidate._id.toHexString(),
+        providerVerificationId: candidate.providerVerificationId,
+        status: candidate.status,
+        redirectUrl: candidate.redirectUrl,
+      };
+    }
+  }
+
   const policy = await getAgeVerificationPolicy(opts.jurisdiction);
   const leastInvasive = policy?.leastInvasiveMethod;
 
@@ -58,17 +96,15 @@ export async function startVerification(
     ?? user.geo?.countryCode?.toLowerCase()
     ?? 'us';
 
-  const redirectUrl = `${opts.callbackBaseUrl}/api/age-verification/callback`;
+  const callbackUrl = `${opts.callbackBaseUrl}/api/age-verification/callback`;
 
   const input: Parameters<typeof provider.startVerification>[0] = {
-    redirectUrl,
+    redirectUrl: callbackUrl,
     country: countryCode,
     externalUserId: user._id.toHexString(),
     method: leastInvasive,
   };
 
-  // Include user_info for background check if email is available
-  // and the jurisdiction supports email_age_check
   const canBackgroundCheck = policy?.compatibleMethods.includes('Email');
   if (canBackgroundCheck && user.email) {
     input.userInfo = { email: user.email };
@@ -89,7 +125,6 @@ export async function startVerification(
     throw err;
   }
 
-  // Persist the attempt
   const doc = await repo.createVerification({
     userId: user._id,
     providerId: provider.id,
@@ -98,10 +133,10 @@ export async function startVerification(
     jurisdiction: opts.jurisdiction,
     requestedMethod: leastInvasive,
     startedAt: new Date(),
+    redirectUrl: providerResult.redirectUrl,
     optedIn: opts.optedIn ?? false,
   });
 
-  // If immediately approved (background check succeeded), update user
   if (providerResult.status === 'approved') {
     const av: UserAgeVerification = {
       status: 'verified',
@@ -118,7 +153,6 @@ export async function startVerification(
       completedAt: new Date(),
     });
   } else {
-    // Mark user as pending
     const av: UserAgeVerification = {
       status: 'pending',
       providerId: provider.id,
@@ -126,6 +160,7 @@ export async function startVerification(
       lastJurisdiction: opts.jurisdiction,
       optedIn: opts.optedIn,
       expirationCount: user.ageVerification?.expirationCount ?? 0,
+      lastStatusCheckAt: new Date(),
     };
     await userRepo.updateAgeVerification(user._id, av);
   }
@@ -171,49 +206,17 @@ export async function checkVerificationStatus(
     return toStatusResult(doc);
   }
 
-  // Update local doc if status changed
-  if (providerStatus.status !== doc.status) {
-    await repo.updateStatus(doc._id, providerStatus.status, {
-      approvalMethod: providerStatus.approvalMethod,
-      backgroundCheck: providerStatus.backgroundCheck,
-      completedAt: providerStatus.status === 'approved' || providerStatus.status === 'failed'
-        ? new Date()
-        : undefined,
+  // Record that we successfully queried the provider (drives /me debounce)
+  const now = new Date();
+  if (user.ageVerification) {
+    await userRepo.updateAgeVerification(user._id, {
+      ...user.ageVerification,
+      lastStatusCheckAt: now,
     });
+  }
 
-    // Update user document for terminal states
-    if (providerStatus.status === 'approved') {
-      await userRepo.updateAgeVerification(user._id, {
-        status: 'verified',
-        providerId: provider.id,
-        providerVerificationId,
-        verifiedAt: new Date(),
-        lastJurisdiction: doc.jurisdiction,
-        optedIn: doc.optedIn || undefined,
-        expirationCount: user.ageVerification?.expirationCount ?? 0,
-      });
-    } else if (providerStatus.status === 'failed') {
-      await userRepo.updateAgeVerification(user._id, {
-        status: 'failed',
-        providerId: provider.id,
-        providerVerificationId,
-        failedAt: new Date(),
-        lastJurisdiction: doc.jurisdiction,
-        optedIn: doc.optedIn || undefined,
-        expirationCount: user.ageVerification?.expirationCount ?? 0,
-      });
-    } else if (providerStatus.status === 'expired') {
-      const prevCount = user.ageVerification?.expirationCount ?? 0;
-      await userRepo.updateAgeVerification(user._id, {
-        status: 'expired',
-        providerId: provider.id,
-        providerVerificationId,
-        lastExpiredAt: new Date(),
-        lastJurisdiction: doc.jurisdiction,
-        optedIn: doc.optedIn || undefined,
-        expirationCount: prevCount + 1,
-      });
-    }
+  if (providerStatus.status !== doc.status) {
+    await syncTerminalStatus(doc, providerStatus, provider.id, user, repo, userRepo);
   }
 
   return {
@@ -242,4 +245,63 @@ function toStatusResult(doc: AgeVerificationDocument): StatusResult {
     approvalMethod: doc.approvalMethod,
     backgroundCheck: doc.backgroundCheck,
   };
+}
+
+/**
+ * Syncs local attempt + user docs when the provider reports a status change.
+ * Used by both `checkVerificationStatus` and the idempotent `startVerification` path.
+ */
+async function syncTerminalStatus(
+  doc: AgeVerificationDocument,
+  providerStatus: VerificationStatusResult,
+  providerId: string,
+  user: UserDocument,
+  repo: ReturnType<typeof getAgeVerificationRepository>,
+  userRepo: ReturnType<typeof getUserRepository>,
+): Promise<void> {
+  await repo.updateStatus(doc._id, providerStatus.status, {
+    approvalMethod: providerStatus.approvalMethod,
+    backgroundCheck: providerStatus.backgroundCheck,
+    completedAt: providerStatus.status === 'approved' || providerStatus.status === 'failed'
+      ? new Date()
+      : undefined,
+  });
+
+  const pvId = doc.providerVerificationId;
+
+  if (providerStatus.status === 'approved') {
+    await userRepo.updateAgeVerification(user._id, {
+      status: 'verified',
+      providerId,
+      providerVerificationId: pvId,
+      verifiedAt: new Date(),
+      lastJurisdiction: doc.jurisdiction,
+      optedIn: doc.optedIn || undefined,
+      expirationCount: user.ageVerification?.expirationCount ?? 0,
+      lastStatusCheckAt: new Date(),
+    });
+  } else if (providerStatus.status === 'failed') {
+    await userRepo.updateAgeVerification(user._id, {
+      status: 'failed',
+      providerId,
+      providerVerificationId: pvId,
+      failedAt: new Date(),
+      lastJurisdiction: doc.jurisdiction,
+      optedIn: doc.optedIn || undefined,
+      expirationCount: user.ageVerification?.expirationCount ?? 0,
+      lastStatusCheckAt: new Date(),
+    });
+  } else if (providerStatus.status === 'expired') {
+    const prevCount = user.ageVerification?.expirationCount ?? 0;
+    await userRepo.updateAgeVerification(user._id, {
+      status: 'expired',
+      providerId,
+      providerVerificationId: pvId,
+      lastExpiredAt: new Date(),
+      lastJurisdiction: doc.jurisdiction,
+      optedIn: doc.optedIn || undefined,
+      expirationCount: prevCount + 1,
+      lastStatusCheckAt: new Date(),
+    });
+  }
 }

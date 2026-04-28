@@ -61,6 +61,16 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     }
   }, [unlockMode, isOpen]);
 
+  // Re-derive compliance view when the modal opens (handles close + reopen)
+  useEffect(() => {
+    if (isOpen && aliasGate && !aliasGate.allowed) {
+      if (aliasGate.code === 'GEOFENCE_BLOCKED') setView('geofenced');
+      else if (aliasGate.code === 'AGE_VERIFICATION_FAILED') setView('age_verification_failed');
+      else if (aliasGate.code === 'AGE_VERIFICATION_COOLDOWN') setView('age_verification_cooldown');
+      else if (aliasGate.code === 'AGE_VERIFICATION_REQUIRED') setView('age_verification_required');
+    }
+  }, [isOpen, aliasGate]);
+
   // Sync view when aliasGate changes (e.g. after AV approval refreshes session)
   useEffect(() => {
     if (!aliasGate || aliasGate.allowed) {
@@ -709,7 +719,9 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
                     }}
                     disabled={avOptInMode && avOptInCountry.trim().length !== 2}
                   >
-                    {t('compliance.ageVerification.startButton')}
+                    {session?.ageVerification?.status === 'pending'
+                      ? t('compliance.ageVerification.resumeButton')
+                      : t('compliance.ageVerification.startButton')}
                   </Button>
                 </div>
               </>
@@ -733,6 +745,11 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
                       ? t('compliance.ageVerification.awaitingUser')
                       : t('compliance.ageVerification.processing')}
                   </p>
+                  {av.secondsUntilNextPoll != null && (
+                    <p className="identity-modal-av-countdown">
+                      {t('compliance.ageVerification.nextCheckIn', { seconds: av.secondsUntilNextPoll })}
+                    </p>
+                  )}
                 </div>
               </div>
             )}

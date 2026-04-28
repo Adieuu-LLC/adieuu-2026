@@ -108,6 +108,8 @@ export interface SessionAgeVerification {
   retryAfter?: string;
   /** How many times verification has expired (UI shows "attempt N of 3"). */
   expirationCount?: number;
+  /** Present when status is 'pending'; enables client-side polling resume. */
+  providerVerificationId?: string;
 }
 
 export interface SessionAliasGate {

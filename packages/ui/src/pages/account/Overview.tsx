@@ -16,6 +16,7 @@ import {
 } from '@adieuu/shared';
 import { useAuth } from '../../hooks/useAuth';
 import { useAppConfig } from '../../config';
+import { AgeVerificationCard } from './AgeVerificationCard';
 
 type EditMode = 'none' | 'email' | 'phone';
 type VerifyMode = 'none' | 'email' | 'phone';
@@ -660,6 +661,24 @@ export function AccountOverview() {
                   <span className="account-detail-value">{geo.jurisdiction}</span>
                 </div>
                 <div className="account-detail-row">
+                  <span className="account-detail-label">{t('account.overview.location.ageVerification')}</span>
+                  <span className="account-detail-value">
+                    {session?.ageVerification?.status === 'verified'
+                      ? t('account.overview.ageVerification.statusVerified')
+                      : session?.ageVerification?.status === 'pending'
+                        ? t('account.overview.ageVerification.statusPending')
+                        : session?.ageVerification?.status === 'failed'
+                          ? t('account.overview.ageVerification.statusFailed')
+                          : session?.ageVerification?.status === 'expired'
+                            ? t('account.overview.ageVerification.statusExpired')
+                            : session?.aliasGate?.code === 'AGE_VERIFICATION_REQUIRED'
+                              ? t('account.overview.ageVerification.statusRequired')
+                              : session?.aliasGate?.code === 'AGE_VERIFICATION_COOLDOWN'
+                                ? t('account.overview.ageVerification.statusCooldown')
+                                : t('account.overview.ageVerification.statusNotRequired')}
+                  </span>
+                </div>
+                <div className="account-detail-row">
                   <span className="account-detail-label">{t('account.overview.location.countryCode')}</span>
                   <span className="account-detail-value">{geo.countryCode}</span>
                 </div>
@@ -684,6 +703,13 @@ export function AccountOverview() {
           </Card>
         ) : null}
 
+        {session != null && (
+          <AgeVerificationCard
+            ageVerification={session.ageVerification}
+            aliasGate={session.aliasGate}
+          />
+        )}
+
         {geo != null && (
           <Card variant="elevated" className="slide-up" style={{ marginTop: '1.5rem' }}>
             <h2 className="page-title" style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>
@@ -692,9 +718,6 @@ export function AccountOverview() {
             <p className="page-subtitle" style={{ marginBottom: '1rem' }}>
               {t('account.overview.compliance.subtitle')}
             </p>
-            <Alert variant="info" className="account-edit-alert" style={{ marginBottom: '1rem' }}>
-              {t('account.overview.compliance.ageVerificationPlanned')}
-            </Alert>
             {jreqLoading && (
               <div className="loading-container">
                 <Spinner size="md" />

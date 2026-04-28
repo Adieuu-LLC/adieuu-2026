@@ -29,6 +29,8 @@ export interface AgeVerificationDocument extends BaseDocument {
   /** Provider-reported expiration (e.g. 6-hour window). */
   expiresAt?: Date;
   completedAt?: Date;
+  /** The hosted verification URL returned by the provider (reusable until expiry). */
+  redirectUrl?: string;
   /** Whether this verification was user-initiated via opt-in. */
   optedIn: boolean;
 }
