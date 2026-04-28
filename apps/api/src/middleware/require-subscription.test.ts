@@ -180,6 +180,27 @@ describe('requireActiveSubscription middleware', () => {
     expect(res.status).toBe(200);
   });
 
+  test('exempt path /api/users/me -> passes through', async () => {
+    const ctx = makeCtx('/api/users/me');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+    expect(mockGetSessionFromRequest).not.toHaveBeenCalled();
+  });
+
+  test('exempt path /api/users/me/email/verify -> passes through', async () => {
+    const ctx = makeCtx('/api/users/me/email/verify');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+    expect(mockGetSessionFromRequest).not.toHaveBeenCalled();
+  });
+
+  test('exempt path /api/geo/requirements -> passes through', async () => {
+    const ctx = makeCtx('/api/geo/requirements');
+    const res = await middleware(ctx, nextOk);
+    expect(res.status).toBe(200);
+    expect(mockGetSessionFromRequest).not.toHaveBeenCalled();
+  });
+
   test('no session -> passes through (identity or unauthenticated)', async () => {
     mockGetSessionFromRequest.mockResolvedValue(null);
     const ctx = makeCtx('/api/themes');

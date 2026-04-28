@@ -40,6 +40,8 @@ const EXEMPT_PREFIXES: readonly string[] = [
   '/api/webhooks',
   '/api/account/subscription',
   '/api/releases',
+  '/api/users/me',
+  '/api/geo/requirements',
 ];
 
 function isExemptPath(pathname: string): boolean {
