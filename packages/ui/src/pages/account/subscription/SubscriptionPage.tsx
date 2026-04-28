@@ -63,7 +63,6 @@ export function AccountSubscription() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const identityMode = authStatus === 'identity_mode';
   const isIdentityRoute = location.pathname.startsWith('/identity/');
   const routeBase = isIdentityRoute ? '/identity/subscription' : '/account/subscription';
 
@@ -84,55 +83,74 @@ export function AccountSubscription() {
   const [error, setError] = useState(false);
   const [pollRun, setPollRun] = useState<UseCheckoutPollingRun | null>(null);
 
+  /** From session API — not useAuth alone: auth can lag after identity login until refreshSession runs. */
+  const identityMode = identitySessionData != null;
+
   const { phase, cancel } = useCheckoutPolling(api, pollRun);
 
   const derived = useMemo(() => {
-    if (identityMode && identitySessionData) {
+    if (identitySessionData) {
       return deriveFromSession(
         identitySessionData.subscriptions,
         identitySessionData.entitlements,
       );
     }
     return deriveState(status);
-  }, [identityMode, identitySessionData, status]);
+  }, [identitySessionData, status]);
 
   const loadStatus = useCallback(
     async (opts?: { silent?: boolean }) => {
-      if (identityMode) {
-        setError(false);
-        try {
-          const res = await api.auth.getSession();
-          if (res.success && res.data) {
-            const data = res.data as unknown as Record<string, unknown>;
-            setIdentitySessionData({
-              subscriptions: (data.subscriptions as SubscriptionTierId[]) ?? [],
-              entitlements: (data.entitlements as string[]) ?? [],
-            });
-          }
-        } catch {
-          // Session data from the cookie is best-effort; show what we can.
-        } finally {
-          setLoading(false);
-        }
-        return;
-      }
       if (!opts?.silent) {
         setLoading(true);
-        setError(false);
       }
       try {
-        const res = await api.subscription.getStatus();
-        if (res.success && res.data) {
-          setStatus(res.data);
+        const sessionRes = await api.auth.getSession();
+
+        if (!sessionRes.success || !sessionRes.data) {
           if (!opts?.silent) {
-            setError(false);
+            setError(true);
+            setIdentitySessionData(null);
+            setStatus(null);
           }
-        } else if (!opts?.silent) {
-          setError(true);
+          return;
+        }
+
+        const data = sessionRes.data as unknown as Record<string, unknown>;
+
+        if ('sessionType' in data && data.sessionType === 'identity') {
+          setError(false);
+          setIdentitySessionData({
+            subscriptions: (data.subscriptions as SubscriptionTierId[]) ?? [],
+            entitlements: (data.entitlements as string[]) ?? [],
+          });
+          setStatus(null);
+          return;
+        }
+
+        setIdentitySessionData(null);
+
+        if (!opts?.silent) {
+          setError(false);
+        }
+        try {
+          const res = await api.subscription.getStatus();
+          if (res.success && res.data) {
+            setStatus(res.data);
+            if (!opts?.silent) {
+              setError(false);
+            }
+          } else if (!opts?.silent) {
+            setError(true);
+          }
+        } catch {
+          if (!opts?.silent) {
+            setError(true);
+          }
         }
       } catch {
         if (!opts?.silent) {
           setError(true);
+          setIdentitySessionData(null);
         }
       } finally {
         if (!opts?.silent) {
@@ -140,7 +158,7 @@ export function AccountSubscription() {
         }
       }
     },
-    [api, identityMode],
+    [api],
   );
 
   useEffect(() => {
@@ -234,7 +252,7 @@ export function AccountSubscription() {
     );
   }
 
-  if (error && !identityMode) {
+  if (error && !identitySessionData) {
     return (
       <div className="subscription-page">
         <h1 className="page-title">{t('account.subscription.title')}</h1>

@@ -330,6 +330,10 @@ function useIdentityState(): IdentityContextValue {
         return resolution.result;
       }
 
+      // Identity cookie is set on the response — sync useAuth before any slow
+      // local work so routes (e.g. subscription) see identity_mode immediately.
+      await refreshSession();
+
       // Update state with the identity
       const loggedInIdentity = response.data?.identity;
       if (loggedInIdentity) {
