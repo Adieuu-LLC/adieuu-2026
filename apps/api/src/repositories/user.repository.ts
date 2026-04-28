@@ -28,6 +28,7 @@ export interface IUserRepository {
   updateGeo(id: string | ObjectId, geo: UserGeo): Promise<void>;
   updateStripeCustomerId(id: string | ObjectId, stripeCustomerId: string): Promise<void>;
   updateBilling(id: string | ObjectId, billing: UserBilling): Promise<void>;
+  updateAgeVerification(id: string | ObjectId, ageVerification: UserAgeVerification): Promise<void>;
 }
 
 /**

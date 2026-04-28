@@ -13,7 +13,9 @@ import {
   checkVerificationStatus,
 } from '../../services/age-verification/age-verification.service';
 import { isAgeVerificationEnabled } from '../../services/age-verification/av-settings';
+import { createHmac } from 'crypto';
 import { config } from '../../config';
+import { constantTimeCompare } from '../../utils/crypto';
 import elog from '../../utils/adieuuLogger';
 
 const router = new Router();
@@ -191,6 +193,105 @@ router.post('/age-verification/opt-in', async (ctx) => {
     return errorResponse('VERIFICATION_START_FAILED', 'Failed to start age verification. Please try again later.', 500);
   }
 });
+
+/**
+ * POST /age-verification/webhook
+ *
+ * Receives webhook notifications from VerifyMy when a verification
+ * status changes. Public endpoint -- verifies the request via HMAC
+ * signature in the Authorization header.
+ */
+router.post('/age-verification/webhook', async (ctx) => {
+  const enabled = await isAgeVerificationEnabled();
+  if (!enabled) {
+    return new Response(JSON.stringify({ error: 'Not enabled' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  if (!ctx.rawBody) {
+    return new Response(JSON.stringify({ error: 'Missing body' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const authHeader = ctx.request.headers.get('authorization') ?? '';
+  if (!verifyWebhookSignature(ctx.rawBody, authHeader)) {
+    elog.warn('VerifyMy webhook signature verification failed');
+    return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const body = ctx.body as { verification_id?: string; status?: string } | undefined;
+  const verificationId = body?.verification_id;
+
+  if (!verificationId) {
+    return new Response(JSON.stringify({ error: 'Missing verification_id' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const { getAgeVerificationRepository } = await import(
+    '../../repositories/age-verification.repository'
+  );
+  const avRepo = getAgeVerificationRepository();
+  const doc = await avRepo.findByProviderVerificationId(verificationId);
+
+  if (!doc) {
+    elog.warn('VerifyMy webhook for unknown verification', { verificationId });
+    return new Response(JSON.stringify({ received: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const userRepo = getUserRepository();
+  const user = await userRepo.findById(doc.userId);
+  if (!user) {
+    elog.warn('VerifyMy webhook for unknown user', { verificationId, userId: doc.userId.toString() });
+    return new Response(JSON.stringify({ received: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  try {
+    await checkVerificationStatus(user, verificationId);
+    elog.info('VerifyMy webhook processed', { verificationId, userId: user._id.toString() });
+  } catch (err) {
+    elog.error('VerifyMy webhook processing error', { verificationId, error: err });
+  }
+
+  return new Response(JSON.stringify({ received: true }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+});
+
+/**
+ * Verify webhook HMAC signature. VerifyMy sends the same Authorization
+ * header format as outbound requests: `hmac {apiKey}:{hmac-sha256(body, apiSecret)}`
+ */
+function verifyWebhookSignature(rawBody: string, authHeader: string): boolean {
+  const match = authHeader.match(/^hmac\s+([^:]+):(.+)$/);
+  if (!match?.[1] || !match[2]) return false;
+
+  const headerApiKey = match[1];
+  const headerHmac = match[2];
+
+  if (headerApiKey !== config.verifymy.apiKey) return false;
+
+  const expectedHmac = createHmac('sha256', config.verifymy.apiSecret)
+    .update(rawBody)
+    .digest('hex');
+
+  return constantTimeCompare(expectedHmac, headerHmac);
+}
 
 function callbackHtml(status: string, errorMessage?: string): string {
   const data = JSON.stringify({ type: 'age-verification-callback', status, error: errorMessage });

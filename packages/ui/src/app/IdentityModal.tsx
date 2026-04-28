@@ -11,7 +11,6 @@ import { Icon } from '../icons/Icon';
 import { useIdentity, type LoginStatus, type WebDeviceChoice } from '../hooks/useIdentity';
 import { useAuth } from '../hooks/useAuth';
 import { WebDeviceChoiceModal } from '../components/WebDeviceChoiceModal';
-import { GeofenceBlockedModal } from '../components/GeofenceBlockedModal';
 import { AgeVerificationModal } from '../components/AgeVerificationModal';
 import { stringArrayFromI18nReturn } from './identityModalUtils';
 
@@ -48,7 +47,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
   // Submodal state
   const [avModalOpen, setAvModalOpen] = useState(false);
-  const [geofenceModalOpen, setGeofenceModalOpen] = useState(false);
+  const [avOptInMode, setAvOptInMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -715,6 +714,13 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
             <Alert variant="info">
               {t('compliance.advisory.unresolvedJurisdiction')}
             </Alert>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => { setAvOptInMode(true); setAvModalOpen(true); }}
+            >
+              {t('compliance.advisory.optInButton')}
+            </Button>
           </div>
         )}
       </div>
@@ -726,18 +732,12 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
       <AgeVerificationModal
         open={avModalOpen}
-        onClose={() => setAvModalOpen(false)}
+        onClose={() => { setAvModalOpen(false); setAvOptInMode(false); }}
         jurisdiction={aliasGate?.jurisdiction}
         retryAfter={aliasGate?.retryAfter ?? session?.ageVerification?.retryAfter}
         expirationCount={session?.ageVerification?.expirationCount}
         gateCode={aliasGate?.code}
-      />
-
-      <GeofenceBlockedModal
-        open={geofenceModalOpen}
-        onClose={() => setGeofenceModalOpen(false)}
-        jurisdiction={aliasGate?.jurisdiction}
-        lawUrl={aliasGate?.lawUrl}
+        isOptIn={avOptInMode}
       />
     </div>
   );

@@ -6,9 +6,11 @@
  * Uses ArkUI Dialog + Portal pattern.
  */
 
+import { useState } from 'react';
 import { Dialog, Portal } from '@ark-ui/react';
 import { useTranslation } from '../i18n';
 import { Button } from './Button';
+import { Input } from './Input';
 import { useAgeVerification, type AgeVerificationUIStatus } from '../hooks/useAgeVerification';
 import { Spinner } from './Spinner';
 
@@ -19,6 +21,7 @@ export interface AgeVerificationModalProps {
   retryAfter?: string;
   expirationCount?: number;
   gateCode?: string;
+  isOptIn?: boolean;
 }
 
 export function AgeVerificationModal({
@@ -28,13 +31,23 @@ export function AgeVerificationModal({
   retryAfter,
   expirationCount,
   gateCode,
+  isOptIn = false,
 }: AgeVerificationModalProps) {
   const { t } = useTranslation();
   const av = useAgeVerification();
+  const [optInCountry, setOptInCountry] = useState('');
 
   const isCooldown = gateCode === 'AGE_VERIFICATION_COOLDOWN' || gateCode === 'AGE_VERIFICATION_FAILED';
   const retryDate = retryAfter ? new Date(retryAfter) : null;
   const canRetry = retryDate ? Date.now() >= retryDate.getTime() : true;
+
+  const handleStart = () => {
+    if (isOptIn) {
+      av.optIn(optInCountry.trim().toUpperCase() || undefined);
+    } else {
+      av.start();
+    }
+  };
 
   return (
     <Dialog.Root open={open} onOpenChange={(e) => { if (!e.open) { av.cancel(); onClose(); } }}>
@@ -56,17 +69,24 @@ export function AgeVerificationModal({
                 isCooldown,
                 gateCode,
                 expirationCount,
+                isOptIn,
+                optInCountry,
+                setOptInCountry,
               })}
             </div>
 
             <div className="av-modal-footer">
               {av.status === 'idle' && !isCooldown && (
-                <Button variant="primary" onClick={av.start}>
+                <Button
+                  variant="primary"
+                  onClick={handleStart}
+                  disabled={isOptIn && optInCountry.trim().length !== 2}
+                >
                   {t('compliance.ageVerification.startButton')}
                 </Button>
               )}
               {av.status === 'idle' && isCooldown && canRetry && (
-                <Button variant="primary" onClick={av.start}>
+                <Button variant="primary" onClick={handleStart}>
                   {t('compliance.ageVerification.retryButton')}
                 </Button>
               )}
@@ -91,6 +111,9 @@ function renderBody(
     isCooldown: boolean;
     gateCode?: string;
     expirationCount?: number;
+    isOptIn?: boolean;
+    optInCountry?: string;
+    setOptInCountry?: (v: string) => void;
   },
 ) {
   if (av.status === 'approved') {
@@ -190,13 +213,28 @@ function renderBody(
   }
 
   return (
-    <Dialog.Description className="av-modal-description">
-      {t('compliance.ageVerification.description')}
-      {opts.jurisdiction && (
-        <span className="av-modal-jurisdiction">
-          {' '}({opts.jurisdiction})
-        </span>
+    <div>
+      <Dialog.Description className="av-modal-description">
+        {opts.isOptIn
+          ? t('compliance.advisory.optInDescription')
+          : t('compliance.ageVerification.description')}
+        {opts.jurisdiction && (
+          <span className="av-modal-jurisdiction">
+            {' '}({opts.jurisdiction})
+          </span>
+        )}
+      </Dialog.Description>
+      {opts.isOptIn && opts.setOptInCountry && (
+        <div className="av-modal-opt-in-country">
+          <Input
+            label={t('compliance.advisory.countryLabel')}
+            placeholder="US"
+            value={opts.optInCountry ?? ''}
+            onChange={(e) => opts.setOptInCountry!(e.target.value)}
+            maxLength={2}
+          />
+        </div>
       )}
-    </Dialog.Description>
+    </div>
   );
 }

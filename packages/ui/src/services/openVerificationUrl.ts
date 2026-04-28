@@ -16,8 +16,12 @@ export async function openVerificationUrl(url: string, platform: Platform): Prom
   switch (platform) {
     case 'desktop': {
       try {
-        const electron = (window as { electron?: { send?: (channel: string, data: unknown) => void } }).electron;
-        electron?.send?.('open-verification-window', url);
+        const electron = (window as { electron?: { invoke?: (channel: string, ...args: unknown[]) => Promise<unknown> } }).electron;
+        if (electron?.invoke) {
+          await electron.invoke('open-verification-window', url);
+        } else {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }
       } catch {
         window.open(url, '_blank', 'noopener,noreferrer');
       }
@@ -26,8 +30,8 @@ export async function openVerificationUrl(url: string, platform: Platform): Prom
 
     case 'mobile': {
       try {
-        // @capacitor/browser is only available in mobile builds
-        const mod = (await import(/* webpackIgnore: true */ '@capacitor/browser' as string)) as {
+        const capacitorModule = '@capacitor/browser';
+        const mod = (await import(/* @vite-ignore */ capacitorModule)) as {
           Browser: CapacitorBrowser;
         };
         await mod.Browser.open({ url });

@@ -45,6 +45,22 @@ export async function getBlockedJurisdictions(): Promise<Set<string>> {
  * Returns the law-link URL for a jurisdiction, if configured.
  * Format in the setting: "US-TN|https://..."
  */
+/**
+ * Returns the current required mode: 'all' means every account must verify
+ * regardless of jurisdiction; 'jurisdictions' means only jurisdictions with
+ * matching seed data or admin overrides.
+ */
+export async function getRequiredMode(): Promise<'jurisdictions' | 'all'> {
+  try {
+    const repo = getPlatformSettingsRepository();
+    const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_REQUIRED_MODE);
+    if (doc?.valueType === 'string' && doc.value === 'all') return 'all';
+  } catch (err) {
+    elog.warn('Failed to read AV required mode setting', { error: err });
+  }
+  return 'jurisdictions';
+}
+
 export async function getLawLinkForJurisdiction(jurisdiction: string): Promise<string | undefined> {
   try {
     const repo = getPlatformSettingsRepository();

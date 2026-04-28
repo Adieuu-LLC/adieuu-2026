@@ -6,6 +6,7 @@ import type { ObjectId } from 'mongodb';
 const mockIsAgeVerificationEnabled = mock(() => Promise.resolve(true));
 const mockGetBlockedJurisdictions = mock(() => Promise.resolve(new Set<string>()));
 const mockGetLawLinkForJurisdiction = mock((_j: string) => Promise.resolve(undefined as string | undefined));
+const mockGetRequiredMode = mock(() => Promise.resolve('jurisdictions' as 'jurisdictions' | 'all'));
 const mockRequiresAgeVerification = mock((_j: string) => Promise.resolve(false));
 const mockGetAgeVerificationPolicy = mock((_j: string) => Promise.resolve(null as null | { leastInvasiveMethod: string }));
 
@@ -13,6 +14,7 @@ mock.module('./av-settings', () => ({
   isAgeVerificationEnabled: mockIsAgeVerificationEnabled,
   getBlockedJurisdictions: mockGetBlockedJurisdictions,
   getLawLinkForJurisdiction: mockGetLawLinkForJurisdiction,
+  getRequiredMode: mockGetRequiredMode,
 }));
 
 mock.module('./jurisdiction-policy', () => ({
@@ -38,12 +40,14 @@ beforeEach(() => {
   mockIsAgeVerificationEnabled.mockReset();
   mockGetBlockedJurisdictions.mockReset();
   mockGetLawLinkForJurisdiction.mockReset();
+  mockGetRequiredMode.mockReset();
   mockRequiresAgeVerification.mockReset();
   mockGetAgeVerificationPolicy.mockReset();
 
   mockIsAgeVerificationEnabled.mockImplementation(() => Promise.resolve(true));
   mockGetBlockedJurisdictions.mockImplementation(() => Promise.resolve(new Set<string>()));
   mockGetLawLinkForJurisdiction.mockImplementation(() => Promise.resolve(undefined));
+  mockGetRequiredMode.mockImplementation(() => Promise.resolve('jurisdictions' as const));
   mockRequiresAgeVerification.mockImplementation(() => Promise.resolve(false));
   mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve(null));
 });
@@ -55,13 +59,35 @@ describe('evaluateAliasGate', () => {
     expect(result.allowed).toBe(true);
   });
 
-  test('allows when jurisdiction is unresolved (no geo)', async () => {
+  test('allows when jurisdiction is unresolved (no geo) and mode is jurisdictions', async () => {
     const result = await evaluateAliasGate(makeUser());
     expect(result.allowed).toBe(true);
   });
 
-  test('allows when jurisdiction is unresolved (geo without jurisdiction)', async () => {
+  test('allows when jurisdiction is unresolved (geo without jurisdiction) and mode is jurisdictions', async () => {
     const result = await evaluateAliasGate(makeUser({ geo: { countryCode: '', ipHash: '', checkedAt: new Date() } as any }));
+    expect(result.allowed).toBe(true);
+  });
+
+  test('requires AV when jurisdiction is unresolved and mode is all', async () => {
+    mockGetRequiredMode.mockImplementation(() => Promise.resolve('all' as const));
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve({ leastInvasiveMethod: 'Email' }));
+    const result = await evaluateAliasGate(makeUser());
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      expect(result.code).toBe('AGE_VERIFICATION_REQUIRED');
+      if (result.code === 'AGE_VERIFICATION_REQUIRED') {
+        expect(result.jurisdiction).toBe('UNRESOLVED');
+      }
+    }
+  });
+
+  test('allows verified user with unresolved jurisdiction when mode is all', async () => {
+    mockGetRequiredMode.mockImplementation(() => Promise.resolve('all' as const));
+    const user = makeUser({
+      ageVerification: { status: 'verified', verifiedAt: new Date(), expirationCount: 0 },
+    });
+    const result = await evaluateAliasGate(user);
     expect(result.allowed).toBe(true);
   });
 

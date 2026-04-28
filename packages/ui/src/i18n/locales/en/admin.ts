@@ -7,6 +7,7 @@ export const admin = {
       dashboard: 'Dashboard',
       platformAdmins: 'Platform Admins',
       authAllowlist: 'Auth Allowlist',
+      ageVerification: 'Age Verification',
     },
     dashboard: {
       title: 'Admin dashboard',

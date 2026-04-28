@@ -31,7 +31,7 @@ export interface StatusResult {
   approvalMethod?: string;
   backgroundCheck?: string | null;
   expiresAt?: string;
-  methodAttempts?: Record<string, { enabled: boolean; remaining: number }>;
+  methodAttempts?: Record<string, { enabled: boolean; maxAttempts: number; remaining: number }>;
 }
 
 /**
@@ -227,7 +227,7 @@ export async function checkVerificationStatus(
       ? Object.fromEntries(
           Object.entries(providerStatus.methodAttempts).map(([k, v]) => [
             k,
-            { enabled: v.enabled, remaining: v.remaining },
+            { enabled: v.enabled, maxAttempts: v.maxAttempts, remaining: v.remaining },
           ]),
         )
       : undefined,

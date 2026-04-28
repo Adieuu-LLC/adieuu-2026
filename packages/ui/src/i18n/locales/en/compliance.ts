@@ -30,6 +30,9 @@ export const compliance = {
   },
   advisory: {
     unresolvedJurisdiction: 'We could not determine your jurisdiction. You are responsible for adhering to local age verification laws. You may opt in to verification voluntarily.',
+    optInButton: 'Verify my age',
+    optInDescription: 'You are choosing to verify your age voluntarily. Please enter the 2-letter ISO country code for the jurisdiction whose rules should apply.',
+    countryLabel: 'Country code (e.g. US, DE, GB)',
   },
   admin: {
     title: 'Age Verification',

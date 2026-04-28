@@ -22,6 +22,7 @@ export type AgeVerificationUIStatus =
 
 interface MethodAttemptInfo {
   enabled: boolean;
+  maxAttempts: number;
   remaining: number;
 }
 
@@ -201,12 +202,8 @@ export function useAgeVerification(): UseAgeVerificationReturn {
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'age-verification-callback') {
         const callbackStatus = event.data.status;
-        if (callbackStatus === 'approved') {
-          setStatus('approved');
-          stopPolling();
-          refreshSession();
-        } else if (callbackStatus === 'failed') {
-          setStatus('failed');
+        if (callbackStatus === 'approved' || callbackStatus === 'failed' || callbackStatus === 'expired') {
+          setStatus(callbackStatus as AgeVerificationUIStatus);
           stopPolling();
           refreshSession();
         }
