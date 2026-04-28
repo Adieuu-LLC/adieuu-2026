@@ -1,36 +1,36 @@
 ---
 name: Age Verification and Geofencing
-overview: Add a provider-agnostic age-verification system (initially backed by VerifyMy v3) plus IP-based jurisdiction geofencing. Verification and geofence checks are enforced at the identity (alias) layer only; account creation and account login are never blocked. The IP-to-jurisdiction lookup runs at account login and at most once per 30 days per account, with results cached on the user record and in Redis.
+overview: Add a provider-agnostic age-verification system (initially backed by VerifyMy) plus jurisdiction-aware geofencing. Verification is enforced at the account level -- users in jurisdictions that require age verification cannot create or log in to aliases until verified. IP geolocation is already implemented; this plan extends it to determine whether age verification is required for a given jurisdiction. When a jurisdiction cannot be resolved, the user is not blocked but is advised of their responsibility under local law and may opt in to verification voluntarily.
 todos:
   - id: config
-    content: Add VerifyMy and IPLocate config sections to apps/api/src/config/index.ts using existing optionalEnv/requireEnv helpers.
+    content: Add VerifyMy config section to apps/api/src/config/index.ts using existing optionalEnv/requireEnv helpers (apiKey, apiSecret, environment, sandbox/production base URLs).
     status: pending
   - id: platform-settings-keys
-    content: Register new platform setting keys (age verification toggle, provider, env, required mode/jurisdictions, geofence list, law links) and bootstrap defaults.
+    content: Register new platform setting keys (age verification toggle, provider, env, required mode/jurisdictions, geofence list, opt-in advisory toggle) and bootstrap defaults.
     status: pending
   - id: user-model
-    content: Extend UserDocument with optional ageVerification and geo sub-objects in apps/api/src/models/user.ts.
+    content: Extend UserDocument with optional ageVerification sub-object (status, providerId, verifiedAt, lastJurisdiction, optedIn, failedAt, expirationCount, lastExpiredAt) in apps/api/src/models/user.ts.
     status: pending
-  - id: geo-service
-    content: Implement IPLocate client, jurisdiction helpers, and geo service with Redis cache and 30-day per-user staleness check.
+  - id: jurisdiction-policy
+    content: Build jurisdiction policy module that queries the existing jurisdiction_requirements collection to determine if age verification is required for a given jurisdiction, and which methods are compatible (least-invasive-first ordering).
     status: pending
   - id: av-provider-iface
-    content: Define AgeVerificationProvider interface, registry, and VerifyMy v3 implementation with HMAC signing and webhook verification.
+    content: Define AgeVerificationProvider interface, registry, and VerifyMy v3 implementation (POST /api/v3/verifications with HMAC + user_info for background checks, GET /api/v3/verifications/{id} for status polling, optional webhook support).
     status: pending
   - id: av-service
-    content: Build age verification orchestration service, repository, and jurisdiction policy module.
+    content: Build age verification orchestration service with progressive escalation (background email/phone check first via user_info, then redirect-based methods in least-invasive order per jurisdiction). VerifyMy handles method availability and attempt tracking via the age_gate object; we select the initial method and let the user escalate within the hosted flow.
+    status: pending
+  - id: av-repository
+    content: Create age_verifications Mongo collection and repository for tracking verification attempts, statuses, and billing windows.
     status: pending
   - id: alias-gate
-    content: Implement evaluateAliasGate and isPlatformAdminUser; wire into createIdentityCtrl and loginIdentityCtrl.
-    status: pending
-  - id: auth-geo-hook
-    content: Run geoService.refreshUserGeoIfStale at the end of verifyOtpHandler without blocking login on geo failures.
+    content: Implement evaluateAliasGate that checks account-level AV status and retry cooldowns; wire into createIdentityCtrl and loginIdentityCtrl. Unresolved jurisdiction = allowed (UI derives advisory from missing geo). Distinct error messages for failed vs expired vs cooldown states.
     status: pending
   - id: av-routes
-    content: Add POST /age-verification/start, GET /age-verification/status, POST /age-verification/webhook (HMAC verified), and GET /age-verification/return.
+    content: Add POST /age-verification/start, GET /age-verification/status (proxies VerifyMy v3 GET), GET /age-verification/callback (redirect target, fetches status via v3 GET), POST /age-verification/opt-in, and optionally POST /age-verification/webhook (if webhook notifications are configured).
     status: pending
   - id: session-payload
-    content: Extend GET /api/auth/session response and shared SessionInfo type with ageVerification, geo, and aliasGate fields.
+    content: Extend GET /api/auth/session response and shared SessionInfo type with ageVerification and aliasGate fields. UI derives jurisdiction advisory from missing geo -- no dedicated server field needed.
     status: pending
   - id: ui-cross-platform-opener
     content: Add openVerificationUrl helper that branches on usePlatform (web new tab, desktop child BrowserWindow, mobile @capacitor/browser).
@@ -42,10 +42,10 @@ todos:
     content: Add @capacitor/browser to apps/mobile with an exact pinned version.
     status: pending
   - id: ui-modal-states
-    content: Extend IdentityModal with 'geofenced' and 'age_verification_required' views and update create/login flows to map new error codes.
+    content: Extend IdentityModal with 'geofenced' and 'age_verification_required' views, derive jurisdiction advisory from missing session.geo, and update create/login flows to map new error codes (including failed, expired, and cooldown states).
     status: pending
   - id: ui-new-modals
-    content: Build GeofenceBlockedModal and AgeVerificationModal (ArkUI, responsive) plus useAgeVerification hook.
+    content: Build GeofenceBlockedModal and AgeVerificationModal (ArkUI, responsive) plus useAgeVerification hook. Jurisdiction advisory is a lightweight banner derived from missing geo in the identity modal, not a separate modal.
     status: pending
   - id: ui-admin-page
     content: Add admin/AgeVerification.tsx page mirroring AuthAllowlist plus nav and route entries.
@@ -57,7 +57,7 @@ todos:
     content: Add compliance.ts locale module and merge into the en bundle.
     status: pending
   - id: tests
-    content: Add bun tests for jurisdiction, geo service, alias gate, VerifyMy provider, AV service, and AV routes; add UI tests for the new modal states and hook.
+    content: Add bun tests for jurisdiction policy, alias gate, VerifyMy provider, AV service, AV routes, and UI tests for the new modal states and hook.
     status: pending
   - id: verify
     content: Run pnpm lint, typecheck, audit, npm audit signatures, build, and test before declaring done.
@@ -65,186 +65,407 @@ todos:
 isProject: false
 ---
 
-# Age Verification (VerifyMy v3) and IP Geofencing
+# Age Verification (VerifyMy) and Jurisdiction Geofencing
 
 ## 1. Architecture at a glance
 
 ```mermaid
 flowchart TD
-  AcctLogin["POST /auth/verify (account login)"] --> GeoChk["GeoService.refreshIfStale(user, ip)"]
-  GeoChk -->|"hit Redis | hit IPLocate.io | skip if < 30d"| UserDoc["UserDocument.geo {country, region, checkedAt}"]
+  AcctLogin["POST /auth/verify (account login)"] --> GeoChk["GeoService.refreshIfStale(user, ip) -- ALREADY BUILT"]
   GeoChk --> SessionOk["Account session created"]
+
+  SessionOk --> SessionAPI["GET /api/auth/session"]
+  SessionAPI --> AliasGateEval["Evaluate alias gate for session response"]
+  AliasGateEval -->|"jurisdiction resolved"| PolicyLookup["JurisdictionPolicy.requiresAgeVerification(jurisdiction)"]
+  AliasGateEval -->|"jurisdiction unresolved"| Advisory["jurisdictionAdvisory: advise user, offer opt-in"]
 
   IdCreate["POST /identity (createIdentityCtrl)"] --> Gate
   IdLogin["POST /identity/login (loginIdentityCtrl)"] --> Gate
   Gate{"AliasGate.canEnter(user)"}
-  Gate -->|"jurisdiction blocked (TN, IT) and not platform admin"| Block403["403 GEOFENCE_BLOCKED"]
-  Gate -->|"jurisdiction needs AV and !user.ageVerified and not platform admin"| Need403["403 AGE_VERIFICATION_REQUIRED + verificationUrl"]
-  Gate -->|"clear"| Proceed["normal create/login"]
+  Gate -->|"jurisdiction blocked"| Block403["403 GEOFENCE_BLOCKED"]
+  Gate -->|"AV required and !user.ageVerified"| Need403["403 AGE_VERIFICATION_REQUIRED"]
+  Gate -->|"clear or unresolved jurisdiction"| Proceed["normal create/login"]
 
-  StartAv["POST /age-verification/start"] --> Provider["AgeVerificationProvider (VerifyMy v3)"]
-  Provider --> Url["redirect URL + verification id"]
-  UI["UI: openVerificationUrl()"] -->|"web: window.open new tab | desktop: BrowserWindow | mobile: @capacitor/browser"| VerifyMy["verifymy.com hosted flow"]
-  VerifyMy --> Webhook["POST /age-verification/webhook (HMAC verified)"]
-  Webhook --> AVRepo["age_verifications collection"]
-  Poll["GET /age-verification/status (parent polls)"] --> AVRepo
-  Webhook --> UserAV["UserDocument.ageVerification {status, provider, verifiedAt}"]
+  StartAv["POST /age-verification/start"] --> VMPost["VerifyMy POST /api/v3/verifications\n(HMAC auth, user_info for background check)"]
+  VMPost -->|"verification_status: approved"| Verified["user.ageVerification.status = verified"]
+  VMPost -->|"verification_status: started\n+ start_verification_url"| UI["UI: openVerificationUrl()"]
+  UI --> VerifyMy["verifymyage.com hosted flow\n(user picks from available methods)"]
+  VerifyMy --> Callback["GET /age-verification/callback?verification_id=..."]
+  Callback --> VMGet["VerifyMy GET /api/v3/verifications/{id}\n(HMAC auth)"]
+  VMGet --> AVRepo["age_verifications collection"]
+  AVRepo --> UserAV["UserDocument.ageVerification updated"]
+
+  Poll["GET /age-verification/status (UI polls)"] --> VMGet
 ```
 
-## 2. Configuration and secrets
+## 2. What is already built (not in scope)
 
-Extend [apps/api/src/config/index.ts](apps/api/src/config/index.ts) (lines 42-113, 206-234) with two new sub-objects, all using the existing `optionalEnv` / `requireEnv` helpers:
+The following are implemented and working. This plan extends them but does not rebuild them:
 
-- `config.verifymy = { apiKey, apiSecret, webhookSecret, environment: 'sandbox'|'production', sandboxBaseUrl, productionBaseUrl }`
-- `config.geo = { iplocate: { apiKey, baseUrl }, cacheTtlSeconds, recheckIntervalDays: 30 }`
+- **IPLocate client** (`services/geo/iplocate.client.ts`): `lookupIp(ip)` -> `IpLocateResult | null`
+- **Jurisdiction helpers** (`services/geo/jurisdiction.ts`): `toJurisdictionCode`, `fromIpLocateResult`, `parseJurisdictionList`
+- **Geo service** (`services/geo/geo.service.ts`): `resolveJurisdiction(ip)` (Redis-cached), `refreshUserGeoIfStale(user, ip)` (30-day / IP-change staleness)
+- **Geo settings** (`services/geo/geo-settings.ts`): `isGeoLookupEnabled()` platform-setting toggle
+- **User.geo** on `UserDocument`: jurisdiction, countryCode, regionCode, ipHash, checkedAt
+- **Auth integration**: `refreshUserGeoIfStale` fires after OTP and MFA login (non-blocking)
+- **Config**: `config.geo` with IPLocate key, cache TTLs, trust-proxy toggle
+- **Jurisdiction requirements seed data** (`scripts/data/jurisdiction-requirements.seed.ts`): regulatory matrix with `requirements[]` (includes `age_verification` slug) and `compatibleMethods[]` per jurisdiction
+- **Session API**: `GET /api/auth/session` already returns `geo` from `user.geo`
 
-Note: the *runtime* sandbox/production toggle is driven by a platform setting (see Section 5); env values are bootstrapping defaults. This lets us point a production deploy at the VerifyMy sandbox without redeploying.
+## 3. Configuration and secrets
 
-## 3. Geolocation: IPLocate.io with Redis caching
+Extend `apps/api/src/config/index.ts` with one new sub-object using existing `optionalEnv` / `requireEnv` helpers:
 
-New module split into small files (each well under 750 lines):
+```ts
+verifymy: {
+  apiKey: optionalEnv('VERIFYMY_API_KEY', ''),
+  apiSecret: optionalEnv('VERIFYMY_API_SECRET', ''),
+  environment: optionalEnv('VERIFYMY_ENVIRONMENT', 'sandbox') as 'sandbox' | 'production',
+  sandboxBaseUrl: optionalEnv('VERIFYMY_SANDBOX_BASE_URL', 'https://sandbox.verifymyage.com'),
+  productionBaseUrl: optionalEnv('VERIFYMY_PRODUCTION_BASE_URL', 'https://oauth.verifymyage.com'),
+},
+```
 
-- `apps/api/src/services/geo/iplocate.client.ts` — bare HTTP client; one function `lookupIp(ip)` returning `{ countryCode, regionCode, regionName, city }` or `null`. No business logic.
-- `apps/api/src/services/geo/jurisdiction.ts` — pure helpers: `toJurisdictionCode({countryCode, regionCode})` returning canonical strings like `US-TN`, `IT`, `US`, plus `parseBlockedJurisdictions(setting)` etc. Easy to unit test.
-- `apps/api/src/services/geo/geo.service.ts` — public surface used by the rest of the app:
-  - `resolveJurisdiction(ip): Promise<JurisdictionResult>` (Redis cache, 24h TTL)
-  - `refreshUserGeoIfStale(user, ip): Promise<UserGeo>` (returns existing geo if `checkedAt` < 30 days, else refreshes and persists on user)
+The platform setting `AGE_VERIFICATION_VERIFYMY_ENV` overrides `config.verifymy.environment` at runtime so operators can switch between sandbox and production via the admin UI without a redeploy.
 
-Redis keys live in `apps/api/src/db/redis.ts` `RedisKeys` (mirroring `platformAuthAllowlistCache`, see lines 303-410):
-- `RedisKeys.geoIpLookup(ip)` — IPLocate response cache
-- `RedisKeys.geoUserCheck(userId)` — guard for the once-per-30-days policy
-
-Security notes:
-- `getClientIp` in [apps/api/src/routes/auth/controller.ts](apps/api/src/routes/auth/controller.ts) (lines 343-358) trusts `X-Real-IP` / `X-Forwarded-For`. The existing JSDoc warns these can be spoofed. We will add an explicit deployment-time check: `config.security.trustProxyHeaders` must be `true` in production, and we will refuse to enforce geofencing if it is not. (We will also note this in the deployment runbook.)
-- The IPLocate API key is server-side only; never exposed to the client.
-- We never store the raw IP on the user document long-term; only `{ jurisdiction, checkedAt }` and a hashed IP (for the 30-day staleness check, to avoid re-querying when the user is on the same IP).
+Geo config (`config.geo`) already exists and requires no changes.
 
 ## 4. Provider-agnostic age verification
 
-Provider interface in `apps/api/src/services/age-verification/provider.ts`:
+### 4a. Provider interface
+
+`apps/api/src/services/age-verification/provider.ts`:
 
 ```ts
+export type VerificationStatus = 'started' | 'pending' | 'approved' | 'failed' | 'expired';
+
+export interface StartVerificationResult {
+  verificationId: string;
+  status: VerificationStatus;
+  /** Present when the user must complete interactive verification. */
+  redirectUrl?: string;
+}
+
+export interface VerificationStatusResult {
+  verificationId: string;
+  status: VerificationStatus;
+  approvalMethod?: string;
+  threshold?: number;
+  createdAt?: string;
+  expiresAt?: string;
+  /** Per-method attempt tracking (provider-specific detail). */
+  methodAttempts?: Record<string, { enabled: boolean; remaining: number }>;
+}
+
 export interface AgeVerificationProvider {
   readonly id: string;
-  startVerification(input: { userId: string; jurisdiction: string; redirectUrl: string; locale?: string }): Promise<{ providerVerificationId: string; redirectUrl: string }>;
-  getVerificationStatus(providerVerificationId: string): Promise<AgeVerificationStatus>;
-  verifyWebhookSignature(rawBody: string, headers: Headers): boolean;
-  parseWebhookPayload(rawBody: string): AgeVerificationWebhookEvent;
+
+  /**
+   * Start a verification. When user_info (email/phone) is provided,
+   * the provider may perform a background check and return an immediate
+   * approval. Otherwise (or on background-check failure) a redirect URL
+   * is returned for interactive verification.
+   */
+  startVerification(input: {
+    redirectUrl: string;
+    country: string;
+    externalUserId: string;
+    userInfo?: { email?: string; phone?: string };
+    method?: string;
+    webhookUrl?: string;
+    webhookNotificationLevel?: 'minimal' | 'method-exhausted' | 'detailed';
+  }): Promise<StartVerificationResult>;
+
+  /** Poll the provider for the current status of a verification. */
+  getVerificationStatus(verificationId: string): Promise<VerificationStatusResult>;
 }
 ```
 
-Implementations:
-- `apps/api/src/services/age-verification/verifymy.provider.ts` — VerifyMy v3 (HMAC-signed REST). Honors the `environment` (sandbox/production) toggle from platform settings, falling back to the env value.
-- A registry (`apps/api/src/services/age-verification/providers.ts`) maps provider id -> implementation. The platform setting `age-verification-active-provider` selects the active one.
+### 4b. VerifyMy v3 implementation
 
-Orchestration service in `apps/api/src/services/age-verification/age-verification.service.ts` exposes:
-- `startVerification(user, jurisdiction)` — picks provider, persists an `age_verifications` doc, returns the redirect URL.
-- `getVerificationStatus(verificationId, user)` — checks DB (updated by webhook), falls back to provider polling if older than N seconds.
-- `applyWebhookEvent(rawBody, headers)` — verifies HMAC, parses, updates the verification doc, and on `verified=true` flips `user.ageVerification.status`.
+`apps/api/src/services/age-verification/verifymy.provider.ts`:
 
-Jurisdiction policy in `apps/api/src/services/age-verification/jurisdiction-policy.ts`:
-- Default policy table (data only, no logic): `{ jurisdiction -> { required: boolean, minStep: 'email'|'face'|'id+face', notes? } }`. We seed this with the regions VerifyMy currently lists; admins can override per-jurisdiction via platform setting.
-- `getPolicy(jurisdiction)` returns the effective policy after applying admin overrides.
+Implements the provider interface using the [VerifyMy v3 API](https://verifymy.io/developer-documentation/age-verification-estimation/apis/starting-a-verification/):
 
-New repository: `apps/api/src/repositories/age-verification.repository.ts` for the new `age_verifications` Mongo collection. Document shape:
+1. **POST `/api/v3/verifications`** -- HMAC-authenticated (`Authorization: hmac {apiKey}:{HMAC-SHA256(body, apiSecret)}`).
+   - Request body: `{ redirect_url, country, external_user_id, user_info?, method?, business_settings_id?, webhook?, webhook_notification_level? }`
+   - When `user_info` is provided with the user's encrypted email or phone, VerifyMy attempts a background age check. Two response shapes:
+     - **Instant approval** (background check succeeded): `{ verification_id, verification_status: "approved" }` -- no user interaction needed.
+     - **Redirect required** (background check failed or unavailable): `{ start_verification_url, verification_id, verification_status: "started" }` -- user must complete interactive verification at the hosted URL.
+   - Without `user_info`, always returns a redirect URL.
+   - The `method` parameter directs the user to try a specific method first; if other methods are available, the user can still choose alternatives within the hosted flow.
+
+2. **GET `/api/v3/verifications/{verification_id}`** -- HMAC-authenticated (`Authorization: {apiKey}:GENERATED-HMAC`).
+   - Returns comprehensive status including: `id`, `user_id`, `status`, `approval_method`, `threshold`, `created_at`, `expires_at`, `background_check`, and the `age_gate` object.
+   - The `age_gate` object provides per-method detail (`enabled`, `max_attempts`, `remaining_attempts`) for: `login` (Database), `fae` (AgeEstimation), `email` (Email), `idscan` (IDScan), `idscan_plus_facematch` (IDScanFaceMatch), `mobile` (Mobile), `double_blind` (DoubleBlind), `credit_card` (CreditCard).
+   - Status lifecycle: `started` -> `pending` -> `approved` | `failed` | `expired`.
+   - Verification URLs remain open for **6 hours** before expiring.
+
+3. **Callback flow** -- after the user completes verification, VerifyMy redirects to `redirect_url?verification_id=...`. Our callback endpoint then calls `GET /api/v3/verifications/{verification_id}` to confirm the final status. Deprecated params (`account`, `code`, `scope`, `state`) in the redirect are ignored.
+
+4. **Webhook notifications** (optional) -- if a `webhook` URL is provided when starting the verification, VerifyMy sends event notifications at the configured granularity (`minimal`, `method-exhausted`, `detailed`). This supplements but does not replace the redirect callback.
+
+The `user_info` encryption uses AES-256-CFB with a key derived from `SHA-256(apiSecret)` and a random 16-byte IV prepended to the ciphertext, base64-encoded. Email must follow RFC 3696 (< 254 chars); phone must be E.164 format. Mobile background checks are currently UK-only per VerifyMy docs.
+
+Security notes:
+- HMAC signatures use constant-time comparison on our end.
+- The API secret never leaves the server.
+- Encrypted PII (email/phone) is ephemeral -- constructed per-request, never persisted.
+- Environment (sandbox/production) determines the base URL; each environment requires separate API keys and `business_settings_id` values per VerifyMy docs.
+
+### 4c. Provider registry
+
+`apps/api/src/services/age-verification/providers.ts`: maps provider ID -> implementation. The platform setting `AGE_VERIFICATION_ACTIVE_PROVIDER` selects the active one (default: `'verifymy'`).
+
+## 5. Progressive method escalation
+
+We are billed per verification session. A verification session starts when we call `POST /api/v3/verifications` and the resulting URL remains open for 6 hours. Within that session, the user may attempt any of the methods enabled for their `business_settings_id` / `country` configuration, with per-method attempt limits tracked by VerifyMy's `age_gate` object.
+
+Our strategy:
+
+1. **Always start with the least invasive method** compatible with the user's jurisdiction.
+2. The `compatibleMethods` array from `jurisdiction_requirements` defines what's allowed. Method ordering (least to most invasive):
+   - `email_age_check` -> VerifyMy `Email` (via `user_info` background check if email is available)
+   - `mobile_phone` -> VerifyMy `Mobile` (background check, UK-only)
+   - `credit_card` -> VerifyMy `CreditCard`
+   - `facial_age_estimation` -> VerifyMy `AgeEstimation`
+   - `double_blind` / `double_blind_facial_age_estimation` -> VerifyMy `DoubleBlind`
+   - `id_scan_face_match` -> VerifyMy `IDScanFaceMatch`
+3. When starting a verification, if email/phone is available and compatible with the jurisdiction, include `user_info` in the POST request. If the background check succeeds, `verification_status: "approved"` is returned immediately -- zero user interaction.
+4. If the background check fails or is unavailable, VerifyMy returns a `start_verification_url`. We pass the `method` parameter set to the least invasive compatible redirect method for their jurisdiction, directing the user there first. Within the hosted flow, VerifyMy presents alternative methods if available, so the user can self-escalate.
+5. Jurisdictions that do not include `email_age_check` in their `compatibleMethods` skip straight to the first compatible redirect method (e.g., Germany requires KJM-approved methods: facial estimation or ID scan only).
+6. We store the `verification_id` from the initial POST. The UI polls our `GET /age-verification/status` endpoint (which in turn calls `GET /api/v3/verifications/{id}`), reading the `age_gate` object to display which methods have been attempted and how many attempts remain.
+
+This logic lives in the orchestration service, not the provider.
+
+## 6. Jurisdiction policy module
+
+`apps/api/src/services/age-verification/jurisdiction-policy.ts`:
+
+This module queries the **existing** `jurisdiction_requirements` collection (already seeded with regulatory data) rather than maintaining a parallel policy table.
 
 ```ts
-{
-  _id, userId, providerId, providerVerificationId,
-  status: 'pending'|'in_progress'|'verified'|'failed'|'expired',
-  jurisdiction, attemptCount, startedAt, completedAt?, lastWebhookAt?,
-  // No DOB, no document images, no PII beyond what we minimally need.
+export interface JurisdictionAgePolicy {
+  required: boolean;
+  compatibleMethods: string[];
+  leastInvasiveMethod: string;
+  legislation: LegislationRef[];
+  notes?: string;
 }
+
+/** Returns the age verification policy for a jurisdiction, or null if no requirements exist. */
+export async function getAgeVerificationPolicy(jurisdiction: string): Promise<JurisdictionAgePolicy | null>;
+
+/** Returns true if the jurisdiction requires age verification (has 'age_verification' in requirements[]). */
+export async function requiresAgeVerification(jurisdiction: string): Promise<boolean>;
 ```
 
-## 5. Platform settings
+The function checks whether `requirements[]` includes `age_verification` (or similar slugs like `highly_effective_age_assurance`, `appropriate_age_assurance`, `reliable_age_and_identity_verification`). The `compatibleMethods[]` from the seed data maps directly to VerifyMy method names via the escalation table in Section 5.
 
-New keys in [apps/api/src/constants/platform-settings-keys.ts](apps/api/src/constants/platform-settings-keys.ts):
+Admin overrides via `AGE_VERIFICATION_REQUIRED_JURISDICTIONS` (additive) and `AGE_VERIFICATION_REQUIRED_MODE` (`'all'` | `'jurisdictions'`) are applied on top.
 
-- `AGE_VERIFICATION_ENABLED` (boolean)
+## 7. Platform settings
+
+New keys in `apps/api/src/constants/platform-settings-keys.ts`:
+
+- `AGE_VERIFICATION_ENABLED` (boolean) -- master toggle, default `false` (ship dark)
 - `AGE_VERIFICATION_ACTIVE_PROVIDER` (string, default `'verifymy'`)
-- `AGE_VERIFICATION_VERIFYMY_ENV` (string `'sandbox'`|`'production'`)
-- `AGE_VERIFICATION_REQUIRED_MODE` (string `'all'`|`'jurisdictions'`) — when `'all'`, every alias action requires verification regardless of jurisdiction
-- `AGE_VERIFICATION_REQUIRED_JURISDICTIONS` (stringArray) — additive overrides
-- `GEOFENCE_BLOCKED_JURISDICTIONS` (stringArray, seeded with `['US-TN','IT']`)
-- `GEOFENCE_LAW_LINKS` (stringArray of `"jurisdiction|url"` pairs) — used by the UI to deep-link to the relevant statute
+- `AGE_VERIFICATION_VERIFYMY_ENV` (string `'sandbox'` | `'production'`)
+- `AGE_VERIFICATION_REQUIRED_MODE` (string `'jurisdictions'` | `'all'`) -- when `'all'`, every account requires verification regardless of jurisdiction
+- `AGE_VERIFICATION_REQUIRED_JURISDICTIONS` (stringArray) -- additive overrides beyond what the seed data provides
+- `GEOFENCE_BLOCKED_JURISDICTIONS` (stringArray, seeded `[]`) -- jurisdictions where the service is entirely blocked
+- `GEOFENCE_LAW_LINKS` (stringArray of `"jurisdiction|url"` pairs) -- UI links to relevant statutes
 
-Mirror the bootstrapping pattern from [apps/api/src/services/platform-settings.service.ts](apps/api/src/services/platform-settings.service.ts) (`ensure*PlatformSetting*Exist`), and add an `ageVerificationSettings.service.ts` cache analogous to `loadAuthAllowlistState` (lines 19-95) so we do not re-read Mongo on every alias action.
+Bootstrap pattern mirrors the existing `ensure*PlatformSetting*Exist` approach in `platform-settings.service.ts`. A settings cache analogous to `loadAuthAllowlistState` avoids re-reading Mongo on every alias action.
 
-Admin endpoints: the existing `PUT /admin/platform-settings/:key` route ([apps/api/src/routes/admin/index.ts](apps/api/src/routes/admin/index.ts) lines 260-352) already supports any key; we just need to register the new keys, no new routes.
+Admin endpoints: the existing `PUT /admin/platform-settings/:key` route already supports any key; we only register the new keys, no new routes needed.
 
-## 6. User document additions
+## 8. User document additions
 
-Extend [apps/api/src/models/user.ts](apps/api/src/models/user.ts) `UserDocument` (lines 12-48):
+Extend `apps/api/src/models/user.ts` `UserDocument`:
 
 ```ts
 ageVerification?: {
-  status: 'unverified'|'pending'|'verified'|'failed';
+  status: 'unverified' | 'pending' | 'verified' | 'failed' | 'expired';
   providerId?: string;
   providerVerificationId?: string;
   verifiedAt?: Date;
+  /** When the most recent verification failed (drives 30-day cooldown). */
+  failedAt?: Date;
+  /** The jurisdiction under which verification was performed */
   lastJurisdiction?: string;
-};
-geo?: {
-  jurisdiction?: string;        // e.g. "US-TN"
-  countryCode?: string;
-  regionCode?: string;
-  ipHash?: string;              // SHA-256(ip + accountHashSecret) for staleness check
-  checkedAt: Date;
+  /** True if the user voluntarily opted in to verification (unresolved jurisdiction) */
+  optedIn?: boolean;
+  /** How many times the verification has expired (max 3 before 30-day cooldown). */
+  expirationCount: number;
+  /** When the most recent expiration occurred (drives 24h and 30-day cooldowns). */
+  lastExpiredAt?: Date;
 };
 ```
 
-Migration: none required (optional fields). Add a one-shot script under `apps/api/scripts/` only if we want to backfill — not strictly necessary.
+`UserGeo` already exists and requires no changes. Migration: none required (optional fields, `expirationCount` defaults to 0).
 
-## 7. Account login: run geo refresh, never block
+## 9. Alias gate: account-level enforcement
 
-In [apps/api/src/routes/auth/controller.ts](apps/api/src/routes/auth/controller.ts) `verifyOtpHandler` (lines 503-642), after `createAccountSession` succeeds and we have `user`, fire-and-await `geoService.refreshUserGeoIfStale(user, sanitizedIp.value)`. Failures (IPLocate down, rate-limited) must NOT block login: log a warning and continue. If we have no fresh geo, the alias gate degrades safely (see Section 8).
-
-We do not need to extend `AccountSessionData` ([apps/api/src/services/session.service.ts](apps/api/src/services/session.service.ts) lines 37-99) because the gate reads from the user document, not the session.
-
-## 8. Alias gate: identity create + login
-
-New module `apps/api/src/services/age-verification/alias-gate.ts`:
+`apps/api/src/services/age-verification/alias-gate.ts`:
 
 ```ts
 export type AliasGateResult =
   | { allowed: true }
   | { allowed: false; code: 'GEOFENCE_BLOCKED'; jurisdiction: string; lawUrl?: string }
-  | { allowed: false; code: 'AGE_VERIFICATION_REQUIRED'; jurisdiction: string; minStep: 'email'|'face'|'id+face' };
+  | { allowed: false; code: 'AGE_VERIFICATION_REQUIRED'; jurisdiction: string; leastInvasiveMethod: string }
+  | { allowed: false; code: 'AGE_VERIFICATION_FAILED'; jurisdiction: string; retryAfter: Date }
+  | { allowed: false; code: 'AGE_VERIFICATION_COOLDOWN'; jurisdiction: string; retryAfter: Date };
 
-export async function evaluateAliasGate(user, opts: { isPlatformAdminUser: boolean }): Promise<AliasGateResult>;
+export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateResult>;
 ```
 
-Decision rules:
-1. If user has any platform-admin identity attached, `allowed: true` (bypass). For `createIdentityCtrl` we cannot use `isPlatformAdmin(identityId)` because the identity is being created; instead we expose a new helper `isPlatformAdminUser(userId)` that checks whether *any* of the user's existing identities is a platform admin (using the existing `platform-admin-identity-list` setting).
-2. If `!ageVerificationEnabled`, allowed.
-3. If `user.geo.jurisdiction` is missing AND geo lookup is enabled, treat as a soft fail: allow the action but log; an admin platform setting `AGE_VERIFICATION_FAIL_CLOSED` can flip this to deny. (Default: fail-open to avoid bricking users when IPLocate is down. We will document this trade-off.)
-4. If jurisdiction is in `GEOFENCE_BLOCKED_JURISDICTIONS`: `GEOFENCE_BLOCKED`.
-5. If jurisdiction policy is `required` AND `user.ageVerification?.status !== 'verified'`: `AGE_VERIFICATION_REQUIRED`.
-6. Otherwise allowed.
+Note: there is no admin bypass. The account-identity separation is by design -- we cannot know at the account level whether any of the account's aliases are platform admins.
 
-Wire-in points (both already extract `clientIp` and `userAgent`, so the call is a one-liner):
-- [apps/api/src/routes/identity/controller.ts](apps/api/src/routes/identity/controller.ts) `createIdentityCtrl` lines 166-212 — insert between line 187 and the `createIdentity` call at line 188.
-- [apps/api/src/routes/identity/controller.ts](apps/api/src/routes/identity/controller.ts) `loginIdentityCtrl` lines 227-307 — insert between `verifySignedToken` and the `loginToIdentity` call.
+Decision rules (in order):
+1. If `!AGE_VERIFICATION_ENABLED`, `allowed: true`.
+2. If `user.geo?.jurisdiction` is absent (jurisdiction unresolved -- either no geo at all, or lookup returned no country, e.g. `127.0.0.1`): **`allowed: true`**. The UI derives the advisory banner from the absence of `session.geo?.jurisdiction` -- no dedicated server field is needed.
+3. If jurisdiction is in `GEOFENCE_BLOCKED_JURISDICTIONS`: `GEOFENCE_BLOCKED`.
+4. If jurisdiction requires AV (via `requiresAgeVerification(user.geo.jurisdiction)` or `AGE_VERIFICATION_REQUIRED_MODE === 'all'`):
+   - If `user.ageVerification?.status === 'verified'`: `allowed: true`.
+   - If `user.ageVerification?.status === 'failed'`: `AGE_VERIFICATION_FAILED` with `retryAfter` = `failedAt + 30 days`.
+   - If `user.ageVerification?.status === 'expired'`:
+     - If `expirationCount < 3`: `AGE_VERIFICATION_COOLDOWN` with `retryAfter` = `lastExpiredAt + 24 hours`.
+     - If `expirationCount >= 3`: `AGE_VERIFICATION_COOLDOWN` with `retryAfter` = `lastExpiredAt + 30 days`.
+   - Otherwise (unverified or pending): `AGE_VERIFICATION_REQUIRED`.
+5. Otherwise `allowed: true`.
 
-Error response shape mirrors the existing `error()` helper at [apps/api/src/utils/response.ts](apps/api/src/utils/response.ts) lines 168-188:
+### Retry policy
 
+| Status | Cooldown | Notes |
+|--------|----------|-------|
+| `failed` | 30 days from `failedAt` | User exhausted all methods across all attempts within the VerifyMy session. |
+| `expired` (1st-3rd) | 24 hours from `lastExpiredAt` | User did not complete within the 6-hour VerifyMy window. Up to 3 expirations. |
+| `expired` (4th+) | 30 days from `lastExpiredAt` | Three expirations exhausted; treated like a failure for cooldown purposes. |
+
+When the cooldown elapses, the user's status resets to `unverified` (either lazily on next gate evaluation or via a scheduled job) so they can attempt verification again.
+
+### Wire-in points
+
+- `createIdentityCtrl` (identity controller) -- insert before `createIdentity` call.
+- `loginIdentityCtrl` (identity controller) -- insert before `loginToIdentity` call.
+
+Both check `user.ageVerification.status` on the `UserDocument` when the jurisdiction requires it and return the appropriate error.
+
+### Error responses
+
+Error response shape uses the existing `error()` helper. Distinct messages per state:
+
+**Verification required (unverified/pending):**
 ```json
-{ "success": false, "error": { "code": "AGE_VERIFICATION_REQUIRED", "message": "...", "details": { "jurisdiction": "US-CA", "verificationUrl": "/api/age-verification/start" } } }
+{
+  "success": false,
+  "error": {
+    "code": "AGE_VERIFICATION_REQUIRED",
+    "message": "Age verification is required in your jurisdiction before creating or accessing aliases.",
+    "details": { "jurisdiction": "US-CA", "verificationUrl": "/api/age-verification/start" }
+  }
+}
 ```
 
-## 9. Age verification routes
+**Verification failed:**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "AGE_VERIFICATION_FAILED",
+    "message": "Sorry, age verification failed and due to your local legislation we're unable to grant access. You may retry after the cooldown period.",
+    "details": { "jurisdiction": "US-CA", "retryAfter": "2026-05-28T12:00:00Z" }
+  }
+}
+```
+
+**On cooldown (expired or exhausted expirations):**
+```json
+{
+  "success": false,
+  "error": {
+    "code": "AGE_VERIFICATION_COOLDOWN",
+    "message": "Your verification session expired. You may retry after the cooldown period.",
+    "details": { "jurisdiction": "US-CA", "retryAfter": "2026-04-29T12:00:00Z" }
+  }
+}
+```
+
+## 10. Unresolved jurisdiction handling
+
+A jurisdiction is considered "unresolved" when `user.geo?.jurisdiction` is absent -- either because `user.geo` itself is missing (lookup never ran or was disabled), or because the lookup ran but could not resolve a jurisdiction (e.g. `127.0.0.1`, private-range IPs, or IPLocate returning no country).
+
+- **No blocking.** The alias gate returns `allowed: true`. The user may create and log in to aliases normally.
+- **No dedicated server field.** The UI checks `session.geo?.jurisdiction` -- when it is absent (and `AGE_VERIFICATION_ENABLED` is true), the UI renders a non-blocking, dismissible advisory banner advising the user they are responsible for adhering to local law and offering an opt-in link.
+- `POST /api/age-verification/opt-in` allows the user to voluntarily start verification. This sets `user.ageVerification.optedIn = true` and proceeds through the normal verification flow. The user may specify their country via request body `{ country: "US" }` so the correct jurisdiction policy and methods apply.
+
+## 11. Age verification routes
 
 New router `apps/api/src/routes/age-verification/`:
 
-- `POST /api/age-verification/start` — requires account session; calls `ageVerificationService.startVerification(user, jurisdiction)`; returns `{ verificationId, redirectUrl, providerId }`.
-- `GET /api/age-verification/status?id=...` — requires account session; returns `{ status, jurisdiction, completedAt? }`. Used by the UI poller.
-- `POST /api/age-verification/webhook` — public, but HMAC-verified. Calls `ageVerificationService.applyWebhookEvent(rawBody, headers)`. Rate-limited and protected with constant-time signature comparison. Refuses requests when the webhook secret is unset.
-- `GET /api/age-verification/return` — the redirect target VerifyMy sends users to. Renders a tiny self-closing HTML page that posts a `postMessage` to its opener (web) or fires a deep-link callback (desktop/mobile), so the parent UI knows to stop polling immediately.
+- **`POST /api/age-verification/start`** -- requires account session. Calls `ageVerificationService.startVerification(user)`. Passes `user_info` (encrypted email/phone) when available and compatible with the jurisdiction. Returns:
+  - `{ verificationId, status: 'approved' }` if the background check succeeds immediately, or
+  - `{ verificationId, redirectUrl, status: 'started' }` for the interactive redirect flow.
 
-## 10. UI changes
+- **`GET /api/age-verification/status?id=...`** -- requires account session. Calls `GET /api/v3/verifications/{id}` on VerifyMy (HMAC-authenticated) and returns the status, including the `age_gate` per-method attempt breakdown. Also updates the local `age_verifications` doc if the status has changed. Used by the UI poller.
 
-### 10a. Cross-platform "open verification URL" helper
+- **`GET /api/age-verification/callback`** -- the redirect target VerifyMy sends users to after the hosted flow. Receives `?verification_id=...` (ignoring deprecated params `code`, `account`, `scope`, `state`). Calls `GET /api/v3/verifications/{verification_id}` to confirm the final status. Updates `age_verifications` doc and `user.ageVerification`. Returns a small self-closing HTML page that posts a `postMessage` to its opener (web) or fires a deep-link callback (desktop/mobile) so the parent UI stops polling.
+
+- **`POST /api/age-verification/opt-in`** -- requires account session. For users with unresolved jurisdictions. Sets `optedIn: true` on the user and delegates to the same start-verification flow. The user may specify their country via request body `{ country: "US" }` so the correct jurisdiction policy and methods apply.
+
+- **`POST /api/age-verification/webhook`** (optional) -- if configured, receives [webhook notifications](https://verifymy.io/developer-documentation/age-verification-estimation/apis/starting-a-verification/) from VerifyMy at the granularity specified when starting the verification (`minimal`, `method-exhausted`, or `detailed`). Updates `age_verifications` and `user.ageVerification` proactively, reducing reliance on polling. This endpoint is public but verifies the request origin (HMAC or IP allowlist per VerifyMy's webhook docs). Rate-limited.
+
+Rate limiting: the start endpoint is rate-limited per account (e.g. 3 attempts per hour) to prevent billing abuse.
+
+## 12. Age verification repository
+
+`apps/api/src/repositories/age-verification.repository.ts` for the `age_verifications` Mongo collection:
+
+```ts
+{
+  _id, userId, providerId, providerVerificationId,
+  status: 'started' | 'pending' | 'approved' | 'failed' | 'expired',
+  jurisdiction,
+  requestedMethod?: string,   // the method we requested via the `method` param
+  approvalMethod?: string,    // the method that ultimately approved (from v3 response)
+  backgroundCheck?: string,   // 'email' | 'mobile' | 'full' | null
+  startedAt: Date,
+  expiresAt?: Date,           // from VerifyMy (6-hour window)
+  completedAt?: Date,
+  optedIn: boolean,
+  // No DOB, no document images, no PII beyond what we minimally need.
+}
+```
+
+Collection registered in `apps/api/src/db/mongo.ts` with indexes on `userId` and `providerVerificationId`.
+
+## 13. Session payload additions
+
+Extend `GET /api/auth/session` response and the shared `SessionInfo` type in `packages/shared/src/api/auth-types.ts`:
+
+```ts
+ageVerification?: {
+  status: 'unverified' | 'pending' | 'verified' | 'failed' | 'expired';
+  verifiedAt?: string;
+  retryAfter?: string;       // ISO 8601 timestamp; present when on cooldown
+  expirationCount?: number;  // so the UI can show "attempt 2 of 3"
+};
+aliasGate?: {
+  allowed: boolean;
+  code?: 'GEOFENCE_BLOCKED' | 'AGE_VERIFICATION_REQUIRED' | 'AGE_VERIFICATION_FAILED' | 'AGE_VERIFICATION_COOLDOWN';
+  jurisdiction?: string;
+  lawUrl?: string;
+  leastInvasiveMethod?: string;
+  retryAfter?: string;
+};
+```
+
+The `geo` field already exists. When `geo?.jurisdiction` is absent (geo missing entirely, or lookup returned no country) and `AGE_VERIFICATION_ENABLED` is true, the UI derives the jurisdiction advisory locally -- no dedicated server field is needed. The alias gate is evaluated eagerly in the session response so the UI can gate proactively without a round-trip.
+
+## 14. UI changes
+
+### 14a. Cross-platform "open verification URL" helper
 
 New `packages/ui/src/services/openVerificationUrl.ts`:
 
@@ -252,92 +473,95 @@ New `packages/ui/src/services/openVerificationUrl.ts`:
 export async function openVerificationUrl(url: string, platform: Platform): Promise<void>;
 ```
 
-- `web` -> `window.open(url, '_blank', 'noopener,noreferrer')` (mirrors existing pattern in [packages/ui/src/components/ExternalLinkModal.tsx](packages/ui/src/components/ExternalLinkModal.tsx) line 44).
-- `desktop` -> new whitelisted IPC channel `'open-verification-window'` exposed via `window.electron.invoke`; the main process opens a child `BrowserWindow` (sized like a popup) with strict `webPreferences` (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`) and listens for navigation back to our return URL to close itself.
-- `mobile` -> `@capacitor/browser` `Browser.open({ url })`. We need to add this dependency to `apps/mobile/package.json` (pinned exact version per `.cursor/rules/exact-version-pinning.mdc`).
+- `web` -> `window.open(url, '_blank', 'noopener,noreferrer')` (mirrors existing `ExternalLinkModal` pattern).
+- `desktop` -> new whitelisted IPC channel `'open-verification-window'`; main process opens a child `BrowserWindow` with strict `webPreferences` (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`).
+- `mobile` -> `@capacitor/browser` `Browser.open({ url })`. Add `@capacitor/browser` to `apps/mobile/package.json` (pinned exact version).
 
-### 10b. Auth state additions
+### 14b. Auth state additions
 
-Extend [packages/shared/src/api/auth-types.ts](packages/shared/src/api/auth-types.ts) `SessionInfo` (lines 49-68) with optional fields needed for UX gating without an extra round-trip:
+Extend `SessionInfo` in shared types (see Section 13). The `useAuth` hook already exposes the full session; no hook changes needed beyond type widening.
 
-```ts
-ageVerification?: { status: 'unverified'|'pending'|'verified'|'failed' };
-geo?: { jurisdiction?: string; isBlocked?: boolean };
-aliasGate?: { allowed: boolean; code?: 'GEOFENCE_BLOCKED'|'AGE_VERIFICATION_REQUIRED'; jurisdiction?: string; lawUrl?: string };
-```
+### 14c. Identity modal: new states
 
-The API `GET /api/auth/session` endpoint already powers `useAuth.refreshSession` ([packages/ui/src/hooks/useAuth.tsx](packages/ui/src/hooks/useAuth.tsx) lines 93-136); extend its response in `routes/auth` to include the gate evaluation for the current user.
+In `packages/ui/src/app/IdentityModal.tsx`:
+- Add new `view` values: `'geofenced'`, `'age_verification_required'`, `'age_verification_failed'`, `'age_verification_cooldown'`.
+- Render the appropriate view when `session.aliasGate?.allowed === false` -- gating happens *before* form submission. The `'failed'` and `'cooldown'` views show the `retryAfter` timestamp.
+- When `session.geo?.jurisdiction` is absent and `AGE_VERIFICATION_ENABLED` is true, render a non-blocking, dismissible advisory banner within the modal advising the user of their responsibility under local law, with an opt-in link. This is derived client-side from the absence of a resolved jurisdiction -- no dedicated server field.
+- Map new server error codes (`AGE_VERIFICATION_REQUIRED`, `AGE_VERIFICATION_FAILED`, `AGE_VERIFICATION_COOLDOWN`, `GEOFENCE_BLOCKED`) in `identityCreateFlow.ts` and `resolveLoginFailure` for server-side denial (race condition).
 
-### 10c. Identity modal: new states
+### 14d. New ArkUI-based components
 
-In [packages/ui/src/app/IdentityModal.tsx](packages/ui/src/app/IdentityModal.tsx):
-- Add new `view` values: `'geofenced'` and `'age_verification_required'`.
-- Render the new views when `useAuth().session?.aliasGate?.allowed === false` — gating happens *before* form submission rather than only on error response, so the user never types a passphrase they cannot use.
-- Map new server error codes in [packages/ui/src/services/identityCreateFlow.ts](packages/ui/src/services/identityCreateFlow.ts) (lines 41-57) and `resolveLoginFailure` so a server-side denial (race condition) also surfaces correctly.
+- **`GeofenceBlockedModal`** -- explains the service is unavailable in their region with a link to the relevant law. Uses the existing `Dialog` + `Portal` pattern.
+- **`AgeVerificationModal`** -- explains why verification is needed, calls `POST /age-verification/start`. If the response is `status: 'approved'` (background check succeeded), immediately shows success and calls `refreshSession()`. Otherwise, opens the `redirectUrl` via `openVerificationUrl`, then polls `GET /age-verification/status` every 3s with exponential backoff. Shows progress states: `starting`, `awaiting_user`, `pending` (user has begun but not finished), `approved`, `failed`, `expired`. Displays the `age_gate` breakdown so the user can see which methods they've tried and how many attempts remain. On `approved`, calls `refreshSession()` and closes. On `failed`, shows a clear message: "Sorry, age verification failed and due to your local legislation we're unable to grant access" with the `retryAfter` date. On `expired`, shows the next-retry countdown and how many expiration attempts remain (out of 3).
 
-### 10d. Two new ArkUI-based components
+The jurisdiction advisory (for unresolved geo) is a lightweight inline banner in the identity modal derived from `!session.geo?.jurisdiction`, not a separate modal.
 
-- `packages/ui/src/app/GeofenceBlockedModal.tsx` — clear copy stating the service is unavailable in their region with a link to the relevant law (from `GEOFENCE_LAW_LINKS`). Uses the existing `Dialog` + `Portal` pattern (see `ExternalLinkModal`).
-- `packages/ui/src/app/AgeVerificationModal.tsx` — explains why verification is needed, calls `POST /age-verification/start`, opens the URL via `openVerificationUrl`, then polls `GET /age-verification/status` every 3s with backoff. Shows progress states: `awaiting_user`, `provider_processing`, `verified`, `failed`. On `verified`, calls `useAuth().refreshSession()` and closes.
+All responsive-first per project rules.
 
-Both are responsive-first per `.cursor/rules/ui-uses-arkui-responsive.mdc`.
-
-### 10e. Hook
+### 14e. Hook
 
 `packages/ui/src/hooks/useAgeVerification.tsx`:
 
 ```ts
 export function useAgeVerification(): {
-  status: 'idle'|'starting'|'awaiting_user'|'polling'|'verified'|'failed';
-  start(jurisdiction: string): Promise<void>;
+  status: 'idle' | 'starting' | 'awaiting_user' | 'polling' | 'approved' | 'failed' | 'expired';
+  verificationId?: string;
+  ageGate?: Record<string, { enabled: boolean; remaining: number }>;
+  start(): Promise<void>;
+  optIn(country?: string): Promise<void>;
   cancel(): void;
 };
 ```
 
-### 10f. Admin UI
+### 14f. Admin UI
 
-New page `packages/ui/src/pages/admin/AgeVerification.tsx`, mirroring [packages/ui/src/pages/admin/AuthAllowlist.tsx](packages/ui/src/pages/admin/AuthAllowlist.tsx) (lines 12-32, 67-102). Add a nav item to [packages/ui/src/pages/admin/AdminLayout.tsx](packages/ui/src/pages/admin/AdminLayout.tsx) (lines 14-30) and a route to [packages/ui/src/app/App.tsx](packages/ui/src/app/App.tsx) `/admin/age-verification`. Edits the new platform settings using the existing `api.admin.putPlatformSetting` helper.
+New page `packages/ui/src/pages/admin/AgeVerification.tsx`, mirroring `AuthAllowlist`. Edits: AV enabled toggle, provider selection, environment toggle, required mode, jurisdiction overrides, geofence list, law links. Add nav item and route entry.
 
-## 11. CSP additions
+## 15. CSP additions
 
-- [apps/web/src/csp.ts](apps/web/src/csp.ts) (lines 21-48): add VerifyMy domains to `connect-src` (status polling fallback if we ever go direct from the client) and to `form-action` (in case the return page does form posts). Confirm exact origin during implementation; we will not whitelist anything broader than the documented production hosts.
-- [apps/desktop/src/csp.ts](apps/desktop/src/csp.ts): same additions.
-- [apps/api/src/middleware/security-headers.ts](apps/api/src/middleware/security-headers.ts) (lines 48-66): keep `frame-ancestors 'none'` (we never embed VerifyMy in an iframe; the redirect flow does not require it).
+- `apps/web/src/csp.ts`: add `sandbox.verifymyage.com`, `oauth.verifymyage.com`, and `verify.verifymyage.com` to `connect-src` and `form-action`. The sandbox and production base URLs differ; the hosted verification flow may use `verify.verifymyage.com` as its domain.
+- `apps/desktop/src/csp.ts`: same additions.
+- `apps/api/src/middleware/security-headers.ts`: keep `frame-ancestors 'none'` (redirect flow, no iframes).
 - IPLocate is server-to-server only; no client CSP entry needed.
 
-## 12. Electron and Capacitor platform integration
+## 16. Electron and Capacitor platform integration
 
-- [apps/desktop/src/preload.ts](apps/desktop/src/preload.ts): add `'open-verification-window'` to the `allowedChannels` whitelist (lines 23-94).
-- New `apps/desktop/src/main-process/verification-window.ts` to create the child `BrowserWindow` (modeled after [apps/desktop/src/webauthn-bridge.ts](apps/desktop/src/webauthn-bridge.ts) lines 136-179, but visible and user-sized).
-- Add `@capacitor/browser` to `apps/mobile/package.json` with an exact pinned version, and a thin wrapper in `apps/mobile/src/` if any platform-specific listeners are needed.
+- `apps/desktop/src/preload.ts`: add `'open-verification-window'` to the `allowedChannels` whitelist.
+- New `apps/desktop/src/main-process/verification-window.ts` to create a child `BrowserWindow` for the VerifyMy hosted flow.
+- Add `@capacitor/browser` to `apps/mobile/package.json` with an exact pinned version.
 
-## 13. Internationalisation
+## 17. Internationalisation
 
-New module `packages/ui/src/i18n/locales/en/compliance.ts` (mirroring the `account` pattern at [packages/ui/src/i18n/locales/en/account.ts](packages/ui/src/i18n/locales/en/account.ts)) with namespaces `compliance.geofence.*`, `compliance.ageVerification.*`, `compliance.admin.*`. Merge into [packages/ui/src/i18n/locales/en/index.ts](packages/ui/src/i18n/locales/en/index.ts).
+New module `packages/ui/src/i18n/locales/en/compliance.ts` with namespaces:
+- `compliance.geofence.*` -- blocked region messaging
+- `compliance.ageVerification.*` -- verification flow copy
+- `compliance.advisory.*` -- unresolved jurisdiction advisory
+- `compliance.admin.*` -- admin page labels
 
-## 14. Testing strategy
+Merge into `packages/ui/src/i18n/locales/en/index.ts`.
 
-Bun test (`bun:test` + `mock.module`) per [apps/api/src/services/platform-settings.service.test.ts](apps/api/src/services/platform-settings.service.test.ts) style. Coverage targets:
+## 18. Testing strategy
 
-- `services/geo/jurisdiction.test.ts` — pure logic.
-- `services/geo/geo.service.test.ts` — Redis cache hit/miss, IPLocate failure fallback, 30-day staleness.
-- `services/age-verification/jurisdiction-policy.test.ts` — policy resolution with admin overrides.
-- `services/age-verification/alias-gate.test.ts` — every branch (admin bypass, geofence, av required, fail-open, fail-closed).
-- `services/age-verification/verifymy.provider.test.ts` — request shape, HMAC signing, webhook signature verification (positive and negative), payload parsing.
-- `services/age-verification/age-verification.service.test.ts` — orchestration, webhook idempotency.
-- Route tests for the three new endpoints + identity controller gate behavior, mirroring [apps/api/src/routes/admin/index.test.ts](apps/api/src/routes/admin/index.test.ts).
-- UI: a `IdentityModal.test.tsx` adding cases for the new views; `useAgeVerification.test.tsx` for the polling state machine.
+Bun test (`bun:test` + `mock.module`) per existing patterns. Coverage targets:
 
-## 15. Rollout
+- `services/age-verification/jurisdiction-policy.test.ts` -- policy resolution from seed data, admin overrides, requirement slug matching.
+- `services/age-verification/alias-gate.test.ts` -- every branch (geofence, AV required, AV failed with 30-day cooldown, AV expired with 24h cooldown, 3-expiration exhaustion with 30-day cooldown, cooldown elapsed resets to unverified, unresolved jurisdiction pass-through, opt-in, feature-disabled pass-through).
+- `services/age-verification/verifymy.provider.test.ts` -- HMAC signing, POST /api/v3/verifications request shape, user_info encryption (AES-256-CFB), GET status parsing, age_gate object handling, instant-approval vs redirect branching, error handling.
+- `services/age-verification/age-verification.service.test.ts` -- progressive escalation, background-check-first logic, method ordering per jurisdiction, 6-hour session window handling, status polling and update flow.
+- Route tests for the new endpoints + identity controller gate behaviour.
+- UI: `IdentityModal.test.tsx` adding cases for new views (geofenced, AV required, AV failed, AV cooldown, jurisdiction advisory from missing geo); `useAgeVerification.test.tsx` for the polling state machine, retry-after display, and expiration count tracking.
+
+## 19. Rollout
 
 - Ship dark by default: `AGE_VERIFICATION_ENABLED=false`. Once admin UI is validated against the VerifyMy sandbox, flip to `true` in production.
-- New env vars (documented in `.env.example` and `apps/api/README.md`): `VERIFYMY_API_KEY`, `VERIFYMY_API_SECRET`, `VERIFYMY_WEBHOOK_SECRET`, `VERIFYMY_ENVIRONMENT`, `IPLOCATE_API_KEY`.
-- Add an ops runbook entry: how to rotate the VerifyMy webhook secret, how to switch between sandbox and production via the admin UI without a redeploy, and how to confirm the reverse proxy strips inbound `X-Forwarded-For` from untrusted hops.
+- New env vars (documented in `.env.example` and `apps/api/README.md`): `VERIFYMY_API_KEY`, `VERIFYMY_API_SECRET`, `VERIFYMY_ENVIRONMENT`.
+- Geo env vars already exist (`IPLOCATE_API_KEY`, `GEO_LOOKUP_ENABLED`, `TRUST_PROXY_HEADERS`, etc.).
+- Add an ops runbook entry: how to rotate the VerifyMy API secret, how to switch between sandbox and production via the admin UI, and how to confirm the reverse proxy strips inbound `X-Forwarded-For` from untrusted hops.
 
-## 16. Verification before done
+## 20. Verification before done
 
-Per `.cursor/rules/verify-before-done.mdc`:
+Per project rules:
 - `pnpm run lint` and `pnpm run typecheck` (root and affected packages).
 - `pnpm audit` and `npm audit signatures` because we are adding `@capacitor/browser`.
 - `pnpm run test` for `apps/api` and `packages/ui`.
-- `pnpm run build` to confirm no module-resolution regressions across `apps/web`, `apps/desktop`, `apps/mobile`.
+- `pnpm run build` to confirm no module-resolution regressions.
