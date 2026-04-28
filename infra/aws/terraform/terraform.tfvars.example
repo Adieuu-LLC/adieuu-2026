@@ -111,6 +111,13 @@ single_nat_gateway        = true
 #   # STRIPE_SUCCESS_URL     = "https://app.example.com/account/subscription?status=success&session_id={CHECKOUT_SESSION_ID}"
 #   # STRIPE_CANCEL_URL      = "https://app.example.com/account/subscription?status=cancelled"
 #   # STRIPE_PORTAL_RETURN_URL = "https://app.example.com/account/subscription"
+#   # Age verification (VerifyMy v3). VERIFYMY_API_KEY and VERIFYMY_API_SECRET go in Secrets Manager (api_container_secrets).
+#   # Controlled by AGE_VERIFICATION_ENABLED platform setting (default: false).
+#   # API_BASE_URL             = "https://api.example.com" # public API URL for VerifyMy OAuth callbacks
+#   # VERIFYMY_ENVIRONMENT     = "sandbox"                 # "sandbox" or "production"; separate key pairs per environment
+#   # VERIFYMY_SANDBOX_BASE_URL    = "https://sandbox.verifymyage.com"  # default
+#   # VERIFYMY_PRODUCTION_BASE_URL = "https://oauth.verifymyage.com"    # default
+#   # VERIFYMY_TIMEOUT_MS          = "10000"                            # default
 # }
 #
 # chat_environment = {
@@ -131,7 +138,7 @@ single_nat_gateway        = true
 # Typical API keys: MONGODB_URI, CSRF_SECRET, SESSION_SECRET, OTP_SECRET, ACCOUNT_HASH_SECRET,
 # TOKEN_SIGNING_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, TEXTMAGIC_USERNAME,
 # TEXTMAGIC_API_KEY, KLIPY_API_KEY, IPLOCATE_API_KEY, STRIPE_SECRET_KEY,
-# STRIPE_WEBHOOK_SECRET (see ecs-environment.md).
+# STRIPE_WEBHOOK_SECRET, VERIFYMY_API_KEY, VERIFYMY_API_SECRET (see ecs-environment.md).
 # Typical chat keys: MONGODB_URI (and optionally REDIS_URL if not from ElastiCache / plain env).
 #
 # api_container_secrets = {
@@ -149,6 +156,8 @@ single_nat_gateway        = true
 #   IPLOCATE_API_KEY      = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:IPLOCATE_API_KEY::"
 #   STRIPE_SECRET_KEY     = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:STRIPE_SECRET_KEY::"
 #   STRIPE_WEBHOOK_SECRET = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:STRIPE_WEBHOOK_SECRET::"
+#   VERIFYMY_API_KEY      = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:VERIFYMY_API_KEY::"
+#   VERIFYMY_API_SECRET   = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:VERIFYMY_API_SECRET::"
 # }
 # chat_container_secrets = {
 #   MONGODB_URI = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/chat-AbCdEf:MONGODB_URI::"

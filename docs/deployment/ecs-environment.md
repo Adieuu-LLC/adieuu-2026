@@ -61,6 +61,8 @@ Store strings the app must not log in git. Typical keys:
 | `IPLOCATE_API_KEY` | IPLocate.io API key when IP geolocation is enabled (`apps/api` `config.geo`). Server-side only. |
 | `STRIPE_SECRET_KEY` | Stripe secret key (`sk_test_...` / `sk_live_...`). Required when `STRIPE_ENABLED=true`. Server-side only. |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`). Required when `STRIPE_ENABLED=true`. |
+| `VERIFYMY_API_KEY` | VerifyMy API key (server-side only). Sandbox and production use separate key pairs. |
+| `VERIFYMY_API_SECRET` | VerifyMy API secret (HMAC signing and PII encryption). Keep in Secrets Manager alongside the key. |
 
 Use **`REDIS_URL`** in Secrets Manager (or plain env) **only** when Redis is **not** the Terraform-managed ElastiCache cluster — e.g. you set **`create_elasticache_redis = false`** and point **`REDIS_URL`** at an external endpoint yourself.
 
@@ -131,8 +133,13 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | `STRIPE_SUCCESS_URL` | Optional; defaults to `WEB_APP_URL/checkout/complete?status=success&session_id={CHECKOUT_SESSION_ID}`. |
 | `STRIPE_CANCEL_URL` | Optional; defaults to `WEB_APP_URL/checkout/complete?status=cancelled`. |
 | `STRIPE_PORTAL_RETURN_URL` | Optional; defaults to `WEB_APP_URL/account/subscription`. |
+| `API_BASE_URL` | Public API URL for OAuth callbacks (e.g. VerifyMy redirect). Defaults to `http://localhost:<PORT>` in dev. |
+| `VERIFYMY_ENVIRONMENT` | `sandbox` or `production` (default `sandbox`). Sandbox and production require separate key pairs in Secrets Manager. |
+| `VERIFYMY_SANDBOX_BASE_URL` | Optional; default `https://sandbox.verifymyage.com`. |
+| `VERIFYMY_PRODUCTION_BASE_URL` | Optional; default `https://oauth.verifymyage.com`. |
+| `VERIFYMY_TIMEOUT_MS` | Optional; default `10000`. |
 
-**Platform settings (MongoDB, not env):** The API stores typed configuration in the `platform_settings` collection (see `apps/api/src/constants/platform-settings-keys.ts`). Most knobs are Mongo-only; **geo** also reads **`platform-geo-lookup-enabled`** (boolean) so operators can toggle lookups without redeploying. Auth allowlist and admin account list are edited via **`/api/admin/platform-settings`** (session cookie + user id in `platform-admin-account-list`). Seed the first admin ObjectIds in MongoDB (or Atlas) before calling those routes.
+**Platform settings (MongoDB, not env):** The API stores typed configuration in the `platform_settings` collection (see `apps/api/src/constants/platform-settings-keys.ts`). Most knobs are Mongo-only; **geo** also reads **`platform-geo-lookup-enabled`** (boolean) and **age verification** reads **`AGE_VERIFICATION_ENABLED`** (boolean, default `false`) so operators can toggle these features without redeploying. Auth allowlist and admin account list are edited via **`/api/admin/platform-settings`** (session cookie + user id in `platform-admin-account-list`). Seed the first admin ObjectIds in MongoDB (or Atlas) before calling those routes.
 
 ### Chat (`apps/chat`) — additional non-secret keys
 
