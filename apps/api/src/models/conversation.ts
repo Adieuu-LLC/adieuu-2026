@@ -69,6 +69,9 @@ export interface ConversationDocument extends BaseDocument {
   /** Whether GIF/sticker content is disabled for this conversation (admin toggle) */
   gifsDisabled?: boolean;
 
+  /** Whether custom emoji usage is disabled for this conversation (admin toggle) */
+  customEmojisDisabled?: boolean;
+
   /**
    * When true, members must not retain a persistent local plaintext message search
    * cache; clients only use decrypted material during active search, then wipe.
@@ -119,6 +122,7 @@ export interface PublicConversation {
   lastMessageAt?: string;
   lastMessageId?: string;
   gifsDisabled?: boolean;
+  customEmojisDisabled?: boolean;
   disallowPersistentMessageSearchCache?: boolean;
   pinnedMessageIds?: string[];
   /**
@@ -147,6 +151,9 @@ export function toPublicConversation(doc: ConversationDocument): PublicConversat
     lastMessageAt: doc.lastMessageAt?.toISOString(),
     lastMessageId: doc.lastMessageId?.toHexString(),
     gifsDisabled: doc.gifsDisabled,
+    ...(doc.customEmojisDisabled === true
+      ? { customEmojisDisabled: true }
+      : {}),
     ...(doc.disallowPersistentMessageSearchCache === true
       ? { disallowPersistentMessageSearchCache: true }
       : {}),

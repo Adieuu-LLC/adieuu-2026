@@ -223,6 +223,56 @@ export async function updateGifsDisabled(
 }
 
 // ---------------------------------------------------------------------------
+// Custom emoji settings
+// ---------------------------------------------------------------------------
+
+/**
+ * Toggle whether custom emojis are disabled for a conversation.
+ * In groups only admins may call this; in DMs either participant may.
+ */
+export async function updateCustomEmojisDisabled(
+  conversationId: string | ObjectId,
+  requesterIdentityId: string | ObjectId,
+  customEmojisDisabled: boolean
+): Promise<ConversationResult> {
+  const conversationRepo = getConversationRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  if (!conversation.participants.some((p) => p.equals(requesterObjId))) {
+    return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  if (conversation.type === 'group' && !isGroupAdmin(conversation, requesterObjId)) {
+    return { success: false, error: 'Only group admins can toggle custom emoji settings', errorCode: 'NOT_ADMIN' };
+  }
+
+  const updated = await conversationRepo.updateCustomEmojisDisabled(convObjId, customEmojisDisabled);
+
+  await publishToParticipants(conversation.participants, requesterObjId, {
+    type: 'conversation_updated',
+    data: {
+      conversationId: convObjId.toHexString(),
+      action: 'custom_emojis_disabled_updated',
+      identityId: requesterObjId.toHexString(),
+      customEmojisDisabled,
+    },
+  });
+
+  return { success: true, conversation: updated ? toPublicConversation(updated) : undefined };
+}
+
+// ---------------------------------------------------------------------------
 // Local message search cache policy
 // ---------------------------------------------------------------------------
 

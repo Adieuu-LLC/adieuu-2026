@@ -55,6 +55,10 @@ export interface IConversationRepository {
     conversationId: ObjectId,
     gifsDisabled: boolean
   ): Promise<ConversationDocument | null>;
+  updateCustomEmojisDisabled(
+    conversationId: ObjectId,
+    customEmojisDisabled: boolean
+  ): Promise<ConversationDocument | null>;
   updateDisallowPersistentMessageSearchCache(
     conversationId: ObjectId,
     disallowPersistentMessageSearchCache: boolean
@@ -294,6 +298,23 @@ export class ConversationRepository
       {
         $set: {
           gifsDisabled,
+          updatedAt: new Date(),
+        },
+      },
+      { returnDocument: 'after' }
+    );
+    return result as ConversationDocument | null;
+  }
+
+  async updateCustomEmojisDisabled(
+    conversationId: ObjectId,
+    customEmojisDisabled: boolean
+  ): Promise<ConversationDocument | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: conversationId },
+      {
+        $set: {
+          customEmojisDisabled,
           updatedAt: new Date(),
         },
       },

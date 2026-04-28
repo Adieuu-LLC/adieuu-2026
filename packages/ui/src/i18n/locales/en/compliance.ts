@@ -18,6 +18,8 @@ export const compliance = {
     retryButton: 'Retry Verification',
     close: 'Close',
     approved: 'Age verification complete. You may now proceed.',
+    loginToAlias: 'Login to Alias',
+    createAlias: 'Create Alias',
     failedMessage: 'Sorry, age verification failed and due to your local legislation we are unable to grant access. You may retry after the cooldown period.',
     expiredMessage: 'Your verification session expired before completion.',
     cooldownMessage: 'Your verification session expired. You may retry after the cooldown period.',

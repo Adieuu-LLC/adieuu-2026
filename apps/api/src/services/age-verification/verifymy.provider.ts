@@ -81,9 +81,9 @@ function getBaseUrl(env: 'sandbox' | 'production'): string {
     : config.verifymy.sandboxBaseUrl;
 }
 
-function computeHmac(body: string): string {
+function computeHmac(content: string): string {
   return createHmac('sha256', config.verifymy.apiSecret)
-    .update(body)
+    .update(content)
     .digest('hex');
 }
 
@@ -175,14 +175,17 @@ export class VerifyMyProvider implements AgeVerificationProvider {
     const env = await resolveEnvironment();
     const baseUrl = getBaseUrl(env);
 
-    const url = `${baseUrl}/api/v3/verifications/${encodeURIComponent(verificationId)}`;
+    const requestUri = `/api/v3/verifications/${encodeURIComponent(verificationId)}`;
+    const url = `${baseUrl}${requestUri}`;
 
-    // GET requests use HMAC of empty string per VerifyMy docs
-    const hmac = computeHmac('');
+    // GET requests sign the request URI, not the body
+    // @see https://verifymy.io/developer-documentation/age-verification-estimation/apis/redirect-urls/
+    const hmac = computeHmac(requestUri);
 
     const response = await fetch(url, {
       method: 'GET',
       headers: {
+        'Content-Type': 'application/json',
         Authorization: buildAuthHeader(hmac),
       },
       signal: AbortSignal.timeout(config.verifymy.timeoutMs),

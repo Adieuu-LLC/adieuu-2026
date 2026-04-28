@@ -54,6 +54,8 @@ export interface IdentitySessionData {
   subscriptions: SubscriptionTierId[];
   /** Feature entitlements bound at identity login. */
   entitlements: string[];
+  /** Whether the user holds a lifetime purchase. */
+  isLifetime: boolean;
   /** Encrypted subscription grant blob (base64 ciphertext). */
   encryptedSubscriptionGrants?: string;
   /** 30-day absolute session TTL (Unix ms). */
@@ -125,6 +127,7 @@ export async function createIdentitySession(
     maxVideoDurationSeconds?: number;
     subscriptions?: SubscriptionTierId[];
     entitlements?: string[];
+    isLifetime?: boolean;
     /** Base64-encoded ciphertext for subscription grant blob. */
     encryptedSubscriptionGrants?: string;
     /** Base64-encoded AES-256-GCM key for the grant blob (goes into the cookie). */
@@ -148,6 +151,7 @@ export async function createIdentitySession(
     maxVideoDurationSeconds: metadata?.maxVideoDurationSeconds,
     subscriptions: metadata?.subscriptions,
     entitlements: metadata?.entitlements,
+    isLifetime: metadata?.isLifetime,
     encryptedSubscriptionGrants: metadata?.encryptedSubscriptionGrants,
     absoluteExpiresAt,
   });
@@ -237,6 +241,7 @@ function cachedToSessionData(cached: CachedSessionData, expiresAtMs: number): Se
       maxVideoDurationSeconds,
       subscriptions: cached.subscriptions ?? [],
       entitlements: cached.entitlements ?? [],
+      isLifetime: cached.isLifetime ?? false,
       encryptedSubscriptionGrants: cached.encryptedSubscriptionGrants,
       absoluteExpiresAt: cached.absoluteExpiresAt,
       lastActivityAt: cached.lastActivityAt,

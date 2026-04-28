@@ -28,7 +28,7 @@ import type { UploadPurpose } from '../../models/media-upload';
 const router = new Router();
 
 const RequestUploadSchema = z.object({
-  purpose: z.enum(['avatar', 'banner', 'dm_attachment', 'space_media']),
+  purpose: z.enum(['avatar', 'banner', 'dm_attachment', 'space_media', 'custom_emoji']),
   contentType: z.string().min(1).max(100),
   contentLength: z.number().int().positive(),
 });

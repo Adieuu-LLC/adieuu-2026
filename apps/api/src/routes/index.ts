@@ -31,6 +31,7 @@ import { stripeWebhookRoutes } from './webhooks/stripe';
 import { subscriptionRoutes } from './account/subscription';
 import { geoRoutes } from './geo';
 import { ageVerificationRoutes } from './age-verification';
+import { customEmojiRoutes } from './custom-emojis';
 
 /**
  * Registers all application routes with the main router.
@@ -120,6 +121,9 @@ export function registerRoutes(app: Router): void {
 
   // Age verification (account session)
   app.merge(ageVerificationRoutes, '/api');
+
+  // Custom emojis (CRUD for user-uploaded emojis)
+  app.merge(customEmojiRoutes, '/api');
 
   // Stripe webhook (subscription events)
   app.merge(stripeWebhookRoutes, '/api');

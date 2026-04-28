@@ -58,6 +58,7 @@ export interface IdentityContext {
   maxVideoDurationSeconds: number;
   subscriptions: SubscriptionTierId[];
   entitlements: string[];
+  isLifetime: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -189,6 +190,7 @@ export function enrichIdentitySession() {
         ...(identitySession.entitlements ?? []),
         ...identityOverrides.entitlements,
       ])],
+      isLifetime: identitySession.isLifetime,
     };
 
     return next();

@@ -51,6 +51,9 @@ export interface SessionDocument extends BaseDocument {
   /** Feature entitlements bound from the account bridging token (identity sessions only). */
   entitlements?: string[];
 
+  /** Whether the user holds a lifetime purchase (bound from the account bridging token). */
+  isLifetime?: boolean;
+
   /**
    * AES-256-GCM encrypted subscription/entitlement grant data (base64).
    * The decryption key is embedded in the session cookie, not stored in the DB.
@@ -108,6 +111,7 @@ export interface CreateIdentitySessionInput {
   maxVideoDurationSeconds?: number;
   subscriptions?: SubscriptionTierId[];
   entitlements?: string[];
+  isLifetime?: boolean;
   encryptedSubscriptionGrants?: string;
   absoluteExpiresAt?: Date;
 }
@@ -137,6 +141,8 @@ export interface CachedSessionData {
   subscriptions?: SubscriptionTierId[];
   /** Feature entitlements (identity sessions only) */
   entitlements?: string[];
+  /** Whether the user holds a lifetime purchase (identity sessions only) */
+  isLifetime?: boolean;
   /** Encrypted subscription grant blob (identity sessions only) */
   encryptedSubscriptionGrants?: string;
   /** 30-day absolute TTL (ms, identity sessions only) */
@@ -256,6 +262,9 @@ export function toCachedSession(doc: SessionDocument): CachedSessionData {
     }
     if (doc.entitlements) {
       base.entitlements = doc.entitlements;
+    }
+    if (doc.isLifetime) {
+      base.isLifetime = true;
     }
     if (doc.encryptedSubscriptionGrants) {
       base.encryptedSubscriptionGrants = doc.encryptedSubscriptionGrants;

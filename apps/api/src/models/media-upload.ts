@@ -30,7 +30,7 @@ export const VIDEO_MIME_TYPES = ['video/mp4'] as const;
  * Upload purpose determines allowed content types, size limits,
  * and which processing flags are applied.
  */
-export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media' | 'conv_media' | 'conv_scan';
+export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media' | 'conv_media' | 'conv_scan' | 'custom_emoji';
 
 /**
  * Processing status of a media upload.
@@ -165,6 +165,15 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
     processingFlags: {
       stripExif: true,
       resize: { maxWidth: 512, maxHeight: 512 },
+      contentModeration: true,
+    },
+  },
+  custom_emoji: {
+    maxBytes: 256 * 1024, // 256 KB
+    allowedContentTypes: ['image/png', 'image/webp', 'image/gif'],
+    processingFlags: {
+      stripExif: true,
+      resize: { maxWidth: 128, maxHeight: 128 },
       contentModeration: true,
     },
   },

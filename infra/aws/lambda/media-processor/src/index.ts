@@ -394,11 +394,14 @@ async function processRecord(record: S3EventRecord): Promise<void> {
   const bodyBytes = await getResult.Body!.transformToByteArray();
 
   let processedBuffer: Uint8Array;
-  let outputContentType = 'image/webp';
+  const isAnimatedGif =
+    meta.purpose === 'custom_emoji' &&
+    (getResult.ContentType === 'image/gif' || key.endsWith('.gif'));
+  let outputContentType = isAnimatedGif ? 'image/gif' : 'image/webp';
 
   try {
     const sharp = (await import('sharp')).default;
-    let pipeline = sharp(bodyBytes);
+    let pipeline = sharp(bodyBytes, isAnimatedGif ? { animated: true } : undefined);
 
     if (meta.stripExif) {
       pipeline = pipeline.rotate();
@@ -408,14 +411,17 @@ async function processRecord(record: S3EventRecord): Promise<void> {
       pipeline = pipeline.resize({
         width: meta.resizeMaxWidth,
         height: meta.resizeMaxHeight,
-        fit: 'inside',
+        fit: isAnimatedGif ? 'contain' : 'inside',
         withoutEnlargement: true,
+        ...(isAnimatedGif ? { background: { r: 0, g: 0, b: 0, alpha: 0 } } : {}),
       });
     }
 
-    processedBuffer = await pipeline
-      .webp({ quality: 85 })
-      .toBuffer();
+    if (isAnimatedGif) {
+      processedBuffer = await pipeline.gif().toBuffer();
+    } else {
+      processedBuffer = await pipeline.webp({ quality: 85 }).toBuffer();
+    }
 
     console.log(
       `Processed: ${bodyBytes.length} -> ${processedBuffer.length} bytes`
@@ -429,9 +435,10 @@ async function processRecord(record: S3EventRecord): Promise<void> {
     return;
   }
 
+  const outputExtension = isAnimatedGif ? '.gif' : '.webp';
   const processedKey = key
     .replace(/^uploads\//, 'processed/')
-    .replace(/\.[^.]+$/, '.webp');
+    .replace(/\.[^.]+$/, outputExtension);
 
   try {
     await s3.send(

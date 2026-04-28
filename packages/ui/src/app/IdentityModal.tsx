@@ -71,10 +71,12 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     }
   }, [isOpen, aliasGate]);
 
-  // Sync view when aliasGate changes (e.g. after AV approval refreshes session)
+  // Sync view when aliasGate changes (e.g. after AV approval refreshes session).
+  // Skip auto-transition while the approved CTA is visible so the user can
+  // read the success message and choose their next action.
   useEffect(() => {
     if (!aliasGate || aliasGate.allowed) {
-      if (view.startsWith('age_verification') || view === 'geofenced') {
+      if ((view.startsWith('age_verification') || view === 'geofenced') && av.status !== 'approved') {
         av.cancel();
         setAvOptInMode(false);
         setAvOptInCountry('');
@@ -755,9 +757,33 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
             )}
 
             {av.status === 'approved' && (
-              <Alert variant="success">
-                {t('compliance.ageVerification.approved')}
-              </Alert>
+              <>
+                <Alert variant="success">
+                  {t('compliance.ageVerification.approved')}
+                </Alert>
+                <div className="identity-modal-actions">
+                  {hasIdentity && (
+                    <Button
+                      variant="primary"
+                      size="lg"
+                      onClick={() => { av.cancel(); setView('login'); }}
+                    >
+                      <Icon name="lock" />
+                      {t('compliance.ageVerification.loginToAlias')}
+                    </Button>
+                  )}
+                  {canCreateMore && (
+                    <Button
+                      variant={hasIdentity ? 'secondary' : 'primary'}
+                      size="lg"
+                      onClick={() => { av.cancel(); setView('create'); }}
+                    >
+                      <Icon name="plus" />
+                      {t('compliance.ageVerification.createAlias')}
+                    </Button>
+                  )}
+                </div>
+              </>
             )}
 
             {av.status === 'failed' && (

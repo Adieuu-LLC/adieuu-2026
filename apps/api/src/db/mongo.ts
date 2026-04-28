@@ -374,6 +374,8 @@ export const Collections = {
   JURISDICTION_REQUIREMENTS: 'jurisdiction_requirements',
   /** Age verification attempt tracking */
   AGE_VERIFICATIONS: 'age_verifications',
+  /** User-uploaded custom emojis (static and animated) */
+  CUSTOM_EMOJIS: 'custom_emojis',
 } as const;
 
 /**
@@ -652,6 +654,14 @@ async function createIndexes(): Promise<void> {
   const ageVerifications = database.collection(Collections.AGE_VERIFICATIONS);
   await ageVerifications.createIndex({ userId: 1 });
   await ageVerifications.createIndex({ providerVerificationId: 1 }, { unique: true, sparse: true });
+
+  // Custom emojis — unique shortcode, per-identity listing
+  const customEmojis = database.collection(Collections.CUSTOM_EMOJIS);
+  await customEmojis.createIndex(
+    { shortcode: 1 },
+    { unique: true, collation: { locale: 'en', strength: 2 } }
+  );
+  await customEmojis.createIndex({ identityId: 1, createdAt: -1 });
 
   elog.debug('MongoDB indexes created/verified');
 }

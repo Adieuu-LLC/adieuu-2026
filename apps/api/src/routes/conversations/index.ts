@@ -35,6 +35,7 @@ import {
   getFormerMembers,
   updateMemberSettings,
   updateGifsDisabled,
+  updateCustomEmojisDisabled,
   updateDisallowPersistentMessageSearchCache,
   listPendingInvitesForConversation,
   revokeGroupInvite,
@@ -528,6 +529,47 @@ router.patch('/conversations/:id/gifs', async (ctx) => {
   }
 
   return success(result.conversation, 'GIF settings updated.');
+});
+
+// ---------------------------------------------------------------------------
+// Custom emoji settings
+// ---------------------------------------------------------------------------
+
+const UpdateCustomEmojisDisabledSchema = z.object({
+  customEmojisDisabled: z.boolean(),
+});
+
+/**
+ * PATCH /conversations/:id/custom-emojis - Toggle custom emojis for a conversation
+ * Groups: admin only. DMs: either participant.
+ */
+router.patch('/conversations/:id/custom-emojis', async (ctx) => {
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+  const { identity } = ctx.identitySession;
+
+  const { id } = ctx.params;
+  const sanitized = sanitizeString(id ?? '', 'general');
+  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+    return errors.badRequest('Invalid conversation ID.');
+  }
+
+  const parseResult = UpdateCustomEmojisDisabledSchema.safeParse(ctx.body);
+  if (!parseResult.success) return ctx.errors.validationFailed();
+
+  const result = await updateCustomEmojisDisabled(
+    sanitized.value,
+    identity._id,
+    parseResult.data.customEmojisDisabled
+  );
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') return errors.notFound('Conversation not found.');
+    if (result.errorCode === 'NOT_PARTICIPANT') return ctx.errors.unauthorized();
+    if (result.errorCode === 'NOT_ADMIN') return ctx.errors.unauthorized();
+    return errors.badRequest(result.error ?? 'Failed to update custom emoji settings.');
+  }
+
+  return success(result.conversation, 'Custom emoji settings updated.');
 });
 
 const UpdateMessageSearchCacheSchema = z.object({
