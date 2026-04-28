@@ -122,6 +122,7 @@ beforeEach(() => {
     leastInvasiveMethod: 'Email',
     legislation: [],
   }));
+  mockFindByUserIdAndStatus.mockImplementation(async () => []);
   mockCreateVerification.mockImplementation(async (input: unknown) => ({
     _id: new ObjectId(),
     ...(input as Record<string, unknown>),
