@@ -149,6 +149,34 @@ describe('session.repository', () => {
     );
   });
 
+  test('createSession persists identity split-key grant fields (ciphertext + absolute TTL)', async () => {
+    const now = Date.now();
+    const insertedId = new ObjectId();
+    const identityId = new ObjectId();
+    mockCollection.insertOne.mockResolvedValue({ insertedId });
+
+    const expiresAt = new Date(now + 7 * 24 * 60 * 60 * 1000);
+    const absoluteExpiresAt = new Date(now + 30 * 24 * 60 * 60 * 1000);
+
+    const repo = new SessionRepository();
+    await repo.createSession({
+      sessionId: 'session-ident-1',
+      type: 'identity',
+      identityId,
+      expiresAt,
+      encryptedSubscriptionGrants: 'cipher-blob',
+      absoluteExpiresAt,
+    });
+
+    const inserted = mockCollection.insertOne.mock.calls.at(0)?.[0] as Record<string, unknown>;
+    expect(inserted).toMatchObject({
+      type: 'identity',
+      identityId,
+      encryptedSubscriptionGrants: 'cipher-blob',
+      absoluteExpiresAt,
+    });
+  });
+
   test('updateLastActivity extends expiresAt (sliding) and refreshes Redis with EX ttl', async () => {
     const now = Date.now();
     redisGetValue = JSON.stringify({

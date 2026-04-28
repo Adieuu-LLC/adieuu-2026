@@ -23,6 +23,7 @@ export const identity = {
       notifications: 'Notifications',
       ciphers: 'Ciphers',
       devices: 'Devices',
+      subscription: 'Subscription',
     },
     // Actions for identity interactions
     actions: {

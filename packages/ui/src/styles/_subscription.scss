@@ -137,3 +137,88 @@
   margin-top: auto;
   width: 100%;
 }
+
+// ============================================================================
+// Manage Tab
+// ============================================================================
+
+.subscription-manage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.subscription-manage-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+}
+
+.subscription-manage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.subscription-manage-tier-name {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.subscription-manage-description {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  margin: 0;
+}
+
+.subscription-manage-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.subscription-manage-portal-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.subscription-manage-noPlan {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.subscription-entitlement-info {
+  font-size: var(--font-size-sm);
+  color: var(--color-accent-primary);
+  font-weight: var(--font-weight-medium);
+  margin: 0;
+}
+
+// ============================================================================
+// Identity Banner
+// ============================================================================
+
+.subscription-identity-banner {
+  margin-bottom: var(--spacing-sm);
+}
+
+// ============================================================================
+// Tab content sections
+// ============================================================================
+
+.subscription-plans,
+.subscription-lifetime {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}

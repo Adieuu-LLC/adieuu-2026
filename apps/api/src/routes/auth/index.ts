@@ -275,8 +275,23 @@ router.get('/auth/session', async (ctx) => {
   const result = await getSessionHandler(ctx.request, ctx.accountUser ?? undefined);
 
   if (!result) {
-    // No account session — check if there's an identity session so the
-    // client can tell "identity mode" apart from "truly unauthenticated".
+    // No account session — identity mode: prefer enriched context from
+    // `enrichIdentitySession` (subscription labels from decrypted grants + key
+    // from cookie, merged with identity overrides). Fall back to Mongo only for
+    // edge cases where enrichment did not attach.
+    if (ctx.identitySession) {
+      const { identity, subscriptions, entitlements } = ctx.identitySession;
+      const capabilities = await getPlatformCapabilities(identity._id);
+      return success({
+        sessionType: 'identity' as const,
+        isPlatformAdmin: capabilities.isPlatformAdmin,
+        isPlatformModerator: capabilities.isPlatformModerator,
+        platformPermissions: capabilities.permissions,
+        subscriptions,
+        entitlements,
+      });
+    }
+
     const rawSession = await getSessionFromRequest(ctx.request);
     if (rawSession?.type === 'identity') {
       const capabilities = await getPlatformCapabilities(rawSession.identityId);

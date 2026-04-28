@@ -29,6 +29,7 @@ import {
   type IdentityModerationBlock,
 } from '../services/identity.service';
 import {
+  activeLabelsFromEvaluatedGrants,
   evaluateSubscriptionGrants,
   hasActiveSubscriptionGrant,
   type EvaluatedGrants,
@@ -165,7 +166,13 @@ export function enrichIdentitySession() {
       return next();
     }
 
-    // -- Merge identity-level overrides and attach to context ----------------
+    // -- Merge encrypted grants (decrypted with cookie key), optional legacy
+    //    Mongo plaintext cache, and identity-document overrides ----------------
+    let fromGrants = { subscriptions: [] as SubscriptionTierId[], entitlements: [] as string[] };
+    if (grants) {
+      fromGrants = activeLabelsFromEvaluatedGrants(grants);
+    }
+
     const identityOverrides = resolveIdentityOverrides(result);
     ctx.identitySession = {
       identity: result,
@@ -173,10 +180,12 @@ export function enrichIdentitySession() {
       grants,
       maxVideoDurationSeconds: identitySession.maxVideoDurationSeconds,
       subscriptions: [...new Set<SubscriptionTierId>([
+        ...fromGrants.subscriptions,
         ...(identitySession.subscriptions ?? []),
         ...identityOverrides.subscriptions,
       ])],
       entitlements: [...new Set<string>([
+        ...fromGrants.entitlements,
         ...(identitySession.entitlements ?? []),
         ...identityOverrides.entitlements,
       ])],

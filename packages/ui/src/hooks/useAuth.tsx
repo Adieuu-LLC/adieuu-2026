@@ -4,6 +4,7 @@ import {
   createApiClient,
   API_ERROR_SESSION_EXPIRED,
   type SessionInfo,
+  type SubscriptionTierId,
   type PublicKeyCredentialRequestOptionsJSON,
 } from '@adieuu/shared';
 import { useAppConfig, usePlatformCapabilities } from '../config';
@@ -113,6 +114,8 @@ function useAuthState(): AuthContextValue {
             isPlatformAdmin: (data.isPlatformAdmin as boolean) ?? false,
             isPlatformModerator: (data.isPlatformModerator as boolean) ?? false,
             platformPermissions: (data.platformPermissions as string[]) ?? [],
+            subscriptions: (data.subscriptions as SubscriptionTierId[]) ?? [],
+            entitlements: (data.entitlements as string[]) ?? [],
           };
           setState({ status: 'identity_mode', session: identitySession });
           return identitySession;

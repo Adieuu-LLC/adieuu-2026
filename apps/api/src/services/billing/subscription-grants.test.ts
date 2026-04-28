@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, expect, test } from 'bun:test';
 import type { UserBilling } from '../../models/user';
+import type { SubscriptionTierId } from '@adieuu/shared';
 import {
   buildGrantPayload,
   encryptGrants,
@@ -9,6 +10,7 @@ import {
   hasActiveSubscriptionGrant,
   type GrantStatus,
   type EvaluatedGrants,
+  activeLabelsFromEvaluatedGrants,
 } from './subscription-grants';
 
 const HOUR = 60 * 60;
@@ -253,6 +255,31 @@ describe('subscription-grants lifetime jitter', () => {
 });
 
 // ---------------------------------------------------------------------------
+// 7a. activeLabelsFromEvaluatedGrants
+// ---------------------------------------------------------------------------
+describe('activeLabelsFromEvaluatedGrants', () => {
+  test('maps current and expiring tiers/ents, drops expired', () => {
+    const grants: EvaluatedGrants = {
+      subscriptions: { access: 'current', insider: 'expiring_soon' },
+      entitlements: { founder: 'current', vanguard: 'expired' },
+    };
+    const { subscriptions, entitlements } = activeLabelsFromEvaluatedGrants(grants);
+    const want: SubscriptionTierId[] = ['access', 'insider'];
+    expect([...subscriptions].sort()).toEqual([...want].sort());
+    expect(entitlements).toContain('founder');
+    expect(entitlements).not.toContain('vanguard');
+  });
+
+  test('empty grant maps yield empty arrays', () => {
+    const grants: EvaluatedGrants = { subscriptions: {}, entitlements: {} };
+    expect(activeLabelsFromEvaluatedGrants(grants)).toEqual({
+      subscriptions: [],
+      entitlements: [],
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 7a. hasActiveSubscriptionGrant
 // ---------------------------------------------------------------------------
 describe('hasActiveSubscriptionGrant', () => {
@@ -276,9 +303,9 @@ describe('hasActiveSubscriptionGrant', () => {
     expect(hasActiveSubscriptionGrant(grants)).toBe(false);
   });
 
-  test('returns false when only expiring_soon (not current)', () => {
+  test('returns true when access is expiring_soon (renewal window)', () => {
     const grants: EvaluatedGrants = { subscriptions: { access: 'expiring_soon' }, entitlements: {} };
-    expect(hasActiveSubscriptionGrant(grants)).toBe(false);
+    expect(hasActiveSubscriptionGrant(grants)).toBe(true);
   });
 });
 

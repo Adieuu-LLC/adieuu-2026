@@ -143,11 +143,18 @@ export class SessionRepository
         identifierType: input.identifierType,
       };
     } else {
+      const identityInput = input;
       doc = {
         ...base,
-        identityId: input.identityId,
-        ...(input.maxVideoDurationSeconds !== undefined
-          ? { maxVideoDurationSeconds: input.maxVideoDurationSeconds }
+        identityId: identityInput.identityId,
+        ...(identityInput.maxVideoDurationSeconds !== undefined
+          ? { maxVideoDurationSeconds: identityInput.maxVideoDurationSeconds }
+          : {}),
+        ...(identityInput.encryptedSubscriptionGrants !== undefined
+          ? { encryptedSubscriptionGrants: identityInput.encryptedSubscriptionGrants }
+          : {}),
+        ...(identityInput.absoluteExpiresAt !== undefined
+          ? { absoluteExpiresAt: identityInput.absoluteExpiresAt }
           : {}),
       };
     }

@@ -212,7 +212,8 @@ export function App() {
           <Route path="/account/overview" element={<AccountOverview />} />
           <Route path="/account/security" element={<Navigate to="/account/security/authentication" replace />} />
           <Route path="/account/security/:tab" element={<AccountSecurity />} />
-          <Route path="/account/subscription" element={<AccountSubscription />} />
+          <Route path="/account/subscription" element={<Navigate to="/account/subscription/manage" replace />} />
+          <Route path="/account/subscription/:tab" element={<AccountSubscription />} />
           <Route path="/account/settings" element={<Navigate to="/identity/notifications" replace />} />
           <Route path="/account/appearance" element={<Navigate to="/identity/appearance" replace />} />
           <Route path="/account/appearance/community" element={<ThemeBrowser />} />
@@ -228,6 +229,8 @@ export function App() {
         <Route path="/identity/privacy" element={<IdentityPrivacy />} />
         <Route path="/identity/devices" element={<IdentityDevices />} />
         <Route path="/identity/ciphers" element={<IdentityCiphers />} />
+        <Route path="/identity/subscription" element={<Navigate to="/identity/subscription/manage" replace />} />
+        <Route path="/identity/subscription/:tab" element={<AccountSubscription />} />
 
         {/* Public identity profile view (must be after static /identity/* routes) */}
         <Route path="/identity/:id" element={<IdentityProfileView />} />

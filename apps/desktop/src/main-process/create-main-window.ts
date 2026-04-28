@@ -80,6 +80,19 @@ export async function createMainWindow(options: {
       return;
     }
 
+    // Chromium-style reload (default menu removed; accelerators must be explicit)
+    if (ctrlOrCmd && input.shift && !input.alt && input.code === 'KeyR') {
+      win.webContents.reloadIgnoringCache();
+      event.preventDefault();
+      return;
+    }
+
+    if (ctrlOrCmd && !input.alt && !input.shift && input.code === 'KeyR') {
+      win.webContents.reload();
+      event.preventDefault();
+      return;
+    }
+
     if (!ctrlOrCmd && !input.alt && !input.shift && input.code === 'F11') {
       win.setFullScreen(!win.isFullScreen());
       event.preventDefault();

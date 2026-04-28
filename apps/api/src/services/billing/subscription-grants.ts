@@ -198,6 +198,42 @@ export function evaluateSubscriptionGrants(
   return result;
 }
 
+/**
+ * Tier or entitlement grant that still describes access for session/UI (`current`
+ * or `expiring_soon` grace window).
+ */
+function grantIsActive(status: GrantStatus): boolean {
+  return status === 'current' || status === 'expiring_soon';
+}
+
+/**
+ * Builds subscription tier and entitlement labels suitable for exposing on
+ * `SessionInfo` — only non-expired grants (current or renewing within grace).
+ *
+ * Prefer this over denormalizing tier arrays on the session Mongo document:
+ * ciphertext + cookie key remains authoritative; this derives labels from it.
+ */
+export function activeLabelsFromEvaluatedGrants(grants: EvaluatedGrants): {
+  subscriptions: SubscriptionTierId[];
+  entitlements: string[];
+} {
+  const subscriptions: SubscriptionTierId[] = [];
+  const entitlements: string[] = [];
+
+  for (const [tier, st] of Object.entries(grants.subscriptions)) {
+    if (st && grantIsActive(st)) {
+      subscriptions.push(tier as SubscriptionTierId);
+    }
+  }
+  for (const [ent, st] of Object.entries(grants.entitlements)) {
+    if (st && grantIsActive(st)) {
+      entitlements.push(ent);
+    }
+  }
+
+  return { subscriptions, entitlements };
+}
+
 // ---------------------------------------------------------------------------
 // Convenience: build + encrypt in one call
 // ---------------------------------------------------------------------------
@@ -221,9 +257,20 @@ export function buildAndEncryptGrants(billing: UserBilling | undefined): {
 }
 
 /**
+ * Tier grant that still allows retaining the identity session (`current` or
+ * `expiring_soon`).
+ */
+function tierAllowsIdentitySession(status: GrantStatus | undefined): boolean {
+  return status !== undefined && grantIsActive(status);
+}
+
+/**
  * Checks whether the evaluated grants indicate the user should retain
- * their identity session (at least one of `access` or `insider` is current).
+ * their identity session (at least one of `access` or `insider` is active).
  */
 export function hasActiveSubscriptionGrant(grants: EvaluatedGrants): boolean {
-  return grants.subscriptions.access === 'current' || grants.subscriptions.insider === 'current';
+  return (
+    tierAllowsIdentitySession(grants.subscriptions.access) ||
+    tierAllowsIdentitySession(grants.subscriptions.insider)
+  );
 }

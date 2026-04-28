@@ -336,6 +336,23 @@ export const account = {
       lifetime: 'Lifetime',
       unavailable: 'Subscriptions are temporarily unavailable. Please check back later.',
 
+      // Tab labels
+      tabs: {
+        manage: 'Manage',
+        subscriptions: 'Subscriptions',
+        lifetime: 'Lifetime',
+      },
+
+      // Manage tab
+      manage: {
+        currentTier: 'Your current plan',
+        noPlan: 'You are on the Free plan.',
+        billingPortal: 'Manage billing and invoices on Stripe.',
+      },
+
+      // Identity/alias banner
+      identityBanner: 'Billing information is not available on aliases to protect your privacy. To manage your subscription and billing details, sign in to your account.',
+
       // Section headings
       sections: {
         annual: 'Annual Plans',
@@ -402,6 +419,7 @@ export const account = {
       periodEnd: 'Current period ends {{date}}',
       cancelAtPeriodEnd: 'Your subscription will cancel at the end of this period.',
       renewsOn: 'Renews on {{date}}',
+      cancelsOn: 'Cancels on {{date}}',
 
       // Toasts
       checkoutSuccess: 'Purchase successful! Welcome aboard.',

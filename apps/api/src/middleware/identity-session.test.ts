@@ -36,6 +36,17 @@ const mockHasActiveSubscriptionGrant = mock(() => false) as AnyMock;
 mock.module('../services/billing/subscription-grants', () => ({
   evaluateSubscriptionGrants: mockEvaluateSubscriptionGrants,
   hasActiveSubscriptionGrant: mockHasActiveSubscriptionGrant,
+  activeLabelsFromEvaluatedGrants: (grants: { subscriptions: Record<string, string>; entitlements: Record<string, string> }) => {
+    const subscriptions: string[] = [];
+    const entitlements: string[] = [];
+    for (const [k, v] of Object.entries(grants.subscriptions ?? {})) {
+      if (v === 'current' || v === 'expiring_soon') subscriptions.push(k);
+    }
+    for (const [k, v] of Object.entries(grants.entitlements ?? {})) {
+      if (v === 'current' || v === 'expiring_soon') entitlements.push(k);
+    }
+    return { subscriptions, entitlements };
+  },
 }));
 
 mock.module('../utils/adieuuLogger', () => ({
@@ -165,6 +176,7 @@ describe('enrichIdentitySession', () => {
     const res = await middleware(ctx, nextOk);
     expect(res.status).toBe(200);
     expect(ctx.identitySession.grants).toEqual(grants);
+    expect(ctx.identitySession.subscriptions).toContain('access');
   });
 
   test('encrypted grants but missing grant key -> 401, session destroyed', async () => {
