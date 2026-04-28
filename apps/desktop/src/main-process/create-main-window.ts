@@ -1,4 +1,4 @@
-import { BrowserWindow, shell } from 'electron';
+import { BrowserWindow, Menu, shell } from 'electron';
 import path from 'path';
 import { runtime } from './runtime';
 
@@ -51,6 +51,11 @@ export async function createMainWindow(options: {
     return { action: 'deny' };
   });
 
+  // Remove the default Electron menu so its built-in accelerators (including
+  // Ctrl+Shift+I for DevTools) don't silently consume key events before
+  // before-input-event fires. We handle all shortcuts explicitly below.
+  Menu.setApplicationMenu(null);
+
   runtime.mainWindow.webContents.on('before-input-event', (event, input) => {
     const win = runtime.mainWindow;
     if (input.type !== 'keyDown' || !win || win.isDestroyed()) return;
@@ -83,6 +88,15 @@ export async function createMainWindow(options: {
 
     if (!ctrlOrCmd && !input.alt && !input.shift && input.code === 'F1') {
       shell.openExternal('https://adieuu.com');
+      event.preventDefault();
+      return;
+    }
+
+    if (
+      (ctrlOrCmd && input.shift && !input.alt && (input.code === 'KeyI' || input.key.toLowerCase() === 'i')) ||
+      (!ctrlOrCmd && !input.alt && !input.shift && input.code === 'F12')
+    ) {
+      win.webContents.toggleDevTools();
       event.preventDefault();
       return;
     }

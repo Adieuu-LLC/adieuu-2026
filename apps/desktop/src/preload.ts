@@ -91,7 +91,7 @@ contextBridge.exposeInMainWorld('electron', {
       'install-update', 'download-update',
       'get-pending-deep-link', 'get-update-preferences', 'set-update-preferences',
       'check-for-updates', 'clear-installer-cache', 'open-windows-installer-log', 'open-in-app-update-log',
-      'get-in-app-update-log-path', 'restart-app', 'set-platform-admin',
+      'get-in-app-update-log-path', 'restart-app',
     ];
     if (allowedChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);

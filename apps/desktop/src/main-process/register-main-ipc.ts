@@ -40,10 +40,6 @@ export function registerMainProcessIpc(options: {
     },
   );
 
-  ipcMain.handle('set-platform-admin', (_event, isAdmin: unknown) => {
-    runtime.isPlatformAdminUser = isAdmin === true;
-  });
-
   ipcMain.handle('restart-app', () => {
     app.relaunch();
     app.exit(0);

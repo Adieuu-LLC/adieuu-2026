@@ -95,6 +95,8 @@ function useAuthState(): AuthContextValue {
     try {
       const response = await api.auth.getSession();
 
+      console.info("refreshSession()")
+
       if (response.success && response.data) {
         const data = response.data as unknown as Record<string, unknown>;
 
@@ -221,17 +223,8 @@ function useAuthState(): AuthContextValue {
     }
   }, [api, refreshSession, webauthnBridge]);
 
-  // Inform the Electron main process of admin status so it can conditionally
-  // allow DevTools shortcuts in production. No-op in browser contexts.
-  useEffect(() => {
-    const electron = (window as Window & { electron?: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } }).electron;
-    electron?.invoke('set-platform-admin', state.session?.isPlatformAdmin === true);
-  }, [state.session?.isPlatformAdmin]);
-
   const logout = useCallback(async () => {
     await api.auth.logout();
-    const electron = (window as Window & { electron?: { invoke: (channel: string, ...args: unknown[]) => Promise<unknown> } }).electron;
-    electron?.invoke('set-platform-admin', false);
     setState({
       status: 'unauthenticated',
       session: null,
