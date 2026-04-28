@@ -1,0 +1,55 @@
+/**
+ * Compliance-related translations: geofencing, age verification, advisory.
+ */
+
+export const compliance = {
+  geofence: {
+    title: 'Service Unavailable in Your Region',
+    description: 'Due to local legislation, this service is not available in your jurisdiction.',
+    jurisdictionLabel: 'Jurisdiction',
+    viewLaw: 'View relevant legislation',
+    close: 'Close',
+  },
+  ageVerification: {
+    title: 'Age Verification Required',
+    description: 'Your jurisdiction requires age verification before you can create or access aliases.',
+    startButton: 'Start Verification',
+    retryButton: 'Retry Verification',
+    close: 'Close',
+    approved: 'Age verification complete. You may now proceed.',
+    failedMessage: 'Sorry, age verification failed and due to your local legislation we are unable to grant access. You may retry after the cooldown period.',
+    expiredMessage: 'Your verification session expired before completion.',
+    cooldownMessage: 'Your verification session expired. You may retry after the cooldown period.',
+    retryAfterLabel: 'Retry available after',
+    expirationCount: 'Expiration {{count}} of {{max}}',
+    starting: 'Starting verification...',
+    awaitingUser: 'Complete the verification in the opened window.',
+    processing: 'Verification in progress...',
+    methodsTitle: 'Verification Methods',
+    attemptsRemaining: '{{remaining}} attempts remaining',
+  },
+  advisory: {
+    unresolvedJurisdiction: 'We could not determine your jurisdiction. You are responsible for adhering to local age verification laws. You may opt in to verification voluntarily.',
+  },
+  admin: {
+    title: 'Age Verification',
+    subtitle: 'Configure age verification enforcement, geofencing, and provider settings.',
+    enabledLabel: 'Enforcement Enabled',
+    enabledDescription: 'When enabled, users in configured jurisdictions must verify their age before accessing aliases.',
+    providerLabel: 'Active Provider',
+    environmentLabel: 'Provider Environment',
+    modeLabel: 'Required Mode',
+    modeJurisdictions: 'Jurisdictions (seed-data-driven)',
+    modeAll: 'All accounts',
+    jurisdictionsLabel: 'Additional Required Jurisdictions',
+    jurisdictionsPlaceholder: 'e.g. US-TN, IT',
+    blockedLabel: 'Geofence-Blocked Jurisdictions',
+    blockedPlaceholder: 'e.g. US-TX',
+    lawLinksLabel: 'Law Links (jurisdiction|url)',
+    lawLinksPlaceholder: 'e.g. US-TN|https://...',
+    saveButton: 'Save Settings',
+    saveSuccess: 'Age verification settings saved.',
+    saveError: 'Failed to save settings.',
+    loadError: 'Failed to load settings.',
+  },
+} as const;

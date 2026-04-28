@@ -50,6 +50,9 @@ export interface UserDocument extends BaseDocument {
   /** IP-derived jurisdiction information, refreshed at login and periodically. */
   geo?: UserGeo;
 
+  /** Account-level age verification state. */
+  ageVerification?: UserAgeVerification;
+
   /** Stripe customer ID (server-side only; never returned to the client). */
   stripeCustomerId?: string;
 
@@ -77,6 +80,29 @@ export interface UserGeo {
   ipHash: string;
   /** When this lookup was last refreshed */
   checkedAt: Date;
+}
+
+export type AgeVerificationStatus = 'unverified' | 'pending' | 'verified' | 'failed' | 'expired';
+
+/**
+ * Account-level age verification state.
+ * Tracks current status, provider references, and retry cooldown data.
+ */
+export interface UserAgeVerification {
+  status: AgeVerificationStatus;
+  providerId?: string;
+  providerVerificationId?: string;
+  verifiedAt?: Date;
+  /** When the most recent verification failed (drives 30-day cooldown). */
+  failedAt?: Date;
+  /** The jurisdiction under which verification was performed. */
+  lastJurisdiction?: string;
+  /** True if the user voluntarily opted in (unresolved jurisdiction). */
+  optedIn?: boolean;
+  /** How many times the verification has expired (max 3 before 30-day cooldown). */
+  expirationCount: number;
+  /** When the most recent expiration occurred (drives 24h and 30-day cooldowns). */
+  lastExpiredAt?: Date;
 }
 
 /**

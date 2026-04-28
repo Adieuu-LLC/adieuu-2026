@@ -46,6 +46,7 @@ import { UpdateProvider } from '../hooks/useUpdateContext';
 import { AppSidebar } from './AppSidebar';
 import {
   AdminAuthAllowlist,
+  AdminAgeVerification,
   AdminDashboard,
   AdminGate,
   AdminLayout,
@@ -246,6 +247,7 @@ export function App() {
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="platform-admins" element={<AdminPlatformAdmins />} />
             <Route path="auth-allowlist" element={<AdminAuthAllowlist />} />
+            <Route path="age-verification" element={<AdminAgeVerification />} />
           </Route>
         </Route>
 

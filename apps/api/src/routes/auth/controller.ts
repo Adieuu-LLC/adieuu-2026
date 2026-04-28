@@ -57,6 +57,9 @@ import {
   billingErrorLogFields,
 } from '../../services/billing/billing.service';
 import { resolveEffectiveAccess } from '../../services/billing/resolve-access';
+import { evaluateAliasGate, type AliasGateResult } from '../../services/age-verification/alias-gate';
+import { isAgeVerificationEnabled } from '../../services/age-verification/av-settings';
+import type { AgeVerificationStatus } from '../../models/user';
 
 /** OTP expiration time in minutes */
 const OTP_EXPIRES_IN_MINUTES = 10;
@@ -713,6 +716,20 @@ export async function getSessionHandler(
   geo?: { jurisdiction: string; countryCode: string; regionCode?: string; checkedAt: string };
   subscriptions: string[];
   entitlements: string[];
+  ageVerification?: {
+    status: AgeVerificationStatus;
+    verifiedAt?: string;
+    retryAfter?: string;
+    expirationCount?: number;
+  };
+  aliasGate?: {
+    allowed: boolean;
+    code?: string;
+    jurisdiction?: string;
+    lawUrl?: string;
+    leastInvasiveMethod?: string;
+    retryAfter?: string;
+  };
 } | null> {
   const session = await requireAccountSession(request);
   if (!session) return null;
@@ -774,7 +791,67 @@ export async function getSessionHandler(
 
   const maskedIp = maskIpAddress(getClientIp(request));
 
-  return { session, signedToken, identityCount, maskedIp, geo, subscriptions, entitlements };
+  // Evaluate alias gate eagerly so the UI can gate proactively
+  let ageVerification: {
+    status: AgeVerificationStatus;
+    verifiedAt?: string;
+    retryAfter?: string;
+    expirationCount?: number;
+  } | undefined;
+  let aliasGate: {
+    allowed: boolean;
+    code?: string;
+    jurisdiction?: string;
+    lawUrl?: string;
+    leastInvasiveMethod?: string;
+    retryAfter?: string;
+  } | undefined;
+
+  const avEnabled = await isAgeVerificationEnabled();
+  if (avEnabled) {
+    const av = user.ageVerification;
+    if (av) {
+      const FAILED_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+      const EXPIRED_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+      let retryAfter: string | undefined;
+      if (av.status === 'failed' && av.failedAt) {
+        retryAfter = new Date(av.failedAt.getTime() + FAILED_COOLDOWN_MS).toISOString();
+      } else if (av.status === 'expired' && av.lastExpiredAt) {
+        const cooldown = (av.expirationCount ?? 0) >= 3 ? FAILED_COOLDOWN_MS : EXPIRED_COOLDOWN_MS;
+        retryAfter = new Date(av.lastExpiredAt.getTime() + cooldown).toISOString();
+      }
+
+      ageVerification = {
+        status: av.status,
+        verifiedAt: av.verifiedAt?.toISOString(),
+        retryAfter,
+        expirationCount: av.expirationCount,
+      };
+    }
+
+    const gateResult = await evaluateAliasGate(user);
+    if (gateResult.allowed) {
+      aliasGate = { allowed: true };
+    } else {
+      aliasGate = {
+        allowed: false,
+        code: gateResult.code,
+        jurisdiction: gateResult.jurisdiction,
+      };
+      if (gateResult.code === 'GEOFENCE_BLOCKED') {
+        aliasGate.lawUrl = gateResult.lawUrl;
+      }
+      if (gateResult.code === 'AGE_VERIFICATION_REQUIRED') {
+        aliasGate.leastInvasiveMethod = gateResult.leastInvasiveMethod;
+      }
+      if (gateResult.code === 'AGE_VERIFICATION_FAILED' || gateResult.code === 'AGE_VERIFICATION_COOLDOWN') {
+        aliasGate.retryAfter = gateResult.retryAfter.toISOString();
+      }
+    }
+  }
+
+  return { session, signedToken, identityCount, maskedIp, geo, subscriptions, entitlements, ageVerification, aliasGate };
 }
 
 /**

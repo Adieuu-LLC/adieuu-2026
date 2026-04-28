@@ -372,6 +372,8 @@ export const Collections = {
   STRIPE_PROCESSED_EVENTS: 'stripe_processed_events',
   /** Jurisdiction regulatory matrix (age verification, etc.) */
   JURISDICTION_REQUIREMENTS: 'jurisdiction_requirements',
+  /** Age verification attempt tracking */
+  AGE_VERIFICATIONS: 'age_verifications',
 } as const;
 
 /**
@@ -645,6 +647,11 @@ async function createIndexes(): Promise<void> {
   // Jurisdiction requirements — one document per jurisdiction code
   const jurisdictionRequirements = database.collection(Collections.JURISDICTION_REQUIREMENTS);
   await jurisdictionRequirements.createIndex({ jurisdiction: 1 }, { unique: true });
+
+  // Age verifications — lookup by user and by provider verification id
+  const ageVerifications = database.collection(Collections.AGE_VERIFICATIONS);
+  await ageVerifications.createIndex({ userId: 1 });
+  await ageVerifications.createIndex({ providerVerificationId: 1 }, { unique: true, sparse: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

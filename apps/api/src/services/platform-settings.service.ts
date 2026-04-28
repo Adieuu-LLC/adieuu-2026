@@ -407,3 +407,76 @@ export async function ensureGeoLookupPlatformSettingExists(): Promise<void> {
 
   elog.info('Created default geo lookup enabled setting', { key });
 }
+
+/**
+ * Ensures all age-verification and geofence platform settings exist with defaults.
+ * Idempotent -- safe to call on every startup.
+ */
+export async function ensureAgeVerificationPlatformSettingsExist(): Promise<void> {
+  const repo = getPlatformSettingsRepository();
+
+  const defaults: Array<{
+    key: string;
+    description: string;
+    valueType: 'boolean' | 'string' | 'stringArray';
+    value: boolean | string | string[];
+  }> = [
+    {
+      key: PLATFORM_SETTING_KEYS.AGE_VERIFICATION_ENABLED,
+      description: 'Whether age verification enforcement is active',
+      valueType: 'boolean',
+      value: false,
+    },
+    {
+      key: PLATFORM_SETTING_KEYS.AGE_VERIFICATION_ACTIVE_PROVIDER,
+      description: 'Active age verification provider id',
+      valueType: 'string',
+      value: 'verifymy',
+    },
+    {
+      key: PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_ENV,
+      description: 'VerifyMy environment (sandbox or production)',
+      valueType: 'string',
+      value: 'sandbox',
+    },
+    {
+      key: PLATFORM_SETTING_KEYS.AGE_VERIFICATION_REQUIRED_MODE,
+      description: 'Enforcement mode: jurisdictions (seed-data-driven) or all',
+      valueType: 'string',
+      value: 'jurisdictions',
+    },
+    {
+      key: PLATFORM_SETTING_KEYS.AGE_VERIFICATION_REQUIRED_JURISDICTIONS,
+      description: 'Additional jurisdictions requiring age verification (additive)',
+      valueType: 'stringArray',
+      value: [],
+    },
+    {
+      key: PLATFORM_SETTING_KEYS.GEOFENCE_BLOCKED_JURISDICTIONS,
+      description: 'Jurisdictions where the service is entirely blocked',
+      valueType: 'stringArray',
+      value: [],
+    },
+    {
+      key: PLATFORM_SETTING_KEYS.GEOFENCE_LAW_LINKS,
+      description: 'Jurisdiction-to-law-URL pairs (format: jurisdiction|url)',
+      valueType: 'stringArray',
+      value: [],
+    },
+  ];
+
+  for (const def of defaults) {
+    const existing = await repo.findByKey(def.key);
+    if (existing) continue;
+
+    await upsertPlatformSetting({
+      key: def.key,
+      description: def.description,
+      valueType: def.valueType,
+      value: def.value,
+      lastUpdatedBy: PLATFORM_SETTING_BOOTSTRAP_ACTOR,
+    });
+
+    elog.info('Created default age verification setting', { key: def.key });
+  }
+}

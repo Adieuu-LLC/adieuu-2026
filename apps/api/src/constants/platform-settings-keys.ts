@@ -12,6 +12,20 @@ export const PLATFORM_SETTING_KEYS = {
   MEDIA_MAX_VIDEO_DURATION_SECONDS: 'platform-media-max-video-duration-seconds',
   /** Whether IP-based geo lookups are enabled at runtime. */
   GEO_LOOKUP_ENABLED: 'platform-geo-lookup-enabled',
+  /** Whether age verification enforcement is active. */
+  AGE_VERIFICATION_ENABLED: 'platform-age-verification-enabled',
+  /** Active age verification provider id (default: 'verifymy'). */
+  AGE_VERIFICATION_ACTIVE_PROVIDER: 'platform-age-verification-active-provider',
+  /** VerifyMy environment override ('sandbox' | 'production'). */
+  AGE_VERIFICATION_VERIFYMY_ENV: 'platform-age-verification-verifymy-env',
+  /** Enforcement mode: 'jurisdictions' (seed-data-driven) or 'all' (every account). */
+  AGE_VERIFICATION_REQUIRED_MODE: 'platform-age-verification-required-mode',
+  /** Additional jurisdictions that require AV (additive to seed data). */
+  AGE_VERIFICATION_REQUIRED_JURISDICTIONS: 'platform-age-verification-required-jurisdictions',
+  /** Jurisdictions where the service is entirely blocked. */
+  GEOFENCE_BLOCKED_JURISDICTIONS: 'platform-geofence-blocked-jurisdictions',
+  /** Jurisdiction-to-law-URL pairs for geofence UI (format: "US-TN|https://..."). */
+  GEOFENCE_LAW_LINKS: 'platform-geofence-law-links',
 } as const;
 
 export type PlatformSettingKey =

@@ -23,5 +23,7 @@ is_isolated_test() {
      "$name" == 'identity-session.test.ts' ||
      "$name" == 'identity.service.test.ts' ||
      "$name" == 'stripe.test.ts' ||
-     "$name" == 'reconciliation.test.ts' ]]
+     "$name" == 'reconciliation.test.ts' ||
+     "$name" == 'alias-gate.test.ts' ||
+     "$name" == 'jurisdiction-policy.test.ts' ]]
 }

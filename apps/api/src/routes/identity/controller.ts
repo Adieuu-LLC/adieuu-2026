@@ -47,6 +47,8 @@ import {
   canViewerAccessTargetIdentityKeys,
 } from '../../services/identity-keys-access.service';
 import { verifyDeviceStoredStaticKeyAttestation } from '../../services/device-static-attestation.service';
+import { evaluateAliasGate } from '../../services/age-verification/alias-gate';
+import { getUserRepository } from '../../repositories/user.repository';
 import { toPublicIdentitySession } from '../../models/session';
 import { applyPrivacyFilter, areFriends } from './profile.controller';
 import { getClientIp } from '../auth/controller';
@@ -174,6 +176,45 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
   const clientIp = getClientIp(ctx.request);
   const userAgent = ctx.request.headers.get('User-Agent') ?? undefined;
 
+  // Alias gate: check age verification / geofence before allowing identity creation
+  const userRepo = getUserRepository();
+  const gateUser = await userRepo.findById(tokenPayload.sub);
+  if (gateUser) {
+    const gateResult = await evaluateAliasGate(gateUser);
+    if (!gateResult.allowed) {
+      if (gateResult.code === 'GEOFENCE_BLOCKED') {
+        return errorResponse(
+          gateResult.code,
+          'This service is not available in your region.',
+          403,
+          { jurisdiction: gateResult.jurisdiction, lawUrl: gateResult.lawUrl },
+        );
+      }
+      if (gateResult.code === 'AGE_VERIFICATION_FAILED') {
+        return errorResponse(
+          gateResult.code,
+          'Sorry, age verification failed and due to your local legislation we\'re unable to grant access. You may retry after the cooldown period.',
+          403,
+          { jurisdiction: gateResult.jurisdiction, retryAfter: gateResult.retryAfter.toISOString() },
+        );
+      }
+      if (gateResult.code === 'AGE_VERIFICATION_COOLDOWN') {
+        return errorResponse(
+          gateResult.code,
+          'Your verification session expired. You may retry after the cooldown period.',
+          403,
+          { jurisdiction: gateResult.jurisdiction, retryAfter: gateResult.retryAfter.toISOString() },
+        );
+      }
+      return errorResponse(
+        gateResult.code,
+        'Age verification is required in your jurisdiction before creating or accessing aliases.',
+        403,
+        { jurisdiction: gateResult.jurisdiction, verificationUrl: '/api/age-verification/start' },
+      );
+    }
+  }
+
   const result = await createIdentity(
     tokenPayload.sub,
     tokenPayload.maxIdentities,
@@ -229,6 +270,45 @@ export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
   const tokenPayload = verifySignedToken(signedToken);
   if (!tokenPayload) {
     return ctx.errors.unauthorized();
+  }
+
+  // Alias gate: check age verification / geofence before allowing identity login
+  const loginGateUserRepo = getUserRepository();
+  const loginGateUser = await loginGateUserRepo.findById(tokenPayload.sub);
+  if (loginGateUser) {
+    const loginGateResult = await evaluateAliasGate(loginGateUser);
+    if (!loginGateResult.allowed) {
+      if (loginGateResult.code === 'GEOFENCE_BLOCKED') {
+        return errorResponse(
+          loginGateResult.code,
+          'This service is not available in your region.',
+          403,
+          { jurisdiction: loginGateResult.jurisdiction, lawUrl: loginGateResult.lawUrl },
+        );
+      }
+      if (loginGateResult.code === 'AGE_VERIFICATION_FAILED') {
+        return errorResponse(
+          loginGateResult.code,
+          'Sorry, age verification failed and due to your local legislation we\'re unable to grant access. You may retry after the cooldown period.',
+          403,
+          { jurisdiction: loginGateResult.jurisdiction, retryAfter: loginGateResult.retryAfter.toISOString() },
+        );
+      }
+      if (loginGateResult.code === 'AGE_VERIFICATION_COOLDOWN') {
+        return errorResponse(
+          loginGateResult.code,
+          'Your verification session expired. You may retry after the cooldown period.',
+          403,
+          { jurisdiction: loginGateResult.jurisdiction, retryAfter: loginGateResult.retryAfter.toISOString() },
+        );
+      }
+      return errorResponse(
+        loginGateResult.code,
+        'Age verification is required in your jurisdiction before creating or accessing aliases.',
+        403,
+        { jurisdiction: loginGateResult.jurisdiction, verificationUrl: '/api/age-verification/start' },
+      );
+    }
   }
 
   const clientIp = getClientIp(ctx.request);

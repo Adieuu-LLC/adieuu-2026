@@ -37,6 +37,15 @@ const webCspManifest: Record<string, string[]> = {
     mediaS3Origin,
     e2eMediaS3Origin,
     'https://downloads.adieuu.com',
+    'https://sandbox.verifymyage.com',
+    'https://oauth.verifymyage.com',
+    'https://verify.verifymyage.com',
+  ],
+  'form-action': [
+    "'self'",
+    'https://sandbox.verifymyage.com',
+    'https://oauth.verifymyage.com',
+    'https://verify.verifymyage.com',
   ],
   'media-src': ["'self'"],
 };

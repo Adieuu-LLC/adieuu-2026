@@ -57,7 +57,11 @@ export interface CreateIdentityResult {
     | 'MAX_IDENTITIES'
     | 'VALIDATION_ERROR'
     | 'E2E_INIT_FAILED'
-    | 'PAYLOAD_TOO_LARGE';
+    | 'PAYLOAD_TOO_LARGE'
+    | 'GEOFENCE_BLOCKED'
+    | 'AGE_VERIFICATION_REQUIRED'
+    | 'AGE_VERIFICATION_FAILED'
+    | 'AGE_VERIFICATION_COOLDOWN';
 }
 
 export interface LoginIdentityResult {
@@ -74,7 +78,11 @@ export interface LoginIdentityResult {
     | 'KEY_GENERATION_FAILED'
     | 'DEVICE_REGISTRATION_FAILED'
     | 'IDENTITY_SUSPENDED'
-    | 'IDENTITY_BANNED';
+    | 'IDENTITY_BANNED'
+    | 'GEOFENCE_BLOCKED'
+    | 'AGE_VERIFICATION_REQUIRED'
+    | 'AGE_VERIFICATION_FAILED'
+    | 'AGE_VERIFICATION_COOLDOWN';
   attemptNumber?: number;
   retryAfter?: number;
   isNewDevice?: boolean;

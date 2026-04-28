@@ -9,7 +9,10 @@ import { Popover } from '../components/Popover';
 import { useToast } from '../components/Toast';
 import { Icon } from '../icons/Icon';
 import { useIdentity, type LoginStatus, type WebDeviceChoice } from '../hooks/useIdentity';
+import { useAuth } from '../hooks/useAuth';
 import { WebDeviceChoiceModal } from '../components/WebDeviceChoiceModal';
+import { GeofenceBlockedModal } from '../components/GeofenceBlockedModal';
+import { AgeVerificationModal } from '../components/AgeVerificationModal';
 import { stringArrayFromI18nReturn } from './identityModalUtils';
 
 interface IdentityModalProps {
@@ -19,17 +22,33 @@ interface IdentityModalProps {
   unlockMode?: boolean;
 }
 
-type ModalView = 'choose' | 'login' | 'create' | 'unlock' | 'creating' | 'logging_in';
+type ModalView = 'choose' | 'login' | 'create' | 'unlock' | 'creating' | 'logging_in'
+  | 'geofenced' | 'age_verification_required' | 'age_verification_failed' | 'age_verification_cooldown';
 
 export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityModalProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { info: toastInfo } = useToast();
   const { createIdentity, loginToIdentity, unlockIdentity, logoutFromIdentity, hasIdentity, canCreateMore } = useIdentity();
+  const { session } = useAuth();
 
-  const [view, setView] = useState<ModalView>(
-    unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose'
-  );
+  // Derive initial view from alias gate state
+  const aliasGate = session?.aliasGate;
+  const initialView = (): ModalView => {
+    if (aliasGate && !aliasGate.allowed) {
+      if (aliasGate.code === 'GEOFENCE_BLOCKED') return 'geofenced';
+      if (aliasGate.code === 'AGE_VERIFICATION_FAILED') return 'age_verification_failed';
+      if (aliasGate.code === 'AGE_VERIFICATION_COOLDOWN') return 'age_verification_cooldown';
+      if (aliasGate.code === 'AGE_VERIFICATION_REQUIRED') return 'age_verification_required';
+    }
+    return unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose';
+  };
+
+  const [view, setView] = useState<ModalView>(initialView);
+
+  // Submodal state
+  const [avModalOpen, setAvModalOpen] = useState(false);
+  const [geofenceModalOpen, setGeofenceModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -603,11 +622,122 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
             </div>
           </div>
         )}
+
+        {view === 'geofenced' && (
+          <div className="identity-modal-content">
+            <div className="identity-modal-header">
+              <Icon name="lock" className="identity-modal-icon" />
+              <h2>{t('compliance.geofence.title')}</h2>
+            </div>
+            <Alert variant="error">
+              {t('compliance.geofence.description')}
+            </Alert>
+            {aliasGate?.jurisdiction && (
+              <p className="identity-modal-jurisdiction">
+                {t('compliance.geofence.jurisdictionLabel')}: <strong>{aliasGate.jurisdiction}</strong>
+              </p>
+            )}
+            {aliasGate?.lawUrl && (
+              <a
+                href={aliasGate.lawUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="identity-modal-law-link"
+              >
+                {t('compliance.geofence.viewLaw')}
+              </a>
+            )}
+          </div>
+        )}
+
+        {view === 'age_verification_required' && (
+          <div className="identity-modal-content">
+            <div className="identity-modal-header">
+              <Icon name="lock" className="identity-modal-icon" />
+              <h2>{t('compliance.ageVerification.title')}</h2>
+              <p>{t('compliance.ageVerification.description')}</p>
+            </div>
+            <div className="identity-modal-actions">
+              <Button variant="primary" size="lg" onClick={() => setAvModalOpen(true)}>
+                {t('compliance.ageVerification.startButton')}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {view === 'age_verification_failed' && (
+          <div className="identity-modal-content">
+            <div className="identity-modal-header">
+              <Icon name="lock" className="identity-modal-icon" />
+              <h2>{t('compliance.ageVerification.title')}</h2>
+            </div>
+            <Alert variant="error">
+              {t('compliance.ageVerification.failedMessage')}
+            </Alert>
+            {aliasGate?.retryAfter && (
+              <p className="identity-modal-retry-after">
+                {t('compliance.ageVerification.retryAfterLabel')}: {new Date(aliasGate.retryAfter).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+        )}
+
+        {view === 'age_verification_cooldown' && (
+          <div className="identity-modal-content">
+            <div className="identity-modal-header">
+              <Icon name="lock" className="identity-modal-icon" />
+              <h2>{t('compliance.ageVerification.title')}</h2>
+            </div>
+            <Alert variant="warning">
+              {t('compliance.ageVerification.cooldownMessage')}
+            </Alert>
+            {aliasGate?.retryAfter && (
+              <p className="identity-modal-retry-after">
+                {t('compliance.ageVerification.retryAfterLabel')}: {new Date(aliasGate.retryAfter).toLocaleDateString()}
+              </p>
+            )}
+            {session?.ageVerification?.expirationCount !== undefined && (
+              <p className="identity-modal-expiration-count">
+                {t('compliance.ageVerification.expirationCount', {
+                  count: session.ageVerification.expirationCount,
+                  max: 3,
+                })}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Jurisdiction advisory banner for unresolved geo */}
+        {(view === 'choose' || view === 'login' || view === 'create') &&
+          session?.ageVerification === undefined &&
+          !session?.geo?.jurisdiction && (
+          <div className="identity-modal-advisory">
+            <Alert variant="info">
+              {t('compliance.advisory.unresolvedJurisdiction')}
+            </Alert>
+          </div>
+        )}
       </div>
 
       <WebDeviceChoiceModal
         open={webDeviceChoiceOpen}
         onChoice={onWebDeviceChoiceSelected}
+      />
+
+      <AgeVerificationModal
+        open={avModalOpen}
+        onClose={() => setAvModalOpen(false)}
+        jurisdiction={aliasGate?.jurisdiction}
+        retryAfter={aliasGate?.retryAfter ?? session?.ageVerification?.retryAfter}
+        expirationCount={session?.ageVerification?.expirationCount}
+        gateCode={aliasGate?.code}
+      />
+
+      <GeofenceBlockedModal
+        open={geofenceModalOpen}
+        onClose={() => setGeofenceModalOpen(false)}
+        jurisdiction={aliasGate?.jurisdiction}
+        lawUrl={aliasGate?.lawUrl}
       />
     </div>
   );

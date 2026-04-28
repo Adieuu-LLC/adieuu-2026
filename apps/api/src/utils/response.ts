@@ -75,12 +75,17 @@ export interface ApiErrorResponse {
     code: string;
     /** Human-readable error message */
     message: string;
-    /** Optional structured fields (e.g. maxBytes for PAYLOAD_TOO_LARGE, moderationReason for REJECTED) */
+    /** Optional structured fields for contextual error data. */
     details?: {
       maxBytes?: number;
       moderationReason?: string;
       moderationReportId?: string;
       suspendedUntil?: string;
+      jurisdiction?: string;
+      lawUrl?: string;
+      retryAfter?: string;
+      verificationUrl?: string;
+      leastInvasiveMethod?: string;
     };
   };
   /** Response metadata */

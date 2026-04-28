@@ -8,6 +8,13 @@ export const PLATFORM_SETTING_KEYS = {
   AUTH_ALLOWLIST_PHONE: 'platform-auth-allowlist-phone',
   ADMIN_ACCOUNT_LIST: 'platform-admin-account-list',
   MODERATOR_ACCOUNT_LIST: 'platform-moderator-account-list',
+  AGE_VERIFICATION_ENABLED: 'platform-age-verification-enabled',
+  AGE_VERIFICATION_ACTIVE_PROVIDER: 'platform-age-verification-active-provider',
+  AGE_VERIFICATION_VERIFYMY_ENV: 'platform-age-verification-verifymy-env',
+  AGE_VERIFICATION_REQUIRED_MODE: 'platform-age-verification-required-mode',
+  AGE_VERIFICATION_REQUIRED_JURISDICTIONS: 'platform-age-verification-required-jurisdictions',
+  GEOFENCE_BLOCKED_JURISDICTIONS: 'platform-geofence-blocked-jurisdictions',
+  GEOFENCE_LAW_LINKS: 'platform-geofence-law-links',
 } as const;
 
 export type PlatformSettingKey = (typeof PLATFORM_SETTING_KEYS)[keyof typeof PLATFORM_SETTING_KEYS];

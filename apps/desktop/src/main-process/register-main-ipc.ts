@@ -5,6 +5,7 @@ import { createCredential, getCredential } from '../webauthn-bridge';
 import { runtime } from './runtime';
 import { applyBadgeColor, createBadgedIcon, getBaseIcon } from './taskbar-badge';
 import { registerAutoUpdaterIpc } from './auto-updater';
+import { registerVerificationWindowIpc } from './verification-window';
 import { isAllowedAudioPath } from './audio-path';
 import { ensureInAppUpdateLogFileForOpen, getInAppUpdateLogPath } from './update-in-app-log';
 import { openExternalHttpsUrl } from './open-external-https';
@@ -26,6 +27,7 @@ export function registerMainProcessIpc(options: {
   });
 
   registerAutoUpdaterIpc({ isDev, sendToRenderer });
+  registerVerificationWindowIpc();
 
   ipcMain.handle('get-pending-deep-link', () => {
     const link = runtime.pendingDeepLinkPath;

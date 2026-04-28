@@ -14,6 +14,7 @@ import { identity } from './identity';
 import { moderation } from './moderation';
 import { report } from './report';
 import { staticPages } from './staticPages';
+import { compliance } from './compliance';
 
 export const en = {
   ...core,
@@ -28,6 +29,7 @@ export const en = {
   moderation,
   gif,
   achievements,
+  compliance,
 } as const;
 
 export type TranslationKeys = typeof en;

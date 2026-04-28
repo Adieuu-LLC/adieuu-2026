@@ -24,6 +24,10 @@ export {
   type AvatarInfo,
   type UserProfile,
   type AuthSession,
+  type SessionAgeVerification,
+  type SessionAliasGate,
+  type AliasGateCode,
+  type SessionGeoInfo,
 } from './auth-types';
 
 export {

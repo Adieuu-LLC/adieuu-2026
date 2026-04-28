@@ -30,6 +30,7 @@ import { blockRoutes } from './blocks';
 import { stripeWebhookRoutes } from './webhooks/stripe';
 import { subscriptionRoutes } from './account/subscription';
 import { geoRoutes } from './geo';
+import { ageVerificationRoutes } from './age-verification';
 
 /**
  * Registers all application routes with the main router.
@@ -116,6 +117,9 @@ export function registerRoutes(app: Router): void {
 
   // Jurisdiction / regulatory reference (account session)
   app.merge(geoRoutes, '/api');
+
+  // Age verification (account session)
+  app.merge(ageVerificationRoutes, '/api');
 
   // Stripe webhook (subscription events)
   app.merge(stripeWebhookRoutes, '/api');

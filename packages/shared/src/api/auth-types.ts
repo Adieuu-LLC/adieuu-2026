@@ -78,6 +78,10 @@ export interface SessionInfo {
   subscriptions?: SubscriptionTierId[];
   /** Reserved feature entitlements (always [] for now). */
   entitlements?: string[];
+  /** Account-level age verification status (account mode only). */
+  ageVerification?: SessionAgeVerification;
+  /** Pre-evaluated alias gate result (account mode only). */
+  aliasGate?: SessionAliasGate;
 }
 
 /**
@@ -89,6 +93,30 @@ export interface SessionGeoInfo {
   countryCode: string;
   regionCode?: string;
   checkedAt: string;
+}
+
+export type AliasGateCode =
+  | 'GEOFENCE_BLOCKED'
+  | 'AGE_VERIFICATION_REQUIRED'
+  | 'AGE_VERIFICATION_FAILED'
+  | 'AGE_VERIFICATION_COOLDOWN';
+
+export interface SessionAgeVerification {
+  status: 'unverified' | 'pending' | 'verified' | 'failed' | 'expired';
+  verifiedAt?: string;
+  /** ISO 8601 timestamp; present when on cooldown. */
+  retryAfter?: string;
+  /** How many times verification has expired (UI shows "attempt N of 3"). */
+  expirationCount?: number;
+}
+
+export interface SessionAliasGate {
+  allowed: boolean;
+  code?: AliasGateCode;
+  jurisdiction?: string;
+  lawUrl?: string;
+  leastInvasiveMethod?: string;
+  retryAfter?: string;
 }
 
 /**

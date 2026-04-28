@@ -310,7 +310,7 @@ router.get('/auth/session', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  const { session, signedToken, identityCount, maskedIp, geo, subscriptions, entitlements } = result;
+  const { session, signedToken, identityCount, maskedIp, geo, subscriptions, entitlements, ageVerification, aliasGate } = result;
 
   return success({
     identifier: session.identifier,
@@ -322,6 +322,8 @@ router.get('/auth/session', async (ctx) => {
     geo,
     subscriptions,
     entitlements,
+    ageVerification,
+    aliasGate,
   });
 });
 

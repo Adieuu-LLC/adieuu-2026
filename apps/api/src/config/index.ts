@@ -300,6 +300,9 @@ export const config = {
   /** Web application URL for magic links and redirects */
   webAppUrl: optionalEnv('WEB_APP_URL', 'http://localhost:3000'),
 
+  /** External API base URL (used for OAuth callbacks, webhooks, etc.) */
+  apiBaseUrl: optionalEnv('API_BASE_URL', `http://localhost:${optionalEnvInt('PORT', 4000)}`),
+
   /** WebAuthn (Passkeys) configuration */
   webauthn: {
     /** Relying Party ID (usually the domain without protocol) */
@@ -351,6 +354,22 @@ export const config = {
     recheckIntervalDays: optionalEnvInt('GEO_RECHECK_INTERVAL_DAYS', 30),
     /** Must be true in production for geo lookups to function (requires trusted proxy) */
     trustProxyHeaders: optionalEnvBool('TRUST_PROXY_HEADERS', false),
+  },
+
+  /** VerifyMy age verification provider configuration */
+  verifymy: {
+    /** VerifyMy API key (server-side only) */
+    apiKey: optionalEnv('VERIFYMY_API_KEY', ''),
+    /** VerifyMy API secret (server-side only, used for HMAC signing and PII encryption) */
+    apiSecret: optionalEnv('VERIFYMY_API_SECRET', ''),
+    /** Which VerifyMy environment to use (platform setting overrides this) */
+    environment: optionalEnv('VERIFYMY_ENVIRONMENT', 'sandbox') as 'sandbox' | 'production',
+    /** VerifyMy sandbox API base URL */
+    sandboxBaseUrl: optionalEnv('VERIFYMY_SANDBOX_BASE_URL', 'https://sandbox.verifymyage.com'),
+    /** VerifyMy production API base URL */
+    productionBaseUrl: optionalEnv('VERIFYMY_PRODUCTION_BASE_URL', 'https://oauth.verifymyage.com'),
+    /** Request timeout in milliseconds */
+    timeoutMs: optionalEnvInt('VERIFYMY_TIMEOUT_MS', 10_000),
   },
 
   /** Klipy GIF/sticker API proxy configuration */
