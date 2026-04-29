@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { useConversations, type DisplayMessage } from '../../hooks/useConversations';
 import { useConversationScroll } from '../../hooks/useConversationScroll';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useCustomEmojis } from '../../hooks/useCustomEmojis';
 import { usePreKeys } from '../../hooks/usePreKeys';
 import { useReactions } from '../../hooks/useReactions';
 import { useFavoriteEmojis } from '../../hooks/useFavoriteEmojis';
@@ -77,6 +78,7 @@ export function ConversationView() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { identity } = useIdentity();
+  const { emojis: composerCustomEmojis } = useCustomEmojis(identity?.id);
   const { config: fsConfig } = usePreKeys();
   const {
     conversations,
@@ -112,6 +114,7 @@ export function ConversationView() {
     renameGroup,
     updateMemberSettings,
     updateGifsDisabled,
+    updateCustomEmojisDisabled,
     updateMessageSearchCachePolicy,
     memberSettings,
     fetchRecipientKeys,
@@ -267,6 +270,14 @@ export function ConversationView() {
       await updateGifsDisabled(id, disabled);
     },
     [id, updateGifsDisabled],
+  );
+
+  const handleCustomEmojisDisabledByAdminToggle = useCallback(
+    async (disabled: boolean) => {
+      if (!id) return;
+      await updateCustomEmojisDisabled(id, disabled);
+    },
+    [id, updateCustomEmojisDisabled],
   );
 
   const handleMessageSearchCachePolicyToggle = useCallback(
@@ -1048,6 +1059,8 @@ export function ConversationView() {
               gifsDisabled={(conversation.gifsDisabled ?? false) || convGifHidden || gifsGloballyDisabled}
               lastMessageText={lastMessageText}
               disabled={isDmBlocked || blockedByOther}
+              customEmojis={composerCustomEmojis}
+              customEmojisDisabled={conversation.customEmojisDisabled === true}
               editContext={
                 editingMessage
                   ? { messageId: editingMessage.id, onCancel: () => setEditingMessage(null) }
@@ -1072,6 +1085,8 @@ export function ConversationView() {
               memberColorDisplay={memberColorDisplay}
               gifsDisabledByAdmin={conversation.gifsDisabled ?? false}
               onGifsDisabledByAdminToggle={handleGifsDisabledByAdminToggle}
+              customEmojisDisabledByAdmin={conversation.customEmojisDisabled ?? false}
+              onCustomEmojisDisabledByAdminToggle={handleCustomEmojisDisabledByAdminToggle}
               disallowPersistentMessageSearchCache={conversation.disallowPersistentMessageSearchCache ?? false}
               onMessageSearchCachePolicyToggle={handleMessageSearchCachePolicyToggle}
               gifsHiddenForMe={convGifHidden}

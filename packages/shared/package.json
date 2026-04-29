@@ -23,7 +23,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
-    "test": "bun test src/messaging/messagePagination.test.ts src/api/http-client.test.ts src/api/auth-api.test.ts src/constants/moderation-reason-map.test.ts src/geo/jurisdiction-lookup.test.ts",
+    "test": "bun test src/messaging/messagePagination.test.ts src/api/http-client.test.ts src/api/auth-api.test.ts src/constants/moderation-reason-map.test.ts src/geo/jurisdiction-lookup.test.ts src/custom-emoji-shortcode.test.ts",
     "clean": "rm -rf dist"
   },
   "dependencies": {

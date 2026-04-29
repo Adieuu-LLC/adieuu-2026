@@ -72,8 +72,9 @@
 
 .custom-emoji-card {
   display: flex;
-  align-items: center;
-  gap: 0.625rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
   padding: 0.625rem;
   border-radius: 8px;
   background: var(--color-surface-secondary, var(--color-bg-secondary));
@@ -82,6 +83,14 @@
   &:hover {
     background: var(--color-surface-hover, var(--color-bg-hover));
   }
+}
+
+.custom-emoji-card-main {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.625rem;
+  min-width: 0;
 }
 
 .custom-emoji-card-preview {
@@ -112,24 +121,23 @@
   font-size: 0.8125rem;
   font-weight: 500;
   color: var(--color-text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .custom-emoji-card-shortcode {
   font-size: 0.75rem;
   color: var(--color-text-muted);
   font-family: var(--font-mono, monospace);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .custom-emoji-card-actions {
   flex-shrink: 0;
   display: flex;
   gap: 0.25rem;
+  justify-content: flex-end;
   opacity: 0;
   transition: opacity 0.15s ease;
 

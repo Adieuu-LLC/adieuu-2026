@@ -4,7 +4,7 @@ import { Popover, Portal, Menu } from '@ark-ui/react';
 import { convertShortcodes, SHORTCODE_ENTRIES } from '../../utils/emojiShortcodes';
 import { serializePayload, gifPayload, type MentionEntity, type GifAttachment } from '../../services/messagePayload';
 import { getOrCreateDeviceId } from '../../services/deviceInfo';
-import { createApiClient } from '@adieuu/shared';
+import { createApiClient, createCustomEmojiColonTokenRegex } from '@adieuu/shared';
 import { EmojiPicker, type EmojiSelectResult } from '../EmojiPicker';
 import type { PublicCustomEmoji, CustomEmojiPayloadEntry } from '@adieuu/shared';
 import { GifPicker } from '../GifPicker';
@@ -509,7 +509,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
 
       let customEmojiMap: Record<string, CustomEmojiPayloadEntry> | undefined;
       if (!customEmojisDisabled && customEmojis?.length) {
-        const shortcodePattern = /:([a-z0-9_]{2,32}):/gi;
+        const shortcodePattern = createCustomEmojiColonTokenRegex();
         let match: RegExpExecArray | null;
         while ((match = shortcodePattern.exec(convertedText)) !== null) {
           const sc = match[1]?.toLowerCase();
@@ -575,6 +575,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     t,
     ttlSeconds,
     enqueueMediaSend,
+    customEmojis,
+    customEmojisDisabled,
   ]);
 
   const handleCopy = useCallback(() => {

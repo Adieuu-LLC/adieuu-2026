@@ -14,7 +14,7 @@
  */
 
 import { type ReactNode, type ReactElement, createElement } from 'react';
-import type { PublicIdentity, CustomEmojiPayloadEntry } from '@adieuu/shared';
+import { createCustomEmojiColonTokenRegex, type PublicIdentity, type CustomEmojiPayloadEntry } from '@adieuu/shared';
 import type { MentionEntity } from '../services/messagePayload';
 import type { MemberSettingsMap } from '../services/conversationCryptoService';
 import { IdentityHoverCard } from '../components/IdentityHoverCard';
@@ -374,7 +374,7 @@ function injectCustomEmojis(
   keyRef: { k: number },
 ): ReactNode {
   if (typeof node === 'string') {
-    const pattern = /:([a-z0-9_]{2,32}):/gi;
+    const pattern = createCustomEmojiColonTokenRegex();
     const parts: ReactNode[] = [];
     let lastIdx = 0;
     let match: RegExpExecArray | null;

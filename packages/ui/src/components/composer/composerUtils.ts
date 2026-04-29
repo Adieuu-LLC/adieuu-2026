@@ -8,7 +8,7 @@ export function detectShortcodeQuery(
   const colonIdx = before.lastIndexOf(':');
   if (colonIdx === -1) return null;
   const query = before.slice(colonIdx + 1);
-  if (query.length === 0 || !/^[a-z0-9_+-]+$/i.test(query)) return null;
+  if (query.length === 0 || !/^[a-z0-9_+\-]+$/i.test(query)) return null;
   return { query, colonIdx };
 }
 

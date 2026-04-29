@@ -18,16 +18,17 @@ import { Icon } from '../../icons/Icon';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useCustomEmojis } from '../../hooks/useCustomEmojis';
 import { useMediaUpload, type MediaUploadState } from '../../hooks/useMediaUpload';
-import type { PublicCustomEmoji } from '@adieuu/shared';
+import { CUSTOM_EMOJI_SHORTCODE_BODY_RE, type PublicCustomEmoji } from '@adieuu/shared';
 
 const EMOJI_ACCEPTED_TYPES = ['image/png', 'image/webp', 'image/gif'];
 const EMOJI_MAX_BYTES = 256 * 1024; // 256 KB
-const SHORTCODE_PATTERN = /^[a-z0-9_]{2,32}$/;
 
 function shortcodeError(value: string): string | null {
   if (value.length < 2) return 'Must be at least 2 characters';
   if (value.length > 32) return 'Must be 32 characters or fewer';
-  if (!SHORTCODE_PATTERN.test(value)) return 'Only lowercase letters, numbers, and underscores';
+  if (!CUSTOM_EMOJI_SHORTCODE_BODY_RE.test(value)) {
+    return 'Only lowercase letters, numbers, underscores, and hyphens';
+  }
   return null;
 }
 
@@ -214,9 +215,9 @@ function CreateEmojiDialog({
                           type="text"
                           className="input custom-emoji-shortcode-input"
                           value={shortcode}
-                          onChange={(e) => setShortcode(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                          onChange={(e) => setShortcode(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
                           maxLength={32}
-                          placeholder="my_emoji"
+                          placeholder="my-emoji"
                           autoComplete="off"
                         />
                         <span className="custom-emoji-shortcode-colon">:</span>
@@ -311,7 +312,7 @@ function EmojiEditRow({
             type="text"
             className="input custom-emoji-shortcode-input"
             value={shortcode}
-            onChange={(e) => setShortcode(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+            onChange={(e) => setShortcode(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
             maxLength={32}
             autoComplete="off"
           />
@@ -457,12 +458,14 @@ export function IdentityCustomEmojis() {
                     />
                   ) : (
                     <>
-                      <div className="custom-emoji-card-preview">
-                        <img src={emoji.cdnUrl} alt={emoji.name} className="custom-emoji-card-img" />
-                      </div>
-                      <div className="custom-emoji-card-info">
-                        <span className="custom-emoji-card-name" title={emoji.name}>{emoji.name}</span>
-                        <span className="custom-emoji-card-shortcode" title={`:${emoji.shortcode}:`}>:{emoji.shortcode}:</span>
+                      <div className="custom-emoji-card-main">
+                        <div className="custom-emoji-card-preview">
+                          <img src={emoji.cdnUrl} alt={emoji.name} className="custom-emoji-card-img" />
+                        </div>
+                        <div className="custom-emoji-card-info">
+                          <span className="custom-emoji-card-name">{emoji.name}</span>
+                          <span className="custom-emoji-card-shortcode">:{emoji.shortcode}:</span>
+                        </div>
                       </div>
                       <div className="custom-emoji-card-actions">
                         <button

@@ -9,6 +9,7 @@
 
 import { ObjectId } from 'mongodb';
 import type { SubscriptionTierId } from '@adieuu/shared';
+import { CUSTOM_EMOJI_SHORTCODE_BODY_RE } from '@adieuu/shared';
 import { getCustomEmojiRepository } from '../repositories/custom-emoji.repository';
 import { getMediaUploadRepository } from '../repositories/media-upload.repository';
 import {
@@ -24,8 +25,6 @@ import elog from '../utils/adieuuLogger';
 // Re-exported for tests
 export { COLON_SHORTCODES_SET } from './custom-emoji-shortcodes';
 import { COLON_SHORTCODES_SET } from './custom-emoji-shortcodes';
-
-const SHORTCODE_RE = /^[a-z0-9_]{2,32}$/;
 
 // ---------------------------------------------------------------------------
 // Tier-limit resolution
@@ -46,8 +45,8 @@ export function resolveCustomEmojiLimit(
 // ---------------------------------------------------------------------------
 
 function validateShortcodeFormat(shortcode: string): string | null {
-  if (!SHORTCODE_RE.test(shortcode)) {
-    return 'Shortcode must be 2-32 lowercase alphanumeric characters or underscores';
+  if (!CUSTOM_EMOJI_SHORTCODE_BODY_RE.test(shortcode)) {
+    return 'Shortcode must be 2-32 lowercase letters, numbers, underscores, or hyphens';
   }
   return null;
 }

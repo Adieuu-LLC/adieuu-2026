@@ -19,7 +19,7 @@ export interface CustomEmojiDocument extends BaseDocument {
   /** Identity that created/owns this emoji */
   identityId: ObjectId;
 
-  /** Globally unique shortcode (lowercase alphanumeric + underscores, 2-32 chars) */
+  /** Globally unique shortcode (lowercase letters, digits, underscores, hyphens; 2-32 chars) */
   shortcode: string;
 
   /** Human-readable display name (1-64 chars) */

@@ -222,6 +222,24 @@ export function useConversationGroupInvitesAndDelete(
     [api, toDecrypted]
   );
 
+  const updateCustomEmojisDisabled = useCallback(
+    async (conversationId: string, customEmojisDisabled: boolean): Promise<boolean> => {
+      const resp = await api.conversations.updateCustomEmojisDisabled(
+        conversationId,
+        customEmojisDisabled
+      );
+      if (!resp.success || !resp.data) return false;
+      const updated = toDecrypted(resp.data);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...updated, unreadCount: c.unreadCount } : c
+        )
+      );
+      return true;
+    },
+    [api, toDecrypted]
+  );
+
   const updateMessageSearchCachePolicy = useCallback(
     async (
       conversationId: string,
@@ -397,6 +415,7 @@ export function useConversationGroupInvitesAndDelete(
     renameGroup,
     updateConversationMemberSettings,
     updateGifsDisabled,
+    updateCustomEmojisDisabled,
     updateMessageSearchCachePolicy,
     pinMessage,
     unpinMessage,

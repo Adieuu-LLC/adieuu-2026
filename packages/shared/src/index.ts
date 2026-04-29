@@ -9,3 +9,7 @@ export * from './utils/jsonUtf8';
 export * from './utils/themeChecksum';
 export * from './messaging/messagePagination';
 export * from './subscriptions';
+export {
+  CUSTOM_EMOJI_SHORTCODE_BODY_RE,
+  createCustomEmojiColonTokenRegex,
+} from './custom-emoji-shortcode';

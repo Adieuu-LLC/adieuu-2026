@@ -156,6 +156,10 @@ export interface ConversationsContextValue {
   renameGroup: (conversationId: string, newName: string) => Promise<boolean>;
   updateMemberSettings: (conversationId: string, settings: MemberSettingsMap) => Promise<boolean>;
   updateGifsDisabled: (conversationId: string, gifsDisabled: boolean) => Promise<boolean>;
+  updateCustomEmojisDisabled: (
+    conversationId: string,
+    customEmojisDisabled: boolean
+  ) => Promise<boolean>;
   updateMessageSearchCachePolicy: (
     conversationId: string,
     disallowPersistentMessageSearchCache: boolean
