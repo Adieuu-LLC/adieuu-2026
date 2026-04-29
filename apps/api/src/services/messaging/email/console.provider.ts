@@ -82,9 +82,13 @@ export class ConsoleEmailProvider implements IEmailProvider {
   async send(options: EmailOptions): Promise<EmailResult> {
     const messageId = `console-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-    const from = config.email.fromName
-      ? `"${config.email.fromName}" <${config.email.fromAddress}>`
-      : config.email.fromAddress;
+    // Tests may partially mock config (no `email`); match config/index defaults enough to log safely.
+    const emailCfg = config.email;
+    const fromAddress = emailCfg?.fromAddress ?? 'noreply@adieuu.com';
+    const from =
+      emailCfg?.fromName && emailCfg?.fromAddress
+        ? `"${emailCfg.fromName}" <${fromAddress}>`
+        : fromAddress;
 
     elog.info('Email sent (console provider)', {
       from,
