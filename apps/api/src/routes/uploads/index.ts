@@ -54,7 +54,7 @@ const RequestUploadSchema = z.object({
  */
 router.post('/uploads/request', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
-  const { identity } = ctx.identitySession;
+  const { identity, subscriptions } = ctx.identitySession;
 
   const parseResult = RequestUploadSchema.safeParse(ctx.body);
   if (!parseResult.success) {
@@ -66,6 +66,7 @@ router.post('/uploads/request', async (ctx) => {
     contentType: parseResult.data.contentType,
     contentLength: parseResult.data.contentLength,
     identityId: identity._id.toHexString(),
+    subscriptions,
   });
 
   if (!result.success) {

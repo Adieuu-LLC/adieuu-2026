@@ -30,6 +30,7 @@ mock.module('../services/identity.service', () => ({
 const mockEvaluateSubscriptionGrants = mock(() => ({
   subscriptions: {},
   entitlements: {},
+  isLifetime: false,
 })) as AnyMock;
 const mockHasActiveSubscriptionGrant = mock(() => false) as AnyMock;
 
@@ -47,6 +48,17 @@ mock.module('../services/billing/subscription-grants', () => ({
     }
     return { subscriptions, entitlements };
   },
+}));
+
+const mockResolveIdentityOverrides = mock(() => ({
+  subscriptions: [] as string[],
+  entitlements: [] as string[],
+})) as AnyMock;
+const mockHasLifetimeIdentityOverrides = mock(() => false) as AnyMock;
+
+mock.module('../services/billing/resolve-access', () => ({
+  resolveIdentityOverrides: mockResolveIdentityOverrides,
+  hasLifetimeIdentityOverrides: mockHasLifetimeIdentityOverrides,
 }));
 
 mock.module('../utils/adieuuLogger', () => ({
@@ -116,6 +128,8 @@ describe('enrichIdentitySession', () => {
     mockGetGrantKeyFromRequest.mockReturnValue(null);
     mockDestroySession.mockResolvedValue(undefined);
     mockLoadIdentityFromIdentitySession.mockResolvedValue(null);
+    mockResolveIdentityOverrides.mockReturnValue({ subscriptions: [], entitlements: [] });
+    mockHasLifetimeIdentityOverrides.mockReturnValue(false);
   });
 
   test('no cookie -> identitySession = null, calls next()', async () => {
@@ -327,6 +341,171 @@ describe('enrichIdentitySession', () => {
     const res = await middleware(ctx, nextOk);
     expect(res.status).toBe(200);
     expect(ctx.identitySession).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Merge logic: grants + identity overrides + isLifetime
+// ---------------------------------------------------------------------------
+
+describe('enrichIdentitySession — merge logic', () => {
+  const middleware = enrichIdentitySession();
+
+  beforeEach(() => {
+    mockGetSessionIdFromRequest.mockReset();
+    mockGetSessionFromRequest.mockReset();
+    mockGetGrantKeyFromRequest.mockReset();
+    mockDestroySession.mockReset();
+    mockLoadIdentityFromIdentitySession.mockReset();
+    mockEvaluateSubscriptionGrants.mockReset();
+    mockHasActiveSubscriptionGrant.mockReset();
+    mockResolveIdentityOverrides.mockReset();
+    mockHasLifetimeIdentityOverrides.mockReset();
+
+    mockGetSessionIdFromRequest.mockReturnValue(null);
+    mockGetSessionFromRequest.mockResolvedValue(null);
+    mockGetGrantKeyFromRequest.mockReturnValue(null);
+    mockDestroySession.mockResolvedValue(undefined);
+    mockLoadIdentityFromIdentitySession.mockResolvedValue(null);
+    mockResolveIdentityOverrides.mockReturnValue({ subscriptions: [], entitlements: [] });
+    mockHasLifetimeIdentityOverrides.mockReturnValue(false);
+  });
+
+  function setupWithGrants(
+    grantSubs: Record<string, string>,
+    grantEnts: Record<string, string>,
+    overrideSubs: string[] = [],
+    overrideEnts: string[] = [],
+    sessionOverrides: Partial<IdentitySessionData> = {},
+    grantIsLifetime = false,
+  ) {
+    const identity = makeIdentity();
+    const session = makeIdentitySession({
+      encryptedSubscriptionGrants: 'ciphertext',
+      ...sessionOverrides,
+    });
+
+    mockGetSessionIdFromRequest.mockReturnValue('sess-1');
+    mockGetSessionFromRequest.mockResolvedValue(session);
+    mockGetGrantKeyFromRequest.mockReturnValue('key');
+    mockEvaluateSubscriptionGrants.mockReturnValue({
+      subscriptions: grantSubs,
+      entitlements: grantEnts,
+      isLifetime: grantIsLifetime,
+    });
+    mockHasActiveSubscriptionGrant.mockReturnValue(true);
+    mockLoadIdentityFromIdentitySession.mockResolvedValue(identity);
+    mockResolveIdentityOverrides.mockReturnValue({
+      subscriptions: overrideSubs,
+      entitlements: overrideEnts,
+    });
+  }
+
+  test('identity override adds tier not present in grants (union)', async () => {
+    setupWithGrants(
+      { access: 'current' }, {},
+      ['insider'], [],
+    );
+
+    const ctx = makeCtx();
+    await middleware(ctx, nextOk);
+    expect(ctx.identitySession.subscriptions).toContain('access');
+    expect(ctx.identitySession.subscriptions).toContain('insider');
+  });
+
+  test('identity override adds entitlement not present in grants', async () => {
+    setupWithGrants(
+      { insider: 'current' }, {},
+      [], ['founder'],
+    );
+
+    const ctx = makeCtx();
+    await middleware(ctx, nextOk);
+    expect(ctx.identitySession.entitlements).toContain('founder');
+  });
+
+  test('duplicate tiers from grants and overrides are deduplicated', async () => {
+    setupWithGrants(
+      { insider: 'current' }, {},
+      ['insider'], [],
+    );
+
+    const ctx = makeCtx();
+    await middleware(ctx, nextOk);
+    const insiderCount = ctx.identitySession.subscriptions.filter(
+      (s: string) => s === 'insider',
+    ).length;
+    expect(insiderCount).toBe(1);
+  });
+
+  test('isLifetime true when encrypted grants carry lifetime flag', async () => {
+    setupWithGrants(
+      { insider: 'current' }, {},
+      [], [],
+      {},
+      true,
+    );
+    mockHasLifetimeIdentityOverrides.mockReturnValue(false);
+
+    const ctx = makeCtx();
+    await middleware(ctx, nextOk);
+    expect(ctx.identitySession.isLifetime).toBe(true);
+  });
+
+  test('isLifetime derived from identity overrides when grants say false', async () => {
+    setupWithGrants(
+      { insider: 'current' }, {},
+      [], [],
+      {},
+      false,
+    );
+    mockHasLifetimeIdentityOverrides.mockReturnValue(true);
+
+    const ctx = makeCtx();
+    await middleware(ctx, nextOk);
+    expect(ctx.identitySession.isLifetime).toBe(true);
+  });
+
+  test('isLifetime false when both grants and overrides say false', async () => {
+    setupWithGrants(
+      { access: 'current' }, {},
+      [], [],
+      {},
+      false,
+    );
+    mockHasLifetimeIdentityOverrides.mockReturnValue(false);
+
+    const ctx = makeCtx();
+    await middleware(ctx, nextOk);
+    expect(ctx.identitySession.isLifetime).toBe(false);
+  });
+
+  test('no grants, no overrides -> empty subscriptions and entitlements', async () => {
+    const identity = makeIdentity();
+    const session = makeIdentitySession();
+
+    mockGetSessionIdFromRequest.mockReturnValue('sess-1');
+    mockGetSessionFromRequest.mockResolvedValue(session);
+    mockLoadIdentityFromIdentitySession.mockResolvedValue(identity);
+
+    const ctx = makeCtx();
+    await middleware(ctx, nextOk);
+    expect(ctx.identitySession.subscriptions).toEqual([]);
+    expect(ctx.identitySession.entitlements).toEqual([]);
+  });
+
+  test('grants with entitlements + overrides with entitlements -> union', async () => {
+    setupWithGrants(
+      { insider: 'current' },
+      { vanguard: 'current' },
+      [],
+      ['founder'],
+    );
+
+    const ctx = makeCtx();
+    await middleware(ctx, nextOk);
+    expect(ctx.identitySession.entitlements).toContain('vanguard');
+    expect(ctx.identitySession.entitlements).toContain('founder');
   });
 });
 

@@ -34,7 +34,7 @@ import {
   hasActiveSubscriptionGrant,
   type EvaluatedGrants,
 } from '../services/billing/subscription-grants';
-import { resolveIdentityOverrides } from '../services/billing/resolve-access';
+import { resolveIdentityOverrides, hasLifetimeIdentityOverrides } from '../services/billing/resolve-access';
 import type { IdentityDocument } from '../models/identity';
 import type { SubscriptionTierId } from '@adieuu/shared';
 import { error } from '../utils/response';
@@ -167,8 +167,12 @@ export function enrichIdentitySession() {
       return next();
     }
 
-    // -- Merge encrypted grants (decrypted with cookie key), optional legacy
-    //    Mongo plaintext cache, and identity-document overrides ----------------
+    // -- Merge encrypted grants (from cookie) and identity-document admin
+    //    overrides. PRIVACY: subscription/entitlement arrays are never stored
+    //    in plaintext on the session document — the encrypted grant blob
+    //    (ciphertext in Mongo, key in cookie) is the sole persisted source.
+    //    Identity-document overrides are read live from Mongo on each request
+    //    to capture admin changes made after session creation. ----------------
     let fromGrants = { subscriptions: [] as SubscriptionTierId[], entitlements: [] as string[] };
     if (grants) {
       fromGrants = activeLabelsFromEvaluatedGrants(grants);
@@ -182,15 +186,13 @@ export function enrichIdentitySession() {
       maxVideoDurationSeconds: identitySession.maxVideoDurationSeconds,
       subscriptions: [...new Set<SubscriptionTierId>([
         ...fromGrants.subscriptions,
-        ...(identitySession.subscriptions ?? []),
         ...identityOverrides.subscriptions,
       ])],
       entitlements: [...new Set<string>([
         ...fromGrants.entitlements,
-        ...(identitySession.entitlements ?? []),
         ...identityOverrides.entitlements,
       ])],
-      isLifetime: identitySession.isLifetime,
+      isLifetime: !!(grants?.isLifetime) || hasLifetimeIdentityOverrides(result),
     };
 
     return next();

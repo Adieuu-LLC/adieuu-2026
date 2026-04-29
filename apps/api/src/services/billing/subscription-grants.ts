@@ -35,6 +35,7 @@ export type GrantStatus = 'current' | 'expired' | 'expiring_soon';
 export interface EvaluatedGrants {
   subscriptions: Partial<Record<SubscriptionTierId, GrantStatus>>;
   entitlements: Record<string, GrantStatus>;
+  isLifetime: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -42,6 +43,13 @@ export interface EvaluatedGrants {
 // ---------------------------------------------------------------------------
 
 const TIER_ID_SET: ReadonlySet<string> = new Set(SUBSCRIPTION_TIER_IDS);
+
+/**
+ * Reserved payload key for the lifetime flag. Stored inside the encrypted
+ * grant blob so it travels with the rest of the billing data without
+ * ever appearing in plaintext on the session document.
+ */
+const LIFETIME_FLAG_KEY = '_lifetime';
 
 /** 24 hours in milliseconds — threshold for `expiring_soon`. */
 const EXPIRING_SOON_MS = 24 * 60 * 60 * 1000;
@@ -96,8 +104,13 @@ export function buildGrantPayload(billing: UserBilling): GrantPayload {
   for (const ent of billing.entitlements) {
     if (billing.isLifetime) {
       payload[ent] = jitteredLifetimeTimestamp();
+    } else if (periodEndUnix !== undefined) {
+      payload[ent] = periodEndUnix;
     }
-    // Future: time-limited entitlements would use a real timestamp here.
+  }
+
+  if (billing.isLifetime) {
+    payload[LIFETIME_FLAG_KEY] = 1;
   }
 
   return payload;
@@ -173,17 +186,22 @@ export function evaluateSubscriptionGrants(
   encryptedGrants: string,
   decryptionKey: string,
 ): EvaluatedGrants {
-  const empty: EvaluatedGrants = { subscriptions: {}, entitlements: {} };
+  const empty: EvaluatedGrants = { subscriptions: {}, entitlements: {}, isLifetime: false };
 
   if (!encryptedGrants || !decryptionKey) return empty;
 
   const payload = decryptGrants(encryptedGrants, decryptionKey);
   if (!payload) return empty;
 
-  const result: EvaluatedGrants = { subscriptions: {}, entitlements: {} };
+  const result: EvaluatedGrants = { subscriptions: {}, entitlements: {}, isLifetime: false };
   const nowMs = Date.now();
 
+  if (payload[LIFETIME_FLAG_KEY] === 1) {
+    result.isLifetime = true;
+  }
+
   for (const [key, value] of Object.entries(payload)) {
+    if (key === LIFETIME_FLAG_KEY) continue;
     if (typeof value !== 'number') continue;
 
     const status = evaluateTimestamp(value, nowMs);

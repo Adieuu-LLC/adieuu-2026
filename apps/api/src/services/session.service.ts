@@ -45,16 +45,29 @@ export interface AccountSessionData {
   expiresAt: number;
 }
 
+/**
+ * PRIVACY: `subscriptions`, `entitlements`, and `isLifetime` are intentionally
+ * NOT persisted to Mongo. Storing these in plaintext on the session document
+ * would allow deanonymisation of aliases via database exposure — the
+ * combination of tiers/entitlements can fingerprint a user across identities.
+ *
+ * The authoritative source for subscription/entitlement data at the identity
+ * layer is the encrypted grant blob (split-key: ciphertext in Mongo, key in
+ * the cookie). Identity-document admin overrides are read live from Mongo by
+ * the middleware on each request. These fields exist on the type to provide
+ * defaults from `cachedToSessionData`, but are always empty/false from
+ * storage. The middleware never reads them for access decisions.
+ */
 export interface IdentitySessionData {
   type: 'identity';
   identityId: string;
   /** Effective max video duration (seconds); legacy sessions may omit (use default). */
   maxVideoDurationSeconds: number;
-  /** Active subscription tier ids bound at identity login. */
+  /** @deprecated Always empty from storage — kept for type compatibility. See PRIVACY note. */
   subscriptions: SubscriptionTierId[];
-  /** Feature entitlements bound at identity login. */
+  /** @deprecated Always empty from storage — kept for type compatibility. See PRIVACY note. */
   entitlements: string[];
-  /** Whether the user holds a lifetime purchase. */
+  /** @deprecated Always false from storage — kept for type compatibility. See PRIVACY note. */
   isLifetime: boolean;
   /** Encrypted subscription grant blob (base64 ciphertext). */
   encryptedSubscriptionGrants?: string;

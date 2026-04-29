@@ -42,8 +42,7 @@ describe('subscription-grants round-trip', () => {
     const result = evaluateSubscriptionGrants(grants.ciphertext, grants.key);
     expect(result.subscriptions.access).toBe('current');
     expect(result.subscriptions.insider).toBe('current');
-    // Non-lifetime entitlements have no expiry mechanism yet, so they are omitted
-    expect(result.entitlements.vanguard).toBeUndefined();
+    expect(result.entitlements.vanguard).toBe('current');
   });
 
   test('encrypt then evaluate: lifetime billing includes entitlements as current', () => {
@@ -55,6 +54,16 @@ describe('subscription-grants round-trip', () => {
     expect(result.subscriptions.access).toBe('current');
     expect(result.subscriptions.insider).toBe('current');
     expect(result.entitlements.vanguard).toBe('current');
+    expect(result.isLifetime).toBe(true);
+  });
+
+  test('encrypt then evaluate: non-lifetime billing sets isLifetime false', () => {
+    const billing = makeBilling({ isLifetime: false });
+    const grants = buildAndEncryptGrants(billing)!;
+    expect(grants).not.toBeNull();
+
+    const result = evaluateSubscriptionGrants(grants.ciphertext, grants.key);
+    expect(result.isLifetime).toBe(false);
   });
 
   test('encrypt then evaluate: mix of current, expiring_soon, expired', () => {
@@ -170,6 +179,7 @@ describe('subscription-grants privacy', () => {
     const result = evaluateSubscriptionGrants(grants.ciphertext, grants.key);
     expect(result.subscriptions.access).toBe('current');
     expect(result.subscriptions.insider).toBe('current');
+    expect(result.isLifetime).toBe(true);
   });
 
   test('different keys produce different ciphertext (nonce uniqueness)', () => {
@@ -262,6 +272,7 @@ describe('activeLabelsFromEvaluatedGrants', () => {
     const grants: EvaluatedGrants = {
       subscriptions: { access: 'current', insider: 'expiring_soon' },
       entitlements: { founder: 'current', vanguard: 'expired' },
+      isLifetime: false,
     };
     const { subscriptions, entitlements } = activeLabelsFromEvaluatedGrants(grants);
     const want: SubscriptionTierId[] = ['access', 'insider'];
@@ -271,7 +282,7 @@ describe('activeLabelsFromEvaluatedGrants', () => {
   });
 
   test('empty grant maps yield empty arrays', () => {
-    const grants: EvaluatedGrants = { subscriptions: {}, entitlements: {} };
+    const grants: EvaluatedGrants = { subscriptions: {}, entitlements: {}, isLifetime: false };
     expect(activeLabelsFromEvaluatedGrants(grants)).toEqual({
       subscriptions: [],
       entitlements: [],
@@ -284,28 +295,99 @@ describe('activeLabelsFromEvaluatedGrants', () => {
 // ---------------------------------------------------------------------------
 describe('hasActiveSubscriptionGrant', () => {
   test('returns true when access is current', () => {
-    const grants: EvaluatedGrants = { subscriptions: { access: 'current' }, entitlements: {} };
+    const grants: EvaluatedGrants = { subscriptions: { access: 'current' }, entitlements: {}, isLifetime: false };
     expect(hasActiveSubscriptionGrant(grants)).toBe(true);
   });
 
   test('returns true when insider is current (implies access)', () => {
-    const grants: EvaluatedGrants = { subscriptions: { insider: 'current' }, entitlements: {} };
+    const grants: EvaluatedGrants = { subscriptions: { insider: 'current' }, entitlements: {}, isLifetime: false };
     expect(hasActiveSubscriptionGrant(grants)).toBe(true);
   });
 
   test('returns false when both are expired', () => {
-    const grants: EvaluatedGrants = { subscriptions: { access: 'expired', insider: 'expired' }, entitlements: {} };
+    const grants: EvaluatedGrants = { subscriptions: { access: 'expired', insider: 'expired' }, entitlements: {}, isLifetime: false };
     expect(hasActiveSubscriptionGrant(grants)).toBe(false);
   });
 
   test('returns false when subscriptions is empty', () => {
-    const grants: EvaluatedGrants = { subscriptions: {}, entitlements: { vanguard: 'current' } };
+    const grants: EvaluatedGrants = { subscriptions: {}, entitlements: { vanguard: 'current' }, isLifetime: false };
     expect(hasActiveSubscriptionGrant(grants)).toBe(false);
   });
 
   test('returns true when access is expiring_soon (renewal window)', () => {
-    const grants: EvaluatedGrants = { subscriptions: { access: 'expiring_soon' }, entitlements: {} };
+    const grants: EvaluatedGrants = { subscriptions: { access: 'expiring_soon' }, entitlements: {}, isLifetime: false };
     expect(hasActiveSubscriptionGrant(grants)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Non-lifetime entitlement encryption
+// ---------------------------------------------------------------------------
+describe('subscription-grants non-lifetime entitlement encryption', () => {
+  test('non-lifetime entitlements are encrypted with currentPeriodEnd', () => {
+    const billing = makeBilling({
+      isLifetime: false,
+      activeSubscriptions: ['insider'],
+      entitlements: ['vanguard'],
+    });
+    const grants = buildAndEncryptGrants(billing)!;
+    expect(grants).not.toBeNull();
+
+    const result = evaluateSubscriptionGrants(grants.ciphertext, grants.key);
+    expect(result.subscriptions.insider).toBe('current');
+    expect(result.entitlements.vanguard).toBe('current');
+  });
+
+  test('non-lifetime entitlements with expired currentPeriodEnd evaluate as expired', () => {
+    const now = Math.floor(Date.now() / 1000);
+    const payload: Record<string, number> = {
+      insider: now + 30 * DAY,
+      vanguard: now - 10,
+    };
+    const { ciphertext, key } = encryptGrants(payload);
+    const result = evaluateSubscriptionGrants(ciphertext, key);
+    expect(result.subscriptions.insider).toBe('current');
+    expect(result.entitlements.vanguard).toBe('expired');
+
+    const labels = activeLabelsFromEvaluatedGrants(result);
+    expect(labels.subscriptions).toContain('insider');
+    expect(labels.entitlements).not.toContain('vanguard');
+  });
+
+  test('lifetime entitlements still use jittered far-future timestamps', () => {
+    const billing = makeBilling({
+      isLifetime: true,
+      entitlements: ['founder'],
+    });
+    const grants = buildAndEncryptGrants(billing)!;
+    const result = evaluateSubscriptionGrants(grants.ciphertext, grants.key);
+    expect(result.entitlements.founder).toBe('current');
+  });
+
+  test('mixed: lifetime tiers + non-lifetime entitlements in same payload', () => {
+    const now = Math.floor(Date.now() / 1000);
+    const payload: Record<string, number> = {
+      access: now + 25 * YEAR,
+      insider: now + 25 * YEAR,
+      vanguard: now + 30 * DAY,
+    };
+    const { ciphertext, key } = encryptGrants(payload);
+    const result = evaluateSubscriptionGrants(ciphertext, key);
+    expect(result.subscriptions.access).toBe('current');
+    expect(result.subscriptions.insider).toBe('current');
+    expect(result.entitlements.vanguard).toBe('current');
+  });
+
+  test('non-lifetime billing with no currentPeriodEnd omits entitlements from payload', () => {
+    const billing = makeBilling({
+      isLifetime: false,
+      activeSubscriptions: ['access'],
+      entitlements: ['vanguard'],
+      currentPeriodEnd: undefined,
+    });
+    const payload = buildGrantPayload(billing);
+    expect(payload['access']).toBeUndefined();
+    expect(payload['vanguard']).toBeUndefined();
   });
 });
 

@@ -6,10 +6,9 @@ import type { IdentityContext } from '../../middleware/identity-session';
 import {
   resolveEffectiveAccess,
   resolveIdentityOverrides,
-  hasSubscription,
-  hasEntitlement,
-  identityHasSubscription,
-  identityHasEntitlement,
+  hasLifetimeIdentityOverrides,
+  requiresTier,
+  requiresEntitlement,
 } from './resolve-access';
 
 // ---------------------------------------------------------------------------
@@ -208,54 +207,182 @@ describe('resolveIdentityOverrides', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Access-check helpers
+// hasLifetimeIdentityOverrides
 // ---------------------------------------------------------------------------
 
-describe('hasSubscription / hasEntitlement', () => {
-  test('hasSubscription returns true for present tier', () => {
-    const resolved = { subscriptions: ['insider' as const], entitlements: [], isLifetime: false };
-    expect(hasSubscription(resolved, 'insider')).toBe(true);
+describe('hasLifetimeIdentityOverrides', () => {
+  test('no overrides -> false', () => {
+    expect(hasLifetimeIdentityOverrides(makeIdentity())).toBe(false);
   });
 
-  test('hasSubscription returns false for absent tier', () => {
-    const resolved = { subscriptions: ['access' as const], entitlements: [], isLifetime: false };
-    expect(hasSubscription(resolved, 'insider')).toBe(false);
+  test('subscription override without expiresAt -> true (lifetime)', () => {
+    expect(hasLifetimeIdentityOverrides(makeIdentity({
+      subscriptionOverrides: [{ tier: 'insider' }],
+    }))).toBe(true);
   });
 
-  test('hasEntitlement returns true for present entitlement', () => {
-    const resolved = { subscriptions: [], entitlements: ['founder'], isLifetime: false };
-    expect(hasEntitlement(resolved, 'founder')).toBe(true);
+  test('subscription override with expiresAt -> false (timed, not lifetime)', () => {
+    const future = new Date(Date.now() + 86400000 * 30);
+    expect(hasLifetimeIdentityOverrides(makeIdentity({
+      subscriptionOverrides: [{ tier: 'insider', expiresAt: future }],
+    }))).toBe(false);
   });
 
-  test('hasEntitlement returns false for absent entitlement', () => {
-    const resolved = { subscriptions: [], entitlements: ['vanguard'], isLifetime: false };
-    expect(hasEntitlement(resolved, 'founder')).toBe(false);
+  test('entitlement overrides present -> true (always lifetime)', () => {
+    expect(hasLifetimeIdentityOverrides(makeIdentity({
+      entitlementOverrides: ['founder'],
+    }))).toBe(true);
+  });
+
+  test('expired subscription override without expiresAt -> true (no-expiry means lifetime)', () => {
+    expect(hasLifetimeIdentityOverrides(makeIdentity({
+      subscriptionOverrides: [{ tier: 'access' }],
+    }))).toBe(true);
+  });
+
+  test('mix: timed sub override + entitlement override -> true (entitlement wins)', () => {
+    const future = new Date(Date.now() + 86400000);
+    expect(hasLifetimeIdentityOverrides(makeIdentity({
+      subscriptionOverrides: [{ tier: 'insider', expiresAt: future }],
+      entitlementOverrides: ['vanguard'],
+    }))).toBe(true);
   });
 });
 
-describe('identityHasSubscription / identityHasEntitlement', () => {
-  const ctx: IdentityContext = {
-    identity: makeIdentity(),
-    sessionId: 'sess-1',
-    maxVideoDurationSeconds: 300,
-    subscriptions: ['insider'],
-    entitlements: ['founder'],
-    isLifetime: false,
-  };
+// ---------------------------------------------------------------------------
+// requiresTier (hierarchy-aware)
+// ---------------------------------------------------------------------------
 
-  test('identityHasSubscription returns true for present tier', () => {
-    expect(identityHasSubscription(ctx, 'insider')).toBe(true);
+describe('requiresTier', () => {
+  function makeCtx(overrides: Partial<IdentityContext> = {}): IdentityContext {
+    return {
+      identity: makeIdentity(),
+      sessionId: 'sess-1',
+      maxVideoDurationSeconds: 300,
+      subscriptions: [],
+      entitlements: [],
+      isLifetime: false,
+      ...overrides,
+    };
+  }
+
+  describe('inherited mode (default)', () => {
+    test('access user passes access check', () => {
+      expect(requiresTier(makeCtx({ subscriptions: ['access'] }), 'access')).toBe(true);
+    });
+
+    test('insider user passes access check (inherited)', () => {
+      expect(requiresTier(makeCtx({ subscriptions: ['insider'] }), 'access')).toBe(true);
+    });
+
+    test('insider user passes insider check', () => {
+      expect(requiresTier(makeCtx({ subscriptions: ['insider'] }), 'insider')).toBe(true);
+    });
+
+    test('access-only user fails insider check (no upward inheritance)', () => {
+      expect(requiresTier(makeCtx({ subscriptions: ['access'] }), 'insider')).toBe(false);
+    });
+
+    test('empty subscriptions fails any tier check', () => {
+      expect(requiresTier(makeCtx({ subscriptions: [] }), 'access')).toBe(false);
+      expect(requiresTier(makeCtx({ subscriptions: [] }), 'insider')).toBe(false);
+    });
+
+    test('lifetime user with insider passes both access and insider', () => {
+      const ctx = makeCtx({ subscriptions: ['insider'], isLifetime: true });
+      expect(requiresTier(ctx, 'access')).toBe(true);
+      expect(requiresTier(ctx, 'insider')).toBe(true);
+    });
+
+    test('user with both access and insider passes both checks', () => {
+      const ctx = makeCtx({ subscriptions: ['access', 'insider'] });
+      expect(requiresTier(ctx, 'access')).toBe(true);
+      expect(requiresTier(ctx, 'insider')).toBe(true);
+    });
   });
 
-  test('identityHasSubscription returns false for absent tier', () => {
-    expect(identityHasSubscription(ctx, 'access')).toBe(false);
+  describe('exact mode', () => {
+    test('access user passes exact access check', () => {
+      expect(requiresTier(makeCtx({ subscriptions: ['access'] }), 'access', { exact: true })).toBe(true);
+    });
+
+    test('insider user fails exact access check', () => {
+      expect(requiresTier(makeCtx({ subscriptions: ['insider'] }), 'access', { exact: true })).toBe(false);
+    });
+
+    test('insider user passes exact insider check', () => {
+      expect(requiresTier(makeCtx({ subscriptions: ['insider'] }), 'insider', { exact: true })).toBe(true);
+    });
+
+    test('user with both tiers passes exact check for each', () => {
+      const ctx = makeCtx({ subscriptions: ['access', 'insider'] });
+      expect(requiresTier(ctx, 'access', { exact: true })).toBe(true);
+      expect(requiresTier(ctx, 'insider', { exact: true })).toBe(true);
+    });
+
+    test('empty subscriptions fails exact check', () => {
+      expect(requiresTier(makeCtx({ subscriptions: [] }), 'access', { exact: true })).toBe(false);
+    });
   });
 
-  test('identityHasEntitlement returns true for present entitlement', () => {
-    expect(identityHasEntitlement(ctx, 'founder')).toBe(true);
+  describe('edge cases', () => {
+    test('duplicate tiers in array behave identically to single entry', () => {
+      const ctx = makeCtx({ subscriptions: ['insider', 'insider'] });
+      expect(requiresTier(ctx, 'insider')).toBe(true);
+      expect(requiresTier(ctx, 'access')).toBe(true);
+    });
+
+    test('isLifetime true but empty subscriptions still fails', () => {
+      const ctx = makeCtx({ subscriptions: [], isLifetime: true });
+      expect(requiresTier(ctx, 'access')).toBe(false);
+      expect(requiresTier(ctx, 'insider')).toBe(false);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// requiresEntitlement
+// ---------------------------------------------------------------------------
+
+describe('requiresEntitlement', () => {
+  function makeCtx(overrides: Partial<IdentityContext> = {}): IdentityContext {
+    return {
+      identity: makeIdentity(),
+      sessionId: 'sess-1',
+      maxVideoDurationSeconds: 300,
+      subscriptions: [],
+      entitlements: [],
+      isLifetime: false,
+      ...overrides,
+    };
+  }
+
+  test('vanguard user passes vanguard check', () => {
+    expect(requiresEntitlement(makeCtx({ entitlements: ['vanguard'] }), 'vanguard')).toBe(true);
   });
 
-  test('identityHasEntitlement returns false for absent entitlement', () => {
-    expect(identityHasEntitlement(ctx, 'vanguard')).toBe(false);
+  test('vanguard user fails founder check (parallel, not inherited)', () => {
+    expect(requiresEntitlement(makeCtx({ entitlements: ['vanguard'] }), 'founder')).toBe(false);
+  });
+
+  test('founder user fails vanguard check', () => {
+    expect(requiresEntitlement(makeCtx({ entitlements: ['founder'] }), 'vanguard')).toBe(false);
+  });
+
+  test('user with both vanguard and founder passes each independently', () => {
+    const ctx = makeCtx({ entitlements: ['vanguard', 'founder'] });
+    expect(requiresEntitlement(ctx, 'vanguard')).toBe(true);
+    expect(requiresEntitlement(ctx, 'founder')).toBe(true);
+  });
+
+  test('empty entitlements fails any check', () => {
+    expect(requiresEntitlement(makeCtx({ entitlements: [] }), 'vanguard')).toBe(false);
+    expect(requiresEntitlement(makeCtx({ entitlements: [] }), 'founder')).toBe(false);
+  });
+
+  test('arbitrary entitlement string works correctly', () => {
+    const ctx = makeCtx({ entitlements: ['beta_feature'] });
+    expect(requiresEntitlement(ctx, 'beta_feature')).toBe(true);
+    expect(requiresEntitlement(ctx, 'other_feature')).toBe(false);
   });
 });

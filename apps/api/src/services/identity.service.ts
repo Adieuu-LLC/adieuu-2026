@@ -40,7 +40,7 @@ import {
 } from './session.service';
 import { reconcileAchievements } from './achievement.service';
 import { buildAndEncryptGrants } from './billing/subscription-grants';
-import { resolveIdentityOverrides } from './billing/resolve-access';
+import { resolveIdentityOverrides, hasLifetimeIdentityOverrides } from './billing/resolve-access';
 import type { UserBilling } from '../models/user';
 import elog from '../utils/adieuuLogger';
 import type { IdentityDocument, PublicIdentity } from '../models/identity';
@@ -72,7 +72,8 @@ const RATE_LIMIT_WINDOW_SECONDS = 60 * 60;
  * Constructs a minimal UserBilling-compatible object from token metadata
  * for encrypted grant construction.
  */
-function buildBillingFromMetadata(
+/** @internal Exported for unit testing only. */
+export function buildBillingFromMetadata(
   metadata?: {
     subscriptions?: SubscriptionTierId[];
     entitlements?: string[];
@@ -94,13 +95,10 @@ function buildBillingFromMetadata(
 
   if (!subs.length && !ents.length) return undefined;
 
-  const hasLifetimeIdentityOverride = identity?.subscriptionOverrides?.some((o) => !o.expiresAt)
-    || (identity?.entitlementOverrides?.length ?? 0) > 0;
-
   return {
     activeSubscriptions: subs,
     entitlements: ents,
-    isLifetime: (metadata?.isLifetime ?? false) || !!hasLifetimeIdentityOverride,
+    isLifetime: (metadata?.isLifetime ?? false) || (identity ? hasLifetimeIdentityOverrides(identity) : false),
     currentPeriodEnd: metadata?.currentPeriodEnd
       ? new Date(metadata.currentPeriodEnd * 1000)
       : undefined,
