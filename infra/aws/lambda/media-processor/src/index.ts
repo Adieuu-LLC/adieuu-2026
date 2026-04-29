@@ -2,7 +2,8 @@
  * Media processor Lambda
  *
  * Triggered by S3 PutObject on the uploads/ prefix. Processes images:
- * 1. Content moderation via Amazon Rekognition (when enabled)
+ * 1. Content moderation via Amazon Rekognition (when enabled). GIF inputs use the first frame
+ *    as JPEG — Rekognition image APIs do not accept animated GIF.
  * 2. EXIF metadata stripping (when enabled)
  * 3. Resize and compress to WebP (when resize dimensions specified)
  * 4. Write processed file to processed/ prefix (skipped for purpose conv_scan — E2E scan copies)
@@ -39,6 +40,7 @@ import {
   parseNestedConvScanScanHashFromKey,
   processConvScanSealBatch,
 } from './convScanBatch';
+import { gifFirstFrameJpegForModeration, isGifImage } from './gif-moderation';
 
 const s3 = new S3Client({});
 const rekognition = new RekognitionClient({});
@@ -306,17 +308,38 @@ async function processRecord(record: S3EventRecord): Promise<void> {
   if (CONTENT_MODERATION && meta.contentModeration && !isVideo) {
     console.log('Running image content moderation...');
     try {
-      const moderationResult = await rekognition.send(
-        new DetectModerationLabelsCommand({
-          Image: {
-            S3Object: {
-              Bucket: BUCKET,
-              Name: key,
+      let moderationResult;
+      if (isGifImage(contentType, key)) {
+        const gifObj = await s3.send(
+          new GetObjectCommand({ Bucket: BUCKET, Key: key })
+        );
+        const gifBody = await gifObj.Body!.transformToByteArray();
+        const jpegBytes = await gifFirstFrameJpegForModeration(gifBody);
+        logProcessorEvent({
+          event: 'rekognition_gif_first_frame_moderation',
+          mediaId: meta.mediaId,
+          purpose: meta.purpose,
+          s3Key: key,
+        });
+        moderationResult = await rekognition.send(
+          new DetectModerationLabelsCommand({
+            Image: { Bytes: jpegBytes },
+            MinConfidence: MODERATION_CONFIDENCE,
+          })
+        );
+      } else {
+        moderationResult = await rekognition.send(
+          new DetectModerationLabelsCommand({
+            Image: {
+              S3Object: {
+                Bucket: BUCKET,
+                Name: key,
+              },
             },
-          },
-          MinConfidence: MODERATION_CONFIDENCE,
-        })
-      );
+            MinConfidence: MODERATION_CONFIDENCE,
+          })
+        );
+      }
 
       const labels = moderationResult.ModerationLabels ?? [];
       if (labels.length > 0) {

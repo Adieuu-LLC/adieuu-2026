@@ -5,6 +5,7 @@
 
 import {
   DeleteObjectCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   type S3Client,
@@ -13,6 +14,7 @@ import {
   DetectModerationLabelsCommand,
   type RekognitionClient,
 } from '@aws-sdk/client-rekognition';
+import { gifFirstFrameJpegForModeration, isGifImage } from './gif-moderation';
 
 const CONV_SCAN_PREFIX = 'uploads/conv_scan/';
 const NESTED_SCAN_HASH_RE = /^uploads\/conv_scan\/([0-9a-f]{64})\//;
@@ -274,12 +276,34 @@ export async function processConvScanSealBatch(d: ConvScanSealBatchDeps): Promis
 
   try {
     for (const img of images) {
-      const moderationResult = await d.rekognition.send(
-        new DetectModerationLabelsCommand({
-          Image: { S3Object: { Bucket: d.bucket, Name: img.key } },
-          MinConfidence: d.moderationConfidence,
-        })
-      );
+      let moderationResult;
+      if (isGifImage(img.contentType, img.key)) {
+        const gifObj = await d.s3.send(
+          new GetObjectCommand({ Bucket: d.bucket, Key: img.key })
+        );
+        const gifBody = await gifObj.Body!.transformToByteArray();
+        const jpegBytes = await gifFirstFrameJpegForModeration(gifBody);
+        d.logProcessorEvent({
+          event: 'rekognition_gif_first_frame_moderation',
+          mediaId: d.primaryMediaId,
+          purpose: d.purpose,
+          s3Key: img.key,
+          batchScanHash: d.scanHash,
+        });
+        moderationResult = await d.rekognition.send(
+          new DetectModerationLabelsCommand({
+            Image: { Bytes: jpegBytes },
+            MinConfidence: d.moderationConfidence,
+          })
+        );
+      } else {
+        moderationResult = await d.rekognition.send(
+          new DetectModerationLabelsCommand({
+            Image: { S3Object: { Bucket: d.bucket, Name: img.key } },
+            MinConfidence: d.moderationConfidence,
+          })
+        );
+      }
       const labels = moderationResult.ModerationLabels ?? [];
       if (labels.length > 0) {
         const top = labels[0];
