@@ -41,8 +41,7 @@ export function ComposerShortcodeAutocomplete({
                 src={item.emoji.cdnUrl}
                 alt={item.emoji.name}
                 className="conversation-composer-emoji-ac-emoji conversation-composer-emoji-ac-emoji--custom"
-                width={20}
-                height={20}
+                decoding="async"
               />
             ) : (
               <span className="conversation-composer-emoji-ac-emoji">{display}</span>

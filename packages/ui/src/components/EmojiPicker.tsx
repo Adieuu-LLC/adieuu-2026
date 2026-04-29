@@ -68,6 +68,17 @@ export function EmojiPicker({
     return new Map(customEmojis.map((e) => [`custom-${e.id}`, e]));
   }, [customEmojis]);
 
+  /**
+   * emoji-mart's React wrapper constructs Picker once and calls `update()` on prop
+   * changes; adding `custom` after mount can leave `refs.categories` missing entries
+   * (Uncaught: cannot destructure 'root' from ...get(...)). Remount when the set changes.
+   */
+  const pickerInstanceKey = useMemo(() => {
+    if (!customEmojis?.length) return 'mart:no-custom';
+    const ids = [...customEmojis].map((e) => e.id).sort();
+    return `mart:custom:${customEmojis.length}:${ids.join('\u001f')}`;
+  }, [customEmojis]);
+
   const handleSelect = useCallback(
     (emoji: EmojiMartEmojiData) => {
       if (emoji.native) {
@@ -94,6 +105,7 @@ export function EmojiPicker({
   return (
     <div className={`emoji-picker-wrapper${compact ? ' emoji-picker-wrapper--compact' : ''}`}>
       <Picker
+        key={pickerInstanceKey}
         data={data}
         onEmojiSelect={handleSelect}
         theme="dark"

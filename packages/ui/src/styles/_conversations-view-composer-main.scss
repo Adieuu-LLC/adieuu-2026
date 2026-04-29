@@ -198,8 +198,18 @@
       }
 
       &-emoji {
-        font-size: 1.2em;
+        font-size: 1.35em;
+        line-height: 1;
         flex-shrink: 0;
+      }
+
+      &-emoji--custom {
+        width: 1.75rem;
+        height: 1.75rem;
+        min-width: 1.75rem;
+        min-height: 1.75rem;
+        object-fit: contain;
+        display: block;
       }
 
       &-code {
