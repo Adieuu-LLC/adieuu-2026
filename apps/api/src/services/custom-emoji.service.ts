@@ -158,10 +158,14 @@ export async function listCustomEmojis(
 
 export async function getCustomEmoji(
   emojiId: string,
+  viewerIdentityId: string,
 ): Promise<ServiceResult> {
   const repo = getCustomEmojiRepository();
   const doc = await repo.findById(emojiId);
   if (!doc) {
+    return { success: false, error: 'Custom emoji not found', errorCode: 'NOT_FOUND' };
+  }
+  if (doc.identityId.toHexString() !== viewerIdentityId) {
     return { success: false, error: 'Custom emoji not found', errorCode: 'NOT_FOUND' };
   }
   return { success: true, data: toPublicCustomEmoji(doc) };

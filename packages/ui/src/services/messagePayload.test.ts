@@ -3,10 +3,10 @@ import {
   parsePayload,
   serializePayload,
   textPayload,
-  mediaPayload,
   gifPayload,
   isValidGifAttachment,
-  type MentionEntity,
+  buildCustomEmojiPayloadMap,
+  parseCustomEmojiComposerSnapshot,
   type MessagePayload,
   type GifAttachment,
 } from './messagePayload';
@@ -25,6 +25,21 @@ describe('serializePayload', () => {
     expect(parsed.text).toBe('hello');
     expect(parsed.senderDeviceId).toBe('device-abc');
     expect(parsed.isStructured).toBe(true);
+  });
+
+  test('customEmojis map forces JSON even without senderDeviceId', () => {
+    const payload: MessagePayload = {
+      version: 1,
+      text: ':wave:',
+      customEmojis: {
+        wave: { id: '1', url: 'https://cdn/w.webp', name: 'wave', animated: false },
+      },
+    };
+    const result = serializePayload(payload);
+    expect(result.startsWith('{')).toBe(true);
+    const parsed = parsePayload(result);
+    expect(parsed.isStructured).toBe(true);
+    expect(parsed.customEmojis.wave?.url).toBe('https://cdn/w.webp');
   });
 
   test('empty text without mentions returns empty string', () => {
@@ -80,6 +95,37 @@ describe('serializePayload', () => {
 });
 
 describe('parsePayload', () => {
+  test('structured payload with customEmojis parses map', () => {
+    const json = JSON.stringify({
+      version: 1,
+      text: ':a:',
+      customEmojis: {
+        a: { id: 'id1', url: 'https://x', name: 'A', animated: false },
+      },
+    });
+    const result = parsePayload(json);
+    expect(result.customEmojis.a).toEqual({
+      id: 'id1',
+      url: 'https://x',
+      name: 'A',
+      animated: false,
+    });
+  });
+
+  test('invalid custom emoji entries are filtered', () => {
+    const json = JSON.stringify({
+      version: 1,
+      text: ':x:',
+      customEmojis: {
+        good: { id: '1', url: 'u', name: 'n', animated: false },
+        bad1: { id: '1', url: 'u', name: 'n' },
+        bad2: 'nope',
+      },
+    });
+    const result = parsePayload(json);
+    expect(Object.keys(result.customEmojis)).toEqual(['good']);
+  });
+
   test('legacy plain text returns empty mentions', () => {
     const result = parsePayload('hello world');
     expect(result.text).toBe('hello world');
@@ -218,6 +264,47 @@ describe('parsePayload', () => {
   });
 });
 
+describe('buildCustomEmojiPayloadMap', () => {
+  const list = [
+    { id: 'e1', shortcode: 'gandalf', cdnUrl: 'https://cdn/g.webp', name: 'G', animated: false },
+  ] as const;
+
+  test('collects shortcodes present in text', () => {
+    const m = buildCustomEmojiPayloadMap('hi :gandalf: there', list, false);
+    expect(m?.gandalf).toEqual({
+      id: 'e1',
+      url: 'https://cdn/g.webp',
+      name: 'G',
+      animated: false,
+    });
+  });
+
+  test('returns undefined when disabled', () => {
+    expect(buildCustomEmojiPayloadMap(':gandalf:', list, true)).toBeUndefined();
+  });
+
+  test('returns undefined when list empty', () => {
+    expect(buildCustomEmojiPayloadMap(':gandalf:', [], false)).toBeUndefined();
+  });
+});
+
+describe('parseCustomEmojiComposerSnapshot', () => {
+  test('parses valid JSON array', () => {
+    const j = JSON.stringify([
+      { id: '1', shortcode: 'a', cdnUrl: 'u', name: 'n', animated: true },
+    ]);
+    expect(parseCustomEmojiComposerSnapshot(j)).toEqual([
+      { id: '1', shortcode: 'a', cdnUrl: 'u', name: 'n', animated: true },
+    ]);
+  });
+
+  test('filters invalid entries and returns undefined for empty', () => {
+    expect(parseCustomEmojiComposerSnapshot('[{"id":1}]')).toBeUndefined();
+    expect(parseCustomEmojiComposerSnapshot('[]')).toBeUndefined();
+    expect(parseCustomEmojiComposerSnapshot(undefined)).toBeUndefined();
+  });
+});
+
 describe('gifPayload', () => {
   const sampleGif: GifAttachment = {
     provider: 'klipy',
@@ -247,6 +334,17 @@ describe('gifPayload', () => {
     expect(parsed.text).toBe('look at this');
     expect(parsed.gifAttachments).toHaveLength(1);
     expect(parsed.gifAttachments[0]!.slug).toBe('hello-662');
+  });
+
+  test('round-trip preserves customEmojis on caption', () => {
+    const payload = gifPayload(':wave:', sampleGif);
+    payload.customEmojis = {
+      wave: { id: '1', url: 'https://cdn/w.webp', name: 'wave', animated: false },
+    };
+    const serialised = serializePayload(payload);
+    const parsed = parsePayload(serialised);
+    expect(parsed.text).toBe(':wave:');
+    expect(parsed.customEmojis.wave?.url).toBe('https://cdn/w.webp');
   });
 });
 

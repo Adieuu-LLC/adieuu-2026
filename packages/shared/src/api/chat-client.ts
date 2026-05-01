@@ -118,11 +118,13 @@ export interface ChatConversationUpdatedMessage extends ChatMessageBase {
       | 'renamed'
       | 'admin_promoted'
       | 'gifs_disabled_updated'
+      | 'custom_emojis_disabled_updated'
       | 'message_search_cache_policy_updated'
       | 'pending_invites_changed'
       | 'pins_updated';
     identityId?: string;
     gifsDisabled?: boolean;
+    customEmojisDisabled?: boolean;
     disallowPersistentMessageSearchCache?: boolean;
     pinnedMessageIds?: string[];
     /** Present for action renamed — drives notification copy (group vs DM). */

@@ -12,7 +12,7 @@
  * @module services/messagePayload
  */
 
-import type { CustomEmojiPayloadEntry } from '@adieuu/shared';
+import { createCustomEmojiColonTokenRegex, type CustomEmojiPayloadEntry } from '@adieuu/shared';
 
 /**
  * Media attachment metadata embedded in the encrypted payload.
@@ -137,21 +137,97 @@ export interface ParsedMessagePayload {
  * For pure text messages with no attachments, returns the raw text string
  * (legacy format) to save bytes and maintain interop with older clients.
  *
- * For messages with attachments, senderDeviceId, or other structured fields,
- * returns JSON.
+ * For messages with attachments, senderDeviceId, custom emoji maps, or other
+ * structured fields, returns JSON.
  */
 export function serializePayload(payload: MessagePayload): string {
+  const hasCustomEmojis =
+    !!payload.customEmojis && Object.keys(payload.customEmojis).length > 0;
   const needsJson =
     !!payload.senderDeviceId ||
     !!payload.attachments?.length ||
     !!payload.mentions?.length ||
-    !!payload.gifAttachments?.length;
+    !!payload.gifAttachments?.length ||
+    hasCustomEmojis;
 
   if (!needsJson) {
     return payload.text ?? '';
   }
 
   return JSON.stringify(payload);
+}
+
+/**
+ * Snapshot of the sender's custom emoji list (e.g. from {@link useCustomEmojis}),
+ * used to build the encrypted payload map for shortcodes in message text.
+ */
+export interface CustomEmojiComposerSnapshotEntry {
+  id: string;
+  shortcode: string;
+  cdnUrl: string;
+  name: string;
+  animated: boolean;
+}
+
+/**
+ * Build the `customEmojis` map for a message from converted text and the sender's emoji list.
+ */
+export function buildCustomEmojiPayloadMap(
+  convertedText: string,
+  list: readonly CustomEmojiComposerSnapshotEntry[] | undefined,
+  disabled: boolean,
+): Record<string, CustomEmojiPayloadEntry> | undefined {
+  if (disabled || !list?.length) return undefined;
+  let map: Record<string, CustomEmojiPayloadEntry> | undefined;
+  const pattern = createCustomEmojiColonTokenRegex();
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(convertedText)) !== null) {
+    const sc = match[1]?.toLowerCase();
+    if (!sc) continue;
+    const ce = list.find((e) => e.shortcode === sc);
+    if (ce) {
+      if (!map) map = {};
+      map[sc] = {
+        id: ce.id,
+        url: ce.cdnUrl,
+        name: ce.name,
+        animated: ce.animated,
+      };
+    }
+  }
+  return map;
+}
+
+function isComposerSnapshotEntry(x: unknown): x is CustomEmojiComposerSnapshotEntry {
+  if (typeof x !== 'object' || x === null) return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.id === 'string' &&
+    typeof o.shortcode === 'string' &&
+    typeof o.cdnUrl === 'string' &&
+    typeof o.name === 'string' &&
+    typeof o.animated === 'boolean'
+  );
+}
+
+/**
+ * Parse JSON persisted on a media outbox job (composer snapshot at enqueue time).
+ */
+export function parseCustomEmojiComposerSnapshot(
+  json: string | undefined,
+): CustomEmojiComposerSnapshotEntry[] | undefined {
+  if (!json?.trim()) return undefined;
+  try {
+    const raw = JSON.parse(json) as unknown;
+    if (!Array.isArray(raw)) return undefined;
+    const out: CustomEmojiComposerSnapshotEntry[] = [];
+    for (const item of raw) {
+      if (isComposerSnapshotEntry(item)) out.push(item);
+    }
+    return out.length ? out : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function isValidMention(m: unknown): m is MentionEntity {

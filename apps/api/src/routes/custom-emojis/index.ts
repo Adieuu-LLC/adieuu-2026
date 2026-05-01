@@ -100,11 +100,12 @@ router.post('/custom-emojis', async (ctx) => {
 router.get('/custom-emojis/:id', async (ctx) => {
   const guard = requireIdentitySession(ctx);
   if (guard) return guard;
+  const { identity } = ctx.identitySession!;
 
   const id = ctx.params.id ?? '';
   if (!isValidObjectId(id)) return ctx.errors.badRequest();
 
-  const result = await getCustomEmoji(id);
+  const result = await getCustomEmoji(id, identity._id.toHexString());
   if (!result.success) {
     return errors.notFound(result.error);
   }

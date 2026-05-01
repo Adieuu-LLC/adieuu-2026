@@ -248,6 +248,9 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
         useForwardSecrecy: input.useForwardSecrecy,
         stripExif: input.stripExif,
         ...(input.sendMp4WithoutReencode === true ? { sendMp4WithoutReencode: true } : {}),
+        ...(input.composerCustomEmojisSnapshotJson
+          ? { composerCustomEmojisSnapshotJson: input.composerCustomEmojisSnapshotJson }
+          : {}),
         attachmentBlobs,
       };
       await mediaOutboxPutJob(record);

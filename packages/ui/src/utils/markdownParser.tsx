@@ -13,7 +13,7 @@
  * @module utils/markdownParser
  */
 
-import { type ReactNode, type ReactElement, createElement } from 'react';
+import { type ReactNode, type ReactElement, createElement, cloneElement, isValidElement } from 'react';
 import { createCustomEmojiColonTokenRegex, type PublicIdentity, type CustomEmojiPayloadEntry } from '@adieuu/shared';
 import type { MentionEntity } from '../services/messagePayload';
 import type { MemberSettingsMap } from '../services/conversationCryptoService';
@@ -409,13 +409,17 @@ function injectCustomEmojis(
     return node.map((child) => injectCustomEmojis(child, emojis, keyRef));
   }
 
-  if (node && typeof node === 'object' && 'props' in node) {
+  if (isValidElement(node)) {
     const el = node as ReactElement;
+    const t = el.type;
+    if (t === 'code' || t === 'pre') {
+      return node;
+    }
     const children = el.props.children;
     if (children == null) return node;
     const mapped = injectCustomEmojis(children, emojis, keyRef);
     if (mapped === children) return node;
-    return { ...el, props: { ...el.props, children: mapped } };
+    return cloneElement(el, { children: mapped });
   }
 
   return node;

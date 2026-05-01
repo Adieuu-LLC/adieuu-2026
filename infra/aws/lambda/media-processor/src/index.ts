@@ -434,16 +434,16 @@ async function processRecord(record: S3EventRecord): Promise<void> {
       pipeline = pipeline.resize({
         width: meta.resizeMaxWidth,
         height: meta.resizeMaxHeight,
-        fit: isAnimatedGif ? 'contain' : 'inside',
+        fit: 'inside',
         withoutEnlargement: true,
-        ...(isAnimatedGif ? { background: { r: 0, g: 0, b: 0, alpha: 0 } } : {}),
       });
     }
 
     if (isAnimatedGif) {
       processedBuffer = await pipeline.gif().toBuffer();
     } else {
-      processedBuffer = await pipeline.webp({ quality: 85 }).toBuffer();
+      const webpQuality = meta.purpose === 'custom_emoji' ? 95 : 85;
+      processedBuffer = await pipeline.webp({ quality: webpQuality }).toBuffer();
     }
 
     console.log(

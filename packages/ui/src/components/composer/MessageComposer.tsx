@@ -2,11 +2,17 @@ import { useState, useEffect, useRef, useCallback, useMemo, forwardRef, useImper
 import { useTranslation } from 'react-i18next';
 import { Popover, Portal, Menu } from '@ark-ui/react';
 import { convertShortcodes, SHORTCODE_ENTRIES } from '../../utils/emojiShortcodes';
-import { serializePayload, gifPayload, type MentionEntity, type GifAttachment } from '../../services/messagePayload';
+import {
+  serializePayload,
+  gifPayload,
+  buildCustomEmojiPayloadMap,
+  type MentionEntity,
+  type GifAttachment,
+} from '../../services/messagePayload';
 import { getOrCreateDeviceId } from '../../services/deviceInfo';
-import { createApiClient, createCustomEmojiColonTokenRegex } from '@adieuu/shared';
+import { createApiClient } from '@adieuu/shared';
 import { EmojiPicker, type EmojiSelectResult } from '../EmojiPicker';
-import type { PublicCustomEmoji, CustomEmojiPayloadEntry } from '@adieuu/shared';
+import type { PublicCustomEmoji } from '@adieuu/shared';
 import { GifPicker } from '../GifPicker';
 import { Tooltip } from '../Tooltip';
 import { useToast } from '../Toast';
@@ -441,6 +447,14 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     if (currentPendingGif) {
       const convertedText = convertShortcodes(text) || undefined;
       const payload = gifPayload(convertedText, currentPendingGif);
+      const customEmojiMap = buildCustomEmojiPayloadMap(
+        convertedText ?? '',
+        customEmojis,
+        customEmojisDisabled === true,
+      );
+      if (customEmojiMap && Object.keys(customEmojiMap).length > 0) {
+        payload.customEmojis = customEmojiMap;
+      }
       const mentions: MentionEntity[] = currentMentions.map((m) => ({ id: m.identityId, offset: m.offset, length: m.length }));
       if (mentions.length > 0) payload.mentions = mentions;
       payload.senderDeviceId = getOrCreateDeviceId();
@@ -481,6 +495,9 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           useForwardSecrecy: forwardSecrecy?.enabled ?? false,
           stripExif,
           ...(sendMp4WithoutReencode && allVideosAreMp4 ? { sendMp4WithoutReencode: true } : {}),
+          ...(customEmojis?.length && !customEmojisDisabled
+            ? { composerCustomEmojisSnapshotJson: JSON.stringify(customEmojis) }
+            : {}),
           files: pendingAttachments.map((a) => a.file),
         });
       } catch (err) {
@@ -507,25 +524,11 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         : undefined;
       const senderDeviceId = getOrCreateDeviceId();
 
-      let customEmojiMap: Record<string, CustomEmojiPayloadEntry> | undefined;
-      if (!customEmojisDisabled && customEmojis?.length) {
-        const shortcodePattern = createCustomEmojiColonTokenRegex();
-        let match: RegExpExecArray | null;
-        while ((match = shortcodePattern.exec(convertedText)) !== null) {
-          const sc = match[1]?.toLowerCase();
-          if (!sc) continue;
-          const ce = customEmojis.find((e) => e.shortcode === sc);
-          if (ce) {
-            if (!customEmojiMap) customEmojiMap = {};
-            customEmojiMap[sc] = {
-              id: ce.id,
-              url: ce.cdnUrl,
-              name: ce.name,
-              animated: ce.animated,
-            };
-          }
-        }
-      }
+      const customEmojiMap = buildCustomEmojiPayloadMap(
+        convertedText,
+        customEmojis,
+        customEmojisDisabled === true,
+      );
 
       const plaintext = serializePayload({
         version: 1,
@@ -1160,6 +1163,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
             open={showEmojiPicker}
             onOpenChange={(e) => setShowEmojiPicker(e.open)}
             positioning={{ placement: 'top-end' }}
+            lazyMount
+            unmountOnExit
           >
             <Popover.Trigger asChild>
               <button

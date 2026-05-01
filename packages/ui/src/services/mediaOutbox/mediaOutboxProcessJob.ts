@@ -1,7 +1,7 @@
 import { createApiClient } from '@adieuu/shared';
 import { encrypt as encryptBytes, randomBytes, toBase64 } from '@adieuu/crypto';
 import { convertShortcodes } from '../../utils/emojiShortcodes';
-import { serializePayload, mediaPayload, type MentionEntity, type MediaAttachment } from '../messagePayload';
+import { serializePayload, mediaPayload, buildCustomEmojiPayloadMap, parseCustomEmojiComposerSnapshot, type MentionEntity, type MediaAttachment } from '../messagePayload';
 import { getOrCreateDeviceId } from '../deviceInfo';
 import { stripExifMetadata } from '../../utils/imageProcessing';
 import { withTimeout } from '../../utils/withTimeout';
@@ -170,8 +170,13 @@ async function sendMessageForJob(job: MediaOutboxJobRecord, deps: MediaOutboxPro
   }));
 
   const mediaText = convertShortcodes(job.caption) || undefined;
+  const snapshotList = parseCustomEmojiComposerSnapshot(job.composerCustomEmojisSnapshotJson);
+  const customEmojiMap = buildCustomEmojiPayloadMap(mediaText ?? '', snapshotList, false);
   const payload = mediaPayload(mediaText, mediaAttachments);
   if (mentions.length > 0) payload.mentions = mentions;
+  if (customEmojiMap && Object.keys(customEmojiMap).length > 0) {
+    payload.customEmojis = customEmojiMap;
+  }
   payload.senderDeviceId = getOrCreateDeviceId();
   const plaintext = serializePayload(payload);
   const e2eMediaIds = snap.map((m) => m.e2eMediaId);

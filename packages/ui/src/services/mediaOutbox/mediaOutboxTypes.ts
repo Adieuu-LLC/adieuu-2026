@@ -57,6 +57,11 @@ export interface MediaOutboxJobRecord {
   sendMp4WithoutReencode?: boolean;
   /** Raw user files (only present until E2E checkpoint; may be cleared after). */
   attachmentBlobs: { name: string; type: string; blob: Blob }[];
+  /**
+   * JSON array of the sender's custom emoji list at enqueue time (id, shortcode, cdnUrl, name, animated).
+   * Used to embed shortcode metadata in the encrypted caption when sending completes.
+   */
+  composerCustomEmojisSnapshotJson?: string;
   /** After all E2E uploads succeed; enables resume if send or scan fails. */
   e2eSnapshot?: MediaOutboxE2eSnapshotItem[];
   /** Set after API send succeeds; scan retry must not resend message. */
@@ -73,5 +78,7 @@ export interface MediaOutboxEnqueueInput {
   stripExif: boolean;
   /** See {@link MediaOutboxJobRecord.sendMp4WithoutReencode}. */
   sendMp4WithoutReencode?: boolean;
+  /** Sender's custom emoji list at enqueue time (embedded in encrypted payload for caption shortcodes). */
+  composerCustomEmojisSnapshotJson?: string;
   files: File[];
 }

@@ -1,10 +1,11 @@
 import { describe, expect, mock, test } from 'bun:test';
+import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import type { PublicIdentity } from '@adieuu/shared';
+import type { PublicIdentity, CustomEmojiPayloadEntry } from '@adieuu/shared';
 import type { MentionRenderContext } from './markdownParser';
 
 mock.module('../components/IdentityHoverCard', () => ({
-  IdentityHoverCard: ({ children }: { children: React.ReactElement }) => children,
+  IdentityHoverCard: ({ children }: { children: ReactElement }) => children,
 }));
 
 const { injectMentionMarkers, renderFormattedMessage } = await import('./markdownParser');
@@ -88,7 +89,7 @@ const noop = () => {};
 
 function renderToHtml(text: string, mentionCtx?: Parameters<typeof renderFormattedMessage>[2]) {
   const node = renderFormattedMessage(text, noop, mentionCtx);
-  return node ? renderToStaticMarkup(node as React.ReactElement) : '';
+  return node ? renderToStaticMarkup(node as ReactElement) : '';
 }
 
 const mentionCtx: MentionRenderContext = {
@@ -170,5 +171,35 @@ describe('renderFormattedMessage with mentions', () => {
     const html = renderToHtml('Hello world', mentionCtx);
     expect(html).toContain('Hello world');
     expect(html).not.toContain('dm-mention');
+  });
+});
+
+describe('renderFormattedMessage with custom emojis', () => {
+  const map: Record<string, CustomEmojiPayloadEntry> = {
+    test_emoji: { id: '1', url: 'https://cdn/e.webp', name: 'Test', animated: false },
+    x: { id: '2', url: 'https://cdn/x.gif', name: 'X', animated: true },
+  };
+
+  test('replaces shortcode with img', () => {
+    const node = renderFormattedMessage('Hello :test_emoji: world', noop, undefined, map);
+    const html = node ? renderToStaticMarkup(node as ReactElement) : '';
+    expect(html).toContain('https://cdn/e.webp');
+    expect(html).toContain('dm-custom-emoji-inline');
+    expect(html).not.toContain('Hello :test_emoji: world');
+  });
+
+  test('does not inject inside inline code', () => {
+    const node = renderFormattedMessage('`:x:`', noop, undefined, map);
+    const html = node ? renderToStaticMarkup(node as ReactElement) : '';
+    expect(html).toContain(':x:');
+    expect(html).not.toContain('dm-custom-emoji-inline');
+  });
+
+  test('does not inject inside fenced code block', () => {
+    const text = '```\n:x:\n```';
+    const node = renderFormattedMessage(text, noop, undefined, map);
+    const html = node ? renderToStaticMarkup(node as ReactElement) : '';
+    expect(html).toContain(':x:');
+    expect(html).not.toContain('dm-custom-emoji-inline');
   });
 });
