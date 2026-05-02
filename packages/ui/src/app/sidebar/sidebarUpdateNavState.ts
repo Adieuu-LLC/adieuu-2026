@@ -5,7 +5,7 @@ export type SidebarUpdateNavLabel =
   | 'available'
   | 'downloading'
   | 'install'
-  | 'restartWeb'
+  | 'refreshWeb'
   | 'error';
 
 export type SidebarUpdateNavResolved =
@@ -50,7 +50,7 @@ export function resolveSidebarUpdateNav(
     return { visible: true, label: 'install', progressPercent: null };
   }
   if (status === 'available') {
-    const label = platform === 'web' ? 'restartWeb' : 'available';
+    const label = platform === 'web' ? 'refreshWeb' : 'available';
     return { visible: true, label, progressPercent: null };
   }
   return { visible: false };

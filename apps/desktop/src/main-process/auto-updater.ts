@@ -71,6 +71,30 @@ export function clearUpdateCheckTimer(): void {
   }
 }
 
+let deferredInitialUpdateCheckDone = false;
+
+/**
+ * Run once after the renderer has registered IPC listeners so update events
+ * (including update-downloaded for a cached installer) are not missed.
+ */
+export function runDeferredInitialUpdateCheck(): void {
+  if (deferredInitialUpdateCheckDone) return;
+  deferredInitialUpdateCheckDone = true;
+
+  void readUpdatePreferences().then((prefs) => {
+    if (!prefs.autoCheckEnabled) return;
+    const isDev = process.env.NODE_ENV === 'development';
+    if (isUpdaterInactiveInDev(isDev)) return;
+    autoUpdater.checkForUpdates().catch((err: unknown) => {
+      console.error('[AutoUpdater] Initial check failed:', err);
+    });
+  });
+}
+
+function isUpdaterInactiveInDev(isDev: boolean): boolean {
+  return isDev && !process.env.ADIEUU_UPDATE_SERVER_URL;
+}
+
 export async function initAutoUpdater(options: {
   isDev: boolean;
   sendToRenderer: (channel: string, ...args: unknown[]) => void;
@@ -153,15 +177,12 @@ export async function initAutoUpdater(options: {
     sendToRenderer('update-error', { message: err.message });
   });
 
-  if (isDev && !process.env.ADIEUU_UPDATE_SERVER_URL) {
+  if (isUpdaterInactiveInDev(isDev)) {
     console.info('[AutoUpdater] Dev mode without ADIEUU_UPDATE_SERVER_URL; auto-check disabled.');
     return;
   }
 
   if (initPrefs.autoCheckEnabled) {
-    autoUpdater.checkForUpdates().catch((err: unknown) => {
-      console.error('[AutoUpdater] Initial check failed:', err);
-    });
     scheduleUpdateChecks(initPrefs.checkIntervalMinutes);
   }
 }
@@ -171,6 +192,10 @@ export function registerAutoUpdaterIpc(options: {
   sendToRenderer: (channel: string, ...args: unknown[]) => void;
 }): void {
   const { isDev, sendToRenderer } = options;
+
+  ipcMain.handle('renderer-update-ready', () => {
+    runDeferredInitialUpdateCheck();
+  });
 
   ipcMain.handle('download-update', async () => {
     void appendInAppUpdateLog('download-update IPC (manual) started');

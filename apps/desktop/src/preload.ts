@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('electron', {
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
     isMaximized: () => ipcRenderer.invoke('window:isMaximized') as Promise<boolean>,
+    saveBoundsIfChanged: () => ipcRenderer.invoke('window:save-bounds-if-changed'),
     setBadgeCount: (count: number, accentColorHex?: string) =>
       ipcRenderer.invoke('window:setBadgeCount', count, accentColorHex),
   },
@@ -93,6 +94,7 @@ contextBridge.exposeInMainWorld('electron', {
       'check-for-updates', 'clear-installer-cache', 'open-windows-installer-log', 'open-in-app-update-log',
       'get-in-app-update-log-path', 'restart-app',
       'open-verification-window',
+      'renderer-update-ready',
     ];
     if (allowedChannels.includes(channel)) {
       return ipcRenderer.invoke(channel, ...args);
@@ -131,6 +133,7 @@ declare global {
         maximize: () => Promise<void>;
         close: () => Promise<void>;
         isMaximized: () => Promise<boolean>;
+        saveBoundsIfChanged: () => Promise<void>;
         setBadgeCount: (count: number, accentColorHex?: string) => Promise<void>;
       };
       secureStorage: {

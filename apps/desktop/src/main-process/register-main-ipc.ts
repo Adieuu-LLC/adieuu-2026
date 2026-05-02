@@ -9,6 +9,7 @@ import { registerVerificationWindowIpc } from './verification-window';
 import { isAllowedAudioPath } from './audio-path';
 import { ensureInAppUpdateLogFileForOpen, getInAppUpdateLogPath } from './update-in-app-log';
 import { openExternalHttpsUrl } from './open-external-https';
+import { saveMainWindowLayoutIfChanged } from './window-state';
 
 export function registerMainProcessIpc(options: {
   isDev: boolean;
@@ -106,6 +107,10 @@ export function registerMainProcessIpc(options: {
 
   ipcMain.handle('window:isMaximized', () => {
     return runtime.mainWindow?.isMaximized() ?? false;
+  });
+
+  ipcMain.handle('window:save-bounds-if-changed', () => {
+    saveMainWindowLayoutIfChanged();
   });
 
   ipcMain.handle('window:setBadgeCount', (_event, count: unknown, accentHex?: unknown) => {

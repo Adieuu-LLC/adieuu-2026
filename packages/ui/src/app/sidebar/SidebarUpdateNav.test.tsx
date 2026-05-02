@@ -30,7 +30,7 @@ mock.module('react-i18next', () => ({
         'sidebar.update.available': 'Update Available',
         'sidebar.update.downloading': 'Downloading Update',
         'sidebar.update.install': 'Install Update',
-        'sidebar.update.restartWeb': 'Restart to Update',
+        'sidebar.update.refreshWeb': 'Refresh to Update',
         'sidebar.update.error': 'Update issue',
       };
       return map[key] ?? key;

@@ -1,6 +1,13 @@
 import { BrowserWindow, Menu, shell } from 'electron';
 import path from 'path';
 import { runtime } from './runtime';
+import {
+  attachMainWindowLayoutPersistence,
+  loadWindowLayoutState,
+  MIN_WIN_HEIGHT,
+  MIN_WIN_WIDTH,
+  resolveInitialWindowPlacement,
+} from './window-state';
 
 export async function createMainWindow(options: {
   __dirname: string;
@@ -11,11 +18,26 @@ export async function createMainWindow(options: {
 }): Promise<void> {
   const { __dirname, isDev, isMac, customSchemeOrigin, iconPath } = options;
 
+  await loadWindowLayoutState();
+  const placement = resolveInitialWindowPlacement();
+
+  const boundsOpts
+    = placement.kind === 'saved'
+      ? {
+          x: placement.state.x,
+          y: placement.state.y,
+          width: placement.state.width,
+          height: placement.state.height,
+        }
+      : {
+          width: placement.width,
+          height: placement.height,
+        };
+
   runtime.mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 320,
-    minHeight: 400,
+    ...boundsOpts,
+    minWidth: MIN_WIN_WIDTH,
+    minHeight: MIN_WIN_HEIGHT,
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.cjs'),
       contextIsolation: true,
@@ -31,12 +53,23 @@ export async function createMainWindow(options: {
     show: false,
   });
 
+  attachMainWindowLayoutPersistence(runtime.mainWindow);
+
   runtime.mainWindow.on('closed', () => {
     runtime.mainWindow = null;
   });
 
   runtime.mainWindow.once('ready-to-show', () => {
-    runtime.mainWindow?.show();
+    const win = runtime.mainWindow;
+    if (!win || win.isDestroyed()) return;
+    if (placement.kind === 'saved') {
+      if (placement.state.isFullScreen) {
+        win.setFullScreen(true);
+      } else if (placement.state.isMaximized) {
+        win.maximize();
+      }
+    }
+    win.show();
   });
 
   runtime.mainWindow.webContents.setWindowOpenHandler(({ url }) => {

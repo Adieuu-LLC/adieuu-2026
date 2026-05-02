@@ -15,7 +15,7 @@ const LABEL_I18N: Record<SidebarUpdateNavLabel, string> = {
   available: 'sidebar.update.available',
   downloading: 'sidebar.update.downloading',
   install: 'sidebar.update.install',
-  restartWeb: 'sidebar.update.restartWeb',
+  refreshWeb: 'sidebar.update.refreshWeb',
   error: 'sidebar.update.error',
 };
 
@@ -28,7 +28,7 @@ export function SidebarUpdateNav() {
   const platform = usePlatform();
   const navigate = useNavigate();
   const { closeMobile } = useSidebar();
-  const { status, downloadProgress, installing } = useUpdateContext();
+  const { status, downloadProgress, installing, applyUpdate } = useUpdateContext();
 
   const resolved = resolveSidebarUpdateNav(
     status,
@@ -45,6 +45,10 @@ export function SidebarUpdateNav() {
 
   const handleClick = () => {
     closeMobile();
+    if (platform === 'web' && resolved.label === 'refreshWeb') {
+      applyUpdate();
+      return;
+    }
     navigate('/about/updates');
   };
 

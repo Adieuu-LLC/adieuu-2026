@@ -60,10 +60,10 @@ describe('resolveSidebarUpdateNav', () => {
     });
   });
 
-  test('available uses restartWeb on web and available elsewhere', () => {
+  test('available uses refreshWeb on web and available elsewhere', () => {
     expect(resolveSidebarUpdateNav('available', 'web', false, null)).toEqual({
       visible: true,
-      label: 'restartWeb',
+      label: 'refreshWeb',
       progressPercent: null,
     });
     expect(resolveSidebarUpdateNav('available', 'desktop', false, null)).toEqual({

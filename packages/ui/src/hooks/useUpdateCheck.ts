@@ -107,9 +107,10 @@ export function useUpdateCheck(): UseUpdateCheckResult {
 
     const electron = (window as Window & { electron?: {
       on: (channel: string, cb: (...args: unknown[]) => void) => () => void;
+      invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
     } }).electron;
 
-    if (!electron) return;
+    if (!electron?.on || typeof electron.invoke !== 'function') return;
 
     const cleanups: (() => void)[] = [];
 
@@ -164,6 +165,8 @@ export function useUpdateCheck(): UseUpdateCheckResult {
       setInstalling(false);
       setStatus('idle');
     }));
+
+    void electron.invoke('renderer-update-ready');
 
     return () => {
       cleanups.forEach((fn) => fn());

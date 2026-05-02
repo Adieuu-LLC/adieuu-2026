@@ -55,7 +55,7 @@ export const core = {
       available: 'Update Available',
       downloading: 'Downloading Update',
       install: 'Install Update',
-      restartWeb: 'Restart to Update',
+      refreshWeb: 'Refresh to Update',
       error: 'Update issue',
     },
   },

@@ -15,6 +15,9 @@ export const staticPages = {
     updates: {
       title: 'Check for Updates',
       subtitle: 'Keep Adieuu up to date with the latest features and security patches.',
+      webAvailableTitle: 'A new web version is available',
+      webAvailableHint: 'Refresh this page to load the latest assets and fixes.',
+      webRefreshButton: 'Refresh to update',
     },
   },
 
