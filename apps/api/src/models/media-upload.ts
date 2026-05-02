@@ -173,7 +173,7 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
     allowedContentTypes: ['image/png', 'image/webp', 'image/gif'],
     processingFlags: {
       stripExif: true,
-      resize: { maxWidth: 256, maxHeight: 256 },
+      resize: { maxWidth: 64, maxHeight: 64 },
       contentModeration: true,
     },
   },

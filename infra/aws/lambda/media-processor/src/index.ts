@@ -435,7 +435,7 @@ async function processRecord(record: S3EventRecord): Promise<void> {
         width: meta.resizeMaxWidth,
         height: meta.resizeMaxHeight,
         fit: 'inside',
-        withoutEnlargement: true,
+        withoutEnlargement: meta.purpose !== 'custom_emoji',
       });
     }
 
