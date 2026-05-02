@@ -136,6 +136,7 @@ export const MessageBubble = memo(function MessageBubble({
   onOpenMemberSecurity,
   peerPublicKeysById = {},
   verificationRevision = 0,
+  customEmojisDisabled = false,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
@@ -170,6 +171,7 @@ export const MessageBubble = memo(function MessageBubble({
   onOpenMemberSecurity?: (identityId: string, displayLabel: string) => void;
   peerPublicKeysById?: Record<string, IdentityPublicKeys>;
   verificationRevision?: number;
+  customEmojisDisabled?: boolean;
 }) {
   const { t } = useTranslation();
   const { block: blockIdentity } = useBlockContext();
@@ -245,13 +247,14 @@ export const MessageBubble = memo(function MessageBubble({
     selfId,
     onMentionClick,
   }), [participantProfiles, memberSettings, selfId, onMentionClick]);
+  const effectiveCustomEmojis = customEmojisDisabled ? undefined : parsed.customEmojis;
   const renderedContent = useMemo(() => {
     if (!content) return null;
     const markedText = parsed.mentions.length > 0
       ? injectMentionMarkers(content, parsed.mentions)
       : content;
-    return renderFormattedMessage(markedText, onLinkClick, mentionRenderCtx, parsed.customEmojis);
-  }, [content, parsed.mentions, parsed.customEmojis, onLinkClick, mentionRenderCtx]);
+    return renderFormattedMessage(markedText, onLinkClick, mentionRenderCtx, effectiveCustomEmojis);
+  }, [content, parsed.mentions, effectiveCustomEmojis, onLinkClick, mentionRenderCtx]);
   const hasDecryptionError = !message.decryptedContent && !message.deleted;
   const isFsExpired = hasDecryptionError && message.decryptionError?.startsWith('forward-secrecy-expired:');
   const decryptionDisplayText = isFsExpired

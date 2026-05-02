@@ -69,6 +69,7 @@ export function ConversationMessageList({
   onManualLoadNewer,
   t,
   gifsDisabledByAdmin,
+  customEmojisDisabledByAdmin,
   pinnedMessageIds,
   canManagePins,
   onPinMessage,
@@ -123,6 +124,7 @@ export function ConversationMessageList({
   onManualLoadNewer: () => void;
   t: (key: string, fallback: string) => string;
   gifsDisabledByAdmin?: boolean;
+  customEmojisDisabledByAdmin?: boolean;
   pinnedMessageIds: string[];
   canManagePins: boolean;
   onPinMessage: (messageId: string) => void;
@@ -306,6 +308,7 @@ export function ConversationMessageList({
             selfId={identity?.id}
             gifsEnabled={ctx.gifsEnabled}
             gifAnimateOnHoverOnly={ctx.gifAnimateOnHoverOnly}
+            customEmojisDisabled={customEmojisDisabledByAdmin === true}
             isPinned={pinnedSet.has(msg.id)}
             canManagePin={canManagePins}
             onPin={() => onPinMessage(msg.id)}
@@ -327,6 +330,7 @@ export function ConversationMessageList({
       onOpenMemberSecurity,
       peerPublicKeysById,
       verificationRevision,
+      customEmojisDisabledByAdmin,
     ],
   );
 

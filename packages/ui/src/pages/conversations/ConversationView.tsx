@@ -1011,6 +1011,7 @@ export function ConversationView() {
               onManualLoadNewer={() => void loadNewer()}
               t={t as any}
               gifsDisabledByAdmin={conversation.gifsDisabled ?? false}
+              customEmojisDisabledByAdmin={conversation.customEmojisDisabled === true}
               pinnedMessageIds={conversation.pinnedMessageIds ?? []}
               canManagePins={canManagePinsUi}
               onPinMessage={handlePinMessage}
