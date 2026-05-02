@@ -23,6 +23,7 @@ import {
   encryptReaction,
   decryptReaction,
   type DecryptedReaction,
+  type ReactionCustomEmoji,
 } from '../services/reactionCryptoService';
 import type { RecipientKeys } from '../services/conversationCryptoService';
 import {
@@ -48,6 +49,7 @@ import {
 } from '../utils/reactionGrouping';
 import { useToast } from '../components/Toast';
 export type { GroupedReaction } from '../utils/reactionGrouping';
+export type { ReactionCustomEmoji } from '../services/reactionCryptoService';
 
 function optimisticReactionLocalId(clientReactionId: string): string {
   return `${OPTIMISTIC_REACTION_ID_PREFIX}${clientReactionId}`;
@@ -253,7 +255,8 @@ export function useReactions(conversationId: string | null) {
     async (
       messageId: string,
       emoji: string,
-      recipients: RecipientKeys[]
+      recipients: RecipientKeys[],
+      customEmoji?: ReactionCustomEmoji,
     ): Promise<boolean> => {
       if (!conversationId || !identity) return false;
 
@@ -271,6 +274,7 @@ export function useReactions(conversationId: string | null) {
         conversationId,
         fromIdentityId: identity.id,
         emoji,
+        ...(customEmoji ? { customEmoji } : {}),
         verified: true,
         createdAt: new Date().toISOString(),
       };
@@ -304,7 +308,9 @@ export function useReactions(conversationId: string | null) {
           emoji,
           identity.id,
           recipients,
-          signingKey
+          signingKey,
+          'default',
+          customEmoji,
         );
 
         const resp = await api.reactions.add(

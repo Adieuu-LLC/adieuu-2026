@@ -1,12 +1,14 @@
 import { useCallback, useMemo, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Menu, Portal, Popover } from '@ark-ui/react';
-import { EmojiPicker } from '../../components/EmojiPicker';
+import { EmojiPicker, type EmojiSelectResult } from '../../components/EmojiPicker';
 import { useToast } from '../../components/Toast';
 import { Icon } from '../../icons/Icon';
 import { usePlatformCapabilities } from '../../config';
 import { getE2eDecryptedObjectUrlIfAvailable } from '../../hooks/useE2EMediaDownload';
 import type { GifAttachment, MediaAttachment } from '../../services/messagePayload';
+import type { ReactionCustomEmoji } from '../../services/reactionCryptoService';
+import type { PublicCustomEmoji } from '@adieuu/shared';
 import { copyImageUrlToSystemClipboard, copyPlainTextToClipboard, downloadUrlWithSaveFile } from '../../utils/contextMenuClipboard';
 import {
   e2eAttachmentSupportsCopyImage,
@@ -33,6 +35,7 @@ export function MessageContextMenuFrame({
   messageId,
   onContextAction,
   chatMenuItems,
+  customEmojis,
 }: {
   messageRow: ReactElement;
   onStashContext: (e: React.MouseEvent) => void;
@@ -42,10 +45,11 @@ export function MessageContextMenuFrame({
   contextStash: MessageContextStash;
   showContextReactionPicker: boolean;
   onShowContextReactionPicker: (open: boolean) => void;
-  onReact: (messageId: string, emoji: string) => void;
+  onReact: (messageId: string, emoji: string, customEmoji?: ReactionCustomEmoji) => void;
   messageId: string;
   onContextAction: (value: string) => void;
   chatMenuItems: ReactNode;
+  customEmojis?: PublicCustomEmoji[];
 }) {
   const { t } = useTranslation();
   const { success, error: toastError } = useToast();
@@ -302,8 +306,18 @@ export function MessageContextMenuFrame({
           <Popover.Content className="emoji-picker-popover emoji-picker-popover--context">
             <EmojiPicker
               compact
-              onEmojiSelect={(result) => {
-                if (result.native) onReact(messageId, result.native);
+              customEmojis={customEmojis}
+              onEmojiSelect={(result: EmojiSelectResult) => {
+                if (result.native) {
+                  onReact(messageId, result.native);
+                } else if (result.custom) {
+                  onReact(messageId, `custom:${result.custom.id}`, {
+                    id: result.custom.id,
+                    url: result.custom.cdnUrl,
+                    name: result.custom.name,
+                    animated: result.custom.animated,
+                  });
+                }
                 onShowContextReactionPicker(false);
               }}
             />

@@ -3,9 +3,9 @@ import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Menu } from '@ark-ui/react';
 import type { DisplayMessage } from '../../hooks/useConversations';
-import type { GroupedReaction } from '../../hooks/useReactions';
+import type { GroupedReaction, ReactionCustomEmoji } from '../../hooks/useReactions';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
-import type { IdentityPublicKeys, PublicIdentity } from '@adieuu/shared';
+import type { IdentityPublicKeys, PublicCustomEmoji, PublicIdentity } from '@adieuu/shared';
 import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { getDeviceSignatureVerification } from '../../services/deviceSignatureVerificationStorage';
 import { parsePayload } from '../../services/messagePayload';
@@ -137,11 +137,12 @@ export const MessageBubble = memo(function MessageBubble({
   peerPublicKeysById = {},
   verificationRevision = 0,
   customEmojisDisabled = false,
+  customEmojis,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
   onDelete: (messageId: string, forEveryone: boolean) => void;
-  onReact: (messageId: string, emoji: string) => void;
+  onReact: (messageId: string, emoji: string, customEmoji?: ReactionCustomEmoji) => void;
   onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
   onReport: (messageId: string) => void;
   groupedReactions: GroupedReaction[];
@@ -172,6 +173,7 @@ export const MessageBubble = memo(function MessageBubble({
   peerPublicKeysById?: Record<string, IdentityPublicKeys>;
   verificationRevision?: number;
   customEmojisDisabled?: boolean;
+  customEmojis?: PublicCustomEmoji[];
 }) {
   const { t } = useTranslation();
   const { block: blockIdentity } = useBlockContext();
@@ -461,6 +463,7 @@ export const MessageBubble = memo(function MessageBubble({
         messageId={message.id}
         onContextAction={handleChatContextAction}
         chatMenuItems={messageContextMenuChatItems}
+        customEmojis={customEmojisDisabled ? undefined : customEmojis}
       />
     );
   }
@@ -623,7 +626,7 @@ export const MessageBubble = memo(function MessageBubble({
             isOwn={isOwn}
             onDeleteForSelf={() => onDelete(message.id, false)}
             onDeleteForEveryone={() => onDelete(message.id, true)}
-            onReact={(emoji) => onReact(message.id, emoji)}
+            onReact={(emoji, ce) => onReact(message.id, emoji, ce)}
             onReport={!isOwn ? () => onReport(message.id) : undefined}
             onBlock={!isOwn ? () => setBlockConfirmOpen(true) : undefined}
             favoriteEmojis={favoriteEmojis}
@@ -636,6 +639,7 @@ export const MessageBubble = memo(function MessageBubble({
             isPinned={isPinned}
             onPin={onPin}
             onUnpin={onUnpin}
+            customEmojis={customEmojisDisabled ? undefined : customEmojis}
           />
         )}
       </div>
@@ -703,7 +707,7 @@ export const MessageBubble = memo(function MessageBubble({
             isOwn={isOwn}
             onDeleteForSelf={() => onDelete(message.id, false)}
             onDeleteForEveryone={() => onDelete(message.id, true)}
-            onReact={(emoji) => onReact(message.id, emoji)}
+            onReact={(emoji, ce) => onReact(message.id, emoji, ce)}
             onReport={!isOwn ? () => onReport(message.id) : undefined}
             onBlock={!isOwn ? () => setBlockConfirmOpen(true) : undefined}
             favoriteEmojis={favoriteEmojis}
@@ -716,6 +720,7 @@ export const MessageBubble = memo(function MessageBubble({
             isPinned={isPinned}
             onPin={onPin}
             onUnpin={onUnpin}
+            customEmojis={customEmojisDisabled ? undefined : customEmojis}
           />
         )}
         <div className={`dm-message-bubble${applyOwnAlignment ? ' dm-message-bubble--own' : ''}`} style={bubbleTintStyle}>

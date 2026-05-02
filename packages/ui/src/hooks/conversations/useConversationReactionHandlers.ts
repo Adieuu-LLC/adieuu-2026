@@ -1,5 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react';
 import type { RecipientKeys } from '../../services/conversationCryptoService';
+import type { ReactionCustomEmoji } from '../../services/reactionCryptoService';
 import type { DisplayMessage } from '../useConversations';
 import type { DecryptedConversation } from './types';
 
@@ -8,7 +9,7 @@ export function useConversationReactionHandlers(params: {
   conversation: DecryptedConversation | undefined;
   activeMessages: DisplayMessage[];
   fetchReactions: (messageIds: string[]) => void | Promise<unknown>;
-  addReaction: (messageId: string, emoji: string, recipients: RecipientKeys[]) => Promise<unknown>;
+  addReaction: (messageId: string, emoji: string, recipients: RecipientKeys[], customEmoji?: ReactionCustomEmoji) => Promise<unknown>;
   removeReaction: (ownReactionId: string, messageId: string) => Promise<unknown>;
   fetchRecipientKeys: (
     participantIds: string[],
@@ -47,7 +48,7 @@ export function useConversationReactionHandlers(params: {
   }, [conversationId, activeMessages, fetchReactions]);
 
   const handleReact = useCallback(
-    async (messageId: string, emoji: string) => {
+    async (messageId: string, emoji: string, customEmoji?: ReactionCustomEmoji) => {
       if (!conversationId || !conversationRef.current) return;
       const key = `${messageId}:${emoji}`;
       if (pendingReactionsRef.current.has(key)) return;
@@ -57,7 +58,7 @@ export function useConversationReactionHandlers(params: {
         const useForwardSecrecy = targetMsg?.forwardSecrecy ?? false;
         const recipients = await fetchRecipientKeys(conversationRef.current.participants, useForwardSecrecy);
         if (recipients.length === 0) return;
-        await addReaction(messageId, emoji, recipients);
+        await addReaction(messageId, emoji, recipients, customEmoji);
         scrollToBottomIfPinned();
       } finally {
         pendingReactionsRef.current.delete(key);

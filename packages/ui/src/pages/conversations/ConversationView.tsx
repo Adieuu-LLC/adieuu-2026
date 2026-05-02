@@ -1019,6 +1019,7 @@ export function ConversationView() {
               onOpenMemberSecurity={openMemberSecurity}
               peerPublicKeysById={peerPublicKeysById}
               verificationRevision={verificationRevision}
+              customEmojis={composerCustomEmojis}
             />
 
             {isDmBlocked && (

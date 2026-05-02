@@ -1,12 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Menu, Portal, Popover } from '@ark-ui/react';
-import { EmojiPicker } from '../../components/EmojiPicker';
+import { EmojiPicker, type EmojiSelectResult } from '../../components/EmojiPicker';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
 import { getEmojiMartShortcodeLabel } from '../../utils/emojiMartShortcode';
+import type { PublicCustomEmoji } from '@adieuu/shared';
+import type { ReactionCustomEmoji } from '../../services/reactionCryptoService';
+import {
+  isCustomEmojiFavorite,
+  customEmojiFavoriteId,
+  toCustomEmojiFavorite,
+} from '../../hooks/useFavoriteEmojis';
 
 export const MESSAGE_ACTION_BAR_POPOVER_POSITIONING = { placement: 'top' as const, gutter: 0 };
+
+function resolveCustomEmojiReaction(
+  result: EmojiSelectResult,
+): { emoji: string; customEmoji?: ReactionCustomEmoji } | null {
+  if (result.native) return { emoji: result.native };
+  if (result.custom) {
+    return {
+      emoji: `custom:${result.custom.id}`,
+      customEmoji: {
+        id: result.custom.id,
+        url: result.custom.cdnUrl,
+        name: result.custom.name,
+        animated: result.custom.animated,
+      },
+    };
+  }
+  return null;
+}
 
 export function MessageActionBar({
   isOwn,
@@ -25,27 +50,25 @@ export function MessageActionBar({
   isPinned = false,
   onPin,
   onUnpin,
+  customEmojis,
 }: {
   isOwn: boolean;
   onDeleteForSelf: () => void;
   onDeleteForEveryone: () => void;
-  onReact: (emoji: string) => void;
+  onReact: (emoji: string, customEmoji?: ReactionCustomEmoji) => void;
   onReport?: () => void;
   onBlock?: () => void;
   favoriteEmojis: string[];
   onAddFavorite: (emoji: string) => void;
   onRemoveFavorite: (emoji: string) => void;
   onReply?: () => void;
-  /**
-   * Show edit: enabled with click handler, or disabled (e.g. max E2E revisions) with a reason for tooltips.
-   * Omit to hide the control entirely.
-   */
   editAction?: { state: 'enabled'; onClick: () => void } | { state: 'disabled'; reason: string };
   onPopoverOpenChange?: (open: boolean) => void;
   canManagePin?: boolean;
   isPinned?: boolean;
   onPin?: () => void;
   onUnpin?: () => void;
+  customEmojis?: PublicCustomEmoji[];
 }) {
   const { t } = useTranslation();
   const [showFavPicker, setShowFavPicker] = useState(false);
@@ -60,6 +83,87 @@ export function MessageActionBar({
       onPopoverOpenChange?.(false);
     };
   }, [onPopoverOpenChange]);
+
+  const customEmojiLookup = useMemo(() => {
+    if (!customEmojis?.length) return new Map<string, PublicCustomEmoji>();
+    return new Map(customEmojis.map((e) => [e.id, e]));
+  }, [customEmojis]);
+
+  function renderFavoriteButton(fav: string) {
+    if (isCustomEmojiFavorite(fav)) {
+      const ceId = customEmojiFavoriteId(fav);
+      const ce = customEmojiLookup.get(ceId);
+      if (!ce) return null;
+      const tooltipLabel = `${ce.name} \u00b7 React \u00b7 Shift+click to remove`;
+      return (
+        <Tooltip key={fav} content={tooltipLabel} position="top">
+          <button
+            type="button"
+            className="message-action-bar-btn message-action-bar-btn--emoji"
+            onClick={(e) => {
+              if (e.shiftKey) {
+                onRemoveFavorite(fav);
+              } else {
+                onReact(`custom:${ce.id}`, {
+                  id: ce.id,
+                  url: ce.cdnUrl,
+                  name: ce.name,
+                  animated: ce.animated,
+                });
+              }
+            }}
+          >
+            <img
+              src={ce.cdnUrl}
+              alt={ce.name}
+              className="message-action-bar-custom-emoji"
+              width={20}
+              height={20}
+              loading="lazy"
+            />
+          </button>
+        </Tooltip>
+      );
+    }
+
+    return (
+      <Tooltip
+        key={fav}
+        content={`${getEmojiMartShortcodeLabel(fav)} \u00b7 React \u00b7 Shift+click to remove`}
+        position="top"
+      >
+        <button
+          type="button"
+          className="message-action-bar-btn message-action-bar-btn--emoji"
+          onClick={(e) => {
+            if (e.shiftKey) {
+              onRemoveFavorite(fav);
+            } else {
+              onReact(fav);
+            }
+          }}
+        >
+          {fav}
+        </button>
+      </Tooltip>
+    );
+  }
+
+  function handleFavPickerSelect(result: EmojiSelectResult) {
+    if (result.native) {
+      onAddFavorite(result.native);
+    } else if (result.custom) {
+      onAddFavorite(toCustomEmojiFavorite(result.custom.id));
+    }
+    setShowFavPicker(false);
+  }
+
+  function handleReactPickerSelect(result: EmojiSelectResult) {
+    const resolved = resolveCustomEmojiReaction(result);
+    if (resolved) {
+      onReact(resolved.emoji, resolved.customEmoji);
+    }
+  }
 
   return (
     <div className={`message-action-bar${isOwn ? ' message-action-bar--own' : ''}`}>
@@ -127,27 +231,7 @@ export function MessageActionBar({
         </Tooltip>
       )}
       <div className="message-action-bar-favorites">
-        {favoriteEmojis.map((emoji) => (
-          <Tooltip
-            key={emoji}
-            content={`${getEmojiMartShortcodeLabel(emoji)} \u00b7 React \u00b7 Shift+click to remove`}
-            position="top"
-          >
-            <button
-              type="button"
-              className="message-action-bar-btn message-action-bar-btn--emoji"
-              onClick={(e) => {
-                if (e.shiftKey) {
-                  onRemoveFavorite(emoji);
-                } else {
-                  onReact(emoji);
-                }
-              }}
-            >
-              {emoji}
-            </button>
-          </Tooltip>
-        ))}
+        {favoriteEmojis.map((fav) => renderFavoriteButton(fav))}
         {favoriteEmojis.length < 3 && (
           <Popover.Root
             open={showFavPicker}
@@ -168,10 +252,8 @@ export function MessageActionBar({
                 <Popover.Content className="emoji-picker-popover">
                   <EmojiPicker
                     compact
-                    onEmojiSelect={(result) => {
-                      if (result.native) onAddFavorite(result.native);
-                      setShowFavPicker(false);
-                    }}
+                    onEmojiSelect={handleFavPickerSelect}
+                    customEmojis={customEmojis}
                   />
                 </Popover.Content>
               </Popover.Positioner>
@@ -194,9 +276,8 @@ export function MessageActionBar({
             <Popover.Content className="emoji-picker-popover">
               <EmojiPicker
                 compact
-                onEmojiSelect={(result) => {
-                  if (result.native) onReact(result.native);
-                }}
+                onEmojiSelect={handleReactPickerSelect}
+                customEmojis={customEmojis}
               />
             </Popover.Content>
           </Popover.Positioner>

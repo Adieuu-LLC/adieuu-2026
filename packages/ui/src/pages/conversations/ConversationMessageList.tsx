@@ -1,9 +1,9 @@
 import { useMemo, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DisplayMessage } from '../../hooks/useConversations';
-import type { GroupedReaction } from '../../hooks/useReactions';
+import type { GroupedReaction, ReactionCustomEmoji } from '../../hooks/useReactions';
 import type { MemberSettingsMap } from '../../services/conversationCryptoService';
-import type { IdentityPublicKeys, PublicIdentity } from '@adieuu/shared';
+import type { IdentityPublicKeys, PublicCustomEmoji, PublicIdentity } from '@adieuu/shared';
 import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
@@ -77,6 +77,7 @@ export function ConversationMessageList({
   onOpenMemberSecurity,
   peerPublicKeysById,
   verificationRevision,
+  customEmojis,
 }: {
   conversationId: string | undefined;
   activeConversationId: string | null;
@@ -94,7 +95,7 @@ export function ConversationMessageList({
   flashingMessageId: string | null;
   getGroupedReactions: (messageId: string) => GroupedReaction[];
   onDeleteMessage: (messageId: string, forEveryone: boolean) => void;
-  onReact: (messageId: string, emoji: string) => void;
+  onReact: (messageId: string, emoji: string, customEmoji?: ReactionCustomEmoji) => void;
   onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
   onReportMessage: (messageId: string) => void;
   onAddFavorite: (emoji: string) => void;
@@ -132,6 +133,7 @@ export function ConversationMessageList({
   onOpenMemberSecurity?: (identityId: string, displayLabel: string) => void;
   peerPublicKeysById: Record<string, IdentityPublicKeys>;
   verificationRevision: number;
+  customEmojis?: PublicCustomEmoji[];
 }) {
   const { t: tLocal } = useTranslation();
 
@@ -309,6 +311,7 @@ export function ConversationMessageList({
             gifsEnabled={ctx.gifsEnabled}
             gifAnimateOnHoverOnly={ctx.gifAnimateOnHoverOnly}
             customEmojisDisabled={customEmojisDisabledByAdmin === true}
+            customEmojis={customEmojis}
             isPinned={pinnedSet.has(msg.id)}
             canManagePin={canManagePins}
             onPin={() => onPinMessage(msg.id)}
@@ -331,6 +334,7 @@ export function ConversationMessageList({
       peerPublicKeysById,
       verificationRevision,
       customEmojisDisabledByAdmin,
+      customEmojis,
     ],
   );
 

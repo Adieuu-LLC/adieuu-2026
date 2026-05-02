@@ -744,6 +744,14 @@
       margin: 0;
       font-size: 2.5rem;
       line-height: 1.2;
+
+      .dm-custom-emoji-standalone {
+        display: inline-block;
+        width: 64px;
+        height: 64px;
+        object-fit: contain;
+        vertical-align: middle;
+      }
     }
 
     &-avatar {
@@ -1047,4 +1055,10 @@
 .message-action-bar-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.message-action-bar-custom-emoji {
+  display: inline-block;
+  vertical-align: middle;
+  object-fit: contain;
 }

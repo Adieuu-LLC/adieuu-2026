@@ -21,6 +21,53 @@ import { IdentityHoverCard } from '../components/IdentityHoverCard';
 import { parseMessageSegments } from './urlParsing';
 
 // ---------------------------------------------------------------------------
+// Emoji-only detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Matches a broad set of Unicode emoji: emoticons, dingbats, symbols,
+ * supplemental symbols, regional indicators, variation selectors, ZWJ, skin
+ * tone modifiers, and keycap sequences. Greedy + global so we can strip all
+ * emoji from a string in one pass.
+ */
+const UNICODE_EMOJI_RE =
+  /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}\u{2300}-\u{23FF}\u{2B05}-\u{2B07}\u{2B1B}\u{2B1C}\u{2B50}\u{2B55}\u{3030}\u{303D}\u{3297}\u{3299}\u{FE0E}\u{FE0F}\u{200C}\u{200D}]+/gu;
+
+/**
+ * Returns `true` when `text` consists exclusively of emoji (native Unicode
+ * and/or known custom `:shortcode:` tokens) and whitespace -- i.e. the user
+ * sent a standalone emoji message with no prose.
+ *
+ * Returns `false` for anything with markdown formatting, code blocks, lists,
+ * URLs, or mention markers.
+ */
+export function isEmojiOnlyMessage(
+  text: string,
+  customEmojis?: Record<string, CustomEmojiPayloadEntry>,
+): boolean {
+  if (!text) return false;
+
+  const blocks = parseBlocks(text);
+  if (blocks.length !== 1 || blocks[0]!.type !== 'paragraph') return false;
+
+  let remaining = blocks[0]!.content;
+
+  if (remaining.includes(MENTION_START)) return false;
+
+  if (customEmojis && Object.keys(customEmojis).length > 0) {
+    const pattern = createCustomEmojiColonTokenRegex();
+    remaining = remaining.replace(pattern, (full, sc: string) => {
+      const key = sc?.toLowerCase();
+      return key && customEmojis[key] ? '' : full;
+    });
+  }
+
+  remaining = remaining.replace(UNICODE_EMOJI_RE, '');
+
+  return remaining.trim().length === 0;
+}
+
+// ---------------------------------------------------------------------------
 // Block-level parsing
 // ---------------------------------------------------------------------------
 
@@ -372,6 +419,7 @@ function injectCustomEmojis(
   node: ReactNode,
   emojis: Record<string, CustomEmojiPayloadEntry>,
   keyRef: { k: number },
+  emojiOnly = false,
 ): ReactNode {
   if (typeof node === 'string') {
     const pattern = createCustomEmojiColonTokenRegex();
@@ -392,9 +440,9 @@ function injectCustomEmojis(
           src: entry.url,
           alt: `:${sc}:`,
           title: entry.name,
-          className: 'dm-custom-emoji-inline',
-          width: 20,
-          height: 20,
+          className: emojiOnly ? 'dm-custom-emoji-standalone' : 'dm-custom-emoji-inline',
+          width: emojiOnly ? 64 : 20,
+          height: emojiOnly ? 64 : 20,
           loading: 'lazy',
         }),
       );
@@ -406,7 +454,7 @@ function injectCustomEmojis(
   }
 
   if (Array.isArray(node)) {
-    return node.map((child) => injectCustomEmojis(child, emojis, keyRef));
+    return node.map((child) => injectCustomEmojis(child, emojis, keyRef, emojiOnly));
   }
 
   if (isValidElement(node)) {
@@ -417,7 +465,7 @@ function injectCustomEmojis(
     }
     const children = el.props.children;
     if (children == null) return node;
-    const mapped = injectCustomEmojis(children, emojis, keyRef);
+    const mapped = injectCustomEmojis(children, emojis, keyRef, emojiOnly);
     if (mapped === children) return node;
     return cloneElement(el, { children: mapped });
   }
@@ -437,14 +485,17 @@ export function renderFormattedMessage(
   const blocks = parseBlocks(text);
   if (blocks.length === 0) return null;
 
+  const emojiOnly = isEmojiOnlyMessage(text, customEmojis);
+  const wrapperClass = emojiOnly ? 'dm-message-text dm-message-emoji-only' : 'dm-message-text';
+
   let content: ReactNode = (
-    <div className="dm-message-text">
+    <div className={wrapperClass}>
       {blocks.map((block) => renderBlock(block, ctx))}
     </div>
   );
 
   if (customEmojis && Object.keys(customEmojis).length > 0) {
-    content = injectCustomEmojis(content, customEmojis, { k: ctx.k });
+    content = injectCustomEmojis(content, customEmojis, { k: ctx.k }, emojiOnly);
   }
 
   return content;
