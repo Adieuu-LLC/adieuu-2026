@@ -143,7 +143,12 @@ export const MessageBubble = memo(function MessageBubble({
   isOwn: boolean;
   onDelete: (messageId: string, forEveryone: boolean) => void;
   onReact: (messageId: string, emoji: string, customEmoji?: ReactionCustomEmoji) => void;
-  onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
+  onToggleReaction: (
+    messageId: string,
+    emoji: string,
+    ownReactionId?: string,
+    customEmoji?: ReactionCustomEmoji,
+  ) => void;
   onReport: (messageId: string) => void;
   groupedReactions: GroupedReaction[];
   favoriteEmojis: string[];

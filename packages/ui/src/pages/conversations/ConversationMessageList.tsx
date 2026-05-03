@@ -96,7 +96,12 @@ export function ConversationMessageList({
   getGroupedReactions: (messageId: string) => GroupedReaction[];
   onDeleteMessage: (messageId: string, forEveryone: boolean) => void;
   onReact: (messageId: string, emoji: string, customEmoji?: ReactionCustomEmoji) => void;
-  onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
+  onToggleReaction: (
+    messageId: string,
+    emoji: string,
+    ownReactionId?: string,
+    customEmoji?: ReactionCustomEmoji,
+  ) => void;
   onReportMessage: (messageId: string) => void;
   onAddFavorite: (emoji: string) => void;
   onRemoveFavorite: (emoji: string) => void;

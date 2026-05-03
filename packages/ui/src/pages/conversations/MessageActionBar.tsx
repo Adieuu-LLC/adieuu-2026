@@ -251,7 +251,6 @@ export function MessageActionBar({
               <Popover.Positioner>
                 <Popover.Content className="emoji-picker-popover">
                   <EmojiPicker
-                    compact
                     onEmojiSelect={handleFavPickerSelect}
                     customEmojis={customEmojis}
                   />
@@ -275,7 +274,6 @@ export function MessageActionBar({
           <Popover.Positioner>
             <Popover.Content className="emoji-picker-popover">
               <EmojiPicker
-                compact
                 onEmojiSelect={handleReactPickerSelect}
                 customEmojis={customEmojis}
               />

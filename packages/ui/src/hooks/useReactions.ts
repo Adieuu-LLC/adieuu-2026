@@ -338,6 +338,7 @@ export function useReactions(conversationId: string | null) {
             conversationId: resp.data.conversationId,
             fromIdentityId: identity.id,
             emoji,
+            ...(customEmoji ? { customEmoji } : {}),
             verified: true,
             createdAt: resp.data.createdAt,
           };

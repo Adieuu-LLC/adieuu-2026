@@ -24,14 +24,19 @@ export const ReactionChip = memo(
     isOwn: boolean;
     ownReactionId: string | undefined;
     tooltipContent: string;
-    onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
+    onToggleReaction: (
+      messageId: string,
+      emoji: string,
+      ownReactionId?: string,
+      customEmoji?: ReactionCustomEmoji,
+    ) => void;
   }) {
     const prevCountRef = useRef<number | null>(null);
     const [countTick, setCountTick] = useState<'up' | 'down' | null>(null);
 
     const handleClick = useCallback(() => {
-      onToggleReaction(messageId, emoji, ownReactionId);
-    }, [messageId, emoji, ownReactionId, onToggleReaction]);
+      onToggleReaction(messageId, emoji, ownReactionId, ownReactionId ? undefined : customEmoji);
+    }, [messageId, emoji, ownReactionId, customEmoji, onToggleReaction]);
 
     useLayoutEffect(() => {
       const prev = prevCountRef.current;
@@ -83,6 +88,7 @@ export const ReactionChip = memo(
     prev.isOwn === next.isOwn &&
     prev.ownReactionId === next.ownReactionId &&
     prev.tooltipContent === next.tooltipContent &&
+    prev.customEmoji?.id === next.customEmoji?.id &&
     prev.onToggleReaction === next.onToggleReaction
 );
 
@@ -96,7 +102,12 @@ export const ReactionBar = memo(function ReactionBar({
 }: {
   messageId: string;
   reactions: GroupedReaction[];
-  onToggleReaction: (messageId: string, emoji: string, ownReactionId?: string) => void;
+  onToggleReaction: (
+    messageId: string,
+    emoji: string,
+    ownReactionId?: string,
+    customEmoji?: ReactionCustomEmoji,
+  ) => void;
   participantProfiles: Record<string, PublicIdentity>;
   memberSettings: MemberSettingsMap;
   currentIdentityId: string | undefined;
@@ -129,8 +140,15 @@ export const ReactionBar = memo(function ReactionBar({
   const nr = next.reactions;
   if (pr.length !== nr.length) return false;
   for (let i = 0; i < pr.length; i++) {
-    if (pr[i]!.emoji !== nr[i]!.emoji || pr[i]!.count !== nr[i]!.count ||
-        pr[i]!.isOwn !== nr[i]!.isOwn || pr[i]!.ownReactionId !== nr[i]!.ownReactionId) return false;
+    if (
+      pr[i]!.emoji !== nr[i]!.emoji ||
+      pr[i]!.count !== nr[i]!.count ||
+      pr[i]!.isOwn !== nr[i]!.isOwn ||
+      pr[i]!.ownReactionId !== nr[i]!.ownReactionId ||
+      pr[i]!.customEmoji?.id !== nr[i]!.customEmoji?.id
+    ) {
+      return false;
+    }
   }
   return true;
 });

@@ -2,8 +2,8 @@
  * EmojiPicker component wrapping @emoji-mart/react.
  *
  * Provides a themed emoji picker that integrates with the app's
- * CSS custom properties. Compact mode is used for reactions (smaller grid,
- * no category nav); full mode for the composer. Search is shown in both.
+ * CSS custom properties. The same picker is used in the composer and
+ * reaction menus; popovers constrain height via `.emoji-picker-popover`.
  *
  * When customEmojis are provided, a "Custom" category appears at the end
  * of the picker's category nav.
@@ -29,7 +29,6 @@ export interface EmojiSelectResult {
 
 export interface EmojiPickerProps {
   onEmojiSelect: (result: EmojiSelectResult) => void;
-  compact?: boolean;
   autoFocus?: boolean;
   customEmojis?: PublicCustomEmoji[];
 }
@@ -43,7 +42,6 @@ interface EmojiMartEmojiData {
 
 export function EmojiPicker({
   onEmojiSelect,
-  compact = false,
   autoFocus = true,
   customEmojis,
 }: EmojiPickerProps) {
@@ -103,7 +101,7 @@ export function EmojiPicker({
   );
 
   return (
-    <div className={`emoji-picker-wrapper${compact ? ' emoji-picker-wrapper--compact' : ''}`}>
+    <div className="emoji-picker-wrapper">
       <Picker
         key={pickerInstanceKey}
         data={data}
@@ -111,11 +109,11 @@ export function EmojiPicker({
         theme="dark"
         set="native"
         autoFocus={autoFocus}
-        perLine={compact ? 7 : 9}
-        maxFrequentRows={compact ? 1 : 4}
+        perLine={9}
+        maxFrequentRows={4}
         previewPosition="bottom"
-        skinTonePosition={compact ? 'none' : 'preview'}
-        navPosition={compact ? 'none' : 'top'}
+        skinTonePosition="preview"
+        navPosition="top"
         searchPosition="sticky"
         custom={customCategory}
       />

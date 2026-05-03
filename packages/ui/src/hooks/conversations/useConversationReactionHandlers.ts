@@ -68,7 +68,12 @@ export function useConversationReactionHandlers(params: {
   );
 
   const handleToggleReaction = useCallback(
-    async (messageId: string, emoji: string, ownReactionId?: string) => {
+    async (
+      messageId: string,
+      emoji: string,
+      ownReactionId?: string,
+      customEmoji?: ReactionCustomEmoji,
+    ) => {
       const key = `${messageId}:${emoji}`;
       if (pendingReactionsRef.current.has(key)) return;
       if (ownReactionId) {
@@ -80,7 +85,7 @@ export function useConversationReactionHandlers(params: {
           pendingReactionsRef.current.delete(key);
         }
       } else {
-        await handleReact(messageId, emoji);
+        await handleReact(messageId, emoji, customEmoji);
       }
     },
     [removeReaction, handleReact, scrollToBottomIfPinned]

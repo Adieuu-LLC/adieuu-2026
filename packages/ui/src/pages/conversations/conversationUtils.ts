@@ -105,7 +105,9 @@ export function buildReactionTooltip(
   settings: MemberSettingsMap,
   currentIdentityId: string | undefined,
 ): string {
-  const shortcode = getEmojiMartShortcodeLabel(reaction.emoji);
+  const shortcode = reaction.customEmoji
+    ? `:${reaction.customEmoji.name}:`
+    : getEmojiMartShortcodeLabel(reaction.emoji);
   const MAX_NAMED = 3;
 
   const names: string[] = [];

@@ -438,6 +438,7 @@
   background: var(--color-bg-secondary);
 
   em-emoji-picker {
+    max-height: 400px;
     --rgb-background: var(--color-bg-secondary-rgb);
     --rgb-input: var(--color-bg-tertiary-rgb);
     --rgb-color: var(--color-text-primary-rgb);
@@ -472,12 +473,6 @@
   &:hover {
     background: var(--color-bg-hover);
     color: var(--color-text-primary);
-  }
-}
-
-.emoji-picker-wrapper {
-  &--compact em-emoji-picker {
-    max-height: 400px;
   }
 }
 
