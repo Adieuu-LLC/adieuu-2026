@@ -314,6 +314,7 @@ export function MessageContextMenuFrame({
                     id: result.custom.id,
                     url: result.custom.cdnUrl,
                     name: result.custom.name,
+                    shortcode: result.custom.shortcode,
                     animated: result.custom.animated,
                   });
                 }

@@ -105,8 +105,8 @@ export function buildReactionTooltip(
   settings: MemberSettingsMap,
   currentIdentityId: string | undefined,
 ): string {
-  const shortcode = reaction.customEmoji
-    ? `:${reaction.customEmoji.name}:`
+  const shortcodeLabel = reaction.customEmoji
+    ? `:${reaction.customEmoji.shortcode ?? reaction.customEmoji.name}:`
     : getEmojiMartShortcodeLabel(reaction.emoji);
   const MAX_NAMED = 3;
 
@@ -123,7 +123,7 @@ export function buildReactionTooltip(
   let label = names.join(', ');
   if (othersCount > 0) label += ` + ${othersCount} other${othersCount === 1 ? '' : 's'}`;
 
-  return `${label} reacted with ${shortcode}`;
+  return `${label} reacted with ${shortcodeLabel}`;
 }
 
 export function formatRotationInterval(ms: number): string {

@@ -26,6 +26,7 @@ function resolveCustomEmojiReaction(
         id: result.custom.id,
         url: result.custom.cdnUrl,
         name: result.custom.name,
+        shortcode: result.custom.shortcode,
         animated: result.custom.animated,
       },
     };
@@ -108,6 +109,7 @@ export function MessageActionBar({
                   id: ce.id,
                   url: ce.cdnUrl,
                   name: ce.name,
+                  shortcode: ce.shortcode,
                   animated: ce.animated,
                 });
               }

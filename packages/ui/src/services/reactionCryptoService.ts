@@ -60,6 +60,8 @@ export interface ReactionCustomEmoji {
   id: string;
   url: string;
   name: string;
+  /** Text between colons in messages, e.g. `gandalfyes` for `:gandalfyes:`. Omitted in legacy ciphertext. */
+  shortcode?: string;
   animated: boolean;
 }
 
