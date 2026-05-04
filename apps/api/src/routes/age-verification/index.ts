@@ -13,6 +13,8 @@ import {
   checkVerificationStatus,
 } from '../../services/age-verification/age-verification.service';
 import { isAgeVerificationEnabled } from '../../services/age-verification/av-settings';
+import { resolveEffectiveAccess } from '../../services/billing/resolve-access';
+import { evaluateBillingAccess } from '../../middleware/require-subscription';
 import { createHmac } from 'crypto';
 import { config } from '../../config';
 import { constantTimeCompare } from '../../utils/crypto';
@@ -38,6 +40,18 @@ router.post('/age-verification/start', async (ctx) => {
   const userRepo = getUserRepository();
   const user = await userRepo.findById(session.userId);
   if (!user) return ctx.errors.unauthorized();
+
+  const resolved = resolveEffectiveAccess(user);
+  const billingDenial = evaluateBillingAccess(resolved, user.billing);
+  if (billingDenial) {
+    return errorResponse(
+      billingDenial,
+      billingDenial === 'SUBSCRIPTION_REQUIRED'
+        ? 'An active subscription is required to start age verification.'
+        : 'Your subscription has expired. Please renew to start age verification.',
+      403,
+    );
+  }
 
   const jurisdiction = user.geo?.jurisdiction
     ?? user.geo?.countryCode?.toUpperCase()
@@ -290,6 +304,7 @@ function verifyWebhookSignature(rawBody: string, authHeader: string): boolean {
 
 function callbackHtml(status: string, errorMessage?: string): string {
   const data = JSON.stringify({ type: 'age-verification-callback', status, error: errorMessage });
+  const targetOrigin = JSON.stringify(config.webAppUrl);
   return `<!DOCTYPE html>
 <html><head><title>Verification Complete</title></head>
 <body>
@@ -297,7 +312,7 @@ function callbackHtml(status: string, errorMessage?: string): string {
 <script>
 try {
   if (window.opener) {
-    window.opener.postMessage(${data}, '*');
+    window.opener.postMessage(${data}, ${targetOrigin});
   }
 } catch(e) {}
 setTimeout(function() { window.close(); }, 2000);

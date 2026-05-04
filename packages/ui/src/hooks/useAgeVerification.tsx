@@ -225,9 +225,11 @@ export function useAgeVerification(): UseAgeVerificationReturn {
     [startFlow],
   );
 
-  // Listen for postMessage from callback page
+  // Listen for postMessage from callback page (origin-checked)
   useEffect(() => {
+    const expectedOrigin = apiBaseUrl || window.location.origin;
     const handler = (event: MessageEvent) => {
+      if (event.origin !== expectedOrigin) return;
       if (event.data?.type === 'age-verification-callback') {
         const callbackStatus = event.data.status;
         if (callbackStatus === 'approved' || callbackStatus === 'failed' || callbackStatus === 'expired') {
@@ -239,7 +241,7 @@ export function useAgeVerification(): UseAgeVerificationReturn {
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [refreshSession, stopPolling]);
+  }, [apiBaseUrl, refreshSession, stopPolling]);
 
   // Cleanup on unmount
   useEffect(() => () => stopPolling(), [stopPolling]);

@@ -60,6 +60,7 @@ import { resolveEffectiveAccess } from '../../services/billing/resolve-access';
 import { evaluateAliasGate, type AliasGateResult } from '../../services/age-verification/alias-gate';
 import { isAgeVerificationEnabled } from '../../services/age-verification/av-settings';
 import { checkVerificationStatus } from '../../services/age-verification/age-verification.service';
+import { initiateBackgroundCheck } from '../../services/age-verification/background-check.service';
 import type { AgeVerificationStatus } from '../../models/user';
 
 /** OTP expiration time in minutes */
@@ -456,6 +457,10 @@ async function findOrCreateUser(
     identifierType,
   });
 
+  if (identifierType === 'email') {
+    void initiateBackgroundCheck(newUser);
+  }
+
   return newUser;
 }
 
@@ -711,7 +716,7 @@ export async function getSessionHandler(
   preloadedUser?: UserDocument,
 ): Promise<{
   session: AccountSessionData;
-  signedToken: string;
+  signedToken: string | undefined;
   identityCount: number;
   maskedIp?: string;
   geo?: { jurisdiction: string; countryCode: string; regionCode?: string; checkedAt: string };
@@ -871,7 +876,9 @@ export async function getSessionHandler(
     }
   }
 
-  return { session, signedToken, identityCount, maskedIp, geo, subscriptions, entitlements, ageVerification, aliasGate };
+  const effectiveToken = aliasGate && !aliasGate.allowed ? undefined : signedToken;
+
+  return { session, signedToken: effectiveToken, identityCount, maskedIp, geo, subscriptions, entitlements, ageVerification, aliasGate };
 }
 
 /**

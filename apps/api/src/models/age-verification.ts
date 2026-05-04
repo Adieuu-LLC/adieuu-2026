@@ -33,4 +33,6 @@ export interface AgeVerificationDocument extends BaseDocument {
   redirectUrl?: string;
   /** Whether this verification was user-initiated via opt-in. */
   optedIn: boolean;
+  /** Whether this attempt was a silent background-only check (no interactive redirect). */
+  backgroundOnly?: boolean;
 }
