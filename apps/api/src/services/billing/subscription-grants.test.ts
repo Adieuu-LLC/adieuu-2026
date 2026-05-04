@@ -94,9 +94,10 @@ describe('subscription-grants round-trip', () => {
     expect(result.entitlements.vanguard).toBe('expired');
   });
 
-  test('exactly 0s in the future = expiring_soon', () => {
-    const now = Math.floor(Date.now() / 1000);
-    const payload: Record<string, number> = { access: now + 1 };
+  // Ceil avoids floor+1 collapsing to <1s of wall time before expiry; evaluate uses Date.now() ms.
+  test('expiry next full second after now = expiring_soon', () => {
+    const access = Math.ceil(Date.now() / 1000) + 1;
+    const payload: Record<string, number> = { access };
     const { ciphertext, key } = encryptGrants(payload);
     const result = evaluateSubscriptionGrants(ciphertext, key);
     expect(result.subscriptions.access).toBe('expiring_soon');
