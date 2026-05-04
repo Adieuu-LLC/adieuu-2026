@@ -123,18 +123,66 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Get current version from latest tag
+      - name: Resolve current version baseline
         if: steps.check_release.outputs.skip != 'true'
         id: current
         run: |
           LAST_TAG=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo "")
           if [ -n "$LAST_TAG" ]; then
-            CURRENT_VERSION="${LAST_TAG#v}"
+            TAG_VERSION="${LAST_TAG#v}"
           else
-            CURRENT_VERSION="0.0.0"
+            TAG_VERSION="0.0.0"
           fi
-          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-          echo "Current version (from tag ${LAST_TAG:-none}): $CURRENT_VERSION"
+
+          # Baseline = max(tag, max(package.json versions in release-managed packages)).
+          # Lets you advance package.json ahead of tags (or vice versa) without the lower one blocking bumps.
+          TAG_VERSION="$TAG_VERSION" node <<'NODE'
+          const fs = require('fs');
+          const tagVersion = process.env.TAG_VERSION || '0.0.0';
+          const paths = [
+            'apps/desktop/package.json',
+            'apps/web/package.json',
+            'apps/api/package.json',
+            'apps/mobile/package.json',
+            'apps/chat/package.json',
+            'packages/shared/package.json',
+            'packages/ui/package.json',
+          ];
+          function parse(v) {
+            const parts = String(v).trim().split('.');
+            const n = (i) => {
+              const x = parseInt(parts[i], 10);
+              return Number.isFinite(x) ? x : 0;
+            };
+            return [n(0), n(1), n(2)];
+          }
+          function cmp(a, b) {
+            const A = parse(a);
+            const B = parse(b);
+            for (let i = 0; i < 3; i++) {
+              if (A[i] !== B[i]) return A[i] - B[i];
+            }
+            return 0;
+          }
+          let pkgMax = '0.0.0';
+          for (const p of paths) {
+            try {
+              const v = JSON.parse(fs.readFileSync(p, 'utf8')).version;
+              if (typeof v === 'string' && cmp(v, pkgMax) > 0) pkgMax = v;
+            } catch {
+              /* ignore missing or invalid */
+            }
+          }
+          const baseline = cmp(tagVersion, pkgMax) >= 0 ? tagVersion : pkgMax;
+          const out = process.env.GITHUB_OUTPUT;
+          if (!out) throw new Error('GITHUB_OUTPUT is not set');
+          fs.appendFileSync(out, `version=${baseline}\n`);
+          fs.appendFileSync(out, `tag_version=${tagVersion}\n`);
+          fs.appendFileSync(out, `package_max_version=${pkgMax}\n`);
+          console.log(
+            `Baseline: max(tag=${tagVersion}, packages=${pkgMax}) => ${baseline}`,
+          );
+          NODE
 
       - name: Determine version bump
         if: steps.check_release.outputs.skip != 'true'
@@ -228,7 +276,7 @@ jobs:
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
 
           # Update all app package.json files
-          for pkg in apps/desktop apps/web apps/api apps/mobile; do
+          for pkg in apps/desktop apps/web apps/api apps/mobile apps/chat; do
             if [ -f "$pkg/package.json" ]; then
               node -e "
                 const fs = require('fs');

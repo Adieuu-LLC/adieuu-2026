@@ -593,6 +593,8 @@ jobs:
             path: apps/api
           - app: web
             path: apps/web
+          - app: chat
+            path: apps/chat
           - app: desktop
             path: apps/desktop
           - app: mobile
