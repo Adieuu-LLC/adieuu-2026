@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * Tests for the silent background email age check triggered at account creation.
+ * Tests for the silent background email age check triggered after subscription checkout.
  */
 import { describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
@@ -28,9 +28,11 @@ mock.module('./providers', () => ({
 }));
 
 const mockIsAgeVerificationEnabled = mock(() => Promise.resolve(true)) as AnyMock;
+const mockIsAutoEmailBackgroundCheckEnabled = mock(() => Promise.resolve(true)) as AnyMock;
 
 mock.module('./av-settings', () => ({
   isAgeVerificationEnabled: mockIsAgeVerificationEnabled,
+  isAutoEmailBackgroundCheckEnabled: mockIsAutoEmailBackgroundCheckEnabled,
 }));
 
 const mockCreateVerification = mock(async (input: unknown) => ({
@@ -103,11 +105,13 @@ describe('initiateBackgroundCheck', () => {
   beforeEach(() => {
     mockStartVerification.mockReset();
     mockIsAgeVerificationEnabled.mockReset();
+    mockIsAutoEmailBackgroundCheckEnabled.mockClear();
     mockCreateVerification.mockReset();
     mockUpdateStatus.mockReset();
     mockUpdateAgeVerification.mockReset();
 
     mockIsAgeVerificationEnabled.mockResolvedValue(true);
+    mockIsAutoEmailBackgroundCheckEnabled.mockImplementation(async () => true);
     mockStartVerification.mockImplementation(async () => ({
       verificationId: 'pv-bg-123',
       status: 'started' as const,
@@ -157,6 +161,15 @@ describe('initiateBackgroundCheck', () => {
     expect(mockUpdateAgeVerification).toHaveBeenCalledTimes(1);
     const avUpdate = mockUpdateAgeVerification.mock.calls[0]![1] as any;
     expect(avUpdate.status).toBe('pending');
+  });
+
+  test('does nothing when automatic email background check is disabled', async () => {
+    mockIsAutoEmailBackgroundCheckEnabled.mockImplementation(async () => false);
+
+    const user = makeUser();
+    await initiateBackgroundCheck(user);
+
+    expect(mockStartVerification).not.toHaveBeenCalled();
   });
 
   test('does nothing when AV is disabled', async () => {

@@ -14,6 +14,8 @@ export const PLATFORM_SETTING_KEYS = {
   GEO_LOOKUP_ENABLED: 'platform-geo-lookup-enabled',
   /** Whether age verification enforcement is active. */
   AGE_VERIFICATION_ENABLED: 'platform-age-verification-enabled',
+  /** Whether silent post-subscription email background age checks run automatically. */
+  AGE_VERIFICATION_AUTO_EMAIL_CHECK: 'platform-age-verification-auto-email-check',
   /** Active age verification provider id (default: 'verifymy'). */
   AGE_VERIFICATION_ACTIVE_PROVIDER: 'platform-age-verification-active-provider',
   /** VerifyMy environment override ('sandbox' | 'production'). */

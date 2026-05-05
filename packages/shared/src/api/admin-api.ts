@@ -9,6 +9,7 @@ export const PLATFORM_SETTING_KEYS = {
   ADMIN_ACCOUNT_LIST: 'platform-admin-account-list',
   MODERATOR_ACCOUNT_LIST: 'platform-moderator-account-list',
   AGE_VERIFICATION_ENABLED: 'platform-age-verification-enabled',
+  AGE_VERIFICATION_AUTO_EMAIL_CHECK: 'platform-age-verification-auto-email-check',
   AGE_VERIFICATION_ACTIVE_PROVIDER: 'platform-age-verification-active-provider',
   AGE_VERIFICATION_VERIFYMY_ENV: 'platform-age-verification-verifymy-env',
   AGE_VERIFICATION_REQUIRED_MODE: 'platform-age-verification-required-mode',

@@ -15,6 +15,7 @@ export function AdminAgeVerification() {
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
   const [enabled, setEnabled] = useState(false);
+  const [autoEmailBackgroundCheck, setAutoEmailBackgroundCheck] = useState(false);
   const [provider, setProvider] = useState('verifymy');
   const [environment, setEnvironment] = useState('sandbox');
   const [requiredMode, setRequiredMode] = useState('jurisdictions');
@@ -43,6 +44,9 @@ export function AdminAgeVerification() {
 
     const e = map.get(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_ENABLED);
     setEnabled(e?.valueType === 'boolean' ? Boolean(e.value) : false);
+
+    const autoBg = map.get(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_AUTO_EMAIL_CHECK);
+    setAutoEmailBackgroundCheck(autoBg?.valueType === 'boolean' ? Boolean(autoBg.value) : false);
 
     const p = map.get(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_ACTIVE_PROVIDER);
     setProvider(p?.valueType === 'string' ? String(p.value) : 'verifymy');
@@ -94,6 +98,12 @@ export function AdminAgeVerification() {
         valueType: 'boolean',
         value: enabled,
         description: 'Whether age verification enforcement is active',
+      }),
+      api.admin.putPlatformSetting(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_AUTO_EMAIL_CHECK, {
+        valueType: 'boolean',
+        value: autoEmailBackgroundCheck,
+        description:
+          'Automatically start silent email background age verification after checkout (requires enforcement enabled)',
       }),
       api.admin.putPlatformSetting(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_ACTIVE_PROVIDER, {
         valueType: 'string',
@@ -170,6 +180,18 @@ export function AdminAgeVerification() {
               <span>{t('compliance.admin.enabledLabel')}</span>
             </label>
             <p className="admin-hint">{t('compliance.admin.enabledDescription')}</p>
+          </Card>
+
+          <Card className="admin-card">
+            <label className="admin-toggle">
+              <input
+                type="checkbox"
+                checked={autoEmailBackgroundCheck}
+                onChange={(e) => setAutoEmailBackgroundCheck(e.target.checked)}
+              />
+              <span>{t('compliance.admin.autoEmailBgLabel')}</span>
+            </label>
+            <p className="admin-hint">{t('compliance.admin.autoEmailBgDescription')}</p>
           </Card>
 
           <Card className="admin-card">

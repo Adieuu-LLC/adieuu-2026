@@ -21,6 +21,7 @@ import { getUserRepository } from '../../repositories/user.repository';
 import { getCollection, Collections } from '../../db';
 import type { UserDocument, UserBilling } from '../../models/user';
 import elog from '../../utils/adieuuLogger';
+import { initiateBackgroundCheck } from '../age-verification/background-check.service';
 
 /** Thrown when Stripe is enabled but a required price id env var is missing (ops misconfiguration). */
 export class BillingConfigurationError extends Error {
@@ -480,6 +481,8 @@ async function handleSubscriptionEvent(
   const billing = await deriveSubscriptionBilling(stripe, subscription.id, user.billing);
   await userRepo.updateBilling(user._id, billing);
 
+  void initiateBackgroundCheck(user);
+
   elog.info('Billing updated from Stripe subscription event', {
     userId,
     subscriptionId: subscription.id,
@@ -518,6 +521,8 @@ async function handleCheckoutCompleted(
     const billing = await deriveSubscriptionBilling(stripe, subscriptionId, user.billing);
     await userRepo.updateBilling(user._id, billing);
 
+    void initiateBackgroundCheck(user);
+
     elog.info('Billing created from subscription checkout', {
       userId,
       subscriptionId,
@@ -548,6 +553,8 @@ async function handleCheckoutCompleted(
 
     const billing = deriveLifetimeBilling(priceIds, paymentIntentId, user.billing);
     await userRepo.updateBilling(user._id, billing);
+
+    void initiateBackgroundCheck(user);
 
     elog.info('Billing created from one-time purchase checkout', {
       userId,

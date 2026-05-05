@@ -490,6 +490,10 @@ export function validateProductionConfig(): void {
 
   const errors: string[] = [];
 
+  if (process.env.DEV_CLIENT_IP?.trim()) {
+    errors.push('DEV_CLIENT_IP must not be set in production');
+  }
+
   // Check security secrets aren't defaults
   if (config.security.csrfSecret.includes('dev-')) {
     errors.push('CSRF_SECRET must be set in production');

@@ -60,7 +60,6 @@ import { resolveEffectiveAccess } from '../../services/billing/resolve-access';
 import { evaluateAliasGate, type AliasGateResult } from '../../services/age-verification/alias-gate';
 import { isAgeVerificationEnabled } from '../../services/age-verification/av-settings';
 import { checkVerificationStatus } from '../../services/age-verification/age-verification.service';
-import { initiateBackgroundCheck } from '../../services/age-verification/background-check.service';
 import type { AgeVerificationStatus } from '../../models/user';
 
 /** OTP expiration time in minutes */
@@ -333,6 +332,17 @@ function buildMagicLink(identifier: string, otp: string): string {
   return `${config.webAppUrl}/auth/verify?t=${token}`;
 }
 
+/** Dev-only env: pretend every request originates from this IP (geo, rate limits). Ignored in production. */
+const DEV_CLIENT_IP_ENV = 'DEV_CLIENT_IP';
+
+function sanitizeDevClientIp(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const t = value.trim();
+  if (!t || t.length > 45) return undefined;
+  if (/[\s\r\n\u0000]/.test(t)) return undefined;
+  return t;
+}
+
 /**
  * Extracts the client's IP address from the request, handling reverse proxy headers.
  *
@@ -343,7 +353,10 @@ function buildMagicLink(identifier: string, otp: string): string {
  * @returns The client's IP address, or '127.0.0.1' if it cannot be determined
  *
  * @remarks
- * Header priority:
+ * Non-production: when `DEV_CLIENT_IP` is set to a sanitized public IP, that value wins
+ * (local testing for jurisdiction / age verification without trusting client headers).
+ *
+ * Header priority (when no dev emulation):
  * 1. `X-Real-IP` - Set by Caddy and some proxies
  * 2. `X-Forwarded-For` - Standard proxy header (first IP in chain)
  * 3. Fallback to localhost if no headers present
@@ -353,6 +366,11 @@ function buildMagicLink(identifier: string, otp: string): string {
  * reverse proxy. Ensure your proxy configuration overwrites these headers.
  */
 export function getClientIp(request: Request): string {
+  if (config.env !== 'production') {
+    const emulated = sanitizeDevClientIp(process.env[DEV_CLIENT_IP_ENV]);
+    if (emulated) return emulated;
+  }
+
   // Check X-Real-IP header (set by Caddy)
   const realIp = request.headers.get('X-Real-IP');
   if (realIp) return realIp;
@@ -456,10 +474,6 @@ async function findOrCreateUser(
     userId: newUser._id.toHexString(),
     identifierType,
   });
-
-  if (identifierType === 'email') {
-    void initiateBackgroundCheck(newUser);
-  }
 
   return newUser;
 }

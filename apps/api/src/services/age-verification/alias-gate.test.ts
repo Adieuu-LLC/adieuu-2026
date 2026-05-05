@@ -10,8 +10,11 @@ const mockGetRequiredMode = mock(() => Promise.resolve('jurisdictions' as 'juris
 const mockRequiresAgeVerification = mock((_j: string) => Promise.resolve(false));
 const mockGetAgeVerificationPolicy = mock((_j: string) => Promise.resolve(null as null | { leastInvasiveMethod: string }));
 
+const mockIsAutoEmailBackgroundCheckEnabled = mock(() => Promise.resolve(false));
+
 mock.module('./av-settings', () => ({
   isAgeVerificationEnabled: mockIsAgeVerificationEnabled,
+  isAutoEmailBackgroundCheckEnabled: mockIsAutoEmailBackgroundCheckEnabled,
   getBlockedJurisdictions: mockGetBlockedJurisdictions,
   getLawLinkForJurisdiction: mockGetLawLinkForJurisdiction,
   getRequiredMode: mockGetRequiredMode,
@@ -38,6 +41,7 @@ function makeUser(overrides?: Partial<UserDocument>): UserDocument {
 
 beforeEach(() => {
   mockIsAgeVerificationEnabled.mockReset();
+  mockIsAutoEmailBackgroundCheckEnabled.mockReset();
   mockGetBlockedJurisdictions.mockReset();
   mockGetLawLinkForJurisdiction.mockReset();
   mockGetRequiredMode.mockReset();
@@ -45,6 +49,7 @@ beforeEach(() => {
   mockGetAgeVerificationPolicy.mockReset();
 
   mockIsAgeVerificationEnabled.mockImplementation(() => Promise.resolve(true));
+  mockIsAutoEmailBackgroundCheckEnabled.mockImplementation(() => Promise.resolve(false));
   mockGetBlockedJurisdictions.mockImplementation(() => Promise.resolve(new Set<string>()));
   mockGetLawLinkForJurisdiction.mockImplementation(() => Promise.resolve(undefined));
   mockGetRequiredMode.mockImplementation(() => Promise.resolve('jurisdictions' as const));

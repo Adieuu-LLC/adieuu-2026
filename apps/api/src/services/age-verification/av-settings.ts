@@ -26,6 +26,22 @@ export async function isAgeVerificationEnabled(): Promise<boolean> {
 }
 
 /**
+ * Returns true when the automatic post-subscription email background age check is enabled.
+ */
+export async function isAutoEmailBackgroundCheckEnabled(): Promise<boolean> {
+  try {
+    const repo = getPlatformSettingsRepository();
+    const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_AUTO_EMAIL_CHECK);
+    if (doc && doc.valueType === 'boolean') {
+      return doc.value === true;
+    }
+  } catch (err) {
+    elog.warn('Failed to read AGE_VERIFICATION_AUTO_EMAIL_CHECK setting', { error: err });
+  }
+  return false;
+}
+
+/**
  * Returns the set of jurisdictions that are completely blocked (geofenced).
  */
 export async function getBlockedJurisdictions(): Promise<Set<string>> {

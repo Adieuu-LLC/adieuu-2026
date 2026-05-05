@@ -73,6 +73,7 @@ const mockIsAgeVerificationEnabled = mock(() => Promise.resolve(true)) as AnyMoc
 
 mock.module('../../services/age-verification/av-settings', () => ({
   isAgeVerificationEnabled: mockIsAgeVerificationEnabled,
+  isAutoEmailBackgroundCheckEnabled: mock(() => Promise.resolve(false)),
 }));
 
 mock.module('../../services/age-verification/age-verification.service', () => ({

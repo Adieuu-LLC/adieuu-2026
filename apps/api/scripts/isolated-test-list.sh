@@ -2,10 +2,10 @@
 # Shared list of test files that must run in their own Bun process.
 #
 # Bun's mock.module() is process-wide: once a module is replaced, every
-# subsequent import in the same process sees the mock.  Files listed here
+# subsequent import in the same process sees the mock. Files listed here
 # mock shared modules (session.service, billing.service, subscription-grants,
-# identity.service, …) whose stubs would contaminate unrelated test files
-# that import the real implementations.
+# billing.service stubs for background-check, identity.service, etc.) whose
+# stubs would contaminate unrelated test files that import the real implementations.
 #
 # Sourced by both run-tests.sh and run-tests-with-coverage.sh so the two
 # scripts never drift out of sync.
@@ -27,5 +27,7 @@ is_isolated_test() {
      "$name" == 'alias-gate.test.ts' ||
      "$name" == 'jurisdiction-policy.test.ts' ||
      "$name" == 'verifymy.provider.test.ts' ||
-     "$name" == 'age-verification.service.test.ts' ]]
+     "$name" == 'age-verification.service.test.ts' ||
+     "$name" == 'billing.service.test.ts' ||
+     "$name" == 'background-check.service.test.ts' ]]
 }

@@ -43,6 +43,9 @@ export const compliance = {
     subtitle: 'Configure age verification enforcement, geofencing, and provider settings.',
     enabledLabel: 'Enforcement Enabled',
     enabledDescription: 'When enabled, users in configured jurisdictions must verify their age before accessing aliases.',
+    autoEmailBgLabel: 'Automatic email background check',
+    autoEmailBgDescription:
+      'After a subscribed user completes checkout, silently run a provider background check using their verified email.',
     providerLabel: 'Active Provider',
     environmentLabel: 'Provider Environment',
     modeLabel: 'Required Mode',

@@ -428,6 +428,13 @@ export async function ensureAgeVerificationPlatformSettingsExist(): Promise<void
       value: false,
     },
     {
+      key: PLATFORM_SETTING_KEYS.AGE_VERIFICATION_AUTO_EMAIL_CHECK,
+      description:
+        'Whether to automatically start a silent email background age check after the user completes first subscription checkout',
+      valueType: 'boolean',
+      value: false,
+    },
+    {
       key: PLATFORM_SETTING_KEYS.AGE_VERIFICATION_ACTIVE_PROVIDER,
       description: 'Active age verification provider id',
       valueType: 'string',

@@ -1,8 +1,9 @@
-import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, afterEach, describe, expect, test, mock, beforeEach } from 'bun:test';
 
 // Mock config to avoid loading env
 mock.module('../../config', () => ({
   config: {
+    env: 'test',
     mongodb: { uri: 'mongodb://localhost:27017', dbName: 'test', minPoolSize: 1, maxPoolSize: 10 },
     redis: { url: 'redis://localhost:6379' },
     features: { requireDatabase: false, initializeCollections: false },
@@ -546,6 +547,14 @@ describe('auth controller', () => {
   });
 
   describe('getClientIp', () => {
+    beforeEach(() => {
+      delete process.env.DEV_CLIENT_IP;
+    });
+
+    afterEach(() => {
+      delete process.env.DEV_CLIENT_IP;
+    });
+
     test('returns X-Real-IP header when present', () => {
       const request = new Request('http://localhost', {
         headers: {
@@ -629,6 +638,27 @@ describe('auth controller', () => {
 
       const ip = getClientIp(request);
       expect(ip).toBe('203.0.113.1');
+    });
+
+    test('DEV_CLIENT_IP overrides proxy headers in non-production', () => {
+      process.env.DEV_CLIENT_IP = '203.0.113.99';
+      const request = new Request('http://localhost', {
+        headers: {
+          'X-Real-IP': '10.0.0.1',
+          'X-Forwarded-For': '10.0.0.2',
+        },
+      });
+
+      expect(getClientIp(request)).toBe('203.0.113.99');
+    });
+
+    test('ignores invalid DEV_CLIENT_IP and uses headers', () => {
+      process.env.DEV_CLIENT_IP = 'evil\n10.0.0.3';
+      const request = new Request('http://localhost', {
+        headers: { 'X-Real-IP': '10.0.0.1' },
+      });
+
+      expect(getClientIp(request)).toBe('10.0.0.1');
     });
   });
 
