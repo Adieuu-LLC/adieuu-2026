@@ -33,6 +33,9 @@ const mockIsAutoEmailBackgroundCheckEnabled = mock(() => Promise.resolve(true)) 
 mock.module('./av-settings', () => ({
   isAgeVerificationEnabled: mockIsAgeVerificationEnabled,
   isAutoEmailBackgroundCheckEnabled: mockIsAutoEmailBackgroundCheckEnabled,
+  getBlockedJurisdictions: mock(() => Promise.resolve(new Set<string>())),
+  getLawLinkForJurisdiction: mock((_jurisdiction: string) => Promise.resolve(undefined as string | undefined)),
+  getRequiredMode: mock(() => Promise.resolve('jurisdictions' as const)),
 }));
 
 const mockCreateVerification = mock(async (input: unknown) => ({

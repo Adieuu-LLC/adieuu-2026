@@ -74,6 +74,9 @@ const mockIsAgeVerificationEnabled = mock(() => Promise.resolve(true)) as AnyMoc
 mock.module('../../services/age-verification/av-settings', () => ({
   isAgeVerificationEnabled: mockIsAgeVerificationEnabled,
   isAutoEmailBackgroundCheckEnabled: mock(() => Promise.resolve(false)),
+  getBlockedJurisdictions: mock(() => Promise.resolve(new Set<string>())),
+  getLawLinkForJurisdiction: mock((_jurisdiction: string) => Promise.resolve(undefined as string | undefined)),
+  getRequiredMode: mock(() => Promise.resolve('jurisdictions' as const)),
 }));
 
 mock.module('../../services/age-verification/age-verification.service', () => ({
