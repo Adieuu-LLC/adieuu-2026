@@ -55,6 +55,10 @@ import {
   updateProfileCtrl,
   getProfileCtrl,
 } from './profile.controller';
+import {
+  getIdentityAchievementsForTargetResult,
+  respondIdentityAchievementsForTarget,
+} from '../achievements/controller';
 import { success } from '../../utils/response';
 
 const router = new Router();
@@ -633,8 +637,6 @@ router.get('/identity/:id/profile', async (ctx) => {
 // Identity Achievements (privacy-gated)
 // ============================================================================
 
-import { getIdentityAchievementsCtrl } from '../achievements/controller';
-
 /**
  * GET /identity/:id/achievements - Get an identity's achievements
  *
@@ -648,7 +650,9 @@ import { getIdentityAchievementsCtrl } from '../achievements/controller';
  * @returns 404 Not Found if identity doesn't exist
  */
 router.get('/identity/:id/achievements', async (ctx) => {
-  return await getIdentityAchievementsCtrl(ctx);
+  const viewerId = ctx.identitySession?.identity._id ?? null;
+  const result = await getIdentityAchievementsForTargetResult(ctx.params.id, viewerId);
+  return respondIdentityAchievementsForTarget(ctx, result);
 });
 
 // ============================================================================
