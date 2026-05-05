@@ -1,0 +1,29 @@
+---
+description: API route modules and chat service handlers use extracted controllers with Bun controller.test.ts coverage (auth routes are the reference)
+globs: apps/api/src/routes/**/*.ts,apps/chat/src/**/*.ts
+alwaysApply: false
+---
+
+# API and chat: controllers and tests
+
+## Controllers (where applicable)
+
+Use the pattern in [`apps/api/src/routes/auth/`](apps/api/src/routes/auth/):
+
+- **`index.ts`** — `Router` wiring only: mount paths, parse/validate request shapes (e.g. Zod), call **named exports** from a colocated controller, map results to HTTP responses. Avoid embedding orchestration, branching business rules, or service choreography here when they belong in a controller.
+- **`controller.ts`** (or purpose-specific names like `profile.controller.ts` when a module is large) — **exported functions** that implement the behaviour: sanitize/validate inputs, call services/repos, return data or structured outcomes suitable for the route layer. Keep side effects and domain branching in the controller (or services), not duplicated across routes.
+
+**When a separate controller is optional:** Truly trivial pass-through (e.g. a single no-logic delegate) may stay in `index.ts`. Everything with meaningful validation, sanitization, error paths, or multi-step flows should use a controller.
+
+**Chat service (`apps/chat`):** There is no `routes/` tree today; HTTP endpoints and WebSocket/message handling logic that grows beyond thin glue should follow the same split—extract testable units into `*.controller.ts` (or a `controllers/` folder) and keep the entry file focused on wiring.
+
+## Tests
+
+- For **each** controller module that implements route or protocol behaviour, maintain **`controller.test.ts`** beside it (same directory as the controller).
+- Follow [`apps/api/src/routes/auth/controller.test.ts`](apps/api/src/routes/auth/controller.test.ts): `bun:test`, **`mock.module(...)`** for config/db/services used by the controller under test, and tests that assert **controller exports** (success, validation, error/unauthorized paths, edge cases) without booting the full app.
+- **New or changed controller behaviour** should include or update tests so coverage stays aligned with public controller exports.
+
+## Agent behaviour
+
+- When adding or materially changing handlers under `apps/api/src/routes/` or protocol handlers under `apps/chat/src/`, **default to the auth layout** unless the user specifies otherwise.
+- If a directory still inlines former controller responsibilities, **prefer refactoring toward `controller.ts` + `controller.test.ts`** when touching that code, without drive-by unrelated refactors (respect focused diffs).

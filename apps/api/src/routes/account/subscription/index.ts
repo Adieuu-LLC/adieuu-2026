@@ -10,25 +10,18 @@
 import { Router } from '../../../router';
 import { success, error } from '../../../utils/response';
 import { requireAccountSession } from '../../../services/session.service';
-import { getUserRepository } from '../../../repositories/user.repository';
-import { config } from '../../../config';
-import { PURCHASABLE_PRODUCT_IDS, type PurchasableProductId } from '@adieuu/shared';
 import {
-  BillingConfigurationError,
-  billingErrorLogFields,
-  createCheckoutSessionForProduct,
-  createBillingPortalSession,
-} from '../../../services/billing/billing.service';
-import { resolveEffectiveAccess } from '../../../services/billing/resolve-access';
-import { checkRateLimit, type RateLimitConfig } from '../../../services/rate-limit.service';
-import elog from '../../../utils/adieuuLogger';
+  getSubscriptionSummary,
+  createSubscriptionCheckout,
+  createSubscriptionPortal,
+} from './controller';
 
 const router = new Router();
 
-/** Stripe checkout session creation — generous window so retries, double-clicks, and config mistakes do not quickly lock users out. */
-const CHECKOUT_RATE_LIMIT: RateLimitConfig = { limit: 30, windowSeconds: 3600 };
-/** Billing portal sessions — same idea; users may open/close portal several times while sorting payment methods. */
-const PORTAL_RATE_LIMIT: RateLimitConfig = { limit: 45, windowSeconds: 3600 };
+const STRIPE_UNAVAILABLE_RESPONSE = new Response(
+  JSON.stringify({ error: 'Subscriptions are temporarily unavailable' }),
+  { status: 503, headers: { 'Content-Type': 'application/json' } },
+);
 
 /**
  * GET /account/subscription
@@ -42,31 +35,13 @@ router.get('/account/subscription', async (ctx) => {
   const session = await requireAccountSession(ctx.request);
   if (!session) return ctx.errors.unauthorized();
 
-  if (!config.stripe.enabled) {
-    return new Response(
-      JSON.stringify({ error: 'Subscriptions are temporarily unavailable' }),
-      { status: 503, headers: { 'Content-Type': 'application/json' } },
-    );
+  const result = await getSubscriptionSummary(session.userId);
+  if (!result.ok) {
+    if (result.reason === 'stripe_disabled') return STRIPE_UNAVAILABLE_RESPONSE;
+    return ctx.errors.notFound();
   }
 
-  const userRepo = getUserRepository();
-  const user = await userRepo.findById(session.userId);
-  if (!user) return ctx.errors.notFound();
-
-  elog.debug('Subscription status requested', { userId: session.userId });
-
-  const resolved = resolveEffectiveAccess(user);
-
-  return success({
-    activeSubscriptions: resolved.subscriptions,
-    entitlements: resolved.entitlements,
-    isLifetime: resolved.isLifetime,
-    status: user.billing?.status ?? null,
-    currentPeriodEnd: user.billing?.currentPeriodEnd?.toISOString() ?? null,
-    cancelAtPeriodEnd: user.billing?.cancelAtPeriodEnd ?? false,
-    cancelAt: user.billing?.cancelAt?.toISOString() ?? null,
-    hasStripeCustomer: !!user.stripeCustomerId,
-  });
+  return success(result.data);
 });
 
 /**
@@ -81,55 +56,25 @@ router.post('/account/subscription/checkout', async (ctx) => {
   const session = await requireAccountSession(ctx.request);
   if (!session) return ctx.errors.unauthorized();
 
-  if (!config.stripe.enabled) {
-    return new Response(
-      JSON.stringify({ error: 'Subscriptions are temporarily unavailable' }),
-      { status: 503, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
+  const body = ctx.body as { product?: unknown } | undefined;
+  const result = await createSubscriptionCheckout(session.userId, body?.product);
 
-  const rl = await checkRateLimit('subscription:checkout', session.userId, CHECKOUT_RATE_LIMIT);
-  if (!rl.allowed) return ctx.errors.rateLimited();
-
-  const body = ctx.body as { product?: string } | undefined;
-  const product = body?.product;
-
-  if (!product || !PURCHASABLE_PRODUCT_IDS.includes(product as PurchasableProductId)) {
-    return ctx.errors.validationFailed();
-  }
-
-  const userRepo = getUserRepository();
-  const user = await userRepo.findById(session.userId);
-  if (!user) return ctx.errors.notFound();
-
-  try {
-    const result = await createCheckoutSessionForProduct(user, product as PurchasableProductId);
-    elog.info('Subscription checkout session created', {
-      userId: session.userId,
-      product,
-      sessionId: result.sessionId,
-    });
-    return success({ url: result.url });
-  } catch (err) {
-    if (err instanceof BillingConfigurationError) {
-      elog.error('Subscription checkout: billing not fully configured', {
-        userId: session.userId,
-        product,
-        ...billingErrorLogFields(err),
-      });
+  if (!result.ok) {
+    if (result.reason === 'stripe_disabled') return STRIPE_UNAVAILABLE_RESPONSE;
+    if (result.reason === 'rate_limited') return ctx.errors.rateLimited();
+    if (result.reason === 'validation') return ctx.errors.validationFailed();
+    if (result.reason === 'user_not_found') return ctx.errors.notFound();
+    if (result.reason === 'billing_config') {
       return error(
         'SERVICE_UNAVAILABLE',
         'Subscriptions are temporarily unavailable. Please try again later.',
         503,
       );
     }
-    elog.error('Subscription checkout failed', {
-      userId: session.userId,
-      product,
-      ...billingErrorLogFields(err),
-    }, err instanceof Error ? err : undefined);
     return ctx.errors.internal();
   }
+
+  return success({ url: result.url });
 });
 
 /**
@@ -143,35 +88,18 @@ router.post('/account/subscription/portal', async (ctx) => {
   const session = await requireAccountSession(ctx.request);
   if (!session) return ctx.errors.unauthorized();
 
-  if (!config.stripe.enabled) {
-    return new Response(
-      JSON.stringify({ error: 'Subscriptions are temporarily unavailable' }),
-      { status: 503, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
+  const result = await createSubscriptionPortal(session.userId);
 
-  const rl = await checkRateLimit('subscription:portal', session.userId, PORTAL_RATE_LIMIT);
-  if (!rl.allowed) return ctx.errors.rateLimited();
-
-  const userRepo = getUserRepository();
-  const user = await userRepo.findById(session.userId);
-  if (!user) return ctx.errors.notFound();
-
-  if (!user.stripeCustomerId) {
-    return ctx.errors.notFound();
-  }
-
-  try {
-    const result = await createBillingPortalSession(user);
-    elog.info('Subscription billing portal session created', { userId: session.userId });
-    return success(result);
-  } catch (err) {
-    elog.error('Subscription portal session failed', {
-      userId: session.userId,
-      ...billingErrorLogFields(err),
-    }, err instanceof Error ? err : undefined);
+  if (!result.ok) {
+    if (result.reason === 'stripe_disabled') return STRIPE_UNAVAILABLE_RESPONSE;
+    if (result.reason === 'rate_limited') return ctx.errors.rateLimited();
+    if (result.reason === 'user_not_found' || result.reason === 'no_stripe_customer') {
+      return ctx.errors.notFound();
+    }
     return ctx.errors.internal();
   }
+
+  return success(result.data);
 });
 
 export const subscriptionRoutes = router;

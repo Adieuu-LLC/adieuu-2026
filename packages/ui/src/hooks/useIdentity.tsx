@@ -174,6 +174,22 @@ function useIdentityState(): IdentityContextValue {
       return;
     }
 
+    // `authenticated` means the unified session cookie is an account session (see useAuth refreshSession).
+    // There is no identity session in that case — GET /api/identity/session would only return 401.
+    // Skip the probe so we avoid redundant traffic and subscription guard noise for unsubscribed accounts.
+    if (authStatus === 'authenticated') {
+      setState({
+        status: hasIdentity ? 'logged_out' : 'no_identity',
+        identity: null,
+        hasIdentity,
+        identityCount,
+        maxIdentities,
+        canCreateMore,
+        suspensionInfo: undefined,
+      });
+      return;
+    }
+
     try {
       const response = await api.identity.getSession();
 
