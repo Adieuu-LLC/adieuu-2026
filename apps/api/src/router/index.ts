@@ -9,6 +9,7 @@ import { localizedErrors } from '../utils/response';
 import { parseAcceptLanguage, type Locale } from '../i18n';
 import { config } from '../config';
 import elog from '../utils/adieuuLogger';
+import { sanitizePathForLog } from '../utils/sanitize';
 import {
   corsOriginsNeedVaryHeader,
   parseCorsOriginsList,
@@ -331,7 +332,7 @@ export class Router {
           errorMessage,
           errorName,
           errorStack,
-          path,
+          route: sanitizePathForLog(path),
           method,
           requestId,
         });

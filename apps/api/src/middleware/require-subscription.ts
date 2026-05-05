@@ -19,6 +19,7 @@ import type { ResolvedAccess } from '../services/billing/resolve-access';
 import { resolveEffectiveAccess } from '../services/billing/resolve-access';
 import { error } from '../utils/response';
 import elog from '../utils/adieuuLogger';
+import { sanitizePathForLog } from '../utils/sanitize';
 
 /** How long (ms) a past_due status is tolerated before cutting access. */
 export const PAST_DUE_GRACE_MS = 48 * 60 * 60 * 1000; // 48 hours
@@ -128,6 +129,8 @@ export function requireActiveSubscription() {
         userId: accountSession.userId,
         code: denial,
         billingStatus: user.billing?.status,
+        method: ctx.request.method,
+        route: sanitizePathForLog(ctx.url.pathname),
       });
 
       const message = denial === 'SUBSCRIPTION_REQUIRED'

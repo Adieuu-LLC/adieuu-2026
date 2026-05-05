@@ -39,6 +39,7 @@ import type { IdentityDocument } from '../models/identity';
 import type { SubscriptionTierId } from '@adieuu/shared';
 import { error } from '../utils/response';
 import elog from '../utils/adieuuLogger';
+import { sanitizePathForLog } from '../utils/sanitize';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -121,6 +122,8 @@ export function enrichIdentitySession() {
       if (!grantKey) {
         elog.info('Identity session missing grant key in cookie; destroying', {
           identityIdPrefix: identitySession.identityId.substring(0, 8) + '...',
+          method: ctx.request.method,
+          route: sanitizePathForLog(ctx.url.pathname),
         });
         await destroySession(sessionId);
         return error('SUBSCRIPTION_EXPIRED', 'Your session has expired. Please sign in again.', 401);
@@ -134,6 +137,8 @@ export function enrichIdentitySession() {
       if (!hasActiveSubscriptionGrant(grants)) {
         elog.info('Identity session destroyed: no active subscription grants', {
           identityIdPrefix: identitySession.identityId.substring(0, 8) + '...',
+          method: ctx.request.method,
+          route: sanitizePathForLog(ctx.url.pathname),
         });
         await destroySession(sessionId);
         return error('SUBSCRIPTION_EXPIRED', 'Your subscription has expired. Please renew to continue.', 401);
@@ -156,6 +161,13 @@ export function enrichIdentitySession() {
         const message = block.type === 'banned'
           ? 'This alias has been permanently banned.'
           : 'This alias is currently suspended.';
+
+        elog.info('Identity moderation blocked request', {
+          code,
+          identityIdPrefix: identitySession.identityId.substring(0, 8) + '...',
+          method: ctx.request.method,
+          route: sanitizePathForLog(ctx.url.pathname),
+        });
 
         return error(code, message, 403, {
           moderationReason: block.moderationReason,

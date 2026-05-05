@@ -93,8 +93,9 @@ export const generateEmojiString = (): string => {
  * - `hash` - Hash strings (alphanumeric, parentheses, underscores, equals, plus, minus)
  * - `base64` - Base64 encoded strings (A-Z, a-z, 0-9, +, /, =)
  * - `alphanumdash` - Alphanumeric with hyphens only (good for slugs)
+ * - `alphanumdashstop` - Alphanumeric with hyphens and periods only (used for route segment sanitization)
  */
-export type SanitizationType = 'default' | 'phone' | 'ip' | 'id' | 'idenhanced' | 'general' | 'authcode' | 'email' | 'hash' | 'base64' | 'base64url' | 'alphanumdash';
+export type SanitizationType = 'default' | 'phone' | 'ip' | 'id' | 'idenhanced' | 'general' | 'authcode' | 'email' | 'hash' | 'base64' | 'base64url' | 'alphanumdash' | 'alphanumdashstop';
 
 /**
  * Result of a sanitization operation.
@@ -191,6 +192,7 @@ interface SanitizationOptions {
  * - `hash`: Alphanumeric plus parentheses, underscores, equals, plus, minus
  * - `base64`: Standard base64 character set
  * - `alphanumdash`: Alphanumeric and hyphens only
+ * - `alphanumdashstop`: Like `alphanumdash`, plus ASCII periods
  * - `general`: Most printable characters including international scripts
  * 
  * @param target - The string to sanitize
@@ -263,6 +265,9 @@ export const sanitizeString = (target: SanitizationOptions['target'], type: Sani
     switch (givenType) {
       case 'alphanumdash': // Allow only alphanumeric and hyphen
         sanitized = sanitized.replace(/[^a-z0-9-]/gi, '');
+        break;
+      case 'alphanumdashstop': // Allow only alphanumeric, hyphen, period ('stop' used for short)
+        sanitized = sanitized.replace(/[^a-z0-9-.]/gi, '');
         break;
       case 'authcode':
         sanitized = sanitized.replace(/[^a-z0-9- ]/gi, '');
@@ -376,6 +381,37 @@ export const sanitizeString = (target: SanitizationOptions['target'], type: Sani
     elog.error(`Error sanitizing ${type}`, target, e);
     return { value: '', deltas: original.length || 1 };
   }
+}
+
+/** Typical MongoDB ObjectId hex segment (pathname portion only). */
+const LOG_PATH_OBJECT_ID_SEGMENT = /^[a-f\d]{24}$/i;
+
+const LOG_PATH_UUID_SEGMENT =
+  /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i;
+
+/** Avoid oversized log fields from abnormal paths. */
+export const SANITIZED_PATH_MAX_LENGTH = 300;
+
+/**
+ * Pathname safe for structured logs: pass `URL.pathname` only (no query or
+ * fragment). Replaces ObjectId- and UUID-shaped segments with placeholders;
+ * other segments pass through {@link sanitizeString} with `alphanumdashstop`
+ * (control chars, `${`, HTML entities, etc. removed per that pipeline).
+ * Truncates beyond {@link SANITIZED_PATH_MAX_LENGTH}.
+ */
+export function sanitizePathForLog(pathname: string): string {
+  const segments = pathname.split('/').map((segment) => {
+    if (segment === '') return '';
+    if (LOG_PATH_OBJECT_ID_SEGMENT.test(segment)) return ':id';
+    if (LOG_PATH_UUID_SEGMENT.test(segment)) return ':uuid';
+    return sanitizeString(segment, 'alphanumdashstop').value;
+  });
+
+  let out = segments.join('/') || '/';
+  if (out.length > SANITIZED_PATH_MAX_LENGTH) {
+    out = `${out.slice(0, SANITIZED_PATH_MAX_LENGTH)}…`;
+  }
+  return out;
 }
 
 /**

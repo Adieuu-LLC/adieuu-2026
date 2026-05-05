@@ -1,5 +1,11 @@
 import { describe, expect, test, spyOn } from 'bun:test';
-import { sanitizeString, generateEmojiString, type SanitizationResult } from './sanitize';
+import {
+  SANITIZED_PATH_MAX_LENGTH,
+  generateEmojiString,
+  sanitizePathForLog,
+  sanitizeString,
+  type SanitizationResult,
+} from './sanitize';
 import elog from './adieuuLogger';
 
 describe('generateEmojiString', () => {
@@ -306,6 +312,32 @@ describe('sanitizeString', () => {
     test('removes underscores', () => {
       const result = sanitizeString('hello_world', 'alphanumdash');
       expect(result.value).toBe('helloworld');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+  });
+
+  describe('type: alphanumdashstop', () => {
+    test('allows alphanumeric, hyphen, and period', () => {
+      const result = sanitizeString('hello-world-2.0.yml', 'alphanumdashstop');
+      expect(result.value).toBe('hello-world-2.0.yml');
+      expect(result.deltas).toBe(0);
+    });
+
+    test('removes characters outside alphanumdashstop set', () => {
+      const result = sanitizeString('hello world! @#$.', 'alphanumdashstop');
+      expect(result.value).toBe('helloworld.');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('removes underscores', () => {
+      const result = sanitizeString('hello_world.tar', 'alphanumdashstop');
+      expect(result.value).toBe('helloworld.tar');
+      expect(result.deltas).toBeGreaterThan(0);
+    });
+
+    test('still strips periods that are not valid as part of cleaned segment when mixed with removed chars', () => {
+      const result = sanitizeString('a.b.c!!!', 'alphanumdashstop');
+      expect(result.value).toBe('a.b.c');
       expect(result.deltas).toBeGreaterThan(0);
     });
   });
@@ -775,5 +807,48 @@ describe('sanitizeString', () => {
         errorSpy.mockRestore();
       }
     });
+  });
+});
+
+describe('sanitizePathForLog', () => {
+  test('preserves segments safe for alphanumdashstop', () => {
+    expect(sanitizePathForLog('/api/themes')).toBe('/api/themes');
+    expect(sanitizePathForLog('/api/account/settings')).toBe('/api/account/settings');
+    expect(sanitizePathForLog('/api/v1/releases/latest/latest-mac.yml')).toBe(
+      '/api/v1/releases/latest/latest-mac.yml',
+    );
+  });
+
+  test('applies alphanumdashstop sanitization to unknown segments', () => {
+    expect(sanitizePathForLog('/api/foo_bar/baz')).toBe('/api/foobar/baz');
+    expect(sanitizePathForLog('/api/v2.0/info')).toBe('/api/v2.0/info');
+  });
+
+  test('strips template-injection patterns and control characters from segments', () => {
+    expect(sanitizePathForLog('/api/foo${bar}/ok')).toBe('/api/foobar/ok');
+    expect(sanitizePathForLog('/api/evil\u0000segment/end')).toBe('/api/evilsegment/end');
+  });
+
+  test('redacts 24-char hex segments as ObjectId-shaped ids', () => {
+    expect(sanitizePathForLog('/api/conversations/507f1f77bcf86cd799439011/messages')).toBe(
+      '/api/conversations/:id/messages',
+    );
+  });
+
+  test('redacts UUID segments', () => {
+    expect(
+      sanitizePathForLog('/api/foo/550e8400-e29b-41d4-a716-446655440000/bar'),
+    ).toBe('/api/foo/:uuid/bar');
+  });
+
+  test('truncates very long paths', () => {
+    const long = '/api/' + 'x'.repeat(SANITIZED_PATH_MAX_LENGTH + 40);
+    const got = sanitizePathForLog(long);
+    expect(got.length).toBe(SANITIZED_PATH_MAX_LENGTH + 1);
+    expect(got.endsWith('…')).toBe(true);
+  });
+
+  test('root path', () => {
+    expect(sanitizePathForLog('/')).toBe('/');
   });
 });
