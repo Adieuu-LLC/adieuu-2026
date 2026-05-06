@@ -46,6 +46,8 @@ import {
   ensureAuthAllowlistPlatformSettingsExist,
   isAuthIdentifierAllowed,
   isPlatformAdmin,
+  mergeUpsertPlatformSettingDescription,
+  sanitizePlatformSettingValueAfterCoerce,
   upsertPlatformSetting,
 } from './platform-settings.service';
 
@@ -80,6 +82,78 @@ describe('coercePlatformSettingValue', () => {
 
   test('rejects invalid objectId hex', () => {
     expect(() => coercePlatformSettingValue('objectIdArray', ['not-an-id'])).toThrow();
+  });
+});
+
+describe('mergeUpsertPlatformSettingDescription', () => {
+  test('preserves existing when incoming is undefined', () => {
+    expect(mergeUpsertPlatformSettingDescription(undefined, 'stored')).toBe('stored');
+    expect(mergeUpsertPlatformSettingDescription(undefined, undefined)).toBe('');
+  });
+
+  test('sanitizes incoming description only', () => {
+    expect(mergeUpsertPlatformSettingDescription(' Hello ', undefined)).toBe('Hello');
+    expect(mergeUpsertPlatformSettingDescription('ok\u0000', undefined)).not.toContain('\u0000');
+  });
+});
+
+describe('sanitizePlatformSettingValueAfterCoerce', () => {
+  test('passes boolean and number through', () => {
+    expect(
+      sanitizePlatformSettingValueAfterCoerce(PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_ENFORCED, 'boolean', true),
+    ).toBe(true);
+    expect(
+      sanitizePlatformSettingValueAfterCoerce(
+        PLATFORM_SETTING_KEYS.MEDIA_MAX_VIDEO_DURATION_SECONDS,
+        'number',
+        120,
+      ),
+    ).toBe(120);
+  });
+
+  test('sanitizes provider string keys as alphanumdash', () => {
+    const raw = '  VERIFYMY  ';
+    expect(
+      sanitizePlatformSettingValueAfterCoerce(
+        PLATFORM_SETTING_KEYS.AGE_VERIFICATION_ACTIVE_PROVIDER,
+        'string',
+        raw,
+      ),
+    ).toBe('VERIFYMY');
+  });
+
+  test('sanitizes jurisdiction arrays as alphanumdash', () => {
+    const arr = [' US-TN ', 'GB'];
+    const out = sanitizePlatformSettingValueAfterCoerce(
+      PLATFORM_SETTING_KEYS.AGE_VERIFICATION_REQUIRED_JURISDICTIONS,
+      'stringArray',
+      arr,
+    ) as string[];
+    expect(out).toEqual(['US-TN', 'GB']);
+  });
+
+  test('sanitizes geofence law link rows by jurisdiction and url parts', () => {
+    const rows = ['US-TN|https://Example.COM/path'];
+    const coerced = coercePlatformSettingValue('stringArray', rows);
+    const out = sanitizePlatformSettingValueAfterCoerce(
+      PLATFORM_SETTING_KEYS.GEOFENCE_LAW_LINKS,
+      'stringArray',
+      coerced,
+    ) as string[];
+    expect(out[0]).toContain('|');
+    expect(out[0]).toMatch(/example\.com\/path/i);
+  });
+
+  test('generic stringArray falls back to general sanitization', () => {
+    const arr = [' hello\u0008world '];
+    const coerced = coercePlatformSettingValue('stringArray', arr);
+    const out = sanitizePlatformSettingValueAfterCoerce(
+      'platform-unknown-array-test-key',
+      'stringArray',
+      coerced,
+    );
+    expect(Array.isArray(out)).toBe(true);
+    expect((out as string[])[0]).not.toContain('\u0008');
   });
 });
 

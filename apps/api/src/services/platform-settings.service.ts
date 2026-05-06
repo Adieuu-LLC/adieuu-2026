@@ -264,6 +264,82 @@ function normalizeStringArraysForKey(key: string, value: PlatformSettingValue): 
   return value;
 }
 
+function sanitizeLawLinkRow(row: string): string {
+  const idx = row.indexOf('|');
+  if (idx === -1) {
+    return sanitizeString(row, 'general').value;
+  }
+  const jurisdiction = sanitizeString(row.slice(0, idx), 'alphanumdash').value;
+  const urlPart = sanitizeString(row.slice(idx + 1), 'general').value;
+  return `${jurisdiction}|${urlPart}`;
+}
+
+/**
+ * Applies strictest applicable sanitization after coercion + email/phone array normalization.
+ * Exported for unit tests.
+ */
+export function sanitizePlatformSettingValueAfterCoerce(
+  key: string,
+  valueType: PlatformSettingValueType,
+  value: PlatformSettingValue,
+): PlatformSettingValue {
+  switch (valueType) {
+    case 'boolean':
+    case 'number':
+      return value;
+    case 'string':
+      return sanitizePlainSettingString(key, value as string);
+    case 'stringArray':
+      return sanitizeSettingStringArray(key, value as string[]);
+    case 'objectIdArray':
+      return value;
+    default: {
+      const _exhaustive: never = valueType;
+      throw new Error(`Unsupported value type: ${_exhaustive}`);
+    }
+  }
+}
+
+function sanitizePlainSettingString(key: string, raw: string): string {
+  if (key === PLATFORM_SETTING_KEYS.AGE_VERIFICATION_ACTIVE_PROVIDER) {
+    return sanitizeString(raw, 'alphanumdash').value;
+  }
+  if (
+    key === PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_ENV ||
+    key === PLATFORM_SETTING_KEYS.AGE_VERIFICATION_REQUIRED_MODE
+  ) {
+    return sanitizeString(raw, 'alphanumdash').value;
+  }
+  return sanitizeString(raw, 'general').value;
+}
+
+function sanitizeSettingStringArray(key: string, arr: string[]): string[] {
+  if (key === PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_EMAIL || key === PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_PHONE) {
+    return arr;
+  }
+  if (
+    key === PLATFORM_SETTING_KEYS.AGE_VERIFICATION_REQUIRED_JURISDICTIONS ||
+    key === PLATFORM_SETTING_KEYS.GEOFENCE_BLOCKED_JURISDICTIONS
+  ) {
+    return arr.map((s) => sanitizeString(s, 'alphanumdash').value);
+  }
+  if (key === PLATFORM_SETTING_KEYS.GEOFENCE_LAW_LINKS) {
+    return arr.map((row) => sanitizeLawLinkRow(row));
+  }
+  return arr.map((s) => sanitizeString(s, 'general').value);
+}
+
+/** Merge optional incoming description with existing stored description (sanitize incoming only). */
+export function mergeUpsertPlatformSettingDescription(
+  incoming: string | undefined,
+  existingDescription: string | undefined,
+): string {
+  if (incoming !== undefined) {
+    return sanitizeString(incoming, 'general').value;
+  }
+  return existingDescription ?? '';
+}
+
 export interface UpsertPlatformSettingParams {
   key: string;
   description?: string;
@@ -280,13 +356,23 @@ export async function upsertPlatformSetting(
 
   const coerced = coercePlatformSettingValue(params.valueType, params.value);
   const normalized = normalizeStringArraysForKey(params.key, coerced) as PlatformSettingValue;
+  const sanitizedValue = sanitizePlatformSettingValueAfterCoerce(
+    params.key,
+    params.valueType,
+    normalized,
+  );
+
+  const mergedDescription = mergeUpsertPlatformSettingDescription(
+    params.description,
+    existing?.description,
+  );
 
   const input: UpsertPlatformSettingInput = {
     key: params.key,
-    description: params.description ?? existing?.description ?? '',
+    description: mergedDescription,
     valueType: params.valueType,
-    value: normalized,
-    lastUpdatedBy: params.lastUpdatedBy,
+    value: sanitizedValue,
+    lastUpdatedBy: sanitizeString(params.lastUpdatedBy, 'general').value,
   };
 
   await repo.upsertByKey(input);

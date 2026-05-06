@@ -38,7 +38,6 @@ mock.module('../../services/platform-settings.service', () => ({
   upsertPlatformSetting: mockUpsertPlatformSetting,
   ensureAuthAllowlistPlatformSettingsExist: mockEnsureAuthAllowlist,
   isAuthIdentifierAllowed: mock(() => Promise.resolve(true)),
-  coercePlatformSettingValue: mock(() => ({})),
 }));
 
 mock.module('../../repositories/platform-settings.repository', () => ({
@@ -67,10 +66,12 @@ mock.module('../../repositories/identity.repository', () => ({
   }),
 }));
 
+const mockCheckRateLimit = mock(() =>
+  Promise.resolve({ allowed: true, remaining: 29, resetAt: 0, limit: 30 })
+);
+
 mock.module('../../services/rate-limit.service', () => ({
-  checkRateLimit: mock(() =>
-    Promise.resolve({ allowed: true, remaining: 29, resetAt: 0, limit: 30 })
-  ),
+  checkRateLimit: mockCheckRateLimit,
 }));
 
 import { Router } from '../../router';
@@ -107,6 +108,8 @@ describe('admin platform-settings routes', () => {
     mockIdentityCount.mockReset();
     mockUserFindById.mockReset();
     mockFindByIdentifier.mockReset();
+    mockIdentityFindById.mockReset();
+    mockCheckRateLimit.mockReset();
     mockRequireIdentitySession.mockImplementation(() => Promise.resolve(null));
     mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(false));
     mockFindAll.mockImplementation(() => Promise.resolve([]));
@@ -116,6 +119,11 @@ describe('admin platform-settings routes', () => {
     mockIdentityCount.mockImplementation(() => Promise.resolve(0));
     mockUserFindById.mockImplementation(() => Promise.resolve(null));
     mockFindByIdentifier.mockImplementation(() => Promise.resolve(null));
+    mockIdentityFindById.mockImplementation(() => Promise.resolve(null));
+    mockUpsertPlatformSetting.mockImplementation(() => Promise.resolve());
+    mockCheckRateLimit.mockImplementation(() =>
+      Promise.resolve({ allowed: true, remaining: 29, resetAt: 0, limit: 30 })
+    );
   });
 
   test('GET /api/admin/platform-settings returns 401 without session', async () => {
@@ -299,5 +307,313 @@ describe('admin platform-settings routes', () => {
       })
     );
     expect(res.status).toBe(400);
+  });
+
+  test('GET /api/admin/metrics returns 401 without session', async () => {
+    const res = await handler(new Request('http://localhost/api/admin/metrics'));
+    expect(res.status).toBe(401);
+  });
+
+  test('GET /api/admin/metrics returns 403 when not admin', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(false));
+
+    const res = await handler(new Request('http://localhost/api/admin/metrics'));
+    expect(res.status).toBe(403);
+  });
+
+  test('GET /api/admin/platform-admins returns 401 without session', async () => {
+    const res = await handler(new Request('http://localhost/api/admin/platform-admins'));
+    expect(res.status).toBe(401);
+  });
+
+  test('GET /api/admin/platform-admins returns 403 when not admin', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(false));
+
+    const res = await handler(new Request('http://localhost/api/admin/platform-admins'));
+    expect(res.status).toBe(403);
+  });
+
+  test('GET /api/admin/platform-settings/:key returns 200 when doc exists', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key === PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_ENFORCED) {
+        return Promise.resolve({
+          _id: new ObjectId(),
+          key,
+          description: 'test',
+          valueType: 'boolean',
+          value: false,
+          lastUpdatedBy: 'system',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const url = `http://localhost/api/admin/platform-settings/${encodeURIComponent(
+      PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_ENFORCED
+    )}`;
+    const res = await handler(new Request(url));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { success: boolean; data: { key: string } };
+    expect(body.data.key).toBe(PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_ENFORCED);
+  });
+
+  test('GET /api/admin/platform-settings/:key returns 404 for unknown key', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+
+    const res = await handler(new Request('http://localhost/api/admin/platform-settings/not-a-real-key'));
+    expect(res.status).toBe(404);
+  });
+
+  test('GET /api/admin/platform-settings/:key returns 404 when doc missing', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+    mockFindByKey.mockImplementation(() => Promise.resolve(null));
+
+    const url = `http://localhost/api/admin/platform-settings/${encodeURIComponent(
+      PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_ENFORCED
+    )}`;
+    const res = await handler(new Request(url));
+    expect(res.status).toBe(404);
+  });
+
+  test('GET /api/admin/platform-settings returns 500 when ensureAuthAllowlist rejects', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+    mockEnsureAuthAllowlist.mockImplementationOnce(() => Promise.reject(new Error('boom')));
+
+    const res = await handler(new Request('http://localhost/api/admin/platform-settings'));
+    expect(res.status).toBe(500);
+  });
+
+  test('PUT /api/admin/platform-settings/:key returns 400 for unknown key', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+
+    const res = await handler(
+      new Request('http://localhost/api/admin/platform-settings/not-a-real-key', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ valueType: 'boolean', value: false }),
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  test('PUT /api/admin/platform-settings/:key returns 400 when upsert rejects', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+    mockUpsertPlatformSetting.mockImplementationOnce(() => Promise.reject(new Error('fail')));
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key === PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_ENFORCED) {
+        return Promise.resolve({
+          _id: new ObjectId(),
+          key,
+          description: 'd',
+          valueType: 'boolean',
+          value: true,
+          lastUpdatedBy: sessionUser.identityId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const url = `http://localhost/api/admin/platform-settings/${encodeURIComponent(
+      PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_ENFORCED
+    )}`;
+    const res = await handler(
+      new Request(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ valueType: 'boolean', value: true }),
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  test('PATCH /api/admin/platform-settings/:key succeeds like PUT', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key === PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_ENFORCED) {
+        return Promise.resolve({
+          _id: new ObjectId(),
+          key,
+          description: 'd',
+          valueType: 'boolean',
+          value: true,
+          lastUpdatedBy: sessionUser.identityId,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const url = `http://localhost/api/admin/platform-settings/${encodeURIComponent(
+      PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_ENFORCED
+    )}`;
+    const res = await handler(
+      new Request(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ valueType: 'boolean', value: false }),
+      })
+    );
+    expect(mockUpsertPlatformSetting).toHaveBeenCalled();
+    expect(res.status).toBe(200);
+  });
+
+  test('POST /api/admin/platform-admins returns 429 when rate limited', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+    mockCheckRateLimit.mockImplementationOnce(() =>
+      Promise.resolve({ allowed: false, remaining: 0, resetAt: 0, limit: 30 })
+    );
+
+    const res = await handler(
+      new Request('http://localhost/api/admin/platform-admins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identityId: new ObjectId().toHexString() }),
+      })
+    );
+    expect(res.status).toBe(429);
+  });
+
+  test('POST /api/admin/platform-admins returns 400 when body invalid', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+
+    const res = await handler(
+      new Request('http://localhost/api/admin/platform-admins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /api/admin/platform-admins skips upsert when identity already admin', async () => {
+    const targetId = new ObjectId();
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key === PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST) {
+        return Promise.resolve({
+          _id: new ObjectId(),
+          key,
+          description: 'admins',
+          valueType: 'objectIdArray',
+          value: [targetId],
+          lastUpdatedBy: 'system',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      return Promise.resolve(null);
+    });
+    mockIdentityFindById.mockImplementation((id: unknown) => {
+      const hex = typeof id === 'string' ? id : (id as ObjectId).toHexString();
+      if (hex === targetId.toHexString()) {
+        return Promise.resolve({
+          _id: targetId,
+          displayName: 'Existing',
+          username: 'existing',
+          avatarUrl: undefined,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const res = await handler(
+      new Request('http://localhost/api/admin/platform-admins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identityId: targetId.toHexString() }),
+      })
+    );
+    expect(res.status).toBe(200);
+    expect(mockUpsertPlatformSetting).not.toHaveBeenCalled();
+  });
+
+  test('DELETE /api/admin/platform-admins/:identityId returns 404 when id not in list', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key === PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST) {
+        return Promise.resolve({
+          _id: new ObjectId(),
+          key,
+          description: 'admins',
+          valueType: 'objectIdArray',
+          value: [],
+          lastUpdatedBy: 'system',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const url = `http://localhost/api/admin/platform-admins/${new ObjectId().toHexString()}`;
+    const res = await handler(new Request(url, { method: 'DELETE' }));
+    expect(res.status).toBe(404);
+  });
+
+  test('DELETE /api/admin/platform-admins/:identityId returns 400 for invalid id segment', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+
+    const res = await handler(
+      new Request('http://localhost/api/admin/platform-admins/not-valid-object-id', { method: 'DELETE' })
+    );
+    expect(res.status).toBe(400);
+  });
+
+  test('DELETE /api/admin/platform-admins/:identityId removes another admin', async () => {
+    const removeTarget = new ObjectId();
+    let adminValues: unknown[] = [removeTarget];
+
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockIsPlatformAdmin.mockImplementation(() => Promise.resolve(true));
+    mockUpsertPlatformSetting.mockImplementation(async (...args: unknown[]) => {
+      const opts = args[0] as { value?: unknown };
+      adminValues = opts.value as unknown[];
+      return Promise.resolve();
+    });
+    mockFindByKey.mockImplementation((key: string) => {
+      if (key === PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST) {
+        return Promise.resolve({
+          _id: new ObjectId(),
+          key,
+          description: 'admins',
+          valueType: 'objectIdArray',
+          value: adminValues,
+          lastUpdatedBy: 'system',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    const url = `http://localhost/api/admin/platform-admins/${removeTarget.toHexString()}`;
+    const res = await handler(new Request(url, { method: 'DELETE' }));
+    expect(res.status).toBe(200);
+    expect(mockUpsertPlatformSetting).toHaveBeenCalled();
+    const body = (await res.json()) as { success: boolean; data: { admins: unknown[] } };
+    expect(body.data.admins).toHaveLength(0);
   });
 });
