@@ -79,10 +79,6 @@ mock.module('../../utils/adieuuLogger', () => ({
   default: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 }));
 
-mock.module('../../utils/crypto', () => ({
-  constantTimeCompare: mock(() => false),
-}));
-
 // Import module under test after mocks are set up
 const { ageVerificationRoutes } = await import('./index');
 const handler = ageVerificationRoutes.handler();
