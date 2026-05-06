@@ -14,27 +14,15 @@
 
 import { Router } from '../../router';
 import { success, errors } from '../../utils/response';
-import { sanitizeString } from '../../utils/sanitize';
 import {
-  blockIdentity,
-  unblockIdentity,
-  checkIfBlocked,
-  getBlockedIdentities,
-  isBlockedByEither,
-} from '../../services/block.service';
-import { getIdentityRepository } from '../../repositories/identity.repository';
-import { toPublicIdentity } from '../../models/identity';
-import { z } from '@adieuu/shared/schemas';
-import { isValidObjectId } from '../../utils';
+  postBlockResult,
+  deleteBlockResult,
+  getBlockedListResult,
+  checkBlockedResult,
+  checkBlockedEitherResult,
+} from './controller';
 
 const router = new Router();
-
-/**
- * Zod schema for block request
- */
-const BlockIdentitySchema = z.object({
-  identityId: z.string().length(24),
-});
 
 /**
  * POST /blocks - Block an identity
@@ -58,33 +46,11 @@ router.post('/blocks', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  // Validate request body
-  const parseResult = BlockIdentitySchema.safeParse(ctx.body);
-  if (!parseResult.success) {
-    return ctx.errors.validationFailed();
-  }
-
-  const { identityId } = parseResult.data;
-
-  // Sanitize and validate identity ID
-  const sanitized = sanitizeString(identityId, 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid identity ID.');
-  }
-
-  const result = await blockIdentity(identity._id, sanitized.value);
-
-  if (!result.success) {
-    switch (result.errorCode) {
-      case 'CANNOT_BLOCK_SELF':
-        return errors.badRequest('Cannot block yourself.');
-      case 'ALREADY_BLOCKED':
-        return errors.badRequest('Identity already blocked.');
-      case 'IDENTITY_NOT_FOUND':
-        return errors.notFound('Identity not found.');
-      default:
-        return errors.badRequest(result.error ?? 'Block failed.');
-    }
+  const result = await postBlockResult(identity._id, ctx.body);
+  if (!result.ok) {
+    if (result.kind === 'validation_failed') return ctx.errors.validationFailed();
+    if (result.kind === 'not_found') return errors.notFound(result.message);
+    return errors.badRequest(result.message);
   }
 
   return success(undefined, 'Identity blocked.');
@@ -107,21 +73,10 @@ router.delete('/blocks/:identityId', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { identityId } = ctx.params;
-
-  // Sanitize and validate identity ID
-  const sanitized = sanitizeString(identityId ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid identity ID.');
-  }
-
-  const result = await unblockIdentity(identity._id, sanitized.value);
-
-  if (!result.success) {
-    if (result.errorCode === 'BLOCK_NOT_FOUND') {
-      return errors.notFound('Block not found.');
-    }
-    return errors.badRequest(result.error ?? 'Unblock failed.');
+  const result = await deleteBlockResult(identity._id, ctx.params.identityId);
+  if (!result.ok) {
+    if (result.kind === 'not_found') return errors.notFound(result.message);
+    return errors.badRequest(result.message);
   }
 
   return success(undefined, 'Identity unblocked.');
@@ -145,24 +100,7 @@ router.get('/blocks', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  // Parse pagination params
-  const limitParam = ctx.query.get('limit');
-  const cursor = ctx.query.get('cursor');
-
-  let limit = limitParam ? parseInt(limitParam, 10) : 50;
-  if (isNaN(limit) || limit < 1) limit = 50;
-  if (limit > 100) limit = 100;
-
-  // Validate cursor if provided
-  let validCursor: string | undefined;
-  if (cursor) {
-    const sanitizedCursor = sanitizeString(cursor, 'general');
-    if (sanitizedCursor.value && isValidObjectId(sanitizedCursor.value)) {
-      validCursor = sanitizedCursor.value;
-    }
-  }
-
-  const result = await getBlockedIdentities(identity._id, limit, validCursor);
+  const result = await getBlockedListResult(identity._id, ctx.query);
 
   return success({
     blocks: result.blocks,
@@ -187,15 +125,8 @@ router.get('/blocks/check/:identityId', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { identityId } = ctx.params;
-
-  // Sanitize and validate identity ID
-  const sanitized = sanitizeString(identityId ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid identity ID.');
-  }
-
-  const result = await checkIfBlocked(identity._id, sanitized.value);
+  const result = await checkBlockedResult(identity._id, ctx.params.identityId);
+  if (!result.ok) return errors.badRequest(result.message);
 
   return success({
     blocked: result.blocked,
@@ -220,21 +151,12 @@ router.get('/blocks/check-either/:identityId', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { identityId } = ctx.params;
-
-  const sanitized = sanitizeString(identityId ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid identity ID.');
-  }
-
-  const [byEither, byYou] = await Promise.all([
-    isBlockedByEither(identity._id, sanitized.value),
-    checkIfBlocked(identity._id, sanitized.value),
-  ]);
+  const result = await checkBlockedEitherResult(identity._id, ctx.params.identityId);
+  if (!result.ok) return errors.badRequest(result.message);
 
   return success({
-    blockedByEither: byEither,
-    blockedByYou: byYou.blocked,
+    blockedByEither: result.blockedByEither,
+    blockedByYou: result.blockedByYou,
   });
 });
 
