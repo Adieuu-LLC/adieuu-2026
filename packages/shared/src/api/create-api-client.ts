@@ -1,4 +1,5 @@
 import { AchievementsApi } from './achievements-api';
+import { AgeVerificationApi } from './age-verification-api';
 import { SubscriptionApi } from './subscription-api';
 import { AdminApi } from './admin-api';
 import { ApiClient, type ApiClientConfig } from './http-client';
@@ -28,6 +29,7 @@ export function createApiClient(config: ApiClientConfig) {
 
   return {
     client,
+    ageVerification: new AgeVerificationApi(client),
     auth: new AuthApi(client),
     users: new UsersApi(client),
     mfa: new MfaApi(client),

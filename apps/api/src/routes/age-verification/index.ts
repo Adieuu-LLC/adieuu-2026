@@ -11,6 +11,7 @@ import {
   postStartAgeVerification,
   getAgeVerificationStatus,
   getAgeVerificationCallback,
+  getAgeVerificationCurrent,
   postOptInAgeVerification,
   postAgeVerificationWebhook,
 } from './controller';
@@ -85,6 +86,33 @@ router.get('/age-verification/status', async (ctx) => {
       return errorResponse('STATUS_CHECK_FAILED', 'Failed to retrieve verification status.', 500);
     case 'success':
       return success(result.status);
+    default: {
+      const _exhaustive: never = result;
+      return _exhaustive;
+    }
+  }
+});
+
+/**
+ * GET /age-verification/current
+ *
+ * Returns the latest age verification attempt for the current user,
+ * including metadata only needed on the Account Overview page
+ * (timestamps, redirect URL, jurisdiction, opt-in flag).
+ */
+router.get('/age-verification/current', async (ctx) => {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) return ctx.errors.unauthorized();
+
+  const result = await getAgeVerificationCurrent(session.userId);
+
+  switch (result.kind) {
+    case 'unauthorized':
+      return ctx.errors.unauthorized();
+    case 'none':
+      return success(null);
+    case 'success':
+      return success(result.data);
     default: {
       const _exhaustive: never = result;
       return _exhaustive;

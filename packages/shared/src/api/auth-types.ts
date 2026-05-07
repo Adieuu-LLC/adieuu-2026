@@ -112,6 +112,24 @@ export interface SessionAgeVerification {
   providerVerificationId?: string;
 }
 
+/**
+ * Detailed age verification attempt info returned by
+ * GET /api/age-verification/current. Only fetched on demand
+ * (e.g. Account Overview), not embedded in the session.
+ */
+export interface AgeVerificationDetails {
+  status: string;
+  jurisdiction: string;
+  startedAt: string;
+  expiresAt?: string;
+  /** Present only while the attempt is non-terminal (started/pending). */
+  redirectUrl?: string;
+  optedIn: boolean;
+  approvalMethod?: string;
+  completedAt?: string;
+  providerVerificationId: string;
+}
+
 export interface SessionAliasGate {
   allowed: boolean;
   code?: AliasGateCode;

@@ -180,6 +180,8 @@ async function sendAccountAddEmail(email: string, otp: string): Promise<void> {
     text: template.text,
     html: template.html,
   });
+
+  elog.info('Account verification email sent.')
 }
 
 /**

@@ -273,6 +273,8 @@ async function sendOtpEmail(
     text: template.text,
     html: template.html,
   });
+
+  elog.info("OTP auth email sent")
 }
 
 /**

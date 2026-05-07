@@ -162,6 +162,12 @@ export class VerifyMyProvider implements AgeVerificationProvider {
       externalUserId: payload.external_user_id,
     });
 
+    // TEMP_VERIFYMY_DEBUG: uncomment to log outbound JSON body + HMAC for integration debugging
+    // elog.warn('TEMP_VERIFYMY_DEBUG outbound payload', {
+    //   requestBody: body,
+    //   hmacHex: hmac,
+    // });
+
     const response = await fetch(`${baseUrl}/api/v3/verifications`, {
       method: 'POST',
       headers: {

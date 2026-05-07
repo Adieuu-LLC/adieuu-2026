@@ -63,6 +63,11 @@ export type OptInRouteResult =
   | { kind: 'invalid_country' }
   | { kind: 'internal_error' };
 
+export type CurrentRouteResult =
+  | { kind: 'success'; data: import('@adieuu/shared').AgeVerificationDetails }
+  | { kind: 'none' }
+  | { kind: 'unauthorized' };
+
 export type WebhookRouteResult =
   | { kind: 'disabled' }
   | { kind: 'missing_body' }
@@ -269,9 +274,18 @@ export async function postOptInAgeVerification(userIdHex: string, body: unknown)
   const user = await userRepo.findById(userIdHex);
   if (!user) return { kind: 'unauthorized' };
 
+  // Prefer the full geo jurisdiction (e.g. US-UT) over the bare country code
+  // so the DB record preserves which state the user was geolocated to.
+  // The provider still receives the 2-letter code via countryOverride.
+  const geoJurisdiction = user.geo?.jurisdiction;
+  const dbJurisdiction =
+    geoJurisdiction && geoJurisdiction.toUpperCase().startsWith(country + '-')
+      ? geoJurisdiction
+      : country;
+
   try {
     const result = await startVerification(user, {
-      jurisdiction: country,
+      jurisdiction: dbJurisdiction,
       callbackBaseUrl: config.apiBaseUrl,
       optedIn: true,
       countryOverride: country.toLowerCase(),
@@ -324,6 +338,33 @@ export async function postAgeVerificationWebhook(
   }
 
   return { kind: 'ok_received' };
+}
+
+export async function getAgeVerificationCurrent(userIdHex: string): Promise<CurrentRouteResult> {
+  const userRepo = getUserRepository();
+  const user = await userRepo.findById(userIdHex);
+  if (!user) return { kind: 'unauthorized' };
+
+  const avRepo = getAgeVerificationRepository();
+  const doc = await avRepo.findLatestByUserId(user._id);
+  if (!doc) return { kind: 'none' };
+
+  const isNonTerminal = doc.status === 'started' || doc.status === 'pending';
+
+  return {
+    kind: 'success',
+    data: {
+      status: doc.status,
+      jurisdiction: doc.jurisdiction,
+      startedAt: doc.startedAt.toISOString(),
+      expiresAt: doc.expiresAt?.toISOString(),
+      redirectUrl: isNonTerminal ? doc.redirectUrl : undefined,
+      optedIn: doc.optedIn,
+      approvalMethod: doc.approvalMethod,
+      completedAt: doc.completedAt?.toISOString(),
+      providerVerificationId: doc.providerVerificationId,
+    },
+  };
 }
 
 function extractWebhookVerificationId(parsedBody: unknown): string | null {

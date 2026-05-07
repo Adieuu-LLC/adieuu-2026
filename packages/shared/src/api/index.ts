@@ -28,6 +28,7 @@ export {
   type SessionAliasGate,
   type AliasGateCode,
   type SessionGeoInfo,
+  type AgeVerificationDetails,
 } from './auth-types';
 
 export {
@@ -237,6 +238,8 @@ export {
   type PublicAchievement,
   type AchievementStats,
 } from './achievements-api';
+
+export { AgeVerificationApi } from './age-verification-api';
 
 export { GeoApi } from './geo-api';
 export {

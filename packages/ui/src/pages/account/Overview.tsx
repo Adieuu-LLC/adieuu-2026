@@ -11,6 +11,7 @@ import { useToast } from '../../components/Toast';
 import {
   createApiClient,
   expandedJurisdictionCodesForRequirements,
+  type AgeVerificationDetails,
   type PublicJurisdictionRequirement,
   type UserProfile,
 } from '@adieuu/shared';
@@ -68,6 +69,9 @@ export function AccountOverview() {
   const [jurisdictionReqs, setJurisdictionReqs] = useState<PublicJurisdictionRequirement[]>([]);
   const [jreqLoading, setJreqLoading] = useState(false);
 
+  // Detailed age verification attempt (fetched on demand, not from session)
+  const [avDetails, setAvDetails] = useState<AgeVerificationDetails | null>(null);
+
   // Load profile on mount
   const loadProfile = useCallback(async () => {
     try {
@@ -120,6 +124,29 @@ export function AccountOverview() {
     };
   }, [api, geo]);
 
+  const avStatus = session?.ageVerification?.status;
+  const aliasGateCode = session?.aliasGate?.code;
+  const avRelevant =
+    avStatus != null ||
+    aliasGateCode === 'AGE_VERIFICATION_REQUIRED' ||
+    aliasGateCode === 'AGE_VERIFICATION_FAILED' ||
+    aliasGateCode === 'AGE_VERIFICATION_COOLDOWN';
+
+  useEffect(() => {
+    if (!avRelevant) {
+      setAvDetails(null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const res = await api.ageVerification.getCurrent();
+      if (cancelled) return;
+      setAvDetails(res.success && res.data ? res.data : null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [api, avRelevant]);
 
   // Request email verification
   const handleRequestEmailVerification = async () => {
@@ -707,6 +734,8 @@ export function AccountOverview() {
           <AgeVerificationCard
             ageVerification={session.ageVerification}
             aliasGate={session.aliasGate}
+            details={avDetails ?? undefined}
+            jurisdictionReqs={jurisdictionReqs}
           />
         )}
 

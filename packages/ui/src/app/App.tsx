@@ -44,6 +44,7 @@ import { UpdateOverlay } from '../components/UpdateOverlay';
 import { AchievementListener } from '../components/AchievementListener';
 import { AppPlainTextContextMenu } from '../components/AppPlainTextContextMenu';
 import { UpdateProvider } from '../hooks/useUpdateContext';
+import { IdentityModalProvider } from '../hooks/useIdentityModal';
 import { AppSidebar } from './AppSidebar';
 import {
   AdminAuthAllowlist,
@@ -120,11 +121,13 @@ function ProtectedLayoutContent() {
     <>
       <TourRoot tour={tour} />
       <TourRoot tour={appearanceTour} />
-      <AppLayout sidebar={<AppSidebar />}>
-        <KeyStorageBanner />
-        <WebSecurityBanner />
-        <Outlet />
-      </AppLayout>
+      <IdentityModalProvider>
+        <AppLayout sidebar={<AppSidebar />}>
+          <KeyStorageBanner />
+          <WebSecurityBanner />
+          <Outlet />
+        </AppLayout>
+      </IdentityModalProvider>
       <UpdateOverlay />
       <AchievementListener />
       <AppPlainTextContextMenu />

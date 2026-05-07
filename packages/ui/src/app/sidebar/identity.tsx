@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useIdentityModal } from '../../hooks/useIdentityModal';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSidebar } from '../../components/Sidebar';
@@ -7,7 +7,6 @@ import { Icon } from '../../icons/Icon';
 import { useAuth, type AuthStatus } from '../../hooks/useAuth';
 import type { IdentityStatus } from '../../hooks/useIdentity.types';
 import { useIdentity } from '../../hooks/useIdentity';
-import { IdentityModal } from '../IdentityModal';
 import { SuspensionModal } from '../../components/SuspensionModal';
 
 /** Account routes and sidebar entry are for account (OTP) sessions only, not while in an active alias context. */
@@ -103,19 +102,13 @@ export function IdentityFlyout() {
   const location = useLocation();
   const { isExpanded, closeMobile } = useSidebar();
   const { status: identityStatus, identity, logoutFromIdentity, hasIdentity, suspensionInfo, clearSuspension } = useIdentity();
-  const [identityModalOpen, setIdentityModalOpen] = useState(false);
+  const { openIdentityModal } = useIdentityModal();
 
   const isActive = (path: string) => location.pathname === path;
   const isIdentityActive = location.pathname.startsWith('/identity');
   const isIdentityLoggedIn = identityStatus === 'logged_in' && identity;
   const isIdentityLocked = identityStatus === 'locked' && identity;
   const isIdentitySuspended = identityStatus === 'suspended' && !!suspensionInfo;
-
-  useEffect(() => {
-    if (isIdentityLocked) {
-      setIdentityModalOpen(true);
-    }
-  }, [isIdentityLocked]);
 
   const handleIdentityLogout = async () => {
     closeMobile();
@@ -128,7 +121,7 @@ export function IdentityFlyout() {
 
   const handleLoginClick = () => {
     closeMobile();
-    setIdentityModalOpen(true);
+    openIdentityModal();
   };
 
   if (isIdentitySuspended) {
@@ -162,11 +155,6 @@ export function IdentityFlyout() {
           <Icon name="mask" />
           <span className="sidebar-identity-label">{t('identity.unlock.title')}</span>
         </Button>
-        <IdentityModal
-          isOpen={identityModalOpen}
-          onClose={() => setIdentityModalOpen(false)}
-          unlockMode={true}
-        />
       </>
     );
   }
@@ -188,10 +176,6 @@ export function IdentityFlyout() {
           <Icon name="mask" />
           <span className="sidebar-identity-label">{aliasButtonLabel}</span>
         </Button>
-        <IdentityModal
-          isOpen={identityModalOpen}
-          onClose={() => setIdentityModalOpen(false)}
-        />
       </>
     );
   }
