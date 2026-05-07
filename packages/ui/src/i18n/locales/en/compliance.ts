@@ -29,6 +29,7 @@ export const compliance = {
     awaitingUser: 'Complete the verification in the opened window.',
     processing: 'Verification in progress...',
     nextCheckIn: 'Checking status in {{seconds}}s...',
+    doLater: 'Do verification later',
     methodsTitle: 'Verification Methods',
     attemptsRemaining: '{{remaining}} attempts remaining',
   },

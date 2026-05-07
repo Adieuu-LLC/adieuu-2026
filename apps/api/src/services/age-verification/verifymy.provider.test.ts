@@ -140,6 +140,61 @@ describe('VerifyMyProvider', () => {
       expect(decrypted).toBe('enc@test.com');
     });
 
+    test('normalizes sub-jurisdiction country codes to ISO country only', async () => {
+      fetchResponse.body = {
+        verification_id: 'vid-norm',
+        verification_status: 'started',
+        start_verification_url: 'https://verify.verifymyage.com/flow/vid-norm',
+      };
+
+      const provider = new VerifyMyProvider();
+      await provider.startVerification({
+        redirectUrl: 'https://api.example.com/callback',
+        country: 'US-UT',
+        externalUserId: 'user-norm',
+      });
+
+      const sentBody = JSON.parse(fetchCalls[0]!.init.body as string);
+      expect(sentBody.country).toBe('us');
+    });
+
+    test('includes business_settings_id when provided', async () => {
+      fetchResponse.body = {
+        verification_id: 'vid-bsid',
+        verification_status: 'started',
+        start_verification_url: 'https://verify.verifymyage.com/flow/vid-bsid',
+      };
+
+      const provider = new VerifyMyProvider();
+      await provider.startVerification({
+        redirectUrl: 'https://api.example.com/callback',
+        country: 'us',
+        externalUserId: 'user-bsid',
+        businessSettingsId: 'bs-utah-123',
+      });
+
+      const sentBody = JSON.parse(fetchCalls[0]!.init.body as string);
+      expect(sentBody.business_settings_id).toBe('bs-utah-123');
+    });
+
+    test('omits business_settings_id when not provided', async () => {
+      fetchResponse.body = {
+        verification_id: 'vid-nobsid',
+        verification_status: 'started',
+        start_verification_url: 'https://verify.verifymyage.com/flow/vid-nobsid',
+      };
+
+      const provider = new VerifyMyProvider();
+      await provider.startVerification({
+        redirectUrl: 'https://api.example.com/callback',
+        country: 'gb',
+        externalUserId: 'user-nobsid',
+      });
+
+      const sentBody = JSON.parse(fetchCalls[0]!.init.body as string);
+      expect(sentBody.business_settings_id).toBeUndefined();
+    });
+
     test('includes method parameter when provided', async () => {
       fetchResponse.body = {
         verification_id: 'vid-method',

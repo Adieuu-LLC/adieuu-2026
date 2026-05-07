@@ -17,6 +17,12 @@ export interface LegislationRef {
 
 export type JurisdictionRequirementStatus = 'enacted' | 'proposed';
 
+/** Provider-specific configuration for age verification in this jurisdiction. */
+export interface VerificationConfig {
+  /** VerifyMy business settings ID (required per-jurisdiction for US states). */
+  vmyBusinessSettingsId?: string;
+}
+
 /**
  * Public subset safe for account-session API responses
  */
@@ -30,6 +36,7 @@ export interface PublicJurisdictionRequirement {
   legislation: LegislationRef[];
   notes?: string;
   status: JurisdictionRequirementStatus;
+  verificationConfig?: VerificationConfig;
 }
 
 /**
@@ -53,6 +60,7 @@ export interface JurisdictionRequirementDocument extends BaseDocument {
   /** Free-form context from the compliance matrix */
   notes?: string;
   status: JurisdictionRequirementStatus;
+  verificationConfig?: VerificationConfig;
 }
 
 export function toPublicJurisdictionRequirement(
@@ -68,5 +76,6 @@ export function toPublicJurisdictionRequirement(
     legislation: doc.legislation,
     notes: doc.notes,
     status: doc.status,
+    verificationConfig: doc.verificationConfig,
   };
 }

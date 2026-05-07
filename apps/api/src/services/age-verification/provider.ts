@@ -44,6 +44,8 @@ export interface StartVerificationInput {
   externalUserId: string;
   userInfo?: { email?: string; phone?: string };
   method?: string;
+  /** Provider-specific business/settings identifier (e.g. per-jurisdiction for US states). */
+  businessSettingsId?: string;
   webhookUrl?: string;
   webhookNotificationLevel?: 'minimal' | 'method-exhausted' | 'detailed';
 }

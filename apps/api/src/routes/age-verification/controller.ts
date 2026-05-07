@@ -164,6 +164,13 @@ export async function postStartAgeVerification(userIdHex: string): Promise<Start
   const jurisdiction =
     user.geo?.jurisdiction ?? user.geo?.countryCode?.toUpperCase() ?? 'US';
 
+  elog.info('Age verification start: jurisdiction resolved', {
+    userId: userIdHex,
+    geoJurisdiction: user.geo?.jurisdiction ?? null,
+    geoCountryCode: user.geo?.countryCode ?? null,
+    resolvedJurisdiction: jurisdiction,
+  });
+
   try {
     const result = await startVerification(user, {
       jurisdiction,

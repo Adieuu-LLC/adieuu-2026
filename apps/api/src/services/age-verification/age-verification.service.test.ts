@@ -132,7 +132,7 @@ beforeEach(() => {
 });
 
 describe('startVerification', () => {
-  test('includes user_info when Email is compatible and email is available', async () => {
+  test('includes user_info when user has email', async () => {
     const user = makeUser({ email: 'user@example.com' });
 
     const result = await startVerification(user, {
@@ -148,7 +148,7 @@ describe('startVerification', () => {
     expect(callArgs.method).toBe('Email');
   });
 
-  test('skips user_info when Email is not in compatible methods', async () => {
+  test('sends user_info regardless of compatible methods when user has email', async () => {
     mockGetAgeVerificationPolicy.mockImplementation(async () => ({
       required: true,
       compatibleMethods: ['AgeEstimation', 'IDScanFaceMatch'],
@@ -163,8 +163,39 @@ describe('startVerification', () => {
       callbackBaseUrl: 'https://api.example.com',
     });
 
+    const callArgs = mockStartVerification.mock.calls[0]![0] as { userInfo?: { email?: string } };
+    expect(callArgs.userInfo?.email).toBe('user@example.com');
+  });
+
+  test('skips user_info when user has no email', async () => {
+    const user = makeUser({ email: undefined });
+
+    await startVerification(user, {
+      jurisdiction: 'US-CA',
+      callbackBaseUrl: 'https://api.example.com',
+    });
+
     const callArgs = mockStartVerification.mock.calls[0]![0] as { userInfo?: unknown };
     expect(callArgs.userInfo).toBeUndefined();
+  });
+
+  test('passes businessSettingsId from policy to provider', async () => {
+    mockGetAgeVerificationPolicy.mockImplementation(async () => ({
+      required: true,
+      compatibleMethods: ['Email', 'AgeEstimation'],
+      leastInvasiveMethod: 'Email',
+      legislation: [],
+      vmyBusinessSettingsId: 'bs-ca-456',
+    }));
+
+    const user = makeUser();
+    await startVerification(user, {
+      jurisdiction: 'US-CA',
+      callbackBaseUrl: 'https://api.example.com',
+    });
+
+    const callArgs = mockStartVerification.mock.calls[0]![0] as { businessSettingsId?: string };
+    expect(callArgs.businessSettingsId).toBe('bs-ca-456');
   });
 
   test('creates AV doc and updates user to verified on instant approval', async () => {

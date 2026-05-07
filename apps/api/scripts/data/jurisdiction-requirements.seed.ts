@@ -58,6 +58,7 @@ function usState(
   notes?: string,
   status: SeedRow['status'] = 'enacted',
   url?: string,
+  vmyBusinessSettingsId?: string,
 ): SeedRow {
   return {
     jurisdiction: code,
@@ -69,6 +70,9 @@ function usState(
     legislation: [{ name: law, enactmentDate: enact, url }],
     notes,
     status,
+    verificationConfig: vmyBusinessSettingsId
+      ? { vmyBusinessSettingsId }
+      : undefined,
   };
 }
 

@@ -74,6 +74,13 @@ export async function startVerification(
     }
 
     if (stillActive) {
+      elog.info('Age verification: reusing existing non-terminal attempt', {
+        userId: user._id.toHexString(),
+        providerVerificationId: candidate.providerVerificationId,
+        status: candidate.status,
+        hasRedirectUrl: !!candidate.redirectUrl,
+      });
+
       if (user.ageVerification) {
         await userRepo.updateAgeVerification(user._id, {
           ...user.ageVerification,
@@ -103,15 +110,27 @@ export async function startVerification(
     country: countryCode,
     externalUserId: user._id.toHexString(),
     method: leastInvasive,
+    businessSettingsId: policy?.vmyBusinessSettingsId,
   };
 
-  const canBackgroundCheck = policy?.compatibleMethods.includes('Email');
-  if (canBackgroundCheck && user.email) {
+  if (user.email) {
     input.userInfo = { email: user.email };
     if (user.phone) {
       input.userInfo.phone = user.phone;
     }
   }
+
+  elog.info('Age verification: policy resolved', {
+    userId: user._id.toHexString(),
+    jurisdiction: opts.jurisdiction,
+    hasPolicy: !!policy,
+    compatibleMethods: policy?.compatibleMethods ?? [],
+    leastInvasive: leastInvasive ?? null,
+    businessSettingsId: policy?.vmyBusinessSettingsId ?? null,
+    userHasEmail: !!user.email,
+    userHasPhone: !!user.phone,
+    willSendUserInfo: !!user.email,
+  });
 
   let providerResult: StartVerificationResult;
   try {

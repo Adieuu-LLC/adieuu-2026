@@ -789,6 +789,13 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
                       {t('compliance.ageVerification.nextCheckIn', { seconds: av.secondsUntilNextPoll })}
                     </p>
                   )}
+                  <button
+                    type="button"
+                    className="identity-modal-do-later-link"
+                    onClick={() => { av.cancel(); onClose(); }}
+                  >
+                    {t('compliance.ageVerification.doLater')}
+                  </button>
                 </div>
               </div>
             )}

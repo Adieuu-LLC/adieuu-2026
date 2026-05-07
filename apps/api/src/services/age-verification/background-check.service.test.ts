@@ -30,6 +30,17 @@ mock.module('./providers', () => ({
 const mockIsAgeVerificationEnabled = mock(() => Promise.resolve(true)) as AnyMock;
 const mockIsAutoEmailBackgroundCheckEnabled = mock(() => Promise.resolve(true)) as AnyMock;
 
+const mockGetAgeVerificationPolicy = mock(async (_j: string) => ({
+  required: true,
+  compatibleMethods: ['Email', 'AgeEstimation'],
+  leastInvasiveMethod: 'Email',
+  legislation: [],
+})) as AnyMock;
+
+mock.module('./jurisdiction-policy', () => ({
+  getAgeVerificationPolicy: mockGetAgeVerificationPolicy,
+}));
+
 mock.module('./av-settings', () => ({
   isAgeVerificationEnabled: mockIsAgeVerificationEnabled,
   isAutoEmailBackgroundCheckEnabled: mockIsAutoEmailBackgroundCheckEnabled,
@@ -109,12 +120,19 @@ describe('initiateBackgroundCheck', () => {
     mockStartVerification.mockReset();
     mockIsAgeVerificationEnabled.mockReset();
     mockIsAutoEmailBackgroundCheckEnabled.mockClear();
+    mockGetAgeVerificationPolicy.mockReset();
     mockCreateVerification.mockReset();
     mockUpdateStatus.mockReset();
     mockUpdateAgeVerification.mockReset();
 
     mockIsAgeVerificationEnabled.mockResolvedValue(true);
     mockIsAutoEmailBackgroundCheckEnabled.mockImplementation(async () => true);
+    mockGetAgeVerificationPolicy.mockImplementation(async () => ({
+      required: true,
+      compatibleMethods: ['Email', 'AgeEstimation'],
+      leastInvasiveMethod: 'Email',
+      legislation: [],
+    }));
     mockStartVerification.mockImplementation(async () => ({
       verificationId: 'pv-bg-123',
       status: 'started' as const,
@@ -216,5 +234,30 @@ describe('initiateBackgroundCheck', () => {
 
     const user = makeUser();
     await expect(initiateBackgroundCheck(user)).resolves.toBeUndefined();
+  });
+
+  test('passes businessSettingsId from jurisdiction policy to provider', async () => {
+    mockGetAgeVerificationPolicy.mockImplementation(async () => ({
+      required: true,
+      compatibleMethods: ['Email'],
+      leastInvasiveMethod: 'Email',
+      legislation: [],
+      vmyBusinessSettingsId: 'bs-ca-789',
+    }));
+
+    const user = makeUser();
+    await initiateBackgroundCheck(user);
+
+    expect(mockStartVerification).toHaveBeenCalledTimes(1);
+    const callArgs = mockStartVerification.mock.calls[0]![0] as { businessSettingsId?: string };
+    expect(callArgs.businessSettingsId).toBe('bs-ca-789');
+  });
+
+  test('sends undefined businessSettingsId when policy has none', async () => {
+    const user = makeUser();
+    await initiateBackgroundCheck(user);
+
+    const callArgs = mockStartVerification.mock.calls[0]![0] as { businessSettingsId?: string };
+    expect(callArgs.businessSettingsId).toBeUndefined();
   });
 });

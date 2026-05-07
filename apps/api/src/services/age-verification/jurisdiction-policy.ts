@@ -44,6 +44,8 @@ export interface JurisdictionAgePolicy {
   leastInvasiveMethod: string;
   legislation: LegislationRef[];
   notes?: string;
+  /** VerifyMy business settings ID for this jurisdiction (US states). */
+  vmyBusinessSettingsId?: string;
 }
 
 /**
@@ -86,6 +88,7 @@ export async function getAgeVerificationPolicy(
     leastInvasiveMethod: leastInvasive,
     legislation: doc.legislation,
     notes: doc.notes,
+    vmyBusinessSettingsId: doc.verificationConfig?.vmyBusinessSettingsId,
   };
 }
 

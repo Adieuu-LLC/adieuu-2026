@@ -110,11 +110,18 @@ export class VerifyMyProvider implements AgeVerificationProvider {
     const env = await resolveEnvironment();
     const baseUrl = getBaseUrl(env);
 
+    // VerifyMy expects ISO country codes only (e.g. 'us', not 'us-ut')
+    const normalizedCountry = input.country.toLowerCase().split('-')[0]!;
+
     const payload: Record<string, unknown> = {
       redirect_url: input.redirectUrl,
-      country: input.country.toLowerCase(),
+      country: normalizedCountry,
       external_user_id: input.externalUserId,
     };
+
+    if (input.businessSettingsId) {
+      payload.business_settings_id = input.businessSettingsId;
+    }
 
     if (input.method) {
       payload.method = input.method;
@@ -143,6 +150,18 @@ export class VerifyMyProvider implements AgeVerificationProvider {
     const body = JSON.stringify(payload);
     const hmac = computeHmac(body);
 
+    const userInfoShape = payload.user_info as Record<string, string> | undefined;
+    elog.info('VerifyMy startVerification request', {
+      env,
+      country: payload.country,
+      businessSettingsId: payload.business_settings_id ?? null,
+      method: payload.method ?? null,
+      hasUserInfo: !!payload.user_info,
+      hasEncryptedEmail: !!userInfoShape?.email,
+      hasEncryptedPhone: !!userInfoShape?.phone,
+      externalUserId: payload.external_user_id,
+    });
+
     const response = await fetch(`${baseUrl}/api/v3/verifications`, {
       method: 'POST',
       headers: {
@@ -163,6 +182,12 @@ export class VerifyMyProvider implements AgeVerificationProvider {
     }
 
     const data = (await response.json()) as VerifyMyStartResponse;
+
+    elog.info('VerifyMy startVerification response', {
+      verificationId: data.verification_id,
+      status: data.verification_status,
+      hasRedirectUrl: !!data.start_verification_url,
+    });
 
     return {
       verificationId: data.verification_id,

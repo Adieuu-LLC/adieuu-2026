@@ -16,6 +16,7 @@ import type { UserDocument, UserAgeVerification } from '../../models/user';
 import { getAgeVerificationRepository } from '../../repositories/age-verification.repository';
 import { getUserRepository } from '../../repositories/user.repository';
 import { getActiveProvider } from './providers';
+import { getAgeVerificationPolicy } from './jurisdiction-policy';
 import { isAgeVerificationEnabled, isAutoEmailBackgroundCheckEnabled } from './av-settings';
 import { config } from '../../config';
 import elog from '../../utils/adieuuLogger';
@@ -53,12 +54,15 @@ export async function initiateBackgroundCheck(user: UserDocument): Promise<void>
     const callbackUrl = `${config.apiBaseUrl}/api/age-verification/callback`;
 
     const countryCode = user.geo?.countryCode?.toLowerCase() ?? 'us';
+    const jurisdiction = user.geo?.jurisdiction ?? countryCode.toUpperCase();
+    const policy = await getAgeVerificationPolicy(jurisdiction);
 
     const providerResult = await provider.startVerification({
       redirectUrl: callbackUrl,
       country: countryCode,
       externalUserId: user._id.toHexString(),
       userInfo: { email: user.email },
+      businessSettingsId: policy?.vmyBusinessSettingsId,
     });
 
     const doc = await repo.createVerification({
