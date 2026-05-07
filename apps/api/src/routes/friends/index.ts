@@ -14,36 +14,21 @@
 
 import { Router } from '../../router';
 import { success, errors } from '../../utils/response';
-import { sanitizeString } from '../../utils/sanitize';
 import {
-  sendFriendRequest,
-  acceptFriendRequest,
-  ignoreFriendRequest,
-  cancelFriendRequest,
-  removeFriend,
-  getFriends,
-  searchFriends,
-  getIncomingRequests,
-  getOutgoingRequests,
-  getIncomingRequestCount,
-  getFriendshipStatus,
-} from '../../services/friend.service';
-import { z } from '@adieuu/shared/schemas';
-import { isValidObjectId } from '../../utils';
+  sendFriendRequestResult,
+  acceptFriendRequestResult,
+  ignoreFriendRequestResult,
+  cancelFriendRequestResult,
+  listIncomingRequestsResult,
+  listOutgoingRequestsResult,
+  incomingRequestCountResult,
+  listFriendsResult,
+  searchFriendsResult,
+  removeFriendResult,
+  getFriendshipStatusResult,
+} from './controller';
 
 const router = new Router();
-
-// ---------------------------------------------------------------------------
-// Friend request schemas
-// ---------------------------------------------------------------------------
-
-const SendRequestSchema = z.object({
-  identityId: z.string().length(24),
-});
-
-// ---------------------------------------------------------------------------
-// Friend request routes
-// ---------------------------------------------------------------------------
 
 /**
  * POST /friends/requests - Send a friend request
@@ -55,30 +40,11 @@ router.post('/friends/requests', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const parseResult = SendRequestSchema.safeParse(ctx.body);
-  if (!parseResult.success) return ctx.errors.validationFailed();
-
-  const { identityId } = parseResult.data;
-  const sanitized = sanitizeString(identityId, 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid identity ID.');
-  }
-
-  const result = await sendFriendRequest(identity._id, sanitized.value);
-
-  if (!result.success) {
-    switch (result.errorCode) {
-      case 'CANNOT_FRIEND_SELF':
-        return errors.badRequest('Cannot send friend request to yourself.');
-      case 'ALREADY_FRIENDS':
-        return errors.badRequest('Already friends with this identity.');
-      case 'REQUEST_EXISTS':
-        return errors.badRequest('A pending friend request already exists.');
-      case 'IDENTITY_NOT_FOUND':
-        return errors.notFound('Identity not found.');
-      default:
-        return errors.badRequest(result.error ?? 'Failed to send friend request.');
-    }
+  const result = await sendFriendRequestResult(identity._id, ctx.body);
+  if (!result.ok) {
+    if (result.kind === 'validation_failed') return ctx.errors.validationFailed();
+    if (result.kind === 'not_found') return errors.notFound(result.message);
+    return errors.badRequest(result.message);
   }
 
   return success(result.request, 'Friend request sent.');
@@ -93,23 +59,11 @@ router.post('/friends/requests/:id/accept', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { id } = ctx.params;
-  const sanitized = sanitizeString(id ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid request ID.');
-  }
-
-  const result = await acceptFriendRequest(sanitized.value, identity._id);
-
-  if (!result.success) {
-    switch (result.errorCode) {
-      case 'REQUEST_NOT_FOUND':
-        return errors.notFound('Friend request not found.');
-      case 'NOT_AUTHORIZED':
-        return ctx.errors.unauthorized();
-      default:
-        return errors.badRequest(result.error ?? 'Failed to accept friend request.');
-    }
+  const result = await acceptFriendRequestResult(identity._id, ctx.params.id);
+  if (!result.ok) {
+    if (result.kind === 'not_found') return errors.notFound(result.message);
+    if (result.kind === 'unauthorized') return ctx.errors.unauthorized();
+    return errors.badRequest(result.message);
   }
 
   return success(result.request, 'Friend request accepted.');
@@ -124,23 +78,11 @@ router.post('/friends/requests/:id/ignore', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { id } = ctx.params;
-  const sanitized = sanitizeString(id ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid request ID.');
-  }
-
-  const result = await ignoreFriendRequest(sanitized.value, identity._id);
-
-  if (!result.success) {
-    switch (result.errorCode) {
-      case 'REQUEST_NOT_FOUND':
-        return errors.notFound('Friend request not found.');
-      case 'NOT_AUTHORIZED':
-        return ctx.errors.unauthorized();
-      default:
-        return errors.badRequest(result.error ?? 'Failed to ignore friend request.');
-    }
+  const result = await ignoreFriendRequestResult(identity._id, ctx.params.id);
+  if (!result.ok) {
+    if (result.kind === 'not_found') return errors.notFound(result.message);
+    if (result.kind === 'unauthorized') return ctx.errors.unauthorized();
+    return errors.badRequest(result.message);
   }
 
   return success(undefined, 'Friend request ignored.');
@@ -155,23 +97,11 @@ router.delete('/friends/requests/:id', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { id } = ctx.params;
-  const sanitized = sanitizeString(id ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid request ID.');
-  }
-
-  const result = await cancelFriendRequest(sanitized.value, identity._id);
-
-  if (!result.success) {
-    switch (result.errorCode) {
-      case 'REQUEST_NOT_FOUND':
-        return errors.notFound('Friend request not found.');
-      case 'NOT_AUTHORIZED':
-        return ctx.errors.unauthorized();
-      default:
-        return errors.badRequest(result.error ?? 'Failed to cancel friend request.');
-    }
+  const result = await cancelFriendRequestResult(identity._id, ctx.params.id);
+  if (!result.ok) {
+    if (result.kind === 'not_found') return errors.notFound(result.message);
+    if (result.kind === 'unauthorized') return ctx.errors.unauthorized();
+    return errors.badRequest(result.message);
   }
 
   return success(undefined, 'Friend request cancelled.');
@@ -188,22 +118,7 @@ router.get('/friends/requests/incoming', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const limitParam = ctx.query.get('limit');
-  const cursor = ctx.query.get('cursor');
-
-  let limit = limitParam ? parseInt(limitParam, 10) : 50;
-  if (isNaN(limit) || limit < 1) limit = 50;
-  if (limit > 100) limit = 100;
-
-  let validCursor: string | undefined;
-  if (cursor) {
-    const sanitizedCursor = sanitizeString(cursor, 'general');
-    if (sanitizedCursor.value && isValidObjectId(sanitizedCursor.value)) {
-      validCursor = sanitizedCursor.value;
-    }
-  }
-
-  const result = await getIncomingRequests(identity._id, limit, validCursor);
+  const result = await listIncomingRequestsResult(identity._id, ctx.query);
 
   return success({
     requests: result.requests,
@@ -223,22 +138,7 @@ router.get('/friends/requests/outgoing', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const limitParam = ctx.query.get('limit');
-  const cursor = ctx.query.get('cursor');
-
-  let limit = limitParam ? parseInt(limitParam, 10) : 50;
-  if (isNaN(limit) || limit < 1) limit = 50;
-  if (limit > 100) limit = 100;
-
-  let validCursor: string | undefined;
-  if (cursor) {
-    const sanitizedCursor = sanitizeString(cursor, 'general');
-    if (sanitizedCursor.value && isValidObjectId(sanitizedCursor.value)) {
-      validCursor = sanitizedCursor.value;
-    }
-  }
-
-  const result = await getOutgoingRequests(identity._id, limit, validCursor);
+  const result = await listOutgoingRequestsResult(identity._id, ctx.query);
 
   return success({
     requests: result.requests,
@@ -255,14 +155,10 @@ router.get('/friends/requests/count', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const count = await getIncomingRequestCount(identity._id);
+  const count = await incomingRequestCountResult(identity._id);
 
   return success({ count });
 });
-
-// ---------------------------------------------------------------------------
-// Friends list routes
-// ---------------------------------------------------------------------------
 
 /**
  * GET /friends - List friends (paginated)
@@ -275,22 +171,7 @@ router.get('/friends', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const limitParam = ctx.query.get('limit');
-  const cursor = ctx.query.get('cursor');
-
-  let limit = limitParam ? parseInt(limitParam, 10) : 50;
-  if (isNaN(limit) || limit < 1) limit = 50;
-  if (limit > 100) limit = 100;
-
-  let validCursor: string | undefined;
-  if (cursor) {
-    const sanitizedCursor = sanitizeString(cursor, 'general');
-    if (sanitizedCursor.value && isValidObjectId(sanitizedCursor.value)) {
-      validCursor = sanitizedCursor.value;
-    }
-  }
-
-  const result = await getFriends(identity._id, limit, validCursor);
+  const result = await listFriendsResult(identity._id, ctx.query);
 
   return success({
     friends: result.friends,
@@ -309,24 +190,13 @@ router.get('/friends/search', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const query = ctx.query.get('q');
-  if (!query || query.trim().length < 2) {
-    return errors.badRequest('Search query must be at least 2 characters.');
+  const result = await searchFriendsResult(identity._id, ctx.query);
+  if (!result.ok) {
+    if (result.kind === 'validation_failed') return ctx.errors.validationFailed();
+    return errors.badRequest(result.message);
   }
 
-  const sanitized = sanitizeString(query.trim(), 'general');
-  if (!sanitized.value) {
-    return errors.badRequest('Invalid search query.');
-  }
-
-  const limitParam = ctx.query.get('limit');
-  let limit = limitParam ? parseInt(limitParam, 10) : 20;
-  if (isNaN(limit) || limit < 1) limit = 20;
-  if (limit > 50) limit = 50;
-
-  const friends = await searchFriends(identity._id, sanitized.value, limit);
-
-  return success({ friends });
+  return success({ friends: result.friends });
 });
 
 /**
@@ -338,19 +208,10 @@ router.delete('/friends/:identityId', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { identityId } = ctx.params;
-  const sanitized = sanitizeString(identityId ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid identity ID.');
-  }
-
-  const result = await removeFriend(identity._id, sanitized.value);
-
-  if (!result.success) {
-    if (result.errorCode === 'NOT_FRIENDS') {
-      return errors.notFound('Not friends with this identity.');
-    }
-    return errors.badRequest(result.error ?? 'Failed to remove friend.');
+  const result = await removeFriendResult(identity._id, ctx.params.identityId);
+  if (!result.ok) {
+    if (result.kind === 'not_found') return errors.notFound(result.message);
+    return errors.badRequest(result.message);
   }
 
   return success(undefined, 'Friend removed.');
@@ -365,18 +226,12 @@ router.get('/friends/status/:identityId', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { identityId } = ctx.params;
-  const sanitized = sanitizeString(identityId ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
-    return errors.badRequest('Invalid identity ID.');
+  const result = await getFriendshipStatusResult(identity._id, ctx.params.identityId);
+  if (!result.ok) {
+    return errors.badRequest(result.message);
   }
 
-  const result = await getFriendshipStatus(identity._id, sanitized.value);
-
-  return success({
-    status: result.status,
-    ...(result.friendsSince != null ? { friendsSince: result.friendsSince } : {}),
-  });
+  return success(result.data);
 });
 
 export const friendRoutes = router;

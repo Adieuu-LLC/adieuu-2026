@@ -107,6 +107,8 @@ const mockIdentity = {
   lastActiveAt: new Date(),
 };
 
+const mockIdentitySearch = mock(() => Promise.resolve([mockIdentity]));
+
 mock.module('../../repositories/identity.repository', () => ({
   getIdentityRepository: () => ({
     findByUsername: mock(() => Promise.resolve(null)),
@@ -120,6 +122,7 @@ mock.module('../../repositories/identity.repository', () => ({
     removeDevice: mock(() => Promise.resolve(true)),
     updateDeviceActivity: mock(() => Promise.resolve(true)),
     getDevices: mock(() => Promise.resolve([])),
+    search: mockIdentitySearch,
   }),
   IDENTITY_SEARCH_DEFAULTS: {
     MIN_QUERY_LENGTH: 2,
@@ -169,6 +172,29 @@ mock.module('../../services/block.service', () => ({
   checkIfBlocked: mockCheckIfBlocked,
   getBlockedIdentities: mockGetBlockedIdentities,
   getBlockedIdentityIds: mockGetBlockedIdentityIds,
+}));
+
+// Mock session repository (revoke-session path)
+const otherSessionToken = 'aBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgHi';
+const mockSessionRevoke = mock(() => Promise.resolve());
+const mockFindBySessionId = mock(async (sid: string) => {
+  if (sid !== otherSessionToken) return null;
+  return {
+    type: 'identity' as const,
+    identityId: mockIdentityId,
+    sessionId: sid,
+    expiresAt: new Date(Date.now() + 86_400_000),
+  };
+});
+
+mock.module('../../repositories/session.repository', () => ({
+  getSessionRepository: () => ({
+    findBySessionId: mockFindBySessionId,
+    revoke: mockSessionRevoke,
+    getSession: mock(() => Promise.resolve(null)),
+    findByIdentityId: mock(() => Promise.resolve([])),
+    revokeAllForIdentityExcept: mock(() => Promise.resolve(0)),
+  }),
 }));
 
 // Mock identity service
@@ -645,6 +671,81 @@ describe('identity routes', () => {
       const body = await response.json() as { data: { blocked: boolean; blockedAt: string | null } };
       expect(body.data.blocked).toBe(true);
       expect(body.data.blockedAt).toBeDefined();
+    });
+  });
+
+  describe('GET /identity/search', () => {
+    test('returns 400 when sanitized query shorter than MIN_QUERY_LENGTH', async () => {
+      const zw = '\u200b';
+      const response = await makeRequest(`/identity/search?q=a${zw}`, {
+        method: 'GET',
+      });
+
+      expect(response.status).toBe(400);
+      expect(mockIdentitySearch).not.toHaveBeenCalled();
+    });
+
+    test('calls search with sanitized query when valid', async () => {
+      const response = await makeRequest('/identity/search?q=hello', {
+        method: 'GET',
+      });
+
+      expect(response.status).toBe(200);
+      expect(mockIdentitySearch).toHaveBeenCalledWith('hello', 10, undefined);
+    });
+  });
+
+  describe('GET /identity/:id', () => {
+    test('returns 400 for malformed identity id param', async () => {
+      const response = await makeRequest('/identity/not-valid-object-id-!!!!', {
+        method: 'GET',
+      });
+
+      expect(response.status).toBe(400);
+    });
+  });
+
+  describe('DELETE /identity/:id/sessions/:sessionId', () => {
+    beforeEach(() => {
+      mockSessionRevoke.mockClear();
+      mockFindBySessionId.mockClear();
+      mockFindBySessionId.mockImplementation(async (sid: string) => {
+        if (sid !== otherSessionToken) return null;
+        return {
+          type: 'identity' as const,
+          identityId: mockIdentityId,
+          sessionId: sid,
+          expiresAt: new Date(Date.now() + 86_400_000),
+        };
+      });
+    });
+
+    test('sanitizes session id and revokes when session belongs to caller identity', async () => {
+      const idHex = mockIdentityId.toHexString();
+      const response = await makeRequest(
+        `/identity/${idHex}/sessions/${encodeURIComponent(otherSessionToken)}`,
+        {
+          method: 'DELETE',
+          cookies: 'adieuu_session=session',
+        },
+      );
+
+      expect(response.status).toBe(200);
+      expect(mockSessionRevoke).toHaveBeenCalledWith(otherSessionToken);
+    });
+
+    test('returns 400 when revoking current session token', async () => {
+      const idHex = mockIdentityId.toHexString();
+      const response = await makeRequest(
+        `/identity/${idHex}/sessions/${encodeURIComponent('test-session')}`,
+        {
+          method: 'DELETE',
+          cookies: 'adieuu_session=session',
+        },
+      );
+
+      expect(response.status).toBe(400);
+      expect(mockSessionRevoke).not.toHaveBeenCalled();
     });
   });
 });

@@ -17,10 +17,8 @@ import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getPreKeyRepository } from '../../repositories/pre-key.repository';
 import { toIdentityPublicKeys } from '../../models/identity';
 import { MAX_OTPK_BATCH_SIZE, MAX_OTPK_PER_DEVICE } from '../../models/pre-key';
-import { isValidObjectId } from '../../utils';
-import { sanitizeString } from '../../utils/sanitize';
+import { sanitizeObjectId, sanitizeString } from '../../utils/sanitize';
 import { z } from '@adieuu/shared/schemas';
-import { ObjectId } from 'mongodb';
 import { verifySignedPreKey, fromBase64, type SignedPreKeyPublic } from '@adieuu/crypto';
 import { canViewerAccessTargetIdentityKeys } from '../../services/identity-keys-access.service';
 
@@ -65,12 +63,17 @@ export async function uploadPreKeysCtrl(ctx: RouteContext): Promise<Response> {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot upload pre-keys for another identity.');
   }
 
-  const { deviceId } = ctx.params;
-  if (!deviceId) {
+  const rawDeviceId = ctx.params.deviceId;
+  const deviceId = sanitizeString(rawDeviceId ?? '', 'general').value;
+  if (!deviceId || !rawDeviceId) {
     return errors.badRequest('Device ID is required.');
   }
 
@@ -173,14 +176,13 @@ export async function claimPreKeysCtrl(ctx: RouteContext): Promise<Response> {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const callerIdentity = ctx.identitySession.identity;
 
-  const { id } = ctx.params;
-  const sanitized = sanitizeString(id ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+  const parsedId = sanitizeObjectId(ctx.params.id);
+  if (!parsedId.ok) {
     return errors.badRequest('Invalid identity ID.');
   }
 
   const identityRepo = getIdentityRepository();
-  const targetIdentity = await identityRepo.findByIdentityId(sanitized.value);
+  const targetIdentity = await identityRepo.findByIdentityId(parsedId.id);
   if (!targetIdentity) {
     return errors.notFound('Identity not found.');
   }
@@ -206,10 +208,12 @@ export async function claimPreKeysCtrl(ctx: RouteContext): Promise<Response> {
 
   const { deviceIds } = parseResult.data;
 
+  const normalizedRequested = deviceIds?.map((d) => sanitizeString(d, 'general').value).filter(Boolean) as string[] | undefined;
+
   // Get all device IDs for the target identity, or filter by requested ones
   const allDeviceIds = publicKeys.devices.map((d) => d.deviceId);
-  const targetDeviceIds = deviceIds
-    ? allDeviceIds.filter((id) => deviceIds.includes(id))
+  const targetDeviceIds = normalizedRequested?.length
+    ? allDeviceIds.filter((did) => normalizedRequested.includes(did))
     : allDeviceIds;
 
   if (targetDeviceIds.length === 0) {
@@ -236,12 +240,17 @@ export async function purgeOneTimePreKeysCtrl(ctx: RouteContext): Promise<Respon
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot purge pre-keys for another identity.');
   }
 
-  const { deviceId } = ctx.params;
-  if (!deviceId) {
+  const rawDeviceId = ctx.params.deviceId;
+  const deviceId = sanitizeString(rawDeviceId ?? '', 'general').value;
+  if (!deviceId || !rawDeviceId) {
     return errors.badRequest('Device ID is required.');
   }
 
@@ -269,12 +278,17 @@ export async function getPreKeyCountCtrl(ctx: RouteContext): Promise<Response> {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot query pre-key count for another identity.');
   }
 
-  const { deviceId } = ctx.params;
-  if (!deviceId) {
+  const rawDeviceId = ctx.params.deviceId;
+  const deviceId = sanitizeString(rawDeviceId ?? '', 'general').value;
+  if (!deviceId || !rawDeviceId) {
     return errors.badRequest('Device ID is required.');
   }
 

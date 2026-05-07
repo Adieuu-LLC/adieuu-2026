@@ -32,6 +32,7 @@
  */
 
 import elog from "./adieuuLogger";
+import { isValidObjectId } from "./isValidObjectId";
 
 /**
  * Generates a string containing common emoji characters.
@@ -388,6 +389,32 @@ const LOG_PATH_OBJECT_ID_SEGMENT = /^[a-f\d]{24}$/i;
 
 const LOG_PATH_UUID_SEGMENT =
   /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i;
+
+/**
+ * Validates a MongoDB ObjectId hex string after stripping dangerous/invisible
+ * characters via {@link sanitizeString} (`id` whitelist: alphanumeric only).
+ *
+ * Prefer this over raw length checks so homoglyphs and control characters cannot
+ * reach repositories.
+ */
+export function sanitizeObjectId(
+  raw: string | undefined,
+): { ok: true; id: string } | { ok: false } {
+  const s = sanitizeString(raw ?? "", "id");
+  if (!s.value || !isValidObjectId(s.value)) return { ok: false };
+  return { ok: true, id: s.value };
+}
+
+/**
+ * Lenient pagination cursor: returns canonical ObjectId hex or `undefined`.
+ */
+export function parseOptionalObjectIdCursor(
+  raw: string | null,
+): string | undefined {
+  if (!raw) return undefined;
+  const result = sanitizeObjectId(raw);
+  return result.ok ? result.id : undefined;
+}
 
 /** Avoid oversized log fields from abnormal paths. */
 export const SANITIZED_PATH_MAX_LENGTH = 300;

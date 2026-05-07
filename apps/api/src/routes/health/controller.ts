@@ -9,6 +9,10 @@
 
 import { checkMongoHealth, checkRedisHealth } from '../../db';
 import { config } from '../../config';
+import type { RouteContext } from '../../router/types';
+import { success } from '../../utils/response';
+import { sanitizeString } from '../../utils/sanitize';
+import elog from '../../utils/adieuuLogger';
 
 /**
  * Represents the health status of an individual dependency.
@@ -42,6 +46,27 @@ export interface HealthStatus {
     redis: HealthCheck;
     /** Present only when `STRIPE_ENABLED` is true. Down degrades health but does not make the API unhealthy on its own. */
     stripe?: HealthCheck;
+  };
+}
+
+function sanitizeDependencyErrorMessage(check: HealthCheck): HealthCheck {
+  if (check.status === 'up' || check.error === undefined) {
+    return check;
+  }
+  const { value, deltas } = sanitizeString(check.error, 'general');
+  if (deltas > 0) {
+    elog.warn('Health check error message sanitized', { deltas });
+  }
+  return { ...check, error: value };
+}
+
+function sanitizeHealthChecks(checks: HealthStatus['checks']): HealthStatus['checks'] {
+  return {
+    mongodb: sanitizeDependencyErrorMessage(checks.mongodb),
+    redis: sanitizeDependencyErrorMessage(checks.redis),
+    ...(checks.stripe !== undefined
+      ? { stripe: sanitizeDependencyErrorMessage(checks.stripe) }
+      : {}),
   };
 }
 
@@ -104,11 +129,13 @@ export async function getHealthStatus(): Promise<HealthStatus> {
     stripeHealthPromise,
   ]);
 
-  const checks: HealthStatus['checks'] = {
+  const rawChecks: HealthStatus['checks'] = {
     mongodb: mongoHealth,
     redis: redisHealth,
     ...(stripeHealth !== undefined ? { stripe: stripeHealth } : {}),
   };
+
+  const checks = sanitizeHealthChecks(rawChecks);
 
   return {
     status: determineOverallStatus(checks),
@@ -132,4 +159,20 @@ export async function getHealthStatus(): Promise<HealthStatus> {
  */
 export function getLivenessStatus(): { alive: true } {
   return { alive: true };
+}
+
+/**
+ * GET `/health` — full dependency health; HTTP 503 when all dependencies are down.
+ */
+export async function getHealthCtrl(_ctx: RouteContext): Promise<Response> {
+  const status = await getHealthStatus();
+  const httpStatus = status.status === 'unhealthy' ? 503 : 200;
+  return success(status, undefined, httpStatus);
+}
+
+/**
+ * GET `/health/live` — process liveness only.
+ */
+export function getLivenessCtrl(_ctx: RouteContext): Response {
+  return success(getLivenessStatus());
 }

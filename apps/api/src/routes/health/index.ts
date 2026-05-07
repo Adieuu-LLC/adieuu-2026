@@ -16,8 +16,7 @@
  */
 
 import { Router } from '../../router';
-import { success } from '../../utils/response';
-import { getHealthStatus, getLivenessStatus } from './controller';
+import { getHealthCtrl, getLivenessCtrl } from './controller';
 
 const router = new Router();
 
@@ -49,14 +48,7 @@ const router = new Router();
  * }
  * ```
  */
-router.get('/health', async () => {
-  const status = await getHealthStatus();
-
-  // Return 503 if unhealthy
-  const httpStatus = status.status === 'unhealthy' ? 503 : 200;
-
-  return success(status, undefined, httpStatus);
-});
+router.get('/health', (ctx) => getHealthCtrl(ctx));
 
 /**
  * GET /health/live - Simple liveness probe.
@@ -84,8 +76,6 @@ router.get('/health', async () => {
  *   periodSeconds: 10
  * ```
  */
-router.get('/health/live', () => {
-  return success(getLivenessStatus());
-});
+router.get('/health/live', (ctx) => getLivenessCtrl(ctx));
 
 export const healthRoutes = router;

@@ -15,7 +15,7 @@ import { z } from '@adieuu/shared/schemas';
 import { ObjectId } from 'mongodb';
 import type { RouteContext } from '../../router/types';
 import { success, errors } from '../../utils/response';
-import { sanitizeString } from '../../utils';
+import { sanitizeObjectId, sanitizeString } from '../../utils/sanitize';
 import { checkAndAward } from '../../services/achievement.service';
 import { publishProfileUpdated } from '../../services/profile-event.service';
 import { contrastRatio } from '../../utils/color';
@@ -158,10 +158,12 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
     update.avatarUrl = null;
   } else if (data.avatarMediaId) {
     const mediaRepo = getMediaUploadRepository();
-    const media = await mediaRepo.findByMediaIdAndIdentity(
-      data.avatarMediaId,
-      identityId
-    );
+    const sanitizedMediaId =
+      sanitizeString(data.avatarMediaId, 'idenhanced').value ?? '';
+    if (!sanitizedMediaId) {
+      return errors.badRequest('Invalid avatar media ID');
+    }
+    const media = await mediaRepo.findByMediaIdAndIdentity(sanitizedMediaId, identityId);
     if (!media) {
       return errors.notFound('Avatar media not found');
     }
@@ -178,10 +180,12 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
     update.bannerUrl = null;
   } else if (data.bannerMediaId) {
     const mediaRepo = getMediaUploadRepository();
-    const media = await mediaRepo.findByMediaIdAndIdentity(
-      data.bannerMediaId,
-      identityId
-    );
+    const sanitizedMediaId =
+      sanitizeString(data.bannerMediaId, 'idenhanced').value ?? '';
+    if (!sanitizedMediaId) {
+      return errors.badRequest('Invalid banner media ID');
+    }
+    const media = await mediaRepo.findByMediaIdAndIdentity(sanitizedMediaId, identityId);
     if (!media) {
       return errors.notFound('Banner media not found');
     }
@@ -276,13 +280,13 @@ export async function updateProfileCtrl(ctx: RouteContext): Promise<Response> {
  * GET /identity/:id/profile - Get privacy-filtered profile.
  */
 export async function getProfileCtrl(ctx: RouteContext): Promise<Response> {
-  const { id } = ctx.params;
-  if (!id || id.length !== 24) {
+  const parsed = sanitizeObjectId(ctx.params.id);
+  if (!parsed.ok) {
     return ctx.errors.badRequest();
   }
 
   const repo = getIdentityRepository();
-  const doc = await repo.findByIdentityId(id);
+  const doc = await repo.findByIdentityId(parsed.id);
   if (!doc) {
     return errors.notFound('Identity not found');
   }

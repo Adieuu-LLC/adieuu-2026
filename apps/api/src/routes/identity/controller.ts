@@ -10,7 +10,11 @@
 import elog from '../../utils/adieuuLogger';
 import { success, errors, error as errorResponse } from '../../utils/response';
 import { RouteContext } from '../../router';
-import { sanitizeString } from '../../utils/sanitize';
+import {
+  parseOptionalObjectIdCursor,
+  sanitizeObjectId,
+  sanitizeString,
+} from '../../utils/sanitize';
 import {
   getSessionIdFromRequest,
   buildLogoutCookie,
@@ -50,7 +54,6 @@ import { verifyDeviceStoredStaticKeyAttestation } from '../../services/device-st
 import { toPublicIdentitySession } from '../../models/session';
 import { applyPrivacyFilter, areFriends } from './profile.controller';
 import { getClientIp } from '../auth/controller';
-import { isValidObjectId } from '../../utils';
 import { z } from '@adieuu/shared/schemas';
 import { getKeyBundleRepository } from '../../repositories/key-bundle.repository';
 import { deriveBundleId } from '../../utils/crypto';
@@ -76,12 +79,18 @@ const BlockIdentitySchema = z.object({
   identityId: z.string().length(24),
 });
 
+/** Allowed username chars after stripping invisibles (must match {@link CreateIdentitySchema}). */
+const USERNAME_ALLOWED = /^[a-zA-Z0-9_-]+$/;
+
 // ============================================================================
 // Identity Search & Profile Controllers
 // ============================================================================
 
 export async function searchIdentitiesCtrl(ctx: RouteContext): Promise<Response> {
-  const query = ctx.query.get('q')?.trim() ?? '';
+  const trimmed = ctx.query.get('q')?.trim() ?? '';
+  const sanitizedQ = sanitizeString(trimmed, 'general');
+  const query = sanitizedQ.value ?? '';
+
   const limitParam = ctx.query.get('limit');
   const limit = limitParam ? parseInt(limitParam, 10) : IDENTITY_SEARCH_DEFAULTS.DEFAULT_LIMIT;
 
@@ -117,14 +126,13 @@ export async function searchIdentitiesCtrl(ctx: RouteContext): Promise<Response>
 }
 
 export async function getIdentityByIdCtrl(ctx: RouteContext): Promise<Response> {
-  const identityId = ctx.params.id;
-
-  if (!identityId || identityId.length !== 24) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
     return errors.badRequest('Invalid identity ID.');
   }
 
   const identityRepo = getIdentityRepository();
-  const identity = await identityRepo.findByIdentityId(identityId);
+  const identity = await identityRepo.findByIdentityId(routeId.id);
 
   if (!identity) {
     return errors.notFound('Identity not found.');
@@ -158,7 +166,17 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
     return ctx.errors.validationFailed();
   }
 
-  const { signedToken, passphrase, username, displayName: rawDisplayName } = parseResult.data;
+  const { signedToken, passphrase, username: rawUsername, displayName: rawDisplayName } = parseResult.data;
+
+  const usernameCandidate = sanitizeString(rawUsername, 'idenhanced').value ?? '';
+  if (
+    usernameCandidate.length < 3 ||
+    usernameCandidate.length > 30 ||
+    !USERNAME_ALLOWED.test(usernameCandidate)
+  ) {
+    return ctx.errors.validationFailed();
+  }
+  const username = usernameCandidate;
 
   // Verify the bridging token
   const tokenPayload = verifySignedToken(signedToken);
@@ -370,13 +388,7 @@ export async function getBlocklistCtrl(ctx: RouteContext): Promise<Response> {
   if (limit > 100) limit = 100;
 
   // Validate cursor if provided
-  let validCursor: string | undefined;
-  if (cursor) {
-    const sanitizedCursor = sanitizeString(cursor, 'general');
-    if (sanitizedCursor.value && isValidObjectId(sanitizedCursor.value)) {
-      validCursor = sanitizedCursor.value;
-    }
-  }
+  const validCursor = parseOptionalObjectIdCursor(cursor);
 
   const result = await getBlockedIdentities(identity._id, limit, validCursor);
 
@@ -396,15 +408,13 @@ export async function addToBlocklistCtrl(ctx: RouteContext): Promise<Response> {
     return ctx.errors.validationFailed();
   }
 
-  const { identityId } = parseResult.data;
-
-  // Sanitize and validate identity ID
-  const sanitized = sanitizeString(identityId, 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+  const { identityId: rawIdentityId } = parseResult.data;
+  const sanitizedId = sanitizeObjectId(rawIdentityId);
+  if (!sanitizedId.ok) {
     return errors.badRequest('Invalid identity ID.');
   }
 
-  const result = await blockIdentity(identity._id, sanitized.value);
+  const result = await blockIdentity(identity._id, sanitizedId.id);
 
   if (!result.success) {
     switch (result.errorCode) {
@@ -427,14 +437,12 @@ export async function removeFromBlocklistCtrl(ctx: RouteContext): Promise<Respon
   const { identity } = ctx.identitySession;
 
   const { identityId } = ctx.params;
-
-  // Sanitize and validate identity ID
-  const sanitized = sanitizeString(identityId ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+  const sanitizedId = sanitizeObjectId(identityId ?? '');
+  if (!sanitizedId.ok) {
     return errors.badRequest('Invalid identity ID.');
   }
 
-  const result = await unblockIdentity(identity._id, sanitized.value);
+  const result = await unblockIdentity(identity._id, sanitizedId.id);
 
   if (!result.success) {
     if (result.errorCode === 'BLOCK_NOT_FOUND') {
@@ -451,14 +459,12 @@ export async function checkBlocklistCtrl(ctx: RouteContext): Promise<Response> {
   const { identity } = ctx.identitySession;
 
   const { identityId } = ctx.params;
-
-  // Sanitize and validate identity ID
-  const sanitized = sanitizeString(identityId ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+  const sanitizedId = sanitizeObjectId(identityId ?? '');
+  if (!sanitizedId.ok) {
     return errors.badRequest('Invalid identity ID.');
   }
 
-  const result = await checkIfBlocked(identity._id, sanitized.value);
+  const result = await checkIfBlocked(identity._id, sanitizedId.id);
 
   return success({
     blocked: result.blocked,
@@ -504,7 +510,11 @@ export async function registerDeviceCtrl(ctx: RouteContext): Promise<Response> {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot register device for another identity.');
   }
 
@@ -551,10 +561,8 @@ export async function registerDeviceCtrl(ctx: RouteContext): Promise<Response> {
  * GET /identity/:id/keys
  */
 export async function getIdentityKeysCtrl(ctx: RouteContext): Promise<Response> {
-  const { id } = ctx.params;
-  
-  const sanitized = sanitizeString(id ?? '', 'general');
-  if (!sanitized.value || !isValidObjectId(sanitized.value)) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
     return errors.badRequest('Invalid identity ID.');
   }
 
@@ -562,8 +570,8 @@ export async function getIdentityKeysCtrl(ctx: RouteContext): Promise<Response> 
   const viewerIdentity = ctx.identitySession.identity;
 
   const identityRepo = getIdentityRepository();
-  const identity = await identityRepo.findByIdentityId(sanitized.value);
-  
+  const identity = await identityRepo.findByIdentityId(routeId.id);
+
   if (!identity) {
     return errors.notFound('Identity not found.');
   }
@@ -601,7 +609,11 @@ export async function storeKeyBundleCtrl(ctx: RouteContext): Promise<Response> {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot store key bundle for another identity.');
   }
 
@@ -639,7 +651,11 @@ export async function getKeyBundleCtrl(ctx: RouteContext): Promise<Response> {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot retrieve key bundle for another identity.');
   }
 
@@ -676,7 +692,11 @@ export async function listDevicesCtrl(ctx: RouteContext): Promise<Response> {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot list devices for another identity.');
   }
 
@@ -704,7 +724,11 @@ export async function removeDeviceCtrl(ctx: RouteContext): Promise<Response> {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot remove device for another identity.');
   }
 
@@ -732,7 +756,11 @@ export async function updateDeviceCtrl(ctx: RouteContext): Promise<Response> {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot update device for another identity.');
   }
 
@@ -787,7 +815,11 @@ export async function putDeviceStaticKeyAttestationCtrl(ctx: RouteContext): Prom
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot update device attestation for another identity.');
   }
 
@@ -842,7 +874,11 @@ export async function listIdentitySessionsCtrl(ctx: RouteContext): Promise<Respo
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity, sessionId: currentSessionId } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot list sessions for another identity.');
   }
 
@@ -864,27 +900,46 @@ export async function revokeIdentitySessionCtrl(ctx: RouteContext): Promise<Resp
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity, sessionId: currentSessionId } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot revoke sessions for another identity.');
   }
 
-  const { sessionId } = ctx.params;
-  if (!sessionId) {
+  const rawSessionParam = ctx.params.sessionId;
+
+  if (!rawSessionParam) {
     return errors.badRequest('Session ID is required.');
   }
 
-  if (sessionId === currentSessionId) {
+  // Block revoking current session — compare raw segments first so opaque tokens behave predictably.
+  if (
+    rawSessionParam === currentSessionId ||
+    currentSessionId.startsWith(`${rawSessionParam}.`)
+  ) {
     return errors.badRequest('Cannot revoke your current session. Use logout instead.');
+  }
+
+  /** Strip hostile Unicode from persisted session‑id lookups (canonical token is URL‑safe base64). */
+  const sessionIdCandidate = sanitizeString(rawSessionParam, 'base64url').value;
+  if (!sessionIdCandidate) {
+    return errors.badRequest('Session ID is required.');
   }
 
   const sessionRepo = getSessionRepository();
 
-  const session = await sessionRepo.findBySessionId(sessionId);
-  if (!session || session.type !== 'identity' || session.identityId?.toHexString() !== identity._id.toHexString()) {
+  const session = await sessionRepo.findBySessionId(sessionIdCandidate);
+  if (
+    !session ||
+    session.type !== 'identity' ||
+    session.identityId?.toHexString() !== identity._id.toHexString()
+  ) {
     return errors.notFound('Session not found.');
   }
 
-  await sessionRepo.revoke(sessionId);
+  await sessionRepo.revoke(sessionIdCandidate);
 
   return success(undefined, 'Session revoked.');
 }
@@ -897,7 +952,11 @@ export async function revokeAllOtherIdentitySessionsCtrl(ctx: RouteContext): Pro
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity, sessionId: currentSessionId } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot revoke sessions for another identity.');
   }
 
@@ -920,7 +979,11 @@ export async function initializeE2ECtrl(ctx: RouteContext): Promise<Response> {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  if (identity._id.toHexString() !== ctx.params.id) {
+  const routeId = sanitizeObjectId(ctx.params.id);
+  if (!routeId.ok) {
+    return errors.badRequest('Invalid identity ID.');
+  }
+  if (identity._id.toHexString() !== routeId.id) {
     return errors.forbidden('Cannot initialize E2E for another identity.');
   }
 

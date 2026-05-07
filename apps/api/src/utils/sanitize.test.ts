@@ -2,6 +2,8 @@ import { describe, expect, test, spyOn } from 'bun:test';
 import {
   SANITIZED_PATH_MAX_LENGTH,
   generateEmojiString,
+  parseOptionalObjectIdCursor,
+  sanitizeObjectId,
   sanitizePathForLog,
   sanitizeString,
   type SanitizationResult,
@@ -850,5 +852,34 @@ describe('sanitizePathForLog', () => {
 
   test('root path', () => {
     expect(sanitizePathForLog('/')).toBe('/');
+  });
+});
+
+const VALID_OBJ_ID = '507f1f77bcf86cd799439011';
+
+describe('sanitizeObjectId', () => {
+  test('accepts valid 24-char hex', () => {
+    expect(sanitizeObjectId(VALID_OBJ_ID)).toEqual({ ok: true, id: VALID_OBJ_ID });
+  });
+
+  test('strips zero-width joiner inside hex', () => {
+    const withZw = VALID_OBJ_ID.slice(0, 12) + '\u200d' + VALID_OBJ_ID.slice(12);
+    expect(sanitizeObjectId(withZw)).toEqual({ ok: true, id: VALID_OBJ_ID });
+  });
+
+  test('rejects invalid hex', () => {
+    expect(sanitizeObjectId('not-an-object-id!!!')).toEqual({ ok: false });
+    expect(sanitizeObjectId(undefined)).toEqual({ ok: false });
+  });
+});
+
+describe('parseOptionalObjectIdCursor', () => {
+  test('returns id for valid cursor', () => {
+    expect(parseOptionalObjectIdCursor(VALID_OBJ_ID)).toBe(VALID_OBJ_ID);
+  });
+
+  test('returns undefined for null or invalid', () => {
+    expect(parseOptionalObjectIdCursor(null)).toBeUndefined();
+    expect(parseOptionalObjectIdCursor('bad')).toBeUndefined();
   });
 });
