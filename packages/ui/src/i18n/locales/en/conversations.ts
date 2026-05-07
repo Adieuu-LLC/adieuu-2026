@@ -492,7 +492,7 @@ export const conversations = {
     // Moderation skip
     enableModeration: 'Enable content moderation',
     enableModerationTooltip:
-        'When enabled, attached media is scanned for safety before delivery. Disabling skips the scan; recipients who require moderated content will see a placeholder instead.',
+        'Uncheck to opt-out of anonymized moderation scanning for these files (e.g. for files with sensitive personal data). Abnormal volumes of unmoderated content may result in throttling/caps for your Alias and other conversation members.',
     allowSkipModeration: 'Allow members to skip moderation',
     allowSkipModerationHint:
         'Members can choose to skip content moderation scanning when sending media. Recipients may hide unmoderated content.',
