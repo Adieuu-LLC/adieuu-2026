@@ -24,6 +24,7 @@ interface DecryptedConversationLike {
   lastMessageAt?: string;
   lastMessageId?: string;
   gifsDisabled?: boolean;
+  allowSkipModeration?: boolean;
 }
 
 interface ConversationMessagesStateLike {
@@ -168,6 +169,13 @@ export function handleConversationSocketMessage(
         ctx.setConversations((prev) =>
           prev.map((c) =>
             c.id === conversationId ? { ...c, disallowPersistentMessageSearchCache: newVal } : c
+          )
+        );
+      } else if (action === 'allow_skip_moderation_updated') {
+        const newVal = message.data.allowSkipModeration ?? false;
+        ctx.setConversations((prev) =>
+          prev.map((c) =>
+            c.id === conversationId ? { ...c, allowSkipModeration: newVal } : c
           )
         );
       } else {

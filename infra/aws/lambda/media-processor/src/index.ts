@@ -385,6 +385,13 @@ async function processRecord(record: S3EventRecord): Promise<void> {
         rekognitionError: message,
       });
       console.error('Rekognition error:', err);
+      if (meta.purpose === 'conv_scan') {
+        try {
+          await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+        } catch (delErr) {
+          console.warn(`Failed to delete conv_scan on Rekognition error: ${key}`, delErr);
+        }
+      }
       await invokeDbWriter(meta.mediaId, 'failed', undefined, undefined, {
         purpose: meta.purpose,
         s3Key: key,

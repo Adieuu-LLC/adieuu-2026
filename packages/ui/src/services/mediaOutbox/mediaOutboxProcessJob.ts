@@ -33,6 +33,7 @@ export interface MediaOutboxProcessDeps {
       replyToMessageId?: string;
       expiresInSeconds?: number;
       e2eMediaIds?: string[];
+      moderationEnabled?: boolean;
       mentionedIdentityIds?: string[];
       signal?: AbortSignal;
     }
@@ -122,6 +123,7 @@ async function runE2eForAttachments(
         stripExif: job.stripExif && fileToEncrypt.type.startsWith('image/'),
         signal: abortSignal,
         alreadyPrepared: true,
+        skipModeration: job.moderationEnabled === false,
       }),
       MEDIA_OUTBOX_ATTACHMENT_PIPELINE_TIMEOUT_MS,
       t(
@@ -190,6 +192,7 @@ async function sendMessageForJob(job: MediaOutboxJobRecord, deps: MediaOutboxPro
     ...(job.replyToMessageId ? { replyToMessageId: job.replyToMessageId } : {}),
     ...(job.ttlSeconds != null ? { expiresInSeconds: job.ttlSeconds } : {}),
     e2eMediaIds,
+    moderationEnabled: job.moderationEnabled,
     mentionedIdentityIds,
     signal: deps.abortSignal,
   });
@@ -280,11 +283,13 @@ export async function processMediaOutboxJob(jobId: string, deps: MediaOutboxProc
       job = p4;
     }
 
-    const p5 = await patch({ stage: 'scan_upload' });
-    if (!p5) return;
-    job = p5;
-    throwIfAborted(deps.abortSignal);
-    await runScanUploads(job, deps);
+    if (job.moderationEnabled !== false) {
+      const p5 = await patch({ stage: 'scan_upload' });
+      if (!p5) return;
+      job = p5;
+      throwIfAborted(deps.abortSignal);
+      await runScanUploads(job, deps);
+    }
 
     await patch({ stage: 'completed', errorMessage: undefined });
     reportMediaOutboxTelemetry({

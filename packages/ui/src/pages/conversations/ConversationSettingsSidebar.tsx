@@ -22,6 +22,8 @@ export function ConversationSettingsSidebar({
   onCustomEmojisDisabledByAdminToggle,
   disallowPersistentMessageSearchCache,
   onMessageSearchCachePolicyToggle,
+  allowSkipModeration,
+  onAllowSkipModerationToggle,
   gifsHiddenForMe,
   onGifsHiddenForMeToggle,
   gifAnimateOnHoverOnly,
@@ -43,6 +45,8 @@ export function ConversationSettingsSidebar({
   onCustomEmojisDisabledByAdminToggle?: (disabled: boolean) => void;
   disallowPersistentMessageSearchCache?: boolean;
   onMessageSearchCachePolicyToggle?: (disallow: boolean) => void;
+  allowSkipModeration?: boolean;
+  onAllowSkipModerationToggle?: (allow: boolean) => void;
   gifsHiddenForMe?: boolean;
   onGifsHiddenForMeToggle?: (hidden: boolean) => void;
   gifAnimateOnHoverOnly?: boolean;
@@ -217,6 +221,27 @@ export function ConversationSettingsSidebar({
               {t('conversations.messageSearch.settingsDisallowTitle')}
             </span>
             <span className="app-settings-toggle-hint">{t('conversations.messageSearch.settingsDisallowHint')}</span>
+          </span>
+        </label>
+      )}
+
+      {(isAdmin || !isGroup) && onAllowSkipModerationToggle && (
+        <label className="app-settings-toggle">
+          <input
+            type="checkbox"
+            checked={allowSkipModeration ?? false}
+            onChange={(e) => onAllowSkipModerationToggle(e.target.checked)}
+          />
+          <span className="app-settings-toggle-label">
+            <span className="app-settings-toggle-title">
+              {t('conversations.allowSkipModeration', 'Allow members to skip moderation')}
+            </span>
+            <span className="app-settings-toggle-hint">
+              {t(
+                'conversations.allowSkipModerationHint',
+                'Members can choose to skip content moderation scanning when sending media. Recipients may hide unmoderated content.',
+              )}
+            </span>
           </span>
         </label>
       )}

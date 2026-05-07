@@ -120,12 +120,14 @@ export interface ChatConversationUpdatedMessage extends ChatMessageBase {
       | 'gifs_disabled_updated'
       | 'custom_emojis_disabled_updated'
       | 'message_search_cache_policy_updated'
+      | 'allow_skip_moderation_updated'
       | 'pending_invites_changed'
       | 'pins_updated';
     identityId?: string;
     gifsDisabled?: boolean;
     customEmojisDisabled?: boolean;
     disallowPersistentMessageSearchCache?: boolean;
+    allowSkipModeration?: boolean;
     pinnedMessageIds?: string[];
     /** Present for action renamed — drives notification copy (group vs DM). */
     conversationType?: 'dm' | 'group';

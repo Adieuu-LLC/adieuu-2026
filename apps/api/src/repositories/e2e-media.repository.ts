@@ -66,6 +66,19 @@ export class E2EMediaRepository extends BaseRepository<E2EMediaDocument> {
     return result as E2EMediaDocument | null;
   }
 
+  async setModerationStatusByMediaId(
+    e2eMediaId: string,
+    moderationStatus: ModerationStatus
+  ): Promise<E2EMediaDocument | null> {
+    const update = withUpdatedAt({ moderationStatus });
+    const result = await this.collection.findOneAndUpdate(
+      { e2eMediaId },
+      { $set: update },
+      { returnDocument: 'after' }
+    );
+    return result as E2EMediaDocument | null;
+  }
+
   async updateModerationStatus(
     scanHash: string,
     moderationStatus: ModerationStatus,

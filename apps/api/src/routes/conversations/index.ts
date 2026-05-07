@@ -98,6 +98,10 @@ router.patch('/conversations/:id/message-search-cache', async (ctx) => {
   return conversationRespond(ctx, await conversationController.patchMessageSearchCacheCtrl(ctx));
 });
 
+router.patch('/conversations/:id/allow-skip-moderation', async (ctx) => {
+  return conversationRespond(ctx, await conversationController.patchAllowSkipModerationCtrl(ctx));
+});
+
 router.post('/conversations/:id/pins', async (ctx) => {
   return conversationRespond(ctx, await conversationController.pinMessageCtrl(ctx));
 });

@@ -246,7 +246,8 @@ export interface CompleteE2EUploadResult {
 
 export async function completeE2EUpload(
   e2eMediaId: string,
-  identityId: string
+  identityId: string,
+  options?: { skipModeration?: boolean }
 ): Promise<CompleteE2EUploadResult> {
   const repo = getE2EMediaRepository();
   const doc = await repo.findByE2EMediaIdAndIdentity(e2eMediaId, identityId);
@@ -263,9 +264,14 @@ export async function completeE2EUpload(
     };
   }
 
-  await repo.updateStatus(e2eMediaId, 'gated');
-
-  elog.info('E2E media upload marked as complete (gated)', { e2eMediaId });
+  if (options?.skipModeration) {
+    await repo.updateStatus(e2eMediaId, 'available');
+    await repo.setModerationStatusByMediaId(e2eMediaId, 'skipped');
+    elog.info('E2E media upload marked as available (moderation skipped)', { e2eMediaId });
+  } else {
+    await repo.updateStatus(e2eMediaId, 'gated');
+    elog.info('E2E media upload marked as complete (gated)', { e2eMediaId });
+  }
 
   return { success: true };
 }

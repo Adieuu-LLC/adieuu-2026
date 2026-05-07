@@ -116,6 +116,7 @@ export function ConversationView() {
     updateGifsDisabled,
     updateCustomEmojisDisabled,
     updateMessageSearchCachePolicy,
+    updateAllowSkipModeration,
     memberSettings,
     fetchRecipientKeys,
     listPendingGroupInvites,
@@ -286,6 +287,14 @@ export function ConversationView() {
       await updateMessageSearchCachePolicy(id, disallow);
     },
     [id, updateMessageSearchCachePolicy],
+  );
+
+  const handleAllowSkipModerationToggle = useCallback(
+    async (allow: boolean) => {
+      if (!id) return;
+      await updateAllowSkipModeration(id, allow);
+    },
+    [id, updateAllowSkipModeration],
   );
 
   const handleToggleFs = useCallback(() => {
@@ -1070,6 +1079,7 @@ export function ConversationView() {
               }
               editingMessageKey={editingMessage?.id ?? null}
               editingInitialPlaintext={editingInitialPlaintext}
+              allowSkipModeration={conversation.allowSkipModeration === true}
             />
           </div>
 
@@ -1091,6 +1101,8 @@ export function ConversationView() {
               onCustomEmojisDisabledByAdminToggle={handleCustomEmojisDisabledByAdminToggle}
               disallowPersistentMessageSearchCache={conversation.disallowPersistentMessageSearchCache ?? false}
               onMessageSearchCachePolicyToggle={handleMessageSearchCachePolicyToggle}
+              allowSkipModeration={conversation.allowSkipModeration ?? false}
+              onAllowSkipModerationToggle={handleAllowSkipModerationToggle}
               gifsHiddenForMe={convGifHidden}
               onGifsHiddenForMeToggle={gifsGloballyDisabled ? undefined : setConvGifHidden}
               gifAnimateOnHoverOnly={effectiveGifAnimateOnHover}

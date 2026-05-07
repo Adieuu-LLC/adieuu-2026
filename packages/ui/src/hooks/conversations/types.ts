@@ -164,6 +164,10 @@ export interface ConversationsContextValue {
     conversationId: string,
     disallowPersistentMessageSearchCache: boolean
   ) => Promise<boolean>;
+  updateAllowSkipModeration: (
+    conversationId: string,
+    allowSkipModeration: boolean
+  ) => Promise<boolean>;
   pinMessage: (conversationId: string, messageId: string) => Promise<boolean>;
   unpinMessage: (conversationId: string, messageId: string) => Promise<boolean>;
   promoteToAdmin: (conversationId: string, identityId: string) => Promise<boolean>;

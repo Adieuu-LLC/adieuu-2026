@@ -36,6 +36,8 @@ export interface PublicConversation {
    * active search sessions, then wipe.
    */
   disallowPersistentMessageSearchCache?: boolean;
+  /** When true, participants may opt out of moderation scanning per-send. */
+  allowSkipModeration?: boolean;
   pinnedMessageIds?: string[];
   /**
    * Total stored message documents for this thread (incl. system and tombstones).
@@ -92,6 +94,8 @@ export interface PublicMessage {
   cryptoProfile: MessageCryptoProfile;
   clientMessageId: string;
   e2eMediaIds?: string[];
+  /** Whether the sender performed client-side moderation scanning for attachments. */
+  moderationEnabled?: boolean;
   expiresAt?: string;
   deleted: boolean;
   createdAt: string;
@@ -160,6 +164,8 @@ export interface SendMessageParams {
   expiresInSeconds?: number;
   replyToMessageId?: string;
   e2eMediaIds?: string[];
+  /** Whether client-side moderation scanning was performed for attached media. */
+  moderationEnabled?: boolean;
   /** Identity IDs of participants @mentioned in this message (unencrypted metadata for notification routing). */
   mentionedIdentityIds?: string[];
 }

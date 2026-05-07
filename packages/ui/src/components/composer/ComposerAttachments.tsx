@@ -13,6 +13,9 @@ export function ComposerAttachments({
   sendMp4WithoutReencode,
   onToggleSendMp4WithoutReencode,
   showMp4NoReencodeToggle = false,
+  moderationEnabled,
+  onToggleModerationEnabled,
+  showModerationToggle = false,
 }: {
   attachments: PendingAttachment[];
   onRemove: (index: number) => void;
@@ -24,6 +27,11 @@ export function ComposerAttachments({
   sendMp4WithoutReencode?: boolean;
   onToggleSendMp4WithoutReencode?: (value: boolean) => void;
   showMp4NoReencodeToggle?: boolean;
+  /** Whether client-side moderation is enabled for this send (default true). */
+  moderationEnabled?: boolean;
+  onToggleModerationEnabled?: (value: boolean) => void;
+  /** Show the moderation opt-out toggle (only when conversation allows skipping). */
+  showModerationToggle?: boolean;
 }) {
   const { t } = useTranslation();
 
@@ -132,6 +140,32 @@ export function ComposerAttachments({
             content={t(
               'conversations.sendMp4NoReencodeHelp',
               'Send the original MP4 bytes without converting to H.264. Playback and safety scans may fail on some devices; use only when you understand the trade-off.'
+            )}
+            position="top"
+          >
+            <span className="conversation-composer-exif-info">
+              <Icon name="info" />
+            </span>
+          </Tooltip>
+        </div>
+      )}
+      {showModerationToggle && onToggleModerationEnabled !== undefined && (
+        <div className="conversation-composer-exif-row">
+          <Checkbox.Root
+            checked={moderationEnabled === true}
+            onCheckedChange={(e) => onToggleModerationEnabled(e.checked === true)}
+            className="conversation-composer-exif-toggle"
+          >
+            <Checkbox.Control className="conversation-composer-exif-control" />
+            <Checkbox.Label className="conversation-composer-exif-label">
+              {t('conversations.enableModeration', 'Enable content moderation')}
+            </Checkbox.Label>
+            <Checkbox.HiddenInput />
+          </Checkbox.Root>
+          <Tooltip
+            content={t(
+              'conversations.enableModerationTooltip',
+              'When enabled, attached media is scanned for safety before delivery. Disabling skips the scan; recipients who require moderated content will see a placeholder instead.'
             )}
             position="top"
           >

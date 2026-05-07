@@ -12,6 +12,7 @@ import {
   useConversationGifHidden,
   useEffectiveGifAnimateOnHoverOnly,
 } from '../../hooks/useGifPreference';
+import { useUnmoderatedMediaPreference } from '../../hooks/useUnmoderatedMediaPreference';
 import {
   type ChatItem,
   type ReplyQuotePayload,
@@ -146,6 +147,8 @@ export function ConversationMessageList({
   const [convGifHidden] = useConversationGifHidden(conversationId ?? '');
   const gifsEnabled = gifVisibility !== 'disabled' && !convGifHidden && !gifsDisabledByAdmin;
   const gifAnimateOnHoverOnly = useEffectiveGifAnimateOnHoverOnly(identity?.id ?? '', conversationId ?? '');
+  const [unmoderatedMediaPref] = useUnmoderatedMediaPreference(identity?.id ?? '');
+  const hideUnmoderatedMedia = unmoderatedMediaPref === 'hide';
 
   const pinnedSet = useMemo(() => new Set(pinnedMessageIds), [pinnedMessageIds]);
 
@@ -324,6 +327,7 @@ export function ConversationMessageList({
             onOpenMemberSecurity={onOpenMemberSecurity}
             peerPublicKeysById={peerPublicKeysById}
             verificationRevision={verificationRevision}
+            hideUnmoderatedMedia={hideUnmoderatedMedia}
           />
         </>
       );

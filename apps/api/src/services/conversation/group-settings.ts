@@ -324,3 +324,53 @@ export async function updateDisallowPersistentMessageSearchCache(
 
   return { success: true, conversation: updated ? toPublicConversation(updated) : undefined };
 }
+
+// ---------------------------------------------------------------------------
+// Allow skip moderation
+// ---------------------------------------------------------------------------
+
+/**
+ * Toggle whether participants may opt out of client-side moderation scanning per-send.
+ * In groups only admins may call this; in DMs either participant may.
+ */
+export async function updateAllowSkipModeration(
+  conversationId: string | ObjectId,
+  requesterIdentityId: string | ObjectId,
+  allowSkipModeration: boolean
+): Promise<ConversationResult> {
+  const conversationRepo = getConversationRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  if (!conversation.participants.some((p) => p.equals(requesterObjId))) {
+    return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  if (conversation.type === 'group' && !isGroupAdmin(conversation, requesterObjId)) {
+    return { success: false, error: 'Only group admins can toggle moderation settings', errorCode: 'NOT_ADMIN' };
+  }
+
+  const updated = await conversationRepo.updateAllowSkipModeration(convObjId, allowSkipModeration);
+
+  await publishToParticipants(conversation.participants, requesterObjId, {
+    type: 'conversation_updated',
+    data: {
+      conversationId: convObjId.toHexString(),
+      action: 'allow_skip_moderation_updated',
+      identityId: requesterObjId.toHexString(),
+      allowSkipModeration,
+    },
+  });
+
+  return { success: true, conversation: updated ? toPublicConversation(updated) : undefined };
+}

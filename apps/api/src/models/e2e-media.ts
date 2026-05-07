@@ -39,8 +39,9 @@ export type E2EMediaStatus = 'pending' | 'uploaded' | 'gated' | 'available';
  * - passed:   Rekognition moderation passed
  * - rejected: Rekognition flagged the content
  * - error:    scan processing failed
+ * - skipped:  sender opted out of client-side moderation
  */
-export type ModerationStatus = 'pending' | 'passed' | 'rejected' | 'error';
+export type ModerationStatus = 'pending' | 'passed' | 'rejected' | 'error' | 'skipped';
 
 /**
  * Report status for future reporting/review infrastructure.

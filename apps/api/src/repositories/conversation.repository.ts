@@ -63,6 +63,10 @@ export interface IConversationRepository {
     conversationId: ObjectId,
     disallowPersistentMessageSearchCache: boolean
   ): Promise<ConversationDocument | null>;
+  updateAllowSkipModeration(
+    conversationId: ObjectId,
+    allowSkipModeration: boolean
+  ): Promise<ConversationDocument | null>;
   addPinnedMessage(
     conversationId: ObjectId,
     messageId: ObjectId
@@ -332,6 +336,23 @@ export class ConversationRepository
       {
         $set: {
           disallowPersistentMessageSearchCache,
+          updatedAt: new Date(),
+        },
+      },
+      { returnDocument: 'after' }
+    );
+    return result as ConversationDocument | null;
+  }
+
+  async updateAllowSkipModeration(
+    conversationId: ObjectId,
+    allowSkipModeration: boolean
+  ): Promise<ConversationDocument | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: conversationId },
+      {
+        $set: {
+          allowSkipModeration,
           updatedAt: new Date(),
         },
       },

@@ -597,8 +597,8 @@ jobs:
         continue-on-error: true
         uses: manifest-cyber/manifest-github-action@v1.6.0
         with:
-          apiKey: ${{ secrets.MANIFEST_API_KEY }}
-          sbomPublish: true
+          # apiKey: ${{ secrets.MANIFEST_API_KEY }}
+          sbomPublish: false
           path: .
           relationship: 'first'
           sbomName: 'adieuu'

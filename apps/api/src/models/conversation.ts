@@ -78,6 +78,9 @@ export interface ConversationDocument extends BaseDocument {
    */
   disallowPersistentMessageSearchCache?: boolean;
 
+  /** When true, participants may opt out of moderation scanning per-send. */
+  allowSkipModeration?: boolean;
+
   /**
    * Message ids pinned for this conversation (order: oldest pin first).
    * Managed by group admins or, in DMs, by either participant.
@@ -124,6 +127,8 @@ export interface PublicConversation {
   gifsDisabled?: boolean;
   customEmojisDisabled?: boolean;
   disallowPersistentMessageSearchCache?: boolean;
+  /** When true, participants may opt out of moderation scanning per-send. */
+  allowSkipModeration?: boolean;
   pinnedMessageIds?: string[];
   /**
    * Total stored message documents (incl. system and tombstones). Set on single-get, not on list.
@@ -156,6 +161,9 @@ export function toPublicConversation(doc: ConversationDocument): PublicConversat
       : {}),
     ...(doc.disallowPersistentMessageSearchCache === true
       ? { disallowPersistentMessageSearchCache: true }
+      : {}),
+    ...(doc.allowSkipModeration === true
+      ? { allowSkipModeration: true }
       : {}),
     ...(doc.pinnedMessageIds?.length
       ? {

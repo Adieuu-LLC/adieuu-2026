@@ -132,6 +132,12 @@ export interface MessageDocument extends BaseDocument {
    */
   e2eMediaIds?: string[];
 
+  /**
+   * Whether the sender performed client-side moderation scanning for attachments.
+   * Plaintext; only meaningful when e2eMediaIds is non-empty.
+   */
+  moderationEnabled?: boolean;
+
   /** TTL expiry (MongoDB auto-deletes via TTL index) */
   expiresAt?: Date;
 
@@ -169,6 +175,7 @@ export interface CreateMessageInput {
   cryptoProfile: CryptoProfile;
   clientMessageId: string;
   e2eMediaIds?: string[];
+  moderationEnabled?: boolean;
   expiresAt?: Date;
   replyToMessageId?: ObjectId;
 }
@@ -284,6 +291,7 @@ export function toPublicMessage(
     cryptoProfile: doc.cryptoProfile,
     clientMessageId: doc.clientMessageId,
     ...(doc.e2eMediaIds?.length ? { e2eMediaIds: doc.e2eMediaIds } : {}),
+    ...(doc.moderationEnabled != null ? { moderationEnabled: doc.moderationEnabled } : {}),
     expiresAt: doc.expiresAt?.toISOString(),
     deleted: false,
     createdAt: doc.createdAt.toISOString(),

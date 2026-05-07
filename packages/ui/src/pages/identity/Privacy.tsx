@@ -18,6 +18,10 @@ import {
   type GifVisibility,
 } from '../../hooks/useGifPreference';
 import {
+  useUnmoderatedMediaPreference,
+  type UnmoderatedMediaDisplay,
+} from '../../hooks/useUnmoderatedMediaPreference';
+import {
   useMessageSearchCacheMode,
   useMessageSearchRetention,
 } from '../../hooks/useMessageSearchPreferences';
@@ -413,6 +417,46 @@ function GifVisibilityCard({ identityId }: { identityId: string }) {
   );
 }
 
+const UNMODERATED_MEDIA_OPTIONS: { value: UnmoderatedMediaDisplay; labelKey: string }[] = [
+  { value: 'allow', labelKey: 'conversations.unmoderatedMediaAllow' },
+  { value: 'hide', labelKey: 'conversations.unmoderatedMediaHide' },
+];
+
+function UnmoderatedMediaCard({ identityId }: { identityId: string }) {
+  const { t } = useTranslation();
+  const [value, setValue] = useUnmoderatedMediaPreference(identityId);
+
+  return (
+    <Card variant="elevated" className="app-settings-card">
+      <h2 className="app-settings-section-title">
+        {t('conversations.unmoderatedMediaTitle', 'Unmoderated Media')}
+      </h2>
+      <p className="app-settings-section-desc">
+        {t(
+          'conversations.unmoderatedMediaDescription',
+          'Control whether media that skipped moderation scanning is automatically displayed or hidden behind a placeholder.',
+        )}
+      </p>
+
+      <RadioGroup.Root
+        value={value}
+        onValueChange={(e) => setValue(e.value as UnmoderatedMediaDisplay)}
+        className="activity-radio-group"
+      >
+        {UNMODERATED_MEDIA_OPTIONS.map((opt) => (
+          <RadioGroup.Item key={opt.value} value={opt.value} className="activity-radio-item">
+            <RadioGroup.ItemControl className="activity-radio-control" />
+            <RadioGroup.ItemText className="activity-radio-text">
+              <span className="activity-radio-title">{t(opt.labelKey)}</span>
+            </RadioGroup.ItemText>
+            <RadioGroup.ItemHiddenInput />
+          </RadioGroup.Item>
+        ))}
+      </RadioGroup.Root>
+    </Card>
+  );
+}
+
 // ============================================================================
 // Identity Privacy Page
 // ============================================================================
@@ -522,6 +566,10 @@ export function IdentityPrivacy() {
 
             {isLoggedIn && identity && (
               <GifVisibilityCard identityId={identity.id} />
+            )}
+
+            {isLoggedIn && identity && (
+              <UnmoderatedMediaCard identityId={identity.id} />
             )}
 
             {isLoggedIn && identity && <MessageSearchPrivacyCard identityId={identity.id} />}

@@ -61,11 +61,12 @@ export class E2EUploadApi {
 
   async completeE2EUpload(
     e2eMediaId: string,
-    requestOptions?: RequestOptions
+    requestOptions?: RequestOptions,
+    options?: { skipModeration?: boolean }
   ): Promise<ApiResponse<void>> {
     return this.client.post(
       `/api/uploads/e2e/${encodeURIComponent(e2eMediaId)}/complete`,
-      {},
+      options?.skipModeration ? { skipModeration: true } : {},
       requestOptions
     );
   }

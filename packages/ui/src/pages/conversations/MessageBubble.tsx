@@ -138,6 +138,7 @@ export const MessageBubble = memo(function MessageBubble({
   verificationRevision = 0,
   customEmojisDisabled = false,
   customEmojis,
+  hideUnmoderatedMedia = false,
 }: {
   message: DisplayMessage;
   isOwn: boolean;
@@ -179,6 +180,8 @@ export const MessageBubble = memo(function MessageBubble({
   verificationRevision?: number;
   customEmojisDisabled?: boolean;
   customEmojis?: PublicCustomEmoji[];
+  /** When true, media from messages that skipped moderation shows a placeholder. */
+  hideUnmoderatedMedia?: boolean;
 }) {
   const { t } = useTranslation();
   const { block: blockIdentity } = useBlockContext();
@@ -521,12 +524,12 @@ export const MessageBubble = memo(function MessageBubble({
         {parsed.attachments.length > 1 ? (
           <div className="dm-message-attachments">
             {parsed.attachments.map((att) => (
-              <MessageMediaAttachment key={att.e2eMediaId} attachment={att} layout={mediaAttachmentLayout} />
+              <MessageMediaAttachment key={att.e2eMediaId} attachment={att} layout={mediaAttachmentLayout} hideUnmoderated={hideUnmoderatedMedia && message.moderationEnabled === false} />
             ))}
           </div>
         ) : (
           parsed.attachments.map((att) => (
-            <MessageMediaAttachment key={att.e2eMediaId} attachment={att} layout={mediaAttachmentLayout} />
+            <MessageMediaAttachment key={att.e2eMediaId} attachment={att} layout={mediaAttachmentLayout} hideUnmoderated={hideUnmoderatedMedia && message.moderationEnabled === false} />
           ))
         )}
         {parsed.gifAttachments.map((gif, i) => (
@@ -742,12 +745,12 @@ export const MessageBubble = memo(function MessageBubble({
               {parsed.attachments.length > 1 ? (
                 <div className="dm-message-attachments">
                   {parsed.attachments.map((att) => (
-                    <MessageMediaAttachment key={att.e2eMediaId} attachment={att} layout={mediaAttachmentLayout} />
+                    <MessageMediaAttachment key={att.e2eMediaId} attachment={att} layout={mediaAttachmentLayout} hideUnmoderated={hideUnmoderatedMedia && message.moderationEnabled === false} />
                   ))}
                 </div>
               ) : (
                 parsed.attachments.map((att) => (
-                  <MessageMediaAttachment key={att.e2eMediaId} attachment={att} layout={mediaAttachmentLayout} />
+                  <MessageMediaAttachment key={att.e2eMediaId} attachment={att} layout={mediaAttachmentLayout} hideUnmoderated={hideUnmoderatedMedia && message.moderationEnabled === false} />
                 ))
               )}
               {parsed.gifAttachments.map((gif, i) => (

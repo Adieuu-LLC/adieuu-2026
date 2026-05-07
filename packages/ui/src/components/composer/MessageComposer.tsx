@@ -85,6 +85,8 @@ export type MessageComposerProps = {
   editingMessageKey?: string | null;
   /** Plain text (plus shortcodes) to load when entering edit mode. */
   editingInitialPlaintext?: string;
+  /** When true, conversation allows participants to skip moderation per-send. */
+  allowSkipModeration?: boolean;
 };
 
 export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposerProps>(function MessageComposer(
@@ -107,6 +109,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   editContext,
   editingMessageKey,
   editingInitialPlaintext,
+  allowSkipModeration,
 }: MessageComposerProps,
   ref,
 ) {
@@ -136,6 +139,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   const [pendingGif, setPendingGif] = useState<GifAttachment | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [stripExif, setStripExif] = useState(true);
+  const [moderationEnabled, setModerationEnabled] = useState(true);
   const [sendMp4WithoutReencode, setSendMp4WithoutReencode] = useState(false);
   const [ttlSeconds, setTtlSeconds] = useState<number | undefined>(undefined);
   const [shortcodeAC, setShortcodeAC] = useState<{ query: string; colonIdx: number } | null>(null);
@@ -494,6 +498,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           ttlSeconds,
           useForwardSecrecy: forwardSecrecy?.enabled ?? false,
           stripExif,
+          moderationEnabled,
           ...(sendMp4WithoutReencode && allVideosAreMp4 ? { sendMp4WithoutReencode: true } : {}),
           ...(customEmojis?.length && !customEmojisDisabled
             ? { composerCustomEmojisSnapshotJson: JSON.stringify(customEmojis) }
@@ -571,6 +576,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     attachments,
     pendingGif,
     stripExif,
+    moderationEnabled,
     sendMp4WithoutReencode,
     allVideosAreMp4,
     api,
@@ -990,6 +996,9 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         showMp4NoReencodeToggle={allVideosAreMp4}
         sendMp4WithoutReencode={sendMp4WithoutReencode}
         onToggleSendMp4WithoutReencode={setSendMp4WithoutReencode}
+        moderationEnabled={moderationEnabled}
+        onToggleModerationEnabled={setModerationEnabled}
+        showModerationToggle={allowSkipModeration === true && attachments.length > 0}
       />
       <div className={`conversation-composer-row${isMultiLine ? ' conversation-composer-row--multiline' : ''}`}>
         <ComposerShortcodeAutocomplete

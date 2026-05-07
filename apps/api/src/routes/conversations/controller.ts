@@ -21,6 +21,7 @@ import {
   updateGifsDisabled,
   updateCustomEmojisDisabled,
   updateDisallowPersistentMessageSearchCache,
+  updateAllowSkipModeration,
   listPendingInvitesForConversation,
   revokeGroupInvite,
   pinMessage,
@@ -42,6 +43,7 @@ import {
   UpdateGifsDisabledSchema,
   UpdateCustomEmojisDisabledSchema,
   UpdateMessageSearchCacheSchema,
+  UpdateAllowSkipModerationSchema,
   PinMessageBodySchema,
   AddMemberSchema,
   PromoteAdminSchema,
@@ -429,6 +431,37 @@ export async function patchMessageSearchCacheCtrl(
   }
 
   return { kind: 'ok', data: result.conversation, message: 'Message search policy updated.' };
+}
+
+export async function patchAllowSkipModerationCtrl(
+  ctx: RouteContext,
+): Promise<ConversationRouteResult<unknown>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const conv = sanitizeObjectId24(ctx.params.id);
+  if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
+
+  const parseResult = UpdateAllowSkipModerationSchema.safeParse(ctx.body);
+  if (!parseResult.success) return { kind: 'validation_failed' };
+
+  const result = await updateAllowSkipModeration(
+    conv.id,
+    identity._id,
+    parseResult.data.allowSkipModeration,
+  );
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') {
+      return { kind: 'not_found', message: 'Conversation not found.' };
+    }
+    if (result.errorCode === 'NOT_PARTICIPANT' || result.errorCode === 'NOT_ADMIN') {
+      return { kind: 'unauthorized' };
+    }
+    return { kind: 'bad_request', message: result.error ?? 'Failed to update moderation settings.' };
+  }
+
+  return { kind: 'ok', data: result.conversation, message: 'Moderation settings updated.' };
 }
 
 export async function pinMessageCtrl(ctx: RouteContext): Promise<ConversationRouteResult<unknown>> {

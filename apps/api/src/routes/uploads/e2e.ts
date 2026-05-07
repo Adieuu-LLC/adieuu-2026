@@ -138,6 +138,10 @@ router.post('/uploads/e2e/request', async (ctx) => {
  *
  * @route POST /api/uploads/e2e/:mediaId/complete
  */
+const CompleteE2EUploadSchema = z.object({
+  skipModeration: z.boolean().optional(),
+}).optional();
+
 router.post('/uploads/e2e/:mediaId/complete', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
@@ -147,7 +151,12 @@ router.post('/uploads/e2e/:mediaId/complete', async (ctx) => {
     return ctx.errors.badRequest();
   }
 
-  const result = await completeE2EUpload(mediaId, identity._id.toHexString());
+  const body = CompleteE2EUploadSchema.safeParse(ctx.body);
+  const skipModeration = body.success ? body.data?.skipModeration : undefined;
+
+  const result = await completeE2EUpload(mediaId, identity._id.toHexString(), {
+    skipModeration: skipModeration === true,
+  });
 
   if (!result.success) {
     switch (result.errorCode) {

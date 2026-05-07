@@ -310,6 +310,16 @@ export class ConversationsApi {
     );
   }
 
+  async updateAllowSkipModeration(
+    conversationId: string,
+    allowSkipModeration: boolean
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.patch(
+      `/api/conversations/${encodeURIComponent(conversationId)}/allow-skip-moderation`,
+      { allowSkipModeration }
+    );
+  }
+
   async pinMessage(
     conversationId: string,
     messageId: string

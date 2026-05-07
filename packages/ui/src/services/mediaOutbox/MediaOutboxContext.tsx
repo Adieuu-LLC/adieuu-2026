@@ -130,6 +130,7 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
         replyToMessageId?: string;
         expiresInSeconds?: number;
         e2eMediaIds?: string[];
+        moderationEnabled?: boolean;
         mentionedIdentityIds?: string[];
         signal?: AbortSignal;
       }
@@ -247,6 +248,7 @@ export function MediaOutboxProvider({ children }: { children: ReactNode }) {
         ttlSeconds: input.ttlSeconds,
         useForwardSecrecy: input.useForwardSecrecy,
         stripExif: input.stripExif,
+        moderationEnabled: input.moderationEnabled,
         ...(input.sendMp4WithoutReencode === true ? { sendMp4WithoutReencode: true } : {}),
         ...(input.composerCustomEmojisSnapshotJson
           ? { composerCustomEmojisSnapshotJson: input.composerCustomEmojisSnapshotJson }

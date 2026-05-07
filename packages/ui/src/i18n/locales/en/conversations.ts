@@ -488,4 +488,19 @@ export const conversations = {
         settingsDisallowHint:
             'Members cannot keep decrypted message text on their device for search after they close search. Search still works during an active search session.',
     },
+
+    // Moderation skip
+    enableModeration: 'Enable content moderation',
+    enableModerationTooltip:
+        'When enabled, attached media is scanned for safety before delivery. Disabling skips the scan; recipients who require moderated content will see a placeholder instead.',
+    allowSkipModeration: 'Allow members to skip moderation',
+    allowSkipModerationHint:
+        'Members can choose to skip content moderation scanning when sending media. Recipients may hide unmoderated content.',
+    unmoderatedMediaHidden: 'Content skipped moderation',
+    showUnmoderatedMedia: 'Show anyway',
+    unmoderatedMediaTitle: 'Unmoderated Media',
+    unmoderatedMediaDescription:
+        'Control whether media that skipped moderation scanning is automatically displayed or hidden behind a placeholder.',
+    unmoderatedMediaAllow: 'Display all media (including unmoderated)',
+    unmoderatedMediaHide: 'Hide unmoderated media behind a placeholder',
 } as const;

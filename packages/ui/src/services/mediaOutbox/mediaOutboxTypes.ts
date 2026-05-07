@@ -50,6 +50,8 @@ export interface MediaOutboxJobRecord {
   ttlSeconds?: number;
   useForwardSecrecy: boolean;
   stripExif: boolean;
+  /** When false, client-side moderation scanning is skipped for this send. */
+  moderationEnabled: boolean;
   /**
    * When true, MP4 attachments skip ffmpeg re-encoding in {@link prepareConversationMediaFileForUpload}
    * (HEVC / opaque MP4). Best-effort decode for thumbnails and scan frames.
@@ -76,6 +78,8 @@ export interface MediaOutboxEnqueueInput {
   ttlSeconds?: number;
   useForwardSecrecy: boolean;
   stripExif: boolean;
+  /** When false, client-side moderation scanning is skipped for this send. */
+  moderationEnabled: boolean;
   /** See {@link MediaOutboxJobRecord.sendMp4WithoutReencode}. */
   sendMp4WithoutReencode?: boolean;
   /** Sender's custom emoji list at enqueue time (embedded in encrypted payload for caption shortcodes). */

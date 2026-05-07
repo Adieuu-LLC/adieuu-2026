@@ -89,6 +89,8 @@ export type UploadMediaFileOptions = {
    * (same bytes as `encryptedBlob` was derived from). Avoids duplicate transcode work in the media outbox.
    */
   alreadyPrepared?: boolean;
+  /** When true, skip moderation scanning — media goes straight to available. */
+  skipModeration?: boolean;
 };
 
 function isVideoFile(file: File): boolean {
@@ -162,15 +164,33 @@ export async function uploadE2EMediaOnly(
   });
   if (!e2ePut.ok) throw new Error(`E2E upload failed (${e2ePut.status})`);
 
+  const skipModeration = options?.skipModeration === true;
   const e2eComplete = await api.e2eUploads.completeE2EUpload(
     mediaId,
-    signal ? { signal } : undefined
+    signal ? { signal } : undefined,
+    skipModeration ? { skipModeration: true } : undefined
   );
   if (!e2eComplete.success) throw new Error('Failed to finalise E2E upload');
 
   onUploadsComplete?.();
 
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+  if (skipModeration) {
+    const emptyBlob = new Blob([], { type: 'image/jpeg' });
+    return {
+      e2eMediaId: mediaId,
+      scanHash: hash,
+      contentType: file.type,
+      fileName: file.name,
+      width: dimensions.width,
+      height: dimensions.height,
+      sizeBytes: encryptedBlob.size,
+      exifPreserved: !effectiveStripExif,
+      scanThumbnail: emptyBlob,
+      moderationScan: { contentType: 'image/jpeg' as const, body: emptyBlob },
+    };
+  }
 
   let moderationScan: ModerationScanPayload | ModerationScanPayload[];
   if (isVideoFile(file)) {

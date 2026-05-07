@@ -70,15 +70,17 @@ export interface UseE2EMediaDownloadReturn {
 }
 
 export function useE2EMediaDownload(
-  attachment: MediaAttachment
+  attachment: MediaAttachment,
+  options?: { skip?: boolean }
 ): UseE2EMediaDownloadReturn {
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const mediaId = attachment.e2eMediaId;
+  const skip = options?.skip === true;
 
   const cached = mediaCache.get(mediaId);
-  const [state, setState] = useState<MediaMessageState>(cached?.state ?? 'loading');
-  const [imageUrl, setImageUrl] = useState<string | null>(cached?.url ?? null);
+  const [state, setState] = useState<MediaMessageState>(skip ? 'loading' : (cached?.state ?? 'loading'));
+  const [imageUrl, setImageUrl] = useState<string | null>(skip ? null : (cached?.url ?? null));
   const [rejectionReason, setRejectionReason] = useState<string | null>(cached?.rejectionReason ?? null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -92,6 +94,10 @@ export function useE2EMediaDownload(
 
   useEffect(() => {
     mountedRef.current = true;
+
+    if (skip) {
+      return () => { mountedRef.current = false; };
+    }
 
     if (mediaCache.has(mediaId)) {
       const c = mediaCache.get(mediaId)!;
@@ -276,7 +282,7 @@ export function useE2EMediaDownload(
       mountedRef.current = false;
       abort.abort();
     };
-  }, [api, mediaId, attachment.encryptionKey, attachment.encryptionNonce, attachment.contentType, retryCount]);
+  }, [api, mediaId, attachment.encryptionKey, attachment.encryptionNonce, attachment.contentType, retryCount, skip]);
 
   return { state, imageUrl, rejectionReason, errorMessage, retry };
 }

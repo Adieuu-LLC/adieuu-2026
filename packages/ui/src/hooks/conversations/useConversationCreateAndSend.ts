@@ -153,6 +153,7 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
         useForwardSecrecy?: boolean;
         replyToMessageId?: string;
         e2eMediaIds?: string[];
+        moderationEnabled?: boolean;
         mentionedIdentityIds?: string[];
         skipMessageStateUpdate?: boolean;
         /** When true, do not toggle global `sending` (e.g. background media outbox). */
@@ -209,6 +210,7 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
           expiresInSeconds,
           ...(options?.replyToMessageId ? { replyToMessageId: options.replyToMessageId } : {}),
           ...(options?.e2eMediaIds?.length ? { e2eMediaIds: options.e2eMediaIds } : {}),
+          ...(options?.moderationEnabled != null ? { moderationEnabled: options.moderationEnabled } : {}),
           ...(options?.mentionedIdentityIds?.length ? { mentionedIdentityIds: options.mentionedIdentityIds } : {}),
         };
 
