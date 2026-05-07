@@ -1,12 +1,27 @@
 import { useTranslation } from 'react-i18next';
-import { Tabs } from '@ark-ui/react';
+import { SegmentGroup, Tabs } from '@ark-ui/react';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Icon } from '../../icons/Icon';
+import { Tooltip } from '../../components/Tooltip';
 import { setMemberColorDisplay, type MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import type { GifContentFilter } from '@adieuu/shared';
 
 const GIF_CONTENT_FILTER_OPTIONS: GifContentFilter[] = ['off', 'low', 'medium', 'high'];
+
+const CONTENT_FILTER_LABEL_KEYS: Record<GifContentFilter, string> = {
+  off: 'gif.contentFilterOff',
+  low: 'gif.contentFilterLow',
+  medium: 'gif.contentFilterMedium',
+  high: 'gif.contentFilterHigh',
+};
+
+const CONTENT_FILTER_TOOLTIP_KEYS: Record<GifContentFilter, string> = {
+  off: 'gif.contentFilterOffTooltip',
+  low: 'gif.contentFilterLowTooltip',
+  medium: 'gif.contentFilterMediumTooltip',
+  high: 'gif.contentFilterHighTooltip',
+};
 
 export function ConversationSettingsSidebar({
   isGroup,
@@ -196,31 +211,53 @@ export function ConversationSettingsSidebar({
       )}
 
       {(isAdmin || !isGroup) && !gifsDisabledByAdmin && onGifContentFilterChange && (
-        <div className="conversation-settings-color-display">
+        <div className="conversation-settings-content-filter">
           <span className="app-settings-toggle-title">
             {t('gif.contentFilterTitle', 'GIF/Sticker content filter')}
+            <Tooltip
+              content={
+                <ul className="content-filter-info-list">
+                  {GIF_CONTENT_FILTER_OPTIONS.map((level) => (
+                    <li key={level}>
+                      <strong>{t(CONTENT_FILTER_LABEL_KEYS[level] as never)}</strong>
+                      {': '}
+                      {t(CONTENT_FILTER_TOOLTIP_KEYS[level] as never)}
+                    </li>
+                  ))}
+                </ul>
+              }
+              position="bottom"
+              className="content-filter-info-tooltip"
+            >
+              <span className="content-filter-info-icon" aria-label={t('gif.contentFilterInfoLabel', 'Filter level details')}>
+                <Icon name="info" size="sm" />
+              </span>
+            </Tooltip>
           </span>
           <span className="app-settings-toggle-hint">
             {t(
               'gif.contentFilterHint',
-              'Controls the content safety level for GIF and sticker search results in this conversation',
+              'Controls the content safety level for GIF and sticker search results in this conversation. Higher levels are more restrictive.',
             )}
           </span>
-          <div className="conversation-settings-color-options">
+          <SegmentGroup.Root
+            className="content-filter-segment-group"
+            value={gifContentFilter ?? 'off'}
+            onValueChange={(e) => onGifContentFilterChange(e.value as GifContentFilter)}
+          >
+            <SegmentGroup.Indicator className="content-filter-segment-indicator" />
             {GIF_CONTENT_FILTER_OPTIONS.map((level) => (
-              <label key={level} className="conversation-settings-color-option">
-                <input
-                  type="radio"
-                  name="gifContentFilter"
-                  checked={(gifContentFilter ?? 'off') === level}
-                  onChange={() => onGifContentFilterChange(level)}
-                />
-                <span>
-                  {t(`gif.contentFilter${level.charAt(0).toUpperCase()}${level.slice(1)}` as never, level)}
-                </span>
-              </label>
+              <SegmentGroup.Item
+                key={level}
+                className="content-filter-segment-item"
+                value={level}
+              >
+                <SegmentGroup.ItemText>{t(CONTENT_FILTER_LABEL_KEYS[level] as never)}</SegmentGroup.ItemText>
+                <SegmentGroup.ItemControl />
+                <SegmentGroup.ItemHiddenInput />
+              </SegmentGroup.Item>
             ))}
-          </div>
+          </SegmentGroup.Root>
         </div>
       )}
 

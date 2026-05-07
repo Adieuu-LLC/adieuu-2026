@@ -379,7 +379,7 @@ export const config = {
     /** Klipy API base URL (without trailing slash or API key segment) */
     baseUrl: optionalEnv('KLIPY_BASE_URL', 'https://api.klipy.com/api/v1'),
     /** Content safety filter level sent to Klipy (off | low | medium | high) */
-    contentFilter: optionalEnv('KLIPY_CONTENT_FILTER', 'high'),
+    contentFilter: optionalEnv('KLIPY_CONTENT_FILTER', 'off'),
     /** Redis cache TTL for search results (seconds) */
     cacheTtlSearch: optionalEnvInt('KLIPY_CACHE_TTL_SEARCH', 30),
     /** Redis cache TTL for trending results (seconds) */

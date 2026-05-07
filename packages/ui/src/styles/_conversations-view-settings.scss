@@ -84,5 +84,105 @@
         color: var(--color-text-primary);
       }
     }
+
+    &-content-filter {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+
+      .app-settings-toggle-title {
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-xs);
+      }
+    }
+  }
+}
+
+.content-filter-info-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text-muted);
+  cursor: help;
+  flex-shrink: 0;
+
+  &:hover {
+    color: var(--color-text-secondary);
+  }
+}
+
+.content-filter-info-tooltip {
+  white-space: normal;
+  max-width: 280px;
+}
+
+.content-filter-info-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+}
+
+.content-filter-segment-group {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-tertiary);
+  position: relative;
+  margin-top: var(--spacing-xs);
+}
+
+.content-filter-segment-indicator {
+  position: absolute;
+  top: 3px;
+  left: var(--left);
+  width: var(--width);
+  height: var(--height);
+  border-radius: calc(var(--radius-md) - 2px);
+  background: var(--color-bg-active);
+  z-index: 0;
+  transition:
+    left 0.2s ease,
+    width 0.2s ease;
+}
+
+.content-filter-segment-item {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-radius: calc(var(--radius-md) - 2px);
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+  user-select: none;
+  white-space: nowrap;
+
+  &:hover:not([data-state='checked']) {
+    color: var(--color-text-secondary);
+    background: var(--color-bg-hover);
+  }
+
+  &[data-state='checked'] {
+    color: var(--color-accent-primary);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  &[data-disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 }
