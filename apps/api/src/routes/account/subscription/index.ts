@@ -14,7 +14,9 @@ import {
   getSubscriptionSummary,
   createSubscriptionCheckout,
   createSubscriptionPortal,
+  confirmCheckoutSession,
 } from './controller';
+import { getClientIp } from '../../auth/controller';
 
 const router = new Router();
 
@@ -100,6 +102,37 @@ router.post('/account/subscription/portal', async (ctx) => {
   }
 
   return success(result.data);
+});
+
+/**
+ * POST /account/subscription/confirm
+ *
+ * Public endpoint (no auth required). Accepts a Stripe checkout session_id,
+ * verifies it with Stripe, resolves the user by customer ID, and reconciles
+ * their billing to the latest Stripe state.
+ *
+ * @route POST /api/account/subscription/confirm
+ */
+router.post('/account/subscription/confirm', async (ctx) => {
+  const body = ctx.body as { sessionId?: unknown } | undefined;
+  const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : '';
+  const clientIp = getClientIp(ctx.request);
+
+  const result = await confirmCheckoutSession(sessionId, clientIp);
+
+  if (!result.ok) {
+    if (result.reason === 'stripe_disabled') return STRIPE_UNAVAILABLE_RESPONSE;
+    if (result.reason === 'rate_limited') return ctx.errors.rateLimited();
+    if (result.reason === 'validation') return ctx.errors.validationFailed();
+    if (result.reason === 'session_not_found') return ctx.errors.notFound();
+    if (result.reason === 'user_not_found') return ctx.errors.notFound();
+    if (result.reason === 'payment_incomplete') {
+      return error('PAYMENT_INCOMPLETE', 'Checkout has not been completed.', 402);
+    }
+    return ctx.errors.internal();
+  }
+
+  return success({ confirmed: result.confirmed });
 });
 
 export const subscriptionRoutes = router;

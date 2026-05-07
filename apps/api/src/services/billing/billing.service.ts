@@ -220,6 +220,55 @@ export async function createBillingPortalSession(
 }
 
 // ---------------------------------------------------------------------------
+// Customer-based billing reconciliation
+// ---------------------------------------------------------------------------
+
+/**
+ * Reconciles billing state by fetching the latest subscriptions directly from
+ * Stripe for the given customer. This is the authoritative sync — it always
+ * converges to whatever Stripe currently reports, making it safe to call
+ * repeatedly (idempotent).
+ *
+ * Used by the checkout callback confirm endpoint and the session-load
+ * reconciliation path.
+ */
+export async function reconcileBillingFromCustomer(
+  stripe: Stripe,
+  user: UserDocument,
+): Promise<UserBilling | null> {
+  if (!user.stripeCustomerId) return null;
+
+  const [activeSubs, trialingSubs] = await Promise.all([
+    stripe.subscriptions.list({ customer: user.stripeCustomerId, status: 'active', limit: 10 }),
+    stripe.subscriptions.list({ customer: user.stripeCustomerId, status: 'trialing', limit: 10 }),
+  ]);
+
+  const allSubs = [...activeSubs.data, ...trialingSubs.data];
+
+  if (allSubs.length > 0) {
+    const primarySub = allSubs[0]!;
+    return deriveSubscriptionBilling(stripe, primarySub.id, user.billing);
+  }
+
+  if (user.billing?.isLifetime) {
+    return user.billing;
+  }
+
+  return {
+    activeSubscriptions: [],
+    entitlements: [],
+    isLifetime: false,
+    status: 'canceled',
+    currentPeriodEnd: user.billing?.currentPeriodEnd,
+    cancelAtPeriodEnd: false,
+    cancelAt: undefined,
+    stripeSubscriptionId: undefined,
+    stripePaymentIntentId: user.billing?.stripePaymentIntentId,
+    updatedAt: new Date(),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Webhook event processing
 // ---------------------------------------------------------------------------
 

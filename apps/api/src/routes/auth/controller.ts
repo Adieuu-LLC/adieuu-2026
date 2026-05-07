@@ -55,6 +55,7 @@ import { getStripe } from '../../services/billing/stripe.client';
 import {
   deriveSubscriptionBilling,
   billingErrorLogFields,
+  reconcileBillingFromCustomer,
 } from '../../services/billing/billing.service';
 import { resolveEffectiveAccess } from '../../services/billing/resolve-access';
 import { evaluateAliasGate, type AliasGateResult } from '../../services/age-verification/alias-gate';
@@ -684,39 +685,67 @@ const BILLING_FRESHNESS_MS = 5 * 60 * 1000; // 5 minutes
  * reflects current subscription state.
  */
 async function reconcileBillingIfStale(user: UserDocument): Promise<UserDocument> {
-  if (
-    !config.stripe?.enabled ||
-    !user.billing?.stripeSubscriptionId ||
-    (user.billing.updatedAt && Date.now() - user.billing.updatedAt.getTime() < BILLING_FRESHNESS_MS)
-  ) {
-    return user;
+  if (!config.stripe?.enabled) return user;
+
+  // If we have a subscription ID, use the existing fast path
+  if (user.billing?.stripeSubscriptionId) {
+    if (user.billing.updatedAt && Date.now() - user.billing.updatedAt.getTime() < BILLING_FRESHNESS_MS) {
+      return user;
+    }
+
+    try {
+      const stripe = getStripe();
+      const freshBilling = await deriveSubscriptionBilling(
+        stripe,
+        user.billing.stripeSubscriptionId,
+        user.billing,
+      );
+
+      const userRepo = getUserRepository();
+      await userRepo.updateBilling(user._id, freshBilling);
+
+      elog.info('Login-time billing reconciliation completed', {
+        userId: user._id.toHexString(),
+        oldStatus: user.billing.status,
+        newStatus: freshBilling.status,
+      });
+
+      return { ...user, billing: freshBilling };
+    } catch (err) {
+      elog.warn('Login-time billing reconciliation failed; using cached billing', {
+        userId: user._id.toHexString(),
+        ...billingErrorLogFields(err),
+      });
+      return user;
+    }
   }
 
-  try {
-    const stripe = getStripe();
-    const freshBilling = await deriveSubscriptionBilling(
-      stripe,
-      user.billing.stripeSubscriptionId,
-      user.billing,
-    );
+  // No subscription ID but has customer ID — reconcile from customer
+  // (covers the case where webhook never ran after checkout)
+  if (user.stripeCustomerId && !user.billing?.activeSubscriptions?.length) {
+    try {
+      const stripe = getStripe();
+      const freshBilling = await reconcileBillingFromCustomer(stripe, user);
+      if (freshBilling && freshBilling.activeSubscriptions.length > 0) {
+        const userRepo = getUserRepository();
+        await userRepo.updateBilling(user._id, freshBilling);
 
-    const userRepo = getUserRepository();
-    await userRepo.updateBilling(user._id, freshBilling);
+        elog.info('Login-time customer-based billing reconciliation completed', {
+          userId: user._id.toHexString(),
+          tiers: freshBilling.activeSubscriptions,
+        });
 
-    elog.info('Login-time billing reconciliation completed', {
-      userId: user._id.toHexString(),
-      oldStatus: user.billing.status,
-      newStatus: freshBilling.status,
-    });
-
-    return { ...user, billing: freshBilling };
-  } catch (err) {
-    elog.warn('Login-time billing reconciliation failed; using cached billing', {
-      userId: user._id.toHexString(),
-      ...billingErrorLogFields(err),
-    });
-    return user;
+        return { ...user, billing: freshBilling };
+      }
+    } catch (err) {
+      elog.warn('Login-time customer-based billing reconciliation failed', {
+        userId: user._id.toHexString(),
+        ...billingErrorLogFields(err),
+      });
+    }
   }
+
+  return user;
 }
 
 /**

@@ -4,14 +4,17 @@
  * @module routes/account/subscription/controller
  */
 
+import Stripe from 'stripe';
 import { getUserRepository } from '../../../repositories/user.repository';
 import { config } from '../../../config';
 import { PURCHASABLE_PRODUCT_IDS, type PurchasableProductId, type SubscriptionTierId } from '@adieuu/shared';
+import { getStripe } from '../../../services/billing/stripe.client';
 import {
   BillingConfigurationError,
   billingErrorLogFields,
   createCheckoutSessionForProduct,
   createBillingPortalSession,
+  reconcileBillingFromCustomer,
 } from '../../../services/billing/billing.service';
 import { resolveEffectiveAccess } from '../../../services/billing/resolve-access';
 import { checkRateLimit, type RateLimitConfig } from '../../../services/rate-limit.service';
@@ -186,6 +189,106 @@ export async function createSubscriptionPortal(userId: string): Promise<CreateSu
       },
       err instanceof Error ? err : undefined,
     );
+    return { ok: false, reason: 'internal' };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Checkout session confirmation (public, no auth required)
+// ---------------------------------------------------------------------------
+
+/** Rate limit for the public confirm endpoint — IP-based. */
+const CONFIRM_RATE_LIMIT: RateLimitConfig = { limit: 10, windowSeconds: 60 };
+
+export type ConfirmCheckoutResult =
+  | { ok: true; confirmed: boolean }
+  | {
+      ok: false;
+      reason:
+        | 'stripe_disabled'
+        | 'rate_limited'
+        | 'validation'
+        | 'session_not_found'
+        | 'payment_incomplete'
+        | 'user_not_found'
+        | 'internal';
+    };
+
+/**
+ * Confirms a Stripe checkout session and reconciles the user's billing state.
+ *
+ * This endpoint is public — the session_id itself is the proof of authenticity
+ * (retrieved server-side from Stripe's API). The customer on the Stripe session
+ * determines which user gets updated.
+ */
+export async function confirmCheckoutSession(
+  sessionId: string,
+  clientIp: string,
+): Promise<ConfirmCheckoutResult> {
+  if (!config.stripe.enabled) {
+    return { ok: false, reason: 'stripe_disabled' };
+  }
+
+  const rl = await checkRateLimit(`subscription:confirm:${clientIp}`, clientIp, CONFIRM_RATE_LIMIT);
+  if (!rl.allowed) return { ok: false, reason: 'rate_limited' };
+
+  if (!sessionId || typeof sessionId !== 'string' || !sessionId.startsWith('cs_')) {
+    return { ok: false, reason: 'validation' };
+  }
+
+  const stripe = getStripe();
+
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await stripe.checkout.sessions.retrieve(sessionId);
+  } catch (err) {
+    if (err instanceof Stripe.errors.StripeInvalidRequestError) {
+      return { ok: false, reason: 'session_not_found' };
+    }
+    elog.error('Failed to retrieve checkout session from Stripe', {
+      sessionId,
+      ...billingErrorLogFields(err),
+    });
+    return { ok: false, reason: 'internal' };
+  }
+
+  if (session.payment_status !== 'paid' && session.status !== 'complete') {
+    return { ok: false, reason: 'payment_incomplete' };
+  }
+
+  const customerId = typeof session.customer === 'string'
+    ? session.customer
+    : session.customer?.id;
+
+  if (!customerId) {
+    elog.warn('Checkout session has no customer', { sessionId });
+    return { ok: false, reason: 'session_not_found' };
+  }
+
+  const userRepo = getUserRepository();
+  const user = await userRepo.findByStripeCustomerId(customerId);
+  if (!user) {
+    elog.warn('No user found for Stripe customer from confirm', { customerId, sessionId });
+    return { ok: false, reason: 'user_not_found' };
+  }
+
+  try {
+    const billing = await reconcileBillingFromCustomer(stripe, user);
+    if (billing) {
+      await userRepo.updateBilling(user._id, billing);
+      elog.info('Billing reconciled from checkout confirm', {
+        userId: user._id.toHexString(),
+        customerId,
+        tiers: billing.activeSubscriptions,
+      });
+    }
+    return { ok: true, confirmed: true };
+  } catch (err) {
+    elog.error('Billing reconciliation failed during checkout confirm', {
+      userId: user._id.toHexString(),
+      customerId,
+      ...billingErrorLogFields(err),
+    });
     return { ok: false, reason: 'internal' };
   }
 }

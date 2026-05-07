@@ -466,6 +466,7 @@ export const account = {
         bodyUnknown:
           'You can close this tab and return to the Adieuu desktop app. If you completed a purchase, your plan will update there shortly.',
         openApp: 'Open Adieuu',
+        confirming: 'Confirming your subscription...',
         devHint:
           'Development desktop builds use this link instead: {{devLink}}',
       },

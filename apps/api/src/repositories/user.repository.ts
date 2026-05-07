@@ -27,6 +27,7 @@ export interface IUserRepository {
   recordLogin(id: string | ObjectId): Promise<void>;
   updateGeo(id: string | ObjectId, geo: UserGeo): Promise<void>;
   updateStripeCustomerId(id: string | ObjectId, stripeCustomerId: string): Promise<void>;
+  findByStripeCustomerId(stripeCustomerId: string): Promise<UserDocument | null>;
   updateBilling(id: string | ObjectId, billing: UserBilling): Promise<void>;
   updateAgeVerification(id: string | ObjectId, ageVerification: UserAgeVerification): Promise<void>;
 }
@@ -328,6 +329,13 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
         },
       },
     );
+  }
+
+  /**
+   * Find a user by their Stripe customer ID.
+   */
+  async findByStripeCustomerId(stripeCustomerId: string): Promise<UserDocument | null> {
+    return await this.findOne({ stripeCustomerId });
   }
 
   /**

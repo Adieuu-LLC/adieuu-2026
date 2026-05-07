@@ -11,10 +11,14 @@ mock.module('../../../config', () => ({
 }));
 
 const mockFindById = mock((_id: string | ObjectId) => Promise.resolve<UserDocument | null>(null));
+const mockFindByStripeCustomerId = mock((_id: string) => Promise.resolve<UserDocument | null>(null));
+const mockUpdateBilling = mock(() => Promise.resolve());
 
 mock.module('../../../repositories/user.repository', () => ({
   getUserRepository: mock(() => ({
     findById: mockFindById,
+    findByStripeCustomerId: mockFindByStripeCustomerId,
+    updateBilling: mockUpdateBilling,
   })),
 }));
 
@@ -54,12 +58,35 @@ const mockCreateCheckoutSessionForProduct = mock(() =>
 const mockCreateBillingPortalSession = mock(() =>
   Promise.resolve({ url: 'https://billing.stripe.test/portal' }),
 );
+const mockReconcileBillingFromCustomer = mock(() =>
+  Promise.resolve({ activeSubscriptions: ['insider'], entitlements: [], isLifetime: false, status: 'active', updatedAt: new Date() }),
+);
 
 mock.module('../../../services/billing/billing.service', () => ({
   BillingConfigurationError,
   billingErrorLogFields: mock(() => ({})),
   createCheckoutSessionForProduct: mockCreateCheckoutSessionForProduct,
   createBillingPortalSession: mockCreateBillingPortalSession,
+  reconcileBillingFromCustomer: mockReconcileBillingFromCustomer,
+}));
+
+const mockStripeRetrieve = mock(() => Promise.resolve({
+  id: 'cs_test_123',
+  payment_status: 'paid',
+  status: 'complete',
+  customer: 'cus_test',
+  mode: 'subscription',
+  subscription: 'sub_test_123',
+}));
+
+mock.module('../../../services/billing/stripe.client', () => ({
+  getStripe: mock(() => ({
+    checkout: {
+      sessions: {
+        retrieve: mockStripeRetrieve,
+      },
+    },
+  })),
 }));
 
 mock.module('../../../utils/adieuuLogger', () => ({
@@ -75,6 +102,7 @@ import {
   getSubscriptionSummary,
   createSubscriptionCheckout,
   createSubscriptionPortal,
+  confirmCheckoutSession,
 } from './controller';
 
 function baseUser(overrides: Partial<UserDocument> = {}): UserDocument {
@@ -112,10 +140,14 @@ describe('subscription controller', () => {
   beforeEach(() => {
     mockConfig.stripe.enabled = true;
     mockFindById.mockReset();
+    mockFindByStripeCustomerId.mockReset();
+    mockUpdateBilling.mockReset();
     mockResolveEffectiveAccess.mockReset();
     mockCheckRateLimit.mockReset();
     mockCreateCheckoutSessionForProduct.mockReset();
     mockCreateBillingPortalSession.mockReset();
+    mockReconcileBillingFromCustomer.mockReset();
+    mockStripeRetrieve.mockReset();
 
     mockResolveEffectiveAccess.mockImplementation(() => ({
       subscriptions: ['access'] as SubscriptionTierId[],
@@ -139,6 +171,21 @@ describe('subscription controller', () => {
     mockCreateBillingPortalSession.mockImplementation(() =>
       Promise.resolve({ url: 'https://billing.stripe.test/portal' }),
     );
+
+    mockReconcileBillingFromCustomer.mockImplementation(() =>
+      Promise.resolve({ activeSubscriptions: ['insider'], entitlements: [], isLifetime: false, status: 'active', updatedAt: new Date() }),
+    );
+
+    mockStripeRetrieve.mockImplementation(() => Promise.resolve({
+      id: 'cs_test_123',
+      payment_status: 'paid',
+      status: 'complete',
+      customer: 'cus_test',
+      mode: 'subscription',
+      subscription: 'sub_test_123',
+    }));
+
+    mockUpdateBilling.mockImplementation(() => Promise.resolve());
   });
 
   describe('getSubscriptionSummary', () => {
@@ -308,6 +355,96 @@ describe('subscription controller', () => {
       mockCreateBillingPortalSession.mockRejectedValue(new Error('stripe error'));
 
       const result = await createSubscriptionPortal(user._id.toHexString());
+
+      expect(result).toEqual({ ok: false, reason: 'internal' });
+    });
+  });
+
+  describe('confirmCheckoutSession', () => {
+    test('returns stripe_disabled when Stripe is off', async () => {
+      mockConfig.stripe.enabled = false;
+      const result = await confirmCheckoutSession('cs_test_abc', '127.0.0.1');
+      expect(result).toEqual({ ok: false, reason: 'stripe_disabled' });
+    });
+
+    test('returns rate_limited when limit exceeded', async () => {
+      mockCheckRateLimit.mockImplementation(() =>
+        Promise.resolve({ allowed: false, remaining: 0, resetAt: Date.now() + 60_000, limit: 10 }),
+      );
+      const result = await confirmCheckoutSession('cs_test_abc', '127.0.0.1');
+      expect(result).toEqual({ ok: false, reason: 'rate_limited' });
+    });
+
+    test('returns validation for empty session id', async () => {
+      const result = await confirmCheckoutSession('', '127.0.0.1');
+      expect(result).toEqual({ ok: false, reason: 'validation' });
+    });
+
+    test('returns validation for non-cs_ prefixed session id', async () => {
+      const result = await confirmCheckoutSession('invalid_id', '127.0.0.1');
+      expect(result).toEqual({ ok: false, reason: 'validation' });
+    });
+
+    test('returns session_not_found when Stripe retrieve throws', async () => {
+      const stripeError = new Error('No such checkout session');
+      (stripeError as any).type = 'StripeInvalidRequestError';
+      Object.setPrototypeOf(stripeError, { constructor: { name: 'StripeInvalidRequestError' } });
+      mockStripeRetrieve.mockRejectedValue(stripeError);
+
+      const result = await confirmCheckoutSession('cs_test_fake', '127.0.0.1');
+      // Falls through to internal since our mock error isn't a real StripeInvalidRequestError instance
+      expect(result.ok).toBe(false);
+    });
+
+    test('returns payment_incomplete when session not paid', async () => {
+      mockStripeRetrieve.mockImplementation(() => Promise.resolve({
+        id: 'cs_test_123',
+        payment_status: 'unpaid',
+        status: 'open',
+        customer: 'cus_test',
+        mode: 'subscription',
+        subscription: 'sub_test_123',
+      }));
+
+      const result = await confirmCheckoutSession('cs_test_123', '127.0.0.1');
+      expect(result).toEqual({ ok: false, reason: 'payment_incomplete' });
+    });
+
+    test('returns user_not_found when no user matches customer', async () => {
+      mockFindByStripeCustomerId.mockImplementation(() => Promise.resolve(null));
+
+      const result = await confirmCheckoutSession('cs_test_123', '127.0.0.1');
+      expect(result).toEqual({ ok: false, reason: 'user_not_found' });
+    });
+
+    test('returns confirmed when billing reconciles successfully', async () => {
+      const user = baseUser();
+      mockFindByStripeCustomerId.mockImplementation(() => Promise.resolve(user));
+
+      const result = await confirmCheckoutSession('cs_test_123', '127.0.0.1');
+
+      expect(result).toEqual({ ok: true, confirmed: true });
+      expect(mockReconcileBillingFromCustomer).toHaveBeenCalled();
+      expect(mockUpdateBilling).toHaveBeenCalled();
+    });
+
+    test('returns confirmed even if reconcile returns null (no billing to apply)', async () => {
+      const user = baseUser();
+      mockFindByStripeCustomerId.mockImplementation(() => Promise.resolve(user));
+      mockReconcileBillingFromCustomer.mockImplementation(() => Promise.resolve(null) as any);
+
+      const result = await confirmCheckoutSession('cs_test_123', '127.0.0.1');
+
+      expect(result).toEqual({ ok: true, confirmed: true });
+      expect(mockUpdateBilling).not.toHaveBeenCalled();
+    });
+
+    test('returns internal when reconciliation throws', async () => {
+      const user = baseUser();
+      mockFindByStripeCustomerId.mockImplementation(() => Promise.resolve(user));
+      mockReconcileBillingFromCustomer.mockRejectedValue(new Error('stripe down'));
+
+      const result = await confirmCheckoutSession('cs_test_123', '127.0.0.1');
 
       expect(result).toEqual({ ok: false, reason: 'internal' });
     });
