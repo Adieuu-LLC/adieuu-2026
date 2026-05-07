@@ -145,6 +145,7 @@ export { Tabs, TabList, TabTrigger, TabContent } from './components/Tabs';
 export { TourRoot, useTour, createTourSteps } from './components/Tour';
 export { Avatar } from './components/Avatar';
 export { Tooltip } from './components/Tooltip';
+export { InfoTip, INFOTIP_CHAR_THRESHOLD } from './components/InfoTip';
 export { ToastProvider, useToast } from './components/Toast';
 export { SidebarSearch } from './components/SidebarSearch';
 export { NotificationSoundSelect } from './components/NotificationSoundSelect';
@@ -219,6 +220,7 @@ export type {
 } from './components/Tour';
 export type { AvatarProps, AvatarInfo, AvatarSize } from './components/Avatar';
 export type { TooltipProps } from './components/Tooltip';
+export type { InfoTipProps } from './components/InfoTip';
 export type { ToastOptions, ToastVariant, ToastContextValue, ToastProviderProps } from './components/Toast';
 export type { SidebarSearchProps } from './components/SidebarSearch';
 export type { IdentityCardProps } from './components/IdentityCard';

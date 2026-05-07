@@ -343,7 +343,9 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
-  white-space: nowrap;
+  max-width: 280px;
+  white-space: normal;
+  word-wrap: break-word;
   pointer-events: none;
   animation: tooltipFadeIn var(--transition-fast) ease-out;
 }

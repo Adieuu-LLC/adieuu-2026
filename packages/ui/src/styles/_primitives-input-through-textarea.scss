@@ -105,6 +105,23 @@
 }
 
 // ============================================================================
+// InfoTip Popover (hover-triggered popover used for long tooltip content)
+// ============================================================================
+
+.infotip-popover {
+  pointer-events: auto;
+}
+
+.infotip-popover-body {
+  padding: var(--spacing-sm) var(--spacing-md);
+  max-height: 240px;
+  overflow-y: auto;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  white-space: pre-line;
+}
+
+// ============================================================================
 // Passphrase Info Popover Content
 // ============================================================================
 

@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Checkbox } from '@ark-ui/react';
-import { Tooltip } from '../Tooltip';
+import { InfoTip } from '../InfoTip';
 import { Icon } from '../../icons/Icon';
 import type { PendingAttachment } from './composerTypes';
 
@@ -110,7 +110,7 @@ export function ComposerAttachments({
           </Checkbox.Label>
           <Checkbox.HiddenInput />
         </Checkbox.Root>
-        <Tooltip
+        <InfoTip
           content={t(
             'conversations.metadataWarning',
             'Images often contain metadata (EXIF) such as location, device info, and timestamps that could compromise your privacy or anonymity. By default, we strip this data. Enable this only if you understand the risks.'
@@ -120,7 +120,7 @@ export function ComposerAttachments({
           <span className="conversation-composer-exif-info">
             <Icon name="info" />
           </span>
-        </Tooltip>
+        </InfoTip>
       </div>
       )}
       {showMp4NoReencodeToggle && onToggleSendMp4WithoutReencode !== undefined && (
@@ -136,7 +136,7 @@ export function ComposerAttachments({
             </Checkbox.Label>
             <Checkbox.HiddenInput />
           </Checkbox.Root>
-          <Tooltip
+          <InfoTip
             content={t(
               'conversations.sendMp4NoReencodeHelp',
               'Send the original MP4 bytes without converting to H.264. Playback and safety scans may fail on some devices; use only when you understand the trade-off.'
@@ -146,7 +146,7 @@ export function ComposerAttachments({
             <span className="conversation-composer-exif-info">
               <Icon name="info" />
             </span>
-          </Tooltip>
+          </InfoTip>
         </div>
       )}
       {showModerationToggle && onToggleModerationEnabled !== undefined && (
@@ -162,17 +162,18 @@ export function ComposerAttachments({
             </Checkbox.Label>
             <Checkbox.HiddenInput />
           </Checkbox.Root>
-          <Tooltip
-            content={t(
-              'conversations.enableModerationTooltip',
-              'When enabled, attached media is scanned for safety before delivery. Disabling skips the scan; recipients who require moderated content will see a placeholder instead.'
-            )}
+          <InfoTip
+            content={
+              <>
+                <p>{t('conversations.enableModerationTooltip')}</p>
+              </>
+            }
             position="top"
           >
             <span className="conversation-composer-exif-info">
               <Icon name="info" />
             </span>
-          </Tooltip>
+          </InfoTip>
         </div>
       )}
     </div>

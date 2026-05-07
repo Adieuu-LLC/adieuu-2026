@@ -3,7 +3,7 @@ import { SegmentGroup, Tabs } from '@ark-ui/react';
 import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Icon } from '../../icons/Icon';
-import { Tooltip } from '../../components/Tooltip';
+import { InfoTip } from '../../components/InfoTip';
 import { setMemberColorDisplay, type MemberColorDisplay } from '../../hooks/useMemberColorPreference';
 import type { GifContentFilter } from '@adieuu/shared';
 
@@ -214,7 +214,7 @@ export function ConversationSettingsSidebar({
         <div className="conversation-settings-content-filter">
           <span className="app-settings-toggle-title">
             {t('gif.contentFilterTitle', 'GIF/Sticker content filter')}
-            <Tooltip
+            <InfoTip
               content={
                 <ul className="content-filter-info-list">
                   {GIF_CONTENT_FILTER_OPTIONS.map((level) => (
@@ -232,7 +232,7 @@ export function ConversationSettingsSidebar({
               <span className="content-filter-info-icon" aria-label={t('gif.contentFilterInfoLabel', 'Filter level details')}>
                 <Icon name="info" size="sm" />
               </span>
-            </Tooltip>
+            </InfoTip>
           </span>
           <span className="app-settings-toggle-hint">
             {t(

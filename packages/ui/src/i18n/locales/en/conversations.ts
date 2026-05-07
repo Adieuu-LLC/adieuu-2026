@@ -492,7 +492,7 @@ export const conversations = {
     // Moderation skip
     enableModeration: 'Enable content moderation',
     enableModerationTooltip:
-        'Uncheck to opt-out of anonymized moderation scanning for these files (e.g. for files with sensitive personal data). Abnormal volumes of unmoderated content may result in throttling/caps for your Alias and other conversation members.',
+        'Uncheck to opt-out of anonymized moderation scanning for these files (e.g. for files with sensitive personal data).\n\nAbnormal volumes of unmoderated content may result in throttling/caps for your Alias and other conversation members: we want to give you privacy (which is why we offer an opt-out), but we don\'t want to support illegal content.',
     allowSkipModeration: 'Allow members to skip moderation',
     allowSkipModerationHint:
         'Members can choose to skip content moderation scanning when sending media. Recipients may hide unmoderated content.',
