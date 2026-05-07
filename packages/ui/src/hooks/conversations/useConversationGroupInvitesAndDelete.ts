@@ -222,6 +222,24 @@ export function useConversationGroupInvitesAndDelete(
     [api, toDecrypted]
   );
 
+  const updateGifContentFilter = useCallback(
+    async (conversationId: string, gifContentFilter: string): Promise<boolean> => {
+      const resp = await api.conversations.updateGifContentFilter(
+        conversationId,
+        gifContentFilter as import('@adieuu/shared').GifContentFilter,
+      );
+      if (!resp.success || !resp.data) return false;
+      const updated = toDecrypted(resp.data);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...updated, unreadCount: c.unreadCount } : c
+        )
+      );
+      return true;
+    },
+    [api, toDecrypted]
+  );
+
   const updateCustomEmojisDisabled = useCallback(
     async (conversationId: string, customEmojisDisabled: boolean): Promise<boolean> => {
       const resp = await api.conversations.updateCustomEmojisDisabled(
@@ -433,6 +451,7 @@ export function useConversationGroupInvitesAndDelete(
     renameGroup,
     updateConversationMemberSettings,
     updateGifsDisabled,
+    updateGifContentFilter,
     updateCustomEmojisDisabled,
     updateMessageSearchCachePolicy,
     updateAllowSkipModeration,

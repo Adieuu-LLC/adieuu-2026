@@ -44,6 +44,9 @@ const mockUpdateMemberSettings = mock(() =>
 const mockUpdateGifsDisabled = mock(() =>
   Promise.resolve({ success: true, conversation: { id: VALID_ID } }),
 );
+const mockUpdateGifContentFilter = mock(() =>
+  Promise.resolve({ success: true, conversation: { id: VALID_ID } }),
+);
 const mockUpdateCustomEmojisDisabled = mock(() =>
   Promise.resolve({ success: true, conversation: { id: VALID_ID } }),
 );
@@ -86,6 +89,7 @@ mock.module('../../services/conversation.service', () => ({
   getFormerMembers: mockGetFormerMembers,
   updateMemberSettings: mockUpdateMemberSettings,
   updateGifsDisabled: mockUpdateGifsDisabled,
+  updateGifContentFilter: mockUpdateGifContentFilter,
   updateCustomEmojisDisabled: mockUpdateCustomEmojisDisabled,
   updateDisallowPersistentMessageSearchCache: mockUpdateDisallowPersistentMessageSearchCache,
   listPendingInvitesForConversation: mockListPendingInvitesForConversation,
@@ -139,6 +143,7 @@ import {
   terminateConversationCtrl,
   addGroupMemberCtrl,
   patchGifsDisabledCtrl,
+  patchGifContentFilterCtrl,
 } from './controller';
 
 function baseCtx(overrides: Partial<RouteContext> = {}): RouteContext {
@@ -379,6 +384,77 @@ describe('conversation controller', () => {
       baseCtx({
         params: { id: VALID_ID },
         body: { gifsDisabled: true },
+      }),
+    );
+    expect(r).toEqual({ kind: 'unauthorized' });
+  });
+
+  test('patchGifContentFilterCtrl unauthorized', async () => {
+    const r = await patchGifContentFilterCtrl(
+      baseCtx({
+        params: { id: VALID_ID },
+        body: { gifContentFilter: 'medium' },
+      }),
+    );
+    expect(r).toEqual({ kind: 'unauthorized' });
+  });
+
+  test('patchGifContentFilterCtrl invalid filter value', async () => {
+    const r = await patchGifContentFilterCtrl(
+      baseCtx({
+        identitySession: { identity: { _id: ROUTE_TEST_IDENTITY_ID } } as never,
+        params: { id: VALID_ID },
+        body: { gifContentFilter: 'invalid' },
+      }),
+    );
+    expect(r).toEqual({ kind: 'validation_failed' });
+  });
+
+  test('patchGifContentFilterCtrl success', async () => {
+    const r = await patchGifContentFilterCtrl(
+      baseCtx({
+        identitySession: { identity: { _id: ROUTE_TEST_IDENTITY_ID } } as never,
+        params: { id: VALID_ID },
+        body: { gifContentFilter: 'high' },
+      }),
+    );
+    expect(r.kind).toBe('ok');
+    expect(mockUpdateGifContentFilter).toHaveBeenCalledWith(
+      VALID_ID,
+      ROUTE_TEST_IDENTITY_ID,
+      'high',
+    );
+  });
+
+  test('patchGifContentFilterCtrl not_found', async () => {
+    mockUpdateGifContentFilter.mockImplementationOnce(() =>
+      Promise.resolve({
+        success: false,
+        errorCode: 'CONVERSATION_NOT_FOUND' as const,
+      } as never),
+    );
+    const r = await patchGifContentFilterCtrl(
+      baseCtx({
+        identitySession: { identity: { _id: ROUTE_TEST_IDENTITY_ID } } as never,
+        params: { id: VALID_ID },
+        body: { gifContentFilter: 'low' },
+      }),
+    );
+    expect(r).toEqual({ kind: 'not_found', message: 'Conversation not found.' });
+  });
+
+  test('patchGifContentFilterCtrl not_admin', async () => {
+    mockUpdateGifContentFilter.mockImplementationOnce(() =>
+      Promise.resolve({
+        success: false,
+        errorCode: 'NOT_ADMIN' as const,
+      } as never),
+    );
+    const r = await patchGifContentFilterCtrl(
+      baseCtx({
+        identitySession: { identity: { _id: ROUTE_TEST_IDENTITY_ID } } as never,
+        params: { id: VALID_ID },
+        body: { gifContentFilter: 'medium' },
       }),
     );
     expect(r).toEqual({ kind: 'unauthorized' });

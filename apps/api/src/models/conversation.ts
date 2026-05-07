@@ -13,6 +13,16 @@ import type { BaseDocument } from './base';
 
 export type ConversationType = 'dm' | 'group';
 
+/** Klipy content safety filter levels (ascending strictness). */
+export type GifContentFilter = 'off' | 'low' | 'medium' | 'high';
+
+export const GIF_CONTENT_FILTER_VALUES: readonly GifContentFilter[] = [
+  'off',
+  'low',
+  'medium',
+  'high',
+] as const;
+
 export const MAX_GROUP_PARTICIPANTS = 25;
 export const MAX_GROUP_NAME_LENGTH = 100;
 
@@ -68,6 +78,9 @@ export interface ConversationDocument extends BaseDocument {
 
   /** Whether GIF/sticker content is disabled for this conversation (admin toggle) */
   gifsDisabled?: boolean;
+
+  /** Klipy content safety filter level for GIF/sticker searches (admin toggle, default off). */
+  gifContentFilter?: GifContentFilter;
 
   /** Whether custom emoji usage is disabled for this conversation (admin toggle) */
   customEmojisDisabled?: boolean;
@@ -125,6 +138,7 @@ export interface PublicConversation {
   lastMessageAt?: string;
   lastMessageId?: string;
   gifsDisabled?: boolean;
+  gifContentFilter?: GifContentFilter;
   customEmojisDisabled?: boolean;
   disallowPersistentMessageSearchCache?: boolean;
   /** When true, participants may opt out of moderation scanning per-send. */
@@ -156,6 +170,9 @@ export function toPublicConversation(doc: ConversationDocument): PublicConversat
     lastMessageAt: doc.lastMessageAt?.toISOString(),
     lastMessageId: doc.lastMessageId?.toHexString(),
     gifsDisabled: doc.gifsDisabled,
+    ...(doc.gifContentFilter && doc.gifContentFilter !== 'off'
+      ? { gifContentFilter: doc.gifContentFilter }
+      : {}),
     ...(doc.customEmojisDisabled === true
       ? { customEmojisDisabled: true }
       : {}),

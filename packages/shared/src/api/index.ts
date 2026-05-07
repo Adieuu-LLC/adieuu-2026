@@ -184,6 +184,7 @@ export {
 
 export {
   type ConversationType,
+  type GifContentFilter,
   type PreKeyType,
   type MessageCryptoProfile,
   type MessageType,

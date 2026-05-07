@@ -14,6 +14,7 @@ import { Collections } from '../db';
 import type {
   ConversationDocument,
   CreateConversationInput,
+  GifContentFilter,
 } from '../models/conversation';
 
 export interface IConversationRepository {
@@ -54,6 +55,10 @@ export interface IConversationRepository {
   updateGifsDisabled(
     conversationId: ObjectId,
     gifsDisabled: boolean
+  ): Promise<ConversationDocument | null>;
+  updateGifContentFilter(
+    conversationId: ObjectId,
+    gifContentFilter: GifContentFilter
   ): Promise<ConversationDocument | null>;
   updateCustomEmojisDisabled(
     conversationId: ObjectId,
@@ -302,6 +307,23 @@ export class ConversationRepository
       {
         $set: {
           gifsDisabled,
+          updatedAt: new Date(),
+        },
+      },
+      { returnDocument: 'after' }
+    );
+    return result as ConversationDocument | null;
+  }
+
+  async updateGifContentFilter(
+    conversationId: ObjectId,
+    gifContentFilter: GifContentFilter
+  ): Promise<ConversationDocument | null> {
+    const result = await this.collection.findOneAndUpdate(
+      { _id: conversationId },
+      {
+        $set: {
+          gifContentFilter,
           updatedAt: new Date(),
         },
       },

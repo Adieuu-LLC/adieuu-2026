@@ -118,6 +118,7 @@ export interface ChatConversationUpdatedMessage extends ChatMessageBase {
       | 'renamed'
       | 'admin_promoted'
       | 'gifs_disabled_updated'
+      | 'gif_content_filter_updated'
       | 'custom_emojis_disabled_updated'
       | 'message_search_cache_policy_updated'
       | 'allow_skip_moderation_updated'
@@ -125,6 +126,7 @@ export interface ChatConversationUpdatedMessage extends ChatMessageBase {
       | 'pins_updated';
     identityId?: string;
     gifsDisabled?: boolean;
+    gifContentFilter?: string;
     customEmojisDisabled?: boolean;
     disallowPersistentMessageSearchCache?: boolean;
     allowSkipModeration?: boolean;

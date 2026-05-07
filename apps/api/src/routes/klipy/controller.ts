@@ -5,6 +5,7 @@
  */
 
 import { z } from '@adieuu/shared/schemas';
+import { ObjectId } from 'mongodb';
 import { logKlipySearch } from '../../models/klipy-search-log';
 import {
   checkRateLimit,
@@ -18,6 +19,8 @@ import {
   type KlipyContentType,
   type KlipySearchResponse,
 } from '../../services/klipy.service';
+import { getConversationRepository } from '../../repositories/conversation.repository';
+import { GIF_CONTENT_FILTER_VALUES } from '../../models/conversation';
 import elog from '../../utils/adieuuLogger';
 import { sanitizeString } from '../../utils/sanitize';
 
@@ -70,6 +73,32 @@ async function enforceKlipySearchRateLimit(identityId: string): Promise<RateLimi
   return { ok: true };
 }
 
+/**
+ * Resolve the Klipy content filter for a conversation.
+ * Returns the conversation's `gifContentFilter` when the requester is a participant;
+ * undefined otherwise (caller falls back to global config).
+ */
+async function resolveConversationContentFilter(
+  conversationIdRaw: string | null,
+  identityId: string,
+): Promise<string | undefined> {
+  if (!conversationIdRaw || conversationIdRaw.length !== 24) return undefined;
+  let convObjId: ObjectId;
+  try {
+    convObjId = new ObjectId(conversationIdRaw);
+  } catch {
+    return undefined;
+  }
+  const conversationRepo = getConversationRepository();
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) return undefined;
+
+  const identityObjId = new ObjectId(identityId);
+  if (!conversation.participants.some((p) => p.equals(identityObjId))) return undefined;
+
+  return conversation.gifContentFilter ?? undefined;
+}
+
 export type KlipySearchRouteResult =
   | { ok: true; data: KlipySearchResponse }
   | { ok: false; kind: 'validation_failed' }
@@ -94,12 +123,17 @@ export async function klipySearchResult(
 
   const page = clampKlipyPage(query.get('page'));
   const perPage = clampKlipyPerPage(query.get('per_page'));
+  const contentFilter = await resolveConversationContentFilter(
+    query.get('conversation_id'),
+    identityId,
+  );
 
   const data = await searchKlipy(contentType, {
     query: parsed.query,
     page,
     perPage,
     identityId,
+    contentFilter,
   });
 
   return { ok: true, data };
@@ -121,11 +155,16 @@ export async function klipyTrendingResult(
 
   const page = clampKlipyPage(query.get('page'));
   const perPage = clampKlipyPerPage(query.get('per_page'));
+  const contentFilter = await resolveConversationContentFilter(
+    query.get('conversation_id'),
+    identityId,
+  );
 
   const data = await trendingKlipy(contentType, {
     page,
     perPage,
     identityId,
+    contentFilter,
   });
 
   return { ok: true, data };

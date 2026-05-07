@@ -259,12 +259,16 @@ export interface KlipySearchParams {
   page?: number;
   perPage?: number;
   identityId: string;
+  /** Per-conversation content filter override (takes precedence over global config). */
+  contentFilter?: string;
 }
 
 export interface KlipyTrendingParams {
   page?: number;
   perPage?: number;
   identityId: string;
+  /** Per-conversation content filter override (takes precedence over global config). */
+  contentFilter?: string;
 }
 
 export async function searchKlipy(
@@ -273,8 +277,10 @@ export async function searchKlipy(
 ): Promise<KlipySearchResponse> {
   const page = params.page ?? 1;
   const perPage = params.perPage ?? 24;
+  const effectiveFilter = params.contentFilter || config.klipy.contentFilter;
 
-  const cacheKey = RedisKeys.klipyCache(type, params.query.toLowerCase().trim(), page, perPage);
+  const cacheKey = RedisKeys.klipyCache(type, params.query.toLowerCase().trim(), page, perPage)
+    + `:cf:${effectiveFilter}`;
   const cached = await getCached(cacheKey);
   if (cached) return cached;
 
@@ -283,7 +289,7 @@ export async function searchKlipy(
     page: String(page),
     per_page: String(perPage),
     customer_id: deriveKlipyCustomerId(params.identityId),
-    content_filter: config.klipy.contentFilter,
+    content_filter: effectiveFilter,
     format_filter: 'webp,gif,jpg',
   });
 
@@ -298,8 +304,9 @@ export async function trendingKlipy(
 ): Promise<KlipySearchResponse> {
   const page = params.page ?? 1;
   const perPage = params.perPage ?? 24;
+  const effectiveFilter = params.contentFilter || config.klipy.contentFilter;
 
-  const cacheKey = RedisKeys.klipyTrendingCache(type, page);
+  const cacheKey = RedisKeys.klipyTrendingCache(type, page) + `:cf:${effectiveFilter}`;
   const cached = await getCached(cacheKey);
   if (cached) return cached;
 
@@ -307,7 +314,7 @@ export async function trendingKlipy(
     page: String(page),
     per_page: String(perPage),
     customer_id: deriveKlipyCustomerId(params.identityId),
-    content_filter: config.klipy.contentFilter,
+    content_filter: effectiveFilter,
     format_filter: 'webp,gif,jpg',
   });
 

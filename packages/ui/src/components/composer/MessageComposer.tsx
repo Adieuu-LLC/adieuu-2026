@@ -1132,7 +1132,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
                 <Portal>
                   <Popover.Positioner>
                     <Popover.Content className="gif-picker-popover">
-                      <GifPicker onGifSelect={handleGifSelect} lastMessageText={lastMessageText} />
+                      <GifPicker onGifSelect={handleGifSelect} lastMessageText={lastMessageText} conversationId={channelId} />
                     </Popover.Content>
                   </Popover.Positioner>
                 </Portal>
@@ -1161,6 +1161,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
                         onGifSelect={handleGifSelect}
                         initialTab="stickers"
                         lastMessageText={lastMessageText}
+                        conversationId={channelId}
                       />
                     </Popover.Content>
                   </Popover.Positioner>

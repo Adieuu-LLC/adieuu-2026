@@ -6,6 +6,7 @@ import type {
   ConversationPreferencesPatch,
   ConversationType,
   FormerMember,
+  GifContentFilter,
   GroupInvitePreview,
   PinnedMessagesPageResponse,
   PublicConversation,
@@ -287,6 +288,16 @@ export class ConversationsApi {
     return this.client.patch(
       `/api/conversations/${encodeURIComponent(conversationId)}/gifs`,
       { gifsDisabled }
+    );
+  }
+
+  async updateGifContentFilter(
+    conversationId: string,
+    gifContentFilter: GifContentFilter
+  ): Promise<ApiResponse<PublicConversation>> {
+    return this.client.patch(
+      `/api/conversations/${encodeURIComponent(conversationId)}/gif-content-filter`,
+      { gifContentFilter }
     );
   }
 

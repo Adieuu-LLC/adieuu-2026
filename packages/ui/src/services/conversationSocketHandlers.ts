@@ -159,6 +159,11 @@ export function handleConversationSocketMessage(
         ctx.setConversations((prev) =>
           prev.map((c) => (c.id === conversationId ? { ...c, gifsDisabled: newVal } : c))
         );
+      } else if (action === 'gif_content_filter_updated') {
+        const newVal = message.data.gifContentFilter as import('@adieuu/shared').GifContentFilter | undefined;
+        ctx.setConversations((prev) =>
+          prev.map((c) => (c.id === conversationId ? { ...c, gifContentFilter: newVal } : c))
+        );
       } else if (action === 'custom_emojis_disabled_updated') {
         const newVal = message.data.customEmojisDisabled ?? false;
         ctx.setConversations((prev) =>

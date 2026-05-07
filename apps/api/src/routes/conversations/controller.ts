@@ -19,6 +19,7 @@ import {
   getFormerMembers,
   updateMemberSettings,
   updateGifsDisabled,
+  updateGifContentFilter,
   updateCustomEmojisDisabled,
   updateDisallowPersistentMessageSearchCache,
   updateAllowSkipModeration,
@@ -41,6 +42,7 @@ import {
   UpdateNameSchema,
   UpdateMemberSettingsSchema,
   UpdateGifsDisabledSchema,
+  UpdateGifContentFilterSchema,
   UpdateCustomEmojisDisabledSchema,
   UpdateMessageSearchCacheSchema,
   UpdateAllowSkipModerationSchema,
@@ -366,6 +368,37 @@ export async function patchGifsDisabledCtrl(
   }
 
   return { kind: 'ok', data: result.conversation, message: 'GIF settings updated.' };
+}
+
+export async function patchGifContentFilterCtrl(
+  ctx: RouteContext,
+): Promise<ConversationRouteResult<unknown>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const conv = sanitizeObjectId24(ctx.params.id);
+  if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
+
+  const parseResult = UpdateGifContentFilterSchema.safeParse(ctx.body);
+  if (!parseResult.success) return { kind: 'validation_failed' };
+
+  const result = await updateGifContentFilter(
+    conv.id,
+    identity._id,
+    parseResult.data.gifContentFilter,
+  );
+
+  if (!result.success) {
+    if (result.errorCode === 'CONVERSATION_NOT_FOUND') {
+      return { kind: 'not_found', message: 'Conversation not found.' };
+    }
+    if (result.errorCode === 'NOT_PARTICIPANT' || result.errorCode === 'NOT_ADMIN') {
+      return { kind: 'unauthorized' };
+    }
+    return { kind: 'bad_request', message: result.error ?? 'Failed to update content filter.' };
+  }
+
+  return { kind: 'ok', data: result.conversation, message: 'Content filter updated.' };
 }
 
 export async function patchCustomEmojisDisabledCtrl(

@@ -1,5 +1,7 @@
 export type ConversationType = 'dm' | 'group';
 
+export type GifContentFilter = 'off' | 'low' | 'medium' | 'high';
+
 export type PreKeyType = 'static' | 'spk' | 'otpk';
 
 export type MessageCryptoProfile = 'default' | 'cnsa2';
@@ -29,6 +31,7 @@ export interface PublicConversation {
   lastMessageAt?: string;
   lastMessageId?: string;
   gifsDisabled?: boolean;
+  gifContentFilter?: GifContentFilter;
   customEmojisDisabled?: boolean;
   /**
    * When true, conversation admins require that members not retain a persistent local

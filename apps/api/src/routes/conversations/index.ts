@@ -90,6 +90,10 @@ router.patch('/conversations/:id/gifs', async (ctx) => {
   return conversationRespond(ctx, await conversationController.patchGifsDisabledCtrl(ctx));
 });
 
+router.patch('/conversations/:id/gif-content-filter', async (ctx) => {
+  return conversationRespond(ctx, await conversationController.patchGifContentFilterCtrl(ctx));
+});
+
 router.patch('/conversations/:id/custom-emojis', async (ctx) => {
   return conversationRespond(ctx, await conversationController.patchCustomEmojisDisabledCtrl(ctx));
 });

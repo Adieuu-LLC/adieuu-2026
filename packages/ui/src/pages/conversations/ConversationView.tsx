@@ -114,6 +114,7 @@ export function ConversationView() {
     renameGroup,
     updateMemberSettings,
     updateGifsDisabled,
+    updateGifContentFilter,
     updateCustomEmojisDisabled,
     updateMessageSearchCachePolicy,
     updateAllowSkipModeration,
@@ -271,6 +272,14 @@ export function ConversationView() {
       await updateGifsDisabled(id, disabled);
     },
     [id, updateGifsDisabled],
+  );
+
+  const handleGifContentFilterChange = useCallback(
+    async (filter: import('@adieuu/shared').GifContentFilter) => {
+      if (!id) return;
+      await updateGifContentFilter(id, filter);
+    },
+    [id, updateGifContentFilter],
   );
 
   const handleCustomEmojisDisabledByAdminToggle = useCallback(
@@ -1097,6 +1106,8 @@ export function ConversationView() {
               memberColorDisplay={memberColorDisplay}
               gifsDisabledByAdmin={conversation.gifsDisabled ?? false}
               onGifsDisabledByAdminToggle={handleGifsDisabledByAdminToggle}
+              gifContentFilter={conversation.gifContentFilter}
+              onGifContentFilterChange={handleGifContentFilterChange}
               customEmojisDisabledByAdmin={conversation.customEmojisDisabled ?? false}
               onCustomEmojisDisabledByAdminToggle={handleCustomEmojisDisabledByAdminToggle}
               disallowPersistentMessageSearchCache={conversation.disallowPersistentMessageSearchCache ?? false}

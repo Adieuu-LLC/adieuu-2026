@@ -223,6 +223,59 @@ export async function updateGifsDisabled(
 }
 
 // ---------------------------------------------------------------------------
+// GIF content filter
+// ---------------------------------------------------------------------------
+
+/**
+ * Update the Klipy content safety filter level for a conversation.
+ * In groups only admins may call this; in DMs either participant may.
+ */
+export async function updateGifContentFilter(
+  conversationId: string | ObjectId,
+  requesterIdentityId: string | ObjectId,
+  gifContentFilter: string
+): Promise<ConversationResult> {
+  const conversationRepo = getConversationRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  if (!conversation.participants.some((p) => p.equals(requesterObjId))) {
+    return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  if (conversation.type === 'group' && !isGroupAdmin(conversation, requesterObjId)) {
+    return { success: false, error: 'Only group admins can change content filter settings', errorCode: 'NOT_ADMIN' };
+  }
+
+  const updated = await conversationRepo.updateGifContentFilter(
+    convObjId,
+    gifContentFilter as import('../../models/conversation').GifContentFilter
+  );
+
+  await publishToParticipants(conversation.participants, requesterObjId, {
+    type: 'conversation_updated',
+    data: {
+      conversationId: convObjId.toHexString(),
+      action: 'gif_content_filter_updated',
+      identityId: requesterObjId.toHexString(),
+      gifContentFilter,
+    },
+  });
+
+  return { success: true, conversation: updated ? toPublicConversation(updated) : undefined };
+}
+
+// ---------------------------------------------------------------------------
 // Custom emoji settings
 // ---------------------------------------------------------------------------
 

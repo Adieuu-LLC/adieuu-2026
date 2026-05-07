@@ -107,6 +107,10 @@ export const UpdateGifsDisabledSchema = z.object({
   gifsDisabled: z.boolean(),
 });
 
+export const UpdateGifContentFilterSchema = z.object({
+  gifContentFilter: z.enum(['off', 'low', 'medium', 'high']),
+});
+
 export const UpdateCustomEmojisDisabledSchema = z.object({
   customEmojisDisabled: z.boolean(),
 });

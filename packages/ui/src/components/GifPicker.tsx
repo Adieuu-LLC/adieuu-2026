@@ -43,6 +43,8 @@ export interface GifPickerProps {
   /** Plain-text of the most recent message; used to seed a search when the
    *  sticker tab opens with an empty query. */
   lastMessageText?: string;
+  /** Conversation ID for server-side content filter enforcement. */
+  conversationId?: string;
 }
 
 interface FetchState {
@@ -114,7 +116,7 @@ function extractKeyword(text: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export function GifPicker({ onGifSelect, initialTab, lastMessageText }: GifPickerProps) {
+export function GifPicker({ onGifSelect, initialTab, lastMessageText, conversationId }: GifPickerProps) {
   const { t } = useTranslation();
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -204,13 +206,14 @@ export function GifPicker({ onGifSelect, initialTab, lastMessageText }: GifPicke
 
         if (tab === 'gifs') {
           res = isSearch
-            ? await api.klipy.searchGifs({ q: debouncedQuery, page: pageToFetch, per_page: PER_PAGE })
-            : await api.klipy.trendingGifs({ page: pageToFetch, per_page: PER_PAGE });
+            ? await api.klipy.searchGifs({ q: debouncedQuery, page: pageToFetch, per_page: PER_PAGE, conversationId })
+            : await api.klipy.trendingGifs({ page: pageToFetch, per_page: PER_PAGE, conversationId });
         } else {
           res = await api.klipy.searchStickers({
             q: debouncedQuery,
             page: pageToFetch,
             per_page: PER_PAGE,
+            conversationId,
           });
         }
 
@@ -248,7 +251,7 @@ export function GifPicker({ onGifSelect, initialTab, lastMessageText }: GifPicke
         }
       }
     },
-    [api.klipy, debouncedQuery, tab, t]
+    [api.klipy, debouncedQuery, tab, t, conversationId]
   );
 
   // Initial load + query/tab change (stickers without a search query: idle CTA only)

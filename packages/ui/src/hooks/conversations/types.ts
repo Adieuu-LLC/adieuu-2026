@@ -156,6 +156,10 @@ export interface ConversationsContextValue {
   renameGroup: (conversationId: string, newName: string) => Promise<boolean>;
   updateMemberSettings: (conversationId: string, settings: MemberSettingsMap) => Promise<boolean>;
   updateGifsDisabled: (conversationId: string, gifsDisabled: boolean) => Promise<boolean>;
+  updateGifContentFilter: (
+    conversationId: string,
+    gifContentFilter: import('@adieuu/shared').GifContentFilter
+  ) => Promise<boolean>;
   updateCustomEmojisDisabled: (
     conversationId: string,
     customEmojisDisabled: boolean

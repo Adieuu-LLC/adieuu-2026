@@ -48,6 +48,18 @@ mock.module('../../models/klipy-search-log', () => ({
   logKlipySearch: logKlipySearchMock,
 }));
 
+const mockConversationFindById = mock(async (): Promise<unknown> => null);
+
+mock.module('../../repositories/conversation.repository', () => ({
+  getConversationRepository: mock(() => ({
+    findById: mockConversationFindById,
+  })),
+}));
+
+mock.module('../../models/conversation', () => ({
+  GIF_CONTENT_FILTER_VALUES: ['off', 'low', 'medium', 'high'],
+}));
+
 import {
   clampKlipyPage,
   clampKlipyPerPage,
@@ -83,6 +95,7 @@ describe('klipySearchResult', () => {
     escalateKlipyThrottleMock.mockClear();
     searchKlipyMock.mockClear();
     logKlipySearchMock.mockClear();
+    mockConversationFindById.mockClear();
     checkRateLimitMock.mockResolvedValue({
       allowed: true,
       remaining: 29,
@@ -151,6 +164,32 @@ describe('klipySearchResult', () => {
     expect(searchKlipyMock).toHaveBeenCalledWith(
       'gif',
       expect.objectContaining({ query: 'a'.repeat(200) }),
+    );
+  });
+
+  test('passes contentFilter when conversation_id resolves', async () => {
+    const convId = '507f1f77bcf86cd799439011';
+    mockConversationFindById.mockResolvedValueOnce({
+      _id: { toHexString: () => convId, equals: () => true },
+      participants: [ROUTE_TEST_IDENTITY_ID],
+      gifContentFilter: 'medium',
+    });
+    const qs = new URLSearchParams({ q: 'cats', conversation_id: convId });
+    const r = await klipySearchResult(ROUTE_TEST_IDENTITY_ID.toHexString(), 'gif', qs);
+    expect(r.ok).toBe(true);
+    expect(searchKlipyMock).toHaveBeenCalledWith(
+      'gif',
+      expect.objectContaining({ contentFilter: 'medium' }),
+    );
+  });
+
+  test('omits contentFilter when conversation_id is missing', async () => {
+    const qs = new URLSearchParams({ q: 'dogs' });
+    const r = await klipySearchResult(ROUTE_TEST_IDENTITY_ID.toHexString(), 'gif', qs);
+    expect(r.ok).toBe(true);
+    expect(searchKlipyMock).toHaveBeenCalledWith(
+      'gif',
+      expect.objectContaining({ contentFilter: undefined }),
     );
   });
 });

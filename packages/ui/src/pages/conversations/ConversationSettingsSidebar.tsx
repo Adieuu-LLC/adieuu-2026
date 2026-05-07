@@ -4,6 +4,9 @@ import { Button } from '../../components/Button';
 import { Input } from '../../components/Input';
 import { Icon } from '../../icons/Icon';
 import { setMemberColorDisplay, type MemberColorDisplay } from '../../hooks/useMemberColorPreference';
+import type { GifContentFilter } from '@adieuu/shared';
+
+const GIF_CONTENT_FILTER_OPTIONS: GifContentFilter[] = ['off', 'low', 'medium', 'high'];
 
 export function ConversationSettingsSidebar({
   isGroup,
@@ -18,6 +21,8 @@ export function ConversationSettingsSidebar({
   memberColorDisplay,
   gifsDisabledByAdmin,
   onGifsDisabledByAdminToggle,
+  gifContentFilter,
+  onGifContentFilterChange,
   customEmojisDisabledByAdmin,
   onCustomEmojisDisabledByAdminToggle,
   disallowPersistentMessageSearchCache,
@@ -41,6 +46,8 @@ export function ConversationSettingsSidebar({
   memberColorDisplay: MemberColorDisplay;
   gifsDisabledByAdmin?: boolean;
   onGifsDisabledByAdminToggle?: (disabled: boolean) => void;
+  gifContentFilter?: GifContentFilter;
+  onGifContentFilterChange?: (filter: GifContentFilter) => void;
   customEmojisDisabledByAdmin?: boolean;
   onCustomEmojisDisabledByAdminToggle?: (disabled: boolean) => void;
   disallowPersistentMessageSearchCache?: boolean;
@@ -186,6 +193,35 @@ export function ConversationSettingsSidebar({
             </span>
           </span>
         </label>
+      )}
+
+      {(isAdmin || !isGroup) && !gifsDisabledByAdmin && onGifContentFilterChange && (
+        <div className="conversation-settings-color-display">
+          <span className="app-settings-toggle-title">
+            {t('gif.contentFilterTitle', 'GIF/Sticker content filter')}
+          </span>
+          <span className="app-settings-toggle-hint">
+            {t(
+              'gif.contentFilterHint',
+              'Controls the content safety level for GIF and sticker search results in this conversation',
+            )}
+          </span>
+          <div className="conversation-settings-color-options">
+            {GIF_CONTENT_FILTER_OPTIONS.map((level) => (
+              <label key={level} className="conversation-settings-color-option">
+                <input
+                  type="radio"
+                  name="gifContentFilter"
+                  checked={(gifContentFilter ?? 'off') === level}
+                  onChange={() => onGifContentFilterChange(level)}
+                />
+                <span>
+                  {t(`gif.contentFilter${level.charAt(0).toUpperCase()}${level.slice(1)}` as never, level)}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
       )}
 
       {(isAdmin || !isGroup) && onCustomEmojisDisabledByAdminToggle && (
