@@ -18,7 +18,8 @@ export type AgeVerificationUIStatus =
   | 'polling'
   | 'approved'
   | 'failed'
-  | 'expired';
+  | 'expired'
+  | 'subscription_required';
 
 interface MethodAttemptInfo {
   enabled: boolean;
@@ -32,6 +33,8 @@ export interface UseAgeVerificationReturn {
   ageGate?: Record<string, MethodAttemptInfo>;
   /** Seconds until the next status poll, or null when not polling. */
   secondsUntilNextPoll: number | null;
+  /** Present when status is 'subscription_required'; distinguishes SUBSCRIPTION_REQUIRED from SUBSCRIPTION_EXPIRED. */
+  billingCode?: string;
   start: () => Promise<void>;
   optIn: (country?: string) => Promise<void>;
   cancel: () => void;
@@ -48,6 +51,7 @@ export function useAgeVerification(): UseAgeVerificationReturn {
   const [status, setStatus] = useState<AgeVerificationUIStatus>('idle');
   const [verificationId, setVerificationId] = useState<string>();
   const [ageGate, setAgeGate] = useState<Record<string, MethodAttemptInfo>>();
+  const [billingCode, setBillingCode] = useState<string>();
   const [secondsUntilNextPoll, setSecondsUntilNextPoll] = useState<number | null>(null);
   const pollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -87,6 +91,7 @@ export function useAgeVerification(): UseAgeVerificationReturn {
     setStatus('idle');
     setVerificationId(undefined);
     setAgeGate(undefined);
+    setBillingCode(undefined);
   }, [stopPolling]);
 
   const pollStatus = useCallback(
@@ -167,6 +172,14 @@ export function useAgeVerification(): UseAgeVerificationReturn {
         });
 
         if (!response.ok) {
+          try {
+            const errJson = (await response.json()) as { code?: string };
+            if (errJson?.code === 'SUBSCRIPTION_REQUIRED' || errJson?.code === 'SUBSCRIPTION_EXPIRED') {
+              setBillingCode(errJson.code);
+              setStatus('subscription_required');
+              return;
+            }
+          } catch { /* fall through to generic failure */ }
           setStatus('failed');
           return;
         }
@@ -246,5 +259,5 @@ export function useAgeVerification(): UseAgeVerificationReturn {
   // Cleanup on unmount
   useEffect(() => () => stopPolling(), [stopPolling]);
 
-  return { status, verificationId, ageGate, secondsUntilNextPoll, start, optIn, cancel };
+  return { status, verificationId, ageGate, billingCode, secondsUntilNextPoll, start, optIn, cancel };
 }

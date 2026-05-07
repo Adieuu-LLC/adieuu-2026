@@ -32,6 +32,12 @@ export const compliance = {
     methodsTitle: 'Verification Methods',
     attemptsRemaining: '{{remaining}} attempts remaining',
   },
+  subscription: {
+    title: 'Subscription Required',
+    description: 'An active subscription (Access or Insider) is required to create or log into an Alias.',
+    expiredDescription: 'Your subscription has expired. Please renew your plan to continue using Aliases.',
+    subscribeCta: 'View Plans',
+  },
   advisory: {
     unresolvedJurisdiction: 'We could not determine your jurisdiction. You are responsible for adhering to local age verification laws. You may opt in to verification voluntarily.',
     optInButton: 'Verify my age',

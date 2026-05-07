@@ -22,7 +22,7 @@ interface IdentityModalProps {
 }
 
 type ModalView = 'choose' | 'login' | 'create' | 'unlock' | 'creating' | 'logging_in'
-  | 'geofenced' | 'age_verification_required' | 'age_verification_failed' | 'age_verification_cooldown';
+  | 'subscription_required' | 'geofenced' | 'age_verification_required' | 'age_verification_failed' | 'age_verification_cooldown';
 
 export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityModalProps) {
   const { t } = useTranslation();
@@ -31,9 +31,11 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   const { createIdentity, loginToIdentity, unlockIdentity, logoutFromIdentity, hasIdentity, canCreateMore } = useIdentity();
   const { session } = useAuth();
 
-  // Derive initial view from alias gate state
+  // Derive initial view from subscription state and alias gate
   const aliasGate = session?.aliasGate;
+  const hasPaidPlan = session?.subscriptions && session.subscriptions.length > 0;
   const initialView = (): ModalView => {
+    if (!hasPaidPlan) return 'subscription_required';
     if (aliasGate && !aliasGate.allowed) {
       if (aliasGate.code === 'GEOFENCE_BLOCKED') return 'geofenced';
       if (aliasGate.code === 'AGE_VERIFICATION_FAILED') return 'age_verification_failed';
@@ -63,19 +65,33 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
   // Re-derive compliance view when the modal opens (handles close + reopen)
   useEffect(() => {
-    if (isOpen && aliasGate && !aliasGate.allowed) {
-      if (aliasGate.code === 'GEOFENCE_BLOCKED') setView('geofenced');
-      else if (aliasGate.code === 'AGE_VERIFICATION_FAILED') setView('age_verification_failed');
-      else if (aliasGate.code === 'AGE_VERIFICATION_COOLDOWN') setView('age_verification_cooldown');
-      else if (aliasGate.code === 'AGE_VERIFICATION_REQUIRED') setView('age_verification_required');
+    if (isOpen) {
+      if (!hasPaidPlan) {
+        setView('subscription_required');
+      } else if (aliasGate && !aliasGate.allowed) {
+        if (aliasGate.code === 'GEOFENCE_BLOCKED') setView('geofenced');
+        else if (aliasGate.code === 'AGE_VERIFICATION_FAILED') setView('age_verification_failed');
+        else if (aliasGate.code === 'AGE_VERIFICATION_COOLDOWN') setView('age_verification_cooldown');
+        else if (aliasGate.code === 'AGE_VERIFICATION_REQUIRED') setView('age_verification_required');
+      }
     }
-  }, [isOpen, aliasGate]);
+  }, [isOpen, hasPaidPlan, aliasGate]);
 
-  // Sync view when aliasGate changes (e.g. after AV approval refreshes session).
+  // Sync view when aliasGate or subscription state changes (e.g. after AV approval or subscription activation refreshes session).
   // Skip auto-transition while the approved CTA is visible so the user can
   // read the success message and choose their next action.
   useEffect(() => {
-    if (!aliasGate || aliasGate.allowed) {
+    if (view === 'subscription_required' && hasPaidPlan) {
+      if (aliasGate && !aliasGate.allowed) {
+        if (aliasGate.code === 'GEOFENCE_BLOCKED') setView('geofenced');
+        else if (aliasGate.code === 'AGE_VERIFICATION_FAILED') setView('age_verification_failed');
+        else if (aliasGate.code === 'AGE_VERIFICATION_COOLDOWN') setView('age_verification_cooldown');
+        else if (aliasGate.code === 'AGE_VERIFICATION_REQUIRED') setView('age_verification_required');
+        else setView(unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose');
+      } else {
+        setView(unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose');
+      }
+    } else if (!aliasGate || aliasGate.allowed) {
       if ((view.startsWith('age_verification') || view === 'geofenced') && av.status !== 'approved') {
         av.cancel();
         setAvOptInMode(false);
@@ -83,7 +99,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
         setView(unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose');
       }
     }
-  }, [aliasGate, av, canCreateMore, hasIdentity, unlockMode, view]);
+  }, [aliasGate, av, canCreateMore, hasIdentity, hasPaidPlan, unlockMode, view]);
 
   useEffect(() => {
     if (view !== 'login' && view !== 'unlock') {
@@ -651,6 +667,27 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
           </div>
         )}
 
+        {view === 'subscription_required' && (
+          <div className="identity-modal-content">
+            <div className="identity-modal-header">
+              <Icon name="lock" className="identity-modal-icon" />
+              <h2>{t('compliance.subscription.title')}</h2>
+            </div>
+            <p className="identity-modal-av-description">
+              {t('compliance.subscription.description')}
+            </p>
+            <div className="identity-modal-actions">
+              <Button
+                variant="primary"
+                size="lg"
+                onClick={() => { onClose(); navigate('/account/subscription'); }}
+              >
+                {t('compliance.subscription.subscribeCta')}
+              </Button>
+            </div>
+          </div>
+        )}
+
         {view === 'geofenced' && (
           <div className="identity-modal-content">
             <div className="identity-modal-header">
@@ -807,6 +844,25 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
                 <div className="identity-modal-actions">
                   <Button variant="primary" size="lg" onClick={() => av.start()}>
                     {t('compliance.ageVerification.retryButton')}
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {av.status === 'subscription_required' && (
+              <>
+                <Alert variant="warning">
+                  {av.billingCode === 'SUBSCRIPTION_EXPIRED'
+                    ? t('compliance.subscription.expiredDescription')
+                    : t('compliance.subscription.description')}
+                </Alert>
+                <div className="identity-modal-actions">
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    onClick={() => { onClose(); navigate('/account/subscription'); }}
+                  >
+                    {t('compliance.subscription.subscribeCta')}
                   </Button>
                 </div>
               </>
