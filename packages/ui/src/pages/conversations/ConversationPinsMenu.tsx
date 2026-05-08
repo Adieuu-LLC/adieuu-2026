@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import type { PublicIdentity } from '@adieuu/shared';
 import type { DisplayMessage } from '../../hooks/useConversations';
 import type { MemberColorDisplay } from '../../hooks/useMemberColorPreference';
@@ -100,6 +101,10 @@ export function ConversationPinsMenu({
   gifAnimateOnHoverOnly?: boolean;
 }) {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
+  const isMobileRef = useRef(isMobile);
+  isMobileRef.current = isMobile;
+
   const messagesByIdRef = useRef(messagesById);
   messagesByIdRef.current = messagesById;
 
@@ -118,14 +123,26 @@ export function ConversationPinsMenu({
     const el = anchorRef.current;
     if (!el || typeof window === 'undefined') return;
     const r = el.getBoundingClientRect();
-    setPanelStyle({
-      position: 'fixed',
-      top: r.bottom + 8,
-      right: window.innerWidth - r.right,
-      width: 'min(100vw - 2rem, 380px)',
-      maxHeight: 'min(360px, calc(100vh - 3rem))',
-      zIndex: 1400,
-    });
+
+    if (isMobileRef.current) {
+      setPanelStyle({
+        position: 'fixed',
+        top: r.bottom + 8,
+        left: '2vw',
+        width: '96vw',
+        maxHeight: 'min(360px, calc(100vh - 3rem))',
+        zIndex: 1400,
+      });
+    } else {
+      setPanelStyle({
+        position: 'fixed',
+        top: r.bottom + 8,
+        right: window.innerWidth - r.right,
+        width: 'min(100vw - 2rem, 380px)',
+        maxHeight: 'min(360px, calc(100vh - 3rem))',
+        zIndex: 1400,
+      });
+    }
   }, []);
 
   useLayoutEffect(() => {
@@ -143,7 +160,7 @@ export function ConversationPinsMenu({
   useLayoutEffect(() => {
     if (!open) return;
     updatePanelPosition();
-  }, [open, loading, items.length, updatePanelPosition]);
+  }, [open, loading, items.length, isMobile, updatePanelPosition]);
 
   useEffect(() => {
     if (!open) return;

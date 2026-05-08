@@ -46,7 +46,17 @@ function jobTitle(job: MediaOutboxJobRecord): string {
   return 'Media';
 }
 
-export function ConversationMediaOutboxMenu({ conversationId }: { conversationId: string }) {
+export function ConversationMediaOutboxMenu({
+  conversationId,
+  externalOpen,
+  onExternalOpenChange,
+}: {
+  conversationId: string;
+  /** When provided, the parent can force the panel open (controlled mode). */
+  externalOpen?: boolean;
+  /** Notified whenever the internal open state changes so the parent can stay in sync. */
+  onExternalOpenChange?: (open: boolean) => void;
+}) {
   const { t } = useTranslation();
   const { cancelJob, retryJob, dismissFailedJob } = useMediaOutbox();
   const allJobs = useMediaOutboxJobList();
@@ -56,7 +66,22 @@ export function ConversationMediaOutboxMenu({ conversationId }: { conversationId
   );
   const sorted = useMemo(() => [...jobs].sort((a, b) => b.createdAt - a.createdAt), [jobs]);
 
-  const [open, setOpen] = useState(false);
+  const [openInternal, setOpenInternal] = useState(false);
+  const open = externalOpen ?? openInternal;
+  const setOpen = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) => {
+      const resolved = typeof next === 'function' ? next(open) : next;
+      setOpenInternal(resolved);
+      onExternalOpenChange?.(resolved);
+    },
+    [open, onExternalOpenChange],
+  );
+
+  useEffect(() => {
+    if (externalOpen !== undefined && externalOpen !== openInternal) {
+      setOpenInternal(externalOpen);
+    }
+  }, [externalOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [panelStyle, setPanelStyle] = useState<CSSProperties>({});

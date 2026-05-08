@@ -189,6 +189,16 @@ export function ConversationView() {
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [adminTransferOpen, setAdminTransferOpen] = useState(false);
   const [pendingLinkHref, setPendingLinkHref] = useState<string | null>(null);
+  const [mediaOutboxOpen, setMediaOutboxOpen] = useState(false);
+  const hasMediaOutboxJobs = useMemo(
+    () => mediaOutboxJobs.some(
+      (j) =>
+        j.conversationId === id &&
+        j.stage !== 'completed' &&
+        j.stage !== 'cancelled',
+    ),
+    [mediaOutboxJobs, id],
+  );
 
   const mentionInsertRef = useRef<((identityId: string) => void) | null>(null);
   const composerRef = useRef<MessageComposerHandle | null>(null);
@@ -888,7 +898,13 @@ export function ConversationView() {
                 gifAnimateOnHoverOnly={effectiveGifAnimateOnHover}
               />
             }
-            mediaJobsSlot={<ConversationMediaOutboxMenu conversationId={conversation.id} />}
+            mediaJobsSlot={
+              <ConversationMediaOutboxMenu
+                conversationId={conversation.id}
+                externalOpen={mediaOutboxOpen}
+                onExternalOpenChange={setMediaOutboxOpen}
+              />
+            }
             deviceSignaturesSlot={
               identity?.id ? (
                 <Tooltip
@@ -960,6 +976,16 @@ export function ConversationView() {
             canDeleteConversation={canDeleteConversation}
             onDeleteGroup={() => setDeleteGroupOpen(true)}
             onLeave={handleLeaveClick}
+            onToggleSearch={handleToggleMessageSearch}
+            isSearchActive={messageSearchSessionActive}
+            onToggleMediaOutbox={() => setMediaOutboxOpen((v) => !v)}
+            hasMediaOutboxJobs={hasMediaOutboxJobs}
+            onOpenDeviceSignatures={
+              identity?.id
+                ? () => openMemberSecurity(identity.id, t('conversations.you', 'You'))
+                : undefined
+            }
+            hasDeviceSignatures={!!identity?.id}
           />
 
           <ChatConnectionBanner />

@@ -4,6 +4,7 @@ import { Menu, Portal } from '@ark-ui/react';
 import { Button } from '../../components/Button';
 import { Tooltip } from '../../components/Tooltip';
 import { Icon } from '../../icons/Icon';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 export type ConversationToolbarAvatarMember = {
   id: string;
@@ -62,11 +63,17 @@ export function ConversationToolbar({
   canDeleteConversation,
   onDeleteGroup,
   onLeave,
+  onToggleSearch,
+  isSearchActive,
+  onToggleMediaOutbox,
+  hasMediaOutboxJobs,
+  onOpenDeviceSignatures,
+  hasDeviceSignatures,
 }: {
   displayName: string;
   /** Resolved participant avatars for the left chip (1 image or a stack for groups / multi-DM). */
   avatarMembers?: ConversationToolbarAvatarMember[];
-  /** Plain fallback (members / “Direct message”) or rich node (e.g. latest pin control). */
+  /** Plain fallback (members / "Direct message") or rich node (e.g. latest pin control). */
   subtitle: ReactNode;
   /** Pinned messages popover control (toolbar icon). */
   pinsSlot?: ReactNode;
@@ -85,9 +92,65 @@ export function ConversationToolbar({
   canDeleteConversation: boolean;
   onDeleteGroup: () => void;
   onLeave: () => void;
+  /** Mobile menu: toggle message search. */
+  onToggleSearch?: () => void;
+  /** Mobile menu: whether search is currently active. */
+  isSearchActive?: boolean;
+  /** Mobile menu: open the media outbox panel. */
+  onToggleMediaOutbox?: () => void;
+  /** Mobile menu: whether there are pending media outbox jobs. */
+  hasMediaOutboxJobs?: boolean;
+  /** Mobile menu: open device signatures. */
+  onOpenDeviceSignatures?: () => void;
+  /** Mobile menu: whether device signatures action is available. */
+  hasDeviceSignatures?: boolean;
 }) {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const showMoreMenu = canDeleteConversation || isGroup;
+
+  const mobileMenuItems = isMobile ? (
+    <>
+      {onToggleSearch && (
+        <Menu.Item value="search" className="dm-context-menu-item" onClick={onToggleSearch}>
+          <Icon name="search" className="dm-context-menu-item-icon" />
+          {isSearchActive
+            ? t('conversations.messageSearch.endSearch', 'End search')
+            : t('conversations.messageSearch.title', 'Search messages')}
+        </Menu.Item>
+      )}
+      {onToggleMediaOutbox && hasMediaOutboxJobs && (
+        <Menu.Item value="mediaOutbox" className="dm-context-menu-item" onClick={onToggleMediaOutbox}>
+          <Icon name="fileArrowUp" className="dm-context-menu-item-icon" />
+          {t('conversations.mediaOutbox.toolbarTitle', 'Pending uploads')}
+        </Menu.Item>
+      )}
+      {hasDeviceSignatures && onOpenDeviceSignatures && (
+        <Menu.Item value="deviceSigs" className="dm-context-menu-item" onClick={onOpenDeviceSignatures}>
+          <Icon name="key" className="dm-context-menu-item-icon" />
+          {t('conversations.memberSecurity.toolbarAria', 'Device signatures')}
+        </Menu.Item>
+      )}
+      <Menu.Item
+        value="settings"
+        className="dm-context-menu-item"
+        onClick={onToggleSettings}
+      >
+        <Icon name="settings" className="dm-context-menu-item-icon" />
+        {t('conversations.settings', 'Settings')}
+      </Menu.Item>
+      <Menu.Item
+        value="members"
+        className="dm-context-menu-item"
+        onClick={onToggleMembers}
+      >
+        <Icon name="users" className="dm-context-menu-item-icon" />
+        {t('conversations.members', 'Members')}
+      </Menu.Item>
+    </>
+  ) : null;
+
+  const hasAnyMoreItems = showMoreMenu || isMobile;
 
   return (
     <div className="conversation-toolbar">
@@ -116,40 +179,44 @@ export function ConversationToolbar({
       </div>
       <div className="conversation-toolbar-right">
         {pinsSlot}
-        {searchSlot}
-        {mediaJobsSlot}
-        {deviceSignaturesSlot}
-        <Tooltip content={t('conversations.settings', 'Settings')} position="bottom">
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${showSettings ? ' active' : ''}`}
-            onClick={onToggleSettings}
-            aria-label={t('conversations.settings', 'Settings')}
-            aria-pressed={showSettings}
-          >
-            <span className="conversation-toolbar-btn-icon" aria-hidden>
-              <Icon name="settings" size="sm" />
-            </span>
-          </Button>
-        </Tooltip>
-        <Tooltip content={t('conversations.members', 'Members')} position="bottom">
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${showMembers ? ' active' : ''}`}
-            onClick={onToggleMembers}
-            aria-label={t('conversations.members', 'Members')}
-            aria-pressed={showMembers}
-          >
-            <span className="conversation-toolbar-btn-icon" aria-hidden>
-              <Icon name="users" size="sm" />
-            </span>
-          </Button>
-        </Tooltip>
-        {showMoreMenu && (
+        {!isMobile && searchSlot}
+        {!isMobile && mediaJobsSlot}
+        {!isMobile && deviceSignaturesSlot}
+        {!isMobile && (
+          <Tooltip content={t('conversations.settings', 'Settings')} position="bottom">
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${showSettings ? ' active' : ''}`}
+              onClick={onToggleSettings}
+              aria-label={t('conversations.settings', 'Settings')}
+              aria-pressed={showSettings}
+            >
+              <span className="conversation-toolbar-btn-icon" aria-hidden>
+                <Icon name="settings" size="sm" />
+              </span>
+            </Button>
+          </Tooltip>
+        )}
+        {!isMobile && (
+          <Tooltip content={t('conversations.members', 'Members')} position="bottom">
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              className={`conversation-toolbar-btn conversation-toolbar-btn--icon-only${showMembers ? ' active' : ''}`}
+              onClick={onToggleMembers}
+              aria-label={t('conversations.members', 'Members')}
+              aria-pressed={showMembers}
+            >
+              <span className="conversation-toolbar-btn-icon" aria-hidden>
+                <Icon name="users" size="sm" />
+              </span>
+            </Button>
+          </Tooltip>
+        )}
+        {hasAnyMoreItems && (
           <Menu.Root positioning={{ placement: 'bottom-end', gutter: 8 }}>
             <Menu.Trigger asChild>
               <Button
@@ -169,6 +236,10 @@ export function ConversationToolbar({
             <Portal>
               <Menu.Positioner>
                 <Menu.Content className="dm-context-menu conversation-toolbar-more-menu">
+                  {mobileMenuItems}
+                  {isMobile && showMoreMenu && (
+                    <div className="dm-context-menu-separator" />
+                  )}
                   {canDeleteConversation && (
                     <Menu.Item
                       value="delete"
