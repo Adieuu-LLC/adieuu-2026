@@ -29,5 +29,6 @@ is_isolated_test() {
      "$name" == 'verifymy.provider.test.ts' ||
      "$name" == 'age-verification.service.test.ts' ||
      "$name" == 'billing.service.test.ts' ||
-     "$name" == 'background-check.service.test.ts' ]]
+     "$name" == 'background-check.service.test.ts' ||
+     "$1" == *'klipy/controller.test.ts' ]]
 }

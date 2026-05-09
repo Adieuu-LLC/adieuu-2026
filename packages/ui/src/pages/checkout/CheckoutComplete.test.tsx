@@ -18,6 +18,10 @@ mock.module('react-i18next', () => ({
   }),
 }));
 
+mock.module('../../config', () => ({
+  useAppConfig: () => ({ apiBaseUrl: '', chatWsUrl: '', externalLinkBase: '', platform: 'web' }),
+}));
+
 const { CheckoutComplete } = await import('./CheckoutComplete');
 
 describe('CheckoutComplete', () => {
