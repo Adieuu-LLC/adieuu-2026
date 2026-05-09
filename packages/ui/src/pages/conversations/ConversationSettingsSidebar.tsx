@@ -5,6 +5,7 @@ import { Input } from '../../components/Input';
 import { Icon } from '../../icons/Icon';
 import { InfoTip } from '../../components/InfoTip';
 import { setMemberColorDisplay, type MemberColorDisplay } from '../../hooks/useMemberColorPreference';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import type { GifContentFilter } from '@adieuu/shared';
 
 const GIF_CONTENT_FILTER_OPTIONS: GifContentFilter[] = ['off', 'low', 'medium', 'high'];
@@ -48,6 +49,7 @@ export function ConversationSettingsSidebar({
   onGifsHiddenForMeToggle,
   gifAnimateOnHoverOnly,
   onGifAnimateOnHoverOnlyToggle,
+  onClose,
 }: {
   isGroup: boolean;
   isAdmin: boolean;
@@ -73,8 +75,10 @@ export function ConversationSettingsSidebar({
   onGifsHiddenForMeToggle?: (hidden: boolean) => void;
   gifAnimateOnHoverOnly?: boolean;
   onGifAnimateOnHoverOnlyToggle?: (value: boolean) => void;
+  onClose?: () => void;
 }) {
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
 
   const hasConversationTab =
     (isGroup && isAdmin) || (!isGroup && (!!onGifsDisabledByAdminToggle || !!onCustomEmojisDisabledByAdminToggle));
@@ -356,6 +360,13 @@ export function ConversationSettingsSidebar({
         </Tabs.Root>
       ) : (
         <div className="conversation-settings-body">{personalControls}</div>
+      )}
+      {isMobile && onClose && (
+        <div className="conversation-pane-mobile-footer">
+          <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+            {t('conversations.closePane', 'Close')}
+          </Button>
+        </div>
       )}
     </div>
   );

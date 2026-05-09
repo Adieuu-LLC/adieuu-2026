@@ -50,7 +50,7 @@ export function useConversationScrollOrchestration(params: {
   ) => Promise<DisplayMessage[] | null>;
   searchParams: URLSearchParams;
   setSearchParams: SetURLSearchParams;
-  setShowSettings: Dispatch<SetStateAction<boolean>>;
+  openSettings: () => void;
   setFlashingMessageId: Dispatch<SetStateAction<string | null>>;
   activeMessagesRef: MutableRefObject<DisplayMessage[]>;
 }) {
@@ -76,7 +76,7 @@ export function useConversationScrollOrchestration(params: {
     fetchMessagesAround,
     searchParams,
     setSearchParams,
-    setShowSettings,
+    openSettings,
     setFlashingMessageId,
     activeMessagesRef,
   } = params;
@@ -354,10 +354,10 @@ export function useConversationScrollOrchestration(params: {
 
   useEffect(() => {
     if (searchParams.get('showSettings') === 'true' && id) {
-      setShowSettings(true);
+      openSettings();
       setSearchParams((prev) => { prev.delete('showSettings'); return prev; }, { replace: true });
     }
-  }, [searchParams, id, setSearchParams, setShowSettings]);
+  }, [searchParams, id, setSearchParams, openSettings]);
 
   const resetScrollRefsOnConversationIdChange = useCallback(() => {
     pendingScrollToRef.current = null;

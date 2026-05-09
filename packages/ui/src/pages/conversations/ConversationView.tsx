@@ -179,8 +179,8 @@ export function ConversationView() {
   const [replyingTo, setReplyingTo] = useState<DisplayMessage | null>(null);
   const [editingMessage, setEditingMessage] = useState<DisplayMessage | null>(null);
   const [flashingMessageId, setFlashingMessageId] = useState<string | null>(null);
-  const [showMembers, setShowMembers] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  type ConversationPane = 'settings' | 'members' | 'search' | null;
+  const [activePane, setActivePane] = useState<ConversationPane>(null);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [memberSecurityModal, setMemberSecurityModal] = useState<{ id: string; label: string } | null>(
     null,
@@ -367,7 +367,7 @@ export function ConversationView() {
   } = useConversationPendingInvites({
     conversationId: id,
     conversationType: conversation?.type,
-    showMembers,
+    showMembers: activePane === 'members',
     listPendingGroupInvites,
     revokeGroupInvite,
     prefetchParticipantProfiles,
@@ -383,21 +383,22 @@ export function ConversationView() {
   conversationRef.current = conversation;
 
   const [messageSearchSessionActive, setMessageSearchSessionActive] = useState(false);
-  const [messageSearchSidebarVisible, setMessageSearchSidebarVisible] = useState(false);
   const [messageSearchCacheMode] = useMessageSearchCacheMode(identity?.id ?? '');
   const [headlinePinMessageId, setHeadlinePinMessageId] = useState<string | null>(null);
 
   const handleMessageSearchEndSession = useCallback(() => {
     setMessageSearchSessionActive(false);
-    setMessageSearchSidebarVisible(false);
+    setActivePane((prev) => (prev === 'search' ? null : prev));
   }, []);
 
   const handleToggleMessageSearch = useCallback(() => {
     if (!messageSearchSessionActive) {
       setMessageSearchSessionActive(true);
-      setMessageSearchSidebarVisible(true);
-      setShowSettings(false);
-      setShowMembers(false);
+      setActivePane('search');
+      return;
+    }
+    if (activePane !== 'search') {
+      setActivePane('search');
       return;
     }
     if (id && identity?.id) {
@@ -410,6 +411,7 @@ export function ConversationView() {
     handleMessageSearchEndSession();
   }, [
     messageSearchSessionActive,
+    activePane,
     id,
     identity?.id,
     conversation?.disallowPersistentMessageSearchCache,
@@ -629,7 +631,7 @@ export function ConversationView() {
     fetchMessagesAround,
     searchParams,
     setSearchParams,
-    setShowSettings,
+    openSettings: useCallback(() => setActivePane('settings'), []),
     setFlashingMessageId,
     activeMessagesRef,
   });
@@ -661,7 +663,7 @@ export function ConversationView() {
 
   useEffect(() => {
     setMessageSearchSessionActive(false);
-    setMessageSearchSidebarVisible(false);
+    setActivePane(null);
   }, [id]);
 
   useEffect(() => {
@@ -954,23 +956,13 @@ export function ConversationView() {
                 </Button>
               </Tooltip>
             }
-            showSettings={showSettings}
+            showSettings={activePane === 'settings'}
             onToggleSettings={() => {
-              setShowSettings((prev) => {
-                if (!prev) {
-                  setMessageSearchSidebarVisible(false);
-                }
-                return !prev;
-              });
+              setActivePane((prev) => (prev === 'settings' ? null : 'settings'));
             }}
-            showMembers={showMembers}
+            showMembers={activePane === 'members'}
             onToggleMembers={() => {
-              setShowMembers((prev) => {
-                if (!prev) {
-                  setMessageSearchSidebarVisible(false);
-                }
-                return !prev;
-              });
+              setActivePane((prev) => (prev === 'members' ? null : 'members'));
             }}
             isGroup={conversation.type === 'group'}
             canDeleteConversation={canDeleteConversation}
@@ -1118,7 +1110,7 @@ export function ConversationView() {
             />
           </div>
 
-          {showSettings && (
+          {activePane === 'settings' && (
             <ConversationSettingsSidebar
               isGroup={conversation.type === 'group'}
               isAdmin={isCurrentUserAdmin}
@@ -1146,10 +1138,11 @@ export function ConversationView() {
               onGifAnimateOnHoverOnlyToggle={
                 gifsGloballyDisabled ? undefined : handleGifAnimateOnHoverConversationToggle
               }
+              onClose={() => setActivePane(null)}
             />
           )}
 
-          {showMembers && (
+          {activePane === 'members' && (
             <ConversationMembersSidebar
               participants={conversation.participants}
               participantProfiles={participantProfiles}
@@ -1179,6 +1172,7 @@ export function ConversationView() {
                   : undefined
               }
               onOpenMemberSecurity={openMemberSecurity}
+              onClose={() => setActivePane(null)}
             />
           )}
 
@@ -1186,7 +1180,7 @@ export function ConversationView() {
             <ConversationMessageSearchPanel
               conversationId={id}
               identityId={identity?.id ?? ''}
-              sidebarVisible={messageSearchSidebarVisible}
+              sidebarVisible={activePane === 'search'}
               adminDisallowPersistentCache={conversation.disallowPersistentMessageSearchCache ?? false}
               getActiveMessages={getActiveMessages}
               participantProfiles={participantProfiles}

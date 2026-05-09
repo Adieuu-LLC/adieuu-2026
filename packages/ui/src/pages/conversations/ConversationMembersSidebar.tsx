@@ -11,6 +11,7 @@ import { Icon } from '../../icons/Icon';
 import { resolveDisplayName } from './conversationUtils';
 import { MemberEditPanel } from './MemberEditPanel';
 import { useFriends } from '../../hooks/useFriends';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 export function ConversationMembersSidebar({
   participants,
@@ -33,6 +34,7 @@ export function ConversationMembersSidebar({
   pendingInvitesLoading,
   onRevokeInvite,
   onOpenMemberSecurity,
+  onClose,
 }: {
   participants: string[];
   participantProfiles: Record<string, PublicIdentity>;
@@ -54,9 +56,11 @@ export function ConversationMembersSidebar({
   pendingInvitesLoading?: boolean;
   onRevokeInvite?: (inviteId: string) => void | Promise<void>;
   onOpenMemberSecurity: (identityId: string, displayLabel: string) => void;
+  onClose?: () => void;
 }) {
   const { t } = useTranslation();
   const { getFriendshipStatus } = useFriends();
+  const isMobile = useIsMobile();
   /** Which member/invite hover card is open (`member:id` | `invite:inviteId`); closed before Security dialog opens. */
   const [memberHoverKey, setMemberHoverKey] = useState<string | null>(null);
 
@@ -337,6 +341,13 @@ export function ConversationMembersSidebar({
               );
             })}
           </div>
+        </div>
+      )}
+      {isMobile && onClose && (
+        <div className="conversation-pane-mobile-footer">
+          <Button type="button" variant="secondary" size="sm" onClick={onClose}>
+            {t('conversations.closePane', 'Close')}
+          </Button>
         </div>
       )}
     </div>

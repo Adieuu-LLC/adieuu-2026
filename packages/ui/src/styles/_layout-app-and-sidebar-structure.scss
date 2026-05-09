@@ -411,6 +411,8 @@
 @media (max-width: $mobile-breakpoint) {
   .sidebar-hamburger {
     display: flex;
+    top: 42px; // Hamburger menu
+    z-index: 100;
   }
 
   .sidebar-mobile-overlay {
@@ -420,7 +422,7 @@
   .app-content {
     padding-left: 0 !important;
     padding-right: 0 !important;
-    padding-top: calc(44px + var(--spacing-md) + var(--spacing-xs));
+    // padding-top: calc(44px + var(--spacing-md) + var(--spacing-xs));
   }
 
   .sidebar {

@@ -112,7 +112,11 @@ export function ConversationToolbar({
   const mobileMenuItems = isMobile ? (
     <>
       {onToggleSearch && (
-        <Menu.Item value="search" className="dm-context-menu-item" onClick={onToggleSearch}>
+        <Menu.Item
+          value="search"
+          className={`dm-context-menu-item${isSearchActive ? ' dm-context-menu-item--active' : ''}`}
+          onClick={onToggleSearch}
+        >
           <Icon name="search" className="dm-context-menu-item-icon" />
           {isSearchActive
             ? t('conversations.messageSearch.endSearch', 'End search')
@@ -133,7 +137,7 @@ export function ConversationToolbar({
       )}
       <Menu.Item
         value="settings"
-        className="dm-context-menu-item"
+        className={`dm-context-menu-item${showSettings ? ' dm-context-menu-item--active' : ''}`}
         onClick={onToggleSettings}
       >
         <Icon name="settings" className="dm-context-menu-item-icon" />
@@ -141,7 +145,7 @@ export function ConversationToolbar({
       </Menu.Item>
       <Menu.Item
         value="members"
-        className="dm-context-menu-item"
+        className={`dm-context-menu-item${showMembers ? ' dm-context-menu-item--active' : ''}`}
         onClick={onToggleMembers}
       >
         <Icon name="users" className="dm-context-menu-item-icon" />

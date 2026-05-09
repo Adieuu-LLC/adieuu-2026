@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { BottomSheet, type BottomSheetOpenChangeDetails } from '@ark-ui/react/bottom-sheet';
+import { Portal } from '@ark-ui/react';
 import { useIdentityModal } from '../../hooks/useIdentityModal';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -8,6 +11,7 @@ import { useAuth, type AuthStatus } from '../../hooks/useAuth';
 import type { IdentityStatus } from '../../hooks/useIdentity.types';
 import { useIdentity } from '../../hooks/useIdentity';
 import { SuspensionModal } from '../../components/SuspensionModal';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 /** Account routes and sidebar entry are for account (OTP) sessions only, not while in an active alias context. */
 export function isAccountSidebarHidden(authStatus: AuthStatus, identityStatus: IdentityStatus): boolean {
@@ -26,17 +30,21 @@ export function AccountFlyout() {
   const { logout, status: authStatus } = useAuth();
   const { isExpanded, closeMobile } = useSidebar();
   const { status: identityStatus } = useIdentity();
+  const isMobile = useIsMobile();
+  const [isDrawerOpen, setDrawerOpen] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
   const isAccountActive = location.pathname.startsWith('/account');
 
   const handleLogout = async () => {
+    setDrawerOpen(false);
     closeMobile();
     await logout();
     navigate('/auth/login');
   };
 
   const handleNavClick = () => {
+    setDrawerOpen(false);
     closeMobile();
   };
 
@@ -44,53 +52,93 @@ export function AccountFlyout() {
     return null;
   }
 
+  const menuItems = (
+    <>
+      <Link to="/account/overview" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/overview') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('account.overview.title')}
+      </Link>
+      <Link to="/account/security" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/account/security') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('account.security.title')}
+      </Link>
+      <Link to="/account/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('account.subscription.title')}
+      </Link>
+      <div className="sidebar-flyout-divider" />
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="sidebar-flyout-item sidebar-flyout-item-logout"
+        data-tour="logout"
+      >
+        <Icon name="logout" />
+        {t('nav.logout')}
+      </button>
+    </>
+  );
+
+  const triggerButton = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={`sidebar-account-btn ${isAccountActive ? 'sidebar-account-btn-active' : ''}`}
+      {...(isMobile ? { onClick: () => setDrawerOpen(true) } : {})}
+    >
+      <Icon name="user" />
+      <span className="sidebar-account-label">{t('nav.account')}</span>
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 12 12"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="sidebar-account-chevron"
+      >
+        <path
+          d="M4.5 3L7.5 6L4.5 9"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </Button>
+  );
+
+  if (isMobile) {
+    return (
+      <div data-tour="account">
+        {triggerButton}
+        <BottomSheet.Root
+          open={isDrawerOpen}
+          onOpenChange={(details: BottomSheetOpenChangeDetails) => setDrawerOpen(details.open)}
+          lazyMount
+          unmountOnExit
+        >
+          <Portal>
+            <BottomSheet.Backdrop className="sidebar-flyout-drawer-backdrop" />
+            <BottomSheet.Content className="sidebar-flyout-drawer-content">
+              <BottomSheet.Grabber className="sidebar-flyout-drawer-grabber">
+                <BottomSheet.GrabberIndicator className="sidebar-flyout-drawer-grabber-indicator" />
+              </BottomSheet.Grabber>
+              <BottomSheet.Title className="sidebar-flyout-drawer-title">
+                {t('nav.account')}
+              </BottomSheet.Title>
+              <div className="sidebar-flyout-drawer-items">
+                {menuItems}
+              </div>
+            </BottomSheet.Content>
+          </Portal>
+        </BottomSheet.Root>
+      </div>
+    );
+  }
+
   return (
     <div className="sidebar-account-flyout-wrapper" data-tour="account">
-      <Button
-        variant="ghost"
-        size="sm"
-        className={`sidebar-account-btn ${isAccountActive ? 'sidebar-account-btn-active' : ''}`}
-      >
-        <Icon name="user" />
-        <span className="sidebar-account-label">{t('nav.account')}</span>
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="sidebar-account-chevron"
-        >
-          <path
-            d="M4.5 3L7.5 6L4.5 9"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </Button>
+      {triggerButton}
       <div className={`sidebar-account-flyout ${!isExpanded ? 'sidebar-account-flyout-collapsed' : ''}`}>
         <div className="sidebar-account-flyout-content">
-          <Link to="/account/overview" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/overview') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('account.overview.title')}
-          </Link>
-          <Link to="/account/security" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/account/security') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('account.security.title')}
-          </Link>
-          <Link to="/account/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('account.subscription.title')}
-          </Link>
-          <div className="sidebar-flyout-divider" />
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="sidebar-flyout-item sidebar-flyout-item-logout"
-            data-tour="logout"
-          >
-            <Icon name="logout" />
-            {t('nav.logout')}
-          </button>
+          {menuItems}
         </div>
       </div>
     </div>
@@ -103,6 +151,8 @@ export function IdentityFlyout() {
   const { isExpanded, closeMobile } = useSidebar();
   const { status: identityStatus, identity, logoutFromIdentity, hasIdentity, suspensionInfo, clearSuspension } = useIdentity();
   const { openIdentityModal } = useIdentityModal();
+  const isMobile = useIsMobile();
+  const [isDrawerOpen, setDrawerOpen] = useState(false);
 
   const isActive = (path: string) => location.pathname === path;
   const isIdentityActive = location.pathname.startsWith('/identity');
@@ -111,11 +161,13 @@ export function IdentityFlyout() {
   const isIdentitySuspended = identityStatus === 'suspended' && !!suspensionInfo;
 
   const handleIdentityLogout = async () => {
+    setDrawerOpen(false);
     closeMobile();
     await logoutFromIdentity();
   };
 
   const handleNavClick = () => {
+    setDrawerOpen(false);
     closeMobile();
   };
 
@@ -180,73 +232,120 @@ export function IdentityFlyout() {
     );
   }
 
+  const identityHeader = (
+    <div className="sidebar-identity-flyout-header">
+      <span className="sidebar-identity-name">{identity.displayName}</span>
+      <span className="sidebar-identity-username">@{identity.username}</span>
+    </div>
+  );
+
+  const menuItems = (
+    <>
+      <Link to="/identity/profile" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/profile') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('identity.menu.profile')}
+      </Link>
+      <Link to="/identity/privacy" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/privacy') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('identity.menu.privacy')}
+      </Link>
+      <Link to="/identity/appearance" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/appearance') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('identity.menu.appearance')}
+      </Link>
+      <Link to="/identity/notifications" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/notifications') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('identity.menu.notifications')}
+      </Link>
+      <Link to="/identity/ciphers" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/ciphers') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('identity.menu.ciphers')}
+      </Link>
+      <Link to="/identity/devices" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/devices') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('identity.menu.devices')}
+      </Link>
+      <Link to="/identity/emojis" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/emojis') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('identity.menu.emojis')}
+      </Link>
+      <Link to="/identity/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/identity/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('identity.menu.subscription')}
+      </Link>
+      <div className="sidebar-flyout-divider" />
+      <button
+        type="button"
+        onClick={handleIdentityLogout}
+        className="sidebar-flyout-item sidebar-flyout-item-logout"
+      >
+        <Icon name="logout" />
+        {t('identity.logoutButton')}
+      </button>
+    </>
+  );
+
+  const triggerButton = (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={`sidebar-identity-btn ${isIdentityActive ? 'sidebar-identity-btn-active' : ''}`}
+      {...(isMobile ? { onClick: () => setDrawerOpen(true) } : {})}
+    >
+      <Icon name="mask" />
+      <span className="sidebar-identity-label">
+        {identity.displayName}
+      </span>
+      <svg
+        width="12"
+        height="12"
+        viewBox="0 0 12 12"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className="sidebar-identity-chevron"
+      >
+        <path
+          d="M4.5 3L7.5 6L4.5 9"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </Button>
+  );
+
+  if (isMobile) {
+    return (
+      <div data-tour="identity">
+        {triggerButton}
+        <BottomSheet.Root
+          open={isDrawerOpen}
+          onOpenChange={(details: BottomSheetOpenChangeDetails) => setDrawerOpen(details.open)}
+          lazyMount
+          unmountOnExit
+        >
+          <Portal>
+            <BottomSheet.Backdrop className="sidebar-flyout-drawer-backdrop" />
+            <BottomSheet.Content className="sidebar-flyout-drawer-content">
+              <BottomSheet.Grabber className="sidebar-flyout-drawer-grabber">
+                <BottomSheet.GrabberIndicator className="sidebar-flyout-drawer-grabber-indicator" />
+              </BottomSheet.Grabber>
+              <BottomSheet.Title className="sidebar-flyout-drawer-title">
+                {identity.displayName}
+              </BottomSheet.Title>
+              <p className="sidebar-flyout-drawer-subtitle">
+                @{identity.username}
+              </p>
+              <div className="sidebar-flyout-drawer-items">
+                {menuItems}
+              </div>
+            </BottomSheet.Content>
+          </Portal>
+        </BottomSheet.Root>
+      </div>
+    );
+  }
+
   return (
     <div className="sidebar-identity-flyout-wrapper" data-tour="identity">
-      <Button
-        variant="ghost"
-        size="sm"
-        className={`sidebar-identity-btn ${isIdentityActive ? 'sidebar-identity-btn-active' : ''}`}
-      >
-        <Icon name="mask" />
-        <span className="sidebar-identity-label">
-          {identity.displayName}
-        </span>
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="sidebar-identity-chevron"
-        >
-          <path
-            d="M4.5 3L7.5 6L4.5 9"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </Button>
+      {triggerButton}
       <div className={`sidebar-identity-flyout ${!isExpanded ? 'sidebar-identity-flyout-collapsed' : ''}`}>
         <div className="sidebar-identity-flyout-content">
-          <div className="sidebar-identity-flyout-header">
-            <span className="sidebar-identity-name">{identity.displayName}</span>
-            <span className="sidebar-identity-username">@{identity.username}</span>
-          </div>
-          <Link to="/identity/profile" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/profile') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('identity.menu.profile')}
-          </Link>
-          <Link to="/identity/privacy" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/privacy') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('identity.menu.privacy')}
-          </Link>
-          <Link to="/identity/appearance" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/appearance') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('identity.menu.appearance')}
-          </Link>
-          <Link to="/identity/notifications" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/notifications') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('identity.menu.notifications')}
-          </Link>
-          <Link to="/identity/ciphers" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/ciphers') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('identity.menu.ciphers')}
-          </Link>
-          <Link to="/identity/devices" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/devices') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('identity.menu.devices')}
-          </Link>
-          <Link to="/identity/emojis" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/identity/emojis') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('identity.menu.emojis')}
-          </Link>
-          <Link to="/identity/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/identity/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
-            {t('identity.menu.subscription')}
-          </Link>
-          <div className="sidebar-flyout-divider" />
-          <button
-            type="button"
-            onClick={handleIdentityLogout}
-            className="sidebar-flyout-item sidebar-flyout-item-logout"
-          >
-            <Icon name="logout" />
-            {t('identity.logoutButton')}
-          </button>
+          {identityHeader}
+          {menuItems}
         </div>
       </div>
     </div>
