@@ -150,7 +150,8 @@ export async function patchConversationPreferencesCtrl(
   if (
     patch.archived === undefined &&
     patch.keepArchived === undefined &&
-    patch.favorited === undefined
+    patch.favorited === undefined &&
+    patch.encryptedReadState === undefined
   ) {
     return {
       kind: 'bad_request',

@@ -22,6 +22,7 @@ import {
   type PublicIdentity,
   type ClaimedDevicePreKeys,
 } from '@adieuu/shared';
+import { encryptReadState, decryptReadState } from '@adieuu/crypto';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useIdentity } from '../useIdentity';
@@ -57,6 +58,7 @@ import { useConversationsSocketEffects } from './useConversationsSocketEffects';
 import { useConversationsAuthLifecycleEffects } from './useConversationsAuthLifecycleEffects';
 import { useConversationCreateAndSend } from './useConversationCreateAndSend';
 import { useConversationGroupInvitesAndDelete } from './useConversationGroupInvitesAndDelete';
+import { useConversationPreferences } from '../useConversationPreferences';
 
 // ============================================================================
 // Provider
@@ -80,6 +82,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   const navigate = useNavigate();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const { preferences: conversationPreferences, loading: prefsLoading } = useConversationPreferences();
   const isLoggedIn = identityStatus === 'logged_in' && !!identity;
 
   const identityRef = useRef(identity);
@@ -161,6 +164,7 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
       decryptedName: decryptConversationName(conv),
       decryptedMemberSettings: decryptConversationMemberSettings(conv),
       unreadCount: 0,
+      hasUnread: false,
     }),
     [decryptConversationName, decryptConversationMemberSettings]
   );
@@ -283,11 +287,13 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     (id: string | null) => {
       setActiveConversationId(id);
       if (id) {
-        const hasUnread = conversations.some((c) => c.id === id && c.unreadCount > 0);
+        const conv = conversations.find((c) => c.id === id);
+        const hadUnreadCount = conv ? conv.unreadCount > 0 : false;
+        const hadUnreadFlag = conv ? conv.hasUnread : false;
         setConversations((prev) =>
-          prev.map((c) => (c.id === id ? { ...c, unreadCount: 0 } : c))
+          prev.map((c) => (c.id === id ? { ...c, unreadCount: 0, hasUnread: false } : c))
         );
-        if (hasUnread) {
+        if (hadUnreadCount || hadUnreadFlag) {
           setMessagesState((prev) => ({
             ...prev,
             [id]: {
@@ -302,9 +308,14 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
           }));
         }
         fetchMessages(id, undefined, true);
+
+        if (conv?.lastMessageId) {
+          const encrypted = encryptReadState(id, conv.lastMessageId);
+          api.conversations.updatePreferences(id, { encryptedReadState: encrypted }).catch(() => {});
+        }
       }
     },
-    [conversations, fetchMessages]
+    [conversations, fetchMessages, api]
   );
 
   const loadOlder = useCallback(async () => {
@@ -422,12 +433,20 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
   // -------------------------------------------------------------------------
 
   const markConversationRead = useCallback((conversationId: string) => {
-    setConversations((prev) =>
-      prev.map((c) =>
-        c.id === conversationId && c.unreadCount > 0 ? { ...c, unreadCount: 0 } : c
-      )
-    );
-  }, []);
+    setConversations((prev) => {
+      const conv = prev.find((c) => c.id === conversationId);
+      if (!conv || (conv.unreadCount === 0 && !conv.hasUnread)) return prev;
+
+      if (conv.lastMessageId) {
+        const encrypted = encryptReadState(conversationId, conv.lastMessageId);
+        api.conversations.updatePreferences(conversationId, { encryptedReadState: encrypted }).catch(() => {});
+      }
+
+      return prev.map((c) =>
+        c.id === conversationId ? { ...c, unreadCount: 0, hasUnread: false } : c
+      );
+    });
+  }, [api]);
 
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
@@ -491,6 +510,39 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     messagesState,
     fetchMessages,
   });
+
+  // -------------------------------------------------------------------------
+  // Compute hasUnread from encrypted read pointers (on initial load)
+  // -------------------------------------------------------------------------
+
+  const readStateComputedRef = useRef(false);
+
+  useEffect(() => {
+    if (prefsLoading || conversations.length === 0 || readStateComputedRef.current) return;
+    readStateComputedRef.current = true;
+
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (!c.lastMessageId) return c;
+
+        const pref = conversationPreferences[c.id];
+        if (!pref?.encryptedReadState) {
+          return { ...c, hasUnread: true };
+        }
+
+        const lastRead = decryptReadState(c.id, pref.encryptedReadState);
+        if (!lastRead || lastRead !== c.lastMessageId) {
+          return { ...c, hasUnread: true };
+        }
+
+        return c;
+      })
+    );
+  }, [prefsLoading, conversations.length, conversationPreferences]);
+
+  useEffect(() => {
+    if (!isLoggedIn) readStateComputedRef.current = false;
+  }, [isLoggedIn]);
 
   // -------------------------------------------------------------------------
   // Report evidence: session key retrieval

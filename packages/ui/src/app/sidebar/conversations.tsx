@@ -277,9 +277,11 @@ function ConversationListItem({
         {isArchived && (
           <Icon name="archive" className="conversation-list-item-archive-icon" />
         )}
-        {conversation.unreadCount > 0 && (
+        {conversation.unreadCount > 0 ? (
           <span className="conversation-list-item-badge">{conversation.unreadCount}</span>
-        )}
+        ) : conversation.hasUnread ? (
+          <span className="conversation-list-item-unread-dot" />
+        ) : null}
       </div>
     </button>
   );
@@ -429,7 +431,7 @@ export function ConversationsSidebarSection({
   const isFiltered = typeFilter !== 'all' || sortMode !== 'recent' || showArchived;
 
   const totalUnread = conversations.reduce(
-    (sum, c) => sum + c.unreadCount,
+    (sum, c) => sum + (c.hasUnread ? 1 : 0) + c.unreadCount,
     0,
   );
 

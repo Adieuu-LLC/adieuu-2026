@@ -99,10 +99,12 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
         const decrypted = resp.data.conversations.map(toDecrypted);
 
         setConversations((prev) => {
-          const prevUnread = new Map(prev.map((c) => [c.id, c.unreadCount]));
+          const prevUnreadCount = new Map(prev.map((c) => [c.id, c.unreadCount]));
+          const prevHasUnread = new Map(prev.map((c) => [c.id, c.hasUnread]));
           return decrypted.map((c) => ({
             ...c,
-            unreadCount: prevUnread.get(c.id) ?? c.unreadCount,
+            unreadCount: prevUnreadCount.get(c.id) ?? c.unreadCount,
+            hasUnread: prevHasUnread.get(c.id) ?? c.hasUnread,
           }));
         });
 
@@ -748,9 +750,9 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
         void resolveParticipants(next.participants);
         setConversations((prev) => {
           const i = prev.findIndex((c) => c.id === conversationId);
-          if (i === -1) return [...prev, { ...next, unreadCount: 0 }];
+          if (i === -1) return [...prev, { ...next, unreadCount: 0, hasUnread: false }];
           const prevRow = prev[i]!;
-          return prev.map((c) => (c.id === conversationId ? { ...next, unreadCount: prevRow.unreadCount } : c));
+          return prev.map((c) => (c.id === conversationId ? { ...next, unreadCount: prevRow.unreadCount, hasUnread: prevRow.hasUnread } : c));
         });
       } catch (err) {
         console.error('[useConversations] fetchConversationById failed', { conversationId }, err);

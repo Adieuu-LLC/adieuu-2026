@@ -27,6 +27,13 @@ export interface ConversationPreferencesDocument extends BaseDocument {
 
   /** Whether the conversation is pinned as a favourite */
   favorited: boolean;
+
+  /**
+   * E2E-encrypted read state blob (base64). Contains the lastReadMessageId
+   * encrypted with deriveReadStateKey(conversationId) so the server cannot
+   * infer read timing from ObjectId timestamps.
+   */
+  encryptedReadState?: string;
 }
 
 export interface PublicConversationPreferences {
@@ -35,6 +42,7 @@ export interface PublicConversationPreferences {
   archived: boolean;
   keepArchived: boolean;
   favorited: boolean;
+  encryptedReadState?: string;
 }
 
 export function toPublicConversationPreferences(
@@ -46,5 +54,6 @@ export function toPublicConversationPreferences(
     archived: doc.archived,
     keepArchived: doc.keepArchived,
     favorited: doc.favorited,
+    ...(doc.encryptedReadState ? { encryptedReadState: doc.encryptedReadState } : {}),
   };
 }

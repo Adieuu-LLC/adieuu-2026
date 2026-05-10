@@ -12,6 +12,8 @@ export interface DecryptedConversation extends PublicConversation {
   decryptedName?: string;
   decryptedMemberSettings?: MemberSettingsMap;
   unreadCount: number;
+  /** True when the encrypted read pointer differs from lastMessageId (set on load, cleared on open). */
+  hasUnread: boolean;
 }
 
 export interface DisplayMessage extends PublicMessage {

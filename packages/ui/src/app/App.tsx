@@ -88,15 +88,15 @@ function ProtectedLayout() {
         <ChatSocketProvider>
           <FriendsProvider>
             <BlockProvider>
-              <ConversationsProvider>
-                <MediaOutboxProvider>
-                <ConversationPreferencesProvider>
-                  <UpdateProvider>
-                    <ProtectedLayoutContent />
-                  </UpdateProvider>
-                </ConversationPreferencesProvider>
-                </MediaOutboxProvider>
-              </ConversationsProvider>
+              <ConversationPreferencesProvider>
+                <ConversationsProvider>
+                  <MediaOutboxProvider>
+                    <UpdateProvider>
+                      <ProtectedLayoutContent />
+                    </UpdateProvider>
+                  </MediaOutboxProvider>
+                </ConversationsProvider>
+              </ConversationPreferencesProvider>
             </BlockProvider>
           </FriendsProvider>
         </ChatSocketProvider>

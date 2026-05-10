@@ -188,12 +188,14 @@ export interface ConversationPreferences {
   archived: boolean;
   keepArchived: boolean;
   favorited: boolean;
+  encryptedReadState?: string;
 }
 
 export interface ConversationPreferencesPatch {
   archived?: boolean;
   keepArchived?: boolean;
   favorited?: boolean;
+  encryptedReadState?: string;
 }
 
 export interface PublicReaction {

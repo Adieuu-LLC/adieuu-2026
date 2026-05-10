@@ -7,7 +7,7 @@ import {
 
 function createContext() {
   const notifications: Array<{ title: string; body: string }> = [];
-  let conversations = [{ id: 'conv-1', unreadCount: 0, lastMessageAt: '' }];
+  let conversations = [{ id: 'conv-1', unreadCount: 0, hasUnread: false, lastMessageAt: '' }];
   let activeConversationId: string | null = 'conv-1';
   let invites: Array<{ id: string }> = [];
   let messagesState: Record<string, { messages: Array<{ id: string; fromIdentityId: string }>; olderCursor: string | null; loading: boolean; showManualLoadOlder?: boolean; showManualLoadNewer?: boolean }> = {

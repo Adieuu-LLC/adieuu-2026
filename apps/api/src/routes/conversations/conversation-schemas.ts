@@ -101,6 +101,7 @@ export const UpdatePreferencesSchema = z.object({
   archived: z.boolean().optional(),
   keepArchived: z.boolean().optional(),
   favorited: z.boolean().optional(),
+  encryptedReadState: z.string().min(1).max(500).optional(),
 });
 
 export const UpdateGifsDisabledSchema = z.object({

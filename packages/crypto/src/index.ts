@@ -230,6 +230,8 @@ export {
   validateConversationId,
   deriveSenderHintKey,
   deriveReadStateKey,
+  encryptReadState,
+  decryptReadState,
   deriveSenderHintNonce,
   deriveParticipantHash,
   deriveScanHash,

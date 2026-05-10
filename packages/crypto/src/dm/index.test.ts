@@ -8,6 +8,8 @@ import {
   validateConversationId,
   deriveSenderHintKey,
   deriveReadStateKey,
+  encryptReadState,
+  decryptReadState,
   deriveSenderHintNonce,
   deriveParticipantHash,
   deriveScanHash,
@@ -194,6 +196,69 @@ describe('deriveReadStateKey', () => {
 
   it('throws for malformed conversationId input', () => {
     expect(() => deriveReadStateKey('bad-id')).toThrow();
+  });
+});
+
+describe('encryptReadState / decryptReadState', () => {
+  const conversationId = deriveConversationId(
+    '507f1f77bcf86cd799439011',
+    '507f1f77bcf86cd799439012'
+  );
+  const messageId = '507f1f77bcf86cd799439099';
+
+  it('round-trips a messageId through encrypt then decrypt', () => {
+    const blob = encryptReadState(conversationId, messageId);
+    expect(typeof blob).toBe('string');
+    expect(blob.length).toBeGreaterThan(0);
+
+    const decrypted = decryptReadState(conversationId, blob);
+    expect(decrypted).toBe(messageId);
+  });
+
+  it('produces different blobs for different messageIds', () => {
+    const blob1 = encryptReadState(conversationId, messageId);
+    const blob2 = encryptReadState(conversationId, '507f1f77bcf86cd799439100');
+    expect(blob1).not.toBe(blob2);
+  });
+
+  it('produces different blobs for different conversations', () => {
+    const convId2 = deriveConversationId(
+      '507f1f77bcf86cd799439011',
+      '507f1f77bcf86cd799439013'
+    );
+    const blob1 = encryptReadState(conversationId, messageId);
+    const blob2 = encryptReadState(convId2, messageId);
+    expect(blob1).not.toBe(blob2);
+  });
+
+  it('cannot decrypt with a different conversationId', () => {
+    const blob = encryptReadState(conversationId, messageId);
+    const convId2 = deriveConversationId(
+      '507f1f77bcf86cd799439011',
+      '507f1f77bcf86cd799439013'
+    );
+    const result = decryptReadState(convId2, blob);
+    expect(result).toBeNull();
+  });
+
+  it('returns null for corrupted blob', () => {
+    expect(decryptReadState(conversationId, 'corrupted-data')).toBeNull();
+  });
+
+  it('returns null for empty blob', () => {
+    expect(decryptReadState(conversationId, '')).toBeNull();
+  });
+
+  it('works with cnsa2 profile', () => {
+    const blob = encryptReadState(conversationId, messageId, 'cnsa2');
+    const decrypted = decryptReadState(conversationId, blob, 'cnsa2');
+    expect(decrypted).toBe(messageId);
+  });
+
+  it('cnsa2 blob cannot be decrypted with default profile', () => {
+    const blob = encryptReadState(conversationId, messageId, 'cnsa2');
+    const result = decryptReadState(conversationId, blob, 'default');
+    expect(result).toBeNull();
   });
 });
 

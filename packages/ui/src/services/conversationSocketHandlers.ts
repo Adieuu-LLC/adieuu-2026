@@ -16,6 +16,7 @@ interface DisplayMessageLike {
 interface DecryptedConversationLike {
   id: string;
   unreadCount: number;
+  hasUnread: boolean;
   type?: string;
   encryptedName?: string | null;
   nameNonce?: string | null;
@@ -90,6 +91,7 @@ export function handleConversationSocketMessage(
         const decrypted: DecryptedConversationLike = {
           ...conv,
           unreadCount: 0,
+          hasUnread: false,
           decryptedName:
             conv.type === 'group' && conv.encryptedName && conv.nameNonce
               ? (() => {

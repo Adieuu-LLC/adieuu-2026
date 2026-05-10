@@ -13,6 +13,7 @@ export interface ConversationPreferencesPatch {
   archived?: boolean;
   keepArchived?: boolean;
   favorited?: boolean;
+  encryptedReadState?: string;
 }
 
 export class ConversationPreferencesRepository {
@@ -51,6 +52,7 @@ export class ConversationPreferencesRepository {
     if (patch.archived !== undefined) $set.archived = patch.archived;
     if (patch.keepArchived !== undefined) $set.keepArchived = patch.keepArchived;
     if (patch.favorited !== undefined) $set.favorited = patch.favorited;
+    if (patch.encryptedReadState !== undefined) $set.encryptedReadState = patch.encryptedReadState;
 
     const result = await this.collection.findOneAndUpdate(
       { identityId, conversationId },

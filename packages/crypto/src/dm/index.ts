@@ -10,8 +10,9 @@
  */
 
 import { sha3_256 } from '@noble/hashes/sha3';
-import { toHex, toBytes, fromHex } from '../utils';
+import { toHex, toBytes, fromHex, toBase64, fromBase64, concatBytes } from '../utils';
 import { deriveKey } from '../kdf/hkdf';
+import { encrypt, decrypt } from '../encrypt';
 import type { CryptoProfile } from '../types';
 
 /**
@@ -178,6 +179,54 @@ export function deriveReadStateKey(
     },
     profile
   );
+}
+
+/**
+ * Encrypts a lastReadMessageId for server-side storage.
+ *
+ * The message ID is encrypted with the read state key derived from the
+ * conversationId. The result is a single base64 blob containing the nonce
+ * prepended to the ciphertext, suitable for opaque server storage.
+ *
+ * @param conversationId - The conversation ID (hex string)
+ * @param messageId - The lastReadMessageId to encrypt (24-char hex ObjectId)
+ * @param profile - Crypto profile (default: 'default')
+ * @returns Base64-encoded string containing nonce + ciphertext
+ */
+export function encryptReadState(
+  conversationId: string,
+  messageId: string,
+  profile: CryptoProfile = 'default'
+): string {
+  const key = deriveReadStateKey(conversationId, profile);
+  const plaintext = toBytes(messageId);
+  const { ciphertext, nonce } = encrypt(key, plaintext, profile);
+  return toBase64(concatBytes(nonce, ciphertext));
+}
+
+/**
+ * Decrypts an encrypted read state blob back to a lastReadMessageId.
+ *
+ * @param conversationId - The conversation ID (hex string)
+ * @param encryptedBlob - Base64-encoded nonce + ciphertext from encryptReadState
+ * @param profile - Crypto profile (default: 'default')
+ * @returns The decrypted messageId string, or null if decryption fails
+ */
+export function decryptReadState(
+  conversationId: string,
+  encryptedBlob: string,
+  profile: CryptoProfile = 'default'
+): string | null {
+  try {
+    const key = deriveReadStateKey(conversationId, profile);
+    const combined = fromBase64(encryptedBlob);
+    const nonce = combined.slice(0, NONCE_SIZE);
+    const ciphertext = combined.slice(NONCE_SIZE);
+    const plaintext = decrypt(key, ciphertext, nonce, profile);
+    return String.fromCharCode(...plaintext);
+  } catch {
+    return null;
+  }
 }
 
 /**
