@@ -521,9 +521,11 @@ export function ConversationsProvider({ children }: ConversationsProviderProps) 
     if (prefsLoading || conversations.length === 0 || readStateComputedRef.current) return;
     readStateComputedRef.current = true;
 
+    const currentActiveId = activeConversationIdRef.current;
     setConversations((prev) =>
       prev.map((c) => {
         if (!c.lastMessageId) return c;
+        if (c.id === currentActiveId) return c;
 
         const pref = conversationPreferences[c.id];
         if (!pref?.encryptedReadState) {

@@ -221,7 +221,7 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
           ) {
             setConversations((prev) =>
               prev.map((c) =>
-                c.id === conversationId ? { ...c, unreadCount: 0 } : c
+                c.id === conversationId ? { ...c, unreadCount: 0, hasUnread: false } : c
               )
             );
           }
@@ -365,7 +365,7 @@ export function useConversationDataFetching(params: ConversationDataFetchingPara
             isAtBottomRef.current
           ) {
             setConversations((prev) =>
-              prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0 } : c)),
+              prev.map((c) => (c.id === conversationId ? { ...c, unreadCount: 0, hasUnread: false } : c)),
             );
           }
         }
