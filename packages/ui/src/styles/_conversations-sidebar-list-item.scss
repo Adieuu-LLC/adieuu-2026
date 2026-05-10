@@ -187,14 +187,33 @@
   }
 }
 
-// Collapsed sidebar: show only avatar
+// Collapsed sidebar: show only avatar with unread indicators
 .sidebar-collapsed .conversation-list-item {
+  position: relative;
   justify-content: center;
   padding: var(--spacing-xs);
+  gap: 0;
+
+  &-info {
+    display: none;
+  }
 
   &-avatar-stack {
     width: 32px;
     height: 32px;
+  }
+
+  // Overlay badge container on the avatar so unread indicators stay visible
+  &-badges {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    pointer-events: none;
+  }
+
+  &-star,
+  &-archive-icon {
+    display: none;
   }
 
   &-badge {
