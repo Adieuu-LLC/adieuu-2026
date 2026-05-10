@@ -1122,20 +1122,21 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
               lazyMount
               unmountOnExit
             >
-              <Tooltip content={t('gif.composerButtonCombined', 'GIFs and Stickers')} position="top">
-                <Popover.Trigger asChild>
-                  <button
-                    type="button"
-                    className="conversation-media-btn"
-                    disabled={sending}
-                  >
-                    <span className={`conversation-media-btn__stack${lastMediaTab === 'stickers' ? ' conversation-media-btn__stack--sticker-front' : ''}`}>
-                      <span className="conversation-media-btn__gif-icon">GIF</span>
-                      <Icon name="noteSticky" className="conversation-media-btn__sticker-icon" />
-                    </span>
-                  </button>
-                </Popover.Trigger>
-              </Tooltip>
+              <Popover.Anchor asChild>
+                <span className="composer-popover-anchor">
+                  <Tooltip content={t('gif.composerButtonCombined', 'GIFs and Stickers')} position="top">
+                    <Popover.Trigger asChild>
+                      <button
+                        type="button"
+                        className="conversation-media-btn"
+                        disabled={sending}
+                      >
+                        <span className="conversation-media-btn__label">GIF</span>
+                      </button>
+                    </Popover.Trigger>
+                  </Tooltip>
+                </span>
+              </Popover.Anchor>
               <Portal>
                 <Popover.Positioner>
                   <Popover.Content className="gif-picker-popover">
@@ -1158,16 +1159,20 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
             lazyMount
             unmountOnExit
           >
-            <Tooltip content={t('conversations.emojiButton', 'Emoji')} position="top">
-              <Popover.Trigger asChild>
-                <button
-                  type="button"
-                  className="message-composer-emoji-btn"
-                >
-                  <Icon name="smile" className="message-composer-emoji-icon" />
-                </button>
-              </Popover.Trigger>
-            </Tooltip>
+            <Popover.Anchor asChild>
+              <span className="composer-popover-anchor">
+                <Tooltip content={t('conversations.emojiButton', 'Emoji')} position="top">
+                  <Popover.Trigger asChild>
+                    <button
+                      type="button"
+                      className="message-composer-emoji-btn"
+                    >
+                      <Icon name="smile" className="message-composer-emoji-icon" />
+                    </button>
+                  </Popover.Trigger>
+                </Tooltip>
+              </span>
+            </Popover.Anchor>
             <Portal>
               <Popover.Positioner>
                 <Popover.Content className="emoji-picker-popover">
