@@ -364,7 +364,7 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   padding: var(--spacing-xs) 0;
   min-width: 200px;
-  z-index: 50;
+  z-index: var(--z-popover);
 
   &-item {
     display: flex;

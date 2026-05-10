@@ -421,12 +421,17 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
     if (!el) return;
     el.style.height = 'auto';
     const scrollH = el.scrollHeight;
-    el.style.height = `${scrollH}px`;
     const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 20;
-    const verticalPadding = parseFloat(getComputedStyle(el).paddingTop) + parseFloat(getComputedStyle(el).paddingBottom);
-    const multi = scrollH > lineHeight + verticalPadding + 2;
+    const verticalPadding =
+      parseFloat(getComputedStyle(el).paddingTop) + parseFloat(getComputedStyle(el).paddingBottom);
+    const singleLineH = Math.ceil(lineHeight + verticalPadding);
+    // When empty, a wrapping placeholder can inflate scrollHeight beyond what
+    // a single line needs -- cap to single-line height so the composer stays compact.
+    const effectiveH = messageText ? scrollH : Math.min(scrollH, singleLineH);
+    el.style.height = `${effectiveH}px`;
+    const multi = effectiveH > singleLineH + 2;
     setIsMultiLine(multi);
-    el.style.overflowY = scrollH >= 500 ? 'auto' : 'hidden';
+    el.style.overflowY = effectiveH >= 500 ? 'auto' : 'hidden';
   }, [messageText]);
 
   const handleSend = useCallback(async () => {
