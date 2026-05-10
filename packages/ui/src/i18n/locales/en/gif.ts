@@ -45,4 +45,5 @@ export const gif = {
     animateOnHoverAria: 'GIF or sticker',
     composerButton: 'GIF',
     stickerButton: 'Stickers',
+    composerButtonCombined: 'GIFs and Stickers',
 } as const;

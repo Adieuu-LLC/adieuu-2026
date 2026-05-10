@@ -13,7 +13,7 @@ import { getOrCreateDeviceId } from '../../services/deviceInfo';
 import { createApiClient } from '@adieuu/shared';
 import { EmojiPicker, type EmojiSelectResult } from '../EmojiPicker';
 import type { PublicCustomEmoji } from '@adieuu/shared';
-import { GifPicker } from '../GifPicker';
+import { GifPicker, type ContentTab } from '../GifPicker';
 import { Tooltip } from '../Tooltip';
 import { useToast } from '../Toast';
 import { Icon } from '../../icons/Icon';
@@ -134,8 +134,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
 
   const [messageText, setMessageTextRaw] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [showGifPicker, setShowGifPicker] = useState(false);
-  const [showStickerPicker, setShowStickerPicker] = useState(false);
+  const [showMediaPicker, setShowMediaPicker] = useState(false);
+  const [lastMediaTab, setLastMediaTab] = useState<ContentTab>('gifs');
   const [pendingGif, setPendingGif] = useState<GifAttachment | null>(null);
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [stripExif, setStripExif] = useState(true);
@@ -878,8 +878,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
 
   const handleGifSelect = useCallback((gif: GifAttachment) => {
     setPendingGif(gif);
-    setShowGifPicker(false);
-    setShowStickerPicker(false);
+    setShowMediaPicker(false);
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
@@ -1116,63 +1115,41 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
             </button>
           </Tooltip>
           {!gifsDisabled && (
-            <>
-              <Popover.Root
-                open={showGifPicker}
-                onOpenChange={(e) => setShowGifPicker(e.open)}
-                positioning={{ placement: 'top-end' }}
-                lazyMount
-                unmountOnExit
-              >
+            <Popover.Root
+              open={showMediaPicker}
+              onOpenChange={(e) => setShowMediaPicker(e.open)}
+              positioning={{ placement: 'top-end' }}
+              lazyMount
+              unmountOnExit
+            >
+              <Tooltip content={t('gif.composerButtonCombined', 'GIFs and Stickers')} position="top">
                 <Popover.Trigger asChild>
                   <button
                     type="button"
-                    className="conversation-gif-btn"
-                    title={t('gif.composerButton', 'GIF')}
+                    className="conversation-media-btn"
                     disabled={sending}
                   >
-                    <span className="conversation-gif-btn__label">GIF</span>
+                    <span className={`conversation-media-btn__stack${lastMediaTab === 'stickers' ? ' conversation-media-btn__stack--sticker-front' : ''}`}>
+                      <span className="conversation-media-btn__gif-icon">GIF</span>
+                      <Icon name="noteSticky" className="conversation-media-btn__sticker-icon" />
+                    </span>
                   </button>
                 </Popover.Trigger>
-                <Portal>
-                  <Popover.Positioner>
-                    <Popover.Content className="gif-picker-popover">
-                      <GifPicker onGifSelect={handleGifSelect} lastMessageText={lastMessageText} conversationId={channelId} />
-                    </Popover.Content>
-                  </Popover.Positioner>
-                </Portal>
-              </Popover.Root>
-              <Popover.Root
-                open={showStickerPicker}
-                onOpenChange={(e) => setShowStickerPicker(e.open)}
-                positioning={{ placement: 'top-end' }}
-                lazyMount
-                unmountOnExit
-              >
-                <Popover.Trigger asChild>
-                  <button
-                    type="button"
-                    className="conversation-sticker-btn"
-                    title={t('gif.stickerButton', 'Stickers')}
-                    disabled={sending}
-                  >
-                    <Icon name="noteSticky" />
-                  </button>
-                </Popover.Trigger>
-                <Portal>
-                  <Popover.Positioner>
-                    <Popover.Content className="gif-picker-popover">
-                      <GifPicker
-                        onGifSelect={handleGifSelect}
-                        initialTab="stickers"
-                        lastMessageText={lastMessageText}
-                        conversationId={channelId}
-                      />
-                    </Popover.Content>
-                  </Popover.Positioner>
-                </Portal>
-              </Popover.Root>
-            </>
+              </Tooltip>
+              <Portal>
+                <Popover.Positioner>
+                  <Popover.Content className="gif-picker-popover">
+                    <GifPicker
+                      onGifSelect={handleGifSelect}
+                      initialTab={lastMediaTab}
+                      onTabChange={setLastMediaTab}
+                      lastMessageText={lastMessageText}
+                      conversationId={channelId}
+                    />
+                  </Popover.Content>
+                </Popover.Positioner>
+              </Portal>
+            </Popover.Root>
           )}
           <Popover.Root
             open={showEmojiPicker}
@@ -1181,15 +1158,16 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
             lazyMount
             unmountOnExit
           >
-            <Popover.Trigger asChild>
-              <button
-                type="button"
-                className="message-composer-emoji-btn"
-                title={t('conversations.emojiButton', 'Emoji')}
-              >
-                <Icon name="smile" className="message-composer-emoji-icon" />
-              </button>
-            </Popover.Trigger>
+            <Tooltip content={t('conversations.emojiButton', 'Emoji')} position="top">
+              <Popover.Trigger asChild>
+                <button
+                  type="button"
+                  className="message-composer-emoji-btn"
+                >
+                  <Icon name="smile" className="message-composer-emoji-icon" />
+                </button>
+              </Popover.Trigger>
+            </Tooltip>
             <Portal>
               <Popover.Positioner>
                 <Popover.Content className="emoji-picker-popover">

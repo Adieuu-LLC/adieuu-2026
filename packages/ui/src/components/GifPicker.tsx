@@ -40,6 +40,8 @@ export interface GifPickerProps {
   onGifSelect: (gif: GifAttachment) => void;
   /** Which tab to show on mount. Defaults to `'gifs'`. */
   initialTab?: ContentTab;
+  /** Fired when the user switches between the GIF and Sticker tabs. */
+  onTabChange?: (tab: ContentTab) => void;
   /** Plain-text of the most recent message; used to seed a search when the
    *  sticker tab opens with an empty query. */
   lastMessageText?: string;
@@ -116,7 +118,7 @@ function extractKeyword(text: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export function GifPicker({ onGifSelect, initialTab, lastMessageText, conversationId }: GifPickerProps) {
+export function GifPicker({ onGifSelect, initialTab, onTabChange, lastMessageText, conversationId }: GifPickerProps) {
   const { t } = useTranslation();
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -358,7 +360,11 @@ export function GifPicker({ onGifSelect, initialTab, lastMessageText, conversati
     <div className="gif-picker">
       <Tabs.Root
         value={tab}
-        onValueChange={(d) => setTab(d.value as ContentTab)}
+        onValueChange={(d) => {
+          const next = d.value as ContentTab;
+          setTab(next);
+          onTabChange?.(next);
+        }}
       >
         <Tabs.List className="gif-picker__tabs">
           <Tabs.Trigger className="gif-picker__tab" value="gifs">

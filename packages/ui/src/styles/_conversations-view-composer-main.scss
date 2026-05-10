@@ -70,60 +70,18 @@
       &__right {
         right: 1px;
 
-        // Toolbar media actions (scoped so theme / popover defaults cannot flatten them)
-        .conversation-gif-btn {
+        .conversation-media-btn {
           display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          padding: 2px 6px;
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-sm);
-          background: none;
-          cursor: pointer;
-          transition:
-            color var(--transition-fast),
-            background var(--transition-fast),
-            border-color var(--transition-fast);
-
-          .conversation-gif-btn__label {
-            font-size: var(--font-size-xs);
-            font-weight: 700;
-            line-height: 1;
-            letter-spacing: 0.02em;
-            color: var(--color-text-secondary);
-            transition: color var(--transition-fast);
-          }
-
-          &:hover:not(:disabled) {
-            background: var(--color-bg-hover);
-            border-color: var(--color-text-muted);
-
-            .conversation-gif-btn__label {
-              color: var(--color-text-primary);
-            }
-          }
-
-          &:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-          }
-        }
-
-        .conversation-sticker-btn {
-          display: flex;
           align-items: center;
           justify-content: center;
           padding: 4px;
           border: none;
           background: none;
-          color: var(--color-text-secondary);
           cursor: pointer;
           border-radius: var(--radius-sm);
-          flex-shrink: 0;
           transition: color var(--transition-fast), background var(--transition-fast);
 
           &:hover:not(:disabled) {
-            color: var(--color-text-primary);
             background: var(--color-bg-hover);
           }
 
@@ -132,9 +90,55 @@
             cursor: not-allowed;
           }
 
-          svg {
-            width: 20px;
+          &__stack {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            width: 32px;
             height: 20px;
+          }
+
+          &__gif-icon {
+            position: absolute;
+            left: 0;
+            font-size: var(--font-size-xs);
+            font-weight: 700;
+            line-height: 1;
+            letter-spacing: 0.02em;
+            padding: 2px 4px;
+            border: 1px solid var(--color-border);
+            border-radius: var(--radius-sm);
+            color: var(--color-text-secondary);
+            background: var(--color-bg-secondary);
+            z-index: 2;
+            transition: opacity var(--transition-fast);
+          }
+
+          &__sticker-icon {
+            position: absolute;
+            right: 0;
+            width: 18px;
+            height: 18px;
+            color: var(--color-text-secondary);
+            z-index: 1;
+            transition: opacity var(--transition-fast);
+          }
+
+          &__stack:not(.conversation-media-btn__stack--sticker-front) {
+            .conversation-media-btn__sticker-icon {
+              opacity: 0.5;
+            }
+          }
+
+          &__stack--sticker-front {
+            .conversation-media-btn__sticker-icon {
+              z-index: 2;
+            }
+
+            .conversation-media-btn__gif-icon {
+              z-index: 1;
+              opacity: 0.5;
+            }
           }
         }
 
