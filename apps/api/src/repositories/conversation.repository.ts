@@ -84,6 +84,8 @@ export interface IConversationRepository {
     conversationId: ObjectId,
     messageId: ObjectId
   ): Promise<void>;
+  incrementMessageCount(conversationId: ObjectId, delta?: number): Promise<void>;
+  setMessageCount(conversationId: ObjectId, count: number): Promise<void>;
 }
 
 export class ConversationRepository
@@ -429,6 +431,26 @@ export class ConversationRepository
         $pull: { pinnedMessageIds: messageId },
         $set: { updatedAt: new Date() },
       }
+    );
+  }
+
+  /**
+   * Atomically increment the stored message count (default +1).
+   */
+  async incrementMessageCount(conversationId: ObjectId, delta = 1): Promise<void> {
+    await this.collection.updateOne(
+      { _id: conversationId },
+      { $inc: { messageCount: delta } }
+    );
+  }
+
+  /**
+   * Set the message count to an exact value (used for lazy backfill).
+   */
+  async setMessageCount(conversationId: ObjectId, count: number): Promise<void> {
+    await this.collection.updateOne(
+      { _id: conversationId },
+      { $set: { messageCount: count } }
     );
   }
 }

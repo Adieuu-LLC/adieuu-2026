@@ -384,10 +384,21 @@ export function FriendsProvider({ children }: FriendsProviderProps) {
 // Hook
 // ============================================================================
 
+const NOOP_FRIENDS: FriendsContextValue = {
+  friends: [],
+  incomingRequests: [],
+  incomingRequestCount: 0,
+  isLoading: false,
+  sendRequest: async () => false,
+  acceptRequest: async () => false,
+  ignoreRequest: async () => false,
+  removeFriend: async () => false,
+  searchFriends: async () => [],
+  getFriendshipStatus: async () => ({ status: 'none' as const }),
+  refresh: async () => {},
+};
+
 export function useFriends(): FriendsContextValue {
   const ctx = useContext(FriendsContext);
-  if (!ctx) {
-    throw new Error('useFriends must be used within a FriendsProvider');
-  }
-  return ctx;
+  return ctx ?? NOOP_FRIENDS;
 }

@@ -47,6 +47,7 @@ export async function appendGroupInviteSystemMessageAndNotify(
   });
 
   await conversationRepo.updateLastMessage(convObjId, systemMsg._id, systemMsg.createdAt);
+  await conversationRepo.incrementMessageCount(convObjId);
 
   for (const participantId of participantIds) {
     await publishConversationEvent(participantId.toHexString(), {

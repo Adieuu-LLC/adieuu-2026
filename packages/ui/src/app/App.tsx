@@ -3,10 +3,12 @@ import { useIdentity } from '../hooks/useIdentity';
 import { AppLayout } from '../components/AppLayout';
 import { TourRoot } from '../components/Tour';
 import { Home } from '../pages/Home';
+import { PublicHome } from '../pages/PublicHome';
 import { About } from '../pages/About';
 import { AboutLearn, AboutUpdates } from '../pages/about';
 import { Download } from '../pages/Download';
 import { Search } from '../pages/Search';
+import { PublicSpaces } from '../pages/spaces';
 import { Login, Verify, MfaVerify } from '../pages/auth';
 import {
   AccountOverview,
@@ -136,8 +138,55 @@ function ProtectedLayoutContent() {
 }
 
 /**
- * Auth route wrapper - redirects to home if already authenticated
+ * Public route wrapper - no auth required.
+ * Renders the app layout with a public sidebar variant (search, about, download, login prompt).
+ * When the user is already authenticated, delegates to the full ProtectedLayout
+ * so they get the complete sidebar experience.
  */
+function PublicLayout() {
+  const { status } = useAuth();
+
+  if (status === 'loading') {
+    return (
+      <div className="auth-layout">
+        <div className="spinner spinner-lg" />
+      </div>
+    );
+  }
+
+  if (status === 'authenticated' || status === 'identity_mode') {
+    return <ProtectedLayout />;
+  }
+
+  return (
+    <AppLayout sidebar={<AppSidebar variant="public" />}>
+      <Outlet />
+    </AppLayout>
+  );
+}
+
+/**
+ * Root path handler. Authenticated users see their Home dashboard;
+ * unauthenticated visitors see the public landing page.
+ */
+function RootRedirect() {
+  const { status } = useAuth();
+
+  if (status === 'loading') {
+    return (
+      <div className="auth-layout">
+        <div className="spinner spinner-lg" />
+      </div>
+    );
+  }
+
+  if (status === 'unauthenticated') {
+    return <PublicHome />;
+  }
+
+  return <Home />;
+}
+
 /**
  * Account routes (email/phone session, MFA, billing-adjacent controls) are not available
  * in an active alias context (identity session, unlocked alias, lock screen, or suspension)
@@ -203,14 +252,20 @@ export function App() {
         }
       />
 
-      {/* Protected Routes with Sidebar Layout */}
-      <Route element={<ProtectedLayout />}>
-        <Route path="/" element={<Home />} />
+      {/* Public Routes with Sidebar Layout (no auth required) */}
+      <Route element={<PublicLayout />}>
+        <Route path="/" element={<RootRedirect />} />
         <Route path="/about" element={<About />} />
         <Route path="/about/learn" element={<AboutLearn />} />
         <Route path="/about/updates" element={<AboutUpdates />} />
         <Route path="/download" element={<Download />} />
         <Route path="/search" element={<Search />} />
+        <Route path="/spaces" element={<PublicSpaces />} />
+        <Route path="/identity/:id" element={<IdentityProfileView />} />
+      </Route>
+
+      {/* Protected Routes with Sidebar Layout */}
+      <Route element={<ProtectedLayout />}>
 
         {/* Account Routes (not available while alias session is unlocked) */}
         <Route element={<AccountSessionOnlyOutlet />}>
@@ -238,9 +293,6 @@ export function App() {
         <Route path="/identity/emojis" element={<IdentityCustomEmojis />} />
         <Route path="/identity/subscription" element={<Navigate to="/identity/subscription/manage" replace />} />
         <Route path="/identity/subscription/:tab" element={<AccountSubscription />} />
-
-        {/* Public identity profile view (must be after static /identity/* routes) */}
-        <Route path="/identity/:id" element={<IdentityProfileView />} />
 
         {/* Conversation Routes */}
         <Route path="/conversations/new" element={<NewConversation />} />

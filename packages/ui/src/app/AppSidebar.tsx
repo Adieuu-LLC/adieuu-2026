@@ -5,7 +5,7 @@ import { SidebarLogo } from './sidebar/conversations';
 import { SidebarFooterContent } from './sidebar/footer';
 import { FriendsPanel } from './sidebar/friends';
 import { ChatInvitationsPanel } from './sidebar/invitations';
-import { SidebarTopNavContent, SidebarNavContent } from './sidebar/nav';
+import { SidebarTopNavContent, SidebarNavContent, type SidebarVariant } from './sidebar/nav';
 import {
   applySidebarAction,
   closeChatInvitesPanel,
@@ -18,13 +18,18 @@ import {
 /**
  * Main application sidebar with navigation links.
  * Shared across all platforms (web, desktop, mobile).
+ *
+ * When variant is 'public', authenticated-only sections (friends, conversations,
+ * identity/account flyouts) are omitted and a login prompt is shown instead.
  */
 interface AppSidebarProps {
   onExpandedChange?: (expanded: boolean) => void;
+  variant?: SidebarVariant;
 }
 
-export function AppSidebar({ onExpandedChange }: AppSidebarProps) {
+export function AppSidebar({ onExpandedChange, variant = 'full' }: AppSidebarProps) {
   const [panelState, setPanelState] = useState(initialSidebarPanelState);
+  const isPublic = variant === 'public';
 
   const handleToggleFriendsPanel = useCallback(() => {
     setPanelState(toggleFriendsPanel);
@@ -55,27 +60,32 @@ export function AppSidebar({ onExpandedChange }: AppSidebarProps) {
         <SidebarTopNavContent
           isFriendsPanelOpen={panelState.isFriendsPanelOpen}
           onToggleFriendsPanel={handleToggleFriendsPanel}
+          variant={variant}
         />
       }
-      footer={<SidebarFooterContent />}
+      footer={<SidebarFooterContent variant={variant} />}
       panel={
-        <>
-          <FriendsPanel
-            isOpen={panelState.isFriendsPanelOpen}
-            onClose={handleCloseFriendsPanel}
-          />
-          <ChatInvitationsPanel
-            isOpen={panelState.isChatInvitesPanelOpen}
-            onClose={handleCloseChatInvitesPanel}
-          />
-        </>
+        isPublic ? undefined : (
+          <>
+            <FriendsPanel
+              isOpen={panelState.isFriendsPanelOpen}
+              onClose={handleCloseFriendsPanel}
+            />
+            <ChatInvitationsPanel
+              isOpen={panelState.isChatInvitesPanelOpen}
+              onClose={handleCloseChatInvitesPanel}
+            />
+          </>
+        )
       }
       onExpandedChange={onExpandedChange}
     >
-      <SidebarNavContent
-        isChatInvitesPanelOpen={panelState.isChatInvitesPanelOpen}
-        onToggleChatInvitesPanel={handleToggleChatInvitesPanel}
-      />
+      {!isPublic && (
+        <SidebarNavContent
+          isChatInvitesPanelOpen={panelState.isChatInvitesPanelOpen}
+          onToggleChatInvitesPanel={handleToggleChatInvitesPanel}
+        />
+      )}
     </Sidebar>
   );
 }

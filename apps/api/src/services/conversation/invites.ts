@@ -88,6 +88,8 @@ export async function acceptGroupInvite(
       clientMessageId: crypto.randomUUID(),
     });
 
+    await conversationRepo.incrementMessageCount(invite.conversationId);
+
     for (const participantId of conversation.participants) {
       if (participantId.equals(identityObjId)) continue;
 

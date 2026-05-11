@@ -35,6 +35,7 @@ import {
 import { getConversationPreferencesRepository } from '../../repositories/conversation-preferences.repository';
 import { toPublicConversationPreferences } from '../../models/conversation-preferences';
 import { ObjectId } from 'mongodb';
+import { getConversationRepository } from '../../repositories/conversation.repository';
 import { getMessageRepository } from '../../repositories/message.repository';
 import { getCollection, Collections } from '../../db';
 import {
@@ -277,8 +278,16 @@ export async function getConversationCtrl(ctx: RouteContext): Promise<Conversati
   }
 
   const messageRepo = getMessageRepository();
-  const messageCount = await messageRepo.countByConversation(new ObjectId(conv.id));
-  return { kind: 'ok', data: { ...result.conversation, messageCount } };
+  const conversationRepo = getConversationRepository();
+
+  const conversation = result.conversation!;
+  let { messageCount } = conversation;
+  if (messageCount == null) {
+    messageCount = await messageRepo.countByConversation(new ObjectId(conv.id));
+    conversationRepo.setMessageCount(new ObjectId(conv.id), messageCount).catch(() => {});
+  }
+
+  return { kind: 'ok', data: { ...conversation, messageCount } };
 }
 
 export async function patchConversationNameCtrl(

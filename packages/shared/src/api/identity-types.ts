@@ -55,8 +55,6 @@ export interface PublicIdentity {
   profileColors?: ProfileColors;
   /** Per-field privacy settings (only visible to self) */
   privacySettings?: ProfilePrivacySettings;
-  /** When the identity was created */
-  createdAt: string;
   /** Last time this identity was active */
   lastActiveAt: string;
   /** Whether this identity has been deleted */

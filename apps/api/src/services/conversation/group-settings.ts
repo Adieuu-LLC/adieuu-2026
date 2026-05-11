@@ -93,6 +93,8 @@ export async function updateGroupName(
     clientMessageId: `sys-group-renamed-${Date.now()}`,
   });
 
+  await conversationRepo.incrementMessageCount(convObjId);
+
   await publishToParticipants(conversation.participants, requesterObjId, {
     type: 'conversation_updated',
     data: {

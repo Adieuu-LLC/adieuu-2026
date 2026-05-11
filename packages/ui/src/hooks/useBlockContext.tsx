@@ -44,12 +44,23 @@ export interface BlockContextValue {
 
 const BlockContext = createContext<BlockContextValue | null>(null);
 
+const NOOP_BLOCK: BlockContextValue = {
+  blockedIds: new Set(),
+  blockedList: [],
+  isLoading: false,
+  error: null,
+  hasMore: false,
+  isBlocked: () => false,
+  block: async () => ({ success: false }),
+  unblock: async () => ({ success: false }),
+  requestBlockConfirm: () => {},
+  refresh: async () => {},
+  loadMore: async () => {},
+};
+
 export function useBlockContext(): BlockContextValue {
   const context = useContext(BlockContext);
-  if (!context) {
-    throw new Error('useBlockContext must be used within a BlockProvider');
-  }
-  return context;
+  return context ?? NOOP_BLOCK;
 }
 
 function useBlockState(): Omit<BlockContextValue, 'requestBlockConfirm'> {

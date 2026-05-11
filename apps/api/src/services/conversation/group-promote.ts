@@ -79,6 +79,7 @@ export async function promoteToAdmin(
   });
 
   await conversationRepo.updateLastMessage(convObjId, systemMsg._id, systemMsg.createdAt);
+  await conversationRepo.incrementMessageCount(convObjId);
 
   for (const participantId of conversation.participants) {
     if (participantId.equals(requesterObjId)) continue;

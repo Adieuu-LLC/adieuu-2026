@@ -17,27 +17,48 @@ import { Icon } from '../icons/Icon';
 export interface SidebarSearchProps {
   /** Called when an identity is selected */
   onSelect?: (identity: PublicIdentity) => void;
+  /** Override the default placeholder text */
+  placeholderOverride?: string;
+  /** Show social actions (add friend) - requires Identity and Friends providers. Defaults to true. */
+  showSocialActions?: boolean;
 }
 
-export function SidebarSearch({ onSelect }: SidebarSearchProps) {
+/**
+ * Inner component that requires Identity + Friends providers.
+ * Rendered only when showSocialActions is true.
+ */
+function AddFriendButton({ identityId }: { identityId: string }) {
+  const { t } = useTranslation();
+  const { identity: selfIdentity, status: identityStatus } = useIdentity();
+  const { sendRequest } = useFriends();
+  const isIdentityLoggedIn = identityStatus === 'logged_in' && selfIdentity;
+
+  if (!isIdentityLoggedIn || identityId === selfIdentity?.id) return null;
+
+  return (
+    <button
+      type="button"
+      className="sidebar-search-item-add-friend"
+      onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        void sendRequest(identityId);
+      }}
+      title={t('friends.addFriend')}
+    >
+      <Icon name="plus" />
+    </button>
+  );
+}
+
+export function SidebarSearch({ onSelect, placeholderOverride, showSocialActions = true }: SidebarSearchProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { isExpanded, setExpanded, closeMobile } = useSidebar();
   const inputRef = useRef<HTMLInputElement>(null);
   const [pendingFocus, setPendingFocus] = useState(false);
   const { results, isLoading, search, clear, query } = useIdentitySearch();
-  const { identity: selfIdentity, status: identityStatus } = useIdentity();
-  const { sendRequest } = useFriends();
-  const isIdentityLoggedIn = identityStatus === 'logged_in' && selfIdentity;
 
-  const handleAddFriend = useCallback(
-    async (e: React.MouseEvent, identityId: string) => {
-      e.stopPropagation();
-      e.preventDefault();
-      await sendRequest(identityId);
-    },
-    [sendRequest]
-  );
   const [inputValue, setInputValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
 
@@ -142,7 +163,7 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
           <Combobox.Input
             ref={inputRef}
             className="sidebar-search-input"
-            placeholder={t('search.placeholder')}
+            placeholder={placeholderOverride ?? t('search.placeholder')}
             onKeyDown={handleKeyDown}
           />
           {isLoading && <span className="sidebar-search-spinner spinner spinner-sm" />}
@@ -184,15 +205,8 @@ export function SidebarSearch({ onSelect }: SidebarSearchProps) {
                       @{identity.username}
                     </span>
                   </div>
-                  {isIdentityLoggedIn && identity.id !== selfIdentity?.id && (
-                    <button
-                      type="button"
-                      className="sidebar-search-item-add-friend"
-                      onClick={(e) => handleAddFriend(e, identity.id)}
-                      title={t('friends.addFriend')}
-                    >
-                      <Icon name="plus" />
-                    </button>
+                  {showSocialActions && (
+                    <AddFriendButton identityId={identity.id} />
                   )}
                 </Combobox.Item>
               ))}

@@ -76,6 +76,25 @@ export const staticPages = {
     loading: 'Loading your progress...',
     badgeComingSoon: 'Coming soon',
 
+    public: {
+      subtitle: 'Private, encrypted messaging built for everyone.',
+      tabs: {
+        about: 'What is Adieuu?',
+        learn: 'Learn',
+      },
+      whatIsTitle: 'Private messaging, reimagined',
+      whatIsText1:
+        'Adieuu is a secure messaging platform that puts your privacy first. Every message is end-to-end encrypted using proven, audited cryptographic algorithms -- no one can read your conversations, not even us.',
+      whatIsText2:
+        'Unlike other platforms, we do not sell your data, track your conversations, or serve targeted ads. Your privacy is not our business model.',
+      securityTitle: 'Security by design',
+      securityText:
+        'Passwordless authentication eliminates credential-stuffing attacks. Alias identities are cryptographically unlinkable to your account, so your real-world identity stays private. All data at rest is encrypted, and all traffic uses TLS.',
+      ctaTitle: 'Ready to get started?',
+      ctaText: 'Create an account in seconds -- all you need is an email or phone number.',
+      ctaAction: 'Create account',
+    },
+
     tabs: {
       welcome: 'Welcome',
       learn: 'Learn',

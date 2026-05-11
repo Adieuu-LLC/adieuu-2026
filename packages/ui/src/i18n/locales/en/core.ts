@@ -28,6 +28,8 @@ export const core = {
     home: 'Home',
     about: 'About',
     getDesktopApp: 'Get desktop app',
+    loginPrompt: 'Log in or create account',
+    backToHome: 'Back to Home',
     account: 'Account',
     logout: 'Logout',
     expandSidebar: 'Expand sidebar',
@@ -65,6 +67,7 @@ export const core = {
     title: 'Search',
     subtitle: 'Find people by username or display name.',
     placeholder: 'Search for people...',
+    publicPlaceholder: 'Search public content...',
     noResults: 'No results found.',
     noResultsHint: 'Try a different search term or check the spelling.',
     hint: 'Enter a username or display name to search.',
@@ -164,5 +167,12 @@ export const core = {
     blockedBanner: 'You have blocked this user. You cannot send or receive messages.',
     blockedByOtherBanner: 'This user has blocked you. You cannot send or receive messages.',
     blockUserAction: 'Block User',
+  },
+
+  // Spaces
+  spaces: {
+    title: 'Spaces',
+    subtitle: 'Discover and join public communities.',
+    comingSoon: 'Spaces are on the way. Check back soon.',
   },
 } as const;

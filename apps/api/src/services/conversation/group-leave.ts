@@ -89,6 +89,7 @@ export async function leaveConversation(
         });
 
         await conversationRepo.updateLastMessage(convObjId, systemMsg._id, systemMsg.createdAt);
+        await conversationRepo.incrementMessageCount(convObjId);
 
         for (const memberId of remaining) {
           await publishConversationEvent(memberId.toHexString(), {
@@ -138,6 +139,7 @@ export async function leaveConversation(
     });
 
     await conversationRepo.updateLastMessage(convObjId, systemMsg._id, systemMsg.createdAt);
+    await conversationRepo.incrementMessageCount(convObjId);
 
     for (const memberId of remaining) {
       await publishConversationEvent(memberId.toHexString(), {

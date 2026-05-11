@@ -130,6 +130,14 @@ mock.module('../../repositories/message.repository', () => ({
   })),
 }));
 
+const mockSetMessageCount = mock(() => Promise.resolve());
+
+mock.module('../../repositories/conversation.repository', () => ({
+  getConversationRepository: mock(() => ({
+    setMessageCount: mockSetMessageCount,
+  })),
+}));
+
 import {
   createConversationCtrl,
   listConversationsCtrl,
@@ -171,6 +179,7 @@ describe('conversation controller', () => {
     mockGetConversation.mockClear();
     mockListConversations.mockClear();
     mockCountByConversation.mockClear();
+    mockSetMessageCount.mockClear();
     mockFindForIdentity.mockClear();
     mockUpsert.mockClear();
     mockPinMessage.mockClear();
@@ -305,7 +314,7 @@ describe('conversation controller', () => {
     expect(r).toEqual({ kind: 'not_found', message: 'Invite not found.' });
   });
 
-  test('getConversationCtrl attaches messageCount', async () => {
+  test('getConversationCtrl lazy-backfills messageCount when absent', async () => {
     const r = await getConversationCtrl(
       baseCtx({
         identitySession: { identity: { _id: ROUTE_TEST_IDENTITY_ID } } as never,
@@ -321,6 +330,29 @@ describe('conversation controller', () => {
       );
     }
     expect(mockCountByConversation).toHaveBeenCalledWith(new ObjectId(VALID_ID));
+    expect(mockSetMessageCount).toHaveBeenCalledWith(new ObjectId(VALID_ID), 3);
+  });
+
+  test('getConversationCtrl skips backfill when messageCount already set', async () => {
+    mockGetConversation.mockImplementationOnce(() =>
+      Promise.resolve({ success: true, conversation: { id: VALID_ID, messageCount: 42 } }),
+    );
+    const r = await getConversationCtrl(
+      baseCtx({
+        identitySession: { identity: { _id: ROUTE_TEST_IDENTITY_ID } } as never,
+        params: { id: VALID_ID },
+      }),
+    );
+    expect(r.kind).toBe('ok');
+    if (r.kind === 'ok') {
+      expect(r.data).toEqual(
+        expect.objectContaining({
+          messageCount: 42,
+        }),
+      );
+    }
+    expect(mockCountByConversation).not.toHaveBeenCalled();
+    expect(mockSetMessageCount).not.toHaveBeenCalled();
   });
 
   test('pinMessageCtrl rejects invalid body messageId', async () => {

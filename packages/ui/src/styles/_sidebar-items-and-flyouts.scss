@@ -169,6 +169,22 @@
   width: 100%;
 }
 
+.sidebar-login-prompt {
+  padding: var(--spacing-sm);
+
+  a {
+    text-decoration: none;
+  }
+
+  .sidebar-login-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+  }
+}
+
 .sidebar-identity-section {
   padding: var(--spacing-sm);
   background: var(--color-bg-tertiary);

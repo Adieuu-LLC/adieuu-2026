@@ -9,6 +9,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { createApiClient } from '@adieuu/shared';
 import { AccountFlyout, IdentityFlyout } from './identity';
 import { SidebarUpdateNav } from './SidebarUpdateNav';
+import type { SidebarVariant } from './nav';
 
 export function ModerationFlyout() {
   const { t } = useTranslation();
@@ -108,7 +109,54 @@ export function ModerationFlyout() {
   );
 }
 
-export function SidebarFooterContent() {
+function SidebarLoginPrompt() {
+  const { t } = useTranslation();
+  const { closeMobile } = useSidebar();
+
+  return (
+    <div className="sidebar-login-prompt">
+      <Link to="/auth/login" onClick={closeMobile}>
+        <Button variant="primary" size="sm" className="sidebar-login-btn">
+          <Icon name="user" />
+          <span>{t('nav.loginPrompt')}</span>
+        </Button>
+      </Link>
+    </div>
+  );
+}
+
+export function SidebarFooterContent({ variant = 'full' }: { variant?: SidebarVariant }) {
+  const { t } = useTranslation();
+  const { platform } = useAppConfig();
+  const { closeMobile } = useSidebar();
+  const isDownloadActive = useLocation().pathname === '/download';
+  const showDesktopAppLink = platform === 'web';
+  const isPublic = variant === 'public';
+
+  if (isPublic) {
+    return (
+      <div className="sidebar-footer-stack">
+        {showDesktopAppLink && (
+          <div className="sidebar-desktop-row">
+            <Link
+              to="/download"
+              className={`sidebar-desktop-link${isDownloadActive ? ' sidebar-desktop-link-active' : ''}`}
+              onClick={closeMobile}
+            >
+              <Icon name="download" />
+              <span className="sidebar-desktop-label">{t('nav.getDesktopApp')}</span>
+            </Link>
+          </div>
+        )}
+        <SidebarLoginPrompt />
+      </div>
+    );
+  }
+
+  return <AuthenticatedSidebarFooter />;
+}
+
+function AuthenticatedSidebarFooter() {
   const { t } = useTranslation();
   const { platform } = useAppConfig();
   const { session } = useAuth();

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { AuthLayout } from '../../components/AuthLayout';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -12,6 +13,7 @@ import { useAppConfig } from '../../config';
 type DeliveryType = 'email' | 'sms';
 
 export function Login() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { requestOtp } = useAuth();
   const { externalLinkBase, platform } = useAppConfig();
@@ -56,7 +58,7 @@ export function Login() {
   return (
     <AuthLayout
       title="Welcome back"
-      subtitle="Sign in to continue to Adieuu"
+      subtitle="Sign in or create a new account below!"
     >
       <Card variant="elevated" className="slide-up stagger-2">
         <form className="auth-form" onSubmit={handleSubmit}>
@@ -139,6 +141,11 @@ export function Login() {
           <a href={privacyUrl} className="auth-link" {...linkProps}>
             Privacy Policy
           </a>
+        </p>
+        <p style={{ marginTop: 'var(--spacing-sm)' }}>
+          <Link to="/" className="auth-link">
+            {t('nav.backToHome')}
+          </Link>
         </p>
       </footer>
     </AuthLayout>

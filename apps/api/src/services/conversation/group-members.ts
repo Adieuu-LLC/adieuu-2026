@@ -154,6 +154,7 @@ export async function addGroupMember(
   });
 
   await conversationRepo.updateLastMessage(convObjId, systemMsg._id, systemMsg.createdAt);
+  await conversationRepo.incrementMessageCount(convObjId);
 
   // Notify all existing members about the new member
   await publishToParticipants(conversation.participants, requesterObjId, {
@@ -280,6 +281,7 @@ export async function removeGroupMember(
   });
 
   await conversationRepo.updateLastMessage(convObjId, systemMsg._id, systemMsg.createdAt);
+  await conversationRepo.incrementMessageCount(convObjId);
 
   // Notify remaining members
   const remaining = conversation.participants.filter(

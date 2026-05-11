@@ -216,7 +216,6 @@ export interface PublicIdentity {
   bannerUrl?: string;
   profileColors?: ProfileColors;
   privacySettings?: ProfilePrivacySettings;
-  createdAt: string;
   lastActiveAt: string;
   /** Whether this identity has been deleted */
   isDeleted: boolean;
@@ -269,7 +268,6 @@ export function toPublicIdentity(doc: IdentityDocument): PublicIdentity {
     bannerUrl: doc.bannerUrl,
     profileColors: doc.profileColors,
     privacySettings: doc.privacySettings,
-    createdAt: doc.createdAt.toISOString(),
     lastActiveAt: doc.lastActiveAt.toISOString(),
     isDeleted: isDeletedIdent(doc.ident),
     preferredCryptoProfile: doc.preferredCryptoProfile,

@@ -157,6 +157,7 @@ export async function sendMessage(
 
   // Update conversation lastMessage metadata
   await conversationRepo.updateLastMessage(convObjId, message._id, message.createdAt);
+  await conversationRepo.incrementMessageCount(convObjId);
 
   const publicMessage = toPublicMessage(message, senderObjId);
 

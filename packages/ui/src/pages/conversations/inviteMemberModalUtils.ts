@@ -19,7 +19,6 @@ export function minimalPublicIdentity(id: string): PublicIdentity {
     id,
     username: short,
     displayName: short,
-    createdAt: epoch,
     lastActiveAt: epoch,
     isDeleted: false,
   };

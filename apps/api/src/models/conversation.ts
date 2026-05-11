@@ -101,6 +101,15 @@ export interface ConversationDocument extends BaseDocument {
   pinnedMessageIds?: ObjectId[];
 
   /**
+   * Running total of messages ever sent in this conversation (user + system).
+   * Incremented atomically on every `createMessage`; not decremented on
+   * tombstoning or TTL expiry, so the value represents "messages sent," not
+   * "messages currently stored." Absent on legacy rows until lazy-backfilled
+   * on first single-get.
+   */
+  messageCount?: number;
+
+  /**
    * When each identity became a member (thread creation, direct add, or invite accept).
    * Used server-side to omit pre-join ciphertext from paginated message lists. Omitted on legacy
    * rows until backfilled; absence means no time-based filter.
@@ -187,6 +196,7 @@ export function toPublicConversation(doc: ConversationDocument): PublicConversat
           pinnedMessageIds: doc.pinnedMessageIds.map((id) => id.toHexString()),
         }
       : {}),
+    ...(doc.messageCount != null ? { messageCount: doc.messageCount } : {}),
     ...(doc.participantJoinedAtByIdentityId &&
     Object.keys(doc.participantJoinedAtByIdentityId).length > 0
       ? {

@@ -345,12 +345,6 @@ export function IdentityProfileView() {
                   })}
                 </p>
               )}
-
-              <p className="profile-view-meta">
-                {t('identity.profileView.joined', {
-                  date: new Date(profile.createdAt).toLocaleDateString(),
-                })}
-              </p>
             </div>
           </div>
 
