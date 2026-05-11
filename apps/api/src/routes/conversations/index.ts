@@ -28,6 +28,10 @@ router.get('/conversations', async (ctx) => {
   return conversationRespond(ctx, await conversationController.listConversationsCtrl(ctx));
 });
 
+router.get('/conversations/stats', async (ctx) => {
+  return conversationRespond(ctx, await conversationController.getConversationStatsCtrl(ctx));
+});
+
 // ---------------------------------------------------------------------------
 // Conversation preferences routes
 // Registered before /conversations/:id to prevent the parameterised route

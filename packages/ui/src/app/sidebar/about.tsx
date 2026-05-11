@@ -34,6 +34,13 @@ export function AboutFlyout() {
         {t('about.title')}
       </Link>
       <Link
+        to="/about/learn"
+        onClick={handleNavClick}
+        className={`sidebar-flyout-item ${isActive('/about/learn') ? 'sidebar-flyout-item-active' : ''}`}
+      >
+        {t('home.learn.navLabel')}
+      </Link>
+      <Link
         to="/about/updates"
         onClick={handleNavClick}
         className={`sidebar-flyout-item ${isActive('/about/updates') ? 'sidebar-flyout-item-active' : ''}`}

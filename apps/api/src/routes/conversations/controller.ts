@@ -36,6 +36,7 @@ import { getConversationPreferencesRepository } from '../../repositories/convers
 import { toPublicConversationPreferences } from '../../models/conversation-preferences';
 import { ObjectId } from 'mongodb';
 import { getMessageRepository } from '../../repositories/message.repository';
+import { getCollection, Collections } from '../../db';
 import {
   CreateConversationSchema,
   UpdatePreferencesSchema,
@@ -797,4 +798,34 @@ export async function terminateConversationCtrl(
   }
 
   return { kind: 'ok', data: undefined, message: 'Conversation deleted.' };
+}
+
+export async function getConversationStatsCtrl(
+  ctx: RouteContext,
+): Promise<ConversationRouteResult<{ totalConversations: number; totalMessages: number }>> {
+  if (!ctx.identitySession) return { kind: 'unauthorized' };
+  const { identity } = ctx.identitySession;
+
+  const conversationsCol = getCollection(Collections.CONVERSATIONS);
+  const messagesCol = getCollection(Collections.MESSAGES);
+
+  const identityObjId = identity._id;
+
+  const convDocs = await conversationsCol
+    .find({ participants: identityObjId } as Parameters<typeof conversationsCol.find>[0], {
+      projection: { _id: 1 },
+    })
+    .toArray();
+
+  const conversationIds = convDocs.map((d) => d._id);
+  const totalConversations = conversationIds.length;
+
+  let totalMessages = 0;
+  if (conversationIds.length > 0) {
+    totalMessages = await messagesCol.countDocuments({
+      conversationId: { $in: conversationIds },
+    } as Parameters<typeof messagesCol.countDocuments>[0]);
+  }
+
+  return { kind: 'ok', data: { totalConversations, totalMessages } };
 }

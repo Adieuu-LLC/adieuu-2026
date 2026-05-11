@@ -23,7 +23,12 @@ function versionJsonPlugin(): Plugin {
 export default defineConfig({
   plugins: [
     react(),
-    cspPlugin({ manifests: [cspManifest] }),
+    cspPlugin({
+      manifests: [cspManifest],
+      devExtras: {
+        'connect-src': ['ws://localhost:*', 'wss://localhost:*'],
+      },
+    }),
     versionJsonPlugin(),
   ],
   publicDir: path.resolve(__dirname, '../../packages/ui/public'),
@@ -41,6 +46,11 @@ export default defineConfig({
   server: {
     host: '127.0.0.1',
     port: 3000,
+    hmr: {
+      protocol: 'wss',
+      host: 'localhost',
+      clientPort: 443,
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:4000',

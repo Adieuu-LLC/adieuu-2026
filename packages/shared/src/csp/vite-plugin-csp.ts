@@ -63,8 +63,12 @@ export function cspPlugin(options: CspPluginOptions) {
         }
       }
 
+      // In dev mode 'unsafe-inline' covers all inline scripts (including
+      // Vite's HMR preamble and React Fast Refresh injections). Per CSP L2+,
+      // hash sources cause the UA to ignore 'unsafe-inline', so we must omit
+      // hashes when 'unsafe-inline' is in play.
       const hashDirectives: CspDirectives =
-        hashes.length > 0 ? { 'script-src': hashes } : {};
+        !isDev && hashes.length > 0 ? { 'script-src': hashes } : {};
 
       const devDirectives: CspDirectives = isDev
         ? mergeCspManifests(

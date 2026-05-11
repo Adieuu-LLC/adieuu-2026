@@ -72,6 +72,228 @@ export const staticPages = {
   home: {
     title: 'Welcome to Adieuu',
     subtitle: 'Your secure messaging platform. Running on {{platform}}.',
+    subtitleIdentity: 'Welcome back. Here is an overview of your activity.',
+    loading: 'Loading your progress...',
+    badgeComingSoon: 'Coming soon',
+
+    tabs: {
+      welcome: 'Welcome',
+      learn: 'Learn',
+    },
+
+    // Account-mode action steps
+    account: {
+      sectionPrimary: 'Get started',
+      sectionPrimarySubtitle:
+        'Complete these steps to set up your account and create your first Alias.',
+      sectionSecondary: 'Recommendations',
+      steps: {
+        subscribe: {
+          title: 'Choose a plan',
+          description: 'An active subscription unlocks Alias creation, messaging, and social features.',
+          action: 'View plans',
+        },
+        verifyAge: {
+          title: 'Verify your age',
+          description: 'Your jurisdiction requires age verification before you can create an Alias.',
+          action: 'Start verification',
+        },
+        createAlias: {
+          title: 'Create your first Alias',
+          description: 'Your Alias is how others find you. It is separate from your account login for privacy.',
+          action: 'Create Alias',
+        },
+      },
+      secondary: {
+        tour: {
+          title: 'Take the tour',
+          description: 'See where search, your Alias, account settings, and more live in the app.',
+          action: 'Start tour',
+          actionRetake: 'Retake tour',
+        },
+        mfa: {
+          title: 'Add multi-factor authentication (MFA)',
+          description: 'Protect your account with an authenticator app or passkey.',
+          action: 'Go to security',
+        },
+        verify: {
+          title: 'Verify your email or phone',
+          description: 'Confirm your contact method so we can reach you if needed.',
+          action: 'Account overview',
+        },
+        appearance: {
+          title: 'Personalise your appearance',
+          description: 'Choose a preset theme, customise colours, or explore community themes.',
+          action: 'Start tour',
+          actionRetake: 'Retake tour',
+        },
+      },
+    },
+
+    // Identity-mode action steps
+    identity: {
+      sectionStats: 'Your activity',
+      sectionPrimary: 'Things to try',
+      sectionSecondary: 'Customise',
+      stats: {
+        conversations: 'Conversations',
+        friends: 'Friends',
+        messages: 'Messages',
+        achievements: 'Achievements',
+      },
+      steps: {
+        addFriend: {
+          title: 'Add a friend',
+          description: 'Search for people by display name or username and send a friend request.',
+          action: 'Find friends',
+        },
+        startConversation: {
+          title: 'Start a conversation',
+          description: 'Send an encrypted message to a friend or start a group chat.',
+          action: 'New conversation',
+        },
+        joinSpace: {
+          title: 'Join a Space',
+          description: 'Spaces are shared communities for groups of people with common interests.',
+        },
+      },
+      secondary: {
+        appearance: {
+          title: 'Change your appearance',
+          description: 'Choose a theme, customise colours, or browse the community marketplace.',
+          action: 'Appearance settings',
+        },
+        editProfile: {
+          title: 'Edit your profile',
+          description: 'Update your display name, bio, avatar, and other profile details.',
+          action: 'Edit profile',
+        },
+        tour: {
+          title: 'Take the tour',
+          description: 'A guided walkthrough of messaging, friends, settings, and more.',
+          action: 'Start tour',
+          actionRetake: 'Retake tour',
+        },
+      },
+    },
+
+    // Learn tab (shared across modes)
+    learn: {
+      title: 'Learn about Adieuu',
+      navLabel: 'Learn',
+      copyLink: 'Copy link to section',
+      linkCopied: 'Link copied to clipboard',
+      permalinkLabel: 'Permalink to this section',
+      categories: {
+        privacyBasics: {
+          label: 'Privacy (Basics)',
+          sections: {
+            aliasPrivacy: {
+              title: 'How Aliases protect your privacy',
+              content:
+                'Adieuu separates your account (email or phone) from your Alias (your public identity). Your Alias is cryptographically unlinkable to your account, so no one -- not even Adieuu -- can connect the two. This means your real-world identity stays private while you communicate freely.',
+            },
+            ageVerification: {
+              title: 'Age verification without compromising identity',
+              content:
+                'Where required by law, Adieuu verifies your age through a third-party provider. The verification result is stored on your account, not your Alias, and is never shared with the people you talk to. Your ID documents are processed by the verification provider and are not stored by Adieuu.',
+            },
+            dataCollection: {
+              title: 'What data Adieuu collects (and what it does not)',
+              content:
+                'Adieuu collects only the minimum data required to operate the service: an email or phone number for account authentication, and the encrypted messages you send. We do not read your messages, build advertising profiles, or sell any of your data. Usage analytics, when collected, are aggregated and anonymous.',
+            },
+          },
+        },
+        privacyAdvanced: {
+          label: 'Privacy (Advanced)',
+          sections: {
+            metadataProtection: {
+              title: 'Metadata protection and traffic analysis resistance',
+              content:
+                'Message content is only part of the picture -- who talks to whom and when can be just as revealing. Adieuu minimises metadata exposure by keeping contact graphs encrypted and avoiding long-lived identifiers in network traffic. We are actively researching additional techniques such as sealed sender and padding to further resist traffic analysis.',
+            },
+            unlinkability: {
+              title: 'Cryptographic unlinkability between Accounts and Aliases',
+              content:
+                'The separation between your Account and your Alias is enforced cryptographically, not just by policy. Alias credentials are derived through a one-way process that prevents correlation, even by Adieuu infrastructure. This means a database breach cannot link your Alias activity back to your account email or phone number.',
+            },
+          },
+        },
+        securityBasics: {
+          label: 'Security (Basics)',
+          sections: {
+            encryption: {
+              title: 'End-to-end encryption',
+              content:
+                'Every message is encrypted on your device before it leaves. Only you and your intended recipients hold the keys to decrypt it. Adieuu uses proven, well-audited cryptographic algorithms so that no intermediary -- including Adieuu servers -- can read your conversations.',
+            },
+            securityModel: {
+              title: 'Platform security model',
+              content:
+                'Adieuu is built on a zero-trust architecture. Session tokens are short-lived and scoped. Passwordless authentication eliminates credential-stuffing attacks. Multi-factor authentication adds a second layer of protection. All data at rest is encrypted, and all traffic uses TLS. We do not sell data, serve ads, or track your conversations.',
+            },
+          },
+        },
+        securityAdvanced: {
+          label: 'Security (Advanced)',
+          sections: {
+            postQuantum: {
+              title: 'Post-quantum cryptography',
+              content:
+                'Future quantum computers may be able to break today\'s public-key cryptography. Adieuu uses a hybrid approach that combines classical algorithms with post-quantum key encapsulation (ML-KEM). This means your messages are protected against both current attacks and future quantum threats, without sacrificing compatibility or performance.',
+            },
+            keyManagement: {
+              title: 'Key management and device trust',
+              content:
+                'Your encryption keys are generated and stored on your own devices, never uploaded in plaintext. When you add a new device, a secure key-transfer protocol ensures that your existing conversations remain accessible without exposing key material to the server. Revoking a device immediately removes its access to future messages.',
+            },
+          },
+        },
+        accountsAndAliases: {
+          label: 'Accounts and Aliases',
+          sections: {
+            whySeparation: {
+              title: 'Why Adieuu separates Accounts from Aliases',
+              content:
+                'Your Account is your administrative identity -- it holds your email or phone, billing, and security settings. Your Alias is your social identity -- it is what other people see. By keeping these separate, Adieuu ensures that sharing your public profile never reveals the personal details behind your account.',
+            },
+            switchingAliases: {
+              title: 'Switching between Aliases',
+              content:
+                'You can create multiple Aliases under one Account, each with its own display name, avatar, and theme. Switching between them is instant and does not require signing out. Other users cannot tell that two Aliases belong to the same Account.',
+            },
+            lostAccess: {
+              title: 'What happens if you lose access',
+              content:
+                'If you lose access to your account email or phone, Adieuu provides a recovery flow that verifies your identity through a secondary method or recovery codes. Because encryption keys live on your devices, maintaining at least one trusted device is the most reliable way to preserve access to your message history.',
+            },
+          },
+        },
+        subscriptions: {
+          label: 'Subscriptions',
+          sections: {
+            plans: {
+              title: 'Available plans',
+              content:
+                'Adieuu offers a free tier with core messaging and encryption, plus paid plans that unlock additional features such as multiple Aliases, extended message history, and priority support. All plans include the same strong encryption and privacy guarantees.',
+            },
+            whatUnlocked: {
+              title: 'What a subscription unlocks',
+              content:
+                'A paid subscription lets you create Aliases, participate in Spaces, and access social features like friend requests and group conversations. It also supports the ongoing development of Adieuu so we never need to rely on advertising or data sales.',
+            },
+            billing: {
+              title: 'Billing and cancellation',
+              content:
+                'Subscriptions are billed monthly or annually through your chosen payment method. You can cancel at any time from your Account settings, and your paid features remain active until the end of the current billing period. Adieuu does not charge cancellation fees.',
+            },
+          },
+        },
+      },
+    },
+
+    // Legacy keys kept for backward compat during migration
     features: {
       encryption: {
         title: 'End-to-End Encryption',

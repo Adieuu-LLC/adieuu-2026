@@ -191,6 +191,11 @@ export interface ConversationPreferences {
   encryptedReadState?: string;
 }
 
+export interface ConversationStats {
+  totalConversations: number;
+  totalMessages: number;
+}
+
 export interface ConversationPreferencesPatch {
   archived?: boolean;
   keepArchived?: boolean;

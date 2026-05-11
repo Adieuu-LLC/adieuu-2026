@@ -4,6 +4,7 @@ import type { HttpClient, RequestOptions } from './http-client';
 import type {
   ConversationPreferences,
   ConversationPreferencesPatch,
+  ConversationStats,
   ConversationType,
   FormerMember,
   GifContentFilter,
@@ -361,6 +362,10 @@ export class ConversationsApi {
     return this.client.get(
       `/api/conversations/${encodeURIComponent(conversationId)}/pinned-messages${query ? `?${query}` : ''}`
     );
+  }
+
+  async getStats(): Promise<ApiResponse<ConversationStats>> {
+    return this.client.get('/api/conversations/stats');
   }
 
   async listPreferences(): Promise<ApiResponse<ConversationPreferences[]>> {

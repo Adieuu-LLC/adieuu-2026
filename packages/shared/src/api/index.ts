@@ -202,6 +202,7 @@ export {
   type FormerMember,
   type ConversationPreferences,
   type ConversationPreferencesPatch,
+  type ConversationStats,
   type PublicReaction,
   type SendReactionParams,
 } from './conversations-types';
