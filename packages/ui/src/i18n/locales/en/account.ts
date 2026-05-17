@@ -403,7 +403,7 @@ export const account = {
       },
 
       // Identity/alias banner
-      identityBanner: 'Billing information is not available on aliases to protect your privacy. To manage your subscription and billing details, sign in to your account.',
+      identityBanner: 'Because of our separation of accounts & aliases (for your privacy), we are unable to pull billing information while signed into an alias. To manage your subscription and billing details, logout of your alias and sign in to your account.',
 
       // Section headings
       sections: {
