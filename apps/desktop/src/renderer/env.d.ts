@@ -23,6 +23,10 @@ interface Window {
       chrome: string;
       electron: string;
     };
+    openExternal: (url: string) => Promise<
+      { ok: true } | { ok: false; error: string }
+    >;
+    appQuit: () => Promise<void>;
     window: {
       minimize: () => Promise<void>;
       maximize: () => Promise<void>;
@@ -41,6 +45,7 @@ interface Window {
         teeFailed: boolean;
         lastError: string | null;
       }>;
+      wipeAll: () => Promise<void>;
     };
     webauthn?: {
       create: (options: unknown) => Promise<unknown>;

@@ -21,7 +21,7 @@ export function IdentityModalProvider({ children }: { children: ReactNode }) {
   const { status: identityStatus, identity, suspensionInfo } = useIdentity();
   const isIdentitySuspended = identityStatus === 'suspended' && !!suspensionInfo;
   const isIdentityLoggedIn = identityStatus === 'logged_in' && identity;
-  const isIdentityLocked = identityStatus === 'locked' && identity;
+  const isIdentityLocked = identityStatus === 'locked' && !!identity;
 
   const [isOpen, setIsOpen] = useState(false);
 
@@ -36,8 +36,9 @@ export function IdentityModalProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const closeIdentityModal = useCallback(() => {
+    if (isIdentityLocked) return;
     setIsOpen(false);
-  }, []);
+  }, [isIdentityLocked]);
 
   const value = useMemo(
     () => ({ openIdentityModal, closeIdentityModal }),
@@ -47,12 +48,14 @@ export function IdentityModalProvider({ children }: { children: ReactNode }) {
   const showModalHost =
     !isIdentitySuspended && (!isIdentityLoggedIn || isIdentityLocked);
 
+  const modalOpen = isIdentityLocked || isOpen;
+
   return (
     <IdentityModalContext.Provider value={value}>
       {children}
       {showModalHost ? (
         <IdentityModal
-          isOpen={isOpen}
+          isOpen={modalOpen}
           onClose={closeIdentityModal}
           unlockMode={!!isIdentityLocked}
         />

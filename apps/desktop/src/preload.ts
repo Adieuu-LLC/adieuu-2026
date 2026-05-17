@@ -35,6 +35,9 @@ contextBridge.exposeInMainWorld('electron', {
       { ok: true } | { ok: false; error: string }
     >,
 
+  /** Quit the entire application (all windows). */
+  appQuit: () => ipcRenderer.invoke('app:quit') as Promise<void>,
+
   // Window controls (for custom title bar on Windows/Linux)
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
@@ -66,6 +69,7 @@ contextBridge.exposeInMainWorld('electron', {
         teeFailed: boolean;
         lastError: string | null;
       }>,
+    wipeAll: () => ipcRenderer.invoke('secure-storage:wipe-all') as Promise<void>,
   },
 
   // Local notification sound file (path on disk; load via main process only)

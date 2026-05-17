@@ -303,6 +303,12 @@ export const identity = {
       success: 'Unlocked!',
       errorInvalid: 'Invalid password. Please try again.',
       logoutButton: 'Fully Logout',
+      logoutAndExitButton: 'Logout and exit app',
+      panicButton: 'Panic: wipe local data…',
+      panicConfirmTitle: 'Erase local data?',
+      panicConfirmBody:
+        'This will sign you out on the server, delete keys, cached data, and other locally stored information for this app on this device, then try to quit. Your account on Adieuu is not deleted. Installed application files may remain.',
+      panicConfirmAction: 'Wipe local data and quit',
     },
     // Delete confirmation
     delete: {

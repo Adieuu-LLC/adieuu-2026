@@ -208,6 +208,10 @@ export const webCapabilities: PlatformCapabilities = {
     },
   },
 
+  exitApplication: async () => {
+    window.close();
+  },
+
   // --------------------------------------------------------------------------
   // Feature Flags
   // --------------------------------------------------------------------------

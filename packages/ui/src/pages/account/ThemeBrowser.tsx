@@ -21,6 +21,7 @@ import { useAppConfig } from '../../config';
 import { createApiClient, computeColorChecksum, type CommunityTheme } from '@adieuu/shared';
 import { validateThemeDefinition } from '../../utils/themeSanitizer';
 import { BUILTIN_THEMES } from '../../constants/builtinThemes';
+import { SessionLockedPage } from '../../components/SessionLockedPage';
 
 const SEARCH_DEBOUNCE_MS = 400;
 const DESC_MAX_LENGTH = 150;
@@ -243,6 +244,10 @@ export function ThemeBrowser() {
   }, [api, unshareTarget, toast, t, fetchThemes]);
 
   const totalPages = Math.ceil(total / limit);
+
+  if (identityStatus === 'locked') {
+    return <SessionLockedPage titleI18nKey="account.appearance.communityTitle" />;
+  }
 
   return (
     <div className="page-content">

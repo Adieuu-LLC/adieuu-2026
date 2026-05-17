@@ -25,6 +25,7 @@ import { useDeviceManagement, type DeviceWithStatus, type ActivityTrackingMode, 
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAppConfig } from '../../config';
 import { useToast } from '../../components/Toast';
+import { SessionLockedPage } from '../../components/SessionLockedPage';
 import { Icon } from '../../icons/Icon';
 
 /**
@@ -612,7 +613,7 @@ function IdentitySessionsList() {
  */
 export function Devices() {
   const { t } = useTranslation();
-  const { identity } = useIdentity();
+  const { identity, status: identityStatus } = useIdentity();
   const {
     devices,
     loading,
@@ -714,6 +715,10 @@ export function Devices() {
     toastSuccess(msg);
     fetchDevices();
   }, [toastSuccess, fetchDevices]);
+
+  if (identityStatus === 'locked') {
+    return <SessionLockedPage titleI18nKey="identity.devices.title" />;
+  }
 
   if (!identity) {
     return (

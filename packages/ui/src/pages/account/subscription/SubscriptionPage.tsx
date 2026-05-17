@@ -12,6 +12,7 @@ import {
   type SubscriptionTierId,
 } from '@adieuu/shared';
 import { useAuth } from '../../../hooks/useAuth';
+import { useIdentity } from '../../../hooks/useIdentity';
 import { useAppConfig, usePlatformCapabilities } from '../../../config';
 import { useCheckoutPolling, type UseCheckoutPollingRun } from '../../../hooks/useCheckoutPolling';
 import { openCheckoutOrPortalUrl } from '../../../utils/open-checkout-url';
@@ -20,6 +21,7 @@ import { BillingTab } from './BillingTab';
 import { LifetimeTab } from './LifetimeTab';
 import type { SubscriptionDerivedState } from './types';
 import '../../../styles/_subscription.scss';
+import { SessionLockedPage } from '../../../components/SessionLockedPage';
 
 const VALID_TABS = ['manage', 'billing', 'lifetime'] as const;
 type SubscriptionTab = (typeof VALID_TABS)[number];
@@ -57,6 +59,7 @@ interface IdentitySessionData {
 export function AccountSubscription() {
   const { t } = useTranslation();
   const { refreshSession, status: authStatus } = useAuth();
+  const { status: identityStatus } = useIdentity();
   const { apiBaseUrl } = useAppConfig();
   const { openExternal } = usePlatformCapabilities();
   const toast = useToast();
@@ -108,6 +111,15 @@ export function AccountSubscription() {
 
   const loadStatus = useCallback(
     async (opts?: { silent?: boolean }) => {
+      if (isIdentityRoute && identityStatus === 'locked') {
+        if (!opts?.silent) {
+          setLoading(false);
+          setIdentitySessionData(null);
+          setStatus(null);
+          setError(false);
+        }
+        return;
+      }
       if (!opts?.silent) {
         setLoading(true);
       }
@@ -166,13 +178,13 @@ export function AccountSubscription() {
         }
       }
     },
-    [api],
+    [api, isIdentityRoute, identityStatus],
   );
 
   useEffect(() => {
     if (authStatus === 'loading') return;
     loadStatus();
-  }, [loadStatus, authStatus]);
+  }, [loadStatus, authStatus, identityStatus]);
 
   useEffect(() => {
     if (identityMode) return;
@@ -248,6 +260,14 @@ export function AccountSubscription() {
   const statusLabel = status?.status
     ? t(`account.subscription.status.${status.status === 'past_due' ? 'pastDue' : status.status}`, { defaultValue: status.status })
     : null;
+
+  if (isIdentityRoute && identityStatus === 'locked') {
+    return (
+      <SessionLockedPage
+        titleI18nKey="account.subscription.title"
+      />
+    );
+  }
 
   if (loading) {
     return (

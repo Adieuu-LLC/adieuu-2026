@@ -43,6 +43,11 @@ export function registerMainProcessIpc(options: {
     },
   );
 
+  /** Terminate the application (all windows). Distinct from `window:close`, which closes one window. */
+  ipcMain.handle('app:quit', () => {
+    app.quit();
+  });
+
   ipcMain.handle('restart-app', () => {
     app.relaunch();
     app.exit(0);

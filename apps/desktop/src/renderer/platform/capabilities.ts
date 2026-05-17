@@ -216,6 +216,14 @@ export const desktopCapabilities: PlatformCapabilities = {
     },
   },
 
+  exitApplication: async () => {
+    await window.electron.appQuit();
+  },
+
+  wipeLocalSecureKeyFiles: async () => {
+    await window.electron.secureStorage.wipeAll();
+  },
+
   // --------------------------------------------------------------------------
   // Feature Flags
   // --------------------------------------------------------------------------

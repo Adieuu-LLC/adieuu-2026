@@ -31,6 +31,7 @@ import { AchievementGrid } from '../../components/AchievementGrid';
 import { Icon } from '../../icons/Icon';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useAppConfig } from '../../config';
+import { SessionLockedPage } from '../../components/SessionLockedPage';
 
 const BIO_MAX_LENGTH = 160;
 
@@ -48,7 +49,7 @@ type EditingField = 'displayName' | 'bio' | null;
 
 export function IdentityProfile() {
   const { t } = useTranslation();
-  const { identity, refreshIdentitySession } = useIdentity();
+  const { identity, refreshIdentitySession, status: identityStatus } = useIdentity();
   const { apiBaseUrl } = useAppConfig();
 
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
@@ -300,6 +301,10 @@ export function IdentityProfile() {
       profileColors: isVisible(privacy.profileColors) ? base.profileColors : {},
     };
   }, [displayName, bio, avatarUrl, bannerUrl, colors, privacy, previewMode, identity]);
+
+  if (identityStatus === 'locked') {
+    return <SessionLockedPage titleI18nKey="identity.profile.title" />;
+  }
 
   if (!identity) {
     return (

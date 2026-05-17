@@ -98,6 +98,17 @@
     }
   }
 
+  &-footer-unlock {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-xs);
+  }
+
+  &-panic-btn {
+    color: var(--color-error-text);
+  }
+
   &-creating {
     display: flex;
     align-items: center;

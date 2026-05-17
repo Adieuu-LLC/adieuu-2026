@@ -204,4 +204,13 @@ export function registerSecureStorageIpc(): void {
       };
     }
   );
+
+  ipcMain.handle('secure-storage:wipe-all', async (): Promise<void> => {
+    const dir = path.join(app.getPath('userData'), SECURE_KEYS_DIR);
+    try {
+      await fs.rm(dir, { recursive: true, force: true });
+    } catch (err) {
+      console.error('[SecureStorage] wipe-all failed', err);
+    }
+  });
 }

@@ -29,6 +29,7 @@ import { usePreKeys } from '../../hooks/usePreKeys';
 import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 import { useAppConfig } from '../../config';
 import { useToast } from '../../components/Toast';
+import { SessionLockedPage } from '../../components/SessionLockedPage';
 import type { SecurityLevel } from '../../services/preKeyService';
 
 // ============================================================================
@@ -508,6 +509,10 @@ export function IdentityPrivacy() {
     setUnblockingId(null);
     setConfirmUnblock(null);
   };
+
+  if (identityStatus === 'locked') {
+    return <SessionLockedPage titleI18nKey="identity.privacy.title" />;
+  }
 
   return (
     <div className="page-content">

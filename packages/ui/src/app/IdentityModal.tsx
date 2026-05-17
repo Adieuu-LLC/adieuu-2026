@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';
@@ -13,6 +13,10 @@ import { useAuth } from '../hooks/useAuth';
 import { WebDeviceChoiceModal } from '../components/WebDeviceChoiceModal';
 import { useAgeVerification } from '../hooks/useAgeVerification';
 import { stringArrayFromI18nReturn } from './identityModalUtils';
+import { createApiClient } from '@adieuu/shared';
+import { useAppConfig, usePlatformCapabilities } from '../config';
+import { ConfirmDialog } from '../components/ConfirmDialog';
+import { panicWipeLocalClientData } from '../services/panicWipeLocalClientData';
 
 interface IdentityModalProps {
   isOpen: boolean;
@@ -28,6 +32,9 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { info: toastInfo } = useToast();
+  const { apiBaseUrl } = useAppConfig();
+  const platformCapabilities = usePlatformCapabilities();
+  const panicApi = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const { createIdentity, loginToIdentity, unlockIdentity, logoutFromIdentity, hasIdentity, canCreateMore } = useIdentity();
   const { session } = useAuth();
 
@@ -132,6 +139,11 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
   const [passwordVisible, setPasswordVisible] = useState(false);
 
+  /** When true, `handleClose` may dismiss the unlock overlay (success paths only). */
+  const allowUnlockDismissRef = useRef(false);
+  const [panicConfirmOpen, setPanicConfirmOpen] = useState(false);
+  const [panicLoading, setPanicLoading] = useState(false);
+
   // Web device choice modal state
   const [webDeviceChoiceOpen, setWebDeviceChoiceOpen] = useState(false);
   const webDeviceChoiceResolver = useRef<((choice: WebDeviceChoice) => void) | null>(null);
@@ -165,6 +177,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     // Web device choice renders in a portal; clicks can still hit this overlay.
     // Never dismiss the identity shell until the user confirms that flow.
     if (webDeviceChoiceOpen) return;
+    if (view === 'unlock' && !allowUnlockDismissRef.current) return;
 
     av.cancel();
     setAvOptInMode(false);
@@ -172,6 +185,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
     resetForm();
     setView(unlockMode ? 'unlock' : hasIdentity && !canCreateMore ? 'login' : 'choose');
     onClose();
+    allowUnlockDismissRef.current = false;
   };
 
   const handleLogin = async () => {
@@ -245,6 +259,7 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
 
     if (result.success) {
       setSuccess(t('identity.unlock.success'));
+      allowUnlockDismissRef.current = true;
       setTimeout(() => {
         handleClose();
       }, 500);
@@ -256,11 +271,46 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   /** Must await server logout before closing; otherwise locked UI can reopen until the cookie clears. */
   const handleFullyLogout = async () => {
     setLoading(true);
+    allowUnlockDismissRef.current = true;
     try {
       await logoutFromIdentity();
       handleClose();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogoutAndExit = async () => {
+    setLoading(true);
+    allowUnlockDismissRef.current = true;
+    try {
+      await logoutFromIdentity();
+      if (platformCapabilities.exitApplication) {
+        await platformCapabilities.exitApplication();
+      }
+    } catch (err) {
+      console.error('[IdentityModal] logout and exit failed', err);
+    } finally {
+      setLoading(false);
+      handleClose();
+    }
+  };
+
+  const handlePanicConfirm = async () => {
+    setPanicLoading(true);
+    allowUnlockDismissRef.current = true;
+    try {
+      await panicApi.auth.logout().catch(() => {});
+      await panicWipeLocalClientData(platformCapabilities);
+      if (platformCapabilities.exitApplication) {
+        await platformCapabilities.exitApplication();
+      }
+    } catch (err) {
+      console.error('[IdentityModal] panic wipe failed', err);
+    } finally {
+      setPanicLoading(false);
+      setPanicConfirmOpen(false);
+      handleClose();
     }
   };
 
@@ -363,11 +413,16 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
+    <div
+      className="modal-overlay"
+      onClick={view === 'unlock' ? undefined : handleClose}
+    >
       <div className="modal-container identity-modal" onClick={(e) => e.stopPropagation()}>
-        <button className="modal-close" onClick={handleClose} aria-label="Close">
-          &times;
-        </button>
+        {view !== 'unlock' && (
+          <button type="button" className="modal-close" onClick={handleClose} aria-label={t('common.close', 'Close')}>
+            &times;
+          </button>
+        )}
 
         {view === 'choose' && (
           <div className="identity-modal-content">
@@ -507,14 +562,33 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
               </div>
             </form>
 
-            <div className="identity-modal-footer">
+            <div className="identity-modal-footer identity-modal-footer-unlock">
               <Button
                 variant="ghost"
                 size="sm"
-                disabled={loading}
+                disabled={loading || panicLoading}
                 onClick={() => void handleFullyLogout()}
               >
                 {loading ? <Spinner size="sm" /> : t('identity.unlock.logoutButton')}
+              </Button>
+              {platformCapabilities.exitApplication && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={loading || panicLoading}
+                  onClick={() => void handleLogoutAndExit()}
+                >
+                  {loading ? <Spinner size="sm" /> : t('identity.unlock.logoutAndExitButton')}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={loading || panicLoading}
+                className="identity-modal-panic-btn"
+                onClick={() => setPanicConfirmOpen(true)}
+              >
+                {t('identity.unlock.panicButton')}
               </Button>
             </div>
           </div>
@@ -941,6 +1015,19 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
       <WebDeviceChoiceModal
         open={webDeviceChoiceOpen}
         onChoice={onWebDeviceChoiceSelected}
+      />
+
+      <ConfirmDialog
+        open={panicConfirmOpen}
+        onOpenChange={setPanicConfirmOpen}
+        title={t('identity.unlock.panicConfirmTitle')}
+        description={t('identity.unlock.panicConfirmBody')}
+        confirmLabel={t('identity.unlock.panicConfirmAction')}
+        cancelLabel={t('common.cancel', 'Cancel')}
+        variant="danger"
+        loading={panicLoading}
+        closeOnInteractOutside={!panicLoading}
+        onConfirm={() => void handlePanicConfirm()}
       />
 
     </div>

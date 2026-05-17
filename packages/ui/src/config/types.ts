@@ -164,6 +164,15 @@ export interface PlatformCapabilities {
   webauthn?: WebAuthnBridge;
   /** Present on desktop — exposes window-level OS integrations. */
   appWindow?: AppWindowCapabilities;
+  /**
+   * Exit the host application process (desktop). Web may implement best-effort `window.close()`.
+   */
+  exitApplication?: () => Promise<void>;
+  /**
+   * Desktop only: delete persisted secure key material under the app user data directory.
+   * Optional; omitted on web (IndexedDB wipe covers browser storage).
+   */
+  wipeLocalSecureKeyFiles?: () => Promise<void>;
   features: PlatformFeatures;
 }
 
