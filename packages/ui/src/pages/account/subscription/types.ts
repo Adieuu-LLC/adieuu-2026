@@ -6,6 +6,8 @@ export interface SubscriptionDerivedState {
   isLifetime: boolean;
   hasVanguard: boolean;
   hasFounder: boolean;
+  /** Admin-granted / internal: subscription was gifted (no Stripe customer expected). */
+  hasGifted: boolean;
   hasPaidPlan: boolean;
 }
 
@@ -25,6 +27,14 @@ export interface PlansTabProps extends SubscriptionTabProps {
 export interface LifetimeTabProps extends SubscriptionTabProps {
   actionLoading: boolean;
   onCheckout: (product: PurchasableProductId) => void;
+}
+
+export interface BillingTabProps {
+  status: SubscriptionStatus | null;
+  derived: SubscriptionDerivedState;
+  identityMode: boolean;
+  actionLoading: boolean;
+  onManage: () => void | Promise<void>;
 }
 
 export interface ManageTabProps extends SubscriptionTabProps {

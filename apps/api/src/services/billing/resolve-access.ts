@@ -4,7 +4,7 @@
  *
  * Overrides live outside `UserBilling` so Stripe sync never clobbers them.
  * Subscription overrides support an optional expiry; entitlement overrides
- * are always lifetime.
+ * are always lifetime (e.g. `vanguard`, `founder`, `gifted`).
  *
  * PRIVACY: Account-level helpers accept `UserDocument`. Identity-level
  * helpers accept `IdentityDocument`. These types are never interchanged.

@@ -148,22 +148,117 @@
   gap: var(--spacing-md);
 }
 
-.subscription-manage-summary {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-  padding: var(--spacing-lg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-bg-secondary);
+.subscription-manage-summary.card {
+  position: relative;
+  overflow: hidden;
+  padding: var(--spacing-xl);
+  border-width: 1px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: color-mix(in srgb, var(--color-text-muted) 28%, var(--color-border));
+  }
+
+  &.subscription-manage-summary--has-plan {
+    border-color: color-mix(in srgb, var(--color-accent-primary) 38%, var(--color-border));
+    box-shadow:
+      var(--shadow-lg),
+      0 0 0 1px color-mix(in srgb, var(--color-accent-primary) 22%, transparent);
+
+    &::before {
+      background: var(--color-accent-primary);
+    }
+  }
+
+  &.subscription-manage-summary--tier-vanguard.subscription-manage-summary--has-plan {
+    border-color: color-mix(in srgb, var(--color-accent-secondary) 45%, var(--color-border));
+    box-shadow:
+      var(--shadow-lg),
+      0 0 24px color-mix(in srgb, var(--color-accent-secondary) 18%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--color-accent-secondary) 28%, transparent);
+
+    &::before {
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--color-accent-secondary) 65%, var(--color-accent-primary)),
+        var(--color-accent-primary)
+      );
+    }
+  }
+
+  &.subscription-manage-summary--tier-founder.subscription-manage-summary--has-plan {
+    border-color: color-mix(in srgb, var(--color-accent-primary) 52%, #ca8a04);
+    box-shadow:
+      var(--shadow-lg),
+      0 0 28px color-mix(in srgb, #eab308 16%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--color-accent-primary) 35%, #eab308);
+
+    &::before {
+      height: 5px;
+      background: linear-gradient(
+        90deg,
+        #ca8a04,
+        var(--color-accent-primary),
+        var(--color-accent-secondary)
+      );
+    }
+  }
+
+  &.subscription-manage-summary--is-gifted.subscription-manage-summary--has-plan {
+    background: linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--color-success) 9%, var(--color-bg-elevated)),
+      var(--color-bg-elevated)
+    );
+  }
 }
 
 .subscription-manage-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-md);
   flex-wrap: wrap;
+}
+
+.subscription-manage-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+.subscription-manage-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  align-items: flex-start;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.subscription-manage-eyebrow {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.subscription-manage-plan-badge {
+  padding: var(--spacing-xs) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--color-accent-primary) 25%, transparent);
 }
 
 .subscription-manage-tier-name {
@@ -171,12 +266,120 @@
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   margin: 0;
+  line-height: 1.25;
 }
 
 .subscription-manage-description {
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
   margin: 0;
+  line-height: 1.55;
+}
+
+.subscription-gifted-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-success) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-success) 10%, var(--color-bg-secondary));
+}
+
+.subscription-gifted-callout-icon-wrap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-success) 18%, transparent);
+  color: var(--color-success);
+}
+
+.subscription-gifted-callout-text {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  line-height: 1.5;
+}
+
+.subscription-supporter-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--color-accent-primary) 28%, var(--color-border));
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--color-accent-primary) 12%, var(--color-bg-secondary)),
+    color-mix(in srgb, var(--color-accent-primary) 5%, var(--color-bg-secondary))
+  );
+}
+
+.subscription-supporter-callout--founder {
+  border-color: color-mix(in srgb, #eab308 40%, var(--color-accent-primary));
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, #eab308 14%, var(--color-bg-secondary)),
+    color-mix(in srgb, var(--color-accent-primary) 10%, var(--color-bg-secondary))
+  );
+}
+
+.subscription-supporter-callout--vanguard {
+  border-color: color-mix(in srgb, var(--color-accent-secondary) 38%, var(--color-border));
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--color-accent-secondary) 14%, var(--color-bg-secondary)),
+    color-mix(in srgb, var(--color-accent-primary) 8%, var(--color-bg-secondary))
+  );
+}
+
+.subscription-supporter-callout-icon-wrap {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-accent-primary) 16%, transparent);
+  color: var(--color-accent-primary);
+}
+
+.subscription-supporter-callout--founder .subscription-supporter-callout-icon-wrap {
+  background: color-mix(in srgb, #eab308 22%, transparent);
+  color: color-mix(in srgb, #a16207 35%, var(--color-accent-primary));
+}
+
+.subscription-supporter-callout--vanguard .subscription-supporter-callout-icon-wrap {
+  background: color-mix(in srgb, var(--color-accent-secondary) 20%, transparent);
+  color: var(--color-accent-secondary);
+}
+
+.subscription-supporter-callout-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  min-width: 0;
+}
+
+.subscription-supporter-callout-title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  line-height: 1.35;
+}
+
+.subscription-supporter-callout-sub {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
 }
 
 .subscription-manage-actions {
@@ -185,9 +388,21 @@
   gap: var(--spacing-sm);
 }
 
+.subscription-manage .subscription-manage-summary.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
 .subscription-manage-portal-hint {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
+  margin: 0;
+}
+
+.subscription-manage-stripe-intro {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
   margin: 0;
 }
 
@@ -197,19 +412,56 @@
   margin: 0;
 }
 
-.subscription-entitlement-info {
-  font-size: var(--font-size-sm);
-  color: var(--color-accent-primary);
-  font-weight: var(--font-weight-medium);
-  margin: 0;
-}
-
 // ============================================================================
 // Identity Banner
 // ============================================================================
 
 .subscription-identity-banner {
   margin-bottom: var(--spacing-sm);
+}
+
+// ============================================================================
+// Billing tab
+// ============================================================================
+
+.subscription-billing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.subscription-billing-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+}
+
+.subscription-billing-heading {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.subscription-billing-body {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+}
+
+.subscription-billing-portal-btn {
+  align-self: flex-start;
+}
+
+.subscription-billing-no-customer {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
 }
 
 // ============================================================================

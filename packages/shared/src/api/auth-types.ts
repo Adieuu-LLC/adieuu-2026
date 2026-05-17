@@ -76,7 +76,7 @@ export interface SessionInfo {
   geo?: SessionGeoInfo;
   /** Active subscription tier ids (both account and identity mode). */
   subscriptions?: SubscriptionTierId[];
-  /** Reserved feature entitlements (always [] for now). */
+  /** Feature entitlements (e.g. `vanguard`, `founder`, `gifted`). */
   entitlements?: string[];
   /** Account-level age verification status (account mode only). */
   ageVerification?: SessionAgeVerification;

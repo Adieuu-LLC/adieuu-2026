@@ -16,11 +16,12 @@ import { useAppConfig, usePlatformCapabilities } from '../../../config';
 import { useCheckoutPolling, type UseCheckoutPollingRun } from '../../../hooks/useCheckoutPolling';
 import { openCheckoutOrPortalUrl } from '../../../utils/open-checkout-url';
 import { ManageTab } from './ManageTab';
+import { BillingTab } from './BillingTab';
 import { LifetimeTab } from './LifetimeTab';
 import type { SubscriptionDerivedState } from './types';
 import '../../../styles/_subscription.scss';
 
-const VALID_TABS = ['manage', 'lifetime'] as const;
+const VALID_TABS = ['manage', 'billing', 'lifetime'] as const;
 type SubscriptionTab = (typeof VALID_TABS)[number];
 
 function deriveState(status: SubscriptionStatus | null): SubscriptionDerivedState {
@@ -29,8 +30,9 @@ function deriveState(status: SubscriptionStatus | null): SubscriptionDerivedStat
   const isLifetime = status?.isLifetime ?? false;
   const hasVanguard = status?.entitlements?.includes('vanguard') ?? false;
   const hasFounder = status?.entitlements?.includes('founder') ?? false;
+  const hasGifted = status?.entitlements?.includes('gifted') ?? false;
   const hasPaidPlan = hasAccess || hasInsider;
-  return { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder, hasPaidPlan };
+  return { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder, hasGifted, hasPaidPlan };
 }
 
 function deriveFromSession(
@@ -41,9 +43,10 @@ function deriveFromSession(
   const hasInsider = subscriptions.includes('insider');
   const hasVanguard = entitlements.includes('vanguard');
   const hasFounder = entitlements.includes('founder');
+  const hasGifted = entitlements.includes('gifted');
   const hasPaidPlan = hasAccess || hasInsider;
   const isLifetime = (hasVanguard || hasFounder) && hasInsider;
-  return { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder, hasPaidPlan };
+  return { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder, hasGifted, hasPaidPlan };
 }
 
 interface IdentitySessionData {
@@ -278,6 +281,9 @@ export function AccountSubscription() {
           <TabTrigger value="manage">
             {t('account.subscription.tabs.manage')}
           </TabTrigger>
+          <TabTrigger value="billing">
+            {t('account.subscription.tabs.billing')}
+          </TabTrigger>
           <TabTrigger value="lifetime">
             {t('account.subscription.tabs.lifetime')}
           </TabTrigger>
@@ -294,6 +300,16 @@ export function AccountSubscription() {
             pollPending={!!pollRun && phase === 'pending'}
             onCancelPoll={cancel}
             onCheckout={handleCheckout}
+          />
+        </TabContent>
+
+        <TabContent value="billing">
+          <BillingTab
+            status={status}
+            derived={derived}
+            identityMode={identityMode}
+            actionLoading={actionLoading}
+            onManage={handleManage}
           />
         </TabContent>
 

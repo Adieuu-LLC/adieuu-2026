@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SegmentGroup } from '@ark-ui/react';
 import { Card } from '../../../components/Card';
@@ -6,6 +6,7 @@ import { Button } from '../../../components/Button';
 import { Spinner } from '../../../components/Spinner';
 import { Alert } from '../../../components/Alert';
 import { CheckoutPendingBanner } from '../../../components/CheckoutPendingBanner';
+import { Icon } from '../../../icons/Icon';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 import type { ManageTabProps } from './types';
 import { formatDate } from './types';
@@ -26,7 +27,7 @@ export function ManageTab({
   onCheckout,
 }: ManageTabProps) {
   const { t } = useTranslation();
-  const { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder, hasPaidPlan } = derived;
+  const { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder, hasGifted, hasPaidPlan } = derived;
   const isMobile = useIsMobile();
   const [plansLayout, setPlansLayout] = useState<'cards' | 'comparison'>(() =>
     isMobile ? 'cards' : 'comparison',
@@ -48,6 +49,20 @@ export function ManageTab({
     onManage,
   };
 
+  const summaryCardClassName = useMemo(
+    () =>
+      [
+        'subscription-manage-summary',
+        hasPaidPlan && 'subscription-manage-summary--has-plan',
+        hasFounder && 'subscription-manage-summary--tier-founder',
+        hasVanguard && !hasFounder && 'subscription-manage-summary--tier-vanguard',
+        hasGifted && hasPaidPlan && 'subscription-manage-summary--is-gifted',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    [hasPaidPlan, hasFounder, hasVanguard, hasGifted],
+  );
+
   return (
     <div className="subscription-manage">
       {identityMode && (
@@ -60,41 +75,73 @@ export function ManageTab({
         <CheckoutPendingBanner onCancel={onCancelPoll} />
       )}
 
-      <Card className="subscription-manage-summary">
+      <Card className={summaryCardClassName} variant="elevated">
         <div className="subscription-manage-header">
-          <h2 className="subscription-manage-tier-name">
-            {t(`account.subscription.tiers.${currentTierKey}.name`)}
-          </h2>
-          {hasPaidPlan && statusLabel && (
-            <span className="subscription-tier-badge">
-              {t('account.subscription.currentPlan')}
-              {isLifetime && (
-                <span className="subscription-status-label">
-                  {t('account.subscription.lifetime')}
-                </span>
-              )}
-              {!isLifetime && (
-                <span className="subscription-status-label">{statusLabel}</span>
-              )}
-            </span>
-          )}
-          {!hasPaidPlan && (
-            <span className="subscription-tier-badge">
-              {t('account.subscription.currentPlan')}
-            </span>
-          )}
+          <div className="subscription-manage-title-block">
+            <p className="subscription-manage-eyebrow">
+              {t('account.subscription.manage.currentPlanLabel')}
+            </p>
+            <h2 className="subscription-manage-tier-name">
+              {t(`account.subscription.tiers.${currentTierKey}.name`)}
+            </h2>
+          </div>
+          <div className="subscription-manage-badges">
+            {hasPaidPlan && (
+              <span className="subscription-tier-badge subscription-manage-plan-badge">
+                {t('account.subscription.currentPlan')}
+                {isLifetime && (
+                  <span className="subscription-status-label">
+                    {t('account.subscription.lifetime')}
+                  </span>
+                )}
+                {!isLifetime && statusLabel && (
+                  <span className="subscription-status-label">{statusLabel}</span>
+                )}
+              </span>
+            )}
+            {!hasPaidPlan && (
+              <span className="subscription-tier-badge subscription-manage-plan-badge">
+                {t('account.subscription.currentPlan')}
+              </span>
+            )}
+          </div>
         </div>
 
         <p className="subscription-manage-description">
           {t(`account.subscription.tiers.${currentTierKey}.description`)}
         </p>
 
+        {hasGifted && hasPaidPlan && (
+          <div className="subscription-gifted-callout">
+            <span className="subscription-gifted-callout-icon-wrap" aria-hidden>
+              <Icon name="star" size="lg" />
+            </span>
+            <p className="subscription-gifted-callout-text">
+              {t('account.subscription.manage.giftedSubscription')}
+            </p>
+          </div>
+        )}
+
         {(hasVanguard || hasFounder) && (
-          <p className="subscription-entitlement-info">
-            {hasFounder
-              ? t('account.subscription.entitlements.founder')
-              : t('account.subscription.entitlements.vanguard')}
-          </p>
+          <div
+            className={`subscription-supporter-callout ${hasFounder ? 'subscription-supporter-callout--founder' : 'subscription-supporter-callout--vanguard'}`}
+          >
+            <span className="subscription-supporter-callout-icon-wrap" aria-hidden>
+              <Icon name="trophy" size="lg" />
+            </span>
+            <div className="subscription-supporter-callout-text">
+              <p className="subscription-supporter-callout-title">
+                {hasFounder
+                  ? t('account.subscription.entitlements.founder')
+                  : t('account.subscription.entitlements.vanguard')}
+              </p>
+              <p className="subscription-supporter-callout-sub">
+                {hasFounder
+                  ? t('account.subscription.entitlements.founderCelebrate')
+                  : t('account.subscription.entitlements.vanguardCelebrate')}
+              </p>
+            </div>
+          </div>
         )}
 
         {!identityMode && !isLifetime && status?.currentPeriodEnd && (
@@ -109,16 +156,20 @@ export function ManageTab({
 
         {!identityMode && status?.hasStripeCustomer && (
           <div className="subscription-manage-actions">
+            <p className="subscription-manage-stripe-intro">
+              {t('account.subscription.manage.stripeBillingIntro')}
+            </p>
             <p className="subscription-manage-portal-hint">
               {t('account.subscription.manage.billingPortal')}
             </p>
             <Button
-              onClick={onManage}
+              type="button"
+              onClick={() => void onManage()}
               disabled={actionLoading}
               variant="secondary"
               className="subscription-manage-btn"
             >
-              {actionLoading ? <Spinner size="sm" /> : t('account.subscription.manageBilling')}
+              {actionLoading ? <Spinner size="sm" /> : t('account.subscription.billing.openStripe')}
             </Button>
           </div>
         )}

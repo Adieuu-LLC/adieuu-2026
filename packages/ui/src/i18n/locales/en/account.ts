@@ -367,14 +367,33 @@ export const account = {
       // Tab labels
       tabs: {
         manage: 'Manage',
+        billing: 'Billing',
         lifetime: 'Lifetime',
+      },
+
+      // Dedicated Billing tab (Stripe Customer Portal)
+      billing: {
+        heading: 'Billing & payments',
+        stripeManaged:
+          'Your subscription billing is handled securely by Stripe. Open the Stripe Customer Portal to update payment methods, view invoices and receipts, and manage renewal settings for plans billed through Stripe.',
+        giftedBody:
+          'Your access was gifted. There is no Stripe billing profile for this plan—you will not be charged. If you later subscribe or add a payment method through Stripe, billing will appear here.',
+        openStripe: 'Open Stripe billing portal',
+        noCustomer:
+          'You do not have a Stripe billing profile yet. When you subscribe to a paid plan, you can manage cards and invoices here.',
       },
 
       // Manage tab
       manage: {
         currentTier: 'Your current plan',
+        currentPlanLabel: 'Your current plan',
         noPlan: 'You are on the Free plan.',
-        billingPortal: 'Manage billing and invoices on Stripe.',
+        stripeBillingIntro:
+          'Payments and invoices for your subscription are processed through Stripe.',
+        giftedSubscription:
+          'You were gifted your subscription and will not be billed for it.',
+        billingPortal:
+          'Use the button below to open Stripe and manage your billing details.',
         viewCards: 'Cards',
         viewComparison: 'Compare',
         manualChangeLead:
@@ -420,6 +439,8 @@ export const account = {
       entitlements: {
         vanguard: 'Vanguard supporter',
         founder: 'Founding supporter',
+        vanguardCelebrate: 'Thank you for backing Adieuu early — supporters like you help us build something better.',
+        founderCelebrate: 'Thank you for believing in Adieuu from the beginning. Founding supporters mean the world to us.',
       },
 
       // Feature comparison
