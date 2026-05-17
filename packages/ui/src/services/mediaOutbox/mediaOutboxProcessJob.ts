@@ -6,6 +6,7 @@ import { getOrCreateDeviceId } from '../deviceInfo';
 import { stripExifMetadata } from '../../utils/imageProcessing';
 import { withTimeout } from '../../utils/withTimeout';
 import {
+  isVisualMediaFile,
   prepareConversationMediaFileForUpload,
   uploadE2EMediaOnly,
   uploadModerationScanCopy,
@@ -92,25 +93,31 @@ async function runE2eForAttachments(
     throwIfAborted(abortSignal);
     const att = job.attachmentBlobs[i]!;
     const rawFile = new File([att.blob], att.name, { type: att.type });
+    const isVisual = isVisualMediaFile(rawFile);
 
-    const preparedMedia = await withTimeout(
-      prepareConversationMediaFileForUpload(rawFile, {
-        signal: abortSignal,
-        sendMp4WithoutReencode: job.sendMp4WithoutReencode === true,
-      }),
-      MEDIA_OUTBOX_PREPARE_TIMEOUT_MS,
-      t(
-        'conversations.mediaPrepareTimeout',
-        'Video processing took too long. Check your connection or try a smaller file.',
-      )
-    );
+    let fileToEncrypt: File;
+    if (isVisual) {
+      const preparedMedia = await withTimeout(
+        prepareConversationMediaFileForUpload(rawFile, {
+          signal: abortSignal,
+          sendMp4WithoutReencode: job.sendMp4WithoutReencode === true,
+        }),
+        MEDIA_OUTBOX_PREPARE_TIMEOUT_MS,
+        t(
+          'conversations.mediaPrepareTimeout',
+          'Video processing took too long. Check your connection or try a smaller file.',
+        )
+      );
 
-    let fileToEncrypt: File = preparedMedia;
-    if (job.stripExif && preparedMedia.type.startsWith('image/')) {
-      const stripped = await stripExifMetadata(preparedMedia);
-      fileToEncrypt = new File([stripped], preparedMedia.name, {
-        type: stripped.type || preparedMedia.type,
-      });
+      fileToEncrypt = preparedMedia;
+      if (job.stripExif && preparedMedia.type.startsWith('image/')) {
+        const stripped = await stripExifMetadata(preparedMedia);
+        fileToEncrypt = new File([stripped], preparedMedia.name, {
+          type: stripped.type || preparedMedia.type,
+        });
+      }
+    } else {
+      fileToEncrypt = rawFile;
     }
 
     const fileBytes = new Uint8Array(await fileToEncrypt.arrayBuffer());
@@ -123,7 +130,7 @@ async function runE2eForAttachments(
         stripExif: job.stripExif && fileToEncrypt.type.startsWith('image/'),
         signal: abortSignal,
         alreadyPrepared: true,
-        skipModeration: job.moderationEnabled === false,
+        skipModeration: job.moderationEnabled === false || !isVisual,
       }),
       MEDIA_OUTBOX_ATTACHMENT_PIPELINE_TIMEOUT_MS,
       t(
@@ -145,7 +152,7 @@ async function runE2eForAttachments(
       exifPreserved: result.exifPreserved,
       encryptionKey: toBase64(mediaKey),
       encryptionNonce: toBase64(nonce),
-      moderationScan: toPersistedScan(moderationScan),
+      ...(moderationScan ? { moderationScan: toPersistedScan(moderationScan) } : {}),
     });
     throwIfAborted(abortSignal);
   }
@@ -211,6 +218,7 @@ async function runScanUploads(job: MediaOutboxJobRecord, deps: MediaOutboxProces
   if (!snap?.length) return;
 
   for (const item of snap) {
+    if (!item.moderationScan) continue;
     throwIfAborted(abortSignal);
     try {
       await uploadModerationScanCopy(api, item.scanHash, toModerationScanPayload(item.moderationScan), {

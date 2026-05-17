@@ -17,13 +17,14 @@ export interface MediaOutboxE2eSnapshotItem {
   scanHash: string;
   contentType: string;
   fileName?: string;
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
   sizeBytes: number;
   exifPreserved: boolean;
   encryptionKey: string;
   encryptionNonce: string;
-  moderationScan: MediaOutboxPersistedScanPart | MediaOutboxPersistedScanPart[];
+  /** Absent for non-visual file attachments (no scan copy needed). */
+  moderationScan?: MediaOutboxPersistedScanPart | MediaOutboxPersistedScanPart[];
 }
 
 export type MediaOutboxStage =

@@ -348,6 +348,71 @@ describe('gifPayload', () => {
   });
 });
 
+describe('file attachment (non-visual) payloads', () => {
+  test('round-trip for file attachment without width/height', () => {
+    const original: MessagePayload = {
+      version: 1,
+      text: 'Here is the document',
+      attachments: [
+        {
+          e2eMediaId: 'media-pdf-1',
+          scanHash: 'hash-pdf',
+          contentType: 'application/pdf',
+          fileName: 'report.pdf',
+          sizeBytes: 1024000,
+          exifPreserved: false,
+          encryptionKey: 'key-pdf',
+          encryptionNonce: 'nonce-pdf',
+        },
+      ],
+    };
+    const serialised = serializePayload(original);
+    const parsed = parsePayload(serialised);
+    expect(parsed.attachments).toHaveLength(1);
+    expect(parsed.attachments[0]!.contentType).toBe('application/pdf');
+    expect(parsed.attachments[0]!.fileName).toBe('report.pdf');
+    expect(parsed.attachments[0]!.width).toBeUndefined();
+    expect(parsed.attachments[0]!.height).toBeUndefined();
+    expect(parsed.attachments[0]!.sizeBytes).toBe(1024000);
+  });
+
+  test('mixed visual and file attachments round-trip', () => {
+    const original: MessagePayload = {
+      version: 1,
+      text: 'Photos and docs',
+      attachments: [
+        {
+          e2eMediaId: 'media-img',
+          scanHash: 'hash-img',
+          contentType: 'image/jpeg',
+          width: 1920,
+          height: 1080,
+          exifPreserved: true,
+          encryptionKey: 'k1',
+          encryptionNonce: 'n1',
+        },
+        {
+          e2eMediaId: 'media-zip',
+          scanHash: 'hash-zip',
+          contentType: 'application/zip',
+          fileName: 'archive.zip',
+          sizeBytes: 5000000,
+          exifPreserved: false,
+          encryptionKey: 'k2',
+          encryptionNonce: 'n2',
+        },
+      ],
+    };
+    const serialised = serializePayload(original);
+    const parsed = parsePayload(serialised);
+    expect(parsed.attachments).toHaveLength(2);
+    expect(parsed.attachments[0]!.contentType).toBe('image/jpeg');
+    expect(parsed.attachments[0]!.width).toBe(1920);
+    expect(parsed.attachments[1]!.contentType).toBe('application/zip');
+    expect(parsed.attachments[1]!.width).toBeUndefined();
+  });
+});
+
 describe('isValidGifAttachment', () => {
   test('accepts valid GifAttachment', () => {
     expect(isValidGifAttachment({

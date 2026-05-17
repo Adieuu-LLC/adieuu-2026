@@ -51,13 +51,19 @@ export const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'i
 /** Video types accepted for E2E conversation uploads (frame is scanned as JPEG). */
 export const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'] as const;
 
-export function isAcceptedConversationMediaType(mime: string): boolean {
+/** Returns true for known visual media types that get image/video treatment. */
+export function isVisualMediaMimeType(mime: string): boolean {
   return (ACCEPTED_IMAGE_TYPES as readonly string[]).includes(mime) ||
     (ACCEPTED_VIDEO_TYPES as readonly string[]).includes(mime);
 }
 
+/** All file types are accepted for conversation attachments. */
+export function isAcceptedConversationMediaType(_mime: string): boolean {
+  return true;
+}
+
 export const MAX_ATTACHMENTS = 10;
-export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+export const MAX_ATTACHMENT_BYTES = 1_337_000_000; // 1.337 GB
 
 export const PLACEHOLDER_VERB_KEYS = [
   'message',

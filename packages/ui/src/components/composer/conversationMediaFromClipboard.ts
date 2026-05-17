@@ -1,5 +1,6 @@
 import {
   isAcceptedConversationMediaType,
+  isVisualMediaMimeType,
   MAX_ATTACHMENT_BYTES,
   ACCEPTED_VIDEO_TYPES,
 } from './composerTypes';
@@ -77,7 +78,8 @@ export async function resolveConversationMediaFile(raw: File): Promise<{
   }
 
   const mime = normalizeMimeType(raw.type);
-  if (isAcceptedConversationMediaType(mime)) {
+
+  if (isVisualMediaMimeType(mime)) {
     const named =
       raw.name && raw.name !== 'image.png' && raw.name !== 'blob'
         ? raw
@@ -85,19 +87,31 @@ export async function resolveConversationMediaFile(raw: File): Promise<{
     return { file: named, oversized: false };
   }
 
+  if (mime && isAcceptedConversationMediaType(mime)) {
+    const named =
+      raw.name && raw.name !== 'image.png' && raw.name !== 'blob'
+        ? raw
+        : new File([raw], defaultNameForPaste(mime || 'application/octet-stream'), { type: mime || 'application/octet-stream' });
+    return { file: named, oversized: false };
+  }
+
   const n = Math.min(raw.size, SNIFF_PREFIX_BYTES);
   const buf = await raw.slice(0, n).arrayBuffer();
   const sniffed = sniffConversationMediaMime(new Uint8Array(buf));
-  if (!sniffed || !isAcceptedConversationMediaType(sniffed)) {
-    return null;
+  if (sniffed && isVisualMediaMimeType(sniffed)) {
+    const named = new File(
+      [raw],
+      raw.name && raw.name !== 'image.png' && raw.name !== 'blob' ? raw.name : defaultNameForPaste(sniffed),
+      { type: sniffed },
+    );
+    return { file: named, oversized: false };
   }
 
-  const named = new File(
-    [raw],
-    raw.name && raw.name !== 'image.png' && raw.name !== 'blob' ? raw.name : defaultNameForPaste(sniffed),
-    { type: sniffed },
-  );
-  return { file: named, oversized: false };
+  const finalFile =
+    raw.name && raw.name !== 'image.png' && raw.name !== 'blob'
+      ? raw
+      : new File([raw], defaultNameForPaste(raw.type || 'application/octet-stream'), { type: raw.type || 'application/octet-stream' });
+  return { file: finalFile, oversized: false };
 }
 
 export type GatherConversationMediaResult = {

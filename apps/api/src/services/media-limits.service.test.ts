@@ -49,14 +49,14 @@ describe('resolveMaxUploadBytes', () => {
     expect(resolveMaxUploadBytes('conv_media', ['access'])).toBe(BASE_CONV);
   });
 
-  // --- Insider subscribers (doubled for scalable purposes) ---
+  // --- Insider subscribers (explicit overrides for scalable purposes) ---
 
-  test('insider subscriber gets doubled limit for dm_attachment', () => {
-    expect(resolveMaxUploadBytes('dm_attachment', ['insider'])).toBe(BASE_DM * 2);
+  test('insider subscriber gets 4.20 GB limit for dm_attachment', () => {
+    expect(resolveMaxUploadBytes('dm_attachment', ['insider'])).toBe(4_200_000_000);
   });
 
-  test('insider subscriber gets doubled limit for conv_media', () => {
-    expect(resolveMaxUploadBytes('conv_media', ['insider'])).toBe(BASE_CONV * 2);
+  test('insider subscriber gets 4.20 GB limit for conv_media', () => {
+    expect(resolveMaxUploadBytes('conv_media', ['insider'])).toBe(4_200_000_000);
   });
 
   test('insider subscriber gets base limit for avatar (not scalable)', () => {
@@ -77,8 +77,8 @@ describe('resolveMaxUploadBytes', () => {
 
   // --- Both tiers ---
 
-  test('user with both access and insider gets insider multiplier', () => {
-    expect(resolveMaxUploadBytes('dm_attachment', ['access', 'insider'])).toBe(BASE_DM * 2);
+  test('user with both access and insider gets insider override', () => {
+    expect(resolveMaxUploadBytes('dm_attachment', ['access', 'insider'])).toBe(4_200_000_000);
   });
 });
 

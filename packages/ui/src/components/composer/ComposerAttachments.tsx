@@ -3,6 +3,7 @@ import { Checkbox } from '@ark-ui/react';
 import { InfoTip } from '../InfoTip';
 import { Icon } from '../../icons/Icon';
 import type { PendingAttachment } from './composerTypes';
+import { isVisualMediaContentType, formatFileSize, truncateFileName, fileAttachmentIconName } from '../../utils/fileAttachmentUtils';
 
 export function ComposerAttachments({
   attachments,
@@ -40,7 +41,38 @@ export function ComposerAttachments({
   return (
     <div className="conversation-composer-attachments">
       <div className="conversation-composer-attachments-thumbs">
-        {attachments.map((att, idx) => (
+        {attachments.map((att, idx) => {
+          const isVisual = isVisualMediaContentType(att.file.type);
+
+          if (!isVisual) {
+            return (
+              <div key={att.previewUrl || att.file.name} className={`conversation-composer-attachment conversation-composer-attachment--file conversation-composer-attachment--${att.uploadStatus}`}>
+                <div className="conversation-composer-attachment-file-info">
+                  <Icon name={fileAttachmentIconName(att.file.type)} className="conversation-composer-attachment-file-icon" />
+                  <div className="conversation-composer-attachment-file-meta">
+                    <span className="conversation-composer-attachment-file-name" title={att.file.name}>
+                      {truncateFileName(att.file.name)}
+                    </span>
+                    <span className="conversation-composer-attachment-file-size">
+                      {formatFileSize(att.file.size)}
+                    </span>
+                  </div>
+                </div>
+                {(att.uploadStatus === 'pending' || att.uploadStatus === 'error') && (
+                  <button
+                    type="button"
+                    className="conversation-composer-attachment-remove"
+                    onClick={() => onRemove(idx)}
+                    aria-label={t('conversations.removeAttachment', 'Remove attachment')}
+                  >
+                    <Icon name="x" />
+                  </button>
+                )}
+              </div>
+            );
+          }
+
+          return (
           <div key={att.previewUrl} className={`conversation-composer-attachment conversation-composer-attachment--${att.uploadStatus}`}>
             {att.file.type.startsWith('video/') ? (
               <video
@@ -95,7 +127,8 @@ export function ComposerAttachments({
               </button>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
       {showExifToggle && (
       <div className="conversation-composer-exif-row">

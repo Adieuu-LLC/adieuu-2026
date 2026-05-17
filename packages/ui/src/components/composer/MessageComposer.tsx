@@ -27,8 +27,6 @@ import type {
   TrackedMention,
 } from './composerTypes';
 import {
-  ACCEPTED_IMAGE_TYPES,
-  ACCEPTED_VIDEO_TYPES,
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_BYTES,
   PLACEHOLDER_VERB_KEYS,
@@ -1018,7 +1016,6 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         <input
           ref={fileInputRef}
           type="file"
-          accept={[...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES].join(',')}
           multiple
           onChange={handleFileSelect}
           style={{ display: 'none' }}

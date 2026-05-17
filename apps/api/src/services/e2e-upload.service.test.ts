@@ -21,6 +21,7 @@ const countConvScanNonTerminalMock = mock(() => Promise.resolve(0)) as AnyMock;
 const mediaFindManyMock = mock(() => Promise.resolve([])) as AnyMock;
 const mediaDeleteManyConvScanMock = mock(() => Promise.resolve(0)) as AnyMock;
 const countOpenAutomatedByScanHashMock = mock(() => Promise.resolve(0)) as AnyMock;
+const setModerationStatusByMediaIdMock = mock(() => Promise.resolve(undefined)) as AnyMock;
 const s3SendMock = mock(() => Promise.resolve({})) as AnyMock;
 
 mock.module('@aws-sdk/client-s3', () => ({
@@ -52,6 +53,8 @@ mock.module('../repositories/e2e-media.repository', () => ({
     findByE2EMediaId: findByE2EMediaIdMock,
     findByE2EMediaIdAndIdentity: findByE2EMediaIdAndIdentityMock,
     deleteByE2EMediaId: deleteByE2EMediaIdMock,
+    updateStatus: updateStatusMock,
+    setModerationStatusByMediaId: setModerationStatusByMediaIdMock,
   }),
 }));
 
@@ -103,6 +106,7 @@ mock.module('../config', () => ({
 
 import {
   abandonE2EUpload,
+  completeE2EUpload,
   completeScanUpload,
   requestE2EUpload,
   requestScanUpload,
@@ -132,6 +136,7 @@ describe('e2e-upload.service', () => {
     mediaFindManyMock.mockReset();
     mediaDeleteManyConvScanMock.mockReset();
     countOpenAutomatedByScanHashMock.mockReset();
+    setModerationStatusByMediaIdMock.mockReset();
     s3SendMock.mockReset();
     createE2EMediaMock.mockImplementation(() => Promise.resolve(undefined));
     countRecentByIdentityMock.mockImplementation(() => Promise.resolve(0));
@@ -154,6 +159,7 @@ describe('e2e-upload.service', () => {
     mediaFindManyMock.mockImplementation(() => Promise.resolve([]));
     mediaDeleteManyConvScanMock.mockImplementation(() => Promise.resolve(0));
     countOpenAutomatedByScanHashMock.mockImplementation(() => Promise.resolve(0));
+    setModerationStatusByMediaIdMock.mockImplementation(() => Promise.resolve(undefined));
     s3SendMock.mockImplementation(() =>
       Promise.resolve({
         Contents: [],
@@ -162,7 +168,7 @@ describe('e2e-upload.service', () => {
     );
   });
 
-  test('requestE2EUpload rejects unsupported content type', async () => {
+  test('requestE2EUpload accepts arbitrary content types (e.g. PDF)', async () => {
     const result = await requestE2EUpload({
       identityId: '507f1f77bcf86cd799439011',
       contentType: 'application/pdf',
@@ -170,9 +176,9 @@ describe('e2e-upload.service', () => {
       stripExif: true,
       maxVideoDurationSeconds: 300,
     });
-    expect(result.success).toBe(false);
-    expect(result.errorCode).toBe('INVALID_CONTENT_TYPE');
-    expect(createE2EMediaMock).not.toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(result.e2eMediaId).toBeTruthy();
+    expect(createE2EMediaMock).toHaveBeenCalledTimes(1);
   });
 
   test('requestE2EUpload persists derived scan hash bound to identity + media', async () => {
@@ -574,6 +580,72 @@ describe('e2e-upload.service', () => {
     expect(result.success).toBe(false);
     expect(result.errorCode).toBe('INVALID_PARTS');
     expect(s3SendMock).not.toHaveBeenCalled();
+  });
+
+  test('completeE2EUpload sets status to available and moderation to skipped for non-visual files', async () => {
+    const identityId = '507f1f77bcf86cd799439011';
+    const e2eMediaId = 'e2e-pdf-1';
+    findByE2EMediaIdAndIdentityMock.mockImplementation(() =>
+      Promise.resolve({
+        e2eMediaId,
+        identityId: new ObjectId(identityId),
+        status: 'pending',
+        contentType: 'application/pdf',
+      })
+    );
+
+    const result = await completeE2EUpload(e2eMediaId, identityId);
+    expect(result.success).toBe(true);
+    expect(updateStatusMock).toHaveBeenCalledWith(e2eMediaId, 'available');
+    expect(setModerationStatusByMediaIdMock).toHaveBeenCalledWith(e2eMediaId, 'skipped');
+  });
+
+  test('completeE2EUpload gates visual media for moderation scan', async () => {
+    const identityId = '507f1f77bcf86cd799439011';
+    const e2eMediaId = 'e2e-img-1';
+    findByE2EMediaIdAndIdentityMock.mockImplementation(() =>
+      Promise.resolve({
+        e2eMediaId,
+        identityId: new ObjectId(identityId),
+        status: 'pending',
+        contentType: 'image/jpeg',
+      })
+    );
+
+    const result = await completeE2EUpload(e2eMediaId, identityId);
+    expect(result.success).toBe(true);
+    expect(updateStatusMock).toHaveBeenCalledWith(e2eMediaId, 'gated');
+    expect(setModerationStatusByMediaIdMock).not.toHaveBeenCalled();
+  });
+
+  test('completeE2EUpload skips moderation for non-visual even without explicit skipModeration flag', async () => {
+    const identityId = '507f1f77bcf86cd799439011';
+    const e2eMediaId = 'e2e-zip-1';
+    findByE2EMediaIdAndIdentityMock.mockImplementation(() =>
+      Promise.resolve({
+        e2eMediaId,
+        identityId: new ObjectId(identityId),
+        status: 'pending',
+        contentType: 'application/zip',
+      })
+    );
+
+    const result = await completeE2EUpload(e2eMediaId, identityId, { skipModeration: false });
+    expect(result.success).toBe(true);
+    expect(updateStatusMock).toHaveBeenCalledWith(e2eMediaId, 'available');
+    expect(setModerationStatusByMediaIdMock).toHaveBeenCalledWith(e2eMediaId, 'skipped');
+  });
+
+  test('requestE2EUpload enforces size limits for large files', async () => {
+    const result = await requestE2EUpload({
+      identityId: '507f1f77bcf86cd799439011',
+      contentType: 'application/pdf',
+      contentLength: 2_000_000_000,
+      stripExif: false,
+      maxVideoDurationSeconds: 300,
+    });
+    expect(result.success).toBe(false);
+    expect(result.errorCode).toBe('FILE_TOO_LARGE');
   });
 });
 

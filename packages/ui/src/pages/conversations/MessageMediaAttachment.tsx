@@ -2,7 +2,9 @@ import { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MediaAttachment } from '../../services/messagePayload';
 import { MediaMessage, type MediaMessageLayout } from '../../components/MediaMessage';
+import { FileAttachmentBubble } from '../../components/FileAttachmentBubble';
 import { useE2EMediaDownload } from '../../hooks/useE2EMediaDownload';
+import { isVisualMediaContentType } from '../../utils/fileAttachmentUtils';
 
 export const MessageMediaAttachment = memo(function MessageMediaAttachment({
   attachment,
@@ -16,11 +18,16 @@ export const MessageMediaAttachment = memo(function MessageMediaAttachment({
 }) {
   const { t } = useTranslation();
   const [revealed, setRevealed] = useState(false);
+  const isVisual = isVisualMediaContentType(attachment.contentType);
 
   const shouldHide = hideUnmoderated && !revealed;
 
   const { state, imageUrl, rejectionReason, errorMessage, retry } =
-    useE2EMediaDownload(attachment, { skip: shouldHide });
+    useE2EMediaDownload(attachment, { skip: shouldHide || !isVisual });
+
+  if (!isVisual) {
+    return <FileAttachmentBubble attachment={attachment} />;
+  }
 
   if (shouldHide) {
     return (

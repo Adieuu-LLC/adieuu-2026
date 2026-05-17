@@ -57,8 +57,11 @@ describe('resolveConversationMediaFile', () => {
     expect(out!.file.type).toBe('image/png');
   });
 
-  test('rejects non-media bytes with octet-stream', async () => {
+  test('accepts non-media bytes with octet-stream as file attachment', async () => {
     const file = new File([new Uint8Array([1, 2, 3, 4, 5])], 'x.bin', { type: 'application/octet-stream' });
-    expect(await resolveConversationMediaFile(file)).toBeNull();
+    const out = await resolveConversationMediaFile(file);
+    expect(out).not.toBeNull();
+    expect(out!.file.name).toBe('x.bin');
+    expect(out!.file.type).toBe('application/octet-stream');
   });
 });

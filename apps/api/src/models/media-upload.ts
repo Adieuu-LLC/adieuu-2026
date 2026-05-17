@@ -26,6 +26,12 @@ export const IMAGE_MIME_TYPES = [
 /** Video MIME accepted for conversation media and scan copies (MP4 only; client transcodes others). */
 export const VIDEO_MIME_TYPES = ['video/mp4'] as const;
 
+/** Returns true for image and video MIME types that go through the visual moderation pipeline. */
+export function isVisualMediaType(contentType: string): boolean {
+  return (IMAGE_MIME_TYPES as readonly string[]).includes(contentType)
+    || (VIDEO_MIME_TYPES as readonly string[]).includes(contentType);
+}
+
 /**
  * Upload purpose determines allowed content types, size limits,
  * and which processing flags are applied.
@@ -109,6 +115,8 @@ export interface MediaUploadDocument extends BaseDocument {
 export interface UploadPurposeConfig {
   maxBytes: number;
   allowedContentTypes: string[];
+  /** When true, all content types are accepted (allowedContentTypes is ignored). */
+  allowAnyContentType?: boolean;
   processingFlags: ProcessingFlags;
 }
 
@@ -152,8 +160,9 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
     },
   },
   conv_media: {
-    maxBytes: 50 * 1024 * 1024, // 50 MB
+    maxBytes: 1_337_000_000, // 1.337 GB
     allowedContentTypes: [...IMAGE_MIME_TYPES, ...VIDEO_MIME_TYPES],
+    allowAnyContentType: true,
     processingFlags: {
       stripExif: false,
       contentModeration: false,

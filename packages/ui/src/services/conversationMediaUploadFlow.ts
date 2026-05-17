@@ -10,6 +10,14 @@ import { buildVideoModerationScanPayloads } from '../utils/videoModerationFrames
 const VIDEO_SCAN_PREP_FAILED =
   'Could not build video frames for the safety scan. Try re-encoding to a standard H.264 MP4, or turn off "No re-encoding (MP4 only)" if it is enabled.';
 
+/** Returns true for MIME types that go through the visual moderation pipeline. */
+export function isVisualMediaFile(file: File): boolean {
+  const visualTypes: readonly string[] = [
+    'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4',
+  ];
+  return visualTypes.includes(file.type);
+}
+
 export interface MediaUploadResult {
   e2eMediaId: string;
   scanHash: string;
@@ -32,9 +40,9 @@ export type ModerationScanPayload = {
 
 /** E2E phase result plus scan assets for the moderation pipeline (upload scan copy separately). */
 export type ConversationE2EUploadResult = MediaUploadResult & {
-  scanThumbnail: Blob;
-  /** One thumbnail/grid for images; one or more segment grids for long video. */
-  moderationScan: ModerationScanPayload | ModerationScanPayload[];
+  scanThumbnail?: Blob;
+  /** One thumbnail/grid for images; one or more segment grids for long video. Absent for non-visual files. */
+  moderationScan?: ModerationScanPayload | ModerationScanPayload[];
 };
 
 export type PrepareConversationMediaOptions = {
@@ -61,6 +69,10 @@ export async function prepareConversationMediaFileForUpload(
   const throwIfAborted = () => {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   };
+
+  if (!isVisualMediaFile(file)) {
+    return file;
+  }
 
   if (!file.type.startsWith('video/')) {
     return file;
@@ -131,13 +143,22 @@ export async function uploadE2EMediaOnly(
     : await prepareConversationMediaFileForUpload(rawFile, { signal });
   const stripExif = options?.stripExif ?? true;
   const onUploadsComplete = options?.onUploadsComplete;
+  const isVisual = isVisualMediaFile(file);
 
-  const { dimensions, thumbnail, durationSeconds } =
-    await buildDimensionsAndScanThumbnail(file);
+  let dimensions = { width: 0, height: 0 };
+  let thumbnail: Blob | undefined;
+  let durationSeconds: number | undefined;
+
+  if (isVisual) {
+    const result = await buildDimensionsAndScanThumbnail(file);
+    dimensions = result.dimensions;
+    thumbnail = result.thumbnail;
+    durationSeconds = result.durationSeconds;
+  }
 
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-  const effectiveStripExif = isVideoFile(file) ? false : stripExif;
+  const effectiveStripExif = isVideoFile(file) ? false : (isVisual ? stripExif : false);
 
   const e2eRes = await api.e2eUploads.requestE2EUpload(
     {
@@ -164,7 +185,7 @@ export async function uploadE2EMediaOnly(
   });
   if (!e2ePut.ok) throw new Error(`E2E upload failed (${e2ePut.status})`);
 
-  const skipModeration = options?.skipModeration === true;
+  const skipModeration = options?.skipModeration === true || !isVisual;
   const e2eComplete = await api.e2eUploads.completeE2EUpload(
     mediaId,
     signal ? { signal } : undefined,
@@ -177,7 +198,6 @@ export async function uploadE2EMediaOnly(
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
   if (skipModeration) {
-    const emptyBlob = new Blob([], { type: 'image/jpeg' });
     return {
       e2eMediaId: mediaId,
       scanHash: hash,
@@ -187,8 +207,6 @@ export async function uploadE2EMediaOnly(
       height: dimensions.height,
       sizeBytes: encryptedBlob.size,
       exifPreserved: !effectiveStripExif,
-      scanThumbnail: emptyBlob,
-      moderationScan: { contentType: 'image/jpeg' as const, body: emptyBlob },
     };
   }
 
@@ -206,7 +224,7 @@ export async function uploadE2EMediaOnly(
       throw new Error(`${VIDEO_SCAN_PREP_FAILED} (${detail})`);
     }
   } else {
-    moderationScan = { body: thumbnail, contentType: 'image/jpeg' };
+    moderationScan = { body: thumbnail!, contentType: 'image/jpeg' };
   }
 
   return {
@@ -231,14 +249,13 @@ export async function uploadE2EMediaOnly(
 export async function uploadModerationScanCopy(
   api: ReturnType<typeof createApiClient>,
   scanHash: string,
-  payload: ModerationScanPayload | ModerationScanPayload[],
+  payload: ModerationScanPayload | ModerationScanPayload[] | undefined,
   options?: { signal?: AbortSignal }
 ): Promise<void> {
   const signal = options?.signal;
+  if (!payload) return;
   const parts = Array.isArray(payload) ? payload : [payload];
-  if (parts.length === 0) {
-    throw new Error('At least one moderation scan part is required');
-  }
+  if (parts.length === 0) return;
 
   const scanMediaIds: string[] = [];
 
@@ -322,7 +339,9 @@ export async function uploadMediaFile(
       onUploadsComplete: undefined,
     });
   void _scanThumb;
-  await uploadModerationScanCopy(api, rest.scanHash, moderationScan, { signal });
+  if (moderationScan) {
+    await uploadModerationScanCopy(api, rest.scanHash, moderationScan, { signal });
+  }
   options?.onUploadsComplete?.();
   return rest;
 }

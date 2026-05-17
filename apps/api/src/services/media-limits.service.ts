@@ -11,8 +11,11 @@ import type { UploadPurpose } from '../models/media-upload';
 import { UPLOAD_PURPOSE_CONFIG } from '../models/media-upload';
 import { getPlatformSettingsRepository } from '../repositories/platform-settings.repository';
 
-/** Multiplier applied to base upload byte limits for Insider-tier subscribers. */
-const INSIDER_UPLOAD_MULTIPLIER = 2;
+/** Explicit per-purpose Insider byte limits (overrides base when present). */
+const INSIDER_UPLOAD_OVERRIDES: Partial<Record<UploadPurpose, number>> = {
+  conv_media: 4_200_000_000, // 4.20 GB
+  dm_attachment: 4_200_000_000, // 4.20 GB
+};
 
 function clampPositiveInt(n: number, fallback: number): number {
   if (!Number.isFinite(n) || n < 1) return fallback;
@@ -59,10 +62,6 @@ export function resolveMaxUploadBytes(
   const hasInsider = subscriptions.includes('insider');
   if (!hasInsider) return base;
 
-  const scalable: ReadonlySet<UploadPurpose> = new Set([
-    'dm_attachment',
-    'conv_media',
-  ]);
-  if (!scalable.has(purpose)) return base;
-  return base * INSIDER_UPLOAD_MULTIPLIER;
+  const override = INSIDER_UPLOAD_OVERRIDES[purpose];
+  return override ?? base;
 }

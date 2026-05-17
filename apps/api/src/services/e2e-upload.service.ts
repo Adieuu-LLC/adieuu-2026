@@ -35,6 +35,7 @@ import {
   UPLOAD_PURPOSE_CONFIG,
   UPLOAD_RATE_LIMIT,
   VIDEO_MIME_TYPES,
+  isVisualMediaType,
   type UploadPurpose,
 } from '../models/media-upload';
 import type { E2EMediaStatus } from '../models/e2e-media';
@@ -82,6 +83,32 @@ function contentTypeToExtension(contentType: string): string {
     'image/webp': 'webp',
     'image/gif': 'gif',
     'video/mp4': 'mp4',
+    'application/pdf': 'pdf',
+    'application/zip': 'zip',
+    'application/x-7z-compressed': '7z',
+    'application/x-rar-compressed': 'rar',
+    'application/gzip': 'gz',
+    'application/x-tar': 'tar',
+    'application/json': 'json',
+    'application/xml': 'xml',
+    'text/plain': 'txt',
+    'text/csv': 'csv',
+    'text/html': 'html',
+    'text/markdown': 'md',
+    'audio/mpeg': 'mp3',
+    'audio/ogg': 'ogg',
+    'audio/wav': 'wav',
+    'audio/flac': 'flac',
+    'audio/aac': 'aac',
+    'video/webm': 'webm',
+    'video/quicktime': 'mov',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+    'application/msword': 'doc',
+    'application/vnd.ms-excel': 'xls',
+    'application/vnd.ms-powerpoint': 'ppt',
+    'application/octet-stream': 'bin',
   };
   return map[contentType] ?? 'bin';
 }
@@ -132,10 +159,10 @@ export async function requestE2EUpload(
 
   const purposeConfig = UPLOAD_PURPOSE_CONFIG.conv_media;
 
-  // TODO [VIDEO SUPPORT]: When adding video, check if the content type is
-  // in VIDEO_MIME_TYPES and route through the async moderation pipeline.
-  // The conv_media config should be extended with video MIME types at that time.
-  if (!purposeConfig.allowedContentTypes.includes(input.contentType)) {
+  if (
+    !purposeConfig.allowAnyContentType &&
+    !purposeConfig.allowedContentTypes.includes(input.contentType)
+  ) {
     return {
       success: false,
       error: `Content type '${input.contentType}' is not allowed for conversation media`,
@@ -264,10 +291,15 @@ export async function completeE2EUpload(
     };
   }
 
-  if (options?.skipModeration) {
+  const skipModeration = options?.skipModeration || !isVisualMediaType(doc.contentType);
+
+  if (skipModeration) {
     await repo.updateStatus(e2eMediaId, 'available');
     await repo.setModerationStatusByMediaId(e2eMediaId, 'skipped');
-    elog.info('E2E media upload marked as available (moderation skipped)', { e2eMediaId });
+    elog.info('E2E media upload marked as available (moderation skipped)', {
+      e2eMediaId,
+      reason: !isVisualMediaType(doc.contentType) ? 'non_visual_file' : 'client_opt_out',
+    });
   } else {
     await repo.updateStatus(e2eMediaId, 'gated');
     elog.info('E2E media upload marked as complete (gated)', { e2eMediaId });
