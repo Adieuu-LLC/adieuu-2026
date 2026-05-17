@@ -387,6 +387,7 @@ export const account = {
       manage: {
         currentTier: 'Your current plan',
         currentPlanLabel: 'Your current plan',
+        billingPeriodAnnual: 'Annual',
         noPlan: 'You are on the Free plan.',
         stripeBillingIntro:
           'Payments and invoices for your subscription are processed through Stripe.',

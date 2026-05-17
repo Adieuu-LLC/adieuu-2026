@@ -85,26 +85,15 @@ export function ManageTab({
               {t(`account.subscription.tiers.${currentTierKey}.name`)}
             </h2>
           </div>
-          <div className="subscription-manage-badges">
-            {hasPaidPlan && (
+          {hasPaidPlan && (
+            <div className="subscription-manage-badges">
               <span className="subscription-tier-badge subscription-manage-plan-badge">
-                {t('account.subscription.currentPlan')}
-                {isLifetime && (
-                  <span className="subscription-status-label">
-                    {t('account.subscription.lifetime')}
-                  </span>
-                )}
-                {!isLifetime && statusLabel && (
-                  <span className="subscription-status-label">{statusLabel}</span>
-                )}
+                {isLifetime
+                  ? t('account.subscription.lifetime')
+                  : t('account.subscription.manage.billingPeriodAnnual')}
               </span>
-            )}
-            {!hasPaidPlan && (
-              <span className="subscription-tier-badge subscription-manage-plan-badge">
-                {t('account.subscription.currentPlan')}
-              </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         <p className="subscription-manage-description">
