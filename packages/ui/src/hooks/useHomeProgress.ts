@@ -85,10 +85,17 @@ export function useHomeProgress(): HomeProgress {
 
   const isIdentityMode = authStatus === 'identity_mode';
 
-  if (isIdentityMode) {
-    return useIdentityProgress(api, tourCompleted);
-  }
-  return useAccountProgress(api, authStatus, session, hasIdentity, tourCompleted, appearanceTourCompleted);
+  const accountProgress = useAccountProgress(
+    api,
+    authStatus,
+    session,
+    hasIdentity,
+    tourCompleted,
+    appearanceTourCompleted,
+  );
+  const identityProgress = useIdentityProgress(api, tourCompleted, isIdentityMode);
+
+  return isIdentityMode ? identityProgress : accountProgress;
 }
 
 function useAccountProgress(
@@ -188,6 +195,7 @@ function useAccountProgress(
 function useIdentityProgress(
   api: ReturnType<typeof createApiClient>,
   tourCompleted: boolean,
+  enabled: boolean,
 ): IdentityProgress {
   const { friends } = useFriends();
   const { conversations } = useConversations();
@@ -196,6 +204,11 @@ function useIdentityProgress(
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     setLoading(true);
 
@@ -206,9 +219,8 @@ function useIdentityProgress(
           api.conversations.getStats(),
         ]);
         if (cancelled) return;
-        if (achRes.success && achRes.data) {
-          setAchievementCount(achRes.data.achievements.length);
-        }
+        const achievements = achRes.success && achRes.data ? achRes.data.achievements : undefined;
+        setAchievementCount(Array.isArray(achievements) ? achievements.length : 0);
         if (statsRes.success && statsRes.data) {
           setConversationStats(statsRes.data);
         }
@@ -220,37 +232,58 @@ function useIdentityProgress(
     })();
 
     return () => { cancelled = true; };
-  }, [api]);
+  }, [api, enabled]);
 
-  const hasFriend = friends.length > 0;
+  const friendsLen = friends?.length ?? 0;
+  const conversationsLen = conversations?.length ?? 0;
+  const hasFriend = friendsLen > 0;
 
   const primarySteps: AccountProgressStep[] = useMemo(
-    () => [
-      { id: 'addFriend', completed: hasFriend, disabled: false },
-      { id: 'startConversation', completed: false, disabled: false },
-      { id: 'joinSpace', completed: false, disabled: true },
-    ],
-    [hasFriend]
+    () =>
+      enabled
+        ? [
+            { id: 'addFriend', completed: hasFriend, disabled: false },
+            { id: 'startConversation', completed: false, disabled: false },
+            { id: 'joinSpace', completed: false, disabled: true },
+          ]
+        : [],
+    [enabled, hasFriend],
   );
 
   const secondarySteps: AccountProgressStep[] = useMemo(
-    () => [
-      { id: 'appearance', completed: false, disabled: false },
-      { id: 'editProfile', completed: false, disabled: false },
-      { id: 'tour', completed: tourCompleted, disabled: false },
-    ],
-    [tourCompleted]
+    () =>
+      enabled
+        ? [
+            { id: 'appearance', completed: false, disabled: false },
+            { id: 'editProfile', completed: false, disabled: false },
+            { id: 'tour', completed: tourCompleted, disabled: false },
+          ]
+        : [],
+    [enabled, tourCompleted],
+  );
+
+  const stats = useMemo(
+    () =>
+      enabled
+        ? {
+            conversations: conversationStats?.totalConversations ?? conversationsLen,
+            friends: friendsLen,
+            messages: conversationStats?.totalMessages ?? 0,
+            achievements: achievementCount,
+          }
+        : {
+            conversations: 0,
+            friends: 0,
+            messages: 0,
+            achievements: 0,
+          },
+    [enabled, conversationStats, conversationsLen, friendsLen, achievementCount],
   );
 
   return {
     mode: 'identity',
-    loading,
-    stats: {
-      conversations: conversationStats?.totalConversations ?? conversations.length,
-      friends: friends.length,
-      messages: conversationStats?.totalMessages ?? 0,
-      achievements: achievementCount,
-    },
+    loading: enabled && loading,
+    stats,
     primarySteps,
     secondarySteps,
   };
