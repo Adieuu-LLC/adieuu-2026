@@ -16,12 +16,11 @@ import { useAppConfig, usePlatformCapabilities } from '../../../config';
 import { useCheckoutPolling, type UseCheckoutPollingRun } from '../../../hooks/useCheckoutPolling';
 import { openCheckoutOrPortalUrl } from '../../../utils/open-checkout-url';
 import { ManageTab } from './ManageTab';
-import { PlansTab } from './PlansTab';
 import { LifetimeTab } from './LifetimeTab';
 import type { SubscriptionDerivedState } from './types';
 import '../../../styles/_subscription.scss';
 
-const VALID_TABS = ['manage', 'subscriptions', 'lifetime'] as const;
+const VALID_TABS = ['manage', 'lifetime'] as const;
 type SubscriptionTab = (typeof VALID_TABS)[number];
 
 function deriveState(status: SubscriptionStatus | null): SubscriptionDerivedState {
@@ -69,6 +68,12 @@ export function AccountSubscription() {
   const activeTab: SubscriptionTab = VALID_TABS.includes(tab as SubscriptionTab)
     ? (tab as SubscriptionTab)
     : 'manage';
+
+  useEffect(() => {
+    if (tab === 'subscriptions') {
+      navigate(`${routeBase}/manage`, { replace: true });
+    }
+  }, [tab, navigate, routeBase]);
 
   const handleTabChange = (newTab: string) => {
     navigate(`${routeBase}/${newTab}`, { replace: true });
@@ -273,9 +278,6 @@ export function AccountSubscription() {
           <TabTrigger value="manage">
             {t('account.subscription.tabs.manage')}
           </TabTrigger>
-          <TabTrigger value="subscriptions">
-            {t('account.subscription.tabs.subscriptions')}
-          </TabTrigger>
           <TabTrigger value="lifetime">
             {t('account.subscription.tabs.lifetime')}
           </TabTrigger>
@@ -291,18 +293,7 @@ export function AccountSubscription() {
             onManage={handleManage}
             pollPending={!!pollRun && phase === 'pending'}
             onCancelPoll={cancel}
-          />
-        </TabContent>
-
-        <TabContent value="subscriptions">
-          <PlansTab
-            status={status}
-            derived={derived}
-            identityMode={identityMode}
-            actionLoading={actionLoading}
-            statusLabel={statusLabel}
             onCheckout={handleCheckout}
-            onManage={handleManage}
           />
         </TabContent>
 

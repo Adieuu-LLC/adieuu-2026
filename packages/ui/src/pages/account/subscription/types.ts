@@ -33,6 +33,7 @@ export interface ManageTabProps extends SubscriptionTabProps {
   onManage: () => void;
   pollPending: boolean;
   onCancelPoll: () => void;
+  onCheckout: (product: PurchasableProductId) => void;
 }
 
 export const FREE_FEATURES = [

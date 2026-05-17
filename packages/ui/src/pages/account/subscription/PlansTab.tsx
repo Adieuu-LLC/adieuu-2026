@@ -5,7 +5,7 @@ import { Spinner } from '../../../components/Spinner';
 import type { PlansTabProps } from './types';
 import { FREE_FEATURES, ACCESS_FEATURES, INSIDER_FEATURES, formatDate } from './types';
 
-export function PlansTab({
+export function AnnualPlansCards({
   status,
   derived,
   identityMode,
@@ -18,13 +18,9 @@ export function PlansTab({
   const { hasAccess, hasInsider, isLifetime, hasPaidPlan } = derived;
 
   return (
-    <div className="subscription-plans">
-      <h2 className="subscription-section-heading">
-        {t('account.subscription.sections.annual')}
-      </h2>
-      <div className="subscription-grid">
-        {/* Free tier */}
-        <Card className={`subscription-tier-card ${!hasPaidPlan ? 'subscription-tier-current' : ''}`}>
+    <div className="subscription-grid">
+      {/* Free tier */}
+      <Card className={`subscription-tier-card ${!hasPaidPlan ? 'subscription-tier-current' : ''}`}>
           <div className="subscription-tier-header">
             <h2 className="subscription-tier-name">
               {t('account.subscription.tiers.free.name')}
@@ -47,10 +43,10 @@ export function PlansTab({
               {t('account.subscription.currentPlan')}
             </div>
           )}
-        </Card>
+      </Card>
 
-        {/* Access tier */}
-        <Card className={`subscription-tier-card ${hasAccess && !hasInsider ? 'subscription-tier-current' : ''}`}>
+      {/* Access tier */}
+      <Card className={`subscription-tier-card ${hasAccess && !hasInsider ? 'subscription-tier-current' : ''}`}>
           <div className="subscription-tier-header">
             <h2 className="subscription-tier-name">
               {t('account.subscription.tiers.access.name')}
@@ -103,10 +99,10 @@ export function PlansTab({
               {actionLoading ? <Spinner size="sm" /> : t('account.subscription.subscribe')}
             </Button>
           )}
-        </Card>
+      </Card>
 
-        {/* Insider tier */}
-        <Card className={`subscription-tier-card subscription-tier-featured ${hasInsider ? 'subscription-tier-current' : ''}`}>
+      {/* Insider tier */}
+      <Card className={`subscription-tier-card subscription-tier-featured ${hasInsider ? 'subscription-tier-current' : ''}`}>
           <div className="subscription-tier-header">
             <h2 className="subscription-tier-name">
               {t('account.subscription.tiers.insider.name')}
@@ -160,8 +156,7 @@ export function PlansTab({
               {actionLoading ? <Spinner size="sm" /> : t('account.subscription.subscribe')}
             </Button>
           )}
-        </Card>
-      </div>
+      </Card>
     </div>
   );
 }

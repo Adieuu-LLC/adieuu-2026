@@ -25,6 +25,8 @@ export interface AccountProgress {
   hasSubscription: boolean;
   avRequired: boolean;
   avStatus: string | undefined;
+  /** True when every primary and secondary onboarding step is completed. */
+  allComplete: boolean;
   primarySteps: AccountProgressStep[];
   secondarySteps: AccountProgressStep[];
   refetch: () => Promise<void>;
@@ -161,12 +163,22 @@ function useAccountProgress(
     [tourCompleted, mfaEnabled, accountVerified, appearanceTourCompleted]
   );
 
+  const allComplete = useMemo(
+    () =>
+      primarySteps.length > 0 &&
+      secondarySteps.length > 0 &&
+      primarySteps.every((s) => s.completed) &&
+      secondarySteps.every((s) => s.completed),
+    [primarySteps, secondarySteps],
+  );
+
   return {
     mode: 'account',
     loading,
     hasSubscription,
     avRequired,
     avStatus,
+    allComplete,
     primarySteps,
     secondarySteps,
     refetch: load,

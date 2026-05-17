@@ -367,7 +367,6 @@ export const account = {
       // Tab labels
       tabs: {
         manage: 'Manage',
-        subscriptions: 'Subscriptions',
         lifetime: 'Lifetime',
       },
 
@@ -376,6 +375,11 @@ export const account = {
         currentTier: 'Your current plan',
         noPlan: 'You are on the Free plan.',
         billingPortal: 'Manage billing and invoices on Stripe.',
+        viewCards: 'Cards',
+        viewComparison: 'Compare',
+        manualChangeLead:
+          'To upgrade, downgrade, or change your subscription, email us. Changes are processed manually for now (this is temporary) while we finish self-service plan management.',
+        manualChangeEmail: 'say@adieuu.com',
       },
 
       // Identity/alias banner
@@ -430,6 +434,11 @@ export const account = {
         largerUploads: 'Larger file uploads',
         lifetimeAccess: 'Lifetime access (no renewal)',
         supporterBadge: 'Exclusive supporter badge',
+      },
+
+      comparison: {
+        featureColumn: 'Feature',
+        included: 'Included',
       },
 
       // Status labels

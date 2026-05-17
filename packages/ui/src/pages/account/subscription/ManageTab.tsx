@@ -1,11 +1,18 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { SegmentGroup } from '@ark-ui/react';
 import { Card } from '../../../components/Card';
 import { Button } from '../../../components/Button';
 import { Spinner } from '../../../components/Spinner';
 import { Alert } from '../../../components/Alert';
 import { CheckoutPendingBanner } from '../../../components/CheckoutPendingBanner';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 import type { ManageTabProps } from './types';
 import { formatDate } from './types';
+import { AnnualPlansCards } from './PlansTab';
+import { PlansComparisonTable } from './PlansComparisonTable';
+
+const ANNUAL_PLANS_HEADING_ID = 'subscription-annual-plans-heading';
 
 export function ManageTab({
   status,
@@ -16,15 +23,30 @@ export function ManageTab({
   onManage,
   pollPending,
   onCancelPoll,
+  onCheckout,
 }: ManageTabProps) {
   const { t } = useTranslation();
   const { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder, hasPaidPlan } = derived;
+  const isMobile = useIsMobile();
+  const [plansLayout, setPlansLayout] = useState<'cards' | 'comparison'>(() =>
+    isMobile ? 'cards' : 'comparison',
+  );
 
   const currentTierKey = hasInsider
     ? 'insider'
     : hasAccess
       ? 'access'
       : 'free';
+
+  const plansProps = {
+    status,
+    derived,
+    identityMode,
+    actionLoading,
+    statusLabel,
+    onCheckout,
+    onManage,
+  };
 
   return (
     <div className="subscription-manage">
@@ -107,6 +129,51 @@ export function ManageTab({
           </p>
         )}
       </Card>
+
+      <div className="subscription-manage-plans subscription-plans">
+        <div className="subscription-manage-plans-toolbar">
+          <h2 id={ANNUAL_PLANS_HEADING_ID} className="subscription-section-heading">
+            {t('account.subscription.sections.annual')}
+          </h2>
+          <SegmentGroup.Root
+            className="subscription-layout-segment-group"
+            value={plansLayout}
+            onValueChange={(details) => {
+              const v = details.value as 'cards' | 'comparison';
+              if (v === 'cards' || v === 'comparison') {
+                setPlansLayout(v);
+              }
+            }}
+          >
+            <SegmentGroup.Indicator className="subscription-layout-segment-indicator" />
+            <SegmentGroup.Item className="subscription-layout-segment-item" value="cards">
+              <SegmentGroup.ItemText>{t('account.subscription.manage.viewCards')}</SegmentGroup.ItemText>
+              <SegmentGroup.ItemControl />
+              <SegmentGroup.ItemHiddenInput />
+            </SegmentGroup.Item>
+            <SegmentGroup.Item className="subscription-layout-segment-item" value="comparison">
+              <SegmentGroup.ItemText>{t('account.subscription.manage.viewComparison')}</SegmentGroup.ItemText>
+              <SegmentGroup.ItemControl />
+              <SegmentGroup.ItemHiddenInput />
+            </SegmentGroup.Item>
+          </SegmentGroup.Root>
+        </div>
+
+        {plansLayout === 'cards' ? (
+          <AnnualPlansCards {...plansProps} />
+        ) : (
+          <PlansComparisonTable {...plansProps} annualPlansHeadingId={ANNUAL_PLANS_HEADING_ID} />
+        )}
+      </div>
+
+      {!identityMode && (
+        <Alert variant="info" className="subscription-manual-change-notice">
+          <p>{t('account.subscription.manage.manualChangeLead')}</p>
+          <p className="subscription-manual-change-contact">
+            <a href="mailto:say@adieuu.com">{t('account.subscription.manage.manualChangeEmail')}</a>
+          </p>
+        </Alert>
+      )}
     </div>
   );
 }

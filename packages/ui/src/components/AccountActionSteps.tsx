@@ -106,6 +106,40 @@ export function AccountActionSteps({ progress }: AccountActionStepsProps) {
     );
   }
 
+  if (progress.allComplete) {
+    return (
+      <Card variant="elevated" className="action-steps">
+        <div className="action-steps-section">
+          <h3 className="action-steps-section-title">{t('home.account.allComplete.title')}</h3>
+          <p className="action-steps-section-subtitle">{t('home.account.allComplete.subtitle')}</p>
+          <ul className="action-steps-quick-links">
+            <li>
+              <Link to="/identity/profile" className="btn btn-primary">
+                {t('home.account.allComplete.aliasLogin')}
+              </Link>
+              <p className="action-steps-quick-link-hint">{t('home.account.allComplete.aliasLoginHint')}</p>
+            </li>
+            <li>
+              <Link to="/account/overview" className="btn btn-secondary">
+                {t('home.account.allComplete.accountOverview')}
+              </Link>
+            </li>
+            <li>
+              <Link to="/account/security" className="btn btn-secondary">
+                {t('home.account.allComplete.security')}
+              </Link>
+            </li>
+            <li>
+              <Link to="/account/subscription" className="btn btn-secondary">
+                {t('home.account.allComplete.subscription')}
+              </Link>
+            </li>
+          </ul>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card variant="elevated" className="action-steps">
       <div className="action-steps-section">

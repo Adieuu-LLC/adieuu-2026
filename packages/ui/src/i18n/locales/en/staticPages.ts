@@ -147,6 +147,16 @@ export const staticPages = {
           actionRetake: 'Retake tour',
         },
       },
+      allComplete: {
+        title: 'You are all set',
+        subtitle:
+          'You have finished the setup checklist. Log in to your Alias to chat, or jump to account settings below.',
+        aliasLogin: 'Log in to your Alias',
+        aliasLoginHint: 'Open your Alias profile to switch into Alias mode and start messaging.',
+        accountOverview: 'Manage your account',
+        security: 'Manage security',
+        subscription: 'Manage your subscription',
+      },
     },
 
     // Identity-mode action steps
