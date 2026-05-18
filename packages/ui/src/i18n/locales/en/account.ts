@@ -504,6 +504,8 @@ export const account = {
         cellLifetime: 'One-time · lifetime access',
         tierAnnual: 'Annual',
         tierLifetime: 'Lifetime',
+        scrollPreviousTiers: 'Show previous plan columns',
+        scrollNextTiers: 'Show more plan columns',
       },
 
       // Status labels

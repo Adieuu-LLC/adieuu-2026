@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../icons/Icon';
@@ -7,6 +7,24 @@ import { copyPlainTextToClipboard, readPlainTextFromClipboard } from '../utils/c
 
 const MENU_Z_INDEX = 602;
 const SCRIM_Z_INDEX = 601;
+
+function resolvePasteTargetFromContextEvent(e: MouseEvent): HTMLInputElement | HTMLTextAreaElement | null {
+  const t = e.target;
+  if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) {
+    return t;
+  }
+  if (t instanceof HTMLElement) {
+    const inner = t.closest('input, textarea');
+    if (inner instanceof HTMLInputElement || inner instanceof HTMLTextAreaElement) {
+      return inner;
+    }
+  }
+  const ae = document.activeElement;
+  if (ae instanceof HTMLInputElement || ae instanceof HTMLTextAreaElement) {
+    return ae;
+  }
+  return null;
+}
 
 /**
  * On generic app surfaces (not messages, composer, or conversation list), replaces the
@@ -18,8 +36,13 @@ export function AppPlainTextContextMenu() {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [selection, setSelection] = useState('');
+  /** Field that had context on open; activeElement after clicking Paste is the menu button. */
+  const pasteTargetRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
-  const close = useCallback(() => setOpen(false), []);
+  const close = useCallback(() => {
+    pasteTargetRef.current = null;
+    setOpen(false);
+  }, []);
 
   const shouldIgnoreTarget = (target: EventTarget | null) => {
     if (!target || !(target instanceof Element)) {
@@ -47,6 +70,7 @@ export function AppPlainTextContextMenu() {
       }
       e.preventDefault();
       e.stopPropagation();
+      pasteTargetRef.current = resolvePasteTargetFromContextEvent(e);
       setPos({ x: e.clientX, y: e.clientY });
       setSelection(typeof window !== 'undefined' ? window.getSelection()?.toString() ?? '' : '');
       setOpen(true);
@@ -92,7 +116,11 @@ export function AppPlainTextContextMenu() {
   }, [close, selection, t, toastError]);
 
   const onPaste = useCallback(async () => {
-    const el = document.activeElement;
+    const preferred = pasteTargetRef.current;
+    const el =
+      preferred && preferred.isConnected && !preferred.readOnly && !preferred.disabled
+        ? preferred
+        : document.activeElement;
     const text = await readPlainTextFromClipboard();
     if (text == null) {
       toastError(t('conversations.contextMenu.pasteFailed', 'Could not paste from clipboard'));
@@ -113,6 +141,7 @@ export function AppPlainTextContextMenu() {
       const caret = start + text.length;
       el.setSelectionRange(caret, caret);
       el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.focus();
       close();
       return;
     }
