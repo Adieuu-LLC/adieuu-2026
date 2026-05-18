@@ -10,6 +10,7 @@ import {
   type SubscriptionStatus,
   type PurchasableProductId,
   type SubscriptionTierId,
+  type SubscriptionCatalogPricesMap,
 } from '@adieuu/shared';
 import { useAuth } from '../../../hooks/useAuth';
 import { useIdentity } from '../../../hooks/useIdentity';
@@ -93,6 +94,8 @@ export function AccountSubscription() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(false);
   const [pollRun, setPollRun] = useState<UseCheckoutPollingRun | null>(null);
+  const [catalogPrices, setCatalogPrices] = useState<SubscriptionCatalogPricesMap | null>(null);
+  const [catalogPricesLoading, setCatalogPricesLoading] = useState(false);
 
   /** From session API — not useAuth alone: auth can lag after identity login until refreshSession runs. */
   const identityMode = identitySessionData != null;
@@ -185,6 +188,31 @@ export function AccountSubscription() {
     if (authStatus === 'loading') return;
     loadStatus();
   }, [loadStatus, authStatus, identityStatus]);
+
+  useEffect(() => {
+    if (activeTab !== 'manage') return;
+    let cancelled = false;
+    setCatalogPricesLoading(true);
+    void (async () => {
+      try {
+        const res = await api.subscription.getCatalogPrices();
+        if (cancelled) return;
+        if (res.success && res.data) {
+          setCatalogPrices(res.data.prices);
+        } else {
+          setCatalogPrices(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setCatalogPricesLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      setCatalogPricesLoading(false);
+    };
+  }, [activeTab, api]);
 
   useEffect(() => {
     if (identityMode) return;
@@ -320,6 +348,8 @@ export function AccountSubscription() {
             pollPending={!!pollRun && phase === 'pending'}
             onCancelPoll={cancel}
             onCheckout={handleCheckout}
+            catalogPrices={catalogPrices}
+            catalogPricesLoading={catalogPricesLoading}
           />
         </TabContent>
 

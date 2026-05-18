@@ -50,7 +50,7 @@ function LifetimeFeatureList({ columnId }: { columnId: ComparisonColumnId }) {
         }
         return (
           <li key={featureKey} className="subscription-feature-item subscription-feature-item--muted">
-            <span className="subscription-comparison-dash" aria-hidden>
+            <span className="comparison-table-dash" aria-hidden>
               —
             </span>
             <span>{label}</span>

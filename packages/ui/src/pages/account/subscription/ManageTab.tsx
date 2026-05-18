@@ -67,6 +67,8 @@ export function ManageTab({
   pollPending,
   onCancelPoll,
   onCheckout,
+  catalogPrices,
+  catalogPricesLoading,
 }: ManageTabProps) {
   const { t } = useTranslation();
   const glowTheme = useSummaryBorderGlowColors();
@@ -286,7 +288,12 @@ export function ManageTab({
         {plansLayout === 'cards' ? (
           <AnnualPlansCards {...plansProps} />
         ) : (
-          <PlansComparisonTable {...plansProps} annualPlansHeadingId={ANNUAL_PLANS_HEADING_ID} />
+          <PlansComparisonTable
+            {...plansProps}
+            annualPlansHeadingId={ANNUAL_PLANS_HEADING_ID}
+            catalogPrices={catalogPrices}
+            catalogPricesLoading={catalogPricesLoading}
+          />
         )}
       </div>
 

@@ -45,6 +45,22 @@ mock.module('../../../services/rate-limit.service', () => ({
   checkRateLimit: mockCheckRateLimit,
 }));
 
+const mockGetCachedSubscriptionCatalogPrices = mock(() =>
+  Promise.resolve({
+    prices: {
+      access: { unitAmountUsdCents: 1200, billing: 'annual' as const },
+      insider: { unitAmountUsdCents: 2400, billing: 'annual' as const },
+      vanguard: { unitAmountUsdCents: 9900, billing: 'one_time' as const },
+      founder: { unitAmountUsdCents: 19900, billing: 'one_time' as const },
+    },
+  }),
+);
+
+mock.module('../../../services/billing/subscription-catalog-prices.service', () => ({
+  getCachedSubscriptionCatalogPrices: mockGetCachedSubscriptionCatalogPrices,
+  __resetSubscriptionCatalogPricesCacheForTests: mock(() => {}),
+}));
+
 class BillingConfigurationError extends Error {
   override name = 'BillingConfigurationError';
   constructor(message: string) {
@@ -100,6 +116,7 @@ mock.module('../../../utils/adieuuLogger', () => ({
 
 import {
   getSubscriptionSummary,
+  getSubscriptionCatalogPrices,
   createSubscriptionCheckout,
   createSubscriptionPortal,
   confirmCheckoutSession,
@@ -148,6 +165,7 @@ describe('subscription controller', () => {
     mockCreateBillingPortalSession.mockReset();
     mockReconcileBillingFromCustomer.mockReset();
     mockStripeRetrieve.mockReset();
+    mockGetCachedSubscriptionCatalogPrices.mockReset();
 
     mockResolveEffectiveAccess.mockImplementation(() => ({
       subscriptions: ['access'] as SubscriptionTierId[],
@@ -186,6 +204,54 @@ describe('subscription controller', () => {
     }));
 
     mockUpdateBilling.mockImplementation(() => Promise.resolve());
+
+    mockGetCachedSubscriptionCatalogPrices.mockImplementation(() =>
+      Promise.resolve({
+        prices: {
+          access: { unitAmountUsdCents: 1200, billing: 'annual' as const },
+          insider: { unitAmountUsdCents: 2400, billing: 'annual' as const },
+          vanguard: { unitAmountUsdCents: 9900, billing: 'one_time' as const },
+          founder: { unitAmountUsdCents: 19900, billing: 'one_time' as const },
+        },
+      }),
+    );
+  });
+
+  describe('getSubscriptionCatalogPrices', () => {
+    test('returns stripe_disabled when Stripe is off', async () => {
+      mockConfig.stripe.enabled = false;
+      const result = await getSubscriptionCatalogPrices('127.0.0.1');
+      expect(result).toEqual({ ok: false, reason: 'stripe_disabled' });
+      expect(mockGetCachedSubscriptionCatalogPrices).not.toHaveBeenCalled();
+    });
+
+    test('returns rate_limited when limit exceeded', async () => {
+      mockCheckRateLimit.mockImplementation(() =>
+        Promise.resolve({
+          allowed: false,
+          remaining: 0,
+          resetAt: Date.now() + 60_000,
+          limit: 120,
+        }),
+      );
+      const result = await getSubscriptionCatalogPrices('127.0.0.1');
+      expect(result).toEqual({ ok: false, reason: 'rate_limited' });
+      expect(mockGetCachedSubscriptionCatalogPrices).not.toHaveBeenCalled();
+    });
+
+    test('returns catalog payload on success', async () => {
+      const result = await getSubscriptionCatalogPrices('127.0.0.1');
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.data.prices.access).toEqual({ unitAmountUsdCents: 1200, billing: 'annual' });
+      expect(result.data.prices.founder).toEqual({ unitAmountUsdCents: 19900, billing: 'one_time' });
+    });
+
+    test('returns internal when cache layer throws', async () => {
+      mockGetCachedSubscriptionCatalogPrices.mockRejectedValue(new Error('redis'));
+      const result = await getSubscriptionCatalogPrices('127.0.0.1');
+      expect(result).toEqual({ ok: false, reason: 'internal' });
+    });
   });
 
   describe('getSubscriptionSummary', () => {

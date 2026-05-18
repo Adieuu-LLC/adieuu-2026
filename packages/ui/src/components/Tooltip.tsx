@@ -34,7 +34,7 @@ export function Tooltip({
     >
       <ArkTooltip.Trigger asChild>{children}</ArkTooltip.Trigger>
       <Portal>
-        <ArkTooltip.Positioner>
+        <ArkTooltip.Positioner className="tooltip-positioner">
           <ArkTooltip.Content className={`tooltip ${className}`.trim()}>
             <ArkTooltip.Arrow className="tooltip-arrow">
               <ArkTooltip.ArrowTip className="tooltip-arrow-tip" />

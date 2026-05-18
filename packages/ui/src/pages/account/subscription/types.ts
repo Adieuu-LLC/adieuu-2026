@@ -1,4 +1,8 @@
-import type { SubscriptionStatus, PurchasableProductId } from '@adieuu/shared';
+import type {
+  SubscriptionStatus,
+  PurchasableProductId,
+  SubscriptionCatalogPricesMap,
+} from '@adieuu/shared';
 
 export interface SubscriptionDerivedState {
   hasAccess: boolean;
@@ -44,6 +48,9 @@ export interface ManageTabProps extends SubscriptionTabProps {
   pollPending: boolean;
   onCancelPoll: () => void;
   onCheckout: (product: PurchasableProductId) => void;
+  /** Stripe list prices for the comparison table billing row; null when unavailable. */
+  catalogPrices: SubscriptionCatalogPricesMap | null;
+  catalogPricesLoading: boolean;
 }
 
 /** Column order in the comparison table (and keys used in `featureVariables`). */
@@ -77,7 +84,7 @@ export const INSIDER_FEATURES = [...ACCESS_FEATURES, ...INSIDER_ONLY_FEATURES] a
 
 export const VANGUARD_ONLY_FEATURES = ['badgeVanguard', 'designAchievement'] as const;
 
-export const FOUNDER_ONLY_FEATURES = ['badgeFounder', 'whaleWall'] as const;
+export const FOUNDER_ONLY_FEATURES = ['badgeFounder', 'whaleWall', 'callBiWeekly'] as const;
 
 export const VANGUARD_FEATURES = [...INSIDER_FEATURES, ...VANGUARD_ONLY_FEATURES] as const;
 

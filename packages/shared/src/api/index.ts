@@ -231,6 +231,9 @@ export {
 export {
   SubscriptionApi,
   type SubscriptionStatus,
+  type SubscriptionCatalogPriceEntry,
+  type SubscriptionCatalogPricesMap,
+  type SubscriptionCatalogPricesResponse,
 } from './subscription-api';
 
 export {

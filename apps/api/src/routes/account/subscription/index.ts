@@ -1,8 +1,9 @@
 /**
  * Account subscription routes.
  *
- * All routes require an account session (identity sessions are rejected).
- * Stripe must be enabled or all routes return 503.
+ * Most routes require an account session (identity sessions are rejected).
+ * Public exceptions: POST confirm, GET catalog-prices.
+ * Stripe must be enabled or subscription routes return 503 where applicable.
  *
  * @module routes/account/subscription
  */
@@ -12,6 +13,7 @@ import { success, error } from '../../../utils/response';
 import { requireAccountSession } from '../../../services/session.service';
 import {
   getSubscriptionSummary,
+  getSubscriptionCatalogPrices,
   createSubscriptionCheckout,
   createSubscriptionPortal,
   confirmCheckoutSession,
@@ -41,6 +43,27 @@ router.get('/account/subscription', async (ctx) => {
   if (!result.ok) {
     if (result.reason === 'stripe_disabled') return STRIPE_UNAVAILABLE_RESPONSE;
     return ctx.errors.notFound();
+  }
+
+  return success(result.data);
+});
+
+/**
+ * GET /account/subscription/catalog-prices
+ *
+ * Current USD list prices from Stripe for each purchasable tier (server-cached).
+ * No auth required.
+ *
+ * @route GET /api/account/subscription/catalog-prices
+ */
+router.get('/account/subscription/catalog-prices', async (ctx) => {
+  const clientIp = getClientIp(ctx.request);
+  const result = await getSubscriptionCatalogPrices(clientIp);
+
+  if (!result.ok) {
+    if (result.reason === 'stripe_disabled') return STRIPE_UNAVAILABLE_RESPONSE;
+    if (result.reason === 'rate_limited') return ctx.errors.rateLimited();
+    return ctx.errors.internal();
   }
 
   return success(result.data);

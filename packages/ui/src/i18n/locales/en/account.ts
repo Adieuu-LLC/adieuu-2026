@@ -508,6 +508,10 @@ export const account = {
         scrollNextTiers: 'Show more plan columns',
         scrollHint: 'Scroll sideways or drag the plan headers to compare all tiers.',
         scrollNudgeRegionLabel: 'Plan comparison scroll controls',
+        /** Ordered footnotes for the comparison table; sync indices with `COMPARISON_FEATURE_FOOTNOTE_INDEX`. */
+        footnotes: ['Subject to Adieuu staff final discretion and moderation', 'Includes no right to control; customer role is advisory only and subject to Adieuu ToS, which may include feedback and IP waiver.'] as const,
+        footnotesRegionLabel: 'Plan comparison footnotes',
+        footnoteJumpTo: 'Jump to note {{n}}',
       },
 
       // Status labels

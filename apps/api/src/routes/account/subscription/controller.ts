@@ -17,6 +17,10 @@ import {
   reconcileBillingFromCustomer,
 } from '../../../services/billing/billing.service';
 import { resolveEffectiveAccess } from '../../../services/billing/resolve-access';
+import {
+  getCachedSubscriptionCatalogPrices,
+  type SubscriptionCatalogPricesPayload,
+} from '../../../services/billing/subscription-catalog-prices.service';
 import { checkRateLimit, type RateLimitConfig } from '../../../services/rate-limit.service';
 import { sanitizeString } from '../../../utils/sanitize';
 import elog from '../../../utils/adieuuLogger';
@@ -26,6 +30,8 @@ import type { UserBilling } from '../../../models/user';
 const CHECKOUT_RATE_LIMIT: RateLimitConfig = { limit: 30, windowSeconds: 3600 };
 /** Billing portal sessions — same idea; users may open/close portal several times while sorting payment methods. */
 const PORTAL_RATE_LIMIT: RateLimitConfig = { limit: 45, windowSeconds: 3600 };
+/** Public catalog prices — bounded per IP to limit Stripe reads while cache warms. */
+const CATALOG_PRICES_RATE_LIMIT: RateLimitConfig = { limit: 120, windowSeconds: 3600 };
 
 /** Public payload for GET subscription status. */
 export interface SubscriptionSummaryPayload {
@@ -42,6 +48,10 @@ export interface SubscriptionSummaryPayload {
 export type GetSubscriptionSummaryResult =
   | { ok: true; data: SubscriptionSummaryPayload }
   | { ok: false; reason: 'stripe_disabled' | 'user_not_found' };
+
+export type GetSubscriptionCatalogPricesResult =
+  | { ok: true; data: SubscriptionCatalogPricesPayload }
+  | { ok: false; reason: 'stripe_disabled' | 'rate_limited' | 'internal' };
 
 export type CreateSubscriptionCheckoutResult =
   | { ok: true; url: string }
@@ -97,6 +107,32 @@ export async function getSubscriptionSummary(userId: string): Promise<GetSubscri
       hasStripeCustomer: !!user.stripeCustomerId,
     },
   };
+}
+
+/**
+ * Stripe USD list prices for comparison UI (cached server-side). No authentication required.
+ */
+export async function getSubscriptionCatalogPrices(
+  clientIp: string,
+): Promise<GetSubscriptionCatalogPricesResult> {
+  if (!config.stripe.enabled) {
+    return { ok: false, reason: 'stripe_disabled' };
+  }
+
+  const rl = await checkRateLimit('subscription:catalog-prices', clientIp, CATALOG_PRICES_RATE_LIMIT);
+  if (!rl.allowed) return { ok: false, reason: 'rate_limited' };
+
+  try {
+    const data = await getCachedSubscriptionCatalogPrices();
+    return { ok: true, data };
+  } catch (err) {
+    elog.error(
+      'Subscription catalog prices failed',
+      billingErrorLogFields(err),
+      err instanceof Error ? err : undefined,
+    );
+    return { ok: false, reason: 'internal' };
+  }
 }
 
 /**
