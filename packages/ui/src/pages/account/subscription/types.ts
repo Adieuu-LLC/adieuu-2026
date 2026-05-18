@@ -47,16 +47,34 @@ export interface ManageTabProps extends SubscriptionTabProps {
 }
 
 export const FREE_FEATURES = [
-  'messaging',
-  'aliases',
-  'voiceMessages',
-  'mediaSharing',
+  'readOnly',
 ] as const;
 
 export const ACCESS_FEATURES = [
-  ...FREE_FEATURES,
-  'prioritySupport',
+  'aliases',
   'earlyAccess',
+  'encryption',
+  'forwardSecrecy',
+  'liveMedia',
+  'uploadSize',
+  'emojiLimit',
+  'ttlMessages',
+  'themes',
+  'federation',
+  'mfa',
+  'supportDev',
+  'privateSpace',
+  'moderationOptOut',
+  'featureEa',
+  'featureVote',
+  'callMonthly',
+  'callMonthly',
+  'badgeInsider',
+  'badgeVanguard',
+  'designAchievement',
+  'whaleWall',
+  'badgeFounder',
+  'callBiWeekly',
 ] as const;
 
 export const INSIDER_FEATURES = [

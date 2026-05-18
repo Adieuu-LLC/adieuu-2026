@@ -416,7 +416,7 @@ export const account = {
       tiers: {
         free: {
           name: 'Free',
-          description: 'Everything you need to get started.',
+          description: 'Read only access.',
         },
         access: {
           name: 'Access',
@@ -446,16 +446,50 @@ export const account = {
 
       // Feature comparison
       features: {
-        messaging: 'End-to-end encrypted messaging',
-        aliases: 'Up to 2 aliases',
-        voiceMessages: 'Voice messages',
-        mediaSharing: 'Photo and video sharing',
-        prioritySupport: 'Priority support',
-        earlyAccess: 'Early access to new features',
-        extendedMedia: 'Extended media capabilities',
-        largerUploads: 'Larger file uploads',
-        lifetimeAccess: 'Lifetime access (no renewal)',
-        supporterBadge: 'Exclusive supporter badge',
+        readOnly: 'Read Only (Unable to Post)',
+        aliases: 'Aliases: Anonymous handles you post or act as, untraceable back to your account. Included per account:',
+        encryption: 'E2EE: End to end encryption on all private content',
+        forwardSecrecy: 'E2EE: Forward Secrecy (optional)',
+        liveMedia: 'E2EE: Live voice, video, screensharing',
+        uploadSize: 'Upload File Size (Images, Voice, Video, Files)',
+        emojiLimit: 'Custom Emoji Limit',
+        ttlMessages: 'Disappearing (time-based) messages',
+        themes: 'Themes: Customize your app, share & download themes from the community with one click!',
+        federation: 'Federation (soon): Pipe your public posts to external repositories via ActivityPub, custom Webhooks, & more.',
+        mfa: 'MFA: Apps, Passkeys, and hardware keys supported at account level',
+        supportDev: 'Support Adieuu\'s development: more servers, more features, and ... more!',
+        privateSpace: 'Private Space with Adieuu team',
+        moderationOptOut: 'Media content moderation opt-out',
+        featureEa: 'Early Access to New Features',
+        featureVote: 'Vote on new features & Roadmap Priority',
+        callMonthly: 'Access to a monthly Roadmap & Q/A call with Adieuu Team',
+        badgeInsider: 'Exclusive Insider badge (toggleable)',
+        badgeVanguard: 'Exclusive Vanguard badge (toggleable)',
+        designAchievement: 'Design an Achievement: Work with the team to create & name a new achievement',
+        whaleWall: 'Whale Wall: A message of your choice, etched on a dedicated page in the Adieuu app forever.',
+        badgeFounder: 'Exclusive Founder badge (toggleable)',
+        callBiWeekly: 'Access to internal bi-weekly product & feature roadmap calls: we\'ll answer questions, and ask for your personal feedback on our product direction. You know before anyone else what we\'re thinking and working on next'
+      },
+
+      featureVariables: {
+        aliases: {
+          access: 1,
+          insider: 2,
+          vanguard: 3,
+          founder: 3,
+        },
+        uploadSize: {
+          access: '1.337GB',
+          insider: '4.20GB',
+          vanguard: '4.20GB',
+          founder: '9.001GB',
+        },
+        emojiLimit: {
+          access: 10,
+          insider: 25,
+          vanguard: 42,
+          founder: 42,
+        },
       },
 
       comparison: {
