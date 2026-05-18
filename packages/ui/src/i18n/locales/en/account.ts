@@ -506,6 +506,8 @@ export const account = {
         tierLifetime: 'Lifetime',
         scrollPreviousTiers: 'Show previous plan columns',
         scrollNextTiers: 'Show more plan columns',
+        scrollHint: 'Scroll sideways or drag the plan headers to compare all tiers.',
+        scrollNudgeRegionLabel: 'Plan comparison scroll controls',
       },
 
       // Status labels

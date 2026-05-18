@@ -15,6 +15,8 @@ import {
   parseSubscriptionFeatureVariables,
 } from './subscription-feature-cells';
 
+const HEADER_DRAG_THRESHOLD_PX = 8;
+
 export interface PlansComparisonTableProps extends PlansTabProps {
   annualPlansHeadingId: string;
   /**
@@ -50,6 +52,15 @@ function TierColumnHeader({
   );
 }
 
+function isComparisonHeaderDragTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null;
+  if (!el) return false;
+  if (el.closest('button, a, input, textarea, select, [role="button"]')) {
+    return false;
+  }
+  return el.closest('thead tr:first-child th') != null;
+}
+
 export function PlansComparisonTable({
   status,
   derived,
@@ -64,7 +75,12 @@ export function PlansComparisonTable({
   const { t } = useTranslation();
   const { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder } = derived;
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [scrollState, setScrollState] = useState({ canLeft: false, canRight: false });
+  const dragRef = useRef<{ startX: number; startScroll: number; pointerId: number } | null>(null);
+  const [scrollState, setScrollState] = useState({
+    canLeft: false,
+    canRight: false,
+    canPanX: false,
+  });
 
   const updateScrollState = useCallback(() => {
     const el = scrollRef.current;
@@ -74,6 +90,7 @@ export function PlansComparisonTable({
     setScrollState({
       canLeft: scrollLeft > 2,
       canRight: max > 2 && scrollLeft < max - 2,
+      canPanX: max > 2,
     });
   }, []);
 
@@ -114,6 +131,64 @@ export function PlansComparisonTable({
     root.scrollBy({ left: direction * step, behavior: 'smooth' });
   }, []);
 
+  const endHeaderDrag = useCallback((e: React.PointerEvent, el: HTMLDivElement) => {
+    const session = dragRef.current;
+    if (!session || session.pointerId !== e.pointerId) return;
+    dragRef.current = null;
+    el.classList.remove('subscription-comparison-scroll--dragging');
+    try {
+      el.releasePointerCapture(e.pointerId);
+    } catch {
+      /* already released */
+    }
+    const dx = e.clientX - session.startX;
+    if (Math.abs(dx) > HEADER_DRAG_THRESHOLD_PX) {
+      e.preventDefault();
+    }
+  }, []);
+
+  const onScrollPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const el = scrollRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth + 2) return;
+    if (!isComparisonHeaderDragTarget(e.target)) return;
+    dragRef.current = {
+      startX: e.clientX,
+      startScroll: el.scrollLeft,
+      pointerId: e.pointerId,
+    };
+    el.classList.add('subscription-comparison-scroll--dragging');
+    el.setPointerCapture(e.pointerId);
+  }, []);
+
+  const onScrollPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const session = dragRef.current;
+    const el = scrollRef.current;
+    if (!session || !el || session.pointerId !== e.pointerId) return;
+    const dx = e.clientX - session.startX;
+    el.scrollLeft = session.startScroll - dx;
+  }, []);
+
+  const onScrollPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const el = scrollRef.current;
+      if (!el) return;
+      endHeaderDrag(e, el);
+    },
+    [endHeaderDrag],
+  );
+
+  const onScrollPointerCancel = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const el = scrollRef.current;
+      if (!el) return;
+      endHeaderDrag(e, el);
+    },
+    [endHeaderDrag],
+  );
+
+  const showScrollNudgeBar = scrollState.canPanX;
+
   const renderFeatureCell = (featureKey: string, columnId: ComparisonColumnId) => {
     const cell = getSubscriptionFeatureCell(featureKey, columnId, featureVariables);
     const featureLabel = t(`account.subscription.features.${featureKey}`);
@@ -149,32 +224,62 @@ export function PlansComparisonTable({
     );
   };
 
+  const scrollClassName = [
+    'subscription-comparison-scroll',
+    scrollState.canPanX && 'subscription-comparison-scroll--can-pan-x',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <div className="subscription-comparison-shell">
-      {scrollState.canLeft ? (
-        <button
-          type="button"
-          className="subscription-comparison-scroll-nudge subscription-comparison-scroll-nudge--left"
-          onClick={() => scrollByTierStep(-1)}
-          aria-label={t('account.subscription.comparison.scrollPreviousTiers')}
+      {showScrollNudgeBar ? (
+        <div
+          className="subscription-comparison-scroll-nudge-bar"
+          role="region"
+          aria-label={t('account.subscription.comparison.scrollNudgeRegionLabel')}
         >
-          <Icon name="arrowLeft" size="sm" />
-        </button>
-      ) : null}
-      {scrollState.canRight ? (
-        <button
-          type="button"
-          className="subscription-comparison-scroll-nudge subscription-comparison-scroll-nudge--right"
-          onClick={() => scrollByTierStep(1)}
-          aria-label={t('account.subscription.comparison.scrollNextTiers')}
-        >
-          <Icon name="chevronRight" size="sm" />
-        </button>
+          <div className="subscription-comparison-scroll-nudge-bar__side">
+            {scrollState.canLeft ? (
+              <button
+                type="button"
+                className="subscription-comparison-scroll-nudge-btn"
+                onClick={() => scrollByTierStep(-1)}
+                aria-label={t('account.subscription.comparison.scrollPreviousTiers')}
+              >
+                <Icon name="arrowLeft" size="sm" />
+              </button>
+            ) : (
+              <span className="subscription-comparison-scroll-nudge-placeholder" aria-hidden />
+            )}
+          </div>
+          <p className="subscription-comparison-scroll-nudge-hint">
+            {t('account.subscription.comparison.scrollHint')}
+          </p>
+          <div className="subscription-comparison-scroll-nudge-bar__side subscription-comparison-scroll-nudge-bar__side--end">
+            {scrollState.canRight ? (
+              <button
+                type="button"
+                className="subscription-comparison-scroll-nudge-btn"
+                onClick={() => scrollByTierStep(1)}
+                aria-label={t('account.subscription.comparison.scrollNextTiers')}
+              >
+                <Icon name="chevronRight" size="sm" />
+              </button>
+            ) : (
+              <span className="subscription-comparison-scroll-nudge-placeholder" aria-hidden />
+            )}
+          </div>
+        </div>
       ) : null}
       <div
         ref={scrollRef}
-        className="subscription-comparison-scroll"
+        className={scrollClassName}
         onScroll={updateScrollState}
+        onPointerDown={onScrollPointerDown}
+        onPointerMove={onScrollPointerMove}
+        onPointerUp={onScrollPointerUp}
+        onPointerCancel={onScrollPointerCancel}
       >
         <table
           className="subscription-comparison-table"
