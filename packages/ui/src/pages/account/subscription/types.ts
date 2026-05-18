@@ -46,13 +46,12 @@ export interface ManageTabProps extends SubscriptionTabProps {
   onCheckout: (product: PurchasableProductId) => void;
 }
 
-export const FREE_FEATURES = [
-  'readOnly',
-] as const;
+/** Column order in the comparison table (and keys used in `featureVariables`). */
+export const COMPARISON_COLUMN_IDS = ['access', 'insider', 'vanguard', 'founder'] as const;
+export type ComparisonColumnId = (typeof COMPARISON_COLUMN_IDS)[number];
 
 export const ACCESS_FEATURES = [
   'aliases',
-  'earlyAccess',
   'encryption',
   'forwardSecrecy',
   'liveMedia',
@@ -68,25 +67,38 @@ export const ACCESS_FEATURES = [
   'featureEa',
   'featureVote',
   'callMonthly',
-  'callMonthly',
   'badgeInsider',
-  'badgeVanguard',
-  'designAchievement',
-  'whaleWall',
-  'badgeFounder',
-  'callBiWeekly',
 ] as const;
 
-export const INSIDER_FEATURES = [
+/** Insider annual adds these on top of Access. */
+export const INSIDER_ONLY_FEATURES = ['callBiWeekly'] as const;
+
+export const INSIDER_FEATURES = [...ACCESS_FEATURES, ...INSIDER_ONLY_FEATURES] as const;
+
+export const VANGUARD_ONLY_FEATURES = ['badgeVanguard', 'designAchievement'] as const;
+
+export const FOUNDER_ONLY_FEATURES = ['badgeFounder', 'whaleWall'] as const;
+
+export const VANGUARD_FEATURES = [...INSIDER_FEATURES, ...VANGUARD_ONLY_FEATURES] as const;
+
+export const FOUNDER_FEATURES = [...VANGUARD_FEATURES, ...FOUNDER_ONLY_FEATURES] as const;
+
+/** Single ordered list of feature rows in the comparison matrix and lifetime bullets. */
+export const COMPARISON_FEATURE_ORDER = [
   ...ACCESS_FEATURES,
-  'extendedMedia',
-  'largerUploads',
-] as const;
+  ...INSIDER_ONLY_FEATURES,
+  ...VANGUARD_ONLY_FEATURES,
+  ...FOUNDER_ONLY_FEATURES,
+] as const satisfies readonly string[];
 
-export const LIFETIME_EXTRA_FEATURES = [
-  'lifetimeAccess',
-  'supporterBadge',
-] as const;
+export type ComparisonFeatureKey = (typeof COMPARISON_FEATURE_ORDER)[number];
+
+export const COMPARISON_TIER_FEATURE_SETS: Record<ComparisonColumnId, ReadonlySet<string>> = {
+  access: new Set(ACCESS_FEATURES),
+  insider: new Set(INSIDER_FEATURES),
+  vanguard: new Set(VANGUARD_FEATURES),
+  founder: new Set(FOUNDER_FEATURES),
+};
 
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {

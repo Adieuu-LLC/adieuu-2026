@@ -94,6 +94,16 @@
   gap: var(--spacing-sm);
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
+
+  &--muted {
+    color: var(--color-text-tertiary);
+  }
+}
+
+.subscription-feature-value {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
 }
 
 .subscription-feature-check {
@@ -501,6 +511,13 @@
 // Manage tab: annual plans toolbar + layout toggle (SegmentGroup)
 // ----------------------------------------------------------------------------
 
+.subscription-read-only-plans-intro {
+  margin: 0 0 var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+
 .subscription-manage-plans-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -592,9 +609,28 @@
 
 .subscription-comparison-table {
   width: 100%;
-  min-width: 520px;
+  min-width: 56rem;
   border-collapse: collapse;
   font-size: var(--font-size-sm);
+}
+
+.subscription-comparison-tier-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.subscription-comparison-tier-heading-name {
+  display: block;
+  line-height: 1.2;
+}
+
+.subscription-comparison-tier-heading-sub {
+  display: block;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
 }
 
 .subscription-comparison-feature-col,
@@ -659,9 +695,20 @@
   border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
 }
 
-.subscription-comparison-dash {
-  color: var(--color-text-tertiary);
-  font-weight: 600;
+.subscription-comparison-cell-value {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.subscription-comparison-cell-billing {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  max-width: 10rem;
+}
+
+.subscription-comparison-billing-row .subscription-comparison-feature-name {
+  font-weight: var(--font-weight-semibold);
 }
 
 tbody tr:nth-child(even) .subscription-comparison-feature-name,

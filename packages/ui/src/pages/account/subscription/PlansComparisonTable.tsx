@@ -1,27 +1,47 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../../components/Button';
 import { Spinner } from '../../../components/Spinner';
 import type { PlansTabProps } from './types';
 import {
-  FREE_FEATURES,
-  ACCESS_FEATURES,
-  INSIDER_FEATURES,
+  COMPARISON_COLUMN_IDS,
+  COMPARISON_FEATURE_ORDER,
+  type ComparisonColumnId,
   formatDate,
 } from './types';
-
-const TIER_ORDER = ['free', 'access', 'insider'] as const;
-type TierColumnId = (typeof TIER_ORDER)[number];
-
-const TIER_FEATURE_SETS: Record<TierColumnId, ReadonlySet<string>> = {
-  free: new Set(FREE_FEATURES),
-  access: new Set(ACCESS_FEATURES),
-  insider: new Set(INSIDER_FEATURES),
-};
-
-const FEATURE_ROWS = [...INSIDER_FEATURES];
+import {
+  getSubscriptionFeatureCell,
+  parseSubscriptionFeatureVariables,
+} from './subscription-feature-cells';
 
 export interface PlansComparisonTableProps extends PlansTabProps {
   annualPlansHeadingId: string;
+}
+
+function TierColumnHeader({
+  idSuffix,
+  tierI18nKey,
+  billingKind,
+}: {
+  idSuffix: string;
+  tierI18nKey: 'access' | 'insider' | 'vanguard' | 'founder';
+  billingKind: 'annual' | 'lifetime';
+}) {
+  const { t } = useTranslation();
+  const sub =
+    billingKind === 'annual'
+      ? t('account.subscription.comparison.tierAnnual')
+      : t('account.subscription.comparison.tierLifetime');
+  return (
+    <th scope="col" className="subscription-comparison-tier-col" id={idSuffix}>
+      <div className="subscription-comparison-tier-heading">
+        <span className="subscription-comparison-tier-heading-name">
+          {t(`account.subscription.tiers.${tierI18nKey}.name`)}
+        </span>
+        <span className="subscription-comparison-tier-heading-sub">{sub}</span>
+      </div>
+    </th>
+  );
 }
 
 export function PlansComparisonTable({
@@ -35,7 +55,55 @@ export function PlansComparisonTable({
   annualPlansHeadingId,
 }: PlansComparisonTableProps) {
   const { t } = useTranslation();
-  const { hasAccess, hasInsider, isLifetime, hasPaidPlan } = derived;
+  const { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder } = derived;
+
+  const featureVariables = useMemo(
+    () =>
+      parseSubscriptionFeatureVariables(
+        t('account.subscription.featureVariables', { returnObjects: true }),
+      ),
+    [t],
+  );
+
+  const accessColId = `${annualPlansHeadingId}-col-access`;
+  const insiderColId = `${annualPlansHeadingId}-col-insider`;
+  const vanguardColId = `${annualPlansHeadingId}-col-vanguard`;
+  const founderColId = `${annualPlansHeadingId}-col-founder`;
+
+  const renderFeatureCell = (featureKey: string, columnId: ComparisonColumnId) => {
+    const cell = getSubscriptionFeatureCell(featureKey, columnId, featureVariables);
+    const featureLabel = t(`account.subscription.features.${featureKey}`);
+    if (cell.kind === 'variable') {
+      return (
+        <td
+          key={columnId}
+          className="subscription-comparison-cell subscription-comparison-cell-value"
+          aria-label={`${featureLabel}: ${cell.displayValue}`}
+        >
+          {cell.displayValue}
+        </td>
+      );
+    }
+    return (
+      <td
+        key={columnId}
+        className="subscription-comparison-cell subscription-comparison-cell-check"
+      >
+        {cell.included ? (
+          <span
+            className="subscription-feature-check"
+            aria-label={`${featureLabel}: ${t('account.subscription.comparison.included')}`}
+          >
+            &#10003;
+          </span>
+        ) : (
+          <span className="subscription-comparison-dash" aria-hidden>
+            —
+          </span>
+        )}
+      </td>
+    );
+  };
 
   return (
     <div className="subscription-comparison-scroll">
@@ -48,26 +116,13 @@ export function PlansComparisonTable({
             <th scope="col" className="subscription-comparison-feature-col">
               {t('account.subscription.comparison.featureColumn')}
             </th>
-            <th scope="col" className="subscription-comparison-tier-col">
-              {t('account.subscription.tiers.free.name')}
-            </th>
-            <th scope="col" className="subscription-comparison-tier-col">
-              {t('account.subscription.tiers.access.name')}
-            </th>
-            <th scope="col" className="subscription-comparison-tier-col">
-              {t('account.subscription.tiers.insider.name')}
-            </th>
+            <TierColumnHeader idSuffix={accessColId} tierI18nKey="access" billingKind="annual" />
+            <TierColumnHeader idSuffix={insiderColId} tierI18nKey="insider" billingKind="annual" />
+            <TierColumnHeader idSuffix={vanguardColId} tierI18nKey="vanguard" billingKind="lifetime" />
+            <TierColumnHeader idSuffix={founderColId} tierI18nKey="founder" billingKind="lifetime" />
           </tr>
           <tr className="subscription-comparison-actions-row">
             <td />
-            <td className="subscription-comparison-actions-cell">
-              <p className="subscription-comparison-price">$0</p>
-              {!hasPaidPlan && (
-                <span className="subscription-tier-badge">
-                  {t('account.subscription.currentPlan')}
-                </span>
-              )}
-            </td>
             <td className="subscription-comparison-actions-cell">
               {hasAccess && !hasInsider ? (
                 <div className="subscription-tier-status">
@@ -153,36 +208,58 @@ export function PlansComparisonTable({
                 </Button>
               ) : null}
             </td>
+            <td className="subscription-comparison-actions-cell">
+              {hasVanguard ? (
+                <div className="subscription-tier-badge">{t('account.subscription.owned')}</div>
+              ) : !hasFounder && !identityMode ? (
+                <Button
+                  onClick={() => onCheckout('vanguard')}
+                  disabled={actionLoading}
+                  variant="secondary"
+                  className="subscription-subscribe-btn"
+                >
+                  {actionLoading ? <Spinner size="sm" /> : t('account.subscription.buyOnce')}
+                </Button>
+              ) : null}
+            </td>
+            <td className="subscription-comparison-actions-cell">
+              {hasFounder ? (
+                <div className="subscription-tier-badge">{t('account.subscription.owned')}</div>
+              ) : !identityMode ? (
+                <Button
+                  onClick={() => onCheckout('founder')}
+                  disabled={actionLoading}
+                  variant="primary"
+                  className="subscription-subscribe-btn"
+                >
+                  {actionLoading ? <Spinner size="sm" /> : t('account.subscription.buyOnce')}
+                </Button>
+              ) : null}
+            </td>
           </tr>
         </thead>
         <tbody>
-          {FEATURE_ROWS.map((featureKey) => (
+          <tr className="subscription-comparison-billing-row">
+            <th scope="row" className="subscription-comparison-feature-name">
+              {t('account.subscription.comparison.billingRowLabel')}
+            </th>
+            {COMPARISON_COLUMN_IDS.map((columnId) => (
+              <td
+                key={columnId}
+                className="subscription-comparison-cell subscription-comparison-cell-billing"
+              >
+                {columnId === 'access' || columnId === 'insider'
+                  ? t('account.subscription.comparison.cellAnnual')
+                  : t('account.subscription.comparison.cellLifetime')}
+              </td>
+            ))}
+          </tr>
+          {COMPARISON_FEATURE_ORDER.map((featureKey) => (
             <tr key={featureKey}>
               <th scope="row" className="subscription-comparison-feature-name">
                 {t(`account.subscription.features.${featureKey}`)}
               </th>
-              {TIER_ORDER.map((tierId) => {
-                const included = TIER_FEATURE_SETS[tierId].has(featureKey);
-                return (
-                  <td
-                    key={tierId}
-                    className="subscription-comparison-cell subscription-comparison-cell-check"
-                  >
-                    {included ? (
-                      <span
-                        className="subscription-feature-check"
-                        aria-label={t('account.subscription.comparison.included')}
-                      >
-                        &#10003;
-                      </span>
-                    ) : (
-                      <span className="subscription-comparison-dash" aria-hidden>
-                        —
-                      </span>
-                    )}
-                  </td>
-                );
-              })}
+              {COMPARISON_COLUMN_IDS.map((columnId) => renderFeatureCell(featureKey, columnId))}
             </tr>
           ))}
         </tbody>

@@ -70,7 +70,8 @@ export function ManageTab({
 }: ManageTabProps) {
   const { t } = useTranslation();
   const glowTheme = useSummaryBorderGlowColors();
-  const { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder, hasGifted, hasPaidPlan } = derived;
+  const { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder, hasGifted, hasPaidPlan } =
+    derived;
   const isMobile = useIsMobile();
   const [plansLayout, setPlansLayout] = useState<'cards' | 'comparison'>(() =>
     isMobile ? 'cards' : 'comparison',
@@ -82,11 +83,15 @@ export function ManageTab({
     return () => window.clearTimeout(id);
   }, []);
 
-  const currentTierKey = hasInsider
-    ? 'insider'
-    : hasAccess
-      ? 'access'
-      : 'free';
+  const currentTierKey = hasFounder
+    ? 'founder'
+    : hasVanguard
+      ? 'vanguard'
+      : hasInsider
+        ? 'insider'
+        : hasAccess
+          ? 'access'
+          : 'unpaid';
 
   const plansProps = {
     status,
@@ -247,6 +252,9 @@ export function ManageTab({
       </BorderGlow>
 
       <div className="subscription-manage-plans subscription-plans">
+        {!hasPaidPlan && !identityMode && (
+          <p className="subscription-read-only-plans-intro">{t('account.subscription.manage.readOnlyPlansIntro')}</p>
+        )}
         <div className="subscription-manage-plans-toolbar">
           <h2 id={ANNUAL_PLANS_HEADING_ID} className="subscription-section-heading">
             {t('account.subscription.sections.annual')}

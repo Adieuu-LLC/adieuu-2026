@@ -388,7 +388,10 @@ export const account = {
         currentTier: 'Your current plan',
         currentPlanLabel: 'Your current plan',
         billingPeriodAnnual: 'Annual',
-        noPlan: 'You are on the Free plan.',
+        noPlan:
+          'You do not have a paid subscription. Your account is read-only until you subscribe — you can browse, but you cannot post or use paid features.',
+        readOnlyPlansIntro:
+          'Without a paid plan, your account stays read-only. Subscribe below to unlock posting and full features.',
         stripeBillingIntro:
           'Payments and invoices for your subscription are processed through Stripe.',
         giftedSubscription:
@@ -414,9 +417,9 @@ export const account = {
 
       // Tier names and descriptions
       tiers: {
-        free: {
-          name: 'Free',
-          description: 'Read only access.',
+        unpaid: {
+          name: 'No paid plan',
+          description: 'Read-only until you subscribe. You can browse, but posting and paid features stay locked.',
         },
         access: {
           name: 'Access',
@@ -495,6 +498,12 @@ export const account = {
       comparison: {
         featureColumn: 'Feature',
         included: 'Included',
+        notIncluded: 'Not included',
+        billingRowLabel: 'Billing',
+        cellAnnual: 'Annual subscription',
+        cellLifetime: 'One-time · lifetime access',
+        tierAnnual: 'Annual',
+        tierLifetime: 'Lifetime',
       },
 
       // Status labels
