@@ -323,7 +323,7 @@ export const account = {
       // Tabs
       tabs: {
         authentication: 'Authentication',
-        password: 'Password',
+        passphrase: 'Change Password',
         sessions: 'Sessions',
       },
       // Authentication tab

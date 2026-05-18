@@ -118,6 +118,11 @@
   }
 }
 
+// Account & Privacy — change passphrase form (first field needs air below intro + alerts)
+.change-passphrase-form {
+  margin-top: var(--spacing-md);
+}
+
 .sessions-loading {
   display: flex;
   justify-content: center;

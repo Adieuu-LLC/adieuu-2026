@@ -88,17 +88,25 @@
   justify-content: space-between;
   gap: var(--spacing-md);
   flex-wrap: wrap;
+  min-width: 0;
+  width: 100%;
 
   &__filters {
     display: flex;
     align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
     gap: var(--spacing-xs);
+    min-width: 0;
+    flex: 1 1 auto;
   }
 }
 
 .achievement-select-control {
   display: flex;
   align-items: center;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .achievement-select-trigger {
@@ -114,6 +122,15 @@
   cursor: pointer;
   white-space: nowrap;
   transition: border-color var(--transition-fast);
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  > :first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   &:hover {
     border-color: var(--color-accent-primary);
@@ -126,12 +143,19 @@
 }
 
 .achievement-select-content {
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
+  background: var(--profile-card-bg, var(--color-bg-elevated));
+  border: 1px solid;
+  border-color: color-mix(
+    in srgb,
+    var(--profile-accent, var(--profile-card-bg, var(--color-border))) 40%,
+    var(--color-border)
+  );
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: var(--spacing-xs) 0;
   min-width: 120px;
+  max-width: min(100%, calc(100vw - 2 * var(--spacing-md)));
+  box-sizing: border-box;
   z-index: var(--z-popover, 100);
 }
 
@@ -139,15 +163,26 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--spacing-xs);
   padding: var(--spacing-xs) var(--spacing-sm);
   font-size: var(--font-size-xs);
   color: var(--color-text-primary);
   cursor: pointer;
   transition: background var(--transition-fast);
+  min-width: 0;
+
+  > :first-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
 
   &:hover,
   &[data-highlighted] {
-    background: var(--color-bg-hover);
+    background: color-mix(
+      in srgb,
+      var(--profile-accent, transparent) 12%,
+      var(--profile-card-bg, var(--color-bg-hover))
+    );
   }
 
   &[data-state="checked"] {

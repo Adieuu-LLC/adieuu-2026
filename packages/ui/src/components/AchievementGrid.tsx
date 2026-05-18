@@ -33,6 +33,8 @@ export interface AchievementGridProps {
   loading?: boolean;
   /** Profile accent colour — forwarded to portaled filter dropdowns. */
   accentColor?: string;
+  /** Profile card background — forwarded to portaled filter dropdowns. */
+  cardBackgroundColor?: string;
 }
 
 type StatusFilter = 'all' | 'earned' | 'unearned';
@@ -53,6 +55,7 @@ export function AchievementGrid({
   viewerAchievementIds,
   loading = false,
   accentColor,
+  cardBackgroundColor,
 }: AchievementGridProps) {
   const { t } = useTranslation();
   const [categoryFilter, setCategoryFilter] = useState<'all' | AchievementCategory>('all');
@@ -146,6 +149,7 @@ export function AchievementGrid({
               label={categoryLabel}
               onValueChange={(v) => setCategoryFilter(v as 'all' | AchievementCategory)}
               accentColor={accentColor}
+              cardBackgroundColor={cardBackgroundColor}
             />
             {catalogMode && showStatusFilter && (
               <FilterSelect
@@ -154,6 +158,7 @@ export function AchievementGrid({
                 label={statusLabel}
                 onValueChange={(v) => setStatusFilter(v as StatusFilter)}
                 accentColor={accentColor}
+                cardBackgroundColor={cardBackgroundColor}
               />
             )}
           </div>
@@ -234,12 +239,22 @@ interface FilterSelectProps {
   label: string;
   onValueChange: (value: string) => void;
   accentColor?: string;
+  cardBackgroundColor?: string;
 }
 
-function FilterSelect({ collection, value, label, onValueChange, accentColor }: FilterSelectProps) {
-  const portalStyle = accentColor
-    ? { '--profile-accent': accentColor } as React.CSSProperties
-    : undefined;
+function FilterSelect({
+  collection,
+  value,
+  label,
+  onValueChange,
+  accentColor,
+  cardBackgroundColor,
+}: FilterSelectProps) {
+  const portalStyle = {
+    ...(accentColor ? { '--profile-accent': accentColor } : {}),
+    ...(cardBackgroundColor ? { '--profile-card-bg': cardBackgroundColor } : {}),
+  } as React.CSSProperties | undefined;
+  const hasPortalVars = accentColor || cardBackgroundColor;
 
   return (
     <Select.Root
@@ -249,7 +264,7 @@ function FilterSelect({ collection, value, label, onValueChange, accentColor }: 
         const next = d.value[0];
         if (next) onValueChange(next);
       }}
-      positioning={{ sameWidth: true }}
+      positioning={{ placement: 'bottom-start', sameWidth: true, strategy: 'fixed' }}
     >
       <Select.Control className="achievement-select-control">
         <Select.Trigger className="achievement-select-trigger">
@@ -261,7 +276,10 @@ function FilterSelect({ collection, value, label, onValueChange, accentColor }: 
       </Select.Control>
       <Portal>
         <Select.Positioner>
-          <Select.Content className="achievement-select-content" style={portalStyle}>
+          <Select.Content
+            className="achievement-select-content"
+            style={hasPortalVars ? portalStyle : undefined}
+          >
             {collection.items.map((item) => (
               <Select.Item key={item.value} item={item} className="achievement-select-item">
                 <Select.ItemText>{item.label}</Select.ItemText>

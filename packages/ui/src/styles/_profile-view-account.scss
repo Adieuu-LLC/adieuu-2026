@@ -19,7 +19,12 @@
 
   .achievement-card {
     background: var(--profile-card-bg, var(--color-bg-secondary));
-    border: 1px solid var(--color-border);
+    border: 1px solid;
+    border-color: color-mix(
+      in srgb,
+      var(--profile-accent, var(--profile-card-bg, var(--color-border))) 38%,
+      var(--color-border)
+    );
     border-radius: var(--radius-lg);
     box-shadow: none;
   }
@@ -54,6 +59,15 @@
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--color-bg-secondary);
+}
+
+// Profile tint: only when `.profile-view` sets --profile-* on the same subtree as this card.
+.profile-view > .profile-view-card {
+  border-color: color-mix(
+    in srgb,
+    var(--profile-accent, var(--profile-card-bg, var(--color-border))) 38%,
+    var(--color-border)
+  );
 }
 
 .profile-view-banner {
