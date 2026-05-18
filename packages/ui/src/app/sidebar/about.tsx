@@ -6,11 +6,13 @@ import { useTranslation } from 'react-i18next';
 import { useSidebar } from '../../components/Sidebar';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
+import { useAppConfig } from '../../config';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 export function AboutFlyout() {
   const { t } = useTranslation();
   const location = useLocation();
+  const { platform } = useAppConfig();
   const { isExpanded, closeMobile } = useSidebar();
   const isMobile = useIsMobile();
   const [isDrawerOpen, setDrawerOpen] = useState(false);
@@ -40,13 +42,23 @@ export function AboutFlyout() {
       >
         {t('home.learn.navLabel')}
       </Link>
-      <Link
-        to="/about/updates"
-        onClick={handleNavClick}
-        className={`sidebar-flyout-item ${isActive('/about/updates') ? 'sidebar-flyout-item-active' : ''}`}
-      >
-        {t('about.updates.title')}
-      </Link>
+      {platform === 'web' ? (
+        <Link
+          to="/download"
+          onClick={handleNavClick}
+          className={`sidebar-flyout-item ${isActive('/download') ? 'sidebar-flyout-item-active' : ''}`}
+        >
+          {t('nav.getDesktopApp')}
+        </Link>
+      ) : (
+        <Link
+          to="/about/updates"
+          onClick={handleNavClick}
+          className={`sidebar-flyout-item ${isActive('/about/updates') ? 'sidebar-flyout-item-active' : ''}`}
+        >
+          {t('about.updates.title')}
+        </Link>
+      )}
     </>
   );
 
