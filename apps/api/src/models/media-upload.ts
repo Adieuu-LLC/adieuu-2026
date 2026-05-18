@@ -14,6 +14,7 @@
 
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
+import { CONV_MEDIA_BASE_MAX_BYTES, DM_ATTACHMENT_BASE_MAX_BYTES } from '@adieuu/shared';
 
 /** Image MIME types accepted for conversation media (E2E encrypted). */
 export const IMAGE_MIME_TYPES = [
@@ -143,7 +144,7 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
     },
   },
   dm_attachment: {
-    maxBytes: 50 * 1024 * 1024, // 50 MB
+    maxBytes: DM_ATTACHMENT_BASE_MAX_BYTES,
     allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
     processingFlags: {
       stripExif: false,
@@ -160,7 +161,7 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
     },
   },
   conv_media: {
-    maxBytes: 1_337_000_000, // 1.337 GB
+    maxBytes: CONV_MEDIA_BASE_MAX_BYTES,
     allowedContentTypes: [...IMAGE_MIME_TYPES, ...VIDEO_MIME_TYPES],
     allowAnyContentType: true,
     processingFlags: {

@@ -78,6 +78,11 @@ export interface SessionInfo {
   subscriptions?: SubscriptionTierId[];
   /** Feature entitlements (e.g. `vanguard`, `founder`, `gifted`). */
   entitlements?: string[];
+  /**
+   * Lifetime billing / perpetual grant (identity mode when derived from merged grants).
+   * Used for entitlement-scoped limits such as Lifetime Founder upload caps.
+   */
+  isLifetime?: boolean;
   /** Account-level age verification status (account mode only). */
   ageVerification?: SessionAgeVerification;
   /** Pre-evaluated alias gate result (account mode only). */

@@ -10,6 +10,7 @@ mock.module('../repositories/platform-settings.repository', () => ({
   }),
 }));
 
+import { FOUNDER_LIFETIME_DM_CONV_MAX_BYTES } from '@adieuu/shared';
 import { resolveMaxUploadBytes, resolveMaxVideoDurationSecondsForAccount } from './media-limits.service';
 import { UPLOAD_PURPOSE_CONFIG } from '../models/media-upload';
 
@@ -79,6 +80,33 @@ describe('resolveMaxUploadBytes', () => {
 
   test('user with both access and insider gets insider override', () => {
     expect(resolveMaxUploadBytes('dm_attachment', ['access', 'insider'])).toBe(4_200_000_000);
+  });
+
+  test('lifetime founder gets 9.001 GB scalable cap on conv_media (over insider)', () => {
+    expect(
+      resolveMaxUploadBytes('conv_media', ['insider'], {
+        entitlements: ['founder'],
+        isLifetime: true,
+      }),
+    ).toBe(FOUNDER_LIFETIME_DM_CONV_MAX_BYTES);
+  });
+
+  test('lifetime founder gets 9.001 GB scalable cap on dm_attachment', () => {
+    expect(
+      resolveMaxUploadBytes('dm_attachment', ['access'], {
+        entitlements: ['founder'],
+        isLifetime: true,
+      }),
+    ).toBe(FOUNDER_LIFETIME_DM_CONV_MAX_BYTES);
+  });
+
+  test('founder entitlement without lifetime does not elevate past insider', () => {
+    expect(
+      resolveMaxUploadBytes('conv_media', ['insider'], {
+        entitlements: ['founder'],
+        isLifetime: false,
+      }),
+    ).toBe(4_200_000_000);
   });
 });
 

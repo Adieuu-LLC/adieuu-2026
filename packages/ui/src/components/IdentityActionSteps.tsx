@@ -57,7 +57,7 @@ function PrimaryStepAction({ step }: { step: AccountProgressStep }) {
       );
     case 'startConversation':
       return (
-        <Link to="/conversations" className="btn btn-secondary btn-sm">
+        <Link to="/conversations/new" className="btn btn-secondary btn-sm">
           {t('home.identity.steps.startConversation.action')}
         </Link>
       );

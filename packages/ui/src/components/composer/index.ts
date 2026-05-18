@@ -16,6 +16,7 @@ export {
   isAcceptedConversationMediaType,
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_BYTES,
+  resolveConversationComposerMediaMaxBytes,
   PLACEHOLDER_VERB_KEYS,
   TTL_OPTIONS,
 } from './composerTypes';

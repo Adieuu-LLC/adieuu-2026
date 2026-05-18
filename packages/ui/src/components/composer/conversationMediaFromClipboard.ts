@@ -1,11 +1,21 @@
+import { CONV_MEDIA_BASE_MAX_BYTES } from '@adieuu/shared';
 import {
   isAcceptedConversationMediaType,
   isVisualMediaMimeType,
-  MAX_ATTACHMENT_BYTES,
   ACCEPTED_VIDEO_TYPES,
 } from './composerTypes';
 
 const SNIFF_PREFIX_BYTES = 64 * 1024;
+
+/** Options shared by conversation media gathering helpers */
+export type GatherConversationMediaOptions = {
+  /**
+   * Max accepted plaintext size before a file counts as oversized.
+   * Default: {@link CONV_MEDIA_BASE_MAX_BYTES} Access-tier baseline; callers with an identity session
+   * should pass the effective cap from resolveScalableDmOrConvMaxUploadBytes / composer helper.
+   */
+  maxBytes?: number;
+};
 
 /** Normalize clipboard / File.type hints so allowlist checks are more reliable. */
 export function normalizeMimeType(mime: string): string {
@@ -66,11 +76,15 @@ function defaultNameForPaste(mime: string): string {
 /**
  * Resolve a File from input or clipboard to an accepted conversation media File, using sniffing when needed.
  */
-export async function resolveConversationMediaFile(raw: File): Promise<{
+export async function resolveConversationMediaFile(
+  raw: File,
+  options?: GatherConversationMediaOptions,
+): Promise<{
   file: File;
   oversized: boolean;
 } | null> {
-  if (raw.size > MAX_ATTACHMENT_BYTES) {
+  const maxBytes = options?.maxBytes ?? CONV_MEDIA_BASE_MAX_BYTES;
+  if (raw.size > maxBytes) {
     return null;
   }
   if (raw.size === 0) {
@@ -124,17 +138,19 @@ export type GatherConversationMediaResult = {
  */
 export async function gatherConversationMediaFromFileList(
   list: FileList | File[],
+  options?: GatherConversationMediaOptions,
 ): Promise<GatherConversationMediaResult> {
+  const maxBytes = options?.maxBytes ?? CONV_MEDIA_BASE_MAX_BYTES;
   const files: File[] = [];
   let oversized = false;
   const seen = new Set<string>();
 
   for (const raw of Array.from(list)) {
-    if (raw.size > MAX_ATTACHMENT_BYTES) {
+    if (raw.size > maxBytes) {
       oversized = true;
       continue;
     }
-    const resolved = await resolveConversationMediaFile(raw);
+    const resolved = await resolveConversationMediaFile(raw, options);
     if (!resolved) continue;
     const k = fileDedupeKey(resolved.file);
     if (seen.has(k)) continue;
@@ -150,18 +166,20 @@ export async function gatherConversationMediaFromFileList(
  */
 export async function gatherConversationMediaFromDataTransfer(
   dt: DataTransfer,
+  options?: GatherConversationMediaOptions,
 ): Promise<GatherConversationMediaResult> {
+  const maxBytes = options?.maxBytes ?? CONV_MEDIA_BASE_MAX_BYTES;
   const files: File[] = [];
   let oversized = false;
   const seen = new Set<string>();
 
   const tryAdd = async (raw: File | null) => {
     if (!raw) return;
-    if (raw.size > MAX_ATTACHMENT_BYTES) {
+    if (raw.size > maxBytes) {
       oversized = true;
       return;
     }
-    const resolved = await resolveConversationMediaFile(raw);
+    const resolved = await resolveConversationMediaFile(raw, options);
     if (!resolved) return;
     const k = fileDedupeKey(resolved.file);
     if (seen.has(k)) return;
@@ -231,7 +249,10 @@ function pickReadableClipboardType(types: readonly string[]): string | null {
  * Read image/video blobs via async Clipboard API (fallback when DataTransfer yields nothing).
  * One file per ClipboardItem (avoids duplicate PNG+JPEG representations).
  */
-export async function readClipboardMediaFilesViaApi(): Promise<GatherConversationMediaResult> {
+export async function readClipboardMediaFilesViaApi(
+  options?: GatherConversationMediaOptions,
+): Promise<GatherConversationMediaResult> {
+  const maxBytes = options?.maxBytes ?? CONV_MEDIA_BASE_MAX_BYTES;
   const files: File[] = [];
   let oversized = false;
   try {
@@ -245,7 +266,7 @@ export async function readClipboardMediaFilesViaApi(): Promise<GatherConversatio
       if (!type) continue;
       const blob = await item.getType(type);
       if (!blob || blob.size === 0) continue;
-      if (blob.size > MAX_ATTACHMENT_BYTES) {
+      if (blob.size > maxBytes) {
         oversized = true;
         continue;
       }

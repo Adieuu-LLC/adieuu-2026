@@ -73,6 +73,10 @@ export interface RequestUploadInput {
   identityId: string;
   /** Active subscription tiers (from identity session) for limit resolution. */
   subscriptions?: SubscriptionTierId[];
+  /** Entitlements merged from grants and identity overrides (e.g. `founder`). */
+  entitlements?: string[];
+  /** From identity session merged grants — Lifetime Founder upload caps. */
+  isLifetime?: boolean;
 }
 
 export interface RequestUploadResult {
@@ -121,7 +125,10 @@ export async function requestUpload(
     };
   }
 
-  const maxBytes = resolveMaxUploadBytes(input.purpose, input.subscriptions ?? []);
+  const maxBytes = resolveMaxUploadBytes(input.purpose, input.subscriptions ?? [], {
+    entitlements: input.entitlements,
+    isLifetime: input.isLifetime,
+  });
   if (input.contentLength > maxBytes) {
     return {
       success: false,

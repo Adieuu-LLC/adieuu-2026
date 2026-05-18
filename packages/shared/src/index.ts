@@ -1,5 +1,6 @@
 // Re-export all shared types and utilities
 export * from './constants/http';
+export * from './constants/media-upload-limits';
 export * from './constants/report-context';
 export * from './constants/moderation-reason-map';
 export * from './types';

@@ -3,19 +3,13 @@
  * Identity routes consume the value stored on the session — they do not load User.
  */
 
+import { resolveScalableDmOrConvMaxUploadBytes, type SubscriptionTierId } from '@adieuu/shared';
 import { PLATFORM_SETTING_KEYS } from '../constants/platform-settings-keys';
 import { DEFAULT_MAX_VIDEO_DURATION_SECONDS } from '../constants/media-limits';
 import type { UserDocument } from '../models/user';
-import type { SubscriptionTierId } from '@adieuu/shared';
 import type { UploadPurpose } from '../models/media-upload';
 import { UPLOAD_PURPOSE_CONFIG } from '../models/media-upload';
 import { getPlatformSettingsRepository } from '../repositories/platform-settings.repository';
-
-/** Explicit per-purpose Insider byte limits (overrides base when present). */
-const INSIDER_UPLOAD_OVERRIDES: Partial<Record<UploadPurpose, number>> = {
-  conv_media: 4_200_000_000, // 4.20 GB
-  dm_attachment: 4_200_000_000, // 4.20 GB
-};
 
 function clampPositiveInt(n: number, fallback: number): number {
   if (!Number.isFinite(n) || n < 1) return fallback;
@@ -49,19 +43,31 @@ export function resolveMaxVideoDurationSecondsForAccount(
   return Math.min(platform, clampPositiveInt(accountCap, platform));
 }
 
+/** Options for entitlement-aware upload caps (conversation media / DM attachments). */
+export interface ResolveMaxUploadBytesOptions {
+  entitlements?: string[];
+  isLifetime?: boolean;
+}
+
 /**
  * Resolves the effective max upload size (bytes) for a given purpose,
- * taking subscription tiers into account. Insider subscribers get a
- * doubled file size limit for attachment-style purposes.
+ * taking subscription tiers and entitlement grants into account.
+ *
+ * Insider subscribers get elevated caps on scalable purposes; Lifetime Founder
+ * (`founder` entitlement with lifetime billing) receives the highest ceiling.
  */
 export function resolveMaxUploadBytes(
   purpose: UploadPurpose,
   subscriptions: SubscriptionTierId[],
+  opts?: ResolveMaxUploadBytesOptions,
 ): number {
   const base = UPLOAD_PURPOSE_CONFIG[purpose].maxBytes;
-  const hasInsider = subscriptions.includes('insider');
-  if (!hasInsider) return base;
+  if (purpose === 'conv_media' || purpose === 'dm_attachment') {
+    return resolveScalableDmOrConvMaxUploadBytes(purpose, subscriptions, {
+      entitlements: opts?.entitlements ?? [],
+      isLifetime: opts?.isLifetime ?? false,
+    });
+  }
 
-  const override = INSIDER_UPLOAD_OVERRIDES[purpose];
-  return override ?? base;
+  return base;
 }

@@ -10,15 +10,15 @@ import {
   type GifAttachment,
 } from '../../services/messagePayload';
 import { getOrCreateDeviceId } from '../../services/deviceInfo';
-import { createApiClient } from '@adieuu/shared';
+import { createApiClient, CONV_MEDIA_BASE_MAX_BYTES, type PublicCustomEmoji } from '@adieuu/shared';
 import { EmojiPicker, type EmojiSelectResult } from '../EmojiPicker';
-import type { PublicCustomEmoji } from '@adieuu/shared';
 import { GifPicker, type ContentTab } from '../GifPicker';
 import { Tooltip } from '../Tooltip';
 import { useToast } from '../Toast';
 import { Icon } from '../../icons/Icon';
 import { copyPlainTextToClipboard, readPlainTextFromClipboard } from '../../utils/contextMenuClipboard';
 import { useAppConfig } from '../../config';
+import { useAuth } from '../../hooks/useAuth';
 import type {
   ComposerSendFn,
   ComposerReplyContext,
@@ -27,8 +27,8 @@ import type {
   TrackedMention,
 } from './composerTypes';
 import {
+  resolveConversationComposerMediaMaxBytes,
   MAX_ATTACHMENTS,
-  MAX_ATTACHMENT_BYTES,
   PLACEHOLDER_VERB_KEYS,
 } from './composerTypes';
 import {
@@ -114,7 +114,24 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   const { t } = useTranslation();
   const { warning: toastWarning, error: toastError } = useToast();
   const { apiBaseUrl } = useAppConfig();
+  const { status: authStatus, session: authSession } = useAuth();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+
+  const conversationMediaMaxBytes = useMemo(
+    () =>
+      authStatus === 'identity_mode' && authSession
+        ? resolveConversationComposerMediaMaxBytes({
+            subscriptions: authSession.subscriptions ?? [],
+            entitlements: authSession.entitlements ?? [],
+            isLifetime: authSession.isLifetime ?? false,
+          })
+        : CONV_MEDIA_BASE_MAX_BYTES,
+    [authStatus, authSession],
+  );
+  const conversationMediaGatherOpts = useMemo(
+    () => ({ maxBytes: conversationMediaMaxBytes }),
+    [conversationMediaMaxBytes],
+  );
   const { enqueueMediaSend } = useMediaOutbox();
 
   useEffect(() => {
@@ -311,12 +328,12 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
   }, []);
 
   const warnAttachmentTooLarge = useCallback(() => {
-    const maxMb = Math.round(MAX_ATTACHMENT_BYTES / (1024 * 1024));
+    const maxMb = Math.round(conversationMediaMaxBytes / (1024 * 1024));
     toastWarning(
       t('conversations.fileTooLarge', 'File too large'),
       t('conversations.fileTooLargeDesc', 'Attachments must be under {{maxMb}} MB.', { maxMb }),
     );
-  }, [toastWarning, t]);
+  }, [toastWarning, t, conversationMediaMaxBytes]);
 
   const commitMediaFilesToAttachments = useCallback(
     (files: File[], options?: { toastLabel?: string }) => {
@@ -344,7 +361,10 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       const files = e.target.files;
       if (!files) return;
       void (async () => {
-        const { files: resolved, oversized } = await gatherConversationMediaFromFileList(files);
+        const { files: resolved, oversized } = await gatherConversationMediaFromFileList(
+          files,
+          conversationMediaGatherOpts,
+        );
         if (oversized) warnAttachmentTooLarge();
         if (resolved.length > 0) {
           commitMediaFilesToAttachments(resolved, { toastLabel: t('conversations.pasted', 'Pasted') });
@@ -352,7 +372,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         if (fileInputRef.current) fileInputRef.current.value = '';
       })();
     },
-    [commitMediaFilesToAttachments, warnAttachmentTooLarge, t],
+    [commitMediaFilesToAttachments, warnAttachmentTooLarge, t, conversationMediaGatherOpts],
   );
 
   const removeAttachment = useCallback((index: number) => {
@@ -635,9 +655,9 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       e.preventDefault();
       const textFallback = cd.getData('text/plain');
       void (async () => {
-        let { files, oversized } = await gatherConversationMediaFromDataTransfer(cd);
+        let { files, oversized } = await gatherConversationMediaFromDataTransfer(cd, conversationMediaGatherOpts);
         if (files.length === 0 && !oversized) {
-          const apiRes = await readClipboardMediaFilesViaApi();
+          const apiRes = await readClipboardMediaFilesViaApi(conversationMediaGatherOpts);
           files = apiRes.files;
           oversized = oversized || apiRes.oversized;
         }
@@ -669,6 +689,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       warnAttachmentTooLarge,
       commitMediaFilesToAttachments,
       insertPlainTextAtCaret,
+      conversationMediaGatherOpts,
     ],
   );
 
@@ -678,7 +699,10 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       addMediaFiles: (list: FileList | File[]) => {
         if (disabled || sending) return;
         void (async () => {
-          const { files: resolved, oversized } = await gatherConversationMediaFromFileList(list);
+          const { files: resolved, oversized } = await gatherConversationMediaFromFileList(
+            list,
+            conversationMediaGatherOpts,
+          );
           if (oversized) warnAttachmentTooLarge();
           if (resolved.length > 0) {
             commitMediaFilesToAttachments(resolved, { toastLabel: t('conversations.pasted', 'Pasted') });
@@ -686,7 +710,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
         })();
       },
     }),
-    [disabled, sending, warnAttachmentTooLarge, commitMediaFilesToAttachments, t],
+    [disabled, sending, warnAttachmentTooLarge, commitMediaFilesToAttachments, t, conversationMediaGatherOpts],
   );
 
   const handleComposerContextMenu = useCallback(
@@ -740,7 +764,8 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
           showComposerToast(t('conversations.pasted', 'Pasted'));
           return;
         }
-        const { files: clipFiles, oversized: clipOversized } = await readClipboardMediaFilesViaApi();
+        const { files: clipFiles, oversized: clipOversized } =
+          await readClipboardMediaFilesViaApi(conversationMediaGatherOpts);
         if (clipOversized) {
           warnAttachmentTooLarge();
         }
@@ -770,6 +795,7 @@ export const MessageComposer = forwardRef<MessageComposerHandle, MessageComposer
       toastWarning,
       warnAttachmentTooLarge,
       commitMediaFilesToAttachments,
+      conversationMediaGatherOpts,
     ],
   );
 

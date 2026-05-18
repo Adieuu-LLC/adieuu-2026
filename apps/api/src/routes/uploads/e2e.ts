@@ -89,7 +89,7 @@ const SealConvScanSessionSchema = z.object({
  */
 router.post('/uploads/e2e/request', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
-  const { identity, maxVideoDurationSeconds, subscriptions } = ctx.identitySession;
+  const { identity, maxVideoDurationSeconds, subscriptions, entitlements, isLifetime } = ctx.identitySession;
 
   const parseResult = RequestE2EUploadSchema.safeParse(ctx.body);
   if (!parseResult.success) {
@@ -104,6 +104,8 @@ router.post('/uploads/e2e/request', async (ctx) => {
     maxVideoDurationSeconds,
     declaredDurationSeconds: parseResult.data.declaredDurationSeconds,
     subscriptions,
+    entitlements,
+    isLifetime,
   });
 
   if (!result.success) {

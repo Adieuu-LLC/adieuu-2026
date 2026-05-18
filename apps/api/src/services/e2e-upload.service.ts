@@ -128,6 +128,10 @@ export interface RequestE2EUploadInput {
   declaredDurationSeconds?: number;
   /** Active subscription tiers (from identity session) for limit resolution. */
   subscriptions?: SubscriptionTierId[];
+  /** Entitlements merged from grants and identity overrides (e.g. `founder`). */
+  entitlements?: string[];
+  /** From identity session merged grants — Lifetime Founder upload caps. */
+  isLifetime?: boolean;
 }
 
 export interface RequestE2EUploadResult {
@@ -188,7 +192,10 @@ export async function requestE2EUpload(
     }
   }
 
-  const maxBytes = resolveMaxUploadBytes('conv_media', input.subscriptions ?? []);
+  const maxBytes = resolveMaxUploadBytes('conv_media', input.subscriptions ?? [], {
+    entitlements: input.entitlements,
+    isLifetime: input.isLifetime,
+  });
   if (input.contentLength > maxBytes) {
     return {
       success: false,

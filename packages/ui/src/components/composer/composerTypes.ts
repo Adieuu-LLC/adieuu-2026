@@ -1,3 +1,9 @@
+import {
+  CONV_MEDIA_BASE_MAX_BYTES,
+  resolveScalableDmOrConvMaxUploadBytes,
+  type SubscriptionTierId,
+} from '@adieuu/shared';
+
 export type ComposerSendOptions = {
   useForwardSecrecy?: boolean;
   replyToMessageId?: string;
@@ -62,8 +68,25 @@ export function isAcceptedConversationMediaType(_mime: string): boolean {
   return true;
 }
 
+
 export const MAX_ATTACHMENTS = 10;
-export const MAX_ATTACHMENT_BYTES = 1_337_000_000; // 1.337 GB
+
+/**
+ * Baseline conversation attachment size cap (Access / non-insider).
+ * Prefer {@link resolveConversationComposerMediaMaxBytes} when session grants are known.
+ */
+export const MAX_ATTACHMENT_BYTES = CONV_MEDIA_BASE_MAX_BYTES;
+
+export function resolveConversationComposerMediaMaxBytes(args: {
+  subscriptions: SubscriptionTierId[];
+  entitlements: string[];
+  isLifetime: boolean;
+}): number {
+  return resolveScalableDmOrConvMaxUploadBytes('conv_media', args.subscriptions, {
+    entitlements: args.entitlements,
+    isLifetime: args.isLifetime,
+  });
+}
 
 export const PLACEHOLDER_VERB_KEYS = [
   'message',

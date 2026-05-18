@@ -264,7 +264,7 @@ router.post('/auth/verify', async (ctx) => {
  *
  * @route GET /api/auth/session
  *
- * @returns 200 OK with session info (account) or `{ sessionType: 'identity' }`
+ * @returns 200 OK with session info (account) or `{ sessionType: 'identity'; subscriptions; entitlements; isLifetime?; ... }`
  * @returns 401 Unauthorized if no valid session
  *
  * @security
@@ -280,7 +280,7 @@ router.get('/auth/session', async (ctx) => {
     // from cookie, merged with identity overrides). Fall back to Mongo only for
     // edge cases where enrichment did not attach.
     if (ctx.identitySession) {
-      const { identity, subscriptions, entitlements } = ctx.identitySession;
+      const { identity, subscriptions, entitlements, isLifetime } = ctx.identitySession;
       const capabilities = await getPlatformCapabilities(identity._id);
       return success({
         sessionType: 'identity' as const,
@@ -289,6 +289,7 @@ router.get('/auth/session', async (ctx) => {
         platformPermissions: capabilities.permissions,
         subscriptions,
         entitlements,
+        isLifetime,
       });
     }
 
@@ -302,6 +303,7 @@ router.get('/auth/session', async (ctx) => {
         platformPermissions: capabilities.permissions,
         subscriptions: rawSession.subscriptions,
         entitlements: rawSession.entitlements,
+        isLifetime: rawSession.isLifetime ?? false,
       });
     }
     if (getSessionIdFromRequest(ctx.request)) {

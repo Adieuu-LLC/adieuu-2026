@@ -116,6 +116,7 @@ function useAuthState(): AuthContextValue {
             platformPermissions: (data.platformPermissions as string[]) ?? [],
             subscriptions: (data.subscriptions as SubscriptionTierId[]) ?? [],
             entitlements: (data.entitlements as string[]) ?? [],
+            isLifetime: (data.isLifetime as boolean) ?? false,
           };
           setState({ status: 'identity_mode', session: identitySession });
           return identitySession;
