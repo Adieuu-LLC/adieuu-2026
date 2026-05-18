@@ -5,10 +5,10 @@
  */
 
 import { ObjectId } from 'mongodb';
+import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getConversationRepository } from '../../repositories/conversation.repository';
 import { getMessageRepository } from '../../repositories/message.repository';
 import { getGroupInviteRepository } from '../../repositories/group-invite.repository';
-import { getIdentityRepository } from '../../repositories/identity.repository';
 import { createNotification } from '../notification.service';
 import { toPublicConversation } from '../../models/conversation';
 import { toPublicIdentity } from '../../models/identity';
@@ -54,6 +54,8 @@ export async function acceptGroupInvite(
 
   // Add to conversation
   await conversationRepo.addParticipant(invite.conversationId, identityObjId);
+
+  await identityRepo.incrementConversationsJoinedCounts([identityObjId]);
 
   const conversation = await conversationRepo.findById(invite.conversationId);
   if (conversation) {

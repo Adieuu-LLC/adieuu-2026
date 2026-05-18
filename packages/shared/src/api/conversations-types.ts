@@ -193,7 +193,12 @@ export interface ConversationPreferences {
 
 export interface ConversationStats {
   totalConversations: number;
+  /** Messages sent by this identity (non-system). */
   totalMessages: number;
+  /** Present when API supports identity denormalised friend count. */
+  totalFriends?: number;
+  /** Distinct achievements earned (`identity_achievements` rows). */
+  totalAchievementsEarned?: number;
 }
 
 export interface ConversationPreferencesPatch {

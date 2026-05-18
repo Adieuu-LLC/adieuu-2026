@@ -36,8 +36,8 @@ import { getConversationPreferencesRepository } from '../../repositories/convers
 import { toPublicConversationPreferences } from '../../models/conversation-preferences';
 import { ObjectId } from 'mongodb';
 import { getConversationRepository } from '../../repositories/conversation.repository';
+import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getMessageRepository } from '../../repositories/message.repository';
-import { getCollection, Collections } from '../../db';
 import {
   CreateConversationSchema,
   UpdatePreferencesSchema,
@@ -811,30 +811,31 @@ export async function terminateConversationCtrl(
 
 export async function getConversationStatsCtrl(
   ctx: RouteContext,
-): Promise<ConversationRouteResult<{ totalConversations: number; totalMessages: number }>> {
+): Promise<
+  ConversationRouteResult<{
+    totalConversations: number;
+    totalMessages: number;
+    totalFriends?: number;
+    totalAchievementsEarned?: number;
+  }>
+> {
   if (!ctx.identitySession) return { kind: 'unauthorized' };
-  const { identity } = ctx.identitySession;
+  const identityObjId = ctx.identitySession.identity._id;
 
-  const conversationsCol = getCollection(Collections.CONVERSATIONS);
-  const messagesCol = getCollection(Collections.MESSAGES);
+  const projection = await getIdentityRepository().findActivityStatsProjection(identityObjId);
 
-  const identityObjId = identity._id;
+  const totalMessages = projection?.messagesSentCount ?? 0;
+  const totalConversations = projection?.conversationsJoinedCount ?? 0;
+  const totalFriends = projection?.friendCount ?? 0;
+  const totalAchievementsEarned = projection?.achievementsEarnedCount ?? 0;
 
-  const convDocs = await conversationsCol
-    .find({ participants: identityObjId } as Parameters<typeof conversationsCol.find>[0], {
-      projection: { _id: 1 },
-    })
-    .toArray();
-
-  const conversationIds = convDocs.map((d) => d._id);
-  const totalConversations = conversationIds.length;
-
-  let totalMessages = 0;
-  if (conversationIds.length > 0) {
-    totalMessages = await messagesCol.countDocuments({
-      conversationId: { $in: conversationIds },
-    } as Parameters<typeof messagesCol.countDocuments>[0]);
-  }
-
-  return { kind: 'ok', data: { totalConversations, totalMessages } };
+  return {
+    kind: 'ok',
+    data: {
+      totalConversations,
+      totalMessages,
+      totalFriends,
+      totalAchievementsEarned,
+    },
+  };
 }

@@ -228,6 +228,8 @@ export async function acceptFriendRequest(
   // Create mutual friendship
   await friendshipRepo.createMutual(request.fromIdentityId, request.toIdentityId);
 
+  await getIdentityRepository().incrementFriendCounts(request.fromIdentityId, request.toIdentityId);
+
   // Check achievement triggers for both parties (fire-and-forget)
   checkAndAward(request.fromIdentityId, 'friendship_created').catch(() => {});
   checkAndAward(request.toIdentityId, 'friendship_created').catch(() => {});
@@ -337,6 +339,8 @@ export async function removeFriend(
   if (!removed) {
     return { success: false, error: 'Not friends', errorCode: 'NOT_FRIENDS' };
   }
+
+  await getIdentityRepository().decrementFriendCounts(identityObjId, friendObjId);
 
   const friendHex = friendObjId.toHexString();
 
@@ -566,8 +570,10 @@ export async function cleanupFriendData(
   const objIdA = identityA instanceof ObjectId ? identityA : new ObjectId(identityA);
   const objIdB = identityB instanceof ObjectId ? identityB : new ObjectId(identityB);
 
-  await Promise.all([
-    friendshipRepo.remove(objIdA, objIdB),
-    requestRepo.deleteByPair(objIdA, objIdB),
-  ]);
+  const removedFriendship = await friendshipRepo.remove(objIdA, objIdB);
+  await requestRepo.deleteByPair(objIdA, objIdB);
+
+  if (removedFriendship) {
+    await getIdentityRepository().decrementFriendCounts(objIdA, objIdB);
+  }
 }

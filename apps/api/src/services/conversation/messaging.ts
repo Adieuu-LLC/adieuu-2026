@@ -11,6 +11,7 @@ import {
   type MessagePaginationDirection,
 } from '@adieuu/shared';
 import { getConversationRepository } from '../../repositories/conversation.repository';
+import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getMessageRepository } from '../../repositories/message.repository';
 import { getBlockRepository } from '../../repositories/block.repository';
 import { getReactionRepository } from '../../repositories/reaction.repository';
@@ -149,6 +150,8 @@ export async function sendMessage(
     conversationId: convObjId,
     fromIdentityId: senderObjId,
   });
+
+  await getIdentityRepository().incrementMessagesSentCount(senderObjId);
 
   if (input.e2eMediaIds?.length && message.expiresAt) {
     const e2eRepo = getE2EMediaRepository();

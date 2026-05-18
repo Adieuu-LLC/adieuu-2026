@@ -56,6 +56,18 @@ export interface IIdentityRepository {
   getDevices(identityId: string | ObjectId): Promise<IdentityDevice[]>;
   clearModerationFields(identityId: string | ObjectId): Promise<boolean>;
   changeIdent(identityId: string | ObjectId, newIdent: string, newHashVersion: number, options?: { session?: ClientSession }): Promise<boolean>;
+  /** Dashboard counters ($inc paths). */
+  incrementMessagesSentCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
+  incrementConversationsJoinedCounts(identityIds: ObjectId[], options?: { session?: ClientSession }): Promise<void>;
+  incrementFriendCounts(identityA: ObjectId, identityB: ObjectId, options?: { session?: ClientSession }): Promise<void>;
+  decrementFriendCounts(identityA: ObjectId, identityB: ObjectId, options?: { session?: ClientSession }): Promise<void>;
+  incrementAchievementsEarnedCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
+  findActivityStatsProjection(
+    identityId: ObjectId
+  ): Promise<Pick<
+    IdentityDocument,
+    'messagesSentCount' | 'conversationsJoinedCount' | 'friendCount' | 'achievementsEarnedCount'
+  > | null>;
 }
 
 /**
@@ -161,6 +173,10 @@ export class IdentityRepository
       displayName: input.displayName,
       lastActiveAt: new Date(),
       requireGroupApproval: true,
+      messagesSentCount: 0,
+      conversationsJoinedCount: 0,
+      friendCount: 0,
+      achievementsEarnedCount: 0,
     };
 
     return await super.create(doc, options);
@@ -450,6 +466,107 @@ export class IdentityRepository
   async getDevices(identityId: string | ObjectId): Promise<IdentityDevice[]> {
     const doc = await this.findByIdentityId(identityId);
     return doc?.devices ?? [];
+  }
+
+  /** User-authored message sends (caller: `sendMessage` only). */
+  async incrementMessagesSentCount(
+    identityId: string | ObjectId,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
+    await this.collection.updateOne(
+      { _id: this.toObjectId(identityId) },
+      { $inc: { messagesSentCount: 1 } },
+      { session: options?.session },
+    );
+  }
+
+  /** Monotonic thread joins. */
+  async incrementConversationsJoinedCounts(
+    identityIds: ObjectId[],
+    options?: { session?: ClientSession },
+  ): Promise<void> {
+    if (identityIds.length === 0) return;
+
+    await this.collection.bulkWrite(
+      identityIds.map((id) => ({
+        updateOne: {
+          filter: { _id: id },
+          update: { $inc: { conversationsJoinedCount: 1 } },
+        },
+      })),
+      { ordered: false, session: options?.session },
+    );
+  }
+
+  async incrementFriendCounts(
+    identityA: ObjectId,
+    identityB: ObjectId,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
+    await this.collection.updateOne(
+      { _id: identityA },
+      { $inc: { friendCount: 1 } },
+      { session: options?.session },
+    );
+    await this.collection.updateOne(
+      { _id: identityB },
+      { $inc: { friendCount: 1 } },
+      { session: options?.session },
+    );
+  }
+
+  async decrementFriendCounts(
+    identityA: ObjectId,
+    identityB: ObjectId,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
+    await this.collection.updateOne(
+      { _id: identityA },
+      [{ $set: { friendCount: { $max: [0, { $subtract: [{ $ifNull: ['$friendCount', 0] }, 1] }] } } }] as Parameters<
+        typeof this.collection.updateOne
+      >[1],
+      { session: options?.session },
+    );
+    await this.collection.updateOne(
+      { _id: identityB },
+      [{ $set: { friendCount: { $max: [0, { $subtract: [{ $ifNull: ['$friendCount', 0] }, 1] }] } } }] as Parameters<
+        typeof this.collection.updateOne
+      >[1],
+      { session: options?.session },
+    );
+  }
+
+  async incrementAchievementsEarnedCount(
+    identityId: string | ObjectId,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
+    await this.collection.updateOne(
+      { _id: this.toObjectId(identityId) },
+      { $inc: { achievementsEarnedCount: 1 } },
+      { session: options?.session },
+    );
+  }
+
+  async findActivityStatsProjection(
+    identityId: ObjectId,
+  ): Promise<
+    Pick<
+      IdentityDocument,
+      'messagesSentCount' | 'conversationsJoinedCount' | 'friendCount' | 'achievementsEarnedCount'
+    > | null
+  > {
+    const doc = await this.collection.findOne(
+      { _id: identityId },
+      {
+        projection: {
+          messagesSentCount: 1,
+          conversationsJoinedCount: 1,
+          friendCount: 1,
+          achievementsEarnedCount: 1,
+        },
+      },
+    );
+    return doc as IdentityDocument | null;
   }
 
   /**

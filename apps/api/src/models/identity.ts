@@ -163,6 +163,18 @@ export interface IdentityDocument extends BaseDocument {
   subscriptionOverrides?: SubscriptionOverride[];
   /** Admin-granted entitlement overrides (lifetime), merged additively with account-level access. */
   entitlementOverrides?: string[];
+
+  /**
+   * Server-owned dashboard counters (never exposed on {@link PublicIdentity}).
+   * Omitted on legacy rows → treat as 0 when reading for API responses.
+   */
+  messagesSentCount?: number;
+  /** Monotonic threads this identity joined (not decremented on leave). */
+  conversationsJoinedCount?: number;
+  /** Exact mutual friend count for the identity’s outward edges. */
+  friendCount?: number;
+  /** One row per distinct earned achievement (`IDENTITY_ACHIEVEMENTS`). */
+  achievementsEarnedCount?: number;
 }
 
 /**

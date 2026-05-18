@@ -7,6 +7,7 @@ import { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type { AchievementDocument } from '../models/achievement';
+import { getIdentityRepository } from './identity.repository';
 
 export class AchievementRepository extends BaseRepository<AchievementDocument> {
   constructor() {
@@ -23,12 +24,14 @@ export class AchievementRepository extends BaseRepository<AchievementDocument> {
     metadata?: Record<string, unknown>
   ): Promise<AchievementDocument | null> {
     try {
-      return await super.create({
+      const created = await super.create({
         identityId,
         achievementId,
         awardedAt: new Date(),
         metadata,
       });
+      await getIdentityRepository().incrementAchievementsEarnedCount(identityId);
+      return created;
     } catch (err: unknown) {
       if (
         err instanceof Error &&

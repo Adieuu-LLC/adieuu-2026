@@ -87,6 +87,8 @@ export async function createConversation(
 
     const publicConv = toPublicConversation(conversation);
 
+    await identityRepo.incrementConversationsJoinedCounts(allParticipants);
+
     // Notify the other participant
     await publishConversationEvent(otherObjId.toHexString(), {
       type: 'conversation_created',
@@ -175,6 +177,8 @@ export async function createConversation(
     });
 
     const publicConv = toPublicConversation(conversation);
+
+    await identityRepo.incrementConversationsJoinedCounts(initialParticipants);
 
     // Notify direct-add members
     const creatorIdentity = await identityRepo.findByIdentityId(creatorObjId);

@@ -36,6 +36,8 @@ const mockBlockRepo = {
 const mockIdentityRepo = {
   findByIdentityId: mock(() => Promise.resolve(null)) as AnyMock,
   search: mock(() => Promise.resolve([])) as AnyMock,
+  incrementFriendCounts: mock(() => Promise.resolve(undefined)) as AnyMock,
+  decrementFriendCounts: mock(() => Promise.resolve(undefined)) as AnyMock,
 };
 
 const createNotificationMock = mock(() => Promise.resolve()) as AnyMock;
@@ -161,6 +163,8 @@ describe('friend.service', () => {
 
     mockIdentityRepo.findByIdentityId.mockReset();
     mockIdentityRepo.search.mockReset();
+    mockIdentityRepo.incrementFriendCounts.mockReset();
+    mockIdentityRepo.decrementFriendCounts.mockReset();
 
     createNotificationMock.mockReset();
     publishMock.mockReset();
@@ -191,6 +195,8 @@ describe('friend.service', () => {
 
     mockIdentityRepo.findByIdentityId.mockResolvedValue(null);
     mockIdentityRepo.search.mockResolvedValue([]);
+    mockIdentityRepo.incrementFriendCounts.mockResolvedValue(undefined);
+    mockIdentityRepo.decrementFriendCounts.mockResolvedValue(undefined);
 
     createNotificationMock.mockResolvedValue(undefined);
     publishMock.mockResolvedValue(undefined);
@@ -302,6 +308,10 @@ describe('friend.service', () => {
     expect(result.success).toBe(true);
     expect(mockRequestRepo.updateStatus).toHaveBeenCalledWith(request._id, 'accepted');
     expect(mockFriendshipRepo.createMutual).toHaveBeenCalledWith(request.fromIdentityId, request.toIdentityId);
+    expect(mockIdentityRepo.incrementFriendCounts).toHaveBeenCalledWith(
+      request.fromIdentityId,
+      request.toIdentityId,
+    );
     expect(createNotificationMock).toHaveBeenCalledTimes(1);
     expect(publishMock).toHaveBeenCalledTimes(1);
   });
@@ -374,6 +384,7 @@ describe('friend.service', () => {
     const result = await removeFriend(identityA, identityB);
     expect(result.success).toBe(false);
     expect(result.errorCode).toBe('NOT_FRIENDS');
+    expect(mockIdentityRepo.decrementFriendCounts).not.toHaveBeenCalled();
   });
 
   test('removeFriend removes friendship and publishes event', async () => {
@@ -381,6 +392,7 @@ describe('friend.service', () => {
 
     const result = await removeFriend(identityA, identityB);
     expect(result.success).toBe(true);
+    expect(mockIdentityRepo.decrementFriendCounts).toHaveBeenCalledWith(identityA, identityB);
     expect(publishMock).toHaveBeenCalledTimes(1);
   });
 
@@ -567,8 +579,20 @@ describe('friend.service', () => {
   // ---------------------------------------------------------------------------
 
   test('cleanupFriendData removes friendship and requests between identities', async () => {
+    mockFriendshipRepo.remove.mockResolvedValue(true);
+
     await cleanupFriendData(identityA, identityB);
+
     expect(mockFriendshipRepo.remove).toHaveBeenCalledTimes(1);
     expect(mockRequestRepo.deleteByPair).toHaveBeenCalledTimes(1);
+    expect(mockIdentityRepo.decrementFriendCounts).toHaveBeenCalledWith(identityA, identityB);
+  });
+
+  test('cleanupFriendData does not decrement counts when friendship was absent', async () => {
+    mockFriendshipRepo.remove.mockResolvedValue(false);
+
+    await cleanupFriendData(identityA, identityB);
+
+    expect(mockIdentityRepo.decrementFriendCounts).not.toHaveBeenCalled();
   });
 });

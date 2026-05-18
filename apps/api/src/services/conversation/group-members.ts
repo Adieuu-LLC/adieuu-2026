@@ -5,12 +5,12 @@
  */
 
 import { ObjectId } from 'mongodb';
+import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getConversationRepository } from '../../repositories/conversation.repository';
 import { getMessageRepository } from '../../repositories/message.repository';
 import { getGroupInviteRepository } from '../../repositories/group-invite.repository';
 import { getFriendshipRepository } from '../../repositories/friendship.repository';
 import { getBlockRepository } from '../../repositories/block.repository';
-import { getIdentityRepository } from '../../repositories/identity.repository';
 import { createNotification } from '../notification.service';
 import { toPublicConversation, MAX_GROUP_PARTICIPANTS } from '../../models/conversation';
 import { toPublicIdentity } from '../../models/identity';
@@ -123,6 +123,8 @@ export async function addGroupMember(
 
   // Direct add
   await conversationRepo.addParticipant(convObjId, newMemberObjId);
+
+  await identityRepo.incrementConversationsJoinedCounts([newMemberObjId]);
 
   const updated = await conversationRepo.findById(convObjId);
   const publicConv = updated ? toPublicConversation(updated) : undefined;

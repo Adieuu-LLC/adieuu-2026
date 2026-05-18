@@ -199,7 +199,6 @@ function useIdentityProgress(
 ): IdentityProgress {
   const { friends } = useFriends();
   const { conversations } = useConversations();
-  const [achievementCount, setAchievementCount] = useState(0);
   const [conversationStats, setConversationStats] = useState<ConversationStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -214,13 +213,8 @@ function useIdentityProgress(
 
     void (async () => {
       try {
-        const [achRes, statsRes] = await Promise.all([
-          api.achievements.getMine(),
-          api.conversations.getStats(),
-        ]);
+        const statsRes = await api.conversations.getStats();
         if (cancelled) return;
-        const achievements = achRes.success && achRes.data ? achRes.data.achievements : undefined;
-        setAchievementCount(Array.isArray(achievements) ? achievements.length : 0);
         if (statsRes.success && statsRes.data) {
           setConversationStats(statsRes.data);
         }
@@ -267,9 +261,9 @@ function useIdentityProgress(
       enabled
         ? {
             conversations: conversationStats?.totalConversations ?? conversationsLen,
-            friends: friendsLen,
+            friends: conversationStats?.totalFriends ?? friendsLen,
             messages: conversationStats?.totalMessages ?? 0,
-            achievements: achievementCount,
+            achievements: conversationStats?.totalAchievementsEarned ?? 0,
           }
         : {
             conversations: 0,
@@ -277,7 +271,7 @@ function useIdentityProgress(
             messages: 0,
             achievements: 0,
           },
-    [enabled, conversationStats, conversationsLen, friendsLen, achievementCount],
+    [enabled, conversationStats, conversationsLen, friendsLen],
   );
 
   return {

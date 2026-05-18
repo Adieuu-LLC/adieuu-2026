@@ -138,6 +138,27 @@ mock.module('../../repositories/conversation.repository', () => ({
   })),
 }));
 
+const mockFindActivityStatsProjection = mock(
+  (): Promise<{
+    messagesSentCount: number;
+    conversationsJoinedCount: number;
+    friendCount: number;
+    achievementsEarnedCount: number;
+  } | null> =>
+    Promise.resolve({
+      messagesSentCount: 1,
+      conversationsJoinedCount: 2,
+      friendCount: 3,
+      achievementsEarnedCount: 4,
+    }),
+);
+
+mock.module('../../repositories/identity.repository', () => ({
+  getIdentityRepository: () => ({
+    findActivityStatsProjection: mockFindActivityStatsProjection,
+  }),
+}));
+
 import {
   createConversationCtrl,
   listConversationsCtrl,
@@ -145,6 +166,7 @@ import {
   patchConversationPreferencesCtrl,
   getGroupInvitePreviewCtrl,
   getConversationCtrl,
+  getConversationStatsCtrl,
   pinMessageCtrl,
   leaveConversationCtrl,
   promoteToAdminCtrl,
@@ -180,6 +202,7 @@ describe('conversation controller', () => {
     mockListConversations.mockClear();
     mockCountByConversation.mockClear();
     mockSetMessageCount.mockClear();
+    mockFindActivityStatsProjection.mockClear();
     mockFindForIdentity.mockClear();
     mockUpsert.mockClear();
     mockPinMessage.mockClear();
@@ -197,6 +220,14 @@ describe('conversation controller', () => {
       Promise.resolve({ success: true, preview: {} }),
     );
     mockCountByConversation.mockImplementation(() => Promise.resolve(3));
+    mockFindActivityStatsProjection.mockImplementation(() =>
+      Promise.resolve({
+        messagesSentCount: 1,
+        conversationsJoinedCount: 2,
+        friendCount: 3,
+        achievementsEarnedCount: 4,
+      }),
+    );
     mockFindForIdentity.mockImplementation(() => Promise.resolve([]));
     mockUpsert.mockImplementation(() =>
       Promise.resolve({
@@ -490,5 +521,46 @@ describe('conversation controller', () => {
       }),
     );
     expect(r).toEqual({ kind: 'unauthorized' });
+  });
+
+  test('getConversationStatsCtrl unauthorized without identity session', async () => {
+    const r = await getConversationStatsCtrl(baseCtx());
+    expect(r).toEqual({ kind: 'unauthorized' });
+  });
+
+  test('getConversationStatsCtrl reads identity activity projection', async () => {
+    const r = await getConversationStatsCtrl(
+      baseCtx({
+        identitySession: { identity: { _id: ROUTE_TEST_IDENTITY_ID } } as never,
+      }),
+    );
+    expect(r).toEqual({
+      kind: 'ok',
+      data: {
+        totalConversations: 2,
+        totalMessages: 1,
+        totalFriends: 3,
+        totalAchievementsEarned: 4,
+      },
+    });
+    expect(mockFindActivityStatsProjection).toHaveBeenCalledWith(ROUTE_TEST_IDENTITY_ID);
+  });
+
+  test('getConversationStatsCtrl coerces null projection to zeros', async () => {
+    mockFindActivityStatsProjection.mockResolvedValueOnce(null);
+    const r = await getConversationStatsCtrl(
+      baseCtx({
+        identitySession: { identity: { _id: ROUTE_TEST_IDENTITY_ID } } as never,
+      }),
+    );
+    expect(r).toEqual({
+      kind: 'ok',
+      data: {
+        totalConversations: 0,
+        totalMessages: 0,
+        totalFriends: 0,
+        totalAchievementsEarned: 0,
+      },
+    });
   });
 });

@@ -21,6 +21,7 @@ const mockCollection = {
   })) as AnyMock,
   insertOne: mock(() => Promise.resolve({ insertedId: new ObjectId() })) as AnyMock,
   updateOne: mock(() => Promise.resolve({ modifiedCount: 1 })) as AnyMock,
+  bulkWrite: mock(() => Promise.resolve({ modifiedCount: 0 })) as AnyMock,
   findOneAndUpdate: mock(() => Promise.resolve({ value: null })) as AnyMock,
   deleteOne: mock(() => Promise.resolve({ deletedCount: 1 })) as AnyMock,
 };
@@ -65,6 +66,7 @@ describe('IdentityRepository', () => {
     mockCollection.updateOne.mockReset();
     mockCollection.findOneAndUpdate.mockReset();
     mockCollection.deleteOne.mockReset();
+    mockCollection.bulkWrite.mockReset();
 
     // Set default implementations
     mockCollection.findOne.mockImplementation(() => Promise.resolve(null));
@@ -76,6 +78,9 @@ describe('IdentityRepository', () => {
     );
     mockCollection.updateOne.mockImplementation(() =>
       Promise.resolve({ modifiedCount: 1 })
+    );
+    mockCollection.bulkWrite.mockImplementation(() =>
+      Promise.resolve({ matchedCount: 0, modifiedCount: 0, upsertedCount: 0 } as never)
     );
   });
 
@@ -422,6 +427,68 @@ describe('IdentityRepository', () => {
       const result = await repo.getDevices(new ObjectId());
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('activity stat counters', () => {
+    test('incrementMessagesSentCount issues $inc on messagesSentCount', async () => {
+      await repo.incrementMessagesSentCount(mockIdentity._id);
+      expect(mockCollection.updateOne).toHaveBeenCalledWith(
+        { _id: mockIdentity._id },
+        { $inc: { messagesSentCount: 1 } },
+        { session: undefined },
+      );
+    });
+
+    test('incrementConversationsJoinedCounts uses bulkWrite when multiple ids', async () => {
+      const id2 = new ObjectId();
+      await repo.incrementConversationsJoinedCounts([mockIdentity._id, id2]);
+
+      expect(mockCollection.bulkWrite).toHaveBeenCalledTimes(1);
+      const [ops, opts] = mockCollection.bulkWrite.mock.calls[0]!;
+      expect(opts).toMatchObject({ ordered: false });
+      expect(ops).toHaveLength(2);
+      expect(ops![0]).toMatchObject({
+        updateOne: {
+          filter: { _id: mockIdentity._id },
+          update: { $inc: { conversationsJoinedCount: 1 } },
+        },
+      });
+    });
+
+    test('incrementConversationsJoinedCounts no-ops empty array without bulkWrite', async () => {
+      await repo.incrementConversationsJoinedCounts([]);
+      expect(mockCollection.bulkWrite).not.toHaveBeenCalled();
+    });
+
+    test('incrementFriendCounts bumps both identities', async () => {
+      const idb = new ObjectId();
+      await repo.incrementFriendCounts(mockIdentity._id, idb);
+      expect(mockCollection.updateOne).toHaveBeenCalledTimes(2);
+      expect(mockCollection.updateOne.mock.calls[0]![1]).toEqual({ $inc: { friendCount: 1 } });
+    });
+
+    test('decrementFriendCounts uses aggregation pipeline clamped at zero', async () => {
+      const idb = new ObjectId();
+      await repo.decrementFriendCounts(mockIdentity._id, idb);
+      expect(mockCollection.updateOne).toHaveBeenCalledTimes(2);
+      expect(Array.isArray(mockCollection.updateOne.mock.calls[0]![1])).toBe(true);
+    });
+
+    test('findActivityStatsProjection returns partial doc', async () => {
+      mockCollection.findOne.mockImplementationOnce(() =>
+        Promise.resolve({
+          messagesSentCount: 2,
+          conversationsJoinedCount: 3,
+          friendCount: 4,
+          achievementsEarnedCount: 5,
+        }),
+      );
+      const row = await repo.findActivityStatsProjection(mockIdentity._id);
+      expect(row?.messagesSentCount).toBe(2);
+      expect(row?.conversationsJoinedCount).toBe(3);
+      expect(row?.friendCount).toBe(4);
+      expect(row?.achievementsEarnedCount).toBe(5);
     });
   });
 });
