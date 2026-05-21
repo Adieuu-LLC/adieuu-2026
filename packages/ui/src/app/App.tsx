@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useIdentity } from '../hooks/useIdentity';
 import { AppLayout } from '../components/AppLayout';
@@ -67,7 +68,7 @@ import {
  * Protected route wrapper - redirects to login if not authenticated.
  * When authenticated, renders the app layout with sidebar.
  */
-function ProtectedLayout() {
+function ProtectedLayout({ children }: { children?: ReactNode }) {
   const { status } = useAuth();
 
   if (status === 'loading') {
@@ -93,9 +94,7 @@ function ProtectedLayout() {
               <ConversationPreferencesProvider>
                 <ConversationsProvider>
                   <MediaOutboxProvider>
-                    <UpdateProvider>
-                      <ProtectedLayoutContent />
-                    </UpdateProvider>
+                    <ProtectedLayoutContent>{children}</ProtectedLayoutContent>
                   </MediaOutboxProvider>
                 </ConversationsProvider>
               </ConversationPreferencesProvider>
@@ -111,7 +110,7 @@ function ProtectedLayout() {
  * Inner layout component that has access to tour context.
  * Also sets up global DM notifications for incoming messages.
  */
-function ProtectedLayoutContent() {
+function ProtectedLayoutContent({ children }: { children?: ReactNode }) {
   const tour = useTourContext();
   const appearanceTour = useAppearanceTour();
 
@@ -127,7 +126,7 @@ function ProtectedLayoutContent() {
         <AppLayout sidebar={<AppSidebar />}>
           <KeyStorageBanner />
           <WebSecurityBanner />
-          <Outlet />
+          {children ?? <Outlet />}
         </AppLayout>
       </IdentityModalProvider>
       <UpdateOverlay />
@@ -155,7 +154,12 @@ function PublicLayout() {
   }
 
   if (status === 'authenticated' || status === 'identity_mode') {
-    return <ProtectedLayout />;
+    // Keep rendering this branch's matched public route; only the shell is "protected".
+    return (
+      <ProtectedLayout>
+        <Outlet />
+      </ProtectedLayout>
+    );
   }
 
   return (
@@ -225,6 +229,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
  */
 export function App() {
   return (
+    <UpdateProvider>
     <Routes>
       {/* Auth Routes */}
       <Route
@@ -326,5 +331,6 @@ export function App() {
       {/* Catch-all redirect */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </UpdateProvider>
   );
 }

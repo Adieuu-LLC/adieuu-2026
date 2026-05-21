@@ -23,8 +23,7 @@ export function UpdateProvider({ children }: UpdateProviderProps) {
 
 /**
  * Consume update state from the nearest UpdateProvider.
- * Falls back to calling useUpdateCheck directly if no provider is present
- * (e.g. on web where the provider may be omitted).
+ * App-level UpdateProvider in App.tsx supplies context for all routes.
  */
 export function useUpdateContext(): UseUpdateCheckResult {
   const ctx = useContext(UpdateContext);
