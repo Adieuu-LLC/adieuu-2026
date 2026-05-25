@@ -4,7 +4,7 @@
  */
 
 import { Router } from './router';
-import { securityHeaders, requestId, cors, sessionCookieRenewal, requireActiveSubscription, enrichIdentitySession } from './middleware';
+import { securityHeaders, requestId, cors, csrf, sessionCookieRenewal, requireActiveSubscription, enrichIdentitySession } from './middleware';
 import { registerRoutes } from './routes';
 import { initializeDatabases, closeDatabases } from './db';
 import { config, validateProductionConfig } from './config';
@@ -30,6 +30,7 @@ const app = new Router({
 app.use(requestId());
 app.use(securityHeaders());
 app.use(cors());
+app.use(csrf());
 app.use(sessionCookieRenewal());
 app.use(requireActiveSubscription());
 app.use(enrichIdentitySession());

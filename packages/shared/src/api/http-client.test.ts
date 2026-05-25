@@ -91,6 +91,38 @@ describe('ApiClient', () => {
     }
   });
 
+  it('sends X-CSRF-Token on mutating requests when adieuu_csrf cookie exists', async () => {
+    const originalDocument = globalThis.document;
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: { cookie: 'adieuu_csrf=csrf-token-value' },
+    });
+
+    let capturedHeaders: Record<string, string> | undefined;
+    const fetchImpl: typeof fetch = async (_url, init) => {
+      capturedHeaders = init?.headers as Record<string, string>;
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    };
+
+    const client = new ApiClient({
+      baseUrl: 'http://example.test',
+      fetchImpl,
+      timeout: 5000,
+    });
+
+    await client.post('/api/foo', { a: 1 });
+
+    Object.defineProperty(globalThis, 'document', {
+      configurable: true,
+      value: originalDocument,
+    });
+
+    expect(capturedHeaders?.['X-CSRF-Token']).toBe('csrf-token-value');
+  });
+
   it('maps generic Error to NETWORK_ERROR', async () => {
     const fetchImpl: typeof fetch = async () => {
       throw new Error('boom');

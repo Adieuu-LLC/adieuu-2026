@@ -116,6 +116,7 @@ export interface IdentityLoginResult {
   identity?: PublicIdentity;
   sessionId?: string;
   cookie?: string;
+  csrfCookie?: string;
   error?: string;
   errorCode?: 'INVALID_PASSPHRASE' | 'RATE_LIMITED' | 'LOCKED_OUT' | 'NO_IDENTITY' | 'VALIDATION_ERROR' | 'IDENTITY_SUSPENDED' | 'IDENTITY_BANNED';
   retryAfter?: number;
@@ -130,6 +131,7 @@ export interface IdentityCreationResult {
   identity?: PublicIdentity;
   sessionId?: string;
   cookie?: string;
+  csrfCookie?: string;
   error?: string;
   errorCode?: 'MAX_IDENTITIES' | 'USERNAME_TAKEN' | 'VALIDATION_ERROR';
 }
@@ -305,7 +307,7 @@ export async function createIdentity(
     const sessionMeta = grants
       ? { ...options?.metadata, encryptedSubscriptionGrants: grants.ciphertext, grantDecryptionKey: grants.key }
       : options?.metadata;
-    const { sessionId, cookie } = await createIdentitySession(
+    const { sessionId, cookie, csrfCookie } = await createIdentitySession(
       identity._id,
       sessionMeta,
     );
@@ -315,6 +317,7 @@ export async function createIdentity(
       identity: toPublicIdentity(identity),
       sessionId,
       cookie,
+      csrfCookie,
     };
   }
 
@@ -461,7 +464,7 @@ export async function loginToIdentity(
     : metadata;
 
   // Create identity session (unified adieuu_session with type=identity)
-  const { sessionId, cookie } = await createIdentitySession(
+  const { sessionId, cookie, csrfCookie } = await createIdentitySession(
     identity._id,
     sessionMeta,
   );
@@ -479,6 +482,7 @@ export async function loginToIdentity(
     identity: toPublicIdentity(identity),
     sessionId,
     cookie,
+    csrfCookie,
   };
 }
 

@@ -18,6 +18,7 @@ import { SESSION_ACCOUNT_TTL_SECONDS, SESSION_IDENTITY_TTL_SECONDS } from '../co
 import { generateSecureToken } from '../utils/crypto';
 import { config } from '../config';
 import elog from '../utils/adieuuLogger';
+import { buildCsrfClearCookie, buildCsrfCookie, CSRF_COOKIE_NAME, getCookieValue } from './csrf.service';
 import type { CachedSessionData } from '../models/session';
 import { DEFAULT_MAX_VIDEO_DURATION_SECONDS } from '../constants/media-limits';
 import type { SubscriptionTierId } from '@adieuu/shared';
@@ -95,7 +96,7 @@ export async function createAccountSession(
   identifier: string,
   identifierType: 'email' | 'phone',
   metadata?: { userAgent?: string; ipAddress?: string },
-): Promise<{ sessionId: string; cookie: string }> {
+): Promise<{ sessionId: string; cookie: string; csrfCookie: string }> {
   const sessionId = generateSecureToken(SESSION_CONFIG.idLength);
   const expiresAt = new Date(Date.now() + SESSION_CONFIG.accountTtlSeconds * 1000);
 
@@ -118,7 +119,8 @@ export async function createAccountSession(
   });
 
   const cookie = buildSessionCookie(sessionId, SESSION_CONFIG.accountTtlSeconds);
-  return { sessionId, cookie };
+  const csrfCookie = buildCsrfCookie(sessionId, SESSION_CONFIG.accountTtlSeconds);
+  return { sessionId, cookie, csrfCookie };
 }
 
 /** 30 days in milliseconds — absolute identity session TTL. */
@@ -146,7 +148,7 @@ export async function createIdentitySession(
     /** Base64-encoded AES-256-GCM key for the grant blob (goes into the cookie). */
     grantDecryptionKey?: string;
   },
-): Promise<{ sessionId: string; cookie: string }> {
+): Promise<{ sessionId: string; cookie: string; csrfCookie: string }> {
   const sessionId = generateSecureToken(SESSION_CONFIG.idLength);
   const now = Date.now();
   const expiresAt = new Date(now + SESSION_CONFIG.identityTtlSeconds * 1000);
@@ -181,7 +183,8 @@ export async function createIdentitySession(
     : sessionId;
 
   const cookie = buildSessionCookie(cookieValue, SESSION_CONFIG.identityTtlSeconds);
-  return { sessionId, cookie };
+  const csrfCookie = buildCsrfCookie(sessionId, SESSION_CONFIG.identityTtlSeconds);
+  return { sessionId, cookie, csrfCookie };
 }
 
 // ---------------------------------------------------------------------------
@@ -196,7 +199,7 @@ export async function createSession(
   identifier: string,
   identifierType: 'email' | 'phone',
   metadata?: { userAgent?: string; ipAddress?: string },
-): Promise<{ sessionId: string; cookie: string }> {
+): Promise<{ sessionId: string; cookie: string; csrfCookie: string }> {
   return createAccountSession(userId, identifier, identifierType, metadata);
 }
 
@@ -328,6 +331,41 @@ export function buildLogoutCookie(): string {
   }
 
   return parts.join('; ');
+}
+
+/** Clears both session and CSRF cookies. */
+export function buildAuthClearCookies(): string[] {
+  return [buildLogoutCookie(), buildCsrfClearCookie()];
+}
+
+export function appendSessionAuthCookies(
+  headers: Headers,
+  sessionCookie: string,
+  sessionId: string,
+  maxAge: number,
+): void {
+  headers.append('Set-Cookie', sessionCookie);
+  headers.append('Set-Cookie', buildCsrfCookie(sessionId, maxAge));
+}
+
+export function appendAuthClearCookies(headers: Headers): void {
+  for (const cookie of buildAuthClearCookies()) {
+    headers.append('Set-Cookie', cookie);
+  }
+}
+
+/**
+ * Issues a CSRF cookie when the client has a session but no CSRF token yet.
+ */
+export function maybeBootstrapCsrfCookie(
+  request: Request,
+  sessionId: string,
+  maxAgeSeconds: number,
+  headers: Headers,
+): void {
+  if (!getCookieValue(request, CSRF_COOKIE_NAME)) {
+    headers.append('Set-Cookie', buildCsrfCookie(sessionId, Math.max(1, maxAgeSeconds)));
+  }
 }
 
 // ---------------------------------------------------------------------------

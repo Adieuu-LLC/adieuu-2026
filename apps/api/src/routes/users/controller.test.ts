@@ -1,4 +1,9 @@
-import { afterAll, describe, expect, test, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, test, mock } from 'bun:test';
+import { ObjectId } from 'mongodb';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
+const mockFindById = mock(() => Promise.resolve(null)) as AnyMock;
 
 // Mock config to avoid loading env
 mock.module('../../config', () => ({
@@ -73,11 +78,26 @@ mock.module('../../db', () => ({
   },
 }));
 
-import { getUserById, type User, type GetUserResult } from './controller';
+mock.module('../../repositories/user.repository', () => ({
+  getUserRepository: () => ({
+    findById: mockFindById,
+  }),
+}));
+
+mock.module('../../utils/adieuuLogger', () => ({
+  default: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+}));
+
+import { getUserById, getCurrentUserProfile, type User, type GetUserResult } from './controller';
 
 describe('users controller', () => {
   afterAll(() => {
     mock.restore();
+  });
+
+  beforeEach(() => {
+    mockFindById.mockReset();
+    mockFindById.mockImplementation(() => Promise.resolve(null));
   });
 
   describe('getUserById', () => {
@@ -204,6 +224,51 @@ describe('users controller', () => {
         expect(typeof result).toBe('object');
         expect(result).toHaveProperty('success');
       });
+    });
+  });
+
+  describe('getCurrentUserProfile', () => {
+    test('returns null when user not found', async () => {
+      const profile = await getCurrentUserProfile(new ObjectId().toHexString());
+      expect(profile).toBeNull();
+    });
+
+    test('returns public user with avatar when user exists', async () => {
+      const userId = new ObjectId();
+      mockFindById.mockImplementation(() =>
+        Promise.resolve({
+          _id: userId,
+          email: 'user@example.com',
+          emailVerified: true,
+          createdAt: new Date('2024-01-01T00:00:00Z'),
+          updatedAt: new Date('2024-01-02T00:00:00Z'),
+        })
+      );
+
+      const profile = await getCurrentUserProfile(userId.toHexString());
+
+      expect(profile).not.toBeNull();
+      expect(profile?.id).toBe(userId.toHexString());
+      expect(profile?.email).toBe('user@example.com');
+      expect(profile?.avatar).toBeDefined();
+    });
+
+    test('uses phone as avatar seed when email absent', async () => {
+      const userId = new ObjectId();
+      mockFindById.mockImplementation(() =>
+        Promise.resolve({
+          _id: userId,
+          phone: '+15551234567',
+          phoneVerified: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })
+      );
+
+      const profile = await getCurrentUserProfile(userId.toHexString());
+
+      expect(profile?.phone).toBe('+15551234567');
+      expect(profile?.avatar).toBeDefined();
     });
   });
 });

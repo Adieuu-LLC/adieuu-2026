@@ -8,6 +8,9 @@ import type { RouteContext } from '../../router/types';
 import { ObjectId } from 'mongodb';
 import * as adieuuCrypto from '@adieuu/crypto';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
+
 const callerId = new ObjectId('64a1b2c3d4e5f60718293a4b');
 const targetIdStr = '507f1f77bcf86cd799439011';
 const targetOid = new ObjectId(targetIdStr);
@@ -43,14 +46,33 @@ mock.module('@adieuu/crypto', () => ({
 }));
 
 const mockClaimPreKeys = mock(() => Promise.resolve([] as unknown[]));
+const mockStoreSignedPreKey = mock(() => Promise.resolve()) as AnyMock;
+const mockStoreOneTimePreKeys = mock(() => Promise.resolve(1)) as AnyMock;
+const mockCountUnconsumed = mock(() => Promise.resolve(0)) as AnyMock;
+const mockPurgeUnconsumed = mock(() => Promise.resolve(3)) as AnyMock;
+const mockGetConsumedKeyIds = mock(() => Promise.resolve(['key-1'])) as AnyMock;
+const mockGetActiveSignedPreKey = mock(() => Promise.resolve(null)) as AnyMock;
+const mockGetUnconsumedDigest = mock(() => Promise.resolve('digest')) as AnyMock;
 
 mock.module('../../repositories/pre-key.repository', () => ({
   getPreKeyRepository: () => ({
     claimPreKeysForAllDevices: mockClaimPreKeys,
+    storeSignedPreKey: mockStoreSignedPreKey,
+    storeOneTimePreKeys: mockStoreOneTimePreKeys,
+    countUnconsumedOneTimePreKeys: mockCountUnconsumed,
+    purgeUnconsumedOneTimePreKeys: mockPurgeUnconsumed,
+    getConsumedOtpkKeyIds: mockGetConsumedKeyIds,
+    getActiveSignedPreKey: mockGetActiveSignedPreKey,
+    getUnconsumedOtpkDigest: mockGetUnconsumedDigest,
   }),
 }));
 
-import { claimPreKeysCtrl } from './pre-key.controller';
+import {
+  claimPreKeysCtrl,
+  uploadPreKeysCtrl,
+  purgeOneTimePreKeysCtrl,
+  getPreKeyCountCtrl,
+} from './pre-key.controller';
 
 afterAll(() => {
   mock.restore();
@@ -93,7 +115,11 @@ function ctxWithCaller(req: Request, params: Record<string, string>, body?: unkn
     locale: 'en' as Locale,
     errors: makeErrors(),
     identitySession: {
-      identity: { _id: callerId } as never,
+      identity: {
+        _id: callerId,
+        signingPublicKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        devices: [{ deviceId: 'devone', name: 'Phone', ecdhPublicKey: 'k', kemPublicKey: 'k' }],
+      } as never,
       sessionId: 's',
       maxVideoDurationSeconds: 300,
       subscriptions: [],
@@ -146,5 +172,59 @@ describe('pre-key.controller', () => {
     const ctx = ctxWithCaller(req, { id: targetIdStr }, body);
     await claimPreKeysCtrl(ctx);
     expect(mockClaimPreKeys).toHaveBeenCalledWith(targetOid, ['devone']);
+  });
+
+  test('uploadPreKeysCtrl returns 403 for another identity', async () => {
+    const req = new Request('http://x/', { method: 'POST' });
+    const res = await uploadPreKeysCtrl(
+      ctxWithCaller(req, { id: new ObjectId().toHexString(), deviceId: 'devone' }, {
+        oneTimePreKeys: [{
+          keyId: '550e8400-e29b-41d4-a716-446655440001',
+          ecdhPublicKey: 'A'.repeat(44),
+          kemPublicKey: 'A'.repeat(44),
+        }],
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  test('uploadPreKeysCtrl stores one-time pre-keys for owner device', async () => {
+    const body = {
+      oneTimePreKeys: [{
+        keyId: '550e8400-e29b-41d4-a716-446655440001',
+        ecdhPublicKey: 'A'.repeat(44),
+        kemPublicKey: 'A'.repeat(44),
+      }],
+    };
+    const req = new Request('http://x/', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await uploadPreKeysCtrl(
+      ctxWithCaller(req, { id: callerId.toHexString(), deviceId: 'devone' }, body),
+    );
+    expect(res.status).toBe(200);
+    expect(mockStoreOneTimePreKeys).toHaveBeenCalled();
+  });
+
+  test('purgeOneTimePreKeysCtrl purges keys for owner device', async () => {
+    const req = new Request('http://x/', { method: 'DELETE' });
+    const res = await purgeOneTimePreKeysCtrl(
+      ctxWithCaller(req, { id: callerId.toHexString(), deviceId: 'devone' }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockPurgeUnconsumed).toHaveBeenCalled();
+  });
+
+  test('getPreKeyCountCtrl returns count payload', async () => {
+    const req = new Request('http://x/');
+    const res = await getPreKeyCountCtrl(
+      ctxWithCaller(req, { id: callerId.toHexString(), deviceId: 'devone' }),
+    );
+    expect(res.status).toBe(200);
+    const payload = await res.json() as { data: { oneTimePreKeysRemaining: number; otpkDigest: string } };
+    expect(payload.data.oneTimePreKeysRemaining).toBe(0);
+    expect(payload.data.otpkDigest).toBe('digest');
   });
 });

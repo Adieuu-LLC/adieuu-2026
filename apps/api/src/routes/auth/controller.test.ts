@@ -1,4 +1,9 @@
 import { afterAll, afterEach, describe, expect, test, mock, beforeEach } from 'bun:test';
+import { ObjectId } from 'mongodb';
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // Mock config to avoid loading env
 mock.module('../../config', () => ({
@@ -55,6 +60,11 @@ mock.module('../../db/redis', () => ({
   },
 }));
 
+const mockRedisGet = mock(() => Promise.resolve(null)) as AnyMock;
+const mockRedisSet = mock(() => Promise.resolve('OK')) as AnyMock;
+const mockRedisDel = mock(() => Promise.resolve(1)) as AnyMock;
+const mockIsRedisConnected = mock(() => true) as AnyMock;
+
 mock.module('../../db', () => ({
   connectMongo: mock(() => Promise.resolve()),
   disconnectMongo: mock(() => Promise.resolve()),
@@ -70,8 +80,12 @@ mock.module('../../db', () => ({
   },
   connectRedis: mock(() => Promise.resolve()),
   disconnectRedis: mock(() => Promise.resolve()),
-  getRedis: mock(() => ({})),
-  isRedisConnected: mock(() => true),
+  getRedis: mock(() => ({
+    get: mockRedisGet,
+    set: mockRedisSet,
+    del: mockRedisDel,
+  })),
+  isRedisConnected: mockIsRedisConnected,
   checkRedisHealth: mock(() => Promise.resolve({ status: 'up', latencyMs: 2 })),
   RedisKeys: {
     otp: (id: string) => `otp:${id}`,
@@ -96,40 +110,54 @@ mock.module('../../repositories/base.repository', () => ({
 }));
 
 // Mock repositories
+const testUserObjectId = new ObjectId('507f1f77bcf86cd799439011');
+
 const mockUser = {
-  _id: 'test-user-id',
+  _id: testUserObjectId,
   email: 'test@example.com',
   createdAt: new Date('2024-01-15T12:00:00Z'),
   maxIdentities: 2,
   failedAttempts: 0,
 };
 
+const mockFindByIdentifier = mock(() => Promise.resolve(null)) as AnyMock;
+const mockFindById = mock(() => Promise.resolve(mockUser)) as AnyMock;
+const mockCreateUser = mock(() => Promise.resolve(mockUser)) as AnyMock;
+const mockIncrementFailedAttempts = mock(() => Promise.resolve()) as AnyMock;
+const mockRecordLogin = mock(() => Promise.resolve()) as AnyMock;
+const mockLockAccount = mock(() => Promise.resolve()) as AnyMock;
+
 mock.module('../../repositories/user.repository', () => ({
   getUserRepository: mock(() => ({
-    findById: mock(() => Promise.resolve(mockUser)),
+    findById: mockFindById,
     findOne: mock(() => Promise.resolve(null)),
     findByEmail: mock(() => Promise.resolve(null)),
     findByPhone: mock(() => Promise.resolve(null)),
-    findByIdentifier: mock(() => Promise.resolve(null)),
-    create: mock(() => Promise.resolve({ _id: 'test-id', createdAt: new Date() })),
+    findByIdentifier: mockFindByIdentifier,
+    create: mockCreateUser,
     updateById: mock(() => Promise.resolve(null)),
-    recordLogin: mock(() => Promise.resolve()),
-    incrementFailedAttempts: mock(() => Promise.resolve()),
+    recordLogin: mockRecordLogin,
+    incrementFailedAttempts: mockIncrementFailedAttempts,
     resetFailedAttempts: mock(() => Promise.resolve()),
-    lockAccount: mock(() => Promise.resolve()),
+    lockAccount: mockLockAccount,
     unlockAccount: mock(() => Promise.resolve()),
   })),
 }));
 
+const mockFindByUserId = mock(() => Promise.resolve([])) as AnyMock;
+const mockFindBySessionId = mock(() => Promise.resolve(null)) as AnyMock;
+const mockRevokeSession = mock(() => Promise.resolve(undefined)) as AnyMock;
+
 mock.module('../../repositories/session.repository', () => ({
   getSessionRepository: mock(() => ({
     findById: mock(() => Promise.resolve(null)),
-    findBySessionId: mock(() => Promise.resolve(null)),
-    findByUserId: mock(() => Promise.resolve([])),
+    findBySessionId: mockFindBySessionId,
+    findByUserId: mockFindByUserId,
     create: mock(() => Promise.resolve({ _id: 'test-id', sessionId: 'test-session' })),
     updateById: mock(() => Promise.resolve(null)),
     deleteById: mock(() => Promise.resolve(true)),
-    revokeSession: mock(() => Promise.resolve(null)),
+    revokeSession: mockRevokeSession,
+    revoke: mockRevokeSession,
     revokeAllUserSessions: mock(() => Promise.resolve(0)),
   })),
 }));
@@ -137,16 +165,26 @@ mock.module('../../repositories/session.repository', () => ({
 // Mock session service
 const mockAccountSession = {
   type: 'account' as const,
-  userId: 'test-user-id',
+  userId: testUserObjectId.toHexString(),
   identifier: 'test@example.com',
   identifierType: 'email' as const,
   lastActivityAt: Date.now(),
   expiresAt: Date.now() + 86_400_000,
 };
 
+const mockDestroySession = mock(() => Promise.resolve()) as AnyMock;
+const mockDestroyAllSessions = mock(() => Promise.resolve(0)) as AnyMock;
+const mockCreateAccountSession = mock(() =>
+  Promise.resolve({
+    sessionId: 'new-session',
+    cookie: 'adieuu_session=new-session; Path=/; HttpOnly',
+    csrfCookie: 'adieuu_csrf=mock-csrf; Path=/',
+  })
+) as AnyMock;
+
 mock.module('../../services/session.service', () => ({
-  createAccountSession: mock(() => Promise.resolve({ sessionId: 'test-session', cookie: 'adieuu_session=test-session; Path=/; HttpOnly' })),
-  createSession: mock(() => Promise.resolve({ sessionId: 'test-session', cookie: 'adieuu_session=test-session; Path=/; HttpOnly' })),
+  createAccountSession: mockCreateAccountSession,
+  createSession: mockCreateAccountSession,
   requireAccountSession: mock((request: Request) => {
     const cookie = request.headers.get('Cookie') ?? '';
     if (cookie.includes('adieuu_session=test-session')) {
@@ -159,16 +197,36 @@ mock.module('../../services/session.service', () => ({
     if (cookie.includes('adieuu_session=test-session')) {
       return Promise.resolve(mockAccountSession);
     }
+    if (cookie.includes('adieuu_session=identity-only')) {
+      return Promise.resolve({
+        type: 'identity' as const,
+        identityId: testUserObjectId.toHexString(),
+        maxVideoDurationSeconds: 300,
+        subscriptions: [],
+        entitlements: [],
+        isLifetime: false,
+        lastActivityAt: Date.now(),
+        expiresAt: Date.now() + 86_400_000,
+      });
+    }
     return Promise.resolve(null);
   }),
-  destroySession: mock(() => Promise.resolve()),
-  destroyAllSessions: mock(() => Promise.resolve(0)),
+  destroySession: mockDestroySession,
+  destroyAllSessions: mockDestroyAllSessions,
   getSessionIdFromRequest: mock((request: Request) => {
     const cookie = request.headers.get('Cookie') ?? '';
     const match = cookie.match(/adieuu_session=([^;]+)/);
-    return match?.[1] ?? null;
+    if (!match?.[1]) return null;
+    const raw = match[1];
+    const dotIdx = raw.indexOf('.');
+    return dotIdx === -1 ? raw : raw.substring(0, dotIdx);
   }),
   buildLogoutCookie: mock(() => 'adieuu_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax'),
+  buildAuthClearCookies: mock(() => [
+    'adieuu_session=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax',
+    'adieuu_csrf=; Max-Age=0; Path=/; SameSite=Lax',
+  ]),
+  maybeBootstrapCsrfCookie: mock(() => {}),
 }));
 
 // Mock account token service
@@ -204,10 +262,16 @@ mock.module('../../services/platform-capabilities.service', () => ({
 }));
 
 // Mock MFA service
+const mockGetMfaStatus = mock(() =>
+  Promise.resolve({ enabled: false, totpEnabled: false, webauthnEnabled: false, totpCount: 0, webauthnCount: 0 })
+) as AnyMock;
+const mockVerifyTotpCode = mock(() => Promise.resolve({ success: false })) as AnyMock;
+const mockVerifyWebAuthnAuthentication = mock(() => Promise.resolve({ success: false })) as AnyMock;
+
 mock.module('../../services/mfa.service', () => ({
-  getMfaStatus: mock(() => Promise.resolve({ enabled: false, totpEnabled: false, webauthnEnabled: false, totpCount: 0, webauthnCount: 0 })),
-  verifyTotpCode: mock(() => Promise.resolve({ success: false })),
-  verifyWebAuthnAuthentication: mock(() => Promise.resolve({ success: false })),
+  getMfaStatus: mockGetMfaStatus,
+  verifyTotpCode: mockVerifyTotpCode,
+  verifyWebAuthnAuthentication: mockVerifyWebAuthnAuthentication,
   generateWebAuthnAuthenticationOptions: mock(() => Promise.resolve(null)),
 }));
 
@@ -222,11 +286,12 @@ const mockCheckRateLimit = mock((_action: string, _id: string) => Promise.resolv
 const mockSendEmail = mock(() => Promise.resolve());
 const mockSendSms = mock(() => Promise.resolve());
 const mockAddJitter = mock(() => Promise.resolve());
+const mockVerifyOtp = mock(() => Promise.resolve({ valid: true })) as AnyMock;
 
 mock.module('../../services/otp.service', () => ({
   createOtp: mockCreateOtp,
   // Match VerifyOtpResult ({ valid, error?, ... }); wrong shape breaks other suites when this mock wins globally.
-  verifyOtp: mock(() => Promise.resolve({ valid: true })),
+  verifyOtp: mockVerifyOtp,
 }));
 
 mock.module('../../services/rate-limit.service', () => ({
@@ -251,7 +316,26 @@ mock.module('../../services/platform-settings.service', () => ({
   coercePlatformSettingValue: mock(() => ({})),
 }));
 
-import { requestOtp, getClientIp, verifyOtpHandler, type RequestOtpInput } from './controller';
+mock.module('../../services/geo/geo.service', () => ({
+  refreshUserGeoIfStale: mock(() => Promise.resolve()),
+}));
+
+mock.module('../../utils/adieuuLogger', () => ({
+  default: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
+}));
+
+import {
+  requestOtp,
+  getClientIp,
+  verifyOtpHandler,
+  logoutHandler,
+  listSessionsHandler,
+  revokeSessionHandler,
+  revokeAllSessionsHandler,
+  verifyMfaTotpHandler,
+  verifyMfaWebAuthnHandler,
+  type RequestOtpInput,
+} from './controller';
 import { authRoutes } from './index';
 
 describe('auth controller', () => {
@@ -267,7 +351,41 @@ describe('auth controller', () => {
     mockSendSms.mockClear();
     mockAddJitter.mockClear();
     mockIsAuthIdentifierAllowed.mockClear();
+    mockVerifyOtp.mockClear();
+    mockFindByIdentifier.mockClear();
+    mockFindById.mockClear();
+    mockCreateUser.mockClear();
+    mockIncrementFailedAttempts.mockClear();
+    mockRecordLogin.mockClear();
+    mockLockAccount.mockClear();
+    mockGetMfaStatus.mockClear();
+    mockVerifyTotpCode.mockClear();
+    mockVerifyWebAuthnAuthentication.mockClear();
+    mockCreateAccountSession.mockClear();
+    mockDestroySession.mockClear();
+    mockDestroyAllSessions.mockClear();
+    mockFindByUserId.mockClear();
+    mockFindBySessionId.mockClear();
+    mockRevokeSession.mockClear();
+    mockRedisGet.mockClear();
+    mockRedisSet.mockClear();
+    mockRedisDel.mockClear();
+
     mockIsAuthIdentifierAllowed.mockImplementation(() => Promise.resolve(true));
+    mockFindByIdentifier.mockImplementation(() => Promise.resolve(null));
+    mockFindById.mockImplementation(() => Promise.resolve(mockUser));
+    mockCreateUser.mockImplementation(() => Promise.resolve(mockUser));
+    mockVerifyOtp.mockImplementation(() => Promise.resolve({ valid: true }));
+    mockGetMfaStatus.mockImplementation(() =>
+      Promise.resolve({ enabled: false, totpEnabled: false, webauthnEnabled: false, totpCount: 0, webauthnCount: 0 })
+    );
+    mockVerifyTotpCode.mockImplementation(() => Promise.resolve({ success: false }));
+    mockVerifyWebAuthnAuthentication.mockImplementation(() => Promise.resolve({ success: false }));
+    mockIsRedisConnected.mockImplementation(() => true);
+    mockRedisGet.mockImplementation(() => Promise.resolve(null));
+    mockFindByUserId.mockImplementation(() => Promise.resolve([]));
+    mockFindBySessionId.mockImplementation(() => Promise.resolve(null));
+    mockDestroyAllSessions.mockImplementation(() => Promise.resolve(0));
 
     // Reset to default successful behavior
     mockCreateOtp.mockImplementation(() => Promise.resolve('123456'));
@@ -507,6 +625,27 @@ describe('auth controller', () => {
       });
     });
 
+    describe('account lockout', () => {
+      test('returns account_locked when user is locked', async () => {
+        mockFindByIdentifier.mockImplementation(() => Promise.resolve({
+          ...mockUser,
+          lockedUntil: new Date(Date.now() + 60_000),
+        }));
+
+        const result = await requestOtp(
+          { identifier: 'user@example.com', type: 'email' },
+          '192.168.1.1'
+        );
+
+        expect(result.success).toBe(false);
+        if (!result.success) {
+          expect(result.error).toBe('account_locked');
+          expect(result.retryAfterSeconds).toBeGreaterThan(0);
+        }
+        expect(mockCreateOtp).not.toHaveBeenCalled();
+      });
+    });
+
     describe('input sanitization', () => {
       test('sanitizes email to lowercase', async () => {
         const input: RequestOtpInput = {
@@ -676,6 +815,338 @@ describe('auth controller', () => {
         expect(result.error).toBe('not_allowed');
       }
     });
+
+    test('returns account_locked when user is locked before verification', async () => {
+      mockFindByIdentifier.mockImplementation(() => Promise.resolve({
+        ...mockUser,
+        lockedUntil: new Date(Date.now() + 60_000),
+      }));
+
+      const result = await verifyOtpHandler(
+        { identifier: 'user@example.com', code: '123456' },
+        '192.168.1.1'
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('account_locked');
+      }
+      expect(mockVerifyOtp).not.toHaveBeenCalled();
+    });
+
+    test('returns rate_limited when verify IP limit exceeded', async () => {
+      mockCheckRateLimit.mockImplementation(() => Promise.resolve({
+        allowed: false,
+        remaining: 0,
+        resetAt: Date.now() + 60000,
+        limit: 10,
+      }));
+
+      const result = await verifyOtpHandler(
+        { identifier: 'user@example.com', code: '123456' },
+        '192.168.1.1'
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('rate_limited');
+      }
+    });
+
+    test('returns invalid on failed otp verification', async () => {
+      mockVerifyOtp.mockImplementation(() => Promise.resolve({ valid: false, error: 'invalid' }));
+
+      const result = await verifyOtpHandler(
+        { identifier: 'user@example.com', code: '000000' },
+        '192.168.1.1'
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('invalid');
+      }
+    });
+
+    test('returns max_attempts when otp service reports max attempts', async () => {
+      mockVerifyOtp.mockImplementation(() => Promise.resolve({ valid: false, error: 'max_attempts' }));
+
+      const result = await verifyOtpHandler(
+        { identifier: 'user@example.com', code: '000000' },
+        '192.168.1.1'
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('max_attempts');
+      }
+    });
+
+    test('returns backoff when otp service reports backoff', async () => {
+      mockVerifyOtp.mockImplementation(() =>
+        Promise.resolve({ valid: false, error: 'backoff', retryAfterSeconds: 30 })
+      );
+
+      const result = await verifyOtpHandler(
+        { identifier: 'user@example.com', code: '000000' },
+        '192.168.1.1'
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('backoff');
+        expect(result.retryAfterSeconds).toBe(30);
+      }
+    });
+
+    test('creates session cookie on successful verification without mfa', async () => {
+      const result = await verifyOtpHandler(
+        { identifier: 'user@example.com', code: '123456' },
+        '192.168.1.1',
+        'TestAgent/1.0'
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success && 'cookie' in result) {
+        expect(result.cookie).toContain('adieuu_session=');
+      }
+      expect(mockCreateAccountSession).toHaveBeenCalled();
+      expect(mockCreateUser).toHaveBeenCalled();
+    });
+
+    test('returns mfaRequired when user has mfa enabled', async () => {
+      mockFindByIdentifier.mockImplementation(() => Promise.resolve(mockUser));
+      mockGetMfaStatus.mockImplementation(() =>
+        Promise.resolve({ enabled: true, totpEnabled: true, webauthnEnabled: false, totpCount: 1, webauthnCount: 0 })
+      );
+
+      const result = await verifyOtpHandler(
+        { identifier: 'user@example.com', code: '123456' },
+        '192.168.1.1'
+      );
+
+      expect(result.success).toBe(true);
+      if (result.success && 'mfaRequired' in result) {
+        expect(result.mfaRequired).toBe(true);
+        expect(result.mfaToken).toBeTruthy();
+        expect(result.mfaOptions.totpEnabled).toBe(true);
+      }
+      expect(mockCreateAccountSession).not.toHaveBeenCalled();
+      expect(mockRedisSet).toHaveBeenCalled();
+    });
+  });
+
+  describe('logoutHandler', () => {
+    test('destroys session and returns clear cookies', async () => {
+      const request = new Request('http://localhost', {
+        headers: { Cookie: 'adieuu_session=test-session' },
+      });
+
+      const result = await logoutHandler(request);
+
+      expect(result.clearCookies.length).toBeGreaterThan(0);
+      expect(result.clearCookies[0]).toContain('Max-Age=0');
+      expect(mockDestroySession).toHaveBeenCalledWith('test-session');
+    });
+
+    test('returns clear cookies even without session', async () => {
+      const result = await logoutHandler(new Request('http://localhost'));
+      expect(result.clearCookies[0]).toContain('Max-Age=0');
+      expect(mockDestroySession).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listSessionsHandler', () => {
+    test('returns unauthorized without account session', async () => {
+      const result = await listSessionsHandler(new Request('http://localhost'));
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('unauthorized');
+      }
+    });
+
+    test('returns sessions with current session marked', async () => {
+      mockFindByUserId.mockImplementation(() => Promise.resolve([
+        {
+          sessionId: 'other-session',
+          identifier: 'test@example.com',
+          identifierType: 'email',
+          createdAt: new Date('2024-01-01T00:00:00Z'),
+          lastActivityAt: new Date('2024-01-02T00:00:00Z'),
+          userAgent: 'OtherAgent',
+          ipAddress: '10.0.0.1',
+        },
+      ]));
+
+      const request = new Request('http://localhost', {
+        headers: { Cookie: 'adieuu_session=test-session' },
+      });
+      const result = await listSessionsHandler(request);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const current = result.sessions.find((s) => s.isCurrent);
+        expect(current?.id).toBe('test-session');
+      }
+    });
+  });
+
+  describe('revokeSessionHandler', () => {
+    test('returns unauthorized without account session', async () => {
+      const result = await revokeSessionHandler(new Request('http://localhost'), 'other-session');
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('unauthorized');
+      }
+    });
+
+    test('returns cannot_revoke_current for current session', async () => {
+      const request = new Request('http://localhost', {
+        headers: { Cookie: 'adieuu_session=test-session' },
+      });
+      const result = await revokeSessionHandler(request, 'test-session');
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('cannot_revoke_current');
+      }
+    });
+
+    test('returns not_found when session belongs to another user', async () => {
+      mockFindBySessionId.mockImplementation(() => Promise.resolve({
+        sessionId: 'other-session',
+        userId: new ObjectId('507f1f77bcf86cd799439012'),
+      }));
+
+      const request = new Request('http://localhost', {
+        headers: { Cookie: 'adieuu_session=test-session' },
+      });
+      const result = await revokeSessionHandler(request, 'other-session');
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('not_found');
+      }
+    });
+
+    test('revokes another session owned by the user', async () => {
+      mockFindBySessionId.mockImplementation(() => Promise.resolve({
+        sessionId: 'other-session',
+        userId: testUserObjectId,
+      }));
+
+      const request = new Request('http://localhost', {
+        headers: { Cookie: 'adieuu_session=test-session' },
+      });
+      const result = await revokeSessionHandler(request, 'other-session');
+
+      expect(result.success).toBe(true);
+      expect(mockRevokeSession).toHaveBeenCalledWith('other-session');
+    });
+  });
+
+  describe('revokeAllSessionsHandler', () => {
+    test('revokes other sessions but keeps current session cookie empty', async () => {
+      mockFindByUserId.mockImplementation(() => Promise.resolve([
+        { sessionId: 'test-session' },
+        { sessionId: 'other-session' },
+      ]));
+
+      const request = new Request('http://localhost', {
+        headers: { Cookie: 'adieuu_session=test-session' },
+      });
+      const result = await revokeAllSessionsHandler(request, false);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.count).toBe(1);
+        expect(result.clearCookies).toEqual([]);
+      }
+    });
+
+    test('includeCurrentSession destroys all sessions and clears cookie', async () => {
+      mockDestroyAllSessions.mockImplementation(() => Promise.resolve(2));
+
+      const request = new Request('http://localhost', {
+        headers: { Cookie: 'adieuu_session=test-session' },
+      });
+      const result = await revokeAllSessionsHandler(request, true);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.count).toBe(2);
+        expect(result.clearCookies[0]).toContain('Max-Age=0');
+      }
+    });
+  });
+
+  describe('verifyMfaTotpHandler', () => {
+    const pendingLogin = {
+      userId: testUserObjectId.toHexString(),
+      identifier: 'user@example.com',
+      identifierType: 'email' as const,
+      ipAddress: '192.168.1.1',
+      createdAt: Date.now(),
+    };
+
+    test('returns invalid_token when pending login missing', async () => {
+      const result = await verifyMfaTotpHandler('missing-token', '123456');
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('invalid_token');
+      }
+    });
+
+    test('returns invalid_code when totp verification fails', async () => {
+      mockRedisGet.mockImplementation(() => Promise.resolve(JSON.stringify(pendingLogin)));
+
+      const result = await verifyMfaTotpHandler('valid-token', '000000');
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('invalid_code');
+      }
+    });
+
+    test('creates session cookie on successful totp verification', async () => {
+      mockRedisGet.mockImplementation(() => Promise.resolve(JSON.stringify(pendingLogin)));
+      mockVerifyTotpCode.mockImplementation(() => Promise.resolve({ success: true }));
+
+      const result = await verifyMfaTotpHandler('valid-token', '123456');
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.cookie).toContain('adieuu_session=');
+      }
+      expect(mockRedisDel).toHaveBeenCalled();
+      expect(mockCreateAccountSession).toHaveBeenCalled();
+    });
+  });
+
+  describe('verifyMfaWebAuthnHandler', () => {
+    const pendingLogin = {
+      userId: testUserObjectId.toHexString(),
+      identifier: 'user@example.com',
+      identifierType: 'email' as const,
+      ipAddress: '192.168.1.1',
+      createdAt: Date.now(),
+    };
+
+    test('returns invalid_token when pending login missing', async () => {
+      const result = await verifyMfaWebAuthnHandler('missing-token', {} as never);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('invalid_token');
+      }
+    });
+
+    test('creates session cookie on successful webauthn verification', async () => {
+      mockRedisGet.mockImplementation(() => Promise.resolve(JSON.stringify(pendingLogin)));
+      mockVerifyWebAuthnAuthentication.mockImplementation(() => Promise.resolve({ success: true }));
+
+      const result = await verifyMfaWebAuthnHandler('valid-token', { id: 'cred' } as never);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.cookie).toContain('adieuu_session=');
+      }
+      expect(mockCreateAccountSession).toHaveBeenCalled();
+    });
   });
 
   // ==========================================================================
@@ -717,6 +1188,16 @@ describe('auth controller', () => {
       const response = await makeRouteRequest('/auth/session');
 
       expect(response.status).toBe(401);
+    });
+
+    test('returns identity session shape when only identity cookie present', async () => {
+      const response = await makeRouteRequest('/auth/session', {
+        cookies: 'adieuu_session=identity-only',
+      });
+
+      expect(response.status).toBe(200);
+      const body = await response.json() as { data: { sessionType: string } };
+      expect(body.data.sessionType).toBe('identity');
     });
   });
 

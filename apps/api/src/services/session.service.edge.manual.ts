@@ -10,7 +10,7 @@ type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
 const mockConfig = {
   env: 'test',
   cookie: { domain: '' },
-  security: { sessionSecret: 'test-secret', otpSecret: 'test-otp-secret' },
+  security: { sessionSecret: 'test-secret', otpSecret: 'test-otp-secret', csrfSecret: 'test-csrf-secret' },
 };
 
 const mockSessionRepo = {
@@ -113,6 +113,7 @@ describe('session.service', () => {
       );
       expect(result.sessionId).toBe('mock-session-id-token');
       expect(result.cookie).toContain('adieuu_session=mock-session-id-token');
+      expect(result.csrfCookie).toContain('adieuu_csrf=');
       expect(result.cookie).toContain('HttpOnly');
       expect(result.cookie).toContain('SameSite=Lax');
       expect(result.cookie).toContain('Path=/');
@@ -149,6 +150,7 @@ describe('session.service', () => {
       );
       expect(result.sessionId).toBe('mock-session-id-token');
       expect(result.cookie).toContain('adieuu_session=mock-session-id-token');
+      expect(result.csrfCookie).toContain('adieuu_csrf=');
       expect(result.cookie).toContain('HttpOnly');
       expect(result.cookie).toContain('Path=/');
     });

@@ -40,7 +40,7 @@
  */
 
 import { getErrorMessage, type Locale, type ErrorKey, DEFAULT_LOCALE } from '../i18n';
-import { buildLogoutCookie } from '../services/session.service';
+import { buildAuthClearCookies } from '../services/session.service';
 
 /**
  * Success response body structure.
@@ -436,9 +436,16 @@ export const localizedErrors = {
    */
   sessionExpiredWithClearCookie: (locale?: Locale) => {
     const message = getErrorMessage('sessionExpired', locale);
-    return error('SESSION_EXPIRED', message, 401, undefined, {
-      'Set-Cookie': buildLogoutCookie(),
-    });
+    const body: ApiErrorResponse = {
+      success: false,
+      error: { code: 'SESSION_EXPIRED', message },
+      meta: { timestamp: new Date().toISOString() },
+    };
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    for (const cookie of buildAuthClearCookies()) {
+      headers.append('Set-Cookie', cookie);
+    }
+    return new Response(JSON.stringify(body), { status: 401, headers });
   },
 
   /**

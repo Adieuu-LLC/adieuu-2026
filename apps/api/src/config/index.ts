@@ -115,6 +115,15 @@ function optionalEnvBool(name: string, defaultValue: boolean): boolean {
   return value.toLowerCase() === 'true' || value === '1';
 }
 
+type CsrfEnforcement = 'off' | 'warn' | 'enforce';
+
+function optionalEnvCsrfEnforcement(name: string, defaultValue: CsrfEnforcement): CsrfEnforcement {
+  const value = process.env[name];
+  if (!value) return defaultValue;
+  if (value === 'off' || value === 'warn' || value === 'enforce') return value;
+  throw new Error(`Environment variable ${name} must be one of: off, warn, enforce`);
+}
+
 const _maxRequestBodyBytes = optionalEnvInt('MAX_REQUEST_BODY_BYTES', DEFAULT_MAX_REQUEST_BODY_BYTES);
 const _anonymousMaxRequestBodyBytes = Math.min(
   optionalEnvInt('ANONYMOUS_MAX_REQUEST_BODY_BYTES', DEFAULT_ANONYMOUS_MAX_REQUEST_BODY_BYTES),
@@ -248,6 +257,15 @@ export const config = {
      * In production, injected by ECS from AWS Secrets Manager.
      */
     tokenSigningKey: optionalEnv('TOKEN_SIGNING_KEY', 'dev-token-signing-key-change-in-prod'),
+  },
+
+  /** CSRF protection (double-submit cookie + X-CSRF-Token header) */
+  csrf: {
+    /**
+     * `off` skips validation; `warn` logs failures but allows requests;
+     * `enforce` returns 403 on failure. Default `warn` for rollout monitoring.
+     */
+    enforcement: optionalEnvCsrfEnforcement('CSRF_ENFORCEMENT', 'warn'),
   },
 
   /** Email service configuration (AWS SES) */

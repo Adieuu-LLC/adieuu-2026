@@ -30,5 +30,12 @@ is_isolated_test() {
      "$name" == 'age-verification.service.test.ts' ||
      "$name" == 'billing.service.test.ts' ||
      "$name" == 'background-check.service.test.ts' ||
+     "$name" == 'crypto.test.ts' ||
+     "$name" == 'session.service.test.ts' ||
+     "$name" == 'session-cookie-renewal.test.ts' ||
+     "$name" == 'e2e.controller.test.ts' ||
+     "$name" == 'user.repository.test.ts' ||
+     "$name" == 'csrf.service.test.ts' ||
+     "$name" == 'csrf.test.ts' ||
      "$1" == *'klipy/controller.test.ts' ]]
 }

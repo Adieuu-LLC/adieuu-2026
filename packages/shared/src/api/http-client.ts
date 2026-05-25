@@ -5,6 +5,26 @@
 import type { ApiResponse } from '../types';
 import { API_ERROR_SESSION_EXPIRED } from '../constants/api-errors';
 
+const CSRF_COOKIE_NAME = 'adieuu_csrf';
+const CSRF_HEADER_NAME = 'X-CSRF-Token';
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+function readCookie(name: string): string | undefined {
+  if (typeof document === 'undefined' || !document.cookie) {
+    return undefined;
+  }
+
+  const prefix = `${name}=`;
+  for (const part of document.cookie.split(';')) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(prefix)) {
+      return trimmed.substring(prefix.length);
+    }
+  }
+
+  return undefined;
+}
+
 export interface ApiClientConfig {
   baseUrl: string;
   /** Default headers to include in all requests */
@@ -61,10 +81,17 @@ export class ApiClient implements HttpClient {
     options?: RequestOptions
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${path}`;
-    const headers = {
+    const headers: Record<string, string> = {
       ...this.defaultHeaders,
       ...options?.headers,
     };
+
+    if (MUTATING_METHODS.has(method.toUpperCase())) {
+      const csrfToken = readCookie(CSRF_COOKIE_NAME);
+      if (csrfToken) {
+        headers[CSRF_HEADER_NAME] = csrfToken;
+      }
+    }
 
     const timeoutController = new AbortController();
     const timeoutId = setTimeout(() => timeoutController.abort(), this.timeout);

@@ -12,6 +12,7 @@
  * 1. `requestId()` - Add request ID early for tracing
  * 2. `securityHeaders()` - Apply security headers to all responses
  * 3. `cors()` - Add CORS headers for cross-origin requests
+ * 4. `csrf()` - Validate CSRF tokens on cookie-authenticated mutating requests
  * 
  * @module middleware
  * 
@@ -67,6 +68,13 @@ export { requestId } from './request-id';
  * @see {@link module:middleware/cors}
  */
 export { cors } from './cors';
+
+/**
+ * CSRF validation middleware (double-submit cookie).
+ *
+ * @see {@link module:middleware/csrf}
+ */
+export { csrf } from './csrf';
 
 /**
  * Sliding session cookie renewal on successful API responses.

@@ -7,6 +7,10 @@ import type { Locale } from '../../i18n';
 import type { RouteContext } from '../../router/types';
 import { ObjectId } from 'mongodb';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 const identityOid = new ObjectId('507f1f77bcf86cd799439011');
 const identityHex = identityOid.toHexString();
 
@@ -18,7 +22,7 @@ mock.module('../../services/profile-event.service', () => ({
   publishProfileUpdated: mock(() => Promise.resolve()),
 }));
 
-const mockFriendshipsFindOne = mock(() => Promise.resolve(null));
+const mockFriendshipsFindOne = mock(() => Promise.resolve(null)) as AnyMock;
 
 mock.module('../../db', () => ({
   getCollection: () => ({
@@ -66,7 +70,8 @@ mock.module('../../repositories/media-upload.repository', () => ({
   }),
 }));
 
-import { getProfileCtrl, updateProfileCtrl } from './profile.controller';
+import { getProfileCtrl, updateProfileCtrl, applyPrivacyFilter, areFriends } from './profile.controller';
+import { DEFAULT_PRIVACY_SETTINGS, type PublicIdentity } from '../../models/identity';
 
 afterAll(() => {
   mock.restore();
@@ -194,5 +199,67 @@ describe('profile.controller', () => {
     );
     await updateProfileCtrl(ctx);
     expect(mockFindMediaById).toHaveBeenCalledWith('media_xyz', identityHex);
+  });
+
+  describe('applyPrivacyFilter', () => {
+    const baseProfile: PublicIdentity = {
+      id: identityHex,
+      username: 'user',
+      displayName: 'User',
+      bio: 'secret bio',
+      avatarUrl: 'https://cdn/avatar',
+      bannerUrl: 'https://cdn/banner',
+      profileColors: { accent: '#ff0000' },
+      privacySettings: DEFAULT_PRIVACY_SETTINGS,
+      lastActiveAt: '2024-01-01T00:00:00.000Z',
+      isDeleted: false,
+    };
+
+    test('returns full profile for self viewer', () => {
+      const filtered = applyPrivacyFilter(baseProfile, mockIdentityDoc as never, 'self');
+      expect(filtered.bio).toBe('secret bio');
+      expect(filtered.avatarUrl).toBe('https://cdn/avatar');
+    });
+
+    test('hides friends-only fields from strangers', () => {
+      const doc = {
+        ...mockIdentityDoc,
+        privacySettings: {
+          ...DEFAULT_PRIVACY_SETTINGS,
+          bio: 'friends' as const,
+          avatar: 'friends' as const,
+        },
+      };
+      const filtered = applyPrivacyFilter(baseProfile, doc as never, 'stranger');
+      expect(filtered.bio).toBeUndefined();
+      expect(filtered.avatarUrl).toBeUndefined();
+      expect(filtered.privacySettings).toBeUndefined();
+    });
+
+    test('shows friends-only fields to friends', () => {
+      const doc = {
+        ...mockIdentityDoc,
+        privacySettings: {
+          ...DEFAULT_PRIVACY_SETTINGS,
+          bio: 'friends' as const,
+        },
+      };
+      const filtered = applyPrivacyFilter(baseProfile, doc as never, 'friend');
+      expect(filtered.bio).toBe('secret bio');
+    });
+  });
+
+  describe('areFriends', () => {
+    test('returns true when friendship document exists', async () => {
+      mockFriendshipsFindOne.mockImplementationOnce(() => Promise.resolve({ _id: 'friendship' }));
+      const result = await areFriends(new ObjectId(), new ObjectId());
+      expect(result).toBe(true);
+    });
+
+    test('returns false when no friendship document exists', async () => {
+      mockFriendshipsFindOne.mockImplementationOnce(() => Promise.resolve(null));
+      const result = await areFriends(new ObjectId(), new ObjectId());
+      expect(result).toBe(false);
+    });
   });
 });

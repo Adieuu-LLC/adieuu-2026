@@ -17,7 +17,7 @@ import {
 } from '../../utils/sanitize';
 import {
   getSessionIdFromRequest,
-  buildLogoutCookie,
+  appendAuthClearCookies,
 } from '../../services/session.service';
 import { verifySignedToken } from '../../services/account-token.service';
 import { getSessionRepository } from '../../repositories/session.repository';
@@ -228,7 +228,10 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
   );
   if (result.cookie) {
     const headers = new Headers(response.headers);
-    headers.set('Set-Cookie', result.cookie);
+    headers.append('Set-Cookie', result.cookie);
+    if (result.csrfCookie) {
+      headers.append('Set-Cookie', result.csrfCookie);
+    }
     return new Response(response.body, { status: response.status, headers });
   }
 
@@ -325,7 +328,10 @@ export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
   const response = success({ identity: result.identity }, 'Identity login successful.');
   const headers = new Headers(response.headers);
   if (result.cookie) {
-    headers.set('Set-Cookie', result.cookie);
+    headers.append('Set-Cookie', result.cookie);
+    if (result.csrfCookie) {
+      headers.append('Set-Cookie', result.csrfCookie);
+    }
     elog.debug('Identity login: Set-Cookie applied', {
       sessionIdPrefix: result.sessionId?.substring(0, 8) + '...',
     });
@@ -341,7 +347,7 @@ export async function logoutIdentityCtrl(ctx: RouteContext): Promise<Response> {
 
   if (destroyed || !sessionId) {
     const headers = new Headers(response.headers);
-    headers.set('Set-Cookie', buildLogoutCookie());
+    appendAuthClearCookies(headers);
     return new Response(response.body, { status: response.status, headers });
   }
 
@@ -367,7 +373,7 @@ export async function deleteIdentityCtrl(ctx: RouteContext): Promise<Response> {
 
   const response = success(undefined, 'Identity deleted successfully.');
   const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', buildLogoutCookie());
+  appendAuthClearCookies(headers);
   return new Response(response.body, { status: response.status, headers });
 }
 

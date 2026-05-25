@@ -48,7 +48,7 @@ Store strings the app must not log in git. Typical keys:
 | Key | Notes |
 |-----|--------|
 | `MONGODB_URI` | Atlas or other Mongo connection string (contains password). |
-| `CSRF_SECRET` | Required in production (`validateProductionConfig`). |
+| `CSRF_SECRET` | Required in production (`validateProductionConfig`). HMAC key for session-bound CSRF tokens (`adieuu_csrf` cookie + `X-CSRF-Token` header). |
 | `SESSION_SECRET` | Required in production. |
 | `OTP_SECRET` | Required in production. |
 | `ACCOUNT_HASH_SECRET` | Required in production. HMAC key for deriving `accountHash` (non-reversible account identifier). **Non-rotatable:** changing this invalidates all existing identity logins. |
@@ -90,6 +90,7 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | `CORS_ORIGINS` | Comma-separated browser origins (e.g. `https://app.example.com`). Entries can include one `*` in the host for subdomains, e.g. `https://*.example.com` (see `apps/api/src/utils/corsOrigins.ts`). Non-default ports and LAN IPs need exact origins. Self-hosted or custom web origins: add each `https://` origin here (or use Terraform `cors_additional_origins`; see `infra/aws/terraform/variables.tf`). |
 | `CORS_CREDENTIALS` | `true` / `false`. |
 | `COOKIE_DOMAIN` | e.g. `.example.com` for subdomains (`process.env.COOKIE_DOMAIN` in code). |
+| `CSRF_ENFORCEMENT` | CSRF rollout mode: `off` (skip), `warn` (log failures, allow request — **default**), or `enforce` (403 on failure). Ship with `warn`, monitor logs, then set `enforce` in production once clients send `X-CSRF-Token` (shared `ApiClient` does this automatically when `adieuu_csrf` is present). |
 | `CORS_ORIGIN` | Deprecated; prefer `CORS_ORIGINS`. |
 | `MONGODB_DB_NAME` | Database name (default `adieuu`). |
 | `MONGODB_MIN_POOL_SIZE` | String integer. |

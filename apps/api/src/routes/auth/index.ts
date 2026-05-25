@@ -19,9 +19,9 @@ import { sanitizeString } from '../../utils/sanitize';
 import { MAX_IDENTITIES_PER_USER } from '../../services/identity.service';
 import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
 import {
-  buildLogoutCookie,
   getSessionFromRequest,
   getSessionIdFromRequest,
+  maybeBootstrapCsrfCookie,
 } from '../../services/session.service';
 import {
   requestOtp,
@@ -38,6 +38,31 @@ import {
 import { z } from '@adieuu/shared/schemas';
 
 const router = new Router();
+
+function applySessionCookies(headers: Headers, cookie: string, csrfCookie: string): void {
+  headers.append('Set-Cookie', cookie);
+  headers.append('Set-Cookie', csrfCookie);
+}
+
+function applyClearCookies(headers: Headers, cookies: string[]): void {
+  for (const cookie of cookies) {
+    headers.append('Set-Cookie', cookie);
+  }
+}
+
+function sessionMaxAgeSeconds(expiresAtMs: number): number {
+  return Math.max(1, Math.floor((expiresAtMs - Date.now()) / 1000));
+}
+
+async function attachCsrfBootstrapIfNeeded(request: Request, headers: Headers): Promise<void> {
+  const sessionId = getSessionIdFromRequest(request);
+  if (!sessionId) return;
+
+  const session = await getSessionFromRequest(request);
+  if (session?.expiresAt) {
+    maybeBootstrapCsrfCookie(request, sessionId, sessionMaxAgeSeconds(session.expiresAt), headers);
+  }
+}
 
 /**
  * Zod schema for validating OTP request payloads.
@@ -249,9 +274,12 @@ router.post('/auth/verify', async (ctx) => {
   // Return success with Set-Cookie header (HTTP-only session cookie)
   // At this point we know it's not mfaRequired, so cookie exists
   const cookie = 'cookie' in result ? result.cookie : '';
+  const csrfCookie = 'csrfCookie' in result ? result.csrfCookie : '';
   const response = success(undefined, 'Authentication successful.');
   const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', cookie);
+  if (cookie && csrfCookie) {
+    applySessionCookies(headers, cookie, csrfCookie);
+  }
   return new Response(response.body, { status: response.status, headers });
 });
 
@@ -282,7 +310,7 @@ router.get('/auth/session', async (ctx) => {
     if (ctx.identitySession) {
       const { identity, subscriptions, entitlements, isLifetime } = ctx.identitySession;
       const capabilities = await getPlatformCapabilities(identity._id);
-      return success({
+      const response = success({
         sessionType: 'identity' as const,
         isPlatformAdmin: capabilities.isPlatformAdmin,
         isPlatformModerator: capabilities.isPlatformModerator,
@@ -291,12 +319,15 @@ router.get('/auth/session', async (ctx) => {
         entitlements,
         isLifetime,
       });
+      const headers = new Headers(response.headers);
+      await attachCsrfBootstrapIfNeeded(ctx.request, headers);
+      return new Response(response.body, { status: response.status, headers });
     }
 
     const rawSession = await getSessionFromRequest(ctx.request);
     if (rawSession?.type === 'identity') {
       const capabilities = await getPlatformCapabilities(rawSession.identityId);
-      return success({
+      const response = success({
         sessionType: 'identity' as const,
         isPlatformAdmin: capabilities.isPlatformAdmin,
         isPlatformModerator: capabilities.isPlatformModerator,
@@ -305,6 +336,9 @@ router.get('/auth/session', async (ctx) => {
         entitlements: rawSession.entitlements,
         isLifetime: rawSession.isLifetime ?? false,
       });
+      const headers = new Headers(response.headers);
+      await attachCsrfBootstrapIfNeeded(ctx.request, headers);
+      return new Response(response.body, { status: response.status, headers });
     }
     if (getSessionIdFromRequest(ctx.request)) {
       return ctx.errors.sessionExpiredWithClearCookie();
@@ -314,7 +348,7 @@ router.get('/auth/session', async (ctx) => {
 
   const { session, signedToken, identityCount, maskedIp, geo, subscriptions, entitlements, ageVerification, aliasGate } = result;
 
-  return success({
+  const response = success({
     identifier: session.identifier,
     identifierType: session.identifierType,
     identityCount,
@@ -327,6 +361,9 @@ router.get('/auth/session', async (ctx) => {
     ageVerification,
     aliasGate,
   });
+  const headers = new Headers(response.headers);
+  await attachCsrfBootstrapIfNeeded(ctx.request, headers);
+  return new Response(response.body, { status: response.status, headers });
 });
 
 /**
@@ -340,11 +377,11 @@ router.get('/auth/session', async (ctx) => {
  * @returns 200 OK with cleared session cookies
  */
 router.post('/auth/logout', async (ctx) => {
-  const { cookie } = await logoutHandler(ctx.request);
+  const { clearCookies } = await logoutHandler(ctx.request);
 
   const response = success(undefined, 'Logged out successfully.');
   const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', cookie);
+  applyClearCookies(headers, clearCookies);
   return new Response(response.body, { status: response.status, headers });
 });
 
@@ -437,9 +474,9 @@ router.delete('/auth/sessions', async (ctx) => {
     `${result.count} session(s) revoked successfully.`
   );
 
-  if (result.cookie) {
+  if (result.clearCookies.length > 0) {
     const headers = new Headers(response.headers);
-    headers.set('Set-Cookie', result.cookie);
+    applyClearCookies(headers, result.clearCookies);
     return new Response(response.body, { status: response.status, headers });
   }
 
@@ -455,11 +492,11 @@ router.delete('/auth/sessions', async (ctx) => {
  * @route POST /api/auth/clear-session
  */
 router.post('/auth/clear-session', async (ctx) => {
-  const { cookie } = await logoutHandler(ctx.request);
+  const { clearCookies } = await logoutHandler(ctx.request);
 
   const response = success(undefined, 'Session cleared.');
   const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', cookie);
+  applyClearCookies(headers, clearCookies);
   return new Response(response.body, { status: response.status, headers });
 });
 
@@ -503,7 +540,7 @@ router.post('/auth/mfa/totp', async (ctx) => {
 
   const response = success({ message: 'MFA verification successful' });
   const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', result.cookie);
+  applySessionCookies(headers, result.cookie, result.csrfCookie);
   return new Response(response.body, { status: response.status, headers });
 });
 
@@ -543,7 +580,7 @@ router.post('/auth/mfa/webauthn', async (ctx) => {
 
   const response = success({ message: 'MFA verification successful' });
   const headers = new Headers(response.headers);
-  headers.set('Set-Cookie', result.cookie);
+  applySessionCookies(headers, result.cookie, result.csrfCookie);
   return new Response(response.body, { status: response.status, headers });
 });
 

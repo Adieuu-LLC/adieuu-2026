@@ -42,10 +42,20 @@ const mockIdentityRepo = {
   updateLastActive: mock(() => Promise.resolve()) as AnyMock,
   upgradeHashVersion: mock(() => Promise.resolve(true)) as AnyMock,
   clearModerationFields: mock(() => Promise.resolve()) as AnyMock,
+  changeIdent: mock(() => Promise.resolve(true)) as AnyMock,
 };
 
 mock.module('../repositories/identity.repository', () => ({
   getIdentityRepository: () => mockIdentityRepo,
+}));
+
+const mockKeyBundleRepo = {
+  findByBundleId: mock(() => Promise.resolve({ bundleId: 'old-bundle' })) as AnyMock,
+  migrateBundleId: mock(() => Promise.resolve()) as AnyMock,
+};
+
+mock.module('../repositories/key-bundle.repository', () => ({
+  getKeyBundleRepository: () => mockKeyBundleRepo,
 }));
 
 // --- Mock identity count repository ---
@@ -135,6 +145,7 @@ import {
   getIdentityFromSession,
   buildIdentityLogoutCookie,
   getIdentitySessionIdFromRequest,
+  changePassphrase,
   MIN_PASSPHRASE_LENGTH,
   MAX_IDENTITIES_PER_USER,
 } from './identity.service';
@@ -187,6 +198,9 @@ describe('identity.service', () => {
     mockIdentityRepo.updateLastActive.mockReset();
     mockIdentityRepo.upgradeHashVersion.mockReset();
     mockIdentityRepo.clearModerationFields.mockReset();
+    mockIdentityRepo.changeIdent.mockReset();
+    mockKeyBundleRepo.findByBundleId.mockReset();
+    mockKeyBundleRepo.migrateBundleId.mockReset();
 
     mockIdentityCountRepo.getCount.mockReset();
     mockIdentityCountRepo.getCount.mockImplementation(() => Promise.resolve(0));
@@ -664,6 +678,121 @@ describe('identity.service', () => {
         headers: { Cookie: 'other_cookie=value' },
       });
       expect(getIdentitySessionIdFromRequest(request)).toBeNull();
+    });
+  });
+
+  describe('changePassphrase', () => {
+    const currentPassphrase = 'current-passphrase-1';
+    const newPassphrase = 'new-passphrase-99';
+    const newBundle = {
+      encryptedBundle: 'encrypted-bundle-data-min-32-chars-long',
+      salt: 'salt-value-16chars',
+      nonce: 'nonce-value-16chars',
+    };
+
+    test('returns validation error for short current passphrase', async () => {
+      const result = await changePassphrase(
+        testAccountHash,
+        'short',
+        newPassphrase,
+        newBundle,
+        new ObjectId().toHexString(),
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorCode).toBe('VALIDATION_ERROR');
+      }
+    });
+
+    test('returns validation error when new passphrase equals current', async () => {
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        currentPassphrase,
+        newBundle,
+        new ObjectId().toHexString(),
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorCode).toBe('VALIDATION_ERROR');
+      }
+    });
+
+    test('returns invalid passphrase when identity not found', async () => {
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(null));
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        new ObjectId().toHexString(),
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorCode).toBe('INVALID_PASSPHRASE');
+      }
+    });
+
+    test('returns invalid passphrase when caller identity mismatches', async () => {
+      const identity = makeMockIdentity();
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(identity));
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        new ObjectId().toHexString(),
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorCode).toBe('INVALID_PASSPHRASE');
+      }
+    });
+
+    test('returns bundle_not_found when existing bundle missing', async () => {
+      const identity = makeMockIdentity();
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(identity));
+      mockKeyBundleRepo.findByBundleId.mockImplementation(() => Promise.resolve(null));
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        identity._id.toHexString(),
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorCode).toBe('BUNDLE_NOT_FOUND');
+      }
+    });
+
+    test('migrates ident and bundle on success', async () => {
+      const identity = makeMockIdentity();
+      mockIdentityRepo.findActiveByIdent.mockImplementation(() => Promise.resolve(identity));
+      mockIdentityRepo.findByIdent.mockImplementation(() => Promise.resolve(null));
+      mockKeyBundleRepo.findByBundleId.mockImplementation(() =>
+        Promise.resolve({ bundleId: 'old-bundle' }),
+      );
+
+      const result = await changePassphrase(
+        testAccountHash,
+        currentPassphrase,
+        newPassphrase,
+        newBundle,
+        identity._id.toHexString(),
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockIdentityRepo.changeIdent).toHaveBeenCalled();
+      expect(mockKeyBundleRepo.migrateBundleId).toHaveBeenCalled();
     });
   });
 

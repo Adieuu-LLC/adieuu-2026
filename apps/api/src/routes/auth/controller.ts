@@ -17,6 +17,7 @@ import {
   destroySession,
   destroyAllSessions,
   buildLogoutCookie,
+  buildAuthClearCookies,
   type AccountSessionData,
 } from '../../services/session.service';
 import {
@@ -402,7 +403,7 @@ export interface VerifyOtpInput {
  * Result type for OTP verification operations.
  */
 export type VerifyOtpHandlerResult =
-  | { success: true; cookie: string; user: UserDocument }
+  | { success: true; cookie: string; csrfCookie: string; user: UserDocument }
   | {
     success: true;
     mfaRequired: true;
@@ -661,7 +662,7 @@ export async function verifyOtpHandler(
   }
 
   // No MFA - create session directly
-  const { cookie } = await createAccountSession(user._id, sanitizedIdentifier.value, identifierType, {
+  const { cookie, csrfCookie } = await createAccountSession(user._id, sanitizedIdentifier.value, identifierType, {
     userAgent,
     ipAddress: sanitizedIp.value,
   });
@@ -676,7 +677,7 @@ export async function verifyOtpHandler(
     userId,
   });
 
-  return { success: true, cookie, user };
+  return { success: true, cookie, csrfCookie, user };
 }
 
 /** Skip re-fetch if billing was updated less than this many ms ago. */
@@ -930,14 +931,14 @@ export async function getSessionHandler(
  * Logs out the current session (unified cookie).
  */
 export async function logoutHandler(request: Request): Promise<{
-  cookie: string;
+  clearCookies: string[];
 }> {
   const sessionId = getSessionIdFromRequest(request);
   if (sessionId) {
     await destroySession(sessionId);
   }
 
-  return { cookie: buildLogoutCookie() };
+  return { clearCookies: buildAuthClearCookies() };
 }
 
 /**
@@ -1044,7 +1045,7 @@ export async function revokeSessionHandler(
  * Result type for revoking all sessions.
  */
 export type RevokeAllSessionsResult =
-  | { success: true; count: number; cookie: string }
+  | { success: true; count: number; clearCookies: string[] }
   | { success: false; error: 'unauthorized' };
 
 /**
@@ -1071,7 +1072,7 @@ export async function revokeAllSessionsHandler(
       count,
     });
 
-    return { success: true, count, cookie: buildLogoutCookie() };
+    return { success: true, count, clearCookies: buildAuthClearCookies() };
   } else {
     const sessions = await sessionRepo.findByUserId(session.userId);
     let count = 0;
@@ -1088,7 +1089,7 @@ export async function revokeAllSessionsHandler(
       count,
     });
 
-    return { success: true, count, cookie: '' };
+    return { success: true, count, clearCookies: [] };
   }
 }
 
@@ -1100,7 +1101,7 @@ export async function revokeAllSessionsHandler(
  * Result type for MFA verification during login.
  */
 export type VerifyMfaResult =
-  | { success: true; cookie: string }
+  | { success: true; cookie: string; csrfCookie: string }
   | { success: false; error: 'invalid_token' | 'invalid_code' | 'expired' | 'rate_limited' };
 
 /**
@@ -1167,7 +1168,7 @@ export async function verifyMfaTotpHandler(
   await clearPendingLogin(mfaToken);
 
   // Create session
-  const { cookie } = await createAccountSession(
+  const { cookie, csrfCookie } = await createAccountSession(
     new ObjectId(pendingLogin.userId),
     pendingLogin.identifier,
     pendingLogin.identifierType,
@@ -1191,7 +1192,7 @@ export async function verifyMfaTotpHandler(
     userId: pendingLogin.userId,
   });
 
-  return { success: true, cookie };
+  return { success: true, cookie, csrfCookie };
 }
 
 /**
@@ -1218,7 +1219,7 @@ export async function verifyMfaWebAuthnHandler(
   await clearPendingLogin(mfaToken);
 
   // Create session
-  const { cookie } = await createAccountSession(
+  const { cookie, csrfCookie } = await createAccountSession(
     new ObjectId(pendingLogin.userId),
     pendingLogin.identifier,
     pendingLogin.identifierType,
@@ -1242,5 +1243,5 @@ export async function verifyMfaWebAuthnHandler(
     userId: pendingLogin.userId,
   });
 
-  return { success: true, cookie };
+  return { success: true, cookie, csrfCookie };
 }
