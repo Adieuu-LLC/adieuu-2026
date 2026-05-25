@@ -111,14 +111,20 @@ export function ModerationFlyout() {
 
 function SidebarLoginPrompt() {
   const { t } = useTranslation();
-  const { closeMobile } = useSidebar();
+  const { isExpanded, closeMobile } = useSidebar();
+  const loginLabel = t('nav.loginPrompt');
 
   return (
     <div className="sidebar-login-prompt">
-      <Link to="/auth/login" onClick={closeMobile}>
+      <Link
+        to="/auth/login"
+        onClick={closeMobile}
+        title={!isExpanded ? loginLabel : undefined}
+        aria-label={loginLabel}
+      >
         <Button variant="primary" size="sm" className="sidebar-login-btn">
           <Icon name="user" />
-          <span>{t('nav.loginPrompt')}</span>
+          <span className="sidebar-login-label">{loginLabel}</span>
         </Button>
       </Link>
     </div>

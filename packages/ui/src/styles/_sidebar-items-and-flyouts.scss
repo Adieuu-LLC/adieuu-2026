@@ -182,6 +182,19 @@
     align-items: center;
     justify-content: center;
     gap: var(--spacing-sm);
+    height: auto;
+    min-height: 2rem;
+    white-space: normal;
+
+    svg {
+      flex-shrink: 0;
+    }
+
+    .sidebar-login-label {
+      min-width: 0;
+      text-align: center;
+      white-space: normal;
+    }
   }
 }
 
@@ -402,6 +415,7 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
   .sidebar-identity-chevron,
   .sidebar-admin-label,
   .sidebar-desktop-label,
+  .sidebar-login-label,
   .sidebar-update-nav-label {
     display: none;
   }
@@ -423,6 +437,17 @@ body.tour-account-flyout-open .sidebar-account-flyout-wrapper .sidebar-account-c
     justify-content: center;
     padding: var(--spacing-sm);
     gap: 0;
+  }
+
+  .sidebar-login-btn {
+    justify-content: center;
+    padding: var(--spacing-sm);
+    gap: 0;
+    height: 2rem;
+  }
+
+  .sidebar-login-prompt {
+    padding: var(--spacing-xs);
   }
 
   .sidebar-identity-section {

@@ -28,7 +28,7 @@ export const core = {
     home: 'Home',
     about: 'About',
     getDesktopApp: 'Get desktop app',
-    loginPrompt: 'Log in or create account',
+    loginPrompt: 'Login or Create Account',
     backToHome: 'Back to Home',
     account: 'Account',
     logout: 'Logout',

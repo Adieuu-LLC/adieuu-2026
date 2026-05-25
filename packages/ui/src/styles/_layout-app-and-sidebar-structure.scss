@@ -176,6 +176,93 @@
   margin-top: var(--spacing-lg);
 }
 
+// Learn page tabs and search
+.learn-tabs {
+  margin-top: var(--spacing-md);
+  --learn-sticky-tabs-offset: 2.75rem;
+
+  .tabs-list {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    background: var(--color-bg-primary);
+    padding-top: var(--spacing-xs);
+  }
+}
+
+.learn-search {
+  position: relative;
+  margin-top: var(--spacing-md);
+  z-index: 1;
+
+  &:has(.learn-search-results) {
+    z-index: calc(var(--z-sticky) + 1);
+  }
+
+  .input-wrapper,
+  input {
+    width: 100%;
+  }
+}
+
+.learn-search-results {
+  position: absolute;
+  top: calc(100% + var(--spacing-xs));
+  left: 0;
+  right: 0;
+  z-index: 1;
+  max-height: min(20rem, 50vh);
+  overflow-y: auto;
+  background-color: var(--color-bg-elevated, var(--color-bg-secondary, var(--color-bg-primary)));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.learn-search-empty {
+  margin: 0;
+  padding: var(--spacing-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.learn-search-result {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2xs, 4px);
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover,
+  &:focus-visible {
+    background: var(--color-bg-hover);
+    outline: none;
+  }
+}
+
+.learn-search-result-meta {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary, var(--color-text-secondary));
+}
+
+.learn-search-result-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+  line-height: 1.4;
+}
+
 // Action steps (shared between account and identity modes)
 .action-steps {
   padding: var(--spacing-lg);
@@ -375,7 +462,8 @@
 
 .learn-category-nav {
   position: sticky;
-  top: var(--spacing-md);
+  top: calc(var(--learn-sticky-tabs-offset, 2.75rem) + var(--spacing-sm));
+  z-index: calc(var(--z-sticky) - 1);
 }
 
 .learn-category-list {
@@ -505,8 +593,8 @@
   .learn-category-select-wrapper {
     display: block;
     position: sticky;
-    top: 0;
-    z-index: 1;
+    top: calc(var(--learn-sticky-tabs-offset, 2.75rem) + var(--spacing-xs));
+    z-index: calc(var(--z-sticky) - 1);
     background: var(--color-bg-primary);
     padding-bottom: var(--spacing-sm);
     margin-bottom: var(--spacing-sm);
