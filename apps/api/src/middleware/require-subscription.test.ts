@@ -174,8 +174,8 @@ describe('requireActiveSubscription middleware', () => {
     expect(res.status).toBe(200);
   });
 
-  test('exempt path /api/releases -> passes through', async () => {
-    const ctx = makeCtx('/api/releases');
+  test('exempt path /api/v1/releases -> passes through', async () => {
+    const ctx = makeCtx('/api/v1/releases/latest/latest.yml');
     const res = await middleware(ctx, nextOk);
     expect(res.status).toBe(200);
   });

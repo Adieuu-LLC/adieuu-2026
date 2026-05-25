@@ -14,167 +14,98 @@
  * @module routes/uploads/e2e
  */
 
-import { Router } from '../../router';
-import { z } from '@adieuu/shared/schemas';
+import { Router, type RouteContext } from '../../router';
 import { success, error, errors } from '../../utils/response';
-import { VIDEO_MIME_TYPES } from '../../models/media-upload';
 import {
-  requestE2EUpload,
-  completeE2EUpload,
-  abandonE2EUpload,
-  getE2EMediaStatus,
-  getE2EMediaDownload,
-  requestScanUpload,
-  completeScanUpload,
-  sealConvScanUploadSession,
-} from '../../services/e2e-upload.service';
+  requestE2EUploadResult,
+  completeE2EUploadResult,
+  abandonE2EUploadResult,
+  getE2EMediaStatusResult,
+  getE2EMediaDownloadResult,
+  requestScanUploadResult,
+  completeScanUploadResult,
+  sealConvScanUploadResult,
+  type E2eUploadResult,
+} from './e2e.controller';
 
 const router = new Router();
 
-const RequestE2EUploadSchema = z
-  .object({
-    contentType: z.string().min(1).max(100),
-    contentLength: z.number().int().positive(),
-    stripExif: z.boolean().default(true),
-    declaredDurationSeconds: z.number().positive().optional(),
-  })
-  .superRefine((data, ctx) => {
-    const isVideo = (VIDEO_MIME_TYPES as readonly string[]).includes(data.contentType);
-    if (isVideo && data.declaredDurationSeconds === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'declaredDurationSeconds is required for video content types',
-        path: ['declaredDurationSeconds'],
-      });
-    }
-  });
-
-const RequestScanUploadSchema = z.object({
-  scanHash: z.string().length(64),
-  contentType: z.string().min(1).max(100),
-  contentLength: z.number().int().positive(),
-});
-
-const ConvScanManifestPartSchema = z.object({
-  mediaId: z.string().min(1).max(120),
-  contentSha256: z.string().length(64).regex(/^[0-9a-f]+$/i).optional(),
-});
-
-const ConvScanManifestSchema = z.object({
-  version: z.literal(1),
-  parts: z.array(ConvScanManifestPartSchema).min(1).max(32),
-});
-
-const SealConvScanSessionSchema = z.object({
-  scanHash: z.string().length(64),
-  scanMediaIds: z.array(z.string().min(1).max(120)).max(64).optional(),
-  manifest: ConvScanManifestSchema.optional(),
-});
-
-// ============================================================================
-// E2E media: Request presigned upload URL
-// ============================================================================
+function mapE2eUploadFailure(
+  ctx: RouteContext,
+  result: Extract<E2eUploadResult, { ok: false }>,
+): Response {
+  switch (result.kind) {
+    case 'validation_failed':
+      return ctx.errors.validationFailed();
+    case 'bad_request':
+      return errors.badRequest(result.message);
+    case 'not_found':
+      return errors.notFound(result.message);
+    case 'rate_limited':
+      return errors.rateLimited(result.message);
+    case 'forbidden':
+      return error('FORBIDDEN', result.message ?? 'Forbidden', 403);
+    case 'conflict':
+      return error('REFERENCED', result.message ?? 'E2E media is referenced by a message', 409);
+    case 'scan_pending':
+      return error('SCAN_PENDING', result.message ?? 'Content is awaiting moderation scan', 202);
+    case 'rejected':
+      return error(
+        'REJECTED',
+        result.message ?? 'Content has been rejected by moderation',
+        403,
+        { moderationReason: result.moderationReason },
+      );
+    case 'moderation_error':
+      return error(
+        'MODERATION_ERROR',
+        result.message ?? 'Content moderation scan encountered an error',
+        403,
+      );
+  }
+}
 
 /**
  * POST /uploads/e2e/request - Request a presigned URL for E2E encrypted media
  *
  * @route POST /api/uploads/e2e/request
- *
- * @requestBody
- * - `contentType` (string): MIME type of the original file
- * - `contentLength` (number): File size in bytes (of the encrypted blob)
- * - `stripExif` (boolean, default true): Whether EXIF was stripped client-side
- *
- * @returns 200 OK with { e2eMediaId, uploadUrl, scanHash, expiresIn }
  */
 router.post('/uploads/e2e/request', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
-  const { identity, maxVideoDurationSeconds, subscriptions, entitlements, isLifetime } = ctx.identitySession;
+  const { identity, maxVideoDurationSeconds, subscriptions, entitlements, isLifetime } =
+    ctx.identitySession;
 
-  const parseResult = RequestE2EUploadSchema.safeParse(ctx.body);
-  if (!parseResult.success) {
-    return ctx.errors.validationFailed();
-  }
-
-  const result = await requestE2EUpload({
-    contentType: parseResult.data.contentType,
-    contentLength: parseResult.data.contentLength,
-    identityId: identity._id.toHexString(),
-    stripExif: parseResult.data.stripExif,
-    maxVideoDurationSeconds,
-    declaredDurationSeconds: parseResult.data.declaredDurationSeconds,
-    subscriptions,
-    entitlements,
-    isLifetime,
-  });
-
-  if (!result.success) {
-    switch (result.errorCode) {
-      case 'RATE_LIMITED':
-        return errors.rateLimited(result.error);
-      case 'UPLOAD_DISABLED':
-        return errors.badRequest(result.error);
-      case 'VIDEO_DURATION_EXCEEDED':
-        return errors.badRequest(result.error);
-      case 'VIDEO_DURATION_REQUIRED':
-        return errors.badRequest(result.error);
-      default:
-        return errors.badRequest(result.error);
-    }
-  }
-
-  return success({
-    e2eMediaId: result.e2eMediaId,
-    uploadUrl: result.uploadUrl,
-    scanHash: result.scanHash,
-    expiresIn: result.expiresIn,
-  });
+  const result = await requestE2EUploadResult(
+    {
+      identityId: identity._id.toHexString(),
+      maxVideoDurationSeconds,
+      subscriptions,
+      entitlements,
+      isLifetime,
+    },
+    ctx.body,
+  );
+  if (!result.ok) return mapE2eUploadFailure(ctx, result);
+  return success(result.data);
 });
-
-// ============================================================================
-// E2E media: Complete upload
-// ============================================================================
 
 /**
  * POST /uploads/e2e/:mediaId/complete - Confirm E2E media upload finished
  *
  * @route POST /api/uploads/e2e/:mediaId/complete
  */
-const CompleteE2EUploadSchema = z.object({
-  skipModeration: z.boolean().optional(),
-}).optional();
-
 router.post('/uploads/e2e/:mediaId/complete', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { mediaId } = ctx.params;
-  if (!mediaId || mediaId.length > 100) {
-    return ctx.errors.badRequest();
-  }
-
-  const body = CompleteE2EUploadSchema.safeParse(ctx.body);
-  const skipModeration = body.success ? body.data?.skipModeration : undefined;
-
-  const result = await completeE2EUpload(mediaId, identity._id.toHexString(), {
-    skipModeration: skipModeration === true,
-  });
-
-  if (!result.success) {
-    switch (result.errorCode) {
-      case 'NOT_FOUND':
-        return errors.notFound(result.error);
-      default:
-        return errors.badRequest(result.error);
-    }
-  }
-
+  const result = await completeE2EUploadResult(
+    identity._id.toHexString(),
+    ctx.params.mediaId,
+    ctx.body,
+  );
+  if (!result.ok) return mapE2eUploadFailure(ctx, result);
   return success(undefined, 'E2E media upload marked as complete.');
 });
-
-// ============================================================================
-// E2E media: Abandon (delete orphan session before/without message send)
-// ============================================================================
 
 /**
  * DELETE /uploads/e2e/:mediaId - Remove pending/gated E2E blob owned by the caller
@@ -185,163 +116,52 @@ router.delete('/uploads/e2e/:mediaId', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { mediaId } = ctx.params;
-  if (!mediaId || mediaId.length > 100) {
-    return ctx.errors.badRequest();
-  }
-
-  const result = await abandonE2EUpload(mediaId, identity._id.toHexString());
-
-  if (!result.success) {
-    switch (result.errorCode) {
-      case 'NOT_FOUND':
-        return errors.notFound(result.error);
-      case 'REFERENCED':
-        return error('REFERENCED', result.error ?? 'E2E media is referenced by a message', 409);
-      case 'UPLOAD_DISABLED':
-        return errors.badRequest(result.error);
-      case 'DELETE_FAILED':
-        return errors.badRequest(result.error);
-      default:
-        return errors.badRequest(result.error);
-    }
-  }
-
+  const result = await abandonE2EUploadResult(identity._id.toHexString(), ctx.params.mediaId);
+  if (!result.ok) return mapE2eUploadFailure(ctx, result);
   return success(undefined, 'E2E media abandoned.');
 });
-
-// ============================================================================
-// E2E media: Check status
-// ============================================================================
 
 /**
  * GET /uploads/e2e/:mediaId/status - Check E2E media + moderation status
  *
  * @route GET /api/uploads/e2e/:mediaId/status
- *
- * @returns 200 OK with { e2eMediaId, status, moderationStatus, moderationReason }
  */
 router.get('/uploads/e2e/:mediaId/status', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { mediaId } = ctx.params;
-  if (!mediaId || mediaId.length > 100) {
-    return ctx.errors.badRequest();
-  }
-
-  const result = await getE2EMediaStatus(mediaId, identity._id.toHexString());
-  if (!result) {
-    return errors.notFound('E2E media not found');
-  }
-
-  return success(result);
+  const result = await getE2EMediaStatusResult(identity._id.toHexString(), ctx.params.mediaId);
+  if (!result.ok) return mapE2eUploadFailure(ctx, result);
+  return success(result.data);
 });
-
-// ============================================================================
-// E2E media: Gated download
-// ============================================================================
 
 /**
  * GET /uploads/e2e/:mediaId/download - Get presigned GET URL (gated by moderation)
  *
  * @route GET /api/uploads/e2e/:mediaId/download
- *
- * @returns 200 OK with { downloadUrl, expiresIn } when scan passed
- * @returns 202 Accepted when scan is still pending
- * @returns 403 Forbidden when content was rejected
  */
 router.get('/uploads/e2e/:mediaId/download', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { mediaId } = ctx.params;
-  if (!mediaId || mediaId.length > 100) {
-    return ctx.errors.badRequest();
-  }
-
-  const result = await getE2EMediaDownload(mediaId, identity._id.toHexString());
-
-  if (!result.success) {
-    switch (result.errorCode) {
-      case 'NOT_FOUND':
-        return errors.notFound(result.error);
-      case 'REJECTED':
-        return error('REJECTED', result.error ?? 'Content has been rejected by moderation', 403, {
-          moderationReason: result.moderationReason,
-        });
-      case 'MODERATION_ERROR':
-        return error('MODERATION_ERROR', result.error ?? 'Content moderation scan encountered an error', 403);
-      case 'SCAN_PENDING':
-        return error('SCAN_PENDING', result.error ?? 'Content is awaiting moderation scan', 202);
-      default:
-        return errors.badRequest(result.error);
-    }
-  }
-
-  return success({
-    downloadUrl: result.downloadUrl,
-    expiresIn: result.expiresIn,
-  });
+  const result = await getE2EMediaDownloadResult(identity._id.toHexString(), ctx.params.mediaId);
+  if (!result.ok) return mapE2eUploadFailure(ctx, result);
+  return success(result.data);
 });
-
-// ============================================================================
-// Scan copy: Request presigned upload URL
-// ============================================================================
 
 /**
  * POST /uploads/scan/request - Request a presigned URL for the scan copy
  *
  * @route POST /api/uploads/scan/request
- *
- * @requestBody
- * - `scanHash` (string, 64 chars): SHA3-256 derived scan hash
- * - `contentType` (string): MIME type of the thumbnail
- * - `contentLength` (number): File size in bytes
- *
- * @returns 200 OK with { scanMediaId, uploadUrl, expiresIn }
  */
 router.post('/uploads/scan/request', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const parseResult = RequestScanUploadSchema.safeParse(ctx.body);
-  if (!parseResult.success) {
-    return ctx.errors.validationFailed();
-  }
-
-  const result = await requestScanUpload({
-    scanHash: parseResult.data.scanHash,
-    contentType: parseResult.data.contentType,
-    contentLength: parseResult.data.contentLength,
-    identityId: identity._id.toHexString(),
-  });
-
-  if (!result.success) {
-    switch (result.errorCode) {
-      case 'RATE_LIMITED':
-        return errors.rateLimited(result.error);
-      case 'UPLOAD_DISABLED':
-        return errors.badRequest(result.error);
-      case 'SCAN_SESSION_NOT_FOUND':
-        return errors.notFound(result.error);
-      case 'FORBIDDEN':
-        return error('FORBIDDEN', result.error ?? 'Forbidden', 403);
-      default:
-        return errors.badRequest(result.error);
-    }
-  }
-
-  return success({
-    scanMediaId: result.scanMediaId,
-    uploadUrl: result.uploadUrl,
-    expiresIn: result.expiresIn,
-  });
+  const result = await requestScanUploadResult(identity._id.toHexString(), ctx.body);
+  if (!result.ok) return mapE2eUploadFailure(ctx, result);
+  return success(result.data);
 });
-
-// ============================================================================
-// Scan copy: Complete upload
-// ============================================================================
 
 /**
  * POST /uploads/scan/:mediaId/complete - Confirm scan copy upload finished
@@ -352,35 +172,13 @@ router.post('/uploads/scan/:mediaId/complete', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const { mediaId } = ctx.params;
-  if (!mediaId || mediaId.length > 100) {
-    return ctx.errors.badRequest();
-  }
-
-  const result = await completeScanUpload(mediaId, {
-    identityId: identity._id.toHexString(),
-  });
-
-  if (!result.success) {
-    switch (result.errorCode) {
-      case 'NOT_FOUND':
-        return errors.notFound(result.error);
-      case 'SEAL_FAILED':
-        return errors.badRequest(result.error);
-      default:
-        return errors.badRequest(result.error);
-    }
-  }
-
+  const result = await completeScanUploadResult(identity._id.toHexString(), ctx.params.mediaId);
+  if (!result.ok) return mapE2eUploadFailure(ctx, result);
   return success(undefined, 'Scan copy upload marked as complete.');
 });
 
-// ============================================================================
-// Scan session: Seal (multi-part)
-// ============================================================================
-
 /**
- * POST /uploads/scan/seal - Write `.sealed` when all parts are uploaded (optional part list validation).
+ * POST /uploads/scan/seal - Write `.sealed` when all parts are uploaded
  *
  * @route POST /api/uploads/scan/seal
  */
@@ -388,35 +186,8 @@ router.post('/uploads/scan/seal', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const parseResult = SealConvScanSessionSchema.safeParse(ctx.body);
-  if (!parseResult.success) {
-    return ctx.errors.validationFailed();
-  }
-
-  const result = await sealConvScanUploadSession({
-    scanHash: parseResult.data.scanHash,
-    identityId: identity._id.toHexString(),
-    scanMediaIds: parseResult.data.scanMediaIds,
-    manifest: parseResult.data.manifest,
-  });
-
-  if (!result.success) {
-    switch (result.errorCode) {
-      case 'NOT_FOUND':
-        return errors.notFound(result.error);
-      case 'FORBIDDEN':
-        return error('FORBIDDEN', result.error ?? 'Forbidden', 403);
-      case 'UPLOAD_DISABLED':
-        return errors.badRequest(result.error);
-      case 'SEAL_FAILED':
-        return errors.badRequest(result.error);
-      case 'INVALID_MANIFEST':
-        return errors.badRequest(result.error);
-      default:
-        return errors.badRequest(result.error);
-    }
-  }
-
+  const result = await sealConvScanUploadResult(identity._id.toHexString(), ctx.body);
+  if (!result.ok) return mapE2eUploadFailure(ctx, result);
   return success(undefined, 'Scan session sealed.');
 });
 

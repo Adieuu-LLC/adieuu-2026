@@ -8,133 +8,52 @@
  * @module routes/reports
  */
 
-import { Router } from '../../router';
+import { Router, type RouteContext } from '../../router';
 import { success, error } from '../../utils/response';
 import { getErrorMessage } from '../../i18n';
-import {
-  submitMessageReport,
-  submitProfileReport,
-  type ReportSubmissionResult,
-} from '../../services/report-submission.service';
-import { checkRateLimit, type RateLimitConfig } from '../../services/rate-limit.service';
-import { REPORT_CATEGORIES } from '../../models/report';
-import { z } from '@adieuu/shared/schemas';
-import { isReportContextMessageCount } from '@adieuu/shared';
+import { submitReportResult, type ReportSubmitResult } from './controller';
 
 const router = new Router();
 
-const REPORT_RATE_LIMIT: RateLimitConfig = { limit: 5, windowSeconds: 3600 };
-
-// ---------------------------------------------------------------------------
-// Schemas
-// ---------------------------------------------------------------------------
-
-const SubmitMessageReportSchema = z.object({
-  type: z.literal('message'),
-  targetMessageId: z.string().length(24),
-  category: z.enum(REPORT_CATEGORIES as unknown as [string, ...string[]]),
-  reason: z.string().max(500).optional(),
-  contextMessageCount: z
-    .number()
-    .refine((n): n is 3 | 5 | 10 | 25 => isReportContextMessageCount(n), {
-      message: 'Invalid contextMessageCount',
-    }),
-  sessionKeys: z.record(z.string().length(24), z.string().min(1).max(500)),
-});
-
-const SubmitProfileReportSchema = z.object({
-  type: z.literal('profile'),
-  targetIdentityId: z.string().length(24),
-  category: z.enum(REPORT_CATEGORIES as unknown as [string, ...string[]]),
-  reason: z.string().max(500).optional(),
-});
-
-const SubmitReportSchema = z.discriminatedUnion('type', [
-  SubmitMessageReportSchema,
-  SubmitProfileReportSchema,
-]);
-
-function reportSubmissionErrorResponse(result: ReportSubmissionResult): Response {
-  const message = result.error ?? 'Request failed';
-  const code = result.errorCode ?? 'BAD_REQUEST';
-
-  switch (result.errorCode) {
-    case 'DUPLICATE_REPORT':
-      return error(code, message, 409);
-    case 'MESSAGE_NOT_FOUND':
-    case 'CONVERSATION_NOT_FOUND':
-    case 'IDENTITY_NOT_FOUND':
-      return error(code, message, 404);
-    case 'NOT_PARTICIPANT':
-      return error(code, message, 403);
-    case 'MISSING_SESSION_KEY':
-    case 'DECRYPTION_FAILED':
-    case 'DELETED_MESSAGE':
-    case 'BAD_REQUEST':
-      return error(code, message, 400);
-    default:
-      return error('BAD_REQUEST', message, 400);
+function mapReportSubmitFailure(
+  ctx: RouteContext,
+  result: Extract<ReportSubmitResult, { ok: false }>,
+): Response {
+  switch (result.kind) {
+    case 'validation_failed':
+      return ctx.errors.validationFailed();
+    case 'self_report':
+      return ctx.errors.badRequest();
+    case 'rate_limited':
+      return error('RATE_LIMITED', getErrorMessage('rateLimited', ctx.locale), 429, undefined, {
+        'Retry-After': String(result.retryAfter ?? 0),
+      });
+    case 'duplicate_report':
+      return error(result.errorCode ?? 'DUPLICATE_REPORT', result.message ?? 'Request failed', 409);
+    case 'not_found':
+      return error(result.errorCode ?? 'NOT_FOUND', result.message ?? 'Not found', 404);
+    case 'forbidden':
+      return error(result.errorCode ?? 'NOT_PARTICIPANT', result.message ?? 'Forbidden', 403);
+    case 'bad_request':
+      return error(result.errorCode ?? 'BAD_REQUEST', result.message ?? 'Request failed', 400);
   }
 }
 
-// ---------------------------------------------------------------------------
-// POST /reports — submit a manual report
-// ---------------------------------------------------------------------------
-
+/**
+ * POST /reports — submit a manual report
+ *
+ * @route POST /api/reports
+ */
 router.post('/reports', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const identityId = identity._id.toHexString();
-
-  // Rate limit
-  const rl = await checkRateLimit('report:submit', identityId, REPORT_RATE_LIMIT);
-  if (!rl.allowed) {
-    const message = getErrorMessage('rateLimited', ctx.locale);
-    const retryAfter = Math.max(0, rl.resetAt - Math.floor(Date.now() / 1000));
-    return error('RATE_LIMITED', message, 429, undefined, {
-      'Retry-After': String(retryAfter),
-    });
+  const result = await submitReportResult(identity._id.toHexString(), ctx.body);
+  if (!result.ok) {
+    return mapReportSubmitFailure(ctx, result);
   }
 
-  const parseResult = SubmitReportSchema.safeParse(ctx.body);
-  if (!parseResult.success) return ctx.errors.validationFailed();
-
-  const data = parseResult.data;
-
-  if (data.type === 'message') {
-    // Prevent self-report
-    const result = await submitMessageReport(identityId, {
-      targetMessageId: data.targetMessageId,
-      category: data.category as typeof REPORT_CATEGORIES[number],
-      reason: data.reason,
-      contextMessageCount: data.contextMessageCount,
-      sessionKeys: data.sessionKeys,
-    });
-
-    if (!result.success) {
-      return reportSubmissionErrorResponse(result);
-    }
-
-    return success({ reportId: result.reportId }, 'Report submitted.');
-  }
-
-  // Profile report
-  if (data.targetIdentityId === identityId) {
-    return ctx.errors.badRequest();
-  }
-
-  const result = await submitProfileReport(identityId, {
-    targetIdentityId: data.targetIdentityId,
-    category: data.category as typeof REPORT_CATEGORIES[number],
-    reason: data.reason,
-  });
-
-  if (!result.success) {
-    return reportSubmissionErrorResponse(result);
-  }
-
-  return success({ reportId: result.reportId }, 'Report submitted.');
+  return success({ reportId: result.data.reportId }, 'Report submitted.');
 });
 
 export const reportRoutes = router;

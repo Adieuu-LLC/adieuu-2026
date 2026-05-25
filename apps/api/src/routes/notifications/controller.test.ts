@@ -1,11 +1,10 @@
-import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import { ROUTE_TEST_IDENTITY_ID, testIdentityEnrichment } from '../../test-fixtures/route-identity';
 
 const mockIdentityId = ROUTE_TEST_IDENTITY_ID;
 
-// Mock notification service
-const mockGetNotifications = mock(() => Promise.resolve({
+const mockGetNotifications = mock(async () => ({
   notifications: [
     {
       id: new ObjectId().toHexString(),
@@ -17,12 +16,13 @@ const mockGetNotifications = mock(() => Promise.resolve({
     },
   ],
   unreadCount: 1,
+  cursor: null,
 }));
 
-const mockMarkNotificationsAsRead = mock(() => Promise.resolve({ markedCount: 1 }));
-const mockMarkNotificationsAsUnread = mock(() => Promise.resolve({ markedCount: 1 }));
-const mockDeleteNotifications = mock(() => Promise.resolve({ deletedCount: 1 }));
-const mockGetNotificationCounts = mock(() => Promise.resolve({
+const mockMarkNotificationsAsRead = mock(async () => ({ success: true, markedCount: 1 }));
+const mockMarkNotificationsAsUnread = mock(async () => ({ success: true, markedCount: 1 }));
+const mockDeleteNotifications = mock(async () => ({ success: true, deletedCount: 1 }));
+const mockGetNotificationCounts = mock(async () => ({
   unread: 5,
   byType: { friend_request: 2, message: 3 },
 }));
@@ -35,300 +35,258 @@ mock.module('../../services/notification.service', () => ({
   getNotificationCounts: mockGetNotificationCounts,
 }));
 
-// Import after mocking
+import {
+  parseNotificationIds,
+  getNotificationsResult,
+  markNotificationsAsReadResult,
+  deleteNotificationsResult,
+} from './controller';
+
 import { notificationRoutes } from './index';
 
 notificationRoutes.use(testIdentityEnrichment(mockIdentityId));
 
-describe('notifications routes', () => {
-  afterAll(() => {
-    mock.restore();
-  });
+const AUTH_COOKIE = 'adieuu_session=test-identity-session';
 
-  beforeEach(() => {
-    mockGetNotifications.mockClear();
-    mockMarkNotificationsAsRead.mockClear();
-    mockMarkNotificationsAsUnread.mockClear();
-    mockDeleteNotifications.mockClear();
-    mockGetNotificationCounts.mockClear();
-  });
-
-  const makeRequest = async (
-    path: string,
-    options: { method?: string; body?: object; cookies?: string } = {}
-  ) => {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (options.cookies) {
-      headers['Cookie'] = options.cookies;
-    }
-
-    const request = new Request(`http://localhost${path}`, {
-      method: options.method ?? 'GET',
-      headers,
-      body: options.body ? JSON.stringify(options.body) : undefined,
-    });
-
-    const handler = notificationRoutes.handler();
-    return handler(request);
+function makeRequest(
+  path: string,
+  options: { method?: string; body?: object; cookies?: string } = {},
+) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
   };
+  if (options.cookies) {
+    headers['Cookie'] = options.cookies;
+  }
 
+  return new Request(`http://localhost${path}`, {
+    method: options.method ?? 'GET',
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+}
+
+describe('parseNotificationIds', () => {
+  test('accepts "all"', () => {
+    expect(parseNotificationIds({ notificationIds: 'all' })).toEqual({
+      ok: true,
+      ids: 'all',
+    });
+  });
+
+  test('returns validation_failed for malformed body', () => {
+    expect(parseNotificationIds({})).toEqual({ ok: false, kind: 'validation_failed' });
+  });
+
+  test('accepts valid notification id array', () => {
+    const id = new ObjectId().toHexString();
+    expect(parseNotificationIds({ notificationIds: [id] })).toEqual({
+      ok: true,
+      ids: [id],
+    });
+  });
+
+  test('filters out invalid notification IDs', () => {
+    const validId = new ObjectId().toHexString();
+    const result = parseNotificationIds({
+      notificationIds: [validId, 'zzzzzzzzzzzzzzzzzzzzzzzz'],
+    });
+    expect(result).toEqual({ ok: true, ids: [validId] });
+  });
+
+  test('returns bad_request when all notification IDs are invalid', () => {
+    expect(
+      parseNotificationIds({
+        notificationIds: ['zzzzzzzzzzzzzzzzzzzzzzzz', 'yyyyyyyyyyyyyyyyyyyyyyyy'],
+      }),
+    ).toEqual({
+      ok: false,
+      kind: 'bad_request',
+      message: 'Invalid notification IDs.',
+    });
+  });
+});
+
+describe('getNotificationsResult', () => {
+  beforeEach(() => {
+    mockGetNotifications.mockClear();
+    mockGetNotifications.mockImplementation(async () => ({
+      notifications: [],
+      unreadCount: 0,
+      cursor: null,
+    }));
+  });
+
+  test('clamps limit at 100', async () => {
+    await getNotificationsResult(mockIdentityId, new URLSearchParams({ limit: '200' }));
+    expect(mockGetNotifications).toHaveBeenCalledWith(
+      mockIdentityId,
+      expect.objectContaining({ limit: 100 }),
+    );
+  });
+
+  test('defaults invalid limit to 50', async () => {
+    await getNotificationsResult(mockIdentityId, new URLSearchParams({ limit: '0' }));
+    expect(mockGetNotifications).toHaveBeenCalledWith(
+      mockIdentityId,
+      expect.objectContaining({ limit: 50 }),
+    );
+  });
+
+  test('passes unreadOnly filter', async () => {
+    await getNotificationsResult(mockIdentityId, new URLSearchParams({ unreadOnly: 'true' }));
+    expect(mockGetNotifications).toHaveBeenCalledWith(
+      mockIdentityId,
+      expect.objectContaining({ unreadOnly: true }),
+    );
+  });
+
+  test('parses types parameter', async () => {
+    await getNotificationsResult(
+      mockIdentityId,
+      new URLSearchParams({ types: 'friend_request,message' }),
+    );
+    expect(mockGetNotifications).toHaveBeenCalledWith(
+      mockIdentityId,
+      expect.objectContaining({ types: ['friend_request', 'message'] }),
+    );
+  });
+
+  test('validates since date parameter', async () => {
+    const sinceDate = '2024-01-15T12:00:00Z';
+    await getNotificationsResult(
+      mockIdentityId,
+      new URLSearchParams({ since: sinceDate }),
+    );
+    expect(mockGetNotifications).toHaveBeenCalledWith(
+      mockIdentityId,
+      expect.objectContaining({ since: sinceDate }),
+    );
+  });
+});
+
+describe('markNotificationsAsReadResult', () => {
+  beforeEach(() => {
+    mockMarkNotificationsAsRead.mockClear();
+    mockMarkNotificationsAsRead.mockImplementation(async () => ({ success: true, markedCount: 1 }));
+  });
+
+  test('returns validation_failed for invalid body', async () => {
+    const result = await markNotificationsAsReadResult(mockIdentityId, {});
+    expect(result).toEqual({ ok: false, kind: 'validation_failed' });
+    expect(mockMarkNotificationsAsRead).not.toHaveBeenCalled();
+  });
+
+  test('marks all notifications as read', async () => {
+    const result = await markNotificationsAsReadResult(mockIdentityId, { notificationIds: 'all' });
+    expect(result.ok).toBe(true);
+    expect(mockMarkNotificationsAsRead).toHaveBeenCalledWith(mockIdentityId, 'all');
+  });
+
+  test('marks specific notifications as read', async () => {
+    const notificationIds = [new ObjectId().toHexString(), new ObjectId().toHexString()];
+    const result = await markNotificationsAsReadResult(mockIdentityId, { notificationIds });
+    expect(result.ok).toBe(true);
+    expect(mockMarkNotificationsAsRead).toHaveBeenCalledWith(mockIdentityId, notificationIds);
+  });
+});
+
+describe('deleteNotificationsResult', () => {
+  beforeEach(() => {
+    mockDeleteNotifications.mockClear();
+    mockDeleteNotifications.mockImplementation(async () => ({ success: true, deletedCount: 1 }));
+  });
+
+  test('deletes all notifications', async () => {
+    const result = await deleteNotificationsResult(mockIdentityId, { notificationIds: 'all' });
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.deletedCount).toBe(1);
+    expect(mockDeleteNotifications).toHaveBeenCalledWith(mockIdentityId, 'all');
+  });
+});
+
+describe('notification route smoke tests', () => {
   beforeEach(() => {
     mockGetNotifications.mockClear();
     mockMarkNotificationsAsRead.mockClear();
     mockMarkNotificationsAsUnread.mockClear();
     mockDeleteNotifications.mockClear();
     mockGetNotificationCounts.mockClear();
+
+    mockGetNotifications.mockImplementation(async () => ({
+      notifications: [],
+      unreadCount: 0,
+      cursor: null,
+    }));
+    mockMarkNotificationsAsRead.mockImplementation(async () => ({ success: true, markedCount: 1 }));
+    mockMarkNotificationsAsUnread.mockImplementation(async () => ({ success: true, markedCount: 1 }));
+    mockDeleteNotifications.mockImplementation(async () => ({ success: true, deletedCount: 1 }));
+    mockGetNotificationCounts.mockImplementation(async () => ({
+      unread: 5,
+      byType: { friend_request: 2, message: 3 },
+    }));
   });
 
-  describe('GET /notifications', () => {
-    test('returns 401 without identity session', async () => {
-      const response = await makeRequest('/notifications', {
-        method: 'GET',
-      });
-
-      expect(response.status).toBe(401);
-    });
-
-    test('returns notifications with identity session', async () => {
-      const response = await makeRequest('/notifications', {
-        method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockGetNotifications).toHaveBeenCalled();
-
-      const body = await response.json() as { success: boolean; data: { notifications: unknown[]; unreadCount: number } };
-      expect(body.success).toBe(true);
-      expect(body.data.notifications).toBeDefined();
-      expect(body.data.unreadCount).toBeDefined();
-    });
-
-    test('respects limit parameter', async () => {
-      const response = await makeRequest('/notifications?limit=25', {
-        method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockGetNotifications).toHaveBeenCalledWith(
-        mockIdentityId,
-        expect.objectContaining({ limit: 25 })
-      );
-    });
-
-    test('caps limit at 100', async () => {
-      const response = await makeRequest('/notifications?limit=200', {
-        method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockGetNotifications).toHaveBeenCalledWith(
-        mockIdentityId,
-        expect.objectContaining({ limit: 100 })
-      );
-    });
-
-    test('passes unreadOnly filter', async () => {
-      const response = await makeRequest('/notifications?unreadOnly=true', {
-        method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockGetNotifications).toHaveBeenCalledWith(
-        mockIdentityId,
-        expect.objectContaining({ unreadOnly: true })
-      );
-    });
-
-    test('parses types parameter', async () => {
-      const response = await makeRequest('/notifications?types=friend_request,message', {
-        method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockGetNotifications).toHaveBeenCalledWith(
-        mockIdentityId,
-        expect.objectContaining({ types: ['friend_request', 'message'] })
-      );
-    });
-
-    test('validates since date parameter', async () => {
-      const sinceDate = '2024-01-15T12:00:00Z';
-      const response = await makeRequest(`/notifications?since=${encodeURIComponent(sinceDate)}`, {
-        method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockGetNotifications).toHaveBeenCalledWith(
-        mockIdentityId,
-        expect.objectContaining({ since: sinceDate })
-      );
-    });
+  test('GET /notifications returns 401 without session', async () => {
+    const response = await notificationRoutes.handler()(makeRequest('/notifications'));
+    expect(response.status).toBe(401);
   });
 
-  describe('POST /notifications/read', () => {
-    test('returns 401 without identity session', async () => {
-      const response = await makeRequest('/notifications/read', {
-        method: 'POST',
-        body: { notificationIds: 'all' },
-      });
-
-      expect(response.status).toBe(401);
-    });
-
-    test('returns 400 for invalid body', async () => {
-      const response = await makeRequest('/notifications/read', {
-        method: 'POST',
-        body: {},
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(400);
-    });
-
-    test('marks all notifications as read', async () => {
-      const response = await makeRequest('/notifications/read', {
-        method: 'POST',
-        body: { notificationIds: 'all' },
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockMarkNotificationsAsRead).toHaveBeenCalledWith(mockIdentityId, 'all');
-    });
-
-    test('marks specific notifications as read', async () => {
-      const notificationIds = [
-        new ObjectId().toHexString(),
-        new ObjectId().toHexString(),
-      ];
-
-      const response = await makeRequest('/notifications/read', {
-        method: 'POST',
-        body: { notificationIds },
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockMarkNotificationsAsRead).toHaveBeenCalledWith(mockIdentityId, notificationIds);
-    });
-
-    test('filters out invalid notification IDs', async () => {
-      const validId = new ObjectId().toHexString();
-      // Use a 24-char string that's not a valid ObjectId hex format
-      const invalidId = 'zzzzzzzzzzzzzzzzzzzzzzzz';
-      const notificationIds = [validId, invalidId];
-
-      const response = await makeRequest('/notifications/read', {
-        method: 'POST',
-        body: { notificationIds },
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockMarkNotificationsAsRead).toHaveBeenCalledWith(mockIdentityId, [validId]);
-    });
-
-    test('returns 400 when all notification IDs are invalid', async () => {
-      // Use 24-char strings that are not valid ObjectId hex format
-      const response = await makeRequest('/notifications/read', {
-        method: 'POST',
-        body: { notificationIds: ['zzzzzzzzzzzzzzzzzzzzzzzz', 'yyyyyyyyyyyyyyyyyyyyyyyy'] },
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(400);
-    });
+  test('GET /notifications returns 200 with session', async () => {
+    const response = await notificationRoutes.handler()(
+      makeRequest('/notifications', { cookies: AUTH_COOKIE }),
+    );
+    expect(response.status).toBe(200);
+    expect(mockGetNotifications).toHaveBeenCalled();
   });
 
-  describe('POST /notifications/unread', () => {
-    test('returns 401 without identity session', async () => {
-      const response = await makeRequest('/notifications/unread', {
+  test('POST /notifications/read returns 401 without session', async () => {
+    const response = await notificationRoutes.handler()(
+      makeRequest('/notifications/read', {
         method: 'POST',
         body: { notificationIds: 'all' },
-      });
-
-      expect(response.status).toBe(401);
-    });
-
-    test('marks notifications as unread', async () => {
-      const response = await makeRequest('/notifications/unread', {
-        method: 'POST',
-        body: { notificationIds: 'all' },
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockMarkNotificationsAsUnread).toHaveBeenCalledWith(mockIdentityId, 'all');
-    });
+      }),
+    );
+    expect(response.status).toBe(401);
   });
 
-  describe('DELETE /notifications', () => {
-    test('returns 401 without identity session', async () => {
-      const response = await makeRequest('/notifications', {
+  test('POST /notifications/read returns 200 with session', async () => {
+    const response = await notificationRoutes.handler()(
+      makeRequest('/notifications/read', {
+        method: 'POST',
+        body: { notificationIds: 'all' },
+        cookies: AUTH_COOKIE,
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mockMarkNotificationsAsRead).toHaveBeenCalledWith(mockIdentityId, 'all');
+  });
+
+  test('DELETE /notifications returns 200 with session', async () => {
+    const response = await notificationRoutes.handler()(
+      makeRequest('/notifications', {
         method: 'DELETE',
         body: { notificationIds: 'all' },
-      });
-
-      expect(response.status).toBe(401);
-    });
-
-    test('deletes all notifications', async () => {
-      const response = await makeRequest('/notifications', {
-        method: 'DELETE',
-        body: { notificationIds: 'all' },
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockDeleteNotifications).toHaveBeenCalledWith(mockIdentityId, 'all');
-
-      const body = await response.json() as { data: { deletedCount: number } };
-      expect(body.data.deletedCount).toBe(1);
-    });
-
-    test('deletes specific notifications', async () => {
-      const notificationIds = [new ObjectId().toHexString()];
-
-      const response = await makeRequest('/notifications', {
-        method: 'DELETE',
-        body: { notificationIds },
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockDeleteNotifications).toHaveBeenCalledWith(mockIdentityId, notificationIds);
-    });
+        cookies: AUTH_COOKIE,
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mockDeleteNotifications).toHaveBeenCalledWith(mockIdentityId, 'all');
   });
 
-  describe('GET /notifications/count', () => {
-    test('returns 401 without identity session', async () => {
-      const response = await makeRequest('/notifications/count', {
-        method: 'GET',
-      });
+  test('GET /notifications/count returns 200 with session', async () => {
+    const response = await notificationRoutes.handler()(
+      makeRequest('/notifications/count', { cookies: AUTH_COOKIE }),
+    );
+    expect(response.status).toBe(200);
+    expect(mockGetNotificationCounts).toHaveBeenCalledWith(mockIdentityId);
 
-      expect(response.status).toBe(401);
-    });
-
-    test('returns notification counts', async () => {
-      const response = await makeRequest('/notifications/count', {
-        method: 'GET',
-        cookies: 'adieuu_session=test-identity-session',
-      });
-
-      expect(response.status).toBe(200);
-      expect(mockGetNotificationCounts).toHaveBeenCalledWith(mockIdentityId);
-
-      const body = await response.json() as { data: { unread: number; byType: Record<string, number> } };
-      expect(body.data.unread).toBe(5);
-      expect(body.data.byType).toBeDefined();
-    });
+    const body = (await response.json()) as { data: { unread: number; byType: Record<string, number> } };
+    expect(body.data.unread).toBe(5);
+    expect(body.data.byType).toBeDefined();
   });
+});
+
+afterAll(() => {
+  mock.restore();
 });

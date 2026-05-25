@@ -8,15 +8,25 @@
  */
 
 import { Router } from '../../router';
+import { success, errors } from '../../utils/response';
 import {
-  getNotificationsCtrl,
-  markNotificationsAsReadCtrl,
-  markNotificationsAsUnreadCtrl,
-  deleteNotificationsCtrl,
-  getNotificationCountsCtrl,
+  getNotificationsResult,
+  markNotificationsAsReadResult,
+  markNotificationsAsUnreadResult,
+  deleteNotificationsResult,
+  getNotificationCountsResult,
+  type NotificationResult,
 } from './controller';
 
 const router = new Router();
+
+function mapNotificationFailure(
+  ctx: { errors: { validationFailed: () => Response } },
+  result: Extract<NotificationResult, { ok: false }>,
+): Response {
+  if (result.kind === 'validation_failed') return ctx.errors.validationFailed();
+  return errors.badRequest(result.message ?? 'Invalid notification IDs.');
+}
 
 /**
  * GET /notifications - Get notifications
@@ -34,7 +44,11 @@ const router = new Router();
  * @returns 401 Unauthorized if not authenticated
  */
 router.get('/notifications', async (ctx) => {
-  return await getNotificationsCtrl(ctx);
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+
+  const result = await getNotificationsResult(ctx.identitySession.identity._id, ctx.query);
+  if (!result.ok) return ctx.errors.internal();
+  return success(result.data);
 });
 
 /**
@@ -51,7 +65,12 @@ router.get('/notifications', async (ctx) => {
  * @returns 401 Unauthorized if not authenticated
  */
 router.post('/notifications/read', async (ctx) => {
-  return await markNotificationsAsReadCtrl(ctx);
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+
+  const result = await markNotificationsAsReadResult(ctx.identitySession.identity._id, ctx.body);
+  if (!result.ok) return mapNotificationFailure(ctx, result);
+
+  return success({ markedCount: result.data.markedCount });
 });
 
 /**
@@ -68,7 +87,12 @@ router.post('/notifications/read', async (ctx) => {
  * @returns 401 Unauthorized if not authenticated
  */
 router.post('/notifications/unread', async (ctx) => {
-  return await markNotificationsAsUnreadCtrl(ctx);
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+
+  const result = await markNotificationsAsUnreadResult(ctx.identitySession.identity._id, ctx.body);
+  if (!result.ok) return mapNotificationFailure(ctx, result);
+
+  return success({ markedCount: result.data.markedCount });
 });
 
 /**
@@ -85,7 +109,12 @@ router.post('/notifications/unread', async (ctx) => {
  * @returns 401 Unauthorized if not authenticated
  */
 router.delete('/notifications', async (ctx) => {
-  return await deleteNotificationsCtrl(ctx);
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+
+  const result = await deleteNotificationsResult(ctx.identitySession.identity._id, ctx.body);
+  if (!result.ok) return mapNotificationFailure(ctx, result);
+
+  return success({ deletedCount: result.data.deletedCount });
 });
 
 /**
@@ -99,7 +128,11 @@ router.delete('/notifications', async (ctx) => {
  * @returns 401 Unauthorized if not authenticated
  */
 router.get('/notifications/count', async (ctx) => {
-  return await getNotificationCountsCtrl(ctx);
+  if (!ctx.identitySession) return ctx.errors.unauthorized();
+
+  const result = await getNotificationCountsResult(ctx.identitySession.identity._id);
+  if (!result.ok) return ctx.errors.internal();
+  return success(result.data);
 });
 
 export const notificationRoutes = router;

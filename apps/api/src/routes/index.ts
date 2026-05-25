@@ -27,7 +27,7 @@ import { reportRoutes } from './reports';
 import { klipyRoutes } from './klipy';
 import { achievementRoutes } from './achievements';
 import { blockRoutes } from './blocks';
-import { stripeWebhookRoutes } from './webhooks/stripe';
+import { webhookRoutes } from './webhooks';
 import { subscriptionRoutes } from './account/subscription';
 import { geoRoutes } from './geo';
 import { ageVerificationRoutes } from './age-verification';
@@ -126,5 +126,5 @@ export function registerRoutes(app: Router): void {
   app.merge(customEmojiRoutes, '/api');
 
   // Stripe webhook (subscription events)
-  app.merge(stripeWebhookRoutes, '/api');
+  app.merge(webhookRoutes, '/api');
 }
