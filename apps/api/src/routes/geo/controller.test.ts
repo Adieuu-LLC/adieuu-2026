@@ -17,9 +17,16 @@ const findByJurisdictionsMock = mock(
   > => [],
 );
 
+const findRequiringAgeVerificationMock = mock(
+  async (_slugs: readonly string[]): Promise<
+    import('../../models/jurisdiction-requirement').JurisdictionRequirementDocument[]
+  > => [],
+);
+
 mock.module('../../repositories/jurisdiction-requirement.repository', () => ({
   getJurisdictionRequirementRepository: () => ({
     findByJurisdictions: findByJurisdictionsMock,
+    findRequiringAgeVerification: findRequiringAgeVerificationMock,
   }),
 }));
 
@@ -46,6 +53,8 @@ mock.module('../../services/session.service', () => ({
 import {
   parseSanitizedJurisdictionCodes,
   getJurisdictionRequirementsByCodes,
+  getJurisdictionRequirementsCatalog,
+  getJurisdictionRequirementsCatalogCtrl,
   getJurisdictionRequirementsCtrl,
   MAX_JURISDICTION_QUERY_CODES,
 } from './controller';
@@ -225,10 +234,60 @@ describe('getJurisdictionRequirementsCtrl', () => {
   });
 });
 
+describe('getJurisdictionRequirementsCatalog', () => {
+  beforeEach(() => {
+    findRequiringAgeVerificationMock.mockClear();
+    findRequiringAgeVerificationMock.mockImplementation(async () => []);
+  });
+
+  test('returns mapped rows without verificationConfig', async () => {
+    const now = new Date();
+    findRequiringAgeVerificationMock.mockImplementation(async () => [
+      {
+        _id: new ObjectId(),
+        createdAt: now,
+        updatedAt: now,
+        jurisdiction: 'US-TN',
+        jurisdictionName: 'Tennessee',
+        region: 'United States',
+        requirements: ['age_verification'],
+        compatibleMethods: ['email_age_check'],
+        legislation: [{ name: 'Test Act' }],
+        status: 'enacted' as const,
+        verificationConfig: { vmyBusinessSettingsId: 'secret-id' },
+      },
+    ]);
+
+    const out = await getJurisdictionRequirementsCatalog();
+    expect(out).toHaveLength(1);
+    expect(out[0]?.jurisdiction).toBe('US-TN');
+    expect(out[0]).not.toHaveProperty('verificationConfig');
+    expect(findRequiringAgeVerificationMock).toHaveBeenCalled();
+  });
+});
+
+describe('getJurisdictionRequirementsCatalogCtrl', () => {
+  beforeEach(() => {
+    findRequiringAgeVerificationMock.mockClear();
+    findRequiringAgeVerificationMock.mockImplementation(async () => []);
+  });
+
+  test('returns 200 without session cookie', async () => {
+    const request = new Request('http://localhost/geo/requirements/catalog');
+    const res = await getJurisdictionRequirementsCatalogCtrl(makeRouteContext(request));
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as { success: boolean; data: unknown[] };
+    expect(json.success).toBe(true);
+    expect(Array.isArray(json.data)).toBe(true);
+  });
+});
+
 describe('geoRoutes handler smoke', () => {
   beforeEach(() => {
     findByJurisdictionsMock.mockClear();
     findByJurisdictionsMock.mockImplementation(async () => []);
+    findRequiringAgeVerificationMock.mockClear();
+    findRequiringAgeVerificationMock.mockImplementation(async () => []);
   });
 
   test('GET /geo/requirements returns 401 without cookie', async () => {
@@ -251,5 +310,17 @@ describe('geoRoutes handler smoke', () => {
     expect(json.success).toBe(true);
     expect(Array.isArray(json.data)).toBe(true);
     expect(findByJurisdictionsMock).toHaveBeenCalledWith(['EU']);
+  });
+
+  test('GET /geo/requirements/catalog returns 200 without cookie', async () => {
+    const handler = geoRoutes.handler();
+    const response = await handler(
+      new Request('http://localhost/geo/requirements/catalog'),
+    );
+    expect(response.status).toBe(200);
+    const json = (await response.json()) as { success: boolean; data: unknown[] };
+    expect(json.success).toBe(true);
+    expect(Array.isArray(json.data)).toBe(true);
+    expect(findRequiringAgeVerificationMock).toHaveBeenCalled();
   });
 });

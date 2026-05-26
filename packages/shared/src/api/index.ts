@@ -248,6 +248,9 @@ export { AgeVerificationApi } from './age-verification-api';
 
 export { GeoApi } from './geo-api';
 export {
+  AGE_VERIFICATION_REQUIREMENT_SLUGS,
+  requirementImpliesAgeVerification,
+  type AgeVerificationRequirementSlug,
   type PublicJurisdictionRequirement,
   type JurisdictionLegislationRef,
   type JurisdictionRequirementStatus,

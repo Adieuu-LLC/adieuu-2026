@@ -4,6 +4,7 @@ import { Card } from '../../components/Card';
 import { useIdentityModal } from '../../hooks/useIdentityModal';
 import { Alert } from '../../components/Alert';
 import { Button } from '../../components/Button';
+import { JurisdictionRequirementCard } from '../../components/compliance/JurisdictionRequirementCard';
 import { Icon } from '../../icons/Icon';
 import type {
   AgeVerificationDetails,
@@ -87,7 +88,7 @@ export function AgeVerificationCard({
       <DetailsRows details={details} />
 
       {matchedReq && (
-        <JurisdictionContext req={matchedReq} />
+        <JurisdictionRequirementCard row={matchedReq} compact />
       )}
 
       {showAction && (
@@ -260,64 +261,6 @@ function DetailsRows({ details }: { details?: AgeVerificationDetails }) {
           )}
         </div>
       ))}
-    </div>
-  );
-}
-
-function JurisdictionContext({ req }: { req: PublicJurisdictionRequirement }) {
-  const { t } = useTranslation();
-
-  return (
-    <div
-      style={{
-        border: '1px solid var(--color-border-subtle, rgba(0,0,0,0.1))',
-        borderRadius: '8px',
-        padding: '0.75rem',
-        marginBottom: '0.75rem',
-        fontSize: '0.9rem',
-      }}
-    >
-      <div style={{ fontWeight: 600 }}>
-        {req.jurisdictionName}
-        {req.status === 'proposed' && (
-          <span
-            style={{
-              marginLeft: '0.5rem',
-              fontSize: '0.75rem',
-              opacity: 0.8,
-            }}
-          >
-            {t('account.overview.compliance.proposed')}
-          </span>
-        )}
-      </div>
-
-      {req.legislation.length > 0 && (
-        <div style={{ marginTop: '0.5rem' }}>
-          <span className="account-detail-muted" style={{ display: 'block', marginBottom: '0.25rem' }}>
-            {t('account.overview.ageVerification.legislationLabel')}
-          </span>
-          <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
-            {req.legislation.map((leg) => (
-              <li key={leg.name} style={{ fontSize: '0.85rem' }}>
-                {leg.url ? (
-                  <a href={leg.url} target="_blank" rel="noopener noreferrer">
-                    {leg.name}
-                  </a>
-                ) : (
-                  leg.name
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {req.notes && (
-        <p className="account-detail-muted" style={{ margin: '0.5rem 0 0', fontSize: '0.8rem' }}>
-          {req.notes}
-        </p>
-      )}
     </div>
   );
 }

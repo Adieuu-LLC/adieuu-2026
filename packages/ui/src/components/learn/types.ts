@@ -1,6 +1,9 @@
+export type LearnSectionVariant = 'default' | 'jurisdictionCatalog';
+
 export interface LearnSection {
   title: string;
   content: string;
+  variant?: LearnSectionVariant;
 }
 
 export interface LearnCategory {

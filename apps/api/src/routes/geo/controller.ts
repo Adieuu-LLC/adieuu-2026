@@ -1,7 +1,8 @@
 /**
- * Public jurisdiction requirement lookups (account session only).
+ * Jurisdiction requirement lookups (catalog is public; per-code lookup requires account session).
  */
 
+import { AGE_VERIFICATION_REQUIREMENT_SLUGS } from '@adieuu/shared';
 import type { RouteContext } from '../../router/types';
 import { success } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
@@ -9,6 +10,7 @@ import elog from '../../utils/adieuuLogger';
 import { requireAccountSession } from '../../services/session.service';
 import { getJurisdictionRequirementRepository } from '../../repositories/jurisdiction-requirement.repository';
 import {
+  toClientJurisdictionRequirement,
   toPublicJurisdictionRequirement,
   type PublicJurisdictionRequirement,
 } from '../../models/jurisdiction-requirement';
@@ -76,4 +78,25 @@ export async function getJurisdictionRequirementsByCodes(
   const repo = getJurisdictionRequirementRepository();
   const docs = await repo.findByJurisdictions(rawCodes);
   return docs.map(toPublicJurisdictionRequirement);
+}
+
+/**
+ * Returns all seeded jurisdictions requiring age/ID verification (public reference data).
+ */
+export async function getJurisdictionRequirementsCatalog(): Promise<
+  Omit<PublicJurisdictionRequirement, 'verificationConfig'>[]
+> {
+  const repo = getJurisdictionRequirementRepository();
+  const docs = await repo.findRequiringAgeVerification(AGE_VERIFICATION_REQUIREMENT_SLUGS);
+  return docs.map(toClientJurisdictionRequirement);
+}
+
+/**
+ * GET `/geo/requirements/catalog` — public browsable jurisdiction catalog.
+ */
+export async function getJurisdictionRequirementsCatalogCtrl(
+  _ctx: RouteContext,
+): Promise<Response> {
+  const data = await getJurisdictionRequirementsCatalog();
+  return success(data);
 }

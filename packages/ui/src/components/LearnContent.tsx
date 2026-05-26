@@ -16,6 +16,7 @@ export function LearnContent() {
     navigateToTarget,
     copyPermalink,
     searchIndex,
+    highlightedSectionId,
   } = useLearnNavigation();
 
   const handleExpandedChange = useCallback(
@@ -35,7 +36,7 @@ export function LearnContent() {
 
   const handleSearchResult = useCallback(
     (result: { tabId: LearnTabId; categoryId: string; sectionId: string }) => {
-      navigateToTarget(result);
+      navigateToTarget(result, { highlight: true });
     },
     [navigateToTarget],
   );
@@ -74,6 +75,7 @@ export function LearnContent() {
               tabId={tab.id}
               categories={tab.categories}
               expandedByCategory={expandedByCategory}
+              highlightedSectionId={highlightedSectionId}
               onExpandedChange={handleExpandedChange}
               onCopyPermalink={handleCopyPermalink}
             />

@@ -79,3 +79,11 @@ export function toPublicJurisdictionRequirement(
     verificationConfig: doc.verificationConfig,
   };
 }
+
+/** Client-safe shape (omits internal provider configuration). */
+export function toClientJurisdictionRequirement(
+  doc: JurisdictionRequirementDocument,
+): Omit<PublicJurisdictionRequirement, 'verificationConfig'> {
+  const { verificationConfig: _omit, ...rest } = toPublicJurisdictionRequirement(doc);
+  return rest;
+}

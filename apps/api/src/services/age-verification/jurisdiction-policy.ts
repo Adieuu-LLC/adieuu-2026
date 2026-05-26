@@ -8,20 +8,12 @@
  * Admin overrides (additive jurisdictions, required-mode) are applied on top.
  */
 
+import { requirementImpliesAgeVerification } from '@adieuu/shared';
 import { PLATFORM_SETTING_KEYS } from '../../constants/platform-settings-keys';
 import { getPlatformSettingsRepository } from '../../repositories/platform-settings.repository';
 import { getJurisdictionRequirementRepository } from '../../repositories/jurisdiction-requirement.repository';
 import type { LegislationRef } from '../../models/jurisdiction-requirement';
 import elog from '../../utils/adieuuLogger';
-
-/** Requirement slugs that imply age verification is needed. */
-const AV_REQUIREMENT_SLUGS = new Set([
-  'age_verification',
-  'highly_effective_age_assurance',
-  'appropriate_age_assurance',
-  'reliable_age_and_identity_verification',
-  'age_assurance',
-]);
 
 /**
  * Maps seed-data compatible method slugs to VerifyMy method names,
@@ -70,7 +62,7 @@ export async function getAgeVerificationPolicy(
     };
   }
 
-  const hasAvRequirement = doc.requirements.some((r) => AV_REQUIREMENT_SLUGS.has(r));
+  const hasAvRequirement = doc.requirements.some((r) => requirementImpliesAgeVerification(r));
   if (!hasAvRequirement) {
     const isOverride = await isAdminOverrideJurisdiction(jurisdiction);
     if (!isOverride) return null;
@@ -103,7 +95,7 @@ export async function requiresAgeVerification(jurisdiction: string): Promise<boo
   const repo = getJurisdictionRequirementRepository();
   const doc = await repo.findByJurisdiction(jurisdiction);
 
-  if (doc && doc.requirements.some((r) => AV_REQUIREMENT_SLUGS.has(r))) {
+  if (doc && doc.requirements.some((r) => requirementImpliesAgeVerification(r))) {
     return true;
   }
 

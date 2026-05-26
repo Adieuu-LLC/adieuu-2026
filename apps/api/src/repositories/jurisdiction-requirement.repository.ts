@@ -34,6 +34,25 @@ export class JurisdictionRequirementRepository extends BaseRepository<Jurisdicti
   }
 
   /**
+   * Returns seeded rows whose requirements include any age-verification slug.
+   */
+  async findRequiringAgeVerification(
+    requirementSlugs: readonly string[],
+    limit = 200,
+  ): Promise<JurisdictionRequirementDocument[]> {
+    if (requirementSlugs.length === 0) return [];
+    const docs = await this.findMany(
+      { requirements: { $in: [...requirementSlugs] } } as Filter<JurisdictionRequirementDocument>,
+      limit,
+    );
+    return docs.sort((a, b) => {
+      const regionCompare = a.region.localeCompare(b.region);
+      if (regionCompare !== 0) return regionCompare;
+      return a.jurisdictionName.localeCompare(b.jurisdictionName);
+    });
+  }
+
+  /**
    * Idempotent seed upsert (used by maintainer script only).
    */
   async upsertSeedRow(

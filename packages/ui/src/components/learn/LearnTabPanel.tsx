@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Accordion, Select, Portal, createListCollection } from '@ark-ui/react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../../icons/Icon';
+import { LearnJurisdictionCatalog } from './LearnJurisdictionCatalog';
 import type { ExpandedByCategory, LearnCategory, LearnTabId } from './types';
 
 export interface LearnTabPanelProps {
   tabId: LearnTabId;
   categories: Record<string, LearnCategory>;
   expandedByCategory: ExpandedByCategory;
+  highlightedSectionId?: string | null;
   onExpandedChange: (categoryId: string, value: string[]) => void;
   onCopyPermalink: (hash: string) => void;
 }
@@ -16,6 +18,7 @@ export function LearnTabPanel({
   tabId,
   categories,
   expandedByCategory,
+  highlightedSectionId = null,
   onExpandedChange,
   onCopyPermalink,
 }: LearnTabPanelProps) {
@@ -165,12 +168,16 @@ export function LearnTabPanel({
               value={expandedByCategory[catId] ?? []}
               onValueChange={(details) => onExpandedChange(catId, details.value)}
             >
-              {Object.entries(cat.sections).map(([sectionId, section]) => (
+              {Object.entries(cat.sections).map(([sectionId, section]) => {
+                const sectionElementId = `${catId}-${sectionId}`;
+                const isHighlighted = highlightedSectionId === sectionElementId;
+
+                return (
                 <Accordion.Item
                   key={sectionId}
                   value={sectionId}
-                  id={`${catId}-${sectionId}`}
-                  className="learn-content-item"
+                  id={sectionElementId}
+                  className={`learn-content-item${isHighlighted ? ' learn-content-item--highlight' : ''}`}
                 >
                   <Accordion.ItemTrigger className="learn-content-trigger">
                     <span className="learn-content-trigger-label">
@@ -182,6 +189,9 @@ export function LearnTabPanel({
                   </Accordion.ItemTrigger>
                   <Accordion.ItemContent className="learn-content-body">
                     <p>{section.content}</p>
+                    {section.variant === 'jurisdictionCatalog' && (
+                      <LearnJurisdictionCatalog />
+                    )}
                     <button
                       type="button"
                       className="learn-permalink-btn learn-permalink-btn--section"
@@ -192,7 +202,8 @@ export function LearnTabPanel({
                     </button>
                   </Accordion.ItemContent>
                 </Accordion.Item>
-              ))}
+                );
+              })}
             </Accordion.Root>
           </section>
         ))}

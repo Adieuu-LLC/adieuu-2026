@@ -7,6 +7,7 @@ import { OtpInput } from '../../components/OtpInput';
 import { Alert } from '../../components/Alert';
 import { Tooltip } from '../../components/Tooltip';
 import { Spinner } from '../../components/Spinner';
+import { JurisdictionRequirementsList } from '../../components/compliance/JurisdictionRequirementsList';
 import { useToast } from '../../components/Toast';
 import {
   createApiClient,
@@ -758,95 +759,7 @@ export function AccountOverview() {
               </p>
             )}
             {!jreqLoading && jurisdictionReqs.length > 0 && (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {jurisdictionReqs.map((row) => (
-                  <li
-                    key={row.jurisdiction}
-                    style={{
-                      border: '1px solid var(--color-border-subtle, rgba(0,0,0,0.1))',
-                      borderRadius: '8px',
-                      padding: '1rem',
-                      marginBottom: '0.75rem',
-                    }}
-                  >
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'baseline' }}>
-                      <strong>{row.jurisdictionName}</strong>
-                      <span className="account-detail-muted" style={{ fontSize: '0.875rem' }}>
-                        {row.jurisdiction} — {row.region}
-                      </span>
-                      {row.status === 'proposed' && (
-                        <span
-                          style={{
-                            fontSize: '0.75rem',
-                            textTransform: 'uppercase',
-                            fontWeight: 600,
-                            opacity: 0.8,
-                          }}
-                        >
-                          {t('account.overview.compliance.proposed')}
-                        </span>
-                      )}
-                    </div>
-                    {row.regulatoryBody != null && row.regulatoryBody !== '' && (
-                      <p style={{ margin: '0.5rem 0 0', fontSize: '0.9rem' }}>
-                        <span className="account-detail-muted">{t('account.overview.compliance.regulatoryBody')}: </span>
-                        {row.regulatoryBody}
-                      </p>
-                    )}
-                    {row.legislation.length > 0 && (
-                      <div style={{ marginTop: '0.5rem' }}>
-                        <span className="account-detail-label" style={{ display: 'block', marginBottom: '0.25rem' }}>
-                          {t('account.overview.compliance.legislation')}
-                        </span>
-                        <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
-                          {row.legislation.map((leg) => (
-                            <li key={leg.name}>
-                              {leg.url != null && leg.url !== '' ? (
-                                <a href={leg.url} target="_blank" rel="noopener noreferrer">
-                                  {leg.name}
-                                </a>
-                              ) : (
-                                leg.name
-                              )}
-                              {leg.enactmentDate != null && leg.enactmentDate !== '' && (
-                                <span className="account-detail-muted" style={{ marginLeft: '0.25rem' }}>
-                                  ({leg.enactmentDate})
-                                </span>
-                              )}
-                              {leg.notes != null && leg.notes !== '' && (
-                                <p className="account-detail-muted" style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-                                  {leg.notes}
-                                </p>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {row.requirements.length > 0 && (
-                      <p style={{ margin: '0.5rem 0 0', fontSize: '0.9rem' }}>
-                        <span className="account-detail-muted">{t('account.overview.compliance.requirements')}: </span>
-                        {row.requirements
-                          .map((r) => r.replaceAll('_', ' '))
-                          .join(' · ')}
-                      </p>
-                    )}
-                    {row.compatibleMethods.length > 0 && (
-                      <p style={{ margin: '0.5rem 0 0', fontSize: '0.9rem' }}>
-                        <span className="account-detail-muted">{t('account.overview.compliance.methods')}: </span>
-                        {row.compatibleMethods
-                          .map((m) => m.replaceAll('_', ' '))
-                          .join(' · ')}
-                      </p>
-                    )}
-                    {row.notes != null && row.notes !== '' && (
-                      <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }} className="account-detail-muted">
-                        {t('account.overview.compliance.notes')}: {row.notes}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <JurisdictionRequirementsList rows={jurisdictionReqs} layout="flat" />
             )}
           </Card>
         )}

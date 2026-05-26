@@ -419,6 +419,17 @@ export const staticPages = {
                 },
               },
             },
+            jurisdictions: {
+              label: 'Jurisdictions requiring verification',
+              sections: {
+                catalog: {
+                  title: 'Where verification is required',
+                  content:
+                    'The jurisdictions below require some form of age or identity verification under applicable legislation. This reference is for transparency and is not legal advice. Requirements and compatible methods reflect what Adieuu tracks for enforcement.',
+                  variant: 'jurisdictionCatalog',
+                },
+              },
+            },
             howItWorks: {
               label: 'How verification works',
               sections: {

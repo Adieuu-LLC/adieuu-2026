@@ -41,6 +41,13 @@ function scrollToElement(id: string) {
   });
 }
 
+const HIGHLIGHT_DURATION_MS = 2200;
+const HIGHLIGHT_SCROLL_DELAY_MS = 150;
+
+export interface NavigateToTargetOptions {
+  highlight?: boolean;
+}
+
 export interface UseLearnNavigationResult {
   tabs: LearnTabDefinition[];
   activeTab: LearnTabId;
@@ -48,13 +55,17 @@ export interface UseLearnNavigationResult {
   activeTabDefinition: LearnTabDefinition | undefined;
   expandedByCategory: ExpandedByCategory;
   setExpandedByCategory: Dispatch<SetStateAction<ExpandedByCategory>>;
-  navigateToTarget: (target: {
-    tabId: LearnTabId;
-    categoryId: string;
-    sectionId?: string;
-  }) => void;
+  navigateToTarget: (
+    target: {
+      tabId: LearnTabId;
+      categoryId: string;
+      sectionId?: string;
+    },
+    options?: NavigateToTargetOptions,
+  ) => void;
   copyPermalink: (hash: string, tabId?: LearnTabId) => Promise<void>;
   searchIndex: LearnSearchIndexEntry[];
+  highlightedSectionId: string | null;
 }
 
 export function useLearnNavigation(): UseLearnNavigationResult {
@@ -73,8 +84,44 @@ export function useLearnNavigation(): UseLearnNavigationResult {
 
   const [activeTab, setActiveTabState] = useState<LearnTabId>(initialHashTab);
   const [expandedByCategory, setExpandedByCategory] = useState<ExpandedByCategory>({});
-  const pendingNavigationRef = useRef<{ tabId: LearnTabId; hash: string } | null>(null);
+  const [highlightedSectionId, setHighlightedSectionId] = useState<string | null>(null);
+  const pendingNavigationRef = useRef<{
+    tabId: LearnTabId;
+    hash: string;
+    highlight?: boolean;
+  } | null>(null);
   const handledHashRef = useRef<string | null>(null);
+  const highlightDelayRef = useRef<number | null>(null);
+  const highlightClearRef = useRef<number | null>(null);
+
+  const clearHighlightTimeout = useCallback(() => {
+    if (highlightDelayRef.current !== null) {
+      window.clearTimeout(highlightDelayRef.current);
+      highlightDelayRef.current = null;
+    }
+    if (highlightClearRef.current !== null) {
+      window.clearTimeout(highlightClearRef.current);
+      highlightClearRef.current = null;
+    }
+  }, []);
+
+  const triggerSectionHighlight = useCallback(
+    (elementId: string) => {
+      clearHighlightTimeout();
+      setHighlightedSectionId(null);
+      highlightDelayRef.current = window.setTimeout(() => {
+        highlightDelayRef.current = null;
+        setHighlightedSectionId(elementId);
+        highlightClearRef.current = window.setTimeout(() => {
+          setHighlightedSectionId(null);
+          highlightClearRef.current = null;
+        }, HIGHLIGHT_DURATION_MS);
+      }, HIGHLIGHT_SCROLL_DELAY_MS);
+    },
+    [clearHighlightTimeout],
+  );
+
+  useEffect(() => () => clearHighlightTimeout(), [clearHighlightTimeout]);
 
   const activeTabDefinition = useMemo(
     () => tabs.find((tab) => tab.id === activeTab),
@@ -82,7 +129,7 @@ export function useLearnNavigation(): UseLearnNavigationResult {
   );
 
   const applyHashTarget = useCallback(
-    (hash: string, explicitTabId?: LearnTabId | null) => {
+    (hash: string, explicitTabId?: LearnTabId | null, shouldHighlight = false) => {
       const target = resolveLearnHashTarget(hash, tabs, explicitTabId);
       if (!target) return;
 
@@ -100,14 +147,18 @@ export function useLearnNavigation(): UseLearnNavigationResult {
         setExpandedByCategory((current) =>
           buildExpandedState(target.categoryId, target.sectionId, current),
         );
-        scrollToElement(`${target.categoryId}-${target.sectionId}`);
+        const elementId = `${target.categoryId}-${target.sectionId}`;
+        scrollToElement(elementId);
+        if (shouldHighlight) {
+          triggerSectionHighlight(elementId);
+        }
       } else {
         scrollToElement(target.categoryId);
       }
 
       history.replaceState(null, '', `${location.pathname}?tab=${target.tabId}#${target.categoryId}${target.sectionId ? `-${target.sectionId}` : ''}`);
     },
-    [location.pathname, setSearchParams, tabs],
+    [location.pathname, setSearchParams, tabs, triggerSectionHighlight],
   );
 
   const setActiveTab = useCallback(
@@ -126,12 +177,24 @@ export function useLearnNavigation(): UseLearnNavigationResult {
   );
 
   const navigateToTarget = useCallback(
-    (target: { tabId: LearnTabId; categoryId: string; sectionId?: string }) => {
+    (
+      target: { tabId: LearnTabId; categoryId: string; sectionId?: string },
+      options?: NavigateToTargetOptions,
+    ) => {
       const hash = target.sectionId
         ? `${target.categoryId}-${target.sectionId}`
         : target.categoryId;
 
-      pendingNavigationRef.current = { tabId: target.tabId, hash };
+      if (target.tabId === activeTab) {
+        applyHashTarget(`#${hash}`, target.tabId, options?.highlight === true);
+        return;
+      }
+
+      pendingNavigationRef.current = {
+        tabId: target.tabId,
+        hash,
+        highlight: options?.highlight,
+      };
       setActiveTabState(target.tabId);
       setSearchParams(
         (current) => {
@@ -150,7 +213,7 @@ export function useLearnNavigation(): UseLearnNavigationResult {
 
       history.replaceState(null, '', `${location.pathname}?tab=${target.tabId}#${hash}`);
     },
-    [location.pathname, setSearchParams],
+    [activeTab, applyHashTarget, location.pathname, setSearchParams],
   );
 
   useEffect(() => {
@@ -160,7 +223,7 @@ export function useLearnNavigation(): UseLearnNavigationResult {
     if (pending.tabId !== activeTab) return;
 
     pendingNavigationRef.current = null;
-    applyHashTarget(`#${pending.hash}`, pending.tabId);
+    applyHashTarget(`#${pending.hash}`, pending.tabId, pending.highlight === true);
   }, [activeTab, applyHashTarget]);
 
   useEffect(() => {
@@ -204,5 +267,6 @@ export function useLearnNavigation(): UseLearnNavigationResult {
     navigateToTarget,
     copyPermalink,
     searchIndex,
+    highlightedSectionId,
   };
 }

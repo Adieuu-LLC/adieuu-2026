@@ -20,4 +20,13 @@ export class GeoApi {
       `/api/geo/requirements?jurisdictions=${encodeURIComponent(q)}`,
     );
   }
+
+  /**
+   * Returns all seeded jurisdictions that require age/ID verification (public, no session).
+   */
+  async getJurisdictionRequirementsCatalog(): Promise<
+    ApiResponse<PublicJurisdictionRequirement[]>
+  > {
+    return this.client.get('/api/geo/requirements/catalog');
+  }
 }

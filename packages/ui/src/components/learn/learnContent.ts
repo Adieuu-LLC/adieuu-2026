@@ -33,7 +33,11 @@ function parseCategories(raw: unknown): Record<string, LearnCategory> {
       const content = sectionValue.content;
       if (typeof title !== 'string' || typeof content !== 'string') continue;
 
-      sections[sectionId] = { title, content };
+      const variantRaw = sectionValue.variant;
+      const variant =
+        variantRaw === 'jurisdictionCatalog' ? 'jurisdictionCatalog' : 'default';
+
+      sections[sectionId] = { title, content, variant };
     }
 
     if (Object.keys(sections).length > 0) {

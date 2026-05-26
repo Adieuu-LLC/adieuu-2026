@@ -670,6 +670,33 @@
   &:last-child {
     border-bottom: none;
   }
+
+  &--highlight {
+    animation: learn-section-highlight 2.2s ease-out 1;
+    border-radius: var(--radius-sm);
+  }
+}
+
+@keyframes learn-section-highlight {
+  0% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+
+  14% {
+    background-color: color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-accent-primary) 60%, transparent);
+  }
+
+  58% {
+    background-color: color-mix(in srgb, var(--color-accent-primary) 12%, transparent);
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-accent-primary) 60%, transparent);
+  }
+
+  100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 transparent;
+  }
 }
 
 .learn-content-trigger {
@@ -719,6 +746,172 @@
     color: var(--color-text-primary);
     line-height: 1.6;
     margin-bottom: var(--spacing-md);
+  }
+}
+
+.learn-jurisdiction-catalog {
+  margin-top: var(--spacing-sm);
+}
+
+.jurisdiction-requirements-list {
+  &__loading {
+    min-height: 4rem;
+  }
+
+  &__message {
+    margin: 0;
+    font-size: var(--font-size-sm);
+  }
+
+  &__filter {
+    margin-bottom: var(--spacing-md);
+    max-width: 24rem;
+  }
+
+  &__region {
+    margin-bottom: var(--spacing-lg);
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  &__region-title {
+    margin: 0 0 var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &__accordion {
+    border: 1px solid var(--color-border-subtle, var(--color-border));
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  &__item {
+    border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  &__trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: var(--spacing-md);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-primary);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    text-align: left;
+    gap: var(--spacing-md);
+
+    &:hover,
+    &:focus-visible {
+      color: var(--color-accent-primary);
+    }
+  }
+
+  &__trigger-label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--spacing-sm);
+  }
+
+  &__trigger-code {
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+  }
+
+  &__indicator {
+    flex-shrink: 0;
+    color: var(--color-text-tertiary);
+    transition: transform var(--transition-fast);
+
+    [data-state='open'] > & {
+      transform: rotate(180deg);
+    }
+  }
+
+  &__content {
+    padding: 0 var(--spacing-md) var(--spacing-md);
+  }
+
+  &__flat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+}
+
+.jurisdiction-requirement-card {
+  border: 1px solid var(--color-border-subtle, var(--color-border));
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  font-size: var(--font-size-sm);
+
+  &--compact {
+    margin-bottom: var(--spacing-md);
+  }
+
+  &__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--spacing-sm);
+  }
+
+  &__name {
+    font-size: var(--font-size-sm);
+  }
+
+  &__meta {
+    font-size: var(--font-size-xs);
+  }
+
+  &__proposed {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    font-weight: 600;
+    opacity: 0.8;
+  }
+
+  &__field {
+    margin: var(--spacing-sm) 0 0;
+    font-size: var(--font-size-sm);
+  }
+
+  &__label {
+    display: block;
+    margin-bottom: var(--spacing-xs);
+  }
+
+  &__legislation {
+    margin: 0;
+    padding-left: 1.25rem;
+  }
+
+  &__enactment {
+    margin-left: var(--spacing-xs);
+  }
+
+  &__leg-notes {
+    margin: var(--spacing-xs) 0 0;
+    font-size: var(--font-size-xs);
+  }
+
+  &__notes {
+    margin: var(--spacing-sm) 0 0;
+    font-size: var(--font-size-xs);
   }
 }
 

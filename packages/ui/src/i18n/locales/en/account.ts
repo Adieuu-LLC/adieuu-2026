@@ -121,12 +121,6 @@ export const account = {
         title: 'Regulatory context',
         subtitle:
           'Summary of public age-assurance and related rules that may apply in your area. This is not legal advice.',
-        proposed: 'Proposed / not in force',
-        legislation: 'Relevant law or instrument',
-        requirements: 'Requirements we track',
-        methods: 'Compatible verification methods (industry)',
-        notes: 'Notes',
-        regulatoryBody: 'Regulator',
         empty: 'No matching regulatory rows are loaded for this jurisdiction. You can still use Adieuu where our terms and your local law allow.',
       },
     },
