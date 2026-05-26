@@ -248,14 +248,20 @@ export function AccountSubscription() {
     try {
       const res = await api.subscription.createCheckoutSession(product);
       if (res.success && res.data?.url) {
+        // Fetch status AFTER session creation so the baseline includes any
+        // side-effects (e.g. Stripe customer creation) that would otherwise
+        // cause the polling comparator to see a false-positive change.
+        const freshStatus = await api.subscription.getStatus();
         const baseline: SubscriptionStatus =
-          typeof structuredClone === 'function'
-            ? structuredClone(status)
-            : {
-                ...status,
-                activeSubscriptions: [...status.activeSubscriptions],
-                entitlements: [...status.entitlements],
-              };
+          freshStatus.success && freshStatus.data
+            ? freshStatus.data
+            : typeof structuredClone === 'function'
+              ? structuredClone(status)
+              : {
+                  ...status,
+                  activeSubscriptions: [...status.activeSubscriptions],
+                  entitlements: [...status.entitlements],
+                };
         await openCheckoutOrPortalUrl(res.data.url, openExternal);
         setPollRun({ baseline });
         return;

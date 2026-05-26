@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { SubscriptionCatalogPricesMap } from '@adieuu/shared';
+import type { SubscriptionCatalogPricesMap, PurchasableProductId } from '@adieuu/shared';
 import {
   ComparisonTable,
   COMPARISON_TABLE_PRESET_SUBSCRIPTION,
@@ -21,6 +21,7 @@ import {
   parseSubscriptionFeatureVariables,
 } from './subscription-feature-cells';
 import { footnoteIndicesForFeature } from './comparison-footnotes';
+import { CheckoutModal } from './CheckoutModal';
 
 export interface PlansComparisonTableProps extends PlansTabProps {
   annualPlansHeadingId: string;
@@ -80,6 +81,20 @@ export function PlansComparisonTable({
 }: PlansComparisonTableProps) {
   const { t } = useTranslation();
   const { hasAccess, hasInsider, isLifetime, hasVanguard, hasFounder } = derived;
+
+  const [checkoutModalProduct, setCheckoutModalProduct] = useState<PurchasableProductId | null>(null);
+
+  const handleJoinNow = useCallback((product: PurchasableProductId) => {
+    setCheckoutModalProduct(product);
+  }, []);
+
+  const handleModalCheckout = useCallback(
+    (product: PurchasableProductId) => {
+      onCheckout(product);
+      setCheckoutModalProduct(null);
+    },
+    [onCheckout],
+  );
 
   const usdFormatter = useMemo(
     () => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' }),
@@ -219,7 +234,55 @@ export function PlansComparisonTable({
     );
   };
 
+  const renderJoinNowCell = (columnId: ComparisonColumnId) => {
+    const ownsColumn =
+      (columnId === 'access' && hasAccess) ||
+      (columnId === 'insider' && hasInsider) ||
+      (columnId === 'vanguard' && hasVanguard) ||
+      (columnId === 'founder' && hasFounder);
+
+    if (ownsColumn) {
+      return (
+        <td key={columnId} className="comparison-table-cell comparison-table-cell-join">
+          <span className="subscription-tier-badge subscription-tier-badge--owned">
+            {t('account.subscription.currentPlan')}
+          </span>
+        </td>
+      );
+    }
+
+    if (identityMode) {
+      return <td key={columnId} className="comparison-table-cell comparison-table-cell-join" />;
+    }
+
+    return (
+      <td key={columnId} className="comparison-table-cell comparison-table-cell-join">
+        <Button
+          variant="primary"
+          className="comparison-table-join-btn"
+          onClick={() => handleJoinNow(columnId)}
+          disabled={actionLoading}
+        >
+          {t('account.subscription.comparison.joinNow')}
+        </Button>
+      </td>
+    );
+  };
+
+  const renderJoinNowRow = (key: string) => (
+    <tr key={key} className="comparison-table-join-row">
+      <th
+        scope="row"
+        className="comparison-table-feature-name comparison-table-pin-col"
+      >
+        {t('account.subscription.comparison.joinNowRowLabel')}
+      </th>
+      {COMPARISON_COLUMN_IDS.map((columnId) => renderJoinNowCell(columnId))}
+    </tr>
+  );
+
   return (
+    <>
     <ComparisonTable
       labelledBy={annualPlansHeadingId}
       nudgeRegionAriaLabel={t('account.subscription.comparison.scrollNudgeRegionLabel')}
@@ -385,12 +448,14 @@ export function PlansComparisonTable({
           </th>
           {COMPARISON_COLUMN_IDS.map((columnId) => renderBillingCell(columnId))}
         </tr>
+        {renderJoinNowRow('join-now-top')}
         {COMPARISON_FEATURE_ORDER.map((featureKey) => (
           <tr key={featureKey}>
             {renderFeatureHeading(featureKey)}
             {COMPARISON_COLUMN_IDS.map((columnId) => renderFeatureCell(featureKey, columnId))}
           </tr>
         ))}
+        {renderJoinNowRow('join-now-bottom')}
       </tbody>
       {footnoteLines.length > 0 ? (
         <tfoot>
@@ -420,5 +485,17 @@ export function PlansComparisonTable({
         </tfoot>
       ) : null}
     </ComparisonTable>
+
+    {checkoutModalProduct != null && (
+      <CheckoutModal
+        open
+        onOpenChange={(open) => { if (!open) setCheckoutModalProduct(null); }}
+        product={checkoutModalProduct}
+        catalogPrices={catalogPrices}
+        onCheckout={handleModalCheckout}
+        loading={actionLoading}
+      />
+    )}
+    </>
   );
 }

@@ -109,7 +109,7 @@ export const staticPages = {
       steps: {
         subscribe: {
           title: 'Choose a plan',
-          description: 'An active subscription unlocks Alias creation, messaging, and social features.',
+          description: 'An active subscription unlocks messaging, and social features.',
           action: 'View plans',
         },
         verifyAge: {

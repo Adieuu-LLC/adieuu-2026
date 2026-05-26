@@ -506,6 +506,23 @@ export const account = {
         footnotes: ['Subject to Adieuu staff final discretion and moderation', 'Includes no right to control; customer role is advisory only and subject to Adieuu ToS, which may include feedback and IP waiver.'] as const,
         footnotesRegionLabel: 'Plan comparison footnotes',
         footnoteJumpTo: 'Jump to note {{n}}',
+        joinNow: 'Join Now',
+        joinNowRowLabel: 'Subscribe',
+      },
+
+      // Checkout modal
+      checkoutModal: {
+        title: 'Join {{tier}}',
+        annualPrice: '{{amount}} / year',
+        monthlyEquivalent: 'That\u2019s {{amount}} / month',
+        lifetimePrice: '{{amount}} one-time',
+        dueToday: 'Due today',
+        checkoutWithStripe: 'Checkout with Stripe',
+        cashTitle: 'Prefer to pay in cash? (read more)',
+        cashBody:
+          'For those who wish to be extra private, you may include cash payment and your account ID in a sealed envelope and send to:',
+        cashAddress: '[Business address — coming soon]',
+        close: 'Cancel',
       },
 
       // Status labels
