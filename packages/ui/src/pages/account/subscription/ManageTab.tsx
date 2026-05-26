@@ -250,6 +250,13 @@ export function ManageTab({
               {t('account.subscription.manage.noPlan')}
             </p>
           )}
+
+          {!hasPaidPlan && !identityMode && (
+            <div className="subscription-sponsorship-cta">
+              <Icon name="heart" size="sm" />
+              <p>{t('account.subscription.manage.sponsorshipCta')}</p>
+            </div>
+          )}
         </Card>
       </BorderGlow>
 

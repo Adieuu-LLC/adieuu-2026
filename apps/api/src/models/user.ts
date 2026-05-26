@@ -63,6 +63,8 @@ export interface UserDocument extends BaseDocument {
   subscriptionOverrides?: SubscriptionOverride[];
   /** Admin-granted entitlement overrides (lifetime), merged additively with Stripe billing. */
   entitlementOverrides?: string[];
+  /** Denormalised count of sponsorships received (for future directory display). */
+  sponsorshipCount?: number;
 }
 
 /**

@@ -40,6 +40,7 @@ const EXEMPT_PREFIXES: readonly string[] = [
   '/api/health',
   '/api/webhooks',
   '/api/account/subscription',
+  '/api/sponsorship',
   '/api/v1/releases',
   '/api/users/me',
   '/api/geo/requirements',

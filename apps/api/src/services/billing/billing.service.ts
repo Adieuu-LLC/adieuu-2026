@@ -544,6 +544,12 @@ async function handleCheckoutCompleted(
   stripe: Stripe,
   session: Stripe.Checkout.Session,
 ): Promise<void> {
+  // Sponsorship checkout: apply billing to the beneficiary, not the payer
+  if (session.metadata?.sponsorship === 'true') {
+    await handleSponsorshipCheckoutCompleted(stripe, session);
+    return;
+  }
+
   const userId = session.client_reference_id ?? session.metadata?.userId;
   if (!userId) {
     elog.warn('Checkout session missing userId', { sessionId: session.id });
@@ -617,6 +623,119 @@ async function handleCheckoutCompleted(
   elog.warn('Checkout session completed with unexpected or incomplete mode', {
     sessionId: session.id,
     mode: session.mode,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sponsorship checkout fulfillment
+// ---------------------------------------------------------------------------
+
+async function handleSponsorshipCheckoutCompleted(
+  stripe: Stripe,
+  session: Stripe.Checkout.Session,
+): Promise<void> {
+  const meta = session.metadata ?? {};
+  const beneficiaryUserId = meta.beneficiaryUserId;
+  const sponsorUserId = meta.sponsorUserId;
+  const requestId = meta.sponsorshipRequestId;
+  const productId = meta.productId as PurchasableProductId | undefined;
+  const revealIdentity = meta.revealIdentity === 'true';
+
+  if (!beneficiaryUserId || !sponsorUserId || !requestId || !productId) {
+    elog.warn('Sponsorship checkout missing required metadata', {
+      sessionId: session.id,
+      beneficiaryUserId,
+      sponsorUserId,
+      requestId,
+      productId,
+    });
+    return;
+  }
+
+  const productMeta = PURCHASABLE_PRODUCTS[productId];
+  if (!productMeta) {
+    elog.warn('Sponsorship checkout has unknown productId', { sessionId: session.id, productId });
+    return;
+  }
+
+  const userRepo = getUserRepository();
+  const beneficiary = await userRepo.findById(beneficiaryUserId);
+  if (!beneficiary) {
+    elog.warn('Sponsorship checkout beneficiary not found', { beneficiaryUserId, sessionId: session.id });
+    return;
+  }
+
+  const { ObjectId } = await import('mongodb');
+  const sponsorshipRequestRepo = (await import('../../repositories/sponsorship.repository')).getSponsorshipRequestRepository();
+  const sponsorshipLogRepo = (await import('../../repositories/sponsorship.repository')).getSponsorshipLogRepository();
+
+  if (productMeta.isLifetime) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fullSession: any = await stripe.checkout.sessions.retrieve(session.id, {
+      expand: ['line_items'],
+    });
+    const priceIds: string[] = (fullSession.line_items?.data ?? [])
+      .map((li: any) => li.price?.id) // eslint-disable-line @typescript-eslint/no-explicit-any
+      .filter(Boolean);
+
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id;
+
+    const billing = deriveLifetimeBilling(priceIds, paymentIntentId, beneficiary.billing);
+    await userRepo.updateBilling(beneficiary._id, billing);
+  } else {
+    const expiresAt = new Date();
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+
+    const tier = productMeta.grantsTiers[0]!;
+    await userRepo.addSubscriptionOverride(beneficiary._id, { tier, expiresAt });
+  }
+
+  await userRepo.addEntitlementOverride(beneficiary._id, 'gifted');
+  await userRepo.incrementSponsorshipCount(beneficiary._id);
+
+  await sponsorshipRequestRepo.fulfill(
+    new ObjectId(requestId),
+    {
+      sponsorUserId: new ObjectId(sponsorUserId),
+      sponsorRevealed: revealIdentity,
+      sponsorFirstName: revealIdentity ? (meta.sponsorFirstName || undefined) : undefined,
+      sponsorLastInitial: revealIdentity ? (meta.sponsorLastInitial || undefined) : undefined,
+      fulfilledProduct: productId,
+      stripeSessionId: session.id,
+    },
+  );
+
+  const grantedTier = productMeta.grantsTiers[0]!;
+  const expiresAt = productMeta.isLifetime ? undefined : (() => {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() + 1);
+    return d;
+  })();
+
+  await sponsorshipLogRepo.createLog({
+    recipientUserId: new ObjectId(beneficiaryUserId),
+    sponsorUserId: new ObjectId(sponsorUserId),
+    sponsorStripeSessionId: session.id,
+    product: productId,
+    tier: grantedTier,
+    grantedAt: new Date(),
+    expiresAt,
+    requestId: new ObjectId(requestId),
+  });
+
+  void initiateBackgroundCheck(beneficiary);
+
+  elog.info('Sponsorship fulfilled', {
+    beneficiaryUserId,
+    sponsorUserId,
+    requestId,
+    productId,
+    tier: grantedTier,
+    isLifetime: productMeta.isLifetime,
+    sessionId: session.id,
   });
 }
 

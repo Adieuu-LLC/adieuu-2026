@@ -11,6 +11,8 @@ export interface SubscriptionStatus {
   cancelAtPeriodEnd: boolean;
   cancelAt: string | null;
   hasStripeCustomer: boolean;
+  /** ISO date of the earliest-expiring sponsorship override (for expiry banner). */
+  sponsoredExpiry: string | null;
 }
 
 export interface SubscriptionCatalogPriceEntry {

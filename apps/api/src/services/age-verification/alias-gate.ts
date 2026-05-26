@@ -28,6 +28,14 @@ export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateRe
   const enabled = await isAgeVerificationEnabled();
   if (!enabled) return ALLOWED;
 
+  // 1b. Sponsored (gifted) users must always verify age, regardless of jurisdiction
+  const hasGifted =
+    user.billing?.entitlements?.includes('gifted') ||
+    user.entitlementOverrides?.includes('gifted');
+  if (hasGifted) {
+    return evaluateAvStatus(user, user.geo?.jurisdiction ?? 'GIFTED');
+  }
+
   // 2. Jurisdiction unresolved
   const jurisdiction = user.geo?.jurisdiction;
   if (!jurisdiction) {

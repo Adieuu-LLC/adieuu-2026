@@ -18,6 +18,7 @@ import {
   ThemeBrowser,
 } from '../pages/account';
 import { CheckoutComplete } from '../pages/checkout/CheckoutComplete';
+import { RequestSponsorshipPage, SponsorshipDirectoryPage } from '../pages/sponsorship';
 import {
   IdentityAppearance,
   IdentityCiphers,
@@ -283,6 +284,8 @@ export function App() {
           <Route path="/account/settings" element={<Navigate to="/identity/notifications" replace />} />
           <Route path="/account/appearance" element={<Navigate to="/identity/appearance" replace />} />
           <Route path="/account/appearance/community" element={<ThemeBrowser />} />
+          <Route path="/sponsorship/request" element={<RequestSponsorshipPage />} />
+          <Route path="/sponsorship/directory" element={<SponsorshipDirectoryPage />} />
         </Route>
 
         {/* Identity Routes */}

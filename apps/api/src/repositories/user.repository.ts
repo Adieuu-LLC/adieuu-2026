@@ -6,7 +6,7 @@
 import { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
-import type { UserDocument, CreateUserInput, UpdateUserInput, UserGeo, UserBilling, UserAgeVerification } from '../models/user';
+import type { UserDocument, CreateUserInput, UpdateUserInput, UserGeo, UserBilling, UserAgeVerification, SubscriptionOverride } from '../models/user';
 import { DEFAULT_IDENTITY_LOCKOUT_DURATION } from '../models/user';
 import { withTimestamps } from '../models/base';
 
@@ -351,6 +351,45 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
           updatedAt: new Date(),
         },
       },
+    );
+  }
+
+  async addSubscriptionOverride(
+    id: string | ObjectId,
+    override: SubscriptionOverride,
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $push: { subscriptionOverrides: override },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+  }
+
+  async addEntitlementOverride(
+    id: string | ObjectId,
+    entitlement: string,
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $addToSet: { entitlementOverrides: entitlement },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+  }
+
+  async incrementSponsorshipCount(id: string | ObjectId): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $inc: { sponsorshipCount: 1 },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     );
   }
 }

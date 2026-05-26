@@ -376,6 +376,10 @@ export const Collections = {
   AGE_VERIFICATIONS: 'age_verifications',
   /** User-uploaded custom emojis (static and animated) */
   CUSTOM_EMOJIS: 'custom_emojis',
+  /** Sponsorship requests directory (one per account) */
+  SPONSORSHIP_REQUESTS: 'sponsorship_requests',
+  /** Sponsorship fulfillment audit logs */
+  SPONSORSHIP_LOGS: 'sponsorship_logs',
 } as const;
 
 /**
@@ -662,6 +666,16 @@ async function createIndexes(): Promise<void> {
     { unique: true, collation: { locale: 'en', strength: 2 } }
   );
   await customEmojis.createIndex({ identityId: 1, createdAt: -1 });
+
+  // Sponsorship requests — one per account, directory listing by status + date
+  const sponsorshipRequests = database.collection(Collections.SPONSORSHIP_REQUESTS);
+  await sponsorshipRequests.createIndex({ userId: 1 }, { unique: true });
+  await sponsorshipRequests.createIndex({ status: 1, createdAt: -1 });
+
+  // Sponsorship logs — lookup by recipient
+  const sponsorshipLogs = database.collection(Collections.SPONSORSHIP_LOGS);
+  await sponsorshipLogs.createIndex({ recipientUserId: 1, grantedAt: -1 });
+  await sponsorshipLogs.createIndex({ requestId: 1 }, { unique: true });
 
   elog.debug('MongoDB indexes created/verified');
 }

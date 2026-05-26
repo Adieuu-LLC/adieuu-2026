@@ -363,6 +363,7 @@ export const account = {
         manage: 'Manage',
         billing: 'Billing',
         lifetime: 'Lifetime',
+        sponsorships: 'Sponsorships',
       },
 
       // Dedicated Billing tab (Stripe Customer Portal)
@@ -384,6 +385,8 @@ export const account = {
         billingPeriodAnnual: 'Annual',
         noPlan:
           'You do not have a paid subscription. Your account is read-only until you subscribe — you can browse, but you cannot post or use paid features.',
+        sponsorshipCta:
+          'Cannot afford a plan? Visit the Sponsorships tab to request sponsorship from the community.',
         readOnlyPlansIntro:
           'Without a paid plan, your account stays read-only. Subscribe below to unlock posting and full features.',
         stripeBillingIntro:

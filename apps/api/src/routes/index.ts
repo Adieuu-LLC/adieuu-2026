@@ -32,6 +32,7 @@ import { subscriptionRoutes } from './account/subscription';
 import { geoRoutes } from './geo';
 import { ageVerificationRoutes } from './age-verification';
 import { customEmojiRoutes } from './custom-emojis';
+import { sponsorshipRoutes } from './sponsorship';
 
 /**
  * Registers all application routes with the main router.
@@ -127,4 +128,7 @@ export function registerRoutes(app: Router): void {
 
   // Stripe webhook (subscription events)
   app.merge(webhookRoutes, '/api');
+
+  // Sponsorship directory (request, browse, sponsor checkout)
+  app.merge(sponsorshipRoutes, '/api');
 }

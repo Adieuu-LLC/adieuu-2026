@@ -20,11 +20,13 @@ import { openCheckoutOrPortalUrl } from '../../../utils/open-checkout-url';
 import { ManageTab } from './ManageTab';
 import { BillingTab } from './BillingTab';
 import { LifetimeTab } from './LifetimeTab';
+import { SponsorshipsTab } from './SponsorshipsTab';
 import type { SubscriptionDerivedState } from './types';
 import '../../../styles/_subscription.scss';
+import '../../../styles/_sponsorship.scss';
 import { SessionLockedPage } from '../../../components/SessionLockedPage';
 
-const VALID_TABS = ['manage', 'billing', 'lifetime'] as const;
+const VALID_TABS = ['manage', 'billing', 'lifetime', 'sponsorships'] as const;
 type SubscriptionTab = (typeof VALID_TABS)[number];
 
 function deriveState(status: SubscriptionStatus | null): SubscriptionDerivedState {
@@ -341,6 +343,9 @@ export function AccountSubscription() {
           <TabTrigger value="lifetime">
             {t('account.subscription.tabs.lifetime')}
           </TabTrigger>
+          <TabTrigger value="sponsorships">
+            {t('account.subscription.tabs.sponsorships')}
+          </TabTrigger>
         </TabList>
 
         <TabContent value="manage">
@@ -376,6 +381,13 @@ export function AccountSubscription() {
             identityMode={identityMode}
             actionLoading={actionLoading}
             onCheckout={handleCheckout}
+          />
+        </TabContent>
+
+        <TabContent value="sponsorships">
+          <SponsorshipsTab
+            derived={derived}
+            identityMode={identityMode}
           />
         </TabContent>
       </Tabs>

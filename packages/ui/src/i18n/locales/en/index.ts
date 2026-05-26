@@ -15,6 +15,7 @@ import { moderation } from './moderation';
 import { report } from './report';
 import { staticPages } from './staticPages';
 import { compliance } from './compliance';
+import { sponsorship } from './sponsorship';
 
 export const en = {
   ...core,
@@ -30,6 +31,7 @@ export const en = {
   gif,
   achievements,
   compliance,
+  ...sponsorship,
   customEmoji: {
     conversationDisabledByAdmin: 'Disable custom emojis',
     conversationDisabledByAdminHint: 'This disables custom emoji usage for all members',

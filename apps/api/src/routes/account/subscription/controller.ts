@@ -43,6 +43,7 @@ export interface SubscriptionSummaryPayload {
   cancelAtPeriodEnd: boolean;
   cancelAt: string | null;
   hasStripeCustomer: boolean;
+  sponsoredExpiry: string | null;
 }
 
 export type GetSubscriptionSummaryResult =
@@ -94,6 +95,18 @@ export async function getSubscriptionSummary(userId: string): Promise<GetSubscri
 
   const resolved = resolveEffectiveAccess(user);
 
+  const hasGifted = resolved.entitlements.includes('gifted');
+  let sponsoredExpiry: string | null = null;
+  if (hasGifted && user.subscriptionOverrides?.length) {
+    const now = new Date();
+    const activeOverrides = user.subscriptionOverrides
+      .filter((o) => o.expiresAt && o.expiresAt > now)
+      .sort((a, b) => (a.expiresAt!.getTime() - b.expiresAt!.getTime()));
+    if (activeOverrides.length > 0) {
+      sponsoredExpiry = activeOverrides[0]!.expiresAt!.toISOString();
+    }
+  }
+
   return {
     ok: true,
     data: {
@@ -105,6 +118,7 @@ export async function getSubscriptionSummary(userId: string): Promise<GetSubscri
       cancelAtPeriodEnd: user.billing?.cancelAtPeriodEnd ?? false,
       cancelAt: user.billing?.cancelAt?.toISOString() ?? null,
       hasStripeCustomer: !!user.stripeCustomerId,
+      sponsoredExpiry,
     },
   };
 }

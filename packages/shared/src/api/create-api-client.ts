@@ -1,5 +1,6 @@
 import { AchievementsApi } from './achievements-api';
 import { AgeVerificationApi } from './age-verification-api';
+import { SponsorshipApi } from './sponsorship-api';
 import { SubscriptionApi } from './subscription-api';
 import { AdminApi } from './admin-api';
 import { ApiClient, type ApiClientConfig } from './http-client';
@@ -49,6 +50,7 @@ export function createApiClient(config: ApiClientConfig) {
     klipy: new KlipyApi(client),
     achievements: new AchievementsApi(client),
     subscription: new SubscriptionApi(client),
+    sponsorship: new SponsorshipApi(client),
     geo: new GeoApi(client),
   };
 }

@@ -237,6 +237,15 @@ export {
 } from './subscription-api';
 
 export {
+  SponsorshipApi,
+  type SponsorshipDirectoryEntry,
+  type SponsorshipRequestStatus,
+  type CreateSponsorshipRequestParams,
+  type SponsorshipCheckoutParams,
+  type SponsorshipDirectoryResponse,
+} from './sponsorship-api';
+
+export {
   AchievementsApi,
   type AchievementCategory,
   type PublicAchievementDefinition,
