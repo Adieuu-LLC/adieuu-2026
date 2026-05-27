@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -225,6 +225,10 @@ const {
 // --- Tests ---
 
 describe('Admin Users Controller', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   beforeEach(() => {
     mockFindById.mockReset();
     mockFindById.mockImplementation(() => Promise.resolve(mockUser));

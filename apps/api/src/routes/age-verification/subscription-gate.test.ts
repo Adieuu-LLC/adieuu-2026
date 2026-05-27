@@ -3,7 +3,7 @@
  * Tests that POST /age-verification/start denies access when the user
  * lacks an active subscription or lifetime entitlement.
  */
-import { describe, expect, test, mock, beforeEach } from 'bun:test';
+import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
 
 type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
@@ -30,6 +30,7 @@ mock.module('../../services/session.service', () => ({
   createAccountSession: mock(() => Promise.resolve({ sessionId: 'test', cookie: '' })),
   destroySession: mock(() => Promise.resolve()),
   buildLogoutCookie: mock(() => ''),
+  buildAuthClearCookies: mock(() => []),
 }));
 
 const mockFindById = mock(() => Promise.resolve(null)) as AnyMock;
@@ -114,6 +115,10 @@ function makeRequest() {
 // Tests
 // ---------------------------------------------------------------------------
 
+afterAll(() => {
+  mock.restore();
+});
+
 describe('POST /age-verification/start subscription gate', () => {
   beforeEach(() => {
     mockRequireAccountSession.mockReset();
@@ -187,7 +192,7 @@ describe('POST /age-verification/start subscription gate', () => {
     mockFindById.mockResolvedValue(makeUser({
       billing: undefined,
       subscriptionOverrides: [
-        { tierId: 'access', reason: 'lifetime', grantedAt: new Date() },
+        { tier: 'access' as const },
       ],
     }));
 

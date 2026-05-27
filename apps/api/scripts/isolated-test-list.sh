@@ -37,5 +37,9 @@ is_isolated_test() {
      "$name" == 'user.repository.test.ts' ||
      "$name" == 'csrf.service.test.ts' ||
      "$name" == 'csrf.test.ts' ||
+     "$name" == 'users.controller.test.ts' ||
+     "$name" == 'identities.controller.test.ts' ||
+     "$name" == 'support-ticket.repository.test.ts' ||
+     "$name" == 'subscription-gate.test.ts' ||
      "$1" == *'klipy/controller.test.ts' ]]
 }
