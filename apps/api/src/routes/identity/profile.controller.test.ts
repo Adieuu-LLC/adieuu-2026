@@ -22,15 +22,12 @@ mock.module('../../services/profile-event.service', () => ({
   publishProfileUpdated: mock(() => Promise.resolve()),
 }));
 
-const mockFriendshipsFindOne = mock(() => Promise.resolve(null)) as AnyMock;
+const mockFriendshipAreFriends = mock(() => Promise.resolve(false)) as AnyMock;
 
-mock.module('../../db', () => ({
-  getCollection: () => ({
-    findOne: mockFriendshipsFindOne,
+mock.module('../../repositories/friendship.repository', () => ({
+  getFriendshipRepository: () => ({
+    areFriends: mockFriendshipAreFriends,
   }),
-  Collections: {
-    FRIENDSHIPS: 'friendships',
-  },
 }));
 
 const mockIdentityDoc = {
@@ -107,7 +104,9 @@ describe('profile.controller', () => {
   beforeEach(() => {
     mockFindByIdentityIdProfile.mockReset();
     mockFindMediaById.mockReset();
+    mockFriendshipAreFriends.mockReset();
     mockFindByIdentityIdProfile.mockImplementation(() => Promise.resolve(mockIdentityDoc));
+    mockFriendshipAreFriends.mockImplementation(() => Promise.resolve(false));
   });
 
   test('getProfileCtrl returns 400 for invalid identity id string', async () => {
@@ -251,13 +250,12 @@ describe('profile.controller', () => {
 
   describe('areFriends', () => {
     test('returns true when friendship document exists', async () => {
-      mockFriendshipsFindOne.mockImplementationOnce(() => Promise.resolve({ _id: 'friendship' }));
+      mockFriendshipAreFriends.mockImplementationOnce(() => Promise.resolve(true));
       const result = await areFriends(new ObjectId(), new ObjectId());
       expect(result).toBe(true);
     });
 
     test('returns false when no friendship document exists', async () => {
-      mockFriendshipsFindOne.mockImplementationOnce(() => Promise.resolve(null));
       const result = await areFriends(new ObjectId(), new ObjectId());
       expect(result).toBe(false);
     });

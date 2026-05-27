@@ -21,7 +21,7 @@ import { publishProfileUpdated } from '../../services/profile-event.service';
 import { contrastRatio } from '../../utils/color';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getMediaUploadRepository } from '../../repositories/media-upload.repository';
-import { getCollection, Collections } from '../../db';
+import { getFriendshipRepository } from '../../repositories/friendship.repository';
 import {
   toPublicIdentity,
   DEFAULT_PRIVACY_SETTINGS,
@@ -70,12 +70,7 @@ export async function areFriends(
   identityIdA: ObjectId,
   identityIdB: ObjectId
 ): Promise<boolean> {
-  const friendships = getCollection(Collections.FRIENDSHIPS);
-  const doc = await friendships.findOne({
-    identityId: identityIdA,
-    friendIdentityId: identityIdB,
-  });
-  return doc !== null;
+  return getFriendshipRepository().areFriends(identityIdA, identityIdB);
 }
 
 /**
