@@ -1,5 +1,6 @@
 import { afterAll, afterEach, describe, expect, test, mock, beforeEach } from 'bun:test';
 import { ObjectId } from 'mongodb';
+import { createRateLimitServiceMock } from '../../test-utils/rate-limit-service.mock';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
@@ -296,9 +297,11 @@ mock.module('../../services/otp.service', () => ({
   verifyOtp: mockVerifyOtp,
 }));
 
-mock.module('../../services/rate-limit.service', () => ({
-  checkRateLimit: mockCheckRateLimit,
-}));
+mock.module('../../services/rate-limit.service', () =>
+  createRateLimitServiceMock({
+    checkRateLimit: mockCheckRateLimit,
+  }),
+);
 
 mock.module('../../services/messaging', () => ({
   sendEmail: mockSendEmail,

@@ -3,13 +3,15 @@ import { describe, expect, test, mock, beforeEach } from 'bun:test';
 
 const mockWarn = mock(() => {});
 const mockInfo = mock(() => {});
+const mockLogger = {
+  warn: mockWarn,
+  info: mockInfo,
+  debug: () => {},
+  error: () => {},
+};
 mock.module('../../utils/adieuuLogger', () => ({
-  default: {
-    warn: mockWarn,
-    info: mockInfo,
-    debug: () => {},
-    error: () => {},
-  },
+  default: mockLogger,
+  adieuuLogger: mockLogger,
 }));
 
 const { extractItemPeriodEnd, extractCancelIntent, extractSubscriptionStatus } =

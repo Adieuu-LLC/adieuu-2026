@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test, mock, beforeEach } from 'bun:test';
 import type { Locale } from '../../i18n';
 import type { RouteContext } from '../../router/types';
+import { createStripeClientMock } from '../../test-utils/stripe-client.mock';
 import { sanitizeString } from '../../utils/sanitize';
 
 mock.module('../../utils/adieuuLogger', () => ({
@@ -37,9 +38,11 @@ mock.module('../../config', () => ({
   config: testConfig,
 }));
 
-mock.module('../../services/billing/stripe.client', () => ({
-  checkStripeServiceHealth: mockCheckStripeHealth,
-}));
+mock.module('../../services/billing/stripe.client', () =>
+  createStripeClientMock({
+    checkStripeServiceHealth: mockCheckStripeHealth,
+  }),
+);
 
 // Mock db submodules to prevent loading real config
 mock.module('../../db/mongo', () => ({
@@ -47,6 +50,11 @@ mock.module('../../db/mongo', () => ({
   connectMongo: mock(() => Promise.resolve()),
   disconnectMongo: mock(() => Promise.resolve()),
   getMongoClient: mock(() => null),
+  Collections: {
+    USERS: 'users',
+    SESSIONS: 'sessions',
+    AUDIT_LOGS: 'audit_logs',
+  },
 }));
 
 mock.module('../../db/redis', () => ({
