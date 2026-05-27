@@ -176,6 +176,24 @@ export {
 } from './reports-api';
 
 export {
+  SupportTicketApi,
+  type PublicSupportTicket,
+  type PublicSupportTicketEvent,
+} from './support-ticket-api';
+
+export type {
+  CreateSupportTicketParams,
+  SupportTicketDetailResponse,
+  SupportTicketListParams,
+  SupportTicketListResponse,
+  ModerationTicketListParams,
+  ModerationTicketDetailResponse,
+  StaffTicketCommentParams,
+  ResolveSupportTicketParams,
+  CloseSupportTicketParams,
+} from './support-ticket-types';
+
+export {
   ThemesApi,
   type ThemeListParams,
   type ThemeListResponse,

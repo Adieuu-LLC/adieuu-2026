@@ -12,6 +12,7 @@ const mockGetPlatformCapabilities = mock(
   async (): Promise<PlatformCapabilities> => ({
     isPlatformAdmin: false,
     isPlatformModerator: true,
+    isPlatformSupportAgent: false,
     roles: ['moderator'],
     permissions: [
       PLATFORM_PERMISSIONS.READ_CONTENT_REPORTS,
@@ -161,6 +162,7 @@ function makeModeratorCaps(overrides: Partial<PlatformCapabilities> = {}): Platf
   return {
     isPlatformAdmin: false,
     isPlatformModerator: true,
+    isPlatformSupportAgent: false,
     roles: ['moderator'],
     permissions: [
       PLATFORM_PERMISSIONS.READ_CONTENT_REPORTS,
@@ -199,6 +201,7 @@ describe('gateModeratorSession', () => {
     mockGetPlatformCapabilities.mockImplementation(async () => ({
       isPlatformAdmin: false,
       isPlatformModerator: false,
+    isPlatformSupportAgent: false,
       roles: [],
       permissions: [],
     }));
@@ -565,6 +568,7 @@ describe('moderation route smoke tests', () => {
     mockGetPlatformCapabilities.mockImplementation(async () => ({
       isPlatformAdmin: false,
       isPlatformModerator: false,
+    isPlatformSupportAgent: false,
       roles: [],
       permissions: [],
     }));

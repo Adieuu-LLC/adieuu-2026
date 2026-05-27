@@ -35,6 +35,7 @@ import { geoRoutes } from './geo';
 import { ageVerificationRoutes } from './age-verification';
 import { customEmojiRoutes } from './custom-emojis';
 import { sponsorshipRoutes } from './sponsorship';
+import { supportRoutes } from './support';
 
 /**
  * Registers all application routes with the main router.
@@ -139,4 +140,7 @@ export function registerRoutes(app: Router): void {
 
   // Sponsorship directory (request, browse, sponsor checkout)
   app.merge(sponsorshipRoutes, '/api');
+
+  // User support tickets
+  app.merge(supportRoutes, '/api');
 }

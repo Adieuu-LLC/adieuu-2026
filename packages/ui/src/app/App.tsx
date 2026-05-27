@@ -67,7 +67,10 @@ import {
   ModeratorLayout,
   ReportList,
   ReportDetail,
+  TicketList,
+  TicketDetail as ModerationTicketDetail,
 } from '../pages/moderation';
+import { MyTickets, SubmitTicket, TicketDetail } from '../pages/support';
 
 /**
  * Protected route wrapper - redirects to login if not authenticated.
@@ -292,6 +295,11 @@ export function App() {
           <Route path="/sponsorship/directory" element={<SponsorshipDirectoryPage />} />
         </Route>
 
+        {/* Support tickets (account or identity session) */}
+        <Route path="/support" element={<MyTickets />} />
+        <Route path="/support/new" element={<SubmitTicket />} />
+        <Route path="/support/:ticketId" element={<TicketDetail />} />
+
         {/* Identity Routes */}
         <Route path="/identity" element={<Navigate to="/identity/profile" replace />} />
         <Route path="/identity/profile" element={<IdentityProfile />} />
@@ -328,9 +336,11 @@ export function App() {
         {/* Platform moderation (moderator + admin guard) */}
         <Route element={<ModeratorGate />}>
           <Route path="/moderation" element={<ModeratorLayout />}>
-            <Route index element={<Navigate to="reports" replace />} />
+            <Route index element={<Navigate to="tickets" replace />} />
             <Route path="reports" element={<ReportList />} />
             <Route path="reports/:id" element={<ReportDetail />} />
+            <Route path="tickets" element={<TicketList />} />
+            <Route path="tickets/:id" element={<ModerationTicketDetail />} />
           </Route>
         </Route>
       </Route>

@@ -13,6 +13,9 @@ export const PLATFORM_PERMISSIONS = {
   READ_ABUSE_REPORTS: 'read-abuse-reports',
   UPDATE_ABUSE_REPORTS: 'update-abuse-reports',
   MANAGE_ESCALATED_REPORTS: 'manage-escalated-reports',
+  READ_SUPPORT_TICKETS: 'read-support-tickets',
+  UPDATE_SUPPORT_TICKETS: 'update-support-tickets',
+  MANAGE_ESCALATED_TICKETS: 'manage-escalated-tickets',
 } as const;
 
 export type PlatformPermission =
@@ -21,26 +24,35 @@ export type PlatformPermission =
 export const PLATFORM_ROLES = {
   MODERATOR: 'moderator',
   ADMIN: 'admin',
+  SUPPORT_AGENT: 'support_agent',
 } as const;
 
 export type PlatformRole =
   (typeof PLATFORM_ROLES)[keyof typeof PLATFORM_ROLES];
+
+const SUPPORT_AGENT_PERMISSIONS: readonly PlatformPermission[] = [
+  PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS,
+  PLATFORM_PERMISSIONS.UPDATE_SUPPORT_TICKETS,
+];
 
 const MODERATOR_PERMISSIONS: readonly PlatformPermission[] = [
   PLATFORM_PERMISSIONS.READ_CONTENT_REPORTS,
   PLATFORM_PERMISSIONS.UPDATE_CONTENT_REPORTS,
   PLATFORM_PERMISSIONS.READ_ABUSE_REPORTS,
   PLATFORM_PERMISSIONS.UPDATE_ABUSE_REPORTS,
+  ...SUPPORT_AGENT_PERMISSIONS,
 ];
 
 const ADMIN_PERMISSIONS: readonly PlatformPermission[] = [
   ...MODERATOR_PERMISSIONS,
   PLATFORM_PERMISSIONS.MANAGE_ESCALATED_REPORTS,
+  PLATFORM_PERMISSIONS.MANAGE_ESCALATED_TICKETS,
 ];
 
 const ROLE_PERMISSION_MAP: Record<PlatformRole, readonly PlatformPermission[]> = {
   [PLATFORM_ROLES.MODERATOR]: MODERATOR_PERMISSIONS,
   [PLATFORM_ROLES.ADMIN]: ADMIN_PERMISSIONS,
+  [PLATFORM_ROLES.SUPPORT_AGENT]: SUPPORT_AGENT_PERMISSIONS,
 };
 
 /**

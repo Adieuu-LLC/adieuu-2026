@@ -63,6 +63,9 @@ export function AccountFlyout() {
       <Link to="/account/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
         {t('account.subscription.title')}
       </Link>
+      <Link to="/support" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/support') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('support.title')}
+      </Link>
       <div className="sidebar-flyout-divider" />
       <button
         type="button"
@@ -264,6 +267,9 @@ export function IdentityFlyout() {
       </Link>
       <Link to="/identity/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/identity/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
         {t('identity.menu.subscription')}
+      </Link>
+      <Link to="/support" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/support') ? 'sidebar-flyout-item-active' : ''}`}>
+        {t('support.title')}
       </Link>
       <div className="sidebar-flyout-divider" />
       <button

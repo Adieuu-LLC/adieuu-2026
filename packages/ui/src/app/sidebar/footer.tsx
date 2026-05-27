@@ -167,7 +167,10 @@ function AuthenticatedSidebarFooter() {
   const { platform } = useAppConfig();
   const { session } = useAuth();
   const { closeMobile } = useSidebar();
-  const showModerator = session?.isPlatformModerator === true || session?.isPlatformAdmin === true;
+  const showModerator =
+    session?.isPlatformModerator === true ||
+    session?.isPlatformAdmin === true ||
+    session?.isPlatformSupportAgent === true;
   const isDownloadActive = useLocation().pathname === '/download';
   const showDesktopAppLink = platform === 'web';
 

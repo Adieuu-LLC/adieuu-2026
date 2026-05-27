@@ -20,7 +20,11 @@ export function ModeratorGate() {
     return <Navigate to="/auth/login" replace />;
   }
 
-  if (!session?.isPlatformModerator && !session?.isPlatformAdmin) {
+  if (
+    !session?.isPlatformModerator &&
+    !session?.isPlatformAdmin &&
+    !session?.isPlatformSupportAgent
+  ) {
     return <Navigate to="/" replace />;
   }
 

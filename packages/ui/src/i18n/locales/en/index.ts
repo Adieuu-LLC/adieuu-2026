@@ -16,6 +16,7 @@ import { report } from './report';
 import { staticPages } from './staticPages';
 import { compliance } from './compliance';
 import { sponsorship } from './sponsorship';
+import { support } from './support';
 
 export const en = {
   ...core,
@@ -28,6 +29,7 @@ export const en = {
   conversations,
   report,
   moderation,
+  support,
   gif,
   achievements,
   compliance,

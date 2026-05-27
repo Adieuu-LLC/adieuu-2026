@@ -70,6 +70,8 @@ export interface SessionInfo {
   isPlatformAdmin: boolean;
   /** Whether this identity can access the platform moderation panel (identity mode) */
   isPlatformModerator: boolean;
+  /** Whether this identity can access the support ticket queue (identity mode) */
+  isPlatformSupportAgent: boolean;
   /** Effective platform-level permissions for the current identity (identity mode) */
   platformPermissions: string[];
   /** IP-derived jurisdiction (account mode only, omits ipHash for privacy). */

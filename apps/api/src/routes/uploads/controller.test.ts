@@ -6,6 +6,7 @@ import type {
 } from '../../services/upload.service';
 
 const myIdentityId = ROUTE_TEST_IDENTITY_ID;
+const identityOwner = { type: 'identity' as const, id: myIdentityId.toHexString() };
 const mediaId = 'abc123-media-id';
 const PROCESSOR_SECRET = 'test-processor-secret';
 
@@ -91,7 +92,7 @@ describe('requestUploadResult', () => {
   });
 
   test('returns validation_failed for invalid body', async () => {
-    const r = await requestUploadResult({ identityId: myIdentityId.toHexString() }, {});
+    const r = await requestUploadResult({ type: 'identity' as const, identityId: myIdentityId.toHexString() }, {});
     expect(r).toEqual({ ok: false, kind: 'validation_failed' });
     expect(mockRequestUpload).not.toHaveBeenCalled();
   });
@@ -102,12 +103,12 @@ describe('requestUploadResult', () => {
       error: 'Slow down',
       errorCode: 'RATE_LIMITED',
     });
-    const r = await requestUploadResult({ identityId: myIdentityId.toHexString() }, validRequestBody());
+    const r = await requestUploadResult({ type: 'identity' as const, identityId: myIdentityId.toHexString() }, validRequestBody());
     expect(r).toEqual({ ok: false, kind: 'rate_limited', message: 'Slow down' });
   });
 
   test('returns upload data on success', async () => {
-    const r = await requestUploadResult({ identityId: myIdentityId.toHexString() }, validRequestBody());
+    const r = await requestUploadResult({ type: 'identity' as const, identityId: myIdentityId.toHexString() }, validRequestBody());
     expect(r).toEqual({
       ok: true,
       data: {
@@ -124,7 +125,7 @@ describe('requestUploadResult', () => {
       error: 'Content type not allowed',
       errorCode: 'INVALID_CONTENT_TYPE',
     });
-    const r = await requestUploadResult({ identityId: myIdentityId.toHexString() }, validRequestBody());
+    const r = await requestUploadResult({ type: 'identity' as const, identityId: myIdentityId.toHexString() }, validRequestBody());
     expect(r).toEqual({ ok: false, kind: 'bad_request', message: 'Content type not allowed' });
   });
 
@@ -135,7 +136,7 @@ describe('requestUploadResult', () => {
       uploadUrl: undefined,
       expiresIn: 300,
     } as RequestUploadResult);
-    const r = await requestUploadResult({ identityId: myIdentityId.toHexString() }, validRequestBody());
+    const r = await requestUploadResult({ type: 'identity' as const, identityId: myIdentityId.toHexString() }, validRequestBody());
     expect(r).toEqual({ ok: false, kind: 'bad_request', message: 'Upload request failed' });
   });
 });
@@ -147,7 +148,7 @@ describe('completeUploadResult', () => {
   });
 
   test('returns bad_request for invalid media id', async () => {
-    const r = await completeUploadResult(myIdentityId.toHexString(), undefined);
+    const r = await completeUploadResult(identityOwner, undefined);
     expect(r).toEqual({ ok: false, kind: 'bad_request' });
     expect(mockCompleteUpload).not.toHaveBeenCalled();
   });
@@ -158,7 +159,7 @@ describe('completeUploadResult', () => {
       error: 'Upload not found',
       errorCode: 'NOT_FOUND',
     });
-    const r = await completeUploadResult(myIdentityId.toHexString(), mediaId);
+    const r = await completeUploadResult(identityOwner, mediaId);
     expect(r).toEqual({ ok: false, kind: 'not_found', message: 'Upload not found' });
   });
 
@@ -168,14 +169,14 @@ describe('completeUploadResult', () => {
       error: 'Upload already complete',
       errorCode: 'INVALID_STATUS',
     });
-    const r = await completeUploadResult(myIdentityId.toHexString(), mediaId);
+    const r = await completeUploadResult(identityOwner, mediaId);
     expect(r).toEqual({ ok: false, kind: 'bad_request', message: 'Upload already complete' });
   });
 
   test('succeeds for valid media id', async () => {
-    const r = await completeUploadResult(myIdentityId.toHexString(), mediaId);
+    const r = await completeUploadResult(identityOwner, mediaId);
     expect(r).toEqual({ ok: true, data: undefined });
-    expect(mockCompleteUpload).toHaveBeenCalledWith(mediaId, myIdentityId.toHexString());
+    expect(mockCompleteUpload).toHaveBeenCalledWith(mediaId, identityOwner);
   });
 });
 
@@ -192,12 +193,12 @@ describe('getUploadStatusResult', () => {
 
   test('returns not_found when doc missing', async () => {
     mockGetUploadStatus.mockResolvedValueOnce(null);
-    const r = await getUploadStatusResult(myIdentityId.toHexString(), mediaId);
+    const r = await getUploadStatusResult(identityOwner, mediaId);
     expect(r).toEqual({ ok: false, kind: 'not_found', message: 'Upload not found' });
   });
 
   test('maps status fields on success', async () => {
-    const r = await getUploadStatusResult(myIdentityId.toHexString(), mediaId);
+    const r = await getUploadStatusResult(identityOwner, mediaId);
     expect(r).toEqual({
       ok: true,
       data: {
@@ -210,7 +211,7 @@ describe('getUploadStatusResult', () => {
   });
 
   test('returns bad_request for invalid media id', async () => {
-    const r = await getUploadStatusResult(myIdentityId.toHexString(), undefined);
+    const r = await getUploadStatusResult(identityOwner, undefined);
     expect(r).toEqual({ ok: false, kind: 'bad_request' });
     expect(mockGetUploadStatus).not.toHaveBeenCalled();
   });
@@ -222,7 +223,7 @@ describe('getUploadStatusResult', () => {
       cdnUrl: undefined,
       rejectionReason: 'Policy violation',
     } as Awaited<ReturnType<typeof import('../../services/upload.service').getUploadStatus>>);
-    const r = await getUploadStatusResult(myIdentityId.toHexString(), mediaId);
+    const r = await getUploadStatusResult(identityOwner, mediaId);
     expect(r).toEqual({
       ok: true,
       data: {

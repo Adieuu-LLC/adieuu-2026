@@ -37,7 +37,7 @@ export function isVisualMediaType(contentType: string): boolean {
  * Upload purpose determines allowed content types, size limits,
  * and which processing flags are applied.
  */
-export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media' | 'conv_media' | 'conv_scan' | 'custom_emoji';
+export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media' | 'conv_media' | 'conv_scan' | 'custom_emoji' | 'ticket_attachment';
 
 /**
  * Processing status of a media upload.
@@ -73,6 +73,12 @@ export interface MediaUploadDocument extends BaseDocument {
    * and identities — see scanHash for the anonymous lookup key.
    */
   identityId?: ObjectId;
+
+  /**
+   * Account user that owns this upload (ticket attachments from account sessions).
+   * Mutually exclusive with identityId for ownership checks.
+   */
+  userId?: ObjectId;
 
   /** Upload purpose (determines limits and processing) */
   purpose: UploadPurpose;
@@ -184,6 +190,21 @@ export const UPLOAD_PURPOSE_CONFIG: Record<UploadPurpose, UploadPurposeConfig> =
     processingFlags: {
       stripExif: true,
       resize: { maxWidth: 64, maxHeight: 64 },
+      contentModeration: true,
+    },
+  },
+  ticket_attachment: {
+    maxBytes: 10 * 1024 * 1024, // 10 MB
+    allowedContentTypes: [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+      'video/mp4',
+    ],
+    processingFlags: {
+      stripExif: true,
+      resize: { maxWidth: 1920, maxHeight: 1080 },
       contentModeration: true,
     },
   },

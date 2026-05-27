@@ -120,6 +120,7 @@ function useAuthState(): AuthContextValue {
           const identitySession: SessionInfo = {
             isPlatformAdmin: (data.isPlatformAdmin as boolean) ?? false,
             isPlatformModerator: (data.isPlatformModerator as boolean) ?? false,
+            isPlatformSupportAgent: (data.isPlatformSupportAgent as boolean) ?? false,
             platformPermissions: (data.platformPermissions as string[]) ?? [],
             subscriptions: (data.subscriptions as SubscriptionTierId[]) ?? [],
             entitlements: (data.entitlements as string[]) ?? [],
@@ -133,6 +134,7 @@ function useAuthState(): AuthContextValue {
           ...response.data,
           isPlatformAdmin: false,
           isPlatformModerator: false,
+          isPlatformSupportAgent: false,
           platformPermissions: [],
         };
         setState({ status: 'authenticated', session: accountSession });

@@ -8,7 +8,7 @@
  * @module routes/uploads
  *
  * SECURITY:
- * - All user-facing endpoints require identity session
+ * - User-facing endpoints require identity session (or account session for ticket attachments)
  * - Process callback uses shared secret authentication
  * - Presigned URLs are short-lived and scoped per-object
  */
@@ -21,7 +21,10 @@ import {
   getUploadStatusResult,
   processCallbackResult,
   type UploadResult,
+  type RequestUploadSession,
+  type UploadOwner,
 } from './controller';
+import { requireAccountSession } from '../../services/session.service';
 
 const router = new Router();
 
@@ -43,24 +46,51 @@ function mapUploadFailure(
   }
 }
 
+async function resolveUploadSession(ctx: RouteContext, purpose?: string): Promise<
+  | { ok: true; session: RequestUploadSession; owner: UploadOwner }
+  | { ok: false; response: Response }
+> {
+  if (ctx.identitySession) {
+    const { identity, subscriptions, entitlements, isLifetime } = ctx.identitySession;
+    const identityId = identity._id.toHexString();
+    return {
+      ok: true,
+      session: {
+        type: 'identity',
+        identityId,
+        subscriptions,
+        entitlements,
+        isLifetime,
+      },
+      owner: { type: 'identity', id: identityId },
+    };
+  }
+
+  if (purpose === 'ticket_attachment') {
+    const accountSession = await requireAccountSession(ctx.request);
+    if (accountSession) {
+      return {
+        ok: true,
+        session: { type: 'account', userId: accountSession.userId },
+        owner: { type: 'account', id: accountSession.userId },
+      };
+    }
+  }
+
+  return { ok: false, response: ctx.errors.unauthorized() };
+}
+
 /**
  * POST /uploads/request - Request a presigned S3 upload URL
  *
  * @route POST /api/uploads/request
  */
 router.post('/uploads/request', async (ctx) => {
-  if (!ctx.identitySession) return ctx.errors.unauthorized();
-  const { identity, subscriptions, entitlements, isLifetime } = ctx.identitySession;
+  const body = ctx.body as { purpose?: string } | undefined;
+  const auth = await resolveUploadSession(ctx, body?.purpose);
+  if (!auth.ok) return auth.response;
 
-  const result = await requestUploadResult(
-    {
-      identityId: identity._id.toHexString(),
-      subscriptions,
-      entitlements,
-      isLifetime,
-    },
-    ctx.body,
-  );
+  const result = await requestUploadResult(auth.session, ctx.body);
   if (!result.ok) return mapUploadFailure(ctx, result);
   return success(result.data);
 });
@@ -71,10 +101,10 @@ router.post('/uploads/request', async (ctx) => {
  * @route POST /api/uploads/:mediaId/complete
  */
 router.post('/uploads/:mediaId/complete', async (ctx) => {
-  if (!ctx.identitySession) return ctx.errors.unauthorized();
-  const { identity } = ctx.identitySession;
+  const auth = await resolveUploadSession(ctx, 'ticket_attachment');
+  if (!auth.ok) return auth.response;
 
-  const result = await completeUploadResult(identity._id.toHexString(), ctx.params.mediaId);
+  const result = await completeUploadResult(auth.owner, ctx.params.mediaId);
   if (!result.ok) return mapUploadFailure(ctx, result);
   return success(undefined, 'Upload marked as complete.');
 });
@@ -85,10 +115,10 @@ router.post('/uploads/:mediaId/complete', async (ctx) => {
  * @route GET /api/uploads/:mediaId/status
  */
 router.get('/uploads/:mediaId/status', async (ctx) => {
-  if (!ctx.identitySession) return ctx.errors.unauthorized();
-  const { identity } = ctx.identitySession;
+  const auth = await resolveUploadSession(ctx, 'ticket_attachment');
+  if (!auth.ok) return auth.response;
 
-  const result = await getUploadStatusResult(identity._id.toHexString(), ctx.params.mediaId);
+  const result = await getUploadStatusResult(auth.owner, ctx.params.mediaId);
   if (!result.ok) return mapUploadFailure(ctx, result);
   return success(result.data);
 });

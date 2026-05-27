@@ -1,7 +1,7 @@
 import type { ApiResponse } from '../types';
 import type { HttpClient } from './http-client';
 
-export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media' | 'conv_media' | 'conv_scan' | 'custom_emoji';
+export type UploadPurpose = 'avatar' | 'banner' | 'dm_attachment' | 'space_media' | 'conv_media' | 'conv_scan' | 'custom_emoji' | 'ticket_attachment';
 
 export type UploadStatus = 'pending' | 'uploaded' | 'processing' | 'ready' | 'rejected' | 'failed';
 

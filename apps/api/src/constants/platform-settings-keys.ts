@@ -8,6 +8,7 @@ export const PLATFORM_SETTING_KEYS = {
   AUTH_ALLOWLIST_PHONE: 'platform-auth-allowlist-phone',
   ADMIN_IDENTITY_LIST: 'platform-admin-identity-list',
   MODERATOR_IDENTITY_LIST: 'platform-moderator-identity-list',
+  SUPPORT_AGENT_IDENTITY_LIST: 'platform-support-agent-identity-list',
   /** Upper bound for video duration (seconds); per-account limits must not exceed this. */
   MEDIA_MAX_VIDEO_DURATION_SECONDS: 'platform-media-max-video-duration-seconds',
   /** Whether IP-based geo lookups are enabled at runtime. */

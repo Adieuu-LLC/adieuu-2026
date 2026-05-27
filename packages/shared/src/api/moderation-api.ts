@@ -10,6 +10,17 @@ import type {
   ReportListResponse,
   ResolveReportParams,
 } from './moderation-types';
+import type {
+  CloseSupportTicketParams,
+  ModerationTicketDetailResponse,
+  ModerationTicketListParams,
+  ModerationTicketListResponse,
+  PublicSupportTicket,
+  PublicSupportTicketEvent,
+  ReopenSupportTicketParams,
+  ResolveSupportTicketParams,
+  StaffTicketCommentParams,
+} from './support-ticket-types';
 
 export class ModerationApi {
   constructor(private client: HttpClient) {}
@@ -72,5 +83,55 @@ export class ModerationApi {
 
   async reopenReport(id: string, reason?: string): Promise<ApiResponse<PublicReport>> {
     return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/reopen`, { reason });
+  }
+
+  async listTickets(params?: ModerationTicketListParams): Promise<ApiResponse<ModerationTicketListResponse>> {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set('page', String(params.page));
+    if (params?.limit) qs.set('limit', String(params.limit));
+    if (params?.status) qs.set('status', params.status);
+    if (params?.assigned) qs.set('assigned', params.assigned);
+    if (params?.category) qs.set('category', params.category);
+    const query = qs.toString();
+    return this.client.get(`/api/moderation/tickets${query ? `?${query}` : ''}`);
+  }
+
+  async getTicket(id: string): Promise<ApiResponse<ModerationTicketDetailResponse>> {
+    return this.client.get(`/api/moderation/tickets/${encodeURIComponent(id)}`);
+  }
+
+  async assignTicket(id: string, identityId: string): Promise<ApiResponse<PublicSupportTicket>> {
+    return this.client.post(`/api/moderation/tickets/${encodeURIComponent(id)}/assign`, { identityId });
+  }
+
+  async unassignTicket(id: string): Promise<ApiResponse<PublicSupportTicket>> {
+    return this.client.post(`/api/moderation/tickets/${encodeURIComponent(id)}/unassign`, {});
+  }
+
+  async escalateTicket(id: string): Promise<ApiResponse<PublicSupportTicket>> {
+    return this.client.post(`/api/moderation/tickets/${encodeURIComponent(id)}/escalate`, {});
+  }
+
+  async addTicketComment(
+    id: string,
+    params: StaffTicketCommentParams,
+  ): Promise<ApiResponse<PublicSupportTicketEvent>> {
+    return this.client.post(`/api/moderation/tickets/${encodeURIComponent(id)}/comment`, params);
+  }
+
+  async resolveTicket(id: string, params: ResolveSupportTicketParams): Promise<ApiResponse<PublicSupportTicket>> {
+    return this.client.post(`/api/moderation/tickets/${encodeURIComponent(id)}/resolve`, params);
+  }
+
+  async closeTicket(id: string, params: CloseSupportTicketParams): Promise<ApiResponse<PublicSupportTicket>> {
+    return this.client.post(`/api/moderation/tickets/${encodeURIComponent(id)}/close`, params);
+  }
+
+  async reopenTicket(id: string, params?: ReopenSupportTicketParams): Promise<ApiResponse<PublicSupportTicket>> {
+    return this.client.post(`/api/moderation/tickets/${encodeURIComponent(id)}/reopen`, params ?? {});
+  }
+
+  async listSupportStaff(): Promise<ApiResponse<{ staff: Array<{ identityId: string; displayName: string; username: string }> }>> {
+    return this.client.get('/api/moderation/support-staff');
   }
 }

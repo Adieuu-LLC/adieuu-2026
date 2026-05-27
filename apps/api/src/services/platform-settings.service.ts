@@ -206,6 +206,44 @@ export async function isPlatformModerator(identityId: string | ObjectId): Promis
 }
 
 /**
+ * Whether the identity is in the platform support agent list.
+ * Same semantics as isPlatformModerator — reads from DB each time.
+ */
+export async function isPlatformSupportAgent(identityId: string | ObjectId): Promise<boolean> {
+  const repo = getPlatformSettingsRepository();
+  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.SUPPORT_AGENT_IDENTITY_LIST);
+
+  if (!doc) return false;
+
+  if (doc.valueType !== 'objectIdArray' || !Array.isArray(doc.value)) {
+    elog.warn('Platform support agent list found, but appears invalid.');
+    return false;
+  }
+
+  const currentId = typeof identityId === 'string' ? identityId.toLowerCase() : identityId.toHexString().toLowerCase();
+
+  for (const entry of doc.value) {
+    if (entry instanceof ObjectId) {
+      if (entry.toHexString().toLowerCase() === currentId) return true;
+      continue;
+    }
+    if (typeof entry === 'string') {
+      if (isValidObjectId(entry) && entry.toLowerCase() === currentId) return true;
+      continue;
+    }
+    if (entry && typeof entry === 'object' && '_id' in entry) {
+      try {
+        const oid = entry as ObjectId;
+        if (oid.toHexString().toLowerCase() === currentId) return true;
+      } catch {
+        elog.warn('Invalid ObjectId in platform support agent list', { value: entry });
+      }
+    }
+  }
+  return false;
+}
+
+/**
  * Validates and coerces JSON body values into stored platform setting values.
  */
 export function coercePlatformSettingValue(
@@ -471,6 +509,27 @@ export async function ensureModeratorIdentityListPlatformSettingExists(): Promis
   });
 
   elog.info('Created default platform moderator list setting', { key });
+}
+
+/**
+ * Ensures the platform support agent identity list setting exists with an empty list.
+ * Idempotent — safe to call on every startup.
+ */
+export async function ensureSupportAgentIdentityListPlatformSettingExists(): Promise<void> {
+  const repo = getPlatformSettingsRepository();
+  const key = PLATFORM_SETTING_KEYS.SUPPORT_AGENT_IDENTITY_LIST;
+  const existing = await repo.findByKey(key);
+  if (existing) return;
+
+  await upsertPlatformSetting({
+    key,
+    description: 'Platform support agent identity IDs',
+    valueType: 'objectIdArray',
+    value: [],
+    lastUpdatedBy: PLATFORM_SETTING_BOOTSTRAP_ACTOR,
+  });
+
+  elog.info('Created default platform support agent list setting', { key });
 }
 
 /**

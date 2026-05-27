@@ -28,6 +28,14 @@ export class MediaUploadRepository extends BaseRepository<MediaUploadDocument> {
     return await this.findOne({ mediaId, identityId: objectId });
   }
 
+  async findByMediaIdAndUser(
+    mediaId: string,
+    userId: string | ObjectId,
+  ): Promise<MediaUploadDocument | null> {
+    const objectId = this.toObjectId(userId);
+    return await this.findOne({ mediaId, userId: objectId });
+  }
+
   async findByScanHash(scanHash: string): Promise<MediaUploadDocument | null> {
     return await this.findOne({ scanHash });
   }
@@ -105,6 +113,16 @@ export class MediaUploadRepository extends BaseRepository<MediaUploadDocument> {
 
     return await this.count({
       identityId: objectId,
+      createdAt: { $gte: since },
+    } as Parameters<typeof this.count>[0]);
+  }
+
+  async countRecentByUser(userId: string | ObjectId, windowSeconds: number): Promise<number> {
+    const objectId = this.toObjectId(userId);
+    const since = new Date(Date.now() - windowSeconds * 1000);
+
+    return await this.count({
+      userId: objectId,
       createdAt: { $gte: since },
     } as Parameters<typeof this.count>[0]);
   }

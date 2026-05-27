@@ -17,6 +17,7 @@ import { ModerationApi } from './moderation-api';
 import { NotificationsApi } from './notifications-api';
 import { ReactionsApi } from './reactions-api';
 import { ReportsApi } from './reports-api';
+import { SupportTicketApi } from './support-ticket-api';
 import { ThemesApi } from './themes-api';
 import { UploadApi } from './upload-api';
 import { UsersApi } from './users-api';
@@ -41,6 +42,7 @@ export function createApiClient(config: ApiClientConfig) {
     admin: new AdminApi(client),
     moderation: new ModerationApi(client),
     reports: new ReportsApi(client),
+    supportTickets: new SupportTicketApi(client),
     themes: new ThemesApi(client),
     uploads: new UploadApi(client),
     e2eUploads: new E2EUploadApi(client),

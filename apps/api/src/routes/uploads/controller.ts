@@ -18,7 +18,7 @@ import {
 } from '../../services/upload.service';
 
 export const RequestUploadSchema = z.object({
-  purpose: z.enum(['avatar', 'banner', 'dm_attachment', 'space_media', 'custom_emoji']),
+  purpose: z.enum(['avatar', 'banner', 'dm_attachment', 'space_media', 'custom_emoji', 'ticket_attachment']),
   contentType: z.string().min(1).max(100),
   contentLength: z.number().int().positive(),
 });
@@ -54,12 +54,22 @@ export function parseMediaId(raw: string | undefined): ParseMediaIdResult {
   return { ok: true, mediaId: raw };
 }
 
-export type RequestUploadSession = {
-  identityId: string;
-  subscriptions?: SubscriptionTierId[];
-  entitlements?: string[];
-  isLifetime?: boolean;
-};
+export type RequestUploadSession =
+  | {
+      type: 'identity';
+      identityId: string;
+      subscriptions?: SubscriptionTierId[];
+      entitlements?: string[];
+      isLifetime?: boolean;
+    }
+  | {
+      type: 'account';
+      userId: string;
+    };
+
+export type UploadOwner =
+  | { type: 'identity'; id: string }
+  | { type: 'account'; id: string };
 
 export type RequestUploadData = {
   mediaId: string;
@@ -80,10 +90,14 @@ export async function requestUploadResult(
     purpose: parseResult.data.purpose as UploadPurpose,
     contentType: parseResult.data.contentType,
     contentLength: parseResult.data.contentLength,
-    identityId: session.identityId,
-    subscriptions: session.subscriptions,
-    entitlements: session.entitlements,
-    isLifetime: session.isLifetime,
+    ...(session.type === 'identity'
+      ? {
+          identityId: session.identityId,
+          subscriptions: session.subscriptions,
+          entitlements: session.entitlements,
+          isLifetime: session.isLifetime,
+        }
+      : { userId: session.userId }),
   });
 
   if (!result.success) {
@@ -108,7 +122,7 @@ export async function requestUploadResult(
 }
 
 export async function completeUploadResult(
-  identityId: string,
+  owner: UploadOwner,
   rawMediaId: string | undefined,
 ): Promise<UploadResult<undefined>> {
   const idParsed = parseMediaId(rawMediaId);
@@ -116,7 +130,7 @@ export async function completeUploadResult(
     return { ok: false, kind: 'bad_request' };
   }
 
-  const result = await completeUpload(idParsed.mediaId, identityId);
+  const result = await completeUpload(idParsed.mediaId, owner);
   if (!result.success) {
     if (result.errorCode === 'NOT_FOUND') {
       return { ok: false, kind: 'not_found', message: result.error };
@@ -135,7 +149,7 @@ export type UploadStatusData = {
 };
 
 export async function getUploadStatusResult(
-  identityId: string,
+  owner: UploadOwner,
   rawMediaId: string | undefined,
 ): Promise<UploadResult<UploadStatusData>> {
   const idParsed = parseMediaId(rawMediaId);
@@ -143,7 +157,7 @@ export async function getUploadStatusResult(
     return { ok: false, kind: 'bad_request' };
   }
 
-  const doc = await getUploadStatus(idParsed.mediaId, identityId);
+  const doc = await getUploadStatus(idParsed.mediaId, owner);
   if (!doc) {
     return { ok: false, kind: 'not_found', message: 'Upload not found' };
   }

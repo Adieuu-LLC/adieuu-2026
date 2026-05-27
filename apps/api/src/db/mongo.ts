@@ -360,6 +360,10 @@ export const Collections = {
   PLATFORM_REPORTS: 'platform_reports',
   /** Timeline events for platform reports (comments, state transitions, actions) */
   PLATFORM_REPORT_EVENTS: 'platform_report_events',
+  /** User support tickets */
+  SUPPORT_TICKETS: 'support_tickets',
+  /** Timeline events for support tickets */
+  SUPPORT_TICKET_EVENTS: 'support_ticket_events',
   /** Per-accountHash identity creation counts (unique index on accountHash) */
   IDENTITY_COUNTS: 'identity_counts',
   /** Anonymised Klipy search term logs (no identity linkage) */
@@ -676,6 +680,16 @@ async function createIndexes(): Promise<void> {
   const sponsorshipLogs = database.collection(Collections.SPONSORSHIP_LOGS);
   await sponsorshipLogs.createIndex({ recipientUserId: 1, grantedAt: -1 });
   await sponsorshipLogs.createIndex({ requestId: 1 }, { unique: true });
+
+  const supportTickets = database.collection(Collections.SUPPORT_TICKETS);
+  await supportTickets.createIndex({ ticketId: 1 }, { unique: true });
+  await supportTickets.createIndex({ status: 1, createdAt: -1 });
+  await supportTickets.createIndex({ assignedTo: 1, status: 1 });
+  await supportTickets.createIndex({ submitterType: 1, submitterId: 1, createdAt: -1 });
+
+  const supportTicketEvents = database.collection(Collections.SUPPORT_TICKET_EVENTS);
+  await supportTicketEvents.createIndex({ ticketObjectId: 1, createdAt: 1 });
+  await supportTicketEvents.createIndex({ ticketId: 1, createdAt: 1 });
 
   elog.debug('MongoDB indexes created/verified');
 }

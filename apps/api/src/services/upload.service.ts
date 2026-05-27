@@ -62,6 +62,7 @@ function contentTypeToExtension(contentType: string): string {
     'image/png': 'png',
     'image/webp': 'webp',
     'image/gif': 'gif',
+    'video/mp4': 'mp4',
   };
   return map[contentType] ?? 'bin';
 }
@@ -70,7 +71,8 @@ export interface RequestUploadInput {
   purpose: UploadPurpose;
   contentType: string;
   contentLength: number;
-  identityId: string;
+  identityId?: string;
+  userId?: string;
   /** Active subscription tiers (from identity session) for limit resolution. */
   subscriptions?: SubscriptionTierId[];
   /** Entitlements merged from grants and identity overrides (e.g. `founder`). */
@@ -145,12 +147,19 @@ export async function requestUpload(
     };
   }
 
+  if (!input.identityId && !input.userId) {
+    return {
+      success: false,
+      error: 'Upload owner required',
+      errorCode: 'INVALID_CONTENT_TYPE',
+    };
+  }
+
   const repo = getMediaUploadRepository();
 
-  const recentCount = await repo.countRecentByIdentity(
-    input.identityId,
-    UPLOAD_RATE_LIMIT.windowSeconds
-  );
+  const recentCount = input.identityId
+    ? await repo.countRecentByIdentity(input.identityId, UPLOAD_RATE_LIMIT.windowSeconds)
+    : await repo.countRecentByUser(input.userId!, UPLOAD_RATE_LIMIT.windowSeconds);
   if (recentCount >= UPLOAD_RATE_LIMIT.maxRequests) {
     return {
       success: false,
@@ -170,7 +179,8 @@ export async function requestUpload(
     Metadata: {
       'media-id': mediaId,
       purpose: input.purpose,
-      'identity-id': input.identityId,
+      ...(input.identityId ? { 'identity-id': input.identityId } : {}),
+      ...(input.userId ? { 'user-id': input.userId } : {}),
       'strip-exif': String(purposeConfig.processingFlags.stripExif),
       'content-moderation': String(purposeConfig.processingFlags.contentModeration),
       ...(purposeConfig.processingFlags.resize
@@ -189,7 +199,8 @@ export async function requestUpload(
   const { ObjectId } = await import('mongodb');
   await repo.create({
     mediaId,
-    identityId: new ObjectId(input.identityId),
+    ...(input.identityId ? { identityId: new ObjectId(input.identityId) } : {}),
+    ...(input.userId ? { userId: new ObjectId(input.userId) } : {}),
     purpose: input.purpose,
     s3Key,
     contentType: input.contentType,
@@ -218,10 +229,13 @@ export async function requestUpload(
  */
 export async function completeUpload(
   mediaId: string,
-  identityId: string
+  owner: { type: 'identity'; id: string } | { type: 'account'; id: string },
 ): Promise<CompleteUploadResult> {
   const repo = getMediaUploadRepository();
-  const doc = await repo.findByMediaIdAndIdentity(mediaId, identityId);
+  const doc =
+    owner.type === 'identity'
+      ? await repo.findByMediaIdAndIdentity(mediaId, owner.id)
+      : await repo.findByMediaIdAndUser(mediaId, owner.id);
 
   if (!doc) {
     return { success: false, error: 'Upload not found', errorCode: 'NOT_FOUND' };
@@ -247,10 +261,12 @@ export async function completeUpload(
  */
 export async function getUploadStatus(
   mediaId: string,
-  identityId: string
+  owner: { type: 'identity'; id: string } | { type: 'account'; id: string },
 ): Promise<MediaUploadDocument | null> {
   const repo = getMediaUploadRepository();
-  return await repo.findByMediaIdAndIdentity(mediaId, identityId);
+  return owner.type === 'identity'
+    ? await repo.findByMediaIdAndIdentity(mediaId, owner.id)
+    : await repo.findByMediaIdAndUser(mediaId, owner.id);
 }
 
 /**
