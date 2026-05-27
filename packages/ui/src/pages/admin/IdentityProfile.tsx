@@ -15,6 +15,7 @@ import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ModerationCategorySelect } from '../../components/ModerationCategorySelect';
+import { useUntilCountdown } from '../../hooks/useUntilCountdown';
 
 export function AdminIdentityProfile() {
   const { t } = useTranslation();
@@ -243,7 +244,10 @@ export function AdminIdentityProfile() {
           )}
           {profile.moderation.reason && <p>{profile.moderation.reason}</p>}
           {profile.moderation.suspendedUntil && (
-            <p>{t('admin.identities.suspendedUntil')}: {new Date(profile.moderation.suspendedUntil).toLocaleString()}</p>
+            <p>
+              {t('admin.identities.timeRemaining')}:{' '}
+              <SuspensionCountdown isoTarget={profile.moderation.suspendedUntil} onExpired={loadProfile} />
+            </p>
           )}
         </div>
       )}
@@ -302,7 +306,6 @@ export function AdminIdentityProfile() {
               <thead>
                 <tr>
                   <th>{t('admin.identities.fields.device')}</th>
-                  <th>{t('admin.identities.fields.ip')}</th>
                   <th>{t('admin.identities.fields.lastActivity')}</th>
                   <th>{t('admin.identities.fields.created')}</th>
                 </tr>
@@ -311,7 +314,6 @@ export function AdminIdentityProfile() {
                 {sessions.map((s) => (
                   <tr key={s.id}>
                     <td>{s.userAgent ? parseUA(s.userAgent) : '\u2014'}</td>
-                    <td className="admin-table-mono">{s.ipAddress || '\u2014'}</td>
                     <td>{new Date(s.lastActivityAt).toLocaleString()}</td>
                     <td>{new Date(s.createdAt).toLocaleString()}</td>
                   </tr>
@@ -473,6 +475,24 @@ export function AdminIdentityProfile() {
 }
 
 // --- Helpers ---
+
+function SuspensionCountdown({
+  isoTarget,
+  onExpired,
+}: {
+  isoTarget: string;
+  onExpired: () => void;
+}) {
+  const { label, isExpired } = useUntilCountdown(isoTarget);
+
+  useEffect(() => {
+    if (isExpired) onExpired();
+  }, [isExpired, onExpired]);
+
+  if (isExpired) return null;
+
+  return <span style={{ fontVariantNumeric: 'tabular-nums' }}>{label}</span>;
+}
 
 function StatusBadge({ status }: { status: 'active' | 'suspended' | 'banned' }) {
   const { t } = useTranslation();

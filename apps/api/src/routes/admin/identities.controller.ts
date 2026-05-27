@@ -12,7 +12,6 @@ import { getSessionRepository } from '../../repositories/session.repository';
 import { getAuditLogRepository } from '../../repositories/audit.repository';
 import { getReportRepository, type ReportListResult } from '../../repositories/report.repository';
 import { isDeletedIdent } from '../../models/identity';
-import { maskIpAddress } from '../../models/session';
 import type { IdentityDocument } from '../../models/identity';
 import type { SessionDocument } from '../../models/session';
 
@@ -95,7 +94,6 @@ export interface AdminIdentitySessionItem {
   createdAt: string;
   lastActivityAt: string;
   userAgent?: string;
-  ipAddress?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -158,7 +156,6 @@ function toAdminSession(session: SessionDocument): AdminIdentitySessionItem {
     createdAt: session.createdAt.toISOString(),
     lastActivityAt: session.lastActivityAt.toISOString(),
     userAgent: session.userAgent,
-    ipAddress: maskIpAddress(session.ipAddress),
   };
 }
 

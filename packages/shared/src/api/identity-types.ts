@@ -99,8 +99,6 @@ export interface PublicIdentitySession {
   lastActivityAt: string;
   /** User agent (browser/device info) */
   userAgent?: string;
-  /** IP address (partially masked for privacy) */
-  ipAddress?: string;
   /** Whether this is the current session */
   isCurrent?: boolean;
 }

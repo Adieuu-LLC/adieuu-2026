@@ -217,7 +217,6 @@ export interface PublicIdentitySession {
   createdAt: string;
   lastActivityAt: string;
   userAgent?: string;
-  ipAddress?: string;
   isCurrent?: boolean;
 }
 
@@ -233,7 +232,6 @@ export function toPublicIdentitySession(
     createdAt: doc.createdAt.toISOString(),
     lastActivityAt: doc.lastActivityAt.toISOString(),
     userAgent: doc.userAgent,
-    ipAddress: maskIpAddress(doc.ipAddress),
     isCurrent: currentSessionId ? doc.sessionId === currentSessionId : undefined,
   };
 }

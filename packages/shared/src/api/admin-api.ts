@@ -209,7 +209,6 @@ export interface AdminIdentitySessionItem {
   createdAt: string;
   lastActivityAt: string;
   userAgent?: string;
-  ipAddress?: string;
 }
 
 export interface AdminIdentityReportItem {

@@ -136,7 +136,6 @@ describe('session.service', () => {
       const identityId = new ObjectId();
       const result = await createIdentitySession(identityId, {
         userAgent: 'test-agent',
-        ipAddress: '10.0.0.1',
       });
 
       expect(mockSessionRepo.createSession).toHaveBeenCalledWith(
@@ -145,7 +144,6 @@ describe('session.service', () => {
           type: 'identity',
           identityId,
           userAgent: 'test-agent',
-          ipAddress: '10.0.0.1',
         }),
       );
       expect(result.sessionId).toBe('mock-session-id-token');

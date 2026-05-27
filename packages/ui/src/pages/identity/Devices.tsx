@@ -563,7 +563,6 @@ function IdentitySessionsList() {
                 <span>
                   {t('identity.sessions.created', 'Created')}: {new Date(session.createdAt).toLocaleDateString()}
                 </span>
-                {session.ipAddress && <span>IP: {session.ipAddress}</span>}
               </div>
             </div>
             {!session.isCurrent && (

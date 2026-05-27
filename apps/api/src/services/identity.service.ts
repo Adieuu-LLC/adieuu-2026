@@ -234,7 +234,6 @@ export async function createIdentity(
     autoLogin?: boolean;
     metadata?: {
       userAgent?: string;
-      ipAddress?: string;
       maxVideoDurationSeconds?: number;
       subscriptions?: SubscriptionTierId[];
       entitlements?: string[];
@@ -340,7 +339,6 @@ export async function loginToIdentity(
   passphrase: string,
   metadata?: {
     userAgent?: string;
-    ipAddress?: string;
     maxVideoDurationSeconds?: number;
     subscriptions?: SubscriptionTierId[];
     entitlements?: string[];

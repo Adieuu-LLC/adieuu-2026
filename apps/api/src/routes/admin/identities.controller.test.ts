@@ -352,7 +352,8 @@ describe('Admin Identities Controller', () => {
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.sessions).toHaveLength(1);
-        expect(result.sessions[0]!.ipAddress).toBe('192.168.*.*');
+        expect(result.sessions[0]!.id).toBe('sess-1');
+        expect(result.sessions[0]!.userAgent).toBe('Mozilla/5.0');
       }
     });
   });

@@ -53,7 +53,7 @@ import {
 import { verifyDeviceStoredStaticKeyAttestation } from '../../services/device-static-attestation.service';
 import { toPublicIdentitySession } from '../../models/session';
 import { applyPrivacyFilter, areFriends } from './profile.controller';
-import { getClientIp } from '../auth/controller';
+
 import { z } from '@adieuu/shared/schemas';
 import { getKeyBundleRepository } from '../../repositories/key-bundle.repository';
 import { deriveBundleId } from '../../utils/crypto';
@@ -189,7 +189,6 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
     return ctx.errors.validationFailed();
   }
 
-  const clientIp = getClientIp(ctx.request);
   const userAgent = ctx.request.headers.get('User-Agent') ?? undefined;
 
   const result = await createIdentity(
@@ -202,7 +201,6 @@ export async function createIdentityCtrl(ctx: RouteContext): Promise<Response> {
       autoLogin: true,
       metadata: {
         userAgent,
-        ipAddress: clientIp,
         maxVideoDurationSeconds: tokenPayload.maxVideoDurationSeconds,
         subscriptions: tokenPayload.subscriptions,
         entitlements: tokenPayload.entitlements,
@@ -252,7 +250,6 @@ export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
     return ctx.errors.unauthorized();
   }
 
-  const clientIp = getClientIp(ctx.request);
   const userAgent = ctx.request.headers.get('User-Agent') ?? undefined;
 
   const result = await loginToIdentity(
@@ -260,7 +257,6 @@ export async function loginIdentityCtrl(ctx: RouteContext): Promise<Response> {
     passphrase,
     {
       userAgent,
-      ipAddress: clientIp,
       maxVideoDurationSeconds: tokenPayload.maxVideoDurationSeconds,
       subscriptions: tokenPayload.subscriptions,
       entitlements: tokenPayload.entitlements,

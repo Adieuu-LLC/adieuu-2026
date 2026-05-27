@@ -217,6 +217,7 @@ export const admin = {
       suspendedBanner: 'This identity is suspended.',
       moderationCategory: 'Category',
       suspendedUntil: 'Suspended until',
+      timeRemaining: 'Time remaining',
       status: {
         active: 'Active',
         suspended: 'Suspended',
@@ -248,7 +249,6 @@ export const admin = {
         friends: 'Friends',
         achievementsEarned: 'Achievements Earned',
         device: 'Device',
-        ip: 'IP Address',
         lastActivity: 'Last Activity',
         created: 'Created',
         overrides: 'Overrides',

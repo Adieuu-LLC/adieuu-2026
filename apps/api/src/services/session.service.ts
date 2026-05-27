@@ -137,7 +137,6 @@ export async function createIdentitySession(
   identityId: ObjectId,
   metadata?: {
     userAgent?: string;
-    ipAddress?: string;
     /** From verified account bridging token; stored on the identity session only. */
     maxVideoDurationSeconds?: number;
     subscriptions?: SubscriptionTierId[];
@@ -162,7 +161,6 @@ export async function createIdentitySession(
     identityId,
     expiresAt,
     userAgent: metadata?.userAgent,
-    ipAddress: metadata?.ipAddress,
     maxVideoDurationSeconds: metadata?.maxVideoDurationSeconds,
     subscriptions: metadata?.subscriptions,
     entitlements: metadata?.entitlements,
