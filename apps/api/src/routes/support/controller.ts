@@ -19,10 +19,12 @@ import { getSupportTicketEventRepository } from '../../repositories/support-tick
 import {
   createSupportTicket,
   addSubmitterComment,
+  resolveTicketBySubmitter,
   getAttachmentUrls,
   isTicketOwner,
   type SubmitterContext,
 } from '../../services/support-ticket.service';
+import { getIdentityRepository } from '../../repositories/identity.repository';
 import {
   getSessionFromRequest,
   type AccountSessionData,
@@ -51,6 +53,10 @@ export const CreateTicketSchema = z.object({
 
 export const CommentSchema = z.object({
   body: z.string().min(1).max(MAX_TICKET_BODY_LENGTH),
+});
+
+export const UserResolveSchema = z.object({
+  note: z.string().max(500).optional(),
 });
 
 export type PublicTicket = ReturnType<typeof toPublicTicket>;
@@ -111,9 +117,20 @@ export function toPublicTicketEvent(doc: SupportTicketEventDocument) {
   };
 }
 
-async function enrichTicket(doc: SupportTicketDocument): Promise<PublicTicket> {
+async function enrichTicket(doc: SupportTicketDocument): Promise<PublicTicket & { assignedToName?: string }> {
   const attachments = await getAttachmentUrls(doc.attachmentMediaIds);
-  return toPublicTicket(doc, attachments);
+  const ticket = toPublicTicket(doc, attachments);
+
+  let assignedToName: string | undefined;
+  if (doc.assignedTo) {
+    const identityRepo = getIdentityRepository();
+    const identity = await identityRepo.findByIdentityId(doc.assignedTo);
+    if (identity) {
+      assignedToName = identity.displayName || identity.username || undefined;
+    }
+  }
+
+  return { ...ticket, assignedToName };
 }
 
 export async function createTicketResult(
@@ -184,6 +201,7 @@ export async function listOwnTicketsResult(
 export type TicketDetailData = {
   ticket: PublicTicket;
   events: PublicTicketEvent[];
+  identityProfiles: Record<string, { displayName: string; username: string; avatarUrl?: string }>;
 };
 
 export async function getOwnTicketResult(
@@ -203,11 +221,38 @@ export async function getOwnTicketResult(
   const eventRepo = getSupportTicketEventRepository();
   const events = await eventRepo.listByTicketObjectId(ticket._id, { includeInternal: false });
 
+  const identityIds = new Set<string>();
+  if (ticket.assignedTo) identityIds.add(ticket.assignedTo);
+  if (submitter.type === 'identity') identityIds.add(submitter.id);
+  for (const ev of events) {
+    if (ev.actorType === 'identity') {
+      identityIds.add(ev.actorId);
+    }
+  }
+
+  const identityRepo = getIdentityRepository();
+  const identityProfiles: TicketDetailData['identityProfiles'] = {};
+  await Promise.all(
+    [...identityIds].map(async (iid) => {
+      try {
+        const identity = await identityRepo.findByIdentityId(iid);
+        if (identity) {
+          identityProfiles[iid] = {
+            displayName: identity.displayName ?? '',
+            username: identity.username ?? '',
+            avatarUrl: identity.avatarUrl,
+          };
+        }
+      } catch { /* swallow lookup failures */ }
+    }),
+  );
+
   return {
     ok: true,
     data: {
       ticket: await enrichTicket(ticket),
       events: events.map(toPublicTicketEvent),
+      identityProfiles,
     },
   };
 }
@@ -243,4 +288,31 @@ export async function addOwnCommentResult(
   }
 
   return { ok: true, data: toPublicTicketEvent(event) };
+}
+
+export async function resolveOwnTicketResult(
+  submitter: SubmitterContext,
+  ticketId: string,
+  body: unknown,
+): Promise<SupportResult> {
+  const parsed = UserResolveSchema.safeParse(body);
+  if (!parsed.success) {
+    return { ok: false, kind: 'validation_failed' };
+  }
+
+  const result = await resolveTicketBySubmitter(submitter, ticketId, parsed.data.note);
+  if (!result.success) {
+    switch (result.errorCode) {
+      case 'NOT_FOUND':
+        return { ok: false, kind: 'not_found' };
+      case 'FORBIDDEN':
+        return { ok: false, kind: 'forbidden' };
+      case 'INVALID_STATUS':
+        return { ok: false, kind: 'bad_request', message: result.error };
+      default:
+        return { ok: false, kind: 'bad_request', message: result.error };
+    }
+  }
+
+  return { ok: true, data: undefined };
 }

@@ -10,6 +10,7 @@ import {
   listOwnTicketsResult,
   getOwnTicketResult,
   addOwnCommentResult,
+  resolveOwnTicketResult,
   type SupportResult,
 } from './controller';
 
@@ -77,6 +78,15 @@ router.post('/support/tickets/:ticketId/comments', async (ctx) => {
   if (!auth.ok) return auth.response;
 
   const result = await addOwnCommentResult(auth.submitter, ctx.params.ticketId ?? '', ctx.body);
+  if (!result.ok) return mapSupportFailure(ctx, result);
+  return success(result.data);
+});
+
+router.post('/support/tickets/:ticketId/resolve', async (ctx) => {
+  const auth = await requireSubmitter(ctx);
+  if (!auth.ok) return auth.response;
+
+  const result = await resolveOwnTicketResult(auth.submitter, ctx.params.ticketId ?? '', ctx.body);
   if (!result.ok) return mapSupportFailure(ctx, result);
   return success(result.data);
 });

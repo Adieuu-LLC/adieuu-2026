@@ -8,6 +8,7 @@ import type {
   SupportTicketDetailResponse,
   SupportTicketListParams,
   SupportTicketListResponse,
+  UserResolveSupportTicketParams,
 } from './support-ticket-types';
 
 export class SupportTicketApi {
@@ -34,6 +35,13 @@ export class SupportTicketApi {
     params: AddSupportTicketCommentParams,
   ): Promise<ApiResponse<PublicSupportTicketEvent>> {
     return this.client.post(`/api/support/tickets/${encodeURIComponent(ticketId)}/comments`, params);
+  }
+
+  async resolveTicket(
+    ticketId: string,
+    params: UserResolveSupportTicketParams,
+  ): Promise<ApiResponse<void>> {
+    return this.client.post(`/api/support/tickets/${encodeURIComponent(ticketId)}/resolve`, params);
   }
 }
 

@@ -21,6 +21,8 @@ import { getSupportTicketRepository } from '../repositories/support-ticket.repos
 import { getSupportTicketEventRepository } from '../repositories/support-ticket-event.repository';
 import { getMediaUploadRepository } from '../repositories/media-upload.repository';
 import { checkRateLimit, type RateLimitConfig } from './rate-limit.service';
+import { createNotification } from './notification.service';
+import elog from '../utils/adieuuLogger';
 
 const TICKET_CREATE_RATE_LIMIT: RateLimitConfig = { limit: 3, windowSeconds: 3600 };
 
@@ -234,6 +236,13 @@ export async function addSubmitterComment(
     body,
   });
 
+  if (ticket.assignedTo) {
+    void emitTicketNotification(ticket.assignedTo, 'support_ticket_user_reply', {
+      ticketId: ticket.ticketId,
+      title: ticket.title,
+    });
+  }
+
   return { success: true, data: { eventId: event._id.toHexString() } };
 }
 
@@ -275,6 +284,14 @@ export async function addStaffComment(
       actorType: 'system',
       actorId: 'system',
       metadata: { from: 'open', to: 'in_progress' },
+    });
+  }
+
+  if (visibility === 'public' && ticket.submitterType === 'identity') {
+    void emitTicketNotification(ticket.submitterId, 'support_ticket_reply', {
+      ticketId: ticket.ticketId,
+      title: ticket.title,
+      staffIdentityId: actorIdentityId,
     });
   }
 
@@ -417,6 +434,45 @@ export async function resolveTicket(
   return { success: true, data: undefined };
 }
 
+export async function resolveTicketBySubmitter(
+  submitter: SubmitterContext,
+  ticketId: string,
+  note?: string,
+): Promise<ServiceResult> {
+  const repo = getSupportTicketRepository();
+  const ticket = await repo.findByTicketId(ticketId);
+  if (!ticket) {
+    return { success: false, error: 'Ticket not found', errorCode: 'NOT_FOUND' };
+  }
+
+  if (!isTicketOwner(submitter, ticket)) {
+    return { success: false, error: 'Forbidden', errorCode: 'FORBIDDEN' };
+  }
+
+  if (TERMINAL_STATUSES.includes(ticket.status)) {
+    return { success: false, error: 'Invalid status', errorCode: 'INVALID_STATUS' };
+  }
+
+  const resolutionNote = note || 'Resolved by submitter';
+  const updated = await repo.resolve(ticket._id.toHexString(), submitter.id, resolutionNote);
+  if (!updated) {
+    return { success: false, error: 'Ticket not found', errorCode: 'NOT_FOUND' };
+  }
+
+  const eventRepo = getSupportTicketEventRepository();
+  await eventRepo.createEvent({
+    ticketObjectId: ticket._id,
+    ticketId: ticket.ticketId,
+    eventType: 'status_change',
+    actorType: actorTypeFromSubmitter(submitter.type),
+    actorId: submitter.id,
+    body: resolutionNote,
+    metadata: { from: ticket.status, to: 'resolved' },
+  });
+
+  return { success: true, data: undefined };
+}
+
 export async function closeTicket(
   actorIdentityId: string,
   ticketObjectId: string,
@@ -483,6 +539,18 @@ export async function reopenTicket(
   });
 
   return { success: true, data: undefined };
+}
+
+async function emitTicketNotification(
+  recipientIdentityId: string,
+  type: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await createNotification(recipientIdentityId, type, data);
+  } catch (err) {
+    elog.warn('Failed to emit ticket notification', { type, recipientIdentityId, error: err });
+  }
 }
 
 export async function getAttachmentUrls(

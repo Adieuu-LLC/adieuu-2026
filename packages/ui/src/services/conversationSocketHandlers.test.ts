@@ -4,6 +4,11 @@ import {
   handleConversationSocketMessage,
   type ConversationSocketHandlerContext,
 } from './conversationSocketHandlers';
+import {
+  getActiveSupportTicketId,
+  onSupportTicketUpdated,
+  setActiveSupportTicketId,
+} from './supportTicketEvents';
 
 function createContext() {
   const notifications: Array<{ title: string; body: string }> = [];
@@ -131,5 +136,57 @@ describe('conversationSocketHandlers', () => {
     handleConversationSocketMessage(msg, h.ctx);
     expect(h.conversations).toHaveLength(0);
     expect(h.activeConversationId).toBeNull();
+  });
+
+  test('emits support ticket update and shows notification when not viewing ticket', () => {
+    const h = createContext();
+    const updates: string[] = [];
+    const unsubscribe = onSupportTicketUpdated((event) => {
+      updates.push(event.ticketId);
+    });
+    setActiveSupportTicketId(null);
+
+    const msg = {
+      type: 'notification_created',
+      data: {
+        notification: {
+          type: 'support_ticket_reply',
+          data: { ticketId: 'TKT-001', title: 'Help me' },
+        },
+      },
+    } as ChatIncomingMessage;
+
+    handleConversationSocketMessage(msg, h.ctx);
+
+    expect(updates).toEqual(['TKT-001']);
+    expect(h.notifications.length).toBe(1);
+    unsubscribe();
+  });
+
+  test('emits support ticket update without notification when viewing ticket', () => {
+    const h = createContext();
+    const updates: string[] = [];
+    const unsubscribe = onSupportTicketUpdated((event) => {
+      updates.push(event.ticketId);
+    });
+    setActiveSupportTicketId('TKT-001');
+
+    const msg = {
+      type: 'notification_created',
+      data: {
+        notification: {
+          type: 'support_ticket_user_reply',
+          data: { ticketId: 'TKT-001', title: 'Help me' },
+        },
+      },
+    } as ChatIncomingMessage;
+
+    handleConversationSocketMessage(msg, h.ctx);
+
+    expect(updates).toEqual(['TKT-001']);
+    expect(h.notifications.length).toBe(0);
+    expect(getActiveSupportTicketId()).toBe('TKT-001');
+    unsubscribe();
+    setActiveSupportTicketId(null);
   });
 });

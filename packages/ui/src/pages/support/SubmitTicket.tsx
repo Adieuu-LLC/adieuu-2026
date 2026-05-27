@@ -19,6 +19,7 @@ import {
   TicketAttachmentUploader,
   type TicketAttachmentItem,
 } from '../../components/TicketAttachmentUploader';
+import { MarkdownTextarea } from '../../components/MarkdownTextarea';
 
 export function SubmitTicket() {
   const { t } = useTranslation();
@@ -101,15 +102,16 @@ export function SubmitTicket() {
   );
 
   return (
-    <div className="admin-page">
-      <div className="admin-page-header">
-        <h1 className="admin-page-title">{t('support.newTicket')}</h1>
-        <p className="admin-page-subtitle">{t('support.subtitle')}</p>
-      </div>
+    <div className="page-content support-page">
+      <div className="container">
+        <div className="page-header">
+          <h1 className="page-title">{t('support.newTicket')}</h1>
+          <p className="page-subtitle">{t('support.subtitle')}</p>
+        </div>
 
-      {error && <Alert variant="error">{error}</Alert>}
+        {error && <Alert variant="error">{error}</Alert>}
 
-      <Card>
+        <Card variant="elevated">
         <form onSubmit={(e) => void handleSubmit(e)} className="admin-form">
           <div className="admin-form-group">
             <label className="input-label">{t('support.form.category')}</label>
@@ -177,11 +179,11 @@ export function SubmitTicket() {
             <label className="input-label" htmlFor="ticket-body">
               {t('support.form.body')}
             </label>
-            <textarea
+            <MarkdownTextarea
               id="ticket-body"
-              className="admin-textarea"
               value={body}
-              onChange={(e) => setBody(e.target.value.slice(0, MAX_TICKET_BODY_LENGTH))}
+              onChange={setBody}
+              maxLength={MAX_TICKET_BODY_LENGTH}
               placeholder={t('support.form.bodyPlaceholder')}
               rows={8}
             />
@@ -199,7 +201,8 @@ export function SubmitTicket() {
             </Button>
           </div>
         </form>
-      </Card>
+        </Card>
+      </div>
     </div>
   );
 }

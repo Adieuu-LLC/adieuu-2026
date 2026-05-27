@@ -50,75 +50,101 @@ export function MyTickets() {
   };
 
   return (
-    <div className="admin-page">
-      <div className="admin-page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1 className="admin-page-title">{t('support.myTickets')}</h1>
-          <p className="admin-page-subtitle">{t('support.subtitle')}</p>
-        </div>
-        <Button onClick={() => navigate('/support/new')}>{t('support.newTicket')}</Button>
-      </div>
-
-      {error && <Alert variant="error">{error}</Alert>}
-
-      <Card>
-        {loading ? (
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
-            <Spinner />
+    <div className="page-content support-page">
+      <div className="container">
+        <div className="page-header support-page-header">
+          <div>
+            <h1 className="page-title">{t('support.myTickets')}</h1>
+            <p className="page-subtitle">{t('support.subtitle')}</p>
           </div>
-        ) : tickets.length === 0 ? (
-          <p className="admin-empty">{t('support.empty')}</p>
-        ) : (
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>{t('support.detail.ticketId')}</th>
-                  <th>{t('support.form.title')}</th>
-                  <th>{t('support.detail.category')}</th>
-                  <th>{t('support.detail.status')}</th>
-                  <th>{t('support.detail.created')}</th>
-                </tr>
-              </thead>
-              <tbody>
+          <Button onClick={() => navigate('/support/new')}>{t('support.newTicket')}</Button>
+        </div>
+
+        {error && <Alert variant="error">{error}</Alert>}
+
+        <Card variant="elevated">
+          {loading ? (
+            <div className="support-loading">
+              <Spinner />
+            </div>
+          ) : tickets.length === 0 ? (
+            <p className="admin-empty">{t('support.empty')}</p>
+          ) : (
+            <>
+              <div className="support-ticket-table admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>{t('support.detail.ticketId')}</th>
+                      <th>{t('support.form.title')}</th>
+                      <th>{t('support.detail.category')}</th>
+                      <th>{t('support.detail.status')}</th>
+                      <th>{t('support.detail.created')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tickets.map((ticket) => (
+                      <tr
+                        key={ticket.ticketId}
+                        className="admin-table-row--clickable"
+                        onClick={() => navigate(`/support/${ticket.ticketId}`)}
+                      >
+                        <td>
+                          <Link to={`/support/${ticket.ticketId}`} onClick={(e) => e.stopPropagation()}>
+                            {ticket.ticketId}
+                          </Link>
+                        </td>
+                        <td>{ticket.title}</td>
+                        <td>{t(`support.categories.${ticket.category}`)}</td>
+                        <td>
+                          <span className={`moderation-status-badge moderation-status-${ticket.status}`}>
+                            {t(`support.status.${ticket.status}`)}
+                          </span>
+                        </td>
+                        <td>{new Date(ticket.createdAt).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <ul className="support-ticket-list">
                 {tickets.map((ticket) => (
-                  <tr
-                    key={ticket.ticketId}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => navigate(`/support/${ticket.ticketId}`)}
-                  >
-                    <td>
-                      <Link to={`/support/${ticket.ticketId}`} onClick={(e) => e.stopPropagation()}>
-                        {ticket.ticketId}
-                      </Link>
-                    </td>
-                    <td>{ticket.title}</td>
-                    <td>{t(`support.categories.${ticket.category}`)}</td>
-                    <td>
-                      <span className={`moderation-status-badge moderation-status-${ticket.status}`}>
-                        {t(`support.status.${ticket.status}`)}
+                  <li key={ticket.ticketId}>
+                    <Link to={`/support/${ticket.ticketId}`} className="support-ticket-list-item">
+                      <span className="support-ticket-list-title">{ticket.title}</span>
+                      <span className="support-ticket-list-id">{ticket.ticketId}</span>
+                      <span className="support-ticket-list-meta">
+                        <span className={`moderation-status-badge moderation-status-${ticket.status}`}>
+                          {t(`support.status.${ticket.status}`)}
+                        </span>
+                        <span className="support-ticket-list-category">
+                          {t(`support.categories.${ticket.category}`)}
+                        </span>
                       </span>
-                    </td>
-                    <td>{new Date(ticket.createdAt).toLocaleString()}</td>
-                  </tr>
+                      <time className="support-ticket-list-date">
+                        {new Date(ticket.createdAt).toLocaleString()}
+                      </time>
+                    </Link>
+                  </li>
                 ))}
-              </tbody>
-            </table>
+              </ul>
+            </>
+          )}
+        </Card>
+
+        {totalPages > 1 && (
+          <div className="admin-action-bar support-pagination">
+            <Button variant="secondary" size="sm" disabled={currentPage <= 1} onClick={() => goToPage(currentPage - 1)}>
+              {t('moderation.reports.prev')}
+            </Button>
+            <span>{t('moderation.reports.pageOf', { current: currentPage, total: totalPages })}</span>
+            <Button variant="secondary" size="sm" disabled={currentPage >= totalPages} onClick={() => goToPage(currentPage + 1)}>
+              {t('moderation.reports.next')}
+            </Button>
           </div>
         )}
-      </Card>
-
-      {totalPages > 1 && (
-        <div className="admin-action-bar" style={{ marginTop: '1rem' }}>
-          <Button variant="secondary" size="sm" disabled={currentPage <= 1} onClick={() => goToPage(currentPage - 1)}>
-            {t('moderation.reports.prev')}
-          </Button>
-          <span>{t('moderation.reports.pageOf', { current: currentPage, total: totalPages })}</span>
-          <Button variant="secondary" size="sm" disabled={currentPage >= totalPages} onClick={() => goToPage(currentPage + 1)}>
-            {t('moderation.reports.next')}
-          </Button>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

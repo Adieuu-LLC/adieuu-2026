@@ -35,6 +35,8 @@ export interface PublicSupportTicket {
   status: TicketStatus;
   priority?: TicketPriority;
   assignedTo?: string;
+  /** Display name of the assigned moderator (resolved server-side) */
+  assignedToName?: string;
   escalatedAt?: string;
   escalatedBy?: string;
   resolvedAt?: string;
@@ -81,10 +83,15 @@ export interface SupportTicketListResponse {
 export interface SupportTicketDetailResponse {
   ticket: PublicSupportTicket;
   events: PublicSupportTicketEvent[];
+  identityProfiles?: Record<string, { displayName: string; username: string; avatarUrl?: string }>;
 }
 
 export interface AddSupportTicketCommentParams {
   body: string;
+}
+
+export interface UserResolveSupportTicketParams {
+  note?: string;
 }
 
 export interface ModerationTicketListParams {

@@ -4,6 +4,7 @@ import type {
   PublicIdentity,
 } from '@adieuu/shared';
 import { emitAchievementUnlocked } from './achievementEvents';
+import { emitSupportTicketUpdated, getActiveSupportTicketId } from './supportTicketEvents';
 
 interface DisplayMessageLike {
   id: string;
@@ -624,6 +625,25 @@ export function handleConversationSocketMessage(
           emitAchievementUnlocked({
             achievementId: achData.achievementId,
             definition: achData.definition,
+          });
+        }
+        break;
+      }
+
+      if (notification.type === 'support_ticket_reply' || notification.type === 'support_ticket_user_reply') {
+        const ticketData = notification.data as { ticketId?: string; title?: string };
+        if (ticketData.ticketId) {
+          emitSupportTicketUpdated({ ticketId: ticketData.ticketId });
+        }
+
+        const isViewing = ticketData.ticketId === getActiveSupportTicketId();
+        if (!isViewing) {
+          const title = ctx.t('support.notifications.ticketReply', { defaultValue: 'New reply on your support ticket' });
+          const body = ticketData.title
+            ? ctx.t('support.notifications.ticketReplyBody', { title: ticketData.title, defaultValue: `New reply on "${ticketData.title}"` })
+            : title;
+          ctx.fireNotification(title, body, {
+            onClick: () => ctx.navigate(`/support/${ticketData.ticketId ?? ''}`),
           });
         }
         break;
