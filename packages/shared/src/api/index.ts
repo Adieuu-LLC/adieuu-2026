@@ -1,4 +1,8 @@
-export { API_ERROR_SESSION_EXPIRED } from '../constants/api-errors';
+export {
+  API_ERROR_SESSION_EXPIRED,
+  API_ERROR_ACCOUNT_BANNED,
+  API_ERROR_ACCOUNT_SUSPENDED,
+} from '../constants/api-errors';
 
 export {
   ApiClient,

@@ -5,7 +5,7 @@
 
 import type { ObjectId } from 'mongodb';
 import type { BaseDocument } from './base';
-import type { SubscriptionTierId } from '@adieuu/shared';
+import type { SubscriptionTierId, AccountModerationCategory } from '@adieuu/shared';
 
 /**
  * User document stored in MongoDB
@@ -72,6 +72,8 @@ export interface UserDocument extends BaseDocument {
   isBanned?: boolean;
   /** Human-readable reason for the latest account moderation action. */
   moderationReason?: string;
+  /** Category preset for the latest account moderation action. */
+  moderationCategory?: AccountModerationCategory;
   /** Admin identity ID that performed the latest moderation action. */
   moderatedBy?: string;
   /** When the moderation action was applied. */

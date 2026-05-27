@@ -29,7 +29,13 @@ export class AuthApi {
    * returns MFA challenge data if MFA is enabled.
    *
    * @param params - The identifier and OTP code
-   * @returns Success with optional MFA challenge, or error on failure; **403** if the platform auth allowlist blocks this identifier.
+   * @returns Success with optional MFA challenge, or error on failure.
+   *
+   * Possible error codes:
+   * - **403 `ACCOUNT_BANNED`** — account permanently banned; `error.details.moderationReason` may be set.
+   * - **403 `ACCOUNT_SUSPENDED`** — account temporarily suspended; `error.details.suspendedUntil` (ISO-8601)
+   *   and `error.details.moderationReason` may be set.
+   * - **403** — platform auth allowlist blocks this identifier.
    */
   async verifyOtp(params: VerifyOtpParams): Promise<ApiResponse<VerifyOtpResponse>> {
     return this.client.post('/api/auth/verify', params);

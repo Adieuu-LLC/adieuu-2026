@@ -79,6 +79,8 @@ export interface ApiErrorResponse {
     details?: {
       maxBytes?: number;
       moderationReason?: string;
+      moderationCategory?: string;
+      bannedPeerCount?: number;
       moderationReportId?: string;
       suspendedUntil?: string;
       jurisdiction?: string;

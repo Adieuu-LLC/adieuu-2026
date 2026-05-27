@@ -83,6 +83,8 @@ describe('i18n', () => {
         'invalidOtp',
         'otpExpired',
         'tooManyAttempts',
+        'accountBanned',
+        'accountSuspended',
         'accountLocked',
         'sessionExpired',
         'payloadTooLargeGeneric',

@@ -79,6 +79,9 @@ export type ErrorKey =
   | 'invalidOtp'         // Alias - same message as verificationFailed
   | 'otpExpired'         // Alias - same message as verificationFailed
   | 'tooManyAttempts'    // Alias - same message as verificationFailed
+  // Account-level moderation (revealed after OTP verification)
+  | 'accountBanned'
+  | 'accountSuspended'
   // Account-level errors (for notifications, not API responses)
   | 'accountLocked'
   | 'sessionExpired'

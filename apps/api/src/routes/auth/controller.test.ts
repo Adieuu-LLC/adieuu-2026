@@ -122,6 +122,7 @@ const mockUser = {
 
 const mockFindByIdentifier = mock(() => Promise.resolve(null)) as AnyMock;
 const mockFindById = mock(() => Promise.resolve(mockUser)) as AnyMock;
+const mockCountBannedUsers = mock(() => Promise.resolve(1)) as AnyMock;
 const mockCreateUser = mock(() => Promise.resolve(mockUser)) as AnyMock;
 const mockIncrementFailedAttempts = mock(() => Promise.resolve()) as AnyMock;
 const mockRecordLogin = mock(() => Promise.resolve()) as AnyMock;
@@ -141,6 +142,7 @@ mock.module('../../repositories/user.repository', () => ({
     resetFailedAttempts: mock(() => Promise.resolve()),
     lockAccount: mockLockAccount,
     unlockAccount: mock(() => Promise.resolve()),
+    countBannedUsers: mockCountBannedUsers,
   })),
 }));
 
@@ -354,6 +356,8 @@ describe('auth controller', () => {
     mockVerifyOtp.mockClear();
     mockFindByIdentifier.mockClear();
     mockFindById.mockClear();
+    mockCountBannedUsers.mockClear();
+    mockCountBannedUsers.mockImplementation(() => Promise.resolve(1));
     mockCreateUser.mockClear();
     mockIncrementFailedAttempts.mockClear();
     mockRecordLogin.mockClear();
@@ -932,6 +936,70 @@ describe('auth controller', () => {
       }
       expect(mockCreateAccountSession).not.toHaveBeenCalled();
       expect(mockRedisSet).toHaveBeenCalled();
+    });
+
+    test('returns account_banned with moderationReason for banned user', async () => {
+      mockCountBannedUsers.mockImplementation(() => Promise.resolve(5));
+      mockFindByIdentifier.mockImplementation(() => Promise.resolve({
+        ...mockUser,
+        isBanned: true,
+        moderationReason: 'TOS violation',
+        moderationCategory: 'tos_violation',
+      }));
+
+      const result = await verifyOtpHandler(
+        { identifier: 'user@example.com', code: '123456' },
+        '192.168.1.1'
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('account_banned');
+        expect(result.moderationReason).toBe('TOS violation');
+        expect(result.moderationCategory).toBe('tos_violation');
+        expect(result.bannedPeerCount).toBe(4);
+      }
+      expect(mockCountBannedUsers).toHaveBeenCalledWith('tos_violation');
+      expect(mockCreateAccountSession).not.toHaveBeenCalled();
+    });
+
+    test('returns account_suspended with suspendedUntil for suspended user', async () => {
+      const futureDate = new Date(Date.now() + 86_400_000);
+      mockFindByIdentifier.mockImplementation(() => Promise.resolve({
+        ...mockUser,
+        suspendedUntil: futureDate,
+        moderationReason: 'Temporary cooldown',
+      }));
+
+      const result = await verifyOtpHandler(
+        { identifier: 'user@example.com', code: '123456' },
+        '192.168.1.1'
+      );
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('account_suspended');
+        expect(result.suspendedUntil).toBe(futureDate.toISOString());
+        expect(result.moderationReason).toBe('Temporary cooldown');
+      }
+      expect(mockCreateAccountSession).not.toHaveBeenCalled();
+    });
+
+    test('allows login when suspendedUntil is in the past', async () => {
+      const pastDate = new Date(Date.now() - 60_000);
+      mockFindByIdentifier.mockImplementation(() => Promise.resolve({
+        ...mockUser,
+        suspendedUntil: pastDate,
+        moderationReason: 'Expired suspension',
+      }));
+
+      const result = await verifyOtpHandler(
+        { identifier: 'user@example.com', code: '123456' },
+        '192.168.1.1'
+      );
+
+      expect(result.success).toBe(true);
+      expect(mockCreateAccountSession).toHaveBeenCalled();
     });
   });
 

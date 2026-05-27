@@ -71,6 +71,7 @@ export const APP_ICON_NAMES = {
   device: 'mobile-screen-button',
   heart: 'heart',
   ban: 'ban',
+  gavel: 'gavel',
   fire: 'fire',
   userMinus: 'user-minus',
   archive: 'box-archive',

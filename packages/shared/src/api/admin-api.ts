@@ -1,6 +1,7 @@
 import type { ApiResponse } from '../types';
 import type { HttpClient } from './http-client';
 import type { SubscriptionTierId } from '../subscriptions';
+import type { AccountModerationCategory } from '../constants/account-moderation';
 
 /** Canonical platform setting keys (must match API `platform_settings.key`). */
 export const PLATFORM_SETTING_KEYS = {
@@ -110,6 +111,7 @@ export interface AdminUserProfile {
     status: 'active' | 'suspended' | 'banned';
     suspendedUntil?: string;
     reason?: string;
+    category?: AccountModerationCategory;
     moderatedBy?: string;
     moderatedAt?: string;
   };
@@ -139,10 +141,12 @@ export interface GiftSubscriptionInput {
 export interface SuspendAccountInput {
   reason: string;
   durationMs?: number;
+  category?: AccountModerationCategory;
 }
 
 export interface BanAccountInput {
   reason: string;
+  category?: AccountModerationCategory;
 }
 
 export interface AddEntitlementInput {

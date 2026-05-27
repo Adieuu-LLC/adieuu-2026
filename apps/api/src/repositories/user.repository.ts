@@ -7,6 +7,7 @@ import { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
 import type { UserDocument, CreateUserInput, UpdateUserInput, UserGeo, UserBilling, UserAgeVerification, SubscriptionOverride } from '../models/user';
+import type { AccountModerationCategory } from '@adieuu/shared';
 import { DEFAULT_IDENTITY_LOCKOUT_DURATION } from '../models/user';
 import { withTimestamps } from '../models/base';
 
@@ -487,19 +488,32 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
    */
   async suspendAccount(
     id: string | ObjectId,
-    opts: { suspendedUntil: Date; reason: string; moderatedBy: string },
+    opts: {
+      suspendedUntil: Date;
+      reason: string;
+      moderatedBy: string;
+      category?: AccountModerationCategory;
+    },
   ): Promise<void> {
     const objectId = this.toObjectId(id);
+    const $set: Record<string, unknown> = {
+      suspendedUntil: opts.suspendedUntil,
+      moderationReason: opts.reason,
+      moderatedBy: opts.moderatedBy,
+      moderatedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const $unset: Record<string, ''> = {};
+    if (opts.category) {
+      $set.moderationCategory = opts.category;
+    } else {
+      $unset.moderationCategory = '';
+    }
     await this.collection.updateOne(
       { _id: objectId },
       {
-        $set: {
-          suspendedUntil: opts.suspendedUntil,
-          moderationReason: opts.reason,
-          moderatedBy: opts.moderatedBy,
-          moderatedAt: new Date(),
-          updatedAt: new Date(),
-        },
+        $set,
+        ...(Object.keys($unset).length > 0 ? { $unset } : {}),
       },
     );
   }
@@ -516,6 +530,7 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
         $unset: {
           suspendedUntil: '',
           moderationReason: '',
+          moderationCategory: '',
           moderatedBy: '',
           moderatedAt: '',
         },
@@ -528,19 +543,27 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
    */
   async banAccount(
     id: string | ObjectId,
-    opts: { reason: string; moderatedBy: string },
+    opts: { reason: string; moderatedBy: string; category?: AccountModerationCategory },
   ): Promise<void> {
     const objectId = this.toObjectId(id);
+    const $set: Record<string, unknown> = {
+      isBanned: true,
+      moderationReason: opts.reason,
+      moderatedBy: opts.moderatedBy,
+      moderatedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const $unset: Record<string, ''> = {};
+    if (opts.category) {
+      $set.moderationCategory = opts.category;
+    } else {
+      $unset.moderationCategory = '';
+    }
     await this.collection.updateOne(
       { _id: objectId },
       {
-        $set: {
-          isBanned: true,
-          moderationReason: opts.reason,
-          moderatedBy: opts.moderatedBy,
-          moderatedAt: new Date(),
-          updatedAt: new Date(),
-        },
+        $set,
+        ...(Object.keys($unset).length > 0 ? { $unset } : {}),
       },
     );
   }
@@ -557,11 +580,23 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
         $unset: {
           isBanned: '',
           moderationReason: '',
+          moderationCategory: '',
           moderatedBy: '',
           moderatedAt: '',
         },
       },
     );
+  }
+
+  /**
+   * Count permanently banned accounts, optionally filtered by moderation category.
+   */
+  async countBannedUsers(category?: AccountModerationCategory): Promise<number> {
+    const filter: Record<string, unknown> = { isBanned: true };
+    if (category) {
+      filter.moderationCategory = category;
+    }
+    return this.collection.countDocuments(filter);
   }
 
   /**

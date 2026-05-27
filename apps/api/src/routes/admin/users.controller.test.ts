@@ -339,14 +339,20 @@ describe('Admin Users Controller', () => {
       }
     });
 
-    test('shows banned status', async () => {
+    test('shows banned status with category', async () => {
       mockFindById.mockImplementation(() =>
-        Promise.resolve({ ...mockUser, isBanned: true, moderationReason: 'Permanent violation' }),
+        Promise.resolve({
+          ...mockUser,
+          isBanned: true,
+          moderationReason: 'Permanent violation',
+          moderationCategory: 'fraud',
+        }),
       );
       const result = await getUserProfile(testUserId.toHexString());
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.profile.moderation.status).toBe('banned');
+        expect(result.profile.moderation.category).toBe('fraud');
       }
     });
   });
@@ -634,15 +640,17 @@ describe('Admin Users Controller', () => {
       if (!result.ok) expect(result.reason).toBe('not_found');
     });
 
-    test('suspends with explicit duration', async () => {
+    test('suspends with explicit duration and category', async () => {
       const result = await suspendAccount(adminIdentityId, testUserId.toHexString(), {
         reason: 'Spam',
         durationMs: 86400000,
+        category: 'spam',
       });
       expect(result.ok).toBe(true);
       expect(mockSuspendAccount).toHaveBeenCalledTimes(1);
       const opts = mockSuspendAccount.mock.calls[0]![1];
       expect(opts.reason).toBe('Spam');
+      expect(opts.category).toBe('spam');
       expect(opts.moderatedBy).toBe(adminIdentityId);
       expect(mockRevokeAllForUser).toHaveBeenCalledTimes(1);
       expect(mockAuditCreate).toHaveBeenCalledTimes(1);
@@ -682,10 +690,14 @@ describe('Admin Users Controller', () => {
     });
 
     test('bans user, revokes sessions, writes audit', async () => {
-      const result = await banAccount(adminIdentityId, testUserId.toHexString(), { reason: 'Permanent violation' });
+      const result = await banAccount(adminIdentityId, testUserId.toHexString(), {
+        reason: 'Permanent violation',
+        category: 'fraud',
+      });
       expect(result.ok).toBe(true);
       expect(mockBanAccount).toHaveBeenCalledTimes(1);
       expect(mockBanAccount.mock.calls[0]![1].reason).toBe('Permanent violation');
+      expect(mockBanAccount.mock.calls[0]![1].category).toBe('fraud');
       expect(mockRevokeAllForUser).toHaveBeenCalledTimes(1);
       expect(mockAuditCreate).toHaveBeenCalledTimes(1);
     });

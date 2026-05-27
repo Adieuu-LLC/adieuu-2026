@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   createApiClient,
+  ACCOUNT_MODERATION_PRESETS,
+  type AccountModerationCategory,
   type AdminUserProfile as AdminUserProfileType,
   type AdminUserSessionItem,
   type AdminAuditEntry,
@@ -13,6 +15,7 @@ import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { ModerationCategorySelect } from '../../components/ModerationCategorySelect';
 import { SubscriptionOverridesModal } from './SubscriptionOverridesModal';
 
 export function AdminUserProfile() {
@@ -37,10 +40,12 @@ export function AdminUserProfile() {
 
   const [suspendModal, setSuspendModal] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
+  const [suspendCategory, setSuspendCategory] = useState<AccountModerationCategory | ''>('');
   const [suspendDuration, setSuspendDuration] = useState('');
 
   const [banModal, setBanModal] = useState(false);
   const [banReason, setBanReason] = useState('');
+  const [banCategory, setBanCategory] = useState<AccountModerationCategory | ''>('');
 
   const [entitlementModal, setEntitlementModal] = useState(false);
   const [newEntitlement, setNewEntitlement] = useState('');
@@ -167,14 +172,41 @@ export function AdminUserProfile() {
     setActionLoading(false);
   };
 
+  const applyModerationCategory = (
+    categoryValue: AccountModerationCategory | '',
+    setCategory: (value: AccountModerationCategory | '') => void,
+    setReason: (value: string) => void,
+  ) => {
+    if (!categoryValue) {
+      setCategory('');
+      return;
+    }
+    setCategory(categoryValue);
+    setReason(ACCOUNT_MODERATION_PRESETS[categoryValue]);
+  };
+
+  const resetSuspendModal = () => {
+    setSuspendReason('');
+    setSuspendCategory('');
+    setSuspendDuration('');
+  };
+
+  const resetBanModal = () => {
+    setBanReason('');
+    setBanCategory('');
+  };
+
   const handleSuspend = async () => {
     if (!id || !suspendReason.trim()) return;
     setActionLoading(true);
     const durationMs = suspendDuration ? parseInt(suspendDuration, 10) * 60 * 60 * 1000 : undefined;
-    await api.admin.suspendUser(id, { reason: suspendReason.trim(), durationMs });
+    await api.admin.suspendUser(id, {
+      reason: suspendReason.trim(),
+      durationMs,
+      category: suspendCategory || undefined,
+    });
     setSuspendModal(false);
-    setSuspendReason('');
-    setSuspendDuration('');
+    resetSuspendModal();
     void loadProfile();
     setActionLoading(false);
   };
@@ -191,9 +223,12 @@ export function AdminUserProfile() {
   const handleBan = async () => {
     if (!id || !banReason.trim()) return;
     setActionLoading(true);
-    await api.admin.banUser(id, { reason: banReason.trim() });
+    await api.admin.banUser(id, {
+      reason: banReason.trim(),
+      category: banCategory || undefined,
+    });
     setBanModal(false);
-    setBanReason('');
+    resetBanModal();
     void loadProfile();
     setActionLoading(false);
   };
@@ -255,7 +290,7 @@ export function AdminUserProfile() {
           {t('admin.users.actions.manageEntitlements')}
         </Button>
         {!isSuspended && !isBanned && (
-          <Button size="sm" className="btn-warning" onClick={() => setSuspendModal(true)}>
+          <Button size="sm" className="btn-warning" onClick={() => { resetSuspendModal(); setSuspendModal(true); }}>
             {t('admin.users.actions.suspend')}
           </Button>
         )}
@@ -265,7 +300,7 @@ export function AdminUserProfile() {
           </Button>
         )}
         {!isBanned && (
-          <Button size="sm" className="btn-danger" onClick={() => setBanModal(true)}>
+          <Button size="sm" className="btn-danger" onClick={() => { resetBanModal(); setBanModal(true); }}>
             {t('admin.users.actions.ban')}
           </Button>
         )}
@@ -280,6 +315,9 @@ export function AdminUserProfile() {
       {(isSuspended || isBanned) && (
         <div className={`admin-alert ${isBanned ? 'admin-alert--error' : 'admin-alert--warning'}`}>
           <strong>{isBanned ? t('admin.users.bannedBanner') : t('admin.users.suspendedBanner')}</strong>
+          {profile.moderation.category && (
+            <p>{t('admin.users.moderationCategory')}: {t(`admin.users.modals.categories.${profile.moderation.category}`, profile.moderation.category)}</p>
+          )}
           {profile.moderation.reason && <p>{profile.moderation.reason}</p>}
           {profile.moderation.suspendedUntil && (
             <p>{t('admin.users.suspendedUntil')}: {new Date(profile.moderation.suspendedUntil).toLocaleString()}</p>
@@ -521,14 +559,23 @@ export function AdminUserProfile() {
       {/* Suspend Modal */}
       <ConfirmDialog
         open={suspendModal}
-        onOpenChange={(open) => { if (!open) setSuspendModal(false); }}
+        onOpenChange={(open) => { if (!open) { setSuspendModal(false); resetSuspendModal(); } }}
         title={t('admin.users.modals.suspendTitle')}
         confirmLabel={t('admin.users.modals.suspendConfirm')}
         onConfirm={handleSuspend}
-        onCancel={() => setSuspendModal(false)}
+        onCancel={() => { setSuspendModal(false); resetSuspendModal(); }}
         loading={actionLoading}
         variant="warning"
       >
+        <div className="admin-form-group">
+          <label>{t('admin.users.modals.categoryPreset')}</label>
+          <ModerationCategorySelect
+            value={suspendCategory}
+            onChange={(category) => applyModerationCategory(category, setSuspendCategory, setSuspendReason)}
+            disabled={actionLoading}
+          />
+          <small>{t('admin.users.modals.categoryHint')}</small>
+        </div>
         <div className="admin-form-group">
           <label>{t('admin.users.modals.reason')}</label>
           <textarea
@@ -567,15 +614,24 @@ export function AdminUserProfile() {
       {/* Ban Modal */}
       <ConfirmDialog
         open={banModal}
-        onOpenChange={(open) => { if (!open) setBanModal(false); }}
+        onOpenChange={(open) => { if (!open) { setBanModal(false); resetBanModal(); } }}
         title={t('admin.users.modals.banTitle')}
         confirmLabel={t('admin.users.modals.banConfirm')}
         onConfirm={handleBan}
-        onCancel={() => setBanModal(false)}
+        onCancel={() => { setBanModal(false); resetBanModal(); }}
         loading={actionLoading}
         variant="danger"
       >
         <p className="admin-alert admin-alert--error">{t('admin.users.modals.banWarning')}</p>
+        <div className="admin-form-group">
+          <label>{t('admin.users.modals.categoryPreset')}</label>
+          <ModerationCategorySelect
+            value={banCategory}
+            onChange={(category) => applyModerationCategory(category, setBanCategory, setBanReason)}
+            disabled={actionLoading}
+          />
+          <small>{t('admin.users.modals.categoryHint')}</small>
+        </div>
         <div className="admin-form-group">
           <label>{t('admin.users.modals.reason')}</label>
           <textarea

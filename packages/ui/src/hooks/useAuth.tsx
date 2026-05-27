@@ -3,11 +3,14 @@ import type { ReactNode } from 'react';
 import {
   createApiClient,
   API_ERROR_SESSION_EXPIRED,
+  API_ERROR_ACCOUNT_BANNED,
+  API_ERROR_ACCOUNT_SUSPENDED,
   type SessionInfo,
   type SubscriptionTierId,
   type PublicKeyCredentialRequestOptionsJSON,
 } from '@adieuu/shared';
 import { useAppConfig, usePlatformCapabilities } from '../config';
+import { resolveAccountRestriction, type AccountRestrictionInfo } from '../services/authRestrictionFlow';
 
 /** Delay (ms) before retrying the initial session check on cold start. */
 const MOUNT_RETRY_DELAY_MS = 750;
@@ -35,13 +38,17 @@ export interface MfaChallenge {
 export type VerifyOtpResult =
   | { success: true; mfaRequired?: false }
   | { success: true; mfaRequired: true; mfaChallenge: MfaChallenge }
-  | { success: false; error: string };
+  | { success: false; error: string; restriction?: AccountRestrictionInfo };
+
+export type MfaCompletionResult =
+  | { success: true }
+  | { success: false; error: string; restriction?: AccountRestrictionInfo };
 
 export interface AuthContextValue extends AuthState {
   requestOtp: (identifier: string, type: 'email' | 'sms') => Promise<{ success: boolean; error?: string }>;
   verifyOtp: (identifier: string, code: string) => Promise<VerifyOtpResult>;
-  completeMfaTotp: (mfaToken: string, code: string) => Promise<{ success: boolean; error?: string }>;
-  completeMfaWebAuthn: (mfaToken: string, webauthnChallenge: PublicKeyCredentialRequestOptionsJSON) => Promise<{ success: boolean; error?: string }>;
+  completeMfaTotp: (mfaToken: string, code: string) => Promise<MfaCompletionResult>;
+  completeMfaWebAuthn: (mfaToken: string, webauthnChallenge: PublicKeyCredentialRequestOptionsJSON) => Promise<MfaCompletionResult>;
   logout: () => Promise<void>;
   /** Refresh session status from server. Returns the fresh session or null. */
   refreshSession: () => Promise<SessionInfo | null>;
@@ -174,9 +181,14 @@ function useAuthState(): AuthContextValue {
     const response = await api.auth.verifyOtp({ identifier, code });
 
     if (!response.success) {
+      const restriction = resolveAccountRestriction(
+        response.error?.code,
+        response.error?.details,
+      );
       return {
         success: false,
         error: response.error?.message ?? 'Invalid code',
+        restriction,
       };
     }
 
@@ -200,13 +212,18 @@ function useAuthState(): AuthContextValue {
     return { success: true };
   }, [api, refreshSession]);
 
-  const completeMfaTotp = useCallback(async (mfaToken: string, code: string) => {
+  const completeMfaTotp = useCallback(async (mfaToken: string, code: string): Promise<MfaCompletionResult> => {
     const response = await api.auth.verifyMfaTotp(mfaToken, code);
 
     if (!response.success) {
+      const restriction = resolveAccountRestriction(
+        response.error?.code,
+        response.error?.details,
+      );
       return {
         success: false,
         error: response.error?.message ?? 'Invalid code',
+        restriction,
       };
     }
 
@@ -215,7 +232,7 @@ function useAuthState(): AuthContextValue {
     return { success: true };
   }, [api, refreshSession]);
 
-  const completeMfaWebAuthn = useCallback(async (mfaToken: string, webauthnChallenge: PublicKeyCredentialRequestOptionsJSON) => {
+  const completeMfaWebAuthn = useCallback(async (mfaToken: string, webauthnChallenge: PublicKeyCredentialRequestOptionsJSON): Promise<MfaCompletionResult> => {
     try {
       let credential: unknown;
 
@@ -229,9 +246,14 @@ function useAuthState(): AuthContextValue {
       const response = await api.auth.verifyMfaWebAuthn(mfaToken, credential);
 
       if (!response.success) {
+        const restriction = resolveAccountRestriction(
+          response.error?.code,
+          response.error?.details,
+        );
         return {
           success: false,
           error: response.error?.message ?? 'WebAuthn verification failed',
+          restriction,
         };
       }
 

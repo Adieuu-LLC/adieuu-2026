@@ -6,7 +6,9 @@ import { Button } from '../../components/Button';
 import { Alert } from '../../components/Alert';
 import { Card } from '../../components/Card';
 import { Spinner } from '../../components/Spinner';
+import { AccountRestrictionPanel } from '../../components/AccountRestrictionPanel';
 import { useAuth, type MfaChallenge } from '../../hooks/useAuth';
+import type { AccountRestrictionInfo } from '../../services/authRestrictionFlow';
 
 interface LocationState {
   mfaChallenge?: MfaChallenge;
@@ -27,6 +29,7 @@ export function MfaVerify() {
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [restriction, setRestriction] = useState<AccountRestrictionInfo | null>(null);
 
   // Redirect if no MFA challenge
   useEffect(() => {
@@ -80,6 +83,10 @@ export function MfaVerify() {
     setIsLoading(false);
 
     if (!result.success) {
+      if (result.restriction) {
+        setRestriction(result.restriction);
+        return;
+      }
       setError(result.error ?? 'WebAuthn verification failed');
       return;
     }
@@ -99,6 +106,10 @@ export function MfaVerify() {
     setIsLoading(false);
 
     if (!result.success) {
+      if (result.restriction) {
+        setRestriction(result.restriction);
+        return;
+      }
       setError(result.error ?? 'Invalid code');
       setCode('');
       return;
@@ -116,6 +127,10 @@ export function MfaVerify() {
         completeMfaTotp(mfaChallenge.mfaToken, value).then((result) => {
           setIsLoading(false);
           if (!result.success) {
+            if (result.restriction) {
+              setRestriction(result.restriction);
+              return;
+            }
             setError(result.error ?? 'Invalid code');
             setCode('');
           } else {
@@ -128,6 +143,14 @@ export function MfaVerify() {
 
   if (!mfaChallenge) {
     return null;
+  }
+
+  if (restriction) {
+    return (
+      <AuthLayout>
+        <AccountRestrictionPanel info={restriction} />
+      </AuthLayout>
+    );
   }
 
   const availableMethods: { key: MfaMethod; label: string; available: boolean }[] = [

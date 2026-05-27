@@ -14,7 +14,7 @@
  */
 
 import { Router } from '../../router';
-import { success } from '../../utils/response';
+import { success, error as errorResponse } from '../../utils/response';
 import { sanitizeString } from '../../utils/sanitize';
 import { MAX_IDENTITIES_PER_USER } from '../../services/identity.service';
 import { getPlatformCapabilities } from '../../services/platform-capabilities.service';
@@ -254,6 +254,19 @@ router.post('/auth/verify', async (ctx) => {
     }
     if (result.error === 'max_attempts') {
       return ctx.errors.tooManyAttempts();
+    }
+    if (result.error === 'account_banned') {
+      return errorResponse('ACCOUNT_BANNED', 'This account has been permanently banned.', 403, {
+        moderationReason: result.moderationReason,
+        moderationCategory: result.moderationCategory,
+        bannedPeerCount: result.bannedPeerCount,
+      });
+    }
+    if (result.error === 'account_suspended') {
+      return errorResponse('ACCOUNT_SUSPENDED', 'This account is currently suspended.', 403, {
+        moderationReason: result.moderationReason,
+        suspendedUntil: result.suspendedUntil,
+      });
     }
     return ctx.errors.verificationFailed();
   }
@@ -535,6 +548,19 @@ router.post('/auth/mfa/totp', async (ctx) => {
     if (result.error === 'invalid_token' || result.error === 'expired') {
       return ctx.errors.unauthorized();
     }
+    if (result.error === 'account_banned') {
+      return errorResponse('ACCOUNT_BANNED', 'This account has been permanently banned.', 403, {
+        moderationReason: result.moderationReason,
+        moderationCategory: result.moderationCategory,
+        bannedPeerCount: result.bannedPeerCount,
+      });
+    }
+    if (result.error === 'account_suspended') {
+      return errorResponse('ACCOUNT_SUSPENDED', 'This account is currently suspended.', 403, {
+        moderationReason: result.moderationReason,
+        suspendedUntil: result.suspendedUntil,
+      });
+    }
     return ctx.errors.verificationFailed();
   }
 
@@ -574,6 +600,19 @@ router.post('/auth/mfa/webauthn', async (ctx) => {
   if (!result.success) {
     if (result.error === 'invalid_token' || result.error === 'expired') {
       return ctx.errors.unauthorized();
+    }
+    if (result.error === 'account_banned') {
+      return errorResponse('ACCOUNT_BANNED', 'This account has been permanently banned.', 403, {
+        moderationReason: result.moderationReason,
+        moderationCategory: result.moderationCategory,
+        bannedPeerCount: result.bannedPeerCount,
+      });
+    }
+    if (result.error === 'account_suspended') {
+      return errorResponse('ACCOUNT_SUSPENDED', 'This account is currently suspended.', 403, {
+        moderationReason: result.moderationReason,
+        suspendedUntil: result.suspendedUntil,
+      });
     }
     return ctx.errors.verificationFailed();
   }

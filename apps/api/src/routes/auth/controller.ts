@@ -51,6 +51,7 @@ import { getEmailTemplate, getSmsMessage, type Locale, DEFAULT_LOCALE } from '..
 import { getRedis, isRedisConnected } from '../../db';
 import elog from '../../utils/adieuuLogger';
 import type { UserDocument } from '../../models/user';
+import type { AccountModerationCategory } from '@adieuu/shared';
 import type { AuthenticationResponseJSON } from '@simplewebauthn/server';
 import { getStripe } from '../../services/billing/stripe.client';
 import {
@@ -66,6 +67,20 @@ import type { AgeVerificationStatus } from '../../models/user';
 
 /** OTP expiration time in minutes */
 const OTP_EXPIRES_IN_MINUTES = 10;
+
+async function buildAccountBannedResult(user: UserDocument): Promise<{
+  moderationReason?: string;
+  moderationCategory?: AccountModerationCategory;
+  bannedPeerCount: number;
+}> {
+  const userRepo = getUserRepository();
+  const total = await userRepo.countBannedUsers(user.moderationCategory);
+  return {
+    moderationReason: user.moderationReason,
+    moderationCategory: user.moderationCategory,
+    bannedPeerCount: Math.max(0, total - 1),
+  };
+}
 
 /** Application name for templates */
 const APP_NAME = 'Adieuu';
@@ -426,6 +441,8 @@ export type VerifyOtpHandlerResult =
     retryAfterSeconds?: number;
     suspendedUntil?: string;
     moderationReason?: string;
+    moderationCategory?: AccountModerationCategory;
+    bannedPeerCount?: number;
   };
 
 /** MFA token TTL in seconds */
@@ -620,7 +637,8 @@ export async function verifyOtpHandler(
 
   // Account-level moderation enforcement
   if (user.isBanned) {
-    return { success: false, error: 'account_banned', moderationReason: user.moderationReason };
+    const banned = await buildAccountBannedResult(user);
+    return { success: false, error: 'account_banned', ...banned };
   }
   if (user.suspendedUntil && user.suspendedUntil > new Date()) {
     return {
@@ -1119,7 +1137,14 @@ export async function revokeAllSessionsHandler(
  */
 export type VerifyMfaResult =
   | { success: true; cookie: string; csrfCookie: string }
-  | { success: false; error: 'invalid_token' | 'invalid_code' | 'expired' | 'rate_limited' };
+  | {
+    success: false;
+    error: 'invalid_token' | 'invalid_code' | 'expired' | 'rate_limited' | 'account_banned' | 'account_suspended';
+    moderationReason?: string;
+    moderationCategory?: AccountModerationCategory;
+    bannedPeerCount?: number;
+    suspendedUntil?: string;
+  };
 
 /**
  * Get pending login data from MFA token
@@ -1181,6 +1206,19 @@ export async function verifyMfaTotpHandler(
     return { success: false, error: 'invalid_code' };
   }
 
+  // Re-check moderation status (admin may have banned/suspended during MFA window)
+  const userRepo = getUserRepository();
+  const mfaCheckUser = await userRepo.findById(pendingLogin.userId);
+  if (mfaCheckUser?.isBanned) {
+    await clearPendingLogin(mfaToken);
+    const banned = await buildAccountBannedResult(mfaCheckUser);
+    return { success: false, error: 'account_banned', ...banned };
+  }
+  if (mfaCheckUser?.suspendedUntil && mfaCheckUser.suspendedUntil > new Date()) {
+    await clearPendingLogin(mfaToken);
+    return { success: false, error: 'account_suspended', suspendedUntil: mfaCheckUser.suspendedUntil.toISOString(), moderationReason: mfaCheckUser.moderationReason };
+  }
+
   // Clear pending login
   await clearPendingLogin(mfaToken);
 
@@ -1230,6 +1268,19 @@ export async function verifyMfaWebAuthnHandler(
 
   if (!result.success) {
     return { success: false, error: 'invalid_code' };
+  }
+
+  // Re-check moderation status (admin may have banned/suspended during MFA window)
+  const userRepo = getUserRepository();
+  const mfaCheckUser = await userRepo.findById(pendingLogin.userId);
+  if (mfaCheckUser?.isBanned) {
+    await clearPendingLogin(mfaToken);
+    const banned = await buildAccountBannedResult(mfaCheckUser);
+    return { success: false, error: 'account_banned', ...banned };
+  }
+  if (mfaCheckUser?.suspendedUntil && mfaCheckUser.suspendedUntil > new Date()) {
+    await clearPendingLogin(mfaToken);
+    return { success: false, error: 'account_suspended', suspendedUntil: mfaCheckUser.suspendedUntil.toISOString(), moderationReason: mfaCheckUser.moderationReason };
   }
 
   // Clear pending login

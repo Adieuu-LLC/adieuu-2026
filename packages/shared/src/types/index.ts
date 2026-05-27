@@ -3,6 +3,7 @@
 
 import type { z } from 'zod';
 import type { UserSchema, ApiResponseSchema } from '../schemas';
+import type { AccountModerationCategory } from '../constants/account-moderation';
 
 export type {
   ThemeColorTokens,
@@ -32,6 +33,8 @@ export type ApiResponse<T> = {
     details?: {
       maxBytes?: number;
       moderationReason?: string;
+      moderationCategory?: AccountModerationCategory;
+      bannedPeerCount?: number;
       moderationReportId?: string;
       suspendedUntil?: string;
     };

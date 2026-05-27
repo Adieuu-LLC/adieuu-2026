@@ -6,7 +6,7 @@
 
 import { ObjectId } from 'mongodb';
 import { z } from '@adieuu/shared/schemas';
-import { SUBSCRIPTION_TIER_IDS, type SubscriptionTierId } from '@adieuu/shared';
+import { SUBSCRIPTION_TIER_IDS, type SubscriptionTierId, ACCOUNT_MODERATION_CATEGORIES, BAN_TROLL_COUNTDOWN_MS, type AccountModerationCategory } from '@adieuu/shared';
 import { getUserRepository } from '../../repositories/user.repository';
 import { getSessionRepository } from '../../repositories/session.repository';
 import { getAuditLogRepository } from '../../repositories/audit.repository';
@@ -32,13 +32,19 @@ export const GiftSubscriptionSchema = z.object({
 /** Alias — subscription overrides and gift subscriptions share the same input shape. */
 export const SubscriptionOverrideInputSchema = GiftSubscriptionSchema;
 
+const AccountModerationCategorySchema = z.enum(
+  ACCOUNT_MODERATION_CATEGORIES as unknown as [AccountModerationCategory, ...AccountModerationCategory[]],
+);
+
 export const SuspendAccountSchema = z.object({
   reason: z.string().min(1).max(1024),
   durationMs: z.number().int().min(60_000).optional(),
+  category: AccountModerationCategorySchema.optional(),
 });
 
 export const BanAccountSchema = z.object({
   reason: z.string().min(1).max(1024),
+  category: AccountModerationCategorySchema.optional(),
 });
 
 export const AddEntitlementSchema = z.object({
@@ -134,6 +140,7 @@ export interface AdminUserProfile {
     status: 'active' | 'suspended' | 'banned';
     suspendedUntil?: string;
     reason?: string;
+    category?: AccountModerationCategory;
     moderatedBy?: string;
     moderatedAt?: string;
   };
@@ -223,6 +230,7 @@ function toAdminProfile(user: UserDocument): AdminUserProfile {
       status: getUserModerationStatus(user),
       suspendedUntil: user.suspendedUntil?.toISOString() ?? undefined,
       reason: user.moderationReason,
+      category: user.moderationCategory,
       moderatedBy: user.moderatedBy,
       moderatedAt: user.moderatedAt?.toISOString(),
     },
@@ -645,12 +653,13 @@ export async function suspendAccount(
 
   const suspendedUntil = parsed.data.durationMs
     ? new Date(Date.now() + parsed.data.durationMs)
-    : new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000); // ~100 years for indefinite
+    : new Date(Date.now() + BAN_TROLL_COUNTDOWN_MS);
 
   await userRepo.suspendAccount(user._id, {
     suspendedUntil,
     reason: parsed.data.reason,
     moderatedBy: adminIdentityId,
+    category: parsed.data.category,
   });
 
   const sessionRepo = getSessionRepository();
@@ -663,6 +672,7 @@ export async function suspendAccount(
     ipHash: 'admin',
     metadata: {
       reason: parsed.data.reason,
+      category: parsed.data.category,
       durationMs: parsed.data.durationMs ?? 'indefinite',
       suspendedUntil: suspendedUntil.toISOString(),
       adminIdentityId,
@@ -724,6 +734,7 @@ export async function banAccount(
   await userRepo.banAccount(user._id, {
     reason: parsed.data.reason,
     moderatedBy: adminIdentityId,
+    category: parsed.data.category,
   });
 
   const sessionRepo = getSessionRepository();
@@ -734,7 +745,7 @@ export async function banAccount(
     userId: user._id,
     action: 'admin_ban_account',
     ipHash: 'admin',
-    metadata: { reason: parsed.data.reason, adminIdentityId },
+    metadata: { reason: parsed.data.reason, category: parsed.data.category, adminIdentityId },
   });
 
   return { ok: true };
