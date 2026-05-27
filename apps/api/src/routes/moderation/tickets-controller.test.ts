@@ -120,7 +120,7 @@ describe('moderation/tickets-controller', () => {
     expect(canManageEscalatedTickets(adminCaps)).toBe(true);
   });
 
-  test('gateSupportStaffSession forbids without read permission', async () => {
+  test('gateSupportStaffSession allows support staff with read permission', async () => {
     const gate = await gateSupportStaffSession({
       type: 'identity',
       identityId: staffId,
@@ -133,6 +133,30 @@ describe('moderation/tickets-controller', () => {
     });
 
     expect(gate.ok).toBe(true);
+  });
+
+  test('gateSupportStaffSession forbids without read permission', async () => {
+    mock.module('../../services/platform-capabilities.service', () => ({
+      getPlatformCapabilities: mock(async () => ({
+        ...supportCaps,
+        permissions: [],
+      })),
+    }));
+
+    const { gateSupportStaffSession: gateFresh } = await import('./tickets-controller');
+    const gate = await gateFresh({
+      type: 'identity',
+      identityId: staffId,
+      maxVideoDurationSeconds: 300,
+      subscriptions: [],
+      entitlements: [],
+      isLifetime: false,
+      lastActivityAt: Date.now(),
+      expiresAt: Date.now() + 3600_000,
+    });
+
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) expect(gate.reason).toBe('forbidden');
   });
 
   test('listTicketsResult returns queue data', async () => {

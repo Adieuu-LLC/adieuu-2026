@@ -108,3 +108,73 @@ Subscription management is handled via Stripe. Users purchase through Stripe-hos
 | `STRIPE_SUCCESS_URL` | `WEB_APP_URL/checkout/complete?status=success&session_id={CHECKOUT_SESSION_ID}` | Redirect after successful checkout. |
 | `STRIPE_CANCEL_URL` | `WEB_APP_URL/checkout/complete?status=cancelled` | Redirect when user cancels checkout. |
 | `STRIPE_PORTAL_RETURN_URL` | `WEB_APP_URL/account/subscription` | Return URL from the Customer Portal. |
+
+## Platform RBAC
+
+Platform staff access (admin panel, moderation queue, support ticket queue) is granted through **roles on the identity document**, not on the user account. Roles live in MongoDB on each identity’s `platformRoles` array; optional direct permission grants use `platformAttributes`.
+
+Canonical definitions: `src/constants/platform-permissions.ts` and `src/services/platform-capabilities.service.ts`.
+
+### Roles
+
+| Role | Value | Typical use |
+|------|-------|-------------|
+| Admin | `admin` | Full platform operations, settings, user/identity management, role assignment |
+| Moderator | `moderator` | Content/abuse reports, support tickets (not escalated resolve/close) |
+| Support agent | `support_agent` | Support ticket queue only |
+
+An identity may hold multiple roles. Effective permissions are the **union** of all assigned roles plus any valid entries in `platformAttributes`.
+
+### Permissions by role
+
+| Permission | `support_agent` | `moderator` | `admin` |
+|------------|:-----------------:|:-----------:|:-------:|
+| `read-support-tickets` | yes | yes | yes |
+| `update-support-tickets` | yes | yes | yes |
+| `read-content-reports` / `read-abuse-reports` | | yes | yes |
+| `update-content-reports` / `update-abuse-reports` | | yes | yes |
+| `manage-escalated-reports` | | | yes |
+| `manage-escalated-tickets` | | | yes |
+| `view-admin-metrics` | | | yes |
+| `manage-platform-settings` | | | yes |
+| `manage-roles` | | | yes |
+| `manage-users` | | | yes |
+| `manage-identities` | | | yes |
+
+Escalated reports and tickets require the corresponding `manage-escalated-*` permission (admin role by default).
+
+### Session and enforcement
+
+- **Admin** (`/api/admin/*`) and **staff moderation** (`/api/moderation/*`) routes require an **identity session** (logged in as an alias), not an account-only session.
+- Route handlers check specific permission strings via `requireAdminRouteContext` / moderation gate functions; the client receives `platformPermissions`, `platformRoles`, and boolean flags on `GET /api/auth/session` in identity mode.
+- End-user support tickets (`/api/support/tickets`) use account or identity session with ownership checks only — no platform role required.
+
+### Role management API
+
+Requires `manage-roles` (admin role). All routes need identity session + CSRF on mutating requests.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/admin/platform-roles/:role` | List identities with a given role |
+| `GET` | `/api/admin/platform-admins` | List admins (alias for role `admin`) |
+| `POST` | `/api/admin/identities/:id/roles` | Grant role (`{ "role": "admin" \| "moderator" \| "support_agent" }`) |
+| `DELETE` | `/api/admin/identities/:id/roles/:role` | Revoke role |
+
+Safeguards: cannot revoke your own `admin` role; cannot remove the last admin; rate limits on grants.
+
+### Bootstrap first admin
+
+Before any admin API is usable, seed at least one identity with the admin role in MongoDB (replace with your identity `_id`):
+
+```javascript
+db.identities.updateOne(
+  { _id: ObjectId("YOUR_IDENTITY_ID") },
+  { $addToSet: { platformRoles: "admin" } }
+)
+```
+
+Then log in as that identity (alias) to use the admin UI or role-management endpoints. Platform settings (auth allowlist, geo, age verification, etc.) remain in the `platform_settings` collection and are edited via `/api/admin/platform-settings` — they are separate from RBAC.
+
+### Direct attribute grants
+
+For exceptional cases, valid permission strings may be added to `platformAttributes` without assigning a role. Unknown strings are ignored. Prefer roles for routine provisioning; attributes are for narrow, auditable exceptions.

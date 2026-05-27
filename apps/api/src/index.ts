@@ -9,9 +9,6 @@ import { registerRoutes } from './routes';
 import { initializeDatabases, closeDatabases } from './db';
 import { config, validateProductionConfig } from './config';
 import {
-  ensureAdminIdentityListPlatformSettingExists,
-  ensureModeratorIdentityListPlatformSettingExists,
-  ensureSupportAgentIdentityListPlatformSettingExists,
   ensureGeoLookupPlatformSettingExists,
   ensureAgeVerificationPlatformSettingsExist,
 } from './services/platform-settings.service';
@@ -51,9 +48,6 @@ async function start(): Promise<void> {
   }
 
   try {
-    await ensureAdminIdentityListPlatformSettingExists();
-    await ensureModeratorIdentityListPlatformSettingExists();
-    await ensureSupportAgentIdentityListPlatformSettingExists();
     await ensureGeoLookupPlatformSettingExists();
     await ensureAgeVerificationPlatformSettingsExist();
   } catch (error) {

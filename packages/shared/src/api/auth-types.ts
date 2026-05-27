@@ -74,6 +74,8 @@ export interface SessionInfo {
   isPlatformSupportAgent: boolean;
   /** Effective platform-level permissions for the current identity (identity mode) */
   platformPermissions: string[];
+  /** Effective platform roles for the current identity (identity mode) */
+  platformRoles?: string[];
   /** IP-derived jurisdiction (account mode only, omits ipHash for privacy). */
   geo?: SessionGeoInfo;
   /** Active subscription tier ids (both account and identity mode). */

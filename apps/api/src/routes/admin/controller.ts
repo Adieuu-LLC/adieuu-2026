@@ -10,20 +10,24 @@ import type {
   PlatformSettingValueType,
 } from '../../models/platform-settings';
 import { DELETED_IDENT_PREFIX } from '../../models/identity';
-import {
-  upsertPlatformSetting,
-  isPlatformAdmin,
-} from '../../services/platform-settings.service';
+import { upsertPlatformSetting } from '../../services/platform-settings.service';
 import type { IdentitySessionData } from '../../services/session.service';
 import {
-  PLATFORM_SETTING_KEYS,
   isRegisteredPlatformSettingKey,
   type PlatformSettingKey,
 } from '../../constants/platform-settings-keys';
+import {
+  PLATFORM_PERMISSIONS,
+  hasPlatformPermission,
+  type PlatformPermission,
+} from '../../constants/platform-permissions';
+import {
+  getPlatformCapabilities,
+  type PlatformCapabilities,
+} from '../../services/platform-capabilities.service';
 import { getPlatformSettingsRepository } from '../../repositories/platform-settings.repository';
 import { getIdentityRepository } from '../../repositories/identity.repository';
 import { getUserRepository } from '../../repositories/user.repository';
-import { checkRateLimit } from '../../services/rate-limit.service';
 import { isValidObjectId, sanitizeString } from '../../utils';
 import { z } from '@adieuu/shared/schemas';
 
@@ -36,10 +40,6 @@ export const PutPlatformSettingSchema = z.object({
   description: z.string().max(PLATFORM_SETTING_PUT_BODY_DESCRIPTION_MAX).optional(),
 });
 
-export const AddPlatformAdminSchema = z.object({
-  identityId: z.string().min(1).max(64),
-});
-
 export type PlatformAdminRow = {
   identityId: string;
   displayName?: string;
@@ -50,15 +50,29 @@ export type PlatformAdminRow = {
 
 export type AdminGateFailureReason = 'unauthorized' | 'forbidden';
 
-export async function gatePlatformAdminSession(
+export async function gatePlatformPermissionSession(
   session: IdentitySessionData | null,
+  permission: PlatformPermission,
 ): Promise<
-  | { ok: true; session: IdentitySessionData }
+  | { ok: true; session: IdentitySessionData; caps: PlatformCapabilities }
   | { ok: false; reason: AdminGateFailureReason }
 > {
   if (!session) return { ok: false, reason: 'unauthorized' };
-  if (!(await isPlatformAdmin(session.identityId))) return { ok: false, reason: 'forbidden' };
-  return { ok: true, session };
+  const caps = await getPlatformCapabilities(session.identityId);
+  if (!hasPlatformPermission(caps.permissions, permission)) {
+    return { ok: false, reason: 'forbidden' };
+  }
+  return { ok: true, session, caps };
+}
+
+/** @deprecated Use gatePlatformPermissionSession with a specific permission. */
+export async function gatePlatformAdminSession(
+  session: IdentitySessionData | null,
+): Promise<
+  | { ok: true; session: IdentitySessionData; caps: PlatformCapabilities }
+  | { ok: false; reason: AdminGateFailureReason }
+> {
+  return gatePlatformPermissionSession(session, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_SETTINGS);
 }
 
 /** Decode URI segment; returns empty string if malformed `%`-sequences would throw. */
@@ -115,45 +129,6 @@ export function toPublicSetting(doc: PlatformSettingsDocument) {
   };
 }
 
-function readAdminObjectIds(doc: PlatformSettingsDocument | null): ObjectId[] {
-  if (!doc || doc.valueType !== 'objectIdArray' || !Array.isArray(doc.value)) {
-    return [];
-  }
-  const out: ObjectId[] = [];
-  for (const v of doc.value) {
-    if (v instanceof ObjectId) {
-      out.push(v);
-    } else if (typeof v === 'string' && /^[a-fA-F0-9]{24}$/.test(v)) {
-      out.push(new ObjectId(v));
-    }
-  }
-  return out;
-}
-
-export async function buildPlatformAdminsList(): Promise<{ admins: PlatformAdminRow[] }> {
-  const repo = getPlatformSettingsRepository();
-  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST);
-  const ids = readAdminObjectIds(doc);
-  const identityRepo = getIdentityRepository();
-  const admins: PlatformAdminRow[] = [];
-
-  for (const oid of ids) {
-    const identity = await identityRepo.findById(oid);
-    if (!identity) {
-      admins.push({ identityId: oid.toHexString(), stale: true });
-      continue;
-    }
-    admins.push({
-      identityId: oid.toHexString(),
-      displayName: identity.displayName,
-      username: identity.username,
-      avatarUrl: identity.avatarUrl,
-    });
-  }
-
-  return { admins };
-}
-
 export async function getAdminMetricsCounts(): Promise<{
   totalUsers: number;
   totalIdentities: number;
@@ -180,109 +155,6 @@ export async function getAdminMetricsCounts(): Promise<{
     activeIdentities15m,
     activeIdentities24h,
   };
-}
-
-export type AddPlatformAdminResult =
-  | { ok: true; admins: PlatformAdminRow[] }
-  | { ok: false; reason: 'validation_failed' | 'rate_limited' | 'not_found' };
-
-export async function addPlatformAdminResult(
-  sessionIdentityId: string,
-  body: unknown,
-): Promise<AddPlatformAdminResult> {
-  const rl = await checkRateLimit('admin:platform-admins:add', sessionIdentityId, {
-    limit: 30,
-    windowSeconds: 3600,
-  });
-  if (!rl.allowed) {
-    return { ok: false, reason: 'rate_limited' };
-  }
-
-  const parseResult = AddPlatformAdminSchema.safeParse(body);
-  if (!parseResult.success) {
-    return { ok: false, reason: 'validation_failed' };
-  }
-
-  const { value: hexId } = sanitizeString(parseResult.data.identityId, 'id');
-  if (!hexId || !isValidObjectId(hexId)) {
-    return { ok: false, reason: 'validation_failed' };
-  }
-
-  const identityRepo = getIdentityRepository();
-  const identity = await identityRepo.findById(hexId);
-  if (!identity) {
-    return { ok: false, reason: 'not_found' };
-  }
-
-  const repo = getPlatformSettingsRepository();
-  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST);
-  const existing = readAdminObjectIds(doc);
-  const targetHex = identity._id instanceof ObjectId ? identity._id.toHexString() : String(identity._id);
-  if (existing.some((id) => id.toHexString() === targetHex)) {
-    const payload = await buildPlatformAdminsList();
-    return { ok: true, admins: payload.admins };
-  }
-
-  const nextIds = [...existing.map((id) => id.toHexString()), targetHex];
-
-  try {
-    await upsertPlatformSetting({
-      key: PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST,
-      description: doc?.description ?? 'Platform administrator identity IDs',
-      valueType: 'objectIdArray',
-      value: nextIds,
-      lastUpdatedBy: sessionIdentityId,
-    });
-  } catch {
-    return { ok: false, reason: 'validation_failed' };
-  }
-
-  const payloadAdded = await buildPlatformAdminsList();
-  return { ok: true, admins: payloadAdded.admins };
-}
-
-export type RemovePlatformAdminResult =
-  | { ok: true; admins: PlatformAdminRow[] }
-  | { ok: false; reason: 'validation_failed' | 'not_found' };
-
-export async function removePlatformAdminResult(
-  sessionIdentityId: string,
-  identityIdSegment: string | undefined,
-): Promise<RemovePlatformAdminResult> {
-  const hexId = parseSanitizedObjectIdHex(identityIdSegment);
-  if (!hexId) {
-    return { ok: false, reason: 'validation_failed' };
-  }
-
-  const removeId = new ObjectId(hexId);
-
-  if (removeId.toHexString() === sessionIdentityId.toLowerCase()) {
-    return { ok: false, reason: 'validation_failed' };
-  }
-
-  const repo = getPlatformSettingsRepository();
-  const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST);
-  const existing = readAdminObjectIds(doc);
-  const nextHex = existing.map((id) => id.toHexString()).filter((hex) => hex !== removeId.toHexString());
-
-  if (nextHex.length === existing.length) {
-    return { ok: false, reason: 'not_found' };
-  }
-
-  try {
-    await upsertPlatformSetting({
-      key: PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST,
-      description: doc?.description ?? 'Platform administrator identity IDs',
-      valueType: 'objectIdArray',
-      value: nextHex,
-      lastUpdatedBy: sessionIdentityId,
-    });
-  } catch {
-    return { ok: false, reason: 'validation_failed' };
-  }
-
-  const payload = await buildPlatformAdminsList();
-  return { ok: true, admins: payload.admins };
 }
 
 export async function listPlatformSettingDocuments(): Promise<PlatformSettingsDocument[]> {

@@ -6,7 +6,7 @@
 
 import { ObjectId } from 'mongodb';
 import { z } from '@adieuu/shared/schemas';
-import { PLATFORM_PERMISSIONS } from '../../constants/platform-permissions';
+import { PLATFORM_PERMISSIONS, PLATFORM_ROLES } from '../../constants/platform-permissions';
 import {
   REPORT_CATEGORIES,
   REPORT_STATUSES,
@@ -14,7 +14,6 @@ import {
   type ReportStatus,
 } from '../../models/report';
 import { getIdentityRepository } from '../../repositories/identity.repository';
-import { getPlatformSettingsRepository } from '../../repositories/platform-settings.repository';
 import { getReportEventRepository } from '../../repositories/report-event.repository';
 import { getReportRepository } from '../../repositories/report.repository';
 import { purgeConvScanEvidenceForTerminalReport } from '../../services/conv-scan-moderation-cleanup.service';
@@ -288,44 +287,17 @@ export type ModeratorRow = {
 };
 
 export async function listModeratorsResult(): Promise<ModerationResult<{ moderators: ModeratorRow[] }>> {
-  const settingsRepo = getPlatformSettingsRepository();
   const identityRepo = getIdentityRepository();
+  const identities = await identityRepo.findByAnyPlatformRole([
+    PLATFORM_ROLES.ADMIN,
+    PLATFORM_ROLES.MODERATOR,
+  ]);
 
-  const idSet = new Set<string>();
-
-  const adminDoc = await settingsRepo.findByKey('platform-admin-identity-list');
-  if (adminDoc?.valueType === 'objectIdArray' && Array.isArray(adminDoc.value)) {
-    for (const entry of adminDoc.value) {
-      const hex = entry instanceof ObjectId ? entry.toHexString() : typeof entry === 'string' ? entry : null;
-      if (hex && isValidObjectId(hex)) idSet.add(hex.toLowerCase());
-    }
-  }
-
-  const modDoc = await settingsRepo.findByKey('platform-moderator-identity-list');
-  if (modDoc?.valueType === 'objectIdArray' && Array.isArray(modDoc.value)) {
-    for (const entry of modDoc.value) {
-      const hex = entry instanceof ObjectId ? entry.toHexString() : typeof entry === 'string' ? entry : null;
-      if (hex && isValidObjectId(hex)) idSet.add(hex.toLowerCase());
-    }
-  }
-
-  const moderators: ModeratorRow[] = [];
-  await Promise.all(
-    [...idSet].map(async (iid) => {
-      try {
-        const identity = await identityRepo.findByIdentityId(iid);
-        if (identity) {
-          moderators.push({
-            identityId: iid,
-            displayName: identity.displayName ?? '',
-            username: identity.username ?? '',
-          });
-        }
-      } catch {
-        /* skip */
-      }
-    }),
-  );
+  const moderators: ModeratorRow[] = identities.map((identity) => ({
+    identityId: identity._id instanceof ObjectId ? identity._id.toHexString() : String(identity._id),
+    displayName: identity.displayName ?? '',
+    username: identity.username ?? '',
+  }));
 
   moderators.sort((a, b) => a.displayName.localeCompare(b.displayName));
 

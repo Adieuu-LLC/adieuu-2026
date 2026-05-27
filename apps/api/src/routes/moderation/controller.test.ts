@@ -221,6 +221,22 @@ describe('gateModeratorSession', () => {
       expect(result.caps).toEqual(caps);
     }
   });
+
+  test('returns forbidden for support_agent-only session', async () => {
+    mockGetPlatformCapabilities.mockImplementation(async () => ({
+      isPlatformAdmin: false,
+      isPlatformModerator: false,
+      isPlatformSupportAgent: true,
+      roles: ['support_agent'],
+      permissions: [
+        PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS,
+        PLATFORM_PERMISSIONS.UPDATE_SUPPORT_TICKETS,
+      ],
+    }));
+
+    const result = await gateModeratorSession(sessionUser);
+    expect(result).toEqual({ ok: false, reason: 'forbidden' });
+  });
 });
 
 describe('toPublicReport / toPublicEvent', () => {

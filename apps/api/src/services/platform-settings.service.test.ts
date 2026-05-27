@@ -42,10 +42,8 @@ mock.module('../db/redis', () => ({
 
 import {
   coercePlatformSettingValue,
-  ensureAdminIdentityListPlatformSettingExists,
   ensureAuthAllowlistPlatformSettingsExist,
   isAuthIdentifierAllowed,
-  isPlatformAdmin,
   mergeUpsertPlatformSettingDescription,
   sanitizePlatformSettingValueAfterCoerce,
   upsertPlatformSetting,
@@ -236,65 +234,6 @@ describe('isAuthIdentifierAllowed (Mongo-backed, Redis off)', () => {
   });
 });
 
-describe('isPlatformAdmin', () => {
-  beforeEach(() => {
-    mockFindByKey.mockReset();
-    mockFindByKey.mockImplementation(() => Promise.resolve(null));
-  });
-
-  test('returns false when setting is missing', async () => {
-    expect(await isPlatformAdmin(new ObjectId())).toBe(false);
-  });
-
-  test('returns false when value is not objectIdArray', async () => {
-    mockFindByKey.mockImplementation((key: string) => {
-      if (key === PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST) {
-        return Promise.resolve({ valueType: 'stringArray', value: [] });
-      }
-      return Promise.resolve(null);
-    });
-    expect(await isPlatformAdmin(new ObjectId())).toBe(false);
-  });
-
-  test('returns true when user id is in list', async () => {
-    const adminId = new ObjectId();
-    mockFindByKey.mockImplementation((key: string) => {
-      if (key === PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST) {
-        return Promise.resolve({ valueType: 'objectIdArray', value: [adminId] });
-      }
-      return Promise.resolve(null);
-    });
-    expect(await isPlatformAdmin(adminId)).toBe(true);
-    expect(await isPlatformAdmin(adminId.toHexString())).toBe(true);
-  });
-
-  test('returns true when user id is stored as a hex string in the list', async () => {
-    const adminId = new ObjectId();
-    mockFindByKey.mockImplementation((key: string) => {
-      if (key === PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST) {
-        return Promise.resolve({
-          valueType: 'objectIdArray',
-          value: [adminId.toHexString()],
-        });
-      }
-      return Promise.resolve(null);
-    });
-    expect(await isPlatformAdmin(adminId)).toBe(true);
-    expect(await isPlatformAdmin(adminId.toHexString().toUpperCase())).toBe(true);
-  });
-
-  test('returns false when user id is not in list', async () => {
-    const adminId = new ObjectId();
-    mockFindByKey.mockImplementation((key: string) => {
-      if (key === PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST) {
-        return Promise.resolve({ valueType: 'objectIdArray', value: [new ObjectId()] });
-      }
-      return Promise.resolve(null);
-    });
-    expect(await isPlatformAdmin(adminId)).toBe(false);
-  });
-});
-
 describe('upsertPlatformSetting', () => {
   beforeEach(() => {
     mockFindByKey.mockReset();
@@ -370,61 +309,6 @@ describe('ensureAuthAllowlistPlatformSettingsExist', () => {
     );
 
     await ensureAuthAllowlistPlatformSettingsExist('admin-user-id');
-
-    expect(mockUpsertByKey).not.toHaveBeenCalled();
-  });
-});
-
-describe('ensureAdminIdentityListPlatformSettingExists', () => {
-  beforeEach(() => {
-    mockFindByKey.mockReset();
-    mockUpsertByKey.mockReset();
-    mockUpsertByKey.mockImplementation(() =>
-      Promise.resolve({
-        _id: new ObjectId(),
-        key: PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST,
-        description: '',
-        valueType: 'objectIdArray',
-        value: [],
-        lastUpdatedBy: 'system',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-    );
-  });
-
-  test('upserts empty objectIdArray when admin list setting is missing', async () => {
-    mockFindByKey.mockImplementation(() => Promise.resolve(null));
-
-    await ensureAdminIdentityListPlatformSettingExists();
-
-    expect(mockUpsertByKey).toHaveBeenCalledTimes(1);
-    const firstUpsert = mockUpsertByKey.mock.calls[0] as unknown as [unknown];
-    const arg = firstUpsert[0] as {
-      key: string;
-      valueType: string;
-      value: unknown;
-    };
-    expect(arg.key).toBe(PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST);
-    expect(arg.valueType).toBe('objectIdArray');
-    expect(arg.value).toEqual([]);
-  });
-
-  test('does not upsert when admin list setting already exists', async () => {
-    mockFindByKey.mockImplementation(() =>
-      Promise.resolve({
-        _id: new ObjectId(),
-        key: PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST,
-        description: '',
-        valueType: 'objectIdArray',
-        value: [],
-        lastUpdatedBy: 'u',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-    );
-
-    await ensureAdminIdentityListPlatformSettingExists();
 
     expect(mockUpsertByKey).not.toHaveBeenCalled();
   });

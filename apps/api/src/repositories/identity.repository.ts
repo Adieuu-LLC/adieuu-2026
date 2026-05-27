@@ -70,6 +70,11 @@ export interface IIdentityRepository {
     IdentityDocument,
     'messagesSentCount' | 'conversationsJoinedCount' | 'friendCount' | 'achievementsEarnedCount'
   > | null>;
+  findByPlatformRole(role: string): Promise<IdentityDocument[]>;
+  findByAnyPlatformRole(roles: string[]): Promise<IdentityDocument[]>;
+  countByPlatformRole(role: string): Promise<number>;
+  addPlatformRole(identityId: string | ObjectId, role: string): Promise<boolean>;
+  removePlatformRole(identityId: string | ObjectId, role: string): Promise<boolean>;
 }
 
 /**
@@ -764,6 +769,52 @@ export class IdentityRepository
         $set: { updatedAt: new Date() },
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     );
+  }
+
+  async findByPlatformRole(role: string): Promise<IdentityDocument[]> {
+    return this.findMany({
+      platformRoles: role,
+      ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
+    });
+  }
+
+  async findByAnyPlatformRole(roles: string[]): Promise<IdentityDocument[]> {
+    if (roles.length === 0) return [];
+    return this.findMany({
+      platformRoles: { $in: roles },
+      ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
+    });
+  }
+
+  async countByPlatformRole(role: string): Promise<number> {
+    return this.count({
+      platformRoles: role,
+      ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
+    });
+  }
+
+  async addPlatformRole(identityId: string | ObjectId, role: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $addToSet: { platformRoles: role },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+    return result.matchedCount > 0;
+  }
+
+  async removePlatformRole(identityId: string | ObjectId, role: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $pull: { platformRoles: role },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+    return result.matchedCount > 0;
   }
 }
 

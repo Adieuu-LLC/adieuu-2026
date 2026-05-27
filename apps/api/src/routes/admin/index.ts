@@ -1,82 +1,108 @@
 /**
- * Platform admin routes — identity session + platform admin list only.
+ * Platform admin routes — identity session + platform permission gates.
  */
 
-import { Router, type RouteContext } from '../../router';
+import { Router } from '../../router';
 import { success } from '../../utils/response';
-import { requireIdentitySession } from '../../services/session.service';
+import { PLATFORM_PERMISSIONS, PLATFORM_ROLES } from '../../constants/platform-permissions';
 import { ensureAuthAllowlistPlatformSettingsExist } from '../../services/platform-settings.service';
+import { requireAdminRouteContext } from './guards';
 import {
-  gatePlatformAdminSession,
-  addPlatformAdminResult,
-  removePlatformAdminResult,
   parseRegisteredPlatformSettingKey,
   upsertPlatformSettingAdminResult,
   getAdminMetricsCounts,
-  buildPlatformAdminsList,
   listPlatformSettingDocuments,
   findPlatformSettingDocument,
   toPublicSetting,
 } from './controller';
+import {
+  grantPlatformRoleResult,
+  listPlatformRoleHoldersResult,
+  revokePlatformRoleResult,
+} from './roles.controller';
 
 const router = new Router();
 
-async function requireAdminRouteContext(ctx: RouteContext) {
-  const session = await requireIdentitySession(ctx.request);
-  const gate = await gatePlatformAdminSession(session);
-  if (!gate.ok) {
-    return {
-      ok: false as const,
-      response:
-        gate.reason === 'unauthorized' ? ctx.errors.unauthorized() : ctx.errors.forbidden(),
-    };
-  }
-  return { ok: true as const, session: gate.session };
-}
-
 router.get('/admin/metrics', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.VIEW_ADMIN_METRICS);
   if (!auth.ok) return auth.response;
 
   const data = await getAdminMetricsCounts();
   return success(data);
 });
 
-router.get('/admin/platform-admins', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+router.get('/admin/platform-roles/:role', async (ctx) => {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_ROLES);
   if (!auth.ok) return auth.response;
 
-  const payload = await buildPlatformAdminsList();
-  return success(payload);
+  const result = await listPlatformRoleHoldersResult(ctx.params.role, auth.caps);
+  if (!result.ok) {
+    if (result.reason === 'forbidden') return ctx.errors.forbidden();
+    return ctx.errors.validationFailed();
+  }
+  return success({ identities: result.identities });
 });
 
-router.post('/admin/platform-admins', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+router.post('/admin/identities/:id/roles', async (ctx) => {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_ROLES);
   if (!auth.ok) return auth.response;
 
-  const result = await addPlatformAdminResult(auth.session.identityId, ctx.body);
+  const result = await grantPlatformRoleResult(
+    auth.session.identityId,
+    ctx.params.id,
+    ctx.body,
+    auth.caps,
+  );
   if (!result.ok) {
-    if (result.reason === 'validation_failed') return ctx.errors.validationFailed();
+    if (result.reason === 'forbidden') return ctx.errors.forbidden();
     if (result.reason === 'rate_limited') return ctx.errors.rateLimited();
-    return ctx.errors.notFound();
+    if (result.reason === 'not_found') return ctx.errors.notFound();
+    return ctx.errors.validationFailed();
   }
-  return success({ admins: result.admins });
+  return success({ identityId: result.identityId, roles: result.roles });
 });
 
-router.delete('/admin/platform-admins/:identityId', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+router.delete('/admin/identities/:id/roles/:role', async (ctx) => {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_ROLES);
   if (!auth.ok) return auth.response;
 
-  const result = await removePlatformAdminResult(auth.session.identityId, ctx.params.identityId);
+  const result = await revokePlatformRoleResult(
+    auth.session.identityId,
+    ctx.params.id,
+    ctx.params.role,
+    auth.caps,
+  );
   if (!result.ok) {
-    if (result.reason === 'validation_failed') return ctx.errors.validationFailed();
-    return ctx.errors.notFound();
+    if (result.reason === 'forbidden') return ctx.errors.forbidden();
+    if (result.reason === 'last_admin') return ctx.errors.validationFailed();
+    if (result.reason === 'not_found') return ctx.errors.notFound();
+    return ctx.errors.validationFailed();
   }
-  return success({ admins: result.admins });
+  return success({ identityId: result.identityId, roles: result.roles });
+});
+
+/** Backward-compatible alias for admin role listing. */
+router.get('/admin/platform-admins', async (ctx) => {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_ROLES);
+  if (!auth.ok) return auth.response;
+
+  const result = await listPlatformRoleHoldersResult(PLATFORM_ROLES.ADMIN, auth.caps);
+  if (!result.ok) {
+    if (result.reason === 'forbidden') return ctx.errors.forbidden();
+    return ctx.errors.validationFailed();
+  }
+
+  const admins = result.identities.map((identity) => ({
+    identityId: identity.identityId,
+    displayName: identity.displayName,
+    username: identity.username,
+    avatarUrl: identity.avatarUrl,
+  }));
+  return success({ admins });
 });
 
 router.get('/admin/platform-settings', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_SETTINGS);
   if (!auth.ok) return auth.response;
 
   try {
@@ -90,7 +116,7 @@ router.get('/admin/platform-settings', async (ctx) => {
 });
 
 router.get('/admin/platform-settings/:key', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_SETTINGS);
   if (!auth.ok) return auth.response;
 
   const key = parseRegisteredPlatformSettingKey(ctx.params.key);
@@ -112,8 +138,8 @@ router.get('/admin/platform-settings/:key', async (ctx) => {
   return success(toPublicSetting(doc));
 });
 
-async function upsertPlatformSettingHandler(ctx: RouteContext) {
-  const auth = await requireAdminRouteContext(ctx);
+async function upsertPlatformSettingHandler(ctx: import('../../router').RouteContext) {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_PLATFORM_SETTINGS);
   if (!auth.ok) return auth.response;
 
   const key = parseRegisteredPlatformSettingKey(ctx.params.key);

@@ -1,16 +1,15 @@
 /**
- * Resolves effective platform capabilities for an identity by combining
- * list-based role membership (admin / moderator lists in platform_settings),
- * persisted identity-document roles, and direct attribute grants.
+ * Resolves effective platform capabilities for an identity from persisted
+ * identity-document roles and direct attribute grants.
  *
  * Single entry-point: `getPlatformCapabilities(identityId)`.
  */
 
 import type { ObjectId } from 'mongodb';
-import { isPlatformAdmin, isPlatformModerator, isPlatformSupportAgent } from './platform-settings.service';
 import { getIdentityRepository } from '../repositories/identity.repository';
 import {
-  PLATFORM_ROLES,
+  derivePlatformRoleFlags,
+  normalizePlatformRoles,
   resolvePermissions,
   type PlatformPermission,
   type PlatformRole,
@@ -24,38 +23,31 @@ export interface PlatformCapabilities {
   permissions: PlatformPermission[];
 }
 
+const EMPTY_CAPABILITIES: PlatformCapabilities = {
+  isPlatformAdmin: false,
+  isPlatformModerator: false,
+  isPlatformSupportAgent: false,
+  roles: [],
+  permissions: [],
+};
+
 export async function getPlatformCapabilities(
   identityId: string | ObjectId,
 ): Promise<PlatformCapabilities> {
-  const [isAdmin, isModerator, isSupportAgent] = await Promise.all([
-    isPlatformAdmin(identityId),
-    isPlatformModerator(identityId),
-    isPlatformSupportAgent(identityId),
-  ]);
-
-  const roles: PlatformRole[] = [];
-  if (isAdmin) roles.push(PLATFORM_ROLES.ADMIN);
-  if (isModerator) roles.push(PLATFORM_ROLES.MODERATOR);
-  if (isSupportAgent) roles.push(PLATFORM_ROLES.SUPPORT_AGENT);
-
   const identityRepo = getIdentityRepository();
   const identity = await identityRepo.findById(identityId);
 
-  if (identity?.platformRoles) {
-    for (const r of identity.platformRoles) {
-      if (!roles.includes(r as PlatformRole)) {
-        roles.push(r as PlatformRole);
-      }
-    }
+  if (!identity) {
+    return EMPTY_CAPABILITIES;
   }
 
-  const directAttributes = identity?.platformAttributes ?? [];
+  const roles = normalizePlatformRoles(identity.platformRoles);
+  const directAttributes = identity.platformAttributes ?? [];
   const permissions = resolvePermissions(roles, directAttributes);
+  const flags = derivePlatformRoleFlags(roles);
 
   return {
-    isPlatformAdmin: isAdmin,
-    isPlatformModerator: isModerator || roles.includes(PLATFORM_ROLES.MODERATOR),
-    isPlatformSupportAgent: isSupportAgent || roles.includes(PLATFORM_ROLES.SUPPORT_AGENT),
+    ...flags,
     roles,
     permissions,
   };

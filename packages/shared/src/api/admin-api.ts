@@ -8,8 +8,6 @@ export const PLATFORM_SETTING_KEYS = {
   AUTH_ALLOWLIST_ENFORCED: 'platform-auth-allowlist-enforced',
   AUTH_ALLOWLIST_EMAIL: 'platform-auth-allowlist-email',
   AUTH_ALLOWLIST_PHONE: 'platform-auth-allowlist-phone',
-  ADMIN_ACCOUNT_LIST: 'platform-admin-account-list',
-  MODERATOR_ACCOUNT_LIST: 'platform-moderator-account-list',
   AGE_VERIFICATION_ENABLED: 'platform-age-verification-enabled',
   AGE_VERIFICATION_AUTO_EMAIL_CHECK: 'platform-age-verification-auto-email-check',
   AGE_VERIFICATION_ACTIVE_PROVIDER: 'platform-age-verification-active-provider',
@@ -59,6 +57,25 @@ export interface PlatformAdminRow {
   avatarUrl?: string;
   /** True when the identity id is listed but no longer exists in the database */
   stale?: boolean;
+}
+
+export type PlatformRole = 'admin' | 'moderator' | 'support_agent';
+
+export interface PlatformRoleHolderRow {
+  identityId: string;
+  displayName?: string;
+  username?: string;
+  avatarUrl?: string;
+  roles: PlatformRole[];
+}
+
+export interface GrantPlatformRoleParams {
+  role: PlatformRole;
+}
+
+export interface PlatformRoleMutationResponse {
+  identityId: string;
+  roles: PlatformRole[];
 }
 
 // ---------------------------------------------------------------------------
@@ -276,16 +293,55 @@ export class AdminApi {
     return this.client.get('/api/admin/platform-admins');
   }
 
+  async listPlatformRoleHolders(
+    role: PlatformRole,
+  ): Promise<ApiResponse<{ identities: PlatformRoleHolderRow[] }>> {
+    return this.client.get(`/api/admin/platform-roles/${encodeURIComponent(role)}`);
+  }
+
+  async grantPlatformRole(
+    identityId: string,
+    params: GrantPlatformRoleParams,
+  ): Promise<ApiResponse<PlatformRoleMutationResponse>> {
+    return this.client.post(
+      `/api/admin/identities/${encodeURIComponent(identityId)}/roles`,
+      params,
+    );
+  }
+
+  async revokePlatformRole(
+    identityId: string,
+    role: PlatformRole,
+  ): Promise<ApiResponse<PlatformRoleMutationResponse>> {
+    return this.client.delete(
+      `/api/admin/identities/${encodeURIComponent(identityId)}/roles/${encodeURIComponent(role)}`,
+    );
+  }
+
   async addPlatformAdmin(params: {
     identityId: string;
   }): Promise<ApiResponse<{ admins: PlatformAdminRow[] }>> {
-    return this.client.post('/api/admin/platform-admins', params);
+    const grant = await this.grantPlatformRole(params.identityId, { role: 'admin' });
+    if (!grant.success) {
+      return {
+        success: false,
+        error: grant.error,
+      };
+    }
+    return this.listPlatformAdmins();
   }
 
   async removePlatformAdmin(
-    identityId: string
+    identityId: string,
   ): Promise<ApiResponse<{ admins: PlatformAdminRow[] }>> {
-    return this.client.delete(`/api/admin/platform-admins/${encodeURIComponent(identityId)}`);
+    const revoke = await this.revokePlatformRole(identityId, 'admin');
+    if (!revoke.success) {
+      return {
+        success: false,
+        error: revoke.error,
+      };
+    }
+    return this.listPlatformAdmins();
   }
 
   // -------------------------------------------------------------------------

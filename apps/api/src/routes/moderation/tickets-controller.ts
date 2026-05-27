@@ -6,7 +6,7 @@
 
 import { ObjectId } from 'mongodb';
 import { z } from '@adieuu/shared/schemas';
-import { PLATFORM_PERMISSIONS } from '../../constants/platform-permissions';
+import { PLATFORM_PERMISSIONS, PLATFORM_ROLES } from '../../constants/platform-permissions';
 import {
   TICKET_CATEGORIES,
   TICKET_STATUSES,
@@ -14,9 +14,7 @@ import {
   type TicketCategory,
   type TicketStatus,
 } from '@adieuu/shared';
-import { PLATFORM_SETTING_KEYS } from '../../constants/platform-settings-keys';
 import { getIdentityRepository } from '../../repositories/identity.repository';
-import { getPlatformSettingsRepository } from '../../repositories/platform-settings.repository';
 import { getSupportTicketRepository } from '../../repositories/support-ticket.repository';
 import { getSupportTicketEventRepository } from '../../repositories/support-ticket-event.repository';
 import {
@@ -231,41 +229,18 @@ export type SupportStaffRow = {
 export async function listSupportStaffResult(): Promise<
   TicketModerationResult<{ staff: SupportStaffRow[] }>
 > {
-  const settingsRepo = getPlatformSettingsRepository();
   const identityRepo = getIdentityRepository();
-  const idSet = new Set<string>();
+  const identities = await identityRepo.findByAnyPlatformRole([
+    PLATFORM_ROLES.ADMIN,
+    PLATFORM_ROLES.MODERATOR,
+    PLATFORM_ROLES.SUPPORT_AGENT,
+  ]);
 
-  for (const key of [
-    PLATFORM_SETTING_KEYS.ADMIN_IDENTITY_LIST,
-    PLATFORM_SETTING_KEYS.MODERATOR_IDENTITY_LIST,
-    PLATFORM_SETTING_KEYS.SUPPORT_AGENT_IDENTITY_LIST,
-  ]) {
-    const doc = await settingsRepo.findByKey(key);
-    if (doc?.valueType === 'objectIdArray' && Array.isArray(doc.value)) {
-      for (const entry of doc.value) {
-        const hex = entry instanceof ObjectId ? entry.toHexString() : typeof entry === 'string' ? entry : null;
-        if (hex && isValidObjectId(hex)) idSet.add(hex.toLowerCase());
-      }
-    }
-  }
-
-  const staff: SupportStaffRow[] = [];
-  await Promise.all(
-    [...idSet].map(async (iid) => {
-      try {
-        const identity = await identityRepo.findByIdentityId(iid);
-        if (identity) {
-          staff.push({
-            identityId: iid,
-            displayName: identity.displayName ?? '',
-            username: identity.username ?? '',
-          });
-        }
-      } catch {
-        /* skip */
-      }
-    }),
-  );
+  const staff: SupportStaffRow[] = identities.map((identity) => ({
+    identityId: identity._id instanceof ObjectId ? identity._id.toHexString() : String(identity._id),
+    displayName: identity.displayName ?? '',
+    username: identity.username ?? '',
+  }));
 
   staff.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return { ok: true, data: { staff } };

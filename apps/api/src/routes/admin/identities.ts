@@ -1,11 +1,11 @@
 /**
- * Admin identity management routes — identity session + platform admin gate.
+ * Admin identity management routes — identity session + platform permission gates.
  */
 
-import { Router, type RouteContext } from '../../router';
+import { Router } from '../../router';
 import { success } from '../../utils/response';
-import { requireIdentitySession } from '../../services/session.service';
-import { gatePlatformAdminSession } from './controller';
+import { PLATFORM_PERMISSIONS } from '../../constants/platform-permissions';
+import { requireAdminRouteContext } from './guards';
 import {
   searchIdentities,
   getIdentityProfile,
@@ -22,22 +22,9 @@ import {
 
 const router = new Router();
 
-async function requireAdminRouteContext(ctx: RouteContext) {
-  const session = await requireIdentitySession(ctx.request);
-  const gate = await gatePlatformAdminSession(session);
-  if (!gate.ok) {
-    return {
-      ok: false as const,
-      response:
-        gate.reason === 'unauthorized' ? ctx.errors.unauthorized() : ctx.errors.forbidden(),
-    };
-  }
-  return { ok: true as const, session: gate.session };
-}
-
 // Search
 router.get('/admin/identities/search', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_IDENTITIES);
   if (!auth.ok) return auth.response;
 
   const result = await searchIdentities(ctx.query);
@@ -47,7 +34,7 @@ router.get('/admin/identities/search', async (ctx) => {
 
 // Profile
 router.get('/admin/identities/:id', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_IDENTITIES);
   if (!auth.ok) return auth.response;
 
   const result = await getIdentityProfile(ctx.params.id);
@@ -60,7 +47,7 @@ router.get('/admin/identities/:id', async (ctx) => {
 
 // Sessions
 router.get('/admin/identities/:id/sessions', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_IDENTITIES);
   if (!auth.ok) return auth.response;
 
   const result = await getIdentitySessions(ctx.params.id);
@@ -70,7 +57,7 @@ router.get('/admin/identities/:id/sessions', async (ctx) => {
 
 // Reports
 router.get('/admin/identities/:id/reports', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_IDENTITIES);
   if (!auth.ok) return auth.response;
 
   const result = await getIdentityReports(ctx.params.id, ctx.query);
@@ -80,7 +67,7 @@ router.get('/admin/identities/:id/reports', async (ctx) => {
 
 // Entitlements
 router.get('/admin/identities/:id/entitlements', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_IDENTITIES);
   if (!auth.ok) return auth.response;
 
   const result = await getIdentityEntitlements(ctx.params.id);
@@ -92,7 +79,7 @@ router.get('/admin/identities/:id/entitlements', async (ctx) => {
 });
 
 router.post('/admin/identities/:id/entitlements', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_IDENTITIES);
   if (!auth.ok) return auth.response;
 
   const result = await addIdentityEntitlement(auth.session.identityId, ctx.params.id, ctx.body);
@@ -104,7 +91,7 @@ router.post('/admin/identities/:id/entitlements', async (ctx) => {
 });
 
 router.delete('/admin/identities/:id/entitlements/:name', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_IDENTITIES);
   if (!auth.ok) return auth.response;
 
   const result = await removeIdentityEntitlement(auth.session.identityId, ctx.params.id, ctx.params.name);
@@ -117,7 +104,7 @@ router.delete('/admin/identities/:id/entitlements/:name', async (ctx) => {
 
 // Suspend
 router.post('/admin/identities/:id/suspend', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_IDENTITIES);
   if (!auth.ok) return auth.response;
 
   const result = await suspendIdentity(auth.session.identityId, ctx.params.id, ctx.body);
@@ -129,7 +116,7 @@ router.post('/admin/identities/:id/suspend', async (ctx) => {
 });
 
 router.delete('/admin/identities/:id/suspend', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_IDENTITIES);
   if (!auth.ok) return auth.response;
 
   const result = await unsuspendIdentity(auth.session.identityId, ctx.params.id);
@@ -142,7 +129,7 @@ router.delete('/admin/identities/:id/suspend', async (ctx) => {
 
 // Ban
 router.post('/admin/identities/:id/ban', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_IDENTITIES);
   if (!auth.ok) return auth.response;
 
   const result = await banIdentity(auth.session.identityId, ctx.params.id, ctx.body);
@@ -154,7 +141,7 @@ router.post('/admin/identities/:id/ban', async (ctx) => {
 });
 
 router.delete('/admin/identities/:id/ban', async (ctx) => {
-  const auth = await requireAdminRouteContext(ctx);
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_IDENTITIES);
   if (!auth.ok) return auth.response;
 
   const result = await unbanIdentity(auth.session.identityId, ctx.params.id);

@@ -140,7 +140,9 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | `VERIFYMY_PRODUCTION_BASE_URL` | Optional; default `https://oauth.verifymyage.com`. |
 | `VERIFYMY_TIMEOUT_MS` | Optional; default `10000`. |
 
-**Platform settings (MongoDB, not env):** The API stores typed configuration in the `platform_settings` collection (see `apps/api/src/constants/platform-settings-keys.ts`). Most knobs are Mongo-only; **geo** also reads **`platform-geo-lookup-enabled`** (boolean) and **age verification** reads **`AGE_VERIFICATION_ENABLED`** (boolean, default `false`) so operators can toggle these features without redeploying. Auth allowlist and admin account list are edited via **`/api/admin/platform-settings`** (session cookie + user id in `platform-admin-account-list`). Seed the first admin ObjectIds in MongoDB (or Atlas) before calling those routes.
+**Platform settings (MongoDB, not env):** The API stores typed configuration in the `platform_settings` collection (see `apps/api/src/constants/platform-settings-keys.ts`). Most knobs are Mongo-only; **geo** also reads **`platform-geo-lookup-enabled`** (boolean) and **age verification** reads **`AGE_VERIFICATION_ENABLED`** (boolean, default `false`) so operators can toggle these features without redeploying. The auth allowlist is edited via **`/api/admin/platform-settings`** (identity session with `manage-platform-settings`).
+
+**Platform RBAC (identities, not platform_settings):** Staff roles (`admin`, `moderator`, `support_agent`) are stored on each identity document’s **`platformRoles`** array in the `identities` collection — not in platform settings. Before using admin routes, bootstrap at least one admin in MongoDB (see [Platform RBAC](../../apps/api/README.md#platform-rbac) in `apps/api/README.md`). Role assignment after bootstrap uses **`POST /api/admin/identities/:id/roles`** and related endpoints (requires identity session + `manage-roles`).
 
 ### Chat (`apps/chat`) — additional non-secret keys
 

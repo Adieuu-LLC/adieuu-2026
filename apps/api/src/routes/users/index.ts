@@ -386,10 +386,13 @@ const DisplayNameSchema = z.object({
 });
 
 router.patch('/users/me/display-name', async (ctx) => {
-  const session = await requireAccountSession(ctx.request);
-  if (!session) return ctx.errors.unauthorized();
+  const accountSession = await requireAccountSession(ctx.request);
+  if (!accountSession) return ctx.errors.unauthorized();
 
-  const caps = await getPlatformCapabilities(session.userId);
+  const identitySession = ctx.identitySession;
+  if (!identitySession) return ctx.errors.forbidden();
+
+  const caps = await getPlatformCapabilities(identitySession.identity._id);
   const isModerator = caps.isPlatformModerator || caps.isPlatformAdmin;
   if (!isModerator) return ctx.errors.forbidden();
 
@@ -397,7 +400,7 @@ router.patch('/users/me/display-name', async (ctx) => {
   if (!body.success) return ctx.errors.validationFailed();
 
   const repo = getUserRepository();
-  const updated = await repo.updateById(session.userId, { displayName: body.data.displayName });
+  const updated = await repo.updateById(accountSession.userId, { displayName: body.data.displayName });
   if (!updated) return ctx.errors.notFound();
 
   return success({ displayName: updated.displayName });
