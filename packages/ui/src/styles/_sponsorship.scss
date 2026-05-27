@@ -364,6 +364,101 @@
   color: var(--color-text-secondary);
 }
 
+// Sponsor callout card (shown when user has sponsored someone)
+.sponsorship-sponsor-callout-glow {
+  width: 100%;
+  margin-bottom: var(--spacing-lg);
+
+  .border-glow-inner {
+    overflow: visible;
+  }
+
+  .sponsorship-sponsor-callout.card.card-elevated {
+    border: none;
+    box-shadow: none;
+  }
+}
+
+.sponsorship-sponsor-callout.card {
+  position: relative;
+  overflow: hidden;
+  padding: var(--spacing-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  border-color: color-mix(in srgb, var(--color-success) 38%, var(--color-border));
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px color-mix(in srgb, var(--color-success) 22%, transparent);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    background: linear-gradient(
+      90deg,
+      var(--color-success),
+      color-mix(in srgb, var(--color-success) 60%, var(--color-accent-primary))
+    );
+  }
+}
+
+.sponsorship-sponsor-callout-eyebrow {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-success);
+  margin: 0;
+}
+
+.sponsorship-sponsor-callout-heading {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+}
+
+.sponsorship-sponsor-callout-stats {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.sponsorship-sponsor-callout-achievement {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-success) 8%, var(--color-bg-secondary));
+
+  .sponsorship-sponsor-callout-achievement-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2xs);
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sponsorship-sponsor-callout-achievement-label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    margin: 0;
+  }
+
+  .sponsorship-sponsor-callout-achievement-desc {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+}
+
 // CTA on Manage tab
 .subscription-sponsorship-cta {
   display: flex;
@@ -394,5 +489,14 @@
 
   .sponsorship-directory-grid {
     grid-template-columns: 1fr;
+  }
+
+  .sponsorship-sponsor-callout.card {
+    padding: var(--spacing-lg) var(--spacing-md);
+  }
+
+  .sponsorship-sponsor-callout-achievement {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

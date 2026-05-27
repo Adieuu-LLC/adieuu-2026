@@ -7,16 +7,19 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Switch } from '@ark-ui/react';
 import {
   createApiClient,
   type SponsorshipDirectoryEntry,
   type SponsorshipRequestStatus,
+  type SponsorStats,
   type PurchasableProductId,
   PURCHASABLE_PRODUCT_IDS,
 } from '@adieuu/shared';
 import { useAppConfig } from '../../../config';
 import { Button } from '../../../components/Button';
 import { Card } from '../../../components/Card';
+import { BorderGlow } from '../../../components/BorderGlow';
 import { Spinner } from '../../../components/Spinner';
 import { Alert } from '../../../components/Alert';
 import { useToast } from '../../../components/Toast';
@@ -40,6 +43,8 @@ export function SponsorshipsTab({ derived, identityMode }: SponsorshipsTabProps)
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [sponsorTarget, setSponsorTarget] = useState<SponsorshipDirectoryEntry | null>(null);
+  const [sponsorStats, setSponsorStats] = useState<SponsorStats | null>(null);
+  const [achievementToggling, setAchievementToggling] = useState(false);
 
   // Request form state
   const [showRequestForm, setShowRequestForm] = useState(false);
@@ -55,9 +60,10 @@ export function SponsorshipsTab({ derived, identityMode }: SponsorshipsTabProps)
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [statusRes, dirRes] = await Promise.all([
+      const [statusRes, dirRes, statsRes] = await Promise.all([
         api.sponsorship.getStatus(),
         api.sponsorship.getDirectory(),
+        identityMode ? Promise.resolve(null) : api.sponsorship.getSponsorStats(),
       ]);
       if (statusRes.success && statusRes.data) {
         setRequestStatus(statusRes.data);
@@ -66,12 +72,15 @@ export function SponsorshipsTab({ derived, identityMode }: SponsorshipsTabProps)
         setEntries(dirRes.data.entries);
         setHasMore(dirRes.data.hasMore);
       }
+      if (statsRes && statsRes.success && statsRes.data) {
+        setSponsorStats(statsRes.data);
+      }
     } catch {
       // silent
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  }, [api, identityMode]);
 
   useEffect(() => {
     fetchData();
@@ -142,6 +151,24 @@ export function SponsorshipsTab({ derived, identityMode }: SponsorshipsTabProps)
     }
   }
 
+  async function handleAchievementToggle(checked: boolean) {
+    if (achievementToggling) return;
+    setAchievementToggling(true);
+    setSponsorStats((prev) => prev ? { ...prev, hasAchievementOptIn: checked } : prev);
+    try {
+      const res = await api.sponsorship.setSponsorAchievement(checked);
+      if (!res.success) {
+        setSponsorStats((prev) => prev ? { ...prev, hasAchievementOptIn: !checked } : prev);
+        toast.error(t('sponsorship.errors.generic'));
+      }
+    } catch {
+      setSponsorStats((prev) => prev ? { ...prev, hasAchievementOptIn: !checked } : prev);
+      toast.error(t('sponsorship.errors.generic'));
+    } finally {
+      setAchievementToggling(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="sponsorship-tab-loading">
@@ -154,8 +181,54 @@ export function SponsorshipsTab({ derived, identityMode }: SponsorshipsTabProps)
   const hasFulfilledRequest = requestStatus?.hasRequest && requestStatus.status === 'fulfilled';
   const canSubmit = firstName.trim().length >= 1 && lastInitial.trim().length === 1;
 
+  const showSponsorCallout = !identityMode && sponsorStats && sponsorStats.lifetimeCount > 0;
+
   return (
     <div className="sponsorship-tab">
+      {/* Sponsor callout card */}
+      {showSponsorCallout && (
+        <BorderGlow
+          className="sponsorship-sponsor-callout-glow"
+          colors={['var(--color-success)', 'color-mix(in srgb, var(--color-success) 60%, var(--color-accent-primary))']}
+        >
+          <Card className="sponsorship-sponsor-callout" variant="elevated">
+            <p className="sponsorship-sponsor-callout-eyebrow">
+              {t('sponsorship.sponsorCallout.eyebrow')}
+            </p>
+            <h2 className="sponsorship-sponsor-callout-heading">
+              {t('sponsorship.sponsorCallout.heading')}
+            </h2>
+            <p className="sponsorship-sponsor-callout-stats">
+              {t('sponsorship.sponsorCallout.stats', {
+                lifetimeCount: sponsorStats.lifetimeCount,
+                activeCount: sponsorStats.activeCount,
+              })}
+            </p>
+            <div className="sponsorship-sponsor-callout-achievement">
+              <div className="sponsorship-sponsor-callout-achievement-text">
+                <p className="sponsorship-sponsor-callout-achievement-label">
+                  {t('sponsorship.sponsorCallout.achievementLabel')}
+                </p>
+                <p className="sponsorship-sponsor-callout-achievement-desc">
+                  {t('sponsorship.sponsorCallout.achievementDescription')}
+                </p>
+              </div>
+              <Switch.Root
+                checked={sponsorStats.hasAchievementOptIn}
+                disabled={achievementToggling}
+                onCheckedChange={(details) => handleAchievementToggle(details.checked)}
+                className="sidebar-filter-switch"
+              >
+                <Switch.Control className="sidebar-filter-switch-control">
+                  <Switch.Thumb className="sidebar-filter-switch-thumb" />
+                </Switch.Control>
+                <Switch.HiddenInput />
+              </Switch.Root>
+            </div>
+          </Card>
+        </BorderGlow>
+      )}
+
       {/* Request sponsorship section */}
       {canRequest && !hasActiveRequest && !hasFulfilledRequest && (
         <Card className="sponsorship-tab-request-section">

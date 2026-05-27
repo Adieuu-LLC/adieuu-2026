@@ -15,6 +15,8 @@ import {
   withdrawSponsorshipRequest,
   getSponsorshipDirectory,
   createSponsorshipCheckout,
+  getSponsorStats,
+  setSponsorAchievement,
 } from './controller';
 
 const router = new Router();
@@ -139,6 +141,44 @@ router.post('/sponsorship/checkout', async (ctx) => {
   }
 
   return success({ url: result.url });
+});
+
+/**
+ * GET /sponsorship/sponsor-stats
+ *
+ * Returns aggregate sponsorship-given stats and achievement opt-in state.
+ */
+router.get('/sponsorship/sponsor-stats', async (ctx) => {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) return ctx.errors.unauthorized();
+
+  const result = await getSponsorStats(session.userId);
+  if (!result.ok) return ctx.errors.notFound();
+
+  return success(result.data);
+});
+
+/**
+ * POST /sponsorship/sponsor-achievement
+ *
+ * Toggle the sponsor achievement entitlement opt-in.
+ */
+router.post('/sponsorship/sponsor-achievement', async (ctx) => {
+  const session = await requireAccountSession(ctx.request);
+  if (!session) return ctx.errors.unauthorized();
+
+  const result = await setSponsorAchievement(session.userId, ctx.body);
+
+  if (!result.ok) {
+    if (result.reason === 'user_not_found') return ctx.errors.notFound();
+    if (result.reason === 'validation') return ctx.errors.validationFailed();
+    if (result.reason === 'not_a_sponsor') {
+      return error('NOT_A_SPONSOR', 'You must have sponsored at least one person to enable this.', 403);
+    }
+    return ctx.errors.internal();
+  }
+
+  return success({ success: true });
 });
 
 export const sponsorshipRoutes = router;

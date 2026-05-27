@@ -80,6 +80,7 @@ export const APP_ICON_NAMES = {
   pin: 'thumbtack',
   locationPin: 'location-pin',
   rotateRight: 'arrow-rotate-right',
+  handshake: 'handshake',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;

@@ -70,6 +70,25 @@ export class AchievementRepository extends BaseRepository<AchievementDocument> {
   }
 
   /**
+   * Revoke an achievement from a single identity.
+   * Returns true if the achievement was actually removed.
+   */
+  async revoke(
+    identityId: ObjectId,
+    achievementId: string,
+  ): Promise<boolean> {
+    const result = await this.collection.deleteOne({
+      identityId,
+      achievementId,
+    } as any);
+    if (result.deletedCount > 0) {
+      await getIdentityRepository().decrementAchievementsEarnedCount(identityId);
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Get global holder counts for all achievements.
    */
   async getGlobalStats(): Promise<Record<string, number>> {

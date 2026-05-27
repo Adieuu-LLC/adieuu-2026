@@ -6,6 +6,7 @@
 
 import type { PurchasableProductId } from '@adieuu/shared';
 import { PURCHASABLE_PRODUCT_IDS } from '@adieuu/shared';
+import { ObjectId } from 'mongodb';
 import { getUserRepository } from '../../repositories/user.repository';
 import {
   getSponsorshipRequestRepository,
@@ -310,4 +311,72 @@ export async function createSponsorshipCheckout(
     elog.error('Sponsorship checkout failed', { userId, ...billingErrorLogFields(err) });
     return { ok: false, reason: 'internal' };
   }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/sponsorship/sponsor-stats
+// ---------------------------------------------------------------------------
+
+export type GetSponsorStatsResult =
+  | { ok: true; data: { lifetimeCount: number; activeCount: number; hasAchievementOptIn: boolean } }
+  | { ok: false; reason: 'user_not_found' };
+
+export async function getSponsorStats(
+  userId: string,
+): Promise<GetSponsorStatsResult> {
+  const userRepo = getUserRepository();
+  const user = await userRepo.findById(userId);
+  if (!user) return { ok: false, reason: 'user_not_found' };
+
+  const logRepo = getSponsorshipLogRepository();
+  const sponsorObjId = new ObjectId(userId);
+
+  const [lifetimeCount, activeCount] = await Promise.all([
+    logRepo.countBySponsor(sponsorObjId),
+    logRepo.countActiveBySponsor(sponsorObjId),
+  ]);
+
+  const hasAchievementOptIn = user.entitlementOverrides?.includes('sponsor') ?? false;
+
+  return { ok: true, data: { lifetimeCount, activeCount, hasAchievementOptIn } };
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/sponsorship/sponsor-achievement
+// ---------------------------------------------------------------------------
+
+export type SetSponsorAchievementResult =
+  | { ok: true }
+  | { ok: false; reason: 'user_not_found' | 'not_a_sponsor' | 'validation' };
+
+export async function setSponsorAchievement(
+  userId: string,
+  body: unknown,
+): Promise<SetSponsorAchievementResult> {
+  const input = body as { enabled?: unknown } | undefined;
+  if (typeof input?.enabled !== 'boolean') {
+    return { ok: false, reason: 'validation' };
+  }
+
+  const userRepo = getUserRepository();
+  const user = await userRepo.findById(userId);
+  if (!user) return { ok: false, reason: 'user_not_found' };
+
+  const logRepo = getSponsorshipLogRepository();
+  const sponsorObjId = new ObjectId(userId);
+  const count = await logRepo.countBySponsor(sponsorObjId);
+  if (count === 0) return { ok: false, reason: 'not_a_sponsor' };
+
+  if (input.enabled) {
+    await userRepo.addEntitlementOverride(user._id, 'sponsor');
+  } else {
+    await userRepo.removeEntitlementOverride(user._id, 'sponsor');
+  }
+
+  elog.info('Sponsor achievement preference updated', {
+    userId,
+    enabled: input.enabled,
+  });
+
+  return { ok: true };
 }

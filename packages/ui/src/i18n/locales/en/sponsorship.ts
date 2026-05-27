@@ -71,6 +71,14 @@ export const sponsorship = {
       expiryBanner: 'Your subscription expires on {{date}}.',
       expiryAction: 'Subscribe or reapply for sponsorship.',
     },
+    sponsorCallout: {
+      eyebrow: "You're a Sponsor",
+      heading: 'Thank you for your generosity',
+      stats: 'You have sponsored {{lifetimeCount}} people ({{activeCount}} currently active).',
+      achievementLabel: 'Show sponsor achievement on my profiles',
+      achievementDescription:
+        'Display an exclusive achievement badge on your identity profiles. This is visible to others based on your privacy settings.',
+    },
     errors: {
       hasSubscription: 'You already have an active subscription.',
       alreadyRequested: 'You already have a sponsorship request.',

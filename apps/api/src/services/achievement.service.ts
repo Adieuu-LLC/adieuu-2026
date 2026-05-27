@@ -215,13 +215,18 @@ async function canInferActionCompleted(
 
 /**
  * Check all achievement definitions against current domain state and award
- * any that the identity qualifies for but hasn't yet received.
+ * any that the identity qualifies for but hasn't yet received. Entitlement-
+ * gated achievements are also revoked here when the entitlement is no longer
+ * present.
  *
  * Designed to be called fire-and-forget on login so that newly added
  * achievements are retroactively awarded to users who already qualify.
+ *
+ * @param entitlements - merged account + identity entitlements for the session
  */
 export async function reconcileAchievements(
   identityId: ObjectId,
+  entitlements?: string[],
 ): Promise<void> {
   const repo = getAchievementRepository();
   const identityRepo = getIdentityRepository();
@@ -233,9 +238,35 @@ export async function reconcileAchievements(
   const earnedIds = new Set(earnedDocs.map((d) => d.achievementId));
 
   for (const def of ACHIEVEMENT_DEFINITIONS) {
-    if (earnedIds.has(def.id)) continue;
-
     try {
+      if (def.trigger.type === 'entitlement') {
+        const hasEntitlement = entitlements?.includes(def.trigger.entitlement) ?? false;
+        if (hasEntitlement && !earnedIds.has(def.id)) {
+          const awarded = await repo.award(identityId, def.id);
+          if (awarded) {
+            await createNotification(identityId, 'achievement_unlocked', {
+              achievementId: def.id,
+              definition: toPublicDefinition(def),
+            });
+            elog.info('Achievement awarded (entitlement)', {
+              identityId: identityId.toHexString(),
+              achievementId: def.id,
+            });
+          }
+        } else if (!hasEntitlement && earnedIds.has(def.id)) {
+          const revoked = await repo.revoke(identityId, def.id);
+          if (revoked) {
+            elog.info('Achievement revoked (entitlement removed)', {
+              identityId: identityId.toHexString(),
+              achievementId: def.id,
+            });
+          }
+        }
+        continue;
+      }
+
+      if (earnedIds.has(def.id)) continue;
+
       let qualifies = false;
 
       if (def.trigger.type === 'count') {

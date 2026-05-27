@@ -80,4 +80,5 @@ export const achievements = {
     allCaps: { name: 'Indoor Voice, Please', description: 'We can hear you just fine.' },
     laughingOutLoud: { name: 'Laughing Out Loud', description: 'Classic internet laughter.' },
     shrug: { name: 'It Is What It Is', description: "Sometimes words just aren't enough." },
+    sponsor: { name: 'Patron of the Arts', description: 'Sponsored another user\'s subscription.' },
 } as const;

@@ -57,6 +57,8 @@ import {
   AdminGate,
   AdminLayout,
   AdminPlatformAdmins,
+  AdminUserSearch,
+  AdminUserProfile,
 } from '../pages/admin';
 import {
   ModeratorGate,
@@ -314,6 +316,8 @@ export function App() {
             <Route path="platform-admins" element={<AdminPlatformAdmins />} />
             <Route path="auth-allowlist" element={<AdminAuthAllowlist />} />
             <Route path="age-verification" element={<AdminAgeVerification />} />
+            <Route path="users" element={<AdminUserSearch />} />
+            <Route path="users/:id" element={<AdminUserProfile />} />
           </Route>
         </Route>
 

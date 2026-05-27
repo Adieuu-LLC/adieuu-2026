@@ -478,6 +478,370 @@
   }
 }
 
+// Admin user management
+.admin-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  background: var(--color-surface-secondary);
+  color: var(--color-text-secondary);
+
+  &--success {
+    background: var(--color-success-subtle, #e8f5e9);
+    color: var(--color-success, #2e7d32);
+  }
+
+  &--warning {
+    background: var(--color-warning-subtle, #fff3e0);
+    color: var(--color-warning, #e65100);
+  }
+
+  &--danger {
+    background: var(--color-danger-subtle, #ffebee);
+    color: var(--color-danger, #c62828);
+  }
+}
+
+.admin-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.admin-page-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+}
+
+.admin-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--spacing-xs) var(--spacing-md);
+  font-size: var(--font-size-sm);
+
+  dt {
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.admin-table-row--clickable {
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-surface-hover);
+  }
+}
+
+.admin-table-mono {
+  font-family: var(--font-family-mono, monospace);
+  font-size: var(--font-size-xs);
+  word-break: break-all;
+}
+
+.admin-table-meta {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.admin-alert {
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md, 8px);
+  margin-bottom: var(--spacing-md);
+  font-size: var(--font-size-sm);
+
+  &--error {
+    background: var(--color-danger-subtle, #ffebee);
+    color: var(--color-danger, #c62828);
+  }
+
+  &--warning {
+    background: var(--color-warning-subtle, #fff3e0);
+    color: var(--color-warning, #e65100);
+  }
+}
+
+.admin-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-xl);
+}
+
+.admin-empty {
+  text-align: center;
+  color: var(--color-text-secondary);
+  padding: var(--spacing-xl);
+  font-size: var(--font-size-sm);
+}
+
+.admin-empty-inline {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+}
+
+.admin-form-group {
+  margin-bottom: var(--spacing-md);
+
+  label {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    margin-bottom: var(--spacing-xs);
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm, 4px);
+    font-size: var(--font-size-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+  }
+
+  small {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    margin-top: var(--spacing-xs);
+  }
+}
+
+.admin-form-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: flex-end;
+
+  input {
+    flex: 1;
+  }
+}
+
+.admin-textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.admin-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  li {
+    padding: var(--spacing-xs) 0;
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+}
+
+.admin-entitlement-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-subscription-modal {
+  width: min(100%, 32rem);
+}
+
+.admin-subscription-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.admin-subscription-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary, var(--color-surface));
+}
+
+.admin-subscription-summary-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-subscription-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.admin-subscription-section-title,
+.admin-subscription-panel-title {
+  margin: 0 0 var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold, var(--font-weight-medium));
+  color: var(--color-text-primary);
+}
+
+.admin-subscription-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.admin-subscription-override-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.admin-subscription-override-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+
+  &--active {
+    border-color: var(--color-accent-primary);
+    box-shadow: 0 0 0 1px var(--color-accent-glow, rgba(99, 102, 241, 0.15));
+  }
+}
+
+.admin-subscription-override-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-subscription-override-tier {
+  font-weight: var(--font-weight-medium);
+  text-transform: capitalize;
+}
+
+.admin-subscription-override-expiry {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.admin-subscription-override-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--spacing-xs);
+}
+
+.admin-subscription-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+
+  &--add {
+    background: var(--color-bg-secondary, var(--color-surface));
+    border-style: dashed;
+  }
+
+  &--edit {
+    background: color-mix(in srgb, var(--color-accent-primary) 6%, var(--color-surface));
+    border-color: var(--color-accent-primary);
+  }
+}
+
+.admin-subscription-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
+.admin-subscription-panel-badge {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  padding: 2px 8px;
+  border-radius: var(--radius-full, 999px);
+  background: var(--color-bg-tertiary, var(--color-border-subtle));
+}
+
+.admin-subscription-panel-hint {
+  margin: calc(-1 * var(--spacing-xs)) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.admin-subscription-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.admin-subscription-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.admin-subscription-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+}
+
+.admin-subscription-checkbox-control {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--color-accent-primary);
+}
+
+.admin-subscription-checkbox-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.admin-user-profile {
+  .admin-card {
+    margin-bottom: var(--spacing-lg);
+  }
+
+  h3 {
+    margin: 0 0 var(--spacing-md);
+    font-size: var(--font-size-md);
+  }
+
+  h4 {
+    margin: var(--spacing-md) 0 var(--spacing-sm);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+  }
+}
+
 @media (max-width: 720px) {
   .admin-shell {
     flex-direction: column;
@@ -491,6 +855,23 @@
   .admin-sub-nav {
     flex-direction: row;
     flex-wrap: wrap;
+  }
+
+  .admin-dl {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-action-bar {
+    flex-direction: column;
+  }
+
+  .admin-subscription-override-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-subscription-override-actions {
+    justify-content: flex-end;
   }
 }
 

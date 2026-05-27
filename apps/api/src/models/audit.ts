@@ -21,7 +21,18 @@ export type AuditAction =
   | 'account_locked'
   | 'account_unlocked'
   | 'identifier_linked'
-  | 'identifier_unlinked';
+  | 'identifier_unlinked'
+  | 'admin_gift_subscription'
+  | 'admin_add_subscription_override'
+  | 'admin_update_subscription_override'
+  | 'admin_remove_subscription_override'
+  | 'admin_approve_age'
+  | 'admin_add_entitlement'
+  | 'admin_remove_entitlement'
+  | 'admin_suspend_account'
+  | 'admin_unsuspend_account'
+  | 'admin_ban_account'
+  | 'admin_unban_account';
 
 /**
  * Audit log document stored in MongoDB

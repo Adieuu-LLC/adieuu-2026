@@ -115,6 +115,20 @@ export class SponsorshipLogRepository extends BaseRepository<SponsorshipLogDocum
       .sort({ grantedAt: -1 })
       .toArray();
   }
+
+  async countBySponsor(sponsorUserId: ObjectId): Promise<number> {
+    return this.count({ sponsorUserId } as Filter<SponsorshipLogDocument>);
+  }
+
+  async countActiveBySponsor(sponsorUserId: ObjectId): Promise<number> {
+    return this.count({
+      sponsorUserId,
+      $or: [
+        { expiresAt: { $gt: new Date() } },
+        { expiresAt: { $exists: false } },
+      ],
+    } as Filter<SponsorshipLogDocument>);
+  }
 }
 
 // ---------------------------------------------------------------------------

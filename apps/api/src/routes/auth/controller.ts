@@ -420,8 +420,12 @@ export type VerifyOtpHandlerResult =
       | 'backoff'
       | 'rate_limited'
       | 'account_locked'
+      | 'account_banned'
+      | 'account_suspended'
       | 'not_allowed';
     retryAfterSeconds?: number;
+    suspendedUntil?: string;
+    moderationReason?: string;
   };
 
 /** MFA token TTL in seconds */
@@ -613,6 +617,19 @@ export async function verifyOtpHandler(
   // Find or create user
   const user = await findOrCreateUser(sanitizedIdentifier.value, identifierType);
   const userId = user._id.toHexString();
+
+  // Account-level moderation enforcement
+  if (user.isBanned) {
+    return { success: false, error: 'account_banned', moderationReason: user.moderationReason };
+  }
+  if (user.suspendedUntil && user.suspendedUntil > new Date()) {
+    return {
+      success: false,
+      error: 'account_suspended',
+      suspendedUntil: user.suspendedUntil.toISOString(),
+      moderationReason: user.moderationReason,
+    };
+  }
 
   // Check if user has MFA enabled
   const mfaStatus = await getMfaStatus(userId);

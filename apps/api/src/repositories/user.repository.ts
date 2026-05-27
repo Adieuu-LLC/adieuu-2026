@@ -368,6 +368,55 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
     );
   }
 
+  async removeSubscriptionOverrideAt(
+    id: string | ObjectId,
+    index: number,
+  ): Promise<boolean> {
+    const objectId = this.toObjectId(id);
+    const user = await this.findById(objectId);
+    if (!user) return false;
+
+    const overrides = [...(user.subscriptionOverrides ?? [])];
+    if (index < 0 || index >= overrides.length) return false;
+
+    overrides.splice(index, 1);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          subscriptionOverrides: overrides,
+          updatedAt: new Date(),
+        },
+      },
+    );
+    return true;
+  }
+
+  async updateSubscriptionOverrideAt(
+    id: string | ObjectId,
+    index: number,
+    override: SubscriptionOverride,
+  ): Promise<boolean> {
+    const objectId = this.toObjectId(id);
+    const user = await this.findById(objectId);
+    if (!user) return false;
+
+    const overrides = [...(user.subscriptionOverrides ?? [])];
+    if (index < 0 || index >= overrides.length) return false;
+
+    overrides[index] = override;
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          subscriptionOverrides: overrides,
+          updatedAt: new Date(),
+        },
+      },
+    );
+    return true;
+  }
+
   async addEntitlementOverride(
     id: string | ObjectId,
     entitlement: string,
@@ -382,6 +431,20 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
     );
   }
 
+  async removeEntitlementOverride(
+    id: string | ObjectId,
+    entitlement: string,
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $pull: { entitlementOverrides: entitlement },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+  }
+
   async incrementSponsorshipCount(id: string | ObjectId): Promise<void> {
     const objectId = this.toObjectId(id);
     await this.collection.updateOne(
@@ -390,6 +453,131 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
         $inc: { sponsorshipCount: 1 },
         $set: { updatedAt: new Date() },
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+  }
+
+  /**
+   * Search for users by email (case-insensitive substring), phone, or ObjectId.
+   * Returns up to `limit` results.
+   */
+  async searchByIdentifier(query: string, limit = 20): Promise<UserDocument[]> {
+    // Try parsing as ObjectId first
+    if (ObjectId.isValid(query) && query.length === 24) {
+      const doc = await this.findById(new ObjectId(query));
+      return doc ? [doc] : [];
+    }
+
+    // E.164 phone (starts with +)
+    if (query.startsWith('+')) {
+      const doc = await this.findByPhone(query);
+      return doc ? [doc] : [];
+    }
+
+    // Treat as email substring (case-insensitive)
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return await this.collection
+      .find({ email: { $regex: escaped, $options: 'i' } })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .toArray();
+  }
+
+  /**
+   * Suspend the account until a given date.
+   */
+  async suspendAccount(
+    id: string | ObjectId,
+    opts: { suspendedUntil: Date; reason: string; moderatedBy: string },
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          suspendedUntil: opts.suspendedUntil,
+          moderationReason: opts.reason,
+          moderatedBy: opts.moderatedBy,
+          moderatedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      },
+    );
+  }
+
+  /**
+   * Lift an account suspension.
+   */
+  async unsuspendAccount(id: string | ObjectId): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: { updatedAt: new Date() },
+        $unset: {
+          suspendedUntil: '',
+          moderationReason: '',
+          moderatedBy: '',
+          moderatedAt: '',
+        },
+      },
+    );
+  }
+
+  /**
+   * Permanently ban an account.
+   */
+  async banAccount(
+    id: string | ObjectId,
+    opts: { reason: string; moderatedBy: string },
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          isBanned: true,
+          moderationReason: opts.reason,
+          moderatedBy: opts.moderatedBy,
+          moderatedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      },
+    );
+  }
+
+  /**
+   * Lift a permanent ban.
+   */
+  async unbanAccount(id: string | ObjectId): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: { updatedAt: new Date() },
+        $unset: {
+          isBanned: '',
+          moderationReason: '',
+          moderatedBy: '',
+          moderatedAt: '',
+        },
+      },
+    );
+  }
+
+  /**
+   * Admin-approve age verification (bypasses provider).
+   */
+  async approveAge(id: string | ObjectId): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: {
+          'ageVerification.status': 'verified',
+          'ageVerification.verifiedAt': new Date(),
+          updatedAt: new Date(),
+        },
+      },
     );
   }
 }

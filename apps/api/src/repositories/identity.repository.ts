@@ -62,6 +62,7 @@ export interface IIdentityRepository {
   incrementFriendCounts(identityA: ObjectId, identityB: ObjectId, options?: { session?: ClientSession }): Promise<void>;
   decrementFriendCounts(identityA: ObjectId, identityB: ObjectId, options?: { session?: ClientSession }): Promise<void>;
   incrementAchievementsEarnedCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
+  decrementAchievementsEarnedCount(identityId: string | ObjectId, options?: { session?: ClientSession }): Promise<void>;
   findActivityStatsProjection(
     identityId: ObjectId
   ): Promise<Pick<
@@ -543,6 +544,17 @@ export class IdentityRepository
     await this.collection.updateOne(
       { _id: this.toObjectId(identityId) },
       { $inc: { achievementsEarnedCount: 1 } },
+      { session: options?.session },
+    );
+  }
+
+  async decrementAchievementsEarnedCount(
+    identityId: string | ObjectId,
+    options?: { session?: ClientSession },
+  ): Promise<void> {
+    await this.collection.updateOne(
+      { _id: this.toObjectId(identityId), achievementsEarnedCount: { $gt: 0 } },
+      { $inc: { achievementsEarnedCount: -1 } },
       { session: options?.session },
     );
   }

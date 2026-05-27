@@ -12,7 +12,8 @@ export type AchievementCategory = 'social' | 'messaging' | 'security' | 'profile
 
 export type AchievementTrigger =
   | { type: 'action'; action: string }
-  | { type: 'count'; action: string; threshold: number };
+  | { type: 'count'; action: string; threshold: number }
+  | { type: 'entitlement'; entitlement: string };
 
 export interface AchievementDefinition {
   id: string;
@@ -418,6 +419,16 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
     icon: 'ellipsis',
     category: 'messaging',
     trigger: { type: 'action', action: 'shrug_sent' },
+  },
+
+  // -- Misc (entitlement-gated) --
+  {
+    id: 'sponsor',
+    name: 'achievements.sponsor.name',
+    description: 'achievements.sponsor.description',
+    icon: 'handshake',
+    category: 'misc',
+    trigger: { type: 'entitlement', entitlement: 'sponsor' },
   },
 ];
 

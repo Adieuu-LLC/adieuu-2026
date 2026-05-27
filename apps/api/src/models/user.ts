@@ -65,6 +65,17 @@ export interface UserDocument extends BaseDocument {
   entitlementOverrides?: string[];
   /** Denormalised count of sponsorships received (for future directory display). */
   sponsorshipCount?: number;
+
+  /** Account suspended until this date (null/undefined = not suspended). */
+  suspendedUntil?: Date | null;
+  /** Account permanently banned. */
+  isBanned?: boolean;
+  /** Human-readable reason for the latest account moderation action. */
+  moderationReason?: string;
+  /** Admin identity ID that performed the latest moderation action. */
+  moderatedBy?: string;
+  /** When the moderation action was applied. */
+  moderatedAt?: Date;
 }
 
 /**

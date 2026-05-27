@@ -120,6 +120,14 @@ export function requireActiveSubscription() {
       return next();
     }
 
+    // Account-level ban/suspension enforcement
+    if (user.isBanned) {
+      return error('ACCOUNT_BANNED', 'This account has been permanently banned.', 403);
+    }
+    if (user.suspendedUntil && user.suspendedUntil > new Date()) {
+      return error('ACCOUNT_SUSPENDED', 'This account is currently suspended.', 403);
+    }
+
     const resolved = resolveEffectiveAccess(user);
     ctx.accountUser = user;
     ctx.resolvedAccess = resolved;

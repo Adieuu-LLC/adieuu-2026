@@ -4,3 +4,5 @@ export { AdminDashboard } from './Dashboard';
 export { AdminPlatformAdmins } from './PlatformAdmins';
 export { AdminAuthAllowlist } from './AuthAllowlist';
 export { AdminAgeVerification } from './AgeVerification';
+export { AdminUserSearch } from './UserSearch';
+export { AdminUserProfile } from './UserProfile';

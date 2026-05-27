@@ -300,6 +300,20 @@ export class SessionRepository
   }
 
   /**
+   * Find active (non-revoked, non-expired) account sessions for a user.
+   * Used by admin profile view to display current sessions.
+   */
+  async findActiveByUserId(userId: string | ObjectId): Promise<SessionDocument[]> {
+    const objectId = this.toObjectId(userId);
+    return await this.findMany({
+      type: 'account',
+      userId: objectId,
+      revoked: false,
+      expiresAt: { $gt: new Date() },
+    });
+  }
+
+  /**
    * Delete expired sessions (cleanup job)
    */
   async deleteExpired(): Promise<number> {

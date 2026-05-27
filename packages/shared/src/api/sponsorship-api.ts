@@ -56,6 +56,13 @@ export interface SponsorshipDirectoryResponse {
   hasMore: boolean;
 }
 
+/** Sponsor stats for the callout card. */
+export interface SponsorStats {
+  lifetimeCount: number;
+  activeCount: number;
+  hasAchievementOptIn: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // API client
 // ---------------------------------------------------------------------------
@@ -86,5 +93,15 @@ export class SponsorshipApi {
     params: SponsorshipCheckoutParams,
   ): Promise<ApiResponse<{ url: string }>> {
     return this.client.post('/api/sponsorship/checkout', params);
+  }
+
+  async getSponsorStats(): Promise<ApiResponse<SponsorStats>> {
+    return this.client.get('/api/sponsorship/sponsor-stats');
+  }
+
+  async setSponsorAchievement(
+    enabled: boolean,
+  ): Promise<ApiResponse<{ success: boolean }>> {
+    return this.client.post('/api/sponsorship/sponsor-achievement', { enabled });
   }
 }

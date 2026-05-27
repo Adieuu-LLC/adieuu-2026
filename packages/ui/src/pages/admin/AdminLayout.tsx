@@ -26,6 +26,9 @@ export function AdminLayout() {
           <NavLink to="/admin/age-verification" className={navClass}>
             {t('admin.nav.ageVerification', 'Age Verification')}
           </NavLink>
+          <NavLink to="/admin/users" className={navClass}>
+            {t('admin.nav.userManagement')}
+          </NavLink>
         </nav>
       </aside>
       <div className="admin-outlet">

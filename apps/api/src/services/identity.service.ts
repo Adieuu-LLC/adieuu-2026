@@ -470,7 +470,11 @@ export async function loginToIdentity(
   );
 
   // Retroactively award any achievements the identity already qualifies for
-  reconcileAchievements(identity._id).catch((err) => {
+  const mergedEntitlements = [...new Set<string>([
+    ...(metadata?.entitlements ?? []),
+    ...(identity.entitlementOverrides ?? []),
+  ])];
+  reconcileAchievements(identity._id, mergedEntitlements).catch((err) => {
     elog.warn('Achievement reconciliation failed', {
       error: err,
       identityId: identity._id.toHexString(),

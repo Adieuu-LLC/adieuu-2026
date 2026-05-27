@@ -118,6 +118,16 @@ export {
   type PutPlatformSettingBody,
   type PlatformSettingValueType,
   type PlatformAdminRow,
+  type AdminUserSearchItem,
+  type AdminUserProfile,
+  type AdminUserSessionItem,
+  type AdminAuditEntry,
+  type GiftSubscriptionInput,
+  type SuspendAccountInput,
+  type BanAccountInput,
+  type AddEntitlementInput,
+  type SubscriptionOverrideInput,
+  type AdminSubscriptionOverrideItem,
 } from './admin-api';
 
 export {
@@ -243,6 +253,7 @@ export {
   type CreateSponsorshipRequestParams,
   type SponsorshipCheckoutParams,
   type SponsorshipDirectoryResponse,
+  type SponsorStats,
 } from './sponsorship-api';
 
 export {
