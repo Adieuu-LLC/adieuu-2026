@@ -11,6 +11,7 @@
 import type { BaseDocument } from './base';
 import type { PublicSignedPreKey } from './pre-key';
 import type { SubscriptionOverride } from './user';
+import type { AccountModerationCategory } from '@adieuu/shared';
 
 /**
  * Visibility level for profile fields.
@@ -158,6 +159,12 @@ export interface IdentityDocument extends BaseDocument {
   moderationReason?: string;
   /** Platform moderation: report ID that triggered the latest enforcement action */
   moderationReportId?: string;
+  /** Platform moderation: category preset for admin-initiated moderation actions */
+  moderationCategory?: AccountModerationCategory;
+  /** Platform moderation: admin identity ID that performed the latest admin moderation action */
+  moderatedBy?: string;
+  /** Platform moderation: when the admin moderation action was applied */
+  moderatedAt?: Date;
 
   /** Admin-granted subscription tier overrides, merged additively with account-level access. */
   subscriptionOverrides?: SubscriptionOverride[];
@@ -213,6 +220,9 @@ export interface UpdateIdentityInput {
   isBanned?: boolean;
   moderationReason?: string;
   moderationReportId?: string;
+  moderationCategory?: AccountModerationCategory;
+  moderatedBy?: string;
+  moderatedAt?: Date;
 }
 
 /**

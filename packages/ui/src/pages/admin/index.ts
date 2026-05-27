@@ -6,3 +6,5 @@ export { AdminAuthAllowlist } from './AuthAllowlist';
 export { AdminAgeVerification } from './AgeVerification';
 export { AdminUserSearch } from './UserSearch';
 export { AdminUserProfile } from './UserProfile';
+export { AdminIdentitySearch } from './IdentitySearch';
+export { AdminIdentityProfile } from './IdentityProfile';

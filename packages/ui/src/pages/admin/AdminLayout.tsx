@@ -29,6 +29,9 @@ export function AdminLayout() {
           <NavLink to="/admin/users" className={navClass}>
             {t('admin.nav.userManagement')}
           </NavLink>
+          <NavLink to="/admin/identities" className={navClass}>
+            {t('admin.nav.identityManagement')}
+          </NavLink>
         </nav>
       </aside>
       <div className="admin-outlet">

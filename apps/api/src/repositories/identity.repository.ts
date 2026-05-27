@@ -20,6 +20,7 @@ import { DELETED_IDENT_PREFIX, isDeletedIdent } from '../models/identity';
 import { withUpdatedAt } from '../models/base';
 import elog from '../utils/adieuuLogger';
 import { sanitizeString } from '../utils';
+import type { AccountModerationCategory } from '@adieuu/shared';
 
 /**
  * Search configuration defaults
@@ -596,6 +597,9 @@ export class IdentityRepository
           suspendedUntil: '',
           moderationReason: '',
           moderationReportId: '',
+          moderationCategory: '',
+          moderatedBy: '',
+          moderatedAt: '',
         },
         $set: { updatedAt: now },
       }
@@ -609,6 +613,157 @@ export class IdentityRepository
     }
 
     return false;
+  }
+
+  // -------------------------------------------------------------------------
+  // Admin identity management
+  // -------------------------------------------------------------------------
+
+  /**
+   * Search identities by username/displayName (regex) or exact ObjectId.
+   * Excludes soft-deleted identities.
+   */
+  async searchForAdmin(query: string, limit = 20): Promise<IdentityDocument[]> {
+    if (ObjectId.isValid(query) && query.length === 24) {
+      const doc = await this.findById(new ObjectId(query));
+      if (doc && !isDeletedIdent(doc.ident)) return [doc];
+      return [];
+    }
+
+    const escaped = sanitizeString(query, 'general').value;
+    const regex = new RegExp(escaped, 'i');
+
+    return await this.collection
+      .find({
+        ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
+        $or: [{ username: regex }, { displayName: regex }],
+      })
+      .sort({ createdAt: -1 })
+      .limit(Math.min(Math.max(1, limit), 50))
+      .toArray() as IdentityDocument[];
+  }
+
+  async suspendIdentity(
+    id: string | ObjectId,
+    opts: {
+      suspendedUntil: Date;
+      reason: string;
+      moderatedBy: string;
+      category?: AccountModerationCategory;
+    },
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    const $set: Record<string, unknown> = {
+      suspendedUntil: opts.suspendedUntil,
+      moderationReason: opts.reason,
+      moderatedBy: opts.moderatedBy,
+      moderatedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const $unset: Record<string, ''> = {};
+    if (opts.category) {
+      $set.moderationCategory = opts.category;
+    } else {
+      $unset.moderationCategory = '';
+    }
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set,
+        ...(Object.keys($unset).length > 0 ? { $unset } : {}),
+      },
+    );
+  }
+
+  async unsuspendIdentity(id: string | ObjectId): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: { updatedAt: new Date() },
+        $unset: {
+          suspendedUntil: '',
+          moderationReason: '',
+          moderationReportId: '',
+          moderationCategory: '',
+          moderatedBy: '',
+          moderatedAt: '',
+        },
+      },
+    );
+  }
+
+  async banIdentity(
+    id: string | ObjectId,
+    opts: { reason: string; moderatedBy: string; category?: AccountModerationCategory },
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    const $set: Record<string, unknown> = {
+      isBanned: true,
+      moderationReason: opts.reason,
+      moderatedBy: opts.moderatedBy,
+      moderatedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    const $unset: Record<string, ''> = {};
+    if (opts.category) {
+      $set.moderationCategory = opts.category;
+    } else {
+      $unset.moderationCategory = '';
+    }
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set,
+        ...(Object.keys($unset).length > 0 ? { $unset } : {}),
+      },
+    );
+  }
+
+  async unbanIdentity(id: string | ObjectId): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $set: { updatedAt: new Date() },
+        $unset: {
+          isBanned: '',
+          moderationReason: '',
+          moderationReportId: '',
+          moderationCategory: '',
+          moderatedBy: '',
+          moderatedAt: '',
+        },
+      },
+    );
+  }
+
+  async addEntitlementOverride(
+    id: string | ObjectId,
+    entitlement: string,
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $addToSet: { entitlementOverrides: entitlement },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+  }
+
+  async removeEntitlementOverride(
+    id: string | ObjectId,
+    entitlement: string,
+  ): Promise<void> {
+    const objectId = this.toObjectId(id);
+    await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $pull: { entitlementOverrides: entitlement },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
   }
 }
 

@@ -17,6 +17,7 @@ import { identityRoutes } from './identity';
 import { notificationRoutes } from './notifications';
 import { adminRoutes } from './admin';
 import { adminUsersRoutes } from './admin/users';
+import { adminIdentitiesRoutes } from './admin/identities';
 import { themeRoutes } from './themes';
 import { releaseRoutes } from './releases';
 import { uploadRoutes } from './uploads';
@@ -84,6 +85,9 @@ export function registerRoutes(app: Router): void {
 
   // Admin user management (search, profile, moderation actions)
   app.merge(adminUsersRoutes, '/api');
+
+  // Admin identity management (search, profile, moderation actions)
+  app.merge(adminIdentitiesRoutes, '/api');
 
   // Community themes (public browse + identity-auth upload)
   app.merge(themeRoutes, '/api');

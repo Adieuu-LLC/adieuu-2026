@@ -164,6 +164,90 @@ export interface AdminSubscriptionOverrideItem {
 }
 
 // ---------------------------------------------------------------------------
+// Admin identity management types
+// ---------------------------------------------------------------------------
+
+export interface AdminIdentitySearchItem {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+  status: 'active' | 'suspended' | 'banned';
+  createdAt: string;
+}
+
+export interface AdminIdentityProfile {
+  id: string;
+  username: string;
+  displayName: string;
+  bio?: string;
+  avatarUrl?: string;
+  bannerUrl?: string;
+  createdAt: string;
+  lastActiveAt: string;
+  entitlementOverrides?: string[];
+  subscriptionOverrides?: Array<{ tier: string; expiresAt?: string }>;
+  stats: {
+    messagesSent: number;
+    conversationsJoined: number;
+    friends: number;
+    achievementsEarned: number;
+  };
+  moderation: {
+    status: 'active' | 'suspended' | 'banned';
+    suspendedUntil?: string;
+    reason?: string;
+    category?: AccountModerationCategory;
+    moderatedBy?: string;
+    moderatedAt?: string;
+    reportId?: string;
+  };
+}
+
+export interface AdminIdentitySessionItem {
+  id: string;
+  createdAt: string;
+  lastActivityAt: string;
+  userAgent?: string;
+  ipAddress?: string;
+}
+
+export interface AdminIdentityReportItem {
+  id: string;
+  reportType: string;
+  source: string;
+  status: string;
+  category: string;
+  createdAt: string;
+}
+
+export interface AdminIdentityReportsResult {
+  against: {
+    reports: AdminIdentityReportItem[];
+    total: number;
+    page: number;
+    limit: number;
+  };
+  by: {
+    reports: AdminIdentityReportItem[];
+    total: number;
+    page: number;
+    limit: number;
+  };
+}
+
+export interface SuspendIdentityInput {
+  reason: string;
+  durationMs?: number;
+  category?: AccountModerationCategory;
+}
+
+export interface BanIdentityInput {
+  reason: string;
+  category?: AccountModerationCategory;
+}
+
+// ---------------------------------------------------------------------------
 // AdminApi class
 // ---------------------------------------------------------------------------
 
@@ -299,5 +383,60 @@ export class AdminApi {
 
   async unbanUser(userId: string): Promise<ApiResponse<{ message: string }>> {
     return this.client.delete(`/api/admin/users/${encodeURIComponent(userId)}/ban`);
+  }
+
+  // -------------------------------------------------------------------------
+  // Identity management
+  // -------------------------------------------------------------------------
+
+  async searchIdentities(query: string): Promise<ApiResponse<{ identities: AdminIdentitySearchItem[] }>> {
+    return this.client.get(`/api/admin/identities/search?q=${encodeURIComponent(query)}`);
+  }
+
+  async getIdentityProfile(identityId: string): Promise<ApiResponse<AdminIdentityProfile>> {
+    return this.client.get(`/api/admin/identities/${encodeURIComponent(identityId)}`);
+  }
+
+  async getIdentitySessions(identityId: string): Promise<ApiResponse<{ sessions: AdminIdentitySessionItem[] }>> {
+    return this.client.get(`/api/admin/identities/${encodeURIComponent(identityId)}/sessions`);
+  }
+
+  async getIdentityReports(
+    identityId: string,
+    params?: { limit?: number; page?: number },
+  ): Promise<ApiResponse<AdminIdentityReportsResult>> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    if (params?.page) searchParams.set('page', String(params.page));
+    const qs = searchParams.toString();
+    return this.client.get(`/api/admin/identities/${encodeURIComponent(identityId)}/reports${qs ? `?${qs}` : ''}`);
+  }
+
+  async getIdentityEntitlements(identityId: string): Promise<ApiResponse<{ overrides: string[] }>> {
+    return this.client.get(`/api/admin/identities/${encodeURIComponent(identityId)}/entitlements`);
+  }
+
+  async addIdentityEntitlement(identityId: string, input: AddEntitlementInput): Promise<ApiResponse<{ message: string }>> {
+    return this.client.post(`/api/admin/identities/${encodeURIComponent(identityId)}/entitlements`, input);
+  }
+
+  async removeIdentityEntitlement(identityId: string, entitlement: string): Promise<ApiResponse<{ message: string }>> {
+    return this.client.delete(`/api/admin/identities/${encodeURIComponent(identityId)}/entitlements/${encodeURIComponent(entitlement)}`);
+  }
+
+  async suspendIdentity(identityId: string, input: SuspendIdentityInput): Promise<ApiResponse<{ message: string }>> {
+    return this.client.post(`/api/admin/identities/${encodeURIComponent(identityId)}/suspend`, input);
+  }
+
+  async unsuspendIdentity(identityId: string): Promise<ApiResponse<{ message: string }>> {
+    return this.client.delete(`/api/admin/identities/${encodeURIComponent(identityId)}/suspend`);
+  }
+
+  async banIdentity(identityId: string, input: BanIdentityInput): Promise<ApiResponse<{ message: string }>> {
+    return this.client.post(`/api/admin/identities/${encodeURIComponent(identityId)}/ban`, input);
+  }
+
+  async unbanIdentity(identityId: string): Promise<ApiResponse<{ message: string }>> {
+    return this.client.delete(`/api/admin/identities/${encodeURIComponent(identityId)}/ban`);
   }
 }

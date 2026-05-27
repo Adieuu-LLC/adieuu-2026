@@ -32,7 +32,13 @@ export type AuditAction =
   | 'admin_suspend_account'
   | 'admin_unsuspend_account'
   | 'admin_ban_account'
-  | 'admin_unban_account';
+  | 'admin_unban_account'
+  | 'admin_suspend_identity'
+  | 'admin_unsuspend_identity'
+  | 'admin_ban_identity'
+  | 'admin_unban_identity'
+  | 'admin_add_identity_entitlement'
+  | 'admin_remove_identity_entitlement';
 
 /**
  * Audit log document stored in MongoDB

@@ -59,6 +59,8 @@ import {
   AdminPlatformAdmins,
   AdminUserSearch,
   AdminUserProfile,
+  AdminIdentitySearch,
+  AdminIdentityProfile,
 } from '../pages/admin';
 import {
   ModeratorGate,
@@ -318,6 +320,8 @@ export function App() {
             <Route path="age-verification" element={<AdminAgeVerification />} />
             <Route path="users" element={<AdminUserSearch />} />
             <Route path="users/:id" element={<AdminUserProfile />} />
+            <Route path="identities" element={<AdminIdentitySearch />} />
+            <Route path="identities/:id" element={<AdminIdentityProfile />} />
           </Route>
         </Route>
 

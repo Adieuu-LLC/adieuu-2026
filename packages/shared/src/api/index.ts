@@ -132,6 +132,13 @@ export {
   type AddEntitlementInput,
   type SubscriptionOverrideInput,
   type AdminSubscriptionOverrideItem,
+  type AdminIdentitySearchItem,
+  type AdminIdentityProfile,
+  type AdminIdentitySessionItem,
+  type AdminIdentityReportItem,
+  type AdminIdentityReportsResult,
+  type SuspendIdentityInput,
+  type BanIdentityInput,
 } from './admin-api';
 
 export {
