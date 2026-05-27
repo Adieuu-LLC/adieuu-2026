@@ -10,19 +10,23 @@ import {
   type AdminIdentityReportsResult,
 } from '@adieuu/shared';
 import { useAppConfig } from '../../config';
+import { useAuth } from '../../hooks/useAuth';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { ModerationCategorySelect } from '../../components/ModerationCategorySelect';
 import { useUntilCountdown } from '../../hooks/useUntilCountdown';
+import { PlatformAccessManager } from './PlatformAccessManager';
 
 export function AdminIdentityProfile() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { apiBaseUrl } = useAppConfig();
+  const { session } = useAuth();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
+  const canManageRoles = session?.platformPermissions?.includes('manage-roles') ?? false;
 
   const [profile, setProfile] = useState<AdminIdentityProfileType | null>(null);
   const [sessions, setSessions] = useState<AdminIdentitySessionItem[]>([]);
@@ -269,6 +273,18 @@ export function AdminIdentityProfile() {
           <dt>{t('admin.identities.fields.lastActive')}</dt>
           <dd>{new Date(profile.lastActiveAt).toLocaleString()}</dd>
         </dl>
+      </Card>
+
+      {/* Platform Access (Roles + Attributes) */}
+      <Card className="admin-card">
+        <h3>{t('admin.identities.sections.platformAccess')}</h3>
+        <PlatformAccessManager
+          identityId={profile.id}
+          platformRoles={profile.platformRoles ?? []}
+          platformAttributes={profile.platformAttributes ?? []}
+          canManageRoles={canManageRoles}
+          onRefresh={loadProfile}
+        />
       </Card>
 
       {/* Activity Stats */}

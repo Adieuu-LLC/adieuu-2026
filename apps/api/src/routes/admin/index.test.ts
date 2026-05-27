@@ -23,6 +23,8 @@ const mockFindByPlatformRole = mock((_role?: string) => Promise.resolve([] as un
 const mockCountByPlatformRole = mock((_role?: string) => Promise.resolve(0));
 const mockAddPlatformRole = mock((_id?: unknown, _role?: string) => Promise.resolve(true));
 const mockRemovePlatformRole = mock((_id?: unknown, _role?: string) => Promise.resolve(true));
+const mockAddPlatformAttribute = mock((_id?: unknown, _attr?: string) => Promise.resolve(true));
+const mockRemovePlatformAttribute = mock((_id?: unknown, _attr?: string) => Promise.resolve(true));
 const mockCheckRateLimit = mock(() =>
   Promise.resolve({ allowed: true, remaining: 29, resetAt: 0, limit: 30 }),
 );
@@ -68,6 +70,8 @@ mock.module('../../repositories/identity.repository', () => ({
     countByPlatformRole: mockCountByPlatformRole,
     addPlatformRole: mockAddPlatformRole,
     removePlatformRole: mockRemovePlatformRole,
+    addPlatformAttribute: mockAddPlatformAttribute,
+    removePlatformAttribute: mockRemovePlatformAttribute,
   }),
 }));
 
@@ -132,6 +136,8 @@ describe('admin routes', () => {
     mockCountByPlatformRole.mockReset();
     mockAddPlatformRole.mockReset();
     mockRemovePlatformRole.mockReset();
+    mockAddPlatformAttribute.mockReset();
+    mockRemovePlatformAttribute.mockReset();
     mockCheckRateLimit.mockReset();
 
     mockRequireIdentitySession.mockImplementation(() => Promise.resolve(null));
@@ -146,6 +152,8 @@ describe('admin routes', () => {
     mockCountByPlatformRole.mockImplementation(() => Promise.resolve(1));
     mockAddPlatformRole.mockImplementation(() => Promise.resolve(true));
     mockRemovePlatformRole.mockImplementation(() => Promise.resolve(true));
+    mockAddPlatformAttribute.mockImplementation(() => Promise.resolve(true));
+    mockRemovePlatformAttribute.mockImplementation(() => Promise.resolve(true));
     mockUpsertPlatformSetting.mockImplementation(() => Promise.resolve());
     mockCheckRateLimit.mockImplementation(() =>
       Promise.resolve({ allowed: true, remaining: 29, resetAt: 0, limit: 30 }),
@@ -292,5 +300,171 @@ describe('admin routes', () => {
       }),
     );
     expect(res.status).toBe(429);
+  });
+
+  // -------------------------------------------------------------------------
+  // Platform attribute routes
+  // -------------------------------------------------------------------------
+
+  test('POST /api/admin/identities/:id/platform-attributes returns 401 without session', async () => {
+    const res = await handler(
+      new Request(`http://localhost/api/admin/identities/${new ObjectId().toHexString()}/platform-attributes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS }),
+      }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  test('POST /api/admin/identities/:id/platform-attributes returns 403 without manage-roles', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockGetPlatformCapabilities.mockImplementation(() =>
+      Promise.resolve({
+        ...adminCaps(),
+        permissions: [PLATFORM_PERMISSIONS.MANAGE_USERS],
+      }),
+    );
+
+    const res = await handler(
+      new Request(`http://localhost/api/admin/identities/${new ObjectId().toHexString()}/platform-attributes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS }),
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  test('POST /api/admin/identities/:id/platform-attributes grants valid attribute', async () => {
+    const targetId = new ObjectId();
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockGetPlatformCapabilities.mockImplementation(() => Promise.resolve(adminCaps()));
+    mockIdentityFindById
+      .mockImplementationOnce(() =>
+        Promise.resolve({ _id: targetId, platformAttributes: [] }),
+      )
+      .mockImplementationOnce(() =>
+        Promise.resolve({
+          _id: targetId,
+          platformAttributes: [PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS],
+        }),
+      );
+
+    const res = await handler(
+      new Request(`http://localhost/api/admin/identities/${targetId.toHexString()}/platform-attributes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(mockAddPlatformAttribute).toHaveBeenCalled();
+  });
+
+  test('POST /api/admin/identities/:id/platform-attributes returns 400 for invalid attribute', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockGetPlatformCapabilities.mockImplementation(() => Promise.resolve(adminCaps()));
+
+    const res = await handler(
+      new Request(`http://localhost/api/admin/identities/${new ObjectId().toHexString()}/platform-attributes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attribute: 'not-a-real-permission' }),
+      }),
+    );
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /api/admin/identities/:id/platform-attributes returns 429 when rate limited', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockGetPlatformCapabilities.mockImplementation(() => Promise.resolve(adminCaps()));
+    mockCheckRateLimit.mockImplementationOnce(() =>
+      Promise.resolve({ allowed: false, remaining: 0, resetAt: 0, limit: 30 }),
+    );
+
+    const res = await handler(
+      new Request(`http://localhost/api/admin/identities/${new ObjectId().toHexString()}/platform-attributes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS }),
+      }),
+    );
+    expect(res.status).toBe(429);
+  });
+
+  test('POST /api/admin/identities/:id/platform-attributes returns 404 for nonexistent identity', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockGetPlatformCapabilities.mockImplementation(() => Promise.resolve(adminCaps()));
+    mockIdentityFindById.mockImplementation(() => Promise.resolve(null));
+
+    const res = await handler(
+      new Request(`http://localhost/api/admin/identities/${new ObjectId().toHexString()}/platform-attributes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS }),
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  test('DELETE /api/admin/identities/:id/platform-attributes/:attr returns 401 without session', async () => {
+    const url = `http://localhost/api/admin/identities/${new ObjectId().toHexString()}/platform-attributes/${PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS}`;
+    const res = await handler(new Request(url, { method: 'DELETE' }));
+    expect(res.status).toBe(401);
+  });
+
+  test('DELETE /api/admin/identities/:id/platform-attributes/:attr returns 403 without manage-roles', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockGetPlatformCapabilities.mockImplementation(() =>
+      Promise.resolve({
+        ...adminCaps(),
+        permissions: [PLATFORM_PERMISSIONS.MANAGE_USERS],
+      }),
+    );
+
+    const url = `http://localhost/api/admin/identities/${new ObjectId().toHexString()}/platform-attributes/${PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS}`;
+    const res = await handler(new Request(url, { method: 'DELETE' }));
+    expect(res.status).toBe(403);
+  });
+
+  test('DELETE /api/admin/identities/:id/platform-attributes/:attr revokes valid attribute', async () => {
+    const targetId = new ObjectId();
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockGetPlatformCapabilities.mockImplementation(() => Promise.resolve(adminCaps()));
+    mockIdentityFindById
+      .mockImplementationOnce(() =>
+        Promise.resolve({
+          _id: targetId,
+          platformAttributes: [PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS],
+        }),
+      )
+      .mockImplementationOnce(() =>
+        Promise.resolve({ _id: targetId, platformAttributes: [] }),
+      );
+
+    const url = `http://localhost/api/admin/identities/${targetId.toHexString()}/platform-attributes/${PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS}`;
+    const res = await handler(new Request(url, { method: 'DELETE' }));
+    expect(res.status).toBe(200);
+    expect(mockRemovePlatformAttribute).toHaveBeenCalled();
+  });
+
+  test('DELETE /api/admin/identities/:id/platform-attributes/:attr returns 400 for invalid attribute', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockGetPlatformCapabilities.mockImplementation(() => Promise.resolve(adminCaps()));
+
+    const url = `http://localhost/api/admin/identities/${new ObjectId().toHexString()}/platform-attributes/fake-perm`;
+    const res = await handler(new Request(url, { method: 'DELETE' }));
+    expect(res.status).toBe(400);
+  });
+
+  test('DELETE /api/admin/identities/:id/platform-attributes/:attr returns 404 for nonexistent identity', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(sessionUser));
+    mockGetPlatformCapabilities.mockImplementation(() => Promise.resolve(adminCaps()));
+    mockIdentityFindById.mockImplementation(() => Promise.resolve(null));
+
+    const url = `http://localhost/api/admin/identities/${new ObjectId().toHexString()}/platform-attributes/${PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS}`;
+    const res = await handler(new Request(url, { method: 'DELETE' }));
+    expect(res.status).toBe(404);
   });
 });

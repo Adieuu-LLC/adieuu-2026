@@ -19,6 +19,8 @@ import {
   grantPlatformRoleResult,
   listPlatformRoleHoldersResult,
   revokePlatformRoleResult,
+  grantPlatformAttributeResult,
+  revokePlatformAttributeResult,
 } from './roles.controller';
 
 const router = new Router();
@@ -79,6 +81,43 @@ router.delete('/admin/identities/:id/roles/:role', async (ctx) => {
     return ctx.errors.validationFailed();
   }
   return success({ identityId: result.identityId, roles: result.roles });
+});
+
+router.post('/admin/identities/:id/platform-attributes', async (ctx) => {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_ROLES);
+  if (!auth.ok) return auth.response;
+
+  const result = await grantPlatformAttributeResult(
+    auth.session.identityId,
+    ctx.params.id,
+    ctx.body,
+    auth.caps,
+  );
+  if (!result.ok) {
+    if (result.reason === 'forbidden') return ctx.errors.forbidden();
+    if (result.reason === 'rate_limited') return ctx.errors.rateLimited();
+    if (result.reason === 'not_found') return ctx.errors.notFound();
+    return ctx.errors.validationFailed();
+  }
+  return success({ identityId: result.identityId, attributes: result.attributes });
+});
+
+router.delete('/admin/identities/:id/platform-attributes/:attribute', async (ctx) => {
+  const auth = await requireAdminRouteContext(ctx, PLATFORM_PERMISSIONS.MANAGE_ROLES);
+  if (!auth.ok) return auth.response;
+
+  const result = await revokePlatformAttributeResult(
+    auth.session.identityId,
+    ctx.params.id,
+    ctx.params.attribute,
+    auth.caps,
+  );
+  if (!result.ok) {
+    if (result.reason === 'forbidden') return ctx.errors.forbidden();
+    if (result.reason === 'not_found') return ctx.errors.notFound();
+    return ctx.errors.validationFailed();
+  }
+  return success({ identityId: result.identityId, attributes: result.attributes });
 });
 
 /** Backward-compatible alias for admin role listing. */

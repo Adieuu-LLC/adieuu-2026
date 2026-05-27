@@ -70,6 +70,8 @@ export interface AdminIdentityProfile {
   bannerUrl?: string;
   createdAt: string;
   lastActiveAt: string;
+  platformRoles?: string[];
+  platformAttributes?: string[];
   entitlementOverrides?: string[];
   subscriptionOverrides?: Array<{ tier: string; expiresAt?: string }>;
   stats: {
@@ -127,6 +129,8 @@ function toAdminProfile(doc: IdentityDocument): AdminIdentityProfile {
     bannerUrl: doc.bannerUrl,
     createdAt: doc.createdAt.toISOString(),
     lastActiveAt: doc.lastActiveAt.toISOString(),
+    platformRoles: doc.platformRoles ?? [],
+    platformAttributes: doc.platformAttributes ?? [],
     entitlementOverrides: doc.entitlementOverrides,
     subscriptionOverrides: doc.subscriptionOverrides?.map((o) => ({
       tier: o.tier,

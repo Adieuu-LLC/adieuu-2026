@@ -61,6 +61,30 @@ export interface PlatformAdminRow {
 
 export type PlatformRole = 'admin' | 'moderator' | 'support_agent';
 
+export const PLATFORM_ROLE_VALUES: readonly PlatformRole[] = [
+  'admin',
+  'moderator',
+  'support_agent',
+] as const;
+
+export const PLATFORM_PERMISSION_VALUES = [
+  'read-content-reports',
+  'update-content-reports',
+  'read-abuse-reports',
+  'update-abuse-reports',
+  'manage-escalated-reports',
+  'read-support-tickets',
+  'update-support-tickets',
+  'manage-escalated-tickets',
+  'view-admin-metrics',
+  'manage-platform-settings',
+  'manage-roles',
+  'manage-users',
+  'manage-identities',
+] as const;
+
+export type PlatformPermissionValue = (typeof PLATFORM_PERMISSION_VALUES)[number];
+
 export interface PlatformRoleHolderRow {
   identityId: string;
   displayName?: string;
@@ -76,6 +100,15 @@ export interface GrantPlatformRoleParams {
 export interface PlatformRoleMutationResponse {
   identityId: string;
   roles: PlatformRole[];
+}
+
+export interface GrantPlatformAttributeParams {
+  attribute: string;
+}
+
+export interface PlatformAttributeMutationResponse {
+  identityId: string;
+  attributes: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +235,8 @@ export interface AdminIdentityProfile {
   bannerUrl?: string;
   createdAt: string;
   lastActiveAt: string;
+  platformRoles?: PlatformRole[];
+  platformAttributes?: string[];
   entitlementOverrides?: string[];
   subscriptionOverrides?: Array<{ tier: string; expiresAt?: string }>;
   stats: {
@@ -342,6 +377,25 @@ export class AdminApi {
       };
     }
     return this.listPlatformAdmins();
+  }
+
+  async grantPlatformAttribute(
+    identityId: string,
+    params: GrantPlatformAttributeParams,
+  ): Promise<ApiResponse<PlatformAttributeMutationResponse>> {
+    return this.client.post(
+      `/api/admin/identities/${encodeURIComponent(identityId)}/platform-attributes`,
+      params,
+    );
+  }
+
+  async revokePlatformAttribute(
+    identityId: string,
+    attribute: string,
+  ): Promise<ApiResponse<PlatformAttributeMutationResponse>> {
+    return this.client.delete(
+      `/api/admin/identities/${encodeURIComponent(identityId)}/platform-attributes/${encodeURIComponent(attribute)}`,
+    );
   }
 
   // -------------------------------------------------------------------------

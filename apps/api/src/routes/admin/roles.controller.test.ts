@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import {
   PLATFORM_PERMISSIONS,
@@ -11,6 +11,8 @@ const mockFindByPlatformRole = mock((_role?: string) => Promise.resolve([] as un
 const mockCountByPlatformRole = mock((_role?: string) => Promise.resolve(0));
 const mockAddPlatformRole = mock((_id?: unknown, _role?: string) => Promise.resolve(true));
 const mockRemovePlatformRole = mock((_id?: unknown, _role?: string) => Promise.resolve(true));
+const mockAddPlatformAttribute = mock((_id?: unknown, _attr?: string) => Promise.resolve(true));
+const mockRemovePlatformAttribute = mock((_id?: unknown, _attr?: string) => Promise.resolve(true));
 const mockCheckRateLimit = mock(() =>
   Promise.resolve({ allowed: true, remaining: 29, resetAt: 0, limit: 30 }),
 );
@@ -22,6 +24,8 @@ mock.module('../../repositories/identity.repository', () => ({
     countByPlatformRole: mockCountByPlatformRole,
     addPlatformRole: mockAddPlatformRole,
     removePlatformRole: mockRemovePlatformRole,
+    addPlatformAttribute: mockAddPlatformAttribute,
+    removePlatformAttribute: mockRemovePlatformAttribute,
   }),
 }));
 
@@ -33,6 +37,8 @@ import {
   grantPlatformRoleResult,
   listPlatformRoleHoldersResult,
   revokePlatformRoleResult,
+  grantPlatformAttributeResult,
+  revokePlatformAttributeResult,
 } from './roles.controller';
 
 const actorId = new ObjectId().toHexString();
@@ -227,5 +233,308 @@ describe('revokePlatformRoleResult', () => {
     if (result.ok) {
       expect(result.roles).toEqual([PLATFORM_ROLES.MODERATOR]);
     }
+  });
+
+  test('forbidden without manage roles permission', async () => {
+    const result = await revokePlatformRoleResult(
+      actorId,
+      targetId.toHexString(),
+      PLATFORM_ROLES.MODERATOR,
+      noCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('forbidden');
+  });
+
+  test('returns not_found for nonexistent identity', async () => {
+    mockFindById.mockImplementation(() => Promise.resolve(null));
+    const result = await revokePlatformRoleResult(
+      actorId,
+      targetId.toHexString(),
+      PLATFORM_ROLES.MODERATOR,
+      adminCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('not_found');
+  });
+
+  test('rejects invalid role segment', async () => {
+    const result = await revokePlatformRoleResult(
+      actorId,
+      targetId.toHexString(),
+      'superuser',
+      adminCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('validation_failed');
+  });
+
+  test('no-op when role not present on identity', async () => {
+    mockFindById.mockImplementation(() =>
+      Promise.resolve({
+        _id: targetId,
+        platformRoles: [PLATFORM_ROLES.ADMIN],
+      }),
+    );
+    const result = await revokePlatformRoleResult(
+      actorId,
+      targetId.toHexString(),
+      PLATFORM_ROLES.MODERATOR,
+      adminCaps(),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.roles).toEqual([PLATFORM_ROLES.ADMIN]);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Platform attribute management
+// ---------------------------------------------------------------------------
+
+describe('grantPlatformAttributeResult', () => {
+  beforeEach(() => {
+    mockFindById.mockReset();
+    mockAddPlatformAttribute.mockReset();
+    mockAddPlatformAttribute.mockImplementation(() => Promise.resolve(true));
+    mockCheckRateLimit.mockReset();
+    mockCheckRateLimit.mockImplementation(() =>
+      Promise.resolve({ allowed: true, remaining: 29, resetAt: 0, limit: 30 }),
+    );
+  });
+
+  afterAll(() => {
+    mock.restore();
+  });
+
+  test('forbidden without manage roles permission', async () => {
+    const result = await grantPlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      { attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS },
+      noCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('forbidden');
+  });
+
+  test('returns rate limited when throttled', async () => {
+    mockCheckRateLimit.mockImplementationOnce(() =>
+      Promise.resolve({ allowed: false, remaining: 0, resetAt: 0, limit: 30 }),
+    );
+    const result = await grantPlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      { attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS },
+      adminCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('rate_limited');
+  });
+
+  test('grants a valid permission attribute', async () => {
+    mockFindById.mockImplementationOnce(() =>
+      Promise.resolve({ _id: targetId, platformAttributes: [] }),
+    );
+    mockFindById.mockImplementationOnce(() =>
+      Promise.resolve({
+        _id: targetId,
+        platformAttributes: [PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS],
+      }),
+    );
+
+    const result = await grantPlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      { attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS },
+      adminCaps(),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.attributes).toContain(PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS);
+    }
+  });
+
+  test('rejects invalid attribute string', async () => {
+    const result = await grantPlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      { attribute: 'not-a-real-permission' },
+      adminCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('validation_failed');
+  });
+
+  test('rejects empty attribute', async () => {
+    const result = await grantPlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      { attribute: '' },
+      adminCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('validation_failed');
+  });
+
+  test('returns not_found for nonexistent identity', async () => {
+    mockFindById.mockImplementation(() => Promise.resolve(null));
+    const result = await grantPlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      { attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS },
+      adminCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('not_found');
+  });
+
+  test('idempotent when attribute already present', async () => {
+    mockFindById.mockImplementation(() =>
+      Promise.resolve({
+        _id: targetId,
+        platformAttributes: [PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS],
+      }),
+    );
+    const result = await grantPlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      { attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS },
+      adminCaps(),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.attributes).toContain(PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS);
+    }
+    expect(mockAddPlatformAttribute).not.toHaveBeenCalled();
+  });
+
+  test('returns not_found when addPlatformAttribute returns false', async () => {
+    mockFindById.mockImplementation(() =>
+      Promise.resolve({ _id: targetId, platformAttributes: [] }),
+    );
+    mockAddPlatformAttribute.mockImplementation(() => Promise.resolve(false));
+    const result = await grantPlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      { attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS },
+      adminCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('not_found');
+  });
+});
+
+describe('revokePlatformAttributeResult', () => {
+  beforeEach(() => {
+    mockFindById.mockReset();
+    mockRemovePlatformAttribute.mockReset();
+    mockRemovePlatformAttribute.mockImplementation(() => Promise.resolve(true));
+  });
+
+  afterAll(() => {
+    mock.restore();
+  });
+
+  test('forbidden without manage roles permission', async () => {
+    const result = await revokePlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS,
+      noCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('forbidden');
+  });
+
+  test('rejects invalid attribute string', async () => {
+    const result = await revokePlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      'bogus-permission',
+      adminCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('validation_failed');
+  });
+
+  test('returns not_found for nonexistent identity', async () => {
+    mockFindById.mockImplementation(() => Promise.resolve(null));
+    const result = await revokePlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS,
+      adminCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('not_found');
+  });
+
+  test('revokes an existing attribute', async () => {
+    mockFindById.mockImplementationOnce(() =>
+      Promise.resolve({
+        _id: targetId,
+        platformAttributes: [
+          PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS,
+          PLATFORM_PERMISSIONS.MANAGE_USERS,
+        ],
+      }),
+    );
+    mockFindById.mockImplementationOnce(() =>
+      Promise.resolve({
+        _id: targetId,
+        platformAttributes: [PLATFORM_PERMISSIONS.MANAGE_USERS],
+      }),
+    );
+
+    const result = await revokePlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS,
+      adminCaps(),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.attributes).toEqual([PLATFORM_PERMISSIONS.MANAGE_USERS]);
+    }
+  });
+
+  test('no-op when attribute not present on identity', async () => {
+    mockFindById.mockImplementation(() =>
+      Promise.resolve({
+        _id: targetId,
+        platformAttributes: [PLATFORM_PERMISSIONS.MANAGE_USERS],
+      }),
+    );
+    const result = await revokePlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS,
+      adminCaps(),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.attributes).toEqual([PLATFORM_PERMISSIONS.MANAGE_USERS]);
+    }
+    expect(mockRemovePlatformAttribute).not.toHaveBeenCalled();
+  });
+
+  test('returns not_found when removePlatformAttribute returns false', async () => {
+    mockFindById.mockImplementation(() =>
+      Promise.resolve({
+        _id: targetId,
+        platformAttributes: [PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS],
+      }),
+    );
+    mockRemovePlatformAttribute.mockImplementation(() => Promise.resolve(false));
+    const result = await revokePlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS,
+      adminCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('not_found');
   });
 });

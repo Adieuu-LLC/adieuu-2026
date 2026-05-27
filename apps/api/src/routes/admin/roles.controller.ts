@@ -1,5 +1,5 @@
 /**
- * Platform role assignment for identities.
+ * Platform role and direct attribute assignment for identities.
  *
  * @module routes/admin/roles.controller
  */
@@ -11,6 +11,7 @@ import {
   PLATFORM_ROLES,
   hasPlatformPermission,
   isPlatformRole,
+  type PlatformPermission,
   type PlatformRole,
 } from '../../constants/platform-permissions';
 import { getIdentityRepository } from '../../repositories/identity.repository';
@@ -18,6 +19,12 @@ import { checkRateLimit } from '../../services/rate-limit.service';
 import type { PlatformCapabilities } from '../../services/platform-capabilities.service';
 import { isValidObjectId, sanitizeString } from '../../utils';
 import { parseSanitizedObjectIdHex } from './controller';
+
+const VALID_PLATFORM_PERMISSIONS = new Set<string>(Object.values(PLATFORM_PERMISSIONS));
+
+function isPlatformPermission(value: string): value is PlatformPermission {
+  return VALID_PLATFORM_PERMISSIONS.has(value);
+}
 
 export const GrantPlatformRoleSchema = z.object({
   role: z.enum([
@@ -187,5 +194,120 @@ export async function revokePlatformRoleResult(
     ok: true,
     identityId: targetHex,
     roles: (refreshed?.platformRoles ?? []).filter(isPlatformRole),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Platform attribute (direct permission grant) management
+// ---------------------------------------------------------------------------
+
+export const GrantPlatformAttributeSchema = z.object({
+  attribute: z.enum(
+    Object.values(PLATFORM_PERMISSIONS) as [PlatformPermission, ...PlatformPermission[]],
+  ),
+});
+
+export type GrantPlatformAttributeResult =
+  | { ok: true; identityId: string; attributes: PlatformPermission[] }
+  | { ok: false; reason: 'forbidden' | 'validation_failed' | 'not_found' | 'rate_limited' };
+
+export type RevokePlatformAttributeResult =
+  | { ok: true; identityId: string; attributes: PlatformPermission[] }
+  | { ok: false; reason: 'forbidden' | 'validation_failed' | 'not_found' };
+
+export async function grantPlatformAttributeResult(
+  actorIdentityId: string,
+  targetIdentitySegment: string | undefined,
+  body: unknown,
+  caps: PlatformCapabilities,
+): Promise<GrantPlatformAttributeResult> {
+  if (!assertManageRoles(caps)) {
+    return { ok: false, reason: 'forbidden' };
+  }
+
+  const rl = await checkRateLimit('admin:platform-roles:grant', actorIdentityId, {
+    limit: 30,
+    windowSeconds: 3600,
+  });
+  if (!rl.allowed) {
+    return { ok: false, reason: 'rate_limited' };
+  }
+
+  const parseResult = GrantPlatformAttributeSchema.safeParse(body);
+  if (!parseResult.success) {
+    return { ok: false, reason: 'validation_failed' };
+  }
+
+  const targetHex = parseSanitizedObjectIdHex(targetIdentitySegment);
+  if (!targetHex || !isValidObjectId(targetHex)) {
+    return { ok: false, reason: 'validation_failed' };
+  }
+
+  const identityRepo = getIdentityRepository();
+  const identity = await identityRepo.findById(targetHex);
+  if (!identity) {
+    return { ok: false, reason: 'not_found' };
+  }
+
+  const attribute = parseResult.data.attribute;
+  const existing = (identity.platformAttributes ?? []).filter(isPlatformPermission);
+  if (existing.includes(attribute)) {
+    return { ok: true, identityId: targetHex, attributes: existing };
+  }
+
+  const didUpdate = await identityRepo.addPlatformAttribute(targetHex, attribute);
+  if (!didUpdate) {
+    return { ok: false, reason: 'not_found' };
+  }
+
+  const refreshed = await identityRepo.findById(targetHex);
+  return {
+    ok: true,
+    identityId: targetHex,
+    attributes: (refreshed?.platformAttributes ?? []).filter(isPlatformPermission),
+  };
+}
+
+export async function revokePlatformAttributeResult(
+  actorIdentityId: string,
+  targetIdentitySegment: string | undefined,
+  attributeSegment: string | undefined,
+  caps: PlatformCapabilities,
+): Promise<RevokePlatformAttributeResult> {
+  if (!assertManageRoles(caps)) {
+    return { ok: false, reason: 'forbidden' };
+  }
+
+  const targetHex = parseSanitizedObjectIdHex(targetIdentitySegment);
+  if (!targetHex || !isValidObjectId(targetHex)) {
+    return { ok: false, reason: 'validation_failed' };
+  }
+
+  const { value: attrValue } = sanitizeString(attributeSegment ?? '', 'general');
+  if (!isPlatformPermission(attrValue)) {
+    return { ok: false, reason: 'validation_failed' };
+  }
+
+  const identityRepo = getIdentityRepository();
+  const identity = await identityRepo.findById(targetHex);
+  if (!identity) {
+    return { ok: false, reason: 'not_found' };
+  }
+
+  const existing = (identity.platformAttributes ?? []).filter(isPlatformPermission);
+  if (!existing.includes(attrValue)) {
+    return { ok: true, identityId: targetHex, attributes: existing };
+  }
+
+  const didUpdate = await identityRepo.removePlatformAttribute(targetHex, attrValue);
+  if (!didUpdate) {
+    return { ok: false, reason: 'not_found' };
+  }
+
+  const refreshed = await identityRepo.findById(targetHex);
+  return {
+    ok: true,
+    identityId: targetHex,
+    attributes: (refreshed?.platformAttributes ?? []).filter(isPlatformPermission),
   };
 }

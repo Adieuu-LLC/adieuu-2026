@@ -125,6 +125,8 @@ const mockIdentity = {
   friendCount: 10,
   achievementsEarnedCount: 3,
   entitlementOverrides: ['beta_tester'],
+  platformRoles: ['admin', 'moderator'],
+  platformAttributes: ['read-support-tickets'],
 };
 
 const mockSearchForAdmin = mock(() => Promise.resolve([mockIdentity])) as AnyMock;
@@ -324,6 +326,44 @@ describe('Admin Identities Controller', () => {
       if (result.ok) {
         expect(result.profile.moderation.status).toBe('banned');
         expect(result.profile.moderation.category).toBe('fraud');
+      }
+    });
+
+    test('returns platformRoles when present on identity', async () => {
+      const result = await getIdentityProfile(testIdentityId.toHexString());
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.profile.platformRoles).toEqual(['admin', 'moderator']);
+      }
+    });
+
+    test('returns empty platformRoles when absent', async () => {
+      mockFindByIdentityId.mockImplementation(() =>
+        Promise.resolve({ ...mockIdentity, platformRoles: undefined }),
+      );
+      const result = await getIdentityProfile(testIdentityId.toHexString());
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.profile.platformRoles).toEqual([]);
+      }
+    });
+
+    test('returns platformAttributes when present on identity', async () => {
+      const result = await getIdentityProfile(testIdentityId.toHexString());
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.profile.platformAttributes).toEqual(['read-support-tickets']);
+      }
+    });
+
+    test('returns empty platformAttributes when absent', async () => {
+      mockFindByIdentityId.mockImplementation(() =>
+        Promise.resolve({ ...mockIdentity, platformAttributes: undefined }),
+      );
+      const result = await getIdentityProfile(testIdentityId.toHexString());
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.profile.platformAttributes).toEqual([]);
       }
     });
   });

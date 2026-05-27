@@ -816,6 +816,30 @@ export class IdentityRepository
     );
     return result.matchedCount > 0;
   }
+
+  async addPlatformAttribute(identityId: string | ObjectId, attribute: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $addToSet: { platformAttributes: attribute },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+    return result.matchedCount > 0;
+  }
+
+  async removePlatformAttribute(identityId: string | ObjectId, attribute: string): Promise<boolean> {
+    const objectId = this.toObjectId(identityId);
+    const result = await this.collection.updateOne(
+      { _id: objectId },
+      {
+        $pull: { platformAttributes: attribute },
+        $set: { updatedAt: new Date() },
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+    );
+    return result.matchedCount > 0;
+  }
 }
 
 // Singleton instance
