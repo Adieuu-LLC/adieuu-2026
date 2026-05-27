@@ -38,7 +38,11 @@ export type AuditAction =
   | 'admin_ban_identity'
   | 'admin_unban_identity'
   | 'admin_add_identity_entitlement'
-  | 'admin_remove_identity_entitlement';
+  | 'admin_remove_identity_entitlement'
+  | 'admin_grant_platform_role'
+  | 'admin_revoke_platform_role'
+  | 'admin_grant_platform_attribute'
+  | 'admin_revoke_platform_attribute';
 
 /**
  * Audit log document stored in MongoDB

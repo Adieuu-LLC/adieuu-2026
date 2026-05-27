@@ -8,6 +8,11 @@ type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
 const mockCollection = {
   findOne: mock(() => Promise.resolve(null)) as AnyMock,
   find: mock(() => ({
+    sort: mock(() => ({
+      limit: mock(() => ({
+        toArray: mock(() => Promise.resolve([])),
+      })),
+    })),
     limit: mock(() => ({
       toArray: mock(() => Promise.resolve([])),
     })),
@@ -43,12 +48,24 @@ describe('user.repository', () => {
 
   beforeEach(() => {
     mockCollection.findOne.mockReset();
+    mockCollection.find.mockReset();
     mockCollection.insertOne.mockReset();
     mockCollection.updateOne.mockReset();
 
     mockCollection.findOne.mockResolvedValue(null);
     mockCollection.insertOne.mockResolvedValue({ insertedId: new ObjectId() });
     mockCollection.updateOne.mockResolvedValue({ modifiedCount: 1 });
+    mockCollection.find.mockImplementation(() => ({
+      sort: mock(() => ({
+        limit: mock(() => ({
+          toArray: mock(() => Promise.resolve([])),
+        })),
+      })),
+      limit: mock(() => ({
+        toArray: mock(() => Promise.resolve([])),
+      })),
+      toArray: mock(() => Promise.resolve([])),
+    }));
   });
 
   test('findByEmail lowercases email in query', async () => {
@@ -120,5 +137,59 @@ describe('user.repository', () => {
 
     expect(created.email).toBe('user@example.com');
     expect(created.failedAttempts).toBe(0);
+  });
+
+  test('searchByIdentifier uses literal substring match via $indexOfCP for email queries', async () => {
+    const repo = new UserRepository();
+    const mockToArray = mock(() => Promise.resolve([]));
+    mockCollection.find.mockImplementationOnce(() => ({
+      sort: mock(() => ({
+        limit: mock(() => ({
+          toArray: mockToArray,
+        })),
+      })),
+    }));
+
+    await repo.searchByIdentifier('User@Example.COM');
+
+    expect(mockCollection.find).toHaveBeenCalledWith({
+      email: { $exists: true, $type: 'string' },
+      $expr: {
+        $gte: [{ $indexOfCP: [{ $toLower: '$email' }, 'user@example.com'] }, 0],
+      },
+    });
+    expect(mockToArray).toHaveBeenCalled();
+  });
+
+  test('searchByIdentifier does not pass user input as $regex operator', async () => {
+    const repo = new UserRepository();
+    const maliciousQuery = 'user+(a)@example.com';
+    const mockToArray = mock(() => Promise.resolve([]));
+    mockCollection.find.mockImplementationOnce(() => ({
+      sort: mock(() => ({
+        limit: mock(() => ({
+          toArray: mockToArray,
+        })),
+      })),
+    }));
+
+    await repo.searchByIdentifier(maliciousQuery);
+
+    expect(mockCollection.find).toHaveBeenCalledTimes(1);
+    const filter = mockCollection.find.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(filter).not.toHaveProperty('$regex');
+    expect(JSON.stringify(filter)).not.toContain('$regex');
+    const expr = filter.$expr as {
+      $gte: [{ $indexOfCP: [{ $toLower: string }, string] }, number];
+    };
+    expect(expr.$gte[0].$indexOfCP[0]).toEqual({ $toLower: '$email' });
+    expect(expr.$gte[0].$indexOfCP[1]).toBe('user+a@example.com');
+  });
+
+  test('searchByIdentifier returns empty array for blank query', async () => {
+    const repo = new UserRepository();
+    const results = await repo.searchByIdentifier('   ');
+    expect(results).toEqual([]);
+    expect(mockCollection.find).not.toHaveBeenCalled();
   });
 });

@@ -635,13 +635,20 @@ export class IdentityRepository
       return [];
     }
 
-    const escaped = sanitizeString(query, 'general').value;
-    const regex = new RegExp(escaped, 'i');
+    const queryLower = sanitizeString(query, 'general').value.toLowerCase();
+    if (queryLower.length === 0) {
+      return [];
+    }
 
     return await this.collection
       .find({
         ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
-        $or: [{ username: regex }, { displayName: regex }],
+        $expr: {
+          $or: [
+            { $gte: [{ $indexOfCP: [{ $toLower: '$username' }, queryLower] }, 0] },
+            { $gte: [{ $indexOfCP: [{ $toLower: '$displayName' }, queryLower] }, 0] },
+          ],
+        },
       })
       .sort({ createdAt: -1 })
       .limit(Math.min(Math.max(1, limit), 50))

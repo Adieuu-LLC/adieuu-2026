@@ -331,7 +331,12 @@ router.post('/moderation/tickets/:id/assign', async (ctx): Promise<Response> => 
   const auth = await requireSupportStaffRouteContext(ctx);
   if (!auth.ok) return auth.response;
 
-  const result = await assignTicketResult(auth.session.identityId, ctx.params.id, ctx.body);
+  const result = await assignTicketResult(
+    auth.session.identityId,
+    ctx.params.id,
+    ctx.body,
+    auth.caps,
+  );
   if (!result.ok) return mapTicketModerationFailure(ctx, result);
   return success(result.data);
 });
@@ -340,7 +345,7 @@ router.post('/moderation/tickets/:id/unassign', async (ctx): Promise<Response> =
   const auth = await requireSupportStaffRouteContext(ctx);
   if (!auth.ok) return auth.response;
 
-  const result = await unassignTicketResult(auth.session.identityId, ctx.params.id);
+  const result = await unassignTicketResult(auth.session.identityId, ctx.params.id, auth.caps);
   if (!result.ok) return mapTicketModerationFailure(ctx, result);
   return success(result.data);
 });
@@ -349,7 +354,12 @@ router.post('/moderation/tickets/:id/comment', async (ctx): Promise<Response> =>
   const auth = await requireSupportStaffRouteContext(ctx);
   if (!auth.ok) return auth.response;
 
-  const result = await addTicketCommentResult(auth.session.identityId, ctx.params.id, ctx.body);
+  const result = await addTicketCommentResult(
+    auth.session.identityId,
+    ctx.params.id,
+    ctx.body,
+    auth.caps,
+  );
   if (!result.ok) return mapTicketModerationFailure(ctx, result);
   return success(result.data);
 });

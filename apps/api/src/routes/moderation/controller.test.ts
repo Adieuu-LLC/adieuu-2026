@@ -74,6 +74,57 @@ const mockGetModerationScanEvidence = mock<
 const mockSettingsFindByKey = mock(async () => null as unknown);
 const mockIdentityFindByIdentityId = mock(async () => null as unknown);
 
+const ticketObjectId = new ObjectId();
+const supportStaffId = moderatorId;
+
+const mockSupportTicketList = mock(async () => ({
+  tickets: [] as unknown[],
+  total: 0,
+  page: 1,
+  limit: 25,
+}));
+const mockSupportTicketFindById = mock(async (_id?: string) => null as unknown);
+const mockSupportTicketFindByTicketId = mock(async () => null as unknown);
+const mockSupportTicketEventList = mock(async () => [] as unknown[]);
+const mockSupportTicketEventFindById = mock(async () => null as unknown);
+const mockFindByAnyPlatformRole = mock(async () => [] as unknown[]);
+const mockAssignTicket = mock(async () => ({ success: true as const, data: undefined }));
+const mockUnassignTicket = mock(async () => ({ success: true as const, data: undefined }));
+const mockAddStaffComment = mock(async () => ({
+  success: true as const,
+  data: { eventId: new ObjectId().toHexString() },
+}));
+
+mock.module('../../services/support-ticket.service', () => ({
+  assignTicket: mockAssignTicket,
+  unassignTicket: mockUnassignTicket,
+  addStaffComment: mockAddStaffComment,
+  escalateTicket: mock(async () => ({ success: true as const, data: undefined })),
+  resolveTicket: mock(async () => ({ success: true as const, data: undefined })),
+  closeTicket: mock(async () => ({ success: true as const, data: undefined })),
+  reopenTicket: mock(async () => ({ success: true as const, data: undefined })),
+  createSupportTicket: mock(async () => ({ success: true, data: { ticketId: 'T-x', objectId: new ObjectId().toHexString() } })),
+  addSubmitterComment: mock(async () => ({ success: true, data: { eventId: new ObjectId().toHexString() } })),
+  resolveTicketBySubmitter: mock(async () => ({ success: true, data: undefined })),
+  isTicketOwner: mock(() => true),
+  getAttachmentUrls: mock(async () => []),
+}));
+
+mock.module('../../repositories/support-ticket.repository', () => ({
+  getSupportTicketRepository: () => ({
+    list: mockSupportTicketList,
+    findById: mockSupportTicketFindById,
+    findByTicketId: mockSupportTicketFindByTicketId,
+  }),
+}));
+
+mock.module('../../repositories/support-ticket-event.repository', () => ({
+  getSupportTicketEventRepository: () => ({
+    listByTicketObjectId: mockSupportTicketEventList,
+    findById: mockSupportTicketEventFindById,
+  }),
+}));
+
 mock.module('../../services/platform-capabilities.service', () => ({
   getPlatformCapabilities: mockGetPlatformCapabilities,
 }));
@@ -112,6 +163,7 @@ mock.module('../../repositories/identity.repository', () => ({
   getIdentityRepository: () => ({
     findByIdentityId: mockIdentityFindByIdentityId,
     findById: mockIdentityFindByIdentityId,
+    findByAnyPlatformRole: mockFindByAnyPlatformRole,
   }),
 }));
 
@@ -633,6 +685,145 @@ describe('moderation route smoke tests', () => {
     expect(response.status).toBe(200);
     const body = (await response.json()) as { success: boolean; data: { report: { id: string } } };
     expect(body.data.report.id).toBe(reportId.toHexString());
+  });
+});
+
+describe('moderation ticket route smoke tests', () => {
+  const supportSession: IdentitySessionData = {
+    ...sessionUser,
+    identityId: supportStaffId,
+  };
+
+  const supportCaps = (): PlatformCapabilities => ({
+    isPlatformAdmin: false,
+    isPlatformModerator: true,
+    isPlatformSupportAgent: false,
+    roles: ['moderator'],
+    permissions: [
+      PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS,
+      PLATFORM_PERMISSIONS.UPDATE_SUPPORT_TICKETS,
+    ],
+  });
+
+  const mockTicketDoc = {
+    _id: ticketObjectId,
+    ticketId: 'T-route123',
+    submitterType: 'account',
+    submitterId: new ObjectId().toHexString(),
+    category: 'general',
+    title: 'Route test',
+    body: 'Body',
+    attachmentMediaIds: [],
+    status: 'open',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  beforeEach(() => {
+    mockRequireIdentitySession.mockReset();
+    mockGetPlatformCapabilities.mockReset();
+    mockSupportTicketList.mockReset();
+    mockSupportTicketFindById.mockReset();
+    mockAssignTicket.mockReset();
+    mockUnassignTicket.mockReset();
+    mockAssignTicket.mockImplementation(async () => ({ success: true as const, data: undefined }));
+    mockUnassignTicket.mockImplementation(async () => ({ success: true as const, data: undefined }));
+
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(null));
+    mockGetPlatformCapabilities.mockImplementation(async () => supportCaps());
+    mockSupportTicketList.mockImplementation(async () => ({
+      tickets: [mockTicketDoc],
+      total: 1,
+      page: 1,
+      limit: 25,
+    }));
+    mockSupportTicketFindById.mockImplementation(async (id?: string) =>
+      id === ticketObjectId.toHexString() ? mockTicketDoc : null,
+    );
+    mockSupportTicketEventList.mockImplementation(async () => []);
+    mockSupportTicketEventFindById.mockImplementation(async () => ({
+      _id: new ObjectId(),
+      ticketObjectId,
+      ticketId: 'T-route123',
+      eventType: 'comment_public',
+      actorType: 'identity',
+      actorId: supportStaffId,
+      body: 'Staff note',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }));
+    mockFindByAnyPlatformRole.mockImplementation(async () => [
+      {
+        _id: new ObjectId(supportStaffId),
+        displayName: 'Support Agent',
+        username: 'support',
+      },
+    ]);
+  });
+
+  test('GET /moderation/tickets returns 401 without session', async () => {
+    const response = await moderationRoutes.handler()(makeRequest('/moderation/tickets'));
+    expect(response.status).toBe(401);
+  });
+
+  test('GET /moderation/tickets returns 403 without read-support-tickets permission', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(supportSession));
+    mockGetPlatformCapabilities.mockImplementation(async () => ({
+      isPlatformAdmin: false,
+      isPlatformModerator: false,
+      isPlatformSupportAgent: false,
+      roles: [],
+      permissions: [],
+    }));
+
+    const response = await moderationRoutes.handler()(makeRequest('/moderation/tickets'));
+    expect(response.status).toBe(403);
+  });
+
+  test('GET /moderation/tickets returns 200 for support staff', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(supportSession));
+
+    const response = await moderationRoutes.handler()(makeRequest('/moderation/tickets'));
+    expect(response.status).toBe(200);
+  });
+
+  test('POST /moderation/tickets/:id/assign returns 403 without update permission', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(supportSession));
+    mockGetPlatformCapabilities.mockImplementation(async () => ({
+      ...supportCaps(),
+      permissions: [PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS],
+    }));
+
+    const response = await moderationRoutes.handler()(
+      makeRequest(`/moderation/tickets/${ticketObjectId.toHexString()}/assign`, {
+        method: 'POST',
+        body: { identityId: supportStaffId },
+      }),
+    );
+    expect(response.status).toBe(403);
+    expect(mockAssignTicket).not.toHaveBeenCalled();
+  });
+
+  test('POST /moderation/tickets/:id/assign returns 200 with update permission', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(supportSession));
+
+    const response = await moderationRoutes.handler()(
+      makeRequest(`/moderation/tickets/${ticketObjectId.toHexString()}/assign`, {
+        method: 'POST',
+        body: { identityId: supportStaffId },
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mockAssignTicket).toHaveBeenCalled();
+  });
+
+  test('GET /moderation/support-staff returns 200 with staff roster', async () => {
+    mockRequireIdentitySession.mockImplementation(() => Promise.resolve(supportSession));
+
+    const response = await moderationRoutes.handler()(makeRequest('/moderation/support-staff'));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { data: { staff: unknown[] } };
+    expect(body.data.staff).toHaveLength(1);
   });
 });
 

@@ -33,6 +33,14 @@ mock.module('../../services/rate-limit.service', () => ({
   checkRateLimit: mockCheckRateLimit,
 }));
 
+const mockAuditCreate = mock(() => Promise.resolve({ _id: new ObjectId(), createdAt: new Date() }));
+
+mock.module('../../repositories/audit.repository', () => ({
+  getAuditLogRepository: () => ({
+    create: mockAuditCreate,
+  }),
+}));
+
 import {
   grantPlatformRoleResult,
   listPlatformRoleHoldersResult,
@@ -128,6 +136,7 @@ describe('grantPlatformRoleResult', () => {
   });
 
   test('grants a valid role', async () => {
+    mockAuditCreate.mockClear();
     mockFindById.mockImplementation(() =>
       Promise.resolve({
         _id: targetId,
@@ -158,6 +167,17 @@ describe('grantPlatformRoleResult', () => {
     if (result.ok) {
       expect(result.roles).toContain(PLATFORM_ROLES.ADMIN);
     }
+    expect(mockAuditCreate).toHaveBeenCalledTimes(1);
+    expect(mockAuditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'admin_grant_platform_role',
+        metadata: expect.objectContaining({
+          identityId: targetId.toHexString(),
+          adminIdentityId: actorId,
+          role: PLATFORM_ROLES.ADMIN,
+        }),
+      }),
+    );
   });
 
   test('rejects invalid role body', async () => {
@@ -208,6 +228,7 @@ describe('revokePlatformRoleResult', () => {
   });
 
   test('revokes role from another identity', async () => {
+    mockAuditCreate.mockClear();
     mockFindById.mockImplementationOnce(() =>
       Promise.resolve({
         _id: targetId,
@@ -233,6 +254,17 @@ describe('revokePlatformRoleResult', () => {
     if (result.ok) {
       expect(result.roles).toEqual([PLATFORM_ROLES.MODERATOR]);
     }
+    expect(mockAuditCreate).toHaveBeenCalledTimes(1);
+    expect(mockAuditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'admin_revoke_platform_role',
+        metadata: expect.objectContaining({
+          identityId: targetId.toHexString(),
+          adminIdentityId: actorId,
+          role: PLATFORM_ROLES.ADMIN,
+        }),
+      }),
+    );
   });
 
   test('forbidden without manage roles permission', async () => {
@@ -334,6 +366,7 @@ describe('grantPlatformAttributeResult', () => {
   });
 
   test('grants a valid permission attribute', async () => {
+    mockAuditCreate.mockClear();
     mockFindById.mockImplementationOnce(() =>
       Promise.resolve({ _id: targetId, platformAttributes: [] }),
     );
@@ -354,6 +387,28 @@ describe('grantPlatformAttributeResult', () => {
     if (result.ok) {
       expect(result.attributes).toContain(PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS);
     }
+    expect(mockAuditCreate).toHaveBeenCalledTimes(1);
+    expect(mockAuditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'admin_grant_platform_attribute',
+        metadata: expect.objectContaining({
+          identityId: targetId.toHexString(),
+          adminIdentityId: actorId,
+          attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS,
+        }),
+      }),
+    );
+  });
+
+  test('rejects admin-only direct attribute grants', async () => {
+    const result = await grantPlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      { attribute: PLATFORM_PERMISSIONS.MANAGE_ROLES },
+      adminCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('validation_failed');
   });
 
   test('rejects invalid attribute string', async () => {
@@ -431,6 +486,10 @@ describe('revokePlatformAttributeResult', () => {
     mockFindById.mockReset();
     mockRemovePlatformAttribute.mockReset();
     mockRemovePlatformAttribute.mockImplementation(() => Promise.resolve(true));
+    mockCheckRateLimit.mockReset();
+    mockCheckRateLimit.mockImplementation(() =>
+      Promise.resolve({ allowed: true, remaining: 29, resetAt: 0, limit: 30 }),
+    );
   });
 
   afterAll(() => {
@@ -446,6 +505,20 @@ describe('revokePlatformAttributeResult', () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe('forbidden');
+  });
+
+  test('returns rate limited when throttled', async () => {
+    mockCheckRateLimit.mockImplementationOnce(() =>
+      Promise.resolve({ allowed: false, remaining: 0, resetAt: 0, limit: 30 }),
+    );
+    const result = await revokePlatformAttributeResult(
+      actorId,
+      targetId.toHexString(),
+      PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS,
+      adminCaps(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('rate_limited');
   });
 
   test('rejects invalid attribute string', async () => {
@@ -472,6 +545,7 @@ describe('revokePlatformAttributeResult', () => {
   });
 
   test('revokes an existing attribute', async () => {
+    mockAuditCreate.mockClear();
     mockFindById.mockImplementationOnce(() =>
       Promise.resolve({
         _id: targetId,
@@ -498,6 +572,17 @@ describe('revokePlatformAttributeResult', () => {
     if (result.ok) {
       expect(result.attributes).toEqual([PLATFORM_PERMISSIONS.MANAGE_USERS]);
     }
+    expect(mockAuditCreate).toHaveBeenCalledTimes(1);
+    expect(mockAuditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'admin_revoke_platform_attribute',
+        metadata: expect.objectContaining({
+          identityId: targetId.toHexString(),
+          adminIdentityId: actorId,
+          attribute: PLATFORM_PERMISSIONS.READ_SUPPORT_TICKETS,
+        }),
+      }),
+    );
   });
 
   test('no-op when attribute not present on identity', async () => {

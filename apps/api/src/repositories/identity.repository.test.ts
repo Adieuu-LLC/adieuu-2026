@@ -17,6 +17,11 @@ type AnyMock = ReturnType<typeof mock<(...args: any[]) => any>>;
 const mockCollection = {
   findOne: mock(() => Promise.resolve(null)) as AnyMock,
   find: mock(() => ({
+    sort: mock(() => ({
+      limit: mock(() => ({
+        toArray: mock(() => Promise.resolve([])),
+      })),
+    })),
     toArray: mock(() => Promise.resolve([])),
   })) as AnyMock,
   insertOne: mock(() => Promise.resolve({ insertedId: new ObjectId() })) as AnyMock,
@@ -489,6 +494,67 @@ describe('IdentityRepository', () => {
       expect(row?.conversationsJoinedCount).toBe(3);
       expect(row?.friendCount).toBe(4);
       expect(row?.achievementsEarnedCount).toBe(5);
+    });
+  });
+
+  describe('searchForAdmin', () => {
+    test('uses literal substring match via $indexOfCP for text queries', async () => {
+      const mockToArray = mock(() => Promise.resolve([]));
+      mockCollection.find.mockImplementationOnce(() => ({
+        sort: mock(() => ({
+          limit: mock(() => ({
+            toArray: mockToArray,
+          })),
+        })),
+      }));
+
+      await repo.searchForAdmin('Test User');
+
+      expect(mockCollection.find).toHaveBeenCalledWith({
+        ident: { $not: { $regex: `^${DELETED_IDENT_PREFIX}` } },
+        $expr: {
+          $or: [
+            { $gte: [{ $indexOfCP: [{ $toLower: '$username' }, 'test user'] }, 0] },
+            { $gte: [{ $indexOfCP: [{ $toLower: '$displayName' }, 'test user'] }, 0] },
+          ],
+        },
+      });
+      expect(mockToArray).toHaveBeenCalled();
+    });
+
+    test('does not pass user input as $regex on username or displayName', async () => {
+      mockCollection.find.mockImplementationOnce(() => ({
+        sort: mock(() => ({
+          limit: mock(() => ({
+            toArray: mock(() => Promise.resolve([])),
+          })),
+        })),
+      }));
+
+      await repo.searchForAdmin('(a+)+$');
+
+      const filter = mockCollection.find.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(JSON.stringify(filter)).not.toMatch(/\$regex":"\(\?i\)/);
+      expect((filter.$expr as { $or: unknown[] }).$or).toEqual([
+        { $gte: [{ $indexOfCP: [{ $toLower: '$username' }, '(a+)+$'] }, 0] },
+        { $gte: [{ $indexOfCP: [{ $toLower: '$displayName' }, '(a+)+$'] }, 0] },
+      ]);
+    });
+
+    test('returns empty array for blank query', async () => {
+      const results = await repo.searchForAdmin('   ');
+      expect(results).toEqual([]);
+      expect(mockCollection.find).not.toHaveBeenCalled();
+    });
+
+    test('looks up by ObjectId when query is a valid id', async () => {
+      const objectId = new ObjectId();
+      mockCollection.findOne.mockImplementationOnce(() => Promise.resolve(mockIdentity));
+
+      const results = await repo.searchForAdmin(objectId.toHexString());
+
+      expect(results).toHaveLength(1);
+      expect(mockCollection.find).not.toHaveBeenCalled();
     });
   });
 });

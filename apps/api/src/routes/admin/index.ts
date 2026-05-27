@@ -76,6 +76,7 @@ router.delete('/admin/identities/:id/roles/:role', async (ctx) => {
   );
   if (!result.ok) {
     if (result.reason === 'forbidden') return ctx.errors.forbidden();
+    if (result.reason === 'rate_limited') return ctx.errors.rateLimited();
     if (result.reason === 'last_admin') return ctx.errors.validationFailed();
     if (result.reason === 'not_found') return ctx.errors.notFound();
     return ctx.errors.validationFailed();
@@ -114,6 +115,7 @@ router.delete('/admin/identities/:id/platform-attributes/:attribute', async (ctx
   );
   if (!result.ok) {
     if (result.reason === 'forbidden') return ctx.errors.forbidden();
+    if (result.reason === 'rate_limited') return ctx.errors.rateLimited();
     if (result.reason === 'not_found') return ctx.errors.notFound();
     return ctx.errors.validationFailed();
   }

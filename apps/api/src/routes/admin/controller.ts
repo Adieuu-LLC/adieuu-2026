@@ -34,11 +34,38 @@ import { z } from '@adieuu/shared/schemas';
 /** Matches PUT/PATCH body description upper bound in Zod schema below. */
 export const PLATFORM_SETTING_PUT_BODY_DESCRIPTION_MAX = 4096;
 
-export const PutPlatformSettingSchema = z.object({
-  valueType: z.enum(['boolean', 'string', 'number', 'stringArray', 'objectIdArray']),
-  value: z.unknown(),
-  description: z.string().max(PLATFORM_SETTING_PUT_BODY_DESCRIPTION_MAX).optional(),
-});
+const PutPlatformSettingDescriptionSchema = z
+  .string()
+  .max(PLATFORM_SETTING_PUT_BODY_DESCRIPTION_MAX)
+  .optional();
+
+export const PutPlatformSettingSchema = z.discriminatedUnion('valueType', [
+  z.object({
+    valueType: z.literal('boolean'),
+    value: z.boolean(),
+    description: PutPlatformSettingDescriptionSchema,
+  }),
+  z.object({
+    valueType: z.literal('string'),
+    value: z.string(),
+    description: PutPlatformSettingDescriptionSchema,
+  }),
+  z.object({
+    valueType: z.literal('number'),
+    value: z.number().finite(),
+    description: PutPlatformSettingDescriptionSchema,
+  }),
+  z.object({
+    valueType: z.literal('stringArray'),
+    value: z.array(z.string()),
+    description: PutPlatformSettingDescriptionSchema,
+  }),
+  z.object({
+    valueType: z.literal('objectIdArray'),
+    value: z.array(z.string().regex(/^[0-9a-fA-F]{24}$/)),
+    description: PutPlatformSettingDescriptionSchema,
+  }),
+]);
 
 export type PlatformAdminRow = {
   identityId: string;

@@ -15,6 +15,7 @@ import { maskIpAddress, toPublicSession } from '../../models/session';
 import type { UserDocument } from '../../models/user';
 import type { AuditAction, AuditLogDocument } from '../../models/audit';
 import type { SessionDocument } from '../../models/session';
+import { isSelfIdentityTarget } from './moderation-guards';
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -651,6 +652,10 @@ export async function suspendAccount(
   const user = await userRepo.findById(new ObjectId(userIdSegment));
   if (!user) return { ok: false, reason: 'not_found' };
 
+  if (isSelfIdentityTarget(adminIdentityId, userIdSegment)) {
+    return { ok: false, reason: 'self_action' };
+  }
+
   const suspendedUntil = parsed.data.durationMs
     ? new Date(Date.now() + parsed.data.durationMs)
     : new Date(Date.now() + BAN_TROLL_COUNTDOWN_MS);
@@ -713,7 +718,7 @@ export async function unsuspendAccount(
 
 export type BanResult =
   | { ok: true }
-  | { ok: false; reason: 'not_found' | 'validation_failed' };
+  | { ok: false; reason: 'not_found' | 'validation_failed' | 'self_action' };
 
 export async function banAccount(
   adminIdentityId: string,
@@ -730,6 +735,10 @@ export async function banAccount(
   const userRepo = getUserRepository();
   const user = await userRepo.findById(new ObjectId(userIdSegment));
   if (!user) return { ok: false, reason: 'not_found' };
+
+  if (isSelfIdentityTarget(adminIdentityId, userIdSegment)) {
+    return { ok: false, reason: 'self_action' };
+  }
 
   await userRepo.banAccount(user._id, {
     reason: parsed.data.reason,

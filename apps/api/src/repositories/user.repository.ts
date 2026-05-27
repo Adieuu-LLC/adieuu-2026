@@ -10,6 +10,7 @@ import type { UserDocument, CreateUserInput, UpdateUserInput, UserGeo, UserBilli
 import type { AccountModerationCategory } from '@adieuu/shared';
 import { DEFAULT_IDENTITY_LOCKOUT_DURATION } from '../models/user';
 import { withTimestamps } from '../models/base';
+import { sanitizeString } from '../utils';
 
 /**
  * User repository interface
@@ -474,10 +475,19 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
       return doc ? [doc] : [];
     }
 
-    // Treat as email substring (case-insensitive)
-    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Treat as email substring (case-insensitive, literal match — no user-controlled regex)
+    const queryLower = sanitizeString(query, 'email').value.toLowerCase();
+    if (queryLower.length === 0) {
+      return [];
+    }
+
     return await this.collection
-      .find({ email: { $regex: escaped, $options: 'i' } })
+      .find({
+        email: { $exists: true, $type: 'string' },
+        $expr: {
+          $gte: [{ $indexOfCP: [{ $toLower: '$email' }, queryLower] }, 0],
+        },
+      })
       .sort({ createdAt: -1 })
       .limit(limit)
       .toArray();

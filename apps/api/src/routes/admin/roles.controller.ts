@@ -15,6 +15,7 @@ import {
   type PlatformRole,
 } from '../../constants/platform-permissions';
 import { getIdentityRepository } from '../../repositories/identity.repository';
+import { getAuditLogRepository } from '../../repositories/audit.repository';
 import { checkRateLimit } from '../../services/rate-limit.service';
 import type { PlatformCapabilities } from '../../services/platform-capabilities.service';
 import { isValidObjectId, sanitizeString } from '../../utils';
@@ -22,8 +23,45 @@ import { parseSanitizedObjectIdHex } from './controller';
 
 const VALID_PLATFORM_PERMISSIONS = new Set<string>(Object.values(PLATFORM_PERMISSIONS));
 
+/** Direct attributes must not grant admin-only permissions reserved for the admin role. */
+const ADMIN_ONLY_DIRECT_ATTRIBUTE_DENYLIST = new Set<PlatformPermission>([
+  PLATFORM_PERMISSIONS.MANAGE_ROLES,
+  PLATFORM_PERMISSIONS.MANAGE_PLATFORM_SETTINGS,
+  PLATFORM_PERMISSIONS.MANAGE_USERS,
+  PLATFORM_PERMISSIONS.MANAGE_IDENTITIES,
+]);
+
+const ROLE_GRANT_RATE_LIMIT = { limit: 30, windowSeconds: 3600 } as const;
+const ROLE_REVOKE_RATE_LIMIT = { limit: 30, windowSeconds: 3600 } as const;
+
 function isPlatformPermission(value: string): value is PlatformPermission {
   return VALID_PLATFORM_PERMISSIONS.has(value);
+}
+
+function isDirectAttributeGrantAllowed(attribute: PlatformPermission): boolean {
+  return !ADMIN_ONLY_DIRECT_ATTRIBUTE_DENYLIST.has(attribute);
+}
+
+async function writeRoleAuditLog(
+  action:
+    | 'admin_grant_platform_role'
+    | 'admin_revoke_platform_role'
+    | 'admin_grant_platform_attribute'
+    | 'admin_revoke_platform_attribute',
+  actorIdentityId: string,
+  targetIdentityId: string,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  const auditRepo = getAuditLogRepository();
+  await auditRepo.create({
+    action,
+    ipHash: 'admin',
+    metadata: {
+      identityId: targetIdentityId,
+      adminIdentityId: actorIdentityId,
+      ...metadata,
+    },
+  });
 }
 
 export const GrantPlatformRoleSchema = z.object({
@@ -48,7 +86,7 @@ export type GrantPlatformRoleResult =
 
 export type RevokePlatformRoleResult =
   | { ok: true; identityId: string; roles: PlatformRole[] }
-  | { ok: false; reason: 'forbidden' | 'validation_failed' | 'not_found' | 'last_admin' };
+  | { ok: false; reason: 'forbidden' | 'validation_failed' | 'not_found' | 'last_admin' | 'rate_limited' };
 
 export type ListPlatformRoleHoldersResult =
   | { ok: true; identities: PlatformRoleHolderRow[] }
@@ -96,10 +134,7 @@ export async function grantPlatformRoleResult(
     return { ok: false, reason: 'forbidden' };
   }
 
-  const rl = await checkRateLimit('admin:platform-roles:grant', actorIdentityId, {
-    limit: 30,
-    windowSeconds: 3600,
-  });
+  const rl = await checkRateLimit('admin:platform-roles:grant', actorIdentityId, ROLE_GRANT_RATE_LIMIT);
   if (!rl.allowed) {
     return { ok: false, reason: 'rate_limited' };
   }
@@ -131,6 +166,8 @@ export async function grantPlatformRoleResult(
     return { ok: false, reason: 'not_found' };
   }
 
+  await writeRoleAuditLog('admin_grant_platform_role', actorIdentityId, targetHex, { role });
+
   const refreshed = await identityRepo.findById(targetHex);
   return {
     ok: true,
@@ -147,6 +184,11 @@ export async function revokePlatformRoleResult(
 ): Promise<RevokePlatformRoleResult> {
   if (!assertManageRoles(caps)) {
     return { ok: false, reason: 'forbidden' };
+  }
+
+  const rl = await checkRateLimit('admin:platform-roles:revoke', actorIdentityId, ROLE_REVOKE_RATE_LIMIT);
+  if (!rl.allowed) {
+    return { ok: false, reason: 'rate_limited' };
   }
 
   const targetHex = parseSanitizedObjectIdHex(targetIdentitySegment);
@@ -189,6 +231,8 @@ export async function revokePlatformRoleResult(
     return { ok: false, reason: 'not_found' };
   }
 
+  await writeRoleAuditLog('admin_revoke_platform_role', actorIdentityId, targetHex, { role: roleValue });
+
   const refreshed = await identityRepo.findById(targetHex);
   return {
     ok: true,
@@ -213,7 +257,7 @@ export type GrantPlatformAttributeResult =
 
 export type RevokePlatformAttributeResult =
   | { ok: true; identityId: string; attributes: PlatformPermission[] }
-  | { ok: false; reason: 'forbidden' | 'validation_failed' | 'not_found' };
+  | { ok: false; reason: 'forbidden' | 'validation_failed' | 'not_found' | 'rate_limited' };
 
 export async function grantPlatformAttributeResult(
   actorIdentityId: string,
@@ -225,16 +269,18 @@ export async function grantPlatformAttributeResult(
     return { ok: false, reason: 'forbidden' };
   }
 
-  const rl = await checkRateLimit('admin:platform-roles:grant', actorIdentityId, {
-    limit: 30,
-    windowSeconds: 3600,
-  });
+  const rl = await checkRateLimit('admin:platform-roles:grant', actorIdentityId, ROLE_GRANT_RATE_LIMIT);
   if (!rl.allowed) {
     return { ok: false, reason: 'rate_limited' };
   }
 
   const parseResult = GrantPlatformAttributeSchema.safeParse(body);
   if (!parseResult.success) {
+    return { ok: false, reason: 'validation_failed' };
+  }
+
+  const attribute = parseResult.data.attribute;
+  if (!isDirectAttributeGrantAllowed(attribute)) {
     return { ok: false, reason: 'validation_failed' };
   }
 
@@ -249,7 +295,6 @@ export async function grantPlatformAttributeResult(
     return { ok: false, reason: 'not_found' };
   }
 
-  const attribute = parseResult.data.attribute;
   const existing = (identity.platformAttributes ?? []).filter(isPlatformPermission);
   if (existing.includes(attribute)) {
     return { ok: true, identityId: targetHex, attributes: existing };
@@ -259,6 +304,10 @@ export async function grantPlatformAttributeResult(
   if (!didUpdate) {
     return { ok: false, reason: 'not_found' };
   }
+
+  await writeRoleAuditLog('admin_grant_platform_attribute', actorIdentityId, targetHex, {
+    attribute,
+  });
 
   const refreshed = await identityRepo.findById(targetHex);
   return {
@@ -276,6 +325,11 @@ export async function revokePlatformAttributeResult(
 ): Promise<RevokePlatformAttributeResult> {
   if (!assertManageRoles(caps)) {
     return { ok: false, reason: 'forbidden' };
+  }
+
+  const rl = await checkRateLimit('admin:platform-roles:revoke', actorIdentityId, ROLE_REVOKE_RATE_LIMIT);
+  if (!rl.allowed) {
+    return { ok: false, reason: 'rate_limited' };
   }
 
   const targetHex = parseSanitizedObjectIdHex(targetIdentitySegment);
@@ -303,6 +357,10 @@ export async function revokePlatformAttributeResult(
   if (!didUpdate) {
     return { ok: false, reason: 'not_found' };
   }
+
+  await writeRoleAuditLog('admin_revoke_platform_attribute', actorIdentityId, targetHex, {
+    attribute: attrValue,
+  });
 
   const refreshed = await identityRepo.findById(targetHex);
   return {

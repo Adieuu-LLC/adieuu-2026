@@ -644,6 +644,12 @@ describe('Admin Users Controller', () => {
       if (!result.ok) expect(result.reason).toBe('not_found');
     });
 
+    test('returns self_action when targeting own account id', async () => {
+      const result = await suspendAccount(adminIdentityId, adminIdentityId, { reason: 'Abuse' });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe('self_action');
+    });
+
     test('suspends with explicit duration and category', async () => {
       const result = await suspendAccount(adminIdentityId, testUserId.toHexString(), {
         reason: 'Spam',

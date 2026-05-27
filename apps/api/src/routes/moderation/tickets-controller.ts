@@ -79,7 +79,9 @@ export async function gateSupportStaffSession(
   return { ok: true, session, caps };
 }
 
-export const AssignSchema = z.object({ identityId: z.string().min(1) });
+export const AssignSchema = z.object({
+  identityId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid identity id'),
+});
 
 export const CommentSchema = z.object({
   body: z.string().min(1).max(MAX_TICKET_BODY_LENGTH),
@@ -250,7 +252,10 @@ export async function assignTicketResult(
   actorId: string,
   ticketObjectId: string | undefined,
   body: unknown,
+  caps: PlatformCapabilities,
 ): Promise<TicketModerationResult<PublicTicket>> {
+  if (!canUpdateSupportTickets(caps)) return { ok: false, kind: 'forbidden' };
+
   const id = parseTicketObjectId(ticketObjectId);
   if (!id) return { ok: false, kind: 'bad_request' };
 
@@ -270,7 +275,10 @@ export async function assignTicketResult(
 export async function unassignTicketResult(
   actorId: string,
   ticketObjectId: string | undefined,
+  caps: PlatformCapabilities,
 ): Promise<TicketModerationResult<PublicTicket>> {
+  if (!canUpdateSupportTickets(caps)) return { ok: false, kind: 'forbidden' };
+
   const id = parseTicketObjectId(ticketObjectId);
   if (!id) return { ok: false, kind: 'bad_request' };
 
@@ -288,7 +296,10 @@ export async function addTicketCommentResult(
   actorId: string,
   ticketObjectId: string | undefined,
   body: unknown,
+  caps: PlatformCapabilities,
 ): Promise<TicketModerationResult<PublicTicketEvent>> {
+  if (!canUpdateSupportTickets(caps)) return { ok: false, kind: 'forbidden' };
+
   const id = parseTicketObjectId(ticketObjectId);
   if (!id) return { ok: false, kind: 'bad_request' };
 

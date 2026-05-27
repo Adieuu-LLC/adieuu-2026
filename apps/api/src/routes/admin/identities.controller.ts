@@ -14,6 +14,10 @@ import { getReportRepository, type ReportListResult } from '../../repositories/r
 import { isDeletedIdent } from '../../models/identity';
 import type { IdentityDocument } from '../../models/identity';
 import type { SessionDocument } from '../../models/session';
+import {
+  identityHasPlatformAdminRole,
+  isSelfIdentityTarget,
+} from './moderation-guards';
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -337,7 +341,7 @@ export async function removeIdentityEntitlement(
 
 export type SuspendResult =
   | { ok: true }
-  | { ok: false; reason: 'not_found' | 'validation_failed' };
+  | { ok: false; reason: 'not_found' | 'validation_failed' | 'self_action' | 'protected_admin' };
 
 export async function suspendIdentity(
   adminIdentityId: string,
@@ -354,6 +358,13 @@ export async function suspendIdentity(
   const identityRepo = getIdentityRepository();
   const doc = await identityRepo.findByIdentityId(new ObjectId(idSegment));
   if (!doc || isDeletedIdent(doc.ident)) return { ok: false, reason: 'not_found' };
+
+  if (isSelfIdentityTarget(adminIdentityId, idSegment)) {
+    return { ok: false, reason: 'self_action' };
+  }
+  if (identityHasPlatformAdminRole(doc)) {
+    return { ok: false, reason: 'protected_admin' };
+  }
 
   const suspendedUntil = parsed.data.durationMs
     ? new Date(Date.now() + parsed.data.durationMs)
@@ -388,7 +399,7 @@ export async function suspendIdentity(
 
 export type UnsuspendResult =
   | { ok: true }
-  | { ok: false; reason: 'not_found' | 'validation_failed' };
+  | { ok: false; reason: 'not_found' | 'validation_failed' | 'protected_admin' };
 
 export async function unsuspendIdentity(
   adminIdentityId: string,
@@ -401,6 +412,10 @@ export async function unsuspendIdentity(
   const identityRepo = getIdentityRepository();
   const doc = await identityRepo.findByIdentityId(new ObjectId(idSegment));
   if (!doc || isDeletedIdent(doc.ident)) return { ok: false, reason: 'not_found' };
+
+  if (identityHasPlatformAdminRole(doc)) {
+    return { ok: false, reason: 'protected_admin' };
+  }
 
   await identityRepo.unsuspendIdentity(doc._id);
 
@@ -416,7 +431,7 @@ export async function unsuspendIdentity(
 
 export type BanResult =
   | { ok: true }
-  | { ok: false; reason: 'not_found' | 'validation_failed' };
+  | { ok: false; reason: 'not_found' | 'validation_failed' | 'self_action' | 'protected_admin' };
 
 export async function banIdentity(
   adminIdentityId: string,
@@ -433,6 +448,13 @@ export async function banIdentity(
   const identityRepo = getIdentityRepository();
   const doc = await identityRepo.findByIdentityId(new ObjectId(idSegment));
   if (!doc || isDeletedIdent(doc.ident)) return { ok: false, reason: 'not_found' };
+
+  if (isSelfIdentityTarget(adminIdentityId, idSegment)) {
+    return { ok: false, reason: 'self_action' };
+  }
+  if (identityHasPlatformAdminRole(doc)) {
+    return { ok: false, reason: 'protected_admin' };
+  }
 
   await identityRepo.banIdentity(doc._id, {
     reason: parsed.data.reason,
@@ -460,7 +482,7 @@ export async function banIdentity(
 
 export type UnbanResult =
   | { ok: true }
-  | { ok: false; reason: 'not_found' | 'validation_failed' };
+  | { ok: false; reason: 'not_found' | 'validation_failed' | 'protected_admin' };
 
 export async function unbanIdentity(
   adminIdentityId: string,
@@ -473,6 +495,10 @@ export async function unbanIdentity(
   const identityRepo = getIdentityRepository();
   const doc = await identityRepo.findByIdentityId(new ObjectId(idSegment));
   if (!doc || isDeletedIdent(doc.ident)) return { ok: false, reason: 'not_found' };
+
+  if (identityHasPlatformAdminRole(doc)) {
+    return { ok: false, reason: 'protected_admin' };
+  }
 
   await identityRepo.unbanIdentity(doc._id);
 

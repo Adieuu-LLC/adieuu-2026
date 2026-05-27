@@ -274,6 +274,8 @@ export async function addOwnCommentResult(
         return { ok: false, kind: 'not_found' };
       case 'FORBIDDEN':
         return { ok: false, kind: 'forbidden' };
+      case 'RATE_LIMITED':
+        return { ok: false, kind: 'rate_limited' };
       case 'TICKET_CLOSED':
         return { ok: false, kind: 'bad_request', message: result.error };
       default:

@@ -125,7 +125,7 @@ const mockIdentity = {
   friendCount: 10,
   achievementsEarnedCount: 3,
   entitlementOverrides: ['beta_tester'],
-  platformRoles: ['admin', 'moderator'],
+  platformRoles: ['moderator'],
   platformAttributes: ['read-support-tickets'],
 };
 
@@ -337,7 +337,7 @@ describe('Admin Identities Controller', () => {
       const result = await getIdentityProfile(testIdentityId.toHexString());
       expect(result.ok).toBe(true);
       if (result.ok) {
-        expect(result.profile.platformRoles).toEqual(['admin', 'moderator']);
+        expect(result.profile.platformRoles).toEqual(['moderator']);
       }
     });
 
@@ -491,6 +491,21 @@ describe('Admin Identities Controller', () => {
       if (!result.ok) expect(result.reason).toBe('not_found');
     });
 
+    test('returns self_action when targeting own identity', async () => {
+      const result = await suspendIdentity(adminIdentityId, adminIdentityId, { reason: 'Abuse' });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe('self_action');
+    });
+
+    test('returns protected_admin when target is a platform admin', async () => {
+      mockFindByIdentityId.mockImplementation(() =>
+        Promise.resolve({ ...mockIdentity, platformRoles: ['admin'] }),
+      );
+      const result = await suspendIdentity(adminIdentityId, testIdentityId.toHexString(), { reason: 'Abuse' });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe('protected_admin');
+    });
+
     test('suspends with explicit duration and category', async () => {
       const result = await suspendIdentity(adminIdentityId, testIdentityId.toHexString(), {
         reason: 'Spam',
@@ -533,6 +548,15 @@ describe('Admin Identities Controller', () => {
       const auditCall = mockAuditCreate.mock.calls[0]![0];
       expect(auditCall.action).toBe('admin_unsuspend_identity');
     });
+
+    test('returns protected_admin when target is a platform admin', async () => {
+      mockFindByIdentityId.mockImplementation(() =>
+        Promise.resolve({ ...mockIdentity, platformRoles: ['admin'] }),
+      );
+      const result = await unsuspendIdentity(adminIdentityId, testIdentityId.toHexString());
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe('protected_admin');
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -542,6 +566,17 @@ describe('Admin Identities Controller', () => {
     test('returns validation_failed for missing reason', async () => {
       const result = await banIdentity(adminIdentityId, testIdentityId.toHexString(), {});
       expect(result.ok).toBe(false);
+    });
+
+    test('returns protected_admin when target is a platform admin', async () => {
+      mockFindByIdentityId.mockImplementation(() =>
+        Promise.resolve({ ...mockIdentity, platformRoles: ['admin'] }),
+      );
+      const result = await banIdentity(adminIdentityId, testIdentityId.toHexString(), {
+        reason: 'Permanent violation',
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe('protected_admin');
     });
 
     test('bans identity, revokes sessions, writes audit', async () => {

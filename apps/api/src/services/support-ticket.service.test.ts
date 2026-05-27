@@ -3,6 +3,14 @@ import { ObjectId } from 'mongodb';
 import { TICKET_CATEGORIES, MAX_TICKET_ATTACHMENTS } from '@adieuu/shared';
 
 const mockCountRecent = mock(async () => 0);
+const mockFindByTicketId = mock(async () => ({
+  _id: new ObjectId(),
+  ticketId: 'T-test1234',
+  submitterType: 'account' as const,
+  submitterId: new ObjectId().toHexString(),
+  status: 'open' as const,
+}));
+const mockCheckRateLimit = mock(async () => ({ allowed: true, resetAt: 0 }));
 const mockFindByMediaId = mock(async () => ({
   mediaId: 'media-1',
   purpose: 'ticket_attachment',
@@ -11,7 +19,7 @@ const mockFindByMediaId = mock(async () => ({
 }));
 
 mock.module('./rate-limit.service', () => ({
-  checkRateLimit: mock(async () => ({ allowed: true, resetAt: 0 })),
+  checkRateLimit: mockCheckRateLimit,
 }));
 
 mock.module('../repositories/support-ticket.repository', () => ({
@@ -23,6 +31,7 @@ mock.module('../repositories/support-ticket.repository', () => ({
       createdAt: new Date(),
       updatedAt: new Date(),
     })),
+    findByTicketId: mockFindByTicketId,
     countRecentBySubmitter: mockCountRecent,
   }),
 }));
@@ -43,7 +52,7 @@ mock.module('../repositories/media-upload.repository', () => ({
   }),
 }));
 
-const { createSupportTicket, generateTicketId } = await import('./support-ticket.service');
+const { createSupportTicket, addSubmitterComment, generateTicketId } = await import('./support-ticket.service');
 
 describe('support-ticket.service', () => {
   test('generateTicketId produces T- prefix', () => {
@@ -99,5 +108,26 @@ describe('support-ticket.service', () => {
     );
 
     expect(result.success).toBe(true);
+  });
+
+  test('addSubmitterComment rejects when rate limited', async () => {
+    const submitterId = new ObjectId().toHexString();
+    mockFindByTicketId.mockImplementation(async () => ({
+      _id: new ObjectId(),
+      ticketId: 'T-test1234',
+      submitterType: 'account' as const,
+      submitterId,
+      status: 'open' as const,
+    }));
+    mockCheckRateLimit.mockImplementationOnce(async () => ({ allowed: false, resetAt: 0 }));
+
+    const result = await addSubmitterComment(
+      { type: 'account', id: submitterId },
+      'T-test1234',
+      'Another update',
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorCode).toBe('RATE_LIMITED');
   });
 });

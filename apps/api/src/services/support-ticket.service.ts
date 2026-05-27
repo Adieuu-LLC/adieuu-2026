@@ -25,6 +25,7 @@ import { createNotification } from './notification.service';
 import elog from '../utils/adieuuLogger';
 
 const TICKET_CREATE_RATE_LIMIT: RateLimitConfig = { limit: 3, windowSeconds: 3600 };
+const TICKET_COMMENT_RATE_LIMIT: RateLimitConfig = { limit: 10, windowSeconds: 600 };
 
 const TERMINAL_STATUSES: TicketStatus[] = ['resolved', 'closed'];
 
@@ -210,6 +211,12 @@ export async function addSubmitterComment(
 ): Promise<ServiceResult<{ eventId: string }>> {
   if (body.length === 0 || body.length > MAX_TICKET_BODY_LENGTH) {
     return { success: false, error: 'Invalid comment length', errorCode: 'BODY_TOO_LONG' };
+  }
+
+  const rateKey = `support:ticket:comment:${submitter.type}:${submitter.id}`;
+  const rl = await checkRateLimit(rateKey, submitter.id, TICKET_COMMENT_RATE_LIMIT);
+  if (!rl.allowed) {
+    return { success: false, error: 'Rate limit exceeded', errorCode: 'RATE_LIMITED' };
   }
 
   const repo = getSupportTicketRepository();
