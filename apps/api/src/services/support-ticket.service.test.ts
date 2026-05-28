@@ -3,14 +3,38 @@ import { ObjectId } from 'mongodb';
 import { TICKET_CATEGORIES, MAX_TICKET_ATTACHMENTS } from '@adieuu/shared';
 
 const mockCountRecent = mock(async () => 0);
-const mockFindByTicketId = mock(async () => ({
+const mockCountUnreadForSubmitter = mock(async () => 0);
+const mockMarkSubmitterRead = mock(async () => undefined);
+const mockAssign = mock(async () => ({
   _id: new ObjectId(),
   ticketId: 'T-test1234',
   submitterType: 'account' as const,
   submitterId: new ObjectId().toHexString(),
   status: 'open' as const,
 }));
+const mockFindById = mock<() => Promise<Record<string, unknown>>>(async () => ({
+  _id: new ObjectId(),
+  ticketId: 'T-test1234',
+  submitterType: 'account',
+  submitterId: new ObjectId().toHexString(),
+  status: 'open',
+  title: 'Help',
+}));
+const mockFindByTicketId = mock<() => Promise<Record<string, unknown>>>(async () => ({
+  _id: new ObjectId(),
+  ticketId: 'T-test1234',
+  submitterType: 'account',
+  submitterId: new ObjectId().toHexString(),
+  status: 'open',
+  title: 'Help',
+}));
 const mockCheckRateLimit = mock(async () => ({ allowed: true, resetAt: 0 }));
+const mockCreateNotification = mock(async () => ({ success: true }));
+const mockCreateEvent = mock(async () => ({
+  _id: new ObjectId(),
+  createdAt: new Date(),
+  updatedAt: new Date(),
+}));
 const mockFindByMediaId = mock(async () => ({
   mediaId: 'media-1',
   purpose: 'ticket_attachment',
@@ -24,26 +48,32 @@ mock.module('./rate-limit.service', () => ({
 
 mock.module('../repositories/support-ticket.repository', () => ({
   getSupportTicketRepository: () => ({
-    createTicket: mock(async (input: { ticketId: string }) => ({
+    createTicket: mock(async (input: { ticketId: string; title?: string }) => ({
       _id: new ObjectId(),
       ...input,
+      title: input.title ?? 'Help',
       status: 'open',
       createdAt: new Date(),
       updatedAt: new Date(),
     })),
     findByTicketId: mockFindByTicketId,
+    findById: mockFindById,
+    assign: mockAssign,
+    setStatus: mock(async () => null),
     countRecentBySubmitter: mockCountRecent,
+    countUnreadForSubmitter: mockCountUnreadForSubmitter,
+    markSubmitterRead: mockMarkSubmitterRead,
   }),
 }));
 
 mock.module('../repositories/support-ticket-event.repository', () => ({
   getSupportTicketEventRepository: () => ({
-    createEvent: mock(async () => ({
-      _id: new ObjectId(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })),
+    createEvent: mockCreateEvent,
   }),
+}));
+
+mock.module('./notification.service', () => ({
+  createNotification: mockCreateNotification,
 }));
 
 mock.module('../repositories/media-upload.repository', () => ({
@@ -52,7 +82,15 @@ mock.module('../repositories/media-upload.repository', () => ({
   }),
 }));
 
-const { createSupportTicket, addSubmitterComment, generateTicketId } = await import('./support-ticket.service');
+const {
+  createSupportTicket,
+  addSubmitterComment,
+  addStaffComment,
+  assignTicket,
+  countUnreadSupportTicketsForSubmitter,
+  markSupportTicketReadBySubmitter,
+  generateTicketId,
+} = await import('./support-ticket.service');
 
 describe('support-ticket.service', () => {
   test('generateTicketId produces T- prefix', () => {
@@ -108,6 +146,162 @@ describe('support-ticket.service', () => {
     );
 
     expect(result.success).toBe(true);
+  });
+
+  test('assignTicket notifies assignee when actor differs', async () => {
+    const ticketObjectId = new ObjectId();
+    const assigneeId = new ObjectId().toHexString();
+    mockFindById.mockResolvedValueOnce({
+      _id: ticketObjectId,
+      ticketId: 'T-assign1',
+      title: 'Assign me',
+      assignedTo: undefined,
+    });
+
+    const result = await assignTicket('actor-1', ticketObjectId.toHexString(), assigneeId);
+    expect(result.success).toBe(true);
+    expect(mockCreateNotification).toHaveBeenCalledWith(
+      assigneeId,
+      'support_ticket_assigned',
+      expect.objectContaining({
+        ticketId: 'T-assign1',
+        ticketObjectId: ticketObjectId.toHexString(),
+        title: 'Assign me',
+      }),
+    );
+  });
+
+  test('assignTicket does not notify when assignee is the actor', async () => {
+    mockCreateNotification.mockClear();
+    const ticketObjectId = new ObjectId();
+    const actorId = new ObjectId().toHexString();
+    mockFindById.mockResolvedValueOnce({
+      _id: ticketObjectId,
+      ticketId: 'T-self',
+      title: 'Self assign',
+      assignedTo: undefined,
+    });
+
+    const result = await assignTicket(actorId, ticketObjectId.toHexString(), actorId);
+    expect(result.success).toBe(true);
+    expect(mockCreateNotification).not.toHaveBeenCalled();
+  });
+
+  test('assignTicket records system actor for auto-assignment', async () => {
+    mockCreateEvent.mockClear();
+    const ticketObjectId = new ObjectId();
+    const assigneeId = new ObjectId().toHexString();
+    mockFindById.mockResolvedValueOnce({
+      _id: ticketObjectId,
+      ticketId: 'T-auto',
+      title: 'Auto',
+      assignedTo: undefined,
+    });
+
+    await assignTicket('system', ticketObjectId.toHexString(), assigneeId, {
+      actorType: 'system',
+      notifyAssignee: true,
+    });
+
+    expect(mockCreateEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorType: 'system',
+        actorId: 'system',
+        eventType: 'assignment_change',
+      }),
+    );
+  });
+
+  test('addSubmitterComment notifies assigned staff with moderation payload', async () => {
+    mockCreateNotification.mockClear();
+    const ticketObjectId = new ObjectId();
+    const submitterId = new ObjectId().toHexString();
+    const assigneeId = new ObjectId().toHexString();
+    mockFindByTicketId.mockResolvedValueOnce({
+      _id: ticketObjectId,
+      ticketId: 'T-user-reply',
+      submitterType: 'account',
+      submitterId,
+      assignedTo: assigneeId,
+      status: 'open',
+      title: 'Need help',
+    });
+
+    const result = await addSubmitterComment(
+      { type: 'account', id: submitterId },
+      'T-user-reply',
+      'Any update?',
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockCreateNotification).toHaveBeenCalledWith(
+      assigneeId,
+      'support_ticket_user_reply',
+      expect.objectContaining({
+        ticketId: 'T-user-reply',
+        ticketObjectId: ticketObjectId.toHexString(),
+      }),
+    );
+  });
+
+  test('addStaffComment notifies identity submitter on public reply', async () => {
+    mockCreateNotification.mockClear();
+    const ticketObjectId = new ObjectId();
+    const submitterId = new ObjectId().toHexString();
+    mockFindById.mockResolvedValueOnce({
+      _id: ticketObjectId,
+      ticketId: 'T-staff-reply',
+      submitterType: 'identity',
+      submitterId,
+      status: 'open',
+      title: 'Need help',
+    });
+
+    const result = await addStaffComment(
+      new ObjectId().toHexString(),
+      ticketObjectId.toHexString(),
+      'We can help',
+      'public',
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockCreateNotification).toHaveBeenCalledWith(
+      submitterId,
+      'support_ticket_reply',
+      expect.objectContaining({
+        ticketId: 'T-staff-reply',
+        ticketObjectId: ticketObjectId.toHexString(),
+      }),
+    );
+  });
+
+  test('countUnreadSupportTicketsForSubmitter delegates to repository', async () => {
+    mockCountUnreadForSubmitter.mockResolvedValueOnce(3);
+    const submitter = { type: 'identity' as const, id: new ObjectId().toHexString() };
+
+    const count = await countUnreadSupportTicketsForSubmitter(submitter);
+    expect(count).toBe(3);
+    expect(mockCountUnreadForSubmitter).toHaveBeenCalledWith('identity', submitter.id);
+  });
+
+  test('markSupportTicketReadBySubmitter marks ticket read for owner', async () => {
+    const submitterId = new ObjectId().toHexString();
+    const ticketObjectId = new ObjectId();
+    mockFindByTicketId.mockResolvedValueOnce({
+      _id: ticketObjectId,
+      ticketId: 'T-read',
+      submitterType: 'account',
+      submitterId,
+      status: 'open',
+    });
+
+    const result = await markSupportTicketReadBySubmitter(
+      { type: 'account', id: submitterId },
+      'T-read',
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockMarkSubmitterRead).toHaveBeenCalledWith(ticketObjectId.toHexString());
   });
 
   test('addSubmitterComment rejects when rate limited', async () => {

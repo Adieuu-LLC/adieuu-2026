@@ -118,6 +118,27 @@ const {
   resolveOwnTicketResult,
 } = await import('./controller');
 
+import { supportRoutes } from './index';
+
+function makeRequest(
+  path: string,
+  options: { method?: string; body?: object; cookies?: string } = {},
+) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (options.cookies) {
+    headers['Cookie'] = options.cookies;
+  }
+  return new Request(`http://localhost${path}`, {
+    method: options.method ?? 'GET',
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+}
+
+const AUTH_COOKIE = 'adieuu_session=test-account-session';
+
 describe('support/controller', () => {
   beforeEach(() => {
     mockCreateSupportTicket.mockClear();
@@ -393,5 +414,42 @@ describe('support/controller', () => {
       'T-test1234',
       'Fixed it myself',
     );
+  });
+});
+
+describe('support route smoke tests', () => {
+  beforeEach(() => {
+    mockCountUnreadSupportTicketsForSubmitter.mockClear();
+    mockCountUnreadSupportTicketsForSubmitter.mockResolvedValue(2);
+    mockGetSessionFromRequest.mockReset();
+  });
+
+  test('GET /support/unread-count returns 401 without session', async () => {
+    mockGetSessionFromRequest.mockResolvedValueOnce(null);
+    const response = await supportRoutes.handler()(makeRequest('/support/unread-count'));
+    expect(response.status).toBe(401);
+  });
+
+  test('GET /support/unread-count returns unread count with account session', async () => {
+    mockGetSessionFromRequest.mockResolvedValueOnce({
+      type: 'account',
+      userId: accountUserId,
+      identifier: 'a@b.com',
+      identifierType: 'email',
+      lastActivityAt: Date.now(),
+      expiresAt: Date.now() + 3600_000,
+    });
+
+    const response = await supportRoutes.handler()(
+      makeRequest('/support/unread-count', { cookies: AUTH_COOKIE }),
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { data: { unreadCount: number } };
+    expect(body.data.unreadCount).toBe(2);
+    expect(mockCountUnreadSupportTicketsForSubmitter).toHaveBeenCalledWith({
+      type: 'account',
+      id: accountUserId,
+    });
   });
 });

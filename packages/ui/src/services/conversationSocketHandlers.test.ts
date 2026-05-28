@@ -219,4 +219,66 @@ describe('conversationSocketHandlers', () => {
     expect(navigatedTo).toBe('/moderation/tickets/mongo-id-1');
     setActiveSupportTicketId(null);
   });
+
+  test('routes submitter support reply notifications to user ticket page', () => {
+    const h = createContext();
+    let navigatedTo = '';
+    h.ctx.navigate = (path) => {
+      navigatedTo = path;
+    };
+    let notificationOnClick: (() => void) | undefined;
+    h.ctx.fireNotification = (_title, _body, options) => {
+      notificationOnClick = options?.onClick;
+    };
+    setActiveSupportTicketId(null);
+
+    handleConversationSocketMessage(
+      {
+        type: 'notification_created',
+        data: {
+          notification: {
+            type: 'support_ticket_reply',
+            data: { ticketId: 'TKT-001', title: 'Help me' },
+          },
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+
+    notificationOnClick?.();
+    expect(navigatedTo).toBe('/support/TKT-001');
+  });
+
+  test('routes assigned ticket user reply notifications to moderation panel', () => {
+    const h = createContext();
+    let navigatedTo = '';
+    h.ctx.navigate = (path) => {
+      navigatedTo = path;
+    };
+    let notificationOnClick: (() => void) | undefined;
+    h.ctx.fireNotification = (_title, _body, options) => {
+      notificationOnClick = options?.onClick;
+    };
+    setActiveSupportTicketId(null);
+
+    handleConversationSocketMessage(
+      {
+        type: 'notification_created',
+        data: {
+          notification: {
+            type: 'support_ticket_user_reply',
+            data: {
+              ticketId: 'TKT-001',
+              ticketObjectId: 'mongo-id-2',
+              title: 'Help me',
+            },
+          },
+        },
+      } as ChatIncomingMessage,
+      h.ctx,
+    );
+
+    notificationOnClick?.();
+    expect(navigatedTo).toBe('/moderation/tickets/mongo-id-2');
+  });
 });

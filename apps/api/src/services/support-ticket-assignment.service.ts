@@ -10,9 +10,9 @@ import { PLATFORM_ROLES } from '../constants/platform-permissions';
 import { getRedis, isRedisConnected, RedisKeys } from '../db';
 import { getIdentityRepository } from '../repositories/identity.repository';
 import type { SupportTicketDocument } from '../models/support-ticket';
-import { assignTicket } from './support-ticket.service';
 import { createNotification } from './notification.service';
 import elog from '../utils/adieuuLogger';
+import type { AssignTicketOptions } from './support-ticket.service';
 
 const RECENTLY_ACTIVE_MS = 15 * 60 * 1000;
 
@@ -129,6 +129,16 @@ async function notifyAllAdminsOfUnassignedTicket(ticket: SupportTicketDocument):
   );
 }
 
+async function invokeAssignTicket(
+  actorIdentityId: string,
+  ticketObjectId: string,
+  assigneeIdentityId: string,
+  options: AssignTicketOptions,
+) {
+  const { assignTicket } = await import('./support-ticket.service');
+  return assignTicket(actorIdentityId, ticketObjectId, assigneeIdentityId, options);
+}
+
 /**
  * Auto-assign a newly created ticket to recently active staff, or notify admins.
  */
@@ -160,7 +170,7 @@ export async function autoAssignNewTicket(ticket: SupportTicketDocument): Promis
     'support_agent',
   );
   if (assigneeFromSupportAgents) {
-    const result = await assignTicket('system', ticket._id.toHexString(), assigneeFromSupportAgents, {
+    const result = await invokeAssignTicket('system', ticket._id.toHexString(), assigneeFromSupportAgents, {
       actorType: 'system',
       notifyAssignee: true,
       skipIfSameAssignee: false,
@@ -178,7 +188,7 @@ export async function autoAssignNewTicket(ticket: SupportTicketDocument): Promis
   const activeFallback = await filterRecentlyActiveStaff(fallbackIds);
   const assigneeFromFallback = await pickRoundRobinAssignee(activeFallback, 'fallback');
   if (assigneeFromFallback) {
-    const result = await assignTicket('system', ticket._id.toHexString(), assigneeFromFallback, {
+    const result = await invokeAssignTicket('system', ticket._id.toHexString(), assigneeFromFallback, {
       actorType: 'system',
       notifyAssignee: true,
       skipIfSameAssignee: false,
