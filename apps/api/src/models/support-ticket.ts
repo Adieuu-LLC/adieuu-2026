@@ -23,6 +23,8 @@ export interface SupportTicketDocument extends BaseDocument {
   priority?: TicketPriority;
   /** Moderator identity ID assigned to this ticket */
   assignedTo?: string;
+  /** When the submitter last viewed this ticket (for unread staff reply tracking) */
+  submitterLastReadAt?: Date;
   escalatedAt?: Date;
   escalatedBy?: string;
   resolvedAt?: Date;

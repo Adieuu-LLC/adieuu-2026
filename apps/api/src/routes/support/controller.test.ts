@@ -60,12 +60,17 @@ const mockListByTicketObjectId = mock(async () => [] as unknown[]);
 const mockGetSessionFromRequest = mock(async () => null as unknown);
 const mockFindByIdentityId = mock(async () => null as unknown);
 
+const mockMarkSupportTicketReadBySubmitter = mock(async () => ({ success: true, data: undefined }));
+const mockCountUnreadSupportTicketsForSubmitter = mock(async () => 2);
+
 mock.module('../../services/support-ticket.service', () => ({
   createSupportTicket: mockCreateSupportTicket,
   addSubmitterComment: mockAddSubmitterComment,
   resolveTicketBySubmitter: mockResolveTicketBySubmitter,
   getAttachmentUrls: mock(async () => []),
   isTicketOwner: mockIsTicketOwner,
+  markSupportTicketReadBySubmitter: mockMarkSupportTicketReadBySubmitter,
+  countUnreadSupportTicketsForSubmitter: mockCountUnreadSupportTicketsForSubmitter,
 }));
 
 mock.module('../../repositories/identity.repository', () => ({
@@ -108,6 +113,7 @@ const {
   createTicketResult,
   listOwnTicketsResult,
   getOwnTicketResult,
+  getUnreadSupportTicketCountResult,
   addOwnCommentResult,
   resolveOwnTicketResult,
 } = await import('./controller');
@@ -250,6 +256,24 @@ describe('support/controller', () => {
       expect(result.data.ticket.ticketId).toBe('T-test1234');
       expect(result.data.events).toEqual([]);
     }
+    expect(mockMarkSupportTicketReadBySubmitter).toHaveBeenCalledWith(
+      { type: 'account', id: accountUserId },
+      'T-test1234',
+    );
+  });
+
+  test('getUnreadSupportTicketCountResult returns unread count', async () => {
+    const result = await getUnreadSupportTicketCountResult({
+      type: 'identity',
+      id: identityId,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.unreadCount).toBe(2);
+    expect(mockCountUnreadSupportTicketsForSubmitter).toHaveBeenCalledWith({
+      type: 'identity',
+      id: identityId,
+    });
   });
 
   test('addOwnCommentResult validates comment body', async () => {

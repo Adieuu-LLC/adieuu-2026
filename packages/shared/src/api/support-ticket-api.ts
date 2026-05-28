@@ -11,6 +11,10 @@ import type {
   UserResolveSupportTicketParams,
 } from './support-ticket-types';
 
+export interface SupportTicketUnreadCountResponse {
+  unreadCount: number;
+}
+
 export class SupportTicketApi {
   constructor(private client: HttpClient) {}
 
@@ -24,6 +28,10 @@ export class SupportTicketApi {
     if (params?.limit) qs.set('limit', String(params.limit));
     const query = qs.toString();
     return this.client.get(`/api/support/tickets${query ? `?${query}` : ''}`);
+  }
+
+  async getUnreadCount(): Promise<ApiResponse<SupportTicketUnreadCountResponse>> {
+    return this.client.get('/api/support/unread-count');
   }
 
   async getTicket(ticketId: string): Promise<ApiResponse<SupportTicketDetailResponse>> {

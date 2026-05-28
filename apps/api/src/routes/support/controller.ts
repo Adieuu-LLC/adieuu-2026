@@ -22,6 +22,8 @@ import {
   resolveTicketBySubmitter,
   getAttachmentUrls,
   isTicketOwner,
+  countUnreadSupportTicketsForSubmitter,
+  markSupportTicketReadBySubmitter,
   type SubmitterContext,
 } from '../../services/support-ticket.service';
 import { getIdentityRepository } from '../../repositories/identity.repository';
@@ -218,6 +220,8 @@ export async function getOwnTicketResult(
     return { ok: false, kind: 'forbidden' };
   }
 
+  await markSupportTicketReadBySubmitter(submitter, ticketId);
+
   const eventRepo = getSupportTicketEventRepository();
   const events = await eventRepo.listByTicketObjectId(ticket._id, { includeInternal: false });
 
@@ -255,6 +259,13 @@ export async function getOwnTicketResult(
       identityProfiles,
     },
   };
+}
+
+export async function getUnreadSupportTicketCountResult(
+  submitter: SubmitterContext,
+): Promise<SupportResult<{ unreadCount: number }>> {
+  const unreadCount = await countUnreadSupportTicketsForSubmitter(submitter);
+  return { ok: true, data: { unreadCount } };
 }
 
 export async function addOwnCommentResult(

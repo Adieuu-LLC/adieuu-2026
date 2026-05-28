@@ -176,7 +176,7 @@ describe('conversationSocketHandlers', () => {
       data: {
         notification: {
           type: 'support_ticket_user_reply',
-          data: { ticketId: 'TKT-001', title: 'Help me' },
+          data: { ticketId: 'TKT-001', ticketObjectId: 'abc123', title: 'Help me' },
         },
       },
     } as ChatIncomingMessage;
@@ -187,6 +187,36 @@ describe('conversationSocketHandlers', () => {
     expect(h.notifications.length).toBe(0);
     expect(getActiveSupportTicketId()).toBe('TKT-001');
     unsubscribe();
+    setActiveSupportTicketId(null);
+  });
+
+  test('routes staff support notifications to moderation ticket detail', () => {
+    const h = createContext();
+    let navigatedTo = '';
+    h.ctx.navigate = (path) => {
+      navigatedTo = path;
+    };
+    let notificationOnClick: (() => void) | undefined;
+    h.ctx.fireNotification = (_title, _body, options) => {
+      notificationOnClick = options?.onClick;
+    };
+    setActiveSupportTicketId(null);
+
+    const msg = {
+      type: 'notification_created',
+      data: {
+        notification: {
+          type: 'support_ticket_assigned',
+          data: { ticketId: 'TKT-001', ticketObjectId: 'mongo-id-1', title: 'Help me' },
+        },
+      },
+    } as ChatIncomingMessage;
+
+    handleConversationSocketMessage(msg, h.ctx);
+
+    expect(notificationOnClick).toBeDefined();
+    notificationOnClick?.();
+    expect(navigatedTo).toBe('/moderation/tickets/mongo-id-1');
     setActiveSupportTicketId(null);
   });
 });

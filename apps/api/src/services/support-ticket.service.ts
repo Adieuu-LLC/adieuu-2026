@@ -191,6 +191,12 @@ export async function createSupportTicket(
     metadata: { from: null, to: 'open' },
   });
 
+  void import('./support-ticket-assignment.service')
+    .then(({ autoAssignNewTicket }) => autoAssignNewTicket(ticket))
+    .catch((err) => {
+      elog.warn('Failed to auto-assign support ticket', { ticketId: ticket.ticketId, error: err });
+    });
+
   return {
     success: true,
     data: { ticketId: ticket.ticketId, objectId: ticket._id.toHexString() },
@@ -246,6 +252,7 @@ export async function addSubmitterComment(
   if (ticket.assignedTo) {
     void emitTicketNotification(ticket.assignedTo, 'support_ticket_user_reply', {
       ticketId: ticket.ticketId,
+      ticketObjectId: ticket._id.toHexString(),
       title: ticket.title,
     });
   }
@@ -297,6 +304,7 @@ export async function addStaffComment(
   if (visibility === 'public' && ticket.submitterType === 'identity') {
     void emitTicketNotification(ticket.submitterId, 'support_ticket_reply', {
       ticketId: ticket.ticketId,
+      ticketObjectId: ticket._id.toHexString(),
       title: ticket.title,
       staffIdentityId: actorIdentityId,
     });
@@ -305,11 +313,24 @@ export async function addStaffComment(
   return { success: true, data: { eventId: event._id.toHexString() } };
 }
 
+export type AssignTicketOptions = {
+  actorType?: SupportTicketActorType;
+  notifyAssignee?: boolean;
+  skipIfSameAssignee?: boolean;
+};
+
 export async function assignTicket(
   actorIdentityId: string,
   ticketObjectId: string,
   assigneeIdentityId: string,
+  options: AssignTicketOptions = {},
 ): Promise<ServiceResult> {
+  const {
+    actorType = 'identity',
+    notifyAssignee = true,
+    skipIfSameAssignee = true,
+  } = options;
+
   const repo = getSupportTicketRepository();
   const ticket = await repo.findById(ticketObjectId);
   if (!ticket) {
@@ -317,6 +338,10 @@ export async function assignTicket(
   }
 
   const previousAssignee = ticket.assignedTo ?? null;
+  if (skipIfSameAssignee && previousAssignee === assigneeIdentityId) {
+    return { success: true, data: undefined };
+  }
+
   const updated = await repo.assign(ticketObjectId, assigneeIdentityId);
   if (!updated) {
     return { success: false, error: 'Ticket not found', errorCode: 'NOT_FOUND' };
@@ -327,13 +352,21 @@ export async function assignTicket(
     ticketObjectId: ticket._id,
     ticketId: ticket.ticketId,
     eventType: 'assignment_change',
-    actorType: 'identity',
+    actorType,
     actorId: actorIdentityId,
     body: previousAssignee
       ? `Reassigned from ${previousAssignee.slice(0, 8)}… to ${assigneeIdentityId.slice(0, 8)}…`
       : `Assigned to ${assigneeIdentityId.slice(0, 8)}…`,
     metadata: { from: previousAssignee, assignedTo: assigneeIdentityId },
   });
+
+  if (notifyAssignee && assigneeIdentityId !== actorIdentityId) {
+    void emitTicketNotification(assigneeIdentityId, 'support_ticket_assigned', {
+      ticketId: ticket.ticketId,
+      ticketObjectId: ticket._id.toHexString(),
+      title: ticket.title,
+    });
+  }
 
   return { success: true, data: undefined };
 }
@@ -558,6 +591,31 @@ async function emitTicketNotification(
   } catch (err) {
     elog.warn('Failed to emit ticket notification', { type, recipientIdentityId, error: err });
   }
+}
+
+export async function countUnreadSupportTicketsForSubmitter(
+  submitter: SubmitterContext,
+): Promise<number> {
+  const repo = getSupportTicketRepository();
+  return await repo.countUnreadForSubmitter(submitter.type, submitter.id);
+}
+
+export async function markSupportTicketReadBySubmitter(
+  submitter: SubmitterContext,
+  ticketId: string,
+): Promise<ServiceResult> {
+  const repo = getSupportTicketRepository();
+  const ticket = await repo.findByTicketId(ticketId);
+  if (!ticket) {
+    return { success: false, error: 'Ticket not found', errorCode: 'NOT_FOUND' };
+  }
+
+  if (!isTicketOwner(submitter, ticket)) {
+    return { success: false, error: 'Forbidden', errorCode: 'FORBIDDEN' };
+  }
+
+  await repo.markSubmitterRead(ticket._id.toHexString());
+  return { success: true, data: undefined };
 }
 
 export async function getAttachmentUrls(

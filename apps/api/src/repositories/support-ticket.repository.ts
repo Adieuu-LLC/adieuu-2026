@@ -181,6 +181,59 @@ export class SupportTicketRepository extends BaseRepository<SupportTicketDocumen
     } as Filter<SupportTicketDocument>);
   }
 
+  async markSubmitterRead(ticketObjectId: string): Promise<void> {
+    await this.updateById(ticketObjectId, {
+      submitterLastReadAt: new Date(),
+    } as Partial<SupportTicketDocument>);
+  }
+
+  async countUnreadForSubmitter(
+    submitterType: TicketSubmitterType,
+    submitterId: string,
+  ): Promise<number> {
+    const pipeline = [
+      {
+        $match: {
+          submitterType,
+          submitterId,
+          status: { $nin: ['resolved', 'closed'] },
+        },
+      },
+      {
+        $lookup: {
+          from: Collections.SUPPORT_TICKET_EVENTS,
+          let: { ticketOid: '$_id', lastRead: '$submitterLastReadAt' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$ticketObjectId', '$$ticketOid'] },
+                    { $eq: ['$eventType', 'comment_public'] },
+                    { $eq: ['$actorType', 'identity'] },
+                    {
+                      $gt: [
+                        '$createdAt',
+                        { $ifNull: ['$$lastRead', new Date(0)] },
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+          ],
+          as: 'unreadEvents',
+        },
+      },
+      { $match: { 'unreadEvents.0': { $exists: true } } },
+      { $count: 'count' },
+    ];
+
+    const result = await this.collection.aggregate<{ count: number }>(pipeline).toArray();
+    return result[0]?.count ?? 0;
+  }
+
   async ensureIndexes(): Promise<void> {
     await this.collection.createIndex({ ticketId: 1 }, { unique: true });
     await this.collection.createIndex({ status: 1, createdAt: -1 });

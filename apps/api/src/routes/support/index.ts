@@ -9,6 +9,7 @@ import {
   createTicketResult,
   listOwnTicketsResult,
   getOwnTicketResult,
+  getUnreadSupportTicketCountResult,
   addOwnCommentResult,
   resolveOwnTicketResult,
   type SupportResult,
@@ -60,6 +61,15 @@ router.get('/support/tickets', async (ctx) => {
     auth.submitter,
     new URL(ctx.request.url).searchParams,
   );
+  if (!result.ok) return mapSupportFailure(ctx, result);
+  return success(result.data);
+});
+
+router.get('/support/unread-count', async (ctx) => {
+  const auth = await requireSubmitter(ctx);
+  if (!auth.ok) return auth.response;
+
+  const result = await getUnreadSupportTicketCountResult(auth.submitter);
   if (!result.ok) return mapSupportFailure(ctx, result);
   return success(result.data);
 });
