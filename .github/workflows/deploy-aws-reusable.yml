@@ -1,9 +1,10 @@
 name: Deploy AWS (reusable)
 
 # Called from release.yml (after the release job) or from deploy-aws.yml (manual).
-# Services (api, chat) always deploy. Web only rebuilds when its source tree changed
-# since the previous release tag (version-bump-only package.json edits are excluded).
-# Manual dispatches pass force_all to skip change detection.
+# Services (api, chat) always deploy. Web rebuilds when its source tree changed since
+# the previous release tag, when release passed force_all, or when there are no changes
+# (or only version-bump package.json edits) since that tag — for re-releases.
+# Manual deploy-aws.yml dispatches always pass force_all.
 
 on:
   workflow_call:
@@ -97,6 +98,25 @@ jobs:
             echo "web=true"  >> "$GITHUB_OUTPUT"
             echo "Web-relevant changes detected:"
             echo "$WEB_CHANGES"
+            exit 0
+          fi
+
+          ALL_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD || true)
+          MEANINGFUL_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD -- \
+            apps/desktop/ \
+            apps/web/ \
+            apps/api/ \
+            apps/chat/ \
+            packages/shared/ \
+            packages/ui/ \
+            packages/crypto/ \
+            packages/tsconfig/ \
+            pnpm-lock.yaml \
+          | grep -Ev '^(apps|packages)/[^/]+/package\.json$' || true)
+
+          if [ -z "$ALL_CHANGES" ] || [ -z "$MEANINGFUL_CHANGES" ]; then
+            echo "web=true" >> "$GITHUB_OUTPUT"
+            echo "No changes (or only release version bumps) since ${PREV_TAG} — deploying web"
           else
             echo "web=false" >> "$GITHUB_OUTPUT"
             echo "No web-relevant changes — skipping web deploy"
