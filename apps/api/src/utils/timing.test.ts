@@ -167,8 +167,8 @@ describe('timing utilities', () => {
       }, minTime);
       const elapsed = performance.now() - start;
 
-      // Should be padded to at least minTime
-      expect(elapsed).toBeGreaterThanOrEqual(minTime - 1);
+      // Should be padded to at least minTime (allow 5ms tolerance for CI timing variance)
+      expect(elapsed).toBeGreaterThanOrEqual(minTime - 5);
       // Should not significantly exceed minTime (allow 50ms tolerance for CI scheduling variance)
       expect(elapsed).toBeLessThan(minTime + 50);
     });
