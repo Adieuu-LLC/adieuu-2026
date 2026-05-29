@@ -1,23 +1,21 @@
-# Supply chain and security-sensitive files.
+# Code ownership for Adieuu-LLC/adieuu-2026
 #
-# Changes to these paths require approval from the security team.
-# The team handle below must correspond to a GitHub team in the Adieuu-LLC
-# organisation. Create it at:
-#   https://github.com/orgs/Adieuu-LLC/teams/new
-# and add members who should review dependency and infrastructure changes.
+# @Adieuu-LLC/security        — enterprise security (supply chain, CI/CD, infra)
+# @Adieuu-LLC/adieuu-2026-team — Adieuu 2026 product engineering (application code)
 #
-# For CODEOWNERS to be enforced, the repository must also have a branch
-# protection rule on the target branch with "Require review from Code Owners"
-# enabled.
+# Enforced only when the target branch ruleset has "Require review from Code Owners".
 
-# -- Dependency manifests and lockfile --
-pnpm-lock.yaml          @Adieuu-LLC/security
-package.json            @Adieuu-LLC/security
-.npmrc                  @Adieuu-LLC/security
-pnpm-workspace.yaml     @Adieuu-LLC/security
+# Application code (default)
+* @Adieuu-LLC/adieuu-2026-team
 
-# -- CI/CD workflows --
+# Supply chain (repository root only) — security team only
+/pnpm-lock.yaml         @Adieuu-LLC/security
+/package.json           @Adieuu-LLC/security
+/.npmrc                 @Adieuu-LLC/security
+/pnpm-workspace.yaml    @Adieuu-LLC/security
+
+# CI/CD workflows — security team only
 .github/                @Adieuu-LLC/security
 
-# -- Infrastructure --
+# Infrastructure — security team only
 infra/                  @Adieuu-LLC/security
