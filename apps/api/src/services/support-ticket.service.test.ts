@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import { TICKET_CATEGORIES, MAX_TICKET_ATTACHMENTS } from '@adieuu/shared';
 
@@ -93,6 +93,10 @@ const {
 } = await import('./support-ticket.service');
 
 describe('support-ticket.service', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   test('generateTicketId produces T- prefix', () => {
     const id = generateTicketId();
     expect(id.startsWith('T-')).toBe(true);

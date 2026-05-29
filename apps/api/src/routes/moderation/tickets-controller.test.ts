@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import { PLATFORM_PERMISSIONS } from '../../constants/platform-permissions';
 import type { PlatformCapabilities } from '../../services/platform-capabilities.service';
@@ -66,6 +66,9 @@ mock.module('../../services/support-ticket.service', () => ({
   resolveTicketBySubmitter: mock(async () => ({ success: true, data: undefined })),
   isTicketOwner: mock(() => true),
   getAttachmentUrls: mock(async () => []),
+  // support/controller (imported by tickets-controller) also binds these from the same module
+  markSupportTicketReadBySubmitter: mock(async () => ({ success: true, data: undefined })),
+  countUnreadSupportTicketsForSubmitter: mock(async () => 0),
 }));
 
 mock.module('../../repositories/support-ticket.repository', () => ({
@@ -466,4 +469,8 @@ describe('moderation/tickets-controller', () => {
       'Duplicate escalated ticket',
     );
   });
+});
+
+afterAll(() => {
+  mock.restore();
 });

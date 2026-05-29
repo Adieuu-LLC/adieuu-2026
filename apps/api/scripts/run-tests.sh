@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Run the default Bun test suite, then every isolated edge test file.
+# Run the API test suite with per-file isolation, then every edge test file.
+#
+# Requires Bun >= 1.3.13 (`bun test --isolate` resets globals and mock.module
+# between test files so partial mocks cannot leak across the suite).
 #
 # Edge tests: any file under src/ named *.edge.manual.ts
 # (not matched by default `bun test` glob — run explicitly with ./path).
@@ -7,34 +10,21 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# shellcheck source=./isolated-test-list.sh
-source "$(dirname "$0")/isolated-test-list.sh"
+if ! bun test --help 2>&1 | grep -q -- '--isolate'; then
+  echo "error: bun test --isolate requires Bun >= 1.3.13 (install/upgrade: https://bun.sh)" >&2
+  exit 1
+fi
 
-run_split_suites() {
+run_isolated_suite() {
   local tests=("$@")
-  local main_tests=()
-  local isolated_tests=()
-  local f
-
-  for f in "${tests[@]}"; do
-    if is_isolated_test "$f"; then
-      isolated_tests+=("$f")
-    else
-      main_tests+=("$f")
-    fi
-  done
-
-  if [[ ${#main_tests[@]} -gt 0 ]]; then
-    bun test "${main_tests[@]}"
+  if [[ ${#tests[@]} -gt 0 ]]; then
+    bun test --isolate "${tests[@]}"
   fi
-  for f in "${isolated_tests[@]}"; do
-    bun test "$f"
-  done
 }
 
 if [[ $# -eq 0 ]]; then
   mapfile -t _all_tests < <(find src -name '*.test.ts' -type f | LC_ALL=C sort)
-  run_split_suites "${_all_tests[@]}"
+  run_isolated_suite "${_all_tests[@]}"
 else
   _explicit_tests=()
   _passthrough_args=()
@@ -50,12 +40,10 @@ else
     esac
   done
 
-  # When callers pass explicit test files (e.g. security suite), still isolate
-  # known global-mock-sensitive suites.
   if [[ ${#_explicit_tests[@]} -gt 0 && ${#_passthrough_args[@]} -eq 0 ]]; then
-    run_split_suites "${_explicit_tests[@]}"
+    run_isolated_suite "${_explicit_tests[@]}"
   else
-    bun test "$@"
+    bun test --isolate "$@"
   fi
 fi
 

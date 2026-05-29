@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import { PLATFORM_ROLES } from '../constants/platform-permissions';
 
@@ -15,7 +15,8 @@ mock.module('../db', () => ({
   RedisKeys: {
     chatOnline: (id: string) => `chat:online:${id}`,
     chatLastSeen: (id: string) => `chat:lastseen:${id}`,
-    supportTicketAssignRoundRobinSupportAgent: () => 'support:ticket:assign:round_robin:support_agent',
+    supportTicketAssignRoundRobinSupportAgent: () =>
+      'support:ticket:assign:round_robin:support_agent',
     supportTicketAssignRoundRobinFallback: () => 'support:ticket:assign:round_robin:fallback',
   },
 }));
@@ -38,6 +39,10 @@ mock.module('../repositories/identity.repository', () => ({
 const { autoAssignNewTicket } = await import('./support-ticket-assignment.service');
 
 describe('support-ticket-assignment auto-assign integration', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   test('autoAssignNewTicket assigns recently active support agent first', async () => {
     mockAssignTicket.mockClear();
     mockCreateNotification.mockClear();

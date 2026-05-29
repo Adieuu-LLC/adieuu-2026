@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { afterAll, describe, expect, mock, test } from 'bun:test';
 import { PLATFORM_ROLES } from '../constants/platform-permissions';
 
 const mockGet = mock(async (_key?: string) => null as string | null);
@@ -16,6 +16,17 @@ mock.module('../db', () => ({
   },
 }));
 
+mock.module('../repositories/identity.repository', () => ({
+  getIdentityRepository: () => ({
+    findByAnyPlatformRole: mock(async () => []),
+    findByPlatformRole: mock(async () => []),
+  }),
+}));
+
+mock.module('./notification.service', () => ({
+  createNotification: mock(async () => undefined),
+}));
+
 const {
   classifyStaffPool,
   isIdentityRecentlyActive,
@@ -23,6 +34,10 @@ const {
 } = await import('./support-ticket-assignment.service');
 
 describe('support-ticket-assignment.service', () => {
+  afterAll(() => {
+    mock.restore();
+  });
+
   test('classifyStaffPool prefers support_agent over moderator/admin', () => {
     expect(
       classifyStaffPool({

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import { TICKET_CATEGORIES } from '@adieuu/shared';
 
@@ -453,4 +453,8 @@ describe('support route smoke tests', () => {
       id: accountUserId,
     });
   });
+});
+
+afterAll(() => {
+  mock.restore();
 });
