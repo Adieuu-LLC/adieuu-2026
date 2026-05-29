@@ -18,7 +18,7 @@ import {
   updateMediaState,
 } from '../../services/call.service';
 import { updateCallSettings } from '../../services/conversation/group-settings';
-import { z } from 'zod';
+import { z } from '@adieuu/shared/schemas';
 
 // ---------------------------------------------------------------------------
 // Schemas
