@@ -568,7 +568,8 @@ export function validateProductionConfig(): void {
   }
 
   if (config.jitsi.enabled) {
-    if (config.jitsi.jwtSecret.includes('dev-')) {
+    const jwtSecret = config.jitsi.jwtSecret.trim();
+    if (!jwtSecret || jwtSecret.includes('dev-')) {
       errors.push('JITSI_JWT_SECRET must be set when JITSI_ENABLED is true');
     }
     if (!config.jitsi.baseUrl || config.jitsi.baseUrl === 'https://meet.jitsi') {

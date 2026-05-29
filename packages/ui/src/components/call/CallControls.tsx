@@ -35,6 +35,17 @@ export function CallControls({
 }: CallControlsProps) {
   const { t } = useTranslation();
 
+  const audioLabel = isAudioEnabled
+    ? t('call.muteAudio', 'Mute')
+    : t('call.unmuteAudio', 'Unmute');
+  const videoLabel = isVideoEnabled
+    ? t('call.disableVideo', 'Turn off camera')
+    : t('call.enableVideo', 'Turn on camera');
+  const screenshareLabel = isScreensharing
+    ? t('call.stopScreenshare', 'Stop sharing')
+    : t('call.startScreenshare', 'Share screen');
+  const leaveLabel = t('call.leave', 'Leave call');
+
   return (
     <div className="call-controls">
       {audioAllowed && (
@@ -43,9 +54,9 @@ export function CallControls({
           size="sm"
           className={`call-control-btn ${isAudioEnabled ? '' : 'call-control-btn--muted'}`}
           onClick={onToggleAudio}
-          title={isAudioEnabled
-            ? t('call.muteAudio', 'Mute')
-            : t('call.unmuteAudio', 'Unmute')}
+          title={audioLabel}
+          aria-label={audioLabel}
+          aria-pressed={isAudioEnabled}
         >
           <Icon name={isAudioEnabled ? 'microphone' : 'microphoneSlash'} />
         </Button>
@@ -57,9 +68,9 @@ export function CallControls({
           size="sm"
           className={`call-control-btn ${isVideoEnabled ? '' : 'call-control-btn--muted'}`}
           onClick={onToggleVideo}
-          title={isVideoEnabled
-            ? t('call.disableVideo', 'Turn off camera')
-            : t('call.enableVideo', 'Turn on camera')}
+          title={videoLabel}
+          aria-label={videoLabel}
+          aria-pressed={isVideoEnabled}
         >
           <Icon name={isVideoEnabled ? 'video' : 'videoSlash'} />
         </Button>
@@ -71,9 +82,9 @@ export function CallControls({
           size="sm"
           className={`call-control-btn ${isScreensharing ? 'call-control-btn--active' : ''}`}
           onClick={onToggleScreenshare}
-          title={isScreensharing
-            ? t('call.stopScreenshare', 'Stop sharing')
-            : t('call.startScreenshare', 'Share screen')}
+          title={screenshareLabel}
+          aria-label={screenshareLabel}
+          aria-pressed={isScreensharing}
         >
           <Icon name="screenShare" />
         </Button>
@@ -84,7 +95,8 @@ export function CallControls({
         size="sm"
         className="call-control-btn call-control-btn--leave"
         onClick={onLeave}
-        title={t('call.leave', 'Leave call')}
+        title={leaveLabel}
+        aria-label={leaveLabel}
       >
         <Icon name="phoneHangup" />
       </Button>
@@ -96,6 +108,7 @@ export function CallControls({
           className="call-control-btn call-control-btn--end"
           onClick={onEnd}
           title={t('call.end', 'End call for everyone')}
+          aria-label={t('call.end', 'End call for everyone')}
         >
           <Icon name="phoneHangup" />
           <span className="call-control-label">{t('call.endForAll', 'End')}</span>

@@ -140,7 +140,7 @@ export async function initiateCall(
   const otherParticipants = conversation.participants.filter(
     (p) => !p.equals(initiatorObjId)
   );
-  await Promise.all(
+  const notificationResults = await Promise.allSettled(
     otherParticipants.map((p) =>
       createNotification(p, 'call_incoming', {
         callId: call._id.toHexString(),
@@ -150,6 +150,15 @@ export async function initiateCall(
       })
     )
   );
+  notificationResults.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      elog.warn('Failed to create call_incoming notification', {
+        callId: call._id,
+        participantId: otherParticipants[index],
+        err: result.reason,
+      });
+    }
+  });
 
   return { success: true, call: publicCall, jitsiToken };
 }

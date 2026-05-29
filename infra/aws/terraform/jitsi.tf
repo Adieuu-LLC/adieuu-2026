@@ -8,6 +8,7 @@ locals {
   jitsi_media_route53_record_name = local.jitsi_enabled ? "jitsi-media.${local.jitsi_route53_record_name}" : ""
 
   jitsi_xmpp_domain = var.jitsi_domain
+  jitsi_signal_host  = "signal.jitsi.${local.name_prefix}.local"
 
   tg_jitsi_signal_name = substr("${local.name_prefix}-jitsi-sig", 0, 32)
   nlb_jitsi_name       = substr("${local.name_prefix}-jitsi-nlb", 0, 32)
@@ -112,9 +113,19 @@ resource "aws_cloudwatch_log_group" "jitsi_jvb" {
 
 locals {
   # The full ARN with :key:: suffix, used by ECS task secrets (valueFrom)
-  jitsi_jwt_secret_arn = local.jitsi_enabled ? lookup(var.api_container_secrets, "JITSI_JWT_SECRET", "") : ""
+  jitsi_jwt_secret_arn = local.jitsi_enabled ? var.api_container_secrets["JITSI_JWT_SECRET"] : ""
   # Base secret ARN (strip :key:: suffix) for IAM Resource grants
-  jitsi_jwt_secret_base_arn = local.jitsi_enabled ? try(regex("^(.+):[^:]+::$", local.jitsi_jwt_secret_arn)[0], local.jitsi_jwt_secret_arn) : ""
+  jitsi_jwt_secret_base_arn = local.jitsi_enabled ? regex("^(.+):[^:]+::$", local.jitsi_jwt_secret_arn)[0] : ""
+}
+
+check "jitsi_jwt_secret_configured" {
+  assert {
+    condition = !local.jitsi_enabled || (
+      contains(keys(var.api_container_secrets), "JITSI_JWT_SECRET") &&
+      length(trimspace(var.api_container_secrets["JITSI_JWT_SECRET"])) > 0
+    )
+    error_message = "jitsi_enabled requires a non-empty api_container_secrets[\"JITSI_JWT_SECRET\"] ARN (e.g. arn:...:secret:...:JITSI_JWT_SECRET::)."
+  }
 }
 
 # -----------------------------------------------------------------------------
@@ -444,7 +455,7 @@ resource "aws_ecs_task_definition" "jitsi_jvb" {
       environment = [
         { name = "JVB_PORT", value = "10000" },
         { name = "JVB_STUN_SERVERS", value = "stun.l.google.com:19302,stun1.l.google.com:19302" },
-        { name = "XMPP_SERVER", value = var.jitsi_domain },
+        { name = "XMPP_SERVER", value = local.jitsi_signal_host },
         { name = "XMPP_DOMAIN", value = local.jitsi_xmpp_domain },
         { name = "XMPP_AUTH_DOMAIN", value = "auth.${local.jitsi_xmpp_domain}" },
         { name = "XMPP_INTERNAL_MUC_DOMAIN", value = "internal-muc.${local.jitsi_xmpp_domain}" },

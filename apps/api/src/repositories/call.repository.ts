@@ -85,7 +85,18 @@ export class CallRepository
     }
 
     const result = await this.collection.findOneAndUpdate(
-      { _id: callId, status: { $ne: 'ended' } },
+      {
+        _id: callId,
+        status: { $ne: 'ended' },
+        participants: {
+          $not: {
+            $elemMatch: {
+              identityId: participant.identityId,
+              leftAt: { $exists: false },
+            },
+          },
+        },
+      },
       update,
       { returnDocument: 'after' }
     );
@@ -103,8 +114,12 @@ export class CallRepository
       {
         _id: callId,
         status: { $ne: 'ended' },
-        'participants.identityId': identityId,
-        'participants.leftAt': { $exists: false },
+        participants: {
+          $elemMatch: {
+            identityId,
+            leftAt: { $exists: false },
+          },
+        },
       },
       {
         $set: {
@@ -129,8 +144,12 @@ export class CallRepository
       {
         _id: callId,
         status: { $ne: 'ended' },
-        'participants.identityId': identityId,
-        'participants.leftAt': { $exists: false },
+        participants: {
+          $elemMatch: {
+            identityId,
+            leftAt: { $exists: false },
+          },
+        },
       },
       {
         $set: {

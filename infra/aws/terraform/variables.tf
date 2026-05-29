@@ -563,6 +563,14 @@ variable "jitsi_domain" {
   type        = string
   description = "FQDN for the Jitsi Meet service (must sit under route53_zone_name). Used for ALB host routing, ACM, and Route53 records."
   default     = "jitsi.adieuu.com"
+
+  validation {
+    condition = (
+      !var.jitsi_enabled ||
+      endswith(var.jitsi_domain, trimsuffix(trimspace(var.route53_zone_name), "."))
+    )
+    error_message = "jitsi_domain must be a subdomain of route53_zone_name (e.g. jitsi.example.com under example.com)."
+  }
 }
 
 variable "jitsi_signal_cpu" {
