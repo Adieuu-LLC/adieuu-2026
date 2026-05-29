@@ -20,7 +20,8 @@ COPY apps ./apps
 # Scoped install: @adieuu/chat does not depend on UI (avoids private @adieuu-llc icon packages on GPR).
 RUN pnpm install --frozen-lockfile --filter=@adieuu/chat...
 RUN pnpm exec turbo run build --filter=@adieuu/chat
-RUN pnpm --filter @adieuu/chat deploy --prod /out
+# pnpm v10+ requires --legacy when the package has no inject-workspace-packages=true
+RUN pnpm --filter @adieuu/chat deploy --prod --legacy /out
 
 FROM node:25-trixie-slim AS runner
 WORKDIR /app
