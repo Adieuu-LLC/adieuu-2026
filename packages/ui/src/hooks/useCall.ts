@@ -71,12 +71,11 @@ export interface JoinCallResult {
 // Hook
 // ---------------------------------------------------------------------------
 
-function parseRetryAfterSeconds(details: { retryAfter?: string } | undefined): number | undefined {
-  const raw = details?.retryAfter;
-  if (raw === undefined) return undefined;
-  const n = parseInt(String(raw), 10);
-  return Number.isFinite(n) && n >= 0 ? n : undefined;
-}
+import {
+  applyCallSocketMessage,
+  isIdentityInCall,
+  parseRetryAfterSeconds,
+} from './callStateUpdates';
 
 export function useCall(conversationId: string | null): UseCallReturn {
   const { t } = useTranslation();
@@ -249,103 +248,14 @@ export function useCall(conversationId: string | null): UseCallReturn {
       if (!convId) return;
 
       switch (message.type) {
-        case 'call_initiated': {
-          const { call } = message.data;
-          if (call.conversationId !== convId) return;
-          setState((prev) => {
-            const participants =
-              prev.activeCall?.id === call.id
-                ? prev.activeCall.participants
-                : [];
-
-            return {
-              activeCall: {
-                id: call.id,
-                conversationId: call.conversationId,
-                initiatorIdentityId: call.initiatorIdentityId,
-                status: call.status as PublicCall['status'],
-                allowedMedia: call.allowedMedia,
-                participants,
-                jitsiRoomName: call.jitsiRoomName,
-                createdAt: call.createdAt,
-                updatedAt: call.createdAt,
-              },
-              loading: false,
-            };
-          });
-          break;
-        }
-
-        case 'call_participant_joined': {
-          const { callId, identityId, mediaState } = message.data;
-          setState((prev) => {
-            if (!prev.activeCall || prev.activeCall.id !== callId) return prev;
-            const existing = prev.activeCall.participants.some(
-              (p) => p.identityId === identityId && !p.leftAt
-            );
-            if (existing) return prev;
-            return {
-              ...prev,
-              activeCall: {
-                ...prev.activeCall,
-                status: 'active',
-                participants: [
-                  ...prev.activeCall.participants,
-                  {
-                    identityId,
-                    joinedAt: new Date().toISOString(),
-                    mediaState,
-                  },
-                ],
-              },
-            };
-          });
-          break;
-        }
-
-        case 'call_participant_left': {
-          const { callId, identityId } = message.data;
-          setState((prev) => {
-            if (!prev.activeCall || prev.activeCall.id !== callId) return prev;
-            return {
-              ...prev,
-              activeCall: {
-                ...prev.activeCall,
-                participants: prev.activeCall.participants.map((p) =>
-                  p.identityId === identityId && !p.leftAt
-                    ? { ...p, leftAt: new Date().toISOString() }
-                    : p
-                ),
-              },
-            };
-          });
-          break;
-        }
-
-        case 'call_ended': {
-          const { callId } = message.data;
-          setState((prev) => {
-            if (!prev.activeCall || prev.activeCall.id !== callId) return prev;
-            return { activeCall: null, loading: false };
-          });
-          break;
-        }
-
+        case 'call_initiated':
+        case 'call_participant_joined':
+        case 'call_participant_left':
+        case 'call_ended':
         case 'call_media_state_changed': {
-          const { callId, identityId, mediaState } = message.data;
           setState((prev) => {
-            if (!prev.activeCall || prev.activeCall.id !== callId) return prev;
-            return {
-              ...prev,
-              activeCall: {
-                ...prev.activeCall,
-                participants: prev.activeCall.participants.map((p) =>
-                  p.identityId === identityId && !p.leftAt
-                    ? { ...p, mediaState }
-                    : p
-                ),
-              },
-            };
+            const next = applyCallSocketMessage(prev, message, convId);
+            return next ?? prev;
           });
           break;
         }
@@ -381,10 +291,7 @@ export function useCall(conversationId: string | null): UseCallReturn {
   // ---- Derived state ----
 
   const isInCall = useMemo(() => {
-    if (!state.activeCall || !identity) return false;
-    return state.activeCall.participants.some(
-      (p) => p.identityId === identity.id && !p.leftAt
-    );
+    return isIdentityInCall(state.activeCall, identity?.id);
   }, [state.activeCall, identity]);
 
   const activeParticipants = useMemo(() => {

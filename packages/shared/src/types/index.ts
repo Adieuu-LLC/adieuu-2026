@@ -29,7 +29,7 @@ export type ApiResponse<T> = {
   error?: {
     code: string;
     message: string;
-    /** Structured hints (e.g. PAYLOAD_TOO_LARGE → maxBytes, REJECTED → moderationReason) */
+    /** Structured hints (e.g. PAYLOAD_TOO_LARGE → maxBytes, REJECTED → moderationReason, RATE_LIMITED → retryAfter) */
     details?: {
       maxBytes?: number;
       moderationReason?: string;
@@ -37,6 +37,7 @@ export type ApiResponse<T> = {
       bannedPeerCount?: number;
       moderationReportId?: string;
       suspendedUntil?: string;
+      retryAfter?: string;
     };
   };
 };

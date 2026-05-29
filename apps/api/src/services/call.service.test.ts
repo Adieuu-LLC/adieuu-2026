@@ -15,8 +15,6 @@ const mockCheckRateLimit = mock(() =>
 const mockGetCallInitiateConfig = mock(() =>
   Promise.resolve({ limit: 5, windowSeconds: 300 }),
 );
-const mockMintJitsiToken = mock(() => 'jwt-token');
-const mockGenerateJitsiRoomName = mock(() => 'room-abc');
 const mockPublishToParticipants = mock(() => Promise.resolve());
 const mockPublishConversationEvent = mock(() => Promise.resolve());
 const mockCreateNotification = mock(() => Promise.resolve());
@@ -40,7 +38,13 @@ const mockIdentityRepo = {
 };
 
 const mockConfig = {
-  jitsi: { enabled: false },
+  jitsi: {
+    enabled: false,
+    baseUrl: 'https://jitsi.test.example',
+    jwtIssuer: 'adieuu-test',
+    jwtSecret: 'test-jitsi-secret-key',
+    jwtExpirationSec: 300,
+  },
   rateLimit: { enabled: true },
 };
 
@@ -51,11 +55,6 @@ mock.module('../config', () => ({
 mock.module('./rate-limit.service', () => ({
   checkRateLimit: mockCheckRateLimit,
   getCallInitiateConfig: mockGetCallInitiateConfig,
-}));
-
-mock.module('./jitsi-auth.service', () => ({
-  mintJitsiToken: mockMintJitsiToken,
-  generateJitsiRoomName: mockGenerateJitsiRoomName,
 }));
 
 mock.module('../repositories/call.repository', () => ({
@@ -83,7 +82,7 @@ mock.module('../utils/adieuuLogger', () => ({
   default: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 }));
 
-import { initiateCall, joinCall, endCall } from './call.service';
+import { initiateCall, joinCall, endCall, leaveCall, getActiveCall, updateMediaState } from './call.service';
 
 const identityA = new ObjectId('64a1b2c3d4e5f60718293a4b');
 const identityB = new ObjectId('64a1b2c3d4e5f60718293a4c');
@@ -131,14 +130,17 @@ describe('call.service', () => {
     mockConfig.jitsi.enabled = false;
     mockCheckRateLimit.mockClear();
     mockGetCallInitiateConfig.mockClear();
-    mockMintJitsiToken.mockClear();
+    mockCreateNotification.mockClear();
+    mockPublishToParticipants.mockClear();
     mockCallRepo.findById.mockClear();
     mockCallRepo.createCall.mockClear();
+    mockCallRepo.addParticipant.mockClear();
+    mockCallRepo.findActiveForConversation.mockClear();
     mockConversationRepo.findById.mockClear();
     mockCheckRateLimit.mockImplementation(() =>
       Promise.resolve({ allowed: true, remaining: 4, resetAt: 9999999999, limit: 5 }),
     );
-    mockMintJitsiToken.mockImplementation(() => 'jwt-token');
+    mockCreateNotification.mockImplementation(() => Promise.resolve());
   });
 
   test('initiateCall returns RATE_LIMITED when checkRateLimit denies', async () => {
@@ -194,9 +196,7 @@ describe('call.service', () => {
 
   test('initiateCall returns JITSI_UNAVAILABLE when mint fails and jitsi enabled', async () => {
     mockConfig.jitsi.enabled = true;
-    mockMintJitsiToken.mockImplementation(() => {
-      throw new Error('mint failed');
-    });
+    mockConfig.jitsi.baseUrl = 'not-a-valid-url';
     mockConversationRepo.findById.mockImplementation(() =>
       Promise.resolve(makeConversation()),
     );
@@ -208,6 +208,7 @@ describe('call.service', () => {
     expect(r.success).toBe(false);
     expect(r.errorCode).toBe('JITSI_UNAVAILABLE');
     expect(mockCallRepo.createCall).not.toHaveBeenCalled();
+    mockConfig.jitsi.baseUrl = 'https://jitsi.test.example';
   });
 
   test('endCall succeeds for active participant', async () => {
@@ -222,5 +223,254 @@ describe('call.service', () => {
     const r = await endCall(convId.toHexString(), callId.toHexString(), identityA.toHexString());
     expect(r.success).toBe(true);
     expect(mockCallRepo.updateStatus).toHaveBeenCalled();
+  });
+
+  test('initiateCall succeeds and returns jitsiToken when enabled', async () => {
+    mockConfig.jitsi.enabled = true;
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.createCall.mockImplementation(() => Promise.resolve(makeCall({ status: 'ringing', participants: [] })));
+    const r = await initiateCall(convId.toHexString(), identityA.toHexString(), {
+      audio: true,
+      video: false,
+      screenshare: false,
+    });
+    expect(r.success).toBe(true);
+    expect(r.jitsiToken?.split('.')).toHaveLength(3);
+    expect(mockCreateNotification).toHaveBeenCalled();
+  });
+
+  test('initiateCall succeeds without jitsiToken when Jitsi disabled', async () => {
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.createCall.mockImplementation(() => Promise.resolve(makeCall({ status: 'ringing', participants: [] })));
+    const r = await initiateCall(convId.toHexString(), identityA.toHexString(), {
+      audio: true,
+      video: false,
+      screenshare: false,
+    });
+    expect(r.success).toBe(true);
+    expect(r.jitsiToken).toBeUndefined();
+  });
+
+  test('initiateCall returns NOT_PARTICIPANT for non-member', async () => {
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation([identityB])),
+    );
+    const r = await initiateCall(convId.toHexString(), identityA.toHexString(), {
+      audio: true,
+      video: false,
+      screenshare: false,
+    });
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe('NOT_PARTICIPANT');
+  });
+
+  test('initiateCall returns MEDIA_DISABLED when admin toggles block all media', async () => {
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve({
+        ...makeConversation(),
+        audioCallsDisabled: true,
+        videoCallsDisabled: true,
+        screenshareDisabled: true,
+      }),
+    );
+    const r = await initiateCall(convId.toHexString(), identityA.toHexString(), {
+      audio: true,
+      video: true,
+      screenshare: true,
+    });
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe('MEDIA_DISABLED');
+  });
+
+  test('initiateCall succeeds when notification fan-out fails', async () => {
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.createCall.mockImplementation(() => Promise.resolve(makeCall({ status: 'ringing', participants: [] })));
+    mockCreateNotification.mockImplementation(() => Promise.reject(new Error('notify failed')));
+    const r = await initiateCall(convId.toHexString(), identityA.toHexString(), {
+      audio: true,
+      video: false,
+      screenshare: false,
+    });
+    expect(r.success).toBe(true);
+    expect(r.call?.id).toBe(callId.toHexString());
+  });
+
+  test('joinCall returns ALREADY_IN_CALL for active participant', async () => {
+    mockCallRepo.findById.mockImplementation(() => Promise.resolve(makeCall()));
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    const r = await joinCall(convId.toHexString(), callId.toHexString(), identityA.toHexString(), {
+      audio: true,
+      video: false,
+      screenshare: false,
+    });
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe('ALREADY_IN_CALL');
+    expect(mockCallRepo.addParticipant).not.toHaveBeenCalled();
+  });
+
+  test('joinCall succeeds and returns jitsiToken when enabled', async () => {
+    mockConfig.jitsi.enabled = true;
+    mockCallRepo.findById.mockImplementation(() =>
+      Promise.resolve(
+        makeCall({
+          participants: [
+            {
+              identityId: identityA,
+              joinedAt: now,
+              mediaState: { audio: true, video: false, screenshare: false },
+            },
+          ],
+        }),
+      ),
+    );
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.addParticipant.mockImplementation(() =>
+      Promise.resolve(
+        makeCall({
+          participants: [
+            {
+              identityId: identityA,
+              joinedAt: now,
+              mediaState: { audio: true, video: false, screenshare: false },
+            },
+            {
+              identityId: identityB,
+              joinedAt: now,
+              mediaState: { audio: true, video: false, screenshare: false },
+            },
+          ],
+        }),
+      ),
+    );
+    const r = await joinCall(convId.toHexString(), callId.toHexString(), identityB.toHexString(), {
+      audio: true,
+      video: false,
+      screenshare: false,
+    });
+    expect(r.success).toBe(true);
+    expect(r.jitsiToken?.split('.')).toHaveLength(3);
+    expect(mockCallRepo.addParticipant).toHaveBeenCalled();
+  });
+
+  test('leaveCall ends call when last participant leaves', async () => {
+    const soloCall = makeCall({
+      participants: [
+        {
+          identityId: identityA,
+          joinedAt: now,
+          mediaState: { audio: true, video: false, screenshare: false },
+        },
+      ],
+    });
+    mockCallRepo.findById.mockImplementation(() => Promise.resolve(soloCall));
+    mockCallRepo.updateParticipantLeft.mockImplementation(() =>
+      Promise.resolve({
+        ...soloCall,
+        participants: [
+          {
+            identityId: identityA,
+            joinedAt: now,
+            leftAt: now,
+            mediaState: { audio: true, video: false, screenshare: false },
+          },
+        ],
+      }),
+    );
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.updateStatus.mockImplementation(() =>
+      Promise.resolve({ ...soloCall, status: 'ended', endedAt: now }),
+    );
+    const r = await leaveCall(convId.toHexString(), callId.toHexString(), identityA.toHexString());
+    expect(r.success).toBe(true);
+    expect(mockCallRepo.updateStatus).toHaveBeenCalledWith(
+      callId,
+      'ended',
+      expect.objectContaining({ endedAt: expect.any(Date) }),
+    );
+  });
+
+  test('getActiveCall returns active call for participant', async () => {
+    const activeCall = makeCall();
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.findActiveForConversation.mockImplementation(() => Promise.resolve(activeCall));
+    const r = await getActiveCall(convId.toHexString(), identityA.toHexString());
+    expect(r.success).toBe(true);
+    expect(r.call?.id).toBe(callId.toHexString());
+  });
+
+  test('updateMediaState returns NOT_IN_CALL when participant not active', async () => {
+    mockCallRepo.findById.mockImplementation(() => Promise.resolve(makeCall()));
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.updateParticipantMediaState.mockImplementation(() => Promise.resolve(null));
+    const r = await updateMediaState(
+      convId.toHexString(),
+      callId.toHexString(),
+      identityB.toHexString(),
+      { audio: false, video: false, screenshare: false },
+    );
+    expect(r.success).toBe(false);
+    expect(r.errorCode).toBe('NOT_IN_CALL');
+  });
+
+  test('updateMediaState enforces conversation media toggles', async () => {
+    const activeCall = makeCall({
+      participants: [
+        {
+          identityId: identityB,
+          joinedAt: now,
+          mediaState: { audio: true, video: false, screenshare: false },
+        },
+      ],
+    });
+    mockCallRepo.findById.mockImplementation(() => Promise.resolve(activeCall));
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve({
+        ...makeConversation(),
+        videoCallsDisabled: true,
+      }),
+    );
+    mockCallRepo.updateParticipantMediaState.mockImplementation((_id, _identity, media) =>
+      Promise.resolve({
+        ...activeCall,
+        participants: [
+          {
+            identityId: identityB,
+            joinedAt: now,
+            mediaState: media,
+          },
+        ],
+      }),
+    );
+
+    const r = await updateMediaState(
+      convId.toHexString(),
+      callId.toHexString(),
+      identityB.toHexString(),
+      { audio: true, video: true, screenshare: false },
+    );
+
+    expect(r.success).toBe(true);
+    expect(mockCallRepo.updateParticipantMediaState).toHaveBeenCalledWith(
+      callId,
+      identityB,
+      { audio: true, video: false, screenshare: false },
+    );
+    expect(r.call?.participants[0]?.mediaState.video).toBe(false);
   });
 });

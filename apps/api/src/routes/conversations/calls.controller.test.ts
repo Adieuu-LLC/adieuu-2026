@@ -2,7 +2,7 @@
  * @module routes/conversations/calls.controller.test
  */
 
-import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { RouteContext } from '../../router/types';
 import { ROUTE_TEST_IDENTITY_ID } from '../../test-fixtures/route-identity';
 
@@ -25,31 +25,13 @@ const mockUpdateCallSettings = mock(() =>
 );
 const mockEscalateCallInitiateThrottle = mock(() => Promise.resolve());
 
-mock.module('../../services/call.service', () => ({
-  initiateCall: mockInitiateCall,
-  joinCall: mockJoinCall,
-  leaveCall: mockLeaveCall,
-  endCall: mockEndCall,
-  getActiveCall: mockGetActiveCall,
-  updateMediaState: mockUpdateMediaState,
-}));
-
-mock.module('../../services/conversation/group-settings', () => ({
-  updateCallSettings: mockUpdateCallSettings,
-}));
-
-mock.module('../../services/rate-limit.service', () => ({
-  escalateCallInitiateThrottle: mockEscalateCallInitiateThrottle,
-}));
-
-import {
-  initiateCallCtrl,
-  joinCallCtrl,
-  leaveCallCtrl,
-  endCallCtrl,
-  getActiveCallCtrl,
-  updateMediaStateCtrl,
-} from './calls.controller';
+let initiateCallCtrl: typeof import('./calls.controller').initiateCallCtrl;
+let joinCallCtrl: typeof import('./calls.controller').joinCallCtrl;
+let leaveCallCtrl: typeof import('./calls.controller').leaveCallCtrl;
+let endCallCtrl: typeof import('./calls.controller').endCallCtrl;
+let getActiveCallCtrl: typeof import('./calls.controller').getActiveCallCtrl;
+let updateMediaStateCtrl: typeof import('./calls.controller').updateMediaStateCtrl;
+let updateCallSettingsCtrl: typeof import('./calls.controller').updateCallSettingsCtrl;
 
 const MEDIA = { audio: true, video: false, screenshare: false };
 
@@ -76,6 +58,35 @@ function authedCtx(overrides: Partial<RouteContext> = {}): RouteContext {
 }
 
 describe('calls.controller', () => {
+  beforeAll(async () => {
+    mock.module('../../services/call.service', () => ({
+      initiateCall: mockInitiateCall,
+      joinCall: mockJoinCall,
+      leaveCall: mockLeaveCall,
+      endCall: mockEndCall,
+      getActiveCall: mockGetActiveCall,
+      updateMediaState: mockUpdateMediaState,
+    }));
+
+    mock.module('../../services/conversation/group-settings', () => ({
+      updateCallSettings: mockUpdateCallSettings,
+    }));
+
+    mock.module('../../services/rate-limit.service', () => ({
+      escalateCallInitiateThrottle: mockEscalateCallInitiateThrottle,
+    }));
+
+    ({
+      initiateCallCtrl,
+      joinCallCtrl,
+      leaveCallCtrl,
+      endCallCtrl,
+      getActiveCallCtrl,
+      updateMediaStateCtrl,
+      updateCallSettingsCtrl,
+    } = await import('./calls.controller'));
+  });
+
   afterAll(() => {
     mock.restore();
   });
@@ -87,6 +98,7 @@ describe('calls.controller', () => {
     mockEndCall.mockClear();
     mockGetActiveCall.mockClear();
     mockUpdateMediaState.mockClear();
+    mockUpdateCallSettings.mockClear();
     mockEscalateCallInitiateThrottle.mockClear();
     mockInitiateCall.mockImplementation(() =>
       Promise.resolve({ success: true, call: { id: VALID_CALL }, jitsiToken: 'tok' }),
@@ -99,6 +111,9 @@ describe('calls.controller', () => {
     mockGetActiveCall.mockImplementation(() => Promise.resolve({ success: true, call: null }));
     mockUpdateMediaState.mockImplementation(() =>
       Promise.resolve({ success: true, call: { id: VALID_CALL } }),
+    );
+    mockUpdateCallSettings.mockImplementation(() =>
+      Promise.resolve({ success: true, conversation: { id: VALID_CONV } }),
     );
   });
 
@@ -211,6 +226,97 @@ describe('calls.controller', () => {
       VALID_CALL,
       ROUTE_TEST_IDENTITY_ID.toHexString(),
       MEDIA,
+    );
+  });
+
+  test('initiateCallCtrl maps CALL_ALREADY_ACTIVE to 409 named_error', async () => {
+    mockInitiateCall.mockImplementation(() =>
+      Promise.resolve({
+        success: false,
+        error: 'Already active',
+        errorCode: 'CALL_ALREADY_ACTIVE',
+      }),
+    );
+    const r = await initiateCallCtrl(authedCtx({ params: { id: VALID_CONV }, body: { media: MEDIA } }));
+    expect(r.kind).toBe('named_error');
+    if (r.kind === 'named_error') {
+      expect(r.code).toBe('CALL_ALREADY_ACTIVE');
+      expect(r.status).toBe(409);
+    }
+  });
+
+  test('joinCallCtrl maps JITSI_UNAVAILABLE to 503 named_error', async () => {
+    mockJoinCall.mockImplementation(() =>
+      Promise.resolve({
+        success: false,
+        error: 'Unavailable',
+        errorCode: 'JITSI_UNAVAILABLE',
+      }),
+    );
+    const r = await joinCallCtrl(
+      authedCtx({
+        params: { id: VALID_CONV, callId: VALID_CALL },
+        body: { media: MEDIA },
+      }),
+    );
+    expect(r.kind).toBe('named_error');
+    if (r.kind === 'named_error') {
+      expect(r.code).toBe('JITSI_UNAVAILABLE');
+      expect(r.status).toBe(503);
+    }
+  });
+
+  test('updateCallSettingsCtrl unauthorized without session', async () => {
+    const r = await updateCallSettingsCtrl(
+      baseCtx({
+        params: { id: VALID_CONV },
+        body: { audioCallsDisabled: true },
+      }),
+    );
+    expect(r).toEqual({ kind: 'unauthorized' });
+    expect(mockUpdateCallSettings).not.toHaveBeenCalled();
+  });
+
+  test('updateCallSettingsCtrl validation_failed on empty body', async () => {
+    const r = await updateCallSettingsCtrl(
+      authedCtx({ params: { id: VALID_CONV }, body: {} }),
+    );
+    expect(r.kind).toBe('validation_failed');
+    expect(mockUpdateCallSettings).not.toHaveBeenCalled();
+  });
+
+  test('updateCallSettingsCtrl forbidden on NOT_ADMIN', async () => {
+    mockUpdateCallSettings.mockImplementation(() =>
+      Promise.resolve({
+        success: false,
+        error: 'Only group admins can change call settings',
+        errorCode: 'NOT_ADMIN',
+      }),
+    );
+    const r = await updateCallSettingsCtrl(
+      authedCtx({
+        params: { id: VALID_CONV },
+        body: { videoCallsDisabled: true },
+      }),
+    );
+    expect(r).toEqual({
+      kind: 'forbidden',
+      message: 'Only group admins can change call settings',
+    });
+  });
+
+  test('updateCallSettingsCtrl success', async () => {
+    const r = await updateCallSettingsCtrl(
+      authedCtx({
+        params: { id: VALID_CONV },
+        body: { screenshareDisabled: true },
+      }),
+    );
+    expect(r.kind).toBe('ok');
+    expect(mockUpdateCallSettings).toHaveBeenCalledWith(
+      VALID_CONV,
+      ROUTE_TEST_IDENTITY_ID.toHexString(),
+      { screenshareDisabled: true },
     );
   });
 
