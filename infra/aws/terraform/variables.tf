@@ -610,11 +610,28 @@ variable "jitsi_jvb_min_count" {
 variable "jitsi_jvb_max_count" {
   type        = number
   description = "Maximum JVB tasks for auto-scaling."
-  default     = 4
+  default     = 10
 
   validation {
     condition     = var.jitsi_jvb_max_count >= var.jitsi_jvb_min_count
     error_message = "jitsi_jvb_max_count must be >= jitsi_jvb_min_count."
+  }
+}
+
+variable "jitsi_signal_min_count" {
+  type        = number
+  description = "Minimum signal tasks for auto-scaling."
+  default     = 1
+}
+
+variable "jitsi_signal_max_count" {
+  type        = number
+  description = "Maximum signal tasks for auto-scaling."
+  default     = 3
+
+  validation {
+    condition     = var.jitsi_signal_max_count >= var.jitsi_signal_min_count
+    error_message = "jitsi_signal_max_count must be >= jitsi_signal_min_count."
   }
 }
 

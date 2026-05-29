@@ -327,7 +327,7 @@ resource "aws_lb_target_group" "jitsi_jvb" {
     protocol            = "TCP"
   }
 
-  deregistration_delay = 30
+  deregistration_delay = 300
 
   tags = merge(local.common_tags, { Name = "${local.name_prefix}-jitsi-jvb-tg" })
 }
@@ -473,7 +473,7 @@ resource "aws_ecs_service" "jitsi_signal" {
   name            = "${local.name_prefix}-jitsi-signal"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.jitsi_signal[0].arn
-  desired_count   = 1
+  desired_count   = var.jitsi_signal_min_count
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -582,7 +582,9 @@ resource "aws_service_discovery_service" "jitsi_signal" {
 }
 
 # -----------------------------------------------------------------------------
-# Auto Scaling (JVB - CPU target tracking at 60%)
+# Auto Scaling -- JVB
+#   Target tracking at 45% CPU for gradual scaling.
+#   Step policy adds 2 tasks immediately when CPU > 80% for sustained load.
 # -----------------------------------------------------------------------------
 
 resource "aws_appautoscaling_target" "jitsi_jvb" {
@@ -608,9 +610,131 @@ resource "aws_appautoscaling_policy" "jitsi_jvb_cpu" {
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }
-    target_value       = 60
+    target_value       = 45
     scale_in_cooldown  = 300
     scale_out_cooldown = 60
+  }
+}
+
+# Burst: if CPU > 80% for 1 minute (3 x 20s datapoints), add 2 JVBs immediately.
+# The 1-min evaluation window (3 datapoints) avoids triggering on container startup spikes.
+
+resource "aws_cloudwatch_metric_alarm" "jitsi_jvb_cpu_high" {
+  count = local.jitsi_enabled ? 1 : 0
+
+  alarm_name          = "${local.name_prefix}-jitsi-jvb-cpu-high"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  period              = 20
+  threshold           = 80
+  statistic           = "Average"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/ECS"
+  alarm_actions       = [aws_appautoscaling_policy.jitsi_jvb_step[0].arn]
+
+  dimensions = {
+    ClusterName = aws_ecs_cluster.main.name
+    ServiceName = aws_ecs_service.jitsi_jvb[0].name
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_appautoscaling_policy" "jitsi_jvb_step" {
+  count = local.jitsi_enabled ? 1 : 0
+
+  name               = "${local.name_prefix}-jitsi-jvb-cpu-step"
+  policy_type        = "StepScaling"
+  resource_id        = aws_appautoscaling_target.jitsi_jvb[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.jitsi_jvb[0].scalable_dimension
+  service_namespace  = aws_appautoscaling_target.jitsi_jvb[0].service_namespace
+
+  step_scaling_policy_configuration {
+    adjustment_type         = "ChangeInCapacity"
+    cooldown                = 120
+    metric_aggregation_type = "Average"
+
+    step_adjustment {
+      scaling_adjustment          = 2
+      metric_interval_lower_bound = 0
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Auto Scaling -- Signal (Prosody/Jicofo/Web)
+#   Target tracking at 45% CPU, scales 1 -> max aggressively.
+#   Step policy adds 1 task when CPU > 75% for 1 minute.
+# -----------------------------------------------------------------------------
+
+resource "aws_appautoscaling_target" "jitsi_signal" {
+  count = local.jitsi_enabled ? 1 : 0
+
+  max_capacity       = var.jitsi_signal_max_count
+  min_capacity       = var.jitsi_signal_min_count
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.jitsi_signal[0].name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "jitsi_signal_cpu" {
+  count = local.jitsi_enabled ? 1 : 0
+
+  name               = "${local.name_prefix}-jitsi-sig-cpu-tt"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.jitsi_signal[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.jitsi_signal[0].scalable_dimension
+  service_namespace  = aws_appautoscaling_target.jitsi_signal[0].service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+    target_value       = 45
+    scale_in_cooldown  = 300
+    scale_out_cooldown = 60
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "jitsi_signal_cpu_high" {
+  count = local.jitsi_enabled ? 1 : 0
+
+  alarm_name          = "${local.name_prefix}-jitsi-sig-cpu-high"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  period              = 20
+  threshold           = 75
+  statistic           = "Average"
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/ECS"
+  alarm_actions       = [aws_appautoscaling_policy.jitsi_signal_step[0].arn]
+
+  dimensions = {
+    ClusterName = aws_ecs_cluster.main.name
+    ServiceName = aws_ecs_service.jitsi_signal[0].name
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_appautoscaling_policy" "jitsi_signal_step" {
+  count = local.jitsi_enabled ? 1 : 0
+
+  name               = "${local.name_prefix}-jitsi-sig-cpu-step"
+  policy_type        = "StepScaling"
+  resource_id        = aws_appautoscaling_target.jitsi_signal[0].resource_id
+  scalable_dimension = aws_appautoscaling_target.jitsi_signal[0].scalable_dimension
+  service_namespace  = aws_appautoscaling_target.jitsi_signal[0].service_namespace
+
+  step_scaling_policy_configuration {
+    adjustment_type         = "ChangeInCapacity"
+    cooldown                = 120
+    metric_aggregation_type = "Average"
+
+    step_adjustment {
+      scaling_adjustment          = 1
+      metric_interval_lower_bound = 0
+    }
   }
 }
 
