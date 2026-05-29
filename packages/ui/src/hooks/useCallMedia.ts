@@ -17,6 +17,12 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 // Types
 // ---------------------------------------------------------------------------
 
+export interface MediaDeviceInfo {
+  deviceId: string;
+  label: string;
+  kind: 'audioinput' | 'videoinput' | 'audiooutput';
+}
+
 export interface UseCallMediaReturn {
   localStream: MediaStream | null;
   screenStream: MediaStream | null;
@@ -26,7 +32,12 @@ export interface UseCallMediaReturn {
   toggleAudio: () => void;
   toggleVideo: () => Promise<void>;
   toggleScreenshare: () => Promise<void>;
-  startMedia: (options: { audio: boolean; video: boolean }) => Promise<MediaStream | null>;
+  startMedia: (options: {
+    audio: boolean;
+    video: boolean;
+    audioDeviceId?: string;
+    videoDeviceId?: string;
+  }) => Promise<MediaStream | null>;
   stopAllMedia: () => void;
 }
 
@@ -66,7 +77,12 @@ export function useCallMedia(): UseCallMediaReturn {
   // ---- Start media ----
 
   const startMedia = useCallback(
-    async (options: { audio: boolean; video: boolean }): Promise<MediaStream | null> => {
+    async (options: {
+      audio: boolean;
+      video: boolean;
+      audioDeviceId?: string;
+      videoDeviceId?: string;
+    }): Promise<MediaStream | null> => {
       stopTracks(localStreamRef.current);
 
       if (!options.audio && !options.video) {
@@ -78,10 +94,19 @@ export function useCallMedia(): UseCallMediaReturn {
       }
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: options.audio,
-          video: options.video,
-        });
+        const constraints: MediaStreamConstraints = {};
+        if (options.audio) {
+          constraints.audio = options.audioDeviceId
+            ? { deviceId: { exact: options.audioDeviceId } }
+            : true;
+        }
+        if (options.video) {
+          constraints.video = options.videoDeviceId
+            ? { deviceId: { exact: options.videoDeviceId } }
+            : true;
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
         localStreamRef.current = stream;
         setLocalStream(stream);
@@ -211,4 +236,38 @@ export function useCallMedia(): UseCallMediaReturn {
     startMedia,
     stopAllMedia,
   };
+}
+
+/**
+ * Enumerate available media devices grouped by kind.
+ * Requests a temporary stream first so labels are populated (browsers
+ * hide labels until permission is granted).
+ */
+export async function enumerateMediaDevices(): Promise<MediaDeviceInfo[]> {
+  let tempStream: MediaStream | null = null;
+  try {
+    tempStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+  } catch {
+    try {
+      tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      // No permission at all; labels will be empty
+    }
+  }
+
+  const devices = await navigator.mediaDevices.enumerateDevices();
+
+  if (tempStream) {
+    stopTracks(tempStream);
+  }
+
+  return devices
+    .filter((d): d is globalThis.MediaDeviceInfo & { kind: MediaDeviceInfo['kind'] } =>
+      d.kind === 'audioinput' || d.kind === 'videoinput' || d.kind === 'audiooutput'
+    )
+    .map((d) => ({
+      deviceId: d.deviceId,
+      label: d.label || `${d.kind} (${d.deviceId.slice(0, 8)})`,
+      kind: d.kind as MediaDeviceInfo['kind'],
+    }));
 }

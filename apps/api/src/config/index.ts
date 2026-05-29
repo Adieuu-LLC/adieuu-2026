@@ -420,6 +420,12 @@ export const config = {
     jwtExpirationSec: optionalEnvInt('JITSI_JWT_EXPIRATION_SEC', 300),
   },
 
+  callReaper: {
+    intervalSec: optionalEnvInt('CALL_REAPER_INTERVAL_SEC', 60),
+    emptyTimeoutSec: optionalEnvInt('CALL_REAPER_EMPTY_TIMEOUT_SEC', 120),
+    maxCallDurationSec: optionalEnvInt('CALL_REAPER_MAX_DURATION_SEC', 24 * 60 * 60),
+  },
+
   /** Stripe subscription billing configuration */
   stripe: {
     /** Whether Stripe integration is enabled (routes return 503 when false) */

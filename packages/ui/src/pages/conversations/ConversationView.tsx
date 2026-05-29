@@ -43,6 +43,10 @@ import { ConversationMembersSidebar } from './ConversationMembersSidebar';
 import { ConversationDialogs } from './ConversationDialogs';
 import { ConversationMessageList } from './ConversationMessageList';
 import { useBlockContext } from '../../hooks/useBlockContext';
+import { useCallSession } from '../../hooks/useCallSession';
+import { useCall } from '../../hooks/useCall';
+import { ConversationCallButton } from '../../components/call/ConversationCallButton';
+import { IncomingCallBanner } from '../../components/call/IncomingCallBanner';
 import { Icon } from '../../icons/Icon';
 import { Button } from '../../components/Button';
 import { useToast } from '../../components/Toast';
@@ -400,6 +404,14 @@ export function ConversationView() {
   });
 
   const { blockedByOther, setBlockedByOther } = useDmBlockedByOther(api, conversation, identity?.id);
+
+  const callSession = useCallSession();
+  const { activeCall: conversationActiveCall, loading: callLoading } = useCall(id ?? null);
+  const incomingInitiatorName = useMemo(() => {
+    if (!conversationActiveCall) return '';
+    const pid = conversationActiveCall.initiatorIdentityId;
+    return participantProfiles[pid]?.displayName ?? pid;
+  }, [conversationActiveCall, participantProfiles]);
 
   const activeMessagesRef = useRef(activeMessages);
   activeMessagesRef.current = activeMessages;
@@ -897,6 +909,26 @@ export function ConversationView() {
 
   const canManagePinsUi = canManageConversationPinsView(conversation, identity?.id);
 
+  const audioAllowed = !(conversation.audioCallsDisabled ?? false);
+  const videoAllowed = !(conversation.videoCallsDisabled ?? false);
+  const screenshareAllowed = !(conversation.screenshareDisabled ?? false);
+  const anyCallAllowed = audioAllowed || videoAllowed || screenshareAllowed;
+
+  const isInCallElsewhere =
+    callSession.activeSession !== null &&
+    callSession.activeSession.conversationId !== id;
+  const isInCallHere =
+    callSession.activeSession !== null &&
+    callSession.activeSession.conversationId === id;
+
+  const showIncomingBanner =
+    conversationActiveCall &&
+    !isInCallHere &&
+    !callLoading &&
+    conversationActiveCall.status !== 'ended' &&
+    conversationActiveCall.participants.some((p) => !p.leftAt) &&
+    !(identity?.id && conversationActiveCall.participants.some((p) => p.identityId === identity.id && !p.leftAt));
+
   return (
     <div className="conversation-page">
         <div className="conversation-container">
@@ -904,6 +936,20 @@ export function ConversationView() {
             displayName={displayName}
             avatarMembers={toolbarAvatarMembers}
             subtitle={toolbarSubtitle!}
+            callSlot={
+              anyCallAllowed && !isDmBlocked && !blockedByOther ? (
+                <ConversationCallButton
+                  audioAllowed={audioAllowed}
+                  videoAllowed={videoAllowed}
+                  screenshareAllowed={screenshareAllowed}
+                  disabled={isInCallElsewhere}
+                  disabledReason={isInCallElsewhere ? t('call.alreadyInCall') : undefined}
+                  inCallForThisConversation={isInCallHere}
+                  onStartCall={(media) => id && callSession.requestStartCall(id, media)}
+                  onFocusOverlay={undefined}
+                />
+              ) : undefined
+            }
             pinsSlot={
               <ConversationPinsMenu
                 conversationId={conversation.id}
@@ -1006,6 +1052,27 @@ export function ConversationView() {
           />
 
           <ChatConnectionBanner />
+
+          {showIncomingBanner && conversationActiveCall && (
+            <IncomingCallBanner
+              callerName={incomingInitiatorName}
+              hasAudio={conversationActiveCall.allowedMedia.audio}
+              hasVideo={conversationActiveCall.allowedMedia.video}
+              hasScreenshare={conversationActiveCall.allowedMedia.screenshare}
+              onAccept={() => {
+                if (id && conversationActiveCall) {
+                  callSession.requestJoinCall(
+                    id,
+                    conversationActiveCall.id,
+                    conversationActiveCall.allowedMedia,
+                  );
+                }
+              }}
+              onDecline={() => {
+                // Declining is a no-op for now; just dismiss the banner
+              }}
+            />
+          )}
 
           <div className="conversation-body">
             <div

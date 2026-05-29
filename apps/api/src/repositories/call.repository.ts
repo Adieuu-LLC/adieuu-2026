@@ -21,6 +21,7 @@ import type {
 
 export interface ICallRepository {
   findActiveForConversation(conversationId: ObjectId): Promise<CallDocument | null>;
+  findAllActive(): Promise<CallDocument[]>;
   addParticipant(callId: ObjectId, participant: CallParticipant): Promise<CallDocument | null>;
   updateParticipantLeft(callId: ObjectId, identityId: ObjectId): Promise<CallDocument | null>;
   updateParticipantMediaState(
@@ -49,6 +50,12 @@ export class CallRepository
       conversationId,
       status: { $ne: 'ended' },
     }) as Promise<CallDocument | null>;
+  }
+
+  async findAllActive(): Promise<CallDocument[]> {
+    return this.collection
+      .find({ status: { $ne: 'ended' } } as Parameters<typeof this.collection.find>[0])
+      .toArray() as Promise<CallDocument[]>;
   }
 
   /**

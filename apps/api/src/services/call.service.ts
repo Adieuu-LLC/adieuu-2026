@@ -128,15 +128,19 @@ export async function initiateCall(
     throw err;
   }
 
-  // Notify other participants
-  const publicCall = toPublicCall(call);
+  const updatedCall = await callRepo.addParticipant(call._id, {
+    identityId: initiatorObjId,
+    joinedAt: new Date(),
+    mediaState: allowedMedia,
+  });
+
+  const publicCall = toPublicCall(updatedCall ?? call);
 
   await publishToParticipants(conversation.participants, initiatorObjId, {
     type: 'call_initiated',
     data: { call: publicCall },
   });
 
-  // Create call_incoming notifications for other participants
   const otherParticipants = conversation.participants.filter(
     (p) => !p.equals(initiatorObjId)
   );

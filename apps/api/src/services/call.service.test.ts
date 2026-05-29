@@ -231,6 +231,9 @@ describe('call.service', () => {
       Promise.resolve(makeConversation()),
     );
     mockCallRepo.createCall.mockImplementation(() => Promise.resolve(makeCall({ status: 'ringing', participants: [] })));
+    mockCallRepo.addParticipant.mockImplementation(() =>
+      Promise.resolve(makeCall({ status: 'active' })),
+    );
     const r = await initiateCall(convId.toHexString(), identityA.toHexString(), {
       audio: true,
       video: false,
@@ -246,6 +249,9 @@ describe('call.service', () => {
       Promise.resolve(makeConversation()),
     );
     mockCallRepo.createCall.mockImplementation(() => Promise.resolve(makeCall({ status: 'ringing', participants: [] })));
+    mockCallRepo.addParticipant.mockImplementation(() =>
+      Promise.resolve(makeCall({ status: 'active' })),
+    );
     const r = await initiateCall(convId.toHexString(), identityA.toHexString(), {
       audio: true,
       video: false,
@@ -291,6 +297,9 @@ describe('call.service', () => {
       Promise.resolve(makeConversation()),
     );
     mockCallRepo.createCall.mockImplementation(() => Promise.resolve(makeCall({ status: 'ringing', participants: [] })));
+    mockCallRepo.addParticipant.mockImplementation(() =>
+      Promise.resolve(makeCall({ status: 'active' })),
+    );
     mockCreateNotification.mockImplementation(() => Promise.reject(new Error('notify failed')));
     const r = await initiateCall(convId.toHexString(), identityA.toHexString(), {
       audio: true,
@@ -299,6 +308,44 @@ describe('call.service', () => {
     });
     expect(r.success).toBe(true);
     expect(r.call?.id).toBe(callId.toHexString());
+  });
+
+  test('initiateCall auto-joins the initiator as first participant', async () => {
+    mockConversationRepo.findById.mockImplementation(() =>
+      Promise.resolve(makeConversation()),
+    );
+    mockCallRepo.createCall.mockImplementation(() => Promise.resolve(makeCall({ status: 'ringing', participants: [] })));
+    mockCallRepo.addParticipant.mockImplementation(() =>
+      Promise.resolve(
+        makeCall({
+          status: 'active',
+          participants: [
+            {
+              identityId: identityA,
+              joinedAt: now,
+              mediaState: { audio: true, video: false, screenshare: false },
+            },
+          ],
+        }),
+      ),
+    );
+    const r = await initiateCall(convId.toHexString(), identityA.toHexString(), {
+      audio: true,
+      video: false,
+      screenshare: false,
+    });
+    expect(r.success).toBe(true);
+    expect(r.call?.status).toBe('active');
+    expect(r.call?.participants).toHaveLength(1);
+    expect(r.call?.participants[0]?.identityId).toBe(identityA.toHexString());
+    expect(r.call?.participants[0]?.mediaState).toEqual({ audio: true, video: false, screenshare: false });
+    expect(mockCallRepo.addParticipant).toHaveBeenCalledWith(
+      callId,
+      expect.objectContaining({
+        identityId: identityA,
+        mediaState: { audio: true, video: false, screenshare: false },
+      }),
+    );
   });
 
   test('joinCall returns ALREADY_IN_CALL for active participant', async () => {

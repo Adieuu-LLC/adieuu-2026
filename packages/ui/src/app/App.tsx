@@ -49,6 +49,8 @@ import { AchievementListener } from '../components/AchievementListener';
 import { AppPlainTextContextMenu } from '../components/AppPlainTextContextMenu';
 import { UpdateProvider } from '../hooks/useUpdateContext';
 import { IdentityModalProvider } from '../hooks/useIdentityModal';
+import { CallSessionProvider } from '../hooks/useCallSession';
+import { AppCallOverlay } from '../components/call/AppCallOverlay';
 import { AppSidebar } from './AppSidebar';
 import {
   AdminAuthAllowlist,
@@ -102,7 +104,9 @@ function ProtectedLayout({ children }: { children?: ReactNode }) {
               <ConversationPreferencesProvider>
                 <ConversationsProvider>
                   <MediaOutboxProvider>
-                    <ProtectedLayoutContent>{children}</ProtectedLayoutContent>
+                    <CallSessionProvider>
+                      <ProtectedLayoutContent>{children}</ProtectedLayoutContent>
+                    </CallSessionProvider>
                   </MediaOutboxProvider>
                 </ConversationsProvider>
               </ConversationPreferencesProvider>
@@ -137,6 +141,7 @@ function ProtectedLayoutContent({ children }: { children?: ReactNode }) {
           {children ?? <Outlet />}
         </AppLayout>
       </IdentityModalProvider>
+      <AppCallOverlay />
       <UpdateOverlay />
       <AchievementListener />
       <AppPlainTextContextMenu />

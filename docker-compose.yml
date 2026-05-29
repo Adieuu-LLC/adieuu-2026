@@ -30,6 +30,94 @@ services:
       timeout: 5s
       retries: 3
 
+  # ---------------------------------------------------------------------------
+  # Jitsi Meet -- local video/audio/screenshare (profiles: jitsi)
+  #
+  # Only started when the "jitsi" profile is active:
+  #   docker compose --profile jitsi up -d
+  #
+  # Requires .jitsi.env (copy from .jitsi.env.example).
+  # ---------------------------------------------------------------------------
+
+  jitsi-web:
+    image: jitsi/web:stable-9823
+    platform: linux/amd64
+    profiles: [jitsi]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8443:80"
+    volumes:
+      - jitsi_web_config:/config
+      - jitsi_web_transcripts:/usr/share/jitsi-meet/transcripts
+    env_file: .jitsi.env
+    environment:
+      XMPP_SERVER: prosody
+    networks:
+      default:
+      jitsi-meet:
+        aliases:
+          - jitsi-web.meet.jitsi
+
+  prosody:
+    image: jitsi/prosody:stable-9823
+    platform: linux/amd64
+    profiles: [jitsi]
+    restart: unless-stopped
+    expose:
+      - "5222"
+      - "5269"
+      - "5347"
+      - "5280"
+    volumes:
+      - jitsi_prosody_config:/config
+      - jitsi_prosody_plugins:/prosody-plugins-custom
+    env_file: .jitsi.env
+    networks:
+      jitsi-meet:
+        aliases:
+          - xmpp.meet.jitsi
+
+  jicofo:
+    image: jitsi/jicofo:stable-9823
+    platform: linux/amd64
+    profiles: [jitsi]
+    restart: unless-stopped
+    depends_on:
+      - prosody
+    volumes:
+      - jitsi_jicofo_config:/config
+    env_file: .jitsi.env
+    environment:
+      XMPP_SERVER: prosody
+    networks:
+      jitsi-meet:
+
+  jvb:
+    image: jitsi/jvb:stable-9823
+    platform: linux/amd64
+    profiles: [jitsi]
+    restart: unless-stopped
+    depends_on:
+      - prosody
+    ports:
+      - "127.0.0.1:10000:10000/udp"
+    volumes:
+      - jitsi_jvb_config:/config
+    env_file: .jitsi.env
+    environment:
+      XMPP_SERVER: prosody
+    networks:
+      jitsi-meet:
+
 volumes:
   redis_data:
   mongo_data:
+  jitsi_web_config:
+  jitsi_web_transcripts:
+  jitsi_prosody_config:
+  jitsi_prosody_plugins:
+  jitsi_jicofo_config:
+  jitsi_jvb_config:
+
+networks:
+  jitsi-meet:

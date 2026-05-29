@@ -33,6 +33,7 @@ export function useAppConfig(): AppConfig {
     chatWsUrl: ctx.chatWsUrl,
     externalLinkBase: ctx.externalLinkBase,
     platform: ctx.platform,
+    jitsiBaseUrl: ctx.jitsiBaseUrl,
   };
 }
 

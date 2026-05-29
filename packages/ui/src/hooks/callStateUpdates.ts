@@ -21,7 +21,7 @@ export function applyCallSocketMessage(
       const { call } = message.data;
       if (call.conversationId !== conversationId) return null;
       const participants =
-        prev.activeCall?.id === call.id ? prev.activeCall.participants : [];
+        call.participants ?? (prev.activeCall?.id === call.id ? prev.activeCall.participants : []);
 
       return {
         activeCall: {

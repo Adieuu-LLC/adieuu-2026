@@ -14,6 +14,8 @@ export interface AppConfig {
   externalLinkBase: string;
   /** Current platform identifier */
   platform: 'web' | 'desktop' | 'mobile';
+  /** Base URL for the Jitsi server (e.g. https://meet.adieuu.com). Omit if Jitsi is not configured. */
+  jitsiBaseUrl?: string;
 }
 
 // ============================================================================

@@ -67,5 +67,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      external: [
+        'lib-jitsi-meet',
+        /^@jitsi\//,
+      ],
+    },
+  },
+  optimizeDeps: {
+    exclude: ['lib-jitsi-meet'],
   },
 });

@@ -1,0 +1,357 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Call Toolbar Button (split button with chevron menu)
+// ============================================================================
+
+.call-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+
+  &__primary,
+  &__chevron {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast);
+    padding: var(--spacing-xs);
+
+    &:hover:not(:disabled) {
+      color: var(--color-text-primary);
+      background: var(--color-bg-hover);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &__chevron {
+    padding: var(--spacing-xs) 2px;
+    border-left: 1px solid var(--color-border);
+  }
+
+  &--in-call &__primary {
+    color: var(--color-success);
+  }
+
+  &--single {
+    .call-toolbar-btn__chevron {
+      display: none;
+    }
+  }
+}
+
+.call-toolbar-menu {
+  min-width: 160px;
+}
+
+.call-toolbar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  transition: background var(--transition-fast);
+
+  &:hover {
+    background: var(--color-bg-hover);
+  }
+
+  .icon {
+    flex-shrink: 0;
+  }
+}
+
+// ============================================================================
+// Device Setup Modal
+// ============================================================================
+
+.call-device-setup {
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-lg);
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+
+    label {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text-secondary);
+    }
+
+    select {
+      width: 100%;
+      padding: var(--spacing-sm) var(--spacing-md);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-secondary);
+      color: var(--color-text-primary);
+      font-size: var(--font-size-sm);
+      transition: border-color var(--transition-fast);
+
+      &:focus {
+        border-color: var(--color-border-focus);
+        outline: none;
+      }
+    }
+  }
+
+  &__preview {
+    position: relative;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--color-bg-tertiary);
+    aspect-ratio: 16 / 9;
+    max-height: 200px;
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+  }
+
+  &__note {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__error {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-error-bg);
+    border-radius: var(--radius-md);
+    color: var(--color-error);
+    font-size: var(--font-size-sm);
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+  }
+}
+
+// ============================================================================
+// Call Overlay (app-level, always-on-top when active)
+// ============================================================================
+
+.call-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+
+  &-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+
+  &-title {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &-conversation-name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  &-status {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &-minimize {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    font-size: 1.2rem;
+    line-height: 1;
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+  }
+
+  &-body {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &-connecting {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-md);
+    color: var(--color-text-muted);
+
+    p {
+      font-size: var(--font-size-sm);
+    }
+  }
+
+  &-footer {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+  }
+}
+
+// ============================================================================
+// Call Controls
+// ============================================================================
+
+.call-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.call-control-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: 9999px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+
+  &--muted {
+    color: var(--color-error);
+    background: var(--color-error-bg);
+
+    &:hover {
+      background: var(--color-error-bg);
+      opacity: 0.85;
+    }
+  }
+
+  &--active {
+    color: var(--color-success);
+    background: var(--color-success-bg);
+  }
+
+  &--leave {
+    color: var(--color-error);
+
+    &:hover {
+      background: var(--color-error-bg);
+    }
+  }
+
+  &--end {
+    color: #fff;
+    background: var(--color-error);
+
+    &:hover {
+      opacity: 0.85;
+    }
+  }
+}
+
+.call-control-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+// ============================================================================
+// Incoming Call Banner
+// ============================================================================
+
+.incoming-call-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+  animation: incoming-call-pulse 2s ease-in-out infinite;
+}
+
+@keyframes incoming-call-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.incoming-call-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.incoming-call-icon {
+  color: var(--color-success);
+  flex-shrink: 0;
+}
+
+.incoming-call-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.incoming-call-caller {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.incoming-call-type {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.incoming-call-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.incoming-call-decline {
+  color: var(--color-error);
+}
+
+.incoming-call-accept {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}

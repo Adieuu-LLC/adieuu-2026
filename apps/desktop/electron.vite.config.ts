@@ -37,7 +37,14 @@ export default defineConfig({
       outDir: 'dist/renderer',
       rollupOptions: {
         input: path.resolve(__dirname, 'src/renderer/index.html'),
+        external: [
+          'lib-jitsi-meet',
+          /^@jitsi\//,
+        ],
       },
+    },
+    optimizeDeps: {
+      exclude: ['lib-jitsi-meet'],
     },
     plugins: [
       react(),
