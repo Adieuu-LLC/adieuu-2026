@@ -10,6 +10,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ChatIncomingMessage } from '@adieuu/shared';
 import { useIdentity } from './useIdentity';
 import { useAppConfig } from '../config';
@@ -54,6 +55,8 @@ export interface StartCallResult {
   call?: PublicCall;
   jitsiToken?: string;
   error?: string;
+  errorCode?: string;
+  retryAfterSeconds?: number;
 }
 
 export interface JoinCallResult {
@@ -61,13 +64,22 @@ export interface JoinCallResult {
   call?: PublicCall;
   jitsiToken?: string;
   error?: string;
+  errorCode?: string;
 }
 
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
+function parseRetryAfterSeconds(details: { retryAfter?: string } | undefined): number | undefined {
+  const raw = details?.retryAfter;
+  if (raw === undefined) return undefined;
+  const n = parseInt(String(raw), 10);
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
 export function useCall(conversationId: string | null): UseCallReturn {
+  const { t } = useTranslation();
   const { identity, api: identityApi } = useIdentity();
   const { apiBaseUrl } = useAppConfig();
   const { subscribe, onStateChange } = useChatSocket();
@@ -127,15 +139,33 @@ export function useCall(conversationId: string | null): UseCallReturn {
             jitsiToken: resp.data.jitsiToken,
           };
         }
+        const errorCode = resp.error?.code;
+        if (errorCode === 'RATE_LIMITED') {
+          const retryAfterSeconds = parseRetryAfterSeconds(resp.error?.details) ?? 30;
+          return {
+            success: false,
+            error: t('call.rateLimited', { seconds: retryAfterSeconds }),
+            errorCode,
+            retryAfterSeconds,
+          };
+        }
+        if (errorCode === 'JITSI_UNAVAILABLE') {
+          return {
+            success: false,
+            error: t('call.jitsiUnavailable'),
+            errorCode,
+          };
+        }
         return {
           success: false,
           error: resp.error?.message ?? 'Failed to start call',
+          errorCode,
         };
       } catch {
         return { success: false, error: 'Failed to start call' };
       }
     },
-    [conversationId, identity, client]
+    [conversationId, identity, client, t]
   );
 
   const joinCallAction = useCallback(
@@ -154,15 +184,24 @@ export function useCall(conversationId: string | null): UseCallReturn {
             jitsiToken: resp.data.jitsiToken,
           };
         }
+        const errorCode = resp.error?.code;
+        if (errorCode === 'JITSI_UNAVAILABLE') {
+          return {
+            success: false,
+            error: t('call.jitsiUnavailable'),
+            errorCode,
+          };
+        }
         return {
           success: false,
           error: resp.error?.message ?? 'Failed to join call',
+          errorCode,
         };
       } catch {
         return { success: false, error: 'Failed to join call' };
       }
     },
-    [conversationId, identity, client]
+    [conversationId, identity, client, t]
   );
 
   const leaveCallAction = useCallback(async (): Promise<boolean> => {

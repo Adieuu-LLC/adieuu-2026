@@ -14,12 +14,14 @@
  */
 
 import { ObjectId } from 'mongodb';
+import { config } from '../config';
 import { getCallRepository } from '../repositories/call.repository';
 import { getConversationRepository } from '../repositories/conversation.repository';
 import { getIdentityRepository } from '../repositories/identity.repository';
 import { mintJitsiToken, generateJitsiRoomName } from './jitsi-auth.service';
 import { publishToParticipants, publishConversationEvent } from './conversation/redis-events';
 import { createNotification } from './notification.service';
+import { checkRateLimit, getCallInitiateConfig } from './rate-limit.service';
 import type { CallDocument, CallMediaOptions, PublicCall } from '../models/call';
 import { toPublicCall } from '../models/call';
 import elog from '../utils/adieuuLogger';
@@ -34,6 +36,8 @@ export interface CallResult {
   jitsiToken?: string;
   error?: string;
   errorCode?: string;
+  /** Seconds until rate limit resets (when errorCode is RATE_LIMITED) */
+  retryAfter?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -52,6 +56,18 @@ export async function initiateCall(
   initiatorIdentityId: string,
   requestedMedia: CallMediaOptions
 ): Promise<CallResult> {
+  const rlConfig = await getCallInitiateConfig(initiatorIdentityId);
+  const rl = await checkRateLimit('calls:initiate:identity', initiatorIdentityId, rlConfig);
+  if (!rl.allowed) {
+    const retryAfter = Math.max(1, rl.resetAt - Math.floor(Date.now() / 1000));
+    return {
+      success: false,
+      error: 'Too many call attempts. Please try again later.',
+      errorCode: 'RATE_LIMITED',
+      retryAfter,
+    };
+  }
+
   const conversationRepo = getConversationRepository();
   const callRepo = getCallRepository();
   const identityRepo = getIdentityRepository();
@@ -74,7 +90,28 @@ export async function initiateCall(
     return { success: false, error: 'All requested media types are disabled for this conversation', errorCode: 'MEDIA_DISABLED' };
   }
 
+  const identity = await identityRepo.findById(initiatorObjId);
+  const displayName = identity?.ident ?? 'Unknown';
+
   const jitsiRoomName = generateJitsiRoomName();
+
+  let jitsiToken: string | undefined;
+  if (config.jitsi.enabled) {
+    try {
+      jitsiToken = mintJitsiToken({
+        roomName: jitsiRoomName,
+        identityId: initiatorIdentityId,
+        displayName,
+      });
+    } catch (err) {
+      elog.warn('Failed to mint Jitsi token on initiate', { conversationId, err });
+      return {
+        success: false,
+        error: 'Call service is temporarily unavailable.',
+        errorCode: 'JITSI_UNAVAILABLE',
+      };
+    }
+  }
 
   let call: CallDocument;
   try {
@@ -89,20 +126,6 @@ export async function initiateCall(
       return { success: false, error: 'A call is already active for this conversation', errorCode: 'CALL_ALREADY_ACTIVE' };
     }
     throw err;
-  }
-
-  const identity = await identityRepo.findById(initiatorObjId);
-  const displayName = identity?.ident ?? 'Unknown';
-
-  let jitsiToken: string | undefined;
-  try {
-    jitsiToken = mintJitsiToken({
-      roomName: jitsiRoomName,
-      identityId: initiatorIdentityId,
-      displayName,
-    });
-  } catch {
-    elog.warn('Failed to mint Jitsi token; call created without token', { callId: call._id.toHexString() });
   }
 
   // Notify other participants
@@ -139,6 +162,7 @@ export async function initiateCall(
  * Join an existing call. Mints a Jitsi JWT for the joining participant.
  */
 export async function joinCall(
+  conversationId: string,
   callId: string,
   identityId: string,
   mediaState: CallMediaOptions
@@ -152,6 +176,10 @@ export async function joinCall(
 
   const call = await callRepo.findById(callObjId);
   if (!call || call.status === 'ended') {
+    return { success: false, error: 'Call not found or already ended', errorCode: 'CALL_NOT_FOUND' };
+  }
+
+  if (call.conversationId.toHexString() !== conversationId) {
     return { success: false, error: 'Call not found or already ended', errorCode: 'CALL_NOT_FOUND' };
   }
 
@@ -170,6 +198,27 @@ export async function joinCall(
 
   const enforcedMedia = enforceCallSettings(mediaState, conversation);
 
+  const identity = await identityRepo.findById(identityObjId);
+  const displayName = identity?.ident ?? 'Unknown';
+
+  let jitsiToken: string | undefined;
+  if (config.jitsi.enabled) {
+    try {
+      jitsiToken = mintJitsiToken({
+        roomName: call.jitsiRoomName,
+        identityId,
+        displayName,
+      });
+    } catch (err) {
+      elog.warn('Failed to mint Jitsi token on join', { callId, err });
+      return {
+        success: false,
+        error: 'Call service is temporarily unavailable.',
+        errorCode: 'JITSI_UNAVAILABLE',
+      };
+    }
+  }
+
   const updated = await callRepo.addParticipant(callObjId, {
     identityId: identityObjId,
     joinedAt: new Date(),
@@ -178,20 +227,6 @@ export async function joinCall(
 
   if (!updated) {
     return { success: false, error: 'Failed to join call', errorCode: 'JOIN_FAILED' };
-  }
-
-  const identity = await identityRepo.findById(identityObjId);
-  const displayName = identity?.ident ?? 'Unknown';
-
-  let jitsiToken: string | undefined;
-  try {
-    jitsiToken = mintJitsiToken({
-      roomName: call.jitsiRoomName,
-      identityId,
-      displayName,
-    });
-  } catch {
-    elog.warn('Failed to mint Jitsi token on join', { callId });
   }
 
   const publicCall = toPublicCall(updated);
@@ -212,6 +247,7 @@ export async function joinCall(
  * Leave an active call. If the last participant leaves, the call ends.
  */
 export async function leaveCall(
+  conversationId: string,
   callId: string,
   identityId: string
 ): Promise<CallResult> {
@@ -221,6 +257,15 @@ export async function leaveCall(
   const callObjId = new ObjectId(callId);
   const identityObjId = new ObjectId(identityId);
 
+  const call = await callRepo.findById(callObjId);
+  if (!call || call.status === 'ended') {
+    return { success: false, error: 'Call not found or already ended', errorCode: 'CALL_NOT_FOUND' };
+  }
+
+  if (call.conversationId.toHexString() !== conversationId) {
+    return { success: false, error: 'Call not found or already ended', errorCode: 'CALL_NOT_FOUND' };
+  }
+
   const updated = await callRepo.updateParticipantLeft(callObjId, identityObjId);
   if (!updated) {
     return { success: false, error: 'Call not found or not in call', errorCode: 'CALL_NOT_FOUND' };
@@ -228,10 +273,17 @@ export async function leaveCall(
 
   const conversation = await conversationRepo.findById(updated.conversationId);
 
-  // Check if all participants have left
+  // Check if all participants have left — end call without requiring active membership
   const activeParticipants = updated.participants.filter((p) => !p.leftAt);
   if (activeParticipants.length === 0) {
-    return endCall(callId, identityId);
+    const ended = await callRepo.updateStatus(callObjId, 'ended', { endedAt: new Date() });
+    if (!ended) {
+      return { success: false, error: 'Failed to end call', errorCode: 'END_FAILED' };
+    }
+    if (conversation) {
+      await notifyCallEnded(conversation.participants, callId, identityId);
+    }
+    return { success: true, call: toPublicCall(ended) };
   }
 
   if (conversation) {
@@ -249,9 +301,10 @@ export async function leaveCall(
 // ---------------------------------------------------------------------------
 
 /**
- * Forcefully end a call. Any participant (or the initiator) may end.
+ * Forcefully end a call. Only active call participants may end via the API.
  */
 export async function endCall(
+  conversationId: string,
   callId: string,
   identityId: string
 ): Promise<CallResult> {
@@ -266,9 +319,20 @@ export async function endCall(
     return { success: false, error: 'Call not found or already ended', errorCode: 'CALL_NOT_FOUND' };
   }
 
+  if (call.conversationId.toHexString() !== conversationId) {
+    return { success: false, error: 'Call not found or already ended', errorCode: 'CALL_NOT_FOUND' };
+  }
+
   const conversation = await conversationRepo.findById(call.conversationId);
   if (!conversation || !conversation.participants.some((p) => p.equals(identityObjId))) {
     return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  const isActiveInCall = call.participants.some(
+    (p) => p.identityId.equals(identityObjId) && !p.leftAt
+  );
+  if (!isActiveInCall) {
+    return { success: false, error: 'Not in this call', errorCode: 'NOT_IN_CALL' };
   }
 
   const ended = await callRepo.updateStatus(callObjId, 'ended', { endedAt: new Date() });
@@ -276,17 +340,9 @@ export async function endCall(
     return { success: false, error: 'Failed to end call', errorCode: 'END_FAILED' };
   }
 
-  const publicCall = toPublicCall(ended);
+  await notifyCallEnded(conversation.participants, callId, identityId);
 
-  // Notify all participants including the one ending
-  for (const p of conversation.participants) {
-    await publishConversationEvent(p.toHexString(), {
-      type: 'call_ended',
-      data: { callId, endedBy: identityId },
-    });
-  }
-
-  return { success: true, call: publicCall };
+  return { success: true, call: toPublicCall(ended) };
 }
 
 // ---------------------------------------------------------------------------
@@ -327,6 +383,7 @@ export async function getActiveCall(
  * Update a participant's media state (mute/unmute, enable/disable video, etc.).
  */
 export async function updateMediaState(
+  conversationId: string,
   callId: string,
   identityId: string,
   mediaState: CallMediaOptions
@@ -339,6 +396,10 @@ export async function updateMediaState(
 
   const call = await callRepo.findById(callObjId);
   if (!call || call.status === 'ended') {
+    return { success: false, error: 'Call not found or ended', errorCode: 'CALL_NOT_FOUND' };
+  }
+
+  if (call.conversationId.toHexString() !== conversationId) {
     return { success: false, error: 'Call not found or ended', errorCode: 'CALL_NOT_FOUND' };
   }
 
@@ -365,6 +426,19 @@ export async function updateMediaState(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+async function notifyCallEnded(
+  participants: ObjectId[],
+  callId: string,
+  endedBy: string
+): Promise<void> {
+  for (const p of participants) {
+    await publishConversationEvent(p.toHexString(), {
+      type: 'call_ended',
+      data: { callId, endedBy },
+    });
+  }
+}
 
 /**
  * Clamp requested media against conversation-level admin toggles.

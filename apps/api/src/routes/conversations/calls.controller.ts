@@ -18,6 +18,8 @@ import {
   updateMediaState,
 } from '../../services/call.service';
 import { updateCallSettings } from '../../services/conversation/group-settings';
+import { escalateCallInitiateThrottle } from '../../services/rate-limit.service';
+import { sanitizeObjectId24 } from './conversation-inputs';
 import { z } from '@adieuu/shared/schemas';
 
 // ---------------------------------------------------------------------------
@@ -68,21 +70,23 @@ export async function initiateCallCtrl(
   if (!ctx.identitySession) return { kind: 'unauthorized' };
   const { identity } = ctx.identitySession;
 
-  const conversationId = ctx.params.id;
-  if (!conversationId || conversationId.length !== 24) {
-    return { kind: 'bad_request', message: 'Invalid conversation ID.' };
-  }
+  const conv = sanitizeObjectId24(ctx.params.id);
+  if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
 
   const parseResult = InitiateCallSchema.safeParse(ctx.body);
   if (!parseResult.success) return { kind: 'validation_failed' };
 
   const result = await initiateCall(
-    conversationId,
+    conv.id,
     identity._id.toHexString(),
     parseResult.data.media
   );
 
   if (!result.success) {
+    if (result.errorCode === 'RATE_LIMITED' && result.retryAfter !== undefined) {
+      await escalateCallInitiateThrottle(identity._id.toHexString());
+      return { kind: 'rate_limited', retryAfter: result.retryAfter };
+    }
     if (result.errorCode === 'CALL_ALREADY_ACTIVE') {
       return { kind: 'named_error', code: result.errorCode, message: result.error!, status: 409 };
     }
@@ -94,6 +98,9 @@ export async function initiateCallCtrl(
     }
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') {
       return { kind: 'not_found', message: result.error! };
+    }
+    if (result.errorCode === 'JITSI_UNAVAILABLE') {
+      return { kind: 'named_error', code: result.errorCode, message: result.error!, status: 503 };
     }
     return { kind: 'bad_request', message: result.error ?? 'Failed to initiate call.' };
   }
@@ -111,15 +118,20 @@ export async function joinCallCtrl(
   if (!ctx.identitySession) return { kind: 'unauthorized' };
   const { identity } = ctx.identitySession;
 
-  const callId = ctx.params.callId;
-  if (!callId || callId.length !== 24) {
-    return { kind: 'bad_request', message: 'Invalid call ID.' };
-  }
+  const conv = sanitizeObjectId24(ctx.params.id);
+  if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
+  const call = sanitizeObjectId24(ctx.params.callId);
+  if (!call.ok) return { kind: 'bad_request', message: 'Invalid call ID.' };
 
   const parseResult = JoinCallSchema.safeParse(ctx.body);
   if (!parseResult.success) return { kind: 'validation_failed' };
 
-  const result = await joinCall(callId, identity._id.toHexString(), parseResult.data.media);
+  const result = await joinCall(
+    conv.id,
+    call.id,
+    identity._id.toHexString(),
+    parseResult.data.media
+  );
 
   if (!result.success) {
     if (result.errorCode === 'NOT_PARTICIPANT') {
@@ -130,6 +142,9 @@ export async function joinCallCtrl(
     }
     if (result.errorCode === 'ALREADY_IN_CALL') {
       return { kind: 'named_error', code: result.errorCode, message: result.error!, status: 409 };
+    }
+    if (result.errorCode === 'JITSI_UNAVAILABLE') {
+      return { kind: 'named_error', code: result.errorCode, message: result.error!, status: 503 };
     }
     return { kind: 'bad_request', message: result.error ?? 'Failed to join call.' };
   }
@@ -147,12 +162,12 @@ export async function leaveCallCtrl(
   if (!ctx.identitySession) return { kind: 'unauthorized' };
   const { identity } = ctx.identitySession;
 
-  const callId = ctx.params.callId;
-  if (!callId || callId.length !== 24) {
-    return { kind: 'bad_request', message: 'Invalid call ID.' };
-  }
+  const conv = sanitizeObjectId24(ctx.params.id);
+  if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
+  const call = sanitizeObjectId24(ctx.params.callId);
+  if (!call.ok) return { kind: 'bad_request', message: 'Invalid call ID.' };
 
-  const result = await leaveCall(callId, identity._id.toHexString());
+  const result = await leaveCall(conv.id, call.id, identity._id.toHexString());
 
   if (!result.success) {
     if (result.errorCode === 'CALL_NOT_FOUND') {
@@ -166,7 +181,7 @@ export async function leaveCallCtrl(
 
 /**
  * POST /conversations/:id/calls/:callId/end
- * End an active call (any participant may end).
+ * End an active call (active participants only).
  */
 export async function endCallCtrl(
   ctx: RouteContext
@@ -174,18 +189,18 @@ export async function endCallCtrl(
   if (!ctx.identitySession) return { kind: 'unauthorized' };
   const { identity } = ctx.identitySession;
 
-  const callId = ctx.params.callId;
-  if (!callId || callId.length !== 24) {
-    return { kind: 'bad_request', message: 'Invalid call ID.' };
-  }
+  const conv = sanitizeObjectId24(ctx.params.id);
+  if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
+  const call = sanitizeObjectId24(ctx.params.callId);
+  if (!call.ok) return { kind: 'bad_request', message: 'Invalid call ID.' };
 
-  const result = await endCall(callId, identity._id.toHexString());
+  const result = await endCall(conv.id, call.id, identity._id.toHexString());
 
   if (!result.success) {
     if (result.errorCode === 'CALL_NOT_FOUND') {
       return { kind: 'not_found', message: result.error! };
     }
-    if (result.errorCode === 'NOT_PARTICIPANT') {
+    if (result.errorCode === 'NOT_PARTICIPANT' || result.errorCode === 'NOT_IN_CALL') {
       return { kind: 'forbidden', message: result.error! };
     }
     return { kind: 'bad_request', message: result.error ?? 'Failed to end call.' };
@@ -204,12 +219,10 @@ export async function getActiveCallCtrl(
   if (!ctx.identitySession) return { kind: 'unauthorized' };
   const { identity } = ctx.identitySession;
 
-  const conversationId = ctx.params.id;
-  if (!conversationId || conversationId.length !== 24) {
-    return { kind: 'bad_request', message: 'Invalid conversation ID.' };
-  }
+  const conv = sanitizeObjectId24(ctx.params.id);
+  if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
 
-  const result = await getActiveCall(conversationId, identity._id.toHexString());
+  const result = await getActiveCall(conv.id, identity._id.toHexString());
 
   if (!result.success) {
     if (result.errorCode === 'NOT_PARTICIPANT') {
@@ -231,16 +244,17 @@ export async function updateMediaStateCtrl(
   if (!ctx.identitySession) return { kind: 'unauthorized' };
   const { identity } = ctx.identitySession;
 
-  const callId = ctx.params.callId;
-  if (!callId || callId.length !== 24) {
-    return { kind: 'bad_request', message: 'Invalid call ID.' };
-  }
+  const conv = sanitizeObjectId24(ctx.params.id);
+  if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
+  const call = sanitizeObjectId24(ctx.params.callId);
+  if (!call.ok) return { kind: 'bad_request', message: 'Invalid call ID.' };
 
   const parseResult = UpdateMediaStateSchema.safeParse(ctx.body);
   if (!parseResult.success) return { kind: 'validation_failed' };
 
   const result = await updateMediaState(
-    callId,
+    conv.id,
+    call.id,
     identity._id.toHexString(),
     parseResult.data.media
   );
@@ -268,16 +282,14 @@ export async function updateCallSettingsCtrl(
   if (!ctx.identitySession) return { kind: 'unauthorized' };
   const { identity } = ctx.identitySession;
 
-  const conversationId = ctx.params.id;
-  if (!conversationId || conversationId.length !== 24) {
-    return { kind: 'bad_request', message: 'Invalid conversation ID.' };
-  }
+  const conv = sanitizeObjectId24(ctx.params.id);
+  if (!conv.ok) return { kind: 'bad_request', message: 'Invalid conversation ID.' };
 
   const parseResult = CallSettingsSchema.safeParse(ctx.body);
   if (!parseResult.success) return { kind: 'validation_failed' };
 
   const result = await updateCallSettings(
-    conversationId,
+    conv.id,
     identity._id.toHexString(),
     parseResult.data
   );

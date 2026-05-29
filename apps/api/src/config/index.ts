@@ -495,6 +495,13 @@ export const config = {
     klipySearchIdentityWindow: optionalEnvInt('RATE_LIMIT_KLIPY_SEARCH_IDENTITY_WINDOW', 60),
     /** Klipy progressive throttle cooldown in seconds (tier decays after no limit hits) */
     klipyThrottleCooldown: optionalEnvInt('RATE_LIMIT_KLIPY_THROTTLE_COOLDOWN', 300),
+
+    /** Call initiate base limit per identity (tier 0) */
+    callsInitiateIdentityLimit: optionalEnvInt('RATE_LIMIT_CALLS_INITIATE_IDENTITY', 5),
+    /** Call initiate per identity window in seconds */
+    callsInitiateIdentityWindow: optionalEnvInt('RATE_LIMIT_CALLS_INITIATE_IDENTITY_WINDOW', 300),
+    /** Call initiate progressive throttle cooldown in seconds */
+    callsInitiateThrottleCooldown: optionalEnvInt('RATE_LIMIT_CALLS_INITIATE_THROTTLE_COOLDOWN', 900),
   },
 } as const;
 

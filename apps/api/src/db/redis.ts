@@ -418,6 +418,10 @@ export const RedisKeys = {
   klipyThrottleTier: (identityId: string) =>
     `klipy:throttle:${identityId}`,
 
+  /** Progressive throttle tier for call initiation (0-3). */
+  callInitiateThrottleTier: (identityId: string) =>
+    `calls:initiate:throttle:${identityId}`,
+
   /** Cached IPLocate result keyed by hashed IP. */
   geoIpLookup: (ipHash: string) => `geo:ip:${ipHash}`,
 

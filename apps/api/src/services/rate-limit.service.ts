@@ -161,6 +161,14 @@ function getRateLimits(): Record<string, RateLimitConfig> {
       limit: config.rateLimit.klipySearchIdentityLimit,
       windowSeconds: config.rateLimit.klipySearchIdentityWindow,
     },
+
+    /**
+     * Call initiate per identity (base tier — progressive throttle may lower this)
+     */
+    'calls:initiate:identity': {
+      limit: config.rateLimit.callsInitiateIdentityLimit,
+      windowSeconds: config.rateLimit.callsInitiateIdentityWindow,
+    },
   };
 }
 
@@ -424,6 +432,52 @@ export async function escalateKlipyThrottle(identityId: string): Promise<void> {
     const current = parseInt((await redis.get(key)) ?? '0', 10) || 0;
     const next = Math.min(current + 1, KLIPY_MAX_THROTTLE_TIER);
     await redis.set(key, String(next), 'EX', config.rateLimit.klipyThrottleCooldown);
+  } catch {
+    // Non-critical — fail silently
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Progressive throttle for call initiation
+// ---------------------------------------------------------------------------
+
+const CALL_INITIATE_MAX_THROTTLE_TIER = 3;
+const CALL_INITIATE_TIER_DIVISORS = [1, 2, 4, 8] as const;
+
+/**
+ * Returns adjusted rate limit config for call initiation based on throttle tier.
+ */
+export async function getCallInitiateConfig(identityId: string): Promise<RateLimitConfig> {
+  const baseLimit = config.rateLimit.callsInitiateIdentityLimit;
+  const window = config.rateLimit.callsInitiateIdentityWindow;
+
+  if (!config.rateLimit.enabled || !isRedisConnected()) {
+    return { limit: baseLimit, windowSeconds: window };
+  }
+
+  try {
+    const redis = getRedis();
+    const key = RedisKeys.callInitiateThrottleTier(identityId);
+    const raw = await redis.get(key);
+    const tier = Math.min(parseInt(raw ?? '0', 10) || 0, CALL_INITIATE_MAX_THROTTLE_TIER);
+    const divisor = CALL_INITIATE_TIER_DIVISORS[tier] ?? 1;
+    return { limit: Math.max(1, Math.floor(baseLimit / divisor)), windowSeconds: window };
+  } catch {
+    return { limit: baseLimit, windowSeconds: window };
+  }
+}
+
+/**
+ * Bumps the progressive throttle tier after a call-initiate 429.
+ */
+export async function escalateCallInitiateThrottle(identityId: string): Promise<void> {
+  if (!isRedisConnected()) return;
+  try {
+    const redis = getRedis();
+    const key = RedisKeys.callInitiateThrottleTier(identityId);
+    const current = parseInt((await redis.get(key)) ?? '0', 10) || 0;
+    const next = Math.min(current + 1, CALL_INITIATE_MAX_THROTTLE_TIER);
+    await redis.set(key, String(next), 'EX', config.rateLimit.callsInitiateThrottleCooldown);
   } catch {
     // Non-critical — fail silently
   }
