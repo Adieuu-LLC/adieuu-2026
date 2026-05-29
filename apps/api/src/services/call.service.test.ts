@@ -18,6 +18,8 @@ const mockGetCallInitiateConfig = mock(() =>
 const mockPublishToParticipants = mock(() => Promise.resolve());
 const mockPublishConversationEvent = mock(() => Promise.resolve());
 const mockCreateNotification = mock(() => Promise.resolve());
+const mockMintLiveKitToken = mock(() => Promise.resolve('mock.livekit.token')) as AnyMock;
+const mockGenerateRoomName = mock(() => 'room-abc');
 
 const mockCallRepo = {
   findById: mock(() => Promise.resolve(null)) as AnyMock,
@@ -38,12 +40,12 @@ const mockIdentityRepo = {
 };
 
 const mockConfig = {
-  jitsi: {
+  livekit: {
     enabled: false,
-    baseUrl: 'https://jitsi.test.example',
-    jwtIssuer: 'adieuu-test',
-    jwtSecret: 'test-jitsi-secret-key',
-    jwtExpirationSec: 300,
+    apiKey: 'testkey',
+    apiSecret: 'testsecret',
+    url: 'ws://localhost:7880',
+    tokenTtlSec: 600,
   },
   rateLimit: { enabled: true },
 };
@@ -76,6 +78,11 @@ mock.module('./conversation/redis-events', () => ({
 
 mock.module('./notification.service', () => ({
   createNotification: mockCreateNotification,
+}));
+
+mock.module('./livekit-auth.service', () => ({
+  mintLiveKitToken: mockMintLiveKitToken,
+  generateRoomName: mockGenerateRoomName,
 }));
 
 mock.module('../utils/adieuuLogger', () => ({
@@ -127,11 +134,13 @@ describe('call.service', () => {
   });
 
   beforeEach(() => {
-    mockConfig.jitsi.enabled = false;
+    mockConfig.livekit.enabled = false;
     mockCheckRateLimit.mockClear();
     mockGetCallInitiateConfig.mockClear();
     mockCreateNotification.mockClear();
     mockPublishToParticipants.mockClear();
+    mockMintLiveKitToken.mockClear();
+    mockMintLiveKitToken.mockImplementation(() => Promise.resolve('mock.livekit.token'));
     mockCallRepo.findById.mockClear();
     mockCallRepo.createCall.mockClear();
     mockCallRepo.addParticipant.mockClear();
@@ -194,9 +203,9 @@ describe('call.service', () => {
     expect(mockCallRepo.updateStatus).not.toHaveBeenCalled();
   });
 
-  test('initiateCall returns JITSI_UNAVAILABLE when mint fails and jitsi enabled', async () => {
-    mockConfig.jitsi.enabled = true;
-    mockConfig.jitsi.baseUrl = 'not-a-valid-url';
+  test('initiateCall returns LIVEKIT_UNAVAILABLE when mint fails and livekit enabled', async () => {
+    mockConfig.livekit.enabled = true;
+    mockMintLiveKitToken.mockImplementation(() => Promise.reject(new Error('Token minting failed')));
     mockConversationRepo.findById.mockImplementation(() =>
       Promise.resolve(makeConversation()),
     );
@@ -206,9 +215,8 @@ describe('call.service', () => {
       screenshare: false,
     });
     expect(r.success).toBe(false);
-    expect(r.errorCode).toBe('JITSI_UNAVAILABLE');
+    expect(r.errorCode).toBe('LIVEKIT_UNAVAILABLE');
     expect(mockCallRepo.createCall).not.toHaveBeenCalled();
-    mockConfig.jitsi.baseUrl = 'https://jitsi.test.example';
   });
 
   test('endCall succeeds for active participant', async () => {
@@ -225,8 +233,8 @@ describe('call.service', () => {
     expect(mockCallRepo.updateStatus).toHaveBeenCalled();
   });
 
-  test('initiateCall succeeds and returns jitsiToken when enabled', async () => {
-    mockConfig.jitsi.enabled = true;
+  test('initiateCall succeeds and returns livekitToken when enabled', async () => {
+    mockConfig.livekit.enabled = true;
     mockConversationRepo.findById.mockImplementation(() =>
       Promise.resolve(makeConversation()),
     );
@@ -240,11 +248,11 @@ describe('call.service', () => {
       screenshare: false,
     });
     expect(r.success).toBe(true);
-    expect(r.jitsiToken?.split('.')).toHaveLength(3);
+    expect(r.livekitToken).toBeDefined();
     expect(mockCreateNotification).toHaveBeenCalled();
   });
 
-  test('initiateCall succeeds without jitsiToken when Jitsi disabled', async () => {
+  test('initiateCall succeeds without livekitToken when LiveKit disabled', async () => {
     mockConversationRepo.findById.mockImplementation(() =>
       Promise.resolve(makeConversation()),
     );
@@ -258,7 +266,7 @@ describe('call.service', () => {
       screenshare: false,
     });
     expect(r.success).toBe(true);
-    expect(r.jitsiToken).toBeUndefined();
+    expect(r.livekitToken).toBeUndefined();
   });
 
   test('initiateCall returns NOT_PARTICIPANT for non-member', async () => {
@@ -363,8 +371,8 @@ describe('call.service', () => {
     expect(mockCallRepo.addParticipant).not.toHaveBeenCalled();
   });
 
-  test('joinCall succeeds and returns jitsiToken when enabled', async () => {
-    mockConfig.jitsi.enabled = true;
+  test('joinCall succeeds and returns livekitToken when enabled', async () => {
+    mockConfig.livekit.enabled = true;
     mockCallRepo.findById.mockImplementation(() =>
       Promise.resolve(
         makeCall({
@@ -405,7 +413,7 @@ describe('call.service', () => {
       screenshare: false,
     });
     expect(r.success).toBe(true);
-    expect(r.jitsiToken?.split('.')).toHaveLength(3);
+    expect(r.livekitToken).toBeDefined();
     expect(mockCallRepo.addParticipant).toHaveBeenCalled();
   });
 

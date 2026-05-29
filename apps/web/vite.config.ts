@@ -49,10 +49,6 @@ export default defineConfig({
       '@adieuu/ui/icons/registry': path.resolve(__dirname, '../../packages/ui/src/icons/registry.ts'),
       '@adieuu/ui/i18n': path.resolve(__dirname, '../../packages/ui/src/i18n/index.ts'),
       '@adieuu/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
-      // lib-jitsi-meet lives in packages/ui/node_modules (pnpm isolation).
-      // Point directly at the self-contained UMD bundle so esbuild doesn't
-      // need to resolve the @jitsi/* transitive dependency tree.
-      'lib-jitsi-meet': path.resolve(__dirname, '../../packages/ui/node_modules/lib-jitsi-meet/dist/umd/lib-jitsi-meet.min.js'),
     },
   },
   server: {
@@ -79,14 +75,5 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-    rollupOptions: {
-      external: [
-        'lib-jitsi-meet',
-        /^@jitsi\//,
-      ],
-    },
-  },
-  optimizeDeps: {
-    include: ['lib-jitsi-meet'],
   },
 });

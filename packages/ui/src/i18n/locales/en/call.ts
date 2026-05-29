@@ -3,7 +3,7 @@
  */
 export const call = {
   rateLimited: "You're starting calls too quickly. Try again in {{seconds}}s.",
-  jitsiUnavailable: 'Call service is temporarily unavailable. Please try again.',
+  callServiceUnavailable: 'Call service is temporarily unavailable. Please try again.',
 
   // Toolbar button
   startCall: 'Start call',

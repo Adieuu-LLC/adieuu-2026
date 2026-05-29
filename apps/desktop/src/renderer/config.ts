@@ -22,10 +22,10 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'https://api.adieuu.
 export const CHAT_WS_URL = import.meta.env.VITE_CHAT_WS_URL ?? 'wss://api.adieuu.com/ws/chat';
 
 /**
- * Jitsi base URL for call service.
- * Optional; omit if Jitsi is not configured.
+ * LiveKit server URL for call service.
+ * Optional; omit if LiveKit is not configured.
  */
-export const JITSI_BASE_URL = import.meta.env.VITE_JITSI_BASE_URL || undefined;
+export const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || undefined;
 
 /**
  * Full configuration object for type-safe access.
@@ -33,7 +33,7 @@ export const JITSI_BASE_URL = import.meta.env.VITE_JITSI_BASE_URL || undefined;
 export const config = {
   apiBaseUrl: API_BASE_URL,
   chatWsUrl: CHAT_WS_URL,
-  jitsiBaseUrl: JITSI_BASE_URL,
+  livekitUrl: LIVEKIT_URL,
   isDev: import.meta.env.DEV,
   isProd: import.meta.env.PROD,
 } as const;

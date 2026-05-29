@@ -14,14 +14,11 @@ import { createApiClient } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
 import { useChatSocket } from './useChatSocket';
-import { useCallMedia } from './useCallMedia';
-import type { JitsiService, JitsiServiceConfig } from '../services/jitsiService';
 import {
   initiateCall as apiInitiateCall,
   joinCall as apiJoinCall,
   leaveCall as apiLeaveCall,
   endCall as apiEndCall,
-  updateMediaState as apiUpdateMediaState,
   type CallMediaOptions,
   type PublicCall,
 } from '../services/callService';
@@ -34,25 +31,11 @@ import { parseRetryAfterSeconds } from './callStateUpdates';
 
 export type CallSessionPhase = 'idle' | 'device-setup' | 'connecting' | 'active';
 
-/**
- * Thin wrapper around a Jitsi remote track that hides lib-jitsi-meet types
- * from the rest of the UI layer.
- */
-export interface RemoteTrack {
-  id: string;
-  /** Jitsi-assigned participant ID (XMPP resource). */
-  jitsiParticipantId: string;
-  trackType: 'audio' | 'video';
-  attach: (element: HTMLElement) => void;
-  detach: (element: HTMLElement) => void;
-}
-
 interface CallSession {
   conversationId: string;
   call: PublicCall;
-  jitsiToken?: string;
-  jitsiDomain?: string;
-  jitsiMucDomain?: string;
+  livekitToken?: string;
+  livekitUrl?: string;
 }
 
 export interface CallSessionContextValue {
@@ -63,33 +46,10 @@ export interface CallSessionContextValue {
   pendingIsJoin: boolean;
   pendingCallId: string | null;
 
-  remoteTracks: RemoteTrack[];
-  /**
-   * Maps Jitsi participant IDs to Adieuu identity IDs.
-   * Populated via `setLocalParticipantProperty` + PARTICIPANT_PROPERTY_CHANGED.
-   */
-  jitsiParticipantMap: ReadonlyMap<string, string>;
-
-  /**
-   * Unified audio state -- delegates to Jitsi when a conference is active,
-   * falls back to callMedia when Jitsi is not configured.
-   */
-  isAudioEnabled: boolean;
-  toggleAudio: () => void;
-
-  isVideoEnabled: boolean;
-  toggleVideo: () => void;
-
-  isScreensharing: boolean;
-  toggleScreenshare: () => void;
-
-  /** Switch microphone input device mid-call (Jitsi). */
-  switchAudioInput: (deviceId: string) => Promise<void>;
-  /** Switch camera input device mid-call (Jitsi). */
-  switchVideoInput: (deviceId: string) => Promise<void>;
-  /** Selected audio output device ID for setSinkId on remote audio elements. */
-  audioOutputDeviceId: string | null;
-  setAudioOutput: (deviceId: string) => void;
+  /** LiveKit server URL for the active session. */
+  livekitUrl: string | null;
+  /** LiveKit JWT token for the active session. */
+  livekitToken: string | null;
 
   requestStartCall: (conversationId: string, media: CallMediaOptions) => void;
   requestJoinCall: (conversationId: string, callId: string, media: CallMediaOptions) => void;
@@ -99,8 +59,6 @@ export interface CallSessionContextValue {
 
   leaveCall: () => Promise<void>;
   endCall: () => Promise<void>;
-
-  callMedia: ReturnType<typeof useCallMedia>;
 }
 
 // ---------------------------------------------------------------------------
@@ -118,35 +76,14 @@ export function useCallSession(): CallSessionContextValue {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: derive Jitsi config from base URL
-// ---------------------------------------------------------------------------
-
-function jitsiConfigFromBaseUrl(
-  baseUrl: string,
-  xmppDomain?: string,
-  mucDomain?: string,
-): JitsiServiceConfig {
-  const url = new URL(baseUrl);
-  const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-  return {
-    serverHost: url.hostname,
-    // url.host preserves the port (e.g. "localhost:8443") unlike url.hostname
-    serviceUrl: `${wsProtocol}//${url.host}/xmpp-websocket`,
-    xmppDomain,
-    mucDomain,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Provider
 // ---------------------------------------------------------------------------
 
 export function CallSessionProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const { identity } = useIdentity();
-  const { apiBaseUrl, jitsiBaseUrl } = useAppConfig();
+  const { apiBaseUrl } = useAppConfig();
   const { subscribe } = useChatSocket();
-  const callMedia = useCallMedia();
 
   const client = useMemo(
     () => createApiClient({ baseUrl: apiBaseUrl }).client,
@@ -159,117 +96,9 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
   const [pendingConversationId, setPendingConversationId] = useState<string | null>(null);
   const [pendingIsJoin, setPendingIsJoin] = useState(false);
   const [pendingCallId, setPendingCallId] = useState<string | null>(null);
-  const [remoteTracks, setRemoteTracks] = useState<RemoteTrack[]>([]);
-  const [jitsiParticipantMap, setJitsiParticipantMap] = useState<Map<string, string>>(new Map());
-  // null = Jitsi not managing audio (use callMedia), boolean = Jitsi owns audio
-  const [jitsiAudioEnabled, setJitsiAudioEnabled] = useState<boolean | null>(null);
-  const [jitsiVideoEnabled, setJitsiVideoEnabled] = useState<boolean | null>(null);
-  const [jitsiScreensharing, setJitsiScreensharing] = useState(false);
-  const [audioOutputDeviceId, setAudioOutputDeviceId] = useState<string | null>(null);
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
-  const jitsiRef = useRef<JitsiService | null>(null);
-  const jitsiUnsubRef = useRef<(() => void) | null>(null);
-
-  // ---- Helper: sync media state to API ----
-
-  const syncMediaState = useCallback(
-    (audio: boolean, video: boolean, screenshare: boolean) => {
-      const s = sessionRef.current;
-      if (!s) return;
-      void apiUpdateMediaState(client, s.conversationId, s.call.id, { audio, video, screenshare });
-    },
-    [client],
-  );
-
-  // ---- Unified audio toggle (Jitsi-first, callMedia fallback) ----
-
-  const isAudioEnabled = jitsiAudioEnabled !== null ? jitsiAudioEnabled : callMedia.isAudioEnabled;
-
-  const toggleAudio = useCallback(() => {
-    if (jitsiRef.current && jitsiAudioEnabled !== null) {
-      const newEnabled = !jitsiAudioEnabled;
-      void jitsiRef.current.setTrackMuted('audio', !newEnabled);
-      setJitsiAudioEnabled(newEnabled);
-      syncMediaState(newEnabled, jitsiVideoEnabled === true, jitsiScreensharing);
-    } else {
-      callMedia.toggleAudio();
-    }
-  }, [jitsiAudioEnabled, jitsiVideoEnabled, jitsiScreensharing, callMedia, syncMediaState]);
-
-  // ---- Unified video toggle ----
-
-  const isVideoEnabled = jitsiVideoEnabled !== null ? jitsiVideoEnabled : callMedia.isVideoEnabled;
-
-  const toggleVideo = useCallback(() => {
-    const jitsi = jitsiRef.current;
-    if (jitsi) {
-      if (jitsiVideoEnabled) {
-        void jitsi.setTrackMuted('video', true);
-        setJitsiVideoEnabled(false);
-        syncMediaState(jitsiAudioEnabled === true, false, jitsiScreensharing);
-      } else {
-        if (jitsiVideoEnabled === null) {
-          void jitsi.createLocalTracks({ audio: false, video: true }).then(() => {
-            setJitsiVideoEnabled(true);
-            syncMediaState(jitsiAudioEnabled === true, true, jitsiScreensharing);
-          });
-        } else {
-          void jitsi.setTrackMuted('video', false);
-          setJitsiVideoEnabled(true);
-          syncMediaState(jitsiAudioEnabled === true, true, jitsiScreensharing);
-        }
-      }
-    } else {
-      callMedia.toggleVideo();
-    }
-  }, [jitsiVideoEnabled, jitsiAudioEnabled, jitsiScreensharing, callMedia, syncMediaState]);
-
-  // ---- Unified screenshare toggle ----
-
-  const isScreensharing = jitsiRef.current ? jitsiScreensharing : callMedia.isScreensharing;
-
-  const toggleScreenshare = useCallback(() => {
-    const jitsi = jitsiRef.current;
-    if (jitsi) {
-      if (jitsiScreensharing) {
-        void jitsi.stopScreenshare().then(() => {
-          setJitsiScreensharing(false);
-          syncMediaState(jitsiAudioEnabled === true, jitsiVideoEnabled === true, false);
-        });
-      } else {
-        void jitsi.startScreenshare().then((track) => {
-          if (track) {
-            setJitsiScreensharing(true);
-            syncMediaState(jitsiAudioEnabled === true, jitsiVideoEnabled === true, true);
-          }
-        });
-      }
-    } else {
-      callMedia.toggleScreenshare();
-    }
-  }, [jitsiScreensharing, jitsiAudioEnabled, jitsiVideoEnabled, callMedia, syncMediaState]);
-
-  // ---- Device switching ----
-
-  const switchAudioInput = useCallback(async (deviceId: string) => {
-    const jitsi = jitsiRef.current;
-    if (jitsi) {
-      await jitsi.replaceAudioTrack(deviceId);
-    }
-  }, []);
-
-  const switchVideoInput = useCallback(async (deviceId: string) => {
-    const jitsi = jitsiRef.current;
-    if (jitsi) {
-      await jitsi.replaceVideoTrack(deviceId);
-    }
-  }, []);
-
-  const setAudioOutput = useCallback((deviceId: string) => {
-    setAudioOutputDeviceId(deviceId);
-  }, []);
 
   // ---- Single-call guard ----
 
@@ -310,7 +139,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
   // ---- Confirm device setup -> initiate or join ----
 
   const confirmDeviceSetup = useCallback(
-    async (devices: { audioDeviceId?: string }) => {
+    async (_devices: { audioDeviceId?: string }) => {
       if (!pendingCallType || !pendingConversationId || !identity) {
         cancelDeviceSetup();
         return;
@@ -320,9 +149,8 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
 
       try {
         let call: PublicCall;
-        let jitsiToken: string | undefined;
-        let jitsiDomain: string | undefined;
-        let jitsiMucDomain: string | undefined;
+        let livekitToken: string | undefined;
+        let livekitUrl: string | undefined;
 
         if (pendingIsJoin && pendingCallId) {
           const resp = await apiJoinCall(client, pendingConversationId, pendingCallId, pendingCallType);
@@ -330,9 +158,8 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
             throw new Error(resp.error?.message ?? t('call.callJoinFailed'));
           }
           call = resp.data.call;
-          jitsiToken = resp.data.jitsiToken;
-          jitsiDomain = resp.data.jitsiDomain;
-          jitsiMucDomain = resp.data.jitsiMucDomain;
+          livekitToken = resp.data.livekitToken;
+          livekitUrl = resp.data.livekitUrl;
         } else {
           const resp = await apiInitiateCall(client, pendingConversationId, pendingCallType);
           if (!resp.success || !resp.data) {
@@ -341,132 +168,34 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
               const retryAfterSeconds = parseRetryAfterSeconds(resp.error?.details) ?? 30;
               throw new Error(t('call.rateLimited', { seconds: retryAfterSeconds }));
             }
-            if (errorCode === 'JITSI_UNAVAILABLE') {
-              throw new Error(t('call.jitsiUnavailable'));
+            if (errorCode === 'LIVEKIT_UNAVAILABLE') {
+              throw new Error(t('call.callServiceUnavailable'));
             }
             throw new Error(resp.error?.message ?? t('call.callStartFailed'));
           }
           call = resp.data.call;
-          jitsiToken = resp.data.jitsiToken;
-          jitsiDomain = resp.data.jitsiDomain;
-          jitsiMucDomain = resp.data.jitsiMucDomain;
+          livekitToken = resp.data.livekitToken;
+          livekitUrl = resp.data.livekitUrl;
+        }
+
+        if (!livekitToken || !livekitUrl) {
+          console.warn(
+            '[CallSession] LiveKit is not configured — media will NOT be relayed to other participants.',
+            !livekitUrl ? 'Server did not return livekitUrl (set LIVEKIT_URL).' : '',
+            !livekitToken ? 'Server did not return livekitToken (set LIVEKIT_ENABLED=true in the API .env).' : '',
+          );
         }
 
         const newSession: CallSession = {
           conversationId: pendingConversationId,
           call,
-          jitsiToken,
-          jitsiDomain,
-          jitsiMucDomain,
+          livekitToken,
+          livekitUrl,
         };
         setSession(newSession);
-
-        const jitsiConfigured = !!(jitsiBaseUrl && jitsiToken);
-
-        // When Jitsi is not configured, use callMedia as the fallback
-        // for local media capture (audio only, since calls start audio-only).
-        if (!jitsiConfigured && pendingCallType.audio) {
-          await callMedia.startMedia({
-            audio: true,
-            video: false,
-            audioDeviceId: devices.audioDeviceId,
-          });
-        }
-
-        if (!jitsiConfigured) {
-          console.warn(
-            '[CallSession] Jitsi is not configured — audio/video will NOT be relayed to other participants.',
-            !jitsiBaseUrl ? 'Missing jitsiBaseUrl (set VITE_JITSI_BASE_URL).' : '',
-            !jitsiToken ? 'Server did not return a jitsiToken (set JITSI_ENABLED=true in the API .env).' : '',
-          );
-        }
-        if (jitsiConfigured) {
-          const jitsiConfig = jitsiConfigFromBaseUrl(jitsiBaseUrl, jitsiDomain, jitsiMucDomain);
-          const { JitsiService: JitsiServiceImpl } = await import(
-            /* @vite-ignore */ '../services/jitsiService'
-          );
-          const jitsi = new JitsiServiceImpl(jitsiConfig);
-          jitsiRef.current = jitsi;
-
-          // Subscribe before connecting so we don't miss early events.
-          jitsiUnsubRef.current = jitsi.on((event) => {
-            switch (event.type) {
-              // ---------- Track lifecycle ----------
-              case 'remote_track_added': {
-                console.info(
-                  '[CallSession] Remote track added:',
-                  event.track.getType(),
-                  'from participant',
-                  event.participantId,
-                );
-                const rt: RemoteTrack = {
-                  id: event.track.getId(),
-                  jitsiParticipantId: event.participantId,
-                  trackType: event.track.getType(),
-                  attach: (el: HTMLElement) => event.track.attach(el),
-                  detach: (el: HTMLElement) => event.track.detach(el),
-                };
-                setRemoteTracks((prev) => [...prev, rt]);
-                break;
-              }
-              case 'remote_track_removed': {
-                const removedId = event.track.getId();
-                setRemoteTracks((prev) => prev.filter((t) => t.id !== removedId));
-                break;
-              }
-
-              // ---------- Participant identity mapping ----------
-              case 'participant_joined': {
-                if (event.identityId) {
-                  setJitsiParticipantMap((prev) => {
-                    const next = new Map(prev);
-                    next.set(event.participantId, event.identityId!);
-                    return next;
-                  });
-                }
-                break;
-              }
-              case 'participant_left': {
-                setJitsiParticipantMap((prev) => {
-                  if (!prev.has(event.participantId)) return prev;
-                  const next = new Map(prev);
-                  next.delete(event.participantId);
-                  return next;
-                });
-                setRemoteTracks((prev) =>
-                  prev.filter((t) => t.jitsiParticipantId !== event.participantId),
-                );
-                break;
-              }
-              case 'participant_property_changed': {
-                if (event.propertyName === 'identityId' && typeof event.value === 'string') {
-                  setJitsiParticipantMap((prev) => {
-                    const next = new Map(prev);
-                    next.set(event.participantId, event.value as string);
-                    return next;
-                  });
-                }
-                break;
-              }
-            }
-          });
-
-          await jitsi.connect(call.jitsiRoomName, jitsiToken!);
-
-          // Advertise our identity to all current and future participants.
-          jitsi.setLocalProperty('identityId', identity.id);
-
-          if (pendingCallType.audio) {
-            await jitsi.createLocalTracks({ audio: true, video: false });
-            setJitsiAudioEnabled(true);
-          }
-        }
-
         setPhase('active');
       } catch (err) {
         console.error('[CallSession] Failed to start/join call:', err);
-        cleanupJitsi();
-        callMedia.stopAllMedia();
         setSession(null);
         setPhase('idle');
         throw err;
@@ -484,8 +213,6 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       pendingCallId,
       identity,
       client,
-      jitsiBaseUrl,
-      callMedia,
       t,
       cancelDeviceSetup,
     ],
@@ -493,20 +220,9 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
 
   // ---- Leave / End ----
 
-  const cleanupJitsi = useCallback(() => {
-    if (jitsiUnsubRef.current) {
-      jitsiUnsubRef.current();
-      jitsiUnsubRef.current = null;
-    }
-    if (jitsiRef.current) {
-      void jitsiRef.current.dispose();
-      jitsiRef.current = null;
-    }
-    setRemoteTracks([]);
-    setJitsiParticipantMap(new Map());
-    setJitsiAudioEnabled(null);
-    setJitsiVideoEnabled(null);
-    setJitsiScreensharing(false);
+  const cleanup = useCallback(() => {
+    setSession(null);
+    setPhase('idle');
   }, []);
 
   const leaveCallAction = useCallback(async () => {
@@ -519,11 +235,8 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       // Best-effort server notification
     }
 
-    cleanupJitsi();
-    callMedia.stopAllMedia();
-    setSession(null);
-    setPhase('idle');
-  }, [client, cleanupJitsi, callMedia]);
+    cleanup();
+  }, [client, cleanup]);
 
   const endCallAction = useCallback(async () => {
     const currentSession = sessionRef.current;
@@ -535,11 +248,8 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       // Best-effort server notification
     }
 
-    cleanupJitsi();
-    callMedia.stopAllMedia();
-    setSession(null);
-    setPhase('idle');
-  }, [client, cleanupJitsi, callMedia]);
+    cleanup();
+  }, [client, cleanup]);
 
   // ---- Listen for WS events to update session call state ----
 
@@ -552,10 +262,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
         case 'call_ended': {
           const { callId } = message.data;
           if (callId === currentSession.call.id) {
-            cleanupJitsi();
-            callMedia.stopAllMedia();
-            setSession(null);
-            setPhase('idle');
+            cleanup();
           }
           break;
         }
@@ -575,7 +282,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     });
 
     return unsubscribe;
-  }, [subscribe, cleanupJitsi, callMedia]);
+  }, [subscribe, cleanup]);
 
   // ---- Cleanup on unmount (app close) ----
 
@@ -586,10 +293,6 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
         void apiLeaveCall(client, currentSession.conversationId, currentSession.call.id).catch(
           () => {},
         );
-      }
-      if (jitsiRef.current) {
-        void jitsiRef.current.dispose();
-        jitsiRef.current = null;
       }
     };
   }, [client]);
@@ -604,25 +307,14 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       pendingConversationId,
       pendingIsJoin,
       pendingCallId,
-      remoteTracks,
-      jitsiParticipantMap,
-      isAudioEnabled,
-      toggleAudio,
-      isVideoEnabled,
-      toggleVideo,
-      isScreensharing,
-      toggleScreenshare,
-      switchAudioInput,
-      switchVideoInput,
-      audioOutputDeviceId,
-      setAudioOutput,
+      livekitUrl: session?.livekitUrl ?? null,
+      livekitToken: session?.livekitToken ?? null,
       requestStartCall,
       requestJoinCall,
       confirmDeviceSetup,
       cancelDeviceSetup,
       leaveCall: leaveCallAction,
       endCall: endCallAction,
-      callMedia,
     }),
     [
       session,
@@ -631,25 +323,12 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       pendingConversationId,
       pendingIsJoin,
       pendingCallId,
-      remoteTracks,
-      jitsiParticipantMap,
-      isAudioEnabled,
-      toggleAudio,
-      isVideoEnabled,
-      toggleVideo,
-      isScreensharing,
-      toggleScreenshare,
-      switchAudioInput,
-      switchVideoInput,
-      audioOutputDeviceId,
-      setAudioOutput,
       requestStartCall,
       requestJoinCall,
       confirmDeviceSetup,
       cancelDeviceSetup,
       leaveCallAction,
       endCallAction,
-      callMedia,
     ],
   );
 

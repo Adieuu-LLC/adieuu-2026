@@ -2,7 +2,7 @@
  * Call Service
  *
  * Orchestrates the lifecycle of live audio/video/screenshare calls within
- * conversations. Works with the CallRepository (MongoDB), JitsiAuthService
+ * conversations. Works with the CallRepository (MongoDB), LiveKit auth
  * (JWT minting), and the Redis pub/sub system (real-time events).
  *
  * Constraints:
@@ -18,7 +18,7 @@ import { config } from '../config';
 import { getCallRepository } from '../repositories/call.repository';
 import { getConversationRepository } from '../repositories/conversation.repository';
 import { getIdentityRepository } from '../repositories/identity.repository';
-import { mintJitsiToken, generateJitsiRoomName } from './jitsi-auth.service';
+import { mintLiveKitToken, generateRoomName } from './livekit-auth.service';
 import { publishToParticipants, publishConversationEvent } from './conversation/redis-events';
 import { createNotification } from './notification.service';
 import { checkRateLimit, getCallInitiateConfig } from './rate-limit.service';
@@ -33,11 +33,9 @@ import elog from '../utils/adieuuLogger';
 export interface CallResult {
   success: boolean;
   call?: PublicCall;
-  jitsiToken?: string;
-  /** XMPP virtual-host domain the client must use for Jitsi (e.g. "meet.jitsi"). */
-  jitsiDomain?: string;
-  /** XMPP MUC component domain for conference rooms (e.g. "muc.meet.jitsi"). */
-  jitsiMucDomain?: string;
+  livekitToken?: string;
+  /** LiveKit server WebSocket URL the client should connect to. */
+  livekitUrl?: string;
   error?: string;
   errorCode?: string;
   /** Seconds until rate limit resets (when errorCode is RATE_LIMITED) */
@@ -97,22 +95,22 @@ export async function initiateCall(
   const identity = await identityRepo.findById(initiatorObjId);
   const displayName = identity?.ident ?? 'Unknown';
 
-  const jitsiRoomName = generateJitsiRoomName();
+  const roomName = generateRoomName();
 
-  let jitsiToken: string | undefined;
-  if (config.jitsi.enabled) {
+  let livekitToken: string | undefined;
+  if (config.livekit.enabled) {
     try {
-      jitsiToken = mintJitsiToken({
-        roomName: jitsiRoomName,
+      livekitToken = await mintLiveKitToken({
+        roomName,
         identityId: initiatorIdentityId,
         displayName,
       });
     } catch (err) {
-      elog.warn('Failed to mint Jitsi token on initiate', { conversationId, err });
+      elog.warn('Failed to mint LiveKit token on initiate', { conversationId, err });
       return {
         success: false,
         error: 'Call service is temporarily unavailable.',
-        errorCode: 'JITSI_UNAVAILABLE',
+        errorCode: 'LIVEKIT_UNAVAILABLE',
       };
     }
   }
@@ -123,7 +121,7 @@ export async function initiateCall(
       conversationId: convObjId,
       initiatorIdentityId: initiatorObjId,
       allowedMedia,
-      jitsiRoomName,
+      jitsiRoomName: roomName,
     });
   } catch (err: unknown) {
     if (isDuplicateKeyError(err)) {
@@ -171,9 +169,8 @@ export async function initiateCall(
   return {
     success: true,
     call: publicCall,
-    jitsiToken,
-    jitsiDomain: config.jitsi.enabled ? config.jitsi.xmppDomain : undefined,
-    jitsiMucDomain: config.jitsi.enabled ? config.jitsi.mucDomain : undefined,
+    livekitToken,
+    livekitUrl: config.livekit.enabled ? config.livekit.url : undefined,
   };
 }
 
@@ -182,7 +179,7 @@ export async function initiateCall(
 // ---------------------------------------------------------------------------
 
 /**
- * Join an existing call. Mints a Jitsi JWT for the joining participant.
+ * Join an existing call. Mints a LiveKit JWT for the joining participant.
  */
 export async function joinCall(
   conversationId: string,
@@ -224,20 +221,20 @@ export async function joinCall(
   const identity = await identityRepo.findById(identityObjId);
   const displayName = identity?.ident ?? 'Unknown';
 
-  let jitsiToken: string | undefined;
-  if (config.jitsi.enabled) {
+  let livekitToken: string | undefined;
+  if (config.livekit.enabled) {
     try {
-      jitsiToken = mintJitsiToken({
+      livekitToken = await mintLiveKitToken({
         roomName: call.jitsiRoomName,
         identityId,
         displayName,
       });
     } catch (err) {
-      elog.warn('Failed to mint Jitsi token on join', { callId, err });
+      elog.warn('Failed to mint LiveKit token on join', { callId, err });
       return {
         success: false,
         error: 'Call service is temporarily unavailable.',
-        errorCode: 'JITSI_UNAVAILABLE',
+        errorCode: 'LIVEKIT_UNAVAILABLE',
       };
     }
   }
@@ -262,9 +259,8 @@ export async function joinCall(
   return {
     success: true,
     call: publicCall,
-    jitsiToken,
-    jitsiDomain: config.jitsi.enabled ? config.jitsi.xmppDomain : undefined,
-    jitsiMucDomain: config.jitsi.enabled ? config.jitsi.mucDomain : undefined,
+    livekitToken,
+    livekitUrl: config.livekit.enabled ? config.livekit.url : undefined,
   };
 }
 

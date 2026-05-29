@@ -62,7 +62,7 @@ export async function initiateCall(
   client: HttpClient,
   conversationId: string,
   media: CallMediaOptions
-): Promise<ApiResponse<{ call: PublicCall; jitsiToken?: string; jitsiDomain?: string; jitsiMucDomain?: string }>> {
+): Promise<ApiResponse<{ call: PublicCall; livekitToken?: string; livekitUrl?: string }>> {
   return client.post(`/api/conversations/${enc(conversationId)}/calls`, { media });
 }
 
@@ -71,7 +71,7 @@ export async function joinCall(
   conversationId: string,
   callId: string,
   media: CallMediaOptions
-): Promise<ApiResponse<{ call: PublicCall; jitsiToken?: string; jitsiDomain?: string; jitsiMucDomain?: string }>> {
+): Promise<ApiResponse<{ call: PublicCall; livekitToken?: string; livekitUrl?: string }>> {
   return client.post(
     `/api/conversations/${enc(conversationId)}/calls/${enc(callId)}/join`,
     { media }

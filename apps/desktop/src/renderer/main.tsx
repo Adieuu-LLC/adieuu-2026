@@ -5,7 +5,7 @@ import { initI18n } from '@adieuu/ui/i18n';
 import { App, PlatformProvider, AuthProvider, IdentityProvider, ThemeProvider, IconPackProvider, ToastProvider, type AppConfig, setDeviceKeyStorageBackend, setPreKeyStorageBackend, migrateIndexedDbToBackend } from '@adieuu/ui';
 import '@adieuu/ui/icons/registry';
 import { desktopCapabilities } from './platform';
-import { API_BASE_URL, CHAT_WS_URL, JITSI_BASE_URL } from './config';
+import { API_BASE_URL, CHAT_WS_URL, LIVEKIT_URL } from './config';
 import { WindowTitleBar } from './components/WindowTitleBar';
 import { DeepLinkHandler } from './components/DeepLinkHandler';
 import '@adieuu/ui/styles.scss';
@@ -36,7 +36,7 @@ const config: AppConfig = {
   chatWsUrl: CHAT_WS_URL,
   externalLinkBase: 'https://adieuu.com', // External links open in browser
   platform: 'desktop',
-  jitsiBaseUrl: JITSI_BASE_URL,
+  livekitUrl: LIVEKIT_URL,
 };
 
 /**

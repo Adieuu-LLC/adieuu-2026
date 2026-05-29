@@ -53,7 +53,7 @@ export interface UseCallReturn {
 export interface StartCallResult {
   success: boolean;
   call?: PublicCall;
-  jitsiToken?: string;
+  livekitToken?: string;
   error?: string;
   errorCode?: string;
   retryAfterSeconds?: number;
@@ -62,7 +62,7 @@ export interface StartCallResult {
 export interface JoinCallResult {
   success: boolean;
   call?: PublicCall;
-  jitsiToken?: string;
+  livekitToken?: string;
   error?: string;
   errorCode?: string;
 }
@@ -135,7 +135,7 @@ export function useCall(conversationId: string | null): UseCallReturn {
           return {
             success: true,
             call: resp.data.call,
-            jitsiToken: resp.data.jitsiToken,
+            livekitToken: resp.data.livekitToken,
           };
         }
         const errorCode = resp.error?.code;
@@ -148,10 +148,10 @@ export function useCall(conversationId: string | null): UseCallReturn {
             retryAfterSeconds,
           };
         }
-        if (errorCode === 'JITSI_UNAVAILABLE') {
+        if (errorCode === 'LIVEKIT_UNAVAILABLE') {
           return {
             success: false,
-            error: t('call.jitsiUnavailable'),
+            error: t('call.callServiceUnavailable'),
             errorCode,
           };
         }
@@ -180,14 +180,14 @@ export function useCall(conversationId: string | null): UseCallReturn {
           return {
             success: true,
             call: resp.data.call,
-            jitsiToken: resp.data.jitsiToken,
+            livekitToken: resp.data.livekitToken,
           };
         }
         const errorCode = resp.error?.code;
-        if (errorCode === 'JITSI_UNAVAILABLE') {
+        if (errorCode === 'LIVEKIT_UNAVAILABLE') {
           return {
             success: false,
-            error: t('call.jitsiUnavailable'),
+            error: t('call.callServiceUnavailable'),
             errorCode,
           };
         }

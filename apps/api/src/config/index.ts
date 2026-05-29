@@ -404,42 +404,18 @@ export const config = {
     cacheTtlTrending: optionalEnvInt('KLIPY_CACHE_TTL_TRENDING', 120),
   },
 
-  /** Jitsi Meet self-hosted video conferencing configuration */
-  jitsi: {
-    /** Whether Jitsi integration is enabled */
-    enabled: optionalEnvBool('JITSI_ENABLED', false),
-    /** Base URL of the Jitsi Meet deployment (e.g. https://jitsi.adieuu.com) */
-    baseUrl: optionalEnv('JITSI_BASE_URL', 'https://meet.jitsi'),
-    /**
-     * XMPP virtual-host domain that Prosody serves (e.g. "meet.jitsi").
-     * Defaults to the hostname of JITSI_BASE_URL, but must be overridden
-     * when the connection URL differs from the XMPP domain (e.g. connecting
-     * via localhost while Prosody serves meet.jitsi).
-     */
-    xmppDomain: optionalEnv(
-      'JITSI_XMPP_DOMAIN',
-      new URL(optionalEnv('JITSI_BASE_URL', 'https://meet.jitsi')).hostname,
-    ),
-    /**
-     * XMPP MUC (multi-user chat) component domain used for conference rooms.
-     * Must match XMPP_MUC_DOMAIN in the Jitsi/Prosody config.
-     * Defaults to "muc.${xmppDomain}" (Jitsi Docker convention).
-     */
-    mucDomain: optionalEnv(
-      'JITSI_MUC_DOMAIN',
-      `muc.${optionalEnv(
-        'JITSI_XMPP_DOMAIN',
-        new URL(optionalEnv('JITSI_BASE_URL', 'https://meet.jitsi')).hostname,
-      )}`,
-    ),
-    /** JWT application ID (must match Prosody JWT app_id) */
-    jwtAppId: optionalEnv('JITSI_JWT_APP_ID', 'adieuu'),
-    /** JWT issuer (must match Prosody JWT issuer) */
-    jwtIssuer: optionalEnv('JITSI_JWT_ISSUER', 'adieuu'),
-    /** Shared secret for signing JWTs (must match Prosody JWT app_secret) */
-    jwtSecret: optionalEnv('JITSI_JWT_SECRET', 'dev-jitsi-jwt-secret'),
-    /** JWT expiration in seconds */
-    jwtExpirationSec: optionalEnvInt('JITSI_JWT_EXPIRATION_SEC', 300),
+  /** LiveKit self-hosted SFU configuration */
+  livekit: {
+    /** Whether LiveKit integration is enabled */
+    enabled: optionalEnvBool('LIVEKIT_ENABLED', false),
+    /** LiveKit API key (must match the key configured on the LiveKit server) */
+    apiKey: optionalEnv('LIVEKIT_API_KEY', ''),
+    /** LiveKit API secret (must match the secret configured on the LiveKit server) */
+    apiSecret: optionalEnv('LIVEKIT_API_SECRET', ''),
+    /** LiveKit server WebSocket URL (e.g. ws://localhost:7880 or wss://livekit.adieuu.com) */
+    url: optionalEnv('LIVEKIT_URL', ''),
+    /** Token TTL in seconds */
+    tokenTtlSec: optionalEnvInt('LIVEKIT_TOKEN_TTL_SEC', 600),
   },
 
   callReaper: {
@@ -595,13 +571,15 @@ export function validateProductionConfig(): void {
     errors.push('KLIPY_API_KEY must be set in production');
   }
 
-  if (config.jitsi.enabled) {
-    const jwtSecret = config.jitsi.jwtSecret.trim();
-    if (!jwtSecret || jwtSecret.includes('dev-')) {
-      errors.push('JITSI_JWT_SECRET must be set when JITSI_ENABLED is true');
+  if (config.livekit.enabled) {
+    if (!config.livekit.apiKey) {
+      errors.push('LIVEKIT_API_KEY must be set when LIVEKIT_ENABLED is true');
     }
-    if (!config.jitsi.baseUrl || config.jitsi.baseUrl === 'https://meet.jitsi') {
-      errors.push('JITSI_BASE_URL must be set to your Jitsi deployment URL when JITSI_ENABLED is true');
+    if (!config.livekit.apiSecret) {
+      errors.push('LIVEKIT_API_SECRET must be set when LIVEKIT_ENABLED is true');
+    }
+    if (!config.livekit.url) {
+      errors.push('LIVEKIT_URL must be set when LIVEKIT_ENABLED is true');
     }
   }
 

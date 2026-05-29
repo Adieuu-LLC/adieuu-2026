@@ -6,7 +6,14 @@ import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Avatar } from '../Avatar';
 import { Icon } from '../../icons/Icon';
-import type { RemoteTrack } from '../../hooks/useCallSession';
+
+/** Track handle for attaching remote video to a DOM element. */
+export interface RemoteTrack {
+  id: string;
+  trackType: 'audio' | 'video';
+  attach: (element: HTMLElement) => void;
+  detach: (element: HTMLElement) => void;
+}
 
 export interface CallParticipantInfo {
   identityId: string;
