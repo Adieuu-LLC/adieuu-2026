@@ -78,7 +78,7 @@ export function ConversationCallButton({
             : primaryAction.label
         }
       >
-        <Icon name="phone" size="sm" />
+        <Icon name={primaryAction.icon} size="sm" />
       </button>
       {hasMenu && (
         <Menu.Root positioning={{ placement: 'bottom-end', gutter: 4 }}>
