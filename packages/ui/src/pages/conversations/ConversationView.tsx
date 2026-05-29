@@ -910,9 +910,6 @@ export function ConversationView() {
   const canManagePinsUi = canManageConversationPinsView(conversation, identity?.id);
 
   const audioAllowed = !(conversation.audioCallsDisabled ?? false);
-  const videoAllowed = !(conversation.videoCallsDisabled ?? false);
-  const screenshareAllowed = !(conversation.screenshareDisabled ?? false);
-  const anyCallAllowed = audioAllowed || videoAllowed || screenshareAllowed;
 
   const isInCallElsewhere =
     callSession.activeSession !== null &&
@@ -937,15 +934,12 @@ export function ConversationView() {
             avatarMembers={toolbarAvatarMembers}
             subtitle={toolbarSubtitle!}
             callSlot={
-              anyCallAllowed && !isDmBlocked && !blockedByOther ? (
+              audioAllowed && !isDmBlocked && !blockedByOther ? (
                 <ConversationCallButton
-                  audioAllowed={audioAllowed}
-                  videoAllowed={videoAllowed}
-                  screenshareAllowed={screenshareAllowed}
                   disabled={isInCallElsewhere}
                   disabledReason={isInCallElsewhere ? t('call.alreadyInCall') : undefined}
                   inCallForThisConversation={isInCallHere}
-                  onStartCall={(media) => id && callSession.requestStartCall(id, media)}
+                  onStartCall={() => id && callSession.requestStartCall(id, { audio: true, video: false, screenshare: false })}
                   onFocusOverlay={undefined}
                 />
               ) : undefined
@@ -1056,15 +1050,12 @@ export function ConversationView() {
           {showIncomingBanner && conversationActiveCall && (
             <IncomingCallBanner
               callerName={incomingInitiatorName}
-              hasAudio={conversationActiveCall.allowedMedia.audio}
-              hasVideo={conversationActiveCall.allowedMedia.video}
-              hasScreenshare={conversationActiveCall.allowedMedia.screenshare}
               onAccept={() => {
                 if (id && conversationActiveCall) {
                   callSession.requestJoinCall(
                     id,
                     conversationActiveCall.id,
-                    conversationActiveCall.allowedMedia,
+                    { audio: true, video: false, screenshare: false },
                   );
                 }
               }}

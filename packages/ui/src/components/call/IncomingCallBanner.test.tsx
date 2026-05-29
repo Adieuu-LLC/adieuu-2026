@@ -11,49 +11,34 @@ mock.module('../../icons/Icon', () => ({
   Icon: ({ name }: { name: string }) => <span data-icon={name} />,
 }));
 
+mock.module('../Button', () => ({
+  Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+}));
+
 const { IncomingCallBanner } = await import('./IncomingCallBanner');
 
 describe('IncomingCallBanner', () => {
-  test('renders video call label', () => {
+  test('renders generic incoming call label with caller name', () => {
     const html = renderToStaticMarkup(
       <IncomingCallBanner
         callerName="Alice"
-        hasAudio
-        hasVideo
-        hasScreenshare={false}
         onAccept={() => {}}
         onDecline={() => {}}
-      />
+      />,
     );
     expect(html).toContain('Alice');
-    expect(html).toContain('Video call');
+    expect(html).toContain('call.incoming');
   });
 
-  test('renders audio call label when video disabled', () => {
+  test('renders accept and decline buttons', () => {
     const html = renderToStaticMarkup(
       <IncomingCallBanner
         callerName="Bob"
-        hasAudio
-        hasVideo={false}
-        hasScreenshare={false}
         onAccept={() => {}}
         onDecline={() => {}}
-      />
+      />,
     );
-    expect(html).toContain('Audio call');
-  });
-
-  test('renders screenshare label for screenshare-only calls', () => {
-    const html = renderToStaticMarkup(
-      <IncomingCallBanner
-        callerName="Carol"
-        hasAudio={false}
-        hasVideo={false}
-        hasScreenshare
-        onAccept={() => {}}
-        onDecline={() => {}}
-      />
-    );
-    expect(html).toContain('Screen share');
+    expect(html).toContain('incoming-call-accept');
+    expect(html).toContain('incoming-call-decline');
   });
 });

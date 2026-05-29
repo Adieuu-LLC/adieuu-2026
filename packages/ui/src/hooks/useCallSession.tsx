@@ -21,6 +21,7 @@ import {
   joinCall as apiJoinCall,
   leaveCall as apiLeaveCall,
   endCall as apiEndCall,
+  updateMediaState as apiUpdateMediaState,
   type CallMediaOptions,
   type PublicCall,
 } from '../services/callService';
@@ -74,13 +75,26 @@ export interface CallSessionContextValue {
    * falls back to callMedia when Jitsi is not configured.
    */
   isAudioEnabled: boolean;
-  /** Toggle audio mute/unmute (delegates to Jitsi or callMedia). */
   toggleAudio: () => void;
+
+  isVideoEnabled: boolean;
+  toggleVideo: () => void;
+
+  isScreensharing: boolean;
+  toggleScreenshare: () => void;
+
+  /** Switch microphone input device mid-call (Jitsi). */
+  switchAudioInput: (deviceId: string) => Promise<void>;
+  /** Switch camera input device mid-call (Jitsi). */
+  switchVideoInput: (deviceId: string) => Promise<void>;
+  /** Selected audio output device ID for setSinkId on remote audio elements. */
+  audioOutputDeviceId: string | null;
+  setAudioOutput: (deviceId: string) => void;
 
   requestStartCall: (conversationId: string, media: CallMediaOptions) => void;
   requestJoinCall: (conversationId: string, callId: string, media: CallMediaOptions) => void;
 
-  confirmDeviceSetup: (devices: { audioDeviceId?: string; videoDeviceId?: string }) => Promise<void>;
+  confirmDeviceSetup: (devices: { audioDeviceId?: string }) => Promise<void>;
   cancelDeviceSetup: () => void;
 
   leaveCall: () => Promise<void>;
@@ -149,11 +163,25 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
   const [jitsiParticipantMap, setJitsiParticipantMap] = useState<Map<string, string>>(new Map());
   // null = Jitsi not managing audio (use callMedia), boolean = Jitsi owns audio
   const [jitsiAudioEnabled, setJitsiAudioEnabled] = useState<boolean | null>(null);
+  const [jitsiVideoEnabled, setJitsiVideoEnabled] = useState<boolean | null>(null);
+  const [jitsiScreensharing, setJitsiScreensharing] = useState(false);
+  const [audioOutputDeviceId, setAudioOutputDeviceId] = useState<string | null>(null);
 
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const jitsiRef = useRef<JitsiService | null>(null);
   const jitsiUnsubRef = useRef<(() => void) | null>(null);
+
+  // ---- Helper: sync media state to API ----
+
+  const syncMediaState = useCallback(
+    (audio: boolean, video: boolean, screenshare: boolean) => {
+      const s = sessionRef.current;
+      if (!s) return;
+      void apiUpdateMediaState(client, s.conversationId, s.call.id, { audio, video, screenshare });
+    },
+    [client],
+  );
 
   // ---- Unified audio toggle (Jitsi-first, callMedia fallback) ----
 
@@ -164,10 +192,84 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       const newEnabled = !jitsiAudioEnabled;
       void jitsiRef.current.setTrackMuted('audio', !newEnabled);
       setJitsiAudioEnabled(newEnabled);
+      syncMediaState(newEnabled, jitsiVideoEnabled === true, jitsiScreensharing);
     } else {
       callMedia.toggleAudio();
     }
-  }, [jitsiAudioEnabled, callMedia]);
+  }, [jitsiAudioEnabled, jitsiVideoEnabled, jitsiScreensharing, callMedia, syncMediaState]);
+
+  // ---- Unified video toggle ----
+
+  const isVideoEnabled = jitsiVideoEnabled !== null ? jitsiVideoEnabled : callMedia.isVideoEnabled;
+
+  const toggleVideo = useCallback(() => {
+    const jitsi = jitsiRef.current;
+    if (jitsi) {
+      if (jitsiVideoEnabled) {
+        void jitsi.setTrackMuted('video', true);
+        setJitsiVideoEnabled(false);
+        syncMediaState(jitsiAudioEnabled === true, false, jitsiScreensharing);
+      } else {
+        if (jitsiVideoEnabled === null) {
+          void jitsi.createLocalTracks({ audio: false, video: true }).then(() => {
+            setJitsiVideoEnabled(true);
+            syncMediaState(jitsiAudioEnabled === true, true, jitsiScreensharing);
+          });
+        } else {
+          void jitsi.setTrackMuted('video', false);
+          setJitsiVideoEnabled(true);
+          syncMediaState(jitsiAudioEnabled === true, true, jitsiScreensharing);
+        }
+      }
+    } else {
+      callMedia.toggleVideo();
+    }
+  }, [jitsiVideoEnabled, jitsiAudioEnabled, jitsiScreensharing, callMedia, syncMediaState]);
+
+  // ---- Unified screenshare toggle ----
+
+  const isScreensharing = jitsiRef.current ? jitsiScreensharing : callMedia.isScreensharing;
+
+  const toggleScreenshare = useCallback(() => {
+    const jitsi = jitsiRef.current;
+    if (jitsi) {
+      if (jitsiScreensharing) {
+        void jitsi.stopScreenshare().then(() => {
+          setJitsiScreensharing(false);
+          syncMediaState(jitsiAudioEnabled === true, jitsiVideoEnabled === true, false);
+        });
+      } else {
+        void jitsi.startScreenshare().then((track) => {
+          if (track) {
+            setJitsiScreensharing(true);
+            syncMediaState(jitsiAudioEnabled === true, jitsiVideoEnabled === true, true);
+          }
+        });
+      }
+    } else {
+      callMedia.toggleScreenshare();
+    }
+  }, [jitsiScreensharing, jitsiAudioEnabled, jitsiVideoEnabled, callMedia, syncMediaState]);
+
+  // ---- Device switching ----
+
+  const switchAudioInput = useCallback(async (deviceId: string) => {
+    const jitsi = jitsiRef.current;
+    if (jitsi) {
+      await jitsi.replaceAudioTrack(deviceId);
+    }
+  }, []);
+
+  const switchVideoInput = useCallback(async (deviceId: string) => {
+    const jitsi = jitsiRef.current;
+    if (jitsi) {
+      await jitsi.replaceVideoTrack(deviceId);
+    }
+  }, []);
+
+  const setAudioOutput = useCallback((deviceId: string) => {
+    setAudioOutputDeviceId(deviceId);
+  }, []);
 
   // ---- Single-call guard ----
 
@@ -208,7 +310,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
   // ---- Confirm device setup -> initiate or join ----
 
   const confirmDeviceSetup = useCallback(
-    async (devices: { audioDeviceId?: string; videoDeviceId?: string }) => {
+    async (devices: { audioDeviceId?: string }) => {
       if (!pendingCallType || !pendingConversationId || !identity) {
         cancelDeviceSetup();
         return;
@@ -261,30 +363,16 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
 
         const jitsiConfigured = !!(jitsiBaseUrl && jitsiToken);
 
-        // Start local media for preview.
-        // When Jitsi is configured, only capture video here -- Jitsi owns
-        // audio capture to avoid double-getUserMedia contention and to keep
-        // the mute toggle wired to the track that actually reaches remotes.
-        if (jitsiConfigured) {
-          if (pendingCallType.video) {
-            await callMedia.startMedia({
-              audio: false,
-              video: true,
-              videoDeviceId: devices.videoDeviceId,
-            });
-          }
-        } else {
-          if (pendingCallType.audio || pendingCallType.video) {
-            await callMedia.startMedia({
-              audio: pendingCallType.audio,
-              video: pendingCallType.video,
-              audioDeviceId: devices.audioDeviceId,
-              videoDeviceId: devices.videoDeviceId,
-            });
-          }
+        // When Jitsi is not configured, use callMedia as the fallback
+        // for local media capture (audio only, since calls start audio-only).
+        if (!jitsiConfigured && pendingCallType.audio) {
+          await callMedia.startMedia({
+            audio: true,
+            video: false,
+            audioDeviceId: devices.audioDeviceId,
+          });
         }
 
-        // Connect to Jitsi if configured (lazy-load to avoid bundling lib-jitsi-meet at startup)
         if (!jitsiConfigured) {
           console.warn(
             '[CallSession] Jitsi is not configured — audio/video will NOT be relayed to other participants.',
@@ -363,30 +451,15 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
             }
           });
 
-          await jitsi.connect(call.jitsiRoomName, jitsiToken);
+          await jitsi.connect(call.jitsiRoomName, jitsiToken!);
 
           // Advertise our identity to all current and future participants.
           jitsi.setLocalProperty('identityId', identity.id);
 
-          if (pendingCallType.audio || pendingCallType.video) {
-            const localTracks = await jitsi.createLocalTracks({
-              audio: pendingCallType.audio,
-              video: pendingCallType.video,
-            });
-            console.info(
-              '[CallSession] Jitsi local tracks created:',
-              localTracks.map((t) => `${t.getType()}:${t.getId()}`),
-            );
-            if (pendingCallType.audio) {
-              setJitsiAudioEnabled(true);
-            }
+          if (pendingCallType.audio) {
+            await jitsi.createLocalTracks({ audio: true, video: false });
+            setJitsiAudioEnabled(true);
           }
-
-          if (pendingCallType.screenshare) {
-            await jitsi.startScreenshare();
-          }
-        } else if (pendingCallType.screenshare) {
-          await callMedia.toggleScreenshare();
         }
 
         setPhase('active');
@@ -432,6 +505,8 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
     setRemoteTracks([]);
     setJitsiParticipantMap(new Map());
     setJitsiAudioEnabled(null);
+    setJitsiVideoEnabled(null);
+    setJitsiScreensharing(false);
   }, []);
 
   const leaveCallAction = useCallback(async () => {
@@ -533,6 +608,14 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       jitsiParticipantMap,
       isAudioEnabled,
       toggleAudio,
+      isVideoEnabled,
+      toggleVideo,
+      isScreensharing,
+      toggleScreenshare,
+      switchAudioInput,
+      switchVideoInput,
+      audioOutputDeviceId,
+      setAudioOutput,
       requestStartCall,
       requestJoinCall,
       confirmDeviceSetup,
@@ -552,6 +635,14 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       jitsiParticipantMap,
       isAudioEnabled,
       toggleAudio,
+      isVideoEnabled,
+      toggleVideo,
+      isScreensharing,
+      toggleScreenshare,
+      switchAudioInput,
+      switchVideoInput,
+      audioOutputDeviceId,
+      setAudioOutput,
       requestStartCall,
       requestJoinCall,
       confirmDeviceSetup,

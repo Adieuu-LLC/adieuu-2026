@@ -43,11 +43,10 @@ const { CallDeviceSetupModal } = await import('./CallDeviceSetupModal');
 const noop = () => {};
 
 describe('CallDeviceSetupModal', () => {
-  test('renders mic select for audio call', () => {
+  test('renders mic select and in-call hint', () => {
     const html = renderToStaticMarkup(
       <CallDeviceSetupModal
         open
-        callType={{ audio: true, video: false, screenshare: false }}
         isJoin={false}
         onConfirm={noop}
         onCancel={noop}
@@ -55,41 +54,13 @@ describe('CallDeviceSetupModal', () => {
     );
     expect(html).toContain('call-mic-select');
     expect(html).toContain('call.confirmCall');
-  });
-
-  test('renders camera select for video call', () => {
-    const html = renderToStaticMarkup(
-      <CallDeviceSetupModal
-        open
-        callType={{ audio: true, video: true, screenshare: false }}
-        isJoin={false}
-        onConfirm={noop}
-        onCancel={noop}
-      />,
-    );
-    expect(html).toContain('call-mic-select');
-    expect(html).toContain('call-camera-select');
-  });
-
-  test('shows screenshare note for screenshare-only call', () => {
-    const html = renderToStaticMarkup(
-      <CallDeviceSetupModal
-        open
-        callType={{ audio: false, video: false, screenshare: true }}
-        isJoin={false}
-        onConfirm={noop}
-        onCancel={noop}
-      />,
-    );
     expect(html).toContain('call-device-setup__note');
-    expect(html).not.toContain('call-mic-select');
   });
 
   test('shows Join button when isJoin is true', () => {
     const html = renderToStaticMarkup(
       <CallDeviceSetupModal
         open
-        callType={{ audio: true, video: false, screenshare: false }}
         isJoin
         onConfirm={noop}
         onCancel={noop}
@@ -102,7 +73,6 @@ describe('CallDeviceSetupModal', () => {
     const html = renderToStaticMarkup(
       <CallDeviceSetupModal
         open={false}
-        callType={{ audio: true, video: false, screenshare: false }}
         isJoin={false}
         onConfirm={noop}
         onCancel={noop}

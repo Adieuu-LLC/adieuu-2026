@@ -6,10 +6,7 @@ export const call = {
   jitsiUnavailable: 'Call service is temporarily unavailable. Please try again.',
 
   // Toolbar button
-  startVoiceCall: 'Voice call',
-  startVideoCall: 'Video call',
-  startScreenshare: 'Share screen',
-  callMenuAriaLabel: 'Call options',
+  startCall: 'Start call',
   alreadyInCall: 'Already in a call',
   callsDisabled: 'Calls are disabled in this conversation',
 
@@ -23,7 +20,7 @@ export const call = {
   confirmCall: 'Start call',
   confirmJoin: 'Join call',
   cancelSetup: 'Cancel',
-  screenshareNote: 'You will choose what to share after confirming.',
+  deviceSetupHint: 'You can enable video or screen sharing once in the call.',
 
   // Call overlay
   ringing: 'Ringing...',
@@ -43,11 +40,13 @@ export const call = {
   end: 'End call for everyone',
   endForAll: 'End',
 
+  // Device popovers
+  audioDevices: 'Audio devices',
+  videoDevices: 'Video devices',
+  selectSpeaker: 'Speaker',
+
   // Incoming call banner
-  incomingVideo: 'Video call',
-  incomingAudio: 'Audio call',
-  incomingScreenshare: 'Screen share',
-  incoming: 'Call',
+  incoming: 'Incoming call',
   accept: 'Accept',
   decline: 'Decline',
 

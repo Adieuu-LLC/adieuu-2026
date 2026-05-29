@@ -78,7 +78,7 @@ export function ConversationToolbar({
   subtitle: ReactNode;
   /** Pinned messages popover control (toolbar icon). */
   pinsSlot?: ReactNode;
-  /** Call button (split button with call-type menu). */
+  /** Call button. */
   callSlot?: ReactNode;
   /** E2E message search (opens local plaintext search). */
   searchSlot?: ReactNode;

@@ -266,6 +266,57 @@ export class JitsiService {
   }
 
   /**
+   * Replace the current audio track with one from a different device.
+   * Removes the old audio track from the conference, disposes it,
+   * then creates and adds a new one using the specified device.
+   */
+  async replaceAudioTrack(deviceId: string): Promise<JitsiLocalTrack | null> {
+    const oldTrack = this.localTracks.find((t) => t.getType() === 'audio');
+    if (oldTrack) {
+      if (this.conference) await this.conference.removeTrack(oldTrack);
+      await oldTrack.dispose();
+      this.localTracks = this.localTracks.filter((t) => t !== oldTrack);
+    }
+
+    const tracks = await JitsiMeetJS.createLocalTracks({
+      devices: ['audio'],
+      micDeviceId: deviceId,
+    });
+    const newTrack = tracks[0] ?? null;
+    if (newTrack) {
+      this.localTracks.push(newTrack);
+      if (this.conference) await this.conference.addTrack(newTrack);
+    }
+    return newTrack;
+  }
+
+  /**
+   * Replace the current camera video track with one from a different device.
+   * Only replaces camera tracks; desktop/screenshare tracks are unaffected.
+   */
+  async replaceVideoTrack(deviceId: string): Promise<JitsiLocalTrack | null> {
+    const oldTrack = this.localTracks.find(
+      (t) => t.getType() === 'video' && t.getVideoType() !== 'desktop'
+    );
+    if (oldTrack) {
+      if (this.conference) await this.conference.removeTrack(oldTrack);
+      await oldTrack.dispose();
+      this.localTracks = this.localTracks.filter((t) => t !== oldTrack);
+    }
+
+    const tracks = await JitsiMeetJS.createLocalTracks({
+      devices: ['video'],
+      cameraDeviceId: deviceId,
+    });
+    const newTrack = tracks[0] ?? null;
+    if (newTrack) {
+      this.localTracks.push(newTrack);
+      if (this.conference) await this.conference.addTrack(newTrack);
+    }
+    return newTrack;
+  }
+
+  /**
    * Get current local tracks.
    */
   getLocalTracks(): JitsiLocalTrack[] {

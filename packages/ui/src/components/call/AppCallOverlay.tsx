@@ -14,7 +14,13 @@ import type { CallParticipantInfo } from './CallParticipantGrid';
 // Rendered outside the overlay so audio keeps playing when minimized.
 // ---------------------------------------------------------------------------
 
-function RemoteAudioElement({ track }: { track: RemoteTrack }) {
+function RemoteAudioElement({
+  track,
+  sinkId,
+}: {
+  track: RemoteTrack;
+  sinkId?: string | null;
+}) {
   const ref = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -22,24 +28,6 @@ function RemoteAudioElement({ track }: { track: RemoteTrack }) {
     if (!el) return;
 
     track.attach(el);
-
-    // Diagnostic: inspect the audio element state after attach
-    const stream = el.srcObject as MediaStream | null;
-    const audioTracks = stream?.getAudioTracks() ?? [];
-    console.info('[RemoteAudio] after attach:', {
-      trackId: track.id,
-      hasSrcObject: !!stream,
-      audioTrackCount: audioTracks.length,
-      audioTrackStates: audioTracks.map((t) => ({
-        enabled: t.enabled,
-        muted: t.muted,
-        readyState: t.readyState,
-      })),
-      elVolume: el.volume,
-      elMuted: el.muted,
-      elPaused: el.paused,
-      elReadyState: el.readyState,
-    });
 
     const tryPlay = () => {
       el.play().catch((err: unknown) => {
@@ -61,6 +49,14 @@ function RemoteAudioElement({ track }: { track: RemoteTrack }) {
       track.detach(el);
     };
   }, [track]);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !sinkId) return;
+    if (typeof el.setSinkId === 'function') {
+      el.setSinkId(sinkId).catch(() => {});
+    }
+  }, [sinkId]);
 
   return <audio ref={ref} autoPlay playsInline />;
 }
@@ -89,12 +85,20 @@ export function AppCallOverlay() {
     jitsiParticipantMap,
     isAudioEnabled,
     toggleAudio,
+    isVideoEnabled,
+    toggleVideo,
+    isScreensharing,
+    toggleScreenshare,
+    switchAudioInput,
+    switchVideoInput,
+    audioOutputDeviceId,
+    setAudioOutput,
   } = useCallSession();
 
   const [minimized, setMinimized] = useState(false);
 
   const handleConfirmDevices = useCallback(
-    async (devices: { audioDeviceId?: string; videoDeviceId?: string }) => {
+    async (devices: { audioDeviceId?: string }) => {
       try {
         await confirmDeviceSetup(devices);
       } catch (err) {
@@ -105,11 +109,16 @@ export function AppCallOverlay() {
     [confirmDeviceSetup, toast, t],
   );
 
-  const conversationName = useMemo(() => {
+  const activeConversation = useMemo(() => {
     if (!activeSession) return undefined;
-    const conv = conversations.find((c) => c.id === activeSession.conversationId);
-    return conv?.decryptedName ?? undefined;
+    return conversations.find((c) => c.id === activeSession.conversationId);
   }, [activeSession, conversations]);
+
+  const conversationName = activeConversation?.decryptedName ?? undefined;
+
+  const audioAllowed = !(activeConversation?.audioCallsDisabled ?? false);
+  const videoAllowed = !(activeConversation?.videoCallsDisabled ?? false);
+  const screenshareAllowed = !(activeConversation?.screenshareDisabled ?? false);
 
   // Build a reverse map: identityId -> jitsiParticipantId(s)
   const identityToJitsiIds = useMemo(() => {
@@ -126,22 +135,21 @@ export function AppCallOverlay() {
   }, [jitsiParticipantMap]);
 
   // Split remote tracks by type, indexed by Jitsi participant ID
-  const { audioByJitsiId, videoByJitsiId } = useMemo(() => {
-    const audio = new Map<string, RemoteTrack[]>();
+  const { videoByJitsiId } = useMemo(() => {
     const video = new Map<string, RemoteTrack[]>();
     for (const t of remoteTracks) {
-      const bucket = t.trackType === 'audio' ? audio : video;
-      const existing = bucket.get(t.jitsiParticipantId);
+      if (t.trackType !== 'video') continue;
+      const existing = video.get(t.jitsiParticipantId);
       if (existing) {
         existing.push(t);
       } else {
-        bucket.set(t.jitsiParticipantId, [t]);
+        video.set(t.jitsiParticipantId, [t]);
       }
     }
-    return { audioByJitsiId: audio, videoByJitsiId: video };
+    return { videoByJitsiId: video };
   }, [remoteTracks]);
 
-  // All remote audio tracks (flat) -- we play every one regardless of mapping
+  // All remote audio tracks (flat)
   const remoteAudioTracks = useMemo(
     () => remoteTracks.filter((t) => t.trackType === 'audio'),
     [remoteTracks],
@@ -154,8 +162,6 @@ export function AppCallOverlay() {
       .filter((p) => !p.leftAt)
       .map((p) => {
         const isLocal = p.identityId === identity?.id;
-
-        // Look up this participant's Jitsi session(s) via the identity map
         const jitsiIds = identityToJitsiIds.get(p.identityId) ?? [];
         const remoteVideoTrack =
           !isLocal
@@ -181,16 +187,19 @@ export function AppCallOverlay() {
   const controls: CallControlsProps | null = activeSession
     ? {
         isAudioEnabled,
-        isVideoEnabled: callMedia.isVideoEnabled,
-        isScreensharing: callMedia.isScreensharing,
-        audioAllowed: activeSession.call.allowedMedia.audio,
-        videoAllowed: activeSession.call.allowedMedia.video,
-        screenshareAllowed: activeSession.call.allowedMedia.screenshare,
+        isVideoEnabled,
+        isScreensharing,
+        audioAllowed,
+        videoAllowed,
+        screenshareAllowed,
         onToggleAudio: toggleAudio,
-        onToggleVideo: callMedia.toggleVideo,
-        onToggleScreenshare: callMedia.toggleScreenshare,
+        onToggleVideo: toggleVideo,
+        onToggleScreenshare: toggleScreenshare,
         onLeave: leaveCall,
         onEnd: isInitiator ? endCall : undefined,
+        onSwitchAudioInput: switchAudioInput,
+        onSwitchAudioOutput: setAudioOutput,
+        onSwitchVideoInput: switchVideoInput,
       }
     : null;
 
@@ -205,16 +214,18 @@ export function AppCallOverlay() {
     <>
       <CallDeviceSetupModal
         open={phase === 'device-setup' && pendingCallType !== null}
-        callType={pendingCallType ?? { audio: true, video: false, screenshare: false }}
         isJoin={pendingIsJoin}
         onConfirm={handleConfirmDevices}
         onCancel={cancelDeviceSetup}
       />
 
-      {/* Remote audio must play even when the overlay is minimized */}
       {activeSession &&
         remoteAudioTracks.map((track) => (
-          <RemoteAudioElement key={track.id} track={track} />
+          <RemoteAudioElement
+            key={track.id}
+            track={track}
+            sinkId={audioOutputDeviceId}
+          />
         ))}
 
       {activeSession && controls && !minimized && (
