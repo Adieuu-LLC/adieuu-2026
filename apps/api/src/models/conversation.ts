@@ -94,6 +94,15 @@ export interface ConversationDocument extends BaseDocument {
   /** When true, participants may opt out of moderation scanning per-send. */
   allowSkipModeration?: boolean;
 
+  /** When true, audio calls are disabled for this conversation (admin toggle). */
+  audioCallsDisabled?: boolean;
+
+  /** When true, video calls are disabled for this conversation (admin toggle). */
+  videoCallsDisabled?: boolean;
+
+  /** When true, screen sharing is disabled for this conversation (admin toggle). */
+  screenshareDisabled?: boolean;
+
   /**
    * Message ids pinned for this conversation (order: oldest pin first).
    * Managed by group admins or, in DMs, by either participant.
@@ -152,6 +161,9 @@ export interface PublicConversation {
   disallowPersistentMessageSearchCache?: boolean;
   /** When true, participants may opt out of moderation scanning per-send. */
   allowSkipModeration?: boolean;
+  audioCallsDisabled?: boolean;
+  videoCallsDisabled?: boolean;
+  screenshareDisabled?: boolean;
   pinnedMessageIds?: string[];
   /**
    * Total stored message documents (incl. system and tombstones). Set on single-get, not on list.
@@ -191,6 +203,9 @@ export function toPublicConversation(doc: ConversationDocument): PublicConversat
     ...(doc.allowSkipModeration === true
       ? { allowSkipModeration: true }
       : {}),
+    ...(doc.audioCallsDisabled === true ? { audioCallsDisabled: true } : {}),
+    ...(doc.videoCallsDisabled === true ? { videoCallsDisabled: true } : {}),
+    ...(doc.screenshareDisabled === true ? { screenshareDisabled: true } : {}),
     ...(doc.pinnedMessageIds?.length
       ? {
           pinnedMessageIds: doc.pinnedMessageIds.map((id) => id.toHexString()),

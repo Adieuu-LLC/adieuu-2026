@@ -13,6 +13,7 @@ import { conversationRespond } from './conversation-route-result';
 import * as conversationController from './controller';
 import * as messagesController from './messages.controller';
 import * as reactionsController from './reactions.controller';
+import * as callsController from './calls.controller';
 
 const router = new Router();
 
@@ -191,6 +192,38 @@ router.post('/conversations/:id/admins', async (ctx) => {
 
 router.delete('/conversations/:id', async (ctx) => {
   return conversationRespond(ctx, await conversationController.terminateConversationCtrl(ctx));
+});
+
+// ---------------------------------------------------------------------------
+// Call routes
+// ---------------------------------------------------------------------------
+
+router.post('/conversations/:id/calls', async (ctx) => {
+  return conversationRespond(ctx, await callsController.initiateCallCtrl(ctx));
+});
+
+router.get('/conversations/:id/calls/active', async (ctx) => {
+  return conversationRespond(ctx, await callsController.getActiveCallCtrl(ctx));
+});
+
+router.post('/conversations/:id/calls/:callId/join', async (ctx) => {
+  return conversationRespond(ctx, await callsController.joinCallCtrl(ctx));
+});
+
+router.post('/conversations/:id/calls/:callId/leave', async (ctx) => {
+  return conversationRespond(ctx, await callsController.leaveCallCtrl(ctx));
+});
+
+router.post('/conversations/:id/calls/:callId/end', async (ctx) => {
+  return conversationRespond(ctx, await callsController.endCallCtrl(ctx));
+});
+
+router.patch('/conversations/:id/calls/:callId/media', async (ctx) => {
+  return conversationRespond(ctx, await callsController.updateMediaStateCtrl(ctx));
+});
+
+router.patch('/conversations/:id/call-settings', async (ctx) => {
+  return conversationRespond(ctx, await callsController.updateCallSettingsCtrl(ctx));
 });
 
 // ---------------------------------------------------------------------------

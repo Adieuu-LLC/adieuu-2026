@@ -237,6 +237,19 @@ export {
   deriveScanHash,
 } from './dm';
 
+// Call E2EE (live audio/video/screenshare)
+export {
+  generateCallKey,
+  deriveCallE2EEKey,
+  wrapCallKeyForRecipient,
+  wrapCallKeyForRecipients,
+  unwrapCallKey,
+  findAndUnwrapCallKey,
+  CALL_E2EE_INFO,
+  CALL_KEY_SIZE,
+  type WrappedCallKey,
+} from './call';
+
 // Content moderation (placeholder -- no implementation in this build)
 export {
   type PerceptualHashResult,

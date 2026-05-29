@@ -450,6 +450,9 @@ importers:
       i18next:
         specifier: 24.2.3
         version: 24.2.3(typescript@5.9.3)
+      lib-jitsi-meet:
+        specifier: https://github.com/jitsi/lib-jitsi-meet/releases/download/v2160.0.0%2Ba16478a8/lib-jitsi-meet.tgz
+        version: https://github.com/jitsi/lib-jitsi-meet/releases/download/v2160.0.0%2Ba16478a8/lib-jitsi-meet.tgz
       qrcode.react:
         specifier: 4.2.0
         version: 4.2.0(react@18.3.1)
@@ -1272,6 +1275,9 @@ packages:
       '@fortawesome/fontawesome-svg-core': ~6 || ~7
       react: ^18.0.0 || ^19.0.0
 
+  '@hapi/bourne@3.0.0':
+    resolution: {integrity: sha512-Waj1cwPXJDucOib4a3bAISsKJVb15MKi9IvmTI/7ssVEm6sywXGjVJDhl6/umt1pK1ZS7PacXU3A1PmFKHEZ2w==}
+
   '@hexagon/base64@1.1.28':
     resolution: {integrity: sha512-lhqDEAvWixy3bZ+UOYbPwUbBkwBq5C1LAJ/xPC8Oi+lL54oyakv/npbA0aU2hgCsx/1NUd4IBvV03+aUBWxerw==}
 
@@ -1456,6 +1462,24 @@ packages:
   '@istanbuljs/schema@0.1.3':
     resolution: {integrity: sha512-ZXRY4jNvVgSVQ8DL3LTcakaAtXwTVUxE81hslsyD2AtoXW/wVob10HkOJ1X/pAlcI7D+2YoZKg5do8G/w6RYgA==}
     engines: {node: '>=8'}
+
+  '@jitsi/js-utils@2.8.2':
+    resolution: {integrity: sha512-tMFuci2lPmbQIFF/f3b5QdkL1vzY6sii9nj0e+K0EEJcFUJiX/QVkv5GbI6pMZ74BYAQXGFZqeASo8hKItniUA==}
+
+  '@jitsi/js-utils@6.3.2':
+    resolution: {integrity: sha512-nGF24WVADFQF2OfdlJWbel2MvwTRbxxZdNDzIqUBKGtRYd10CukgrcydB2WRPRLtn4Q97KrpdqrcAuH0Idi3yg==}
+
+  '@jitsi/logger@2.0.2':
+    resolution: {integrity: sha512-qwbpRwuwkBFgh0F5jivq/5fAm46yVoXURc5LCklEs8lAShYVangFEXKW7RLpZuZ5nQnrHrlvU8MswQNREmvahg==}
+
+  '@jitsi/logger@2.1.1':
+    resolution: {integrity: sha512-adMtODSXvYJtqfRuDwxN1hNWPJ4gvp868G7QXII3ajSgPaE2mMcbLYRHy6mZZlQJGnxr0dDaivOrvV6CikHZNQ==}
+
+  '@jitsi/precall-test@1.0.6':
+    resolution: {integrity: sha512-L/gnRjnFxpQqvfILXeFoVTHEtwL01zoSKAIqMVxMmaD0ahozML8uztlxRPlYSbKrT31j3Cm1ss9KdSNeO3f9FQ==}
+
+  '@jitsi/rtcstats@9.7.1':
+    resolution: {integrity: sha512-a8LVqzlBNh/fLnDfE4HcnutQ8Dpki31wmHw2pMS5Qu+shhzfZKUSb2NimPXT0l7WwkFqVflYGiQhfsavXPcMog==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -2107,6 +2131,9 @@ packages:
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
 
+  '@testrtc/watchrtc-sdk@1.38.2':
+    resolution: {integrity: sha512-IlusCskjqgTrroKCr2DQCviIZYe7J3arVUpoGtXc2MiYBeQ5sEs2Yzo6v07T3rDcN71BVBTZ1hXMZlZuqnKiyA==}
+
   '@turbo/darwin-64@2.9.16':
     resolution: {integrity: sha512-jLjApWTSNd7JZ5JaLYfelW1ytnGQOvB7ivl+2RD1xQvJTbi8I9gBjzcga7tDZVPyaxpl10YTfJt3BrYXR18KDw==}
     cpu: [x64]
@@ -2623,6 +2650,9 @@ packages:
     resolution: {integrity: sha512-Z7tMw1ytTXt5jqMcOP+OQteU1VuNK9Y02uuJtKQ1Sv69jXQKKg5cibLwGJow8yzZP+eAc18EmLGPal0bp36rvQ==}
     engines: {node: '>=8'}
 
+  async-es@3.2.4:
+    resolution: {integrity: sha512-GFHAAfmW7GzEiHFR6DvE5WMm6+js9pb+RLm+m1UpsyMX+I4j/R4QVw2Te664q+fvDVOz7Y0bORPDNvQS7BJ3Hw==}
+
   async-exit-hook@2.0.1:
     resolution: {integrity: sha512-NW2cX8m1Q7KPA7a5M2ULQeZ2wR5qI5PAbw5L0UOMxdioVk9PMZ0h1TmyZEkPYrCvYjDlFICusOu1dlEKAAeXBw==}
     engines: {node: '>=0.12.0'}
@@ -2855,6 +2885,9 @@ packages:
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
 
+  current-executing-script@0.1.3:
+    resolution: {integrity: sha512-j1nG9I8jaHWniUxJGYkjF3jS98a/mU8tC971XJdrLXKRKSnwNgztd7pHElwdcfJwbQHvJeC9HhUz9NFE8or92g==}
+
   d3-array@3.2.4:
     resolution: {integrity: sha512-tdQAmyA18i4J7wprpYq8ClcxZy3SC31QMeByyCFyRt7BVHdREQZ5lpzoe5mFEYZUWe+oq8HBvk9JjpibyEV4Jg==}
     engines: {node: '>=12'}
@@ -3035,6 +3068,9 @@ packages:
 
   emoji-mart@5.6.0:
     resolution: {integrity: sha512-eJp3QRe79pjwa+duv+n7+5YsNhRcMl812EcFVwrnRvYKoNPoQb5qxU8DG6Bgwji0akHdp6D4Ln6tYLG58MFSow==}
+
+  emoji-regex@10.4.0:
+    resolution: {integrity: sha512-EC+0oUMY1Rqm4O6LLrgjtYDvcVYTy7chDnM4Q7030tP4Kwj3u/pR6gP9ygnp2CJMK5Gq+9Q2oqmrFJAz01DXjw==}
 
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
@@ -3457,6 +3493,9 @@ packages:
     resolution: {integrity: sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ==}
     hasBin: true
 
+  js-md5@0.7.3:
+    resolution: {integrity: sha512-ZC41vPSTLKGwIRjqDh8DfXoCrdQIyBgspJVPXHBGu4nZlAEvG3nf+jO9avM9RmLiGakg7vz974ms99nEV0tmTQ==}
+
   js-tokens@10.0.0:
     resolution: {integrity: sha512-lM/UBzQmfJRo9ABXbPWemivdCW8V2G8FHaHdypQaIy523snUjog0W71ayWXTjiR+ixeMyVHN2XcpnTd/liPg/Q==}
 
@@ -3495,6 +3534,10 @@ packages:
   jsonfile@6.2.0:
     resolution: {integrity: sha512-FGuPw30AdOIUTRMC2OMRtQV+jkVj2cfPqSeWXv1NEAJ1qZ5zb1X6z1mFhbfOB/iy3ssJCD+3KuZ8r8C3uVFlAg==}
 
+  jwt-decode@4.0.0:
+    resolution: {integrity: sha512-+KJGIyHgkGuIq3IEBNftfhW/LfWhXUIY6OmyVWjliu5KH1y0fw7VQ8YndE2O4qZdMSd9SqbnC8GOcZEy0Om7sA==}
+    engines: {node: '>=18'}
+
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
 
@@ -3511,6 +3554,10 @@ packages:
 
   lazy-val@1.0.5:
     resolution: {integrity: sha512-0/BnGCCfyUMkBpeDgWihanIAF9JmZhHBgUhEqzvf+adhNGLoP6TaiI5oF8oyb3I45P+PcnrqihSf01M0l0G5+Q==}
+
+  lib-jitsi-meet@https://github.com/jitsi/lib-jitsi-meet/releases/download/v2160.0.0%2Ba16478a8/lib-jitsi-meet.tgz:
+    resolution: {integrity: sha512-Vah5opwbHJoflTWeDtKFETUU2M3/SJBAsGf3djJuC9N9k1MpdwJWisc3RXxHSLr6+vbKFOAec0kJF2fSGia7pQ==, tarball: https://github.com/jitsi/lib-jitsi-meet/releases/download/v2160.0.0%2Ba16478a8/lib-jitsi-meet.tgz}
+    version: 0.0.0
 
   lightningcss-android-arm64@1.32.0:
     resolution: {integrity: sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==}
@@ -3585,6 +3632,9 @@ packages:
   lightningcss@1.32.0:
     resolution: {integrity: sha512-NXYBzinNrblfraPGyrbPoD19C1h9lfI/1mzgWYvXUTe414Gz/X1FD2XBZSZM7rRTrMA8JL3OtAaGifrIKhQ5yQ==}
     engines: {node: '>= 12.0.0'}
+
+  lodash-es@4.18.1:
+    resolution: {integrity: sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A==}
 
   lodash.defaults@4.2.0:
     resolution: {integrity: sha512-qjxPLHd3r5DnsdGacqOMU6pb/avJzdh9tFX2ymgoZE27BmjXrNy/y4LoaiTeAb+O3gL8AfpJGtqfX/ae2leYYQ==}
@@ -4263,6 +4313,13 @@ packages:
     resolution: {integrity: sha512-eflK8wEtyOE6+hsaRVPxvUKYCpRgzLqDTb8krvAsRIwOGlHoSgYLgBXoubGgLd2fT41/OUYdb48v4k4WWHQurA==}
     engines: {node: '>= 10.13.0'}
 
+  sdp-transform@2.3.0:
+    resolution: {integrity: sha512-zR0e9ciWFezeaKLLpWCrOCiYmGIQN9jfO5Ayfs7m5k2/g9b2MEEIvQ/TTmymm167zozTNYSQoLGKDihMoTWkkw==}
+    hasBin: true
+
+  sdp@3.2.2:
+    resolution: {integrity: sha512-xZocWwfyp4hkbN4hLWxMjmv2Q8aNa9MhmOZ7L9aCZPT+dZsgRr6wZRrSYE3HTdyk/2pZKPSgqI7ns7Een1xMSA==}
+
   semver-compare@1.0.0:
     resolution: {integrity: sha512-YM3/ITh2MJ5MtzaM429anh+x2jiLVjqILF4m4oyQB18W7Ggea7BfqdH/wGMK7dDiMghv/6WG7znWMwUDzJiXow==}
 
@@ -4417,6 +4474,10 @@ packages:
   strnum@2.3.0:
     resolution: {integrity: sha512-ums3KNd42PGyx5xaoVTO1mjU1bH3NpY4vsrVlnv9PNGqQj8wd7rJ6nEypLrJ7z5vxK5RP0yMLo6J/Gsm62DI5Q==}
 
+  strophe.js@https://github.com/jitsi/strophejs/releases/download/v1.5-jitsi-3/strophe.js-1.5.0.tgz:
+    resolution: {integrity: sha512-LNtsu2qioXofCESHqEmLF12DuIK7itMMjxe9aSeQOENz8rCXBY/khV8OKO2xaWBy0QxpQs7nyb7RHefVu9ZlfA==, tarball: https://github.com/jitsi/strophejs/releases/download/v1.5-jitsi-3/strophe.js-1.5.0.tgz}
+    version: 1.5.0
+
   sumchecker@3.0.1:
     resolution: {integrity: sha512-MvjXzkz/BOfyVDkG0oFOtBxHX2u3gKbMHIF/dXblZsgD3BWOFLmHovIpZY7BykJdAjcqRCBi1WYBNdEC9yI7vg==}
     engines: {node: '>= 8.0'}
@@ -4546,6 +4607,9 @@ packages:
     resolution: {tarball: https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/fcfc622a4286909593b7f390056d89e0ca3b56b9}
     version: 20.57.0
 
+  ua-parser-js@1.0.35:
+    resolution: {integrity: sha512-fKnGuqmTBnIE+/KXSzCn4db8RTigUzw1AN0DmdU6hJovUTbYJKyqj+8Mt1c4VfRDnOVJnENmfYkIPZ946UrSAA==}
+
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
@@ -4586,6 +4650,15 @@ packages:
 
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
+
+  uuid@14.0.0:
+    resolution: {integrity: sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==}
+    hasBin: true
+
+  uuid@8.3.2:
+    resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+    hasBin: true
 
   varint@6.0.0:
     resolution: {integrity: sha512-cXEIW6cfr15lFv563k4GuVuW/fiwjknytD37jIOLSdSWuOI6WnO/oKwmP2FQTU2l01LP8/M5TSAJpzUaGe3uWg==}
@@ -4680,6 +4753,10 @@ packages:
   webidl-conversions@7.0.0:
     resolution: {integrity: sha512-VwddBukDzu71offAQR975unBIGqfKZpM+8ZX6ySk8nYhVoo5CYaZyzt3YBvYtRtO+aoGlqxPg/B87NGVZ/fu6g==}
     engines: {node: '>=12'}
+
+  webrtc-adapter@8.1.1:
+    resolution: {integrity: sha512-1yXevP7TeZGmklEXkvQVrZp3fOSJlLeXNGCA7NovQokxgP3/e2T3EVGL0eKU87S9vKppWjvRWqnJeSANEspOBg==}
+    engines: {node: '>=6.0.0', npm: '>=3.10.0'}
 
   whatwg-mimetype@3.0.0:
     resolution: {integrity: sha512-nt+N2dzIutVRxARx1nghPKGv1xHikU7HKdfafKkLNLindmPU/ch3U31NOCGGA/dmPcmb1VlofO0vnKAcsm0o/Q==}
@@ -5968,6 +6045,8 @@ snapshots:
       '@fortawesome/fontawesome-svg-core': '@adieuu-llc/fa-fontawesome-svg-core@7.2.0'
       react: 18.3.1
 
+  '@hapi/bourne@3.0.0': {}
+
   '@hexagon/base64@1.1.28': {}
 
   '@img/sharp-darwin-arm64@0.33.5':
@@ -6170,6 +6249,31 @@ snapshots:
       minipass: 7.1.2
 
   '@istanbuljs/schema@0.1.3': {}
+
+  '@jitsi/js-utils@2.8.2':
+    dependencies:
+      '@hapi/bourne': 3.0.0
+      js-md5: 0.7.3
+      ua-parser-js: 1.0.35
+
+  '@jitsi/js-utils@6.3.2':
+    dependencies:
+      '@hapi/bourne': 3.0.0
+      js-md5: 0.7.3
+      ua-parser-js: 1.0.35
+
+  '@jitsi/logger@2.0.2': {}
+
+  '@jitsi/logger@2.1.1': {}
+
+  '@jitsi/precall-test@1.0.6': {}
+
+  '@jitsi/rtcstats@9.7.1':
+    dependencies:
+      '@jitsi/js-utils': 2.8.2
+      '@jitsi/logger': 2.0.2
+      sdp: 3.2.2
+      uuid: 8.3.2
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -6897,6 +7001,8 @@ snapshots:
   '@szmarczak/http-timer@4.0.6':
     dependencies:
       defer-to-connect: 2.0.1
+
+  '@testrtc/watchrtc-sdk@1.38.2': {}
 
   '@turbo/darwin-64@2.9.16':
     optional: true
@@ -7787,6 +7893,8 @@ snapshots:
 
   astral-regex@2.0.0: {}
 
+  async-es@3.2.4: {}
+
   async-exit-hook@2.0.1: {}
 
   async@3.2.6: {}
@@ -8033,6 +8141,8 @@ snapshots:
 
   csstype@3.2.3: {}
 
+  current-executing-script@0.1.3: {}
+
   d3-array@3.2.4:
     dependencies:
       internmap: 2.0.3
@@ -8261,6 +8371,8 @@ snapshots:
       sax: 1.1.4
 
   emoji-mart@5.6.0: {}
+
+  emoji-regex@10.4.0: {}
 
   emoji-regex@8.0.0: {}
 
@@ -8755,6 +8867,8 @@ snapshots:
 
   jiti@2.6.1: {}
 
+  js-md5@0.7.3: {}
+
   js-tokens@10.0.0: {}
 
   js-tokens@4.0.0: {}
@@ -8786,6 +8900,8 @@ snapshots:
     optionalDependencies:
       graceful-fs: 4.2.11
 
+  jwt-decode@4.0.0: {}
+
   keyv@4.5.4:
     dependencies:
       json-buffer: 3.0.1
@@ -8797,6 +8913,24 @@ snapshots:
   kuler@2.0.0: {}
 
   lazy-val@1.0.5: {}
+
+  lib-jitsi-meet@https://github.com/jitsi/lib-jitsi-meet/releases/download/v2160.0.0%2Ba16478a8/lib-jitsi-meet.tgz:
+    dependencies:
+      '@jitsi/js-utils': 6.3.2
+      '@jitsi/logger': 2.1.1
+      '@jitsi/precall-test': 1.0.6
+      '@jitsi/rtcstats': 9.7.1
+      '@testrtc/watchrtc-sdk': 1.38.2
+      async-es: 3.2.4
+      base64-js: 1.5.1
+      current-executing-script: 0.1.3
+      emoji-regex: 10.4.0
+      jwt-decode: 4.0.0
+      lodash-es: 4.18.1
+      sdp-transform: 2.3.0
+      strophe.js: https://github.com/jitsi/strophejs/releases/download/v1.5-jitsi-3/strophe.js-1.5.0.tgz
+      uuid: 14.0.0
+      webrtc-adapter: 8.1.1
 
   lightningcss-android-arm64@1.32.0:
     optional: true
@@ -8847,6 +8981,8 @@ snapshots:
       lightningcss-win32-arm64-msvc: 1.32.0
       lightningcss-win32-x64-msvc: 1.32.0
     optional: true
+
+  lodash-es@4.18.1: {}
 
   lodash.defaults@4.2.0: {}
 
@@ -9507,6 +9643,10 @@ snapshots:
       ajv-formats: 2.1.1(ajv@8.18.0)
       ajv-keywords: 5.1.0(ajv@8.18.0)
 
+  sdp-transform@2.3.0: {}
+
+  sdp@3.2.2: {}
+
   semver-compare@1.0.0:
     optional: true
 
@@ -9667,6 +9807,8 @@ snapshots:
 
   strnum@2.3.0: {}
 
+  strophe.js@https://github.com/jitsi/strophejs/releases/download/v1.5-jitsi-3/strophe.js-1.5.0.tgz: {}
+
   sumchecker@3.0.1:
     dependencies:
       debug: 4.4.3
@@ -9791,6 +9933,8 @@ snapshots:
 
   uWebSockets.js@https://codeload.github.com/uNetworking/uWebSockets.js/tar.gz/fcfc622a4286909593b7f390056d89e0ca3b56b9: {}
 
+  ua-parser-js@1.0.35: {}
+
   undici-types@6.21.0: {}
 
   undici-types@7.18.2: {}
@@ -9820,6 +9964,10 @@ snapshots:
   utf8-byte-length@1.0.5: {}
 
   util-deprecate@1.0.2: {}
+
+  uuid@14.0.0: {}
+
+  uuid@8.3.2: {}
 
   varint@6.0.0: {}
 
@@ -9935,6 +10083,10 @@ snapshots:
       defaults: 1.0.4
 
   webidl-conversions@7.0.0: {}
+
+  webrtc-adapter@8.1.1:
+    dependencies:
+      sdp: 3.2.2
 
   whatwg-mimetype@3.0.0: {}
 

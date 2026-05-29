@@ -31,6 +31,9 @@ interface DecryptedConversationLike {
   lastMessageId?: string;
   gifsDisabled?: boolean;
   allowSkipModeration?: boolean;
+  audioCallsDisabled?: boolean;
+  videoCallsDisabled?: boolean;
+  screenshareDisabled?: boolean;
 }
 
 interface ConversationMessagesStateLike {
@@ -189,6 +192,18 @@ export function handleConversationSocketMessage(
           prev.map((c) =>
             c.id === conversationId ? { ...c, allowSkipModeration: newVal } : c
           )
+        );
+      } else if (action === 'call_settings_updated') {
+        ctx.setConversations((prev) =>
+          prev.map((c) => {
+            if (c.id !== conversationId) return c;
+            return {
+              ...c,
+              ...(message.data.audioCallsDisabled !== undefined && { audioCallsDisabled: message.data.audioCallsDisabled }),
+              ...(message.data.videoCallsDisabled !== undefined && { videoCallsDisabled: message.data.videoCallsDisabled }),
+              ...(message.data.screenshareDisabled !== undefined && { screenshareDisabled: message.data.screenshareDisabled }),
+            };
+          })
         );
       } else {
         ctx.fetchConversations();

@@ -174,6 +174,10 @@ export interface ConversationsContextValue {
     conversationId: string,
     allowSkipModeration: boolean
   ) => Promise<boolean>;
+  updateCallSettings: (
+    conversationId: string,
+    settings: { audioCallsDisabled?: boolean; videoCallsDisabled?: boolean; screenshareDisabled?: boolean }
+  ) => Promise<boolean>;
   pinMessage: (conversationId: string, messageId: string) => Promise<boolean>;
   unpinMessage: (conversationId: string, messageId: string) => Promise<boolean>;
   promoteToAdmin: (conversationId: string, identityId: string) => Promise<boolean>;

@@ -49,6 +49,12 @@ export function ConversationSettingsSidebar({
   onGifsHiddenForMeToggle,
   gifAnimateOnHoverOnly,
   onGifAnimateOnHoverOnlyToggle,
+  audioCallsDisabled,
+  onAudioCallsDisabledToggle,
+  videoCallsDisabled,
+  onVideoCallsDisabledToggle,
+  screenshareDisabled,
+  onScreenshareDisabledToggle,
   onClose,
 }: {
   isGroup: boolean;
@@ -75,6 +81,12 @@ export function ConversationSettingsSidebar({
   onGifsHiddenForMeToggle?: (hidden: boolean) => void;
   gifAnimateOnHoverOnly?: boolean;
   onGifAnimateOnHoverOnlyToggle?: (value: boolean) => void;
+  audioCallsDisabled?: boolean;
+  onAudioCallsDisabledToggle?: (disabled: boolean) => void;
+  videoCallsDisabled?: boolean;
+  onVideoCallsDisabledToggle?: (disabled: boolean) => void;
+  screenshareDisabled?: boolean;
+  onScreenshareDisabledToggle?: (disabled: boolean) => void;
   onClose?: () => void;
 }) {
   const { t } = useTranslation();
@@ -318,6 +330,60 @@ export function ConversationSettingsSidebar({
                 'conversations.allowSkipModerationHint',
                 'Members can choose to skip content moderation scanning when sending media. Recipients may hide unmoderated content.',
               )}
+            </span>
+          </span>
+        </label>
+      )}
+
+      {(isAdmin || !isGroup) && onAudioCallsDisabledToggle && (
+        <label className="app-settings-toggle">
+          <input
+            type="checkbox"
+            checked={!(audioCallsDisabled ?? false)}
+            onChange={(e) => onAudioCallsDisabledToggle(!e.target.checked)}
+          />
+          <span className="app-settings-toggle-label">
+            <span className="app-settings-toggle-title">
+              {t('conversations.audioCallsEnabled', 'Allow audio calls')}
+            </span>
+            <span className="app-settings-toggle-hint">
+              {t('conversations.audioCallsEnabledHint', 'When disabled, participants cannot start or join audio calls.')}
+            </span>
+          </span>
+        </label>
+      )}
+
+      {(isAdmin || !isGroup) && onVideoCallsDisabledToggle && (
+        <label className="app-settings-toggle">
+          <input
+            type="checkbox"
+            checked={!(videoCallsDisabled ?? false)}
+            onChange={(e) => onVideoCallsDisabledToggle(!e.target.checked)}
+          />
+          <span className="app-settings-toggle-label">
+            <span className="app-settings-toggle-title">
+              {t('conversations.videoCallsEnabled', 'Allow video calls')}
+            </span>
+            <span className="app-settings-toggle-hint">
+              {t('conversations.videoCallsEnabledHint', 'When disabled, participants cannot enable video in calls.')}
+            </span>
+          </span>
+        </label>
+      )}
+
+      {(isAdmin || !isGroup) && onScreenshareDisabledToggle && (
+        <label className="app-settings-toggle">
+          <input
+            type="checkbox"
+            checked={!(screenshareDisabled ?? false)}
+            onChange={(e) => onScreenshareDisabledToggle(!e.target.checked)}
+          />
+          <span className="app-settings-toggle-label">
+            <span className="app-settings-toggle-title">
+              {t('conversations.screenshareEnabled', 'Allow screen sharing')}
+            </span>
+            <span className="app-settings-toggle-hint">
+              {t('conversations.screenshareEnabledHint', 'When disabled, participants cannot share their screen during calls.')}
             </span>
           </span>
         </label>
