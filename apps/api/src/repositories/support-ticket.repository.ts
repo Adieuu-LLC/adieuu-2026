@@ -181,9 +181,9 @@ export class SupportTicketRepository extends BaseRepository<SupportTicketDocumen
     } as Filter<SupportTicketDocument>);
   }
 
-  async markSubmitterRead(ticketObjectId: string): Promise<void> {
+  async markSubmitterRead(ticketObjectId: string, readAt?: Date): Promise<void> {
     await this.updateById(ticketObjectId, {
-      submitterLastReadAt: new Date(),
+      submitterLastReadAt: readAt ?? new Date(),
     } as Partial<SupportTicketDocument>);
   }
 
@@ -202,7 +202,7 @@ export class SupportTicketRepository extends BaseRepository<SupportTicketDocumen
       {
         $lookup: {
           from: Collections.SUPPORT_TICKET_EVENTS,
-          let: { ticketOid: '$_id', lastRead: '$submitterLastReadAt' },
+          let: { ticketOid: '$_id', lastRead: '$submitterLastReadAt', submitterId: '$submitterId' },
           pipeline: [
             {
               $match: {
@@ -211,6 +211,7 @@ export class SupportTicketRepository extends BaseRepository<SupportTicketDocumen
                     { $eq: ['$ticketObjectId', '$$ticketOid'] },
                     { $eq: ['$eventType', 'comment_public'] },
                     { $eq: ['$actorType', 'identity'] },
+                    { $ne: ['$actorId', '$$submitterId'] },
                     {
                       $gt: [
                         '$createdAt',

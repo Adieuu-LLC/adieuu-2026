@@ -220,7 +220,8 @@ export async function getOwnTicketResult(
     return { ok: false, kind: 'forbidden' };
   }
 
-  await markSupportTicketReadBySubmitter(submitter, ticketId);
+  const cutoff = new Date();
+  await markSupportTicketReadBySubmitter(submitter, ticketId, cutoff);
 
   const eventRepo = getSupportTicketEventRepository();
   const events = await eventRepo.listByTicketObjectId(ticket._id, { includeInternal: false });

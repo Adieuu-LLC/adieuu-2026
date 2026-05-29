@@ -16,6 +16,8 @@ import type { AssignTicketOptions } from './support-ticket.service';
 
 const RECENTLY_ACTIVE_MS = 15 * 60 * 1000;
 
+const fallbackRoundRobinCursor = new Map<string, number>();
+
 export type StaffPool = 'support_agent' | 'fallback';
 
 function identityIdFromDoc(identity: { _id: { toHexString(): string } | string }): string {
@@ -101,6 +103,10 @@ export async function pickRoundRobinAssignee(
     }
   }
 
+  const lastFallbackIndex = fallbackRoundRobinCursor.get(pool) ?? -1;
+  nextIndex = (lastFallbackIndex + 1) % sorted.length;
+  fallbackRoundRobinCursor.set(pool, nextIndex);
+
   return sorted[nextIndex] ?? null;
 }
 
@@ -175,14 +181,14 @@ export async function autoAssignNewTicket(ticket: SupportTicketDocument): Promis
       notifyAssignee: true,
       skipIfSameAssignee: false,
     });
-    if (!result.success) {
-      elog.warn('Auto-assign to support agent failed', {
-        ticketId: ticket.ticketId,
-        assignee: assigneeFromSupportAgents,
-        error: result.error,
-      });
+    if (result.success) {
+      return;
     }
-    return;
+    elog.warn('Auto-assign to support agent failed', {
+      ticketId: ticket.ticketId,
+      assignee: assigneeFromSupportAgents,
+      error: result.error,
+    });
   }
 
   const activeFallback = await filterRecentlyActiveStaff(fallbackIds);
@@ -193,14 +199,14 @@ export async function autoAssignNewTicket(ticket: SupportTicketDocument): Promis
       notifyAssignee: true,
       skipIfSameAssignee: false,
     });
-    if (!result.success) {
-      elog.warn('Auto-assign to fallback staff failed', {
-        ticketId: ticket.ticketId,
-        assignee: assigneeFromFallback,
-        error: result.error,
-      });
+    if (result.success) {
+      return;
     }
-    return;
+    elog.warn('Auto-assign to fallback staff failed', {
+      ticketId: ticket.ticketId,
+      assignee: assigneeFromFallback,
+      error: result.error,
+    });
   }
 
   await notifyAllAdminsOfUnassignedTicket(ticket);

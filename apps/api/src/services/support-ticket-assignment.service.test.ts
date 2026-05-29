@@ -3,10 +3,11 @@ import { PLATFORM_ROLES } from '../constants/platform-permissions';
 
 const mockGet = mock(async (_key?: string) => null as string | null);
 const mockSet = mock(async () => 'OK');
+let redisConnected = true;
 
 mock.module('../db', () => ({
   getRedis: () => ({ get: mockGet, set: mockSet }),
-  isRedisConnected: () => true,
+  isRedisConnected: () => redisConnected,
   RedisKeys: {
     chatOnline: (id: string) => `chat:online:${id}`,
     chatLastSeen: (id: string) => `chat:lastseen:${id}`,
@@ -42,6 +43,23 @@ describe('support-ticket-assignment.service', () => {
     const picked = await pickRoundRobinAssignee(['b', 'a', 'c'], 'support_agent');
     expect(picked).toBe('c');
     expect(mockSet).toHaveBeenCalled();
+  });
+
+  test('pickRoundRobinAssignee advances in-memory cursor when Redis is unavailable', async () => {
+    redisConnected = false;
+    try {
+      const first = await pickRoundRobinAssignee(['a', 'b', 'c'], 'fallback');
+      const second = await pickRoundRobinAssignee(['a', 'b', 'c'], 'fallback');
+      const third = await pickRoundRobinAssignee(['a', 'b', 'c'], 'fallback');
+      const fourth = await pickRoundRobinAssignee(['a', 'b', 'c'], 'fallback');
+
+      expect(first).toBe('a');
+      expect(second).toBe('b');
+      expect(third).toBe('c');
+      expect(fourth).toBe('a');
+    } finally {
+      redisConnected = true;
+    }
   });
 
   test('isIdentityRecentlyActive returns true when online key exists', async () => {

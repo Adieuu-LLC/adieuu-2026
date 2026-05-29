@@ -63,6 +63,7 @@ export function TicketDetail() {
       setEvents(res.data.events);
       setIdentityProfiles(res.data.identityProfiles ?? {});
       setError(null);
+      emitSupportUnreadChanged();
     }
   }, [api, ticketId]);
 

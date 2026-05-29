@@ -301,7 +301,29 @@ describe('support-ticket.service', () => {
     );
 
     expect(result.success).toBe(true);
-    expect(mockMarkSubmitterRead).toHaveBeenCalledWith(ticketObjectId.toHexString());
+    expect(mockMarkSubmitterRead).toHaveBeenCalledWith(ticketObjectId.toHexString(), undefined);
+  });
+
+  test('markSupportTicketReadBySubmitter passes readAt cutoff to repository', async () => {
+    const submitterId = new ObjectId().toHexString();
+    const ticketObjectId = new ObjectId();
+    const readAt = new Date('2026-05-28T12:00:00.000Z');
+    mockFindByTicketId.mockResolvedValueOnce({
+      _id: ticketObjectId,
+      ticketId: 'T-read-cutoff',
+      submitterType: 'account',
+      submitterId,
+      status: 'open',
+    });
+
+    const result = await markSupportTicketReadBySubmitter(
+      { type: 'account', id: submitterId },
+      'T-read-cutoff',
+      readAt,
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockMarkSubmitterRead).toHaveBeenCalledWith(ticketObjectId.toHexString(), readAt);
   });
 
   test('addSubmitterComment rejects when rate limited', async () => {

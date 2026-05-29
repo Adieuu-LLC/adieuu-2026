@@ -280,6 +280,7 @@ describe('support/controller', () => {
     expect(mockMarkSupportTicketReadBySubmitter).toHaveBeenCalledWith(
       { type: 'account', id: accountUserId },
       'T-test1234',
+      expect.any(Date),
     );
   });
 

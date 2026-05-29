@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createApiClient } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { onSupportTicketUpdated, onSupportUnreadChanged } from '../services/supportTicketEvents';
@@ -9,15 +9,19 @@ export function useSupportUnreadCount(enabled: boolean): number {
   const { apiBaseUrl } = useAppConfig();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const requestIdRef = useRef(0);
 
   const fetchCount = useCallback(async () => {
     if (!enabled) {
-      setUnreadCount(0);
       return;
     }
 
+    const requestId = requestIdRef.current;
     try {
       const res = await api.supportTickets.getUnreadCount();
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
       if (res.success && res.data) {
         setUnreadCount(res.data.unreadCount);
       }
@@ -27,14 +31,21 @@ export function useSupportUnreadCount(enabled: boolean): number {
   }, [api, enabled]);
 
   useEffect(() => {
+    if (!enabled) {
+      requestIdRef.current += 1;
+      setUnreadCount(0);
+      return undefined;
+    }
+
+    requestIdRef.current += 1;
     void fetchCount();
-    if (!enabled) return undefined;
 
     const interval = setInterval(() => void fetchCount(), POLL_INTERVAL_MS);
     const unsubTicket = onSupportTicketUpdated(() => void fetchCount());
     const unsubUnread = onSupportUnreadChanged(() => void fetchCount());
 
     return () => {
+      requestIdRef.current += 1;
       clearInterval(interval);
       unsubTicket();
       unsubUnread();

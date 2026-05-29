@@ -603,6 +603,7 @@ export async function countUnreadSupportTicketsForSubmitter(
 export async function markSupportTicketReadBySubmitter(
   submitter: SubmitterContext,
   ticketId: string,
+  readAt?: Date,
 ): Promise<ServiceResult> {
   const repo = getSupportTicketRepository();
   const ticket = await repo.findByTicketId(ticketId);
@@ -614,7 +615,7 @@ export async function markSupportTicketReadBySubmitter(
     return { success: false, error: 'Forbidden', errorCode: 'FORBIDDEN' };
   }
 
-  await repo.markSubmitterRead(ticket._id.toHexString());
+  await repo.markSubmitterRead(ticket._id.toHexString(), readAt);
   return { success: true, data: undefined };
 }
 

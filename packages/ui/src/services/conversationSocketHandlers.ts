@@ -721,7 +721,7 @@ export function handleConversationSocketMessage(
             })
           : title;
         ctx.fireNotification(title, body, {
-          onClick: () => ctx.navigate(`/support/${ticketData.ticketId ?? ''}`),
+          onClick: () => ctx.navigate(ticketData.ticketId ? `/support/${ticketData.ticketId}` : '/support'),
         });
         break;
       }
