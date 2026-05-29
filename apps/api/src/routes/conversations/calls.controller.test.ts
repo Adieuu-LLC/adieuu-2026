@@ -144,7 +144,7 @@ describe('calls.controller', () => {
         error: 'Too many',
         errorCode: 'RATE_LIMITED',
         retryAfter: 42,
-      }),
+      } as never),
     );
     const r = await initiateCallCtrl(authedCtx({ params: { id: VALID_CONV }, body: { media: MEDIA } }));
     expect(r).toEqual({ kind: 'rate_limited', retryAfter: 42 });
@@ -159,7 +159,7 @@ describe('calls.controller', () => {
         success: false,
         error: 'Unavailable',
         errorCode: 'JITSI_UNAVAILABLE',
-      }),
+      } as never),
     );
     const r = await initiateCallCtrl(authedCtx({ params: { id: VALID_CONV }, body: { media: MEDIA } }));
     expect(r.kind).toBe('named_error');
@@ -197,7 +197,7 @@ describe('calls.controller', () => {
 
   test('endCallCtrl forbidden on NOT_IN_CALL', async () => {
     mockEndCall.mockImplementation(() =>
-      Promise.resolve({ success: false, error: 'Not in call', errorCode: 'NOT_IN_CALL' }),
+      Promise.resolve({ success: false, error: 'Not in call', errorCode: 'NOT_IN_CALL' } as never),
     );
     const r = await endCallCtrl(
       authedCtx({ params: { id: VALID_CONV, callId: VALID_CALL } }),
@@ -235,7 +235,7 @@ describe('calls.controller', () => {
         success: false,
         error: 'Already active',
         errorCode: 'CALL_ALREADY_ACTIVE',
-      }),
+      } as never),
     );
     const r = await initiateCallCtrl(authedCtx({ params: { id: VALID_CONV }, body: { media: MEDIA } }));
     expect(r.kind).toBe('named_error');
@@ -251,7 +251,7 @@ describe('calls.controller', () => {
         success: false,
         error: 'Unavailable',
         errorCode: 'JITSI_UNAVAILABLE',
-      }),
+      } as never),
     );
     const r = await joinCallCtrl(
       authedCtx({
@@ -291,7 +291,7 @@ describe('calls.controller', () => {
         success: false,
         error: 'Only group admins can change call settings',
         errorCode: 'NOT_ADMIN',
-      }),
+      } as never),
     );
     const r = await updateCallSettingsCtrl(
       authedCtx({

@@ -22,7 +22,10 @@ mock.module('../config', () => ({
 import { mintJitsiToken, generateJitsiRoomName } from './jitsi-auth.service';
 
 function decodeJwtPayload(token: string): JitsiJwtPayload {
-  const [, payloadB64] = token.split('.');
+  const payloadB64 = token.split('.')[1];
+  if (!payloadB64) {
+    throw new Error('Invalid JWT: missing payload segment');
+  }
   return JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8')) as JitsiJwtPayload;
 }
 
@@ -68,7 +71,11 @@ describe('mintJitsiToken', () => {
     });
     const parts = token.split('.');
     expect(parts).toHaveLength(3);
-    expect(JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'))).toEqual({
+    const headerB64 = parts[0];
+    if (!headerB64) {
+      throw new Error('Invalid JWT: missing header segment');
+    }
+    expect(JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf8'))).toEqual({
       alg: 'HS256',
       typ: 'JWT',
     });
