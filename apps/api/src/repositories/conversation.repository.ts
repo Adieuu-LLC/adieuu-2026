@@ -72,6 +72,10 @@ export interface IConversationRepository {
     conversationId: ObjectId,
     allowSkipModeration: boolean
   ): Promise<ConversationDocument | null>;
+  updateCallSettings(
+    conversationId: ObjectId,
+    settings: { audioCallsDisabled?: boolean; videoCallsDisabled?: boolean; screenshareDisabled?: boolean }
+  ): Promise<ConversationDocument | null>;
   addPinnedMessage(
     conversationId: ObjectId,
     messageId: ObjectId
@@ -380,6 +384,23 @@ export class ConversationRepository
           updatedAt: new Date(),
         },
       },
+      { returnDocument: 'after' }
+    );
+    return result as ConversationDocument | null;
+  }
+
+  async updateCallSettings(
+    conversationId: ObjectId,
+    settings: { audioCallsDisabled?: boolean; videoCallsDisabled?: boolean; screenshareDisabled?: boolean }
+  ): Promise<ConversationDocument | null> {
+    const $set: Record<string, unknown> = { updatedAt: new Date() };
+    if (settings.audioCallsDisabled !== undefined) $set.audioCallsDisabled = settings.audioCallsDisabled;
+    if (settings.videoCallsDisabled !== undefined) $set.videoCallsDisabled = settings.videoCallsDisabled;
+    if (settings.screenshareDisabled !== undefined) $set.screenshareDisabled = settings.screenshareDisabled;
+
+    const result = await this.collection.findOneAndUpdate(
+      { _id: conversationId },
+      { $set },
       { returnDocument: 'after' }
     );
     return result as ConversationDocument | null;

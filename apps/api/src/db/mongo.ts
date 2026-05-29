@@ -338,6 +338,8 @@ export const Collections = {
   CONVERSATIONS: 'conversations',
   /** Encrypted messages */
   MESSAGES: 'messages',
+  /** Live calls (audio/video/screenshare) within conversations */
+  CALLS: 'calls',
   /** Group conversation invites (opt-in approval flow) */
   GROUP_INVITES: 'group_invites',
   /** Pre-keys for forward secrecy (signed + one-time) */
@@ -556,6 +558,15 @@ async function createIndexes(): Promise<void> {
   await messages.createIndex({ conversationId: 1, createdAt: -1 });
   await messages.createIndex({ conversationId: 1, clientMessageId: 1 }, { unique: true });
   await messages.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, sparse: true });
+
+  // Calls collection indexes
+  const calls = database.collection(Collections.CALLS);
+  await calls.createIndex({ conversationId: 1, status: 1 });
+  await calls.createIndex(
+    { conversationId: 1 },
+    { unique: true, partialFilterExpression: { status: { $ne: 'ended' } } }
+  );
+  await calls.createIndex({ endedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60, sparse: true });
 
   // Group invites collection indexes
   const groupInvites = database.collection(Collections.GROUP_INVITES);

@@ -53,6 +53,7 @@
     "@fortawesome/react-fontawesome": "3.3.0",
     "@simplewebauthn/browser": "13.2.2",
     "i18next": "24.2.3",
+    "lib-jitsi-meet": "https://github.com/jitsi/lib-jitsi-meet/releases/download/v2160.0.0%2Ba16478a8/lib-jitsi-meet.tgz",
     "qrcode.react": "4.2.0",
     "react-i18next": "15.7.4",
     "recharts": "2.15.4",

@@ -30,7 +30,12 @@ export type ChatMessageType =
   | 'reaction_added'
   | 'reaction_removed'
   | 'notification_created'
-  | 'identity_profile_updated';
+  | 'identity_profile_updated'
+  | 'call_initiated'
+  | 'call_participant_joined'
+  | 'call_participant_left'
+  | 'call_ended'
+  | 'call_media_state_changed';
 
 export interface ChatMessageBase {
   type: ChatMessageType;
@@ -123,7 +128,8 @@ export interface ChatConversationUpdatedMessage extends ChatMessageBase {
       | 'message_search_cache_policy_updated'
       | 'allow_skip_moderation_updated'
       | 'pending_invites_changed'
-      | 'pins_updated';
+      | 'pins_updated'
+      | 'call_settings_updated';
     identityId?: string;
     gifsDisabled?: boolean;
     gifContentFilter?: string;
@@ -133,6 +139,9 @@ export interface ChatConversationUpdatedMessage extends ChatMessageBase {
     pinnedMessageIds?: string[];
     /** Present for action renamed — drives notification copy (group vs DM). */
     conversationType?: 'dm' | 'group';
+    audioCallsDisabled?: boolean;
+    videoCallsDisabled?: boolean;
+    screenshareDisabled?: boolean;
   };
 }
 
@@ -287,6 +296,61 @@ export interface ChatIdentityProfileUpdatedMessage extends ChatMessageBase {
   };
 }
 
+export interface ChatCallMediaOptions {
+  audio: boolean;
+  video: boolean;
+  screenshare: boolean;
+}
+
+export interface ChatCallInitiatedMessage extends ChatMessageBase {
+  type: 'call_initiated';
+  data: {
+    call: {
+      id: string;
+      conversationId: string;
+      initiatorIdentityId: string;
+      status: string;
+      allowedMedia: ChatCallMediaOptions;
+      jitsiRoomName: string;
+      createdAt: string;
+    };
+  };
+}
+
+export interface ChatCallParticipantJoinedMessage extends ChatMessageBase {
+  type: 'call_participant_joined';
+  data: {
+    callId: string;
+    identityId: string;
+    mediaState: ChatCallMediaOptions;
+  };
+}
+
+export interface ChatCallParticipantLeftMessage extends ChatMessageBase {
+  type: 'call_participant_left';
+  data: {
+    callId: string;
+    identityId: string;
+  };
+}
+
+export interface ChatCallEndedMessage extends ChatMessageBase {
+  type: 'call_ended';
+  data: {
+    callId: string;
+    endedBy: string;
+  };
+}
+
+export interface ChatCallMediaStateChangedMessage extends ChatMessageBase {
+  type: 'call_media_state_changed';
+  data: {
+    callId: string;
+    identityId: string;
+    mediaState: ChatCallMediaOptions;
+  };
+}
+
 export type ChatIncomingMessage =
   | ChatPongMessage
   | ChatErrorMessage
@@ -306,7 +370,12 @@ export type ChatIncomingMessage =
   | ChatReactionAddedMessage
   | ChatReactionRemovedMessage
   | ChatNotificationCreatedMessage
-  | ChatIdentityProfileUpdatedMessage;
+  | ChatIdentityProfileUpdatedMessage
+  | ChatCallInitiatedMessage
+  | ChatCallParticipantJoinedMessage
+  | ChatCallParticipantLeftMessage
+  | ChatCallEndedMessage
+  | ChatCallMediaStateChangedMessage;
 
 export type ChatOutgoingMessage =
   | ChatPingMessage;

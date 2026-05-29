@@ -6,6 +6,7 @@ import { account } from './account';
 import { achievements } from './achievements';
 import { admin } from './admin';
 import { auth } from './auth';
+import { call } from './call';
 import { ciphers } from './ciphers';
 import { conversations } from './conversations';
 import { core } from './core';
@@ -24,6 +25,7 @@ export const en = {
   account,
   ...staticPages,
   auth,
+  call,
   ciphers,
   admin,
   conversations,

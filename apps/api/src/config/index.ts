@@ -404,6 +404,22 @@ export const config = {
     cacheTtlTrending: optionalEnvInt('KLIPY_CACHE_TTL_TRENDING', 120),
   },
 
+  /** Jitsi Meet self-hosted video conferencing configuration */
+  jitsi: {
+    /** Whether Jitsi integration is enabled */
+    enabled: optionalEnvBool('JITSI_ENABLED', false),
+    /** Base URL of the Jitsi Meet deployment (e.g. https://jitsi.adieuu.com) */
+    baseUrl: optionalEnv('JITSI_BASE_URL', 'https://meet.jitsi'),
+    /** JWT application ID (must match Prosody JWT app_id) */
+    jwtAppId: optionalEnv('JITSI_JWT_APP_ID', 'adieuu'),
+    /** JWT issuer (must match Prosody JWT issuer) */
+    jwtIssuer: optionalEnv('JITSI_JWT_ISSUER', 'adieuu'),
+    /** Shared secret for signing JWTs (must match Prosody JWT app_secret) */
+    jwtSecret: optionalEnv('JITSI_JWT_SECRET', 'dev-jitsi-jwt-secret'),
+    /** JWT expiration in seconds */
+    jwtExpirationSec: optionalEnvInt('JITSI_JWT_EXPIRATION_SEC', 300),
+  },
+
   /** Stripe subscription billing configuration */
   stripe: {
     /** Whether Stripe integration is enabled (routes return 503 when false) */
@@ -479,6 +495,13 @@ export const config = {
     klipySearchIdentityWindow: optionalEnvInt('RATE_LIMIT_KLIPY_SEARCH_IDENTITY_WINDOW', 60),
     /** Klipy progressive throttle cooldown in seconds (tier decays after no limit hits) */
     klipyThrottleCooldown: optionalEnvInt('RATE_LIMIT_KLIPY_THROTTLE_COOLDOWN', 300),
+
+    /** Call initiate base limit per identity (tier 0) */
+    callsInitiateIdentityLimit: optionalEnvInt('RATE_LIMIT_CALLS_INITIATE_IDENTITY', 5),
+    /** Call initiate per identity window in seconds */
+    callsInitiateIdentityWindow: optionalEnvInt('RATE_LIMIT_CALLS_INITIATE_IDENTITY_WINDOW', 300),
+    /** Call initiate progressive throttle cooldown in seconds */
+    callsInitiateThrottleCooldown: optionalEnvInt('RATE_LIMIT_CALLS_INITIATE_THROTTLE_COOLDOWN', 900),
   },
 } as const;
 
@@ -542,6 +565,16 @@ export function validateProductionConfig(): void {
   // Check Klipy config
   if (!config.klipy.apiKey) {
     errors.push('KLIPY_API_KEY must be set in production');
+  }
+
+  if (config.jitsi.enabled) {
+    const jwtSecret = config.jitsi.jwtSecret.trim();
+    if (!jwtSecret || jwtSecret.includes('dev-')) {
+      errors.push('JITSI_JWT_SECRET must be set when JITSI_ENABLED is true');
+    }
+    if (!config.jitsi.baseUrl || config.jitsi.baseUrl === 'https://meet.jitsi') {
+      errors.push('JITSI_BASE_URL must be set to your Jitsi deployment URL when JITSI_ENABLED is true');
+    }
   }
 
   if (config.stripe.enabled) {

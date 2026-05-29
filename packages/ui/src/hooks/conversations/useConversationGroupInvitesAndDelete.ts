@@ -297,6 +297,24 @@ export function useConversationGroupInvitesAndDelete(
     [api, toDecrypted]
   );
 
+  const updateCallSettings = useCallback(
+    async (
+      conversationId: string,
+      settings: { audioCallsDisabled?: boolean; videoCallsDisabled?: boolean; screenshareDisabled?: boolean }
+    ): Promise<boolean> => {
+      const resp = await api.conversations.updateCallSettings(conversationId, settings);
+      if (!resp.success || !resp.data?.conversation) return false;
+      const updated = toDecrypted(resp.data.conversation);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...updated, unreadCount: c.unreadCount } : c
+        )
+      );
+      return true;
+    },
+    [api, toDecrypted]
+  );
+
   const pinMessage = useCallback(
     async (conversationId: string, messageId: string): Promise<boolean> => {
       const resp = await api.conversations.pinMessage(conversationId, messageId);
@@ -455,6 +473,7 @@ export function useConversationGroupInvitesAndDelete(
     updateCustomEmojisDisabled,
     updateMessageSearchCachePolicy,
     updateAllowSkipModeration,
+    updateCallSettings,
     pinMessage,
     unpinMessage,
     deleteMessage,

@@ -542,3 +542,115 @@ variable "atlas_api_private_key" {
   default     = ""
   sensitive   = true
 }
+
+# --- Jitsi Meet (self-hosted video calling) ---
+
+variable "jitsi_enabled" {
+  type        = bool
+  description = "Deploy Jitsi Meet infrastructure (signaling + JVB). Requires route53_zone_name to be set."
+  default     = false
+
+  validation {
+    condition = (
+      !var.jitsi_enabled ||
+      trimspace(var.route53_zone_name) != ""
+    )
+    error_message = "jitsi_enabled requires route53_zone_name so DNS and TLS can be provisioned."
+  }
+}
+
+variable "jitsi_domain" {
+  type        = string
+  description = "FQDN for the Jitsi Meet service (must sit under route53_zone_name). Used for ALB host routing, ACM, and Route53 records."
+  default     = "jitsi.adieuu.com"
+
+  validation {
+    condition = (
+      !var.jitsi_enabled ||
+      endswith(var.jitsi_domain, trimsuffix(trimspace(var.route53_zone_name), "."))
+    )
+    error_message = "jitsi_domain must be a subdomain of route53_zone_name (e.g. jitsi.example.com under example.com)."
+  }
+}
+
+variable "jitsi_signal_cpu" {
+  type        = number
+  description = "Fargate CPU units for the Jitsi signal task (Prosody + Jicofo + Web)."
+  default     = 512
+}
+
+variable "jitsi_signal_memory" {
+  type        = number
+  description = "Fargate memory (MiB) for the Jitsi signal task."
+  default     = 1024
+}
+
+variable "jitsi_signal_image_tag" {
+  type        = string
+  description = "Image tag for the Jitsi signal container (ECR)."
+  default     = "latest"
+}
+
+variable "jitsi_jvb_cpu" {
+  type        = number
+  description = "Fargate CPU units for the Jitsi JVB task."
+  default     = 1024
+}
+
+variable "jitsi_jvb_memory" {
+  type        = number
+  description = "Fargate memory (MiB) for the Jitsi JVB task."
+  default     = 2048
+}
+
+variable "jitsi_jvb_image_tag" {
+  type        = string
+  description = "Image tag for the Jitsi JVB container (ECR)."
+  default     = "latest"
+}
+
+variable "jitsi_jvb_min_count" {
+  type        = number
+  description = "Minimum JVB tasks for auto-scaling."
+  default     = 1
+}
+
+variable "jitsi_jvb_max_count" {
+  type        = number
+  description = "Maximum JVB tasks for auto-scaling."
+  default     = 10
+
+  validation {
+    condition     = var.jitsi_jvb_max_count >= var.jitsi_jvb_min_count
+    error_message = "jitsi_jvb_max_count must be >= jitsi_jvb_min_count."
+  }
+}
+
+variable "jitsi_signal_min_count" {
+  type        = number
+  description = "Minimum signal tasks for auto-scaling."
+  default     = 1
+}
+
+variable "jitsi_signal_max_count" {
+  type        = number
+  description = "Maximum signal tasks for auto-scaling."
+  default     = 3
+
+  validation {
+    condition     = var.jitsi_signal_max_count >= var.jitsi_signal_min_count
+    error_message = "jitsi_signal_max_count must be >= jitsi_signal_min_count."
+  }
+}
+
+variable "jitsi_jwt_app_id" {
+  type        = string
+  description = "JWT app_id for Jitsi token authentication (matches client-issued tokens)."
+  default     = "adieuu"
+}
+
+variable "jitsi_jwt_issuer" {
+  type        = string
+  description = "JWT accepted issuer for Jitsi token authentication."
+  default     = "adieuu"
+}

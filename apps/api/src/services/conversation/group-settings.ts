@@ -429,3 +429,59 @@ export async function updateAllowSkipModeration(
 
   return { success: true, conversation: updated ? toPublicConversation(updated) : undefined };
 }
+
+// ---------------------------------------------------------------------------
+// Call settings (audio / video / screenshare toggles)
+// ---------------------------------------------------------------------------
+
+export interface CallSettingsPayload {
+  audioCallsDisabled?: boolean;
+  videoCallsDisabled?: boolean;
+  screenshareDisabled?: boolean;
+}
+
+/**
+ * Update whether audio calls, video calls, and/or screen sharing are allowed.
+ * In groups only admins may call this; in DMs either participant may.
+ */
+export async function updateCallSettings(
+  conversationId: string | ObjectId,
+  requesterIdentityId: string | ObjectId,
+  settings: CallSettingsPayload
+): Promise<ConversationResult> {
+  const conversationRepo = getConversationRepository();
+
+  const convObjId =
+    conversationId instanceof ObjectId ? conversationId : new ObjectId(conversationId as string);
+  const requesterObjId =
+    requesterIdentityId instanceof ObjectId
+      ? requesterIdentityId
+      : new ObjectId(requesterIdentityId as string);
+
+  const conversation = await conversationRepo.findById(convObjId);
+  if (!conversation) {
+    return { success: false, error: 'Conversation not found', errorCode: 'CONVERSATION_NOT_FOUND' };
+  }
+
+  if (!conversation.participants.some((p) => p.equals(requesterObjId))) {
+    return { success: false, error: 'Not a participant', errorCode: 'NOT_PARTICIPANT' };
+  }
+
+  if (conversation.type === 'group' && !isGroupAdmin(conversation, requesterObjId)) {
+    return { success: false, error: 'Only group admins can change call settings', errorCode: 'NOT_ADMIN' };
+  }
+
+  const updated = await conversationRepo.updateCallSettings(convObjId, settings);
+
+  await publishToParticipants(conversation.participants, requesterObjId, {
+    type: 'conversation_updated',
+    data: {
+      conversationId: convObjId.toHexString(),
+      action: 'call_settings_updated',
+      identityId: requesterObjId.toHexString(),
+      ...settings,
+    },
+  });
+
+  return { success: true, conversation: updated ? toPublicConversation(updated) : undefined };
+}

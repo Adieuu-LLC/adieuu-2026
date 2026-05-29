@@ -82,6 +82,14 @@ export const APP_ICON_NAMES = {
   locationPin: 'location-pin',
   rotateRight: 'arrow-rotate-right',
   handshake: 'handshake',
+  phone: 'phone',
+  phoneHangup: 'phone-hangup',
+  video: 'video',
+  videoSlash: 'video-slash',
+  microphone: 'microphone',
+  microphoneSlash: 'microphone-slash',
+  screenShare: 'screen-users',
+  phoneIncoming: 'phone-arrow-down-left',
 } as const;
 
 export type AppIconName = keyof typeof APP_ICON_NAMES;

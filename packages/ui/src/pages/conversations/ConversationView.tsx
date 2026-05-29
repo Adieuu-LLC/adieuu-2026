@@ -118,6 +118,7 @@ export function ConversationView() {
     updateCustomEmojisDisabled,
     updateMessageSearchCachePolicy,
     updateAllowSkipModeration,
+    updateCallSettings,
     memberSettings,
     fetchRecipientKeys,
     listPendingGroupInvites,
@@ -314,6 +315,30 @@ export function ConversationView() {
       await updateAllowSkipModeration(id, allow);
     },
     [id, updateAllowSkipModeration],
+  );
+
+  const handleAudioCallsDisabledToggle = useCallback(
+    async (disabled: boolean) => {
+      if (!id) return;
+      await updateCallSettings(id, { audioCallsDisabled: disabled });
+    },
+    [id, updateCallSettings],
+  );
+
+  const handleVideoCallsDisabledToggle = useCallback(
+    async (disabled: boolean) => {
+      if (!id) return;
+      await updateCallSettings(id, { videoCallsDisabled: disabled });
+    },
+    [id, updateCallSettings],
+  );
+
+  const handleScreenshareDisabledToggle = useCallback(
+    async (disabled: boolean) => {
+      if (!id) return;
+      await updateCallSettings(id, { screenshareDisabled: disabled });
+    },
+    [id, updateCallSettings],
   );
 
   const handleToggleFs = useCallback(() => {
@@ -1132,6 +1157,12 @@ export function ConversationView() {
               onMessageSearchCachePolicyToggle={handleMessageSearchCachePolicyToggle}
               allowSkipModeration={conversation.allowSkipModeration ?? false}
               onAllowSkipModerationToggle={handleAllowSkipModerationToggle}
+              audioCallsDisabled={conversation.audioCallsDisabled ?? false}
+              onAudioCallsDisabledToggle={handleAudioCallsDisabledToggle}
+              videoCallsDisabled={conversation.videoCallsDisabled ?? false}
+              onVideoCallsDisabledToggle={handleVideoCallsDisabledToggle}
+              screenshareDisabled={conversation.screenshareDisabled ?? false}
+              onScreenshareDisabledToggle={handleScreenshareDisabledToggle}
               gifsHiddenForMe={convGifHidden}
               onGifsHiddenForMeToggle={gifsGloballyDisabled ? undefined : setConvGifHidden}
               gifAnimateOnHoverOnly={effectiveGifAnimateOnHover}

@@ -41,6 +41,12 @@ export interface PublicConversation {
   disallowPersistentMessageSearchCache?: boolean;
   /** When true, participants may opt out of moderation scanning per-send. */
   allowSkipModeration?: boolean;
+  /** When true, audio calls are disabled for this conversation (admin toggle). */
+  audioCallsDisabled?: boolean;
+  /** When true, video calls are disabled for this conversation (admin toggle). */
+  videoCallsDisabled?: boolean;
+  /** When true, screen sharing is disabled for this conversation (admin toggle). */
+  screenshareDisabled?: boolean;
   pinnedMessageIds?: string[];
   /**
    * Total stored message documents for this thread (incl. system and tombstones).

@@ -381,4 +381,78 @@ export class ConversationsApi {
       patch
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Call endpoints
+  // ---------------------------------------------------------------------------
+
+  async initiateCall(
+    conversationId: string,
+    media: { audio: boolean; video: boolean; screenshare: boolean }
+  ): Promise<ApiResponse<{ call: unknown; jitsiToken?: string }>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/calls`,
+      { media }
+    );
+  }
+
+  async joinCall(
+    conversationId: string,
+    callId: string,
+    media: { audio: boolean; video: boolean; screenshare: boolean }
+  ): Promise<ApiResponse<{ call: unknown; jitsiToken?: string }>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/calls/${encodeURIComponent(callId)}/join`,
+      { media }
+    );
+  }
+
+  async leaveCall(
+    conversationId: string,
+    callId: string
+  ): Promise<ApiResponse<{ call: unknown }>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/calls/${encodeURIComponent(callId)}/leave`,
+      {}
+    );
+  }
+
+  async endCall(
+    conversationId: string,
+    callId: string
+  ): Promise<ApiResponse<{ call: unknown }>> {
+    return this.client.post(
+      `/api/conversations/${encodeURIComponent(conversationId)}/calls/${encodeURIComponent(callId)}/end`,
+      {}
+    );
+  }
+
+  async getActiveCall(
+    conversationId: string
+  ): Promise<ApiResponse<{ call: unknown | null }>> {
+    return this.client.get(
+      `/api/conversations/${encodeURIComponent(conversationId)}/calls/active`
+    );
+  }
+
+  async updateCallMediaState(
+    conversationId: string,
+    callId: string,
+    media: { audio: boolean; video: boolean; screenshare: boolean }
+  ): Promise<ApiResponse<{ call: unknown }>> {
+    return this.client.patch(
+      `/api/conversations/${encodeURIComponent(conversationId)}/calls/${encodeURIComponent(callId)}/media`,
+      { media }
+    );
+  }
+
+  async updateCallSettings(
+    conversationId: string,
+    settings: { audioCallsDisabled?: boolean; videoCallsDisabled?: boolean; screenshareDisabled?: boolean }
+  ): Promise<ApiResponse<{ conversation: PublicConversation }>> {
+    return this.client.patch(
+      `/api/conversations/${encodeURIComponent(conversationId)}/call-settings`,
+      settings
+    );
+  }
 }
