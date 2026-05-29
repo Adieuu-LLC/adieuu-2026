@@ -1,18 +1,19 @@
 /**
  * Incoming call ringtone hook.
  *
- * Plays the user's configured TTL (disappearing message) notification sound
- * on a loop with a 1-second gap while there are incoming calls AND the user
- * is not already in a call. Stops when the user accepts/declines/call ends.
+ * Plays the user's configured call ringtone sound on a loop while there are
+ * incoming calls AND the user is not already in a call. Each repetition waits
+ * for the track to finish, then pauses briefly before replaying.
+ * Stops when the user accepts/declines/call ends.
  */
 
 import { useEffect, useRef } from 'react';
 import { useCallSession } from './useCallSession';
 import { useGlobalCallEvents } from './useGlobalCallEvents';
 import {
-  getTtlNotificationSoundId,
-  getTtlNotificationSoundCustomPath,
-  getTtlNotificationSoundVolume,
+  getCallRingtoneSoundId,
+  getCallRingtoneSoundCustomPath,
+  getCallRingtoneSoundVolume,
 } from './notificationSoundPreferenceStorage';
 import {
   getBuiltinNotificationSoundSrc,
@@ -20,21 +21,23 @@ import {
 } from '../constants/builtinNotificationSounds';
 import { ensureAudioContextRunning } from '../utils/notificationSound';
 
-const RING_GAP_MS = 1000;
+const RING_GAP_MS = 200;
 
 export function useIncomingCallRinger(): void {
   const { incomingCalls } = useGlobalCallEvents();
   const { activeSession, phase } = useCallSession();
 
   const shouldRing = incomingCalls.length > 0 && activeSession === null && phase === 'idle';
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
     if (!shouldRing) {
-      if (intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      cancelledRef.current = true;
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
       if (audioRef.current) {
         audioRef.current.pause();
@@ -44,12 +47,14 @@ export function useIncomingCallRinger(): void {
       return;
     }
 
-    const soundId = getTtlNotificationSoundId();
+    cancelledRef.current = false;
+
+    const soundId = getCallRingtoneSoundId();
     if (soundId === 'none') return;
 
     let src: string | null = null;
     if (soundId === 'custom') {
-      const customPath = getTtlNotificationSoundCustomPath();
+      const customPath = getCallRingtoneSoundCustomPath();
       if (!customPath) return;
       src = customPath;
     } else if (isBuiltinNotificationSoundId(soundId)) {
@@ -57,29 +62,32 @@ export function useIncomingCallRinger(): void {
     }
     if (!src) return;
 
-    const volume = getTtlNotificationSoundVolume();
+    const volume = getCallRingtoneSoundVolume();
 
     void ensureAudioContextRunning();
 
     const playRing = () => {
-      if (audioRef.current) {
-        audioRef.current.currentTime = 0;
-        void audioRef.current.play().catch(() => {});
-        return;
-      }
+      if (cancelledRef.current) return;
+
       const audio = new Audio(src!);
       audio.volume = Math.min(1, volume);
       audioRef.current = audio;
+
+      audio.addEventListener('ended', () => {
+        if (cancelledRef.current) return;
+        timeoutRef.current = setTimeout(playRing, RING_GAP_MS);
+      });
+
       void audio.play().catch(() => {});
     };
 
     playRing();
-    intervalRef.current = setInterval(playRing, RING_GAP_MS + 500);
 
     return () => {
-      if (intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      cancelledRef.current = true;
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
       if (audioRef.current) {
         audioRef.current.pause();

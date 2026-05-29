@@ -27,6 +27,7 @@ import {
   useNotificationSoundPreference,
   useTtlNotificationSoundPreference,
   useMentionNotificationSoundPreference,
+  useCallRingtonePreference,
   setNotificationSoundEnabled,
   setNotificationSoundId,
   setNotificationSoundCustomPath,
@@ -38,9 +39,13 @@ import {
   setMentionNotificationSoundId,
   setMentionNotificationSoundCustomPath,
   setMentionNotificationSoundVolume,
+  setCallRingtoneSoundId,
+  setCallRingtoneSoundCustomPath,
+  setCallRingtoneSoundVolume,
   MAX_NOTIFICATION_GAIN,
   DEFAULT_TTL_NOTIFICATION_SOUND_ID,
   DEFAULT_MENTION_NOTIFICATION_SOUND_ID,
+  DEFAULT_CALL_RINGTONE_NOTIFICATION_SOUND_ID,
   type NotificationSoundId,
 } from '../../hooks/useNotificationSoundPreference';
 import {
@@ -74,6 +79,7 @@ export function IdentityNotifications() {
   const soundPref = useNotificationSoundPreference();
   const ttlSoundPref = useTtlNotificationSoundPreference();
   const mentionSoundPref = useMentionNotificationSoundPreference();
+  const callRingtonePref = useCallRingtonePreference();
   const claimAchievement = useClaimAchievement();
   const [busy, setBusy] = useState(false);
   const [soundBrowseBusy, setSoundBrowseBusy] = useState(false);
@@ -82,6 +88,8 @@ export function IdentityNotifications() {
   const [ttlCustomSoundMissing, setTtlCustomSoundMissing] = useState(false);
   const [mentionSoundBrowseBusy, setMentionSoundBrowseBusy] = useState(false);
   const [mentionCustomSoundMissing, setMentionCustomSoundMissing] = useState(false);
+  const [callRingtoneBrowseBusy, setCallRingtoneBrowseBusy] = useState(false);
+  const [callRingtoneCustomSoundMissing, setCallRingtoneCustomSoundMissing] = useState(false);
   const [achSoundBrowseBusy, setAchSoundBrowseBusy] = useState(false);
   const [achCustomSoundMissing, setAchCustomSoundMissing] = useState(false);
 
@@ -162,6 +170,24 @@ export function IdentityNotifications() {
     }
     void verifyMentionCustom();
   }, [mentionSoundPref.soundId, mentionSoundPref.customPath, audio]);
+
+  useEffect(() => {
+    if (!hasCustomSoundPicker && callRingtonePref.soundId === 'custom') {
+      setCallRingtoneSoundId(DEFAULT_CALL_RINGTONE_NOTIFICATION_SOUND_ID);
+    }
+  }, [hasCustomSoundPicker, callRingtonePref.soundId]);
+
+  useEffect(() => {
+    async function verifyCallRingtoneCustom(): Promise<void> {
+      if (callRingtonePref.soundId !== 'custom' || !callRingtonePref.customPath || !audio?.loadSoundFromPath) {
+        setCallRingtoneCustomSoundMissing(false);
+        return;
+      }
+      const buf = await audio.loadSoundFromPath(callRingtonePref.customPath);
+      setCallRingtoneCustomSoundMissing(!buf || buf.byteLength === 0);
+    }
+    void verifyCallRingtoneCustom();
+  }, [callRingtonePref.soundId, callRingtonePref.customPath, audio]);
 
   useEffect(() => {
     if (!notifIdentity?.id) return;
@@ -382,6 +408,47 @@ export function IdentityNotifications() {
   const handleMentionVolumeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     const pct = Number(e.target.value);
     setMentionNotificationSoundVolume(pct / 100);
+    if (pct >= 200) claimAchievement('notification_volume_maxed');
+  }, [claimAchievement]);
+
+  const handleCallRingtoneSoundIdChange = useCallback(
+    (value: string) => {
+      const id = value as NotificationSoundId;
+      setCallRingtoneSoundId(id);
+      if (id !== 'custom') {
+        invalidateNotificationSoundCustomCache();
+      }
+    },
+    []
+  );
+
+  const handleBrowseCallRingtoneCustomSound = useCallback(async () => {
+    if (!audio?.pickSoundFile) return;
+    setCallRingtoneBrowseBusy(true);
+    try {
+      const picked = await audio.pickSoundFile();
+      if (!picked) return;
+      setCallRingtoneSoundCustomPath(picked.path);
+      setCallRingtoneSoundId('custom');
+      invalidateNotificationSoundCustomCache();
+      setCallRingtoneCustomSoundMissing(false);
+    } finally {
+      setCallRingtoneBrowseBusy(false);
+    }
+  }, [audio]);
+
+  const handlePreviewCallRingtoneSound = useCallback(async () => {
+    await previewNotificationSound({
+      soundId: callRingtonePref.soundId,
+      customPath: callRingtonePref.customPath,
+      loadCustomSound: audio?.loadSoundFromPath,
+      volume: callRingtonePref.volume,
+    });
+  }, [audio, callRingtonePref.customPath, callRingtonePref.soundId, callRingtonePref.volume]);
+
+  const handleCallRingtoneVolumeChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    const pct = Number(e.target.value);
+    setCallRingtoneSoundVolume(pct / 100);
     if (pct >= 200) claimAchievement('notification_volume_maxed');
   }, [claimAchievement]);
 
@@ -820,6 +887,93 @@ export function IdentityNotifications() {
               {mentionCustomSoundMissing && (
                 <Alert variant="warning" className="app-settings-alert">
                   {t('account.settings.notifications.mentionSoundFileMissing')}
+                </Alert>
+              )}
+            </div>
+          )}
+        </Card>
+
+        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound">
+          <h2 className="app-settings-section-title">{t('account.settings.notifications.callRingtoneSectionTitle')}</h2>
+          <p className="app-settings-section-desc">{t('account.settings.notifications.callRingtoneSectionDescription')}</p>
+
+          <div className="app-settings-sound-row">
+            <div id="call-ringtone-sound-preset-label" className="app-settings-sound-select-label">
+              {t('account.settings.notifications.callRingtoneSelectLabel')}
+            </div>
+            <div className="app-settings-sound-row-controls">
+              <NotificationSoundSelect
+                value={callRingtonePref.soundId}
+                disabled={!soundPref.enabled}
+                hasCustomSoundPicker={hasCustomSoundPicker}
+                builtinItems={builtinSoundSelectItems}
+                labels={soundSelectLabels}
+                onValueChange={handleCallRingtoneSoundIdChange}
+                labelId="call-ringtone-sound-preset-label"
+              />
+              <button
+                type="button"
+                className="btn btn-secondary app-settings-sound-preview"
+                disabled={
+                  callRingtonePref.soundId === 'none' ||
+                  (callRingtonePref.soundId === 'custom' &&
+                    (!callRingtonePref.customPath || !audio?.loadSoundFromPath))
+                }
+                onClick={() => void handlePreviewCallRingtoneSound()}
+              >
+                {t('account.settings.notifications.callRingtonePreview')}
+              </button>
+            </div>
+          </div>
+
+          <div className="app-settings-sound-volume">
+            <label htmlFor="call-ringtone-sound-volume" className="app-settings-sound-volume-label">
+              {t('account.settings.notifications.callRingtoneVolumeLabel')}
+            </label>
+            <div className="app-settings-sound-volume-row">
+              <input
+                id="call-ringtone-sound-volume"
+                type="range"
+                className="app-settings-sound-volume-slider"
+                min={0}
+                max={Math.round(MAX_NOTIFICATION_GAIN * 100)}
+                step={1}
+                value={Math.round(callRingtonePref.volume * 100)}
+                disabled={callRingtonePref.soundId === 'none'}
+                onChange={handleCallRingtoneVolumeChange}
+                aria-valuemin={0}
+                aria-valuemax={Math.round(MAX_NOTIFICATION_GAIN * 100)}
+                aria-valuenow={Math.round(callRingtonePref.volume * 100)}
+                aria-valuetext={`${Math.round(callRingtonePref.volume * 100)}%`}
+              />
+              <span className="app-settings-sound-volume-value" aria-hidden>
+                {Math.round(callRingtonePref.volume * 100)}%
+              </span>
+            </div>
+            <p className="app-settings-sound-volume-hint">{t('account.settings.notifications.callRingtoneVolumeHint')}</p>
+          </div>
+
+          {hasCustomSoundPicker && callRingtonePref.soundId === 'custom' && (
+            <div className="app-settings-custom-sound">
+              <span className="app-settings-custom-sound-label">
+                {t('account.settings.notifications.callRingtoneCustomFile')}
+              </span>
+              <div className="app-settings-custom-sound-row">
+                <span className="app-settings-custom-sound-name" title={callRingtonePref.customPath ?? ''}>
+                  {callRingtonePref.customPath ? basenameFromPath(callRingtonePref.customPath) : '—'}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={!soundPref.enabled || callRingtoneBrowseBusy}
+                  onClick={() => void handleBrowseCallRingtoneCustomSound()}
+                >
+                  {t('account.settings.notifications.callRingtoneBrowse')}
+                </button>
+              </div>
+              {callRingtoneCustomSoundMissing && (
+                <Alert variant="warning" className="app-settings-alert">
+                  {t('account.settings.notifications.callRingtoneFileMissing')}
                 </Alert>
               )}
             </div>
