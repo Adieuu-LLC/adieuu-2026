@@ -120,17 +120,30 @@
 }
 
 // ============================================================================
-// Call Overlay (app-level, always-on-top when active)
+// Call Overlay (fixed position, below conversation toolbar, top half)
 // ============================================================================
 
 .call-overlay {
+  display: none;
   position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
+  top: 45px;
+  left: min($sidebar-width, $sidebar-width-max);
+  right: 0;
+  height: calc(50vh - 22px);
+  z-index: 100;
   flex-direction: column;
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border);
+  overflow: hidden;
+
+  &[data-call-visible="true"] {
+    display: flex;
+  }
+
+  .lk-video-conference {
+    height: 100%;
+  }
 
   &-header {
     display: flex;
@@ -198,6 +211,127 @@
     justify-content: center;
     padding: var(--spacing-md) var(--spacing-lg);
     border-top: 1px solid var(--color-border);
+  }
+}
+
+.app-layout.sidebar-is-collapsed ~ .call-overlay[data-call-visible="true"] {
+  left: $sidebar-width-collapsed;
+}
+
+// ============================================================================
+// Custom Call Conference View
+// ============================================================================
+
+.call-conference {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+
+  &__grid {
+    flex: 1;
+    display: grid;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    overflow: hidden;
+
+    &--single {
+      grid-template-columns: 1fr;
+    }
+
+    &--small {
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(auto-fit, minmax(0, 1fr));
+    }
+
+    &--large {
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(auto-fit, minmax(0, 1fr));
+    }
+  }
+
+  &__tile-wrapper {
+    display: contents;
+  }
+
+  &__tile {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    min-height: 0;
+
+    &--local {
+      .call-conference__video {
+        transform: scaleX(-1);
+      }
+    }
+
+    &--screen {
+      .call-conference__video {
+        transform: none;
+      }
+    }
+  }
+
+  &__video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  &__avatar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-lg);
+  }
+
+  &__overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
+    color: #fff;
+  }
+
+  &__name {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__muted-icon {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-error, #ef4444);
+    flex-shrink: 0;
+  }
+
+  &__controls {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg-primary);
+
+    .lk-control-bar {
+      display: flex;
+      gap: var(--spacing-sm);
+    }
   }
 }
 
@@ -401,4 +535,98 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-xs);
+}
+
+// ============================================================================
+// Sidebar Call Widget
+// ============================================================================
+
+.sidebar-call-widget {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-sm);
+
+  &--active {
+    background: var(--color-success-bg);
+    border: 1px solid var(--color-success);
+  }
+
+  &--incoming {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    animation: incoming-call-pulse 2s ease-in-out infinite;
+  }
+
+  &__info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    min-width: 0;
+    flex: 1;
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+
+    &:hover {
+      opacity: 0.8;
+    }
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    color: var(--color-success);
+
+    &--ringing {
+      animation: sidebar-call-ring 1s ease-in-out infinite;
+    }
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &__name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__duration,
+  &__status {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-shrink: 0;
+  }
+
+  &__decline {
+    color: var(--color-error);
+  }
+
+  &__leave {
+    color: var(--color-error);
+    flex-shrink: 0;
+  }
+}
+
+@keyframes sidebar-call-ring {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
 }

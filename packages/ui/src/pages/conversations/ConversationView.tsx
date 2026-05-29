@@ -46,7 +46,6 @@ import { useBlockContext } from '../../hooks/useBlockContext';
 import { useCallSession } from '../../hooks/useCallSession';
 import { useCall } from '../../hooks/useCall';
 import { ConversationCallButton } from '../../components/call/ConversationCallButton';
-import { IncomingCallBanner } from '../../components/call/IncomingCallBanner';
 import { Icon } from '../../icons/Icon';
 import { Button } from '../../components/Button';
 import { useToast } from '../../components/Toast';
@@ -406,13 +405,7 @@ export function ConversationView() {
   const { blockedByOther, setBlockedByOther } = useDmBlockedByOther(api, conversation, identity?.id);
 
   const callSession = useCallSession();
-  const { activeCall: conversationActiveCall, loading: callLoading } = useCall(id ?? null);
-  const incomingInitiatorName = useMemo(() => {
-    if (!conversationActiveCall) return '';
-    const pid = conversationActiveCall.initiatorIdentityId;
-    return participantProfiles[pid]?.displayName ?? pid;
-  }, [conversationActiveCall, participantProfiles]);
-
+  useCall(id ?? null);
   const activeMessagesRef = useRef(activeMessages);
   activeMessagesRef.current = activeMessages;
   const getActiveMessages = useCallback(() => activeMessagesRef.current, []);
@@ -918,14 +911,6 @@ export function ConversationView() {
     callSession.activeSession !== null &&
     callSession.activeSession.conversationId === id;
 
-  const showIncomingBanner =
-    conversationActiveCall &&
-    !isInCallHere &&
-    !callLoading &&
-    conversationActiveCall.status !== 'ended' &&
-    conversationActiveCall.participants.some((p) => !p.leftAt) &&
-    !(identity?.id && conversationActiveCall.participants.some((p) => p.identityId === identity.id && !p.leftAt));
-
   return (
     <div className="conversation-page">
         <div className="conversation-container">
@@ -1047,25 +1032,7 @@ export function ConversationView() {
 
           <ChatConnectionBanner />
 
-          {showIncomingBanner && conversationActiveCall && (
-            <IncomingCallBanner
-              callerName={incomingInitiatorName}
-              onAccept={() => {
-                if (id && conversationActiveCall) {
-                  callSession.requestJoinCall(
-                    id,
-                    conversationActiveCall.id,
-                    { audio: true, video: false, screenshare: false },
-                  );
-                }
-              }}
-              onDecline={() => {
-                // Declining is a no-op for now; just dismiss the banner
-              }}
-            />
-          )}
-
-          <div className="conversation-body">
+          <div className={`conversation-body${isInCallHere ? ' conversation-body--in-call' : ''}`}>
             <div
               className="conversation-main conversation-main-drop-target"
               onDragEnter={handleConversationDragEnter}

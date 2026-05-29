@@ -1,25 +1,25 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { LiveKitRoom, VideoConference } from '@livekit/components-react';
+import { LiveKitRoom } from '@livekit/components-react';
 import '@livekit/components-styles';
 import { useCallSession } from '../../hooks/useCallSession';
-import { useIdentity } from '../../hooks/useIdentity';
 import { useConversations } from '../../hooks/useConversations';
 import { useToast } from '../Toast';
 import { CallDeviceSetupModal } from './CallDeviceSetupModal';
+import { CallConferenceView } from './CallConferenceView';
 
-// ---------------------------------------------------------------------------
-// AppCallOverlay
-//
-// Renders the LiveKit VideoConference prefab when a call is active.
-// The prefab provides: participant grid, control bar (mute, camera,
-// screen share, leave), screen share layout, connection indicators.
-// ---------------------------------------------------------------------------
-
+/**
+ * AppCallOverlay
+ *
+ * Renders the LiveKit VideoConference when a call is active.
+ * - Always mounted globally so the audio connection persists across navigation.
+ * - Only shows the video UI when the user is viewing the conversation
+ *   the call belongs to (via data-call-visible attribute for CSS).
+ * - Positioned within the conversation body area (top half), not full viewport.
+ */
 export function AppCallOverlay() {
   const { t } = useTranslation();
-  const { identity } = useIdentity();
-  const { conversations } = useConversations();
+  const { activeConversationId } = useConversations();
   const toast = useToast();
 
   const {
@@ -34,8 +34,6 @@ export function AppCallOverlay() {
     livekitToken,
   } = useCallSession();
 
-  const [_minimized, _setMinimized] = useState(false);
-
   const handleConfirmDevices = useCallback(
     async (devices: { audioDeviceId?: string }) => {
       try {
@@ -48,16 +46,12 @@ export function AppCallOverlay() {
     [confirmDeviceSetup, toast, t],
   );
 
-  const activeConversation = useMemo(() => {
-    if (!activeSession) return undefined;
-    return conversations.find((c) => c.id === activeSession.conversationId);
-  }, [activeSession, conversations]);
-
-  const _conversationName = activeConversation?.decryptedName ?? undefined;
-
   const handleDisconnected = useCallback(() => {
     void leaveCall();
   }, [leaveCall]);
+
+  const isViewingCallConversation =
+    activeSession !== null && activeConversationId === activeSession.conversationId;
 
   return (
     <>
@@ -69,16 +63,20 @@ export function AppCallOverlay() {
       />
 
       {activeSession && livekitUrl && livekitToken && (
-        <div className="call-overlay" data-phase={phase}>
+        <div
+          className="call-overlay"
+          data-phase={phase}
+          data-call-visible={isViewingCallConversation}
+        >
           <LiveKitRoom
             serverUrl={livekitUrl}
             token={livekitToken}
             connect={true}
-            audio={activeSession.call.allowedMedia.audio}
-            video={activeSession.call.allowedMedia.video}
+            audio={true}
+            video={false}
             onDisconnected={handleDisconnected}
           >
-            <VideoConference />
+            <CallConferenceView />
           </LiveKitRoom>
         </div>
       )}

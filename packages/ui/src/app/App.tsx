@@ -50,7 +50,9 @@ import { AppPlainTextContextMenu } from '../components/AppPlainTextContextMenu';
 import { UpdateProvider } from '../hooks/useUpdateContext';
 import { IdentityModalProvider } from '../hooks/useIdentityModal';
 import { CallSessionProvider } from '../hooks/useCallSession';
+import { GlobalCallEventsProvider } from '../hooks/useGlobalCallEvents';
 import { AppCallOverlay } from '../components/call/AppCallOverlay';
+import { useIncomingCallRinger } from '../hooks/useIncomingCallRinger';
 import { AppSidebar } from './AppSidebar';
 import {
   AdminAuthAllowlist,
@@ -105,7 +107,9 @@ function ProtectedLayout({ children }: { children?: ReactNode }) {
                 <ConversationsProvider>
                   <MediaOutboxProvider>
                     <CallSessionProvider>
-                      <ProtectedLayoutContent>{children}</ProtectedLayoutContent>
+                      <GlobalCallEventsProvider>
+                        <ProtectedLayoutContent>{children}</ProtectedLayoutContent>
+                      </GlobalCallEventsProvider>
                     </CallSessionProvider>
                   </MediaOutboxProvider>
                 </ConversationsProvider>
@@ -129,6 +133,8 @@ function ProtectedLayoutContent({ children }: { children?: ReactNode }) {
   // Mount pre-key lifecycle management once for authenticated app runtime.
   // This enables automatic SPK rotation + cleanup and OTPK replenishment checks.
   usePreKeys();
+
+  useIncomingCallRinger();
 
   return (
     <>
