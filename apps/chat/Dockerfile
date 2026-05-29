@@ -11,7 +11,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # corepack is not always present on slim images or cross-platform builds.
-RUN npm install -g pnpm@9.15.4
+RUN npm install -g pnpm@10.33.0
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
 COPY packages ./packages
