@@ -105,7 +105,15 @@ export async function initiateCallCtrl(
     return { kind: 'bad_request', message: result.error ?? 'Failed to initiate call.' };
   }
 
-  return { kind: 'ok', data: { call: result.call, jitsiToken: result.jitsiToken } };
+  return {
+    kind: 'ok',
+    data: {
+      call: result.call,
+      jitsiToken: result.jitsiToken,
+      jitsiDomain: result.jitsiDomain,
+      jitsiMucDomain: result.jitsiMucDomain,
+    },
+  };
 }
 
 /**
@@ -149,7 +157,15 @@ export async function joinCallCtrl(
     return { kind: 'bad_request', message: result.error ?? 'Failed to join call.' };
   }
 
-  return { kind: 'ok', data: { call: result.call, jitsiToken: result.jitsiToken } };
+  return {
+    kind: 'ok',
+    data: {
+      call: result.call,
+      jitsiToken: result.jitsiToken,
+      jitsiDomain: result.jitsiDomain,
+      jitsiMucDomain: result.jitsiMucDomain,
+    },
+  };
 }
 
 /**

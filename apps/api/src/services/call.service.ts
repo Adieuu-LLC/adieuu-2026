@@ -34,6 +34,10 @@ export interface CallResult {
   success: boolean;
   call?: PublicCall;
   jitsiToken?: string;
+  /** XMPP virtual-host domain the client must use for Jitsi (e.g. "meet.jitsi"). */
+  jitsiDomain?: string;
+  /** XMPP MUC component domain for conference rooms (e.g. "muc.meet.jitsi"). */
+  jitsiMucDomain?: string;
   error?: string;
   errorCode?: string;
   /** Seconds until rate limit resets (when errorCode is RATE_LIMITED) */
@@ -164,7 +168,13 @@ export async function initiateCall(
     }
   });
 
-  return { success: true, call: publicCall, jitsiToken };
+  return {
+    success: true,
+    call: publicCall,
+    jitsiToken,
+    jitsiDomain: config.jitsi.enabled ? config.jitsi.xmppDomain : undefined,
+    jitsiMucDomain: config.jitsi.enabled ? config.jitsi.mucDomain : undefined,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -249,7 +259,13 @@ export async function joinCall(
     data: { callId, identityId, mediaState: enforcedMedia },
   });
 
-  return { success: true, call: publicCall, jitsiToken };
+  return {
+    success: true,
+    call: publicCall,
+    jitsiToken,
+    jitsiDomain: config.jitsi.enabled ? config.jitsi.xmppDomain : undefined,
+    jitsiMucDomain: config.jitsi.enabled ? config.jitsi.mucDomain : undefined,
+  };
 }
 
 // ---------------------------------------------------------------------------

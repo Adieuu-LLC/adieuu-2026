@@ -81,7 +81,7 @@ export function mintJitsiToken(input: MintJitsiTokenInput): string {
 
   const now = Math.floor(Date.now() / 1000);
 
-  const jitsiDomain = new URL(config.jitsi.baseUrl).hostname;
+  const jitsiDomain = config.jitsi.xmppDomain;
 
   const payload: JitsiJwtPayload = {
     aud: 'jitsi',
@@ -114,12 +114,13 @@ export function mintJitsiToken(input: MintJitsiTokenInput): string {
 /**
  * Generates a cryptographically random Jitsi room name.
  *
- * Uses 24 random bytes (192 bits) encoded as base64url, yielding an
- * opaque, unguessable room identifier that reveals no conversation metadata.
+ * Uses 24 random bytes (192 bits) encoded as lowercase hex. Hex is used
+ * instead of base64url because XMPP MUC room names are case-insensitive
+ * and Jitsi rejects names containing uppercase characters.
  *
- * @returns 32-character base64url room name
+ * @returns 48-character hex room name
  */
 export function generateJitsiRoomName(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(24));
-  return Buffer.from(bytes).toString('base64url');
+  return Buffer.from(bytes).toString('hex');
 }

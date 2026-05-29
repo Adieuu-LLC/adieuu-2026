@@ -17,6 +17,7 @@ import type {
   JitsiConnection,
   JitsiConference,
   JitsiLocalTrack,
+  JitsiParticipant,
   JitsiTrack,
 } from 'lib-jitsi-meet';
 
@@ -25,10 +26,22 @@ import type {
 // ---------------------------------------------------------------------------
 
 export interface JitsiServiceConfig {
-  /** Jitsi server hostname (e.g. meet.adieuu.com) */
+  /** Jitsi server hostname used for the WebSocket connection URL */
   serverHost: string;
   /** Jitsi BOSH or WebSocket URL */
   serviceUrl: string;
+  /**
+   * XMPP virtual-host domain that Prosody serves (e.g. "meet.jitsi").
+   * When omitted, falls back to `serverHost`. Must be set when the
+   * connection URL hostname differs from the Prosody XMPP domain
+   * (common in local dev: connect to localhost, XMPP domain is meet.jitsi).
+   */
+  xmppDomain?: string;
+  /**
+   * XMPP MUC component domain for conference rooms (e.g. "muc.meet.jitsi").
+   * When omitted, defaults to "muc.${xmppDomain ?? serverHost}".
+   */
+  mucDomain?: string;
 }
 
 export type JitsiServiceEvent =
@@ -37,8 +50,9 @@ export type JitsiServiceEvent =
   | { type: 'conference_failed'; error: string }
   | { type: 'remote_track_added'; track: JitsiTrack; participantId: string }
   | { type: 'remote_track_removed'; track: JitsiTrack; participantId: string }
-  | { type: 'participant_joined'; participantId: string }
+  | { type: 'participant_joined'; participantId: string; identityId?: string }
   | { type: 'participant_left'; participantId: string }
+  | { type: 'participant_property_changed'; participantId: string; propertyName: string; value: unknown }
   | { type: 'connection_failed'; error: string };
 
 export type JitsiEventHandler = (event: JitsiServiceEvent) => void;
@@ -89,10 +103,12 @@ export class JitsiService {
     if (this.disposed) return;
 
     return new Promise<void>((resolve, reject) => {
+      const domain = this.config.xmppDomain ?? this.config.serverHost;
+      const muc = this.config.mucDomain ?? `muc.${domain}`;
       const connectionOptions: Record<string, unknown> = {
         hosts: {
-          domain: this.config.serverHost,
-          muc: `conference.${this.config.serverHost}`,
+          domain,
+          muc,
         },
         serviceUrl: this.config.serviceUrl,
       };
@@ -147,6 +163,23 @@ export class JitsiService {
       throw new Error('Cannot set E2EE key before joining a conference');
     }
     this.conference.setE2EEKey(key);
+  }
+
+  /**
+   * Broadcast a custom property (e.g. `identityId`) to all conference
+   * participants via XMPP presence. Other clients receive a
+   * `participant_property_changed` event.
+   */
+  setLocalProperty(name: string, value: string): void {
+    this.conference?.setLocalParticipantProperty(name, value);
+  }
+
+  /**
+   * Returns the Jitsi-assigned participant ID for the local user,
+   * or null if the conference has not been joined yet.
+   */
+  getMyParticipantId(): string | null {
+    return this.conference?.myUserId() ?? null;
   }
 
   /**
@@ -284,7 +317,10 @@ export class JitsiService {
 
     this.conference = this.connection.initJitsiConference(roomName, {
       openBridgeChannel: true,
-      e2ee: { enabled: true },
+      // E2EE is disabled until the Adieuu crypto key-distribution layer
+      // calls setE2EEKey() after conference join.  Enabling the Insertable
+      // Streams transform without a key garbles all audio/video frames.
+      e2ee: { enabled: false },
     });
 
     const events = JitsiMeetJS.events.conference;
@@ -322,13 +358,33 @@ export class JitsiService {
       });
     });
 
-    this.conference.addEventListener(events.USER_JOINED, (participantId: unknown) => {
-      this.emit({ type: 'participant_joined', participantId: String(participantId) });
+    this.conference.addEventListener(events.USER_JOINED, (id: unknown) => {
+      const jitsiId = String(id);
+      const participant = this.conference?.getParticipantById(jitsiId);
+      const identityId = participant?.getProperty('identityId');
+      this.emit({
+        type: 'participant_joined',
+        participantId: jitsiId,
+        identityId: typeof identityId === 'string' ? identityId : undefined,
+      });
     });
 
     this.conference.addEventListener(events.USER_LEFT, (participantId: unknown) => {
       this.emit({ type: 'participant_left', participantId: String(participantId) });
     });
+
+    this.conference.addEventListener(
+      events.PARTICIPANT_PROPERTY_CHANGED,
+      (participant: unknown, name: unknown, _oldValue: unknown, newValue: unknown) => {
+        const p = participant as JitsiParticipant;
+        this.emit({
+          type: 'participant_property_changed',
+          participantId: p.getId(),
+          propertyName: String(name),
+          value: newValue,
+        });
+      },
+    );
 
     return new Promise<void>((resolve, reject) => {
       const onJoined = () => {

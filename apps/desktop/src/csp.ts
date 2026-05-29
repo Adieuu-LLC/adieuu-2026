@@ -67,5 +67,13 @@ export const cspManifest = mergeCspManifests(
 );
 
 export const devCspExtras: Record<string, string[]> = {
-  'connect-src': ['http://localhost:4000', 'ws://localhost:9001'],
+  'connect-src': [
+    'http://localhost:4000',
+    'ws://localhost:9001',
+    'ws://localhost:*',
+    'wss://localhost:*',
+    'wss://localhost',
+    'https://localhost',
+    'https://localhost:*',
+  ],
 };

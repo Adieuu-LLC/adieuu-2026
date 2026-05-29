@@ -27,6 +27,7 @@ declare module 'lib-jitsi-meet' {
         USER_LEFT: string;
         CONFERENCE_FAILED: string;
         CONFERENCE_ERROR: string;
+        PARTICIPANT_PROPERTY_CHANGED: string;
       };
     };
     errors: {
@@ -49,6 +50,12 @@ declare module 'lib-jitsi-meet' {
     initJitsiConference(roomName: string, options: Record<string, unknown>): JitsiConference;
   }
 
+  interface JitsiParticipant {
+    getId(): string;
+    getDisplayName(): string;
+    getProperty(name: string): unknown;
+  }
+
   interface JitsiConference {
     join(password?: string): void;
     leave(): Promise<void>;
@@ -59,6 +66,8 @@ declare module 'lib-jitsi-meet' {
     removeEventListener(event: string, handler: (...args: unknown[]) => void): void;
     getLocalTracks(): JitsiLocalTrack[];
     myUserId(): string;
+    setLocalParticipantProperty(name: string, value: string): void;
+    getParticipantById(id: string): JitsiParticipant | undefined;
   }
 
   interface JitsiTrack {
@@ -84,6 +93,7 @@ declare module 'lib-jitsi-meet' {
     JitsiMeetJSType,
     JitsiConnection,
     JitsiConference,
+    JitsiParticipant,
     JitsiTrack,
     JitsiLocalTrack,
   };

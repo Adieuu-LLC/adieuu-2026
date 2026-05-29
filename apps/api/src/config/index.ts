@@ -410,6 +410,28 @@ export const config = {
     enabled: optionalEnvBool('JITSI_ENABLED', false),
     /** Base URL of the Jitsi Meet deployment (e.g. https://jitsi.adieuu.com) */
     baseUrl: optionalEnv('JITSI_BASE_URL', 'https://meet.jitsi'),
+    /**
+     * XMPP virtual-host domain that Prosody serves (e.g. "meet.jitsi").
+     * Defaults to the hostname of JITSI_BASE_URL, but must be overridden
+     * when the connection URL differs from the XMPP domain (e.g. connecting
+     * via localhost while Prosody serves meet.jitsi).
+     */
+    xmppDomain: optionalEnv(
+      'JITSI_XMPP_DOMAIN',
+      new URL(optionalEnv('JITSI_BASE_URL', 'https://meet.jitsi')).hostname,
+    ),
+    /**
+     * XMPP MUC (multi-user chat) component domain used for conference rooms.
+     * Must match XMPP_MUC_DOMAIN in the Jitsi/Prosody config.
+     * Defaults to "muc.${xmppDomain}" (Jitsi Docker convention).
+     */
+    mucDomain: optionalEnv(
+      'JITSI_MUC_DOMAIN',
+      `muc.${optionalEnv(
+        'JITSI_XMPP_DOMAIN',
+        new URL(optionalEnv('JITSI_BASE_URL', 'https://meet.jitsi')).hostname,
+      )}`,
+    ),
     /** JWT application ID (must match Prosody JWT app_id) */
     jwtAppId: optionalEnv('JITSI_JWT_APP_ID', 'adieuu'),
     /** JWT issuer (must match Prosody JWT issuer) */

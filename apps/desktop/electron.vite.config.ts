@@ -44,11 +44,22 @@ export default defineConfig({
       },
     },
     optimizeDeps: {
-      exclude: ['lib-jitsi-meet'],
+      include: ['lib-jitsi-meet'],
     },
     plugins: [
       react(),
-      cspPlugin({ manifests: [cspManifest], devExtras: devCspExtras }),
+      cspPlugin({
+        manifests: [
+          cspManifest,
+          // Jitsi origins for local dev -- kept in manifests (not just
+          // devExtras) so Vite 6's CSP re-processing preserves them.
+          // Includes WS for XMPP and HTTPS for Jitsi's keep-alive fetch.
+          ...(process.env.NODE_ENV !== 'production'
+            ? [{ 'connect-src': ['ws://localhost:*', 'wss://localhost:*', 'wss://localhost', 'https://localhost', 'https://localhost:*'] }]
+            : []),
+        ],
+        devExtras: devCspExtras,
+      }),
     ],
     resolve: {
       alias: {
@@ -59,6 +70,7 @@ export default defineConfig({
         '@adieuu/ui/icons/registry': path.resolve(__dirname, '../../packages/ui/src/icons/registry.ts'),
         '@adieuu/ui/i18n': path.resolve(__dirname, '../../packages/ui/src/i18n/index.ts'),
         '@adieuu/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
+        'lib-jitsi-meet': path.resolve(__dirname, '../../packages/ui/node_modules/lib-jitsi-meet/dist/umd/lib-jitsi-meet.min.js'),
       },
     },
     // Inject static app version; endpoint defaults are handled in renderer config.
