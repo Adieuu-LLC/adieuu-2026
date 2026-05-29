@@ -111,7 +111,10 @@ resource "aws_cloudwatch_log_group" "jitsi_jvb" {
 # -----------------------------------------------------------------------------
 
 locals {
+  # The full ARN with :key:: suffix, used by ECS task secrets (valueFrom)
   jitsi_jwt_secret_arn = local.jitsi_enabled ? lookup(var.api_container_secrets, "JITSI_JWT_SECRET", "") : ""
+  # Base secret ARN (strip :key:: suffix) for IAM Resource grants
+  jitsi_jwt_secret_base_arn = local.jitsi_enabled ? try(regex("^(.+):[^:]+::$", local.jitsi_jwt_secret_arn)[0], local.jitsi_jwt_secret_arn) : ""
 }
 
 # -----------------------------------------------------------------------------
@@ -674,7 +677,7 @@ resource "aws_iam_role_policy" "ecs_execution_jitsi_secrets" {
         Sid      = "JitsiJwtSecretRead"
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
-        Resource = [local.jitsi_jwt_secret_arn]
+        Resource = [local.jitsi_jwt_secret_base_arn]
       }
     ]
   })
