@@ -21,6 +21,7 @@ export function IncomingCallBanner({
   callerName,
   hasAudio,
   hasVideo,
+  hasScreenshare,
   onAccept,
   onDecline,
 }: IncomingCallBannerProps) {
@@ -30,7 +31,9 @@ export function IncomingCallBanner({
     ? t('call.incomingVideo', 'Video call')
     : hasAudio
       ? t('call.incomingAudio', 'Audio call')
-      : t('call.incoming', 'Call');
+      : hasScreenshare
+        ? t('call.incomingScreenshare', 'Screen share')
+        : t('call.incoming', 'Call');
 
   return (
     <div className="incoming-call-banner">

@@ -252,19 +252,26 @@ export function useCall(conversationId: string | null): UseCallReturn {
         case 'call_initiated': {
           const { call } = message.data;
           if (call.conversationId !== convId) return;
-          setState({
-            activeCall: {
-              id: call.id,
-              conversationId: call.conversationId,
-              initiatorIdentityId: call.initiatorIdentityId,
-              status: call.status as PublicCall['status'],
-              allowedMedia: call.allowedMedia,
-              participants: [],
-              jitsiRoomName: call.jitsiRoomName,
-              createdAt: call.createdAt,
-              updatedAt: call.createdAt,
-            },
-            loading: false,
+          setState((prev) => {
+            const participants =
+              prev.activeCall?.id === call.id
+                ? prev.activeCall.participants
+                : [];
+
+            return {
+              activeCall: {
+                id: call.id,
+                conversationId: call.conversationId,
+                initiatorIdentityId: call.initiatorIdentityId,
+                status: call.status as PublicCall['status'],
+                allowedMedia: call.allowedMedia,
+                participants,
+                jitsiRoomName: call.jitsiRoomName,
+                createdAt: call.createdAt,
+                updatedAt: call.createdAt,
+              },
+              loading: false,
+            };
           });
           break;
         }

@@ -240,11 +240,10 @@ export class JitsiService {
   }
 
   /**
-   * Disconnect from the conference and clean up all resources.
+   * Disconnect from the conference and clean up connection resources.
+   * The instance remains usable for a future connect().
    */
   async disconnect(): Promise<void> {
-    this.disposed = true;
-
     for (const track of this.localTracks) {
       try {
         await track.dispose();
@@ -267,7 +266,14 @@ export class JitsiService {
       this.connection.disconnect();
       this.connection = null;
     }
+  }
 
+  /**
+   * Permanently tear down the service. After dispose(), connect() is a no-op.
+   */
+  async dispose(): Promise<void> {
+    await this.disconnect();
+    this.disposed = true;
     this.eventHandlers.clear();
   }
 
