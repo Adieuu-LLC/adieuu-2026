@@ -48,17 +48,30 @@ jobs:
       deploy_aws: ${{ steps.decide_deploy_aws.outputs.deploy || 'false' }}
       desktop_changed: ${{ steps.detect_changes.outputs.desktop || 'true' }}
     steps:
+      # adieuu-release-bot GitHub App: bypasses main ruleset for chore(release) pushes.
+      # Repo variable ADIEUU_RELEASE_BOT_APP_ID + secret ADIEUU_RELEASE_BOT_PRIVATE_KEY required.
+      - name: Generate adieuu-release-bot token
+        id: release-bot-token
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547
+        with:
+          app-id: ${{ vars.ADIEUU_RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.ADIEUU_RELEASE_BOT_PRIVATE_KEY }}
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
+          token: ${{ steps.release-bot-token.outputs.token }}
           # For auto-releases, pin to the exact commit CI validated.
           # For manual runs, use the latest main branch.
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
 
       - name: Check if release commit
         id: check_release
+        env:
+          RELEASE_BOT_TOKEN: ${{ steps.release-bot-token.outputs.token }}
         run: |
+          git remote set-url origin "https://x-access-token:${RELEASE_BOT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             git fetch origin main --depth=1
             HEAD_SHA=$(git rev-parse HEAD)
@@ -120,8 +133,8 @@ jobs:
       - name: Configure Git for signed commits
         if: steps.check_release.outputs.skip != 'true'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "adieuu-release-bot[bot]"
+          git config user.email "${{ vars.ADIEUU_RELEASE_BOT_APP_ID }}+adieuu-release-bot[bot]@users.noreply.github.com"
 
       - name: Resolve current version baseline
         if: steps.check_release.outputs.skip != 'true'
@@ -303,7 +316,10 @@ jobs:
 
       - name: Commit version bump
         if: steps.version.outputs.released == 'true'
+        env:
+          RELEASE_BOT_TOKEN: ${{ steps.release-bot-token.outputs.token }}
         run: |
+          git remote set-url origin "https://x-access-token:${RELEASE_BOT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
           # workflow_run checks out head_sha (detached HEAD), so there is no local "main".
           # Create/update main at HEAD so "git push origin main" works.
@@ -322,7 +338,7 @@ jobs:
           draft: true
           generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.release-bot-token.outputs.token }}
 
   deploy-aws:
     needs: release
@@ -344,6 +360,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: main
+          persist-credentials: false
 
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
 
@@ -396,6 +413,7 @@ jobs:
         with:
           ref: main
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Disable Windows Defender real-time monitoring
         if: runner.os == 'Windows'
@@ -582,6 +600,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: main
+          persist-credentials: false
 
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
 

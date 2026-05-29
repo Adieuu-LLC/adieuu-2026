@@ -73,7 +73,6 @@ export const ACCESS_FEATURES = [
   'moderationOptOut',
   'featureEa',
   'featureVote',
-  'callMonthly',
   'badgeInsider',
 ] as const;
 
