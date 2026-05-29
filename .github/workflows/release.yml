@@ -56,6 +56,10 @@ jobs:
         with:
           app-id: ${{ vars.ADIEUU_RELEASE_BOT_APP_ID }}
           private-key: ${{ secrets.ADIEUU_RELEASE_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.repository }}
+          permission-contents: write
+          permission-metadata: read
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
