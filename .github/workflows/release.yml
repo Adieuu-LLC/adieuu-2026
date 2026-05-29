@@ -18,6 +18,11 @@ on:
           - patch
           - minor
           - major
+      force:
+        description: 'Build and deploy all apps regardless of detected changes'
+        required: false
+        type: boolean
+        default: false
 
 env:
   NODE_VERSION: '25'
@@ -47,6 +52,7 @@ jobs:
       released: ${{ steps.version.outputs.released }}
       deploy_aws: ${{ steps.decide_deploy_aws.outputs.deploy || 'false' }}
       desktop_changed: ${{ steps.detect_changes.outputs.desktop || 'true' }}
+      force_all: ${{ steps.detect_changes.outputs.force_all || 'false' }}
     steps:
       # adieuu-release-bot GitHub App: bypasses main ruleset for chore(release) pushes.
       # Repo variable ADIEUU_RELEASE_BOT_APP_ID + secret ADIEUU_RELEASE_BOT_PRIVATE_KEY required.
@@ -99,11 +105,50 @@ jobs:
         id: detect_changes
         if: steps.check_release.outputs.skip != 'true'
         run: |
+          release_all() {
+            echo "desktop=true" >> "$GITHUB_OUTPUT"
+            echo "force_all=true" >> "$GITHUB_OUTPUT"
+          }
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.force }}" = "true" ]; then
+            echo "Force requested — building all apps and deploying all targets"
+            release_all
+            exit 0
+          fi
+
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD --match 'v*' 2>/dev/null || echo "")
 
           if [ -z "$PREV_TAG" ]; then
             echo "No previous release tag — building all apps"
-            echo "desktop=true" >> "$GITHUB_OUTPUT"
+            release_all
+            exit 0
+          fi
+
+          echo "Comparing ${PREV_TAG}..HEAD"
+
+          ALL_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD || true)
+          if [ -z "$ALL_CHANGES" ]; then
+            echo "No changes since ${PREV_TAG} — building all apps and deploying all targets"
+            release_all
+            exit 0
+          fi
+
+          # Exclude version-bump-only package.json edits (chore(release) commits).
+          MEANINGFUL_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD -- \
+            apps/desktop/ \
+            apps/web/ \
+            apps/api/ \
+            apps/chat/ \
+            packages/shared/ \
+            packages/ui/ \
+            packages/crypto/ \
+            packages/tsconfig/ \
+            pnpm-lock.yaml \
+          | grep -Ev '^(apps|packages)/[^/]+/package\.json$' || true)
+
+          if [ -z "$MEANINGFUL_CHANGES" ]; then
+            echo "No meaningful app changes since ${PREV_TAG} — building all apps and deploying all targets"
+            release_all
             exit 0
           fi
 
@@ -116,6 +161,8 @@ jobs:
             packages/crypto/ \
             packages/tsconfig/ \
             pnpm-lock.yaml)
+
+          echo "force_all=false" >> "$GITHUB_OUTPUT"
 
           if [ -n "$DESKTOP_CHANGES" ]; then
             echo "desktop=true" >> "$GITHUB_OUTPUT"
@@ -353,6 +400,8 @@ jobs:
       contents: read
       packages: read
     uses: ./.github/workflows/deploy-aws-reusable.yml
+    with:
+      force_all: ${{ needs.release.outputs.force_all == 'true' }}
     secrets: inherit
 
   # Build the desktop app once on Linux (electron-vite output is platform-independent JS/HTML/CSS)
@@ -807,7 +856,7 @@ jobs:
   publish-release:
     needs: [release, publish-desktop, attach-sboms]
     # Run even if desktop or SBOM jobs were skipped or failed (best-effort).
-    # Desktop may be skipped when no desktop-relevant changes were detected.
+    # Desktop may be skipped when no desktop-relevant changes were detected (unless force or no-diff re-release).
     if: |
       always() &&
       needs.release.outputs.released == 'true' &&
