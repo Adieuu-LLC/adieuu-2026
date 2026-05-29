@@ -19,6 +19,7 @@ import { getCallRepository } from '../repositories/call.repository';
 import { getConversationRepository } from '../repositories/conversation.repository';
 import { getIdentityRepository } from '../repositories/identity.repository';
 import { mintLiveKitToken, generateRoomName } from './livekit-auth.service';
+import { removeParticipant as livekitRemoveParticipant, deleteRoom as livekitDeleteRoom } from './livekit-room.service';
 import { publishToParticipants, publishConversationEvent } from './conversation/redis-events';
 import { createNotification } from './notification.service';
 import { checkRateLimit, getCallInitiateConfig } from './rate-limit.service';
@@ -296,6 +297,9 @@ export async function leaveCall(
     return { success: false, error: 'Call not found or not in call', errorCode: 'CALL_NOT_FOUND' };
   }
 
+  // Force-disconnect the participant from the LiveKit room immediately
+  void livekitRemoveParticipant(call.jitsiRoomName, identityId);
+
   const conversation = await conversationRepo.findById(updated.conversationId);
 
   // Check if all participants have left — end call without requiring active membership
@@ -305,6 +309,8 @@ export async function leaveCall(
     if (!ended) {
       return { success: false, error: 'Failed to end call', errorCode: 'END_FAILED' };
     }
+    // Delete the LiveKit room to free server resources
+    void livekitDeleteRoom(call.jitsiRoomName);
     if (conversation) {
       await notifyCallEnded(conversation.participants, callId, identityId);
     }
@@ -364,6 +370,9 @@ export async function endCall(
   if (!ended) {
     return { success: false, error: 'Failed to end call', errorCode: 'END_FAILED' };
   }
+
+  // Delete the LiveKit room — force-disconnects all participants and frees resources
+  void livekitDeleteRoom(call.jitsiRoomName);
 
   await notifyCallEnded(conversation.participants, callId, identityId);
 

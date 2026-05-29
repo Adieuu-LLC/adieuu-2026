@@ -40,6 +40,10 @@ mock.module('./conversation/redis-events', () => ({
   publishConversationEvent: mockPublishConversationEvent,
 }));
 
+mock.module('./livekit-room.service', () => ({
+  deleteRoom: mock(() => Promise.resolve()),
+}));
+
 mock.module('../utils/adieuuLogger', () => ({
   default: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 }));

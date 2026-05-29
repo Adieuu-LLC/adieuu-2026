@@ -85,6 +85,11 @@ mock.module('./livekit-auth.service', () => ({
   generateRoomName: mockGenerateRoomName,
 }));
 
+mock.module('./livekit-room.service', () => ({
+  removeParticipant: mock(() => Promise.resolve()),
+  deleteRoom: mock(() => Promise.resolve()),
+}));
+
 mock.module('../utils/adieuuLogger', () => ({
   default: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
 }));

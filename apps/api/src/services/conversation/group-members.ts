@@ -11,7 +11,9 @@ import { getMessageRepository } from '../../repositories/message.repository';
 import { getGroupInviteRepository } from '../../repositories/group-invite.repository';
 import { getFriendshipRepository } from '../../repositories/friendship.repository';
 import { getBlockRepository } from '../../repositories/block.repository';
+import { getCallRepository } from '../../repositories/call.repository';
 import { createNotification } from '../notification.service';
+import { removeParticipant as livekitRemoveParticipant } from '../livekit-room.service';
 import { toPublicConversation, MAX_GROUP_PARTICIPANTS } from '../../models/conversation';
 import { toPublicIdentity } from '../../models/identity';
 import { toPublicGroupInvite } from '../../models/group-invite';
@@ -245,6 +247,19 @@ export async function removeGroupMember(
   }
 
   await conversationRepo.removeParticipant(convObjId, targetObjId);
+
+  // If the removed member is in an active call, force-disconnect them from LiveKit
+  const callRepo = getCallRepository();
+  const activeCall = await callRepo.findActiveForConversation(convObjId);
+  if (activeCall) {
+    const inCall = activeCall.participants.some(
+      (p) => p.identityId.equals(targetObjId) && !p.leftAt
+    );
+    if (inCall) {
+      await callRepo.updateParticipantLeft(activeCall._id, targetObjId);
+      void livekitRemoveParticipant(activeCall.jitsiRoomName, targetObjId.toHexString());
+    }
+  }
 
   // Notify removed member
   await publishConversationEvent(targetObjId.toHexString(), {

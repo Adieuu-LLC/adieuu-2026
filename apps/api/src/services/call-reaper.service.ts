@@ -3,6 +3,7 @@ import { config } from '../config';
 import { getCallRepository } from '../repositories/call.repository';
 import { getConversationRepository } from '../repositories/conversation.repository';
 import { publishConversationEvent } from './conversation/redis-events';
+import { deleteRoom as livekitDeleteRoom } from './livekit-room.service';
 import elog from '../utils/adieuuLogger';
 
 export async function reapStaleCalls(): Promise<void> {
@@ -29,6 +30,9 @@ export async function reapStaleCalls(): Promise<void> {
 
     const updated = await callRepo.updateStatus(call._id, 'ended', { endedAt: new Date() });
     if (!updated || updated.status !== 'ended') continue;
+
+    // Delete the LiveKit room to free server resources for reaped calls
+    void livekitDeleteRoom(call.jitsiRoomName);
 
     const conversation = await conversationRepo.findById(call.conversationId);
     if (conversation) {
