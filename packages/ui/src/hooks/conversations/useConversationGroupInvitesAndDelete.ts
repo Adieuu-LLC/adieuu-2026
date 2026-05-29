@@ -303,16 +303,13 @@ export function useConversationGroupInvitesAndDelete(
       settings: { audioCallsDisabled?: boolean; videoCallsDisabled?: boolean; screenshareDisabled?: boolean }
     ): Promise<boolean> => {
       const resp = await api.conversations.updateCallSettings(conversationId, settings);
-      if (!resp.success || !resp.data) return false;
-      const conv = (resp.data as { conversation: unknown }).conversation;
-      if (conv) {
-        const updated = toDecrypted(conv);
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === conversationId ? { ...updated, unreadCount: c.unreadCount } : c
-          )
-        );
-      }
+      if (!resp.success || !resp.data?.conversation) return false;
+      const updated = toDecrypted(resp.data.conversation);
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...updated, unreadCount: c.unreadCount } : c
+        )
+      );
       return true;
     },
     [api, toDecrypted]
