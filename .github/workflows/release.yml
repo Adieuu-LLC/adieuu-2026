@@ -48,7 +48,7 @@ jobs:
       deploy_aws: ${{ steps.decide_deploy_aws.outputs.deploy || 'false' }}
       desktop_changed: ${{ steps.detect_changes.outputs.desktop || 'true' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -109,10 +109,10 @@ jobs:
             echo "No desktop-relevant changes — skipping desktop build"
           fi
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
         if: steps.check_release.outputs.skip != 'true'
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         if: steps.check_release.outputs.skip != 'true'
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -315,7 +315,7 @@ jobs:
 
       - name: Create draft release
         if: steps.version.outputs.released == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: v${{ steps.version.outputs.new_version }}
           name: v${{ steps.version.outputs.new_version }}
@@ -341,13 +341,13 @@ jobs:
     if: needs.release.outputs.released == 'true' && needs.release.outputs.desktop_changed == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: main
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -361,7 +361,7 @@ jobs:
         run: pnpm build --filter @adieuu/desktop...
 
       - name: Upload desktop dist
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: desktop-dist
           path: apps/desktop/dist
@@ -392,7 +392,7 @@ jobs:
     env:
       ELECTRON_CACHE: ${{ github.workspace }}/.electron-cache
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: main
           fetch-depth: 1
@@ -402,15 +402,15 @@ jobs:
         shell: powershell
         run: Set-MpPreference -DisableRealtimeMonitoring $true
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
       - name: Cache Electron binaries
-        uses: actions/cache@v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: ${{ env.ELECTRON_CACHE }}
           key: electron-${{ runner.os }}-${{ hashFiles('apps/desktop/package.json') }}
@@ -433,7 +433,7 @@ jobs:
           done
 
       - name: Download pre-built desktop dist
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           name: desktop-dist
           path: apps/desktop/dist
@@ -442,7 +442,7 @@ jobs:
         run: pnpm --filter @adieuu/desktop run package:ci
 
       - name: Attest desktop package provenance
-        uses: actions/attest@v4
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26
         with:
           subject-path: |
             apps/desktop/out/*.exe
@@ -458,7 +458,7 @@ jobs:
             apps/desktop/out/latest-linux.yml
 
       - name: Upload packaging output
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ matrix.artifact-name }}
           path: |
@@ -492,14 +492,14 @@ jobs:
       AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
     steps:
       - name: Download all platform artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           pattern: packaged-desktop-*
           path: artifacts
           merge-multiple: true
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: v${{ needs.release.outputs.new_version }}
           draft: true
@@ -533,7 +533,7 @@ jobs:
 
       - name: Configure AWS credentials
         if: steps.check_downloads.outputs.skip != 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
@@ -579,13 +579,13 @@ jobs:
     if: needs.release.outputs.released == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           ref: main
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
@@ -595,7 +595,7 @@ jobs:
 
       - name: Generate SBOM
         continue-on-error: true
-        uses: manifest-cyber/manifest-github-action@v1.6.0
+        uses: manifest-cyber/manifest-github-action@a90e8d22cb1a607317ec76cc9c53f61769c06213
         with:
           # apiKey: ${{ secrets.MANIFEST_API_KEY }}
           sbomPublish: false
@@ -615,7 +615,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download SBOM artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           pattern: adieuu-*-sbom.json
           path: sboms
@@ -627,7 +627,7 @@ jobs:
           find sboms -type f -name "*.json" 2>/dev/null || echo "No SBOM files found"
 
       - name: Upload SBOMs to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: v${{ needs.release.outputs.new_version }}
           draft: true
@@ -667,7 +667,7 @@ jobs:
 
       - name: Download SBOM artifacts
         if: steps.check_vars.outputs.skip != 'true'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
         with:
           pattern: adieuu-*-sbom.json
           path: sboms
@@ -676,7 +676,7 @@ jobs:
 
       - name: Configure AWS credentials
         if: steps.check_vars.outputs.skip != 'true'
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
@@ -792,7 +792,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65
         with:
           tag_name: v${{ needs.release.outputs.new_version }}
           draft: false
