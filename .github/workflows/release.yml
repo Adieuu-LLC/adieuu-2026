@@ -56,8 +56,8 @@ jobs:
         with:
           app-id: ${{ vars.ADIEUU_RELEASE_BOT_APP_ID }}
           private-key: ${{ secrets.ADIEUU_RELEASE_BOT_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.repository }}
+          # repositories is repo name(s) only, not owner/repo — github.repository would 404.
+          repositories: ${{ github.event.repository.name }}
           permission-contents: write
           permission-metadata: read
 
