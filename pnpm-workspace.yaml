@@ -2,3 +2,10 @@ packages:
   - "apps/*"
   - "packages/*"
   - "infra/aws/lambda/*"
+
+# Pin transitive strophe.js (from lib-jitsi-meet) to tag v1.5-jitsi-3 commit for supply-chain audit.
+overrides:
+  strophe.js: github:jitsi/strophejs#208a89888fe1565e8d10a6b8af5669b5c218a2fb
+
+onlyBuiltDependencies:
+  - strophe.js
