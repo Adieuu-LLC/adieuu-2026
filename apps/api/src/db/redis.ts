@@ -421,6 +421,18 @@ export const RedisKeys = {
   /** Cached IPLocate result keyed by hashed IP. */
   geoIpLookup: (ipHash: string) => `geo:ip:${ipHash}`,
 
+  /** Chat presence: identity currently connected via WebSocket. */
+  chatOnline: (identityId: string) => `chat:online:${identityId}`,
+
+  /** Chat presence: ISO timestamp of last disconnect. */
+  chatLastSeen: (identityId: string) => `chat:lastseen:${identityId}`,
+
+  /** Round-robin cursor for support ticket auto-assignment (support agent pool). */
+  supportTicketAssignRoundRobinSupportAgent: () => 'support:ticket:assign:round_robin:support_agent',
+
+  /** Round-robin cursor for support ticket auto-assignment (moderator/admin fallback pool). */
+  supportTicketAssignRoundRobinFallback: () => 'support:ticket:assign:round_robin:fallback',
+
   /** Short-lived negative cache for IPs IPLocate cannot resolve. */
   geoNegativeLookup: (ipHash: string) => `geo:ip_neg:${ipHash}`,
 } as const;

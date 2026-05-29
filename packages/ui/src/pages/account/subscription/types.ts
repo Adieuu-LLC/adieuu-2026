@@ -73,12 +73,11 @@ export const ACCESS_FEATURES = [
   'moderationOptOut',
   'featureEa',
   'featureVote',
-  'callMonthly',
   'badgeInsider',
 ] as const;
 
 /** Insider annual adds these on top of Access. */
-export const INSIDER_ONLY_FEATURES = ['callBiWeekly'] as const;
+export const INSIDER_ONLY_FEATURES = ['callMonthly'] as const;
 
 export const INSIDER_FEATURES = [...ACCESS_FEATURES, ...INSIDER_ONLY_FEATURES] as const;
 

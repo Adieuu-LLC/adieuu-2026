@@ -13,6 +13,46 @@ import { useIdentity } from '../../hooks/useIdentity';
 import { SuspensionModal } from '../../components/SuspensionModal';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
+function SupportUnreadBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span className="sidebar-tab-badge" aria-label={`${count} unread support replies`}>
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
+function SupportNavLink({
+  unreadCount,
+  isActive,
+  onClick,
+  label,
+}: {
+  unreadCount: number;
+  isActive: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <Link
+      to="/support"
+      onClick={onClick}
+      className={`sidebar-flyout-item ${isActive ? 'sidebar-flyout-item-active' : ''}`}
+    >
+      {label}
+      {unreadCount > 0 && (
+        <span
+          className="sidebar-tab-badge"
+          style={{ marginLeft: 'auto', position: 'static' }}
+          aria-label={`${unreadCount} unread support replies`}
+        >
+          {unreadCount > 99 ? '99+' : unreadCount}
+        </span>
+      )}
+    </Link>
+  );
+}
+
 /** Account routes and sidebar entry are for account (OTP) sessions only, not while in an active alias context. */
 export function isAccountSidebarHidden(authStatus: AuthStatus, identityStatus: IdentityStatus): boolean {
   return (
@@ -23,7 +63,7 @@ export function isAccountSidebarHidden(authStatus: AuthStatus, identityStatus: I
   );
 }
 
-export function AccountFlyout() {
+export function AccountFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?: number }) {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
@@ -63,9 +103,12 @@ export function AccountFlyout() {
       <Link to="/account/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${isActive('/account/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
         {t('account.subscription.title')}
       </Link>
-      <Link to="/support" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/support') ? 'sidebar-flyout-item-active' : ''}`}>
-        {t('support.title')}
-      </Link>
+      <SupportNavLink
+        unreadCount={supportUnreadCount}
+        isActive={location.pathname.startsWith('/support')}
+        onClick={handleNavClick}
+        label={t('support.title')}
+      />
       <div className="sidebar-flyout-divider" />
       <button
         type="button"
@@ -86,7 +129,12 @@ export function AccountFlyout() {
       className={`sidebar-account-btn ${isAccountActive ? 'sidebar-account-btn-active' : ''}`}
       {...(isMobile ? { onClick: () => setDrawerOpen(true) } : {})}
     >
-      <Icon name="user" />
+      <span style={{ position: 'relative', display: 'inline-flex' }}>
+        <Icon name="user" />
+        {supportUnreadCount > 0 && (
+          <SupportUnreadBadge count={supportUnreadCount} />
+        )}
+      </span>
       <span className="sidebar-account-label">{t('nav.account')}</span>
       <svg
         width="12"
@@ -148,7 +196,7 @@ export function AccountFlyout() {
   );
 }
 
-export function IdentityFlyout() {
+export function IdentityFlyout({ supportUnreadCount = 0 }: { supportUnreadCount?: number }) {
   const { t } = useTranslation();
   const location = useLocation();
   const { isExpanded, closeMobile } = useSidebar();
@@ -268,9 +316,12 @@ export function IdentityFlyout() {
       <Link to="/identity/subscription" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/identity/subscription') ? 'sidebar-flyout-item-active' : ''}`}>
         {t('identity.menu.subscription')}
       </Link>
-      <Link to="/support" onClick={handleNavClick} className={`sidebar-flyout-item ${location.pathname.startsWith('/support') ? 'sidebar-flyout-item-active' : ''}`}>
-        {t('support.title')}
-      </Link>
+      <SupportNavLink
+        unreadCount={supportUnreadCount}
+        isActive={location.pathname.startsWith('/support')}
+        onClick={handleNavClick}
+        label={t('support.title')}
+      />
       <div className="sidebar-flyout-divider" />
       <button
         type="button"
@@ -290,7 +341,12 @@ export function IdentityFlyout() {
       className={`sidebar-identity-btn ${isIdentityActive ? 'sidebar-identity-btn-active' : ''}`}
       {...(isMobile ? { onClick: () => setDrawerOpen(true) } : {})}
     >
-      <Icon name="mask" />
+      <span style={{ position: 'relative', display: 'inline-flex' }}>
+        <Icon name="mask" />
+        {supportUnreadCount > 0 && (
+          <SupportUnreadBadge count={supportUnreadCount} />
+        )}
+      </span>
       <span className="sidebar-identity-label">
         {identity.displayName}
       </span>

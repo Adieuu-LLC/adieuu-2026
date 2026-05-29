@@ -7,8 +7,10 @@ import { Icon } from '../../icons/Icon';
 import { useAppConfig } from '../../config';
 import { useAuth } from '../../hooks/useAuth';
 import { createApiClient } from '@adieuu/shared';
-import { AccountFlyout, IdentityFlyout } from './identity';
+import { AccountFlyout, IdentityFlyout, isAccountSidebarHidden } from './identity';
 import { SidebarUpdateNav } from './SidebarUpdateNav';
+import { useIdentity } from '../../hooks/useIdentity';
+import { useSupportUnreadCount } from '../../hooks/useSupportUnreadCount';
 import type { SidebarVariant } from './nav';
 
 export function ModerationFlyout() {
@@ -165,7 +167,8 @@ export function SidebarFooterContent({ variant = 'full' }: { variant?: SidebarVa
 function AuthenticatedSidebarFooter() {
   const { t } = useTranslation();
   const { platform } = useAppConfig();
-  const { session } = useAuth();
+  const { session, status: authStatus } = useAuth();
+  const { status: identityStatus } = useIdentity();
   const { closeMobile } = useSidebar();
   const showModerator =
     session?.isPlatformModerator === true ||
@@ -173,6 +176,9 @@ function AuthenticatedSidebarFooter() {
     session?.isPlatformSupportAgent === true;
   const isDownloadActive = useLocation().pathname === '/download';
   const showDesktopAppLink = platform === 'web';
+  const accountSupportEnabled = !isAccountSidebarHidden(authStatus, identityStatus);
+  const identitySupportEnabled = identityStatus === 'logged_in';
+  const supportUnreadCount = useSupportUnreadCount(accountSupportEnabled || identitySupportEnabled);
 
   return (
     <div className="sidebar-footer-stack">
@@ -194,11 +200,11 @@ function AuthenticatedSidebarFooter() {
       <SidebarUpdateNav />
       <div className="sidebar-identity-section">
         <div className="sidebar-identity-row">
-          <IdentityFlyout />
+          <IdentityFlyout supportUnreadCount={identitySupportEnabled ? supportUnreadCount : 0} />
         </div>
       </div>
 
-      <AccountFlyout />
+      <AccountFlyout supportUnreadCount={accountSupportEnabled ? supportUnreadCount : 0} />
     </div>
   );
 }

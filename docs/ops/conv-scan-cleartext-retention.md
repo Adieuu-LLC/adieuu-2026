@@ -1,6 +1,6 @@
 # Conversation scan (`conv_scan`) cleartext retention
 
-This note complements the engineering plan in `.cursor/plans/video-uploads-e2e-moderation-outbox.md` (Phase D: retention and admin expectations).
+This note documents retention and admin expectations for conversation scan cleartext (Phase D of the video moderation rollout).
 
 ## What is stored
 

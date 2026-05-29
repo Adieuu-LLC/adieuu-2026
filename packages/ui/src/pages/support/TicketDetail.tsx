@@ -16,6 +16,7 @@ import { MarkdownTextarea } from '../../components/MarkdownTextarea';
 import { Avatar } from '../../components/Avatar';
 import { renderFormattedMessage } from '../../utils/markdownParser';
 import { useSupportTicketRealtimeRefresh } from '../../hooks/useSupportTicketRealtimeRefresh';
+import { emitSupportUnreadChanged } from '../../services/supportTicketEvents';
 
 export function TicketDetail() {
   const { ticketId } = useParams<{ ticketId: string }>();
@@ -47,6 +48,7 @@ export function TicketDetail() {
       setTicket(res.data.ticket);
       setEvents(res.data.events);
       setIdentityProfiles(res.data.identityProfiles ?? {});
+      emitSupportUnreadChanged();
     } else {
       setError(t('support.notFound'));
     }
@@ -61,6 +63,7 @@ export function TicketDetail() {
       setEvents(res.data.events);
       setIdentityProfiles(res.data.identityProfiles ?? {});
       setError(null);
+      emitSupportUnreadChanged();
     }
   }, [api, ticketId]);
 

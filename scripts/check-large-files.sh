@@ -3,7 +3,7 @@
 # check-large-files.sh
 #
 # Lists tracked files whose line count exceeds a threshold (default 750).
-# Intended for maintainability sweeps (see .cursor/rules/avoid-creating-large-files.mdc).
+# Intended for maintainability sweeps.
 #
 # Skips common binary extensions where line counts are meaningless, and lock files
 # (generated; line count is not a maintainability signal).

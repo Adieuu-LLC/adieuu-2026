@@ -15,7 +15,8 @@ export const COMPARISON_FEATURE_FOOTNOTE_INDEX: Partial<
   featureVote: 1,
   designAchievement: 1,
   whaleWall: 1,
-  callBiWeekly: [1,2]
+  callBiWeekly: [2],
+  callMonthly: [1,2],
 };
 
 /** Resolved, ordered 1-based footnote indices for a feature (invalid entries omitted). */

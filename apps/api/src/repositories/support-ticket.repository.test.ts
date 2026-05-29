@@ -30,31 +30,49 @@ const mockCollection = {
   })),
   countDocuments: mock(async () => 1),
   findOneAndUpdate: mock(async () => null),
+  aggregate: mock(() => ({
+    toArray: mock(async () => [{ count: 2 }]),
+  })),
 };
 
 mock.module('../../db', () => ({
-  Collections: { SUPPORT_TICKETS: 'support_tickets' },
+  Collections: {
+    SUPPORT_TICKETS: 'support_tickets',
+    SUPPORT_TICKET_EVENTS: 'support_ticket_events',
+  },
   getCollection: mock(() => mockCollection),
 }));
 
+const mockUpdateById = mock(async () => mockCreateTicket());
+
 mock.module('../../repositories/base.repository', () => ({
   BaseRepository: class {
-    collection = mockCollection;
+    protected collection: typeof mockCollection;
+
+    constructor(_collectionName: string) {
+      this.collection = mockCollection as never;
+    }
+
     toObjectId(id: string | ObjectId) {
       return typeof id === 'string' ? new ObjectId(id) : id;
     }
+
     async create(doc: unknown) {
       return mockCreateTicket();
     }
+
     async findById() {
       return mockCreateTicket();
     }
+
     async updateById() {
-      return mockCreateTicket();
+      return mockUpdateById();
     }
+
     async findOne() {
       return mockCreateTicket();
     }
+
     async count() {
       return 1;
     }

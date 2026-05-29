@@ -107,6 +107,12 @@ export const support = {
   },
   notifications: {
     ticketReply: 'New reply on your support ticket',
-    ticketReplyBody: '{{name}} replied to your ticket "{{title}}"',
+    ticketReplyBody: 'New reply on "{{title}}"',
+    ticketUserReply: 'New reply on assigned support ticket',
+    ticketUserReplyBody: 'New reply on "{{title}}"',
+    ticketAssigned: 'Support ticket assigned to you',
+    ticketAssignedBody: 'Assigned: "{{title}}"',
+    ticketNewUnassigned: 'New unassigned support ticket',
+    ticketNewUnassignedBody: 'New ticket: "{{title}}"',
   },
 } as const;

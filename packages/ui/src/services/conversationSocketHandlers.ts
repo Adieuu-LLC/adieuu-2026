@@ -4,7 +4,11 @@ import type {
   PublicIdentity,
 } from '@adieuu/shared';
 import { emitAchievementUnlocked } from './achievementEvents';
-import { emitSupportTicketUpdated, getActiveSupportTicketId } from './supportTicketEvents';
+import {
+  emitSupportTicketUpdated,
+  emitSupportUnreadChanged,
+  getActiveSupportTicketId,
+} from './supportTicketEvents';
 
 interface DisplayMessageLike {
   id: string;
@@ -630,22 +634,95 @@ export function handleConversationSocketMessage(
         break;
       }
 
-      if (notification.type === 'support_ticket_reply' || notification.type === 'support_ticket_user_reply') {
-        const ticketData = notification.data as { ticketId?: string; title?: string };
+      if (
+        notification.type === 'support_ticket_reply' ||
+        notification.type === 'support_ticket_user_reply' ||
+        notification.type === 'support_ticket_assigned' ||
+        notification.type === 'support_ticket_new_unassigned'
+      ) {
+        const ticketData = notification.data as {
+          ticketId?: string;
+          ticketObjectId?: string;
+          title?: string;
+        };
+
         if (ticketData.ticketId) {
           emitSupportTicketUpdated({ ticketId: ticketData.ticketId });
         }
 
+        if (notification.type === 'support_ticket_reply') {
+          emitSupportUnreadChanged();
+        }
+
         const isViewing = ticketData.ticketId === getActiveSupportTicketId();
-        if (!isViewing) {
-          const title = ctx.t('support.notifications.ticketReply', { defaultValue: 'New reply on your support ticket' });
+        if (isViewing) {
+          break;
+        }
+
+        const moderationPath = ticketData.ticketObjectId
+          ? `/moderation/tickets/${ticketData.ticketObjectId}`
+          : '/moderation/tickets?assigned=unassigned';
+
+        if (notification.type === 'support_ticket_assigned') {
+          const title = ctx.t('support.notifications.ticketAssigned', {
+            defaultValue: 'Support ticket assigned to you',
+          });
           const body = ticketData.title
-            ? ctx.t('support.notifications.ticketReplyBody', { title: ticketData.title, defaultValue: `New reply on "${ticketData.title}"` })
+            ? ctx.t('support.notifications.ticketAssignedBody', {
+                title: ticketData.title,
+                defaultValue: `Assigned: "${ticketData.title}"`,
+              })
             : title;
           ctx.fireNotification(title, body, {
-            onClick: () => ctx.navigate(`/support/${ticketData.ticketId ?? ''}`),
+            onClick: () => ctx.navigate(moderationPath),
           });
+          break;
         }
+
+        if (notification.type === 'support_ticket_new_unassigned') {
+          const title = ctx.t('support.notifications.ticketNewUnassigned', {
+            defaultValue: 'New unassigned support ticket',
+          });
+          const body = ticketData.title
+            ? ctx.t('support.notifications.ticketNewUnassignedBody', {
+                title: ticketData.title,
+                defaultValue: `New ticket: "${ticketData.title}"`,
+              })
+            : title;
+          ctx.fireNotification(title, body, {
+            onClick: () => ctx.navigate(moderationPath),
+          });
+          break;
+        }
+
+        if (notification.type === 'support_ticket_user_reply') {
+          const title = ctx.t('support.notifications.ticketUserReply', {
+            defaultValue: 'New reply on assigned support ticket',
+          });
+          const body = ticketData.title
+            ? ctx.t('support.notifications.ticketUserReplyBody', {
+                title: ticketData.title,
+                defaultValue: `New reply on "${ticketData.title}"`,
+              })
+            : title;
+          ctx.fireNotification(title, body, {
+            onClick: () => ctx.navigate(moderationPath),
+          });
+          break;
+        }
+
+        const title = ctx.t('support.notifications.ticketReply', {
+          defaultValue: 'New reply on your support ticket',
+        });
+        const body = ticketData.title
+          ? ctx.t('support.notifications.ticketReplyBody', {
+              title: ticketData.title,
+              defaultValue: `New reply on "${ticketData.title}"`,
+            })
+          : title;
+        ctx.fireNotification(title, body, {
+          onClick: () => ctx.navigate(ticketData.ticketId ? `/support/${ticketData.ticketId}` : '/support'),
+        });
         break;
       }
 

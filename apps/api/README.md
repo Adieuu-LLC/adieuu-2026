@@ -18,17 +18,19 @@ pnpm run dev
 
 ## Tests
 
+**Requires [Bun](https://bun.sh) >= 1.3.13** (`bun test --isolate` resets `mock.module` between test files).
+
 Run these from `apps/api` (or via `pnpm --filter @adieuu/api <script>` from the repo root).
 
 | Script | What it runs |
 |--------|----------------|
-| `test` | `scripts/run-tests.sh`: main `bun test` suite, then every `src/**/*.edge.manual.ts` in its own process. |
+| `test` | `scripts/run-tests.sh`: all `*.test.ts` with `bun test --isolate`, then each `*.edge.manual.ts` in its own process. |
 | `test:coverage` | `scripts/run-tests-with-coverage.sh`: same as above with coverage; merges LCOV when `lcov` is on `PATH`. |
 | `test:ci` | Coverage + JUnit report at `junit.xml` (used by GitHub Actions). |
 
 ### Normal tests
 
-Files matching Bun’s default patterns (e.g. `*.test.ts`, `*.spec.ts`) are picked up by `bun test` with no extra configuration.
+Files matching `*.test.ts` under `src/` are run in one invocation with **`bun test --isolate`**, so partial `mock.module()` stubs in one file cannot leak into another. You do not need to add new files to a manual isolation list for mock safety.
 
 ### Isolated edge tests (`*.edge.manual.ts`)
 

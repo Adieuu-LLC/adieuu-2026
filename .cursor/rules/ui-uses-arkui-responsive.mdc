@@ -1,7 +1,0 @@
----
-alwaysApply: true
----
-# Use ArkUI when adding or modify UI components
-This project uses ArkUI. Whenever possible, when adding or modifying UI, opt for ArkUI components first before building our own. We have custom theming and CSS variables in place to determine colors, etc - use those, as well as our other UI patterns, whenever reasonable. Note to the user when you're unable to do so, or if there's any ambiguity in instructions.
-
-Further, always try to build responsive-first. We want our app to be accessible to those on any viewport, including mobile devices (regardless of platform or client they're using).

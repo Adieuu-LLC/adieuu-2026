@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 # Same as run-tests.sh, but:
-# - Main suite writes coverage to coverage/main/
+# - Main suite writes coverage to coverage/main/ (with --isolate per file)
 # - Each *.edge.manual.ts writes to coverage/edge-N/
 # - Merges all lcov.info files into coverage/lcov.info using `lcov` when available.
 #
-# Requires lcov on PATH for merge (e.g. apt install lcov). Without it, copies main only.
+# Requires Bun >= 1.3.13 and lcov on PATH for merge (e.g. apt install lcov).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 API_ROOT="$(pwd)"
 
-# shellcheck source=./isolated-test-list.sh
-source "$(dirname "$0")/isolated-test-list.sh"
+if ! bun test --help 2>&1 | grep -q -- '--isolate'; then
+  echo "error: bun test --isolate requires Bun >= 1.3.13 (install/upgrade: https://bun.sh)" >&2
+  exit 1
+fi
 
 rm -rf coverage
 mkdir -p "$API_ROOT/coverage/main"
 
-# Reporter/outfile flags only: split default suite. Explicit file args: isolate known flaky suites when possible.
+# Reporter/outfile flags only: run full suite. Explicit file args: run those files only.
 _reporter_only=1
 _main_passthrough_args=()
 for _a in "$@"; do
@@ -25,39 +27,17 @@ for _a in "$@"; do
   esac
 done
 
-run_split_with_coverage() {
+run_with_coverage() {
   local tests=("$@")
-  local main_tests=()
-  local isolated_tests=()
-  local f
-  local idx=0
-
-  for f in "${tests[@]}"; do
-    if is_isolated_test "$f"; then
-      isolated_tests+=("$f")
-    else
-      main_tests+=("$f")
-    fi
-  done
-
-  if [[ ${#main_tests[@]} -gt 0 ]]; then
-    bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" \
-      "${main_tests[@]}" "${_main_passthrough_args[@]}"
+  if [[ ${#tests[@]} -gt 0 ]]; then
+    bun test --isolate --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" \
+      "${tests[@]}" "${_main_passthrough_args[@]}"
   fi
-
-  for f in "${isolated_tests[@]}"; do
-    idx=$((idx + 1))
-    local isolated_dir="$API_ROOT/coverage/isolated-$idx"
-    mkdir -p "$isolated_dir"
-    bun test --coverage --coverage-reporter=lcov --coverage-dir="$isolated_dir" "$f"
-  done
 }
 
 if [[ $# -eq 0 ]] || [[ "$_reporter_only" -eq 1 ]]; then
   mapfile -t _all_tests < <(find src -name '*.test.ts' -type f | LC_ALL=C sort)
-  # Run global-mock-sensitive suites in their own processes so afterAll restore
-  # cannot race with module registration in parallel files.
-  run_split_with_coverage "${_all_tests[@]}"
+  run_with_coverage "${_all_tests[@]}"
 else
   _explicit_tests=()
   _passthrough_args=()
@@ -74,9 +54,9 @@ else
   done
 
   if [[ ${#_explicit_tests[@]} -gt 0 && ${#_passthrough_args[@]} -eq 0 ]]; then
-    run_split_with_coverage "${_explicit_tests[@]}"
+    run_with_coverage "${_explicit_tests[@]}"
   else
-    bun test --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" "$@"
+    bun test --isolate --coverage --coverage-reporter=lcov --coverage-dir="$API_ROOT/coverage/main" "$@"
   fi
 fi
 unset _a _reporter_only
@@ -84,7 +64,7 @@ unset _a _reporter_only
 mapfile -t EDGE < <(find src -name '*.edge.manual.ts' 2>/dev/null | sort)
 INFOS=()
 shopt -s nullglob
-for info in "$API_ROOT"/coverage/main/lcov.info "$API_ROOT"/coverage/verification/lcov.info "$API_ROOT"/coverage/isolated-*/lcov.info; do
+for info in "$API_ROOT"/coverage/main/lcov.info "$API_ROOT"/coverage/verification/lcov.info; do
   if [[ -f "$info" ]]; then
     INFOS+=("$info")
   fi

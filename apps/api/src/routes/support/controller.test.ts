@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import { TICKET_CATEGORIES } from '@adieuu/shared';
 
@@ -60,12 +60,17 @@ const mockListByTicketObjectId = mock(async () => [] as unknown[]);
 const mockGetSessionFromRequest = mock(async () => null as unknown);
 const mockFindByIdentityId = mock(async () => null as unknown);
 
+const mockMarkSupportTicketReadBySubmitter = mock(async () => ({ success: true, data: undefined }));
+const mockCountUnreadSupportTicketsForSubmitter = mock(async () => 2);
+
 mock.module('../../services/support-ticket.service', () => ({
   createSupportTicket: mockCreateSupportTicket,
   addSubmitterComment: mockAddSubmitterComment,
   resolveTicketBySubmitter: mockResolveTicketBySubmitter,
   getAttachmentUrls: mock(async () => []),
   isTicketOwner: mockIsTicketOwner,
+  markSupportTicketReadBySubmitter: mockMarkSupportTicketReadBySubmitter,
+  countUnreadSupportTicketsForSubmitter: mockCountUnreadSupportTicketsForSubmitter,
 }));
 
 mock.module('../../repositories/identity.repository', () => ({
@@ -108,9 +113,31 @@ const {
   createTicketResult,
   listOwnTicketsResult,
   getOwnTicketResult,
+  getUnreadSupportTicketCountResult,
   addOwnCommentResult,
   resolveOwnTicketResult,
 } = await import('./controller');
+
+import { supportRoutes } from './index';
+
+function makeRequest(
+  path: string,
+  options: { method?: string; body?: object; cookies?: string } = {},
+) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (options.cookies) {
+    headers['Cookie'] = options.cookies;
+  }
+  return new Request(`http://localhost${path}`, {
+    method: options.method ?? 'GET',
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+}
+
+const AUTH_COOKIE = 'adieuu_session=test-account-session';
 
 describe('support/controller', () => {
   beforeEach(() => {
@@ -250,6 +277,25 @@ describe('support/controller', () => {
       expect(result.data.ticket.ticketId).toBe('T-test1234');
       expect(result.data.events).toEqual([]);
     }
+    expect(mockMarkSupportTicketReadBySubmitter).toHaveBeenCalledWith(
+      { type: 'account', id: accountUserId },
+      'T-test1234',
+      expect.any(Date),
+    );
+  });
+
+  test('getUnreadSupportTicketCountResult returns unread count', async () => {
+    const result = await getUnreadSupportTicketCountResult({
+      type: 'identity',
+      id: identityId,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.data.unreadCount).toBe(2);
+    expect(mockCountUnreadSupportTicketsForSubmitter).toHaveBeenCalledWith({
+      type: 'identity',
+      id: identityId,
+    });
   });
 
   test('addOwnCommentResult validates comment body', async () => {
@@ -370,4 +416,45 @@ describe('support/controller', () => {
       'Fixed it myself',
     );
   });
+});
+
+describe('support route smoke tests', () => {
+  beforeEach(() => {
+    mockCountUnreadSupportTicketsForSubmitter.mockClear();
+    mockCountUnreadSupportTicketsForSubmitter.mockResolvedValue(2);
+    mockGetSessionFromRequest.mockReset();
+  });
+
+  test('GET /support/unread-count returns 401 without session', async () => {
+    mockGetSessionFromRequest.mockResolvedValueOnce(null);
+    const response = await supportRoutes.handler()(makeRequest('/support/unread-count'));
+    expect(response.status).toBe(401);
+  });
+
+  test('GET /support/unread-count returns unread count with account session', async () => {
+    mockGetSessionFromRequest.mockResolvedValueOnce({
+      type: 'account',
+      userId: accountUserId,
+      identifier: 'a@b.com',
+      identifierType: 'email',
+      lastActivityAt: Date.now(),
+      expiresAt: Date.now() + 3600_000,
+    });
+
+    const response = await supportRoutes.handler()(
+      makeRequest('/support/unread-count', { cookies: AUTH_COOKIE }),
+    );
+
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { data: { unreadCount: number } };
+    expect(body.data.unreadCount).toBe(2);
+    expect(mockCountUnreadSupportTicketsForSubmitter).toHaveBeenCalledWith({
+      type: 'account',
+      id: accountUserId,
+    });
+  });
+});
+
+afterAll(() => {
+  mock.restore();
 });
