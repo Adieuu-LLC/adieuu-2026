@@ -18,6 +18,7 @@ import { config } from '../config';
 import { getCallRepository } from '../repositories/call.repository';
 import { getConversationRepository } from '../repositories/conversation.repository';
 import { getIdentityRepository } from '../repositories/identity.repository';
+import { getMessageRepository } from '../repositories/message.repository';
 import { mintLiveKitToken, generateRoomName } from './livekit-auth.service';
 import { removeParticipant as livekitRemoveParticipant, deleteRoom as livekitDeleteRoom } from './livekit-room.service';
 import { publishToParticipants, publishConversationEvent } from './conversation/redis-events';
@@ -94,7 +95,7 @@ export async function initiateCall(
   }
 
   const identity = await identityRepo.findById(initiatorObjId);
-  const displayName = identity?.ident ?? 'Unknown';
+  const displayName = identity?.displayName || identity?.username || 'Unknown';
 
   const roomName = generateRoomName();
 
@@ -143,6 +144,14 @@ export async function initiateCall(
     type: 'call_initiated',
     data: { call: publicCall },
   });
+
+  void emitCallSystemMessage(
+    convObjId,
+    conversation.participants,
+    'call_started',
+    initiatorObjId,
+    displayName,
+  );
 
   const otherParticipants = conversation.participants.filter(
     (p) => !p.equals(initiatorObjId)
@@ -220,7 +229,7 @@ export async function joinCall(
   const enforcedMedia = enforceCallSettings(mediaState, conversation);
 
   const identity = await identityRepo.findById(identityObjId);
-  const displayName = identity?.ident ?? 'Unknown';
+  const displayName = identity?.displayName || identity?.username || 'Unknown';
 
   let livekitToken: string | undefined;
   if (config.livekit.enabled) {
@@ -257,6 +266,14 @@ export async function joinCall(
     data: { callId, identityId, mediaState: enforcedMedia },
   });
 
+  void emitCallSystemMessage(
+    call.conversationId,
+    conversation.participants,
+    'call_joined',
+    identityObjId,
+    displayName,
+  );
+
   return {
     success: true,
     call: publicCall,
@@ -279,6 +296,7 @@ export async function leaveCall(
 ): Promise<CallResult> {
   const callRepo = getCallRepository();
   const conversationRepo = getConversationRepository();
+  const identityRepo = getIdentityRepository();
 
   const callObjId = new ObjectId(callId);
   const identityObjId = new ObjectId(identityId);
@@ -301,6 +319,19 @@ export async function leaveCall(
   void livekitRemoveParticipant(call.jitsiRoomName, identityId);
 
   const conversation = await conversationRepo.findById(updated.conversationId);
+
+  const leaverIdentity = await identityRepo.findById(identityObjId);
+  const leaverDisplayName = leaverIdentity?.displayName || leaverIdentity?.username || 'Unknown';
+
+  if (conversation) {
+    void emitCallSystemMessage(
+      updated.conversationId,
+      conversation.participants,
+      'call_left',
+      identityObjId,
+      leaverDisplayName,
+    );
+  }
 
   // Check if all participants have left — end call without requiring active membership
   const activeParticipants = updated.participants.filter((p) => !p.leftAt);
@@ -341,6 +372,7 @@ export async function endCall(
 ): Promise<CallResult> {
   const callRepo = getCallRepository();
   const conversationRepo = getConversationRepository();
+  const identityRepo = getIdentityRepository();
 
   const callObjId = new ObjectId(callId);
   const identityObjId = new ObjectId(identityId);
@@ -373,6 +405,17 @@ export async function endCall(
 
   // Delete the LiveKit room — force-disconnects all participants and frees resources
   void livekitDeleteRoom(call.jitsiRoomName);
+
+  const enderIdentity = await identityRepo.findById(identityObjId);
+  const enderDisplayName = enderIdentity?.displayName || enderIdentity?.username || 'Unknown';
+
+  void emitCallSystemMessage(
+    call.conversationId,
+    conversation.participants,
+    'call_ended',
+    identityObjId,
+    enderDisplayName,
+  );
 
   await notifyCallEnded(conversation.participants, callId, identityId);
 
@@ -493,4 +536,55 @@ function isDuplicateKeyError(err: unknown): boolean {
     return (err as { code: number }).code === 11000;
   }
   return false;
+}
+
+/**
+ * Insert a system message for a call lifecycle event and broadcast it to
+ * all conversation participants so it appears in chat history.
+ */
+async function emitCallSystemMessage(
+  conversationId: ObjectId,
+  participants: ObjectId[],
+  eventType: 'call_started' | 'call_joined' | 'call_left' | 'call_ended',
+  identityId: ObjectId,
+  displayName: string,
+): Promise<void> {
+  const messageRepo = getMessageRepository();
+  const conversationRepo = getConversationRepository();
+
+  try {
+    const systemMsg = await messageRepo.createMessage({
+      conversationId,
+      fromIdentityId: identityId,
+      messageType: 'system',
+      systemEvent: {
+        type: eventType,
+        identityId: identityId.toHexString(),
+        displayName,
+      },
+      ciphertext: '',
+      nonce: '',
+      wrappedKeys: [],
+      signature: '',
+      cryptoProfile: 'default',
+      clientMessageId: `sys-${eventType}-${Date.now()}-${identityId.toHexString().slice(-6)}`,
+    });
+
+    await conversationRepo.updateLastMessage(conversationId, systemMsg._id, systemMsg.createdAt);
+    await conversationRepo.incrementMessageCount(conversationId);
+
+    for (const memberId of participants) {
+      await publishConversationEvent(memberId.toHexString(), {
+        type: 'conversation_message',
+        data: {
+          conversationId: conversationId.toHexString(),
+          messageId: systemMsg._id.toHexString(),
+          fromIdentityId: identityId.toHexString(),
+          createdAt: systemMsg.createdAt.toISOString(),
+        },
+      });
+    }
+  } catch (err) {
+    elog.warn('Failed to emit call system message', { conversationId, eventType, err });
+  }
 }

@@ -63,7 +63,7 @@ function ParticipantTile({ participant, videoTrackRef, isLocal }: ParticipantTil
         <div className="call-conference__avatar">
           <Avatar
             name={displayName}
-            size="lg"
+            size="xl"
           />
         </div>
       )}

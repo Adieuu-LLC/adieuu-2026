@@ -25,6 +25,8 @@ export interface IncomingCall {
 
 export interface GlobalCallEventsContextValue {
   incomingCalls: IncomingCall[];
+  /** Set of conversation IDs that currently have an ongoing call. */
+  activeCallConversationIds: Set<string>;
   dismissIncoming: (callId: string) => void;
 }
 
@@ -45,6 +47,7 @@ export function GlobalCallEventsProvider({ children }: { children: ReactNode }) 
   const { activeSession } = useCallSession();
 
   const [incomingCalls, setIncomingCalls] = useState<IncomingCall[]>([]);
+  const [activeCallMap, setActiveCallMap] = useState<Map<string, string>>(new Map());
   const dismissedRef = useRef(new Set<string>());
   const identityIdRef = useRef(identity?.id);
   identityIdRef.current = identity?.id;
@@ -65,6 +68,13 @@ export function GlobalCallEventsProvider({ children }: { children: ReactNode }) 
       switch (message.type) {
         case 'call_initiated': {
           const { call } = message.data;
+
+          setActiveCallMap((prev) => {
+            const next = new Map(prev);
+            next.set(call.conversationId, call.id);
+            return next;
+          });
+
           if (dismissedRef.current.has(call.id)) return;
 
           const alreadyIn = call.participants?.some(
@@ -97,6 +107,16 @@ export function GlobalCallEventsProvider({ children }: { children: ReactNode }) 
           const { callId } = message.data;
           dismissedRef.current.delete(callId);
           setIncomingCalls((prev) => prev.filter((c) => c.callId !== callId));
+          setActiveCallMap((prev) => {
+            const next = new Map(prev);
+            for (const [convId, cId] of next) {
+              if (cId === callId) {
+                next.delete(convId);
+                break;
+              }
+            }
+            return next;
+          });
           break;
         }
       }
@@ -105,18 +125,29 @@ export function GlobalCallEventsProvider({ children }: { children: ReactNode }) 
     return unsubscribe;
   }, [subscribe]);
 
-  // Clear incoming calls for the active session (user joined)
+  // Clear incoming calls for the active session (user joined) and track it as active
   useEffect(() => {
     if (activeSession) {
       setIncomingCalls((prev) =>
         prev.filter((c) => c.callId !== activeSession.call.id)
       );
+      setActiveCallMap((prev) => {
+        if (prev.get(activeSession.conversationId) === activeSession.call.id) return prev;
+        const next = new Map(prev);
+        next.set(activeSession.conversationId, activeSession.call.id);
+        return next;
+      });
     }
   }, [activeSession]);
 
+  const activeCallConversationIds = useMemo(
+    () => new Set(activeCallMap.keys()),
+    [activeCallMap]
+  );
+
   const value = useMemo<GlobalCallEventsContextValue>(
-    () => ({ incomingCalls, dismissIncoming }),
-    [incomingCalls, dismissIncoming]
+    () => ({ incomingCalls, activeCallConversationIds, dismissIncoming }),
+    [incomingCalls, activeCallConversationIds, dismissIncoming]
   );
 
   return (

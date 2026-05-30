@@ -77,6 +77,30 @@ export function SystemMessageRow({ event }: { event: SystemEvent }) {
             defaultValue: `${name} renamed the group`,
           });
       break;
+    case 'call_started':
+      text = t('conversations.systemMessage.callStarted', {
+        name,
+        defaultValue: `${name} started a call`,
+      });
+      break;
+    case 'call_joined':
+      text = t('conversations.systemMessage.callJoined', {
+        name,
+        defaultValue: `${name} joined the call`,
+      });
+      break;
+    case 'call_left':
+      text = t('conversations.systemMessage.callLeft', {
+        name,
+        defaultValue: `${name} left the call`,
+      });
+      break;
+    case 'call_ended':
+      text = t('conversations.systemMessage.callEnded', {
+        name,
+        defaultValue: `${name} ended the call`,
+      });
+      break;
     default:
       text = event.type;
   }

@@ -15,6 +15,7 @@ import { useConversations, type DecryptedConversation } from '../../hooks/useCon
 import { getSidebarListAvatarMemberIds } from '../../pages/conversations/conversationViewModel';
 import { useConversationPreferences } from '../../hooks/useConversationPreferences';
 import { useIdentity } from '../../hooks/useIdentity';
+import { useGlobalCallEvents } from '../../hooks/useGlobalCallEvents';
 import { useTheme } from '../../hooks/useTheme';
 import { usePlatformCapabilities } from '../../config';
 import { ChatInvitationsSidebarButton } from './invitations';
@@ -140,12 +141,14 @@ function ConversationListItem({
   displayName,
   isArchived,
   isFavorited,
+  hasActiveCall,
   onLeave,
 }: {
   conversation: DecryptedConversation;
   displayName: string;
   isArchived: boolean;
   isFavorited: boolean;
+  hasActiveCall: boolean;
   onLeave: (conversationId: string) => void;
 }) {
   const { t } = useTranslation();
@@ -271,6 +274,9 @@ function ConversationListItem({
         )}
       </div>
       <div className="conversation-list-item-badges">
+        {hasActiveCall && (
+          <Icon name="phone" className="conversation-list-item-call-icon" />
+        )}
         {isFavorited && (
           <Icon name="star" className="conversation-list-item-star" />
         )}
@@ -416,6 +422,7 @@ export function ConversationsSidebarSection({
   const { conversations, loading, leaveGroup, participantProfiles } = useConversations();
   const { preferences } = useConversationPreferences();
   const { identity } = useIdentity();
+  const { activeCallConversationIds } = useGlobalCallEvents();
   const { closeMobile } = useSidebar();
   const [activeTab, setActiveTab] = useState('conversations');
 
@@ -544,6 +551,7 @@ export function ConversationsSidebarSection({
       displayName={item.displayName}
       isArchived={!!item.pref?.archived}
       isFavorited={!!item.pref?.favorited}
+      hasActiveCall={activeCallConversationIds.has(item.conversation.id)}
       onLeave={handleLeaveRequest}
     />
   );
