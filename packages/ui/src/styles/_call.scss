@@ -1,0 +1,632 @@
+@use 'variables' as *;
+
+// ============================================================================
+// Call Toolbar Button (single icon button)
+// ============================================================================
+
+.call-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  flex-shrink: 0;
+
+  &__primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: color var(--transition-fast), background var(--transition-fast);
+    padding: var(--spacing-xs);
+
+    &:hover:not(:disabled) {
+      color: var(--color-text-primary);
+      background: var(--color-bg-hover);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  &--in-call &__primary {
+    color: var(--color-success);
+  }
+}
+
+// ============================================================================
+// Device Setup Modal
+// ============================================================================
+
+.call-device-setup {
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+    padding: var(--spacing-lg);
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+
+    label {
+      font-size: var(--font-size-sm);
+      font-weight: var(--font-weight-semibold);
+      color: var(--color-text-secondary);
+    }
+
+    select {
+      width: 100%;
+      padding: var(--spacing-sm) var(--spacing-md);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      background: var(--color-bg-secondary);
+      color: var(--color-text-primary);
+      font-size: var(--font-size-sm);
+      transition: border-color var(--transition-fast);
+
+      &:focus {
+        border-color: var(--color-border-focus);
+        outline: none;
+      }
+    }
+  }
+
+  &__preview {
+    position: relative;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--color-bg-tertiary);
+    aspect-ratio: 16 / 9;
+    max-height: 200px;
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+  }
+
+  &__note {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__error {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: var(--color-error-bg);
+    border-radius: var(--radius-md);
+    color: var(--color-error);
+    font-size: var(--font-size-sm);
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+  }
+}
+
+// ============================================================================
+// Call Overlay (fixed position, below conversation toolbar, top half)
+// ============================================================================
+
+.call-overlay {
+  display: none;
+  position: fixed;
+  top: 45px;
+  left: min($sidebar-width, $sidebar-width-max);
+  right: 0;
+  height: calc(50vh - 22px);
+  z-index: 100;
+  flex-direction: column;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border);
+  overflow: hidden;
+
+  &[data-call-visible="true"] {
+    display: flex;
+  }
+
+  .lk-video-conference {
+    height: 100%;
+  }
+
+  &-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border);
+    flex-shrink: 0;
+  }
+
+  &-title {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &-conversation-name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  &-status {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &-minimize {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    font-size: 1.2rem;
+    line-height: 1;
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+  }
+
+  &-body {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &-connecting {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-md);
+    color: var(--color-text-muted);
+
+    p {
+      font-size: var(--font-size-sm);
+    }
+  }
+
+  &-footer {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+  }
+}
+
+.app-layout.sidebar-is-collapsed ~ .call-overlay[data-call-visible="true"] {
+  left: $sidebar-width-collapsed;
+}
+
+// ============================================================================
+// Custom Call Conference View
+// ============================================================================
+
+.call-conference {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+
+  &__grid {
+    flex: 1;
+    display: grid;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    overflow: hidden;
+
+    &--single {
+      grid-template-columns: 1fr;
+    }
+
+    &--small {
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(auto-fit, minmax(0, 1fr));
+    }
+
+    &--large {
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(auto-fit, minmax(0, 1fr));
+    }
+  }
+
+  &__tile-wrapper {
+    display: contents;
+  }
+
+  &__tile {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    min-height: 0;
+
+    &--local {
+      .call-conference__video {
+        transform: scaleX(-1);
+      }
+    }
+
+    &--screen {
+      .call-conference__video {
+        transform: none;
+      }
+    }
+  }
+
+  &__video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  &__avatar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-lg);
+  }
+
+  &__overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.6));
+    color: #fff;
+  }
+
+  &__name {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__muted-icon {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-error, #ef4444);
+    flex-shrink: 0;
+  }
+
+  &__controls {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg-primary);
+
+    .lk-control-bar {
+      display: flex;
+      gap: var(--spacing-sm);
+    }
+  }
+}
+
+// ============================================================================
+// Call Controls
+// ============================================================================
+
+.call-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.call-control-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: 9999px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+
+  &--muted {
+    color: var(--color-error);
+    background: var(--color-error-bg);
+
+    &:hover {
+      background: var(--color-error-bg);
+      opacity: 0.85;
+    }
+  }
+
+  &--active {
+    color: var(--color-success);
+    background: var(--color-success-bg);
+  }
+
+  &--leave {
+    color: var(--color-error);
+
+    &:hover {
+      background: var(--color-error-bg);
+    }
+  }
+
+  &--end {
+    color: #fff;
+    background: var(--color-error);
+
+    &:hover {
+      opacity: 0.85;
+    }
+  }
+}
+
+.call-control-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+// ============================================================================
+// Call Control Group (button + device popover trigger)
+// ============================================================================
+
+.call-control-group {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+
+.call-control-device-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
+  margin-left: -2px;
+
+  &:hover {
+    color: var(--color-text-primary);
+    background: var(--color-bg-hover);
+  }
+}
+
+// ============================================================================
+// Device Popover (shown from control button chevrons)
+// ============================================================================
+
+.call-device-popover {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px var(--color-shadow);
+  min-width: 200px;
+  max-width: 320px;
+  padding: var(--spacing-sm) 0;
+
+  &__section {
+    display: flex;
+    flex-direction: column;
+
+    & + & {
+      border-top: 1px solid var(--color-border);
+      margin-top: var(--spacing-xs);
+      padding-top: var(--spacing-xs);
+    }
+  }
+
+  &__heading {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    padding: var(--spacing-xs) var(--spacing-md);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  &__item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+
+    &:hover {
+      background: var(--color-bg-hover);
+    }
+  }
+}
+
+// ============================================================================
+// Incoming Call Banner
+// ============================================================================
+
+.incoming-call-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+  animation: incoming-call-pulse 2s ease-in-out infinite;
+}
+
+@keyframes incoming-call-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.incoming-call-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.incoming-call-icon {
+  color: var(--color-success);
+  flex-shrink: 0;
+}
+
+.incoming-call-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.incoming-call-caller {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.incoming-call-type {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.incoming-call-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.incoming-call-decline {
+  color: var(--color-error);
+}
+
+.incoming-call-accept {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+// ============================================================================
+// Sidebar Call Widget
+// ============================================================================
+
+.sidebar-call-widget {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-sm);
+
+  &--active {
+    background: var(--color-success-bg);
+    border: 1px solid var(--color-success);
+  }
+
+  &--incoming {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    animation: incoming-call-pulse 2s ease-in-out infinite;
+  }
+
+  &__info {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    min-width: 0;
+    flex: 1;
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+
+    &:hover {
+      opacity: 0.8;
+    }
+  }
+
+  &__icon {
+    flex-shrink: 0;
+    color: var(--color-success);
+
+    &--ringing {
+      animation: sidebar-call-ring 1s ease-in-out infinite;
+    }
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &__name {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__duration,
+  &__status {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-shrink: 0;
+  }
+
+  &__decline {
+    color: var(--color-error);
+  }
+
+  &__leave {
+    color: var(--color-error);
+    flex-shrink: 0;
+  }
+}
+
+@keyframes sidebar-call-ring {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}

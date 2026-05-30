@@ -11,6 +11,7 @@ import { AccountFlyout, IdentityFlyout, isAccountSidebarHidden } from './identit
 import { SidebarUpdateNav } from './SidebarUpdateNav';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useSupportUnreadCount } from '../../hooks/useSupportUnreadCount';
+import { SidebarCallWidget } from '../../components/call/SidebarCallWidget';
 import type { SidebarVariant } from './nav';
 
 export function ModerationFlyout() {
@@ -182,6 +183,7 @@ function AuthenticatedSidebarFooter() {
 
   return (
     <div className="sidebar-footer-stack">
+      <SidebarCallWidget />
       {showModerator && (
         <ModerationFlyout />
       )}

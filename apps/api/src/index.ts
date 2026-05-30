@@ -14,6 +14,7 @@ import {
 } from './services/platform-settings.service';
 import { elog } from './utils';
 import { verifyStripeCredentials } from './services/billing/stripe.client';
+import { startCallReaper, stopCallReaper } from './services/call-reaper.service';
 
 // Validate production configuration
 validateProductionConfig();
@@ -57,6 +58,8 @@ async function start(): Promise<void> {
     }
   }
 
+  const reaperHandle = startCallReaper();
+
   // Start HTTP server
   const server = Bun.serve({
     port: config.port,
@@ -69,6 +72,7 @@ async function start(): Promise<void> {
   // Graceful shutdown handler
   const shutdown = async () => {
     elog.info('Shutting down gracefully');
+    if (reaperHandle) stopCallReaper(reaperHandle);
     await closeDatabases();
     server.stop();
     process.exit(0);

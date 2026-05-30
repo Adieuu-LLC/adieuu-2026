@@ -43,6 +43,10 @@ import { ConversationMembersSidebar } from './ConversationMembersSidebar';
 import { ConversationDialogs } from './ConversationDialogs';
 import { ConversationMessageList } from './ConversationMessageList';
 import { useBlockContext } from '../../hooks/useBlockContext';
+import { useCallSession } from '../../hooks/useCallSession';
+import { useCall } from '../../hooks/useCall';
+import { ConversationCallButton } from '../../components/call/ConversationCallButton';
+import { ActiveCallBanner } from '../../components/call/ActiveCallBanner';
 import { Icon } from '../../icons/Icon';
 import { Button } from '../../components/Button';
 import { useToast } from '../../components/Toast';
@@ -401,6 +405,8 @@ export function ConversationView() {
 
   const { blockedByOther, setBlockedByOther } = useDmBlockedByOther(api, conversation, identity?.id);
 
+  const callSession = useCallSession();
+  const conversationCall = useCall(id ?? null);
   const activeMessagesRef = useRef(activeMessages);
   activeMessagesRef.current = activeMessages;
   const getActiveMessages = useCallback(() => activeMessagesRef.current, []);
@@ -897,6 +903,18 @@ export function ConversationView() {
 
   const canManagePinsUi = canManageConversationPinsView(conversation, identity?.id);
 
+  const audioAllowed = !(conversation.audioCallsDisabled ?? false);
+
+  const isInCallElsewhere =
+    callSession.activeSession !== null &&
+    callSession.activeSession.conversationId !== id;
+  const isInCallHere =
+    callSession.activeSession !== null &&
+    callSession.activeSession.conversationId === id;
+
+  const hasActiveCallToJoin =
+    conversationCall.activeCall !== null && !conversationCall.isInCall && !isInCallHere;
+
   return (
     <div className="conversation-page">
         <div className="conversation-container">
@@ -904,6 +922,17 @@ export function ConversationView() {
             displayName={displayName}
             avatarMembers={toolbarAvatarMembers}
             subtitle={toolbarSubtitle!}
+            callSlot={
+              audioAllowed && !isDmBlocked && !blockedByOther ? (
+                <ConversationCallButton
+                  disabled={isInCallElsewhere}
+                  disabledReason={isInCallElsewhere ? t('call.alreadyInCall') : undefined}
+                  inCallForThisConversation={isInCallHere}
+                  onStartCall={() => id && callSession.requestStartCall(id, { audio: true, video: false, screenshare: false })}
+                  onFocusOverlay={undefined}
+                />
+              ) : undefined
+            }
             pinsSlot={
               <ConversationPinsMenu
                 conversationId={conversation.id}
@@ -1007,7 +1036,23 @@ export function ConversationView() {
 
           <ChatConnectionBanner />
 
-          <div className="conversation-body">
+          {hasActiveCallToJoin && conversationCall.activeCall && (
+            <ActiveCallBanner
+              participantCount={conversationCall.participants.length}
+              participants={conversationCall.participants}
+              onJoin={() => {
+                if (id && conversationCall.activeCall) {
+                  callSession.requestJoinCall(
+                    id,
+                    conversationCall.activeCall.id,
+                    { audio: true, video: false, screenshare: false },
+                  );
+                }
+              }}
+            />
+          )}
+
+          <div className={`conversation-body${isInCallHere ? ' conversation-body--in-call' : ''}`}>
             <div
               className="conversation-main conversation-main-drop-target"
               onDragEnter={handleConversationDragEnter}

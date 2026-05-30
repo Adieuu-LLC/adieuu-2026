@@ -14,6 +14,8 @@ export interface AppConfig {
   externalLinkBase: string;
   /** Current platform identifier */
   platform: 'web' | 'desktop' | 'mobile';
+  /** LiveKit server WebSocket URL (e.g. ws://localhost:7880). Omit if LiveKit is not configured. */
+  livekitUrl?: string;
 }
 
 // ============================================================================

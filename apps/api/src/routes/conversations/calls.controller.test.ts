@@ -11,10 +11,10 @@ const VALID_CALL = '507f1f77bcf86cd799439012';
 const INVALID_HEX_24 = 'gggggggggggggggggggggggg';
 
 const mockInitiateCall = mock(() =>
-  Promise.resolve({ success: true, call: { id: VALID_CALL }, jitsiToken: 'tok' }),
+  Promise.resolve({ success: true, call: { id: VALID_CALL }, livekitToken: 'tok' }),
 );
 const mockJoinCall = mock(() =>
-  Promise.resolve({ success: true, call: { id: VALID_CALL }, jitsiToken: 'tok' }),
+  Promise.resolve({ success: true, call: { id: VALID_CALL }, livekitToken: 'tok' }),
 );
 const mockLeaveCall = mock(() => Promise.resolve({ success: true, call: { id: VALID_CALL } }));
 const mockEndCall = mock(() => Promise.resolve({ success: true, call: { id: VALID_CALL } }));
@@ -101,10 +101,10 @@ describe('calls.controller', () => {
     mockUpdateCallSettings.mockClear();
     mockEscalateCallInitiateThrottle.mockClear();
     mockInitiateCall.mockImplementation(() =>
-      Promise.resolve({ success: true, call: { id: VALID_CALL }, jitsiToken: 'tok' }),
+      Promise.resolve({ success: true, call: { id: VALID_CALL }, livekitToken: 'tok' }),
     );
     mockJoinCall.mockImplementation(() =>
-      Promise.resolve({ success: true, call: { id: VALID_CALL }, jitsiToken: 'tok' }),
+      Promise.resolve({ success: true, call: { id: VALID_CALL }, livekitToken: 'tok' }),
     );
     mockLeaveCall.mockImplementation(() => Promise.resolve({ success: true, call: { id: VALID_CALL } }));
     mockEndCall.mockImplementation(() => Promise.resolve({ success: true, call: { id: VALID_CALL } }));
@@ -153,18 +153,18 @@ describe('calls.controller', () => {
     );
   });
 
-  test('initiateCallCtrl maps JITSI_UNAVAILABLE to 503 named_error', async () => {
+  test('initiateCallCtrl maps LIVEKIT_UNAVAILABLE to 503 named_error', async () => {
     mockInitiateCall.mockImplementation(() =>
       Promise.resolve({
         success: false,
         error: 'Unavailable',
-        errorCode: 'JITSI_UNAVAILABLE',
+        errorCode: 'LIVEKIT_UNAVAILABLE',
       } as never),
     );
     const r = await initiateCallCtrl(authedCtx({ params: { id: VALID_CONV }, body: { media: MEDIA } }));
     expect(r.kind).toBe('named_error');
     if (r.kind === 'named_error') {
-      expect(r.code).toBe('JITSI_UNAVAILABLE');
+      expect(r.code).toBe('LIVEKIT_UNAVAILABLE');
       expect(r.status).toBe(503);
     }
   });
@@ -245,12 +245,12 @@ describe('calls.controller', () => {
     }
   });
 
-  test('joinCallCtrl maps JITSI_UNAVAILABLE to 503 named_error', async () => {
+  test('joinCallCtrl maps LIVEKIT_UNAVAILABLE to 503 named_error', async () => {
     mockJoinCall.mockImplementation(() =>
       Promise.resolve({
         success: false,
         error: 'Unavailable',
-        errorCode: 'JITSI_UNAVAILABLE',
+        errorCode: 'LIVEKIT_UNAVAILABLE',
       } as never),
     );
     const r = await joinCallCtrl(
@@ -261,7 +261,7 @@ describe('calls.controller', () => {
     );
     expect(r.kind).toBe('named_error');
     if (r.kind === 'named_error') {
-      expect(r.code).toBe('JITSI_UNAVAILABLE');
+      expect(r.code).toBe('LIVEKIT_UNAVAILABLE');
       expect(r.status).toBe(503);
     }
   });

@@ -23,6 +23,10 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+
+  &--in-call {
+    padding-top: calc(50vh - 22px);
+  }
 }
 
 .conversation-main {

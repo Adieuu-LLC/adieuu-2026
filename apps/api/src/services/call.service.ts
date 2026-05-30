@@ -2,7 +2,7 @@
  * Call Service
  *
  * Orchestrates the lifecycle of live audio/video/screenshare calls within
- * conversations. Works with the CallRepository (MongoDB), JitsiAuthService
+ * conversations. Works with the CallRepository (MongoDB), LiveKit auth
  * (JWT minting), and the Redis pub/sub system (real-time events).
  *
  * Constraints:
@@ -18,7 +18,9 @@ import { config } from '../config';
 import { getCallRepository } from '../repositories/call.repository';
 import { getConversationRepository } from '../repositories/conversation.repository';
 import { getIdentityRepository } from '../repositories/identity.repository';
-import { mintJitsiToken, generateJitsiRoomName } from './jitsi-auth.service';
+import { getMessageRepository } from '../repositories/message.repository';
+import { mintLiveKitToken, generateRoomName } from './livekit-auth.service';
+import { removeParticipant as livekitRemoveParticipant, deleteRoom as livekitDeleteRoom } from './livekit-room.service';
 import { publishToParticipants, publishConversationEvent } from './conversation/redis-events';
 import { createNotification } from './notification.service';
 import { checkRateLimit, getCallInitiateConfig } from './rate-limit.service';
@@ -33,7 +35,9 @@ import elog from '../utils/adieuuLogger';
 export interface CallResult {
   success: boolean;
   call?: PublicCall;
-  jitsiToken?: string;
+  livekitToken?: string;
+  /** LiveKit server WebSocket URL the client should connect to. */
+  livekitUrl?: string;
   error?: string;
   errorCode?: string;
   /** Seconds until rate limit resets (when errorCode is RATE_LIMITED) */
@@ -48,7 +52,7 @@ export interface CallResult {
  * Initiate a new call in a conversation.
  *
  * Validates participation, admin call-type toggles, and the one-call-per-
- * conversation constraint. Generates a Jitsi room name and mints a JWT
+ * conversation constraint. Generates a room name and mints a LiveKit JWT
  * for the initiator.
  */
 export async function initiateCall(
@@ -91,24 +95,24 @@ export async function initiateCall(
   }
 
   const identity = await identityRepo.findById(initiatorObjId);
-  const displayName = identity?.ident ?? 'Unknown';
+  const displayName = identity?.displayName || identity?.username || 'Unknown';
 
-  const jitsiRoomName = generateJitsiRoomName();
+  const roomName = generateRoomName();
 
-  let jitsiToken: string | undefined;
-  if (config.jitsi.enabled) {
+  let livekitToken: string | undefined;
+  if (config.livekit.enabled) {
     try {
-      jitsiToken = mintJitsiToken({
-        roomName: jitsiRoomName,
+      livekitToken = await mintLiveKitToken({
+        roomName,
         identityId: initiatorIdentityId,
         displayName,
       });
     } catch (err) {
-      elog.warn('Failed to mint Jitsi token on initiate', { conversationId, err });
+      elog.warn('Failed to mint LiveKit token on initiate', { conversationId, err });
       return {
         success: false,
         error: 'Call service is temporarily unavailable.',
-        errorCode: 'JITSI_UNAVAILABLE',
+        errorCode: 'LIVEKIT_UNAVAILABLE',
       };
     }
   }
@@ -119,7 +123,7 @@ export async function initiateCall(
       conversationId: convObjId,
       initiatorIdentityId: initiatorObjId,
       allowedMedia,
-      jitsiRoomName,
+      roomName,
     });
   } catch (err: unknown) {
     if (isDuplicateKeyError(err)) {
@@ -128,15 +132,27 @@ export async function initiateCall(
     throw err;
   }
 
-  // Notify other participants
-  const publicCall = toPublicCall(call);
+  const updatedCall = await callRepo.addParticipant(call._id, {
+    identityId: initiatorObjId,
+    joinedAt: new Date(),
+    mediaState: allowedMedia,
+  });
+
+  const publicCall = toPublicCall(updatedCall ?? call);
 
   await publishToParticipants(conversation.participants, initiatorObjId, {
     type: 'call_initiated',
     data: { call: publicCall },
   });
 
-  // Create call_incoming notifications for other participants
+  void emitCallSystemMessage(
+    convObjId,
+    conversation.participants,
+    'call_started',
+    initiatorObjId,
+    displayName,
+  );
+
   const otherParticipants = conversation.participants.filter(
     (p) => !p.equals(initiatorObjId)
   );
@@ -160,7 +176,12 @@ export async function initiateCall(
     }
   });
 
-  return { success: true, call: publicCall, jitsiToken };
+  return {
+    success: true,
+    call: publicCall,
+    livekitToken,
+    livekitUrl: config.livekit.enabled ? config.livekit.url : undefined,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -168,7 +189,7 @@ export async function initiateCall(
 // ---------------------------------------------------------------------------
 
 /**
- * Join an existing call. Mints a Jitsi JWT for the joining participant.
+ * Join an existing call. Mints a LiveKit JWT for the joining participant.
  */
 export async function joinCall(
   conversationId: string,
@@ -208,22 +229,22 @@ export async function joinCall(
   const enforcedMedia = enforceCallSettings(mediaState, conversation);
 
   const identity = await identityRepo.findById(identityObjId);
-  const displayName = identity?.ident ?? 'Unknown';
+  const displayName = identity?.displayName || identity?.username || 'Unknown';
 
-  let jitsiToken: string | undefined;
-  if (config.jitsi.enabled) {
+  let livekitToken: string | undefined;
+  if (config.livekit.enabled) {
     try {
-      jitsiToken = mintJitsiToken({
-        roomName: call.jitsiRoomName,
+      livekitToken = await mintLiveKitToken({
+        roomName: call.roomName,
         identityId,
         displayName,
       });
     } catch (err) {
-      elog.warn('Failed to mint Jitsi token on join', { callId, err });
+      elog.warn('Failed to mint LiveKit token on join', { callId, err });
       return {
         success: false,
         error: 'Call service is temporarily unavailable.',
-        errorCode: 'JITSI_UNAVAILABLE',
+        errorCode: 'LIVEKIT_UNAVAILABLE',
       };
     }
   }
@@ -245,7 +266,20 @@ export async function joinCall(
     data: { callId, identityId, mediaState: enforcedMedia },
   });
 
-  return { success: true, call: publicCall, jitsiToken };
+  void emitCallSystemMessage(
+    call.conversationId,
+    conversation.participants,
+    'call_joined',
+    identityObjId,
+    displayName,
+  );
+
+  return {
+    success: true,
+    call: publicCall,
+    livekitToken,
+    livekitUrl: config.livekit.enabled ? config.livekit.url : undefined,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +296,7 @@ export async function leaveCall(
 ): Promise<CallResult> {
   const callRepo = getCallRepository();
   const conversationRepo = getConversationRepository();
+  const identityRepo = getIdentityRepository();
 
   const callObjId = new ObjectId(callId);
   const identityObjId = new ObjectId(identityId);
@@ -280,7 +315,23 @@ export async function leaveCall(
     return { success: false, error: 'Call not found or not in call', errorCode: 'CALL_NOT_FOUND' };
   }
 
+  // Force-disconnect the participant from the LiveKit room immediately
+  void livekitRemoveParticipant(call.roomName, identityId);
+
   const conversation = await conversationRepo.findById(updated.conversationId);
+
+  const leaverIdentity = await identityRepo.findById(identityObjId);
+  const leaverDisplayName = leaverIdentity?.displayName || leaverIdentity?.username || 'Unknown';
+
+  if (conversation) {
+    void emitCallSystemMessage(
+      updated.conversationId,
+      conversation.participants,
+      'call_left',
+      identityObjId,
+      leaverDisplayName,
+    );
+  }
 
   // Check if all participants have left — end call without requiring active membership
   const activeParticipants = updated.participants.filter((p) => !p.leftAt);
@@ -289,6 +340,8 @@ export async function leaveCall(
     if (!ended) {
       return { success: false, error: 'Failed to end call', errorCode: 'END_FAILED' };
     }
+    // Delete the LiveKit room to free server resources
+    void livekitDeleteRoom(call.roomName);
     if (conversation) {
       await notifyCallEnded(conversation.participants, callId, identityId);
     }
@@ -319,6 +372,7 @@ export async function endCall(
 ): Promise<CallResult> {
   const callRepo = getCallRepository();
   const conversationRepo = getConversationRepository();
+  const identityRepo = getIdentityRepository();
 
   const callObjId = new ObjectId(callId);
   const identityObjId = new ObjectId(identityId);
@@ -348,6 +402,20 @@ export async function endCall(
   if (!ended) {
     return { success: false, error: 'Failed to end call', errorCode: 'END_FAILED' };
   }
+
+  // Delete the LiveKit room — force-disconnects all participants and frees resources
+  void livekitDeleteRoom(call.roomName);
+
+  const enderIdentity = await identityRepo.findById(identityObjId);
+  const enderDisplayName = enderIdentity?.displayName || enderIdentity?.username || 'Unknown';
+
+  void emitCallSystemMessage(
+    call.conversationId,
+    conversation.participants,
+    'call_ended',
+    identityObjId,
+    enderDisplayName,
+  );
 
   await notifyCallEnded(conversation.participants, callId, identityId);
 
@@ -468,4 +536,55 @@ function isDuplicateKeyError(err: unknown): boolean {
     return (err as { code: number }).code === 11000;
   }
   return false;
+}
+
+/**
+ * Insert a system message for a call lifecycle event and broadcast it to
+ * all conversation participants so it appears in chat history.
+ */
+async function emitCallSystemMessage(
+  conversationId: ObjectId,
+  participants: ObjectId[],
+  eventType: 'call_started' | 'call_joined' | 'call_left' | 'call_ended',
+  identityId: ObjectId,
+  displayName: string,
+): Promise<void> {
+  const messageRepo = getMessageRepository();
+  const conversationRepo = getConversationRepository();
+
+  try {
+    const systemMsg = await messageRepo.createMessage({
+      conversationId,
+      fromIdentityId: identityId,
+      messageType: 'system',
+      systemEvent: {
+        type: eventType,
+        identityId: identityId.toHexString(),
+        displayName,
+      },
+      ciphertext: '',
+      nonce: '',
+      wrappedKeys: [],
+      signature: '',
+      cryptoProfile: 'default',
+      clientMessageId: `sys-${eventType}-${Date.now()}-${identityId.toHexString().slice(-6)}`,
+    });
+
+    await conversationRepo.updateLastMessage(conversationId, systemMsg._id, systemMsg.createdAt);
+    await conversationRepo.incrementMessageCount(conversationId);
+
+    for (const memberId of participants) {
+      await publishConversationEvent(memberId.toHexString(), {
+        type: 'conversation_message',
+        data: {
+          conversationId: conversationId.toHexString(),
+          messageId: systemMsg._id.toHexString(),
+          fromIdentityId: identityId.toHexString(),
+          createdAt: systemMsg.createdAt.toISOString(),
+        },
+      });
+    }
+  } catch (err) {
+    elog.warn('Failed to emit call system message', { conversationId, eventType, err });
+  }
 }

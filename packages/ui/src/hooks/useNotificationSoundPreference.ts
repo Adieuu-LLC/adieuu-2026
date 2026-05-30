@@ -9,6 +9,9 @@ import { DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID } from '../constants/builtinNotif
 import {
   DEFAULT_MENTION_NOTIFICATION_SOUND_ID,
   DEFAULT_TTL_NOTIFICATION_SOUND_ID,
+  getCallRingtoneSoundCustomPath,
+  getCallRingtoneSoundId,
+  getCallRingtoneSoundVolume,
   getMentionNotificationSoundCustomPath,
   getMentionNotificationSoundId,
   getMentionNotificationSoundVolume,
@@ -20,9 +23,11 @@ import {
   getTtlNotificationSoundCustomPath,
   getTtlNotificationSoundId,
   getTtlNotificationSoundVolume,
+  subscribeCallRingtoneSoundPreference,
   subscribeMentionNotificationSoundPreference,
   subscribeNotificationSoundPreference,
   subscribeTtlNotificationSoundPreference,
+  DEFAULT_CALL_RINGTONE_NOTIFICATION_SOUND_ID,
   type NotificationSoundPreferenceSnapshot,
 } from './notificationSoundPreferenceStorage';
 
@@ -155,5 +160,45 @@ export function useMentionNotificationSoundPreference(): NotificationSoundPrefer
     subscribeMentionNotificationSoundPreference,
     getMentionSnapshot,
     () => MENTION_SERVER_SNAPSHOT
+  );
+}
+
+let cachedCallRingtoneSnapshot: NotificationSoundPreferenceSnapshot | null = null;
+
+function getCallRingtoneSnapshot(): NotificationSoundPreferenceSnapshot {
+  const enabled = getNotificationSoundEnabled();
+  const soundId = getCallRingtoneSoundId();
+  const customPath = getCallRingtoneSoundCustomPath();
+  const suppressWhenFocused = getNotificationSoundSuppressWhenFocused();
+  const volume = getCallRingtoneSoundVolume();
+
+  if (
+    cachedCallRingtoneSnapshot &&
+    cachedCallRingtoneSnapshot.enabled === enabled &&
+    cachedCallRingtoneSnapshot.soundId === soundId &&
+    cachedCallRingtoneSnapshot.customPath === customPath &&
+    cachedCallRingtoneSnapshot.suppressWhenFocused === suppressWhenFocused &&
+    cachedCallRingtoneSnapshot.volume === volume
+  ) {
+    return cachedCallRingtoneSnapshot;
+  }
+
+  cachedCallRingtoneSnapshot = { enabled, soundId, customPath, suppressWhenFocused, volume };
+  return cachedCallRingtoneSnapshot;
+}
+
+const CALL_RINGTONE_SERVER_SNAPSHOT: NotificationSoundPreferenceSnapshot = {
+  enabled: true,
+  soundId: DEFAULT_CALL_RINGTONE_NOTIFICATION_SOUND_ID,
+  customPath: null,
+  suppressWhenFocused: true,
+  volume: 1,
+};
+
+export function useCallRingtonePreference(): NotificationSoundPreferenceSnapshot {
+  return useSyncExternalStore(
+    subscribeCallRingtoneSoundPreference,
+    getCallRingtoneSnapshot,
+    () => CALL_RINGTONE_SERVER_SNAPSHOT
   );
 }

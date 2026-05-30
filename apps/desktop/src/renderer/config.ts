@@ -22,11 +22,18 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'https://api.adieuu.
 export const CHAT_WS_URL = import.meta.env.VITE_CHAT_WS_URL ?? 'wss://api.adieuu.com/ws/chat';
 
 /**
+ * LiveKit server URL for call service.
+ * Optional; omit if LiveKit is not configured.
+ */
+export const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || undefined;
+
+/**
  * Full configuration object for type-safe access.
  */
 export const config = {
   apiBaseUrl: API_BASE_URL,
   chatWsUrl: CHAT_WS_URL,
+  livekitUrl: LIVEKIT_URL,
   isDev: import.meta.env.DEV,
   isProd: import.meta.env.PROD,
 } as const;

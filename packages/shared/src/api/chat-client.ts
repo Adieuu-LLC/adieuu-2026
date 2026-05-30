@@ -311,7 +311,13 @@ export interface ChatCallInitiatedMessage extends ChatMessageBase {
       initiatorIdentityId: string;
       status: string;
       allowedMedia: ChatCallMediaOptions;
-      jitsiRoomName: string;
+      participants?: {
+        identityId: string;
+        joinedAt: string;
+        leftAt?: string;
+        mediaState: ChatCallMediaOptions;
+      }[];
+      roomName: string;
       createdAt: string;
     };
   };

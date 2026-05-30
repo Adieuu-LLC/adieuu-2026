@@ -543,114 +543,61 @@ variable "atlas_api_private_key" {
   sensitive   = true
 }
 
-# --- Jitsi Meet (self-hosted video calling) ---
+# --- LiveKit (self-hosted video calling SFU) ---
 
-variable "jitsi_enabled" {
+variable "livekit_enabled" {
   type        = bool
-  description = "Deploy Jitsi Meet infrastructure (signaling + JVB). Requires route53_zone_name to be set."
+  description = "Deploy LiveKit SFU infrastructure (EC2 ASG). Requires route53_zone_name to be set."
   default     = false
 
   validation {
     condition = (
-      !var.jitsi_enabled ||
+      !var.livekit_enabled ||
       trimspace(var.route53_zone_name) != ""
     )
-    error_message = "jitsi_enabled requires route53_zone_name so DNS and TLS can be provisioned."
+    error_message = "livekit_enabled requires route53_zone_name so DNS and TLS can be provisioned."
   }
 }
 
-variable "jitsi_domain" {
+variable "livekit_domain" {
   type        = string
-  description = "FQDN for the Jitsi Meet service (must sit under route53_zone_name). Used for ALB host routing, ACM, and Route53 records."
-  default     = "jitsi.adieuu.com"
+  description = "FQDN for the LiveKit SFU (must sit under route53_zone_name). Used for ALB host routing, ACM, and Route53 records."
+  default     = "livekit.adieuu.com"
 
   validation {
     condition = (
-      !var.jitsi_enabled ||
-      endswith(var.jitsi_domain, trimsuffix(trimspace(var.route53_zone_name), "."))
+      !var.livekit_enabled ||
+      endswith(var.livekit_domain, trimsuffix(trimspace(var.route53_zone_name), "."))
     )
-    error_message = "jitsi_domain must be a subdomain of route53_zone_name (e.g. jitsi.example.com under example.com)."
+    error_message = "livekit_domain must be a subdomain of route53_zone_name (e.g. livekit.example.com under example.com)."
   }
 }
 
-variable "jitsi_signal_cpu" {
-  type        = number
-  description = "Fargate CPU units for the Jitsi signal task (Prosody + Jicofo + Web)."
-  default     = 512
-}
-
-variable "jitsi_signal_memory" {
-  type        = number
-  description = "Fargate memory (MiB) for the Jitsi signal task."
-  default     = 1024
-}
-
-variable "jitsi_signal_image_tag" {
+variable "livekit_api_key" {
   type        = string
-  description = "Image tag for the Jitsi signal container (ECR)."
-  default     = "latest"
+  description = "LiveKit API key identifier (public, used to identify the key pair). Must match the key set in Secrets Manager."
+  default     = "adieuu"
 }
 
-variable "jitsi_jvb_cpu" {
-  type        = number
-  description = "Fargate CPU units for the Jitsi JVB task."
-  default     = 1024
-}
-
-variable "jitsi_jvb_memory" {
-  type        = number
-  description = "Fargate memory (MiB) for the Jitsi JVB task."
-  default     = 2048
-}
-
-variable "jitsi_jvb_image_tag" {
+variable "livekit_instance_type" {
   type        = string
-  description = "Image tag for the Jitsi JVB container (ECR)."
-  default     = "latest"
+  description = "EC2 instance type for LiveKit SFU nodes. ARM64 Graviton recommended for cost/perf."
+  default     = "c7g.large"
 }
 
-variable "jitsi_jvb_min_count" {
+variable "livekit_min_count" {
   type        = number
-  description = "Minimum JVB tasks for auto-scaling."
+  description = "Minimum LiveKit instances in the Auto Scaling Group."
   default     = 1
 }
 
-variable "jitsi_jvb_max_count" {
+variable "livekit_max_count" {
   type        = number
-  description = "Maximum JVB tasks for auto-scaling."
+  description = "Maximum LiveKit instances in the Auto Scaling Group."
   default     = 10
 
   validation {
-    condition     = var.jitsi_jvb_max_count >= var.jitsi_jvb_min_count
-    error_message = "jitsi_jvb_max_count must be >= jitsi_jvb_min_count."
+    condition     = var.livekit_max_count >= var.livekit_min_count
+    error_message = "livekit_max_count must be >= livekit_min_count."
   }
-}
-
-variable "jitsi_signal_min_count" {
-  type        = number
-  description = "Minimum signal tasks for auto-scaling."
-  default     = 1
-}
-
-variable "jitsi_signal_max_count" {
-  type        = number
-  description = "Maximum signal tasks for auto-scaling."
-  default     = 3
-
-  validation {
-    condition     = var.jitsi_signal_max_count >= var.jitsi_signal_min_count
-    error_message = "jitsi_signal_max_count must be >= jitsi_signal_min_count."
-  }
-}
-
-variable "jitsi_jwt_app_id" {
-  type        = string
-  description = "JWT app_id for Jitsi token authentication (matches client-issued tokens)."
-  default     = "adieuu"
-}
-
-variable "jitsi_jwt_issuer" {
-  type        = string
-  description = "JWT accepted issuer for Jitsi token authentication."
-  default     = "adieuu"
 }

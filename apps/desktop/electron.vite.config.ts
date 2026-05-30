@@ -41,7 +41,16 @@ export default defineConfig({
     },
     plugins: [
       react(),
-      cspPlugin({ manifests: [cspManifest], devExtras: devCspExtras }),
+      cspPlugin({
+        manifests: [
+          cspManifest,
+          // LiveKit WebSocket origins for local dev
+          ...(process.env.NODE_ENV !== 'production'
+            ? [{ 'connect-src': ['ws://localhost:*', 'wss://localhost:*', 'wss://localhost', 'https://localhost', 'https://localhost:*'] }]
+            : []),
+        ],
+        devExtras: devCspExtras,
+      }),
     ],
     resolve: {
       alias: {

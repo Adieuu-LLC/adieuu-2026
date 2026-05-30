@@ -99,13 +99,20 @@ export async function initiateCallCtrl(
     if (result.errorCode === 'CONVERSATION_NOT_FOUND') {
       return { kind: 'not_found', message: result.error! };
     }
-    if (result.errorCode === 'JITSI_UNAVAILABLE') {
+    if (result.errorCode === 'LIVEKIT_UNAVAILABLE') {
       return { kind: 'named_error', code: result.errorCode, message: result.error!, status: 503 };
     }
     return { kind: 'bad_request', message: result.error ?? 'Failed to initiate call.' };
   }
 
-  return { kind: 'ok', data: { call: result.call, jitsiToken: result.jitsiToken } };
+  return {
+    kind: 'ok',
+    data: {
+      call: result.call,
+      livekitToken: result.livekitToken,
+      livekitUrl: result.livekitUrl,
+    },
+  };
 }
 
 /**
@@ -143,13 +150,20 @@ export async function joinCallCtrl(
     if (result.errorCode === 'ALREADY_IN_CALL') {
       return { kind: 'named_error', code: result.errorCode, message: result.error!, status: 409 };
     }
-    if (result.errorCode === 'JITSI_UNAVAILABLE') {
+    if (result.errorCode === 'LIVEKIT_UNAVAILABLE') {
       return { kind: 'named_error', code: result.errorCode, message: result.error!, status: 503 };
     }
     return { kind: 'bad_request', message: result.error ?? 'Failed to join call.' };
   }
 
-  return { kind: 'ok', data: { call: result.call, jitsiToken: result.jitsiToken } };
+  return {
+    kind: 'ok',
+    data: {
+      call: result.call,
+      livekitToken: result.livekitToken,
+      livekitUrl: result.livekitUrl,
+    },
+  };
 }
 
 /**

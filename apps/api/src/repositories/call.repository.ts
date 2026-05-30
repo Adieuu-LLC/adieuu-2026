@@ -21,6 +21,7 @@ import type {
 
 export interface ICallRepository {
   findActiveForConversation(conversationId: ObjectId): Promise<CallDocument | null>;
+  findAllActive(): Promise<CallDocument[]>;
   addParticipant(callId: ObjectId, participant: CallParticipant): Promise<CallDocument | null>;
   updateParticipantLeft(callId: ObjectId, identityId: ObjectId): Promise<CallDocument | null>;
   updateParticipantMediaState(
@@ -51,6 +52,12 @@ export class CallRepository
     }) as Promise<CallDocument | null>;
   }
 
+  async findAllActive(): Promise<CallDocument[]> {
+    return this.collection
+      .find({ status: { $ne: 'ended' } } as Parameters<typeof this.collection.find>[0])
+      .toArray() as Promise<CallDocument[]>;
+  }
+
   /**
    * Create a new call. Will throw a duplicate key error if a non-ended call
    * already exists for the same conversation (unique partial index).
@@ -62,7 +69,7 @@ export class CallRepository
       status: 'ringing',
       allowedMedia: input.allowedMedia,
       participants: [],
-      jitsiRoomName: input.jitsiRoomName,
+      roomName: input.roomName,
     } as Omit<CallDocument, '_id' | 'createdAt' | 'updatedAt'>);
   }
 

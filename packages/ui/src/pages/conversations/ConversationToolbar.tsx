@@ -52,6 +52,7 @@ export function ConversationToolbar({
   avatarMembers,
   subtitle,
   pinsSlot,
+  callSlot,
   searchSlot,
   mediaJobsSlot,
   deviceSignaturesSlot,
@@ -77,6 +78,8 @@ export function ConversationToolbar({
   subtitle: ReactNode;
   /** Pinned messages popover control (toolbar icon). */
   pinsSlot?: ReactNode;
+  /** Call button. */
+  callSlot?: ReactNode;
   /** E2E message search (opens local plaintext search). */
   searchSlot?: ReactNode;
   /** Background moderation scan upload status (toolbar icon + panel). */
@@ -182,6 +185,7 @@ export function ConversationToolbar({
         </div>
       </div>
       <div className="conversation-toolbar-right">
+        {!isMobile && callSlot}
         {pinsSlot}
         {!isMobile && searchSlot}
         {!isMobile && mediaJobsSlot}

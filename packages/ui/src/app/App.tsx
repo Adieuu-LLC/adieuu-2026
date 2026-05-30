@@ -49,6 +49,10 @@ import { AchievementListener } from '../components/AchievementListener';
 import { AppPlainTextContextMenu } from '../components/AppPlainTextContextMenu';
 import { UpdateProvider } from '../hooks/useUpdateContext';
 import { IdentityModalProvider } from '../hooks/useIdentityModal';
+import { CallSessionProvider } from '../hooks/useCallSession';
+import { GlobalCallEventsProvider } from '../hooks/useGlobalCallEvents';
+import { AppCallOverlay } from '../components/call/AppCallOverlay';
+import { useIncomingCallRinger } from '../hooks/useIncomingCallRinger';
 import { AppSidebar } from './AppSidebar';
 import {
   AdminAuthAllowlist,
@@ -102,7 +106,11 @@ function ProtectedLayout({ children }: { children?: ReactNode }) {
               <ConversationPreferencesProvider>
                 <ConversationsProvider>
                   <MediaOutboxProvider>
-                    <ProtectedLayoutContent>{children}</ProtectedLayoutContent>
+                    <CallSessionProvider>
+                      <GlobalCallEventsProvider>
+                        <ProtectedLayoutContent>{children}</ProtectedLayoutContent>
+                      </GlobalCallEventsProvider>
+                    </CallSessionProvider>
                   </MediaOutboxProvider>
                 </ConversationsProvider>
               </ConversationPreferencesProvider>
@@ -126,6 +134,8 @@ function ProtectedLayoutContent({ children }: { children?: ReactNode }) {
   // This enables automatic SPK rotation + cleanup and OTPK replenishment checks.
   usePreKeys();
 
+  useIncomingCallRinger();
+
   return (
     <>
       <TourRoot tour={tour} />
@@ -137,6 +147,7 @@ function ProtectedLayoutContent({ children }: { children?: ReactNode }) {
           {children ?? <Outlet />}
         </AppLayout>
       </IdentityModalProvider>
+      <AppCallOverlay />
       <UpdateOverlay />
       <AchievementListener />
       <AppPlainTextContextMenu />

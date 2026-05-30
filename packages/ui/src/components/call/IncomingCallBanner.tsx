@@ -10,30 +10,16 @@ import { Icon } from '../../icons/Icon';
 export interface IncomingCallBannerProps {
   callerName: string;
   callerAvatarUrl?: string;
-  hasAudio: boolean;
-  hasVideo: boolean;
-  hasScreenshare: boolean;
   onAccept: () => void;
   onDecline: () => void;
 }
 
 export function IncomingCallBanner({
   callerName,
-  hasAudio,
-  hasVideo,
-  hasScreenshare,
   onAccept,
   onDecline,
 }: IncomingCallBannerProps) {
   const { t } = useTranslation();
-
-  const callTypeLabel = hasVideo
-    ? t('call.incomingVideo', 'Video call')
-    : hasAudio
-      ? t('call.incomingAudio', 'Audio call')
-      : hasScreenshare
-        ? t('call.incomingScreenshare', 'Screen share')
-        : t('call.incoming', 'Call');
 
   return (
     <div className="incoming-call-banner">
@@ -41,7 +27,7 @@ export function IncomingCallBanner({
         <Icon name="phoneIncoming" className="incoming-call-icon" />
         <div className="incoming-call-details">
           <span className="incoming-call-caller">{callerName}</span>
-          <span className="incoming-call-type">{callTypeLabel}</span>
+          <span className="incoming-call-type">{t('call.incoming')}</span>
         </div>
       </div>
       <div className="incoming-call-actions">

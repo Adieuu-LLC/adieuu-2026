@@ -106,12 +106,10 @@ locals {
       MEDIA_CDN_URL        = "https://${var.media_domain_name}"
       E2E_MEDIA_S3_BUCKET  = aws_s3_bucket.e2e_media[0].id
     } : {},
-    local.jitsi_enabled ? {
-      JITSI_ENABLED        = "true"
-      JITSI_BASE_URL       = "https://${var.jitsi_domain}"
-      JITSI_JWT_APP_ID     = var.jitsi_jwt_app_id
-      JITSI_JWT_ISSUER     = var.jitsi_jwt_issuer
-      JITSI_JWT_EXPIRATION_SEC = "300"
+    local.livekit_enabled ? {
+      LIVEKIT_ENABLED = "true"
+      LIVEKIT_URL     = "wss://${var.livekit_domain}"
+      LIVEKIT_API_KEY = var.livekit_api_key
     } : {},
   )
 

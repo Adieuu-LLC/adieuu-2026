@@ -18,7 +18,7 @@
  */
 
 import { mergeCspManifests } from '../../../packages/shared/src/csp/merge';
-import { mediaS3Origin, e2eMediaS3Origin } from '../../../packages/shared/src/csp/origins';
+import { mediaS3Origin, e2eMediaS3Origin, livekitWsOrigin } from '../../../packages/shared/src/csp/origins';
 import { cryptoCspManifest } from '../../../packages/crypto/src/csp';
 import { uiCspManifest } from '../../../packages/ui/src/csp';
 
@@ -38,6 +38,7 @@ const desktopCspManifest: Record<string, string[]> = {
     "'self'",
     'https://api.adieuu.com',
     'wss://api.adieuu.com',
+    livekitWsOrigin,
     mediaS3Origin,
     e2eMediaS3Origin,
     'https://downloads.adieuu.com',
@@ -67,5 +68,13 @@ export const cspManifest = mergeCspManifests(
 );
 
 export const devCspExtras: Record<string, string[]> = {
-  'connect-src': ['http://localhost:4000', 'ws://localhost:9001'],
+  'connect-src': [
+    'http://localhost:4000',
+    'ws://localhost:9001',
+    'ws://localhost:*',
+    'wss://localhost:*',
+    'wss://localhost',
+    'https://localhost',
+    'https://localhost:*',
+  ],
 };

@@ -21,6 +21,7 @@ export const BUILTIN_NOTIFICATION_SOUNDS = [
   { id: 'adieuu_mention', displayName: 'Adieuu: Mention', filename: 'adieuu_mention.mp3' },
   { id: 'adieuu_timed', displayName: 'Adieuu: Timed', filename: 'adieuu_timed.mp3' },
   { id: 'adieuu_twist', displayName: 'Adieuu: Twist', filename: 'adieuu_twist.mp3' },
+  { id: 'adieuu_vienna', displayName: 'Adieuu: Vienna', filename: 'adieuu_vienna.mp3' },
   { id: 'achievement', displayName: 'Achievement', filename: 'achievement.mp3' },
   { id: 'bike', displayName: 'Bike', filename: 'bike.mp3' },
   { id: 'blip', displayName: 'Blip', filename: 'blip.mp3' },
@@ -80,6 +81,9 @@ export const DEFAULT_BUILTIN_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId =
 /** Default built-in for achievement-unlock sound (separate from DM notification default). */
 export const DEFAULT_ACHIEVEMENT_NOTIFICATION_SOUND_ID: BuiltinNotificationSoundId =
   'adieuu_achievement';
+
+/** Default built-in for incoming call ringtone. */
+export const DEFAULT_CALL_RINGTONE_SOUND_ID: BuiltinNotificationSoundId = 'adieuu_vienna';
 
 /**
  * Extra linear multiplier after client-side loudness normalization (which targets ~−18 dBFS for

@@ -6,6 +6,14 @@ import pkg from './package.json';
 import { cspPlugin } from '../../packages/shared/src/csp/vite-plugin-csp';
 import { cspManifest } from './src/csp';
 
+// Vite 6's CSP-aware dev server re-processes the meta tag after plugin hooks,
+// which can drop devExtras additions.  Moving dev origins into a manifest
+// entry ensures they survive Vite's internal merge.
+const devCspManifest: Record<string, string[]> =
+  process.env.NODE_ENV !== 'production'
+    ? { 'connect-src': ['ws://localhost:*', 'wss://localhost:*', 'wss://localhost', 'https://localhost', 'https://localhost:*'] }
+    : {};
+
 function versionJsonPlugin(): Plugin {
   return {
     name: 'version-json',
@@ -24,7 +32,7 @@ export default defineConfig({
   plugins: [
     react(),
     cspPlugin({
-      manifests: [cspManifest],
+      manifests: [cspManifest, devCspManifest],
       devExtras: {
         'connect-src': ['ws://localhost:*', 'wss://localhost:*'],
       },

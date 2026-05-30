@@ -4,7 +4,7 @@
  *
  * PRIVACY NOTES:
  * - Call metadata (participants, timestamps) is stored in plaintext for routing
- * - Media frames are E2E encrypted via Jitsi Insertable Streams; server never decrypts
+ * - Media frames are E2E encrypted via LiveKit Insertable Streams; server never decrypts
  * - No media is recorded or stored server-side
  * - Call records are eligible for TTL-based auto-deletion after endedAt
  *
@@ -53,8 +53,8 @@ export interface CallDocument extends BaseDocument {
   /** Participants who have joined (or previously joined) this call */
   participants: CallParticipant[];
 
-  /** Opaque, cryptographically random Jitsi room identifier */
-  jitsiRoomName: string;
+  /** Opaque, cryptographically random LiveKit room identifier */
+  roomName: string;
 
   /** Reference to the E2EE key distribution for this call */
   e2eeKeyId?: string;
@@ -70,7 +70,7 @@ export interface CreateCallInput {
   conversationId: ObjectId;
   initiatorIdentityId: ObjectId;
   allowedMedia: CallMediaOptions;
-  jitsiRoomName: string;
+  roomName: string;
 }
 
 /**
@@ -88,7 +88,7 @@ export interface PublicCall {
     leftAt?: string;
     mediaState: CallMediaOptions;
   }>;
-  jitsiRoomName: string;
+  roomName: string;
   e2eeKeyId?: string;
   startedAt?: string;
   endedAt?: string;
@@ -112,7 +112,7 @@ export function toPublicCall(doc: CallDocument): PublicCall {
       leftAt: p.leftAt?.toISOString(),
       mediaState: p.mediaState,
     })),
-    jitsiRoomName: doc.jitsiRoomName,
+    roomName: doc.roomName,
     e2eeKeyId: doc.e2eeKeyId,
     startedAt: doc.startedAt?.toISOString(),
     endedAt: doc.endedAt?.toISOString(),

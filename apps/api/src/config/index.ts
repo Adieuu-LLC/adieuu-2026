@@ -404,20 +404,24 @@ export const config = {
     cacheTtlTrending: optionalEnvInt('KLIPY_CACHE_TTL_TRENDING', 120),
   },
 
-  /** Jitsi Meet self-hosted video conferencing configuration */
-  jitsi: {
-    /** Whether Jitsi integration is enabled */
-    enabled: optionalEnvBool('JITSI_ENABLED', false),
-    /** Base URL of the Jitsi Meet deployment (e.g. https://jitsi.adieuu.com) */
-    baseUrl: optionalEnv('JITSI_BASE_URL', 'https://meet.jitsi'),
-    /** JWT application ID (must match Prosody JWT app_id) */
-    jwtAppId: optionalEnv('JITSI_JWT_APP_ID', 'adieuu'),
-    /** JWT issuer (must match Prosody JWT issuer) */
-    jwtIssuer: optionalEnv('JITSI_JWT_ISSUER', 'adieuu'),
-    /** Shared secret for signing JWTs (must match Prosody JWT app_secret) */
-    jwtSecret: optionalEnv('JITSI_JWT_SECRET', 'dev-jitsi-jwt-secret'),
-    /** JWT expiration in seconds */
-    jwtExpirationSec: optionalEnvInt('JITSI_JWT_EXPIRATION_SEC', 300),
+  /** LiveKit self-hosted SFU configuration */
+  livekit: {
+    /** Whether LiveKit integration is enabled */
+    enabled: optionalEnvBool('LIVEKIT_ENABLED', false),
+    /** LiveKit API key (must match the key configured on the LiveKit server) */
+    apiKey: optionalEnv('LIVEKIT_API_KEY', ''),
+    /** LiveKit API secret (must match the secret configured on the LiveKit server) */
+    apiSecret: optionalEnv('LIVEKIT_API_SECRET', ''),
+    /** LiveKit server WebSocket URL (e.g. ws://localhost:7880 or wss://livekit.adieuu.com) */
+    url: optionalEnv('LIVEKIT_URL', ''),
+    /** Token TTL in seconds */
+    tokenTtlSec: optionalEnvInt('LIVEKIT_TOKEN_TTL_SEC', 600),
+  },
+
+  callReaper: {
+    intervalSec: optionalEnvInt('CALL_REAPER_INTERVAL_SEC', 60),
+    emptyTimeoutSec: optionalEnvInt('CALL_REAPER_EMPTY_TIMEOUT_SEC', 120),
+    maxCallDurationSec: optionalEnvInt('CALL_REAPER_MAX_DURATION_SEC', 24 * 60 * 60),
   },
 
   /** Stripe subscription billing configuration */
@@ -567,13 +571,15 @@ export function validateProductionConfig(): void {
     errors.push('KLIPY_API_KEY must be set in production');
   }
 
-  if (config.jitsi.enabled) {
-    const jwtSecret = config.jitsi.jwtSecret.trim();
-    if (!jwtSecret || jwtSecret.includes('dev-')) {
-      errors.push('JITSI_JWT_SECRET must be set when JITSI_ENABLED is true');
+  if (config.livekit.enabled) {
+    if (!config.livekit.apiKey) {
+      errors.push('LIVEKIT_API_KEY must be set when LIVEKIT_ENABLED is true');
     }
-    if (!config.jitsi.baseUrl || config.jitsi.baseUrl === 'https://meet.jitsi') {
-      errors.push('JITSI_BASE_URL must be set to your Jitsi deployment URL when JITSI_ENABLED is true');
+    if (!config.livekit.apiSecret) {
+      errors.push('LIVEKIT_API_SECRET must be set when LIVEKIT_ENABLED is true');
+    }
+    if (!config.livekit.url) {
+      errors.push('LIVEKIT_URL must be set when LIVEKIT_ENABLED is true');
     }
   }
 

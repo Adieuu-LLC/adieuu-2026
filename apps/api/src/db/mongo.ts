@@ -566,7 +566,8 @@ async function createIndexes(): Promise<void> {
     { conversationId: 1 },
     { unique: true, partialFilterExpression: { status: { $ne: 'ended' } } }
   );
-  await calls.createIndex({ endedAt: 1 }, { expireAfterSeconds: 30 * 24 * 60 * 60, sparse: true });
+  try { await calls.dropIndex('endedAt_1'); } catch { /* index may not exist yet */ }
+  await calls.createIndex({ endedAt: 1 }, { expireAfterSeconds: 60 * 60, sparse: true });
 
   // Group invites collection indexes
   const groupInvites = database.collection(Collections.GROUP_INVITES);

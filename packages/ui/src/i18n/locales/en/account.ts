@@ -192,6 +192,19 @@ export const account = {
         mentionSoundCustomFile: 'Custom sound',
         mentionSoundBrowse: 'Browse…',
         mentionSoundFileMissing: 'The selected sound file could not be read. Choose another file or pick a built-in sound.',
+
+        callRingtoneSectionTitle: 'Call ringtone',
+        callRingtoneSectionDescription:
+          'The sound that plays when you receive an incoming call.',
+        callRingtoneSelectLabel: 'Ringtone',
+        callRingtonePreview: 'Preview',
+        callRingtoneVolumeLabel: 'Ringtone volume',
+        callRingtoneVolumeHint:
+          'Volume for the incoming call ringtone only. The enabled/suppress toggles above apply to all notification sounds.',
+        callRingtoneCustomFile: 'Custom sound',
+        callRingtoneBrowse: 'Browse…',
+        callRingtoneFileMissing: 'The selected sound file could not be read. Choose another file or pick a built-in sound.',
+
         achievementSectionTitle: 'Achievement Notifications',
         achievementSectionDescription: 'Control how achievement unlocks are displayed.',
         achievementPopupToggle: 'Show achievement popup',

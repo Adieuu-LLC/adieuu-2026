@@ -22,12 +22,16 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '';
 const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 const chatWsUrl = import.meta.env.VITE_CHAT_WS_URL ?? `${wsProtocol}//${window.location.host}/ws/chat`;
 
+// LiveKit server URL for call service (optional)
+const livekitUrl = import.meta.env.VITE_LIVEKIT_URL || undefined;
+
 // Web platform configuration
 const config: AppConfig = {
   apiBaseUrl,
   chatWsUrl,
   externalLinkBase: '', // Relative links
   platform: 'web',
+  livekitUrl,
 };
 
 const rootElement = document.getElementById('root');

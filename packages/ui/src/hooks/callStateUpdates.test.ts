@@ -27,7 +27,7 @@ function baseCall(overrides: Partial<PublicCall> = {}): PublicCall {
         mediaState: { audio: true, video: false, screenshare: false },
       },
     ],
-    jitsiRoomName: 'room-abc',
+    roomName: 'room-abc',
     createdAt: '2026-05-29T12:00:00.000Z',
     updatedAt: '2026-05-29T12:00:00.000Z',
     ...overrides,
@@ -49,7 +49,7 @@ describe('applyCallSocketMessage', () => {
           initiatorIdentityId: ID_A,
           status: 'ringing',
           allowedMedia: { audio: true, video: false, screenshare: false },
-          jitsiRoomName: 'room',
+          roomName: 'room',
           createdAt: '2026-05-29T12:00:00.000Z',
         },
       },
@@ -72,7 +72,7 @@ describe('applyCallSocketMessage', () => {
           initiatorIdentityId: ID_A,
           status: 'ringing',
           allowedMedia: { audio: true, video: false, screenshare: false },
-          jitsiRoomName: 'room',
+          roomName: 'room',
           createdAt: '2026-05-29T12:00:00.000Z',
         },
       },
@@ -83,7 +83,7 @@ describe('applyCallSocketMessage', () => {
     expect(next?.activeCall?.participants[0]?.identityId).toBe(ID_A);
   });
 
-  test('call_initiated starts with empty participants for new call', () => {
+  test('call_initiated starts with empty participants for new call without payload participants', () => {
     const msg = {
       type: 'call_initiated',
       data: {
@@ -93,7 +93,7 @@ describe('applyCallSocketMessage', () => {
           initiatorIdentityId: ID_A,
           status: 'ringing',
           allowedMedia: { audio: true, video: false, screenshare: false },
-          jitsiRoomName: 'room',
+          roomName: 'room',
           createdAt: '2026-05-29T12:00:00.000Z',
         },
       },
@@ -102,6 +102,40 @@ describe('applyCallSocketMessage', () => {
     const next = applyCallSocketMessage(emptyState(), msg, CONV);
     expect(next?.activeCall?.participants).toEqual([]);
     expect(next?.loading).toBe(false);
+  });
+
+  test('call_initiated uses participants from event payload', () => {
+    const participants = [
+      {
+        identityId: ID_A,
+        joinedAt: '2026-05-29T12:00:00.000Z',
+        mediaState: { audio: true, video: false, screenshare: false },
+      },
+    ];
+    const msg = {
+      type: 'call_initiated',
+      data: {
+        call: {
+          id: CALL,
+          conversationId: CONV,
+          initiatorIdentityId: ID_A,
+          status: 'active',
+          allowedMedia: { audio: true, video: false, screenshare: false },
+          participants,
+          roomName: 'room',
+          createdAt: '2026-05-29T12:00:00.000Z',
+        },
+      },
+    } as ChatIncomingMessage;
+
+    const next = applyCallSocketMessage(emptyState(), msg, CONV);
+    expect(next?.activeCall?.participants).toHaveLength(1);
+    expect(next?.activeCall?.participants[0]?.identityId).toBe(ID_A);
+    expect(next?.activeCall?.participants[0]?.mediaState).toEqual({
+      audio: true,
+      video: false,
+      screenshare: false,
+    });
   });
 
   test('call_participant_joined appends participant', () => {

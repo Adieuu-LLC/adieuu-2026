@@ -23,8 +23,5 @@ overrides:
   fast-xml-parser: ">=5.7.0 <6.0.0"
   ip-address: ">=10.1.1 <11.0.0"
   vite: ">=6.4.2 <7.0.0"
-  # Pin transitive strophe.js (from lib-jitsi-meet) to tag v1.5-jitsi-3 commit for supply-chain audit.
-  strophe.js: github:jitsi/strophejs#208a89888fe1565e8d10a6b8af5669b5c218a2fb
 
-onlyBuiltDependencies:
-  - strophe.js
+onlyBuiltDependencies: []
