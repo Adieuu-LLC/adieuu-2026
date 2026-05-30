@@ -76,26 +76,32 @@ jobs:
           # For manual runs, use the latest main branch.
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
 
-      - name: Check if release commit
+      - name: Check if release should be skipped
         id: check_release
         env:
           RELEASE_BOT_TOKEN: ${{ steps.release-bot-token.outputs.token }}
         run: |
           git remote set-url origin "https://x-access-token:${RELEASE_BOT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            git fetch origin main --depth=1
-            HEAD_SHA=$(git rev-parse HEAD)
-            MAIN_SHA=$(git rev-parse origin/main)
-            if [ "$HEAD_SHA" != "$MAIN_SHA" ]; then
-              echo "Skipping release - CI run is stale. tested=$HEAD_SHA current_main=$MAIN_SHA"
-              echo "skip=true" >> $GITHUB_OUTPUT
-              exit 0
-            fi
+
+          # Manual dispatch: never skip — the user explicitly requested a release.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "skip=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Auto-trigger (workflow_run): guard against stale CI and re-release loops.
+          git fetch origin main --depth=1
+          HEAD_SHA=$(git rev-parse HEAD)
+          MAIN_SHA=$(git rev-parse origin/main)
+          if [ "$HEAD_SHA" != "$MAIN_SHA" ]; then
+            echo "Skipping release - CI run is stale. tested=$HEAD_SHA current_main=$MAIN_SHA"
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
           fi
 
           COMMIT_MSG=$(git log -1 --pretty=format:"%s")
           if [[ "$COMMIT_MSG" == chore\(release\):* ]]; then
-            echo "Skipping release - this is a release commit: $COMMIT_MSG"
+            echo "Skipping auto-release to prevent re-release loop (HEAD is already a release commit: $COMMIT_MSG)"
             echo "skip=true" >> $GITHUB_OUTPUT
           else
             echo "skip=false" >> $GITHUB_OUTPUT
