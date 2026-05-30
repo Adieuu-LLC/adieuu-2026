@@ -36,7 +36,7 @@ export interface PublicCall {
   status: 'ringing' | 'active' | 'ended';
   allowedMedia: CallMediaOptions;
   participants: PublicCallParticipant[];
-  jitsiRoomName: string;
+  roomName: string;
   e2eeKeyId?: string;
   startedAt?: string;
   endedAt?: string;

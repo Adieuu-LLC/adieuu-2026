@@ -70,7 +70,7 @@ function makeCall(overrides: Record<string, unknown> = {}) {
         mediaState: { audio: true, video: false, screenshare: false },
       },
     ],
-    jitsiRoomName: 'room-abc',
+    roomName: 'room-abc',
     createdAt: now,
     updatedAt: now,
     ...overrides,

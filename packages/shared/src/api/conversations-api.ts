@@ -389,7 +389,7 @@ export class ConversationsApi {
   async initiateCall(
     conversationId: string,
     media: { audio: boolean; video: boolean; screenshare: boolean }
-  ): Promise<ApiResponse<{ call: unknown; jitsiToken?: string }>> {
+  ): Promise<ApiResponse<{ call: unknown; livekitToken?: string }>> {
     return this.client.post(
       `/api/conversations/${encodeURIComponent(conversationId)}/calls`,
       { media }
@@ -400,7 +400,7 @@ export class ConversationsApi {
     conversationId: string,
     callId: string,
     media: { audio: boolean; video: boolean; screenshare: boolean }
-  ): Promise<ApiResponse<{ call: unknown; jitsiToken?: string }>> {
+  ): Promise<ApiResponse<{ call: unknown; livekitToken?: string }>> {
     return this.client.post(
       `/api/conversations/${encodeURIComponent(conversationId)}/calls/${encodeURIComponent(callId)}/join`,
       { media }

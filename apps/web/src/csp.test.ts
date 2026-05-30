@@ -129,6 +129,12 @@ describe('web app CSP', () => {
       expect(connectSrc).toContain('wss://api.adieuu.com');
     });
 
+    it('includes the LiveKit signaling origin', () => {
+      const directives = parseDirectives(csp);
+      const connectSrc = directives.get('connect-src') ?? [];
+      expect(connectSrc.some((v) => v.startsWith('wss://') && v.includes('livekit'))).toBe(true);
+    });
+
     it('includes the S3 media bucket', () => {
       const directives = parseDirectives(csp);
       const connectSrc = directives.get('connect-src') ?? [];

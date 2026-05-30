@@ -52,7 +52,7 @@ export interface CallResult {
  * Initiate a new call in a conversation.
  *
  * Validates participation, admin call-type toggles, and the one-call-per-
- * conversation constraint. Generates a Jitsi room name and mints a JWT
+ * conversation constraint. Generates a room name and mints a LiveKit JWT
  * for the initiator.
  */
 export async function initiateCall(
@@ -123,7 +123,7 @@ export async function initiateCall(
       conversationId: convObjId,
       initiatorIdentityId: initiatorObjId,
       allowedMedia,
-      jitsiRoomName: roomName,
+      roomName,
     });
   } catch (err: unknown) {
     if (isDuplicateKeyError(err)) {
@@ -235,7 +235,7 @@ export async function joinCall(
   if (config.livekit.enabled) {
     try {
       livekitToken = await mintLiveKitToken({
-        roomName: call.jitsiRoomName,
+        roomName: call.roomName,
         identityId,
         displayName,
       });
@@ -316,7 +316,7 @@ export async function leaveCall(
   }
 
   // Force-disconnect the participant from the LiveKit room immediately
-  void livekitRemoveParticipant(call.jitsiRoomName, identityId);
+  void livekitRemoveParticipant(call.roomName, identityId);
 
   const conversation = await conversationRepo.findById(updated.conversationId);
 
@@ -341,7 +341,7 @@ export async function leaveCall(
       return { success: false, error: 'Failed to end call', errorCode: 'END_FAILED' };
     }
     // Delete the LiveKit room to free server resources
-    void livekitDeleteRoom(call.jitsiRoomName);
+    void livekitDeleteRoom(call.roomName);
     if (conversation) {
       await notifyCallEnded(conversation.participants, callId, identityId);
     }
@@ -404,7 +404,7 @@ export async function endCall(
   }
 
   // Delete the LiveKit room — force-disconnects all participants and frees resources
-  void livekitDeleteRoom(call.jitsiRoomName);
+  void livekitDeleteRoom(call.roomName);
 
   const enderIdentity = await identityRepo.findById(identityObjId);
   const enderDisplayName = enderIdentity?.displayName || enderIdentity?.username || 'Unknown';

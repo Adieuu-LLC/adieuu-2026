@@ -31,7 +31,7 @@ export function applyCallSocketMessage(
           status: call.status as PublicCall['status'],
           allowedMedia: call.allowedMedia,
           participants,
-          jitsiRoomName: call.jitsiRoomName,
+          roomName: call.roomName,
           createdAt: call.createdAt,
           updatedAt: call.createdAt,
         },

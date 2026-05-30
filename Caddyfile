@@ -26,16 +26,6 @@ localhost {
 		}
 	}
 
-	# Jitsi XMPP WebSocket (lib-jitsi-meet connects here)
-	handle /xmpp-websocket {
-		reverse_proxy 127.0.0.1:8443
-	}
-
-	# Jitsi BOSH fallback
-	handle /http-bind {
-		reverse_proxy 127.0.0.1:8443
-	}
-
 	# Web app reverse proxy (Vite dev server)
 	handle {
 		reverse_proxy 127.0.0.1:3000 {

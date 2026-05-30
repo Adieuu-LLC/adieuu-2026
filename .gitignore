@@ -25,7 +25,6 @@ out/
 .env
 .env.local
 .env.*.local
-.jitsi.env
 
 # Logs
 *.log

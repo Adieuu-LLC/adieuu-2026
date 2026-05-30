@@ -257,7 +257,7 @@ export async function removeGroupMember(
     );
     if (inCall) {
       await callRepo.updateParticipantLeft(activeCall._id, targetObjId);
-      void livekitRemoveParticipant(activeCall.jitsiRoomName, targetObjId.toHexString());
+      void livekitRemoveParticipant(activeCall.roomName, targetObjId.toHexString());
     }
   }
 

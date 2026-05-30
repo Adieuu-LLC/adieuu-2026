@@ -32,7 +32,7 @@ export async function reapStaleCalls(): Promise<void> {
     if (!updated || updated.status !== 'ended') continue;
 
     // Delete the LiveKit room to free server resources for reaped calls
-    void livekitDeleteRoom(call.jitsiRoomName);
+    void livekitDeleteRoom(call.roomName);
 
     const conversation = await conversationRepo.findById(call.conversationId);
     if (conversation) {

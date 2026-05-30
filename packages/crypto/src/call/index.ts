@@ -2,12 +2,12 @@
  * Call E2EE Key Derivation Module
  *
  * Derives per-call symmetric encryption keys for live audio/video/screenshare
- * calls. Keys are injected into Jitsi's E2EE layer via `conference.setE2EEKey()`.
+ * calls. Keys are injected into the LiveKit E2EE layer.
  *
- * v1 uses Jitsi's native Insertable Streams E2EE (AES-GCM-128 JFrame) with
- * Adieuu-managed keys. A future v2 will replace the JFrame transform with a
- * custom Insertable Streams pipeline using Adieuu's own cipher suite
- * (ChaCha20-Poly1305 / AES-256-GCM per crypto profile).
+ * Uses LiveKit's Insertable Streams E2EE with Adieuu-managed keys.
+ * A future iteration will introduce a custom Insertable Streams pipeline
+ * using Adieuu's own cipher suite (ChaCha20-Poly1305 / AES-256-GCM per
+ * crypto profile).
  *
  * @module crypto/call
  */

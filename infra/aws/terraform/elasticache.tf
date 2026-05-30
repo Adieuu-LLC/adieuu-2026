@@ -15,6 +15,17 @@ resource "aws_security_group" "redis" {
     security_groups = [aws_security_group.ecs_tasks.id]
   }
 
+  dynamic "ingress" {
+    for_each = local.livekit_enabled ? [1] : []
+    content {
+      description     = "Redis from LiveKit EC2 instances"
+      from_port       = 6379
+      to_port         = 6379
+      protocol        = "tcp"
+      security_groups = [aws_security_group.livekit[0].id]
+    }
+  }
+
   egress {
     from_port   = 0
     to_port     = 0

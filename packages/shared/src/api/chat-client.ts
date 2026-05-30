@@ -317,7 +317,7 @@ export interface ChatCallInitiatedMessage extends ChatMessageBase {
         leftAt?: string;
         mediaState: ChatCallMediaOptions;
       }[];
-      jitsiRoomName: string;
+      roomName: string;
       createdAt: string;
     };
   };

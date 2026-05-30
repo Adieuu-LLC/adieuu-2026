@@ -24,7 +24,7 @@ export interface CallParticipantInfo {
   isScreensharing: boolean;
   /** Local participant's camera stream (from getUserMedia). */
   localStream?: MediaStream | null;
-  /** Remote participant's Jitsi video track. */
+  /** Remote participant's video track. */
   remoteVideoTrack?: RemoteTrack | null;
 }
 
@@ -61,7 +61,7 @@ function LocalVideo({ stream }: { stream: MediaStream }) {
   );
 }
 
-/** Renders a remote video track by calling Jitsi's track.attach(). */
+/** Renders a remote video track by attaching it to a video element. */
 function RemoteVideo({ track }: { track: RemoteTrack }) {
   const ref = useRef<HTMLVideoElement>(null);
 

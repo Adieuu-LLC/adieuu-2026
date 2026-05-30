@@ -69,7 +69,7 @@ export class CallRepository
       status: 'ringing',
       allowedMedia: input.allowedMedia,
       participants: [],
-      jitsiRoomName: input.jitsiRoomName,
+      roomName: input.roomName,
     } as Omit<CallDocument, '_id' | 'createdAt' | 'updatedAt'>);
   }
 
