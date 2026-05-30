@@ -65,6 +65,7 @@ export function SidebarCallWidget() {
 }
 
 function ActiveCallWidget({
+  conversationId,
   conversationName,
   isViewingCallConversation,
   onNavigate,
@@ -82,11 +83,12 @@ function ActiveCallWidget({
 
   useEffect(() => {
     startRef.current = Date.now();
+    setElapsed(0);
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [conversationId]);
 
   const minutes = Math.floor(elapsed / 60);
   const seconds = elapsed % 60;

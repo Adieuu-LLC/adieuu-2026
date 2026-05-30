@@ -34,8 +34,14 @@ export function CallDeviceSetupModal({
       setDevices(result);
 
       const firstMic = result.find((d) => d.kind === 'audioinput');
-      if (firstMic) setAudioDeviceId(firstMic.deviceId);
+      if (firstMic) {
+        setAudioDeviceId(firstMic.deviceId);
+      } else {
+        setAudioDeviceId('');
+      }
     } catch {
+      setAudioDeviceId('');
+      setDevices([]);
       setError(t('call.permissionDenied'));
     } finally {
       setLoading(false);

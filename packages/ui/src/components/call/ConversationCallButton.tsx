@@ -20,8 +20,8 @@ export function ConversationCallButton({
   const { t } = useTranslation();
 
   const handleClick = () => {
-    if (inCallForThisConversation && onFocusOverlay) {
-      onFocusOverlay();
+    if (inCallForThisConversation) {
+      if (onFocusOverlay) onFocusOverlay();
       return;
     }
     onStartCall();
@@ -46,7 +46,7 @@ export function ConversationCallButton({
     </div>
   );
 
-  if (disabled && disabledReason) {
+  if (disabled && !inCallForThisConversation && disabledReason) {
     return (
       <Tooltip content={disabledReason} position="bottom">
         {buttonContent}

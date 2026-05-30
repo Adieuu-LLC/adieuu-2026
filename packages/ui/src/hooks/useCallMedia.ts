@@ -255,19 +255,21 @@ export async function enumerateMediaDevices(): Promise<MediaDeviceInfo[]> {
     }
   }
 
-  const devices = await navigator.mediaDevices.enumerateDevices();
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
 
-  if (tempStream) {
-    stopTracks(tempStream);
+    return devices
+      .filter((d): d is globalThis.MediaDeviceInfo & { kind: MediaDeviceInfo['kind'] } =>
+        d.kind === 'audioinput' || d.kind === 'videoinput' || d.kind === 'audiooutput'
+      )
+      .map((d) => ({
+        deviceId: d.deviceId,
+        label: d.label || `${d.kind} (${d.deviceId.slice(0, 8)})`,
+        kind: d.kind as MediaDeviceInfo['kind'],
+      }));
+  } finally {
+    if (tempStream) {
+      stopTracks(tempStream);
+    }
   }
-
-  return devices
-    .filter((d): d is globalThis.MediaDeviceInfo & { kind: MediaDeviceInfo['kind'] } =>
-      d.kind === 'audioinput' || d.kind === 'videoinput' || d.kind === 'audiooutput'
-    )
-    .map((d) => ({
-      deviceId: d.deviceId,
-      label: d.label || `${d.kind} (${d.deviceId.slice(0, 8)})`,
-      kind: d.kind as MediaDeviceInfo['kind'],
-    }));
 }
