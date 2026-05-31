@@ -208,7 +208,7 @@ single_nat_gateway        = true
 #   4. Set livekit_enabled = true and apply.
 #
 # livekit_enabled       = true
-# livekit_domain        = "livekit.adieuu.com"   # subdomain for signaling (Route53 + ACM)
+# livekit_domain        = "livestream.adieuu.com"   # subdomain for signaling (Route53 + ACM)
 # livekit_api_key       = "adieuu"               # public key name (not secret); JWT issuer identifier
 # livekit_instance_type = "c7g.large"            # ARM64 Graviton; tune for expected concurrency
 # livekit_min_count     = 1

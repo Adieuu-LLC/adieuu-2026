@@ -132,7 +132,13 @@ describe('web app CSP', () => {
     it('includes the LiveKit signaling origin', () => {
       const directives = parseDirectives(csp);
       const connectSrc = directives.get('connect-src') ?? [];
-      expect(connectSrc.some((v) => v.startsWith('wss://') && v.includes('livekit'))).toBe(true);
+      expect(connectSrc).toContain('wss://livestream.adieuu.com');
+    });
+
+    it('includes the LiveKit HTTP origin for SDK API calls', () => {
+      const directives = parseDirectives(csp);
+      const connectSrc = directives.get('connect-src') ?? [];
+      expect(connectSrc).toContain('https://livestream.adieuu.com');
     });
 
     it('includes the S3 media bucket', () => {
