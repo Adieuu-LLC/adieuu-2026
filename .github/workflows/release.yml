@@ -1,12 +1,12 @@
 name: Release
 
 on:
-  # Run after CI completes successfully on main
-  workflow_run:
-    workflows: ["CI"]
+  # Merge to main (PR CI already validated the code on the PR head).
+  push:
     branches: [main]
-    types: [completed]
-  # Allow manual releases
+    paths-ignore:
+      # chore(release) only touches package.json — do not re-trigger release.
+      - '**/package.json'
   workflow_dispatch:
     inputs:
       bump:
@@ -18,23 +18,15 @@ on:
           - patch
           - minor
           - major
-      force:
-        description: 'Build and deploy all apps regardless of detected changes'
-        required: false
-        type: boolean
-        default: false
 
 env:
   NODE_VERSION: '25'
   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 concurrency:
-  # Only one release at a time. Do not cancel in-progress runs for workflow_run:
-  # the release job pushes chore(release), CI completes on that commit, and the
-  # follow-up Release run is a no-op (check_release skips) but would still
-  # cancel package-desktop mid-build if cancel-in-progress were always true.
+  # Only one release at a time; latest merge wins if two land while packaging.
   group: release
-  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -44,12 +36,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    # Automatic release requires CI success from a push event; manual dispatch always allowed.
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push')
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     outputs:
       new_version: ${{ steps.version.outputs.new_version }}
       released: ${{ steps.version.outputs.released }}
@@ -75,9 +62,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           token: ${{ steps.release-bot-token.outputs.token }}
-          # For auto-releases, pin to the exact commit CI validated.
-          # For manual runs, use the latest main branch.
-          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+          # Auto-release: merge commit on push. Manual: latest main.
+          ref: ${{ github.event_name == 'push' && github.sha || 'main' }}
 
       - name: Check if release should be skipped
         id: check_release
@@ -92,16 +78,7 @@ jobs:
             exit 0
           fi
 
-          # Auto-trigger (workflow_run): guard against stale CI and re-release loops.
-          git fetch origin main --depth=1
-          HEAD_SHA=$(git rev-parse HEAD)
-          MAIN_SHA=$(git rev-parse origin/main)
-          if [ "$HEAD_SHA" != "$MAIN_SHA" ]; then
-            echo "Skipping release - CI run is stale. tested=$HEAD_SHA current_main=$MAIN_SHA"
-            echo "skip=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
+          # Auto-trigger (push): belt-and-suspenders guard if paths-ignore did not apply.
           COMMIT_MSG=$(git log -1 --pretty=format:"%s")
           if [[ "$COMMIT_MSG" == chore\(release\):* ]]; then
             echo "Skipping auto-release to prevent re-release loop (HEAD is already a release commit: $COMMIT_MSG)"
@@ -119,8 +96,8 @@ jobs:
             echo "force_all=true" >> "$GITHUB_OUTPUT"
           }
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ github.event.inputs.force }}" = "true" ]; then
-            echo "Force requested — building all apps and deploying all targets"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual release — building all apps and deploying all targets"
             release_all
             exit 0
           fi
@@ -381,8 +358,7 @@ jobs:
         run: |
           git remote set-url origin "https://x-access-token:${RELEASE_BOT_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           NEW_VERSION="${{ steps.version.outputs.new_version }}"
-          # workflow_run checks out head_sha (detached HEAD), so there is no local "main".
-          # Create/update main at HEAD so "git push origin main" works.
+          # Push trigger checks out the merge commit (detached HEAD), so create main at HEAD.
           git checkout -B main
           git add .
           git commit -m "chore(release): v${NEW_VERSION}"
