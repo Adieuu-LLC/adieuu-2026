@@ -412,7 +412,7 @@ export const config = {
     apiKey: optionalEnv('LIVEKIT_API_KEY', ''),
     /** LiveKit API secret (must match the secret configured on the LiveKit server) */
     apiSecret: optionalEnv('LIVEKIT_API_SECRET', ''),
-    /** LiveKit server WebSocket URL (e.g. ws://localhost:7880 or wss://livekit.adieuu.com) */
+    /** LiveKit server WebSocket URL (e.g. ws://localhost:7880 or wss://livestream.adieuu.com) */
     url: optionalEnv('LIVEKIT_URL', ''),
     /** Token TTL in seconds */
     tokenTtlSec: optionalEnvInt('LIVEKIT_TOKEN_TTL_SEC', 600),

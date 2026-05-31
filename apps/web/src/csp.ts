@@ -14,7 +14,7 @@
  */
 
 import { mergeCspManifests } from '../../../packages/shared/src/csp/merge';
-import { mediaS3Origin, e2eMediaS3Origin, livekitWsOrigin } from '../../../packages/shared/src/csp/origins';
+import { mediaS3Origin, e2eMediaS3Origin, livekitWsOrigin, livekitHttpOrigin } from '../../../packages/shared/src/csp/origins';
 import { cryptoCspManifest } from '../../../packages/crypto/src/csp';
 import { uiCspManifest } from '../../../packages/ui/src/csp';
 
@@ -35,6 +35,7 @@ const webCspManifest: Record<string, string[]> = {
     'https://api.adieuu.com',
     'wss://api.adieuu.com',
     livekitWsOrigin,
+    livekitHttpOrigin,
     mediaS3Origin,
     e2eMediaS3Origin,
     'https://downloads.adieuu.com',
