@@ -29,9 +29,12 @@ env:
   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 concurrency:
-  # Only one release at a time
+  # Only one release at a time. Do not cancel in-progress runs for workflow_run:
+  # the release job pushes chore(release), CI completes on that commit, and the
+  # follow-up Release run is a no-op (check_release skips) but would still
+  # cancel package-desktop mid-build if cancel-in-progress were always true.
   group: release
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
 
 permissions:
   contents: write
@@ -450,6 +453,7 @@ jobs:
     needs: [release, build-desktop-dist]
     if: needs.release.outputs.released == 'true'
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
@@ -861,12 +865,12 @@ jobs:
 
   publish-release:
     needs: [release, publish-desktop, attach-sboms]
-    # Run even if desktop or SBOM jobs were skipped or failed (best-effort).
-    # Desktop may be skipped when no desktop-relevant changes were detected (unless force or no-diff re-release).
+    # Run when desktop publish succeeded or was skipped (no desktop changes).
+    # Do not publish if packaging was cancelled or failed mid-flight.
     if: |
       always() &&
       needs.release.outputs.released == 'true' &&
-      needs.publish-desktop.result != 'failure'
+      (needs.publish-desktop.result == 'success' || needs.publish-desktop.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Publish release
