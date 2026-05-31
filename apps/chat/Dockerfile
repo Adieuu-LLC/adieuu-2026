@@ -14,10 +14,13 @@ RUN apt-get update \
 RUN npm install -g pnpm@10.33.0
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json .npmrc ./
-COPY packages ./packages
-COPY apps ./apps
+# Only copy workspace packages that @adieuu/chat actually depends on.
+# Keeping packages/ui (and others) out of the workspace avoids resolving
+# their private @adieuu-llc dependencies during pnpm deploy --legacy,
+# which resolves every workspace package it can find.
+COPY packages/tsconfig ./packages/tsconfig
+COPY apps/chat ./apps/chat
 
-# Scoped install: @adieuu/chat does not depend on UI (avoids private @adieuu-llc icon packages on GPR).
 RUN pnpm install --frozen-lockfile --filter=@adieuu/chat...
 RUN pnpm exec turbo run build --filter=@adieuu/chat
 # pnpm v10+ requires --legacy when the package has no inject-workspace-packages=true
