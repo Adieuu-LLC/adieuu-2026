@@ -10,6 +10,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { RadioGroup } from '@ark-ui/react';
+import { AppearanceSectionNav, type AppearanceSection } from './AppearanceSectionNav';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Alert } from '../../components/Alert';
@@ -172,6 +173,33 @@ export function IdentityAppearance() {
   const [saveDesc, setSaveDesc] = useState('');
   const [iconPackOpen, setIconPackOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  const sections: AppearanceSection[] = useMemo(() => {
+    const list: AppearanceSection[] = [
+      { id: 'language', label: t('account.appearance.languageTitle') },
+      { id: 'message-layout', label: t('account.appearance.messageLayoutTitle') },
+      { id: 'preset-themes', label: t('account.appearance.presetsTitle') },
+    ];
+    if (customThemes.length > 0) {
+      list.push({ id: 'custom-themes', label: t('account.appearance.customThemesTitle') });
+    }
+    list.push(
+      { id: 'theme-editor', label: t('account.appearance.editorTitle') },
+      { id: 'icon-pack', label: t('account.appearance.iconPackTitle') },
+      { id: 'import-export', label: t('account.appearance.importExportTitle') },
+      { id: 'message-display', label: t('identity.appearance.messageDisplayTitle', 'Message Display') },
+    );
+    return list;
+  }, [t, customThemes.length]);
+
+  const setSectionRef = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) {
+      sectionRefs.current.set(id, el);
+    } else {
+      sectionRefs.current.delete(id);
+    }
+  }, []);
 
   const handleLanguageChange = useCallback((code: LanguageCode) => {
     void i18n.changeLanguage(code);
@@ -376,8 +404,12 @@ export function IdentityAppearance() {
           </div>
         </div>
 
-        {/* Language */}
-        <Card variant="elevated" className="slide-up app-settings-card">
+        <div className="appearance-layout">
+          <AppearanceSectionNav sections={sections} sectionRefs={sectionRefs} />
+
+          <div className="appearance-sections">
+            {/* Language */}
+            <Card variant="elevated" className="slide-up app-settings-card" ref={(el) => setSectionRef('language', el)} data-section="language">
           <h2 className="app-settings-section-title">{t('account.appearance.languageTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.appearance.languageDescription')}</p>
           <div className="app-settings-language-row">
@@ -406,7 +438,7 @@ export function IdentityAppearance() {
         </Card>
 
         {/* Message Layout */}
-        <Card variant="elevated" className="slide-up app-settings-card">
+        <Card variant="elevated" className="slide-up app-settings-card" ref={(el) => setSectionRef('message-layout', el)} data-section="message-layout">
           <h2 className="app-settings-section-title">{t('account.appearance.messageLayoutTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.appearance.messageLayoutDescription')}</p>
 
@@ -444,7 +476,7 @@ export function IdentityAppearance() {
         </Card>
 
         {/* Preset Themes */}
-        <Card variant="elevated" className="slide-up app-settings-card" data-tour="appearance-presets">
+        <Card variant="elevated" className="slide-up app-settings-card" data-tour="appearance-presets" ref={(el) => setSectionRef('preset-themes', el)} data-section="preset-themes">
           <h2 className="app-settings-section-title">{t('account.appearance.presetsTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.appearance.presetsDescription')}</p>
 
@@ -471,7 +503,7 @@ export function IdentityAppearance() {
 
         {/* Custom Themes */}
         {customThemes.length > 0 && (
-          <Card variant="elevated" className="slide-up app-settings-card">
+          <Card variant="elevated" className="slide-up app-settings-card" ref={(el) => setSectionRef('custom-themes', el)} data-section="custom-themes">
             <h2 className="app-settings-section-title">{t('account.appearance.customThemesTitle')}</h2>
             <div className="theme-preset-grid">
               {customThemes.map((ct) => (
@@ -517,7 +549,7 @@ export function IdentityAppearance() {
         )}
 
         {/* Theme Editor */}
-        <Card variant="elevated" className="slide-up app-settings-card">
+        <Card variant="elevated" className="slide-up app-settings-card" ref={(el) => setSectionRef('theme-editor', el)} data-section="theme-editor">
           <div className="app-settings-section-header" data-tour="appearance-editor">
             <div>
               <h2 className="app-settings-section-title">{t('account.appearance.editorTitle')}</h2>
@@ -598,7 +630,7 @@ export function IdentityAppearance() {
         </Card>
 
         {/* Icon Pack (collapsible) */}
-        <Card variant="elevated" className="slide-up app-settings-card">
+        <Card variant="elevated" className="slide-up app-settings-card" ref={(el) => setSectionRef('icon-pack', el)} data-section="icon-pack">
           <button
             type="button"
             className="app-settings-section-header app-settings-section-header--collapsible"
@@ -651,7 +683,7 @@ export function IdentityAppearance() {
         </Card>
 
         {/* Import / Export */}
-        <Card variant="elevated" className="slide-up app-settings-card">
+        <Card variant="elevated" className="slide-up app-settings-card" ref={(el) => setSectionRef('import-export', el)} data-section="import-export">
           <h2 className="app-settings-section-title">{t('account.appearance.importExportTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.appearance.importExportDescription')}</p>
           <div className="theme-import-export-row">
@@ -674,7 +706,7 @@ export function IdentityAppearance() {
         </Card>
 
         {/* Message Display Preferences */}
-        <Card variant="elevated" className="slide-up app-settings-card">
+        <Card variant="elevated" className="slide-up app-settings-card" ref={(el) => setSectionRef('message-display', el)} data-section="message-display">
           <h2 className="app-settings-section-title">
             {t('identity.appearance.messageDisplayTitle', 'Message Display')}
           </h2>
@@ -819,6 +851,8 @@ export function IdentityAppearance() {
             </div>
           </div>
         </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
