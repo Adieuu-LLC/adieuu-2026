@@ -32,11 +32,16 @@ export function SectionNav({ sections, sectionRefs, ariaLabel }: SectionNavProps
 
     const observer = new IntersectionObserver(
       (entries) => {
+        let topmost: IntersectionObserverEntry | null = null;
         for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const id = entry.target.getAttribute('data-section');
-            if (id) setActiveSection(id);
+          if (!entry.isIntersecting) continue;
+          if (!topmost || entry.boundingClientRect.top < topmost.boundingClientRect.top) {
+            topmost = entry;
           }
+        }
+        if (topmost) {
+          const id = topmost.target.getAttribute('data-section');
+          if (id) setActiveSection(id);
         }
       },
       { rootMargin: '-10% 0px -70% 0px', threshold: 0 },

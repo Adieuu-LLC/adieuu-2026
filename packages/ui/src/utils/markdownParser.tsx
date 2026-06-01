@@ -241,6 +241,8 @@ export interface HiddenEmbedInfo {
   reason: HiddenEmbedReason;
   overrideActive: boolean;
   onToggle: (trigger?: HTMLElement) => void;
+  /** Pre-localized tooltip text for the embed toggle button. */
+  tooltipText: string;
 }
 
 /** Mutable counter threaded through a single render pass for stable keys. */
@@ -382,18 +384,12 @@ function renderTextWithUrls(text: string, ctx: RenderCtx): ReactNode[] {
     const hidden = ctx.hiddenEmbeds?.get(seg.href);
     if (!hidden) return [linkSpan];
 
-    const tooltipText = hidden.overrideActive
-      ? 'Click to hide embed'
-      : hidden.reason === 'disabled'
-        ? 'Embed available but hidden (embeds disabled)'
-        : 'Embed available but hidden (domain not in allowlist)';
-
     const toggleBtn = (
-      <Tooltip key={ctx.k++} content={tooltipText} position="top">
+      <Tooltip key={ctx.k++} content={hidden.tooltipText} position="top">
         <button
           type="button"
           className="dm-link-embed-toggle"
-          aria-label={tooltipText}
+          aria-label={hidden.tooltipText}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();

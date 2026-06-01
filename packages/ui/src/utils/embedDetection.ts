@@ -18,21 +18,49 @@ export interface EmbedInfo {
   videoId?: string;
 }
 
-const YOUTUBE_PATTERNS = [
-  /(?:youtube\.com|youtube-nocookie\.com)\/watch\?(?:.*&)?v=([a-zA-Z0-9_-]{11})/,
-  /(?:youtube\.com|youtube-nocookie\.com)\/embed\/([a-zA-Z0-9_-]{11})/,
-  /(?:youtube\.com|youtube-nocookie\.com)\/shorts\/([a-zA-Z0-9_-]{11})/,
-  /youtu\.be\/([a-zA-Z0-9_-]{11})/,
-];
+const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
+
+function isYouTubeHost(hostname: string): 'long' | 'short' | null {
+  const h = hostname.toLowerCase();
+  if (h === 'youtu.be' || h === 'www.youtu.be') return 'short';
+  if (
+    h === 'youtube.com' || h.endsWith('.youtube.com') ||
+    h === 'youtube-nocookie.com' || h.endsWith('.youtube-nocookie.com')
+  ) return 'long';
+  return null;
+}
 
 /**
  * Try to extract a YouTube video ID from a URL.
+ * Only accepts genuine YouTube hostnames to prevent false-positives.
  */
 export function extractYouTubeVideoId(url: string): string | null {
-  for (const pattern of YOUTUBE_PATTERNS) {
-    const match = url.match(pattern);
-    if (match?.[1]) return match[1];
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
   }
+
+  const kind = isYouTubeHost(parsed.hostname);
+  if (!kind) return null;
+
+  if (kind === 'short') {
+    const id = parsed.pathname.split('/')[1];
+    return id && VIDEO_ID_RE.test(id) ? id : null;
+  }
+
+  if (parsed.pathname === '/watch' || parsed.pathname === '/watch/') {
+    const id = parsed.searchParams.get('v');
+    return id && VIDEO_ID_RE.test(id) ? id : null;
+  }
+
+  const segments = parsed.pathname.split('/');
+  if ((segments[1] === 'embed' || segments[1] === 'shorts') && segments[2]) {
+    const id = segments[2];
+    return VIDEO_ID_RE.test(id) ? id : null;
+  }
+
   return null;
 }
 

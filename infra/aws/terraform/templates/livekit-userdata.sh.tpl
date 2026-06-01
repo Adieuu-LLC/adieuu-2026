@@ -56,6 +56,7 @@ logging:
 $(if [ -n "$WEBHOOK_URL" ]; then
 cat <<WEBHOOK
 webhook:
+  api_key: $LIVEKIT_API_KEY
   urls:
     - $WEBHOOK_URL
 WEBHOOK

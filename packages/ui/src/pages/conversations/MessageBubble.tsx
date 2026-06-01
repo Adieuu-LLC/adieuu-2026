@@ -302,6 +302,10 @@ export const MessageBubble = memo(function MessageBubble({
     const embeds = detectEmbeds(content);
     if (embeds.length === 0) return undefined;
 
+    const tooltipHide = t('identity.appearance.embedToggleHide', 'Click to hide embed');
+    const tooltipDisabled = t('identity.appearance.embedToggleDisabled', 'Embed available but hidden (embeds disabled)');
+    const tooltipNotAllowlisted = t('identity.appearance.embedToggleNotAllowlisted', 'Embed available but hidden (domain not in allowlist)');
+
     const map = new Map<string, HiddenEmbedInfo>();
     for (const embed of embeds) {
       const isOverridden = embedOverrides[embed.url] === true;
@@ -311,6 +315,7 @@ export const MessageBubble = memo(function MessageBubble({
           reason: 'disabled',
           overrideActive: isOverridden,
           onToggle: (trigger?: HTMLElement) => toggleEmbedOverride(embed.url, trigger),
+          tooltipText: isOverridden ? tooltipHide : tooltipDisabled,
         });
       } else {
         const domain = extractTld(embed.url);
@@ -319,12 +324,13 @@ export const MessageBubble = memo(function MessageBubble({
             reason: 'domain-not-allowed',
             overrideActive: isOverridden,
             onToggle: (trigger?: HTMLElement) => toggleEmbedOverride(embed.url, trigger),
+            tooltipText: isOverridden ? tooltipHide : tooltipNotAllowlisted,
           });
         }
       }
     }
     return map.size > 0 ? map : undefined;
-  }, [content, embedPreference, embedOverrides, toggleEmbedOverride]);
+  }, [content, embedPreference, embedOverrides, toggleEmbedOverride, t]);
 
   const hasEmbedOverrides = useMemo(
     () => Object.values(embedOverrides).some((v) => v === true),

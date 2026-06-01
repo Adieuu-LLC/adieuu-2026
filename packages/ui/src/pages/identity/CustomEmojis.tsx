@@ -513,9 +513,7 @@ function CreateEmojiDialog({
                 <Button variant="primary" type="button" onClick={handleSaveAll} disabled={!canSave}>
                   {saving
                     ? t('identity.customEmojis.saving', 'Saving...')
-                    : activeItems.length === 1
-                      ? t('identity.customEmojis.save', 'Save Emoji')
-                      : t('identity.customEmojis.saveCount', 'Save {{count}} Emojis', { count: activeItems.length })}
+                    : t('identity.customEmojis.save', { count: activeItems.length })}
                 </Button>
               )}
             </div>
