@@ -176,6 +176,7 @@ describe('calls.controller', () => {
       VALID_CONV,
       ROUTE_TEST_IDENTITY_ID.toHexString(),
       MEDIA,
+      { subscriptions: undefined, entitlements: undefined },
     );
   });
 
@@ -192,6 +193,7 @@ describe('calls.controller', () => {
       VALID_CALL,
       ROUTE_TEST_IDENTITY_ID.toHexString(),
       MEDIA,
+      { subscriptions: undefined, entitlements: undefined },
     );
   });
 
