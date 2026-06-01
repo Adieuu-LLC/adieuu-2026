@@ -53,7 +53,7 @@ export function retryItem<T extends QueueItem>(
       uploadFailed: false,
       uploadDone: false,
       retryCount: i.retryCount + 1,
-      uploadStarted: true,
+      uploadStarted: false,
     };
   });
 }

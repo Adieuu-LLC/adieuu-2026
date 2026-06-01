@@ -126,7 +126,7 @@ describe('retryItem', () => {
     expect(item.uploadFailed).toBe(false);
     expect(item.uploadDone).toBe(false);
     expect(item.retryCount).toBe(1);
-    expect(item.uploadStarted).toBe(true);
+    expect(item.uploadStarted).toBe(false);
   });
 
   it('allows up to maxRetries retries', () => {
@@ -176,6 +176,23 @@ describe('retryItem', () => {
     const result = retryItem(items, 'nonexistent', 2);
     expect(result).toEqual(items);
   });
+
+  it('respects concurrency limit when combined with scheduleUploads', () => {
+    const maxConcurrent = 3;
+    const active = Array.from({ length: maxConcurrent }, (_, i) =>
+      makeItem({ id: `active-${i}`, uploadStarted: true }),
+    );
+    const failed = makeItem({ id: 'failed-item', uploadStarted: true, uploadFailed: true, retryCount: 0 });
+    const items = [...active, failed];
+
+    const afterRetry = retryItem(items, 'failed-item', 2);
+    const afterSchedule = scheduleUploads(afterRetry, maxConcurrent);
+
+    const activeCount = afterSchedule.filter(
+      (i) => i.uploadStarted && !i.uploadDone && !i.uploadFailed,
+    ).length;
+    expect(activeCount).toBeLessThanOrEqual(maxConcurrent);
+  });
 });
 
 describe('allUploadsSettled', () => {
@@ -213,5 +230,53 @@ describe('allUploadsSettled', () => {
       makeItem({ uploadDone: true }),
     ];
     expect(allUploadsSettled(items)).toBe(false);
+  });
+});
+
+describe('hasActiveUploads condition', () => {
+  function hasActiveUploads(items: QueueItem[]): boolean {
+    return items.some((i) => i.uploadStarted && !i.uploadDone && !i.uploadFailed);
+  }
+
+  it('returns true when an item is uploading', () => {
+    const items = [makeItem({ uploadStarted: true })];
+    expect(hasActiveUploads(items)).toBe(true);
+  });
+
+  it('returns false when all items are pending', () => {
+    const items = [makeItem(), makeItem()];
+    expect(hasActiveUploads(items)).toBe(false);
+  });
+
+  it('returns false when all started items have completed', () => {
+    const items = [
+      makeItem({ uploadStarted: true, uploadDone: true }),
+      makeItem({ uploadStarted: true, uploadDone: true }),
+    ];
+    expect(hasActiveUploads(items)).toBe(false);
+  });
+
+  it('returns false when all started items have failed', () => {
+    const items = [
+      makeItem({ uploadStarted: true, uploadFailed: true }),
+    ];
+    expect(hasActiveUploads(items)).toBe(false);
+  });
+
+  it('returns false after retryItem resets an item (before scheduleUploads)', () => {
+    const items = [
+      makeItem({ id: 'failed', uploadStarted: true, uploadFailed: true, retryCount: 0 }),
+    ];
+    const afterRetry = retryItem(items, 'failed', 2);
+    expect(hasActiveUploads(afterRetry)).toBe(false);
+  });
+
+  it('returns true after scheduleUploads starts a retried item', () => {
+    const items = [
+      makeItem({ id: 'failed', uploadStarted: true, uploadFailed: true, retryCount: 0 }),
+    ];
+    const afterRetry = retryItem(items, 'failed', 2);
+    const afterSchedule = scheduleUploads(afterRetry, 5);
+    expect(hasActiveUploads(afterSchedule)).toBe(true);
   });
 });

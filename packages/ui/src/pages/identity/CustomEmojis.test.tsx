@@ -35,7 +35,14 @@ mock.module('../../components/Button', () => ({
 }));
 
 mock.module('../../components/ConfirmDialog', () => ({
-  ConfirmDialog: () => null,
+  ConfirmDialog: ({ open, title, description, confirmLabel, variant }: any) =>
+    open ? (
+      <div data-testid="confirm-dialog" data-variant={variant}>
+        <p data-testid="confirm-title">{title}</p>
+        <p data-testid="confirm-description">{description}</p>
+        <button data-testid="confirm-button">{confirmLabel}</button>
+      </div>
+    ) : null,
 }));
 
 mock.module('@ark-ui/react', () => ({

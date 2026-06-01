@@ -124,6 +124,10 @@ function BulkEmojiUploadItem({
     acceptedTypes: EMOJI_ACCEPTED_TYPES,
   });
 
+  useEffect(() => {
+    return () => { resetUpload(); };
+  }, [resetUpload]);
+
   const startedRef = useRef(false);
   const retrySeqRef = useRef(item.retryCount);
 
@@ -286,6 +290,7 @@ function CreateEmojiDialog({
   const [saving, setSaving] = useState(false);
   const [overallError, setOverallError] = useState<string | null>(null);
   const [allSavedSuccessfully, setAllSavedSuccessfully] = useState(false);
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const dragCounterRef = useRef(0);
 
   const { identity } = useIdentity();
@@ -394,7 +399,8 @@ function CreateEmojiDialog({
   const handleRetry = useCallback((id: string) => {
     setItems((prev) => {
       const updated = retryItem(prev, id, MAX_RETRIES);
-      return updated.map((i) => (i.id === id ? { ...i, mediaId: null } : i));
+      const withMediaReset = updated.map((i) => (i.id === id ? { ...i, mediaId: null } : i));
+      return scheduleUploads(withMediaReset, MAX_CONCURRENT_UPLOADS);
     });
   }, []);
 
@@ -415,6 +421,11 @@ function CreateEmojiDialog({
 
   /* ---- close / cleanup ---- */
 
+  const hasActiveUploads = useMemo(
+    () => items.some((i) => i.uploadStarted && !i.uploadDone && !i.uploadFailed),
+    [items],
+  );
+
   const handleClose = useCallback(() => {
     const hadSaved = items.some((i) => i.saveState === 'saved');
     for (const item of items) URL.revokeObjectURL(item.previewUrl);
@@ -422,11 +433,20 @@ function CreateEmojiDialog({
     setSaving(false);
     setOverallError(null);
     setAllSavedSuccessfully(false);
+    setConfirmCloseOpen(false);
     dragCounterRef.current = 0;
     setDragging(false);
     onOpenChange(false);
     if (hadSaved) onCreated();
   }, [items, onOpenChange, onCreated]);
+
+  const handleRequestClose = useCallback(() => {
+    if (hasActiveUploads) {
+      setConfirmCloseOpen(true);
+    } else {
+      handleClose();
+    }
+  }, [hasActiveUploads, handleClose]);
 
   const handleUploadMore = useCallback(() => {
     for (const item of items) URL.revokeObjectURL(item.previewUrl);
@@ -502,7 +522,7 @@ function CreateEmojiDialog({
   const canAddMore = items.length < remainingSlots && !saving && !allSavedSuccessfully;
 
   return (
-    <Dialog.Root open={open} onOpenChange={(e) => { if (!e.open) handleClose(); }}>
+    <Dialog.Root open={open} onOpenChange={(e) => { if (!e.open) handleRequestClose(); }}>
       <Portal>
         <Dialog.Backdrop className="confirm-dialog-backdrop" />
         <Dialog.Positioner className="confirm-dialog-positioner">
@@ -595,7 +615,7 @@ function CreateEmojiDialog({
                 </>
               ) : (
                 <>
-                  <Button variant="secondary" type="button" onClick={handleClose} disabled={saving}>
+                  <Button variant="secondary" type="button" onClick={handleRequestClose} disabled={saving}>
                     {t('common.cancel', 'Cancel')}
                   </Button>
                   {activeItems.length > 0 && (
@@ -611,6 +631,19 @@ function CreateEmojiDialog({
           </Dialog.Content>
         </Dialog.Positioner>
       </Portal>
+
+      <ConfirmDialog
+        open={confirmCloseOpen}
+        onOpenChange={(open) => { if (!open) setConfirmCloseOpen(false); }}
+        title={t('identity.customEmojis.cancelUploadsTitle', 'Cancel uploads?')}
+        description={t(
+          'identity.customEmojis.cancelUploadsDescription',
+          'Some uploads are still in progress. Closing now will cancel them.',
+        )}
+        confirmLabel={t('identity.customEmojis.cancelUploadsConfirm', 'Discard uploads')}
+        variant="danger"
+        onConfirm={handleClose}
+      />
     </Dialog.Root>
   );
 }
