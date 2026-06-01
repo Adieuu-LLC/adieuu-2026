@@ -7,6 +7,7 @@
  * @module routes/unfurl/controller
  */
 
+import { promises as dns } from 'node:dns';
 import type { RouteContext } from '../../router/types';
 import { success } from '../../utils/response';
 import elog from '../../utils/adieuuLogger';
@@ -27,32 +28,77 @@ const MAX_CACHE_ENTRIES = 5000;
 const FETCH_TIMEOUT_MS = 5000;
 const MAX_RESPONSE_BYTES = 512 * 1024; // 512 KB max HTML to parse
 
+const MAX_REDIRECTS = 5;
+
 const BLOCKED_HOSTNAMES = new Set([
   'localhost',
   '127.0.0.1',
   '0.0.0.0',
   '[::1]',
+  '[::ffff:127.0.0.1]',
+  '[::ffff:7f00:1]',
   'metadata.google.internal',
+  'metadata.goog',
   '169.254.169.254',
 ]);
 
-function isPrivateIp(hostname: string): boolean {
+export function isPrivateIp(hostname: string): boolean {
+  let h = hostname;
+  if (h.startsWith('[') && h.endsWith(']')) {
+    h = h.slice(1, -1);
+  }
+
   if (BLOCKED_HOSTNAMES.has(hostname)) return true;
-  // Block RFC1918, link-local, and loopback ranges
-  if (/^10\./.test(hostname)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return true;
-  if (/^192\.168\./.test(hostname)) return true;
-  if (/^169\.254\./.test(hostname)) return true;
-  if (/^fc00:/i.test(hostname) || /^fe80:/i.test(hostname)) return true;
+
+  // IPv6 loopback
+  if (h === '::1') return true;
+
+  // IPv4-mapped IPv6 (::ffff:A.B.C.D) -- extract the inner IPv4 and re-check
+  const v4Mapped = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i.exec(h);
+  if (v4Mapped?.[1]) return isPrivateIp(v4Mapped[1]);
+
+  // Loopback 127.0.0.0/8 and 0.0.0.0/8
+  if (/^127\./.test(h)) return true;
+  if (/^0\./.test(h)) return true;
+
+  // RFC1918
+  if (/^10\./.test(h)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
+  if (/^192\.168\./.test(h)) return true;
+
+  // Link-local
+  if (/^169\.254\./.test(h)) return true;
+
+  // IPv6 ULA and link-local
+  if (/^fc00:/i.test(h) || /^fd/i.test(h)) return true;
+  if (/^fe80:/i.test(h)) return true;
+
   return false;
 }
 
-function isValidUnfurlUrl(raw: string): URL | null {
+export async function isValidUnfurlUrl(raw: string): Promise<URL | null> {
   try {
     const url = new URL(raw);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
     if (isPrivateIp(url.hostname)) return null;
     if (!url.hostname.includes('.')) return null;
+
+    // Resolve DNS and validate every returned address against private ranges
+    const [v4Result, v6Result] = await Promise.allSettled([
+      dns.resolve4(url.hostname),
+      dns.resolve6(url.hostname),
+    ]);
+
+    const ips: string[] = [];
+    if (v4Result.status === 'fulfilled') ips.push(...v4Result.value);
+    if (v6Result.status === 'fulfilled') ips.push(...v6Result.value);
+
+    if (ips.length === 0) return null;
+
+    for (const ip of ips) {
+      if (isPrivateIp(ip)) return null;
+    }
+
     return url;
   } catch {
     return null;
@@ -127,41 +173,66 @@ async function fetchMetadata(url: URL): Promise<UnfurlMetadata | null> {
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url.href, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'AdieuuBot/1.0 (link preview)',
-        'Accept': 'text/html,application/xhtml+xml',
-      },
-      signal: controller.signal,
-      redirect: 'follow',
-    });
+    let currentUrl = url;
 
-    if (!response.ok) return null;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      const response = await fetch(currentUrl.href, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'AdieuuBot/1.0 (link preview)',
+          'Accept': 'text/html,application/xhtml+xml',
+        },
+        signal: controller.signal,
+        redirect: 'manual',
+      });
 
-    const contentType = response.headers.get('content-type') ?? '';
-    if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
-      return null;
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get('location');
+        if (!location) return null;
+
+        const nextUrl = await isValidUnfurlUrl(
+          new URL(location, currentUrl).href,
+        );
+        if (!nextUrl) {
+          elog.debug('Unfurl redirect blocked by validation', {
+            from: currentUrl.href,
+            location,
+          });
+          return null;
+        }
+        currentUrl = nextUrl;
+        continue;
+      }
+
+      if (!response.ok) return null;
+
+      const contentType = response.headers.get('content-type') ?? '';
+      if (!contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+        return null;
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) return null;
+
+      let html = '';
+      let bytesRead = 0;
+      const decoder = new TextDecoder();
+
+      while (bytesRead < MAX_RESPONSE_BYTES) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytesRead += value.byteLength;
+        html += decoder.decode(value, { stream: true });
+        // Stop early once we have </head> -- OG tags live there
+        if (html.includes('</head>')) break;
+      }
+
+      reader.cancel().catch(() => {});
+      return extractMetaTags(html, currentUrl);
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) return null;
-
-    let html = '';
-    let bytesRead = 0;
-    const decoder = new TextDecoder();
-
-    while (bytesRead < MAX_RESPONSE_BYTES) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      bytesRead += value.byteLength;
-      html += decoder.decode(value, { stream: true });
-      // Stop early once we have </head> -- OG tags live there
-      if (html.includes('</head>')) break;
-    }
-
-    reader.cancel().catch(() => {});
-    return extractMetaTags(html, url);
+    elog.debug('Unfurl exceeded max redirects', { url: url.href });
+    return null;
   } catch (err) {
     elog.debug('Unfurl fetch failed', { url: url.href, error: String(err) });
     return null;
@@ -191,7 +262,7 @@ export async function unfurlCtrl(ctx: RouteContext): Promise<Response> {
   const rawUrl = ctx.query.get('url');
   if (!rawUrl) return ctx.errors.badRequest();
 
-  const parsedUrl = isValidUnfurlUrl(rawUrl);
+  const parsedUrl = await isValidUnfurlUrl(rawUrl);
   if (!parsedUrl) return ctx.errors.badRequest();
 
   const cacheKey = parsedUrl.href;

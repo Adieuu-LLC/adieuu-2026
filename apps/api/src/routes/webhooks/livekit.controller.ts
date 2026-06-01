@@ -55,12 +55,16 @@ function parseParticipantMetadata(raw: string | undefined): ParticipantMetadata 
   }
 }
 
-function exceedsCap(
+export function exceedsCap(
   trackWidth: number,
   trackHeight: number,
   cap: { width: number; height: number },
 ): boolean {
-  return trackWidth > cap.width || trackHeight > cap.height;
+  const trackMax = Math.max(trackWidth, trackHeight);
+  const trackMin = Math.min(trackWidth, trackHeight);
+  const capMax = Math.max(cap.width, cap.height);
+  const capMin = Math.min(cap.width, cap.height);
+  return trackMax > capMax || trackMin > capMin;
 }
 
 /**
