@@ -22,7 +22,12 @@ import { Icon } from '../../icons/Icon';
 import { useIdentity } from '../../hooks/useIdentity';
 import { useCustomEmojis } from '../../hooks/useCustomEmojis';
 import { useMediaUpload, type MediaUploadState } from '../../hooks/useMediaUpload';
-import { CUSTOM_EMOJI_SHORTCODE_BODY_RE, type PublicCustomEmoji } from '@adieuu/shared';
+import {
+  CUSTOM_EMOJI_SHORTCODE_BODY_RE,
+  filenameToShortcode,
+  filenameToDisplayName,
+  type PublicCustomEmoji,
+} from '@adieuu/shared';
 
 const EMOJI_ACCEPTED_TYPES = ['image/png', 'image/webp', 'image/gif'];
 const EMOJI_MAX_BYTES = 256 * 1024; // 256 KB
@@ -34,22 +39,6 @@ function shortcodeError(value: string): string | null {
     return 'Only lowercase letters, numbers, underscores, and hyphens';
   }
   return null;
-}
-
-function filenameToShortcode(filename: string): string {
-  const base = filename.replace(/\.[^.]+$/, '');
-  const sanitised = base
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9_-]/g, '')
-    .replace(/-{2,}/g, '-')
-    .replace(/^[-_]+|[-_]+$/g, '')
-    .slice(0, 32);
-  return sanitised.length >= 2 ? sanitised : '';
-}
-
-function filenameToDisplayName(filename: string): string {
-  return filename.replace(/\.[^.]+$/, '').slice(0, 64);
 }
 
 /** Upload status indicator shared between create and inline feedback. */

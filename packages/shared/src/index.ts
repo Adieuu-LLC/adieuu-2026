@@ -16,4 +16,6 @@ export * from './subscriptions';
 export {
   CUSTOM_EMOJI_SHORTCODE_BODY_RE,
   createCustomEmojiColonTokenRegex,
+  filenameToShortcode,
+  filenameToDisplayName,
 } from './custom-emoji-shortcode';
