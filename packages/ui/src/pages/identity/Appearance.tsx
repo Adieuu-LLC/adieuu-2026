@@ -405,7 +405,7 @@ export function IdentityAppearance() {
         </div>
 
         <div className="appearance-layout">
-          <AppearanceSectionNav sections={sections} sectionRefs={sectionRefs} />
+          <AppearanceSectionNav sections={sections} sectionRefs={sectionRefs} ariaLabel={t('identity.appearance.title')} />
 
           <div className="appearance-sections">
             {/* Language */}
