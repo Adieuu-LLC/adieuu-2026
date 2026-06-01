@@ -31,6 +31,10 @@ import { ReactionBar } from './ReactionBar';
 import { MessageMediaAttachment } from './MessageMediaAttachment';
 import { MessageGifAttachment } from './MessageGifAttachment';
 import type { MediaMessageLayout } from '../../components/MediaMessage';
+import { MessageEmbeds } from '../../components/embeds';
+import { useEmbedPreference } from '../../hooks/useEmbedPreference';
+import { useAppConfig } from '../../config';
+import { createUnfurlFetcher } from '../../services/unfurlService';
 
 export function ReplyQuoteButton({ replyQuote }: { replyQuote: ReplyQuotePayload }) {
   const { text, quotedAuthor, onQuoteClick } = replyQuote;
@@ -186,6 +190,9 @@ export const MessageBubble = memo(function MessageBubble({
   const { t } = useTranslation();
   const { block: blockIdentity } = useBlockContext();
   const toast = useToast();
+  const { apiBaseUrl } = useAppConfig();
+  const [embedPreference] = useEmbedPreference(selfId ?? '');
+  const fetchMetadata = useMemo(() => createUnfurlFetcher(apiBaseUrl), [apiBaseUrl]);
   const [showActions, setShowActions] = useState(false);
   const [actionBarPopoverOpen, setActionBarPopoverOpen] = useState(false);
   const [showContextReactionPicker, setShowContextReactionPicker] = useState(false);
@@ -540,6 +547,13 @@ export const MessageBubble = memo(function MessageBubble({
             gifAnimateOnHoverOnly={gifAnimateOnHoverOnly}
           />
         ))}
+        {content && embedPreference.mode !== 'none' && (
+          <MessageEmbeds
+            text={content}
+            preference={embedPreference}
+            fetchMetadata={fetchMetadata}
+          />
+        )}
       </>
     );
 
@@ -761,6 +775,13 @@ export const MessageBubble = memo(function MessageBubble({
                   gifAnimateOnHoverOnly={gifAnimateOnHoverOnly}
                 />
               ))}
+              {content && embedPreference.mode !== 'none' && (
+                <MessageEmbeds
+                  text={content}
+                  preference={embedPreference}
+                  fetchMetadata={fetchMetadata}
+                />
+              )}
             </>
           )}
         </div>

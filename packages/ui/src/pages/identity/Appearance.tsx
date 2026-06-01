@@ -23,6 +23,7 @@ import { DEFAULT_THEME_ID } from '../../constants/builtinThemes';
 import { sanitizeImportedTheme } from '../../utils/themeSanitizer';
 import { loadShowMessageArtifacts, saveShowMessageArtifacts } from '../../services/preKeyService';
 import { loadReactionNotificationsEnabled, saveReactionNotificationsEnabled } from '../../hooks/useReactionNotificationPreference';
+import { useEmbedPreference, type EmbedVisibilityMode, type EmbedPreference, type EmbedMaxWidth } from '../../hooks/useEmbedPreference';
 import { useClaimAchievement } from '../../hooks/useClaimAchievement';
 import { useMySharedThemeChecksums } from '../../hooks/useMySharedThemeChecksums';
 import { CustomThemeShareButton } from '../../components/CustomThemeShareButton';
@@ -122,6 +123,33 @@ export function IdentityAppearance() {
   const [reactionNotifications, setReactionNotifications] = useState(
     () => identity ? loadReactionNotificationsEnabled(identity.id) : true
   );
+
+  const [embedPref, setEmbedPref] = useEmbedPreference(identity?.id ?? '');
+  const [allowlistInput, setAllowlistInput] = useState('');
+
+  const handleEmbedModeChange = useCallback((details: { value: string | null }) => {
+    const mode = details.value as EmbedVisibilityMode | null;
+    if (mode) setEmbedPref({ ...embedPref, mode });
+  }, [embedPref, setEmbedPref]);
+
+  const handleAddAllowlistEntry = useCallback(() => {
+    const entry = allowlistInput.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*$/, '');
+    if (!entry || embedPref.allowlist.includes(entry)) {
+      setAllowlistInput('');
+      return;
+    }
+    setEmbedPref({ ...embedPref, allowlist: [...embedPref.allowlist, entry] });
+    setAllowlistInput('');
+  }, [allowlistInput, embedPref, setEmbedPref]);
+
+  const handleRemoveAllowlistEntry = useCallback((entry: string) => {
+    setEmbedPref({ ...embedPref, allowlist: embedPref.allowlist.filter((e) => e !== entry) });
+  }, [embedPref, setEmbedPref]);
+
+  const handleEmbedMaxWidthChange = useCallback((details: { value: string | null }) => {
+    const val = Number(details.value) as EmbedMaxWidth;
+    if (details.value !== null) setEmbedPref({ ...embedPref, maxWidth: val });
+  }, [embedPref, setEmbedPref]);
 
   const handleArtifactsToggle = useCallback((enabled: boolean) => {
     setShowArtifacts(enabled);
@@ -683,6 +711,115 @@ export function IdentityAppearance() {
               </span>
             </span>
           </label>
+
+          <div className="app-settings-embed-visibility">
+            <span className="app-settings-toggle-title">
+              {t('identity.appearance.embedVisibilityTitle', 'Link Embeds')}
+            </span>
+            <span className="app-settings-toggle-hint">
+              {t('identity.appearance.embedVisibilityHint', 'Control whether link previews and video embeds are shown in messages.')}
+            </span>
+            <RadioGroup.Root
+              value={embedPref.mode}
+              onValueChange={handleEmbedModeChange}
+              className="app-settings-radio-group"
+            >
+              <RadioGroup.Item value="none" className="app-settings-radio-item">
+                <RadioGroup.ItemControl className="app-settings-radio-control" />
+                <RadioGroup.ItemText>{t('identity.appearance.embedNone', 'None')}</RadioGroup.ItemText>
+                <RadioGroup.ItemHiddenInput />
+              </RadioGroup.Item>
+              <RadioGroup.Item value="all" className="app-settings-radio-item">
+                <RadioGroup.ItemControl className="app-settings-radio-control" />
+                <RadioGroup.ItemText>{t('identity.appearance.embedAll', 'All')}</RadioGroup.ItemText>
+                <RadioGroup.ItemHiddenInput />
+              </RadioGroup.Item>
+              <RadioGroup.Item value="allowlist" className="app-settings-radio-item">
+                <RadioGroup.ItemControl className="app-settings-radio-control" />
+                <RadioGroup.ItemText>{t('identity.appearance.embedAllowlist', 'Allowlist')}</RadioGroup.ItemText>
+                <RadioGroup.ItemHiddenInput />
+              </RadioGroup.Item>
+            </RadioGroup.Root>
+
+            {embedPref.mode === 'allowlist' && (
+              <div className="app-settings-embed-allowlist">
+                <div className="app-settings-embed-allowlist-input-row">
+                  <input
+                    type="text"
+                    className="app-settings-embed-allowlist-input"
+                    placeholder={t('identity.appearance.embedAllowlistPlaceholder', 'e.g. youtube.com')}
+                    value={allowlistInput}
+                    onChange={(e) => setAllowlistInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddAllowlistEntry();
+                      }
+                    }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleAddAllowlistEntry}
+                    disabled={!allowlistInput.trim()}
+                  >
+                    {t('common.add', 'Add')}
+                  </Button>
+                </div>
+                {embedPref.allowlist.length > 0 && (
+                  <div className="app-settings-embed-allowlist-tags">
+                    {embedPref.allowlist.map((entry) => (
+                      <span key={entry} className="app-settings-embed-allowlist-tag">
+                        {entry}
+                        <button
+                          type="button"
+                          className="app-settings-embed-allowlist-tag-remove"
+                          onClick={() => handleRemoveAllowlistEntry(entry)}
+                          aria-label={t('common.remove', 'Remove')}
+                        >
+                          &times;
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {embedPref.mode !== 'none' && (
+              <div className="app-settings-embed-max-width">
+                <span className="app-settings-toggle-title">
+                  {t('identity.appearance.embedMaxWidthTitle', 'Max Embed Width')}
+                </span>
+                <RadioGroup.Root
+                  value={String(embedPref.maxWidth)}
+                  onValueChange={handleEmbedMaxWidthChange}
+                  className="app-settings-radio-group"
+                >
+                  <RadioGroup.Item value="0" className="app-settings-radio-item">
+                    <RadioGroup.ItemControl className="app-settings-radio-control" />
+                    <RadioGroup.ItemText>{t('identity.appearance.embedMaxWidthNone', 'No max')}</RadioGroup.ItemText>
+                    <RadioGroup.ItemHiddenInput />
+                  </RadioGroup.Item>
+                  <RadioGroup.Item value="100" className="app-settings-radio-item">
+                    <RadioGroup.ItemControl className="app-settings-radio-control" />
+                    <RadioGroup.ItemText>100px</RadioGroup.ItemText>
+                    <RadioGroup.ItemHiddenInput />
+                  </RadioGroup.Item>
+                  <RadioGroup.Item value="300" className="app-settings-radio-item">
+                    <RadioGroup.ItemControl className="app-settings-radio-control" />
+                    <RadioGroup.ItemText>300px</RadioGroup.ItemText>
+                    <RadioGroup.ItemHiddenInput />
+                  </RadioGroup.Item>
+                  <RadioGroup.Item value="500" className="app-settings-radio-item">
+                    <RadioGroup.ItemControl className="app-settings-radio-control" />
+                    <RadioGroup.ItemText>500px</RadioGroup.ItemText>
+                    <RadioGroup.ItemHiddenInput />
+                  </RadioGroup.Item>
+                </RadioGroup.Root>
+              </div>
+            )}
+          </div>
         </Card>
       </div>
     </div>

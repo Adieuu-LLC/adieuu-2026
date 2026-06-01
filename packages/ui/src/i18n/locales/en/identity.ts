@@ -590,5 +590,13 @@ export const identity = {
       showArtifactsHint: 'When enabled, deleted messages, expired forward secrecy messages, and messages that could not be decrypted are shown in conversations. When disabled, these artifacts are hidden for a cleaner view. This is a local display preference only and does not affect message storage.',
       reactionNotificationsTitle: 'Reaction Notifications',
       reactionNotificationsHint: 'When enabled, you will receive notifications and unread indicators when someone reacts to your messages. This only applies to reactions on messages you sent.',
+      embedVisibilityTitle: 'Link Embeds',
+      embedVisibilityHint: 'Control whether link previews and video embeds are shown in messages.',
+      embedNone: 'None',
+      embedAll: 'All',
+      embedAllowlist: 'Allowlist',
+      embedAllowlistPlaceholder: 'e.g. youtube.com',
+      embedMaxWidthTitle: 'Max Embed Width',
+      embedMaxWidthNone: 'No max',
     },
 } as const;

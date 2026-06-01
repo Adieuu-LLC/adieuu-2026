@@ -969,8 +969,8 @@
   cursor: pointer;
   color: var(--color-text-secondary);
   transition: all var(--transition-fast);
-  // Above logo hover transform / nav layers so the handle stays visible and clickable
-  z-index: var(--z-fixed);
+  // Above sidebar nav content but below flyouts/popovers/tooltips rendered within the sidebar
+  z-index: 5;
 
   &:hover {
     background: var(--color-bg-hover);

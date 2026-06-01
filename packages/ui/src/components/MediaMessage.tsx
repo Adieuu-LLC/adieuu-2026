@@ -11,13 +11,13 @@
  */
 
 import { useState, useEffect, useCallback, useRef, memo, useMemo, type CSSProperties } from 'react';
-import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import type { MediaAttachment } from '../services/messagePayload';
 import {
   getContainedMediaDisplaySize,
   MEDIA_MESSAGE_INLINE_MAX_PX,
 } from '../utils/mediaMessageDisplaySize';
+import { ImageLightbox } from './ImageLightbox';
 
 export type MediaMessageState = 'loading' | 'uploading' | 'scanning' | 'available' | 'rejected' | 'error';
 
@@ -65,15 +65,6 @@ export const MediaMessage = memo(function MediaMessage({
   const closeLightbox = useCallback(() => {
     setLightboxOpen(false);
   }, []);
-
-  useEffect(() => {
-    if (!lightboxOpen) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setLightboxOpen(false);
-    }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [lightboxOpen]);
 
   useEffect(() => {
     if (!imageUrl) setLoaded(false);
@@ -222,34 +213,14 @@ export const MediaMessage = memo(function MediaMessage({
         <span className="media-message-filename">{attachment.fileName}</span>
       )}
 
-      {lightboxOpen && imageUrl && !isVideo && createPortal(
-        <div
-          className="media-lightbox"
-          onClick={closeLightbox}
-          role="dialog"
-          aria-modal="true"
-          aria-label={attachment.fileName ?? t('conversations.mediaLightbox', 'Image preview')}
-        >
-          <div className="media-lightbox-content" onClick={(e) => e.stopPropagation()}>
-            <img
-              src={imageUrl}
-              alt={attachment.fileName ?? ''}
-              className="media-lightbox-image"
-            />
-            {attachment.fileName && (
-              <span className="media-lightbox-filename">{attachment.fileName}</span>
-            )}
-          </div>
-          <button
-            type="button"
-            className="media-lightbox-close"
-            onClick={closeLightbox}
-            aria-label={t('common.close', 'Close')}
-          >
-            &times;
-          </button>
-        </div>,
-        document.body
+      {imageUrl && !isVideo && (
+        <ImageLightbox
+          src={imageUrl}
+          alt={attachment.fileName ?? ''}
+          fileName={attachment.fileName}
+          isOpen={lightboxOpen}
+          onClose={closeLightbox}
+        />
       )}
     </div>
   );
