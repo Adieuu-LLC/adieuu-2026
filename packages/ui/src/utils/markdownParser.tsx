@@ -353,7 +353,7 @@ function renderMentionNode(identityId: string, ctx: RenderCtx): ReactNode {
 function renderTextWithUrls(text: string, ctx: RenderCtx): ReactNode[] {
   const segments = parseMessageSegments(text);
 
-  return segments.flatMap((seg) => {
+  return segments.flatMap((seg): ReactNode[] => {
     if (seg.type === 'text') return [seg.value];
 
     const linkSpan = (
