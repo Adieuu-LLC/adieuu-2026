@@ -167,6 +167,33 @@ resource "aws_wafv2_web_acl" "alb" {
           }
           name = "SizeRestrictions_BODY"
         }
+
+        # LiveKit signaling sends large protobuf join requests in query strings
+        # (/rtc/v1?join_request=<protobuf>) that exceed the managed ~2 KiB query string
+        # limit. Exclude LiveKit traffic from this rule group entirely — its endpoints
+        # only accept JWT-authenticated protobufs and have no XSS/SQLi/LFI surface.
+        dynamic "scope_down_statement" {
+          for_each = local.livekit_enabled ? [1] : []
+          content {
+            not_statement {
+              statement {
+                byte_match_statement {
+                  search_string         = var.livekit_domain
+                  positional_constraint = "EXACTLY"
+                  field_to_match {
+                    single_header {
+                      name = "host"
+                    }
+                  }
+                  text_transformation {
+                    priority = 0
+                    type     = "LOWERCASE"
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
 
