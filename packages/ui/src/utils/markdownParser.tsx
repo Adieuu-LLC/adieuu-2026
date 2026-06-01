@@ -18,6 +18,8 @@ import { createCustomEmojiColonTokenRegex, type PublicIdentity, type CustomEmoji
 import type { MentionEntity } from '../services/messagePayload';
 import type { MemberSettingsMap } from '../services/conversationCryptoService';
 import { IdentityHoverCard } from '../components/IdentityHoverCard';
+import { Tooltip } from '../components/Tooltip';
+import { Icon } from '../icons/Icon';
 import { parseMessageSegments } from './urlParsing';
 
 // ---------------------------------------------------------------------------
@@ -233,11 +235,20 @@ const TAG_FOR_TYPE = {
   strikethrough: 'del',
 } as const;
 
+export type HiddenEmbedReason = 'disabled' | 'domain-not-allowed';
+
+export interface HiddenEmbedInfo {
+  reason: HiddenEmbedReason;
+  overrideActive: boolean;
+  onToggle: (trigger?: HTMLElement) => void;
+}
+
 /** Mutable counter threaded through a single render pass for stable keys. */
 interface RenderCtx {
   k: number;
   onLinkClick: (href: string) => void;
   mentionCtx?: MentionRenderContext;
+  hiddenEmbeds?: Map<string, HiddenEmbedInfo>;
 }
 
 function parseInline(text: string, ctx: RenderCtx): ReactNode[] {
@@ -342,9 +353,10 @@ function renderMentionNode(identityId: string, ctx: RenderCtx): ReactNode {
 function renderTextWithUrls(text: string, ctx: RenderCtx): ReactNode[] {
   const segments = parseMessageSegments(text);
 
-  return segments.map((seg) => {
-    if (seg.type === 'text') return seg.value;
-    return (
+  return segments.flatMap((seg) => {
+    if (seg.type === 'text') return [seg.value];
+
+    const linkSpan = (
       <span
         key={ctx.k++}
         className="dm-link"
@@ -366,6 +378,34 @@ function renderTextWithUrls(text: string, ctx: RenderCtx): ReactNode[] {
         {seg.raw}
       </span>
     );
+
+    const hidden = ctx.hiddenEmbeds?.get(seg.href);
+    if (!hidden) return [linkSpan];
+
+    const tooltipText = hidden.overrideActive
+      ? 'Click to hide embed'
+      : hidden.reason === 'disabled'
+        ? 'Embed available but hidden (embeds disabled)'
+        : 'Embed available but hidden (domain not in allowlist)';
+
+    const toggleBtn = (
+      <Tooltip key={ctx.k++} content={tooltipText} position="top">
+        <button
+          type="button"
+          className="dm-link-embed-toggle"
+          aria-label={tooltipText}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            hidden.onToggle(e.currentTarget as HTMLElement);
+          }}
+        >
+          <Icon name={hidden.overrideActive ? 'eye' : 'eyeSlash'} size="sm" />
+        </button>
+      </Tooltip>
+    );
+
+    return [linkSpan, toggleBtn];
   });
 }
 
@@ -478,10 +518,11 @@ export function renderFormattedMessage(
   onLinkClick: (href: string) => void,
   mentionCtx?: MentionRenderContext,
   customEmojis?: Record<string, CustomEmojiPayloadEntry>,
+  hiddenEmbeds?: Map<string, HiddenEmbedInfo>,
 ): ReactNode | null {
   if (!text) return null;
 
-  const ctx: RenderCtx = { k: 0, onLinkClick, mentionCtx };
+  const ctx: RenderCtx = { k: 0, onLinkClick, mentionCtx, hiddenEmbeds };
   const blocks = parseBlocks(text);
   if (blocks.length === 0) return null;
 

@@ -786,39 +786,37 @@ export function IdentityAppearance() {
               </div>
             )}
 
-            {embedPref.mode !== 'none' && (
-              <div className="app-settings-embed-max-width">
-                <span className="app-settings-toggle-title">
-                  {t('identity.appearance.embedMaxWidthTitle', 'Max Embed Width')}
-                </span>
-                <RadioGroup.Root
-                  value={String(embedPref.maxWidth)}
-                  onValueChange={handleEmbedMaxWidthChange}
-                  className="app-settings-radio-group"
-                >
-                  <RadioGroup.Item value="0" className="app-settings-radio-item">
-                    <RadioGroup.ItemControl className="app-settings-radio-control" />
-                    <RadioGroup.ItemText>{t('identity.appearance.embedMaxWidthNone', 'No max')}</RadioGroup.ItemText>
-                    <RadioGroup.ItemHiddenInput />
-                  </RadioGroup.Item>
-                  <RadioGroup.Item value="100" className="app-settings-radio-item">
-                    <RadioGroup.ItemControl className="app-settings-radio-control" />
-                    <RadioGroup.ItemText>100px</RadioGroup.ItemText>
-                    <RadioGroup.ItemHiddenInput />
-                  </RadioGroup.Item>
-                  <RadioGroup.Item value="300" className="app-settings-radio-item">
-                    <RadioGroup.ItemControl className="app-settings-radio-control" />
-                    <RadioGroup.ItemText>300px</RadioGroup.ItemText>
-                    <RadioGroup.ItemHiddenInput />
-                  </RadioGroup.Item>
-                  <RadioGroup.Item value="500" className="app-settings-radio-item">
-                    <RadioGroup.ItemControl className="app-settings-radio-control" />
-                    <RadioGroup.ItemText>500px</RadioGroup.ItemText>
-                    <RadioGroup.ItemHiddenInput />
-                  </RadioGroup.Item>
-                </RadioGroup.Root>
-              </div>
-            )}
+            <div className="app-settings-embed-max-width">
+              <span className="app-settings-toggle-title">
+                {t('identity.appearance.embedMaxWidthTitle', 'Max Embed Width')}
+              </span>
+              <RadioGroup.Root
+                value={String(embedPref.maxWidth)}
+                onValueChange={handleEmbedMaxWidthChange}
+                className="app-settings-radio-group"
+              >
+                <RadioGroup.Item value="0" className="app-settings-radio-item">
+                  <RadioGroup.ItemControl className="app-settings-radio-control" />
+                  <RadioGroup.ItemText>{t('identity.appearance.embedMaxWidthNone', 'No max')}</RadioGroup.ItemText>
+                  <RadioGroup.ItemHiddenInput />
+                </RadioGroup.Item>
+                <RadioGroup.Item value="100" className="app-settings-radio-item">
+                  <RadioGroup.ItemControl className="app-settings-radio-control" />
+                  <RadioGroup.ItemText>100px</RadioGroup.ItemText>
+                  <RadioGroup.ItemHiddenInput />
+                </RadioGroup.Item>
+                <RadioGroup.Item value="300" className="app-settings-radio-item">
+                  <RadioGroup.ItemControl className="app-settings-radio-control" />
+                  <RadioGroup.ItemText>300px</RadioGroup.ItemText>
+                  <RadioGroup.ItemHiddenInput />
+                </RadioGroup.Item>
+                <RadioGroup.Item value="500" className="app-settings-radio-item">
+                  <RadioGroup.ItemControl className="app-settings-radio-control" />
+                  <RadioGroup.ItemText>500px</RadioGroup.ItemText>
+                  <RadioGroup.ItemHiddenInput />
+                </RadioGroup.Item>
+              </RadioGroup.Root>
+            </div>
           </div>
         </Card>
       </div>
