@@ -28,6 +28,7 @@ import {
   filenameToDisplayName,
   type PublicCustomEmoji,
 } from '@adieuu/shared';
+import { scheduleUploads, retryItem } from './emojiUploadQueue';
 
 const EMOJI_ACCEPTED_TYPES = ['image/png', 'image/webp', 'image/gif'];
 const EMOJI_MAX_BYTES = 256 * 1024; // 256 KB
@@ -86,27 +87,37 @@ interface PendingEmojiItem {
   uploadFailed: boolean;
   saveState: 'idle' | 'saving' | 'saved' | 'error';
   saveError: string | null;
+  retryCount: number;
+  uploadStarted: boolean;
 }
+
+const MAX_CONCURRENT_UPLOADS = 20;
+const MAX_RETRIES = 2;
 
 let _bulkSeq = 0;
 
 /**
  * Renders a single pending emoji and drives its upload via useMediaUpload.
  * Reports completion/failure back to the parent via callbacks.
+ * Upload only starts when `startUpload` is true (concurrency gated by parent).
  */
 function BulkEmojiUploadItem({
   item,
   onMetadataChange,
   onUploadDone,
   onRemove,
+  onRetry,
+  startUpload,
 }: {
   item: PendingEmojiItem;
   onMetadataChange: (id: string, field: 'shortcode' | 'name', value: string) => void;
   onUploadDone: (id: string, mediaId: string | null, failed: boolean) => void;
   onRemove: (id: string) => void;
+  onRetry: (id: string) => void;
+  startUpload: boolean;
 }) {
   const {
-    upload, state: uploadState, progress, error: uploadError, mediaId,
+    upload, reset: resetUpload, state: uploadState, progress, error: uploadError, mediaId,
   } = useMediaUpload({
     purpose: 'custom_emoji',
     maxSizeBytes: EMOJI_MAX_BYTES,
@@ -114,14 +125,33 @@ function BulkEmojiUploadItem({
   });
 
   const startedRef = useRef(false);
+  const retrySeqRef = useRef(item.retryCount);
+
   useEffect(() => {
+    if (!startUpload) return;
+
+    if (item.retryCount > retrySeqRef.current) {
+      retrySeqRef.current = item.retryCount;
+      startedRef.current = false;
+      resetUpload();
+    }
+
     if (!startedRef.current) {
       startedRef.current = true;
       upload(item.file);
     }
-  }, [upload, item.file]);
+  }, [startUpload, upload, resetUpload, item.file, item.retryCount]);
 
   const reportedRef = useRef(false);
+  const reportedRetryRef = useRef(item.retryCount);
+
+  useEffect(() => {
+    if (item.retryCount > reportedRetryRef.current) {
+      reportedRetryRef.current = item.retryCount;
+      reportedRef.current = false;
+    }
+  }, [item.retryCount]);
+
   useEffect(() => {
     if (reportedRef.current) return;
     if (uploadState === 'complete' && mediaId) {
@@ -134,8 +164,10 @@ function BulkEmojiUploadItem({
   }, [uploadState, mediaId, item.id, onUploadDone]);
 
   const isUploading = uploadState === 'requesting' || uploadState === 'uploading' || uploadState === 'processing';
+  const isWaiting = startUpload === false && !item.uploadDone && !item.uploadFailed;
   const showFields = item.uploadDone && item.saveState !== 'saved';
   const scErr = item.shortcode ? shortcodeError(item.shortcode) : null;
+  const canRetry = item.uploadFailed && item.retryCount < MAX_RETRIES;
 
   return (
     <div
@@ -153,12 +185,27 @@ function BulkEmojiUploadItem({
       </div>
 
       <div className="bulk-emoji-item-body">
+        {isWaiting && (
+          <span className="bulk-emoji-item-status">Queued...</span>
+        )}
+
         {isUploading && (
           <UploadStateIndicator state={uploadState} progress={progress} error={null} />
         )}
 
         {uploadState === 'error' && (
-          <p className="custom-emoji-upload-error">{uploadError ?? 'Upload failed'}</p>
+          <div className="bulk-emoji-item-error-row">
+            <p className="custom-emoji-upload-error">{uploadError ?? 'Upload failed'}</p>
+            {canRetry && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm bulk-emoji-item-retry"
+                onClick={() => onRetry(item.id)}
+              >
+                Retry
+              </button>
+            )}
+          </div>
         )}
 
         {showFields && (
@@ -238,6 +285,7 @@ function CreateEmojiDialog({
   const [dragging, setDragging] = useState(false);
   const [saving, setSaving] = useState(false);
   const [overallError, setOverallError] = useState<string | null>(null);
+  const [allSavedSuccessfully, setAllSavedSuccessfully] = useState(false);
   const dragCounterRef = useRef(0);
 
   const { identity } = useIdentity();
@@ -268,9 +316,12 @@ function CreateEmojiDialog({
         uploadFailed: false,
         saveState: 'idle',
         saveError: null,
+        retryCount: 0,
+        uploadStarted: false,
       }));
       return [...prev, ...next];
     });
+    setAllSavedSuccessfully(false);
   }, [remainingSlots]);
 
   const handleFileInput = useCallback(
@@ -316,6 +367,17 @@ function CreateEmojiDialog({
     [addFiles],
   );
 
+  /* ---- concurrency control ---- */
+
+  const activeUploadCount = useMemo(
+    () => items.filter((i) => i.uploadStarted && !i.uploadDone && !i.uploadFailed).length,
+    [items],
+  );
+
+  useEffect(() => {
+    setItems((prev) => scheduleUploads(prev, MAX_CONCURRENT_UPLOADS));
+  }, [items.length, activeUploadCount]);
+
   /* ---- child callbacks ---- */
 
   const handleUploadDone = useCallback(
@@ -328,6 +390,13 @@ function CreateEmojiDialog({
     },
     [],
   );
+
+  const handleRetry = useCallback((id: string) => {
+    setItems((prev) => {
+      const updated = retryItem(prev, id, MAX_RETRIES);
+      return updated.map((i) => (i.id === id ? { ...i, mediaId: null } : i));
+    });
+  }, []);
 
   const handleMetadataChange = useCallback(
     (id: string, field: 'shortcode' | 'name', value: string) => {
@@ -347,14 +416,24 @@ function CreateEmojiDialog({
   /* ---- close / cleanup ---- */
 
   const handleClose = useCallback(() => {
+    const hadSaved = items.some((i) => i.saveState === 'saved');
     for (const item of items) URL.revokeObjectURL(item.previewUrl);
     setItems([]);
     setSaving(false);
     setOverallError(null);
+    setAllSavedSuccessfully(false);
     dragCounterRef.current = 0;
     setDragging(false);
     onOpenChange(false);
-  }, [items, onOpenChange]);
+    if (hadSaved) onCreated();
+  }, [items, onOpenChange, onCreated]);
+
+  const handleUploadMore = useCallback(() => {
+    for (const item of items) URL.revokeObjectURL(item.previewUrl);
+    setItems([]);
+    setAllSavedSuccessfully(false);
+    setOverallError(null);
+  }, [items]);
 
   /* ---- save all ---- */
 
@@ -407,12 +486,9 @@ function CreateEmojiDialog({
     setSaving(false);
 
     if (allOk) {
-      for (const item of items) URL.revokeObjectURL(item.previewUrl);
-      setItems([]);
-      onOpenChange(false);
-      onCreated();
+      setAllSavedSuccessfully(true);
     }
-  }, [items, createEmoji, onOpenChange, onCreated]);
+  }, [items, createEmoji]);
 
   /* ---- derived state ---- */
 
@@ -423,7 +499,7 @@ function CreateEmojiDialog({
     !saving &&
     activeItems.every((i) => i.shortcode.length >= 2 && i.name.trim().length > 0);
   const hasItems = items.length > 0;
-  const canAddMore = items.length < remainingSlots && !saving;
+  const canAddMore = items.length < remainingSlots && !saving && !allSavedSuccessfully;
 
   return (
     <Dialog.Root open={open} onOpenChange={(e) => { if (!e.open) handleClose(); }}>
@@ -477,6 +553,8 @@ function CreateEmojiDialog({
                       onMetadataChange={handleMetadataChange}
                       onUploadDone={handleUploadDone}
                       onRemove={handleRemove}
+                      onRetry={handleRetry}
+                      startUpload={item.uploadStarted}
                     />
                   ))}
 
@@ -506,15 +584,28 @@ function CreateEmojiDialog({
             />
 
             <div className="confirm-dialog-footer">
-              <Button variant="secondary" type="button" onClick={handleClose} disabled={saving}>
-                {t('common.cancel', 'Cancel')}
-              </Button>
-              {activeItems.length > 0 && (
-                <Button variant="primary" type="button" onClick={handleSaveAll} disabled={!canSave}>
-                  {saving
-                    ? t('identity.customEmojis.saving', 'Saving...')
-                    : t('identity.customEmojis.save', { count: activeItems.length })}
-                </Button>
+              {allSavedSuccessfully ? (
+                <>
+                  <Button variant="secondary" type="button" onClick={handleUploadMore}>
+                    {t('identity.customEmojis.uploadMore', 'Upload More')}
+                  </Button>
+                  <Button variant="primary" type="button" onClick={handleClose}>
+                    {t('identity.customEmojis.done', 'Done')}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button variant="secondary" type="button" onClick={handleClose} disabled={saving}>
+                    {t('common.cancel', 'Cancel')}
+                  </Button>
+                  {activeItems.length > 0 && (
+                    <Button variant="primary" type="button" onClick={handleSaveAll} disabled={!canSave}>
+                      {saving
+                        ? t('identity.customEmojis.saving', 'Saving...')
+                        : t('identity.customEmojis.save', { count: activeItems.length })}
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           </Dialog.Content>
@@ -600,6 +691,8 @@ function EmojiEditRow({
   );
 }
 
+type EmojiSortMode = 'name' | 'shortcode' | 'recent';
+
 export function IdentityCustomEmojis() {
   const { t } = useTranslation();
   const { status: identityStatus, identity } = useIdentity();
@@ -609,6 +702,7 @@ export function IdentityCustomEmojis() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PublicCustomEmoji | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [sortMode, setSortMode] = useState<EmojiSortMode>('name');
 
   const handleDelete = useCallback(async () => {
     if (!deleteTarget) return;
@@ -618,10 +712,21 @@ export function IdentityCustomEmojis() {
     setDeleteTarget(null);
   }, [deleteTarget, deleteEmoji]);
 
-  const sortedEmojis = useMemo(
-    () => [...emojis].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-    [emojis],
-  );
+  const handleDialogCreated = useCallback(() => {
+    refresh();
+  }, [refresh]);
+
+  const sortedEmojis = useMemo(() => {
+    const copy = [...emojis];
+    switch (sortMode) {
+      case 'name':
+        return copy.sort((a, b) => a.name.localeCompare(b.name));
+      case 'shortcode':
+        return copy.sort((a, b) => a.shortcode.localeCompare(b.shortcode));
+      case 'recent':
+        return copy.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+  }, [emojis, sortMode]);
 
   if (identityStatus === 'locked') {
     return (
@@ -673,7 +778,7 @@ export function IdentityCustomEmojis() {
             </div>
           </div>
 
-          {/* Add button */}
+          {/* Add button and sort controls */}
           <div className="custom-emoji-header-actions">
             <Button
               variant="primary"
@@ -687,6 +792,23 @@ export function IdentityCustomEmojis() {
               <span className="custom-emoji-limit-note">
                 {t('identity.customEmojis.limitReached', 'You have reached your custom emoji limit. Upgrade your subscription for more.')}
               </span>
+            )}
+            {emojis.length > 1 && (
+              <div className="custom-emoji-sort-controls">
+                <label className="custom-emoji-sort-label" htmlFor="emoji-sort">
+                  {t('identity.customEmojis.sortLabel', 'Sort by')}
+                </label>
+                <select
+                  id="emoji-sort"
+                  className="input custom-emoji-sort-select"
+                  value={sortMode}
+                  onChange={(e) => setSortMode(e.target.value as EmojiSortMode)}
+                >
+                  <option value="name">{t('identity.customEmojis.sortName', 'Name')}</option>
+                  <option value="shortcode">{t('identity.customEmojis.sortShortcode', 'Shortcode')}</option>
+                  <option value="recent">{t('identity.customEmojis.sortRecent', 'Recently uploaded')}</option>
+                </select>
+              </div>
             )}
           </div>
 
@@ -757,7 +879,7 @@ export function IdentityCustomEmojis() {
       <CreateEmojiDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={refresh}
+        onCreated={handleDialogCreated}
         remainingSlots={Math.max(0, limit - used)}
       />
 
