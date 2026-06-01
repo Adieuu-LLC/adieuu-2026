@@ -562,14 +562,14 @@ variable "livekit_enabled" {
 variable "livekit_domain" {
   type        = string
   description = "FQDN for the LiveKit SFU (must sit under route53_zone_name). Used for ALB host routing, ACM, and Route53 records."
-  default     = "livekit.adieuu.com"
+  default     = "livestream.adieuu.com"
 
   validation {
     condition = (
       !var.livekit_enabled ||
       endswith(var.livekit_domain, trimsuffix(trimspace(var.route53_zone_name), "."))
     )
-    error_message = "livekit_domain must be a subdomain of route53_zone_name (e.g. livekit.example.com under example.com)."
+    error_message = "livekit_domain must be a subdomain of route53_zone_name (e.g. livestream.example.com under example.com)."
   }
 }
 

@@ -417,7 +417,7 @@ resource "aws_lb_listener_certificate" "livekit" {
 # -----------------------------------------------------------------------------
 # Route 53 Records
 # Points the livekit domain at the ALB for WebSocket signaling.
-# Clients connect via wss://livekit.adieuu.com, then LiveKit nodes advertise
+# Clients connect via wss://livestream.adieuu.com, then LiveKit nodes advertise
 # their public IPs for direct UDP media connections.
 # -----------------------------------------------------------------------------
 
