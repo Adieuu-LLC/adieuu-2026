@@ -294,7 +294,36 @@ export function FriendsPanel({
         )}
         {displayedFriends.length === 0 && searchQuery.trim().length >= 2 && !isSearching && (
           <div className="sidebar-friends-panel-empty">
-            {t('search.noResults')}
+            <p>{t('friends.searchingOnlyFriends')}</p>
+            <button
+              type="button"
+              className="sidebar-friends-panel-search-everyone"
+              onClick={() => {
+                closeMobile();
+                onClose();
+                navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
+              }}
+            >
+              {t('friends.searchEveryone')}
+            </button>
+          </div>
+        )}
+
+        {displayedFriends.length > 0 && searchQuery.trim().length >= 2 && (
+          <div className="sidebar-friends-panel-search-footer">
+            <span>{t('friends.searchingOnlyFriends')}</span>
+            {' '}
+            <button
+              type="button"
+              className="sidebar-friends-panel-search-everyone"
+              onClick={() => {
+                closeMobile();
+                onClose();
+                navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
+              }}
+            >
+              {t('friends.searchEveryone')}
+            </button>
           </div>
         )}
       </div>

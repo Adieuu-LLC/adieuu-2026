@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ChatIncomingMessage } from '@adieuu/shared';
+import type { ChatIncomingMessage, StreamQualityCaps } from '@adieuu/shared';
 import { createApiClient } from '@adieuu/shared';
 import { useAppConfig } from '../config';
 import { useIdentity } from './useIdentity';
@@ -36,6 +36,7 @@ interface CallSession {
   call: PublicCall;
   livekitToken?: string;
   livekitUrl?: string;
+  streamQualityCaps?: StreamQualityCaps;
 }
 
 export interface CallSessionContextValue {
@@ -50,6 +51,8 @@ export interface CallSessionContextValue {
   livekitUrl: string | null;
   /** LiveKit JWT token for the active session. */
   livekitToken: string | null;
+  /** Per-user streaming resolution caps (camera + screenshare). */
+  streamQualityCaps: StreamQualityCaps | null;
 
   requestStartCall: (conversationId: string, media: CallMediaOptions) => void;
   requestJoinCall: (conversationId: string, callId: string, media: CallMediaOptions) => void;
@@ -151,6 +154,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
         let call: PublicCall;
         let livekitToken: string | undefined;
         let livekitUrl: string | undefined;
+        let streamQualityCaps: StreamQualityCaps | undefined;
 
         if (pendingIsJoin && pendingCallId) {
           const resp = await apiJoinCall(client, pendingConversationId, pendingCallId, pendingCallType);
@@ -160,6 +164,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
           call = resp.data.call;
           livekitToken = resp.data.livekitToken;
           livekitUrl = resp.data.livekitUrl;
+          streamQualityCaps = resp.data.streamQualityCaps;
         } else {
           const resp = await apiInitiateCall(client, pendingConversationId, pendingCallType);
           if (!resp.success || !resp.data) {
@@ -176,6 +181,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
           call = resp.data.call;
           livekitToken = resp.data.livekitToken;
           livekitUrl = resp.data.livekitUrl;
+          streamQualityCaps = resp.data.streamQualityCaps;
         }
 
         if (!livekitToken || !livekitUrl) {
@@ -191,6 +197,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
           call,
           livekitToken,
           livekitUrl,
+          streamQualityCaps,
         };
         setSession(newSession);
         setPhase('active');
@@ -309,6 +316,7 @@ export function CallSessionProvider({ children }: { children: ReactNode }) {
       pendingCallId,
       livekitUrl: session?.livekitUrl ?? null,
       livekitToken: session?.livekitToken ?? null,
+      streamQualityCaps: session?.streamQualityCaps ?? null,
       requestStartCall,
       requestJoinCall,
       confirmDeviceSetup,

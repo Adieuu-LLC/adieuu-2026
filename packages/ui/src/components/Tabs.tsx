@@ -1,4 +1,6 @@
-import { useState, createContext, useContext, ReactNode } from 'react';
+import { useState, createContext, useContext, useMemo, type ReactNode } from 'react';
+import { Select, Portal, createListCollection } from '@ark-ui/react';
+import { Icon } from '../icons/Icon';
 
 interface TabsContextValue {
   activeTab: string;
@@ -27,17 +29,14 @@ interface TabsProps {
 }
 
 export function Tabs({ defaultTab, value, onValueChange, children, className = '' }: TabsProps) {
-  // Support both controlled and uncontrolled modes
   const [internalTab, setInternalTab] = useState(defaultTab ?? '');
   
   const activeTab = value !== undefined ? value : internalTab;
   
   const setActiveTab = (tab: string) => {
     if (value === undefined) {
-      // Uncontrolled mode - update internal state
       setInternalTab(tab);
     }
-    // Always call onValueChange if provided
     onValueChange?.(tab);
   };
 
@@ -48,16 +47,78 @@ export function Tabs({ defaultTab, value, onValueChange, children, className = '
   );
 }
 
+export interface TabItem {
+  value: string;
+  label: string;
+}
+
 interface TabListProps {
   children: ReactNode;
   className?: string;
+  /** When provided, renders a mobile-friendly Select dropdown alongside the tab buttons. */
+  mobileItems?: TabItem[];
 }
 
-export function TabList({ children, className = '' }: TabListProps) {
+export function TabList({ children, className = '', mobileItems }: TabListProps) {
+  const { activeTab, setActiveTab } = useTabsContext();
+
+  const collection = useMemo(
+    () => mobileItems
+      ? createListCollection({ items: mobileItems.map((item) => ({ value: item.value, label: item.label })) })
+      : null,
+    [mobileItems],
+  );
+
+  const activeLabel = mobileItems?.find((item) => item.value === activeTab)?.label ?? '';
+
   return (
-    <div className={`tabs-list ${className}`} role="tablist">
-      {children}
-    </div>
+    <>
+      <div className={`tabs-list ${className}`} role="tablist">
+        {children}
+      </div>
+
+      {collection && mobileItems && (
+        <div className="tabs-mobile-select-wrapper">
+          <Select.Root
+            collection={collection}
+            value={[activeTab]}
+            onValueChange={(details) => {
+              const next = details.value[0];
+              if (next) setActiveTab(next);
+            }}
+            positioning={{ sameWidth: true }}
+          >
+            <Select.Control className="tabs-mobile-select-control">
+              <Select.Trigger className="tabs-mobile-select-trigger">
+                <Select.ValueText>{activeLabel}</Select.ValueText>
+                <Select.Indicator className="tabs-mobile-select-indicator">
+                  <Icon name="chevronDown" size="xs" />
+                </Select.Indicator>
+              </Select.Trigger>
+            </Select.Control>
+
+            <Portal>
+              <Select.Positioner>
+                <Select.Content className="tabs-mobile-select-content">
+                  {collection.items.map((item) => (
+                    <Select.Item
+                      key={item.value}
+                      item={item}
+                      className="tabs-mobile-select-item"
+                    >
+                      <Select.ItemText>{item.label}</Select.ItemText>
+                      <Select.ItemIndicator className="tabs-mobile-select-check">
+                        <Icon name="check" size="xs" />
+                      </Select.ItemIndicator>
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Positioner>
+            </Portal>
+          </Select.Root>
+        </div>
+      )}
+    </>
   );
 }
 

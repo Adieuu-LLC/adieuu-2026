@@ -24,6 +24,8 @@ import { removeParticipant as livekitRemoveParticipant, deleteRoom as livekitDel
 import { publishToParticipants, publishConversationEvent } from './conversation/redis-events';
 import { createNotification } from './notification.service';
 import { checkRateLimit, getCallInitiateConfig } from './rate-limit.service';
+import { resolveStreamQualityCaps } from '@adieuu/shared';
+import type { StreamQualityCaps, SubscriptionTierId } from '@adieuu/shared';
 import type { CallDocument, CallMediaOptions, PublicCall } from '../models/call';
 import { toPublicCall } from '../models/call';
 import elog from '../utils/adieuuLogger';
@@ -38,6 +40,8 @@ export interface CallResult {
   livekitToken?: string;
   /** LiveKit server WebSocket URL the client should connect to. */
   livekitUrl?: string;
+  /** Per-user streaming resolution caps (camera + screenshare). */
+  streamQualityCaps?: StreamQualityCaps;
   error?: string;
   errorCode?: string;
   /** Seconds until rate limit resets (when errorCode is RATE_LIMITED) */
@@ -58,7 +62,8 @@ export interface CallResult {
 export async function initiateCall(
   conversationId: string,
   initiatorIdentityId: string,
-  requestedMedia: CallMediaOptions
+  requestedMedia: CallMediaOptions,
+  access: { subscriptions: readonly SubscriptionTierId[]; entitlements: readonly string[] },
 ): Promise<CallResult> {
   const rlConfig = await getCallInitiateConfig(initiatorIdentityId);
   const rl = await checkRateLimit('calls:initiate:identity', initiatorIdentityId, rlConfig);
@@ -100,12 +105,15 @@ export async function initiateCall(
   const roomName = generateRoomName();
 
   let livekitToken: string | undefined;
+  const streamQualityCaps = resolveStreamQualityCaps(access.subscriptions, access.entitlements);
+
   if (config.livekit.enabled) {
     try {
       livekitToken = await mintLiveKitToken({
         roomName,
         identityId: initiatorIdentityId,
         displayName,
+        streamQualityCaps,
       });
     } catch (err) {
       elog.warn('Failed to mint LiveKit token on initiate', { conversationId, err });
@@ -181,6 +189,7 @@ export async function initiateCall(
     call: publicCall,
     livekitToken,
     livekitUrl: config.livekit.enabled ? config.livekit.url : undefined,
+    streamQualityCaps,
   };
 }
 
@@ -195,7 +204,8 @@ export async function joinCall(
   conversationId: string,
   callId: string,
   identityId: string,
-  mediaState: CallMediaOptions
+  mediaState: CallMediaOptions,
+  access: { subscriptions: readonly SubscriptionTierId[]; entitlements: readonly string[] },
 ): Promise<CallResult> {
   const callRepo = getCallRepository();
   const conversationRepo = getConversationRepository();
@@ -232,12 +242,15 @@ export async function joinCall(
   const displayName = identity?.displayName || identity?.username || 'Unknown';
 
   let livekitToken: string | undefined;
+  const streamQualityCaps = resolveStreamQualityCaps(access.subscriptions, access.entitlements);
+
   if (config.livekit.enabled) {
     try {
       livekitToken = await mintLiveKitToken({
         roomName: call.roomName,
         identityId,
         displayName,
+        streamQualityCaps,
       });
     } catch (err) {
       elog.warn('Failed to mint LiveKit token on join', { callId, err });
@@ -279,6 +292,7 @@ export async function joinCall(
     call: publicCall,
     livekitToken,
     livekitUrl: config.livekit.enabled ? config.livekit.url : undefined,
+    streamQualityCaps,
   };
 }
 

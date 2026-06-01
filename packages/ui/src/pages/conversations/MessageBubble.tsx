@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo, type ReactElement } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, memo, type ReactElement } from 'react';
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Menu } from '@ark-ui/react';
@@ -31,6 +31,12 @@ import { ReactionBar } from './ReactionBar';
 import { MessageMediaAttachment } from './MessageMediaAttachment';
 import { MessageGifAttachment } from './MessageGifAttachment';
 import type { MediaMessageLayout } from '../../components/MediaMessage';
+import { MessageEmbeds } from '../../components/embeds';
+import { useEmbedPreference, isDomainAllowed } from '../../hooks/useEmbedPreference';
+import { detectEmbeds, extractTld } from '../../utils/embedDetection';
+import type { HiddenEmbedInfo } from '../../utils/markdownParser';
+import { useAppConfig } from '../../config';
+import { createUnfurlFetcher } from '../../services/unfurlService';
 
 export function ReplyQuoteButton({ replyQuote }: { replyQuote: ReplyQuotePayload }) {
   const { text, quotedAuthor, onQuoteClick } = replyQuote;
@@ -186,6 +192,10 @@ export const MessageBubble = memo(function MessageBubble({
   const { t } = useTranslation();
   const { block: blockIdentity } = useBlockContext();
   const toast = useToast();
+  const { apiBaseUrl } = useAppConfig();
+  const [embedPreference] = useEmbedPreference(selfId ?? '');
+  const fetchMetadata = useMemo(() => createUnfurlFetcher(apiBaseUrl), [apiBaseUrl]);
+  const [embedOverrides, setEmbedOverrides] = useState<Record<string, boolean>>({});
   const [showActions, setShowActions] = useState(false);
   const [actionBarPopoverOpen, setActionBarPopoverOpen] = useState(false);
   const [showContextReactionPicker, setShowContextReactionPicker] = useState(false);
@@ -258,13 +268,82 @@ export const MessageBubble = memo(function MessageBubble({
     onMentionClick,
   }), [participantProfiles, memberSettings, selfId, onMentionClick]);
   const effectiveCustomEmojis = customEmojisDisabled ? undefined : parsed.customEmojis;
+
+  const embedOverridesRef = useRef(embedOverrides);
+  embedOverridesRef.current = embedOverrides;
+
+  const toggleEmbedOverride = useCallback((url: string, trigger?: HTMLElement) => {
+    const isShowing = embedOverridesRef.current[url] !== true;
+
+    setEmbedOverrides((prev) => {
+      if (prev[url] === true) {
+        const next = { ...prev };
+        delete next[url];
+        return next;
+      }
+      return { ...prev, [url]: true };
+    });
+
+    if (isShowing && trigger) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const messageEl = trigger.closest('.dm-message');
+          const embedEl = messageEl?.querySelector('.message-embeds');
+          if (embedEl) {
+            embedEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }
+        });
+      });
+    }
+  }, []);
+
+  const hiddenEmbedMap = useMemo((): Map<string, HiddenEmbedInfo> | undefined => {
+    if (!content) return undefined;
+    const embeds = detectEmbeds(content);
+    if (embeds.length === 0) return undefined;
+
+    const tooltipHide = t('identity.appearance.embedToggleHide', 'Click to hide embed');
+    const tooltipDisabled = t('identity.appearance.embedToggleDisabled', 'Embed available but hidden (embeds disabled)');
+    const tooltipNotAllowlisted = t('identity.appearance.embedToggleNotAllowlisted', 'Embed available but hidden (domain not in allowlist)');
+
+    const map = new Map<string, HiddenEmbedInfo>();
+    for (const embed of embeds) {
+      const isOverridden = embedOverrides[embed.url] === true;
+
+      if (embedPreference.mode === 'none') {
+        map.set(embed.url, {
+          reason: 'disabled',
+          overrideActive: isOverridden,
+          onToggle: (trigger?: HTMLElement) => toggleEmbedOverride(embed.url, trigger),
+          tooltipText: isOverridden ? tooltipHide : tooltipDisabled,
+        });
+      } else {
+        const domain = extractTld(embed.url);
+        if (domain && !isDomainAllowed(domain, embedPreference)) {
+          map.set(embed.url, {
+            reason: 'domain-not-allowed',
+            overrideActive: isOverridden,
+            onToggle: (trigger?: HTMLElement) => toggleEmbedOverride(embed.url, trigger),
+            tooltipText: isOverridden ? tooltipHide : tooltipNotAllowlisted,
+          });
+        }
+      }
+    }
+    return map.size > 0 ? map : undefined;
+  }, [content, embedPreference, embedOverrides, toggleEmbedOverride, t]);
+
+  const hasEmbedOverrides = useMemo(
+    () => Object.values(embedOverrides).some((v) => v === true),
+    [embedOverrides],
+  );
+
   const renderedContent = useMemo(() => {
     if (!content) return null;
     const markedText = parsed.mentions.length > 0
       ? injectMentionMarkers(content, parsed.mentions)
       : content;
-    return renderFormattedMessage(markedText, onLinkClick, mentionRenderCtx, effectiveCustomEmojis);
-  }, [content, parsed.mentions, effectiveCustomEmojis, onLinkClick, mentionRenderCtx]);
+    return renderFormattedMessage(markedText, onLinkClick, mentionRenderCtx, effectiveCustomEmojis, hiddenEmbedMap);
+  }, [content, parsed.mentions, effectiveCustomEmojis, onLinkClick, mentionRenderCtx, hiddenEmbedMap]);
   const hasDecryptionError = !message.decryptedContent && !message.deleted;
   const isFsExpired = hasDecryptionError && message.decryptionError?.startsWith('forward-secrecy-expired:');
   const decryptionDisplayText = isFsExpired
@@ -540,6 +619,14 @@ export const MessageBubble = memo(function MessageBubble({
             gifAnimateOnHoverOnly={gifAnimateOnHoverOnly}
           />
         ))}
+        {content && (embedPreference.mode !== 'none' || hasEmbedOverrides) && (
+          <MessageEmbeds
+            text={content}
+            preference={embedPreference}
+            fetchMetadata={fetchMetadata}
+            overrides={embedOverrides}
+          />
+        )}
       </>
     );
 
@@ -761,6 +848,14 @@ export const MessageBubble = memo(function MessageBubble({
                   gifAnimateOnHoverOnly={gifAnimateOnHoverOnly}
                 />
               ))}
+              {content && (embedPreference.mode !== 'none' || hasEmbedOverrides) && (
+                <MessageEmbeds
+                  text={content}
+                  preference={embedPreference}
+                  fetchMetadata={fetchMetadata}
+                  overrides={embedOverrides}
+                />
+              )}
             </>
           )}
         </div>

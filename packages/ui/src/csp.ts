@@ -19,6 +19,7 @@ export const uiCspManifest: Record<string, string[]> = {
   'style-src': ["'unsafe-inline'"],
   'img-src': ['data:', 'blob:'],
   'media-src': ['blob:'],
+  'frame-src': ['https://www.youtube-nocookie.com'],
   'script-src': ['https://unpkg.com', "'wasm-unsafe-eval'"],
   'worker-src': ['blob:'],
   'connect-src': ['https://unpkg.com'],

@@ -10,7 +10,7 @@
  * @module services/callService
  */
 
-import type { HttpClient, ApiResponse, PublicConversation } from '@adieuu/shared';
+import type { HttpClient, ApiResponse, PublicConversation, StreamQualityCaps } from '@adieuu/shared';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -62,7 +62,7 @@ export async function initiateCall(
   client: HttpClient,
   conversationId: string,
   media: CallMediaOptions
-): Promise<ApiResponse<{ call: PublicCall; livekitToken?: string; livekitUrl?: string }>> {
+): Promise<ApiResponse<{ call: PublicCall; livekitToken?: string; livekitUrl?: string; streamQualityCaps?: StreamQualityCaps }>> {
   return client.post(`/api/conversations/${enc(conversationId)}/calls`, { media });
 }
 
@@ -71,7 +71,7 @@ export async function joinCall(
   conversationId: string,
   callId: string,
   media: CallMediaOptions
-): Promise<ApiResponse<{ call: PublicCall; livekitToken?: string; livekitUrl?: string }>> {
+): Promise<ApiResponse<{ call: PublicCall; livekitToken?: string; livekitUrl?: string; streamQualityCaps?: StreamQualityCaps }>> {
   return client.post(
     `/api/conversations/${enc(conversationId)}/calls/${enc(callId)}/join`,
     { media }

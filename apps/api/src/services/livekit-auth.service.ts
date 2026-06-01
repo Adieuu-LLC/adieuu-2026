@@ -10,6 +10,7 @@
 
 import { AccessToken } from 'livekit-server-sdk';
 import { config } from '../config';
+import type { StreamQualityCaps } from '@adieuu/shared';
 
 export interface MintLiveKitTokenInput {
   /** Room name (from CallDocument.roomName) */
@@ -18,6 +19,8 @@ export interface MintLiveKitTokenInput {
   identityId: string;
   /** Display name for the participant */
   displayName: string;
+  /** Streaming resolution caps to encode in participant metadata for server-side enforcement. */
+  streamQualityCaps?: StreamQualityCaps;
 }
 
 /**
@@ -25,6 +28,9 @@ export interface MintLiveKitTokenInput {
  *
  * The token grants room join permission and publish/subscribe rights.
  * LiveKit auto-creates the room on first join, so no pre-creation is needed.
+ *
+ * Stream quality caps are encoded in participant metadata so the webhook
+ * handler can enforce publish limits server-side.
  *
  * @returns LiveKit JWT string
  * @throws Error if LiveKit is not configured
@@ -34,10 +40,15 @@ export async function mintLiveKitToken(input: MintLiveKitTokenInput): Promise<st
     throw new Error('LiveKit integration is not enabled');
   }
 
+  const metadata = input.streamQualityCaps
+    ? JSON.stringify({ streamQualityCaps: input.streamQualityCaps })
+    : undefined;
+
   const at = new AccessToken(config.livekit.apiKey, config.livekit.apiSecret, {
     identity: input.identityId,
     name: input.displayName,
     ttl: config.livekit.tokenTtlSec,
+    metadata,
   });
 
   at.addGrant({

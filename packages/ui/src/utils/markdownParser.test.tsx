@@ -2,10 +2,20 @@ import { describe, expect, mock, test } from 'bun:test';
 import type { ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { PublicIdentity, CustomEmojiPayloadEntry } from '@adieuu/shared';
-import type { MentionRenderContext } from './markdownParser';
+import type { MentionRenderContext, HiddenEmbedInfo } from './markdownParser';
 
 mock.module('../components/IdentityHoverCard', () => ({
   IdentityHoverCard: ({ children }: { children: ReactElement }) => children,
+}));
+
+mock.module('../components/Tooltip', () => ({
+  Tooltip: ({ children, content }: { children: ReactElement; content: string }) => (
+    <span data-tooltip={content}>{children}</span>
+  ),
+}));
+
+mock.module('../icons/Icon', () => ({
+  Icon: ({ name }: { name: string }) => <span data-icon={name} />,
 }));
 
 const { injectMentionMarkers, renderFormattedMessage } = await import('./markdownParser');
@@ -201,5 +211,81 @@ describe('renderFormattedMessage with custom emojis', () => {
     const html = node ? renderToStaticMarkup(node as ReactElement) : '';
     expect(html).toContain(':x:');
     expect(html).not.toContain('dm-custom-emoji-inline');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderFormattedMessage with hidden embed tooltip (localized via props)
+// ---------------------------------------------------------------------------
+
+describe('renderFormattedMessage with hiddenEmbeds', () => {
+  function makeHiddenMap(
+    url: string,
+    overrides: Partial<HiddenEmbedInfo> = {},
+  ): Map<string, HiddenEmbedInfo> {
+    return new Map([
+      [
+        url,
+        {
+          reason: 'disabled',
+          overrideActive: false,
+          onToggle: () => {},
+          tooltipText: 'Localized tooltip text',
+          ...overrides,
+        },
+      ],
+    ]);
+  }
+
+  test('renders localized tooltipText from HiddenEmbedInfo', () => {
+    const url = 'https://example.com/page';
+    const hiddenEmbeds = makeHiddenMap(url, {
+      tooltipText: 'Embed hidden (disabled)',
+    });
+    const node = renderFormattedMessage(url, noop, undefined, undefined, hiddenEmbeds);
+    const html = node ? renderToStaticMarkup(node as ReactElement) : '';
+    expect(html).toContain('data-tooltip="Embed hidden (disabled)"');
+    expect(html).toContain('aria-label="Embed hidden (disabled)"');
+  });
+
+  test('renders different tooltip when override is active', () => {
+    const url = 'https://example.com/page';
+    const hiddenEmbeds = makeHiddenMap(url, {
+      overrideActive: true,
+      tooltipText: 'Click to hide',
+    });
+    const node = renderFormattedMessage(url, noop, undefined, undefined, hiddenEmbeds);
+    const html = node ? renderToStaticMarkup(node as ReactElement) : '';
+    expect(html).toContain('data-tooltip="Click to hide"');
+  });
+
+  test('renders eye icon when override is active', () => {
+    const url = 'https://example.com/page';
+    const hiddenEmbeds = makeHiddenMap(url, { overrideActive: true, tooltipText: 'Hide' });
+    const node = renderFormattedMessage(url, noop, undefined, undefined, hiddenEmbeds);
+    const html = node ? renderToStaticMarkup(node as ReactElement) : '';
+    expect(html).toContain('data-icon="eye"');
+  });
+
+  test('renders eyeSlash icon when override is not active', () => {
+    const url = 'https://example.com/page';
+    const hiddenEmbeds = makeHiddenMap(url, { overrideActive: false, tooltipText: 'Show' });
+    const node = renderFormattedMessage(url, noop, undefined, undefined, hiddenEmbeds);
+    const html = node ? renderToStaticMarkup(node as ReactElement) : '';
+    expect(html).toContain('data-icon="eyeSlash"');
+  });
+
+  test('renders toggle button with dm-link-embed-toggle class', () => {
+    const url = 'https://example.com/page';
+    const hiddenEmbeds = makeHiddenMap(url);
+    const node = renderFormattedMessage(url, noop, undefined, undefined, hiddenEmbeds);
+    const html = node ? renderToStaticMarkup(node as ReactElement) : '';
+    expect(html).toContain('dm-link-embed-toggle');
+  });
+
+  test('URL without hidden embed entry gets no toggle button', () => {
+    const node = renderFormattedMessage('https://example.com/ok', noop);
+    const html = node ? renderToStaticMarkup(node as ReactElement) : '';
+    expect(html).not.toContain('dm-link-embed-toggle');
   });
 });

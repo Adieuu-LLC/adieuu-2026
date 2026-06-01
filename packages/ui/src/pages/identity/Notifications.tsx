@@ -6,11 +6,12 @@
  * under the Identity menu for organisational clarity.
  */
 
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '../../components/Card';
 import { Alert } from '../../components/Alert';
 import { NotificationSoundSelect } from '../../components/NotificationSoundSelect';
+import { SectionNav, type NavSection } from '../../components/SectionNav';
 import { usePlatformCapabilities, usePlatformFeatures } from '../../config';
 import { useToast } from '../../components/Toast';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -515,6 +516,25 @@ export function IdentityNotifications() {
     []
   );
 
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  const sections: NavSection[] = useMemo(() => [
+    { id: 'system-notifications', label: t('account.settings.notifications.sectionTitle') },
+    { id: 'notification-sound', label: t('account.settings.notifications.soundSectionTitle') },
+    { id: 'ttl-sound', label: t('account.settings.notifications.ttlSoundSectionTitle') },
+    { id: 'mention-sound', label: t('account.settings.notifications.mentionSoundSectionTitle') },
+    { id: 'call-ringtone', label: t('account.settings.notifications.callRingtoneSectionTitle') },
+    { id: 'achievements', label: t('account.settings.notifications.achievementSectionTitle') },
+  ], [t]);
+
+  const setSectionRef = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) {
+      sectionRefs.current.set(id, el);
+    } else {
+      sectionRefs.current.delete(id);
+    }
+  }, []);
+
   if (identityStatus === 'locked') {
     return (
       <div className="page-content">
@@ -549,7 +569,11 @@ export function IdentityNotifications() {
           <p className="page-subtitle">{t('account.settings.subtitle')}</p>
         </div>
 
-        <Card variant="elevated" className="slide-up app-settings-card">
+        <div className="appearance-layout">
+          <SectionNav sections={sections} sectionRefs={sectionRefs} ariaLabel={t('account.settings.title')} />
+
+          <div className="appearance-sections">
+        <Card variant="elevated" className="slide-up app-settings-card" ref={(el) => setSectionRef('system-notifications', el)} data-section="system-notifications">
           <h2 className="app-settings-section-title">{t('account.settings.notifications.sectionTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.settings.notifications.sectionDescription')}</p>
 
@@ -603,7 +627,7 @@ export function IdentityNotifications() {
           )}
         </Card>
 
-        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound">
+        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound" ref={(el) => setSectionRef('notification-sound', el)} data-section="notification-sound">
           <h2 className="app-settings-section-title">{t('account.settings.notifications.soundSectionTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.settings.notifications.soundSectionDescription')}</p>
 
@@ -719,7 +743,7 @@ export function IdentityNotifications() {
           </label>
         </Card>
 
-        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound">
+        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound" ref={(el) => setSectionRef('ttl-sound', el)} data-section="ttl-sound">
           <h2 className="app-settings-section-title">{t('account.settings.notifications.ttlSoundSectionTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.settings.notifications.ttlSoundSectionDescription')}</p>
 
@@ -806,7 +830,7 @@ export function IdentityNotifications() {
           )}
         </Card>
 
-        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound">
+        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound" ref={(el) => setSectionRef('mention-sound', el)} data-section="mention-sound">
           <h2 className="app-settings-section-title">{t('account.settings.notifications.mentionSoundSectionTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.settings.notifications.mentionSoundSectionDescription')}</p>
 
@@ -893,7 +917,7 @@ export function IdentityNotifications() {
           )}
         </Card>
 
-        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound">
+        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound" ref={(el) => setSectionRef('call-ringtone', el)} data-section="call-ringtone">
           <h2 className="app-settings-section-title">{t('account.settings.notifications.callRingtoneSectionTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.settings.notifications.callRingtoneSectionDescription')}</p>
 
@@ -980,7 +1004,7 @@ export function IdentityNotifications() {
           )}
         </Card>
 
-        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound">
+        <Card variant="elevated" className="slide-up app-settings-card app-settings-card-sound" ref={(el) => setSectionRef('achievements', el)} data-section="achievements">
           <h2 className="app-settings-section-title">{t('account.settings.notifications.achievementSectionTitle')}</h2>
           <p className="app-settings-section-desc">{t('account.settings.notifications.achievementSectionDescription')}</p>
 
@@ -1106,6 +1130,8 @@ export function IdentityNotifications() {
             </div>
           )}
         </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

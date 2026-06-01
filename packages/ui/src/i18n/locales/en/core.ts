@@ -108,6 +108,8 @@ export const core = {
     ignore: 'Ignore',
     cancel: 'Cancel Request',
     close: 'Close',
+    searchingOnlyFriends: "You're searching only your friends.",
+    searchEveryone: 'Search Everyone',
     viewProfile: 'View Profile',
     remove: 'Remove',
     friendsForDuration: 'Friends for {{duration}}',

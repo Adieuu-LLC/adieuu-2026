@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { LiveKitRoom } from '@livekit/components-react';
 import '@livekit/components-styles';
@@ -32,7 +32,32 @@ export function AppCallOverlay() {
     leaveCall,
     livekitUrl,
     livekitToken,
+    streamQualityCaps,
   } = useCallSession();
+
+  const roomOptions = useMemo(() => {
+    if (!streamQualityCaps) return undefined;
+    return {
+      videoCaptureDefaults: {
+        resolution: {
+          width: streamQualityCaps.camera.width,
+          height: streamQualityCaps.camera.height,
+          frameRate: 30,
+        },
+      },
+      publishDefaults: {
+        videoSimulcastLayers: [],
+        screenShareSimulcastLayers: [],
+      },
+      screenShareCaptureDefaults: {
+        resolution: {
+          width: streamQualityCaps.screenshare.width,
+          height: streamQualityCaps.screenshare.height,
+          frameRate: 15,
+        },
+      },
+    };
+  }, [streamQualityCaps]);
 
   const handleConfirmDevices = useCallback(
     async (devices: { audioDeviceId?: string }) => {
@@ -75,6 +100,7 @@ export function AppCallOverlay() {
             audio={true}
             video={false}
             onDisconnected={handleDisconnected}
+            options={roomOptions}
           >
             <CallConferenceView />
           </LiveKitRoom>

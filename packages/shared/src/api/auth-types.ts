@@ -80,7 +80,7 @@ export interface SessionInfo {
   geo?: SessionGeoInfo;
   /** Active subscription tier ids (both account and identity mode). */
   subscriptions?: SubscriptionTierId[];
-  /** Feature entitlements (e.g. `vanguard`, `founder`, `gifted`). */
+  /** Feature entitlements (e.g. `vanguard`, `founder`, `gifted`, `sponsor`, `stream-2k`, `stream-4k`). */
   entitlements?: string[];
   /**
    * Lifetime billing / perpetual grant (identity mode when derived from merged grants).

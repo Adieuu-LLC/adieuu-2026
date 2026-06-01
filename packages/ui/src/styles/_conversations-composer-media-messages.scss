@@ -270,6 +270,10 @@
     cursor: pointer;
     transition: background var(--transition-fast);
 
+    body.has-custom-title-bar & {
+      top: calc(32px + var(--spacing-md));
+    }
+
     &:hover {
       background: rgba(255, 255, 255, 0.24);
     }

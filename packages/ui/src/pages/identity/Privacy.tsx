@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Checkbox, Dialog, Portal, RadioGroup } from '@ark-ui/react';
 import { createApiClient } from '@adieuu/shared';
@@ -6,8 +6,9 @@ import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Spinner } from '../../components/Spinner';
 import { Avatar } from '../../components/Avatar';
-import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
+import { Tabs, TabList, TabTrigger, TabContent, type TabItem } from '../../components/Tabs';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
+import { SectionNav, type NavSection } from '../../components/SectionNav';
 import { useBlocks } from '../../hooks/useBlocks';
 import { useAuth } from '../../hooks/useAuth';
 import { useIdentity } from '../../hooks/useIdentity';
@@ -510,6 +511,42 @@ export function IdentityPrivacy() {
     setConfirmUnblock(null);
   };
 
+  const sectionRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  const generalSections: NavSection[] = useMemo(() => {
+    const list: NavSection[] = [
+      { id: 'conversations', label: t('identity.privacy.conversationsTitle') },
+    ];
+    if (isLoggedIn && identity) {
+      list.push(
+        { id: 'gif-stickers', label: t('gif.settingsTitle') },
+        { id: 'unmoderated-media', label: t('conversations.unmoderatedMediaTitle', 'Unmoderated Media') },
+        { id: 'message-search', label: t('identity.privacy.messageSearchTitle') },
+      );
+    }
+    list.push({ id: 'blocked', label: t('blocked.title') });
+    return list;
+  }, [t, isLoggedIn, identity]);
+
+  const setSectionRef = useCallback((id: string, el: HTMLElement | null) => {
+    if (el) {
+      sectionRefs.current.set(id, el);
+    } else {
+      sectionRefs.current.delete(id);
+    }
+  }, []);
+
+  const tabItems: TabItem[] = useMemo(() => {
+    const items: TabItem[] = [
+      { value: 'general', label: t('identity.privacy.tabs.general', 'General') },
+      { value: 'forward-secrecy', label: t('identity.privacy.tabs.forwardSecrecy', 'Forward Secrecy') },
+    ];
+    if (isLoggedIn) {
+      items.push({ value: 'change-passphrase', label: t('identity.privacy.tabs.changePassphrase', 'Change Password') });
+    }
+    return items;
+  }, [t, isLoggedIn]);
+
   if (identityStatus === 'locked') {
     return <SessionLockedPage titleI18nKey="identity.privacy.title" />;
   }
@@ -524,8 +561,8 @@ export function IdentityPrivacy() {
           </p>
         </div>
 
-        <Tabs defaultTab="general" className="slide-up">
-          <TabList>
+        <Tabs defaultTab="general" className="slide-up privacy-sticky-tabs">
+          <TabList mobileItems={tabItems}>
             <TabTrigger value="general">
               {t('identity.privacy.tabs.general', 'General')}
             </TabTrigger>
@@ -541,6 +578,11 @@ export function IdentityPrivacy() {
           </TabList>
 
           <TabContent value="general">
+            <div className="appearance-layout">
+              <SectionNav sections={generalSections} sectionRefs={sectionRefs} ariaLabel={t('identity.privacy.title')} />
+
+              <div className="appearance-sections">
+            <div ref={(el) => setSectionRef('conversations', el)} data-section="conversations">
             <Card variant="elevated" className="app-settings-card">
               <h2 className="app-settings-section-title">{t('identity.privacy.conversationsTitle')}</h2>
               <p className="app-settings-section-desc">{t('identity.privacy.conversationsDescription')}</p>
@@ -568,17 +610,27 @@ export function IdentityPrivacy() {
                 </label>
               )}
             </Card>
+            </div>
 
             {isLoggedIn && identity && (
+              <div ref={(el) => setSectionRef('gif-stickers', el)} data-section="gif-stickers">
               <GifVisibilityCard identityId={identity.id} />
+              </div>
             )}
 
             {isLoggedIn && identity && (
+              <div ref={(el) => setSectionRef('unmoderated-media', el)} data-section="unmoderated-media">
               <UnmoderatedMediaCard identityId={identity.id} />
+              </div>
             )}
 
-            {isLoggedIn && identity && <MessageSearchPrivacyCard identityId={identity.id} />}
+            {isLoggedIn && identity && (
+              <div ref={(el) => setSectionRef('message-search', el)} data-section="message-search">
+              <MessageSearchPrivacyCard identityId={identity.id} />
+              </div>
+            )}
 
+            <div ref={(el) => setSectionRef('blocked', el)} data-section="blocked">
             <Card variant="elevated">
               <h2 className="card-section-title">{t('blocked.title')}</h2>
               <p className="card-section-subtitle">{t('blocked.subtitle')}</p>
@@ -636,6 +688,9 @@ export function IdentityPrivacy() {
                 </div>
               )}
             </Card>
+            </div>
+              </div>
+            </div>
           </TabContent>
 
           <TabContent value="forward-secrecy">

@@ -36,6 +36,7 @@ import { ageVerificationRoutes } from './age-verification';
 import { customEmojiRoutes } from './custom-emojis';
 import { sponsorshipRoutes } from './sponsorship';
 import { supportRoutes } from './support';
+import { unfurlRoutes } from './unfurl';
 
 /**
  * Registers all application routes with the main router.
@@ -143,4 +144,7 @@ export function registerRoutes(app: Router): void {
 
   // User support tickets
   app.merge(supportRoutes, '/api');
+
+  // URL unfurl (link embed metadata)
+  app.merge(unfurlRoutes, '/api');
 }
