@@ -760,8 +760,31 @@ body {
   flex-shrink: 0;
 }
 
-.appearance-sections .app-settings-card {
+.appearance-sections .app-settings-card,
+.appearance-sections > [data-section] {
   scroll-margin-top: var(--spacing-lg);
+}
+
+// Sticky tabs for pages that combine tabs with section nav (e.g. Privacy)
+.privacy-sticky-tabs {
+  --sticky-tabs-offset: 2.75rem;
+
+  .tabs-list {
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+    background: var(--color-bg-primary);
+    padding-top: var(--spacing-xs);
+  }
+
+  .appearance-section-nav {
+    top: calc(var(--sticky-tabs-offset) + var(--spacing-md));
+  }
+
+  .appearance-sections .app-settings-card,
+  .appearance-sections > [data-section] {
+    scroll-margin-top: calc(var(--sticky-tabs-offset) + var(--spacing-md));
+  }
 }
 
 @media (max-width: 850px) {
@@ -782,6 +805,10 @@ body {
     background: var(--color-bg-primary);
     padding-bottom: var(--spacing-sm);
     margin-bottom: var(--spacing-sm);
+  }
+
+  .privacy-sticky-tabs .appearance-section-select-wrapper {
+    top: calc(var(--sticky-tabs-offset, 2.75rem) + var(--spacing-xs));
   }
 }
 
