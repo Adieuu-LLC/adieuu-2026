@@ -79,7 +79,8 @@ export async function initiateCallCtrl(
   const result = await initiateCall(
     conv.id,
     identity._id.toHexString(),
-    parseResult.data.media
+    parseResult.data.media,
+    { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements },
   );
 
   if (!result.success) {
@@ -111,6 +112,7 @@ export async function initiateCallCtrl(
       call: result.call,
       livekitToken: result.livekitToken,
       livekitUrl: result.livekitUrl,
+      streamQualityCaps: result.streamQualityCaps,
     },
   };
 }
@@ -137,7 +139,8 @@ export async function joinCallCtrl(
     conv.id,
     call.id,
     identity._id.toHexString(),
-    parseResult.data.media
+    parseResult.data.media,
+    { subscriptions: ctx.identitySession.subscriptions, entitlements: ctx.identitySession.entitlements },
   );
 
   if (!result.success) {
@@ -162,6 +165,7 @@ export async function joinCallCtrl(
       call: result.call,
       livekitToken: result.livekitToken,
       livekitUrl: result.livekitUrl,
+      streamQualityCaps: result.streamQualityCaps,
     },
   };
 }

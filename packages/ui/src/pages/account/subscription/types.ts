@@ -62,6 +62,7 @@ export const ACCESS_FEATURES = [
   'encryption',
   'forwardSecrecy',
   'liveMedia',
+  'streamQuality',
   'uploadSize',
   'emojiLimit',
   'ttlMessages',

@@ -29,6 +29,7 @@ LIVEKIT_DOMAIN="${livekit_domain}"
 REDIS_URL="${redis_url}"
 PORT_RANGE_START="${port_range_start}"
 PORT_RANGE_END="${port_range_end}"
+WEBHOOK_URL="${webhook_url}"
 
 # --- Detect public IP (for WebRTC candidate advertisement) ---
 TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
@@ -52,6 +53,13 @@ keys:
   $LIVEKIT_API_KEY: $LIVEKIT_API_SECRET
 logging:
   level: info
+$(if [ -n "$WEBHOOK_URL" ]; then
+cat <<WEBHOOK
+webhook:
+  urls:
+    - $WEBHOOK_URL
+WEBHOOK
+fi)
 $(if [ -n "$REDIS_URL" ]; then
 cat <<REDIS
 redis:

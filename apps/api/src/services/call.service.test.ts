@@ -133,6 +133,8 @@ function makeCall(overrides: Record<string, unknown> = {}) {
   };
 }
 
+const testAccess = { subscriptions: ['access'] as const, entitlements: [] as string[] };
+
 describe('call.service', () => {
   afterAll(() => {
     mock.restore();
@@ -165,7 +167,7 @@ describe('call.service', () => {
       audio: true,
       video: false,
       screenshare: false,
-    });
+    }, testAccess);
     expect(r.success).toBe(false);
     expect(r.errorCode).toBe('RATE_LIMITED');
     expect(r.retryAfter).toBeGreaterThan(0);
@@ -179,7 +181,7 @@ describe('call.service', () => {
       audio: true,
       video: false,
       screenshare: false,
-    });
+    }, testAccess);
     expect(r.success).toBe(false);
     expect(r.errorCode).toBe('CALL_NOT_FOUND');
     expect(mockCallRepo.addParticipant).not.toHaveBeenCalled();
@@ -218,7 +220,7 @@ describe('call.service', () => {
       audio: true,
       video: false,
       screenshare: false,
-    });
+    }, testAccess);
     expect(r.success).toBe(false);
     expect(r.errorCode).toBe('LIVEKIT_UNAVAILABLE');
     expect(mockCallRepo.createCall).not.toHaveBeenCalled();
@@ -251,7 +253,7 @@ describe('call.service', () => {
       audio: true,
       video: false,
       screenshare: false,
-    });
+    }, testAccess);
     expect(r.success).toBe(true);
     expect(r.livekitToken).toBeDefined();
     expect(mockCreateNotification).toHaveBeenCalled();
@@ -269,7 +271,7 @@ describe('call.service', () => {
       audio: true,
       video: false,
       screenshare: false,
-    });
+    }, testAccess);
     expect(r.success).toBe(true);
     expect(r.livekitToken).toBeUndefined();
   });
@@ -282,7 +284,7 @@ describe('call.service', () => {
       audio: true,
       video: false,
       screenshare: false,
-    });
+    }, testAccess);
     expect(r.success).toBe(false);
     expect(r.errorCode).toBe('NOT_PARTICIPANT');
   });
@@ -300,7 +302,7 @@ describe('call.service', () => {
       audio: true,
       video: true,
       screenshare: true,
-    });
+    }, testAccess);
     expect(r.success).toBe(false);
     expect(r.errorCode).toBe('MEDIA_DISABLED');
   });
@@ -318,7 +320,7 @@ describe('call.service', () => {
       audio: true,
       video: false,
       screenshare: false,
-    });
+    }, testAccess);
     expect(r.success).toBe(true);
     expect(r.call?.id).toBe(callId.toHexString());
   });
@@ -346,7 +348,7 @@ describe('call.service', () => {
       audio: true,
       video: false,
       screenshare: false,
-    });
+    }, testAccess);
     expect(r.success).toBe(true);
     expect(r.call?.status).toBe('active');
     expect(r.call?.participants).toHaveLength(1);
@@ -370,7 +372,7 @@ describe('call.service', () => {
       audio: true,
       video: false,
       screenshare: false,
-    });
+    }, testAccess);
     expect(r.success).toBe(false);
     expect(r.errorCode).toBe('ALREADY_IN_CALL');
     expect(mockCallRepo.addParticipant).not.toHaveBeenCalled();
@@ -416,7 +418,7 @@ describe('call.service', () => {
       audio: true,
       video: false,
       screenshare: false,
-    });
+    }, testAccess);
     expect(r.success).toBe(true);
     expect(r.livekitToken).toBeDefined();
     expect(mockCallRepo.addParticipant).toHaveBeenCalled();

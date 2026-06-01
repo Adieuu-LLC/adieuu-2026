@@ -13,6 +13,7 @@ import {
   handleStripeWebhookResult,
   type StripeWebhookResult,
 } from './controller';
+import { handleLiveKitWebhook } from './livekit.controller';
 
 const router = new Router();
 
@@ -54,6 +55,26 @@ router.post('/webhooks/stripe', async (ctx) => {
   });
 
   if (!result.ok) return mapStripeWebhookFailure(result);
+
+  return jsonResponse({ received: true }, 200);
+});
+
+/**
+ * POST /webhooks/livekit
+ *
+ * Receives signed LiveKit server events for server-side track enforcement.
+ *
+ * @route POST /api/webhooks/livekit
+ */
+router.post('/webhooks/livekit', async (ctx) => {
+  const result = await handleLiveKitWebhook({
+    rawBody: ctx.rawBody,
+    authHeader: ctx.request.headers.get('Authorization'),
+  });
+
+  if (!result.ok) {
+    return jsonResponse({ error: result.error }, result.status ?? 500);
+  }
 
   return jsonResponse({ received: true }, 200);
 });

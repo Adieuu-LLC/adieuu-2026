@@ -274,6 +274,7 @@ resource "aws_launch_template" "livekit" {
     log_group          = aws_cloudwatch_log_group.livekit[0].name
     port_range_start   = 50000
     port_range_end     = 60000
+    webhook_url        = "https://${var.api_domain_name}/api/webhooks/livekit"
   }))
 
   lifecycle {

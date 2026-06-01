@@ -6,7 +6,7 @@
  * Uses LiveKit hooks and the ControlBar prefab for media controls.
  */
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import {
   useParticipants,
   useLocalParticipant,
@@ -17,9 +17,10 @@ import {
   isTrackReference,
   type TrackReferenceOrPlaceholder,
 } from '@livekit/components-react';
-import { Track } from 'livekit-client';
-import type { Participant } from 'livekit-client';
+import { Track, VideoQuality } from 'livekit-client';
+import type { Participant, RemoteTrackPublication } from 'livekit-client';
 import { Avatar } from '../Avatar';
+import { useCallSession } from '../../hooks/useCallSession';
 
 function getParticipantDisplayName(participant: Participant): string {
   return participant.name || participant.identity || 'Unknown';
@@ -94,9 +95,20 @@ function MicOffIcon() {
   );
 }
 
+/**
+ * Maps a resolution height to the best-fit LiveKit VideoQuality tier
+ * for receive-side simulcast layer selection.
+ */
+function resolutionToVideoQuality(height: number): VideoQuality {
+  if (height >= 1080) return VideoQuality.HIGH;
+  if (height >= 720) return VideoQuality.MEDIUM;
+  return VideoQuality.LOW;
+}
+
 export function CallConferenceView() {
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
+  const { streamQualityCaps } = useCallSession();
 
   const cameraTracks = useTracks(
     [{ source: Track.Source.Camera, withPlaceholder: false }],
@@ -107,6 +119,37 @@ export function CallConferenceView() {
     [Track.Source.ScreenShare],
     { onlySubscribed: false },
   );
+
+  // Apply receive-side quality caps on remote video subscriptions.
+  // Maps our resolution cap to a LiveKit VideoQuality tier to limit
+  // the simulcast layer the SFU sends, reducing egress bandwidth.
+  useEffect(() => {
+    if (!streamQualityCaps) return;
+
+    const cameraQuality = resolutionToVideoQuality(streamQualityCaps.camera.height);
+    const screenQuality = resolutionToVideoQuality(streamQualityCaps.screenshare.height);
+
+    for (const trackRef of cameraTracks) {
+      if (
+        trackRef.participant &&
+        trackRef.participant.identity !== localParticipant.identity &&
+        isTrackReference(trackRef)
+      ) {
+        const pub = trackRef.publication as RemoteTrackPublication | undefined;
+        pub?.setVideoQuality(cameraQuality);
+      }
+    }
+    for (const trackRef of screenTracks) {
+      if (
+        trackRef.participant &&
+        trackRef.participant.identity !== localParticipant.identity &&
+        isTrackReference(trackRef)
+      ) {
+        const pub = trackRef.publication as RemoteTrackPublication | undefined;
+        pub?.setVideoQuality(screenQuality);
+      }
+    }
+  }, [cameraTracks, screenTracks, streamQualityCaps, localParticipant.identity]);
 
   const cameraTrackMap = useMemo(() => {
     const map = new Map<string, TrackReferenceOrPlaceholder>();

@@ -464,6 +464,7 @@ export const account = {
         encryption: 'E2EE: End to end encryption on all private content',
         forwardSecrecy: 'E2EE: Forward Secrecy (optional)',
         liveMedia: 'E2EE: Live voice, video, screensharing',
+        streamQuality: 'Live Stream Quality (Camera / Screenshare)',
         uploadSize: 'Upload File Size (Images, Voice, Video, Files)',
         emojiLimit: 'Custom Emoji Limit',
         ttlMessages: 'Disappearing (time-based) messages',
@@ -490,6 +491,12 @@ export const account = {
           insider: 2,
           vanguard: 3,
           founder: 3,
+        },
+        streamQuality: {
+          access: '540p / 720p',
+          insider: '720p / 1080p',
+          vanguard: '720p / 1080p',
+          founder: '720p / 1080p',
         },
         uploadSize: {
           access: '1.337GB',
