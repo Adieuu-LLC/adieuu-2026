@@ -27,8 +27,8 @@ mock.module('../../components/Alert', () => ({
 }));
 
 mock.module('../../components/Button', () => ({
-  Button: ({ children, disabled, onClick, variant }: any) => (
-    <button disabled={disabled} onClick={onClick} data-variant={variant}>
+  Button: ({ children, disabled, onClick, variant, className, type, size, ...rest }: any) => (
+    <button disabled={disabled} onClick={onClick} data-variant={variant} className={className} type={type} data-size={size} {...rest}>
       {children}
     </button>
   ),
