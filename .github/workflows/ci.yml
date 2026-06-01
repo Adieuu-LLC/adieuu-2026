@@ -3,8 +3,6 @@ name: CI
 on:
   pull_request:
     branches: [development, main]
-  push:
-    branches: [development, main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
@@ -453,9 +451,9 @@ jobs:
       - name: Run forward secrecy regression suite
         run: pnpm test:fs
 
-  # Product builds + packaging: PRs targeting main, or push to main (release path)
+  # Product builds: PRs targeting main (validated before merge; release runs separately on push)
   build-web:
-    if: ${{ (github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    if: ${{ github.event_name == 'pull_request' && github.base_ref == 'main' }}
     runs-on: ubuntu-latest
     needs: [lint-and-typecheck, test-web, test-security, test-fs]
     permissions:
@@ -501,7 +499,7 @@ jobs:
           retention-days: 15
 
   build-api:
-    if: ${{ (github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    if: ${{ github.event_name == 'pull_request' && github.base_ref == 'main' }}
     runs-on: ubuntu-latest
     needs: [lint-and-typecheck, test-api, test-security, test-fs]
     permissions:
@@ -552,7 +550,7 @@ jobs:
 
   # Build the desktop app once on Linux (electron-vite output is platform-independent JS/HTML/CSS)
   build-desktop-dist:
-    if: ${{ (github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
+    if: ${{ github.event_name == 'pull_request' && github.base_ref == 'main' }}
     runs-on: ubuntu-latest
     needs: [lint-and-typecheck, test-desktop]
     steps:
