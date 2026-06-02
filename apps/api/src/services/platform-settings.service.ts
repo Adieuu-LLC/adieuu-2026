@@ -468,7 +468,7 @@ export async function ensureCsamHashServicesPlatformSettingExists(): Promise<voi
     key,
     description: 'Active CSAM hash-checking services (ncmec, arachnid_shield)',
     valueType: 'stringArray',
-    value: ['ncmec', 'arachnid_shield'],
+    value: ['arachnid_shield'],
     lastUpdatedBy: PLATFORM_SETTING_BOOTSTRAP_ACTOR,
   });
 
