@@ -79,6 +79,8 @@ export interface RequestUploadInput {
   entitlements?: string[];
   /** From identity session merged grants — Lifetime Founder upload caps. */
   isLifetime?: boolean;
+  /** Client IP address at the time of the presigned URL request (for NCMEC reporting). */
+  clientIp?: string;
 }
 
 export interface RequestUploadResult {
@@ -207,6 +209,7 @@ export async function requestUpload(
     contentLength: input.contentLength,
     status: 'pending',
     processingFlags: purposeConfig.processingFlags,
+    ...(input.clientIp ? { uploadIpAddress: input.clientIp } : {}),
   });
 
   elog.info('Upload presigned URL generated', {

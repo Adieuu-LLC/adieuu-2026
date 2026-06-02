@@ -114,6 +114,12 @@ export interface MediaUploadDocument extends BaseDocument {
    * Present only on conv_scan uploads.
    */
   scanHash?: string;
+
+  /**
+   * Client IP address captured at presigned URL generation time.
+   * Stored for NCMEC CyberTipline reporting requirements.
+   */
+  uploadIpAddress?: string;
 }
 
 /**

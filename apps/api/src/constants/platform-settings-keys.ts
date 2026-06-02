@@ -26,6 +26,8 @@ export const PLATFORM_SETTING_KEYS = {
   GEOFENCE_BLOCKED_JURISDICTIONS: 'platform-geofence-blocked-jurisdictions',
   /** Jurisdiction-to-law-URL pairs for geofence UI (format: "US-TN|https://..."). */
   GEOFENCE_LAW_LINKS: 'platform-geofence-law-links',
+  /** Active CSAM hash-checking services (stringArray: 'ncmec', 'arachnid_shield'). */
+  CSAM_HASH_SERVICES: 'platform-csam-hash-services',
 } as const;
 
 export type PlatformSettingKey =

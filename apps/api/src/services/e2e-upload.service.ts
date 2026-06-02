@@ -539,6 +539,7 @@ export interface RequestScanUploadInput {
   contentType: string;
   contentLength: number;
   identityId: string;
+  clientIp?: string;
 }
 
 export interface RequestScanUploadResult {
@@ -679,6 +680,7 @@ export async function requestScanUpload(
     status: 'pending',
     processingFlags,
     scanHash: input.scanHash,
+    ...(input.clientIp ? { uploadIpAddress: input.clientIp } : {}),
   } as Omit<import('../models/media-upload').MediaUploadDocument, '_id' | 'createdAt' | 'updatedAt'>);
 
   elog.info('Scan copy presigned URL generated', {

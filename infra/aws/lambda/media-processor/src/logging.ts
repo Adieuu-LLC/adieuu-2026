@@ -7,13 +7,19 @@ export interface ProcessorLogFields {
   mediaId?: string;
   purpose?: string;
   s3Key?: string;
-  contentModeration?: boolean;
-  moderationLabelCount?: number;
-  topLabel?: string;
   dbWriterStatus?: 'ready' | 'rejected' | 'failed';
   dbWriterInvokeError?: string;
   dbWriterFunctionError?: string;
-  rekognitionError?: string;
+  error?: string;
+  matchCount?: number;
+  matchSources?: string;
+  evidenceBucket?: string;
+  evidenceKey?: string;
+  batchScanHash?: string;
+  scanHash?: string;
+  keyCount?: number;
+  videoCount?: number;
+  imageCount?: number;
 }
 
 export function logProcessorEvent(fields: ProcessorLogFields): void {

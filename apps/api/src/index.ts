@@ -11,6 +11,7 @@ import { config, validateProductionConfig } from './config';
 import {
   ensureGeoLookupPlatformSettingExists,
   ensureAgeVerificationPlatformSettingsExist,
+  ensureCsamHashServicesPlatformSettingExists,
 } from './services/platform-settings.service';
 import { elog } from './utils';
 import { verifyStripeCredentials } from './services/billing/stripe.client';
@@ -51,6 +52,7 @@ async function start(): Promise<void> {
   try {
     await ensureGeoLookupPlatformSettingExists();
     await ensureAgeVerificationPlatformSettingsExist();
+    await ensureCsamHashServicesPlatformSettingExists();
   } catch (error) {
     elog.warn('Could not ensure platform settings exist', { error });
     if (config.features.requireDatabase) {

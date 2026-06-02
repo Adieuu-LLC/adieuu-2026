@@ -5,7 +5,7 @@
 
 export interface ModerationReportLogFields {
   event: string;
-  mediaId: string;
+  mediaId?: string;
   scanHash?: string;
   status?: string;
   rejectionReason?: string;
@@ -15,10 +15,16 @@ export interface ModerationReportLogFields {
   targetRefType?: string;
   targetRefId?: string;
   targetIdentityId?: string;
+  identityId?: string;
   category?: string;
   errorName?: string;
   errorMessage?: string;
   e2eMatched?: boolean;
+  matchCount?: number;
+  totalMatches?: number;
+  sources?: string[];
+  enabledServices?: string[];
+  entitlement?: string;
 }
 
 export function logModerationEvent(fields: ModerationReportLogFields): void {

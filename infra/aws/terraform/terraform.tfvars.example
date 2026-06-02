@@ -181,10 +181,8 @@ single_nat_gateway        = true
 # Requires route53_zone_name. Injects MEDIA_S3_BUCKET, MEDIA_S3_REGION, MEDIA_CDN_URL into API env.
 # enable_media_stack                    = true
 # media_domain_name                     = "media.adieuu.com"
-# enable_media_content_moderation       = true       # Rekognition (images + sealed-batch conv_scan MP4 when legacy allowed; SNS topic must start with AmazonRekognition)
-# media_moderation_confidence_threshold = 75          # 0-100 rejection threshold
-# allow_legacy_conv_scan_video_moderation = true     # false = JPEG frame scans only (sealed conv_scan batch); disables StartContentModeration for legacy MP4-in-prefix
-# media_video_completion_lambda_reserved_concurrency = 10  # SNS → GetContentModeration completion Lambda (1–1000)
+# allow_legacy_conv_scan_video_moderation = true     # false = JPEG frame scans only (sealed conv_scan batch)
+# arachnid_shield_secret_arn            = ""          # ARN of Secrets Manager secret with Arachnid Shield API credentials
 # media_db_mongodb_secret_arn           = "arn:aws:secretsmanager:us-east-1:123456789012:secret:media-db-mongodb-AbCdEf"
 # media_db_mongodb_secret_key           = "MONGODB_URI" # JSON key in the secret containing the connection string
 # media_db_mongodb_db_name              = "adieuu"      # MongoDB database name for media uploads

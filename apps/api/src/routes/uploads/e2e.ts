@@ -27,6 +27,7 @@ import {
   sealConvScanUploadResult,
   type E2eUploadResult,
 } from './e2e.controller';
+import { getClientIp } from '../auth/controller';
 
 const router = new Router();
 
@@ -158,7 +159,8 @@ router.post('/uploads/scan/request', async (ctx) => {
   if (!ctx.identitySession) return ctx.errors.unauthorized();
   const { identity } = ctx.identitySession;
 
-  const result = await requestScanUploadResult(identity._id.toHexString(), ctx.body);
+  const clientIp = getClientIp(ctx.request);
+  const result = await requestScanUploadResult(identity._id.toHexString(), ctx.body, clientIp);
   if (!result.ok) return mapE2eUploadFailure(ctx, result);
   return success(result.data);
 });
