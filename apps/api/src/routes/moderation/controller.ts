@@ -99,6 +99,11 @@ export function toPublicReport(doc: Record<string, unknown>) {
     closedAt: doc.closedAt instanceof Date ? doc.closedAt.toISOString() : doc.closedAt,
     escalatedByIdentityId: doc.escalatedByIdentityId,
     escalatedAt: doc.escalatedAt instanceof Date ? doc.escalatedAt.toISOString() : doc.escalatedAt,
+    leReportFiled: doc.leReportFiled,
+    leReportFiledAt: doc.leReportFiledAt instanceof Date ? doc.leReportFiledAt.toISOString() : doc.leReportFiledAt,
+    leReportFiledBy: doc.leReportFiledBy,
+    ncmecReportId: doc.ncmecReportId,
+    ncmecStatus: doc.ncmecStatus,
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
     updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : doc.updatedAt,
   };
@@ -588,4 +593,97 @@ export async function closeReportResult(
   }
 
   return { ok: true, data: toPublicReport(updated as unknown as Record<string, unknown>) };
+}
+
+const LE_REPORT_CATEGORIES = ['csam'] as const;
+
+const LeReportSchema = z.object({
+  category: z.enum(LE_REPORT_CATEGORIES),
+  notes: z.string().max(1000).optional(),
+});
+
+export async function fileLeReportResult(
+  actorId: string,
+  reportId: string | undefined,
+  body: unknown,
+  caps: PlatformCapabilities,
+): Promise<ModerationResult<PublicReport>> {
+  if (!canManageEscalated(caps)) return { ok: false, kind: 'forbidden' };
+
+  const id = parseReportId(reportId);
+  if (!id) return { ok: false, kind: 'bad_request' };
+
+  const parsed = LeReportSchema.safeParse(body);
+  if (!parsed.success) return { ok: false, kind: 'validation_failed' };
+
+  const repo = getReportRepository();
+  const report = await repo.findById(id);
+  if (!report) return { ok: false, kind: 'not_found' };
+
+  if (report.status === 'closed') {
+    return { ok: false, kind: 'bad_request', message: 'Cannot file LE report on a closed report' };
+  }
+
+  if (report.leReportFiled) {
+    return { ok: false, kind: 'bad_request', message: 'LE report has already been filed for this report' };
+  }
+
+  const now = new Date();
+
+  let ncmecReportId: string | undefined;
+  let ncmecStatus: 'submitted' | 'failed' = 'failed';
+  let ncmecError: string | undefined;
+
+  try {
+    const { buildCyberTiplineReport } = await import('../../services/cybertipline-report-builder.service');
+    const { getCyberTiplineClient } = await import('../../services/cybertipline.service');
+
+    const bundle = await buildCyberTiplineReport(report as ReportDocument, parsed.data.notes);
+    const client = getCyberTiplineClient();
+    const result = await client.submitFullReport(bundle.report, bundle.evidenceFile);
+    ncmecReportId = result.ncmecReportId;
+    ncmecStatus = 'submitted';
+  } catch (err) {
+    ncmecError = err instanceof Error ? err.message : String(err);
+  }
+
+  const eventRepo = getReportEventRepository();
+  await eventRepo.createEvent({
+    reportId: new ObjectId(id),
+    eventType: 'le_report_filed',
+    actorIdentityId: actorId,
+    body: parsed.data.notes || `Law enforcement report filed (${parsed.data.category})`,
+    metadata: {
+      leCategory: parsed.data.category,
+      notes: parsed.data.notes,
+      detectionMetadata: report.detectionMetadata,
+      targetIdentityId: report.targetIdentityId,
+      filedAt: now.toISOString(),
+      ncmecReportId,
+      ncmecStatus,
+      ncmecError,
+    },
+  });
+
+  const objectId = new ObjectId(id);
+  const updateResult = await repo['collection'].findOneAndUpdate(
+    { _id: objectId },
+    {
+      $set: {
+        leReportFiled: true,
+        leReportFiledAt: now,
+        leReportFiledBy: actorId,
+        ncmecReportId,
+        ncmecStatus,
+        updatedAt: now,
+      },
+      $addToSet: { tags: 'le_report_filed' },
+    },
+    { returnDocument: 'after' },
+  );
+
+  return {
+    ok: true,
+    data: toPublicReport(updateResult as unknown as Record<string, unknown>),
+  };
 }

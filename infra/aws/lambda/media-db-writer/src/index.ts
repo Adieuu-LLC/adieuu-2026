@@ -30,6 +30,14 @@ const IDENTITIES_COLLECTION = 'identities';
 const CSAM_HASH_SERVICES_KEY = 'platform-csam-hash-services';
 const BANNED_CSAM_ENTITLEMENT = 'banned_csam';
 
+/**
+ * Controls whether CSAM hash matches are reported externally to law enforcement
+ * via the NCMEC CyberTipline API. When false, internal moderation reports and
+ * identity bans still fire, but no external report is dispatched. Set to true
+ * once the pipeline is validated and NCMEC registration is complete.
+ */
+const CSAM_LE_REPORT_ENABLED = false;
+
 const secretsManager = new SecretsManagerClient({});
 
 let cachedMongoUri: string | null = null;
@@ -206,6 +214,7 @@ async function handleCsamRejection(
 
   const targetIdentityId = identityFromMedia ?? identityFromE2e;
   const uploadIpAddress = mediaDoc.uploadIpAddress as string | undefined;
+
   const idempotencyKey = `csam:${mediaId}`;
   const now = new Date();
 
@@ -227,6 +236,8 @@ async function handleCsamRejection(
       hashType: m.hashType,
       matchedHash: m.matchedHash,
       matchType: m.matchType,
+      classification: m.classification,
+      matchDetails: m.matchDetails,
     }));
 
     const insertDoc = {
@@ -247,6 +258,8 @@ async function handleCsamRejection(
         evidenceBucket,
         evidenceKey,
         uploadIpAddress,
+        contentType: mediaDoc.contentType as string | undefined,
+        contentLength: mediaDoc.contentLength as number | undefined,
         detectedAt: now.toISOString(),
       },
       resolution: {
@@ -275,6 +288,24 @@ async function handleCsamRejection(
 
     if (targetIdentityId) {
       await banIdentityForCsam(db, targetIdentityId, reportId, now);
+    }
+
+    if (CSAM_LE_REPORT_ENABLED) {
+      // TODO: dispatch CyberTipline report via NCMEC API (deferred until registration)
+      logModerationEvent({
+        event: 'csam_le_report_dispatched',
+        mediaId,
+        reportId,
+        targetIdentityId,
+      });
+    } else {
+      logModerationEvent({
+        event: 'csam_le_report_skipped',
+        mediaId,
+        reportId,
+        matchCount: activeMatches.length,
+        sources: activeMatches.map(m => m.source),
+      });
     }
   } catch (err) {
     const error = err as Error;

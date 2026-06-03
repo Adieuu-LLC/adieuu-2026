@@ -67,7 +67,11 @@ function resetMocks(): void {
   mockUpdateMany.mockResolvedValue({ modifiedCount: 0 });
   mockFindOne.mockReset();
   mockInsertOne.mockReset();
+  mockInsertOne.mockResolvedValue({
+    insertedId: { toHexString: () => 'report-id-abc' },
+  });
   mockUpdateOne.mockReset();
+  mockUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mockE2eUpdateOne.mockReset();
   mockE2eUpdateOne.mockResolvedValue({ matchedCount: 1 });
   (logModerationEvent as ReturnType<typeof mock>).mockClear();
@@ -78,6 +82,19 @@ function mockMediaDoc(overrides?: Record<string, unknown>): Record<string, unkno
     mediaId: 'media-123',
     identityId: IDENTITY_HEX,
     status: 'rejected',
+    ...overrides,
+  };
+}
+
+function csamEvent(overrides?: Record<string, unknown>) {
+  return {
+    mediaId: 'media-123',
+    status: 'rejected' as const,
+    csamMatches: [
+      { source: 'ncmec' as const, hashType: 'MD5', matchedHash: 'abc123', matchType: 'exact' as const, classification: 'csam' },
+    ],
+    evidenceBucket: 'evidence-bucket',
+    evidenceKey: 'csam-evidence/media-123/image.jpg',
     ...overrides,
   };
 }
@@ -113,33 +130,14 @@ describe('CSAM rejection flow', () => {
   beforeEach(() => {
     resetMocks();
     mockFindOneAndUpdate.mockResolvedValue(mockMediaDoc());
-    mockInsertOne.mockResolvedValue({
-      insertedId: { toHexString: () => 'report-id-csam' },
-    });
-    mockUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   });
 
-  test('creates CSAM report with correct fields', async () => {
+  test('creates internal moderation report with correct fields', async () => {
     mockFindOne
       .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
       .mockResolvedValueOnce(null);
 
-    const result = await handler({
-      mediaId: 'media-123',
-      status: 'rejected',
-      rejectionReason: 'csam_hash_match: MD5:abc123',
-      csamMatches: [
-        {
-          source: 'ncmec',
-          hashType: 'MD5',
-          matchedHash: 'abc123',
-          matchType: 'exact',
-          classification: 'csam',
-        },
-      ],
-      evidenceBucket: 'evidence-bucket',
-      evidenceKey: 'csam-evidence/media-123/image.jpg',
-    });
+    const result = await handler(csamEvent({ rejectionReason: 'csam_hash_match: MD5:abc123' }));
 
     expect(result.success).toBe(true);
     expect(mockInsertOne).toHaveBeenCalled();
@@ -158,39 +156,39 @@ describe('CSAM rejection flow', () => {
       .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
       .mockResolvedValueOnce(null);
 
-    await handler({
-      mediaId: 'media-123',
-      status: 'rejected',
-      csamMatches: [
-        { source: 'ncmec', hashType: 'MD5', matchedHash: 'x', matchType: 'exact', classification: 'csam' },
-      ],
-      evidenceBucket: 'eb',
-      evidenceKey: 'ek',
-    });
+    await handler(csamEvent());
 
     expect(mockUpdateOne).toHaveBeenCalled();
     const updateCall = mockUpdateOne.mock.calls[0] as unknown[];
-    const filter = updateCall[0] as Record<string, unknown>;
     const update = updateCall[1] as Record<string, Record<string, unknown>>;
-
-    expect(filter._id).toBeDefined();
     expect(update.$set).toMatchObject({ banned: true, bannedReason: 'csam_hash_match' });
     expect(update.$addToSet).toMatchObject({ entitlements: 'banned_csam' });
   });
 
-  test('filters out matches from disabled services', async () => {
+  test('logs LE report skipped (CSAM_LE_REPORT_ENABLED is false)', async () => {
     mockFindOne
-      .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] });
+      .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
+      .mockResolvedValueOnce(null);
 
-    await handler({
-      mediaId: 'media-123',
-      status: 'rejected',
+    await handler(csamEvent());
+
+    expect(logModerationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'csam_le_report_skipped',
+        mediaId: 'media-123',
+        sources: ['ncmec'],
+      })
+    );
+  });
+
+  test('filters out matches from disabled services', async () => {
+    mockFindOne.mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] });
+
+    await handler(csamEvent({
       csamMatches: [
         { source: 'arachnid_shield', hashType: 'PDQ', matchedHash: 'x', matchType: 'near', classification: 'csam' },
       ],
-      evidenceBucket: 'eb',
-      evidenceKey: 'ek',
-    });
+    }));
 
     expect(mockInsertOne).not.toHaveBeenCalled();
     expect(logModerationEvent).toHaveBeenCalledWith(
@@ -203,15 +201,7 @@ describe('CSAM rejection flow', () => {
       .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
       .mockResolvedValueOnce({ idempotencyKey: 'csam:media-123' });
 
-    await handler({
-      mediaId: 'media-123',
-      status: 'rejected',
-      csamMatches: [
-        { source: 'ncmec', hashType: 'MD5', matchedHash: 'x', matchType: 'exact', classification: 'csam' },
-      ],
-      evidenceBucket: 'eb',
-      evidenceKey: 'ek',
-    });
+    await handler(csamEvent());
 
     expect(mockInsertOne).not.toHaveBeenCalled();
     expect(logModerationEvent).toHaveBeenCalledWith(
@@ -227,15 +217,11 @@ describe('CSAM rejection flow', () => {
       .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['arachnid_shield'] })
       .mockResolvedValueOnce(null);
 
-    await handler({
-      mediaId: 'media-123',
-      status: 'rejected',
+    await handler(csamEvent({
       csamMatches: [
         { source: 'arachnid_shield', hashType: 'PDQ', matchedHash: 'pdq123', matchType: 'near', classification: 'csam' },
       ],
-      evidenceBucket: 'evidence-bucket',
-      evidenceKey: 'csam-evidence/media-123/image.jpg',
-    });
+    }));
 
     const insertedDoc = mockInsertOne.mock.calls[0]![0] as Record<string, unknown>;
     const meta = insertedDoc.detectionMetadata as Record<string, unknown>;
@@ -249,15 +235,7 @@ describe('CSAM rejection flow', () => {
       .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
       .mockResolvedValueOnce(null);
 
-    await handler({
-      mediaId: 'media-123',
-      status: 'rejected',
-      csamMatches: [
-        { source: 'ncmec', hashType: 'SHA1', matchedHash: 'sha1hash', matchType: 'exact', classification: 'csam' },
-      ],
-      evidenceBucket: 'eb',
-      evidenceKey: 'ek',
-    });
+    await handler(csamEvent());
 
     const insertedDoc = mockInsertOne.mock.calls[0]![0] as Record<string, unknown>;
     expect(insertedDoc.status).toBe('resolved');
@@ -268,8 +246,7 @@ describe('CSAM rejection flow', () => {
     expect(resolution.notes).toContain('banned_csam');
   });
 
-  test('falls through to generic rejection when no CSAM matches', async () => {
-    mockFindOneAndUpdate.mockResolvedValue(mockMediaDoc());
+  test('falls through to generic rejection when no CSAM matches present', async () => {
     mockFindOne.mockResolvedValueOnce(null);
 
     await handler({
@@ -306,13 +283,7 @@ describe('E2E media propagation', () => {
 });
 
 describe('identity resolution', () => {
-  beforeEach(() => {
-    resetMocks();
-    mockInsertOne.mockResolvedValue({
-      insertedId: { toHexString: () => 'report-id-xyz' },
-    });
-    mockUpdateOne.mockResolvedValue({ modifiedCount: 1 });
-  });
+  beforeEach(resetMocks);
 
   test('handles BSON ObjectId-like identityId from media doc', async () => {
     const objectIdLike = { toHexString: () => IDENTITY_HEX };
@@ -323,37 +294,19 @@ describe('identity resolution', () => {
       .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
       .mockResolvedValueOnce(null);
 
-    await handler({
-      mediaId: 'media-123',
-      status: 'rejected',
-      csamMatches: [
-        { source: 'ncmec', hashType: 'MD5', matchedHash: 'x', matchType: 'exact', classification: 'csam' },
-      ],
-      evidenceBucket: 'eb',
-      evidenceKey: 'ek',
-    });
+    await handler(csamEvent());
 
     const insertedDoc = mockInsertOne.mock.calls[0]![0] as Record<string, unknown>;
     expect(insertedDoc.targetIdentityId).toBe(IDENTITY_HEX);
   });
 
   test('skips ban when no identity can be resolved', async () => {
-    mockFindOneAndUpdate.mockResolvedValue(
-      mockMediaDoc({ identityId: null })
-    );
+    mockFindOneAndUpdate.mockResolvedValue(mockMediaDoc({ identityId: null }));
     mockFindOne
       .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
       .mockResolvedValueOnce(null);
 
-    await handler({
-      mediaId: 'media-123',
-      status: 'rejected',
-      csamMatches: [
-        { source: 'ncmec', hashType: 'MD5', matchedHash: 'x', matchType: 'exact', classification: 'csam' },
-      ],
-      evidenceBucket: 'eb',
-      evidenceKey: 'ek',
-    });
+    await handler(csamEvent());
 
     expect(mockInsertOne).toHaveBeenCalled();
     expect(mockUpdateOne).not.toHaveBeenCalled();

@@ -106,6 +106,11 @@ export interface PublicReport {
   closedAt?: string;
   escalatedByIdentityId?: string;
   escalatedAt?: string;
+  leReportFiled?: boolean;
+  leReportFiledAt?: string;
+  leReportFiledBy?: string;
+  ncmecReportId?: string;
+  ncmecStatus?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -178,4 +183,11 @@ export interface ModerationScanEvidenceItem {
 export interface ModerationScanEvidenceResponse {
   expiresInSeconds: number;
   items: ModerationScanEvidenceItem[];
+}
+
+export type LeReportCategory = 'csam';
+
+export interface FileLeReportParams {
+  category: LeReportCategory;
+  notes?: string;
 }

@@ -168,6 +168,19 @@ export interface ReportDocument extends BaseDocument {
   /** Filled when status becomes 'escalated' */
   escalatedByIdentityId?: string;
   escalatedAt?: Date;
+
+  /** Filled when a moderator files a law enforcement report */
+  leReportFiled?: boolean;
+  leReportFiledAt?: Date;
+  leReportFiledBy?: string;
+
+  /** NCMEC CyberTipline report ID (set after successful submission) */
+  ncmecReportId?: string;
+  /** NCMEC submission status */
+  ncmecStatus?: 'submitted' | 'failed';
+
+  /** Tags applied by automated systems or moderator actions */
+  tags?: string[];
 }
 
 export interface CreateReportInput {

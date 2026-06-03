@@ -228,6 +228,20 @@ export const moderation = {
       postComment: 'Post',
       timeline: 'Timeline',
       noEvents: 'No events yet.',
+      leReport: 'Report to Law Enforcement',
+      leReportTitle: 'File Law Enforcement Report',
+      leReportDescription:
+        'This will record the report details for submission to law enforcement. Select a category and add any additional notes.',
+      leReportCategory: 'Category',
+      leReportNotes: 'Additional Notes',
+      leReportNotesPlaceholder: 'Any additional context for the law enforcement report...',
+      leReportSubmit: 'Submit Report',
+      leReportSuccess: 'Law enforcement report filed successfully.',
+      leReportFiled: 'LE Report Filed',
+      leReportCategoryCsam: 'CSAM (Child Sexual Abuse Material)',
+      leReportAlreadyFiled: 'An LE report has already been filed for this report.',
+      ncmecReportId: 'NCMEC Report ID',
+      ncmecSubmitFailed: 'NCMEC submission failed -- the report was recorded internally but could not be sent to NCMEC. Please retry or escalate.',
       eventType: {
         status_change: 'Status change',
         comment_internal: 'Internal comment',
@@ -235,6 +249,7 @@ export const moderation = {
         assignment_change: 'Assignment change',
         category_change: 'Category change',
         enforcement_action: 'Enforcement action',
+        le_report_filed: 'LE report filed',
       },
       eventMeta: {
         statusTransition: '{{from}} → {{to}}',

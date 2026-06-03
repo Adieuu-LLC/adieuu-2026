@@ -329,6 +329,44 @@ resource "aws_iam_role_policy" "ecs_task_media" {
 }
 
 # ---------------------------------------------------------------------------
+# ECS task role: read CSAM evidence for CyberTipline uploads + secrets access
+# ---------------------------------------------------------------------------
+
+resource "aws_secretsmanager_secret" "cybertipline_credentials" {
+  count = local.media_enabled ? 1 : 0
+
+  name        = "${local.name_prefix}-cybertipline-credentials"
+  description = "NCMEC CyberTipline API credentials and ESP reporter info"
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "ecs_task_cybertipline" {
+  count = local.media_enabled ? 1 : 0
+
+  name = "${local.name_prefix}-ecs-task-cybertipline"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "CsamEvidenceRead"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = "${aws_s3_bucket.csam_evidence[0].arn}/*"
+      },
+      {
+        Sid      = "CyberTiplineSecrets"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = [aws_secretsmanager_secret.cybertipline_credentials[0].arn]
+      },
+    ]
+  })
+}
+
+# ---------------------------------------------------------------------------
 # Lambda layer: sharp (image processing native binaries for linux-x64)
 # ---------------------------------------------------------------------------
 

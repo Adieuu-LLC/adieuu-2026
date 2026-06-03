@@ -173,6 +173,8 @@ export {
   type ModeratorsListResponse,
   type ModerationScanEvidenceItem,
   type ModerationScanEvidenceResponse,
+  type LeReportCategory,
+  type FileLeReportParams,
 } from './moderation-types';
 
 export { ModerationApi } from './moderation-api';

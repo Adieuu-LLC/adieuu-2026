@@ -23,6 +23,7 @@ import {
   addReportCommentResult,
   resolveReportResult,
   closeReportResult,
+  fileLeReportResult,
   type ModerationResult,
 } from './controller';
 import {
@@ -287,6 +288,26 @@ router.post('/moderation/reports/:id/close', async (ctx): Promise<Response> => {
   if (!auth.ok) return auth.response;
 
   const result = await closeReportResult(
+    auth.session.identityId,
+    ctx.params.id,
+    ctx.body,
+    auth.caps,
+  );
+  if (!result.ok) return mapModerationFailure(ctx, result);
+
+  return success(result.data);
+});
+
+/**
+ * POST /moderation/reports/:id/le-report — file a law enforcement report
+ *
+ * @route POST /api/moderation/reports/:id/le-report
+ */
+router.post('/moderation/reports/:id/le-report', async (ctx): Promise<Response> => {
+  const auth = await requireModeratorRouteContext(ctx);
+  if (!auth.ok) return auth.response;
+
+  const result = await fileLeReportResult(
     auth.session.identityId,
     ctx.params.id,
     ctx.body,

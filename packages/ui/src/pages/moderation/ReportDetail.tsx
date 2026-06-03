@@ -22,8 +22,10 @@ import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
+import type { LeReportCategory } from '@adieuu/shared';
 import { ModerationEvidenceMessageRow } from './ModerationEvidenceMessageRow';
 import { ReportModerationScanEvidence } from './ReportModerationScanEvidence';
+import { LeReportModal } from './LeReportModal';
 import { splitMessageEvidenceForModeration } from './moderationEvidenceSplit';
 
 // ---------------------------------------------------------------------------
@@ -174,6 +176,9 @@ export function ReportDetail() {
   const [moderators, setModerators] = useState<ModerationModerator[]>([]);
   const [moderatorsLoaded, setModeratorsLoaded] = useState(false);
 
+  const [showLeReport, setShowLeReport] = useState(false);
+  const [leReportLoading, setLeReportLoading] = useState(false);
+
   const toast = useToast();
 
   const canManage =
@@ -207,7 +212,18 @@ export function ReportDetail() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Action handlers (unchanged logic, using same API calls)
+  const handleFileLeReport = async (category: LeReportCategory, notes?: string) => {
+    if (!id) return;
+    setLeReportLoading(true);
+    const res = await api.moderation.fileLeReport(id, { category, notes });
+    setLeReportLoading(false);
+    if (res.success) {
+      toast.success(t('moderation.detail.leReportSuccess'));
+      setShowLeReport(false);
+      await load();
+    }
+  };
+
   const handleEscalate = async () => {
     if (!id) return;
     setActionLoading(true);
@@ -393,6 +409,21 @@ export function ReportDetail() {
           <span className={`moderation-status-badge moderation-status-${report.status}`}>
             {t(`moderation.reports.status.${report.status}`)}
           </span>
+          {report.leReportFiled && (
+            <span className="le-report-filed-badge" style={{ marginLeft: '0.5rem' }}>
+              {t('moderation.detail.leReportFiled')}
+              {report.ncmecReportId && (
+                <span style={{ marginLeft: '0.25rem', fontWeight: 400 }}>
+                  (NCMEC #{report.ncmecReportId})
+                </span>
+              )}
+            </span>
+          )}
+          {report.ncmecStatus === 'failed' && (
+            <span className="le-report-failed-badge" style={{ marginLeft: '0.5rem' }}>
+              {t('moderation.detail.ncmecSubmitFailed')}
+            </span>
+          )}
         </h1>
       </div>
 
@@ -949,6 +980,48 @@ export function ReportDetail() {
           )}
         </div>
       )}
+
+      {/* Law Enforcement report action */}
+      {canManageEscalated && report.status !== 'closed' && (
+        <div className="admin-card">
+          <h2 className="admin-card-title">{t('moderation.detail.leReport')}</h2>
+          {report.leReportFiled ? (
+            <div style={{ fontSize: '0.875rem' }}>
+              <p style={{ opacity: 0.7, margin: 0 }}>
+                {t('moderation.detail.leReportAlreadyFiled')}
+              </p>
+              {report.ncmecReportId && (
+                <p style={{ margin: '0.25rem 0 0' }}>
+                  {t('moderation.detail.ncmecReportId')}: <strong>{report.ncmecReportId}</strong>
+                </p>
+              )}
+              {report.ncmecStatus === 'failed' && (
+                <p className="le-report-failed-badge" style={{ margin: '0.5rem 0 0', display: 'inline-block' }}>
+                  {t('moderation.detail.ncmecSubmitFailed')}
+                </p>
+              )}
+            </div>
+          ) : (
+            <Button
+              variant="primary"
+              className="btn-danger"
+              size="sm"
+              onClick={() => setShowLeReport(true)}
+              disabled={actionLoading}
+            >
+              {t('moderation.detail.leReport')}
+            </Button>
+          )}
+        </div>
+      )}
+
+      <LeReportModal
+        open={showLeReport}
+        onOpenChange={setShowLeReport}
+        onSubmit={handleFileLeReport}
+        loading={leReportLoading}
+        defaultCategory="csam"
+      />
 
       {/* Comment form */}
       <div className="admin-card">
