@@ -22,6 +22,39 @@ This document lists **environment variables** the **API** (`apps/api`) and **cha
 |----------|--------|
 | `MAX_REQUEST_BODY_BYTES` | Set from Terraform `api_max_request_body_bytes` (default `256000`, 250 KiB; same as `DEFAULT_MAX_REQUEST_BODY_BYTES` in `@adieuu/shared`). Aligns the Bun router with the ALB WAF rule `block-request-body-over-max`. Change the limit via `api_max_request_body_bytes` in `terraform.tfvars`, not by setting this key in `api_environment`. |
 
+**Terraform-injected when media stack is enabled (`local.media_enabled`):**
+
+| Variable | Notes |
+|----------|--------|
+| `CYBERTIPLINE_SECRET_ARN` | Secrets Manager ARN for NCMEC API credentials (see below). Not in the JSON `api` secret by default — separate secret resource. |
+| `CYBERTIPLINE_BASE_URL` | From Terraform `cybertipline_base_url` (default **test**: `https://exttest.cybertip.org/ispws`). Set production URL only in prod tfvars. |
+
+**CyberTipline credentials secret** (`{prefix}-cybertipline-credentials`): JSON object matching `CyberTiplineCredentials` in `apps/api/src/services/cybertipline.service.ts`:
+
+```json
+{
+  "username": "<NCMEC-issued>",
+  "password": "<NCMEC-issued>",
+  "reporterFirstName": "Jane",
+  "reporterLastName": "Doe",
+  "reporterEmail": "abuse@example.com",
+  "companyTemplate": "Optional company block text",
+  "termsOfServiceUrl": "https://example.com/terms",
+  "legalUrl": "https://example.com/legal"
+}
+```
+
+Use **test** credentials with `CYBERTIPLINE_BASE_URL=https://exttest.cybertip.org/ispws`. Use **production** credentials only with `https://report.cybertip.org/ispws`.
+
+Optional **`CYBERTIPLINE_ENV`** in `api_environment`: `test` or `production`. When set, the API rejects a mismatch between this value and the base URL host (safety check).
+
+**Local dev vs production (no separate staging stack):** Adieuu currently runs **local development** and **production ECS** only.
+
+| Where | Base URL | Credentials | How to test LE filing |
+|-------|----------|-------------|------------------------|
+| **Local dev** | `CYBERTIPLINE_BASE_URL=https://exttest.cybertip.org/ispws` in `.env` (client default if unset) | NCMEC **test** creds via `CYBERTIPLINE_TEST_*` env vars for the integration test, or inject credentials in code/scripts | `CYBERTIPLINE_INTEGRATION_TEST=1` + `bun test …/cybertipline.integration.test.ts`; or run API locally and use the moderation UI against exttest |
+| **Production** | Terraform `cybertipline_base_url` (defaults to **exttest** until you deliberately switch) | `{prefix}-cybertipline-credentials` in Secrets Manager | Until NCMEC production onboarding is complete, keep **exttest** URL + **test** credentials in prod so moderator submissions do not hit production LE routing. When ready for real reports: set `cybertipline_base_url` to `https://report.cybertip.org/ispws`, store **production** credentials, and set `CYBERTIPLINE_ENV=production` in `api_environment`. |
+
 **Optional in `api_environment` (not Terraform-managed by default):**
 
 | Variable | Reason |

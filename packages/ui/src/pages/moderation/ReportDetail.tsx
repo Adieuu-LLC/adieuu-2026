@@ -217,11 +217,21 @@ export function ReportDetail() {
     setLeReportLoading(true);
     const res = await api.moderation.fileLeReport(id, { category, notes });
     setLeReportLoading(false);
-    if (res.success) {
+    if (!res.success) return;
+
+    const filed = res.data;
+    if (filed?.ncmecStatus === 'submitted') {
       toast.success(t('moderation.detail.leReportSuccess'));
       setShowLeReport(false);
-      await load();
+    } else {
+      const detail = filed?.ncmecError?.trim();
+      toast.error(
+        detail
+          ? `${t('moderation.detail.leReportSubmitFailed')} ${detail}`
+          : t('moderation.detail.leReportSubmitFailed'),
+      );
     }
+    await load();
   };
 
   const handleEscalate = async () => {
@@ -409,7 +419,7 @@ export function ReportDetail() {
           <span className={`moderation-status-badge moderation-status-${report.status}`}>
             {t(`moderation.reports.status.${report.status}`)}
           </span>
-          {report.leReportFiled && (
+          {report.ncmecStatus === 'submitted' && (
             <span className="le-report-filed-badge" style={{ marginLeft: '0.5rem' }}>
               {t('moderation.detail.leReportFiled')}
               {report.ncmecReportId && (
@@ -985,7 +995,7 @@ export function ReportDetail() {
       {canManageEscalated && report.status !== 'closed' && (
         <div className="admin-card">
           <h2 className="admin-card-title">{t('moderation.detail.leReport')}</h2>
-          {report.leReportFiled ? (
+          {report.ncmecStatus === 'submitted' ? (
             <div style={{ fontSize: '0.875rem' }}>
               <p style={{ opacity: 0.7, margin: 0 }}>
                 {t('moderation.detail.leReportAlreadyFiled')}
@@ -995,13 +1005,19 @@ export function ReportDetail() {
                   {t('moderation.detail.ncmecReportId')}: <strong>{report.ncmecReportId}</strong>
                 </p>
               )}
-              {report.ncmecStatus === 'failed' && (
-                <p className="le-report-failed-badge" style={{ margin: '0.5rem 0 0', display: 'inline-block' }}>
-                  {t('moderation.detail.ncmecSubmitFailed')}
-                </p>
-              )}
             </div>
           ) : (
+            <>
+              {report.ncmecStatus === 'failed' && (
+                <p className="le-report-failed-badge" style={{ margin: '0 0 0.75rem', display: 'inline-block' }}>
+                  {t('moderation.detail.ncmecSubmitFailed')}
+                  {report.ncmecError ? (
+                    <span style={{ display: 'block', marginTop: '0.25rem', fontWeight: 400 }}>
+                      {report.ncmecError}
+                    </span>
+                  ) : null}
+                </p>
+              )}
             <Button
               variant="primary"
               className="btn-danger"
@@ -1009,8 +1025,11 @@ export function ReportDetail() {
               onClick={() => setShowLeReport(true)}
               disabled={actionLoading}
             >
-              {t('moderation.detail.leReport')}
+              {report.ncmecStatus === 'failed'
+                ? t('moderation.detail.leReportRetry')
+                : t('moderation.detail.leReport')}
             </Button>
+            </>
           )}
         </div>
       )}

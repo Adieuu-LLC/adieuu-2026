@@ -178,6 +178,8 @@ export interface ReportDocument extends BaseDocument {
   ncmecReportId?: string;
   /** NCMEC submission status */
   ncmecStatus?: 'submitted' | 'failed';
+  /** Last NCMEC submission error (cleared on success) */
+  ncmecError?: string;
 
   /** Tags applied by automated systems or moderator actions */
   tags?: string[];

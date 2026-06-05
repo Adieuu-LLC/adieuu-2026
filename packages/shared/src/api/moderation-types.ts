@@ -111,6 +111,7 @@ export interface PublicReport {
   leReportFiledBy?: string;
   ncmecReportId?: string;
   ncmecStatus?: string;
+  ncmecError?: string;
   createdAt: string;
   updatedAt: string;
 }

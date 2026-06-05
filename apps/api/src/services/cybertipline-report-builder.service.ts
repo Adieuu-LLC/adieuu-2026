@@ -114,9 +114,16 @@ export async function buildCyberTiplineReport(
     meta.evidenceBucket ? `Evidence archived to: ${meta.evidenceBucket}/${meta.evidenceKey}` : '',
   ].filter(Boolean).join('\n');
 
+  const additionalInfoSummary = [
+    meta.rejectionReason ? `Rejection: ${meta.rejectionReason}` : '',
+    meta.mediaId ? `Media ID: ${meta.mediaId}` : '',
+    meta.e2eMatched ? 'E2E media correlation: yes' : '',
+  ].filter(Boolean).join('; ') || undefined;
+
   const report: CyberTiplineReportInput = {
     incidentType: INCIDENT_TYPE_CSAM,
     incidentDateTime: meta.detectedAt ?? new Date().toISOString(),
+    additionalInfoSummary,
     reportedPerson: {
       espIdentifier: platformReport.targetIdentityId,
       screenName: identity?.username,

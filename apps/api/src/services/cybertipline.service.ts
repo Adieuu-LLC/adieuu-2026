@@ -9,8 +9,44 @@
 
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
-const TEST_BASE_URL = 'https://exttest.cybertip.org/ispws';
-const PROD_BASE_URL = 'https://report.cybertip.org/ispws';
+export const CYBERTIPLINE_TEST_BASE_URL = 'https://exttest.cybertip.org/ispws';
+export const CYBERTIPLINE_PROD_BASE_URL = 'https://report.cybertip.org/ispws';
+
+const TEST_BASE_URL = CYBERTIPLINE_TEST_BASE_URL;
+const PROD_BASE_URL = CYBERTIPLINE_PROD_BASE_URL;
+
+export type CyberTiplineDeployEnv = 'test' | 'production';
+
+function baseUrlHost(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).host;
+  } catch {
+    return baseUrl;
+  }
+}
+
+/**
+ * When CYBERTIPLINE_ENV is set, ensures the configured base URL matches the intended NCMEC environment.
+ */
+export function assertCyberTiplineEnvironment(baseUrl: string): void {
+  const expected = process.env.CYBERTIPLINE_ENV as CyberTiplineDeployEnv | undefined;
+  if (!expected || (expected !== 'test' && expected !== 'production')) return;
+
+  const host = baseUrlHost(baseUrl);
+  const isTest = host === 'exttest.cybertip.org';
+  const isProd = host === 'report.cybertip.org';
+
+  if (expected === 'test' && !isTest) {
+    throw new Error(
+      `CyberTipline: CYBERTIPLINE_ENV=test requires exttest base URL, got host ${host}`,
+    );
+  }
+  if (expected === 'production' && !isProd) {
+    throw new Error(
+      `CyberTipline: CYBERTIPLINE_ENV=production requires report.cybertip.org base URL, got host ${host}`,
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -235,6 +271,36 @@ function parseFinishResponseXml(xml: string): CyberTiplineFinishResponse {
 // Client
 // ---------------------------------------------------------------------------
 
+function envOrTest(key: string, testKey: string): string | undefined {
+  const v = process.env[key]?.trim();
+  if (v) return v;
+  return process.env[testKey]?.trim() || undefined;
+}
+
+/** Local dev / integration tests: credentials from env when Secrets Manager is not used. */
+export function loadCyberTiplineCredentialsFromEnv(): CyberTiplineCredentials | null {
+  const username = envOrTest('CYBERTIPLINE_USERNAME', 'CYBERTIPLINE_TEST_USERNAME');
+  const password = envOrTest('CYBERTIPLINE_PASSWORD', 'CYBERTIPLINE_TEST_PASSWORD');
+  const reporterFirstName = envOrTest('CYBERTIPLINE_REPORTER_FIRST_NAME', 'CYBERTIPLINE_TEST_REPORTER_FIRST_NAME');
+  const reporterLastName = envOrTest('CYBERTIPLINE_REPORTER_LAST_NAME', 'CYBERTIPLINE_TEST_REPORTER_LAST_NAME');
+  const reporterEmail = envOrTest('CYBERTIPLINE_REPORTER_EMAIL', 'CYBERTIPLINE_TEST_REPORTER_EMAIL');
+
+  if (!username || !password || !reporterFirstName || !reporterLastName || !reporterEmail) {
+    return null;
+  }
+
+  return {
+    username,
+    password,
+    reporterFirstName,
+    reporterLastName,
+    reporterEmail,
+    companyTemplate: process.env.CYBERTIPLINE_COMPANY_TEMPLATE?.trim() || undefined,
+    termsOfServiceUrl: process.env.CYBERTIPLINE_TERMS_OF_SERVICE_URL?.trim() || undefined,
+    legalUrl: process.env.CYBERTIPLINE_LEGAL_URL?.trim() || undefined,
+  };
+}
+
 export class CyberTiplineClient {
   private baseUrl: string;
   private credentials: CyberTiplineCredentials | null = null;
@@ -242,9 +308,9 @@ export class CyberTiplineClient {
   private secretArn: string;
 
   constructor(opts?: { baseUrl?: string; secretArn?: string; credentials?: CyberTiplineCredentials }) {
-    this.baseUrl = opts?.baseUrl
+    this.baseUrl = (opts?.baseUrl
       ?? process.env.CYBERTIPLINE_BASE_URL
-      ?? TEST_BASE_URL;
+      ?? TEST_BASE_URL).replace(/\/$/, '');
     this.secretArn = opts?.secretArn
       ?? process.env.CYBERTIPLINE_SECRET_ARN
       ?? '';
@@ -259,8 +325,16 @@ export class CyberTiplineClient {
   private async getCredentials(): Promise<CyberTiplineCredentials> {
     if (this.credentials) return this.credentials;
 
+    const fromEnv = loadCyberTiplineCredentialsFromEnv();
+    if (fromEnv) {
+      this.credentials = fromEnv;
+      return fromEnv;
+    }
+
     if (!this.secretArn) {
-      throw new Error('CyberTipline: CYBERTIPLINE_SECRET_ARN is not configured');
+      throw new Error(
+        'CyberTipline: set CYBERTIPLINE_SECRET_ARN or inline credentials (CYBERTIPLINE_USERNAME, CYBERTIPLINE_PASSWORD, reporter fields)',
+      );
     }
 
     const result = await this.secretsClient.send(
@@ -272,6 +346,10 @@ export class CyberTiplineClient {
 
     this.credentials = JSON.parse(result.SecretString) as CyberTiplineCredentials;
     return this.credentials;
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 
   private async authHeader(): Promise<string> {
@@ -429,6 +507,12 @@ export class CyberTiplineClient {
     report: CyberTiplineReportInput,
     evidenceFile?: { data: Buffer | Uint8Array | ReadableStream; fileName: string; details?: Omit<CyberTiplineFileDetailsInput, 'reportId' | 'fileId'> },
   ): Promise<CyberTiplineSubmitResult> {
+    console.info('[CyberTipline] submitFullReport', {
+      baseUrlHost: baseUrlHost(this.baseUrl),
+      hasEvidence: Boolean(evidenceFile),
+      incidentType: report.incidentType,
+    });
+
     const submitResp = await this.submitReport(report);
     const ncmecReportId = submitResp.reportId!;
 

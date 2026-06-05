@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 
 import {
   escapeXml,
@@ -8,6 +8,9 @@ import {
   parseFinishResponseXml,
   CyberTiplineClient,
   CyberTiplineError,
+  assertCyberTiplineEnvironment,
+  CYBERTIPLINE_TEST_BASE_URL,
+  CYBERTIPLINE_PROD_BASE_URL,
   type CyberTiplineReportInput,
   type CyberTiplineCredentials,
   type CyberTiplineFileDetailsInput,
@@ -244,12 +247,39 @@ describe('CyberTiplineError', () => {
 // CyberTiplineClient constructor
 // ---------------------------------------------------------------------------
 
+describe('assertCyberTiplineEnvironment', () => {
+  const oldEnv = process.env.CYBERTIPLINE_ENV;
+
+  afterEach(() => {
+    if (oldEnv === undefined) delete process.env.CYBERTIPLINE_ENV;
+    else process.env.CYBERTIPLINE_ENV = oldEnv;
+  });
+
+  test('allows matching test URL when CYBERTIPLINE_ENV=test', () => {
+    process.env.CYBERTIPLINE_ENV = 'test';
+    expect(() => assertCyberTiplineEnvironment(CYBERTIPLINE_TEST_BASE_URL)).not.toThrow();
+  });
+
+  test('throws when test env is set but production URL is used', () => {
+    process.env.CYBERTIPLINE_ENV = 'test';
+    expect(() => assertCyberTiplineEnvironment(CYBERTIPLINE_PROD_BASE_URL)).toThrow(/exttest/);
+  });
+
+  test('allows matching production URL when CYBERTIPLINE_ENV=production', () => {
+    process.env.CYBERTIPLINE_ENV = 'production';
+    expect(() => assertCyberTiplineEnvironment(CYBERTIPLINE_PROD_BASE_URL)).not.toThrow();
+  });
+
+  test('no-op when CYBERTIPLINE_ENV is unset', () => {
+    delete process.env.CYBERTIPLINE_ENV;
+    expect(() => assertCyberTiplineEnvironment(CYBERTIPLINE_PROD_BASE_URL)).not.toThrow();
+  });
+});
+
 describe('CyberTiplineClient', () => {
   test('uses test URL by default', () => {
     const client = new CyberTiplineClient({ credentials: testCreds });
-    expect((client as unknown as Record<string, string>).baseUrl).toBe(
-      'https://exttest.cybertip.org/ispws',
-    );
+    expect(client.getBaseUrl()).toBe(CYBERTIPLINE_TEST_BASE_URL);
   });
 
   test('accepts custom base URL', () => {
@@ -257,9 +287,15 @@ describe('CyberTiplineClient', () => {
       baseUrl: 'https://custom.example.com/ispws',
       credentials: testCreds,
     });
-    expect((client as unknown as Record<string, string>).baseUrl).toBe(
-      'https://custom.example.com/ispws',
-    );
+    expect(client.getBaseUrl()).toBe('https://custom.example.com/ispws');
+  });
+
+  test('strips trailing slash from base URL', () => {
+    const client = new CyberTiplineClient({
+      baseUrl: 'https://exttest.cybertip.org/ispws/',
+      credentials: testCreds,
+    });
+    expect(client.getBaseUrl()).toBe(CYBERTIPLINE_TEST_BASE_URL);
   });
 
   test('getCredentials returns injected credentials', async () => {
@@ -269,8 +305,24 @@ describe('CyberTiplineClient', () => {
   });
 
   test('getCredentials throws when no secret ARN and no injected creds', async () => {
-    const oldEnv = process.env.CYBERTIPLINE_SECRET_ARN;
-    delete process.env.CYBERTIPLINE_SECRET_ARN;
+    const keys = [
+      'CYBERTIPLINE_SECRET_ARN',
+      'CYBERTIPLINE_USERNAME',
+      'CYBERTIPLINE_PASSWORD',
+      'CYBERTIPLINE_REPORTER_FIRST_NAME',
+      'CYBERTIPLINE_REPORTER_LAST_NAME',
+      'CYBERTIPLINE_REPORTER_EMAIL',
+      'CYBERTIPLINE_TEST_USERNAME',
+      'CYBERTIPLINE_TEST_PASSWORD',
+      'CYBERTIPLINE_TEST_REPORTER_FIRST_NAME',
+      'CYBERTIPLINE_TEST_REPORTER_LAST_NAME',
+      'CYBERTIPLINE_TEST_REPORTER_EMAIL',
+    ] as const;
+    const saved: Partial<Record<(typeof keys)[number], string | undefined>> = {};
+    for (const k of keys) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
 
     const client = new CyberTiplineClient();
     try {
@@ -279,7 +331,10 @@ describe('CyberTiplineClient', () => {
     } catch (err) {
       expect((err as Error).message).toContain('CYBERTIPLINE_SECRET_ARN');
     } finally {
-      if (oldEnv) process.env.CYBERTIPLINE_SECRET_ARN = oldEnv;
+      for (const k of keys) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
     }
   });
 });

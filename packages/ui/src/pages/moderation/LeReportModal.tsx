@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, Portal } from '@ark-ui/react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../../components/Button';
@@ -12,6 +12,8 @@ export interface LeReportModalProps {
   defaultCategory?: LeReportCategory;
 }
 
+type LeReportStep = 'form' | 'confirm';
+
 export function LeReportModal({
   open,
   onOpenChange,
@@ -20,25 +22,45 @@ export function LeReportModal({
   defaultCategory = 'csam',
 }: LeReportModalProps) {
   const { t } = useTranslation();
+  const [step, setStep] = useState<LeReportStep>('form');
   const [category, setCategory] = useState<LeReportCategory>(defaultCategory);
   const [notes, setNotes] = useState('');
 
-  const handleSubmit = async () => {
+  useEffect(() => {
+    if (!open) {
+      setStep('form');
+      setNotes('');
+      setCategory(defaultCategory);
+    }
+  }, [open, defaultCategory]);
+
+  const handleContinue = () => {
+    setStep('confirm');
+  };
+
+  const handleConfirmSubmit = async () => {
     await onSubmit(category, notes.trim() || undefined);
-    setNotes('');
   };
 
   const handleCancel = () => {
     if (!loading) {
-      setNotes('');
-      onOpenChange(false);
+      if (step === 'confirm') {
+        setStep('form');
+      } else {
+        setNotes('');
+        onOpenChange(false);
+      }
     }
   };
+
+  const categoryLabel = t('moderation.detail.leReportCategoryCsam');
 
   return (
     <Dialog.Root
       open={open}
-      onOpenChange={(e) => onOpenChange(e.open)}
+      onOpenChange={(e) => {
+        if (!loading) onOpenChange(e.open);
+      }}
       closeOnInteractOutside={!loading}
     >
       <Portal>
@@ -47,65 +69,80 @@ export function LeReportModal({
           <Dialog.Content className="confirm-dialog-content confirm-dialog-danger">
             <div className="confirm-dialog-header">
               <Dialog.Title className="confirm-dialog-title">
-                {t('moderation.detail.leReportTitle')}
+                {step === 'form'
+                  ? t('moderation.detail.leReportTitle')
+                  : t('moderation.detail.leReportConfirmTitle')}
               </Dialog.Title>
             </div>
 
             <div className="confirm-dialog-body">
-              <Dialog.Description className="confirm-dialog-description">
-                {t('moderation.detail.leReportDescription')}
-              </Dialog.Description>
+              {step === 'form' ? (
+                <>
+                  <Dialog.Description className="confirm-dialog-description">
+                    {t('moderation.detail.leReportDescription')}
+                  </Dialog.Description>
 
-              <div className="le-report-form">
-                <label>
-                  {t('moderation.detail.leReportCategory')}
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value as LeReportCategory)}
-                    disabled={loading}
-                  >
-                    <option value="csam">
-                      {t('moderation.detail.leReportCategoryCsam')}
-                    </option>
-                  </select>
-                </label>
+                  <div className="le-report-form">
+                    <label>
+                      {t('moderation.detail.leReportCategory')}
+                      <select
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value as LeReportCategory)}
+                        disabled={loading}
+                      >
+                        <option value="csam">{categoryLabel}</option>
+                      </select>
+                    </label>
 
-                <label>
-                  {t('moderation.detail.leReportNotes')}
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value.slice(0, 1000))}
-                    placeholder={t('moderation.detail.leReportNotesPlaceholder')}
-                    disabled={loading}
-                    rows={4}
-                  />
-                </label>
-              </div>
+                    <label>
+                      {t('moderation.detail.leReportNotes')}
+                      <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value.slice(0, 1000))}
+                        placeholder={t('moderation.detail.leReportNotesPlaceholder')}
+                        disabled={loading}
+                        rows={4}
+                      />
+                    </label>
+                  </div>
+                </>
+              ) : (
+                <Dialog.Description className="confirm-dialog-description">
+                  {t('moderation.detail.leReportConfirmDescription', { category: categoryLabel })}
+                </Dialog.Description>
+              )}
             </div>
 
             <div className="confirm-dialog-footer">
-              <Button
-                variant="secondary"
-                onClick={handleCancel}
-                disabled={loading}
-              >
-                {t('common.cancel')}
+              <Button variant="secondary" onClick={handleCancel} disabled={loading}>
+                {step === 'confirm' ? t('common.back') : t('common.cancel')}
               </Button>
-              <Button
-                variant="primary"
-                className="btn-danger"
-                onClick={handleSubmit}
-                disabled={loading}
-              >
-                {loading ? (
-                  <span className="confirm-dialog-loading">
-                    <LoadingSpinner />
-                    {t('moderation.detail.leReportSubmit')}
-                  </span>
-                ) : (
-                  t('moderation.detail.leReportSubmit')
-                )}
-              </Button>
+              {step === 'form' ? (
+                <Button
+                  variant="primary"
+                  className="btn-danger"
+                  onClick={handleContinue}
+                  disabled={loading}
+                >
+                  {t('moderation.detail.leReportContinue')}
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  className="btn-danger"
+                  onClick={() => void handleConfirmSubmit()}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <span className="confirm-dialog-loading">
+                      <LoadingSpinner />
+                      {t('moderation.detail.leReportConfirmSubmit')}
+                    </span>
+                  ) : (
+                    t('moderation.detail.leReportConfirmSubmit')
+                  )}
+                </Button>
+              )}
             </div>
           </Dialog.Content>
         </Dialog.Positioner>

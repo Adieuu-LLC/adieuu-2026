@@ -104,6 +104,7 @@ export function toPublicReport(doc: Record<string, unknown>) {
     leReportFiledBy: doc.leReportFiledBy,
     ncmecReportId: doc.ncmecReportId,
     ncmecStatus: doc.ncmecStatus,
+    ncmecError: doc.ncmecError,
     createdAt: doc.createdAt instanceof Date ? doc.createdAt.toISOString() : doc.createdAt,
     updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : doc.updatedAt,
   };
@@ -624,7 +625,7 @@ export async function fileLeReportResult(
     return { ok: false, kind: 'bad_request', message: 'Cannot file LE report on a closed report' };
   }
 
-  if (report.leReportFiled) {
+  if (report.ncmecStatus === 'submitted') {
     return { ok: false, kind: 'bad_request', message: 'LE report has already been filed for this report' };
   }
 
@@ -636,10 +637,11 @@ export async function fileLeReportResult(
 
   try {
     const { buildCyberTiplineReport } = await import('../../services/cybertipline-report-builder.service');
-    const { getCyberTiplineClient } = await import('../../services/cybertipline.service');
+    const { getCyberTiplineClient, assertCyberTiplineEnvironment } = await import('../../services/cybertipline.service');
 
     const bundle = await buildCyberTiplineReport(report as ReportDocument, parsed.data.notes);
     const client = getCyberTiplineClient();
+    assertCyberTiplineEnvironment(client.getBaseUrl());
     const result = await client.submitFullReport(bundle.report, bundle.evidenceFile);
     ncmecReportId = result.ncmecReportId;
     ncmecStatus = 'submitted';
@@ -665,19 +667,26 @@ export async function fileLeReportResult(
     },
   });
 
+  const submitted = ncmecStatus === 'submitted';
   const objectId = new ObjectId(id);
   const updateResult = await repo['collection'].findOneAndUpdate(
     { _id: objectId },
     {
       $set: {
-        leReportFiled: true,
-        leReportFiledAt: now,
-        leReportFiledBy: actorId,
-        ncmecReportId,
+        ...(submitted
+          ? {
+              leReportFiled: true,
+              leReportFiledAt: now,
+              leReportFiledBy: actorId,
+              ncmecReportId,
+            }
+          : { ncmecError }),
         ncmecStatus,
         updatedAt: now,
       },
-      $addToSet: { tags: 'le_report_filed' },
+      ...(submitted
+        ? { $addToSet: { tags: 'le_report_filed' }, $unset: { ncmecError: '' } }
+        : { $unset: { ncmecReportId: '' } }),
     },
     { returnDocument: 'after' },
   );
