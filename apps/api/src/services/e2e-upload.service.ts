@@ -40,6 +40,7 @@ import {
 } from '../models/media-upload';
 import type { E2EMediaStatus } from '../models/e2e-media';
 import elog from '../utils/adieuuLogger';
+import { sanitizeIpForStorage } from '../utils/sanitize';
 import {
   convScanManifestObjectKey,
   convScanSealObjectKey,
@@ -671,6 +672,7 @@ export async function requestScanUpload(
       }
     : purposeConfig.processingFlags;
 
+  const uploadIpAddress = sanitizeIpForStorage(input.clientIp);
   await mediaRepo.create({
     mediaId: scanMediaId,
     purpose,
@@ -680,7 +682,7 @@ export async function requestScanUpload(
     status: 'pending',
     processingFlags,
     scanHash: input.scanHash,
-    ...(input.clientIp ? { uploadIpAddress: input.clientIp } : {}),
+    ...(uploadIpAddress ? { uploadIpAddress } : {}),
   } as Omit<import('../models/media-upload').MediaUploadDocument, '_id' | 'createdAt' | 'updatedAt'>);
 
   elog.info('Scan copy presigned URL generated', {

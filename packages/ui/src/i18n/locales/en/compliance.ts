@@ -45,6 +45,8 @@ export const compliance = {
     utahNotice:
       "Due to Utah's ridiculous regulations, we have to verify your age. Sorry.",
     utahContinue: 'Continue',
+    sessionRefreshFailed:
+      'Your response was saved, but we could not refresh your session. Please try again.',
     yes: 'Yes',
     no: 'No',
   },

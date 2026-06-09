@@ -28,6 +28,7 @@ import {
 } from '../../services/platform-capabilities.service';
 import type { IdentitySessionData } from '../../services/session.service';
 import { isValidObjectId } from '../../utils/isValidObjectId';
+import { sanitizeString } from '../../utils/sanitize';
 
 export type ModerationFailureKind =
   | 'validation_failed'
@@ -597,11 +598,18 @@ export async function closeReportResult(
 }
 
 const LE_REPORT_CATEGORIES = ['csam'] as const;
+const LE_REPORT_NOTES_MAX_LENGTH = 1000;
 
 const LeReportSchema = z.object({
   category: z.enum(LE_REPORT_CATEGORIES),
-  notes: z.string().max(1000).optional(),
+  notes: z.string().max(LE_REPORT_NOTES_MAX_LENGTH).optional(),
 });
+
+function sanitizeLeReportNotes(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const clipped = sanitizeString(raw, 'general').value.slice(0, LE_REPORT_NOTES_MAX_LENGTH).trim();
+  return clipped === '' ? undefined : clipped;
+}
 
 export async function fileLeReportResult(
   actorId: string,
@@ -616,6 +624,8 @@ export async function fileLeReportResult(
 
   const parsed = LeReportSchema.safeParse(body);
   if (!parsed.success) return { ok: false, kind: 'validation_failed' };
+
+  const notes = sanitizeLeReportNotes(parsed.data.notes);
 
   const repo = getReportRepository();
   const report = await repo.findById(id);
@@ -639,7 +649,7 @@ export async function fileLeReportResult(
     const { buildCyberTiplineReport } = await import('../../services/cybertipline-report-builder.service');
     const { getCyberTiplineClient, assertCyberTiplineEnvironment } = await import('../../services/cybertipline.service');
 
-    const bundle = await buildCyberTiplineReport(report as ReportDocument, parsed.data.notes);
+    const bundle = await buildCyberTiplineReport(report as ReportDocument, notes);
     const client = getCyberTiplineClient();
     assertCyberTiplineEnvironment(client.getBaseUrl());
     const result = await client.submitFullReport(bundle.report, bundle.evidenceFile);
@@ -654,10 +664,10 @@ export async function fileLeReportResult(
     reportId: new ObjectId(id),
     eventType: 'le_report_filed',
     actorIdentityId: actorId,
-    body: parsed.data.notes || `Law enforcement report filed (${parsed.data.category})`,
+    body: notes || `Law enforcement report filed (${parsed.data.category})`,
     metadata: {
       leCategory: parsed.data.category,
-      notes: parsed.data.notes,
+      notes,
       detectionMetadata: report.detectionMetadata,
       targetIdentityId: report.targetIdentityId,
       filedAt: now.toISOString(),

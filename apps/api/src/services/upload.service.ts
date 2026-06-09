@@ -31,6 +31,7 @@ import {
 } from '../models/media-upload';
 import { resolveMaxUploadBytes } from './media-limits.service';
 import elog from '../utils/adieuuLogger';
+import { sanitizeIpForStorage } from '../utils/sanitize';
 
 const PRESIGNED_URL_EXPIRY_SECONDS = 300; // 5 minutes
 
@@ -199,6 +200,7 @@ export async function requestUpload(
   });
 
   const { ObjectId } = await import('mongodb');
+  const uploadIpAddress = sanitizeIpForStorage(input.clientIp);
   await repo.create({
     mediaId,
     ...(input.identityId ? { identityId: new ObjectId(input.identityId) } : {}),
@@ -209,7 +211,7 @@ export async function requestUpload(
     contentLength: input.contentLength,
     status: 'pending',
     processingFlags: purposeConfig.processingFlags,
-    ...(input.clientIp ? { uploadIpAddress: input.clientIp } : {}),
+    ...(uploadIpAddress ? { uploadIpAddress } : {}),
   });
 
   elog.info('Upload presigned URL generated', {

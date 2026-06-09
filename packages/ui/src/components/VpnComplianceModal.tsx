@@ -25,6 +25,14 @@ export function VpnComplianceModal({ open, vpnAttestation, onComplete }: VpnComp
 
   const step = localStep ?? vpnAttestation.step;
 
+  const finishAttestation = useCallback(async () => {
+    try {
+      await onComplete();
+    } catch {
+      setError(t('compliance.vpn.sessionRefreshFailed'));
+    }
+  }, [onComplete, t]);
+
   const submitAnswer = useCallback(async (answer: 'yes' | 'no') => {
     setSubmitting(true);
     setError(null);
@@ -37,7 +45,11 @@ export function VpnComplianceModal({ open, vpnAttestation, onComplete }: VpnComp
 
       if (!response.success) {
         if (response.error?.code === 'ACCOUNT_BANNED') {
-          await onComplete();
+          try {
+            await onComplete();
+          } catch {
+            // Session may already be cleared after a ban; still close the flow.
+          }
           return;
         }
         setError(response.error?.message ?? 'Something went wrong.');
@@ -49,11 +61,21 @@ export function VpnComplianceModal({ open, vpnAttestation, onComplete }: VpnComp
         return;
       }
 
-      await onComplete();
+      await finishAttestation();
     } finally {
       setSubmitting(false);
     }
-  }, [api, localStep, onComplete, vpnAttestation.step]);
+  }, [api, finishAttestation, localStep, vpnAttestation.step]);
+
+  const continueFromUtahNotice = useCallback(async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await finishAttestation();
+    } finally {
+      setSubmitting(false);
+    }
+  }, [finishAttestation]);
 
   return (
     <Dialog.Root open={open} closeOnInteractOutside={false} closeOnEscape={false}>
@@ -116,8 +138,9 @@ export function VpnComplianceModal({ open, vpnAttestation, onComplete }: VpnComp
                 <Dialog.Description className="geofence-modal-description">
                   {t('compliance.vpn.utahNotice')}
                 </Dialog.Description>
+                {error && <p className="geofence-modal-description">{error}</p>}
                 <div className="geofence-modal-footer">
-                  <Button variant="primary" disabled={submitting} onClick={() => void onComplete()}>
+                  <Button variant="primary" disabled={submitting} onClick={() => void continueFromUtahNotice()}>
                     {t('compliance.vpn.utahContinue')}
                   </Button>
                 </div>

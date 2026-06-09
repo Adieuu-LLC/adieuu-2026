@@ -1,9 +1,13 @@
 import { useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useTranslation } from '../i18n';
+import { useToast } from './Toast';
 import { VpnComplianceModal } from './VpnComplianceModal';
 import { AbusiveIpModal } from './AbusiveIpModal';
 
 export function ComplianceModals() {
+  const { t } = useTranslation();
+  const toast = useToast();
   const {
     session,
     abusiveIpNotice,
@@ -14,8 +18,13 @@ export function ComplianceModals() {
   const vpnAttestation = session?.compliance?.vpnAttestation;
 
   const handleVpnComplete = useCallback(async () => {
-    await refreshSession();
-  }, [refreshSession]);
+    const updated = await refreshSession();
+    if (!updated) {
+      const message = t('compliance.vpn.sessionRefreshFailed');
+      toast.error(message);
+      throw new Error('SESSION_REFRESH_FAILED');
+    }
+  }, [refreshSession, t, toast]);
 
   return (
     <>
