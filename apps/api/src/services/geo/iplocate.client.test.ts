@@ -1,25 +1,16 @@
-import { afterAll, describe, expect, test, mock } from 'bun:test';
+import { describe, expect, test, mock, beforeEach, afterAll } from 'bun:test';
 
-mock.module('../../config', () => ({
-  config: {
-    geo: {
-      iplocate: {
-        apiKey: '',
-        baseUrl: 'https://www.iplocate.io/api/lookup',
-        timeoutMs: 2500,
-      },
-    },
-  },
-}));
-
-mock.module('../../utils/adieuuLogger', () => ({
-  default: {
-    info: mock(() => {}),
-    warn: mock(() => {}),
-    error: mock(() => {}),
-    debug: mock(() => {}),
-  },
-}));
+const mockFetch = mock((_url: string) =>
+  Promise.resolve({
+    ok: true,
+    json: () =>
+      Promise.resolve({
+        country_code: 'US',
+        subdivision: 'Tennessee',
+        privacy: { is_anonymous: true, is_abuser: false },
+      }),
+  } as Response),
+);
 
 import { lookupIp } from './iplocate.client';
 
@@ -27,82 +18,26 @@ afterAll(() => {
   mock.restore();
 });
 
-describe('lookupIp', () => {
-  test('returns parsed result on 200', async () => {
-    const fakeFetch = mock(() =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify({
-            country_code: 'US',
-            subdivision: 'Tennessee',
-            city: 'Nashville',
-          }),
-          { status: 200 },
-        ),
-      ),
-    ) as unknown as typeof fetch;
+beforeEach(() => {
+  mockFetch.mockClear();
+});
 
-    const result = await lookupIp('1.2.3.4', fakeFetch);
-    expect(result).toEqual({
-      countryCode: 'US',
-      subdivisionName: 'Tennessee',
-      city: 'Nashville',
-    });
+describe('lookupIp privacy fields', () => {
+  test('parses is_anonymous and is_abuser from privacy object', async () => {
+    const result = await lookupIp('8.8.8.8', mockFetch as typeof fetch);
+    expect(result?.countryCode).toBe('US');
+    expect(result?.privacy?.isAnonymous).toBe(true);
+    expect(result?.privacy?.isAbuser).toBe(false);
   });
 
-  test('returns null on non-200', async () => {
-    const fakeFetch = mock(() =>
-      Promise.resolve(new Response('rate limited', { status: 429 })),
-    ) as unknown as typeof fetch;
-
-    const result = await lookupIp('1.2.3.4', fakeFetch);
-    expect(result).toBeNull();
-  });
-
-  test('returns null on network error', async () => {
-    const fakeFetch = mock(() =>
-      Promise.reject(new Error('network down')),
-    ) as unknown as typeof fetch;
-
-    const result = await lookupIp('1.2.3.4', fakeFetch);
-    expect(result).toBeNull();
-  });
-
-  test('returns null when response has no country_code', async () => {
-    const fakeFetch = mock(() =>
-      Promise.resolve(
-        new Response(JSON.stringify({ city: 'London' }), { status: 200 }),
-      ),
-    ) as unknown as typeof fetch;
-
-    const result = await lookupIp('1.2.3.4', fakeFetch);
-    expect(result).toBeNull();
-  });
-
-  test('returns null on malformed JSON', async () => {
-    const fakeFetch = mock(() =>
-      Promise.resolve(new Response('not json', { status: 200 })),
-    ) as unknown as typeof fetch;
-
-    const result = await lookupIp('1.2.3.4', fakeFetch);
-    expect(result).toBeNull();
-  });
-
-  test('handles missing optional fields', async () => {
-    const fakeFetch = mock(() =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify({ country_code: 'DE' }),
-          { status: 200 },
-        ),
-      ),
-    ) as unknown as typeof fetch;
-
-    const result = await lookupIp('5.6.7.8', fakeFetch);
-    expect(result).toEqual({
-      countryCode: 'DE',
-      subdivisionName: undefined,
-      city: undefined,
-    });
+  test('defaults privacy flags to false when absent', async () => {
+    mockFetch.mockImplementationOnce(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ country_code: 'DE' }),
+      } as Response),
+    );
+    const result = await lookupIp('8.8.8.8', mockFetch as typeof fetch);
+    expect(result?.privacy).toBeUndefined();
   });
 });

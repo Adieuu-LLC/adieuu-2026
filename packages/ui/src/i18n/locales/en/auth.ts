@@ -32,6 +32,8 @@ export const auth = {
       appealMessage: 'If you believe this was made in error, you may appeal by emailing',
       appealEmail: 'consequences@adieuu.com',
       appealInstructions: 'with your account details.',
+      ofacMessage:
+        'Your country is subject to U.S. sanctions. We are unable to provide service. Appeals are not available.',
       category: {
         tos_violation: 'ToS violations',
         spam: 'spam',
@@ -43,6 +45,8 @@ export const auth = {
         impersonation: 'impersonation',
         fraud: 'fraud',
         security_abuse: 'security abuse',
+        ofac_sanctioned: 'sanctions compliance',
+        ofac_self_attestation: 'export control',
         other: 'policy violations',
       },
     },

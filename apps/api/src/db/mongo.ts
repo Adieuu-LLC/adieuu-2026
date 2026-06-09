@@ -378,6 +378,8 @@ export const Collections = {
   STRIPE_PROCESSED_EVENTS: 'stripe_processed_events',
   /** Jurisdiction regulatory matrix (age verification, etc.) */
   JURISDICTION_REQUIREMENTS: 'jurisdiction_requirements',
+  /** OFAC / export-control sanctioned countries */
+  SANCTIONED_COUNTRIES: 'sanctioned_countries',
   /** Age verification attempt tracking */
   AGE_VERIFICATIONS: 'age_verifications',
   /** User-uploaded custom emojis (static and animated) */
@@ -669,6 +671,11 @@ async function createIndexes(): Promise<void> {
   // Jurisdiction requirements — one document per jurisdiction code
   const jurisdictionRequirements = database.collection(Collections.JURISDICTION_REQUIREMENTS);
   await jurisdictionRequirements.createIndex({ jurisdiction: 1 }, { unique: true });
+
+  // Sanctioned countries — one document per ISO country code
+  const sanctionedCountries = database.collection(Collections.SANCTIONED_COUNTRIES);
+  await sanctionedCountries.createIndex({ countryCode: 1 }, { unique: true });
+  await sanctionedCountries.createIndex({ active: 1 });
 
   // Age verifications — lookup by user and by provider verification id
   const ageVerifications = database.collection(Collections.AGE_VERIFICATIONS);

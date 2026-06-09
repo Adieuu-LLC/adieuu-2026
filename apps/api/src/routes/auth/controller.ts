@@ -46,7 +46,11 @@ import { hashIdentifier, hashIp, encrypt, generateSecureToken } from '../../util
 import { addJitter } from '../../utils/timing';
 import { config } from '../../config';
 import { isAuthIdentifierAllowed } from '../../services/platform-settings.service';
-import { refreshUserGeoIfStale } from '../../services/geo/geo.service';
+import {
+  evaluateComplianceOnAccess,
+  listSanctionedCountriesForClient,
+  buildVpnAttestationSessionPayload,
+} from '../../services/compliance/compliance-enforcement.service';
 import { getEmailTemplate, getSmsMessage, type Locale, DEFAULT_LOCALE } from '../../i18n';
 import { getRedis, isRedisConnected } from '../../db';
 import elog from '../../utils/adieuuLogger';
@@ -80,6 +84,78 @@ async function buildAccountBannedResult(user: UserDocument): Promise<{
     moderationCategory: user.moderationCategory,
     bannedPeerCount: Math.max(0, total - 1),
   };
+}
+
+type PostLoginComplianceFailure =
+  | {
+      ok: false;
+      error: 'account_banned';
+      moderationReason?: string;
+      moderationCategory?: AccountModerationCategory;
+      bannedPeerCount: number;
+    }
+  | { ok: false; error: 'abusive_ip_blocked'; message: string };
+
+async function runPostLoginComplianceCheck(
+  user: UserDocument,
+  ip: string,
+): Promise<{ ok: true; user: UserDocument } | PostLoginComplianceFailure> {
+  const outcome = await evaluateComplianceOnAccess(user, ip);
+
+  if (outcome.action === 'ofac_banned') {
+    const banned = await buildAccountBannedResult({
+      ...user,
+      isBanned: true,
+      moderationReason: outcome.reason,
+      moderationCategory: outcome.category,
+    });
+    return { ok: false, error: 'account_banned', ...banned };
+  }
+
+  if (outcome.action === 'abusive_ip_blocked') {
+    return { ok: false, error: 'abusive_ip_blocked', message: outcome.message };
+  }
+
+  return { ok: true, user: outcome.user };
+}
+
+async function completeMfaLogin(pendingLogin: MfaPendingLogin): Promise<VerifyMfaResult> {
+  const userRepo = getUserRepository();
+
+  if (pendingLogin.ipAddress) {
+    const mfaUser = await userRepo.findById(pendingLogin.userId);
+    if (mfaUser) {
+      const complianceCheck = await runPostLoginComplianceCheck(mfaUser, pendingLogin.ipAddress);
+      if (!complianceCheck.ok) {
+        if (complianceCheck.error === 'account_banned') {
+          return {
+            success: false,
+            error: 'account_banned',
+            moderationReason: complianceCheck.moderationReason,
+            moderationCategory: complianceCheck.moderationCategory,
+            bannedPeerCount: complianceCheck.bannedPeerCount,
+          };
+        }
+        return {
+          success: false,
+          error: 'abusive_ip_blocked',
+          abusiveIpMessage: complianceCheck.message,
+        };
+      }
+    }
+  }
+
+  const { cookie, csrfCookie } = await createAccountSession(
+    new ObjectId(pendingLogin.userId),
+    pendingLogin.identifier,
+    pendingLogin.identifierType,
+    {
+      userAgent: pendingLogin.userAgent,
+      ipAddress: pendingLogin.ipAddress,
+    },
+  );
+
+  return { success: true, cookie, csrfCookie };
 }
 
 /** Application name for templates */
@@ -437,12 +513,14 @@ export type VerifyOtpHandlerResult =
       | 'account_locked'
       | 'account_banned'
       | 'account_suspended'
+      | 'abusive_ip_blocked'
       | 'not_allowed';
     retryAfterSeconds?: number;
     suspendedUntil?: string;
     moderationReason?: string;
     moderationCategory?: AccountModerationCategory;
     bannedPeerCount?: number;
+    abusiveIpMessage?: string;
   };
 
 /** MFA token TTL in seconds */
@@ -632,7 +710,7 @@ export async function verifyOtpHandler(
   }
 
   // Find or create user
-  const user = await findOrCreateUser(sanitizedIdentifier.value, identifierType);
+  let user = await findOrCreateUser(sanitizedIdentifier.value, identifierType);
   const userId = user._id.toHexString();
 
   // Account-level moderation enforcement
@@ -648,6 +726,26 @@ export async function verifyOtpHandler(
       moderationReason: user.moderationReason,
     };
   }
+
+  // Compliance: geo refresh, OFAC, abusive IP, VPN attestation pending state
+  const complianceCheck = await runPostLoginComplianceCheck(user, sanitizedIp.value);
+  if (!complianceCheck.ok) {
+    if (complianceCheck.error === 'account_banned') {
+      return {
+        success: false,
+        error: 'account_banned',
+        moderationReason: complianceCheck.moderationReason,
+        moderationCategory: complianceCheck.moderationCategory,
+        bannedPeerCount: complianceCheck.bannedPeerCount,
+      };
+    }
+    return {
+      success: false,
+      error: 'abusive_ip_blocked',
+      abusiveIpMessage: complianceCheck.message,
+    };
+  }
+  user = complianceCheck.user;
 
   // Check if user has MFA enabled
   const mfaStatus = await getMfaStatus(userId);
@@ -700,10 +798,6 @@ export async function verifyOtpHandler(
   const { cookie, csrfCookie } = await createAccountSession(user._id, sanitizedIdentifier.value, identifierType, {
     userAgent,
     ipAddress: sanitizedIp.value,
-  });
-
-  await refreshUserGeoIfStale(user, sanitizedIp.value).catch((err) => {
-    elog.warn('Geo refresh failed at login', { error: err, userId });
   });
 
   elog.info('User authenticated successfully', {
@@ -786,16 +880,7 @@ async function reconcileBillingIfStale(user: UserDocument): Promise<UserDocument
   return user;
 }
 
-/**
- * Gets the current account session and generates a fresh signedToken.
- *
- * Accepts an optional pre-loaded `UserDocument` to avoid a duplicate Mongo
- * fetch when the subscription middleware has already loaded the user.
- */
-export async function getSessionHandler(
-  request: Request,
-  preloadedUser?: UserDocument,
-): Promise<{
+export type GetSessionHandlerSuccess = {
   session: AccountSessionData;
   signedToken: string | undefined;
   identityCount: number;
@@ -808,6 +893,7 @@ export async function getSessionHandler(
     verifiedAt?: string;
     retryAfter?: string;
     expirationCount?: number;
+    providerVerificationId?: string;
   };
   aliasGate?: {
     allowed: boolean;
@@ -816,8 +902,41 @@ export async function getSessionHandler(
     lawUrl?: string;
     leastInvasiveMethod?: string;
     retryAfter?: string;
+    requiredReason?: string;
   };
-} | null> {
+  compliance?: {
+    vpnAttestation?: {
+      required: true;
+      step: 'sanctioned_membership' | 'utah_residency';
+      sanctionedCountries: Array<{ countryCode: string; countryName: string }>;
+      vpnCountryCode?: string;
+    };
+  };
+};
+
+export type GetSessionHandlerResult =
+  | GetSessionHandlerSuccess
+  | {
+      blocked: {
+        code: 'ACCOUNT_BANNED' | 'ABUSIVE_IP_BLOCKED';
+        message: string;
+        moderationReason?: string;
+        moderationCategory?: AccountModerationCategory;
+        bannedPeerCount?: number;
+      };
+    }
+  | null;
+
+/**
+ * Gets the current account session and generates a fresh signedToken.
+ *
+ * Accepts an optional pre-loaded `UserDocument` to avoid a duplicate Mongo
+ * fetch when the subscription middleware has already loaded the user.
+ */
+export async function getSessionHandler(
+  request: Request,
+  preloadedUser?: UserDocument,
+): Promise<GetSessionHandlerResult> {
   const session = await requireAccountSession(request);
   if (!session) return null;
 
@@ -827,6 +946,35 @@ export async function getSessionHandler(
     user = await userRepo.findById(session.userId);
   }
   if (!user) return null;
+
+  const clientIp = getClientIp(request);
+  const complianceOutcome = await evaluateComplianceOnAccess(user, clientIp);
+  if (complianceOutcome.action === 'ofac_banned') {
+    const banned = await buildAccountBannedResult({
+      ...user,
+      isBanned: true,
+      moderationReason: complianceOutcome.reason,
+      moderationCategory: complianceOutcome.category,
+    });
+    return {
+      blocked: {
+        code: 'ACCOUNT_BANNED',
+        message: complianceOutcome.reason,
+        moderationReason: banned.moderationReason,
+        moderationCategory: banned.moderationCategory,
+        bannedPeerCount: banned.bannedPeerCount,
+      },
+    };
+  }
+  if (complianceOutcome.action === 'abusive_ip_blocked') {
+    return {
+      blocked: {
+        code: 'ABUSIVE_IP_BLOCKED',
+        message: complianceOutcome.message,
+      },
+    };
+  }
+  user = complianceOutcome.user;
 
   // Reconcile billing with Stripe if stale
   user = await reconcileBillingIfStale(user);
@@ -950,6 +1098,9 @@ export async function getSessionHandler(
       }
       if (gateResult.code === 'AGE_VERIFICATION_REQUIRED') {
         aliasGate.leastInvasiveMethod = gateResult.leastInvasiveMethod;
+        if (gateResult.requiredReason) {
+          aliasGate.requiredReason = gateResult.requiredReason;
+        }
       }
       if (gateResult.code === 'AGE_VERIFICATION_FAILED' || gateResult.code === 'AGE_VERIFICATION_COOLDOWN') {
         aliasGate.retryAfter = gateResult.retryAfter.toISOString();
@@ -959,7 +1110,33 @@ export async function getSessionHandler(
 
   const effectiveToken = aliasGate && !aliasGate.allowed ? undefined : signedToken;
 
-  return { session, signedToken: effectiveToken, identityCount, maskedIp, geo, subscriptions, entitlements, ageVerification, aliasGate };
+  let compliance: GetSessionHandlerSuccess['compliance'];
+  if (complianceOutcome.action === 'attestation_required') {
+    const sanctionedCountries = complianceOutcome.sanctionedCountries;
+    const vpnAttestation = buildVpnAttestationSessionPayload(user, sanctionedCountries);
+    if (vpnAttestation) {
+      compliance = { vpnAttestation };
+    }
+  } else if (user.compliance?.vpnAttestationPending) {
+    const sanctionedCountries = await listSanctionedCountriesForClient();
+    const vpnAttestation = buildVpnAttestationSessionPayload(user, sanctionedCountries);
+    if (vpnAttestation) {
+      compliance = { vpnAttestation };
+    }
+  }
+
+  return {
+    session,
+    signedToken: effectiveToken,
+    identityCount,
+    maskedIp,
+    geo,
+    subscriptions,
+    entitlements,
+    ageVerification,
+    aliasGate,
+    compliance,
+  };
 }
 
 /**
@@ -1139,11 +1316,12 @@ export type VerifyMfaResult =
   | { success: true; cookie: string; csrfCookie: string }
   | {
     success: false;
-    error: 'invalid_token' | 'invalid_code' | 'expired' | 'rate_limited' | 'account_banned' | 'account_suspended';
+    error: 'invalid_token' | 'invalid_code' | 'expired' | 'rate_limited' | 'account_banned' | 'account_suspended' | 'abusive_ip_blocked';
     moderationReason?: string;
     moderationCategory?: AccountModerationCategory;
     bannedPeerCount?: number;
     suspendedUntil?: string;
+    abusiveIpMessage?: string;
   };
 
 /**
@@ -1222,32 +1400,16 @@ export async function verifyMfaTotpHandler(
   // Clear pending login
   await clearPendingLogin(mfaToken);
 
-  // Create session
-  const { cookie, csrfCookie } = await createAccountSession(
-    new ObjectId(pendingLogin.userId),
-    pendingLogin.identifier,
-    pendingLogin.identifierType,
-    {
-      userAgent: pendingLogin.userAgent,
-      ipAddress: pendingLogin.ipAddress,
-    }
-  );
-
-  if (pendingLogin.ipAddress) {
-    const userRepo = getUserRepository();
-    const mfaUser = await userRepo.findById(pendingLogin.userId);
-    if (mfaUser) {
-      await refreshUserGeoIfStale(mfaUser, pendingLogin.ipAddress).catch((err) => {
-        elog.warn('Geo refresh failed at MFA TOTP login', { error: err, userId: pendingLogin.userId });
-      });
-    }
+  const loginResult = await completeMfaLogin(pendingLogin);
+  if (!loginResult.success) {
+    return loginResult;
   }
 
   elog.info('User authenticated with MFA (TOTP)', {
     userId: pendingLogin.userId,
   });
 
-  return { success: true, cookie, csrfCookie };
+  return loginResult;
 }
 
 /**
@@ -1286,30 +1448,14 @@ export async function verifyMfaWebAuthnHandler(
   // Clear pending login
   await clearPendingLogin(mfaToken);
 
-  // Create session
-  const { cookie, csrfCookie } = await createAccountSession(
-    new ObjectId(pendingLogin.userId),
-    pendingLogin.identifier,
-    pendingLogin.identifierType,
-    {
-      userAgent: pendingLogin.userAgent,
-      ipAddress: pendingLogin.ipAddress,
-    }
-  );
-
-  if (pendingLogin.ipAddress) {
-    const userRepo = getUserRepository();
-    const mfaUser = await userRepo.findById(pendingLogin.userId);
-    if (mfaUser) {
-      await refreshUserGeoIfStale(mfaUser, pendingLogin.ipAddress).catch((err) => {
-        elog.warn('Geo refresh failed at MFA WebAuthn login', { error: err, userId: pendingLogin.userId });
-      });
-    }
+  const loginResult = await completeMfaLogin(pendingLogin);
+  if (!loginResult.success) {
+    return loginResult;
   }
 
   elog.info('User authenticated with MFA (WebAuthn)', {
     userId: pendingLogin.userId,
   });
 
-  return { success: true, cookie, csrfCookie };
+  return loginResult;
 }

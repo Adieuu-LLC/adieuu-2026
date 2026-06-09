@@ -156,19 +156,19 @@ export const core = {
 
   // Blocked users
   blocked: {
-    title: 'Blocked Identities',
-    subtitle: 'Manage identities you have blocked.',
-    noBlocked: 'No blocked identities.',
+    title: 'Blocked Aliases',
+    subtitle: 'Manage aliases you have blocked.',
+    noBlocked: 'No blocked aliases.',
     unblock: 'Unblock',
     blockUser: 'Block',
-    confirmBlock: 'Are you sure you want to block this user?',
-    confirmUnblock: 'Are you sure you want to unblock this user?',
+    confirmBlock: 'Are you sure you want to block this alias?',
+    confirmUnblock: 'Are you sure you want to unblock this alias?',
     blocked: 'Blocked',
-    userBlocked: 'User blocked',
-    userUnblocked: 'User unblocked',
-    blockedBanner: 'You have blocked this user. You cannot send or receive messages.',
-    blockedByOtherBanner: 'This user has blocked you. You cannot send or receive messages.',
-    blockUserAction: 'Block User',
+    userBlocked: 'Alias blocked',
+    userUnblocked: 'Alias unblocked',
+    blockedBanner: 'You have blocked this alias. You cannot send or receive messages.',
+    blockedByOtherBanner: 'This alias has blocked you. You cannot send or receive messages.',
+    blockUserAction: 'Block Alias',
   },
 
   // Spaces

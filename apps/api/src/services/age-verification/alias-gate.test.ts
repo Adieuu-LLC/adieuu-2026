@@ -220,4 +220,35 @@ describe('evaluateAliasGate', () => {
     const result = await evaluateAliasGate(user);
     expect(result.allowed).toBe(true);
   });
+
+  test('requires AV when abusive_ip requiredReason is set', async () => {
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve({ leastInvasiveMethod: 'Email' }));
+    const user = makeUser({
+      ageVerification: {
+        status: 'unverified',
+        expirationCount: 0,
+        requiredReason: 'abusive_ip',
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      expect(result.code).toBe('AGE_VERIFICATION_REQUIRED');
+      expect(result.requiredReason).toBe('abusive_ip');
+    }
+  });
+
+  test('requires AV for attested Utah residency', async () => {
+    mockGetAgeVerificationPolicy.mockImplementation(() => Promise.resolve({ leastInvasiveMethod: 'Email' }));
+    const user = makeUser({
+      compliance: { attestedUtahResidency: true },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      expect(result.code).toBe('AGE_VERIFICATION_REQUIRED');
+      expect(result.jurisdiction).toBe('US-UT');
+      expect(result.requiredReason).toBe('utah_attestation');
+    }
+  });
 });

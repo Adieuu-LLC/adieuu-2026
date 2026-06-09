@@ -8,6 +8,7 @@ import { Button } from './Button';
 import { Icon } from '../icons/Icon';
 import { useUntilCountdown } from '../hooks/useUntilCountdown';
 import type { AccountRestrictionInfo } from '../services/authRestrictionFlow';
+import { isOfacSanctionedBan } from '../services/authRestrictionFlow';
 
 interface AccountRestrictionPanelProps {
   info: AccountRestrictionInfo;
@@ -34,15 +35,19 @@ export function AccountRestrictionPanel({ info }: AccountRestrictionPanelProps) 
     ? t(`auth.restriction.category.${info.category}`, info.category)
     : undefined;
 
+  const isOfacBan = isBanned && isOfacSanctionedBan(info.category);
+
   const clubMessage = isBanned
-    ? info.category && categoryLabel
-      ? t('auth.restriction.bannedClubWithCategory', {
-          count: info.bannedPeerCount ?? 0,
-          category: categoryLabel,
-        })
-      : t('auth.restriction.bannedClubTotal', {
-          count: info.bannedPeerCount ?? 0,
-        })
+    ? isOfacBan
+      ? t('auth.restriction.ofacMessage')
+      : info.category && categoryLabel
+        ? t('auth.restriction.bannedClubWithCategory', {
+            count: info.bannedPeerCount ?? 0,
+            category: categoryLabel,
+          })
+        : t('auth.restriction.bannedClubTotal', {
+            count: info.bannedPeerCount ?? 0,
+          })
     : t('auth.restriction.suspendedSubtitle');
 
   return (
@@ -78,13 +83,15 @@ export function AccountRestrictionPanel({ info }: AccountRestrictionPanelProps) 
           </p>
         )}
 
-        <p className="suspension-modal-appeal" style={{ marginTop: 'var(--spacing-md)' }}>
-          {t('auth.restriction.appealMessage')}{' '}
-          <a href="mailto:disputes@adieuu.com" className="suspension-modal-email">
-            {t('auth.restriction.appealEmail')}
-          </a>{' '}
-          {t('auth.restriction.appealInstructions')}
-        </p>
+        {!isOfacBan && (
+          <p className="suspension-modal-appeal" style={{ marginTop: 'var(--spacing-md)' }}>
+            {t('auth.restriction.appealMessage')}{' '}
+            <a href="mailto:disputes@adieuu.com" className="suspension-modal-email">
+              {t('auth.restriction.appealEmail')}
+            </a>{' '}
+            {t('auth.restriction.appealInstructions')}
+          </p>
+        )}
 
         <Link to="/auth/login" replace style={{ marginTop: 'var(--spacing-md)', display: 'block' }}>
           <Button type="button" variant="ghost" className="btn-full">

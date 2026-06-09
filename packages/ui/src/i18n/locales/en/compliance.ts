@@ -32,6 +32,30 @@ export const compliance = {
     doLater: 'Do verification later',
     methodsTitle: 'Verification Methods',
     attemptsRemaining: '{{remaining}} attempts remaining',
+    abusiveIpReason:
+      'Your account was accessed from a network with a known abusive history. Age verification is required before you can create or access aliases.',
+  },
+  vpn: {
+    title: 'Privacy-minded connection detected',
+    body: "It looks like you're connecting through an anonymizing service — good on you for caring about privacy!",
+    vpnHint: 'If you are using a VPN, make sure it is a reputable one. The free ones tend to be… creative with their IP reputation.',
+    sanctionedIntro: 'U.S. sanctions prohibit us from providing service to residents of the following countries:',
+    sanctionedQuestion: 'Are you a resident or national of any of these countries?',
+    utahQuestion: 'Do you live in Utah?',
+    utahNotice:
+      "Due to Utah's ridiculous regulations, we have to verify your age. Sorry.",
+    utahContinue: 'Continue',
+    yes: 'Yes',
+    no: 'No',
+  },
+  abusiveIp: {
+    title: 'This network is not welcome here',
+    body: 'The IP address you are connecting from has been flagged for abusive behaviour elsewhere on the internet.',
+    vpnHint:
+      'If you are on a VPN, this might be a shared IP with a colourful past. Consider upgrading to a provider that does not recycle IPs from the bargain bin.',
+    logoutNotice:
+      'We have ended your session. Please sign in again from a different network.',
+    acknowledge: 'Got it',
   },
   subscription: {
     title: 'Subscription Required',

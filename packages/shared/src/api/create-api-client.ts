@@ -22,6 +22,7 @@ import { ThemesApi } from './themes-api';
 import { UploadApi } from './upload-api';
 import { UsersApi } from './users-api';
 import { GeoApi } from './geo-api';
+import { ComplianceApi } from './compliance-api';
 
 /**
  * Creates an API client instance with all API modules.
@@ -54,6 +55,7 @@ export function createApiClient(config: ApiClientConfig) {
     subscription: new SubscriptionApi(client),
     sponsorship: new SponsorshipApi(client),
     geo: new GeoApi(client),
+    compliance: new ComplianceApi(client),
   };
 }
 

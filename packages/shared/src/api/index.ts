@@ -2,6 +2,8 @@ export {
   API_ERROR_SESSION_EXPIRED,
   API_ERROR_ACCOUNT_BANNED,
   API_ERROR_ACCOUNT_SUSPENDED,
+  API_ERROR_ABUSIVE_IP_BLOCKED,
+  API_ERROR_COMPLIANCE_ATTESTATION_REQUIRED,
 } from '../constants/api-errors';
 
 export {
@@ -32,6 +34,8 @@ export {
   type SessionAliasGate,
   type AliasGateCode,
   type SessionGeoInfo,
+  type SessionCompliance,
+  type AgeVerificationRequiredReason,
   type AgeVerificationDetails,
 } from './auth-types';
 

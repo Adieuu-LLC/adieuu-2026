@@ -137,8 +137,10 @@ describe('i18n', () => {
       const keys = [
         'otp',
         'otpWithMagicLink',
+        'otpAccountAdd',
         'accountLocked',
         'failedLoginAttempts',
+        'abusiveIpAccess',
         'welcome',
         'passwordChanged',
       ] as const;
@@ -163,7 +165,7 @@ describe('i18n', () => {
     });
 
     test('returns all SMS template keys', () => {
-      const keys = ['otp', 'accountLocked', 'failedLoginAttempts'] as const;
+      const keys = ['otp', 'accountLocked', 'failedLoginAttempts', 'abusiveIpAccess'] as const;
 
       for (const key of keys) {
         const message = getSmsMessage(key, 'en', {

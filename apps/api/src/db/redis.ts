@@ -439,6 +439,9 @@ export const RedisKeys = {
 
   /** Short-lived negative cache for IPs IPLocate cannot resolve. */
   geoNegativeLookup: (ipHash: string) => `geo:ip_neg:${ipHash}`,
+
+  /** Cached set of active sanctioned country codes. */
+  sanctionedCountries: () => 'compliance:sanctioned_countries',
 } as const;
 
 /**

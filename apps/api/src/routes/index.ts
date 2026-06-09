@@ -37,6 +37,7 @@ import { customEmojiRoutes } from './custom-emojis';
 import { sponsorshipRoutes } from './sponsorship';
 import { supportRoutes } from './support';
 import { unfurlRoutes } from './unfurl';
+import { complianceRoutes } from './compliance';
 
 /**
  * Registers all application routes with the main router.
@@ -132,6 +133,9 @@ export function registerRoutes(app: Router): void {
 
   // Age verification (account session)
   app.merge(ageVerificationRoutes, '/api');
+
+  // Compliance attestation (account session)
+  app.merge(complianceRoutes, '/api');
 
   // Custom emojis (CRUD for user-uploaded emojis)
   app.merge(customEmojiRoutes, '/api');

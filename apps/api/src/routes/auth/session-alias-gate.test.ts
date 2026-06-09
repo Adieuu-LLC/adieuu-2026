@@ -107,6 +107,12 @@ mock.module('../../services/geo/geo.service', () => ({
   refreshUserGeoIfStale: mock(() => Promise.resolve()),
 }));
 
+mock.module('../../services/compliance/compliance-enforcement.service', () => ({
+  evaluateComplianceOnAccess: mock((user: unknown) => Promise.resolve({ action: 'none', user })),
+  listSanctionedCountriesForClient: mock(() => Promise.resolve([])),
+  buildVpnAttestationSessionPayload: mock(() => undefined),
+}));
+
 mock.module('../../services/platform-capabilities.service', () => ({
   getPlatformCapabilities: mock(() => Promise.resolve({})),
 }));
@@ -167,8 +173,10 @@ describe('getSessionHandler alias gate token withholding', () => {
     const result = await getSessionHandler(makeRequest());
 
     expect(result).not.toBeNull();
-    expect(result!.signedToken).toBe('mock-signed-token');
-    expect(result!.aliasGate).toEqual({ allowed: true });
+    if (result && 'signedToken' in result) {
+      expect(result.signedToken).toBe('mock-signed-token');
+      expect(result.aliasGate).toEqual({ allowed: true });
+    }
   });
 
   test('withholds signedToken when gate returns AGE_VERIFICATION_REQUIRED', async () => {

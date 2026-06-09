@@ -22,6 +22,14 @@ import elog from '../../utils/adieuuLogger';
 
 const NEGATIVE_CACHE_TTL_SECONDS = 300;
 
+export interface ResolvedGeoLookup {
+  jurisdiction: string;
+  countryCode: string;
+  regionCode?: string;
+  isAnonymous?: boolean;
+  isAbuser?: boolean;
+}
+
 let trustProxyWarningLogged = false;
 
 /**
@@ -44,7 +52,7 @@ export function hashIpForGeo(ip: string): string {
  */
 export async function resolveJurisdiction(
   ip: string,
-): Promise<{ jurisdiction: string; countryCode: string; regionCode?: string } | null> {
+): Promise<ResolvedGeoLookup | null> {
   if (config.env === 'production' && !config.geo.trustProxyHeaders) {
     if (!trustProxyWarningLogged) {
       elog.warn(
@@ -101,12 +109,20 @@ export async function resolveJurisdiction(
   const result = fromIpLocateResult(raw);
   if (!result) return null;
 
+  const lookup: ResolvedGeoLookup = {
+    jurisdiction: result.jurisdiction,
+    countryCode: result.countryCode,
+    regionCode: result.regionCode,
+    isAnonymous: raw.privacy?.isAnonymous || undefined,
+    isAbuser: raw.privacy?.isAbuser || undefined,
+  };
+
   if (isRedisConnected()) {
     try {
       const redis = getRedis();
       await redis.set(
         RedisKeys.geoIpLookup(ipHash),
-        JSON.stringify(result),
+        JSON.stringify(lookup),
         'EX',
         config.geo.cacheTtlSeconds,
       );
@@ -115,7 +131,7 @@ export async function resolveJurisdiction(
     }
   }
 
-  return result;
+  return lookup;
 }
 
 /**
@@ -161,6 +177,8 @@ export async function refreshUserGeoIfStale(
       regionCode: resolved.regionCode,
       ipHash,
       checkedAt: new Date(),
+      isAnonymous: resolved.isAnonymous,
+      isAbuser: resolved.isAbuser,
     };
 
     const repo = getUserRepository();

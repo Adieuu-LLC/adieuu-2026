@@ -42,7 +42,9 @@ export type AuditAction =
   | 'admin_grant_platform_role'
   | 'admin_revoke_platform_role'
   | 'admin_grant_platform_attribute'
-  | 'admin_revoke_platform_attribute';
+  | 'admin_revoke_platform_attribute'
+  | 'compliance_ofac_ban'
+  | 'compliance_abusive_ip_blocked';
 
 /**
  * Audit log document stored in MongoDB

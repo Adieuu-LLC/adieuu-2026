@@ -22,6 +22,7 @@ import {
   getSessionFromRequest,
   getSessionIdFromRequest,
   maybeBootstrapCsrfCookie,
+  buildAuthClearCookies,
 } from '../../services/session.service';
 import {
   requestOtp,
@@ -262,6 +263,13 @@ router.post('/auth/verify', async (ctx) => {
         bannedPeerCount: result.bannedPeerCount,
       });
     }
+    if (result.error === 'abusive_ip_blocked') {
+      return errorResponse(
+        'ABUSIVE_IP_BLOCKED',
+        result.abusiveIpMessage ?? 'This network cannot be used to access Adieuu.',
+        403,
+      );
+    }
     if (result.error === 'account_suspended') {
       return errorResponse('ACCOUNT_SUSPENDED', 'This account is currently suspended.', 403, {
         moderationReason: result.moderationReason,
@@ -315,6 +323,23 @@ router.post('/auth/verify', async (ctx) => {
 router.get('/auth/session', async (ctx) => {
   const result = await getSessionHandler(ctx.request, ctx.accountUser ?? undefined);
 
+  if (result && 'blocked' in result) {
+    if (result.blocked.code === 'ACCOUNT_BANNED') {
+      const response = errorResponse('ACCOUNT_BANNED', result.blocked.message, 403, {
+        moderationReason: result.blocked.moderationReason,
+        moderationCategory: result.blocked.moderationCategory,
+        bannedPeerCount: result.blocked.bannedPeerCount,
+      });
+      const headers = new Headers(response.headers);
+      applyClearCookies(headers, buildAuthClearCookies());
+      return new Response(response.body, { status: response.status, headers });
+    }
+    const response = errorResponse('ABUSIVE_IP_BLOCKED', result.blocked.message, 403);
+    const headers = new Headers(response.headers);
+    applyClearCookies(headers, buildAuthClearCookies());
+    return new Response(response.body, { status: response.status, headers });
+  }
+
   if (!result) {
     // No account session — identity mode: prefer enriched context from
     // `enrichIdentitySession` (subscription labels from decrypted grants + key
@@ -363,7 +388,7 @@ router.get('/auth/session', async (ctx) => {
     return ctx.errors.unauthorized();
   }
 
-  const { session, signedToken, identityCount, maskedIp, geo, subscriptions, entitlements, ageVerification, aliasGate } = result;
+  const { session, signedToken, identityCount, maskedIp, geo, subscriptions, entitlements, ageVerification, aliasGate, compliance } = result;
 
   const response = success({
     identifier: session.identifier,
@@ -377,6 +402,7 @@ router.get('/auth/session', async (ctx) => {
     entitlements,
     ageVerification,
     aliasGate,
+    compliance,
   });
   const headers = new Headers(response.headers);
   await attachCsrfBootstrapIfNeeded(ctx.request, headers);
@@ -559,6 +585,13 @@ router.post('/auth/mfa/totp', async (ctx) => {
         bannedPeerCount: result.bannedPeerCount,
       });
     }
+    if (result.error === 'abusive_ip_blocked') {
+      return errorResponse(
+        'ABUSIVE_IP_BLOCKED',
+        result.abusiveIpMessage ?? 'This network cannot be used to access Adieuu.',
+        403,
+      );
+    }
     if (result.error === 'account_suspended') {
       return errorResponse('ACCOUNT_SUSPENDED', 'This account is currently suspended.', 403, {
         moderationReason: result.moderationReason,
@@ -611,6 +644,13 @@ router.post('/auth/mfa/webauthn', async (ctx) => {
         moderationCategory: result.moderationCategory,
         bannedPeerCount: result.bannedPeerCount,
       });
+    }
+    if (result.error === 'abusive_ip_blocked') {
+      return errorResponse(
+        'ABUSIVE_IP_BLOCKED',
+        result.abusiveIpMessage ?? 'This network cannot be used to access Adieuu.',
+        403,
+      );
     }
     if (result.error === 'account_suspended') {
       return errorResponse('ACCOUNT_SUSPENDED', 'This account is currently suspended.', 403, {

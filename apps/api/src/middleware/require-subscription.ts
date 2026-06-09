@@ -20,6 +20,8 @@ import { resolveEffectiveAccess } from '../services/billing/resolve-access';
 import { error } from '../utils/response';
 import elog from '../utils/adieuuLogger';
 import { sanitizePathForLog } from '../utils/sanitize';
+import { getClientIp } from '../routes/auth/controller';
+import { hasPendingVpnAttestation } from '../services/compliance/compliance-enforcement.service';
 
 /** How long (ms) a past_due status is tolerated before cutting access. */
 export const PAST_DUE_GRACE_MS = 48 * 60 * 60 * 1000; // 48 hours
@@ -45,6 +47,7 @@ const EXEMPT_PREFIXES: readonly string[] = [
   '/api/users/me',
   '/api/geo/requirements',
   '/api/age-verification',
+  '/api/compliance',
 ];
 
 function isExemptPath(pathname: string): boolean {
@@ -126,6 +129,15 @@ export function requireActiveSubscription() {
     }
     if (user.suspendedUntil && user.suspendedUntil > new Date()) {
       return error('ACCOUNT_SUSPENDED', 'This account is currently suspended.', 403);
+    }
+
+    const clientIp = getClientIp(ctx.request);
+    if (hasPendingVpnAttestation(user, clientIp)) {
+      return error(
+        'COMPLIANCE_ATTESTATION_REQUIRED',
+        'VPN attestation is required before continuing.',
+        403,
+      );
     }
 
     const resolved = resolveEffectiveAccess(user);

@@ -17,7 +17,13 @@ const MAX_EXPIRATIONS_BEFORE_LONG_COOLDOWN = 3;
 export type AliasGateResult =
   | { allowed: true }
   | { allowed: false; code: 'GEOFENCE_BLOCKED'; jurisdiction: string; lawUrl?: string }
-  | { allowed: false; code: 'AGE_VERIFICATION_REQUIRED'; jurisdiction: string; leastInvasiveMethod: string }
+  | {
+      allowed: false;
+      code: 'AGE_VERIFICATION_REQUIRED';
+      jurisdiction: string;
+      leastInvasiveMethod: string;
+      requiredReason?: 'legislation' | 'abusive_ip' | 'utah_attestation' | 'admin';
+    }
   | { allowed: false; code: 'AGE_VERIFICATION_FAILED'; jurisdiction: string; retryAfter: Date }
   | { allowed: false; code: 'AGE_VERIFICATION_COOLDOWN'; jurisdiction: string; retryAfter: Date };
 
@@ -34,6 +40,17 @@ export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateRe
     user.entitlementOverrides?.includes('gifted');
   if (hasGifted) {
     return evaluateAvStatus(user, user.geo?.jurisdiction ?? 'GIFTED');
+  }
+
+  // Compliance-driven AV: abusive IP flag
+  const av = user.ageVerification;
+  if (av?.requiredReason === 'abusive_ip' && av.status !== 'verified') {
+    return evaluateAvStatus(user, 'COMPLIANCE', 'abusive_ip');
+  }
+
+  // Utah self-attestation on VPN US IP
+  if (user.compliance?.attestedUtahResidency === true) {
+    return evaluateAvStatus(user, 'US-UT', 'utah_attestation');
   }
 
   // 2. Jurisdiction unresolved
@@ -67,7 +84,11 @@ export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateRe
  * gate result. Used for both resolved jurisdictions and the 'all' mode
  * fallback for unresolved jurisdictions.
  */
-async function evaluateAvStatus(user: UserDocument, jurisdiction: string): Promise<AliasGateResult> {
+async function evaluateAvStatus(
+  user: UserDocument,
+  jurisdiction: string,
+  requiredReason?: 'legislation' | 'abusive_ip' | 'utah_attestation' | 'admin',
+): Promise<AliasGateResult> {
   const av = user.ageVerification;
 
   // Already verified
@@ -102,5 +123,6 @@ async function evaluateAvStatus(user: UserDocument, jurisdiction: string): Promi
     code: 'AGE_VERIFICATION_REQUIRED',
     jurisdiction,
     leastInvasiveMethod,
+    requiredReason: requiredReason ?? (jurisdiction === 'COMPLIANCE' ? 'abusive_ip' : 'legislation'),
   };
 }

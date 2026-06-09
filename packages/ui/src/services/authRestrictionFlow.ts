@@ -22,6 +22,9 @@ export function resolveAccountRestriction(
   },
 ): AccountRestrictionInfo | undefined {
   if (errorCode === 'ACCOUNT_BANNED') {
+    if (details?.moderationCategory === 'ofac_self_attestation') {
+      return undefined;
+    }
     return {
       type: 'banned',
       reason: details?.moderationReason,
@@ -37,4 +40,12 @@ export function resolveAccountRestriction(
     };
   }
   return undefined;
+}
+
+export function isSilentAccountBan(category?: AccountModerationCategory): boolean {
+  return category === 'ofac_self_attestation';
+}
+
+export function isOfacSanctionedBan(category?: AccountModerationCategory): boolean {
+  return category === 'ofac_sanctioned';
 }
