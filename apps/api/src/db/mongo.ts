@@ -621,6 +621,16 @@ async function createIndexes(): Promise<void> {
     { createdAt: 1 },
     { expireAfterSeconds: 24 * 60 * 60, partialFilterExpression: { status: 'pending' } }
   );
+  await mediaUploads.createIndex(
+    { updatedAt: 1 },
+    {
+      expireAfterSeconds: 7 * 24 * 60 * 60,
+      partialFilterExpression: {
+        purpose: 'conv_scan',
+        status: { $in: ['ready', 'rejected', 'failed'] },
+      },
+    }
+  );
 
   // E2E media — tracks E2E encrypted conversation media uploads
   const e2eMedia = database.collection(Collections.E2E_MEDIA);

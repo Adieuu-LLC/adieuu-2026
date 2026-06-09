@@ -120,7 +120,7 @@ router.get('/moderation/reports', async (ctx): Promise<Response> => {
 });
 
 /**
- * GET /moderation/reports/:id/scan-evidence — presigned URLs for Rekognition scan copies
+ * GET /moderation/reports/:id/scan-evidence — presigned URLs for hash-check scan copies
  *
  * @route GET /api/moderation/reports/:id/scan-evidence
  */

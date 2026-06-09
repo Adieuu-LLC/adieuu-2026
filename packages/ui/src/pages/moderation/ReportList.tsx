@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { createApiClient, type PublicReport } from '@adieuu/shared';
+import { createApiClient, getReportSourceI18nKey, type PublicReport } from '@adieuu/shared';
 import { Select, Portal, createListCollection } from '@ark-ui/react';
 import { useAppConfig } from '../../config';
 import { Button } from '../../components/Button';
@@ -210,7 +210,7 @@ export function ReportList() {
                     </span>
                   </td>
                   <td>{t(`moderation.reports.category.${report.category}`, report.category)}</td>
-                  <td>{report.source === 'automated_rekognition' ? t('moderation.reports.sourceAuto') : t('moderation.reports.sourceManual')}</td>
+                  <td>{t(`moderation.reports.${getReportSourceI18nKey(report.source)}`)}</td>
                   <td className="moderation-cell-mono">{report.targetRef.type}:{report.targetRef.id.slice(0, 8)}</td>
                   <td>{new Date(report.createdAt).toLocaleDateString()}</td>
                   <td>{report.assignedTo ? report.assignedTo.slice(0, 8) + '...' : '\u2014'}</td>

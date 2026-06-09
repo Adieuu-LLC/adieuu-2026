@@ -31,7 +31,8 @@ export const moderation = {
         me: 'Assigned to me',
         unassigned: 'Unassigned',
       },
-      sourceAuto: 'Auto (Rekognition)',
+      sourceAutoHashCheck: 'Auto (hash check)',
+      sourceAutoCsamHash: 'Auto (CSAM hash)',
       sourceManual: 'User Report',
       category: {
         csam: 'CSAM',

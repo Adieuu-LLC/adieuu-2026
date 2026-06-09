@@ -1,6 +1,6 @@
 /**
  * User-facing moderation reason strings for blocked media.
- * Maps internal/backend reasons (e.g. Rekognition-style labels) to safe copy
+ * Maps internal/backend reasons (e.g. hash-check rejection codes) to safe copy
  * without exposing raw classifier labels to end users.
  */
 

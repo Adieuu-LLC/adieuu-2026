@@ -287,6 +287,9 @@ importers:
 
   infra/aws/lambda/media-db-writer:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1018.0
+        version: 3.1018.0
       '@aws-sdk/client-secrets-manager':
         specifier: 3.1018.0
         version: 3.1018.0
@@ -5060,14 +5063,14 @@ snapshots:
   '@aws-crypto/crc32c@5.2.0':
     dependencies:
       '@aws-crypto/util': 5.2.0
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.9
       tslib: 2.8.1
 
   '@aws-crypto/sha1-browser@5.2.0':
     dependencies:
       '@aws-crypto/supports-web-crypto': 5.2.0
       '@aws-crypto/util': 5.2.0
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.9
       '@aws-sdk/util-locate-window': 3.965.5
       '@smithy/util-utf8': 2.3.0
       tslib: 2.8.1
@@ -5199,7 +5202,7 @@ snapshots:
       '@aws-crypto/sha1-browser': 5.2.0
       '@aws-crypto/sha256-browser': 5.2.0
       '@aws-crypto/sha256-js': 5.2.0
-      '@aws-sdk/core': 3.973.25
+      '@aws-sdk/core': 3.974.15
       '@aws-sdk/credential-provider-node': 3.972.26
       '@aws-sdk/middleware-bucket-endpoint': 3.972.8
       '@aws-sdk/middleware-expect-continue': 3.972.8
@@ -5213,12 +5216,12 @@ snapshots:
       '@aws-sdk/middleware-user-agent': 3.972.26
       '@aws-sdk/region-config-resolver': 3.972.10
       '@aws-sdk/signature-v4-multi-region': 3.996.14
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.9
       '@aws-sdk/util-endpoints': 3.996.5
       '@aws-sdk/util-user-agent-browser': 3.972.8
       '@aws-sdk/util-user-agent-node': 3.973.12
       '@smithy/config-resolver': 4.4.13
-      '@smithy/core': 3.23.12
+      '@smithy/core': 3.24.6
       '@smithy/eventstream-serde-browser': 4.2.12
       '@smithy/eventstream-serde-config-resolver': 4.3.12
       '@smithy/eventstream-serde-node': 4.2.12
@@ -5237,7 +5240,7 @@ snapshots:
       '@smithy/node-http-handler': 4.5.0
       '@smithy/protocol-http': 5.3.12
       '@smithy/smithy-client': 4.12.7
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.3
       '@smithy/url-parser': 4.2.12
       '@smithy/util-base64': 4.3.2
       '@smithy/util-body-length-browser': 4.2.2
@@ -5327,7 +5330,7 @@ snapshots:
 
   '@aws-sdk/crc64-nvme@3.972.5':
     dependencies:
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.3
       tslib: 2.8.1
 
   '@aws-sdk/credential-provider-env@3.972.23':
@@ -5448,11 +5451,11 @@ snapshots:
 
   '@aws-sdk/middleware-bucket-endpoint@3.972.8':
     dependencies:
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.9
       '@aws-sdk/util-arn-parser': 3.972.3
       '@smithy/node-config-provider': 4.3.12
       '@smithy/protocol-http': 5.3.12
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.3
       '@smithy/util-config-provider': 4.2.2
       tslib: 2.8.1
 
@@ -5466,9 +5469,9 @@ snapshots:
 
   '@aws-sdk/middleware-expect-continue@3.972.8':
     dependencies:
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.9
       '@smithy/protocol-http': 5.3.12
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.3
       tslib: 2.8.1
 
   '@aws-sdk/middleware-flexible-checksums@3.974.5':
@@ -5476,13 +5479,13 @@ snapshots:
       '@aws-crypto/crc32': 5.2.0
       '@aws-crypto/crc32c': 5.2.0
       '@aws-crypto/util': 5.2.0
-      '@aws-sdk/core': 3.973.25
+      '@aws-sdk/core': 3.974.15
       '@aws-sdk/crc64-nvme': 3.972.5
-      '@aws-sdk/types': 3.973.6
+      '@aws-sdk/types': 3.973.9
       '@smithy/is-array-buffer': 4.2.2
       '@smithy/node-config-provider': 4.3.12
       '@smithy/protocol-http': 5.3.12
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.3
       '@smithy/util-middleware': 4.2.12
       '@smithy/util-stream': 4.5.20
       '@smithy/util-utf8': 4.2.2
@@ -5497,8 +5500,8 @@ snapshots:
 
   '@aws-sdk/middleware-location-constraint@3.972.8':
     dependencies:
-      '@aws-sdk/types': 3.973.6
-      '@smithy/types': 4.13.1
+      '@aws-sdk/types': 3.973.9
+      '@smithy/types': 4.14.3
       tslib: 2.8.1
 
   '@aws-sdk/middleware-logger@3.972.8':
@@ -5534,8 +5537,8 @@ snapshots:
 
   '@aws-sdk/middleware-ssec@3.972.8':
     dependencies:
-      '@aws-sdk/types': 3.973.6
-      '@smithy/types': 4.13.1
+      '@aws-sdk/types': 3.973.9
+      '@smithy/types': 4.14.3
       tslib: 2.8.1
 
   '@aws-sdk/middleware-user-agent@3.972.26':
@@ -6834,7 +6837,7 @@ snapshots:
     dependencies:
       '@smithy/chunked-blob-reader': 5.2.2
       '@smithy/chunked-blob-reader-native': 4.2.3
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.3
       tslib: 2.8.1
 
   '@smithy/hash-node@4.2.12':
@@ -6846,7 +6849,7 @@ snapshots:
 
   '@smithy/hash-stream-node@4.2.12':
     dependencies:
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.3
       '@smithy/util-utf8': 4.2.2
       tslib: 2.8.1
 
@@ -6865,7 +6868,7 @@ snapshots:
 
   '@smithy/md5-js@4.2.12':
     dependencies:
-      '@smithy/types': 4.13.1
+      '@smithy/types': 4.14.3
       '@smithy/util-utf8': 4.2.2
       tslib: 2.8.1
 

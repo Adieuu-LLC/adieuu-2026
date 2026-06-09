@@ -1,5 +1,5 @@
 /**
- * After a Rekognition-sourced report is resolved or closed, eradicate retained conv_scan cleartext.
+ * After an automated hash-check report is resolved or closed, eradicate retained conv_scan cleartext.
  */
 
 import { S3Client } from '@aws-sdk/client-s3';
@@ -22,7 +22,7 @@ function getS3Client(): S3Client {
 }
 
 export async function purgeConvScanEvidenceForTerminalReport(report: ReportDocument): Promise<void> {
-  if (report.source !== 'automated_rekognition') return;
+  if (report.source !== 'automated_hash_check') return;
 
   const dm = report.detectionMetadata;
   const scanHash =

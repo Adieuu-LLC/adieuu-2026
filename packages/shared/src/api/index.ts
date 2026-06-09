@@ -155,6 +155,7 @@ export {
 } from './admin-api';
 
 export {
+  getReportSourceI18nKey,
   type ReportType,
   type ReportSource,
   type ModerationReportStatus,

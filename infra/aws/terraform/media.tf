@@ -552,8 +552,8 @@ resource "aws_lambda_function" "media_processor" {
 # Lambda: media DB writer (updates media_uploads in MongoDB Atlas)
 #
 # Runs inside the VPC to reach Atlas via VPC peering. The media processor
-# Lambda invokes this synchronously after processing. This Lambda has NO
-# S3 access — only Secrets Manager (for the MongoDB URI) and MongoDB.
+# Lambda invokes this synchronously after processing. Has MongoDB + optional
+# S3 conv_scan purge (after clean hash-check pass); no broad media bucket write.
 # ---------------------------------------------------------------------------
 
 resource "aws_iam_role" "media_db_writer" {
@@ -615,6 +615,23 @@ resource "aws_iam_role_policy" "media_db_writer" {
           ]
           Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
         },
+        {
+          Sid      = "S3ListConvScanPrefixes"
+          Effect   = "Allow"
+          Action   = ["s3:ListBucket"]
+          Resource = aws_s3_bucket.media[0].arn
+          Condition = {
+            StringLike = {
+              "s3:prefix" = ["uploads/conv_scan/*"]
+            }
+          }
+        },
+        {
+          Sid    = "S3DeleteConvScan"
+          Effect = "Allow"
+          Action = ["s3:DeleteObject"]
+          Resource = "${aws_s3_bucket.media[0].arn}/uploads/conv_scan/*"
+        },
       ],
       length(trimspace(var.media_db_mongodb_secret_kms_key_arn)) > 0 ? [
         {
@@ -649,6 +666,7 @@ resource "aws_lambda_function" "media_db_writer" {
       MONGODB_SECRET_KEY = var.media_db_mongodb_secret_key
       MONGODB_DB_NAME    = var.media_db_mongodb_db_name
       MEDIA_CDN_URL      = "https://${var.media_domain_name}"
+      MEDIA_BUCKET       = aws_s3_bucket.media[0].id
     }
   }
 

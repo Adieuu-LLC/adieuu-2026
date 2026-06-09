@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   createApiClient,
+  getReportSourceI18nKey,
   type PublicReport,
   type PublicReportEvent,
   type ModerationIdentityProfile,
@@ -120,7 +121,7 @@ function ReportHistoryTab({
                 </span>
               </td>
               <td>{t(`moderation.reports.category.${r.category}`, r.category)}</td>
-              <td>{r.source === 'automated_rekognition' ? t('moderation.reports.sourceAuto') : t('moderation.reports.sourceManual')}</td>
+              <td>{t(`moderation.reports.${getReportSourceI18nKey(r.source)}`)}</td>
               <td>{new Date(r.createdAt).toLocaleDateString()}</td>
               <td>
                 <Button variant="ghost" size="sm" onClick={() => navigate(`/moderation/reports/${r.id}`)}>
@@ -444,7 +445,7 @@ export function ReportDetail() {
           <dt>{t('moderation.detail.type')}</dt>
           <dd>{report.reportType}</dd>
           <dt>{t('moderation.detail.source')}</dt>
-          <dd>{report.source === 'automated_rekognition' ? t('moderation.reports.sourceAuto') : t('moderation.reports.sourceManual')}</dd>
+          <dd>{t(`moderation.reports.${getReportSourceI18nKey(report.source)}`)}</dd>
           <dt>{t('moderation.detail.category')}</dt>
           <dd>
             {editingCategory ? (

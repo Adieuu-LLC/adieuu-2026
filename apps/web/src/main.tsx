@@ -41,17 +41,17 @@ createRoot(rootElement).render(
   <StrictMode>
     <BrowserRouter>
       <PlatformProvider config={config} capabilities={webCapabilities}>
-        <AuthProvider>
-          <IdentityProvider>
-            <ThemeProvider>
-              <IconPackProvider>
-                <ToastProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <IdentityProvider>
+              <ThemeProvider>
+                <IconPackProvider>
                   <App />
-                </ToastProvider>
-              </IconPackProvider>
-            </ThemeProvider>
-          </IdentityProvider>
-        </AuthProvider>
+                </IconPackProvider>
+              </ThemeProvider>
+            </IdentityProvider>
+          </AuthProvider>
+        </ToastProvider>
       </PlatformProvider>
     </BrowserRouter>
   </StrictMode>

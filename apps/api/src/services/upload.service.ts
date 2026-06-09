@@ -303,6 +303,13 @@ export async function processCallback(
     rejectionReason,
   });
 
+  if (status === 'ready' || status === 'rejected' || status === 'failed') {
+    await repo.clearUploadIpAddress(mediaId, {
+      scanHash: doc.scanHash,
+      purpose: doc.purpose,
+    });
+  }
+
   if (status === 'rejected') {
     elog.warn('Upload rejected by content moderation', {
       mediaId,

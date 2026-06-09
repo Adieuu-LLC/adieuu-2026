@@ -8,6 +8,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1018.0",
     "@aws-sdk/client-secrets-manager": "3.1018.0",
     "mongodb": "6.21.0"
   },

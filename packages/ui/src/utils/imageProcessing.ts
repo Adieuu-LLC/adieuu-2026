@@ -49,7 +49,7 @@ export async function getImageDimensionsAndThumbnailJpeg(
 /**
  * Generate a thumbnail of an image, downscaled to fit within maxDim x maxDim.
  * The output is always JPEG for consistent scan copy size and no alpha channel
- * (Rekognition processes JPEG well).
+ * (hash pipeline processes JPEG well).
  *
  * @param file - Source image file
  * @param maxDim - Maximum width/height (default 512)

@@ -37,6 +37,16 @@ Copy from `terraform output` (non-secret; using variables keeps them out of work
 
 If `DEPLOY_WEB_S3_BUCKET_ADIEUU` or `DEPLOY_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU` is unset, the web deploy job is skipped (e.g. stack without `route53_zone_name`). Container jobs are skipped if their ECR/ECS variables are incomplete.
 
+### Lambda deploy (optional; after Terraform with `enable_media_stack = true`)
+
+When the media stack is enabled, Lambda function code for `media-processor` and `media-db-writer` is deployed automatically on release when their source files change. After `terraform apply` (which grants `lambda:UpdateFunctionCode` to the deploy role), add:
+
+| Variable | Terraform output |
+|----------|------------------|
+| `DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU` | `lambda_name_prefix` (e.g. `adieuu-production`) |
+
+If unset, the lambda deploy job is skipped. The sharp Lambda layer and Terraform infrastructure changes still require manual `terraform apply`.
+
 ### Downloads stack (optional; after Terraform with `enable_downloads_stack = true`)
 
 When the **dedicated downloads** stack exists (`downloads.adieuu.com` -- dual-origin S3 + CloudFront for desktop update mirror, SBOMs, and `releases.json`), add variables from `terraform output`. The [release workflow](../../.github/workflows/release.yml) `sync-downloads-mirror` job uses these to sync desktop artifacts, manifests, and SBOMs. If the variables are unset, the job is skipped gracefully.
@@ -54,7 +64,7 @@ GitHub Releases remain the **source of truth**; the downloads stack is an additi
 
 ## Behavior
 
-- **Order** — Automatic deploys run **inside the Release workflow** after the **`release`** job (not in parallel with the version bump). They do **not** use path filters: each deploy builds **full** web + API + chat from **`main`** at that moment so release-only commits (version bumps across `package.json` files) still produce correct images and `version.json`.
+- **Order** — Automatic deploys run **inside the Release workflow** after the **`release`** job (not in parallel with the version bump). They do **not** use path filters: each deploy builds **full** web + API + chat + lambdas from **`main`** at that moment so release-only commits (version bumps across `package.json` files) still produce correct images and `version.json`.
 - **When deploy runs** — `deploy_aws` is true if **`released`** is true (new version pushed) **or** if the new tag **already existed** (`tag_exists`): we still deploy the merged code at **`main`**. Release skips (chore commit, stale CI) set `deploy_aws` to false.
 - **Images** — Each service is tagged with the commit SHA and `latest`; ECR moves `latest` to the new digest on push. ECS uses **`force-new-deployment`** so tasks pull the updated `latest` image.
 - **Branch** — The IAM role trust policy allows only `refs/heads/main` for the configured repository.

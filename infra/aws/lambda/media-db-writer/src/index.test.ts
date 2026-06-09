@@ -2,23 +2,40 @@ import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 const mockFindOneAndUpdate = mock(() => Promise.resolve(null));
 const mockUpdateMany = mock(() => Promise.resolve({ modifiedCount: 0 }));
+const mockMediaUpdateOne = mock(() => Promise.resolve({ modifiedCount: 1 }));
 const mockFindOne = mock(() => Promise.resolve(null));
 const mockInsertOne = mock(() =>
   Promise.resolve({ insertedId: { toHexString: () => 'report-id-abc' } })
 );
 const mockUpdateOne = mock(() => Promise.resolve({ modifiedCount: 1 }));
+const mockCountDocuments = mock(() => Promise.resolve(0));
+const mockDeleteMany = mock(() => Promise.resolve({ deletedCount: 0 }));
 const mockEstimatedDocumentCount = mock(() => Promise.resolve(100));
 const mockCommand = mock(() => Promise.resolve({ ok: 1 }));
 
 const mockE2eUpdateOne = mock(() => Promise.resolve({ matchedCount: 1 }));
 
+const mockPurgeConvScanCleartext = mock(() =>
+  Promise.resolve({ s3KeysDeleted: 2, mongoRowsDeleted: 3 })
+);
+const mockCountOpenHashCheckReportsByScanHash = mock(() => Promise.resolve(0));
+
 function createMockCollection(name: string) {
   return {
     findOneAndUpdate: mockFindOneAndUpdate,
     updateMany: mockUpdateMany,
-    updateOne: name === 'identities' ? mockUpdateOne : name === 'e2e_media' ? mockE2eUpdateOne : mock(() => Promise.resolve({ modifiedCount: 0 })),
+    updateOne:
+      name === 'media_uploads'
+        ? mockMediaUpdateOne
+        : name === 'identities'
+          ? mockUpdateOne
+          : name === 'e2e_media'
+            ? mockE2eUpdateOne
+            : mock(() => Promise.resolve({ modifiedCount: 0 })),
     findOne: mockFindOne,
     insertOne: name === 'platform_reports' ? mockInsertOne : mock(() => Promise.resolve({ insertedId: null })),
+    countDocuments: name === 'platform_reports' ? mockCountDocuments : mock(() => Promise.resolve(0)),
+    deleteMany: name === 'media_uploads' ? mockDeleteMany : mock(() => Promise.resolve({ deletedCount: 0 })),
     estimatedDocumentCount: mockEstimatedDocumentCount,
   };
 }
@@ -54,6 +71,11 @@ mock.module('./logging', () => ({
   logModerationEvent: mock(() => {}),
 }));
 
+mock.module('./conv-scan-purge', () => ({
+  countOpenHashCheckReportsByScanHash: mockCountOpenHashCheckReportsByScanHash,
+  purgeConvScanCleartext: mockPurgeConvScanCleartext,
+}));
+
 import { handler } from './index';
 import { logModerationEvent } from './logging';
 
@@ -65,6 +87,8 @@ function resetMocks(): void {
   mockFindOneAndUpdate.mockReset();
   mockUpdateMany.mockReset();
   mockUpdateMany.mockResolvedValue({ modifiedCount: 0 });
+  mockMediaUpdateOne.mockReset();
+  mockMediaUpdateOne.mockResolvedValue({ modifiedCount: 1 });
   mockFindOne.mockReset();
   mockInsertOne.mockReset();
   mockInsertOne.mockResolvedValue({
@@ -72,10 +96,20 @@ function resetMocks(): void {
   });
   mockUpdateOne.mockReset();
   mockUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+  mockCountDocuments.mockReset();
+  mockCountDocuments.mockResolvedValue(0);
+  mockDeleteMany.mockReset();
+  mockDeleteMany.mockResolvedValue({ deletedCount: 0 });
   mockE2eUpdateOne.mockReset();
   mockE2eUpdateOne.mockResolvedValue({ matchedCount: 1 });
+  mockPurgeConvScanCleartext.mockReset();
+  mockPurgeConvScanCleartext.mockResolvedValue({ s3KeysDeleted: 2, mongoRowsDeleted: 3 });
+  mockCountOpenHashCheckReportsByScanHash.mockReset();
+  mockCountOpenHashCheckReportsByScanHash.mockResolvedValue(0);
   (logModerationEvent as ReturnType<typeof mock>).mockClear();
 }
+
+const SCAN_HASH = 'a'.repeat(64);
 
 function mockMediaDoc(overrides?: Record<string, unknown>): Record<string, unknown> {
   return {
@@ -279,6 +313,85 @@ describe('E2E media propagation', () => {
 
     expect(result.success).toBe(true);
     expect(mockE2eUpdateOne).toHaveBeenCalled();
+  });
+});
+
+describe('Option A: upload IP expunge', () => {
+  beforeEach(resetMocks);
+
+  test('unsets uploadIpAddress on ready', async () => {
+    mockFindOneAndUpdate.mockResolvedValue(
+      mockMediaDoc({ status: 'ready', purpose: 'avatar' })
+    );
+
+    await handler({ mediaId: 'media-123', status: 'ready' });
+
+    expect(mockMediaUpdateOne).toHaveBeenCalled();
+    const updateCall = mockMediaUpdateOne.mock.calls[0] as unknown[];
+    const update = updateCall[1] as Record<string, unknown>;
+    expect(update.$unset).toEqual({ uploadIpAddress: '' });
+    expect(logModerationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'upload_ip_expunged', status: 'ready' })
+    );
+  });
+
+  test('unsets uploadIpAddress on non-CSAM rejected', async () => {
+    mockFindOneAndUpdate.mockResolvedValue(mockMediaDoc({ status: 'rejected' }));
+    mockFindOne.mockResolvedValueOnce(null);
+
+    await handler({
+      mediaId: 'media-123',
+      status: 'rejected',
+      rejectionReason: 'other_content_violation',
+    });
+
+    expect(mockMediaUpdateOne).toHaveBeenCalled();
+    const updateCall = mockMediaUpdateOne.mock.calls[0] as unknown[];
+    const update = updateCall[1] as Record<string, unknown>;
+    expect(update.$unset).toEqual({ uploadIpAddress: '' });
+  });
+});
+
+describe('Option E: conv_scan purge on ready', () => {
+  beforeEach(resetMocks);
+
+  test('purges conv_scan when ready and no open hash-check report', async () => {
+    mockFindOneAndUpdate.mockResolvedValue(
+      mockMediaDoc({
+        status: 'ready',
+        purpose: 'conv_scan',
+        scanHash: SCAN_HASH,
+      })
+    );
+
+    await handler({ mediaId: 'media-123', status: 'ready' });
+
+    expect(mockCountOpenHashCheckReportsByScanHash).toHaveBeenCalledWith(
+      expect.anything(),
+      SCAN_HASH
+    );
+    expect(mockPurgeConvScanCleartext).toHaveBeenCalled();
+    expect(logModerationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'conv_scan_purged_on_ready', scanHash: SCAN_HASH })
+    );
+  });
+
+  test('skips purge when open hash-check report exists', async () => {
+    mockFindOneAndUpdate.mockResolvedValue(
+      mockMediaDoc({
+        status: 'ready',
+        purpose: 'conv_scan',
+        scanHash: SCAN_HASH,
+      })
+    );
+    mockCountOpenHashCheckReportsByScanHash.mockResolvedValueOnce(1);
+
+    await handler({ mediaId: 'media-123', status: 'ready' });
+
+    expect(mockPurgeConvScanCleartext).not.toHaveBeenCalled();
+    expect(logModerationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'conv_scan_purge_skipped_open_report', openReports: 1 })
+    );
   });
 });
 

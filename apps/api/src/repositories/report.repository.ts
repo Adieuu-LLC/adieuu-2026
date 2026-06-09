@@ -65,10 +65,10 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
     return await this.findOne({ idempotencyKey: key } as Filter<ReportDocument>);
   }
 
-  /** Open/escalated automated reports still tied to this scan session (evidence not yet released). */
+  /** Open/escalated automated hash-check reports tied to this scan session. */
   async countOpenAutomatedByScanHash(scanHash: string): Promise<number> {
     return await this.count({
-      source: 'automated_rekognition',
+      source: 'automated_hash_check',
       status: { $in: ['open', 'escalated'] },
       'detectionMetadata.scanHash': scanHash,
     } as Filter<ReportDocument>);

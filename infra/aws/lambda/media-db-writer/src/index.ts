@@ -14,13 +14,19 @@ import {
   SecretsManagerClient,
   GetSecretValueCommand,
 } from '@aws-sdk/client-secrets-manager';
+import { S3Client } from '@aws-sdk/client-s3';
 import { MongoClient, type ObjectId } from 'mongodb';
+import {
+  countOpenHashCheckReportsByScanHash,
+  purgeConvScanCleartext,
+} from './conv-scan-purge';
 import { logModerationEvent } from './logging';
 
 const MONGODB_SECRET_ARN = process.env.MONGODB_SECRET_ARN!;
 const MONGODB_SECRET_KEY = process.env.MONGODB_SECRET_KEY || 'MONGODB_URI';
 const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME!;
 const MEDIA_CDN_URL = process.env.MEDIA_CDN_URL || '';
+const MEDIA_BUCKET = process.env.MEDIA_BUCKET || '';
 
 const MEDIA_UPLOADS_COLLECTION = 'media_uploads';
 const E2E_MEDIA_COLLECTION = 'e2e_media';
@@ -42,6 +48,34 @@ const secretsManager = new SecretsManagerClient({});
 
 let cachedMongoUri: string | null = null;
 let cachedMongoClient: MongoClient | null = null;
+let cachedS3Client: S3Client | null = null;
+
+function getS3Client(): S3Client | null {
+  if (!MEDIA_BUCKET) return null;
+  if (!cachedS3Client) {
+    cachedS3Client = new S3Client({});
+  }
+  return cachedS3Client;
+}
+
+async function expungeUploadIpAddress(
+  collection: import('mongodb').Collection,
+  mediaId: string,
+  scanHash: string | undefined,
+  purpose: string | undefined
+): Promise<void> {
+  const now = new Date();
+  await collection.updateOne(
+    { mediaId },
+    { $unset: { uploadIpAddress: '' }, $set: { updatedAt: now } }
+  );
+  if (scanHash && purpose === 'conv_scan') {
+    await collection.updateMany(
+      { scanHash, purpose: 'conv_scan' },
+      { $unset: { uploadIpAddress: '' }, $set: { updatedAt: now } }
+    );
+  }
+}
 
 interface CsamMatch {
   source: 'ncmec' | 'arachnid_shield';
@@ -66,6 +100,8 @@ interface WriterResult {
   success: boolean;
   error?: string;
 }
+
+const TERMINAL_STATUSES = new Set<WriterEvent['status']>(['ready', 'rejected', 'failed']);
 
 async function getMongoUri(): Promise<string> {
   if (cachedMongoUri) return cachedMongoUri;
@@ -569,10 +605,54 @@ export async function handler(event: WriterEvent): Promise<WriterResult> {
       }
     }
 
-    if (status === 'rejected' && event.csamMatches && event.csamMatches.length > 0) {
+    const hasCsamMatches = Boolean(event.csamMatches && event.csamMatches.length > 0);
+
+    if (status === 'rejected' && hasCsamMatches) {
       await handleCsamRejection(db, mediaDoc as Record<string, unknown>, event);
     } else if (status === 'rejected' && rejectionReason) {
       await handleGenericRejectionReport(db, mediaDoc as Record<string, unknown>, event);
+    }
+
+    if (TERMINAL_STATUSES.has(status)) {
+      await expungeUploadIpAddress(collection, mediaId, scanHash, purpose);
+      logModerationEvent({
+        event: 'upload_ip_expunged',
+        mediaId,
+        scanHash,
+        status,
+        purpose,
+      });
+    }
+
+    if (
+      purpose === 'conv_scan' &&
+      status === 'ready' &&
+      scanHash &&
+      /^[0-9a-f]{64}$/i.test(scanHash)
+    ) {
+      const openReports = await countOpenHashCheckReportsByScanHash(db, scanHash);
+      if (openReports === 0) {
+        const purge = await purgeConvScanCleartext(
+          db,
+          getS3Client(),
+          MEDIA_BUCKET || undefined,
+          scanHash
+        );
+        logModerationEvent({
+          event: 'conv_scan_purged_on_ready',
+          mediaId,
+          scanHash,
+          s3KeysDeleted: purge.s3KeysDeleted,
+          mongoRowsDeleted: purge.mongoRowsDeleted,
+        });
+      } else {
+        logModerationEvent({
+          event: 'conv_scan_purge_skipped_open_report',
+          mediaId,
+          scanHash,
+          openReports,
+        });
+      }
     }
 
     return { success: true };

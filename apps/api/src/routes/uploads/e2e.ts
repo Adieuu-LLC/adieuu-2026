@@ -3,7 +3,7 @@
  *
  * Provides endpoints for the dual-upload conversation media flow:
  * - E2E encrypted blob upload (request, complete, status, gated download)
- * - Scan copy upload (request, complete) for Rekognition moderation
+ * - Scan copy upload (request, complete) for local CSAM hash moderation
  *
  * SECURITY:
  * - All endpoints require identity session authentication

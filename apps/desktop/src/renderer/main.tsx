@@ -60,17 +60,17 @@ function DesktopApp() {
       <WindowTitleBar />
       <DeepLinkHandler />
       <PlatformProvider config={config} capabilities={desktopCapabilities}>
-        <AuthProvider>
-          <IdentityProvider>
-            <ThemeProvider>
-              <IconPackProvider>
-                <ToastProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <IdentityProvider>
+              <ThemeProvider>
+                <IconPackProvider>
                   <App />
-                </ToastProvider>
-              </IconPackProvider>
-            </ThemeProvider>
-          </IdentityProvider>
-        </AuthProvider>
+                </IconPackProvider>
+              </ThemeProvider>
+            </IdentityProvider>
+          </AuthProvider>
+        </ToastProvider>
       </PlatformProvider>
     </>
   );

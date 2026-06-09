@@ -2,9 +2,26 @@
 
 This document maps where Adieuu stores or forwards personally identifiable information (PII). It is intended for operators running their own deployment who need to understand data residency, retention, and third-party exposure. We explicitly try to avoid collecting any PII except where it's necessary for platform security, abuse prevention, and the like.
 
-**Status:** IP addresses are documented below. Additional sections (email, phone, identifiers, etc.) will be added over time.
+**Status:** IP addresses and media-upload PII are documented below. Additional sections (email, phone, identifiers, etc.) will be added over time.
 
 **Terminology:** User-facing docs say **Alias** (a pseudonymous profile used for chat, activity, etc). The codebase often uses `identity` for the same concept — file paths, types, and function names in this document refer to code as written. We initially called them Identities and found that to be more confusing (where Alias or Handle or Username is more accurate), but the code itself hasn't been fully migrated. So, "Account" is "real human" stuff, an your Alias/Identity is the anon-you.
+
+---
+
+## Content moderation (hash-based only)
+
+Automated moderation uses **CSAM hash checks only** — we do **not** send cleartext images or video to third-party ML/label APIs (no Amazon Rekognition or similar).
+
+| Tier | Service | What leaves your deployment |
+| ---- | ------- | --------------------------- |
+| 1 | NCMEC hash list (DynamoDB) | Nothing — MD5/SHA1 computed locally and matched in-region |
+| 2 | [Project Arachnid Shield](https://www.projectarachnid.ca/) | **PDQ perceptual hash only** over HTTPS — not media bytes |
+
+**`conv_scan` scan copies:** Clients upload cleartext thumbnails/frame grids to **your** media S3 bucket so the media-processor Lambda can compute hashes locally. On a clean pass, cleartext S3 is deleted and `conv_scan` Mongo rows are purged (see retention below). On CSAM match, evidence is archived to a separate evidence bucket and metadata (including upload IP) is copied to `platform_reports`.
+
+**Report sources:** `automated_csam_hash`, `automated_hash_check`, `manual_user`.
+
+**Code references:** `infra/aws/lambda/media-processor/src/csam-hash-check.ts`, `infra/aws/lambda/media-db-writer/src/index.ts`.
 
 ---
 
@@ -76,9 +93,32 @@ Alias activity is authenticated with Alias session cookies; it does **not** add 
 - `sessions` (both types): MongoDB TTL on `expiresAt` (default **7 days**, renewed on activity). Only **account** rows may carry `ipAddress`.
 - `audit_logs`: **90-day** TTL (`apps/api/src/db/mongo.ts`).
 - `users.geo` / compliance fields: lifetime of user document.
-- `media_uploads` / `platform_reports`: no automatic expiry (operational deletion only).
+- `media_uploads` (non–`conv_scan`): no automatic expiry; `uploadIpAddress` is **unset** after terminal moderation (`ready` / `rejected` / `failed`). CSAM path copies IP to `platform_reports` first.
+- `media_uploads` (`purpose: conv_scan`): immediate purge of rows + S3 prefix after clean `ready`; **7-day TTL** on terminal rows as belt-and-suspenders (`apps/api/src/db/mongo.ts`).
+- `platform_reports`: no automatic expiry (operational deletion only).
 
 **Code references:** `apps/api/src/services/session.service.ts`, `apps/api/src/services/geo/geo.service.ts`, `apps/api/src/services/compliance/compliance-enforcement.service.ts`, `apps/api/src/services/upload.service.ts`, `apps/api/src/services/e2e-upload.service.ts`, `infra/aws/lambda/media-db-writer/src/index.ts`.
+
+---
+
+### Media uploads (`media_uploads`)
+
+| Field | Purposes | PII / linkage risk |
+| ----- | -------- | ------------------ |
+| `uploadIpAddress` | All upload types at presign time | Full IP; **expunged** on terminal moderation except CSAM snapshot in `platform_reports` |
+| `identityId` | avatar, banner, dm_attachment, etc. (not `conv_scan`) | Links upload to Alias |
+| `scanHash` | `conv_scan` only | Join to `e2e_media.identityId` enables IP → Alias correlation while row exists |
+| `userId` | `ticket_attachment` only | Links upload to account |
+
+**E2EE conversation media:** Encrypted payload lives in `e2e_media` + E2E S3 bucket. `conv_scan` rows are ephemeral moderation copies; they do not hold the ciphertext.
+
+**Mitigations in production:**
+
+- **A:** Unset `uploadIpAddress` after terminal moderation.
+- **E:** Delete `conv_scan` rows + S3 prefix immediately on clean `ready`.
+- **D:** 7-day TTL on terminal `conv_scan` rows.
+
+**S3 note:** `conv_scan` presigned PUTs may include `identity-id` in S3 object metadata — a separate linkage surface if bucket access logs are exposed.
 
 ---
 

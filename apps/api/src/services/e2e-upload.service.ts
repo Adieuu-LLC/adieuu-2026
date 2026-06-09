@@ -3,7 +3,7 @@
  *
  * Handles the dual-upload flow for E2E encrypted conversation media:
  * 1. E2E encrypted blob -> dedicated E2E bucket (no processing, no CDN)
- * 2. Cleartext thumbnail scan copy -> existing media bucket (Rekognition moderation)
+ * 2. Cleartext thumbnail scan copy -> existing media bucket (local CSAM hash check)
  *
  * Server-side gating: presigned GETs for E2E media are only issued after the
  * companion scan copy passes moderation (status: 'ready' in media_uploads).

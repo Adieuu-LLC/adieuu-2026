@@ -1,5 +1,25 @@
 export type ReportType = 'content' | 'abuse';
-export type ReportSource = 'automated_rekognition' | 'manual_user';
+export type ReportSource =
+  | 'automated_hash_check'
+  | 'automated_csam_hash'
+  | 'manual_user';
+
+/** i18n key under `moderation.reports` for a report source label. */
+export function getReportSourceI18nKey(
+  source: string
+): 'sourceManual' | 'sourceAutoHashCheck' | 'sourceAutoCsamHash' {
+  switch (source) {
+    case 'manual_user':
+      return 'sourceManual';
+    case 'automated_csam_hash':
+      return 'sourceAutoCsamHash';
+    case 'automated_hash_check':
+    case 'automated_rekognition':
+      return 'sourceAutoHashCheck';
+    default:
+      return 'sourceAutoHashCheck';
+  }
+}
 export type ModerationReportStatus = 'open' | 'escalated' | 'resolved' | 'closed';
 export type ReportCategory =
   | 'csam'

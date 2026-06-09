@@ -13,7 +13,6 @@
     "dev:proxy": "caddy run",
     "package:media-db-writer": "cd infra/aws/lambda/media-db-writer && pnpm run package",
     "package:media-processor": "cd infra/aws/lambda/media-processor && pnpm run package",
-    "package:media-video-moderation-complete": "cd infra/aws/lambda/media-video-moderation-complete && pnpm run package",
     "package:lambdas": "bash package-lambdas.sh",
     "package:lambdas:force": "bash package-lambdas.sh --force",
     "services:up": "docker compose up -d",
