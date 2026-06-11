@@ -1,4 +1,13 @@
-import { useRef, useState, useCallback, useEffect, type KeyboardEvent, type ClipboardEvent } from 'react';
+import {
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+  type FormEvent,
+  type KeyboardEvent,
+  type ClipboardEvent,
+  type ChangeEvent,
+} from 'react';
 
 export interface OtpInputProps {
   length?: number;
@@ -8,6 +17,11 @@ export interface OtpInputProps {
   disabled?: boolean;
   error?: boolean;
   autoFocus?: boolean;
+}
+
+/** Strip non-digits and cap to OTP length (used by paste/autofill paths). */
+export function normalizeOtpDigits(raw: string, length: number): string {
+  return raw.replace(/\D/g, '').slice(0, length);
 }
 
 export function OtpInput({
@@ -37,6 +51,21 @@ export function OtpInput({
     }
   }, [length]);
 
+  const applyDigits = useCallback(
+    (raw: string) => {
+      const digits = normalizeOtpDigits(raw, length);
+      if (!digits) return;
+
+      onChange(digits);
+      focusInput(Math.min(digits.length, length - 1));
+
+      if (digits.length === length) {
+        onComplete?.(digits);
+      }
+    },
+    [length, onChange, onComplete, focusInput]
+  );
+
   const handleChange = useCallback(
     (index: number, digit: string) => {
       if (!/^\d?$/.test(digit)) return;
@@ -62,6 +91,18 @@ export function OtpInput({
       }
     },
     [valueArray, length, onChange, onComplete, focusInput]
+  );
+
+  const handleInputChange = useCallback(
+    (index: number, e: ChangeEvent<HTMLInputElement>) => {
+      const digits = normalizeOtpDigits(e.target.value, length);
+      if (digits.length > 1) {
+        applyDigits(e.target.value);
+        return;
+      }
+      handleChange(index, digits.slice(-1));
+    },
+    [length, applyDigits, handleChange]
   );
 
   const handleKeyDown = useCallback(
@@ -90,23 +131,33 @@ export function OtpInput({
   const handlePaste = useCallback(
     (e: ClipboardEvent<HTMLInputElement>) => {
       e.preventDefault();
-      const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, length);
-      
-      if (pastedData) {
-        onChange(pastedData);
-        const nextIndex = Math.min(pastedData.length, length - 1);
-        focusInput(nextIndex);
+      applyDigits(e.clipboardData.getData('text'));
+    },
+    [applyDigits]
+  );
 
-        if (pastedData.length === length) {
-          onComplete?.(pastedData);
-        }
+  const handleBeforeInput = useCallback(
+    (e: FormEvent<HTMLInputElement>) => {
+      const nativeEvent = e.nativeEvent as InputEvent;
+      if (
+        nativeEvent.inputType !== 'insertFromPaste' &&
+        nativeEvent.inputType !== 'insertReplacementText'
+      ) {
+        return;
+      }
+
+      const data = nativeEvent.data ?? '';
+      const digits = normalizeOtpDigits(data, length);
+      if (digits.length > 1) {
+        e.preventDefault();
+        applyDigits(data);
       }
     },
-    [length, onChange, onComplete, focusInput]
+    [length, applyDigits]
   );
 
   return (
-    <div className="otp-input-container">
+    <div className="otp-input-container" data-skip-app-plain-context>
       {Array.from({ length }).map((_, index) => (
         <input
           key={index}
@@ -116,11 +167,12 @@ export function OtpInput({
           type="text"
           inputMode="numeric"
           pattern="\d*"
-          maxLength={1}
+          autoComplete={index === 0 ? 'one-time-code' : 'off'}
           value={valueArray[index] ?? ''}
-          onChange={(e) => handleChange(index, e.target.value.slice(-1))}
+          onChange={(e) => handleInputChange(index, e)}
           onKeyDown={(e) => handleKeyDown(index, e)}
           onPaste={handlePaste}
+          onBeforeInput={handleBeforeInput}
           onFocus={() => setFocusedIndex(index)}
           onBlur={() => setFocusedIndex(-1)}
           disabled={disabled}
