@@ -1,16 +1,13 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { setMockTranslate } from '../../test/react-i18next-mock';
 
 /* ---- Mocks ---- */
 
-mock.module('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, fallback?: string | Record<string, unknown>) => {
-      if (typeof fallback === 'string') return fallback;
-      return key;
-    },
-  }),
-}));
+setMockTranslate((key, fallback) => {
+  if (typeof fallback === 'string') return fallback;
+  return key;
+});
 
 mock.module('../../icons/Icon', () => ({
   Icon: ({ name }: { name: string }) => <span data-icon={name} />,

@@ -1,14 +1,14 @@
 import { describe, expect, mock, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { setMockTranslate } from '../../test/react-i18next-mock';
 
-mock.module('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (_key: string, opts: string | Record<string, unknown>) => {
-      if (typeof opts === 'string') return opts;
-      return (opts as { defaultValue?: string }).defaultValue ?? _key;
-    },
-  }),
-}));
+setMockTranslate((_key, opts) => {
+  if (typeof opts === 'string') return opts;
+  if (opts && typeof opts === 'object' && 'defaultValue' in opts) {
+    return String(opts.defaultValue ?? _key);
+  }
+  return _key;
+});
 
 const { SystemMessageRow } = await import('./SystemMessageRow');
 

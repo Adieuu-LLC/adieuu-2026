@@ -1,16 +1,15 @@
 import { describe, expect, mock, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { setMockTranslate } from '../../test/react-i18next-mock';
 
-mock.module('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, opts?: Record<string, unknown>) => {
-      if (key === 'gif.fallbackLabel' && opts?.term) return `GIF: ${opts.term}`;
-      if (key === 'gif.showThisGif') return 'Show this GIF';
-      if (key === 'gif.animateOnHoverAria') return 'GIF or sticker';
-      return key;
-    },
-  }),
-}));
+setMockTranslate((key, opts) => {
+  if (key === 'gif.fallbackLabel' && opts && typeof opts === 'object' && opts.term) {
+    return `GIF: ${opts.term}`;
+  }
+  if (key === 'gif.showThisGif') return 'Show this GIF';
+  if (key === 'gif.animateOnHoverAria') return 'GIF or sticker';
+  return key;
+});
 
 const { MessageGifAttachment } = await import('./MessageGifAttachment');
 

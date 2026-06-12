@@ -6,17 +6,14 @@ import {
   resetReactRouterDomMock,
   setMockSearchParams,
 } from '../../test/react-router-dom-mock';
+import { setMockTranslate } from '../../test/react-i18next-mock';
 
-mock.module('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, opts?: { devLink?: string }) => {
-      if (key === 'account.checkout.complete.devHint' && opts?.devLink) {
-        return `dev ${opts.devLink}`;
-      }
-      return key;
-    },
-  }),
-}));
+setMockTranslate((key, opts) => {
+  if (key === 'account.checkout.complete.devHint' && opts && typeof opts === 'object' && opts.devLink) {
+    return `dev ${opts.devLink}`;
+  }
+  return key;
+});
 
 mock.module('../../config', () => ({
   useAppConfig: () => ({ apiBaseUrl: '', chatWsUrl: '', externalLinkBase: '', platform: 'web' }),

@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { cspManifest, devCspExtras } from './csp';
 import { serializeCsp } from '../../../packages/shared/src/csp/serialize';
 import { mergeCspManifests } from '../../../packages/shared/src/csp/merge';
+import { livekitWsOrigin, livekitHttpOrigin } from '../../../packages/shared/src/csp/origins';
 
 /**
  * Validates that the desktop app's Content Security Policy includes all
@@ -121,13 +122,13 @@ describe('desktop app CSP', () => {
     it('includes the LiveKit signaling origin', () => {
       const directives = parseDirectives(csp);
       const connectSrc = directives.get('connect-src') ?? [];
-      expect(connectSrc).toContain('wss://livestream.adieuu.com');
+      expect(connectSrc).toContain(livekitWsOrigin);
     });
 
     it('includes the LiveKit HTTP origin for SDK API calls', () => {
       const directives = parseDirectives(csp);
       const connectSrc = directives.get('connect-src') ?? [];
-      expect(connectSrc).toContain('https://livestream.adieuu.com');
+      expect(connectSrc).toContain(livekitHttpOrigin);
     });
 
     it('includes the S3 media bucket', () => {

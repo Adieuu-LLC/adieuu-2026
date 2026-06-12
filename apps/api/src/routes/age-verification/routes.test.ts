@@ -23,6 +23,7 @@ mock.module('../../services/session.service', () => ({
   getSessionIdFromRequest: mock(() => null),
   createAccountSession: mock(() => Promise.resolve({ sessionId: 'test', cookie: '' })),
   destroySession: mock(() => Promise.resolve()),
+  destroyAllSessions: mock(() => Promise.resolve(0)),
   buildLogoutCookie: mock(() => ''),
 }));
 
@@ -78,6 +79,9 @@ mock.module('../../config', () => ({
   config: {
     apiBaseUrl: 'https://api.example.com',
     webAppUrl: 'http://localhost:3000',
+    email: {
+      fromName: 'TestApp',
+    },
     verifymy: {
       apiKey: 'key',
       apiSecret: 'secret',

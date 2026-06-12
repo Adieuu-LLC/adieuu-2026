@@ -39,6 +39,18 @@ mock.module('./config', () => ({
       awsAccessKeyId: undefined,
       awsSecretAccessKey: undefined,
     },
+    /** IP geolocation (IPLocate.io) — used by geo services and iplocate client tests */
+    geo: {
+      enabled: true,
+      iplocate: {
+        apiKey: '',
+        baseUrl: 'https://www.iplocate.io/api/lookup',
+        timeoutMs: 2500,
+      },
+      cacheTtlSeconds: 86_400,
+      recheckIntervalDays: 30,
+      trustProxyHeaders: false,
+    },
   },
 }));
 
@@ -101,6 +113,8 @@ mock.module('./db/redis', () => ({
     session: (id: string) => `session:${id}`,
     identityLoginAttempts: (accountHash: string) => `ratelimit:identity_login:${accountHash}`,
     lockoutPending: (accountHash: string) => `lockout_pending:${accountHash}`,
+    geoIpLookup: (ipHash: string) => `geo:ip:${ipHash}`,
+    geoNegativeLookup: (ipHash: string) => `geo:ip_neg:${ipHash}`,
   },
 }));
 
@@ -140,6 +154,8 @@ mock.module('./db', () => ({
     session: (id: string) => `session:${id}`,
     identityLoginAttempts: (accountHash: string) => `ratelimit:identity_login:${accountHash}`,
     lockoutPending: (accountHash: string) => `lockout_pending:${accountHash}`,
+    geoIpLookup: (ipHash: string) => `geo:ip:${ipHash}`,
+    geoNegativeLookup: (ipHash: string) => `geo:ip_neg:${ipHash}`,
   },
   // Initialization helpers
   initializeDatabases: mock(() => Promise.resolve()),
