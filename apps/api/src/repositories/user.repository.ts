@@ -320,18 +320,33 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
 
   /**
    * Persist compliance attestation state on the user document.
+   * Merges per-field so concurrent updates to different compliance keys are not clobbered.
    */
   async updateCompliance(id: string | ObjectId, compliance: UserCompliance): Promise<void> {
     const objectId = this.toObjectId(id);
-    await this.collection.updateOne(
-      { _id: objectId },
-      {
-        $set: {
-          compliance,
-          updatedAt: new Date(),
-        },
-      },
-    );
+    const complianceKeys = ['vpnAttestationPending', 'lastVpnAttestation', 'attestedUtahResidency'] as const;
+    const $set: Record<string, unknown> = { updatedAt: new Date() };
+    const $unset: Record<string, ''> = {};
+
+    for (const key of complianceKeys) {
+      if (!(key in compliance)) continue;
+      const value = compliance[key];
+      if (value === undefined) {
+        $unset[`compliance.${key}`] = '';
+      } else {
+        $set[`compliance.${key}`] = value;
+      }
+    }
+
+    const update: Record<string, Record<string, unknown>> = {};
+    if (Object.keys($set).length > 0) {
+      update.$set = $set;
+    }
+    if (Object.keys($unset).length > 0) {
+      update.$unset = $unset;
+    }
+
+    await this.collection.updateOne({ _id: objectId }, update);
   }
 
   /**

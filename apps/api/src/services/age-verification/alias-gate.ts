@@ -42,6 +42,17 @@ export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateRe
     return evaluateAvStatus(user, user.geo?.jurisdiction ?? 'GIFTED');
   }
 
+  const jurisdiction = user.geo?.jurisdiction;
+
+  // Geofence wins over compliance-driven AV paths when jurisdiction is known
+  if (jurisdiction) {
+    const blocked = await getBlockedJurisdictions();
+    if (blocked.has(jurisdiction.toUpperCase())) {
+      const lawUrl = await getLawLinkForJurisdiction(jurisdiction);
+      return { allowed: false, code: 'GEOFENCE_BLOCKED', jurisdiction, lawUrl };
+    }
+  }
+
   // Compliance-driven AV: abusive IP flag
   const av = user.ageVerification;
   if (av?.requiredReason === 'abusive_ip' && av.status !== 'verified') {
@@ -54,7 +65,6 @@ export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateRe
   }
 
   // 2. Jurisdiction unresolved
-  const jurisdiction = user.geo?.jurisdiction;
   if (!jurisdiction) {
     // When mode is 'all', even unresolved jurisdictions must verify
     const mode = await getRequiredMode();
@@ -65,14 +75,7 @@ export async function evaluateAliasGate(user: UserDocument): Promise<AliasGateRe
     return ALLOWED;
   }
 
-  // 3. Geofence check
-  const blocked = await getBlockedJurisdictions();
-  if (blocked.has(jurisdiction.toUpperCase())) {
-    const lawUrl = await getLawLinkForJurisdiction(jurisdiction);
-    return { allowed: false, code: 'GEOFENCE_BLOCKED', jurisdiction, lawUrl };
-  }
-
-  // 4. Does this jurisdiction require AV?
+  // 3. Does this jurisdiction require AV?
   const avRequired = await requiresAgeVerification(jurisdiction);
   if (!avRequired) return ALLOWED;
 

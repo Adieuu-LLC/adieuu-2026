@@ -249,4 +249,36 @@ describe('evaluateAliasGate', () => {
       expect(result.requiredReason).toBe('utah_attestation');
     }
   });
+
+  test('blocks geofenced jurisdiction with abusive_ip compliance flag', async () => {
+    mockGetBlockedJurisdictions.mockImplementation(() => Promise.resolve(new Set(['US-TX'])));
+    mockGetLawLinkForJurisdiction.mockImplementation(() => Promise.resolve('https://law.example.com'));
+    const user = makeUser({
+      geo: { jurisdiction: 'US-TX', countryCode: 'US', ipHash: '', checkedAt: new Date() },
+      ageVerification: {
+        status: 'unverified',
+        expirationCount: 0,
+        requiredReason: 'abusive_ip',
+      },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      expect(result.code).toBe('GEOFENCE_BLOCKED');
+    }
+  });
+
+  test('blocks geofenced jurisdiction with attested Utah residency', async () => {
+    mockGetBlockedJurisdictions.mockImplementation(() => Promise.resolve(new Set(['US-TX'])));
+    mockGetLawLinkForJurisdiction.mockImplementation(() => Promise.resolve('https://law.example.com'));
+    const user = makeUser({
+      geo: { jurisdiction: 'US-TX', countryCode: 'US', ipHash: '', checkedAt: new Date() },
+      compliance: { attestedUtahResidency: true },
+    });
+    const result = await evaluateAliasGate(user);
+    expect(result.allowed).toBe(false);
+    if (!result.allowed) {
+      expect(result.code).toBe('GEOFENCE_BLOCKED');
+    }
+  });
 });

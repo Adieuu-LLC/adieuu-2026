@@ -575,7 +575,7 @@ router.post('/auth/mfa/totp', async (ctx) => {
   const result = await verifyMfaTotpHandler(sanitizedMfaToken.value, sanitizedCode.value);
 
   if (!result.success) {
-    if (result.error === 'invalid_token' || result.error === 'expired') {
+    if (result.error === 'invalid_token' || result.error === 'expired' || result.error === 'user_not_found') {
       return ctx.errors.unauthorized();
     }
     if (result.error === 'account_banned') {
@@ -635,7 +635,7 @@ router.post('/auth/mfa/webauthn', async (ctx) => {
   const result = await verifyMfaWebAuthnHandler(sanitizedMfaToken.value, webauthnResponse);
 
   if (!result.success) {
-    if (result.error === 'invalid_token' || result.error === 'expired') {
+    if (result.error === 'invalid_token' || result.error === 'expired' || result.error === 'user_not_found') {
       return ctx.errors.unauthorized();
     }
     if (result.error === 'account_banned') {

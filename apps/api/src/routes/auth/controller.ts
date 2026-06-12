@@ -121,27 +121,28 @@ async function runPostLoginComplianceCheck(
 
 async function completeMfaLogin(pendingLogin: MfaPendingLogin): Promise<VerifyMfaResult> {
   const userRepo = getUserRepository();
+  const mfaUser = await userRepo.findById(pendingLogin.userId);
+  if (!mfaUser) {
+    return { success: false, error: 'user_not_found' };
+  }
 
   if (pendingLogin.ipAddress) {
-    const mfaUser = await userRepo.findById(pendingLogin.userId);
-    if (mfaUser) {
-      const complianceCheck = await runPostLoginComplianceCheck(mfaUser, pendingLogin.ipAddress);
-      if (!complianceCheck.ok) {
-        if (complianceCheck.error === 'account_banned') {
-          return {
-            success: false,
-            error: 'account_banned',
-            moderationReason: complianceCheck.moderationReason,
-            moderationCategory: complianceCheck.moderationCategory,
-            bannedPeerCount: complianceCheck.bannedPeerCount,
-          };
-        }
+    const complianceCheck = await runPostLoginComplianceCheck(mfaUser, pendingLogin.ipAddress);
+    if (!complianceCheck.ok) {
+      if (complianceCheck.error === 'account_banned') {
         return {
           success: false,
-          error: 'abusive_ip_blocked',
-          abusiveIpMessage: complianceCheck.message,
+          error: 'account_banned',
+          moderationReason: complianceCheck.moderationReason,
+          moderationCategory: complianceCheck.moderationCategory,
+          bannedPeerCount: complianceCheck.bannedPeerCount,
         };
       }
+      return {
+        success: false,
+        error: 'abusive_ip_blocked',
+        abusiveIpMessage: complianceCheck.message,
+      };
     }
   }
 
@@ -1109,8 +1110,6 @@ export async function getSessionHandler(
     }
   }
 
-  const effectiveToken = aliasGate && !aliasGate.allowed ? undefined : signedToken;
-
   let compliance: GetSessionHandlerSuccess['compliance'];
   if (complianceOutcome.action === 'attestation_required') {
     const sanctionedCountries = complianceOutcome.sanctionedCountries;
@@ -1125,6 +1124,11 @@ export async function getSessionHandler(
       compliance = { vpnAttestation };
     }
   }
+
+  const effectiveToken =
+    (aliasGate && !aliasGate.allowed) || compliance?.vpnAttestation
+      ? undefined
+      : signedToken;
 
   return {
     session,
@@ -1317,7 +1321,7 @@ export type VerifyMfaResult =
   | { success: true; cookie: string; csrfCookie: string }
   | {
     success: false;
-    error: 'invalid_token' | 'invalid_code' | 'expired' | 'rate_limited' | 'account_banned' | 'account_suspended' | 'abusive_ip_blocked';
+    error: 'invalid_token' | 'invalid_code' | 'expired' | 'rate_limited' | 'user_not_found' | 'account_banned' | 'account_suspended' | 'abusive_ip_blocked';
     moderationReason?: string;
     moderationCategory?: AccountModerationCategory;
     bannedPeerCount?: number;

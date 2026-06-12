@@ -96,6 +96,7 @@ mock.module('../../config', () => ({
     security: { sessionSecret: 'test-secret', otpSecret: 'test-otp-secret', accountHashSecret: 'hash-secret', tokenSigningKey: 'sign-key' },
     cookie: { domain: '' },
     webAppUrl: 'http://localhost:3000',
+    email: { fromName: 'Adieuu' },
   },
 }));
 
@@ -107,21 +108,34 @@ mock.module('../../services/geo/geo.service', () => ({
   refreshUserGeoIfStale: mock(() => Promise.resolve()),
 }));
 
+const mockEvaluateComplianceOnAccess = mock((user: unknown) => Promise.resolve({ action: 'none', user })) as AnyMock;
+const mockBuildVpnAttestationSessionPayload = mock(() => undefined) as AnyMock;
+
 mock.module('../../services/compliance/compliance-enforcement.service', () => ({
-  evaluateComplianceOnAccess: mock((user: unknown) => Promise.resolve({ action: 'none', user })),
+  evaluateComplianceOnAccess: mockEvaluateComplianceOnAccess,
   listSanctionedCountriesForClient: mock(() => Promise.resolve([])),
-  buildVpnAttestationSessionPayload: mock(() => undefined),
+  buildVpnAttestationSessionPayload: mockBuildVpnAttestationSessionPayload,
 }));
 
 mock.module('../../services/platform-capabilities.service', () => ({
   getPlatformCapabilities: mock(() => Promise.resolve({})),
 }));
 
-import { getSessionHandler } from './controller';
+import { getSessionHandler, type GetSessionHandlerSuccess } from './controller';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function assertSessionSuccess(
+  result: Awaited<ReturnType<typeof getSessionHandler>>,
+): asserts result is GetSessionHandlerSuccess {
+  expect(result).toBeDefined();
+  expect(result).not.toBeNull();
+  if (!result || 'blocked' in result) {
+    throw new Error('expected successful session handler result');
+  }
+}
 
 function makeUser(overrides?: Record<string, unknown>) {
   return {
@@ -161,9 +175,15 @@ describe('getSessionHandler alias gate token withholding', () => {
     mockFindById.mockReset();
     mockEvaluateAliasGate.mockReset();
     mockIsAgeVerificationEnabled.mockReset();
+    mockEvaluateComplianceOnAccess.mockReset();
+    mockBuildVpnAttestationSessionPayload.mockReset();
 
     mockRequireAccountSession.mockResolvedValue(makeSession());
     mockIsAgeVerificationEnabled.mockResolvedValue(true);
+    mockEvaluateComplianceOnAccess.mockImplementation((user: unknown) =>
+      Promise.resolve({ action: 'none', user }),
+    );
+    mockBuildVpnAttestationSessionPayload.mockReturnValue(undefined);
   });
 
   test('returns signedToken when alias gate allows', async () => {
@@ -172,11 +192,9 @@ describe('getSessionHandler alias gate token withholding', () => {
 
     const result = await getSessionHandler(makeRequest());
 
-    expect(result).not.toBeNull();
-    if (result && 'signedToken' in result) {
-      expect(result.signedToken).toBe('mock-signed-token');
-      expect(result.aliasGate).toEqual({ allowed: true });
-    }
+    assertSessionSuccess(result);
+    expect(result.signedToken).toBe('mock-signed-token');
+    expect(result.aliasGate).toEqual({ allowed: true });
   });
 
   test('withholds signedToken when gate returns AGE_VERIFICATION_REQUIRED', async () => {
@@ -190,12 +208,10 @@ describe('getSessionHandler alias gate token withholding', () => {
 
     const result = await getSessionHandler(makeRequest());
 
-    expect(result).not.toBeNull();
-    if (result && 'signedToken' in result) {
-      expect(result.signedToken).toBeUndefined();
-      expect(result.aliasGate?.allowed).toBe(false);
-      expect(result.aliasGate?.code).toBe('AGE_VERIFICATION_REQUIRED');
-    }
+    assertSessionSuccess(result);
+    expect(result.signedToken).toBeUndefined();
+    expect(result.aliasGate?.allowed).toBe(false);
+    expect(result.aliasGate?.code).toBe('AGE_VERIFICATION_REQUIRED');
   });
 
   test('withholds signedToken when gate returns GEOFENCE_BLOCKED', async () => {
@@ -209,11 +225,9 @@ describe('getSessionHandler alias gate token withholding', () => {
 
     const result = await getSessionHandler(makeRequest());
 
-    expect(result).not.toBeNull();
-    if (result && 'signedToken' in result) {
-      expect(result.signedToken).toBeUndefined();
-      expect(result.aliasGate?.code).toBe('GEOFENCE_BLOCKED');
-    }
+    assertSessionSuccess(result);
+    expect(result.signedToken).toBeUndefined();
+    expect(result.aliasGate?.code).toBe('GEOFENCE_BLOCKED');
   });
 
   test('withholds signedToken when gate returns AGE_VERIFICATION_FAILED', async () => {
@@ -230,11 +244,9 @@ describe('getSessionHandler alias gate token withholding', () => {
 
     const result = await getSessionHandler(makeRequest());
 
-    expect(result).not.toBeNull();
-    if (result && 'signedToken' in result) {
-      expect(result.signedToken).toBeUndefined();
-      expect(result.aliasGate?.code).toBe('AGE_VERIFICATION_FAILED');
-    }
+    assertSessionSuccess(result);
+    expect(result.signedToken).toBeUndefined();
+    expect(result.aliasGate?.code).toBe('AGE_VERIFICATION_FAILED');
   });
 
   test('withholds signedToken when gate returns AGE_VERIFICATION_COOLDOWN', async () => {
@@ -251,11 +263,9 @@ describe('getSessionHandler alias gate token withholding', () => {
 
     const result = await getSessionHandler(makeRequest());
 
-    expect(result).not.toBeNull();
-    if (result && 'signedToken' in result) {
-      expect(result.signedToken).toBeUndefined();
-      expect(result.aliasGate?.code).toBe('AGE_VERIFICATION_COOLDOWN');
-    }
+    assertSessionSuccess(result);
+    expect(result.signedToken).toBeUndefined();
+    expect(result.aliasGate?.code).toBe('AGE_VERIFICATION_COOLDOWN');
   });
 
   test('returns signedToken when AV is disabled (no gate evaluation)', async () => {
@@ -264,10 +274,31 @@ describe('getSessionHandler alias gate token withholding', () => {
 
     const result = await getSessionHandler(makeRequest());
 
-    expect(result).not.toBeNull();
-    if (result && 'signedToken' in result) {
-      expect(result.signedToken).toBe('mock-signed-token');
-      expect(result.aliasGate).toBeUndefined();
-    }
+    assertSessionSuccess(result);
+    expect(result.signedToken).toBe('mock-signed-token');
+    expect(result.aliasGate).toBeUndefined();
+  });
+
+  test('withholds signedToken when VPN attestation is required', async () => {
+    const user = makeUser();
+    mockFindById.mockResolvedValue(user);
+    mockEvaluateAliasGate.mockResolvedValue({ allowed: true });
+    mockEvaluateComplianceOnAccess.mockResolvedValue({
+      action: 'attestation_required',
+      user,
+      step: 'sanctioned_membership',
+      sanctionedCountries: [{ countryCode: 'CU', countryName: 'Cuba' }],
+    });
+    mockBuildVpnAttestationSessionPayload.mockReturnValue({
+      required: true,
+      step: 'sanctioned_membership',
+      sanctionedCountries: [{ countryCode: 'CU', countryName: 'Cuba' }],
+    });
+
+    const result = await getSessionHandler(makeRequest());
+
+    assertSessionSuccess(result);
+    expect(result.signedToken).toBeUndefined();
+    expect(result.compliance?.vpnAttestation?.required).toBe(true);
   });
 });

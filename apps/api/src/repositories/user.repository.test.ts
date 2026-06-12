@@ -186,6 +186,44 @@ describe('user.repository', () => {
     expect(expr.$gte[0].$indexOfCP[1]).toBe('user+a@example.com');
   });
 
+  test('updateCompliance merges fields with dot-notation instead of replacing compliance object', async () => {
+    const repo = new UserRepository();
+    const userId = new ObjectId();
+    const completedAt = new Date('2024-06-01T00:00:00Z');
+
+    await repo.updateCompliance(userId, {
+      attestedUtahResidency: true,
+      vpnAttestationPending: undefined,
+      lastVpnAttestation: {
+        ipHash: 'abc123',
+        completedAt,
+        sanctionedMembership: false,
+        utahResidency: true,
+      },
+    });
+
+    expect(mockCollection.updateOne).toHaveBeenCalledWith(
+      { _id: userId },
+      expect.objectContaining({
+        $set: expect.objectContaining({
+          'compliance.attestedUtahResidency': true,
+          'compliance.lastVpnAttestation': {
+            ipHash: 'abc123',
+            completedAt,
+            sanctionedMembership: false,
+            utahResidency: true,
+          },
+          updatedAt: expect.any(Date),
+        }),
+        $unset: { 'compliance.vpnAttestationPending': '' },
+      }),
+    );
+    const updateArg = mockCollection.updateOne.mock.calls.at(-1)?.[1] as {
+      $set?: Record<string, unknown>;
+    };
+    expect(updateArg.$set).not.toHaveProperty('compliance');
+  });
+
   test('searchByIdentifier returns empty array for blank query', async () => {
     const repo = new UserRepository();
     const results = await repo.searchByIdentifier('   ');

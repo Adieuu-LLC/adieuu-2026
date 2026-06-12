@@ -4,7 +4,7 @@
 
 import { Router } from '../../router';
 import { success, error as errorResponse } from '../../utils/response';
-import { requireAccountSession } from '../../services/session.service';
+import { appendAuthClearCookies, requireAccountSession } from '../../services/session.service';
 import { getUserRepository } from '../../repositories/user.repository';
 import { postVpnAttestationHandler } from './controller';
 import { getClientIp } from '../auth/controller';
@@ -23,9 +23,12 @@ router.post('/compliance/vpn-attestation', async (ctx) => {
   const result = await postVpnAttestationHandler(ip, user, ctx.body);
 
   if ('banned' in result && result.banned) {
-    return errorResponse('ACCOUNT_BANNED', 'Access denied.', 403, {
+    const response = errorResponse('ACCOUNT_BANNED', 'Access denied.', 403, {
       moderationCategory: 'ofac_self_attestation',
     });
+    const headers = new Headers(response.headers);
+    appendAuthClearCookies(headers);
+    return new Response(response.body, { status: response.status, headers });
   }
 
   if (!result.ok) {
