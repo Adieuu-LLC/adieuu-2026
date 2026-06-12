@@ -14,6 +14,16 @@ export const CYBERTIPLINE_PROD_BASE_URL = 'https://report.cybertip.org/ispws';
 
 const TEST_BASE_URL = CYBERTIPLINE_TEST_BASE_URL;
 const PROD_BASE_URL = CYBERTIPLINE_PROD_BASE_URL;
+const DEFAULT_CYBERTIPLINE_TIMEOUT_MS = 60_000;
+
+function getCyberTiplineTimeoutMs(): number {
+  const configured = process.env.CYBERTIPLINE_TIMEOUT_MS;
+  if (configured === undefined || configured.trim() === '') {
+    return DEFAULT_CYBERTIPLINE_TIMEOUT_MS;
+  }
+  const parsed = Number(configured);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_CYBERTIPLINE_TIMEOUT_MS;
+}
 
 export type CyberTiplineDeployEnv = 'test' | 'production';
 
@@ -61,6 +71,40 @@ export interface CyberTiplineCredentials {
   companyTemplate?: string;
   termsOfServiceUrl?: string;
   legalUrl?: string;
+}
+
+const REQUIRED_CREDENTIAL_FIELDS = [
+  'username',
+  'password',
+  'reporterFirstName',
+  'reporterLastName',
+  'reporterEmail',
+] as const satisfies readonly (keyof CyberTiplineCredentials)[];
+
+export function parseCyberTiplineCredentials(raw: string): CyberTiplineCredentials {
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  for (const field of REQUIRED_CREDENTIAL_FIELDS) {
+    const value = parsed[field];
+    if (
+      value === undefined ||
+      value === null ||
+      (typeof value === 'string' && value.trim() === '')
+    ) {
+      throw new Error(`CyberTipline: secret missing required field "${field}"`);
+    }
+  }
+  return {
+    username: String(parsed.username),
+    password: String(parsed.password),
+    reporterFirstName: String(parsed.reporterFirstName),
+    reporterLastName: String(parsed.reporterLastName),
+    reporterEmail: String(parsed.reporterEmail),
+    companyTemplate:
+      typeof parsed.companyTemplate === 'string' ? parsed.companyTemplate : undefined,
+    termsOfServiceUrl:
+      typeof parsed.termsOfServiceUrl === 'string' ? parsed.termsOfServiceUrl : undefined,
+    legalUrl: typeof parsed.legalUrl === 'string' ? parsed.legalUrl : undefined,
+  };
 }
 
 export interface CyberTiplineIpCapture {
@@ -346,12 +390,32 @@ export class CyberTiplineClient {
       throw new Error('CyberTipline: secret value is empty');
     }
 
-    this.credentials = JSON.parse(result.SecretString) as CyberTiplineCredentials;
+    this.credentials = parseCyberTiplineCredentials(result.SecretString);
     return this.credentials;
   }
 
   getBaseUrl(): string {
     return this.baseUrl;
+  }
+
+  private async fetchWithTimeout(path: string, init: RequestInit): Promise<Response> {
+    const timeoutMs = getCyberTiplineTimeoutMs();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      return await fetch(`${this.baseUrl}${path}`, {
+        ...init,
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        throw new Error(`CyberTipline request timed out after ${timeoutMs}ms`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private async authHeader(): Promise<string> {
@@ -362,7 +426,7 @@ export class CyberTiplineClient {
 
   async checkStatus(): Promise<CyberTiplineResponse> {
     const auth = await this.authHeader();
-    const resp = await fetch(`${this.baseUrl}/status`, {
+    const resp = await this.fetchWithTimeout('/status', {
       method: 'GET',
       headers: { Authorization: auth },
     });
@@ -375,7 +439,7 @@ export class CyberTiplineClient {
     const xml = buildReportXml(report, creds);
     const auth = await this.authHeader();
 
-    const resp = await fetch(`${this.baseUrl}/submit`, {
+    const resp = await this.fetchWithTimeout('/submit', {
       method: 'POST',
       headers: {
         Authorization: auth,
@@ -421,7 +485,7 @@ export class CyberTiplineClient {
 
     formData.append('file', blob, fileName);
 
-    const resp = await fetch(`${this.baseUrl}/upload`, {
+    const resp = await this.fetchWithTimeout('/upload', {
       method: 'POST',
       headers: { Authorization: auth },
       body: formData,
@@ -441,7 +505,7 @@ export class CyberTiplineClient {
     const xml = buildFileDetailsXml(details);
     const auth = await this.authHeader();
 
-    const resp = await fetch(`${this.baseUrl}/fileinfo`, {
+    const resp = await this.fetchWithTimeout('/fileinfo', {
       method: 'POST',
       headers: {
         Authorization: auth,
@@ -466,7 +530,7 @@ export class CyberTiplineClient {
     const formData = new FormData();
     formData.append('id', ncmecReportId);
 
-    const resp = await fetch(`${this.baseUrl}/finish`, {
+    const resp = await this.fetchWithTimeout('/finish', {
       method: 'POST',
       headers: { Authorization: auth },
       body: formData,
@@ -491,7 +555,7 @@ export class CyberTiplineClient {
     const formData = new FormData();
     formData.append('id', ncmecReportId);
 
-    const resp = await fetch(`${this.baseUrl}/retract`, {
+    const resp = await this.fetchWithTimeout('/retract', {
       method: 'POST',
       headers: { Authorization: auth },
       body: formData,

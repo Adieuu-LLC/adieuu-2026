@@ -182,7 +182,7 @@ export interface ReportDocument extends BaseDocument {
   /** NCMEC CyberTipline report ID (set after successful submission) */
   ncmecReportId?: string;
   /** NCMEC submission status */
-  ncmecStatus?: 'submitted' | 'failed';
+  ncmecStatus?: 'claiming' | 'submitted' | 'failed';
   /** Last NCMEC submission error (cleared on success) */
   ncmecError?: string;
 

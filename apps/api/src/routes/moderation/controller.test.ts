@@ -38,6 +38,8 @@ const mockReportList = mock<() => Promise<{
 }));
 
 const mockReportFindById = mock<() => Promise<unknown>>(async () => null);
+const mockReportClaimNcmecSubmission = mock<() => Promise<unknown>>(async () => null);
+const mockReportFinalizeNcmecSubmission = mock<() => Promise<unknown>>(async () => null);
 const mockReportReopen = mock<() => Promise<unknown>>(async () => null);
 const mockReportResolve = mock<() => Promise<unknown>>(async () => null);
 const mockReportClose = mock<() => Promise<unknown>>(async () => null);
@@ -70,13 +72,6 @@ const mockGetCyberTiplineClient = mock(() => ({
   submitFullReport: mockSubmitFullReport,
 }));
 const mockAssertCyberTiplineEnvironment = mock(() => undefined);
-const mockFindOneAndUpdate = mock(async () => ({
-  _id: reportId,
-  status: 'escalated',
-  leReportFiled: true,
-  ncmecStatus: 'submitted',
-}));
-
 const mockGetModerationScanEvidence = mock<
   () => Promise<
     | { ok: true; data: { expiresInSeconds: number; items: unknown[] } }
@@ -158,6 +153,8 @@ mock.module('../../repositories/report.repository', () => ({
   getReportRepository: () => ({
     list: mockReportList,
     findById: mockReportFindById,
+    claimNcmecSubmission: mockReportClaimNcmecSubmission,
+    finalizeNcmecSubmission: mockReportFinalizeNcmecSubmission,
     reopen: mockReportReopen,
     resolve: mockReportResolve,
     close: mockReportClose,
@@ -165,9 +162,6 @@ mock.module('../../repositories/report.repository', () => ({
     unassign: mock(async () => null),
     escalate: mock(async () => null),
     updateCategory: mock(async () => null),
-    collection: {
-      findOneAndUpdate: mockFindOneAndUpdate,
-    },
   }),
 }));
 
@@ -202,6 +196,10 @@ mock.module('../../services/moderation-scan-evidence.service', () => ({
 
 mock.module('../../services/conv-scan-moderation-cleanup.service', () => ({
   purgeConvScanEvidenceForTerminalReport: mockPurgeConvScanEvidence,
+}));
+
+mock.module('../../utils/adieuuLogger', () => ({
+  default: { info: mock(() => {}), warn: mock(() => {}), error: mock(() => {}), debug: mock(() => {}) },
 }));
 
 mock.module('../../services/cybertipline-report-builder.service', () => ({
@@ -617,25 +615,27 @@ describe('fileLeReportResult', () => {
 
   beforeEach(() => {
     mockReportFindById.mockReset();
+    mockReportClaimNcmecSubmission.mockReset();
+    mockReportFinalizeNcmecSubmission.mockReset();
     mockCreateEvent.mockReset();
     mockBuildCyberTiplineReport.mockReset();
     mockSubmitFullReport.mockReset();
-    mockFindOneAndUpdate.mockReset();
 
-    mockReportFindById.mockImplementation(async () => ({
+    mockReportClaimNcmecSubmission.mockImplementation(async () => ({
       _id: reportId,
       status: 'escalated',
+      ncmecStatus: 'claiming',
       targetIdentityId: 'target-id',
       detectionMetadata: {},
     }));
-    mockBuildCyberTiplineReport.mockImplementation(async (_report, notes) => ({
-      report: { incidentType: 'test', _notes: notes },
-    }));
-    mockFindOneAndUpdate.mockImplementation(async () => ({
+    mockReportFinalizeNcmecSubmission.mockImplementation(async () => ({
       _id: reportId,
       status: 'escalated',
       leReportFiled: true,
       ncmecStatus: 'submitted',
+    }));
+    mockBuildCyberTiplineReport.mockImplementation(async (_report, notes) => ({
+      report: { incidentType: 'test', _notes: notes },
     }));
   });
 
@@ -648,6 +648,62 @@ describe('fileLeReportResult', () => {
     );
     expect(result).toEqual({ ok: false, kind: 'forbidden' });
     expect(mockBuildCyberTiplineReport).not.toHaveBeenCalled();
+  });
+
+  test('returns bad_request when NCMEC claim fails for already submitted report', async () => {
+    mockReportClaimNcmecSubmission.mockImplementation(async () => null);
+    mockReportFindById.mockImplementation(async () => ({
+      _id: reportId,
+      status: 'escalated',
+      ncmecStatus: 'submitted',
+    }));
+
+    const result = await fileLeReportResult(
+      moderatorId,
+      reportId.toHexString(),
+      { category: 'csam' },
+      makeAdminCaps(),
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      kind: 'bad_request',
+      message: 'LE report has already been filed for this report',
+    });
+    expect(mockBuildCyberTiplineReport).not.toHaveBeenCalled();
+  });
+
+  test('stores generic ncmecError when CyberTipline submission fails', async () => {
+    mockSubmitFullReport.mockImplementation(async () => {
+      throw new Error('Authentication failed: secret upstream detail');
+    });
+    mockReportFinalizeNcmecSubmission.mockImplementation(async () => ({
+      _id: reportId,
+      status: 'escalated',
+      ncmecStatus: 'failed',
+      ncmecError: 'NCMEC service error',
+    }));
+
+    const result = await fileLeReportResult(
+      moderatorId,
+      reportId.toHexString(),
+      { category: 'csam' },
+      makeAdminCaps(),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(mockReportFinalizeNcmecSubmission).toHaveBeenCalledWith(
+      reportId.toHexString(),
+      { ok: false, ncmecError: 'NCMEC service error' },
+    );
+    expect(mockCreateEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          ncmecStatus: 'failed',
+          ncmecError: 'NCMEC service error',
+        }),
+      }),
+    );
   });
 
   test('returns validation_failed for malformed body', async () => {

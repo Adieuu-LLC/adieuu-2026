@@ -6,6 +6,7 @@ import {
   buildFileDetailsXml,
   parseResponseXml,
   parseFinishResponseXml,
+  parseCyberTiplineCredentials,
   CyberTiplineClient,
   CyberTiplineError,
   assertCyberTiplineEnvironment,
@@ -276,10 +277,59 @@ describe('assertCyberTiplineEnvironment', () => {
   });
 });
 
+describe('parseCyberTiplineCredentials', () => {
+  test('accepts secret JSON with all required fields', () => {
+    const creds = parseCyberTiplineCredentials(
+      JSON.stringify({
+        username: 'user',
+        password: 'pass',
+        reporterFirstName: 'A',
+        reporterLastName: 'B',
+        reporterEmail: 'a@b.com',
+      }),
+    );
+    expect(creds.username).toBe('user');
+  });
+
+  test('rejects secret JSON missing required fields', () => {
+    expect(() =>
+      parseCyberTiplineCredentials(
+        JSON.stringify({
+          username: 'user',
+          password: 'pass',
+          reporterFirstName: 'A',
+          reporterLastName: 'B',
+        }),
+      ),
+    ).toThrow(/reporterEmail/);
+  });
+
+  test('rejects empty string required fields', () => {
+    expect(() =>
+      parseCyberTiplineCredentials(
+        JSON.stringify({
+          username: 'user',
+          password: '   ',
+          reporterFirstName: 'A',
+          reporterLastName: 'B',
+          reporterEmail: 'a@b.com',
+        }),
+      ),
+    ).toThrow(/password/);
+  });
+});
+
 describe('CyberTiplineClient', () => {
   test('uses test URL by default', () => {
-    const client = new CyberTiplineClient({ credentials: testCreds });
-    expect(client.getBaseUrl()).toBe(CYBERTIPLINE_TEST_BASE_URL);
+    const savedBaseUrl = process.env.CYBERTIPLINE_BASE_URL;
+    delete process.env.CYBERTIPLINE_BASE_URL;
+    try {
+      const client = new CyberTiplineClient({ credentials: testCreds });
+      expect(client.getBaseUrl()).toBe(CYBERTIPLINE_TEST_BASE_URL);
+    } finally {
+      if (savedBaseUrl === undefined) delete process.env.CYBERTIPLINE_BASE_URL;
+      else process.env.CYBERTIPLINE_BASE_URL = savedBaseUrl;
+    }
   });
 
   test('accepts custom base URL', () => {
@@ -335,6 +385,33 @@ describe('CyberTiplineClient', () => {
         if (saved[k] === undefined) delete process.env[k];
         else process.env[k] = saved[k];
       }
+    }
+  });
+
+  test('checkStatus times out when upstream does not respond', async () => {
+    const savedTimeout = process.env.CYBERTIPLINE_TIMEOUT_MS;
+    process.env.CYBERTIPLINE_TIMEOUT_MS = '50';
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((_url, init) =>
+      new Promise((_resolve, reject) => {
+        const signal = init?.signal;
+        if (signal?.aborted) {
+          reject(new DOMException('The operation was aborted.', 'AbortError'));
+          return;
+        }
+        signal?.addEventListener('abort', () => {
+          reject(new DOMException('The operation was aborted.', 'AbortError'));
+        });
+      })) as typeof fetch;
+
+    const client = new CyberTiplineClient({ credentials: testCreds });
+    try {
+      await expect(client.checkStatus()).rejects.toThrow(/timed out after 50ms/);
+    } finally {
+      globalThis.fetch = originalFetch;
+      if (savedTimeout === undefined) delete process.env.CYBERTIPLINE_TIMEOUT_MS;
+      else process.env.CYBERTIPLINE_TIMEOUT_MS = savedTimeout;
     }
   });
 });

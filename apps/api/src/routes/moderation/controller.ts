@@ -29,6 +29,7 @@ import {
 import type { IdentitySessionData } from '../../services/session.service';
 import { isValidObjectId } from '../../utils/isValidObjectId';
 import { sanitizeString } from '../../utils/sanitize';
+import elog from '../../utils/adieuuLogger';
 
 export type ModerationFailureKind =
   | 'validation_failed'
@@ -599,6 +600,7 @@ export async function closeReportResult(
 
 const LE_REPORT_CATEGORIES = ['csam'] as const;
 const LE_REPORT_NOTES_MAX_LENGTH = 1000;
+const NCMEC_PUBLIC_ERROR = 'NCMEC service error';
 
 const LeReportSchema = z.object({
   category: z.enum(LE_REPORT_CATEGORIES),
@@ -609,6 +611,29 @@ function sanitizeLeReportNotes(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
   const clipped = sanitizeString(raw, 'general').value.slice(0, LE_REPORT_NOTES_MAX_LENGTH).trim();
   return clipped === '' ? undefined : clipped;
+}
+
+function logAndSanitizeNcmecError(reportId: string, err: unknown): string {
+  elog.error('NCMEC CyberTipline submission failed', { reportId, error: err });
+  return NCMEC_PUBLIC_ERROR;
+}
+
+function ncmecClaimFailure(
+  report: ReportDocument | null,
+): ModerationResult<PublicReport> {
+  if (!report) {
+    return { ok: false, kind: 'not_found' };
+  }
+  if (report.status === 'closed') {
+    return { ok: false, kind: 'bad_request', message: 'Cannot file LE report on a closed report' };
+  }
+  if (report.ncmecStatus === 'submitted') {
+    return { ok: false, kind: 'bad_request', message: 'LE report has already been filed for this report' };
+  }
+  if (report.ncmecStatus === 'claiming') {
+    return { ok: false, kind: 'bad_request', message: 'NCMEC submission already in progress' };
+  }
+  return { ok: false, kind: 'bad_request', message: 'Cannot file LE report for this report' };
 }
 
 export async function fileLeReportResult(
@@ -628,19 +653,13 @@ export async function fileLeReportResult(
   const notes = sanitizeLeReportNotes(parsed.data.notes);
 
   const repo = getReportRepository();
-  const report = await repo.findById(id);
-  if (!report) return { ok: false, kind: 'not_found' };
-
-  if (report.status === 'closed') {
-    return { ok: false, kind: 'bad_request', message: 'Cannot file LE report on a closed report' };
-  }
-
-  if (report.ncmecStatus === 'submitted') {
-    return { ok: false, kind: 'bad_request', message: 'LE report has already been filed for this report' };
+  const claimed = await repo.claimNcmecSubmission(id, actorId);
+  if (!claimed) {
+    const existing = await repo.findById(id);
+    return ncmecClaimFailure(existing);
   }
 
   const now = new Date();
-
   let ncmecReportId: string | undefined;
   let ncmecStatus: 'submitted' | 'failed' = 'failed';
   let ncmecError: string | undefined;
@@ -649,15 +668,28 @@ export async function fileLeReportResult(
     const { buildCyberTiplineReport } = await import('../../services/cybertipline-report-builder.service');
     const { getCyberTiplineClient, assertCyberTiplineEnvironment } = await import('../../services/cybertipline.service');
 
-    const bundle = await buildCyberTiplineReport(report as ReportDocument, notes);
+    const bundle = await buildCyberTiplineReport(claimed as ReportDocument, notes);
     const client = getCyberTiplineClient();
     assertCyberTiplineEnvironment(client.getBaseUrl());
     const result = await client.submitFullReport(bundle.report, bundle.evidenceFile);
     ncmecReportId = result.ncmecReportId;
     ncmecStatus = 'submitted';
   } catch (err) {
-    ncmecError = err instanceof Error ? err.message : String(err);
+    ncmecError = logAndSanitizeNcmecError(id, err);
   }
+
+  const finalizeResult =
+    ncmecStatus === 'submitted' && ncmecReportId
+      ? await repo.finalizeNcmecSubmission(id, {
+          ok: true,
+          ncmecReportId,
+          actorId,
+          filedAt: now,
+        })
+      : await repo.finalizeNcmecSubmission(id, {
+          ok: false,
+          ncmecError: ncmecError ?? NCMEC_PUBLIC_ERROR,
+        });
 
   const eventRepo = getReportEventRepository();
   await eventRepo.createEvent({
@@ -668,8 +700,8 @@ export async function fileLeReportResult(
     metadata: {
       leCategory: parsed.data.category,
       notes,
-      detectionMetadata: report.detectionMetadata,
-      targetIdentityId: report.targetIdentityId,
+      detectionMetadata: claimed.detectionMetadata,
+      targetIdentityId: claimed.targetIdentityId,
       filedAt: now.toISOString(),
       ncmecReportId,
       ncmecStatus,
@@ -677,32 +709,12 @@ export async function fileLeReportResult(
     },
   });
 
-  const submitted = ncmecStatus === 'submitted';
-  const objectId = new ObjectId(id);
-  const updateResult = await repo['collection'].findOneAndUpdate(
-    { _id: objectId },
-    {
-      $set: {
-        ...(submitted
-          ? {
-              leReportFiled: true,
-              leReportFiledAt: now,
-              leReportFiledBy: actorId,
-              ncmecReportId,
-            }
-          : { ncmecError }),
-        ncmecStatus,
-        updatedAt: now,
-      },
-      ...(submitted
-        ? { $addToSet: { tags: 'le_report_filed' }, $unset: { ncmecError: '' } }
-        : { $unset: { ncmecReportId: '' } }),
-    },
-    { returnDocument: 'after' },
-  );
+  if (!finalizeResult) {
+    return { ok: false, kind: 'bad_request', message: 'NCMEC submission could not be finalized' };
+  }
 
   return {
     ok: true,
-    data: toPublicReport(updateResult as unknown as Record<string, unknown>),
+    data: toPublicReport(finalizeResult as unknown as Record<string, unknown>),
   };
 }
