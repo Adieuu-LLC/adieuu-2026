@@ -5,6 +5,7 @@ import {
   parseOptionalObjectIdCursor,
   sanitizeObjectId,
   sanitizePathForLog,
+  sanitizeIpForStorage,
   sanitizeString,
   type SanitizationResult,
 } from './sanitize';
@@ -725,6 +726,28 @@ describe('sanitizeString', () => {
       const result = sanitizeString('NOTANIP', 'ip');
       expect(result.value).toBe('A');
       expect(result.deltas).toBeGreaterThan(0);
+    });
+  });
+
+  describe('sanitizeIpForStorage', () => {
+    test('returns normalized IPv4', () => {
+      expect(sanitizeIpForStorage('203.0.113.10')).toBe('203.0.113.10');
+    });
+
+    test('strips injection characters from proxy header values', () => {
+      expect(sanitizeIpForStorage('203.0.113.10 !@#')).toBe('203.0.113.10');
+    });
+
+    test('returns normalized IPv6', () => {
+      expect(sanitizeIpForStorage('fe80::1')).toBe('FE80::1');
+    });
+
+    test('returns undefined for missing input', () => {
+      expect(sanitizeIpForStorage(undefined)).toBeUndefined();
+    });
+
+    test('returns undefined when sanitized value is not a valid IP', () => {
+      expect(sanitizeIpForStorage('NOTANIP')).toBeUndefined();
     });
   });
 

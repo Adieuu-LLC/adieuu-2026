@@ -15,7 +15,7 @@
   "main": "dist/main/main.js",
   "type": "module",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node ../../scripts/desktop-dev.mjs",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package": "electron-builder",

@@ -59,7 +59,7 @@ export const account = {
       autoDownloadDescription: 'When enabled, updates are downloaded in the background as soon as they are found.',
       clearInstallerCache: 'Clear local installer cache',
       clearInstallerCacheDescription:
-        'Issues updating? This will remove partially downloaded or stuck update files so the next download starts fresh. Your messages and account data are not affected.',
+        'Issues updating? This will remove partially downloaded or stuck update files so the next download starts fresh.',
       clearInstallerCacheButton: 'Clear cache',
       clearingInstallerCache: 'Clearing…',
       clearInstallerCacheSuccess: 'Installer cache cleared.',
@@ -69,7 +69,7 @@ export const account = {
       restartHintDismiss: 'Not now',
       clearInstallerCacheError: 'Could not clear the installer cache.',
       windowsInstallLogSupport:
-        'On Windows, if the update installer hangs or fails, <openLogLink>open installer.log</openLogLink> in your default app. The file is at %LOCALAPPDATA%\\Adieuu\\logs\\installer.log (you can also paste the logs folder in File Explorer). You can share that file with support. If opening fails, the file may not exist until an installer has run once. New lines are appended each time the installer runs.',
+        'On Windows, if the update installer hangs or fails, <openLogLink>open installer.log</openLogLink> in your default app. The file is typically at %LOCALAPPDATA%\\Adieuu\\logs\\installer.log (you can also paste the logs folder path in File Explorer). You can share that file with support. If opening fails, the file may not exist until an installer has run once. New lines are appended each time the installer runs.',
       openInstallerLogError: 'Could not open the log file',
       inAppUpdateLogSupport:
         'In-app update activity (checks, download progress, cache clears, and errors) is recorded in <openLogLink>update.log</openLogLink> next to your Adieuu profile. Full path:',
@@ -80,14 +80,14 @@ export const account = {
       location: {
         title: 'Location (account)',
         subtitle:
-          'How we see your connection for compliance and support. This is not shown in alias (identity) sessions.',
+          'Country may be visible to other users (via a flag by your name); other info you see here is used only for determining compliance requirements and localizing your support tickets.',
         maskedIp: 'Connection IP (masked)',
         jurisdiction: 'Jurisdiction',
         countryCode: 'Country',
         regionCode: 'Region / state',
         lastChecked: 'Last geo check',
         ageVerification: 'Age verification',
-        unavailable: 'Location is not available yet. It is refreshed when you sign in and periodically after that, if location lookup is enabled for your account.',
+        unavailable: 'Location is not available yet. It is refreshed when you sign in and periodically during a session.',
       },
       ageVerification: {
         title: 'Age Verification',
@@ -109,18 +109,18 @@ export const account = {
         startedAt: 'Started on {{date}}',
         expiresAt: 'Expires on {{date}}',
         completedAt: 'Completed on {{date}}',
-        copyUrl: 'Copy verification link',
+        copyUrl: 'Copy Verification Link',
         copyUrlHint: 'Paste this link in any browser to resume verification.',
-        urlCopied: 'Copied to clipboard.',
+        urlCopied: 'Copied to Clipboard.',
         jurisdictionLabel: 'Jurisdiction',
-        legislationLabel: 'Applicable legislation',
+        legislationLabel: 'Applicable Legislation',
         optedInLabel: 'Voluntarily opted in',
         approvalMethod: 'Verified via {{method}}',
       },
       compliance: {
         title: 'Regulatory context',
         subtitle:
-          'Summary of public age-assurance and related rules that may apply in your area. This is not legal advice.',
+          'Summary of public age-assurance and related rules that apply to your area. Age checks are tied to your account, *not* your Aliases (which remain anonymous and separate from your account data)',
         empty: 'No matching regulatory rows are loaded for this jurisdiction. You can still use Adieuu where our terms and your local law allow.',
       },
     },
@@ -145,14 +145,14 @@ export const account = {
         enabledToast: 'System notifications enabled.',
         soundSectionTitle: 'Notification sound',
         soundSectionDescription:
-          'Play a sound for new direct messages and reactions. Built-in sounds are included with the app. On the desktop app you can use an audio file from your computer; it stays on your device and is never uploaded.',
+          'Adjust the notification sounds used in the app! Dozens of choices are included with the app, and n the desktop app you can optionally use your own sound files! Custom sounds stay on your device and is never uploaded.',
         soundToggle: 'Notification sound',
         soundHint: 'When enabled, a sound plays according to the options below.',
         soundSelectLabel: 'Sound',
         soundPreview: 'Preview',
         soundVolumeLabel: 'Notification sound volume',
         soundVolumeHint:
-          'Applies only to direct message and reaction notification sounds, not other audio in the app. Values above 100% boost gain (may clip on some files or systems).',
+          'Default notification sound, includes most messages and reactions. Values above 100% boost gain (may clip on some files or systems).',
         soundNone: 'None',
         soundCustom: 'Custom file…',
         soundCustomFile: 'Custom sound',
@@ -176,7 +176,7 @@ export const account = {
         ttlSoundPreview: 'Preview',
         ttlSoundVolumeLabel: 'Disappearing message sound volume',
         ttlSoundVolumeHint:
-          'Volume for disappearing message notifications only. The enabled/suppress toggles above apply to both regular and disappearing message sounds.',
+          'Volume for disappearing message notifications only.',
         ttlSoundCustomFile: 'Custom sound',
         ttlSoundBrowse: 'Browse…',
         ttlSoundFileMissing: 'The selected sound file could not be read. Choose another file or pick a built-in sound.',
@@ -188,7 +188,7 @@ export const account = {
         mentionSoundPreview: 'Preview',
         mentionSoundVolumeLabel: 'Mention sound volume',
         mentionSoundVolumeHint:
-          'Volume for mention notifications only. The enabled/suppress toggles above apply to all notification sounds.',
+          'Volume for mention notifications only. ',
         mentionSoundCustomFile: 'Custom sound',
         mentionSoundBrowse: 'Browse…',
         mentionSoundFileMissing: 'The selected sound file could not be read. Choose another file or pick a built-in sound.',
@@ -200,7 +200,7 @@ export const account = {
         callRingtonePreview: 'Preview',
         callRingtoneVolumeLabel: 'Ringtone volume',
         callRingtoneVolumeHint:
-          'Volume for the incoming call ringtone only. The enabled/suppress toggles above apply to all notification sounds.',
+          'Volume for the incoming call ringtone only.',
         callRingtoneCustomFile: 'Custom sound',
         callRingtoneBrowse: 'Browse…',
         callRingtoneFileMissing: 'The selected sound file could not be read. Choose another file or pick a built-in sound.',
@@ -215,7 +215,7 @@ export const account = {
         achievementSoundPreview: 'Preview',
         achievementSoundVolumeLabel: 'Achievement sound volume',
         achievementSoundVolumeHint:
-          'Volume for achievement unlock sounds only. Use the Play achievement sound toggle above to mute entirely.',
+          'Volume for achievement unlock sounds. Use the Play achievement sound toggle above to mute entirely.',
         achievementSoundCustomFile: 'Custom sound',
         achievementSoundBrowse: 'Browse…',
         achievementSoundFileMissing:
@@ -228,14 +228,12 @@ export const account = {
       title: 'Appearance',
       subtitle: 'Customise your theme, colours, and visual preferences.',
       aliasOverrideHint:
-        'These settings apply by default. Your alias can optionally <aliasLink>override them</aliasLink>.',
-      identityOverrideNotice:
-        'Your alias is currently overriding these settings. Changes here will be saved but won\'t be visible until the <aliasLink>alias override</aliasLink> is disabled.',
+        'These settings apply per Alias, allowing you to optionally use different themes for different Aliases.',
 
       presetsTitle: 'Preset Themes',
-      presetsDescription: 'Choose from our curated collection of themes.',
+      presetsDescription: 'Choose from our official and staff-picked community themes.',
       official: 'Official',
-      customThemesTitle: 'Your Custom Themes',
+      customThemesTitle: 'Your Themes',
 
       editorTitle: 'Theme Editor',
       editorDescription: 'Fine-tune every colour to make the app truly yours.',
@@ -258,12 +256,12 @@ export const account = {
       messageLayoutApplied: 'Message layout updated.',
 
       iconPackTitle: 'Icon Pack',
-      iconPackDescription: 'Choose your preferred icon style. Curated packs tend to have a smaller set of icons; any missing icons will fall back to Sharp Solid.',
+      iconPackDescription: 'Choose your preferred icon style (more to be added later, likely as part of Community Themes!).',
       iconPackApplied: 'Icon pack applied.',
       iconPackDefault: 'Default',
 
       importExportTitle: 'Import & Export',
-      importExportDescription: 'Export your current theme as a file, or import a theme from someone else. Imported themes are validated and sanitised for your safety.',
+      importExportDescription: 'Export your current theme as a file, or import a theme from someone else. Imported themes are validated and sanitised, but always be wary of random files from others..',
       exportTheme: 'Export Theme',
       importTheme: 'Import Theme',
       importSuccess: 'Theme imported and applied.',
@@ -279,7 +277,7 @@ export const account = {
       languageTitle: 'Language',
       languageDescription: 'Choose your preferred language. More languages coming soon.',
       languageLabel: 'Display language',
-      languageContributeHint: 'Want to help translate Adieuu into your language? Drop us a line at <mailLink>say@adieuu.com</mailLink>.',
+      languageContributeHint: 'Want to help translate Adieuu into your language? Say hey at <mailLink>say@adieuu.com</mailLink>.',
 
       communityTitle: 'Community Themes',
       communitySubtitle: 'Browse themes shared by other users.',
@@ -306,15 +304,15 @@ export const account = {
       sharePrompt: 'Share "{{name}}" with the community?',
       shareButton: 'Share Theme',
       themeShared: 'Theme shared with the community.',
-      shareError: 'Could not share the theme. Ensure you are logged into an Alias.',
+      shareError: 'Could not share the theme. To share a theme, you must be logged into an Alias and it must not be a direct copy of a preset theme.',
       shareBlockedPreset: 'This theme matches a built-in preset and cannot be shared.',
-      shareBlockedDuplicate: 'You have already shared a theme with these colours.',
+      shareBlockedDuplicate: 'You have already shared a theme with these colours!',
       shareNameTooShort: 'Give the theme a name of at least 3 characters before sharing.',
       unshareButton: 'Unshare',
       unshareConfirmTitle: 'Unshare theme?',
-      unshareConfirmDesc: 'This will remove "{{name}}" from the community gallery. Other users who have already downloaded it will keep their copy.',
-      unshareSuccess: 'Theme removed from the community gallery.',
-      unshareError: 'Could not unshare the theme. Please try again.',
+      unshareConfirmDesc: 'This will remove "{{name}}" from the community directory, but other users who have already downloaded it will keep their copy.',
+      unshareSuccess: 'Welp, it was cool while it lasted! Your theme has been removed from the community. Sad day for us all.',
+      unshareError: 'Could not unshare the theme. Please try again or contact support if the issue persists.',
       authorLabel: 'by {{author}}',
       previewColors: 'Preview colours',
       previewModalTitle: 'Theme Colours -- {{name}}',
@@ -383,12 +381,12 @@ export const account = {
       billing: {
         heading: 'Billing & payments',
         stripeManaged:
-          'Your subscription billing is handled securely by Stripe. Open the Stripe Customer Portal to update payment methods, view invoices and receipts, and manage renewal settings for plans billed through Stripe.',
+          'Subscription billing is handled securely by Stripe. Open the Stripe Customer Portal to update payment methods, view invoices and receipts, and manage renewal settings for plans billed through Stripe.',
         giftedBody:
-          'Your access was gifted. There is no Stripe billing profile for this plan—you will not be charged. If you later subscribe or add a payment method through Stripe, billing will appear here.',
+          'Your access was gifted; there is no Stripe billing profile for your account yet. If you later subscribe or add a payment method through Stripe, billing will appear here.',
         openStripe: 'Open Stripe billing portal',
         noCustomer:
-          'You do not have a Stripe billing profile yet. When you subscribe to a paid plan, you can manage cards and invoices here.',
+          'You do not have a Stripe billing profile yet. When you subscribe to a paid plan, you will see billing information here.',
       },
 
       // Manage tab
@@ -401,7 +399,7 @@ export const account = {
         sponsorshipCta:
           'Cannot afford a plan? Visit the Sponsorships tab to request sponsorship from the community.',
         readOnlyPlansIntro:
-          'Without a paid plan, your account stays read-only. Subscribe below to unlock posting and full features.',
+          'Without a paid plan, your account stays read-only. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bad bots. Win-Win! Subscribe below to unlock posting and full features.',
         stripeBillingIntro:
           'Payments and invoices for your subscription are processed through Stripe.',
         giftedSubscription:
@@ -429,7 +427,7 @@ export const account = {
       tiers: {
         unpaid: {
           name: 'No paid plan',
-          description: 'Read-only until you subscribe. You can browse, but posting and paid features stay locked.',
+          description: 'Read-only until you subscribe. You can browse public spaces, but posting and paid features stay locked.',
         },
         access: {
           name: 'Access',
@@ -451,16 +449,16 @@ export const account = {
 
       // Entitlement labels
       entitlements: {
-        vanguard: 'Vanguard supporter',
-        founder: 'Founding supporter',
-        vanguardCelebrate: 'Thank you for backing Adieuu early — supporters like you help us build something better.',
-        founderCelebrate: 'Thank you for believing in Adieuu from the beginning. Founding supporters mean the world to us.',
+        vanguard: 'Vanguard Member',
+        founder: 'Founding Member',
+        vanguardCelebrate: 'Thank you for backing Adieuu early! Your support enables us to build faster and deliver more for everyone!',
+        founderCelebrate: 'Thank you for backing Adieuu early! Your support enables us to build faster and deliver more for everyone!',
       },
 
       // Feature comparison
       features: {
         readOnly: 'Read Only (Unable to Post)',
-        aliases: 'Aliases: Anonymous handles you post or act as, untraceable back to your account. Included per account:',
+        aliases: 'Aliases: Anonymous handles you post or act as, cryptographically separated from your account. Included per subscription:',
         encryption: 'E2EE: End to end encryption on all private content',
         forwardSecrecy: 'E2EE: Forward Secrecy (optional)',
         liveMedia: 'E2EE: Live voice, video, screensharing',
@@ -475,12 +473,12 @@ export const account = {
         privateSpace: 'Private Space with Adieuu team',
         moderationOptOut: 'Media content moderation opt-out',
         featureEa: 'Early Access to New Features',
-        featureVote: 'Vote on new features & Roadmap Priority',
+        featureVote: 'Vote on new features & roadmap priority',
         callMonthly: 'Access to a monthly Roadmap & Q/A call with Adieuu Team',
         badgeInsider: 'Exclusive Insider badge (toggleable)',
         badgeVanguard: 'Exclusive Vanguard badge (toggleable)',
         designAchievement: 'Design an Achievement: Work with the team to create & name a new achievement',
-        whaleWall: 'Whale Wall: A message of your choice, etched on a dedicated page in the Adieuu app forever.',
+        whaleWall: 'Add a message of your choice, etched on a dedicated page in the Adieuu app forever.',
         badgeFounder: 'Exclusive Founder badge (toggleable)',
         callBiWeekly: 'Access to internal bi-weekly product & feature roadmap calls: we\'ll answer questions, and ask for your personal feedback on our product direction. You know before anyone else what we\'re thinking and working on next'
       },
@@ -526,7 +524,7 @@ export const account = {
         scrollHint: 'Scroll sideways or drag the plan headers to compare all tiers.',
         scrollNudgeRegionLabel: 'Plan comparison scroll controls',
         /** Ordered footnotes for the comparison table; sync indices with `COMPARISON_FEATURE_FOOTNOTE_INDEX`. */
-        footnotes: ['Subject to Adieuu staff final discretion and moderation', 'Includes no right to control; customer role is advisory only and subject to Adieuu ToS, which may include feedback and IP waiver.'] as const,
+        footnotes: ['Subject to Adieuu staff final discretion and moderation', 'Includes no right to control; customer role is advisory only and subject to Adieuu ToS, which may include additional restrictions.'] as const,
         footnotesRegionLabel: 'Plan comparison footnotes',
         footnoteJumpTo: 'Jump to note {{n}}',
         joinNow: 'Join Now',
@@ -541,10 +539,11 @@ export const account = {
         lifetimePrice: '{{amount}} one-time',
         dueToday: 'Due today',
         checkoutWithStripe: 'Checkout with Stripe',
-        cashTitle: 'Prefer to pay in cash? (read more)',
+        cashTitle: 'Prefer to pay in cash (USD)? (click to expand)',
         cashBody:
-          'For those who wish to be extra private, you may include cash payment and your account ID in a sealed envelope and send to:',
-        cashAddress: '[Business address — coming soon]',
+          'Include cash payment and your account ID in a sealed envelope and send to the address below.',
+        cashTo: 'Adieuu Accounts',
+        cashAddress: 'Cash payments are temporarily disabled while we have our legal counsel cover our butts.',
         close: 'Cancel',
       },
 

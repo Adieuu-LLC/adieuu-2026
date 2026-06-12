@@ -4,7 +4,7 @@
  * Tracks user-uploaded custom emojis (static and animated).
  * Each emoji has a globally unique shortcode that must not collide
  * with built-in emoji shortcodes. Images are stored as public CDN
- * assets (like avatars) and pass through Rekognition moderation.
+ * assets (like avatars) and pass through CSAM hash moderation.
  *
  * Per-tier upload limits:
  *   Access  -> 10

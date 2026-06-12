@@ -1,5 +1,46 @@
 export type ReportType = 'content' | 'abuse';
-export type ReportSource = 'automated_rekognition' | 'manual_user';
+
+export const REPORT_SOURCE_VALUES = [
+  'automated_hash_check',
+  'automated_csam_hash',
+  'automated_rekognition',
+  'manual_user',
+] as const;
+
+export type ReportSource =
+  | (typeof REPORT_SOURCE_VALUES)[number]
+  | 'unknown';
+
+export type ReportSourceI18nKey =
+  | 'sourceManual'
+  | 'sourceAutoHashCheck'
+  | 'sourceAutoCsamHash'
+  | 'sourceAutoRekognition'
+  | 'sourceUnknown';
+
+/** Coerce API/DB source strings to a known ReportSource; unknown inputs become `unknown`. */
+export function normalizeReportSource(source: string): ReportSource {
+  if ((REPORT_SOURCE_VALUES as readonly string[]).includes(source)) {
+    return source as ReportSource;
+  }
+  return 'unknown';
+}
+
+/** i18n key under `moderation.reports` for a report source label. */
+export function getReportSourceI18nKey(source: string): ReportSourceI18nKey {
+  switch (normalizeReportSource(source)) {
+    case 'manual_user':
+      return 'sourceManual';
+    case 'automated_csam_hash':
+      return 'sourceAutoCsamHash';
+    case 'automated_hash_check':
+      return 'sourceAutoHashCheck';
+    case 'automated_rekognition':
+      return 'sourceAutoRekognition';
+    case 'unknown':
+      return 'sourceUnknown';
+  }
+}
 export type ModerationReportStatus = 'open' | 'escalated' | 'resolved' | 'closed';
 export type ReportCategory =
   | 'csam'
@@ -106,6 +147,12 @@ export interface PublicReport {
   closedAt?: string;
   escalatedByIdentityId?: string;
   escalatedAt?: string;
+  leReportFiled?: boolean;
+  leReportFiledAt?: string;
+  leReportFiledBy?: string;
+  ncmecReportId?: string;
+  ncmecStatus?: string;
+  ncmecError?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -178,4 +225,11 @@ export interface ModerationScanEvidenceItem {
 export interface ModerationScanEvidenceResponse {
   expiresInSeconds: number;
   items: ModerationScanEvidenceItem[];
+}
+
+export type LeReportCategory = 'csam';
+
+export interface FileLeReportParams {
+  category: LeReportCategory;
+  notes?: string;
 }

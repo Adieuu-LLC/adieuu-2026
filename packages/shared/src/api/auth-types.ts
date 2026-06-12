@@ -91,6 +91,23 @@ export interface SessionInfo {
   ageVerification?: SessionAgeVerification;
   /** Pre-evaluated alias gate result (account mode only). */
   aliasGate?: SessionAliasGate;
+  /** Compliance attestation state (account mode only). */
+  compliance?: SessionCompliance;
+}
+
+export type AgeVerificationRequiredReason =
+  | 'legislation'
+  | 'abusive_ip'
+  | 'utah_attestation'
+  | 'admin';
+
+export interface SessionCompliance {
+  vpnAttestation?: {
+    required: true;
+    step: 'sanctioned_membership' | 'utah_residency';
+    sanctionedCountries: Array<{ countryCode: string; countryName: string }>;
+    vpnCountryCode?: string;
+  };
 }
 
 /**
@@ -146,6 +163,7 @@ export interface SessionAliasGate {
   lawUrl?: string;
   leastInvasiveMethod?: string;
   retryAfter?: string;
+  requiredReason?: AgeVerificationRequiredReason;
 }
 
 /**

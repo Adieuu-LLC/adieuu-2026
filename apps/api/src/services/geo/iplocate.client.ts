@@ -9,11 +9,17 @@
 import { config } from '../../config';
 import elog from '../../utils/adieuuLogger';
 
+export interface IpLocatePrivacy {
+  isAnonymous: boolean;
+  isAbuser: boolean;
+}
+
 export interface IpLocateResult {
   countryCode: string;
   /** Full subdivision name as returned by IPLocate (e.g. "Tennessee") */
   subdivisionName?: string;
   city?: string;
+  privacy?: IpLocatePrivacy;
 }
 
 /**
@@ -56,10 +62,21 @@ export async function lookupIp(
       return null;
     }
 
+    const privacyRaw = data.privacy;
+    let privacy: IpLocatePrivacy | undefined;
+    if (privacyRaw && typeof privacyRaw === 'object') {
+      const p = privacyRaw as Record<string, unknown>;
+      privacy = {
+        isAnonymous: p.is_anonymous === true,
+        isAbuser: p.is_abuser === true,
+      };
+    }
+
     return {
       countryCode,
       subdivisionName: typeof data.subdivision === 'string' ? data.subdivision : undefined,
       city: typeof data.city === 'string' ? data.city : undefined,
+      privacy,
     };
   } catch (err) {
     if (err instanceof DOMException && err.name === 'TimeoutError') {

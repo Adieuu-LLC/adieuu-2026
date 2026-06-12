@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   createApiClient,
+  getReportSourceI18nKey,
   type PublicReport,
   type PublicReportEvent,
   type ModerationIdentityProfile,
@@ -22,8 +23,10 @@ import { useToast } from '../../components/Toast';
 import { Button } from '../../components/Button';
 import { Icon } from '../../icons/Icon';
 import { Tabs, TabList, TabTrigger, TabContent } from '../../components/Tabs';
+import type { LeReportCategory } from '@adieuu/shared';
 import { ModerationEvidenceMessageRow } from './ModerationEvidenceMessageRow';
 import { ReportModerationScanEvidence } from './ReportModerationScanEvidence';
+import { LeReportModal } from './LeReportModal';
 import { splitMessageEvidenceForModeration } from './moderationEvidenceSplit';
 
 // ---------------------------------------------------------------------------
@@ -118,7 +121,7 @@ function ReportHistoryTab({
                 </span>
               </td>
               <td>{t(`moderation.reports.category.${r.category}`, r.category)}</td>
-              <td>{r.source === 'automated_rekognition' ? t('moderation.reports.sourceAuto') : t('moderation.reports.sourceManual')}</td>
+              <td>{t(`moderation.reports.${getReportSourceI18nKey(r.source)}`)}</td>
               <td>{new Date(r.createdAt).toLocaleDateString()}</td>
               <td>
                 <Button variant="ghost" size="sm" onClick={() => navigate(`/moderation/reports/${r.id}`)}>
@@ -174,6 +177,9 @@ export function ReportDetail() {
   const [moderators, setModerators] = useState<ModerationModerator[]>([]);
   const [moderatorsLoaded, setModeratorsLoaded] = useState(false);
 
+  const [showLeReport, setShowLeReport] = useState(false);
+  const [leReportLoading, setLeReportLoading] = useState(false);
+
   const toast = useToast();
 
   const canManage =
@@ -207,7 +213,38 @@ export function ReportDetail() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Action handlers (unchanged logic, using same API calls)
+  const handleFileLeReport = async (category: LeReportCategory, notes?: string) => {
+    if (!id) return;
+    setLeReportLoading(true);
+    try {
+      const res = await api.moderation.fileLeReport(id, { category, notes });
+      if (!res.success) {
+        toast.error(res.error?.message ?? t('moderation.detail.leReportSubmitFailed'));
+        return;
+      }
+
+      const filed = res.data;
+      if (filed?.ncmecStatus === 'submitted') {
+        toast.success(t('moderation.detail.leReportSuccess'));
+        setShowLeReport(false);
+      } else {
+        const detail = filed?.ncmecError?.trim();
+        toast.error(
+          detail
+            ? `${t('moderation.detail.leReportSubmitFailed')} ${detail}`
+            : t('moderation.detail.leReportSubmitFailed'),
+        );
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : t('moderation.detail.leReportSubmitFailed'),
+      );
+    } finally {
+      setLeReportLoading(false);
+      await load();
+    }
+  };
+
   const handleEscalate = async () => {
     if (!id) return;
     setActionLoading(true);
@@ -393,6 +430,21 @@ export function ReportDetail() {
           <span className={`moderation-status-badge moderation-status-${report.status}`}>
             {t(`moderation.reports.status.${report.status}`)}
           </span>
+          {report.ncmecStatus === 'submitted' && (
+            <span className="le-report-filed-badge" style={{ marginLeft: '0.5rem' }}>
+              {t('moderation.detail.leReportFiled')}
+              {report.ncmecReportId && (
+                <span style={{ marginLeft: '0.25rem', fontWeight: 400 }}>
+                  (NCMEC #{report.ncmecReportId})
+                </span>
+              )}
+            </span>
+          )}
+          {report.ncmecStatus === 'failed' && (
+            <span className="le-report-failed-badge" style={{ marginLeft: '0.5rem' }}>
+              {t('moderation.detail.ncmecSubmitFailed')}
+            </span>
+          )}
         </h1>
       </div>
 
@@ -403,7 +455,7 @@ export function ReportDetail() {
           <dt>{t('moderation.detail.type')}</dt>
           <dd>{report.reportType}</dd>
           <dt>{t('moderation.detail.source')}</dt>
-          <dd>{report.source === 'automated_rekognition' ? t('moderation.reports.sourceAuto') : t('moderation.reports.sourceManual')}</dd>
+          <dd>{t(`moderation.reports.${getReportSourceI18nKey(report.source)}`)}</dd>
           <dt>{t('moderation.detail.category')}</dt>
           <dd>
             {editingCategory ? (
@@ -949,6 +1001,57 @@ export function ReportDetail() {
           )}
         </div>
       )}
+
+      {/* Law Enforcement report action */}
+      {canManageEscalated && report.status !== 'closed' && (
+        <div className="admin-card">
+          <h2 className="admin-card-title">{t('moderation.detail.leReport')}</h2>
+          {report.ncmecStatus === 'submitted' ? (
+            <div style={{ fontSize: '0.875rem' }}>
+              <p style={{ opacity: 0.7, margin: 0 }}>
+                {t('moderation.detail.leReportAlreadyFiled')}
+              </p>
+              {report.ncmecReportId && (
+                <p style={{ margin: '0.25rem 0 0' }}>
+                  {t('moderation.detail.ncmecReportId')}: <strong>{report.ncmecReportId}</strong>
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              {report.ncmecStatus === 'failed' && (
+                <p className="le-report-failed-badge" style={{ margin: '0 0 0.75rem', display: 'inline-block' }}>
+                  {t('moderation.detail.ncmecSubmitFailed')}
+                  {report.ncmecError ? (
+                    <span style={{ display: 'block', marginTop: '0.25rem', fontWeight: 400 }}>
+                      {report.ncmecError}
+                    </span>
+                  ) : null}
+                </p>
+              )}
+            <Button
+              variant="primary"
+              className="btn-danger"
+              size="sm"
+              onClick={() => setShowLeReport(true)}
+              disabled={actionLoading}
+            >
+              {report.ncmecStatus === 'failed'
+                ? t('moderation.detail.leReportRetry')
+                : t('moderation.detail.leReport')}
+            </Button>
+            </>
+          )}
+        </div>
+      )}
+
+      <LeReportModal
+        open={showLeReport}
+        onOpenChange={setShowLeReport}
+        onSubmit={handleFileLeReport}
+        loading={leReportLoading}
+        defaultCategory="csam"
+      />
 
       {/* Comment form */}
       <div className="admin-card">

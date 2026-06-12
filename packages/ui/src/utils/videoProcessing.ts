@@ -2,7 +2,7 @@
  * Client-side video utilities for E2E conversation media.
  *
  * Extracts a representative frame as a JPEG for the anonymised scan copy
- * (Rekognition) and reads dimensions from metadata. No server round-trip.
+ * for hash checking and reads dimensions from metadata. No server round-trip.
  */
 
 import {

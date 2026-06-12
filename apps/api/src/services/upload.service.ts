@@ -31,6 +31,7 @@ import {
 } from '../models/media-upload';
 import { resolveMaxUploadBytes } from './media-limits.service';
 import elog from '../utils/adieuuLogger';
+import { sanitizeIpForStorage } from '../utils/sanitize';
 
 const PRESIGNED_URL_EXPIRY_SECONDS = 300; // 5 minutes
 
@@ -79,6 +80,8 @@ export interface RequestUploadInput {
   entitlements?: string[];
   /** From identity session merged grants — Lifetime Founder upload caps. */
   isLifetime?: boolean;
+  /** Client IP address at the time of the presigned URL request (for NCMEC reporting). */
+  clientIp?: string;
 }
 
 export interface RequestUploadResult {
@@ -197,6 +200,7 @@ export async function requestUpload(
   });
 
   const { ObjectId } = await import('mongodb');
+  const uploadIpAddress = sanitizeIpForStorage(input.clientIp);
   await repo.create({
     mediaId,
     ...(input.identityId ? { identityId: new ObjectId(input.identityId) } : {}),
@@ -207,6 +211,7 @@ export async function requestUpload(
     contentLength: input.contentLength,
     status: 'pending',
     processingFlags: purposeConfig.processingFlags,
+    ...(uploadIpAddress ? { uploadIpAddress } : {}),
   });
 
   elog.info('Upload presigned URL generated', {
@@ -297,6 +302,13 @@ export async function processCallback(
     cdnUrl,
     rejectionReason,
   });
+
+  if (status === 'ready' || status === 'rejected' || status === 'failed') {
+    await repo.clearUploadIpAddress(mediaId, {
+      scanHash: doc.scanHash,
+      purpose: doc.purpose,
+    });
+  }
 
   if (status === 'rejected') {
     elog.warn('Upload rejected by content moderation', {

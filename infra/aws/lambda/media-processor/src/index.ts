@@ -2,8 +2,7 @@
  * Media processor Lambda
  *
  * Triggered by S3 PutObject on the uploads/ prefix. Processes images:
- * 1. Content moderation via Amazon Rekognition (when enabled). GIF inputs use the first frame
- *    as JPEG — Rekognition image APIs do not accept animated GIF.
+ * 1. CSAM hash detection (MD5/SHA1 against NCMEC DynamoDB + PDQ via Arachnid Shield API)
  * 2. EXIF metadata stripping (when enabled)
  * 3. Resize and compress to WebP (when resize dimensions specified)
  * 4. Write processed file to processed/ prefix (skipped for purpose conv_scan — E2E scan copies)
@@ -12,11 +11,11 @@
  * Processing flags are read from the S3 object's user metadata,
  * set by the upload service when generating presigned URLs.
  *
- * This Lambda runs OUTSIDE the VPC (needs only public S3 + Rekognition).
+ * This Lambda runs OUTSIDE the VPC (needs only public S3 + DynamoDB + Arachnid HTTPS).
  * Database access is isolated to the DB writer Lambda for security.
  *
- * Full-MP4 conv_scan moderation runs only in the sealed-batch path (`convScanBatch.ts`, nested
- * `uploads/conv_scan/{scanHash}/` + `.sealed`), when enabled. Flat `conv_scan` video keys are rejected below.
+ * Conv_scan uses the sealed-batch path (`convScanBatch.ts`, nested
+ * `uploads/conv_scan/{scanHash}/` + `.sealed`). Flat `conv_scan` video keys are rejected below.
  */
 
 import type { S3Event, S3EventRecord, SQSEvent } from 'aws-lambda';
@@ -26,12 +25,13 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  CopyObjectCommand,
 } from '@aws-sdk/client-s3';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
-  RekognitionClient,
-  DetectModerationLabelsCommand,
-  StartContentModerationCommand,
-} from '@aws-sdk/client-rekognition';
+  SecretsManagerClient,
+  GetSecretValueCommand,
+} from '@aws-sdk/client-secrets-manager';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { logProcessorEvent } from './logging';
 import {
@@ -40,23 +40,35 @@ import {
   parseNestedConvScanScanHashFromKey,
   processConvScanSealBatch,
 } from './convScanBatch';
-import { gifFirstFrameJpegForModeration, isGifImage } from './gif-moderation';
+import { runCsamHashChecks as runCsamHashChecksImpl } from './run-csam-hash-checks';
+import type { CsamMatch } from './csam-types';
 
 const s3 = new S3Client({});
-const rekognition = new RekognitionClient({});
+const dynamodb = new DynamoDBClient({});
+const secretsManager = new SecretsManagerClient({});
 const lambda = new LambdaClient({});
 
 const BUCKET = process.env.MEDIA_BUCKET!;
-const CONTENT_MODERATION = process.env.CONTENT_MODERATION === 'true';
-const MODERATION_CONFIDENCE = parseInt(
-  process.env.MODERATION_CONFIDENCE ?? '75',
-  10
-);
 const DB_WRITER_FUNCTION_NAME = process.env.DB_WRITER_FUNCTION_NAME!;
-const REKOGNITION_NOTIFICATION_ROLE_ARN =
-  process.env.REKOGNITION_NOTIFICATION_ROLE_ARN ?? '';
-const REKOGNITION_NOTIFICATION_SNS_TOPIC_ARN =
-  process.env.REKOGNITION_NOTIFICATION_SNS_TOPIC_ARN ?? '';
+const NCMEC_HASH_TABLE = process.env.NCMEC_HASH_TABLE ?? '';
+const ARACHNID_SECRET_ARN = process.env.ARACHNID_SECRET_ARN ?? '';
+const EVIDENCE_BUCKET = process.env.EVIDENCE_BUCKET ?? '';
+
+let cachedArachnidCredentials: { username: string; password: string } | null = null;
+
+async function getArachnidCredentials(): Promise<{ username: string; password: string } | null> {
+  if (!ARACHNID_SECRET_ARN) return null;
+  if (cachedArachnidCredentials) return cachedArachnidCredentials;
+
+  const result = await secretsManager.send(
+    new GetSecretValueCommand({ SecretId: ARACHNID_SECRET_ARN })
+  );
+  if (!result.SecretString) return null;
+  const parsed = JSON.parse(result.SecretString) as { username?: string; password?: string };
+  if (!parsed.username || !parsed.password) return null;
+  cachedArachnidCredentials = { username: parsed.username, password: parsed.password };
+  return cachedArachnidCredentials;
+}
 
 interface ProcessingMetadata {
   mediaId: string;
@@ -94,19 +106,31 @@ function parseMetadata(
   };
 }
 
+interface DbWriterPayload {
+  mediaId: string;
+  status: 'ready' | 'rejected' | 'failed';
+  processedS3Key?: string;
+  rejectionReason?: string;
+  csamMatches?: CsamMatch[];
+  evidenceBucket?: string;
+  evidenceKey?: string;
+}
+
 async function invokeDbWriter(
   mediaId: string,
   status: 'ready' | 'rejected' | 'failed',
   processedS3Key?: string,
   rejectionReason?: string,
-  context?: { purpose?: string; s3Key?: string }
+  context?: { purpose?: string; s3Key?: string },
+  csamFields?: { csamMatches?: CsamMatch[]; evidenceBucket?: string; evidenceKey?: string }
 ): Promise<void> {
   const payload = JSON.stringify({
     mediaId,
     status,
     processedS3Key,
     rejectionReason,
-  });
+    ...csamFields,
+  } satisfies DbWriterPayload);
 
   logProcessorEvent({
     event: 'db_writer_invoke_start',
@@ -160,62 +184,91 @@ async function invokeDbWriter(
   }
 }
 
-async function startConvScanVideoContentModeration(
+/**
+ * Run all available CSAM hash checks against the image bytes.
+ * Returns all matches found — the DB writer decides which to act on.
+ */
+async function runCsamHashChecks(
+  imageBytes: Uint8Array,
+  mediaId: string,
+  key: string,
+): Promise<CsamMatch[]> {
+  const arachnidCreds = await getArachnidCredentials();
+  return runCsamHashChecksImpl(imageBytes, {
+    ncmecHashTable: NCMEC_HASH_TABLE,
+    arachnidCreds,
+    dynamodb,
+    onNcmecError: (message) => {
+      logProcessorEvent({ event: 'ncmec_hash_check_error', mediaId, s3Key: key, error: message });
+      console.error('NCMEC hash check error:', message);
+    },
+    onArachnidError: (message) => {
+      logProcessorEvent({ event: 'arachnid_hash_check_error', mediaId, s3Key: key, error: message });
+      console.error('Arachnid Shield hash check error:', message);
+    },
+  });
+}
+
+/**
+ * On CSAM match: copy evidence to isolated bucket, invoke DB writer with match data.
+ */
+async function handleCsamMatch(
+  bucket: string,
   key: string,
   meta: ProcessingMetadata,
+  imageBytes: Uint8Array,
+  matches: CsamMatch[],
 ): Promise<void> {
-  if (!REKOGNITION_NOTIFICATION_ROLE_ARN || !REKOGNITION_NOTIFICATION_SNS_TOPIC_ARN) {
-    console.error(
-      'conv_scan video: missing REKOGNITION_NOTIFICATION_ROLE_ARN or REKOGNITION_NOTIFICATION_SNS_TOPIC_ARN'
-    );
-    await invokeDbWriter(
-      meta.mediaId,
-      'failed',
-      undefined,
-      undefined,
-      { purpose: meta.purpose, s3Key: key }
-    );
-    return;
+  let evidenceKey: string | undefined;
+
+  if (EVIDENCE_BUCKET) {
+    evidenceKey = `csam-evidence/${meta.mediaId}/${key.split('/').pop() ?? 'file'}`;
+    try {
+      await s3.send(new CopyObjectCommand({
+        CopySource: `${bucket}/${key}`,
+        Bucket: EVIDENCE_BUCKET,
+        Key: evidenceKey,
+        Metadata: {
+          'detection-source': matches[0]?.source ?? 'unknown',
+          'matched-hash': matches[0]?.matchedHash ?? '',
+          'matched-hash-type': matches[0]?.hashType ?? '',
+          'match-type': matches[0]?.matchType ?? '',
+          'identity-id': meta.identityId,
+          'media-id': meta.mediaId,
+          'detection-timestamp': new Date().toISOString(),
+        },
+        MetadataDirective: 'REPLACE',
+      }));
+      logProcessorEvent({
+        event: 'csam_evidence_archived',
+        mediaId: meta.mediaId,
+        s3Key: key,
+        evidenceBucket: EVIDENCE_BUCKET,
+        evidenceKey,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logProcessorEvent({ event: 'csam_evidence_archive_error', mediaId: meta.mediaId, s3Key: key, error: message });
+      console.error('Failed to archive CSAM evidence:', err);
+    }
   }
 
-  try {
-    const out = await rekognition.send(
-      new StartContentModerationCommand({
-        Video: {
-          S3Object: { Bucket: BUCKET, Name: key },
-        },
-        MinConfidence: MODERATION_CONFIDENCE,
-        NotificationChannel: {
-          RoleArn: REKOGNITION_NOTIFICATION_ROLE_ARN,
-          SNSTopicArn: REKOGNITION_NOTIFICATION_SNS_TOPIC_ARN,
-        },
-        JobTag: meta.mediaId,
-        ClientRequestToken: `${meta.mediaId}-${Date.now()}`,
-      })
-    );
-    console.log(
-      `StartContentModeration queued for conv_scan video ${meta.mediaId}, jobId=${out.JobId}`
-    );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logProcessorEvent({
-      event: 'rekognition_start_content_moderation_error',
-      mediaId: meta.mediaId,
-      purpose: meta.purpose,
-      s3Key: key,
-      error: message,
-    });
-    console.error('StartContentModeration failed:', err);
+  if (meta.purpose !== 'conv_scan') {
     try {
-      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+      await s3.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
     } catch {
-      /* ignore */
+      /* best-effort */
     }
-    await invokeDbWriter(meta.mediaId, 'failed', undefined, undefined, {
-      purpose: meta.purpose,
-      s3Key: key,
-    });
   }
+
+  await invokeDbWriter(
+    meta.mediaId,
+    'rejected',
+    undefined,
+    `csam_hash_match: ${matches[0]?.source}:${matches[0]?.hashType}`,
+    { purpose: meta.purpose, s3Key: key },
+    { csamMatches: matches, evidenceBucket: EVIDENCE_BUCKET || undefined, evidenceKey },
+  );
 }
 
 async function processRecord(record: S3EventRecord): Promise<void> {
@@ -258,12 +311,11 @@ async function processRecord(record: S3EventRecord): Promise<void> {
       identityId: meta.identityId,
       stripExif: meta.stripExif,
       contentModeration: meta.contentModeration,
-      moderationConfidence: MODERATION_CONFIDENCE,
       s3,
-      rekognition,
       invokeDbWriter,
       logProcessorEvent,
-      startConvScanVideoContentModeration,
+      runCsamHashChecks,
+      handleCsamMatch,
     });
     return;
   }
@@ -305,93 +357,42 @@ async function processRecord(record: S3EventRecord): Promise<void> {
     return;
   }
 
-  if (CONTENT_MODERATION && meta.contentModeration && !isVideo) {
-    console.log('Running image content moderation...');
+  if (meta.contentModeration && !isVideo) {
+    console.log('Running CSAM hash checks...');
     try {
-      let moderationResult;
-      if (isGifImage(contentType, key)) {
-        const gifObj = await s3.send(
-          new GetObjectCommand({ Bucket: BUCKET, Key: key })
-        );
-        const gifBody = await gifObj.Body!.transformToByteArray();
-        const jpegBytes = await gifFirstFrameJpegForModeration(gifBody);
+      const rawObj = await s3.send(
+        new GetObjectCommand({ Bucket: BUCKET, Key: key })
+      );
+      const rawBytes = await rawObj.Body!.transformToByteArray();
+      const csamMatches = await runCsamHashChecks(rawBytes, meta.mediaId, key);
+
+      if (csamMatches.length > 0) {
+        const sources = csamMatches.map(m => `${m.source}:${m.hashType}`).join(', ');
         logProcessorEvent({
-          event: 'rekognition_gif_first_frame_moderation',
+          event: 'csam_hash_match_detected',
           mediaId: meta.mediaId,
           purpose: meta.purpose,
           s3Key: key,
+          matchCount: csamMatches.length,
+          matchSources: sources,
         });
-        moderationResult = await rekognition.send(
-          new DetectModerationLabelsCommand({
-            Image: { Bytes: jpegBytes },
-            MinConfidence: MODERATION_CONFIDENCE,
-          })
-        );
-      } else {
-        moderationResult = await rekognition.send(
-          new DetectModerationLabelsCommand({
-            Image: {
-              S3Object: {
-                Bucket: BUCKET,
-                Name: key,
-              },
-            },
-            MinConfidence: MODERATION_CONFIDENCE,
-          })
-        );
-      }
+        console.warn(`CSAM hash match detected: ${sources}`);
 
-      const labels = moderationResult.ModerationLabels ?? [];
-      if (labels.length > 0) {
-        const labelNames = labels
-          .map((l) => `${l.Name} (${l.Confidence?.toFixed(1)}%)`)
-          .join(', ');
-        console.warn(`Content moderation flagged: ${labelNames}`);
-
-        const top = labels[0];
-        logProcessorEvent({
-          event: 'rekognition_moderation_flagged',
-          mediaId: meta.mediaId,
-          purpose: meta.purpose,
-          s3Key: key,
-          contentModeration: true,
-          moderationLabelCount: labels.length,
-          topLabel: top?.Name,
-        });
-
-        // conv_scan: retain cleartext until moderators close the report (API purge).
-        if (meta.purpose !== 'conv_scan') {
-          await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
-        }
-
-        await invokeDbWriter(
-          meta.mediaId,
-          'rejected',
-          undefined,
-          `content_moderation: ${labels[0]?.Name}`,
-          { purpose: meta.purpose, s3Key: key }
-        );
+        await handleCsamMatch(BUCKET, key, meta, rawBytes, csamMatches);
         return;
       }
 
-      console.log('Content moderation passed');
+      console.log('CSAM hash checks passed (no matches)');
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logProcessorEvent({
-        event: 'rekognition_error',
+        event: 'csam_hash_check_fatal',
         mediaId: meta.mediaId,
         purpose: meta.purpose,
         s3Key: key,
-        rekognitionError: message,
+        error: message,
       });
-      console.error('Rekognition error:', err);
-      if (meta.purpose === 'conv_scan') {
-        try {
-          await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
-        } catch (delErr) {
-          console.warn(`Failed to delete conv_scan on Rekognition error: ${key}`, delErr);
-        }
-      }
+      console.error('CSAM hash check fatal error:', err);
       await invokeDbWriter(meta.mediaId, 'failed', undefined, undefined, {
         purpose: meta.purpose,
         s3Key: key,
@@ -400,9 +401,6 @@ async function processRecord(record: S3EventRecord): Promise<void> {
     }
   }
 
-  // E2E scan copies (conv_scan): cleartext thumbnail exists only for Rekognition.
-  // Do not write to processed/; delete the raw object and mark media_uploads ready
-  // without a CDN asset (E2E ciphertext lives in the separate E2E bucket).
   if (meta.purpose === 'conv_scan') {
     console.log('conv_scan: deleting raw upload; marking ready without processed asset');
     try {

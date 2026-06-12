@@ -393,38 +393,10 @@ variable "media_domain_name" {
   default     = "media.adieuu.com"
 }
 
-variable "enable_media_content_moderation" {
-  type        = bool
-  description = "Enable Amazon Rekognition in the media stack: DetectModerationLabels (images), StartContentModeration + SNS completion Lambda (conv_scan MP4), plus IAM/SNS/topic resources."
-  default     = true
-}
-
-variable "media_moderation_confidence_threshold" {
-  type        = number
-  description = "Minimum confidence percentage (0-100) for Rekognition moderation labels to trigger rejection."
-  default     = 75
-
-  validation {
-    condition     = var.media_moderation_confidence_threshold >= 0 && var.media_moderation_confidence_threshold <= 100
-    error_message = "media_moderation_confidence_threshold must be between 0 and 100."
-  }
-}
-
 variable "allow_legacy_conv_scan_video_moderation" {
   type        = bool
-  description = "When true (default), media-processor still runs Rekognition StartContentModeration for a single MP4 under uploads/conv_scan/{hash}/. Set false to require frame JPEG batches only after all clients migrate."
+  description = "When true (default), conv_scan sealed batches accept a single MP4 (skipped for hash checking since CSAM hash checks are image-only). Set false after all clients migrate to frame JPEG batches."
   default     = true
-}
-
-variable "media_video_completion_lambda_reserved_concurrency" {
-  type        = number
-  description = "Reserved concurrency for the Rekognition video moderation completion Lambda (isolates from account burst)."
-  default     = 10
-
-  validation {
-    condition     = var.media_video_completion_lambda_reserved_concurrency >= 1 && var.media_video_completion_lambda_reserved_concurrency <= 1000
-    error_message = "Use 1–1000 or lower to fit account limits."
-  }
 }
 
 variable "media_db_mongodb_secret_arn" {
@@ -583,6 +555,12 @@ variable "livekit_instance_type" {
   type        = string
   description = "EC2 instance type for LiveKit SFU nodes. ARM64 Graviton recommended for cost/perf."
   default     = "c7g.large"
+}
+
+variable "cybertipline_base_url" {
+  type        = string
+  description = "NCMEC CyberTipline API base URL. Use https://exttest.cybertip.org/ispws for testing, https://report.cybertip.org/ispws for production."
+  default     = "https://exttest.cybertip.org/ispws"
 }
 
 variable "livekit_min_count" {

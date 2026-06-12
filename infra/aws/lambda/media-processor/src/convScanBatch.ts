@@ -10,11 +10,7 @@ import {
   ListObjectsV2Command,
   type S3Client,
 } from '@aws-sdk/client-s3';
-import {
-  DetectModerationLabelsCommand,
-  type RekognitionClient,
-} from '@aws-sdk/client-rekognition';
-import { gifFirstFrameJpegForModeration, isGifImage } from './gif-moderation';
+import type { CsamMatch } from './csam-types';
 
 const CONV_SCAN_PREFIX = 'uploads/conv_scan/';
 const NESTED_SCAN_HASH_RE = /^uploads\/conv_scan\/([0-9a-f]{64})\//;
@@ -38,7 +34,7 @@ export function isConvScanSealObjectKey(key: string): boolean {
   return key.endsWith(SEAL_SUFFIX) && NESTED_SCAN_HASH_RE.test(key);
 }
 
-/** Client/API manifest for batch scan sessions — never sent to Rekognition. */
+/** Client/API manifest for batch scan sessions — never sent for moderation. */
 export function isConvScanManifestObjectKey(key: string): boolean {
   return /\/manifest\.json$/.test(key);
 }
@@ -58,24 +54,28 @@ export interface ConvScanSealBatchDeps {
   identityId: string;
   stripExif: boolean;
   contentModeration: boolean;
-  moderationConfidence: number;
   s3: S3Client;
-  rekognition: RekognitionClient;
   invokeDbWriter: (
     mediaId: string,
     status: 'ready' | 'rejected' | 'failed',
     processedS3Key?: string,
     rejectionReason?: string,
-    context?: { purpose?: string; s3Key?: string }
+    context?: { purpose?: string; s3Key?: string },
+    csamFields?: { csamMatches?: CsamMatch[]; evidenceBucket?: string; evidenceKey?: string }
   ) => Promise<void>;
-  logProcessorEvent: (event: Record<string, unknown>) => void;
-  startConvScanVideoContentModeration: (key: string, meta: {
-    mediaId: string;
-    purpose: string;
-    identityId: string;
-    stripExif: boolean;
-    contentModeration: boolean;
-  }) => Promise<void>;
+  logProcessorEvent: (fields: { event: string; [key: string]: unknown }) => void;
+  runCsamHashChecks: (
+    imageBytes: Uint8Array,
+    mediaId: string,
+    key: string,
+  ) => Promise<CsamMatch[]>;
+  handleCsamMatch: (
+    bucket: string,
+    key: string,
+    meta: { mediaId: string; purpose: string; identityId: string; stripExif: boolean; contentModeration: boolean; resizeMaxWidth?: number; resizeMaxHeight?: number },
+    imageBytes: Uint8Array,
+    matches: CsamMatch[],
+  ) => Promise<void>;
 }
 
 function processingMetaFromDeps(d: ConvScanSealBatchDeps): {
@@ -170,12 +170,11 @@ async function listConvScanContentKeys(
 }
 
 /**
- * After .sealed is written: list all objects in the scan prefix, moderate images (or one MP4),
+ * After .sealed is written: list all objects in the scan prefix, run CSAM hash checks on images,
  * invoke DB writer once, delete cleartext objects.
  */
 export async function processConvScanSealBatch(d: ConvScanSealBatchDeps): Promise<void> {
   const prefix = `${CONV_SCAN_PREFIX}${d.scanHash}/`;
-  const metaBase = processingMetaFromDeps(d);
 
   if (!d.contentModeration) {
     const unmodKeys = await listAllKeysInPrefix(d.s3, d.bucket, prefix);
@@ -268,62 +267,48 @@ export async function processConvScanSealBatch(d: ConvScanSealBatchDeps): Promis
       );
       return;
     }
-    const vk = videos[0]!.key;
-    await deleteKeys(d.s3, d.bucket, convScanKeysToDelete([], prefix, d.sealKey));
-    await d.startConvScanVideoContentModeration(vk, { ...metaBase, mediaId: d.primaryMediaId });
+    d.logProcessorEvent({
+      event: 'conv_scan_legacy_video_no_hash_check',
+      mediaId: d.primaryMediaId,
+      scanHash: d.scanHash,
+      s3Key: d.sealKey,
+    });
+    const allToDelete = convScanKeysToDelete(keys, prefix, d.sealKey);
+    await deleteKeys(d.s3, d.bucket, allToDelete);
+    await d.invokeDbWriter(d.primaryMediaId, 'ready', undefined, undefined, {
+      purpose: d.purpose,
+      s3Key: d.sealKey,
+    });
     return;
   }
 
   try {
     for (const img of images) {
-      let moderationResult;
-      if (isGifImage(img.contentType, img.key)) {
-        const gifObj = await d.s3.send(
-          new GetObjectCommand({ Bucket: d.bucket, Key: img.key })
-        );
-        const gifBody = await gifObj.Body!.transformToByteArray();
-        const jpegBytes = await gifFirstFrameJpegForModeration(gifBody);
+      const imgObj = await d.s3.send(
+        new GetObjectCommand({ Bucket: d.bucket, Key: img.key })
+      );
+      const imgBytes = await imgObj.Body!.transformToByteArray();
+
+      const csamMatches = await d.runCsamHashChecks(imgBytes, d.primaryMediaId, img.key);
+
+      if (csamMatches.length > 0) {
+        const sources = csamMatches.map(m => `${m.source}:${m.hashType}`).join(', ');
         d.logProcessorEvent({
-          event: 'rekognition_gif_first_frame_moderation',
+          event: 'csam_hash_match_detected',
           mediaId: d.primaryMediaId,
           purpose: d.purpose,
           s3Key: img.key,
+          matchCount: csamMatches.length,
+          matchSources: sources,
           batchScanHash: d.scanHash,
         });
-        moderationResult = await d.rekognition.send(
-          new DetectModerationLabelsCommand({
-            Image: { Bytes: jpegBytes },
-            MinConfidence: d.moderationConfidence,
-          })
-        );
-      } else {
-        moderationResult = await d.rekognition.send(
-          new DetectModerationLabelsCommand({
-            Image: { S3Object: { Bucket: d.bucket, Name: img.key } },
-            MinConfidence: d.moderationConfidence,
-          })
-        );
-      }
-      const labels = moderationResult.ModerationLabels ?? [];
-      if (labels.length > 0) {
-        const top = labels[0];
-        d.logProcessorEvent({
-          event: 'rekognition_moderation_flagged',
-          mediaId: d.primaryMediaId,
-          purpose: d.purpose,
-          s3Key: img.key,
-          contentModeration: true,
-          moderationLabelCount: labels.length,
-          topLabel: top?.Name,
-          batchScanHash: d.scanHash,
-        });
-        // Retain nested conv_scan cleartext for human review; API purges after report is terminal.
-        await d.invokeDbWriter(
-          d.primaryMediaId,
-          'rejected',
-          undefined,
-          `content_moderation: ${labels[0]?.Name}`,
-          { purpose: d.purpose, s3Key: img.key }
+
+        await d.handleCsamMatch(
+          d.bucket,
+          img.key,
+          { ...processingMetaFromDeps(d), mediaId: d.primaryMediaId },
+          imgBytes,
+          csamMatches,
         );
         return;
       }
@@ -331,11 +316,11 @@ export async function processConvScanSealBatch(d: ConvScanSealBatchDeps): Promis
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     d.logProcessorEvent({
-      event: 'rekognition_error',
+      event: 'csam_hash_check_fatal',
       mediaId: d.primaryMediaId,
       purpose: d.purpose,
       s3Key: d.sealKey,
-      rekognitionError: message,
+      error: message,
       batchScanHash: d.scanHash,
     });
     const allToDelete = convScanKeysToDelete(keys, prefix, d.sealKey);

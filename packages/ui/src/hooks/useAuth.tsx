@@ -5,15 +5,25 @@ import {
   API_ERROR_SESSION_EXPIRED,
   API_ERROR_ACCOUNT_BANNED,
   API_ERROR_ACCOUNT_SUSPENDED,
+  API_ERROR_ABUSIVE_IP_BLOCKED,
   type SessionInfo,
   type SubscriptionTierId,
   type PublicKeyCredentialRequestOptionsJSON,
 } from '@adieuu/shared';
 import { useAppConfig, usePlatformCapabilities } from '../config';
-import { resolveAccountRestriction, type AccountRestrictionInfo } from '../services/authRestrictionFlow';
+import {
+  resolveAccountRestriction,
+  isSilentAccountBan,
+  type AccountRestrictionInfo,
+} from '../services/authRestrictionFlow';
+import { ComplianceModals } from '../components/ComplianceModals';
+import type { AccountModerationCategory } from '@adieuu/shared';
 
 /** Delay (ms) before retrying the initial session check on cold start. */
 const MOUNT_RETRY_DELAY_MS = 750;
+
+/** Periodic session refresh while authenticated (compliance IP re-check). */
+const SESSION_POLL_INTERVAL_MS = 10 * 60 * 1000;
 
 // ============================================================================
 // Auth State Types
@@ -52,6 +62,9 @@ export interface AuthContextValue extends AuthState {
   logout: () => Promise<void>;
   /** Refresh session status from server. Returns the fresh session or null. */
   refreshSession: () => Promise<SessionInfo | null>;
+  /** Set when session/login blocked due to abusive IP (shows modal). */
+  abusiveIpNotice: string | null;
+  clearAbusiveIpNotice: () => void;
 }
 
 // ============================================================================
@@ -88,6 +101,11 @@ function useAuthState(): AuthContextValue {
     status: 'loading',
     session: null,
   });
+  const [abusiveIpNotice, setAbusiveIpNotice] = useState<string | null>(null);
+
+  const clearAbusiveIpNotice = useCallback(() => {
+    setAbusiveIpNotice(null);
+  }, []);
 
   const onSessionExpired = useCallback(() => {
     setState({
@@ -141,6 +159,17 @@ function useAuthState(): AuthContextValue {
         return accountSession;
       } else {
         const code = response.error?.code;
+        if (code === API_ERROR_ABUSIVE_IP_BLOCKED) {
+          setAbusiveIpNotice(response.error?.message ?? null);
+          setState({ status: 'unauthenticated', session: null });
+          return null;
+        }
+        if (code === API_ERROR_ACCOUNT_BANNED && isSilentAccountBan(
+          response.error?.details?.moderationCategory as AccountModerationCategory | undefined,
+        )) {
+          setState({ status: 'unauthenticated', session: null });
+          return null;
+        }
         // SESSION_EXPIRED is definitive — the server cleared the cookie.
         // Any other failure on mount may be a cold-start timing issue
         // where the cookie hasn't been sent yet; retry once.
@@ -166,6 +195,38 @@ function useAuthState(): AuthContextValue {
     refreshSession(true);
   }, [refreshSession]);
 
+  // Periodic compliance re-check while signed in at account level
+  useEffect(() => {
+    if (state.status !== 'authenticated') return undefined;
+    const id = window.setInterval(() => {
+      void refreshSession();
+    }, SESSION_POLL_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [state.status, refreshSession]);
+
+  const handleVerifyError = useCallback((errorCode?: string, message?: string, details?: Record<string, unknown>) => {
+    if (errorCode === API_ERROR_ABUSIVE_IP_BLOCKED) {
+      setAbusiveIpNotice(message ?? null);
+      setState({ status: 'unauthenticated', session: null });
+      return { success: false as const, error: message ?? 'Network blocked', restriction: undefined };
+    }
+    if (errorCode === API_ERROR_ACCOUNT_BANNED && isSilentAccountBan(
+      details?.moderationCategory as AccountModerationCategory | undefined,
+    )) {
+      setState({ status: 'unauthenticated', session: null });
+      return { success: false as const, error: 'Access denied', restriction: undefined };
+    }
+    const restriction = resolveAccountRestriction(
+      errorCode,
+      details as Parameters<typeof resolveAccountRestriction>[1],
+    );
+    return {
+      success: false as const,
+      error: message ?? 'Invalid code',
+      restriction,
+    };
+  }, []);
+
   const requestOtp = useCallback(async (identifier: string, type: 'email' | 'sms') => {
     const response = await api.auth.requestOtp({ identifier, type });
 
@@ -183,15 +244,11 @@ function useAuthState(): AuthContextValue {
     const response = await api.auth.verifyOtp({ identifier, code });
 
     if (!response.success) {
-      const restriction = resolveAccountRestriction(
+      return handleVerifyError(
         response.error?.code,
+        response.error?.message,
         response.error?.details,
       );
-      return {
-        success: false,
-        error: response.error?.message ?? 'Invalid code',
-        restriction,
-      };
     }
 
     // Check if MFA is required
@@ -212,27 +269,23 @@ function useAuthState(): AuthContextValue {
     await refreshSession();
 
     return { success: true };
-  }, [api, refreshSession]);
+  }, [api, refreshSession, handleVerifyError]);
 
   const completeMfaTotp = useCallback(async (mfaToken: string, code: string): Promise<MfaCompletionResult> => {
     const response = await api.auth.verifyMfaTotp(mfaToken, code);
 
     if (!response.success) {
-      const restriction = resolveAccountRestriction(
+      return handleVerifyError(
         response.error?.code,
+        response.error?.message,
         response.error?.details,
       );
-      return {
-        success: false,
-        error: response.error?.message ?? 'Invalid code',
-        restriction,
-      };
     }
 
     // Session cookie is set by the server
     await refreshSession();
     return { success: true };
-  }, [api, refreshSession]);
+  }, [api, refreshSession, handleVerifyError]);
 
   const completeMfaWebAuthn = useCallback(async (mfaToken: string, webauthnChallenge: PublicKeyCredentialRequestOptionsJSON): Promise<MfaCompletionResult> => {
     try {
@@ -248,15 +301,11 @@ function useAuthState(): AuthContextValue {
       const response = await api.auth.verifyMfaWebAuthn(mfaToken, credential);
 
       if (!response.success) {
-        const restriction = resolveAccountRestriction(
+        return handleVerifyError(
           response.error?.code,
+          response.error?.message,
           response.error?.details,
         );
-        return {
-          success: false,
-          error: response.error?.message ?? 'WebAuthn verification failed',
-          restriction,
-        };
       }
 
       await refreshSession();
@@ -267,7 +316,7 @@ function useAuthState(): AuthContextValue {
       }
       return { success: false, error: 'WebAuthn authentication failed' };
     }
-  }, [api, refreshSession, webauthnBridge]);
+  }, [api, refreshSession, webauthnBridge, handleVerifyError]);
 
   const logout = useCallback(async () => {
     await api.auth.logout();
@@ -275,6 +324,7 @@ function useAuthState(): AuthContextValue {
       status: 'unauthenticated',
       session: null,
     });
+    setAbusiveIpNotice(null);
   }, [api]);
 
   return {
@@ -285,6 +335,8 @@ function useAuthState(): AuthContextValue {
     completeMfaWebAuthn,
     logout,
     refreshSession,
+    abusiveIpNotice,
+    clearAbusiveIpNotice,
   };
 }
 
@@ -305,6 +357,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   return (
     <AuthContext.Provider value={auth}>
+      <ComplianceModals />
       {children}
     </AuthContext.Provider>
   );

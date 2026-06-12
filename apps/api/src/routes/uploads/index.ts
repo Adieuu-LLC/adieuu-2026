@@ -25,6 +25,7 @@ import {
   type UploadOwner,
 } from './controller';
 import { requireAccountSession } from '../../services/session.service';
+import { getClientIp } from '../auth/controller';
 
 const router = new Router();
 
@@ -90,7 +91,8 @@ router.post('/uploads/request', async (ctx) => {
   const auth = await resolveUploadSession(ctx, body?.purpose);
   if (!auth.ok) return auth.response;
 
-  const result = await requestUploadResult(auth.session, ctx.body);
+  const clientIp = getClientIp(ctx.request);
+  const result = await requestUploadResult(auth.session, ctx.body, clientIp);
   if (!result.ok) return mapUploadFailure(ctx, result);
   return success(result.data);
 });

@@ -133,6 +133,24 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     }
   }
 
+  # --- Lambda code deploy (media stack) ---
+
+  dynamic "statement" {
+    for_each = local.media_enabled ? [1] : []
+    content {
+      sid    = "LambdaDeploy"
+      effect = "Allow"
+      actions = [
+        "lambda:UpdateFunctionCode",
+        "lambda:GetFunction",
+      ]
+      resources = [
+        aws_lambda_function.media_processor[0].arn,
+        aws_lambda_function.media_db_writer[0].arn,
+      ]
+    }
+  }
+
   # --- Downloads stack (desktop update mirror) ---
 
   dynamic "statement" {

@@ -38,6 +38,7 @@ export type EmailTemplateKey =
   | 'otpAccountAdd'
   | 'accountLocked'
   | 'failedLoginAttempts'
+  | 'abusiveIpAccess'
   | 'welcome'
   | 'passwordChanged';
 
@@ -48,7 +49,8 @@ export type SmsTemplateKey =
   | 'otp'
   | 'otpAccountAdd'
   | 'accountLocked'
-  | 'failedLoginAttempts';
+  | 'failedLoginAttempts'
+  | 'abusiveIpAccess';
 
 /**
  * All error message keys.

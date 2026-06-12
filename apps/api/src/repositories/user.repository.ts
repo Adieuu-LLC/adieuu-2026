@@ -6,7 +6,7 @@
 import { ObjectId } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db';
-import type { UserDocument, CreateUserInput, UpdateUserInput, UserGeo, UserBilling, UserAgeVerification, SubscriptionOverride } from '../models/user';
+import type { UserDocument, CreateUserInput, UpdateUserInput, UserGeo, UserBilling, UserAgeVerification, UserCompliance, SubscriptionOverride } from '../models/user';
 import type { AccountModerationCategory } from '@adieuu/shared';
 import { DEFAULT_IDENTITY_LOCKOUT_DURATION } from '../models/user';
 import { withTimestamps } from '../models/base';
@@ -32,6 +32,7 @@ export interface IUserRepository {
   findByStripeCustomerId(stripeCustomerId: string): Promise<UserDocument | null>;
   updateBilling(id: string | ObjectId, billing: UserBilling): Promise<void>;
   updateAgeVerification(id: string | ObjectId, ageVerification: UserAgeVerification): Promise<void>;
+  updateCompliance(id: string | ObjectId, compliance: UserCompliance): Promise<void>;
 }
 
 /**
@@ -315,6 +316,37 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
         },
       },
     );
+  }
+
+  /**
+   * Persist compliance attestation state on the user document.
+   * Merges per-field so concurrent updates to different compliance keys are not clobbered.
+   */
+  async updateCompliance(id: string | ObjectId, compliance: UserCompliance): Promise<void> {
+    const objectId = this.toObjectId(id);
+    const complianceKeys = ['vpnAttestationPending', 'lastVpnAttestation', 'attestedUtahResidency'] as const;
+    const $set: Record<string, unknown> = { updatedAt: new Date() };
+    const $unset: Record<string, ''> = {};
+
+    for (const key of complianceKeys) {
+      if (!(key in compliance)) continue;
+      const value = compliance[key];
+      if (value === undefined) {
+        $unset[`compliance.${key}`] = '';
+      } else {
+        $set[`compliance.${key}`] = value;
+      }
+    }
+
+    const update: Record<string, Record<string, unknown>> = {};
+    if (Object.keys($set).length > 0) {
+      update.$set = $set;
+    }
+    if (Object.keys($unset).length > 0) {
+      update.$unset = $unset;
+    }
+
+    await this.collection.updateOne({ _id: objectId }, update);
   }
 
   /**

@@ -53,6 +53,9 @@ export interface UserDocument extends BaseDocument {
   /** Account-level age verification state. */
   ageVerification?: UserAgeVerification;
 
+  /** Export-control and VPN attestation compliance state. */
+  compliance?: UserCompliance;
+
   /** Stripe customer ID (server-side only; never returned to the client). */
   stripeCustomerId?: string;
 
@@ -95,9 +98,19 @@ export interface UserGeo {
   ipHash: string;
   /** When this lookup was last refreshed */
   checkedAt: Date;
+  /** IPLocate privacy.is_anonymous at last check */
+  isAnonymous?: boolean;
+  /** IPLocate privacy.is_abuser at last check */
+  isAbuser?: boolean;
 }
 
 export type AgeVerificationStatus = 'unverified' | 'pending' | 'verified' | 'failed' | 'expired';
+
+export type AgeVerificationRequiredReason =
+  | 'legislation'
+  | 'abusive_ip'
+  | 'utah_attestation'
+  | 'admin';
 
 /**
  * Account-level age verification state.
@@ -120,6 +133,31 @@ export interface UserAgeVerification {
   lastExpiredAt?: Date;
   /** When we last queried the provider for status (drives /me debounce). */
   lastStatusCheckAt?: Date;
+  /** Why AV is required when not solely jurisdiction-driven. */
+  requiredReason?: AgeVerificationRequiredReason;
+  /** When a non-legislation AV requirement was imposed. */
+  requiredReasonAt?: Date;
+  /** ipHash that triggered a compliance-driven AV requirement. */
+  requiredReasonIpHash?: string;
+}
+
+export type VpnAttestationStep = 'sanctioned_membership' | 'utah_residency';
+
+export interface UserCompliance {
+  vpnAttestationPending?: {
+    ipHash: string;
+    step: VpnAttestationStep;
+    detectedAt: Date;
+    vpnCountryCode?: string;
+  };
+  lastVpnAttestation?: {
+    ipHash: string;
+    completedAt: Date;
+    sanctionedMembership: boolean;
+    utahResidency?: boolean;
+  };
+  /** User self-attested Utah residency on a US VPN IP. */
+  attestedUtahResidency?: boolean;
 }
 
 /**

@@ -799,9 +799,11 @@ export function IdentityModal({ isOpen, onClose, unlockMode = false }: IdentityM
             {av.status === 'idle' && (
               <>
                 <p className="identity-modal-av-description">
-                  {avOptInMode
-                    ? t('compliance.advisory.optInDescription')
-                    : t('compliance.ageVerification.description')}
+                  {aliasGate?.requiredReason === 'abusive_ip'
+                    ? t('compliance.ageVerification.abusiveIpReason')
+                    : avOptInMode
+                      ? t('compliance.advisory.optInDescription')
+                      : t('compliance.ageVerification.description')}
                   {aliasGate?.jurisdiction && (
                     <span className="identity-modal-av-jurisdiction">
                       {' '}({aliasGate.jurisdiction})

@@ -1,8 +1,8 @@
 /**
  * Platform report model.
  *
- * Represents a moderation report that can originate from automated systems
- * (e.g. Rekognition) or manual user submissions. Extensible for future
+ * Represents a moderation report from automated CSAM hash checks, automated
+ * hash-check rejections, or manual user submissions. Extensible for future
  * Space-level moderation via `scopeType` / `scopeId`.
  */
 
@@ -12,7 +12,12 @@ import type { BaseDocument } from './base';
 export const REPORT_TYPES = ['content', 'abuse'] as const;
 export type ReportType = (typeof REPORT_TYPES)[number];
 
-export const REPORT_SOURCES = ['automated_rekognition', 'manual_user'] as const;
+export const REPORT_SOURCES = [
+  'automated_hash_check',
+  'automated_csam_hash',
+  'automated_rekognition',
+  'manual_user',
+] as const;
 export type ReportSource = (typeof REPORT_SOURCES)[number];
 
 export const REPORT_STATUSES = ['open', 'escalated', 'resolved', 'closed'] as const;
@@ -146,7 +151,7 @@ export interface ReportDocument extends BaseDocument {
   /** User ID of the moderator assigned to this report */
   assignedTo?: string;
 
-  /** Automated detection metadata (e.g. Rekognition labels with confidences) */
+  /** Automated detection metadata (hash match details, scanHash, mediaId, etc.) */
   detectionMetadata?: Record<string, unknown>;
 
   /** Cryptographically verified evidence for manual user reports */
@@ -168,6 +173,21 @@ export interface ReportDocument extends BaseDocument {
   /** Filled when status becomes 'escalated' */
   escalatedByIdentityId?: string;
   escalatedAt?: Date;
+
+  /** Filled when a moderator files a law enforcement report */
+  leReportFiled?: boolean;
+  leReportFiledAt?: Date;
+  leReportFiledBy?: string;
+
+  /** NCMEC CyberTipline report ID (set after successful submission) */
+  ncmecReportId?: string;
+  /** NCMEC submission status */
+  ncmecStatus?: 'claiming' | 'submitted' | 'failed';
+  /** Last NCMEC submission error (cleared on success) */
+  ncmecError?: string;
+
+  /** Tags applied by automated systems or moderator actions */
+  tags?: string[];
 }
 
 export interface CreateReportInput {

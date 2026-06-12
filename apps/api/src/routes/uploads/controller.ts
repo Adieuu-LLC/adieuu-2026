@@ -80,6 +80,7 @@ export type RequestUploadData = {
 export async function requestUploadResult(
   session: RequestUploadSession,
   body: unknown,
+  clientIp?: string,
 ): Promise<UploadResult<RequestUploadData>> {
   const parseResult = RequestUploadSchema.safeParse(body);
   if (!parseResult.success) {
@@ -98,6 +99,7 @@ export async function requestUploadResult(
           isLifetime: session.isLifetime,
         }
       : { userId: session.userId }),
+    clientIp,
   });
 
   if (!result.success) {

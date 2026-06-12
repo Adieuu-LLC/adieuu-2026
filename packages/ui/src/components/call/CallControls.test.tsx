@@ -1,11 +1,10 @@
 import { describe, expect, mock, test } from 'bun:test';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { setMockTranslate } from '../../test/react-i18next-mock';
 
-mock.module('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (_key: string, defaultValue?: string) => defaultValue ?? _key,
-  }),
-}));
+setMockTranslate((_key, defaultValueOrOpts) =>
+  typeof defaultValueOrOpts === 'string' ? defaultValueOrOpts : _key,
+);
 
 mock.module('../../icons/Icon', () => ({
   Icon: ({ name }: { name: string }) => <span data-icon={name} />,

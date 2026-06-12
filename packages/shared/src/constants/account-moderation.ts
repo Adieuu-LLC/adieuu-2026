@@ -13,6 +13,8 @@ export type AccountModerationCategory =
   | 'impersonation'
   | 'fraud'
   | 'security_abuse'
+  | 'ofac_sanctioned'
+  | 'ofac_self_attestation'
   | 'other';
 
 export const ACCOUNT_MODERATION_CATEGORIES: readonly AccountModerationCategory[] = [
@@ -26,6 +28,8 @@ export const ACCOUNT_MODERATION_CATEGORIES: readonly AccountModerationCategory[]
   'impersonation',
   'fraud',
   'security_abuse',
+  'ofac_sanctioned',
+  'ofac_self_attestation',
   'other',
 ] as const;
 
@@ -53,6 +57,10 @@ export const ACCOUNT_MODERATION_PRESETS: Record<AccountModerationCategory, strin
     'Fraudulent activity, scams, or deceptive practices targeting users or the platform.',
   security_abuse:
     'Abuse of platform security features, including credential stuffing, automated access, or circumvention of restrictions.',
+  ofac_sanctioned:
+    'Your country is subject to U.S. sanctions. We are unable to provide service. Appeals are not available.',
+  ofac_self_attestation:
+    'Account restricted due to export-control self-attestation.',
   other:
     'Violation of our community standards and Terms of Service.',
 };

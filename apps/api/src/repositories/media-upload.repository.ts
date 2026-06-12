@@ -56,6 +56,27 @@ export class MediaUploadRepository extends BaseRepository<MediaUploadDocument> {
     return result as MediaUploadDocument | null;
   }
 
+  /** Remove upload IP after terminal moderation (Option A). */
+  async clearUploadIpAddress(
+    mediaId: string,
+    options?: { scanHash?: string; purpose?: UploadPurpose }
+  ): Promise<void> {
+    const now = new Date();
+    await this.collection.updateOne(
+      { mediaId },
+      { $unset: { uploadIpAddress: '' }, $set: { updatedAt: now } }
+    );
+    if (options?.scanHash && options.purpose === 'conv_scan') {
+      await this.collection.updateMany(
+        {
+          scanHash: options.scanHash,
+          purpose: 'conv_scan' as UploadPurpose,
+        } as Filter<MediaUploadDocument>,
+        { $unset: { uploadIpAddress: '' }, $set: { updatedAt: now } }
+      );
+    }
+  }
+
   /** Pending conv_scan rows for this scanHash (multi-part uploads). */
   async countPendingConvScanByScanHash(scanHash: string): Promise<number> {
     return await this.count({

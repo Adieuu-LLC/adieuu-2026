@@ -278,6 +278,7 @@ export type RequestScanUploadData = {
 export async function requestScanUploadResult(
   identityId: string,
   body: unknown,
+  clientIp?: string,
 ): Promise<E2eUploadResult<RequestScanUploadData>> {
   const parseResult = RequestScanUploadSchema.safeParse(body);
   if (!parseResult.success) {
@@ -289,6 +290,7 @@ export async function requestScanUploadResult(
     contentType: parseResult.data.contentType,
     contentLength: parseResult.data.contentLength,
     identityId,
+    clientIp,
   });
 
   if (!result.success) {

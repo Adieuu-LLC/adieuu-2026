@@ -31,6 +31,7 @@
  * ```
  */
 
+import { isIP } from 'node:net';
 import elog from "./adieuuLogger";
 import { isValidObjectId } from "./isValidObjectId";
 
@@ -382,6 +383,27 @@ export const sanitizeString = (target: SanitizationOptions['target'], type: Sani
     elog.error(`Error sanitizing ${type}`, target, e);
     return { value: '', deltas: original.length || 1 };
   }
+}
+
+/**
+ * Sanitizes a client IP for persistence (e.g. NCMEC upload metadata).
+ * Strips injection characters from proxy headers, normalizes casing, and
+ * rejects values that are not valid IPv4 or IPv6 after sanitization.
+ */
+export function sanitizeIpForStorage(clientIp: string | undefined): string | undefined {
+  if (!clientIp) return undefined;
+
+  const sanitized = sanitizeString(clientIp, 'ip');
+  if (sanitized.deltas > 0) {
+    elog.warn('IP address sanitization modified input', {
+      deltas: sanitized.deltas,
+      originalLength: clientIp.length,
+    });
+  }
+
+  const value = sanitized.value;
+  if (!value || isIP(value) === 0) return undefined;
+  return value;
 }
 
 /** Typical MongoDB ObjectId hex segment (pathname portion only). */

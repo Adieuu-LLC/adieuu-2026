@@ -15,6 +15,7 @@ export const REPORT_EVENT_TYPES = [
   'assignment_change',
   'category_change',
   'enforcement_action',
+  'le_report_filed',
 ] as const;
 export type ReportEventType = (typeof REPORT_EVENT_TYPES)[number];
 

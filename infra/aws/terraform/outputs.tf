@@ -156,9 +156,19 @@ output "media_cdn_url" {
   value       = local.media_enabled ? "https://${var.media_domain_name}" : null
 }
 
+output "lambda_name_prefix" {
+  description = "Name prefix for Lambda functions (project-environment). Set as DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU in GitHub repo variables for CI deploy."
+  value       = local.media_enabled ? local.name_prefix : null
+}
+
 output "media_processor_lambda_name" {
   description = "Lambda function name for the media processor when media stack is enabled; null otherwise."
   value       = local.media_enabled ? aws_lambda_function.media_processor[0].function_name : null
+}
+
+output "media_db_writer_lambda_name" {
+  description = "Lambda function name for the media DB writer when media stack is enabled; null otherwise."
+  value       = local.media_enabled ? aws_lambda_function.media_db_writer[0].function_name : null
 }
 
 output "e2e_media_s3_bucket_name" {

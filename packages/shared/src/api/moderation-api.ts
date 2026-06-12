@@ -1,6 +1,7 @@
 import type { ApiResponse } from '../types';
 import type { HttpClient } from './http-client';
 import type {
+  FileLeReportParams,
   ModerationScanEvidenceResponse,
   ModeratorsListResponse,
   PublicReport,
@@ -83,6 +84,10 @@ export class ModerationApi {
 
   async reopenReport(id: string, reason?: string): Promise<ApiResponse<PublicReport>> {
     return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/reopen`, { reason });
+  }
+
+  async fileLeReport(id: string, params: FileLeReportParams): Promise<ApiResponse<PublicReport>> {
+    return this.client.post(`/api/moderation/reports/${encodeURIComponent(id)}/le-report`, params);
   }
 
   async listTickets(params?: ModerationTicketListParams): Promise<ApiResponse<ModerationTicketListResponse>> {

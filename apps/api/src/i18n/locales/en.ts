@@ -140,6 +140,33 @@ If this wasn't you, your account is still secure. No action is required, but we 
 </div>`,
     },
 
+    abusiveIpAccess: {
+      subject: '{{appName}} security alert: abusive IP detected',
+      text: `Your {{appName}} account was accessed from an IP address with a known history of abuse.
+
+For your security, we ended the session and blocked access from that network. Please sign in again from a different connection.
+
+If age verification was not already complete on your account, you may now be required to verify your age before using aliases.
+
+If this wasn't you, review your account security when you next sign in.`,
+      html: `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+  <h2 style="color: #dc2626; margin-bottom: 24px;">Security Alert</h2>
+  <p style="color: #1a1a1a; line-height: 1.6;">
+    Your {{appName}} account was accessed from an IP address with a known history of abuse.
+  </p>
+  <p style="color: #666; line-height: 1.6; margin-top: 16px;">
+    For your security, we ended the session and blocked access from that network. Please sign in again from a different connection.
+  </p>
+  <p style="color: #666; line-height: 1.6; margin-top: 16px;">
+    If age verification was not already complete on your account, you may now be required to verify your age before using aliases.
+  </p>
+  <p style="color: #666; line-height: 1.6; margin-top: 16px;">
+    If this wasn't you, review your account security when you next sign in.
+  </p>
+</div>`,
+    },
+
     welcome: {
       subject: 'Welcome to {{appName}}!',
       text: `Welcome to {{appName}}!
@@ -187,6 +214,7 @@ If you didn't make this change, please contact our support team immediately.`,
     otpAccountAdd: '{{appName}}: Someone is adding this phone to their account. Code: {{otp}}. Expires in {{expiresInMinutes}} min. Ignore if not you.',
     accountLocked: '{{appName}}: Account locked due to failed login attempts. Try again in {{lockoutMinutes}} min.',
     failedLoginAttempts: '{{appName}}: {{attemptCount}} failed login attempts detected on your account.',
+    abusiveIpAccess: '{{appName}} security alert: your account was accessed from a known abusive IP. Sign in from a different network.',
   },
 
   errors: {

@@ -1,5 +1,5 @@
 /**
- * Loads presigned scan-copy URLs for automated Rekognition reports (conv_scan cleartext).
+ * Loads presigned scan-copy URLs for automated hash-check reports (conv_scan cleartext).
  */
 
 import { useCallback, useEffect, useState } from 'react';

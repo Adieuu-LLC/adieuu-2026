@@ -14,34 +14,95 @@ import {
   SecretsManagerClient,
   GetSecretValueCommand,
 } from '@aws-sdk/client-secrets-manager';
+import { S3Client } from '@aws-sdk/client-s3';
 import { MongoClient, type ObjectId } from 'mongodb';
+import {
+  countOpenHashCheckReportsByScanHash,
+  purgeConvScanCleartext,
+} from './conv-scan-purge';
 import { logModerationEvent } from './logging';
 
 const MONGODB_SECRET_ARN = process.env.MONGODB_SECRET_ARN!;
 const MONGODB_SECRET_KEY = process.env.MONGODB_SECRET_KEY || 'MONGODB_URI';
 const MONGODB_DB_NAME = process.env.MONGODB_DB_NAME!;
 const MEDIA_CDN_URL = process.env.MEDIA_CDN_URL || '';
+const MEDIA_BUCKET = process.env.MEDIA_BUCKET || '';
 
 const MEDIA_UPLOADS_COLLECTION = 'media_uploads';
 const E2E_MEDIA_COLLECTION = 'e2e_media';
 const PLATFORM_REPORTS_COLLECTION = 'platform_reports';
+const PLATFORM_SETTINGS_COLLECTION = 'platform_settings';
+const IDENTITIES_COLLECTION = 'identities';
+const CSAM_HASH_SERVICES_KEY = 'platform-csam-hash-services';
+const BANNED_CSAM_ENTITLEMENT = 'banned_csam';
+
+/**
+ * Controls whether CSAM hash matches are reported externally to law enforcement
+ * via the NCMEC CyberTipline API. When false, internal moderation reports and
+ * identity bans still fire, but no external report is dispatched. Set to true
+ * once the pipeline is validated and NCMEC registration is complete.
+ */
+const CSAM_LE_REPORT_ENABLED = false;
 
 const secretsManager = new SecretsManagerClient({});
 
 let cachedMongoUri: string | null = null;
 let cachedMongoClient: MongoClient | null = null;
+let reportIndexesEnsured = false;
+let cachedS3Client: S3Client | null = null;
+
+function getS3Client(): S3Client | null {
+  if (!MEDIA_BUCKET) return null;
+  if (!cachedS3Client) {
+    cachedS3Client = new S3Client({});
+  }
+  return cachedS3Client;
+}
+
+async function expungeUploadIpAddress(
+  collection: import('mongodb').Collection,
+  mediaId: string,
+  scanHash: string | undefined,
+  purpose: string | undefined
+): Promise<void> {
+  const now = new Date();
+  await collection.updateOne(
+    { mediaId },
+    { $unset: { uploadIpAddress: '' }, $set: { updatedAt: now } }
+  );
+  if (scanHash && purpose === 'conv_scan') {
+    await collection.updateMany(
+      { scanHash, purpose: 'conv_scan' },
+      { $unset: { uploadIpAddress: '' }, $set: { updatedAt: now } }
+    );
+  }
+}
+
+interface CsamMatch {
+  source: 'ncmec' | 'arachnid_shield';
+  hashType: string;
+  matchedHash: string;
+  matchType: 'exact' | 'near';
+  classification: string;
+  matchDetails?: Record<string, unknown>;
+}
 
 interface WriterEvent {
   mediaId: string;
   status: 'ready' | 'rejected' | 'failed';
   processedS3Key?: string;
   rejectionReason?: string;
+  csamMatches?: CsamMatch[];
+  evidenceBucket?: string;
+  evidenceKey?: string;
 }
 
 interface WriterResult {
   success: boolean;
   error?: string;
 }
+
+const TERMINAL_STATUSES = new Set<WriterEvent['status']>(['ready', 'rejected', 'failed']);
 
 async function getMongoUri(): Promise<string> {
   if (cachedMongoUri) return cachedMongoUri;
@@ -133,6 +194,346 @@ function bsonIdentityToHexString(v: unknown): string | undefined {
   return undefined;
 }
 
+async function getEnabledCsamHashServices(db: import('mongodb').Db): Promise<Set<string>> {
+  try {
+    const settingsCol = db.collection(PLATFORM_SETTINGS_COLLECTION);
+    const doc = await settingsCol.findOne({ key: CSAM_HASH_SERVICES_KEY });
+    if (doc && Array.isArray(doc.value)) {
+      return new Set(doc.value.filter((v: unknown) => typeof v === 'string'));
+    }
+  } catch (err) {
+    console.error('Failed to read CSAM hash services setting:', err);
+  }
+  return new Set(['ncmec', 'arachnid_shield']);
+}
+
+async function ensureReportIdempotencyIndex(db: import('mongodb').Db): Promise<void> {
+  if (reportIndexesEnsured) return;
+  await db.collection(PLATFORM_REPORTS_COLLECTION).createIndex(
+    { idempotencyKey: 1 },
+    { unique: true, sparse: true },
+  );
+  reportIndexesEnsured = true;
+}
+
+type ReportInsertResult =
+  | { inserted: false }
+  | { inserted: true; reportId: string };
+
+async function insertReportIfNew(
+  reportsCollection: import('mongodb').Collection,
+  idempotencyKey: string,
+  insertDoc: Record<string, unknown>,
+): Promise<ReportInsertResult> {
+  const result = await reportsCollection.updateOne(
+    { idempotencyKey },
+    { $setOnInsert: insertDoc },
+    { upsert: true },
+  );
+  if (result.upsertedCount === 0) {
+    return { inserted: false };
+  }
+  const upsertedId = result.upsertedId;
+  const reportId = upsertedId && typeof upsertedId.toHexString === 'function'
+    ? upsertedId.toHexString()
+    : String(upsertedId);
+  return { inserted: true, reportId };
+}
+
+async function handleCsamRejection(
+  db: import('mongodb').Db,
+  mediaDoc: Record<string, unknown>,
+  event: WriterEvent,
+): Promise<void> {
+  const { mediaId, csamMatches = [], evidenceBucket, evidenceKey, rejectionReason } = event;
+  const scanHash = mediaDoc.scanHash as string | undefined;
+
+  const enabledServices = await getEnabledCsamHashServices(db);
+  const activeMatches = csamMatches.filter(m => enabledServices.has(m.source));
+
+  if (activeMatches.length === 0) {
+    logModerationEvent({
+      event: 'csam_matches_filtered_out_by_policy',
+      mediaId,
+      totalMatches: csamMatches.length,
+      enabledServices: [...enabledServices],
+    });
+    return;
+  }
+
+  const identityFromMedia = bsonIdentityToHexString(mediaDoc.identityId);
+  let identityFromE2e: string | undefined;
+  let targetType = 'media_upload';
+  let targetId = mediaId;
+  let e2eMatched = false;
+
+  if (scanHash) {
+    const e2eDoc = await db.collection(E2E_MEDIA_COLLECTION).findOne({ scanHash });
+    if (e2eDoc) {
+      e2eMatched = true;
+      const e2eMediaId = (e2eDoc as Record<string, unknown>).e2eMediaId as string | undefined;
+      if (e2eMediaId) {
+        targetType = 'e2e_media';
+        targetId = e2eMediaId;
+      }
+      identityFromE2e = bsonIdentityToHexString(
+        (e2eDoc as Record<string, unknown>).identityId
+      );
+    }
+  }
+
+  const targetIdentityId = identityFromMedia ?? identityFromE2e;
+  const uploadIpAddress = mediaDoc.uploadIpAddress as string | undefined;
+
+  const idempotencyKey = `csam:${mediaId}`;
+  const now = new Date();
+
+  const reportsCollection = db.collection(PLATFORM_REPORTS_COLLECTION);
+
+  try {
+    const matchSummary = activeMatches.map(m => ({
+      source: m.source,
+      hashType: m.hashType,
+      matchedHash: m.matchedHash,
+      matchType: m.matchType,
+      classification: m.classification,
+      matchDetails: m.matchDetails,
+    }));
+
+    const insertDoc = {
+      reportType: 'content',
+      source: 'automated_csam_hash',
+      status: 'resolved',
+      category: 'csam',
+      scopeType: 'platform',
+      targetRef: { type: targetType, id: targetId },
+      targetIdentityId,
+      tags: ['csam_detected', 'automated', ...activeMatches.map(m => `source:${m.source}`)],
+      detectionMetadata: {
+        rejectionReason,
+        mediaId,
+        scanHash,
+        e2eMatched,
+        csamMatches: matchSummary,
+        evidenceBucket,
+        evidenceKey,
+        uploadIpAddress,
+        contentType: mediaDoc.contentType as string | undefined,
+        contentLength: mediaDoc.contentLength as number | undefined,
+        detectedAt: now.toISOString(),
+      },
+      resolution: {
+        action: 'identity_banned',
+        resolvedBy: 'system',
+        resolvedAt: now,
+        notes: `Automated CSAM hash match via ${activeMatches.map(m => m.source).join(', ')}. ` +
+          `Identity permabanned with ${BANNED_CSAM_ENTITLEMENT} entitlement. Evidence archived to ${evidenceBucket}/${evidenceKey}.`,
+      },
+      idempotencyKey,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const insertResult = await insertReportIfNew(reportsCollection, idempotencyKey, insertDoc);
+    if (!insertResult.inserted) {
+      logModerationEvent({
+        event: 'csam_report_deduped',
+        mediaId,
+        idempotencyKey,
+      });
+      return;
+    }
+
+    const reportId = insertResult.reportId;
+
+    logModerationEvent({
+      event: 'csam_report_created',
+      mediaId,
+      reportId,
+      targetIdentityId,
+      matchCount: activeMatches.length,
+      sources: activeMatches.map(m => m.source),
+    });
+
+    if (targetIdentityId) {
+      await banIdentityForCsam(db, targetIdentityId, reportId, now);
+    }
+
+    if (CSAM_LE_REPORT_ENABLED) {
+      // TODO: dispatch CyberTipline report via NCMEC API (deferred until registration)
+      logModerationEvent({
+        event: 'csam_le_report_dispatched',
+        mediaId,
+        reportId,
+        targetIdentityId,
+      });
+    } else {
+      logModerationEvent({
+        event: 'csam_le_report_skipped',
+        mediaId,
+        reportId,
+        matchCount: activeMatches.length,
+        sources: activeMatches.map(m => m.source),
+      });
+    }
+  } catch (err) {
+    const error = err as Error;
+    logModerationEvent({
+      event: 'csam_report_error',
+      mediaId,
+      errorName: error.name,
+      errorMessage: error.message,
+    });
+    console.error('Failed to create CSAM report (non-fatal):', err);
+  }
+}
+
+async function banIdentityForCsam(
+  db: import('mongodb').Db,
+  identityIdHex: string,
+  reportId: string,
+  timestamp: Date,
+): Promise<void> {
+  try {
+    const { ObjectId } = await import('mongodb');
+    const identitiesCol = db.collection(IDENTITIES_COLLECTION);
+
+    const result = await identitiesCol.updateOne(
+      { _id: new ObjectId(identityIdHex) },
+      {
+        $set: {
+          banned: true,
+          bannedAt: timestamp,
+          bannedReason: 'csam_hash_match',
+          updatedAt: timestamp,
+        },
+        $addToSet: {
+          entitlements: BANNED_CSAM_ENTITLEMENT,
+        },
+      }
+    );
+
+    if (result.modifiedCount > 0) {
+      logModerationEvent({
+        event: 'csam_identity_banned',
+        identityId: identityIdHex,
+        reportId,
+        entitlement: BANNED_CSAM_ENTITLEMENT,
+      });
+    } else {
+      logModerationEvent({
+        event: 'csam_identity_ban_no_match',
+        identityId: identityIdHex,
+        reportId,
+      });
+    }
+  } catch (err) {
+    const error = err as Error;
+    logModerationEvent({
+      event: 'csam_identity_ban_error',
+      identityId: identityIdHex,
+      reportId,
+      errorName: error.name,
+      errorMessage: error.message,
+    });
+    console.error('Failed to ban identity for CSAM (non-fatal):', err);
+  }
+}
+
+async function handleGenericRejectionReport(
+  db: import('mongodb').Db,
+  mediaDoc: Record<string, unknown>,
+  event: WriterEvent,
+): Promise<void> {
+  const { mediaId, status, rejectionReason } = event;
+  const scanHash = mediaDoc.scanHash as string | undefined;
+  const idempotencyKey = `moderation:${mediaId}`;
+
+  try {
+    const reportsCollection = db.collection(PLATFORM_REPORTS_COLLECTION);
+
+    const identityFromMedia = bsonIdentityToHexString(mediaDoc.identityId);
+    let targetType = 'media_upload';
+    let targetId = mediaId;
+    let e2eMatched = false;
+    let identityFromE2e: string | undefined;
+
+    if (scanHash) {
+      const e2eDoc = await db.collection(E2E_MEDIA_COLLECTION).findOne({ scanHash });
+      if (e2eDoc) {
+        e2eMatched = true;
+        const e2eMediaId = (e2eDoc as Record<string, unknown>).e2eMediaId as string | undefined;
+        if (e2eMediaId) {
+          targetType = 'e2e_media';
+          targetId = e2eMediaId;
+        }
+        identityFromE2e = bsonIdentityToHexString(
+          (e2eDoc as Record<string, unknown>).identityId
+        );
+      }
+    }
+
+    const targetIdentityId = identityFromMedia ?? identityFromE2e;
+
+    const now = new Date();
+    const insertDoc = {
+      reportType: 'content',
+      source: 'automated_hash_check',
+      status: 'open',
+      category: 'illegal_content',
+      scopeType: 'platform',
+      targetRef: { type: targetType, id: targetId },
+      targetIdentityId,
+      detectionMetadata: {
+        rejectionReason,
+        mediaId,
+        scanHash,
+        e2eMatched,
+      },
+      idempotencyKey,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const insertResult = await insertReportIfNew(reportsCollection, idempotencyKey, insertDoc);
+    if (!insertResult.inserted) {
+      logModerationEvent({
+        event: 'automated_report_deduped',
+        mediaId,
+        scanHash,
+        status,
+        rejectionReason,
+        idempotencyKey,
+      });
+      return;
+    }
+
+    const reportId = insertResult.reportId;
+
+    logModerationEvent({
+      event: 'automated_report_created',
+      mediaId,
+      scanHash,
+      idempotencyKey,
+      reportId,
+      targetIdentityId,
+    });
+  } catch (reportErr) {
+    const err = reportErr as Error;
+    logModerationEvent({
+      event: 'automated_report_error',
+      mediaId,
+      scanHash,
+      status,
+      rejectionReason,
+      idempotencyKey,
+      errorName: err.name,
+      errorMessage: err.message,
+    });
+    console.error('Failed to create platform report (non-fatal):', reportErr);
+  }
+}
+
 export async function handler(event: WriterEvent): Promise<WriterResult> {
   const { mediaId, status, processedS3Key, rejectionReason } = event;
 
@@ -153,6 +554,7 @@ export async function handler(event: WriterEvent): Promise<WriterResult> {
   try {
     const client = await getMongoClient();
     const db = client.db(MONGODB_DB_NAME);
+    await ensureReportIdempotencyIndex(db);
     const collection = db.collection(MEDIA_UPLOADS_COLLECTION);
 
     const cdnUrl =
@@ -237,133 +639,53 @@ export async function handler(event: WriterEvent): Promise<WriterResult> {
       }
     }
 
-    // Create an automated platform report when content is rejected
-    if (status === 'rejected' && rejectionReason) {
-      const scanHashForReport = (mediaDoc as Record<string, unknown>).scanHash as
-        | string
-        | undefined;
-      const idempotencyKey = `rekog:${mediaId}`;
+    const hasCsamMatches = Boolean(event.csamMatches && event.csamMatches.length > 0);
 
-      try {
-        const reportsCollection = db.collection(PLATFORM_REPORTS_COLLECTION);
-        const existing = await reportsCollection.findOne({ idempotencyKey });
-        if (existing) {
-          const existingId =
-            (existing as { _id?: { toHexString(): string } })._id?.toHexString?.() ??
-            String((existing as { _id?: unknown })._id);
-          logModerationEvent({
-            event: 'automated_report_deduped',
-            mediaId,
-            scanHash: scanHashForReport,
-            status,
-            rejectionReason,
-            idempotencyKey,
-            reportAction: 'deduped_skip',
-            reportId: existingId,
-          });
-        } else {
-          const identityFromMedia = bsonIdentityToHexString(
-            (mediaDoc as Record<string, unknown>).identityId
-          );
+    if (status === 'rejected' && hasCsamMatches) {
+      await handleCsamRejection(db, mediaDoc as Record<string, unknown>, event);
+    } else if (status === 'rejected' && rejectionReason) {
+      await handleGenericRejectionReport(db, mediaDoc as Record<string, unknown>, event);
+    }
 
-          let targetType: string = 'media_upload';
-          let targetId: string = mediaId;
-          let e2eMatched = false;
-          let identityFromE2e: string | undefined;
+    if (TERMINAL_STATUSES.has(status)) {
+      await expungeUploadIpAddress(collection, mediaId, scanHash, purpose);
+      logModerationEvent({
+        event: 'upload_ip_expunged',
+        mediaId,
+        scanHash,
+        status,
+        purpose,
+      });
+    }
 
-          if (scanHashForReport) {
-            const e2eDoc = await db
-              .collection(E2E_MEDIA_COLLECTION)
-              .findOne({ scanHash: scanHashForReport });
-            if (e2eDoc) {
-              e2eMatched = true;
-              const e2eMediaId = (e2eDoc as Record<string, unknown>).e2eMediaId as
-                | string
-                | undefined;
-              if (e2eMediaId) {
-                targetType = 'e2e_media';
-                targetId = e2eMediaId;
-              }
-              identityFromE2e = bsonIdentityToHexString(
-                (e2eDoc as Record<string, unknown>).identityId
-              );
-            }
-          }
-
-          const targetIdentityId = identityFromMedia ?? identityFromE2e;
-
-          const labelName = rejectionReason.replace(/^content_moderation:\s*/i, '').trim();
-          const category = labelName.toLowerCase().includes('child')
-            ? 'csam'
-            : labelName.toLowerCase().includes('violence')
-              ? 'violence'
-              : 'illegal_content';
-
-          const now = new Date();
-          const insertDoc = {
-            reportType: 'content',
-            source: 'automated_rekognition',
-            status: 'open',
-            category,
-            scopeType: 'platform',
-            targetRef: { type: targetType, id: targetId },
-            targetIdentityId,
-            detectionMetadata: {
-              rejectionReason,
-              mediaId,
-              scanHash: scanHashForReport,
-              e2eMatched,
-            },
-            idempotencyKey,
-            createdAt: now,
-            updatedAt: now,
-          };
-
-          logModerationEvent({
-            event: 'automated_report_insert_attempt',
-            mediaId,
-            scanHash: scanHashForReport,
-            status,
-            rejectionReason,
-            idempotencyKey,
-            targetRefType: targetType,
-            targetRefId: targetId,
-            targetIdentityId,
-            category,
-            e2eMatched,
-          });
-
-          const insertResult = await reportsCollection.insertOne(insertDoc);
-
-          const insertedId = insertResult.insertedId?.toHexString?.() ?? String(insertResult.insertedId);
-          logModerationEvent({
-            event: 'automated_report_created',
-            mediaId,
-            scanHash: scanHashForReport,
-            idempotencyKey,
-            reportAction: 'created',
-            reportId: insertedId,
-            targetRefType: targetType,
-            targetRefId: targetId,
-            targetIdentityId,
-            category,
-            e2eMatched,
-          });
-        }
-      } catch (reportErr) {
-        const err = reportErr as Error;
+    if (
+      purpose === 'conv_scan' &&
+      status === 'ready' &&
+      scanHash &&
+      /^[0-9a-f]{64}$/i.test(scanHash)
+    ) {
+      const openReports = await countOpenHashCheckReportsByScanHash(db, scanHash);
+      if (openReports === 0) {
+        const purge = await purgeConvScanCleartext(
+          db,
+          getS3Client(),
+          MEDIA_BUCKET || undefined,
+          scanHash
+        );
         logModerationEvent({
-          event: 'automated_report_error',
+          event: 'conv_scan_purged_on_ready',
           mediaId,
-          scanHash: scanHashForReport,
-          status,
-          rejectionReason,
-          idempotencyKey,
-          reportAction: 'error',
-          errorName: err.name,
-          errorMessage: err.message,
+          scanHash,
+          s3KeysDeleted: purge.s3KeysDeleted,
+          mongoRowsDeleted: purge.mongoRowsDeleted,
         });
-        console.error('Failed to create platform report (non-fatal):', reportErr);
+      } else {
+        logModerationEvent({
+          event: 'conv_scan_purge_skipped_open_report',
+          mediaId,
+          scanHash,
+          openReports,
+        });
       }
     }
 

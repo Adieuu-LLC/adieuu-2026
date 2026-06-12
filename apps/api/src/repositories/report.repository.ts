@@ -36,6 +36,10 @@ export interface ReportListResult {
   limit: number;
 }
 
+export type NcmecSubmissionFinalizeResult =
+  | { ok: true; ncmecReportId: string; actorId: string; filedAt: Date }
+  | { ok: false; ncmecError: string };
+
 export class ReportRepository extends BaseRepository<ReportDocument> {
   constructor() {
     super(Collections.PLATFORM_REPORTS);
@@ -65,10 +69,10 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
     return await this.findOne({ idempotencyKey: key } as Filter<ReportDocument>);
   }
 
-  /** Open/escalated automated reports still tied to this scan session (evidence not yet released). */
+  /** Open/escalated automated hash-check reports tied to this scan session. */
   async countOpenAutomatedByScanHash(scanHash: string): Promise<number> {
     return await this.count({
-      source: 'automated_rekognition',
+      source: 'automated_hash_check',
       status: { $in: ['open', 'escalated'] },
       'detectionMetadata.scanHash': scanHash,
     } as Filter<ReportDocument>);
@@ -175,6 +179,89 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
     category: string,
   ): Promise<ReportDocument | null> {
     return await this.updateById(reportId, { category } as Partial<ReportDocument>);
+  }
+
+  /** Stale in-flight NCMEC claims older than this may be reclaimed. */
+  static readonly NCMEC_CLAIM_STALE_MS = 15 * 60 * 1000;
+
+  /**
+   * Atomically claim a report for NCMEC submission.
+   * Only one concurrent request can proceed past this point.
+   */
+  async claimNcmecSubmission(
+    reportId: string | ObjectId,
+    _actorId: string,
+  ): Promise<ReportDocument | null> {
+    const objectId = this.toObjectId(reportId);
+    const now = new Date();
+    const staleBefore = new Date(now.getTime() - ReportRepository.NCMEC_CLAIM_STALE_MS);
+
+    const result = await this.collection.findOneAndUpdate(
+      {
+        _id: objectId,
+        status: { $ne: 'closed' },
+        $or: [
+          { ncmecStatus: { $exists: false } },
+          { ncmecStatus: 'failed' },
+          { ncmecStatus: 'claiming', updatedAt: { $lt: staleBefore } },
+        ],
+      },
+      {
+        $set: {
+          ncmecStatus: 'claiming',
+          updatedAt: now,
+        },
+      },
+      { returnDocument: 'after' },
+    );
+
+    return result as ReportDocument | null;
+  }
+
+  /**
+   * Commit NCMEC submission outcome after external CyberTipline call.
+   * Only updates reports still in `claiming` state.
+   */
+  async finalizeNcmecSubmission(
+    reportId: string | ObjectId,
+    result: NcmecSubmissionFinalizeResult,
+  ): Promise<ReportDocument | null> {
+    const objectId = this.toObjectId(reportId);
+    const now = new Date();
+
+    if (result.ok) {
+      const updateResult = await this.collection.findOneAndUpdate(
+        { _id: objectId, ncmecStatus: 'claiming' },
+        {
+          $set: {
+            ncmecStatus: 'submitted',
+            leReportFiled: true,
+            leReportFiledAt: result.filedAt,
+            leReportFiledBy: result.actorId,
+            ncmecReportId: result.ncmecReportId,
+            updatedAt: now,
+          },
+          $addToSet: { tags: 'le_report_filed' },
+          $unset: { ncmecError: '' },
+        },
+        { returnDocument: 'after' },
+      );
+      return updateResult as ReportDocument | null;
+    }
+
+    const updateResult = await this.collection.findOneAndUpdate(
+      { _id: objectId, ncmecStatus: 'claiming' },
+      {
+        $set: {
+          ncmecStatus: 'failed',
+          ncmecError: result.ncmecError,
+          updatedAt: now,
+        },
+        $unset: { ncmecReportId: '' },
+      },
+      { returnDocument: 'after' },
+    );
+    return updateResult as ReportDocument | null;
   }
 
   async ensureIndexes(): Promise<void> {

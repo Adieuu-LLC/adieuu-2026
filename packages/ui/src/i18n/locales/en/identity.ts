@@ -572,6 +572,12 @@ export const identity = {
       saving: 'Saving...',
       deleteTitle: 'Delete custom emoji?',
       deleteDescription: 'This emoji will be permanently deleted. Messages that already contain it will show the shortcode text instead.',
+      done: 'Done',
+      uploadMore: 'Upload More',
+      sortLabel: 'Sort by',
+      sortName: 'Name',
+      sortShortcode: 'Shortcode',
+      sortRecent: 'Recently uploaded',
     },
     // Appearance page (alias-scoped)
     appearance: {

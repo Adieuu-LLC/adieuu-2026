@@ -66,3 +66,5 @@ video-tests/
 
 # Copied from @ffmpeg/core in packages/ui postinstall (large wasm; do not commit)
 packages/ui/public/ffmpeg-core/
+
+scripts/sync-local*

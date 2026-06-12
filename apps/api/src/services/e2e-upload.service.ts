@@ -3,7 +3,7 @@
  *
  * Handles the dual-upload flow for E2E encrypted conversation media:
  * 1. E2E encrypted blob -> dedicated E2E bucket (no processing, no CDN)
- * 2. Cleartext thumbnail scan copy -> existing media bucket (Rekognition moderation)
+ * 2. Cleartext thumbnail scan copy -> existing media bucket (local CSAM hash check)
  *
  * Server-side gating: presigned GETs for E2E media are only issued after the
  * companion scan copy passes moderation (status: 'ready' in media_uploads).
@@ -40,6 +40,7 @@ import {
 } from '../models/media-upload';
 import type { E2EMediaStatus } from '../models/e2e-media';
 import elog from '../utils/adieuuLogger';
+import { sanitizeIpForStorage } from '../utils/sanitize';
 import {
   convScanManifestObjectKey,
   convScanSealObjectKey,
@@ -539,6 +540,7 @@ export interface RequestScanUploadInput {
   contentType: string;
   contentLength: number;
   identityId: string;
+  clientIp?: string;
 }
 
 export interface RequestScanUploadResult {
@@ -670,6 +672,7 @@ export async function requestScanUpload(
       }
     : purposeConfig.processingFlags;
 
+  const uploadIpAddress = sanitizeIpForStorage(input.clientIp);
   await mediaRepo.create({
     mediaId: scanMediaId,
     purpose,
@@ -679,6 +682,7 @@ export async function requestScanUpload(
     status: 'pending',
     processingFlags,
     scanHash: input.scanHash,
+    ...(uploadIpAddress ? { uploadIpAddress } : {}),
   } as Omit<import('../models/media-upload').MediaUploadDocument, '_id' | 'createdAt' | 'updatedAt'>);
 
   elog.info('Scan copy presigned URL generated', {

@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { GlobalWindow } from 'happy-dom';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
+import { setMockTranslate } from '../test/react-i18next-mock';
 
 const T = {
   title: 'identity.e2e.webDeviceChoice.title',
@@ -13,21 +14,17 @@ const T = {
   confirm: 'identity.e2e.webDeviceChoice.confirm',
 } as const;
 
-mock.module('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => {
-      const labels: Record<string, string> = {
-        [T.title]: 'Web device',
-        [T.sharedTitle]: 'Shared option',
-        [T.sharedDesc]: 'Shared description',
-        [T.individualTitle]: 'Individual option',
-        [T.individualDesc]: 'Individual description',
-        [T.confirm]: 'Confirm choice',
-      };
-      return labels[key] ?? key;
-    },
-  }),
-}));
+setMockTranslate((key) => {
+  const labels: Record<string, string> = {
+    [T.title]: 'Web device',
+    [T.sharedTitle]: 'Shared option',
+    [T.sharedDesc]: 'Shared description',
+    [T.individualTitle]: 'Individual option',
+    [T.individualDesc]: 'Individual description',
+    [T.confirm]: 'Confirm choice',
+  };
+  return labels[key] ?? key;
+});
 
 const { WebDeviceChoiceModal } = await import('./WebDeviceChoiceModal');
 

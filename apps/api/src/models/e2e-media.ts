@@ -6,7 +6,7 @@
  * - E2E encrypted blobs are stored in a dedicated S3 bucket with no CDN.
  * - Clients fetch via presigned GET and decrypt locally.
  * - Server-side gating: presigned GETs are only issued after the companion
- *   scan copy (in media_uploads, keyed by scanHash) passes Rekognition
+ *   scan copy (in media_uploads, keyed by scanHash) passes CSAM hash
  *   moderation.
  * - The scanHash is derived as SHA3-256(identityId || e2eMediaId || domain)
  *   so the server can look up moderation status without the scan copy
@@ -36,8 +36,8 @@ export type E2EMediaStatus = 'pending' | 'uploaded' | 'gated' | 'available';
  * Moderation status derived from the companion scan copy.
  *
  * - pending:  scan copy not yet processed
- * - passed:   Rekognition moderation passed
- * - rejected: Rekognition flagged the content
+ * - passed:   hash check passed
+ * - rejected: hash check flagged the content
  * - error:    scan processing failed
  * - skipped:  sender opted out of client-side moderation
  */
@@ -103,7 +103,7 @@ export interface E2EMediaDocument extends BaseDocument {
   /** Moderation status derived from the companion scan copy */
   moderationStatus: ModerationStatus;
 
-  /** Reason for moderation rejection (from Rekognition label) */
+  /** Reason for moderation rejection (from hash check) */
   moderationReason?: string;
 
   /** Whether the uploader chose to preserve EXIF metadata in the E2E version */
@@ -153,19 +153,14 @@ export interface CreateE2EMediaInput {
 }
 
 /**
- * Async moderation result type for future video moderation pipeline.
- * Video moderation uses StartContentModeration + SNS callback rather
- * than the synchronous DetectModerationLabels used for images.
- *
- * TODO: Implement when adding video support — requires SNS topic,
- * Rekognition service role, and an async callback handler.
+ * Async moderation result type reserved for future batch video hash pipelines.
  */
 export interface AsyncModerationResult {
   jobId: string;
   status: 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED';
-  moderationLabels?: Array<{
-    name: string;
-    confidence: number;
-    timestamp?: number;
+  hashMatches?: Array<{
+    source: string;
+    hashType: string;
+    classification: string;
   }>;
 }

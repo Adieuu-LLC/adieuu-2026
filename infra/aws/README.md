@@ -65,7 +65,7 @@ Replace `adieuu-staging-api` with the repository name shown in the AWS console o
 | `vpc_endpoints.tf` | Interface VPC endpoints (ECR, logs, secrets, STS, KMS) + S3 gateway (optional via `enable_vpc_interface_endpoints`) |
 | `alarms.tf` | SNS + CloudWatch alarms (ALB/ECS/ElastiCache) |
 | `atlas_peering.tf` | Optional MongoDB Atlas network container + VPC peering, routes, DNS resolution on the peering |
-| `iam_github_actions_deploy.tf` | GitHub OIDC IAM role (S3/CloudFront + ECR + ECS) for CI deploys; see [github-actions-aws.md](../../docs/deployment/github-actions-aws.md) |
+| `iam_github_actions_deploy.tf` | GitHub OIDC IAM role (S3/CloudFront + ECR + ECS + Lambda) for CI deploys; see [github-actions-aws.md](../../docs/deployment/github-actions-aws.md) |
 | `outputs.tf` | ALB DNS, ECR URLs, subnet IDs, optional Redis endpoint, SNS topic for alarms |
 | `terraform.tfvars.example` | **Committed** — placeholders; commented env/secrets templates (see [ecs-environment.md](../../docs/deployment/ecs-environment.md)) |
 | `terraform.tfvars` | **Local / private** — gitignored |
@@ -73,6 +73,12 @@ Replace `adieuu-staging-api` with the repository name shown in the AWS console o
 ## Backend state
 
 By default Terraform uses **local state** (`terraform.tfstate`) in this directory — suitable for experiments. For teams, configure a **remote S3 backend** with DynamoDB locking in `versions.tf`. Keep state files private.
+
+## Lambda code deploys
+
+Lambda function code (`media-processor`, `media-db-writer`) is deployed automatically via the release CI workflow when source files under `infra/aws/lambda/` change. The workflow runs `package-lambdas.sh --deploy` using the OIDC deploy role. Set `DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU` in GitHub repo variables after `terraform apply` (see [github-actions-aws.md](../../docs/deployment/github-actions-aws.md)).
+
+The **sharp Lambda layer** (`layers/sharp/build.sh`) and **Terraform infrastructure** changes still require manual `terraform apply`.
 
 ## Related documentation
 

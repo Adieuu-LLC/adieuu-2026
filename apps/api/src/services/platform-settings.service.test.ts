@@ -43,6 +43,7 @@ mock.module('../db/redis', () => ({
 import {
   coercePlatformSettingValue,
   ensureAuthAllowlistPlatformSettingsExist,
+  ensureCsamHashServicesPlatformSettingExists,
   isAuthIdentifierAllowed,
   mergeUpsertPlatformSettingDescription,
   sanitizePlatformSettingValueAfterCoerce,
@@ -310,6 +311,110 @@ describe('ensureAuthAllowlistPlatformSettingsExist', () => {
 
     await ensureAuthAllowlistPlatformSettingsExist('admin-user-id');
 
+    expect(mockUpsertByKey).not.toHaveBeenCalled();
+  });
+});
+
+describe('CSAM hash services setting', () => {
+  beforeEach(() => {
+    mockFindByKey.mockReset();
+    mockUpsertByKey.mockReset();
+    mockUpsertByKey.mockImplementation(() =>
+      Promise.resolve({
+        _id: new ObjectId(),
+        key: PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES,
+        description: '',
+        valueType: 'stringArray',
+        value: ['arachnid_shield'],
+        lastUpdatedBy: 'system',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+    );
+  });
+
+  test('sanitizes CSAM hash services: keeps only valid values', () => {
+    const input = ['ncmec', 'arachnid_shield', 'invalid_source', 'malicious'];
+    const coerced = coercePlatformSettingValue('stringArray', input);
+    const out = sanitizePlatformSettingValueAfterCoerce(
+      PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES,
+      'stringArray',
+      coerced,
+    ) as string[];
+    expect(out).toEqual(['ncmec', 'arachnid_shield']);
+  });
+
+  test('sanitizes CSAM hash services: normalizes case and whitespace', () => {
+    const input = [' NCMEC ', 'Arachnid_Shield', 'ncmec'];
+    const coerced = coercePlatformSettingValue('stringArray', input);
+    const out = sanitizePlatformSettingValueAfterCoerce(
+      PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES,
+      'stringArray',
+      coerced,
+    ) as string[];
+    expect(out).toEqual(['ncmec', 'arachnid_shield']);
+  });
+
+  test('sanitizes CSAM hash services: strips invalid entries after normalization', () => {
+    const input = ['  invalid  ', 'NCMEC'];
+    const coerced = coercePlatformSettingValue('stringArray', input);
+    const out = sanitizePlatformSettingValueAfterCoerce(
+      PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES,
+      'stringArray',
+      coerced,
+    ) as string[];
+    expect(out).toEqual(['ncmec']);
+  });
+
+  test('sanitizes CSAM hash services: returns empty for all invalid', () => {
+    const input = ['not_a_service', 'also_invalid'];
+    const coerced = coercePlatformSettingValue('stringArray', input);
+    const out = sanitizePlatformSettingValueAfterCoerce(
+      PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES,
+      'stringArray',
+      coerced,
+    ) as string[];
+    expect(out).toEqual([]);
+  });
+
+  test('sanitizes CSAM hash services: accepts empty array', () => {
+    const coerced = coercePlatformSettingValue('stringArray', []);
+    const out = sanitizePlatformSettingValueAfterCoerce(
+      PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES,
+      'stringArray',
+      coerced,
+    ) as string[];
+    expect(out).toEqual([]);
+  });
+
+  test('ensureCsamHashServicesPlatformSettingExists creates setting when missing', async () => {
+    mockFindByKey.mockResolvedValue(null);
+    await ensureCsamHashServicesPlatformSettingExists();
+    expect(mockUpsertByKey).toHaveBeenCalledTimes(1);
+    expect(mockUpsertByKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES,
+        description: 'Active CSAM hash-checking services (default: arachnid_shield)',
+        valueType: 'stringArray',
+        value: ['arachnid_shield'],
+        lastUpdatedBy: 'system',
+      }),
+    );
+  });
+
+  test('ensureCsamHashServicesPlatformSettingExists skips when setting exists', async () => {
+    mockFindByKey.mockResolvedValue({
+      _id: new ObjectId(),
+      key: PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES,
+      description: 'existing',
+      valueType: 'stringArray',
+      value: ['ncmec'],
+      lastUpdatedBy: 'admin',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await ensureCsamHashServicesPlatformSettingExists();
     expect(mockUpsertByKey).not.toHaveBeenCalled();
   });
 });

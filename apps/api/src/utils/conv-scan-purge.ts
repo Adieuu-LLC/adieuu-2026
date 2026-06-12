@@ -23,7 +23,7 @@ export type PurgeConvScanOptions = {
   s3Client: S3Client;
   mediaBucket: string | undefined;
   /**
-   * When true, skip if an open/escalated automated Rekognition report still references
+   * When true, skip if an open/escalated automated hash-check report still references
    * this scanHash (preserves evidence for moderators).
    */
   skipIfOpenModerationReports?: boolean;

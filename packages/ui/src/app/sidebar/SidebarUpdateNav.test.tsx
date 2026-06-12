@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 // Importing the shared mock guarantees it is registered even if Bun's preload
 // ordering means another test file is processed first.
 import { resetReactRouterDomMock } from '../../test/react-router-dom-mock';
+import { setMockTranslate } from '../../test/react-i18next-mock';
 
 let mockContext: {
   status: string;
@@ -23,20 +24,16 @@ mock.module('../../components/Sidebar', () => ({
   useSidebar: () => ({ closeMobile }),
 }));
 
-mock.module('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string) => {
-      const map: Record<string, string> = {
-        'sidebar.update.available': 'Update Available',
-        'sidebar.update.downloading': 'Downloading Update',
-        'sidebar.update.install': 'Install Update',
-        'sidebar.update.refreshWeb': 'Refresh to Update',
-        'sidebar.update.error': 'Update issue',
-      };
-      return map[key] ?? key;
-    },
-  }),
-}));
+setMockTranslate((key) => {
+  const map: Record<string, string> = {
+    'sidebar.update.available': 'Update Available',
+    'sidebar.update.downloading': 'Downloading Update',
+    'sidebar.update.install': 'Install Update',
+    'sidebar.update.refreshWeb': 'Refresh to Update',
+    'sidebar.update.error': 'Update issue',
+  };
+  return map[key] ?? key;
+});
 
 mock.module('../../icons/Icon', () => ({
   Icon: ({ name }: { name: string }) => <span data-testid={`icon-${name}`} />,

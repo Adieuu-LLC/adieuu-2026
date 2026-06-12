@@ -232,6 +232,8 @@ function sanitizePlainSettingString(key: string, raw: string): string {
   return sanitizeString(raw, 'general').value;
 }
 
+const VALID_CSAM_HASH_SERVICES = new Set(['ncmec', 'arachnid_shield']);
+
 function sanitizeSettingStringArray(key: string, arr: string[]): string[] {
   if (key === PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_EMAIL || key === PLATFORM_SETTING_KEYS.AUTH_ALLOWLIST_PHONE) {
     return arr;
@@ -244,6 +246,16 @@ function sanitizeSettingStringArray(key: string, arr: string[]): string[] {
   }
   if (key === PLATFORM_SETTING_KEYS.GEOFENCE_LAW_LINKS) {
     return arr.map((row) => sanitizeLawLinkRow(row));
+  }
+  if (key === PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES) {
+    const normalized: string[] = [];
+    for (const s of arr) {
+      const v = String(s).trim().toLowerCase();
+      if (VALID_CSAM_HASH_SERVICES.has(v) && !normalized.includes(v)) {
+        normalized.push(v);
+      }
+    }
+    return normalized;
   }
   return arr.map((s) => sanitizeString(s, 'general').value);
 }
@@ -447,4 +459,25 @@ export async function ensureAgeVerificationPlatformSettingsExist(): Promise<void
 
     elog.info('Created default age verification setting', { key: def.key });
   }
+}
+
+/**
+ * Ensures the CSAM hash services setting exists with arachnid_shield as the default.
+ * Idempotent -- safe to call on every startup.
+ */
+export async function ensureCsamHashServicesPlatformSettingExists(): Promise<void> {
+  const repo = getPlatformSettingsRepository();
+  const key = PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES;
+  const existing = await repo.findByKey(key);
+  if (existing) return;
+
+  await upsertPlatformSetting({
+    key,
+    description: 'Active CSAM hash-checking services (default: arachnid_shield)',
+    valueType: 'stringArray',
+    value: ['arachnid_shield'],
+    lastUpdatedBy: PLATFORM_SETTING_BOOTSTRAP_ACTOR,
+  });
+
+  elog.info('Created default CSAM hash services setting', { key });
 }

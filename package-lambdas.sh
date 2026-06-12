@@ -34,7 +34,6 @@ LOCK_FILE="$ROOT/pnpm-lock.yaml"
 LAMBDA_RELPATHS=(
   "infra/aws/lambda/media-db-writer"
   "infra/aws/lambda/media-processor"
-  "infra/aws/lambda/media-video-moderation-complete"
 )
 
 FORCE=0

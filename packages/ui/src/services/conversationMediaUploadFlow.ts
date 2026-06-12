@@ -31,7 +31,7 @@ export interface MediaUploadResult {
 
 /**
  * Cleartext payload for the moderation scan upload.
- * Images: thumbnail JPEG. Video: composite JPEG grid of sampled frames (image Rekognition path).
+ * Images: thumbnail JPEG. Video: composite JPEG grid of sampled frames for hash checking.
  */
 export type ModerationScanPayload = {
   body: Blob;
@@ -242,7 +242,7 @@ export async function uploadE2EMediaOnly(
 }
 
 /**
- * Upload cleartext scan copy for Rekognition (JPEG thumbnail for images, JPEG frame grid for video).
+ * Upload cleartext scan copy for local hash moderation (JPEG thumbnail or frame grid).
  * Pass multiple parts for a multi-part scan session; all parts are completed then the session is sealed.
  * Run after message send so it cannot delay send.
  */

@@ -6,8 +6,8 @@
 #
 # Conversation media uses a dual-upload approach for E2E privacy with content moderation:
 #   1. E2E encrypted media goes to a separate bucket (aws_s3_bucket.e2e_media) — no Lambda, no CDN
-#   2. A cleartext thumbnail (scan copy) goes to uploads/conv_scan/ in this bucket for Rekognition.
-#      The media-processor deletes the raw object after moderation and does not retain processed/
+#   2. A cleartext thumbnail (scan copy) goes to uploads/conv_scan/ in this bucket for CSAM hash checks.
+#      The media-processor deletes the raw object after checks and does not retain processed/
 #      assets for conv_scan. The expire-stale-uploads rule (uploads/) and
 #      expire-conv-scan-processed-legacy (processed/conv_scan/) are safety nets for stragglers.
 #
@@ -329,6 +329,44 @@ resource "aws_iam_role_policy" "ecs_task_media" {
 }
 
 # ---------------------------------------------------------------------------
+# ECS task role: read CSAM evidence for CyberTipline uploads + secrets access
+# ---------------------------------------------------------------------------
+
+resource "aws_secretsmanager_secret" "cybertipline_credentials" {
+  count = local.media_enabled ? 1 : 0
+
+  name        = "${local.name_prefix}-cybertipline-credentials"
+  description = "NCMEC CyberTipline API credentials and ESP reporter info"
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "ecs_task_cybertipline" {
+  count = local.media_enabled ? 1 : 0
+
+  name = "${local.name_prefix}-ecs-task-cybertipline"
+  role = aws_iam_role.ecs_task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "CsamEvidenceRead"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = "${aws_s3_bucket.csam_evidence[0].arn}/*"
+      },
+      {
+        Sid      = "CyberTiplineSecrets"
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = [aws_secretsmanager_secret.cybertipline_credentials[0].arn]
+      },
+    ]
+  })
+}
+
+# ---------------------------------------------------------------------------
 # Lambda layer: sharp (image processing native binaries for linux-x64)
 # ---------------------------------------------------------------------------
 
@@ -414,6 +452,23 @@ resource "aws_iam_role_policy" "media_processor" {
           Resource = "${aws_s3_bucket.media[0].arn}/processed/*"
         },
         {
+          Sid    = "S3WriteEvidence"
+          Effect = "Allow"
+          Action = [
+            "s3:PutObject",
+            "s3:PutObjectTagging",
+          ]
+          Resource = "${aws_s3_bucket.csam_evidence[0].arn}/csam-evidence/*"
+        },
+        {
+          Sid    = "DynamoDBNcmecHashLookup"
+          Effect = "Allow"
+          Action = [
+            "dynamodb:GetItem",
+          ]
+          Resource = aws_dynamodb_table.ncmec_hashes[0].arn
+        },
+        {
           Sid    = "SQSConsume"
           Effect = "Allow"
           Action = [
@@ -442,15 +497,14 @@ resource "aws_iam_role_policy" "media_processor" {
           Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
         },
       ],
-      var.enable_media_content_moderation ? [
+      length(trimspace(var.arachnid_shield_secret_arn)) > 0 ? [
         {
-          Sid    = "RekognitionModeration"
+          Sid    = "SecretsManagerArachnidShield"
           Effect = "Allow"
           Action = [
-            "rekognition:DetectModerationLabels",
-            "rekognition:StartContentModeration",
+            "secretsmanager:GetSecretValue",
           ]
-          Resource = "*"
+          Resource = var.arachnid_shield_secret_arn
         },
       ] : [],
     )
@@ -475,15 +529,14 @@ resource "aws_lambda_function" "media_processor" {
   environment {
     variables = merge(
       {
-        MEDIA_BUCKET            = aws_s3_bucket.media[0].id
-        CONTENT_MODERATION      = var.enable_media_content_moderation ? "true" : "false"
-        MODERATION_CONFIDENCE   = tostring(var.media_moderation_confidence_threshold)
-        DB_WRITER_FUNCTION_NAME = aws_lambda_function.media_db_writer[0].function_name
+        MEDIA_BUCKET                 = aws_s3_bucket.media[0].id
+        DB_WRITER_FUNCTION_NAME      = aws_lambda_function.media_db_writer[0].function_name
+        NCMEC_HASH_TABLE             = aws_dynamodb_table.ncmec_hashes[0].name
+        EVIDENCE_BUCKET              = aws_s3_bucket.csam_evidence[0].id
         ALLOW_LEGACY_CONV_SCAN_VIDEO = var.allow_legacy_conv_scan_video_moderation ? "true" : "false"
       },
-      local.media_enabled && var.enable_media_content_moderation ? {
-        REKOGNITION_NOTIFICATION_ROLE_ARN = aws_iam_role.rekognition_video_sns_publish[0].arn
-        REKOGNITION_NOTIFICATION_SNS_TOPIC_ARN = aws_sns_topic.rekognition_video_moderation[0].arn
+      length(trimspace(var.arachnid_shield_secret_arn)) > 0 ? {
+        ARACHNID_SECRET_ARN = var.arachnid_shield_secret_arn
       } : {},
     )
   }
@@ -499,8 +552,8 @@ resource "aws_lambda_function" "media_processor" {
 # Lambda: media DB writer (updates media_uploads in MongoDB Atlas)
 #
 # Runs inside the VPC to reach Atlas via VPC peering. The media processor
-# Lambda invokes this synchronously after processing. This Lambda has NO
-# S3 access — only Secrets Manager (for the MongoDB URI) and MongoDB.
+# Lambda invokes this synchronously after processing. Has MongoDB + optional
+# S3 conv_scan purge (after clean hash-check pass); no broad media bucket write.
 # ---------------------------------------------------------------------------
 
 resource "aws_iam_role" "media_db_writer" {
@@ -562,6 +615,23 @@ resource "aws_iam_role_policy" "media_db_writer" {
           ]
           Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
         },
+        {
+          Sid      = "S3ListConvScanPrefixes"
+          Effect   = "Allow"
+          Action   = ["s3:ListBucket"]
+          Resource = aws_s3_bucket.media[0].arn
+          Condition = {
+            StringLike = {
+              "s3:prefix" = ["uploads/conv_scan/*"]
+            }
+          }
+        },
+        {
+          Sid    = "S3DeleteConvScan"
+          Effect = "Allow"
+          Action = ["s3:DeleteObject"]
+          Resource = "${aws_s3_bucket.media[0].arn}/uploads/conv_scan/*"
+        },
       ],
       length(trimspace(var.media_db_mongodb_secret_kms_key_arn)) > 0 ? [
         {
@@ -596,6 +666,7 @@ resource "aws_lambda_function" "media_db_writer" {
       MONGODB_SECRET_KEY = var.media_db_mongodb_secret_key
       MONGODB_DB_NAME    = var.media_db_mongodb_db_name
       MEDIA_CDN_URL      = "https://${var.media_domain_name}"
+      MEDIA_BUCKET       = aws_s3_bucket.media[0].id
     }
   }
 
@@ -650,9 +721,9 @@ resource "aws_sqs_queue" "media_uploads" {
   count = local.media_enabled ? 1 : 0
 
   name                       = "${local.name_prefix}-media-uploads"
-  visibility_timeout_seconds = 360 # 6x Lambda timeout (60s) per AWS best practice
+  visibility_timeout_seconds = 360   # 6x Lambda timeout (60s) per AWS best practice
   message_retention_seconds  = 86400 # 1 day
-  receive_wait_time_seconds  = 20 # long polling
+  receive_wait_time_seconds  = 20    # long polling
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.media_uploads_dlq[0].arn
@@ -713,182 +784,185 @@ resource "aws_lambda_event_source_mapping" "media_uploads" {
 }
 
 # ---------------------------------------------------------------------------
-# Rekognition Video: SNS topic + async completion Lambda
-#
-# Topic name must start with "AmazonRekognition" (Rekognition service requirement).
+# CSAM evidence bucket: isolated, encrypted, no public access, law enforcement hold
+# 105-day lifecycle (90 days legal requirement + 15 days buffer)
 # ---------------------------------------------------------------------------
 
-resource "aws_sns_topic" "rekognition_video_moderation" {
-  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+resource "aws_s3_bucket" "csam_evidence" {
+  count = local.media_enabled ? 1 : 0
 
-  name = "AmazonRekognition-${local.name_prefix}-user-video-moderation"
+  bucket = "${local.name_prefix}-csam-evidence-${data.aws_caller_identity.current.account_id}"
 
-  tags = merge(local.common_tags, { Name = "${local.name_prefix}-rekognition-video-moderation" })
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-csam-evidence" })
 }
 
-resource "aws_iam_role" "rekognition_video_sns_publish" {
-  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+resource "aws_s3_bucket_public_access_block" "csam_evidence" {
+  count = local.media_enabled ? 1 : 0
 
-  name = "${local.name_prefix}-rekognition-sns-publish-video"
+  bucket = aws_s3_bucket.csam_evidence[0].id
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "rekognition.amazonaws.com"
-        }
-        Action = "sts:AssumeRole"
-      },
-    ]
-  })
-
-  tags = local.common_tags
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
-resource "aws_iam_role_policy" "rekognition_video_sns_publish" {
-  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+resource "aws_s3_bucket_versioning" "csam_evidence" {
+  count = local.media_enabled ? 1 : 0
 
-  name = "rekognition-sns-publish"
-  role = aws_iam_role.rekognition_video_sns_publish[0].id
+  bucket = aws_s3_bucket.csam_evidence[0].id
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "sns:Publish",
-        ]
-        Resource = aws_sns_topic.rekognition_video_moderation[0].arn
-      },
-    ]
-  })
+  versioning_configuration {
+    status = "Enabled"
+  }
 }
 
-resource "aws_iam_role" "media_video_moderation_complete" {
-  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+resource "aws_s3_bucket_server_side_encryption_configuration" "csam_evidence" {
+  count = local.media_enabled ? 1 : 0
 
-  name = "${local.name_prefix}-media-video-moderation-complete"
+  bucket = aws_s3_bucket.csam_evidence[0].id
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "lambda.amazonaws.com"
-        }
-      },
-    ]
-  })
-
-  tags = local.common_tags
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+    bucket_key_enabled = true
+  }
 }
 
-resource "aws_iam_role_policy" "media_video_moderation_complete" {
-  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+resource "aws_s3_bucket" "csam_evidence_access_logs" {
+  count = local.media_enabled ? 1 : 0
 
-  name = "media-video-moderation-complete"
-  role = aws_iam_role.media_video_moderation_complete[0].id
+  bucket = "${local.name_prefix}-csam-evidence-logs-${data.aws_caller_identity.current.account_id}"
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "RekognitionReadResults"
-        Effect = "Allow"
-        Action = [
-          "rekognition:GetContentModeration",
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "S3DeleteScanUpload"
-        Effect = "Allow"
-        Action = [
-          "s3:DeleteObject",
-        ]
-        Resource = "${aws_s3_bucket.media[0].arn}/uploads/conv_scan/*"
-      },
-      {
-        Sid    = "InvokeDbWriter"
-        Effect = "Allow"
-        Action = [
-          "lambda:InvokeFunction",
-        ]
-        Resource = aws_lambda_function.media_db_writer[0].arn
-      },
-      {
-        Sid    = "CloudWatchLogs"
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents",
-        ]
-        Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
-      },
-    ]
-  })
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-csam-evidence-logs" })
 }
 
-resource "aws_lambda_function" "media_video_moderation_complete" {
-  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+resource "aws_s3_bucket_public_access_block" "csam_evidence_access_logs" {
+  count = local.media_enabled ? 1 : 0
 
-  function_name = "${local.name_prefix}-media-video-moderation-complete"
-  role          = aws_iam_role.media_video_moderation_complete[0].arn
-  handler       = "index.handler"
-  runtime       = "nodejs20.x"
-  timeout       = 120
-  memory_size   = 512
+  bucket = aws_s3_bucket.csam_evidence_access_logs[0].id
 
-  filename         = "${path.module}/../lambda/media-video-moderation-complete/dist/function.zip"
-  source_code_hash = fileexists("${path.module}/../lambda/media-video-moderation-complete/dist/function.zip") ? filebase64sha256("${path.module}/../lambda/media-video-moderation-complete/dist/function.zip") : null
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
 
-  reserved_concurrent_executions = var.media_video_completion_lambda_reserved_concurrency
+resource "aws_s3_bucket_lifecycle_configuration" "csam_evidence_access_logs" {
+  count = local.media_enabled ? 1 : 0
 
-  environment {
-    variables = {
-      MEDIA_BUCKET            = aws_s3_bucket.media[0].id
-      MODERATION_CONFIDENCE   = tostring(var.media_moderation_confidence_threshold)
-      DB_WRITER_FUNCTION_NAME = aws_lambda_function.media_db_writer[0].function_name
+  bucket = aws_s3_bucket.csam_evidence_access_logs[0].id
+
+  rule {
+    id     = "expire-access-logs"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = 365
     }
   }
 
-  tags = local.common_tags
+  rule {
+    id     = "abort-incomplete-multipart"
+    status = "Enabled"
 
-  depends_on = [
-    aws_iam_role_policy.media_video_moderation_complete[0],
-  ]
+    filter {}
 
-  lifecycle {
-    ignore_changes = [filename, source_code_hash]
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
   }
 }
 
-resource "aws_lambda_permission" "media_video_moderation_sns" {
-  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+resource "aws_s3_bucket_logging" "csam_evidence" {
+  count = local.media_enabled ? 1 : 0
 
-  statement_id  = "AllowSNSInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.media_video_moderation_complete[0].function_name
-  principal     = "sns.amazonaws.com"
-  source_arn    = aws_sns_topic.rekognition_video_moderation[0].arn
+  bucket = aws_s3_bucket.csam_evidence[0].id
+
+  target_bucket = aws_s3_bucket.csam_evidence_access_logs[0].id
+  target_prefix = "evidence-access/"
 }
 
-resource "aws_sns_topic_subscription" "rekognition_video_to_lambda" {
-  count = local.media_enabled && var.enable_media_content_moderation ? 1 : 0
+resource "aws_s3_bucket_lifecycle_configuration" "csam_evidence" {
+  count = local.media_enabled ? 1 : 0
 
-  topic_arn = aws_sns_topic.rekognition_video_moderation[0].arn
-  protocol  = "lambda"
-  endpoint  = aws_lambda_function.media_video_moderation_complete[0].arn
+  bucket = aws_s3_bucket.csam_evidence[0].id
 
-  depends_on = [
-    aws_lambda_permission.media_video_moderation_sns,
-  ]
+  rule {
+    id     = "evidence-retention"
+    status = "Enabled"
+
+    filter {
+      prefix = "csam-evidence/"
+    }
+
+    expiration {
+      days = 105
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 105
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-multipart"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+}
+
+# ---------------------------------------------------------------------------
+# DynamoDB: NCMEC hash table (MD5/SHA1 exact-match lookups)
+# ---------------------------------------------------------------------------
+
+resource "aws_dynamodb_table" "ncmec_hashes" {
+  count = local.media_enabled ? 1 : 0
+
+  name         = "${local.name_prefix}-ncmec-hashes"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "hashValue"
+  range_key    = "hashType"
+
+  attribute {
+    name = "hashValue"
+    type = "S"
+  }
+
+  attribute {
+    name = "hashType"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  tags = merge(local.common_tags, { Name = "${local.name_prefix}-ncmec-hashes" })
+}
+
+# ---------------------------------------------------------------------------
+# Secrets Manager references for CSAM hash checking APIs
+# These secrets are created manually (or via CI) with the actual credentials.
+# Terraform only references the ARNs for IAM grants.
+# ---------------------------------------------------------------------------
+
+variable "arachnid_shield_secret_arn" {
+  type        = string
+  description = "ARN of the Secrets Manager secret containing Arachnid Shield API credentials (JSON: {username, password}). Leave empty to disable Arachnid tier."
+  default     = ""
 }
 
 # ---------------------------------------------------------------------------
@@ -897,7 +971,7 @@ resource "aws_sns_topic_subscription" "rekognition_video_to_lambda" {
 # Stores E2E encrypted media blobs uploaded via presigned PUT. Clients fetch
 # via presigned GET and decrypt locally. No Lambda processing, no CloudFront.
 # Access is gated server-side: presigned GETs are only issued after the
-# companion scan copy passes Rekognition moderation.
+# companion scan copy passes CSAM hash checks.
 # ---------------------------------------------------------------------------
 
 resource "aws_s3_bucket" "e2e_media" {

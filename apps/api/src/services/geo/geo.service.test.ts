@@ -132,6 +132,36 @@ describe('resolveJurisdiction', () => {
     expect(mockRedisSet).toHaveBeenCalled();
   });
 
+  test('preserves explicit false privacy flags from IPLocate', async () => {
+    mockLookupIp.mockImplementation(() =>
+      Promise.resolve({
+        countryCode: 'US',
+        subdivisionName: 'Tennessee',
+        privacy: { isAnonymous: false, isAbuser: false },
+      }),
+    );
+
+    const result = await resolveJurisdiction('1.2.3.4');
+    expect(result).toEqual({
+      jurisdiction: 'US-TN',
+      countryCode: 'US',
+      regionCode: 'TN',
+      isAnonymous: false,
+      isAbuser: false,
+    });
+  });
+
+  test('omits privacy flags when IPLocate returns no privacy object', async () => {
+    mockLookupIp.mockImplementation(() =>
+      Promise.resolve({ countryCode: 'US', subdivisionName: 'Tennessee' }),
+    );
+
+    const result = await resolveJurisdiction('1.2.3.4');
+    expect(result).toEqual({ jurisdiction: 'US-TN', countryCode: 'US', regionCode: 'TN' });
+    expect(result?.isAnonymous).toBeUndefined();
+    expect(result?.isAbuser).toBeUndefined();
+  });
+
   test('sets negative cache when IPLocate returns null', async () => {
     mockLookupIp.mockImplementation(() => Promise.resolve(null));
 

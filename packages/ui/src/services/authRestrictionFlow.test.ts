@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { resolveAccountRestriction } from './authRestrictionFlow';
+import {
+  resolveAccountRestriction,
+  isSilentAccountBan,
+  isOfacSanctionedBan,
+} from './authRestrictionFlow';
 
 describe('resolveAccountRestriction', () => {
   test('returns banned info for ACCOUNT_BANNED', () => {
@@ -36,5 +40,21 @@ describe('resolveAccountRestriction', () => {
   test('handles missing details gracefully', () => {
     const result = resolveAccountRestriction('ACCOUNT_BANNED');
     expect(result).toEqual({ type: 'banned', reason: undefined });
+  });
+
+  test('returns undefined for silent OFAC self-attestation ban', () => {
+    expect(resolveAccountRestriction('ACCOUNT_BANNED', {
+      moderationCategory: 'ofac_self_attestation',
+    })).toBeUndefined();
+  });
+
+  test('isSilentAccountBan identifies self-attestation category', () => {
+    expect(isSilentAccountBan('ofac_self_attestation')).toBe(true);
+    expect(isSilentAccountBan('ofac_sanctioned')).toBe(false);
+  });
+
+  test('isOfacSanctionedBan identifies geo OFAC category', () => {
+    expect(isOfacSanctionedBan('ofac_sanctioned')).toBe(true);
+    expect(isOfacSanctionedBan('spam')).toBe(false);
   });
 });

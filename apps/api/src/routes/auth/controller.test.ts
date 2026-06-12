@@ -1188,6 +1188,19 @@ describe('auth controller', () => {
       expect(mockRedisDel).toHaveBeenCalled();
       expect(mockCreateAccountSession).toHaveBeenCalled();
     });
+
+    test('returns user_not_found when account was deleted before session creation', async () => {
+      mockRedisGet.mockImplementation(() => Promise.resolve(JSON.stringify(pendingLogin)));
+      mockVerifyTotpCode.mockImplementation(() => Promise.resolve({ success: true }));
+      mockFindById.mockImplementation(() => Promise.resolve(null));
+
+      const result = await verifyMfaTotpHandler('valid-token', '123456');
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('user_not_found');
+      }
+      expect(mockCreateAccountSession).not.toHaveBeenCalled();
+    });
   });
 
   describe('verifyMfaWebAuthnHandler', () => {
@@ -1217,6 +1230,19 @@ describe('auth controller', () => {
         expect(result.cookie).toContain('adieuu_session=');
       }
       expect(mockCreateAccountSession).toHaveBeenCalled();
+    });
+
+    test('returns user_not_found when account was deleted before session creation', async () => {
+      mockRedisGet.mockImplementation(() => Promise.resolve(JSON.stringify(pendingLogin)));
+      mockVerifyWebAuthnAuthentication.mockImplementation(() => Promise.resolve({ success: true }));
+      mockFindById.mockImplementation(() => Promise.resolve(null));
+
+      const result = await verifyMfaWebAuthnHandler('valid-token', { id: 'cred' } as never);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe('user_not_found');
+      }
+      expect(mockCreateAccountSession).not.toHaveBeenCalled();
     });
   });
 

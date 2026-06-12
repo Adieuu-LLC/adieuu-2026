@@ -207,7 +207,7 @@ describe('reconcileBillingIfStale (via getSessionHandler)', () => {
       user.billing,
     );
     expect(mockUpdateBilling).toHaveBeenCalledWith(testUserId, freshBilling);
-    expect(result!.subscriptions).toEqual(['access']);
+    expect(result && 'subscriptions' in result && result.subscriptions).toEqual(['access']);
   });
 
   test('Stripe error -> falls back to cached billing', async () => {
@@ -223,7 +223,7 @@ describe('reconcileBillingIfStale (via getSessionHandler)', () => {
 
     const result = await getSessionHandler(makeRequest());
     expect(result).not.toBeNull();
-    expect(result!.subscriptions).toEqual(['access']);
+    expect(result && 'subscriptions' in result && result.subscriptions).toEqual(['access']);
     expect(mockUpdateBilling).not.toHaveBeenCalled();
   });
 
@@ -234,7 +234,7 @@ describe('reconcileBillingIfStale (via getSessionHandler)', () => {
     const result = await getSessionHandler(makeRequest());
     expect(result).not.toBeNull();
     expect(mockDeriveSubscriptionBilling).not.toHaveBeenCalled();
-    expect(result!.subscriptions).toEqual([]);
+    expect(result && 'subscriptions' in result && result.subscriptions).toEqual([]);
   });
 
   test('returns null when no session', async () => {
