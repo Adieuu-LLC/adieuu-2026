@@ -1,8 +1,11 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import type { UserDocument } from '../../models/user';
+import type { VpnAttestationSubmitResult } from '../../services/compliance/compliance-enforcement.service';
 
-const mockSubmitVpnAttestation = mock(async () => ({ ok: true as const, next: 'continue' as const }));
+const mockSubmitVpnAttestation = mock(
+  async (): Promise<VpnAttestationSubmitResult> => ({ ok: true, next: 'continue' }),
+);
 
 mock.module('../../services/compliance/compliance-enforcement.service', () => ({
   submitVpnAttestation: mockSubmitVpnAttestation,

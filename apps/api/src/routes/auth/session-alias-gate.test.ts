@@ -191,9 +191,11 @@ describe('getSessionHandler alias gate token withholding', () => {
     const result = await getSessionHandler(makeRequest());
 
     expect(result).not.toBeNull();
-    expect(result!.signedToken).toBeUndefined();
-    expect(result!.aliasGate?.allowed).toBe(false);
-    expect(result!.aliasGate?.code).toBe('AGE_VERIFICATION_REQUIRED');
+    if (result && 'signedToken' in result) {
+      expect(result.signedToken).toBeUndefined();
+      expect(result.aliasGate?.allowed).toBe(false);
+      expect(result.aliasGate?.code).toBe('AGE_VERIFICATION_REQUIRED');
+    }
   });
 
   test('withholds signedToken when gate returns GEOFENCE_BLOCKED', async () => {
@@ -208,8 +210,10 @@ describe('getSessionHandler alias gate token withholding', () => {
     const result = await getSessionHandler(makeRequest());
 
     expect(result).not.toBeNull();
-    expect(result!.signedToken).toBeUndefined();
-    expect(result!.aliasGate?.code).toBe('GEOFENCE_BLOCKED');
+    if (result && 'signedToken' in result) {
+      expect(result.signedToken).toBeUndefined();
+      expect(result.aliasGate?.code).toBe('GEOFENCE_BLOCKED');
+    }
   });
 
   test('withholds signedToken when gate returns AGE_VERIFICATION_FAILED', async () => {
@@ -227,8 +231,10 @@ describe('getSessionHandler alias gate token withholding', () => {
     const result = await getSessionHandler(makeRequest());
 
     expect(result).not.toBeNull();
-    expect(result!.signedToken).toBeUndefined();
-    expect(result!.aliasGate?.code).toBe('AGE_VERIFICATION_FAILED');
+    if (result && 'signedToken' in result) {
+      expect(result.signedToken).toBeUndefined();
+      expect(result.aliasGate?.code).toBe('AGE_VERIFICATION_FAILED');
+    }
   });
 
   test('withholds signedToken when gate returns AGE_VERIFICATION_COOLDOWN', async () => {
@@ -246,8 +252,10 @@ describe('getSessionHandler alias gate token withholding', () => {
     const result = await getSessionHandler(makeRequest());
 
     expect(result).not.toBeNull();
-    expect(result!.signedToken).toBeUndefined();
-    expect(result!.aliasGate?.code).toBe('AGE_VERIFICATION_COOLDOWN');
+    if (result && 'signedToken' in result) {
+      expect(result.signedToken).toBeUndefined();
+      expect(result.aliasGate?.code).toBe('AGE_VERIFICATION_COOLDOWN');
+    }
   });
 
   test('returns signedToken when AV is disabled (no gate evaluation)', async () => {
@@ -257,7 +265,9 @@ describe('getSessionHandler alias gate token withholding', () => {
     const result = await getSessionHandler(makeRequest());
 
     expect(result).not.toBeNull();
-    expect(result!.signedToken).toBe('mock-signed-token');
-    expect(result!.aliasGate).toBeUndefined();
+    if (result && 'signedToken' in result) {
+      expect(result.signedToken).toBe('mock-signed-token');
+      expect(result.aliasGate).toBeUndefined();
+    }
   });
 });

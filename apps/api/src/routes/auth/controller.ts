@@ -1041,6 +1041,7 @@ export async function getSessionHandler(
     lawUrl?: string;
     leastInvasiveMethod?: string;
     retryAfter?: string;
+    requiredReason?: string;
   } | undefined;
 
   const avEnabled = await isAgeVerificationEnabled();

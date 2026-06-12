@@ -24,7 +24,7 @@ beforeEach(() => {
 
 describe('lookupIp privacy fields', () => {
   test('parses is_anonymous and is_abuser from privacy object', async () => {
-    const result = await lookupIp('8.8.8.8', mockFetch as typeof fetch);
+    const result = await lookupIp('8.8.8.8', mockFetch as unknown as typeof fetch);
     expect(result?.countryCode).toBe('US');
     expect(result?.privacy?.isAnonymous).toBe(true);
     expect(result?.privacy?.isAbuser).toBe(false);
@@ -37,7 +37,7 @@ describe('lookupIp privacy fields', () => {
         json: () => Promise.resolve({ country_code: 'DE' }),
       } as Response),
     );
-    const result = await lookupIp('8.8.8.8', mockFetch as typeof fetch);
+    const result = await lookupIp('8.8.8.8', mockFetch as unknown as typeof fetch);
     expect(result?.privacy).toBeUndefined();
   });
 });

@@ -37,9 +37,13 @@ export async function postVpnAttestationHandler(
     return { ok: false, banned: true, silent: true };
   }
 
-  if (!result.ok) {
+  if (!result.ok && 'reason' in result) {
     return { ok: false, reason: result.reason };
   }
 
-  return { ok: true, next: result.next };
+  if (result.ok) {
+    return { ok: true, next: result.next };
+  }
+
+  return { ok: false, banned: true, silent: true };
 }

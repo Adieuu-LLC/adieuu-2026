@@ -243,7 +243,7 @@ function parseResponseXml(xml: string): CyberTiplineResponse {
   const hash = xml.match(/<hash>(.*?)<\/hash>/);
 
   return {
-    responseCode: code ? parseInt(code[1], 10) : -1,
+    responseCode: code?.[1] ? parseInt(code[1], 10) : -1,
     responseDescription: desc?.[1] ?? 'Unknown',
     reportId: reportId?.[1],
     fileId: fileId?.[1],
@@ -257,11 +257,13 @@ function parseFinishResponseXml(xml: string): CyberTiplineFinishResponse {
   const fileIds: string[] = [];
   const fileIdMatches = xml.matchAll(/<fileId>(.*?)<\/fileId>/g);
   for (const m of fileIdMatches) {
-    fileIds.push(m[1]);
+    if (m[1]) {
+      fileIds.push(m[1]);
+    }
   }
 
   return {
-    responseCode: code ? parseInt(code[1], 10) : -1,
+    responseCode: code?.[1] ? parseInt(code[1], 10) : -1,
     reportId: reportId?.[1] ?? '',
     fileIds,
   };

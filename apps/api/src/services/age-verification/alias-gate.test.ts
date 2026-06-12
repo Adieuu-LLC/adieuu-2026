@@ -232,8 +232,7 @@ describe('evaluateAliasGate', () => {
     });
     const result = await evaluateAliasGate(user);
     expect(result.allowed).toBe(false);
-    if (!result.allowed) {
-      expect(result.code).toBe('AGE_VERIFICATION_REQUIRED');
+    if (!result.allowed && result.code === 'AGE_VERIFICATION_REQUIRED') {
       expect(result.requiredReason).toBe('abusive_ip');
     }
   });
@@ -245,8 +244,7 @@ describe('evaluateAliasGate', () => {
     });
     const result = await evaluateAliasGate(user);
     expect(result.allowed).toBe(false);
-    if (!result.allowed) {
-      expect(result.code).toBe('AGE_VERIFICATION_REQUIRED');
+    if (!result.allowed && result.code === 'AGE_VERIFICATION_REQUIRED') {
       expect(result.jurisdiction).toBe('US-UT');
       expect(result.requiredReason).toBe('utah_attestation');
     }

@@ -225,14 +225,15 @@ export async function evaluateComplianceOnAccess(
   }
 
   const ipHash = hashIpForGeo(ip);
-  if (currentUser.geo?.isAnonymous && !isVpnAttestationComplete(currentUser, ipHash)) {
+  const userGeo = currentUser.geo;
+  if (userGeo?.isAnonymous && !isVpnAttestationComplete(currentUser, ipHash)) {
     const pending = currentUser.compliance?.vpnAttestationPending;
     if (!pending || pending.ipHash !== ipHash) {
       currentUser = await setVpnAttestationPending(
         currentUser,
         ipHash,
         'sanctioned_membership',
-        currentUser.geo.countryCode,
+        userGeo.countryCode,
       );
     }
 
@@ -242,7 +243,7 @@ export async function evaluateComplianceOnAccess(
       user: currentUser,
       step: currentUser.compliance?.vpnAttestationPending?.step ?? 'sanctioned_membership',
       sanctionedCountries,
-      vpnCountryCode: currentUser.geo.countryCode,
+      vpnCountryCode: userGeo.countryCode,
     };
   }
 

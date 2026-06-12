@@ -29,11 +29,13 @@ router.post('/compliance/vpn-attestation', async (ctx) => {
   }
 
   if (!result.ok) {
-    if (result.reason === 'no_pending' || result.reason === 'ip_mismatch') {
-      return errorResponse('COMPLIANCE_ATTESTATION_INVALID', 'No attestation is pending for this session.', 400);
-    }
-    if (result.reason === 'invalid_step') {
-      return errorResponse('COMPLIANCE_ATTESTATION_INVALID', 'Invalid attestation step.', 400);
+    if ('reason' in result) {
+      if (result.reason === 'no_pending' || result.reason === 'ip_mismatch') {
+        return errorResponse('COMPLIANCE_ATTESTATION_INVALID', 'No attestation is pending for this session.', 400);
+      }
+      if (result.reason === 'invalid_step') {
+        return errorResponse('COMPLIANCE_ATTESTATION_INVALID', 'Invalid attestation step.', 400);
+      }
     }
     return errorResponse('VALIDATION_FAILED', 'Invalid request.', 400);
   }
