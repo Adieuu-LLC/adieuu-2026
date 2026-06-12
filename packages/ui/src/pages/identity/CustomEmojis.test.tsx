@@ -148,6 +148,11 @@ describe('IdentityCustomEmojis', () => {
     mockUsed = 0;
     mockRefresh.mockClear();
     mockCreateEmoji.mockClear();
+    mockUploadState = 'idle';
+    mockUploadMediaId = null;
+    mockUploadError = null;
+    mockUpload.mockClear();
+    mockResetUpload.mockClear();
   });
 
   describe('Sorting', () => {
@@ -190,13 +195,6 @@ describe('IdentityCustomEmojis', () => {
       const zebraIdx = html.indexOf('Zebra');
       expect(appleIdx).toBeLessThan(mangoIdx);
       expect(mangoIdx).toBeLessThan(zebraIdx);
-    });
-  });
-
-  describe('Emoji list refresh', () => {
-    test('calls refresh via onCreated callback', () => {
-      const html = renderToStaticMarkup(<IdentityCustomEmojis />);
-      expect(html).toContain('Add Emojis');
     });
   });
 

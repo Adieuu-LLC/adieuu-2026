@@ -48,6 +48,7 @@ const secretsManager = new SecretsManagerClient({});
 
 let cachedMongoUri: string | null = null;
 let cachedMongoClient: MongoClient | null = null;
+let reportIndexesEnsured = false;
 let cachedS3Client: S3Client | null = null;
 
 function getS3Client(): S3Client | null {
@@ -206,6 +207,39 @@ async function getEnabledCsamHashServices(db: import('mongodb').Db): Promise<Set
   return new Set(['ncmec', 'arachnid_shield']);
 }
 
+async function ensureReportIdempotencyIndex(db: import('mongodb').Db): Promise<void> {
+  if (reportIndexesEnsured) return;
+  await db.collection(PLATFORM_REPORTS_COLLECTION).createIndex(
+    { idempotencyKey: 1 },
+    { unique: true, sparse: true },
+  );
+  reportIndexesEnsured = true;
+}
+
+type ReportInsertResult =
+  | { inserted: false }
+  | { inserted: true; reportId: string };
+
+async function insertReportIfNew(
+  reportsCollection: import('mongodb').Collection,
+  idempotencyKey: string,
+  insertDoc: Record<string, unknown>,
+): Promise<ReportInsertResult> {
+  const result = await reportsCollection.updateOne(
+    { idempotencyKey },
+    { $setOnInsert: insertDoc },
+    { upsert: true },
+  );
+  if (result.upsertedCount === 0) {
+    return { inserted: false };
+  }
+  const upsertedId = result.upsertedId;
+  const reportId = upsertedId && typeof upsertedId.toHexString === 'function'
+    ? upsertedId.toHexString()
+    : String(upsertedId);
+  return { inserted: true, reportId };
+}
+
 async function handleCsamRejection(
   db: import('mongodb').Db,
   mediaDoc: Record<string, unknown>,
@@ -257,16 +291,6 @@ async function handleCsamRejection(
   const reportsCollection = db.collection(PLATFORM_REPORTS_COLLECTION);
 
   try {
-    const existing = await reportsCollection.findOne({ idempotencyKey });
-    if (existing) {
-      logModerationEvent({
-        event: 'csam_report_deduped',
-        mediaId,
-        idempotencyKey,
-      });
-      return;
-    }
-
     const matchSummary = activeMatches.map(m => ({
       source: m.source,
       hashType: m.hashType,
@@ -310,8 +334,17 @@ async function handleCsamRejection(
       updatedAt: now,
     };
 
-    const insertResult = await reportsCollection.insertOne(insertDoc);
-    const reportId = insertResult.insertedId?.toHexString?.() ?? String(insertResult.insertedId);
+    const insertResult = await insertReportIfNew(reportsCollection, idempotencyKey, insertDoc);
+    if (!insertResult.inserted) {
+      logModerationEvent({
+        event: 'csam_report_deduped',
+        mediaId,
+        idempotencyKey,
+      });
+      return;
+    }
+
+    const reportId = insertResult.reportId;
 
     logModerationEvent({
       event: 'csam_report_created',
@@ -418,18 +451,6 @@ async function handleGenericRejectionReport(
 
   try {
     const reportsCollection = db.collection(PLATFORM_REPORTS_COLLECTION);
-    const existing = await reportsCollection.findOne({ idempotencyKey });
-    if (existing) {
-      logModerationEvent({
-        event: 'automated_report_deduped',
-        mediaId,
-        scanHash,
-        status,
-        rejectionReason,
-        idempotencyKey,
-      });
-      return;
-    }
 
     const identityFromMedia = bsonIdentityToHexString(mediaDoc.identityId);
     let targetType = 'media_upload';
@@ -474,8 +495,20 @@ async function handleGenericRejectionReport(
       updatedAt: now,
     };
 
-    const insertResult = await reportsCollection.insertOne(insertDoc);
-    const reportId = insertResult.insertedId?.toHexString?.() ?? String(insertResult.insertedId);
+    const insertResult = await insertReportIfNew(reportsCollection, idempotencyKey, insertDoc);
+    if (!insertResult.inserted) {
+      logModerationEvent({
+        event: 'automated_report_deduped',
+        mediaId,
+        scanHash,
+        status,
+        rejectionReason,
+        idempotencyKey,
+      });
+      return;
+    }
+
+    const reportId = insertResult.reportId;
 
     logModerationEvent({
       event: 'automated_report_created',
@@ -521,6 +554,7 @@ export async function handler(event: WriterEvent): Promise<WriterResult> {
   try {
     const client = await getMongoClient();
     const db = client.db(MONGODB_DB_NAME);
+    await ensureReportIdempotencyIndex(db);
     const collection = db.collection(MEDIA_UPLOADS_COLLECTION);
 
     const cdnUrl =

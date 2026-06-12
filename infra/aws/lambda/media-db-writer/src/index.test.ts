@@ -8,6 +8,13 @@ const mockInsertOne = mock(() =>
   Promise.resolve({ insertedId: { toHexString: () => 'report-id-abc' } })
 );
 const mockUpdateOne = mock(() => Promise.resolve({ modifiedCount: 1 }));
+const mockReportsUpdateOne = mock(() =>
+  Promise.resolve({
+    upsertedCount: 1,
+    upsertedId: { toHexString: () => 'report-id-abc' },
+  })
+);
+const mockCreateIndex = mock(() => Promise.resolve('idempotencyKey_1'));
 const mockCountDocuments = mock(() => Promise.resolve(0));
 const mockDeleteMany = mock(() => Promise.resolve({ deletedCount: 0 }));
 const mockEstimatedDocumentCount = mock(() => Promise.resolve(100));
@@ -31,9 +38,12 @@ function createMockCollection(name: string) {
           ? mockUpdateOne
           : name === 'e2e_media'
             ? mockE2eUpdateOne
-            : mock(() => Promise.resolve({ modifiedCount: 0 })),
+            : name === 'platform_reports'
+              ? mockReportsUpdateOne
+              : mock(() => Promise.resolve({ modifiedCount: 0 })),
     findOne: mockFindOne,
     insertOne: name === 'platform_reports' ? mockInsertOne : mock(() => Promise.resolve({ insertedId: null })),
+    createIndex: mockCreateIndex,
     countDocuments: name === 'platform_reports' ? mockCountDocuments : mock(() => Promise.resolve(0)),
     deleteMany: name === 'media_uploads' ? mockDeleteMany : mock(() => Promise.resolve({ deletedCount: 0 })),
     estimatedDocumentCount: mockEstimatedDocumentCount,
@@ -96,6 +106,13 @@ function resetMocks(): void {
   });
   mockUpdateOne.mockReset();
   mockUpdateOne.mockResolvedValue({ modifiedCount: 1 });
+  mockReportsUpdateOne.mockReset();
+  mockReportsUpdateOne.mockResolvedValue({
+    upsertedCount: 1,
+    upsertedId: { toHexString: () => 'report-id-abc' },
+  });
+  mockCreateIndex.mockReset();
+  mockCreateIndex.mockResolvedValue('idempotencyKey_1');
   mockCountDocuments.mockReset();
   mockCountDocuments.mockResolvedValue(0);
   mockDeleteMany.mockReset();
@@ -107,6 +124,13 @@ function resetMocks(): void {
   mockCountOpenHashCheckReportsByScanHash.mockReset();
   mockCountOpenHashCheckReportsByScanHash.mockResolvedValue(0);
   (logModerationEvent as ReturnType<typeof mock>).mockClear();
+}
+
+function reportUpsertDoc(): Record<string, unknown> {
+  const updateCall = mockReportsUpdateOne.mock.calls.at(-1) as unknown[] | undefined;
+  if (!updateCall) throw new Error('No report upsert call');
+  const update = updateCall[1] as { $setOnInsert: Record<string, unknown> };
+  return update.$setOnInsert;
 }
 
 const SCAN_HASH = 'a'.repeat(64);
@@ -167,16 +191,15 @@ describe('CSAM rejection flow', () => {
   });
 
   test('creates internal moderation report with correct fields', async () => {
-    mockFindOne
-      .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
-      .mockResolvedValueOnce(null);
+    mockFindOne.mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] });
 
     const result = await handler(csamEvent({ rejectionReason: 'csam_hash_match: MD5:abc123' }));
 
     expect(result.success).toBe(true);
-    expect(mockInsertOne).toHaveBeenCalled();
+    expect(mockReportsUpdateOne).toHaveBeenCalled();
+    expect(mockInsertOne).not.toHaveBeenCalled();
 
-    const insertedDoc = mockInsertOne.mock.calls[0]![0] as Record<string, unknown>;
+    const insertedDoc = reportUpsertDoc();
     expect(insertedDoc.source).toBe('automated_csam_hash');
     expect(insertedDoc.status).toBe('resolved');
     expect(insertedDoc.category).toBe('csam');
@@ -186,9 +209,7 @@ describe('CSAM rejection flow', () => {
   });
 
   test('bans identity with banned_csam entitlement', async () => {
-    mockFindOne
-      .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
-      .mockResolvedValueOnce(null);
+    mockFindOne.mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] });
 
     await handler(csamEvent());
 
@@ -200,9 +221,7 @@ describe('CSAM rejection flow', () => {
   });
 
   test('logs LE report skipped (CSAM_LE_REPORT_ENABLED is false)', async () => {
-    mockFindOne
-      .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
-      .mockResolvedValueOnce(null);
+    mockFindOne.mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] });
 
     await handler(csamEvent());
 
@@ -224,6 +243,7 @@ describe('CSAM rejection flow', () => {
       ],
     }));
 
+    expect(mockReportsUpdateOne).not.toHaveBeenCalled();
     expect(mockInsertOne).not.toHaveBeenCalled();
     expect(logModerationEvent).toHaveBeenCalledWith(
       expect.objectContaining({ event: 'csam_matches_filtered_out_by_policy' })
@@ -231,13 +251,13 @@ describe('CSAM rejection flow', () => {
   });
 
   test('deduplicates CSAM reports by idempotency key', async () => {
-    mockFindOne
-      .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
-      .mockResolvedValueOnce({ idempotencyKey: 'csam:media-123' });
+    mockFindOne.mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] });
+    mockReportsUpdateOne.mockResolvedValueOnce({ upsertedCount: 0, matchedCount: 1 });
 
     await handler(csamEvent());
 
     expect(mockInsertOne).not.toHaveBeenCalled();
+    expect(mockUpdateOne).not.toHaveBeenCalled();
     expect(logModerationEvent).toHaveBeenCalledWith(
       expect.objectContaining({ event: 'csam_report_deduped' })
     );
@@ -247,9 +267,7 @@ describe('CSAM rejection flow', () => {
     mockFindOneAndUpdate.mockResolvedValue(
       mockMediaDoc({ uploadIpAddress: '198.51.100.42' })
     );
-    mockFindOne
-      .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['arachnid_shield'] })
-      .mockResolvedValueOnce(null);
+    mockFindOne.mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['arachnid_shield'] });
 
     await handler(csamEvent({
       csamMatches: [
@@ -257,7 +275,7 @@ describe('CSAM rejection flow', () => {
       ],
     }));
 
-    const insertedDoc = mockInsertOne.mock.calls[0]![0] as Record<string, unknown>;
+    const insertedDoc = reportUpsertDoc();
     const meta = insertedDoc.detectionMetadata as Record<string, unknown>;
     expect(meta.evidenceBucket).toBe('evidence-bucket');
     expect(meta.evidenceKey).toBe('csam-evidence/media-123/image.jpg');
@@ -265,13 +283,11 @@ describe('CSAM rejection flow', () => {
   });
 
   test('auto-resolves the created report', async () => {
-    mockFindOne
-      .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
-      .mockResolvedValueOnce(null);
+    mockFindOne.mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] });
 
     await handler(csamEvent());
 
-    const insertedDoc = mockInsertOne.mock.calls[0]![0] as Record<string, unknown>;
+    const insertedDoc = reportUpsertDoc();
     expect(insertedDoc.status).toBe('resolved');
     const resolution = insertedDoc.resolution as Record<string, unknown>;
     expect(resolution.action).toBe('identity_banned');
@@ -289,10 +305,29 @@ describe('CSAM rejection flow', () => {
       rejectionReason: 'other_content_violation',
     });
 
-    expect(mockInsertOne).toHaveBeenCalled();
-    const insertedDoc = mockInsertOne.mock.calls[0]![0] as Record<string, unknown>;
+    expect(mockReportsUpdateOne).toHaveBeenCalled();
+    expect(mockInsertOne).not.toHaveBeenCalled();
+    const insertedDoc = reportUpsertDoc();
     expect(insertedDoc.source).toBe('automated_hash_check');
     expect(insertedDoc.status).toBe('open');
+  });
+
+  test('deduplicates generic rejection reports by idempotency key', async () => {
+    mockReportsUpdateOne.mockResolvedValueOnce({ upsertedCount: 0, matchedCount: 1 });
+
+    await handler({
+      mediaId: 'media-123',
+      status: 'rejected',
+      rejectionReason: 'other_content_violation',
+    });
+
+    expect(mockInsertOne).not.toHaveBeenCalled();
+    expect(logModerationEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'automated_report_deduped' })
+    );
+    expect(logModerationEvent).not.toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'automated_report_created' })
+    );
   });
 });
 
@@ -396,7 +431,10 @@ describe('Option E: conv_scan purge on ready', () => {
 });
 
 describe('identity resolution', () => {
-  beforeEach(resetMocks);
+  beforeEach(() => {
+    resetMocks();
+    mockFindOneAndUpdate.mockResolvedValue(mockMediaDoc());
+  });
 
   test('handles BSON ObjectId-like identityId from media doc', async () => {
     const objectIdLike = { toHexString: () => IDENTITY_HEX };
@@ -404,24 +442,22 @@ describe('identity resolution', () => {
       mockMediaDoc({ identityId: objectIdLike })
     );
     mockFindOne
-      .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
-      .mockResolvedValueOnce(null);
+      .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] });
 
     await handler(csamEvent());
 
-    const insertedDoc = mockInsertOne.mock.calls[0]![0] as Record<string, unknown>;
+    const insertedDoc = reportUpsertDoc();
     expect(insertedDoc.targetIdentityId).toBe(IDENTITY_HEX);
   });
 
   test('skips ban when no identity can be resolved', async () => {
     mockFindOneAndUpdate.mockResolvedValue(mockMediaDoc({ identityId: null }));
-    mockFindOne
-      .mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] })
-      .mockResolvedValueOnce(null);
+    mockFindOne.mockResolvedValueOnce({ key: 'platform-csam-hash-services', value: ['ncmec'] });
 
     await handler(csamEvent());
 
-    expect(mockInsertOne).toHaveBeenCalled();
+    expect(mockReportsUpdateOne).toHaveBeenCalled();
+    expect(mockInsertOne).not.toHaveBeenCalled();
     expect(mockUpdateOne).not.toHaveBeenCalled();
   });
 });

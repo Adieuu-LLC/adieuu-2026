@@ -248,7 +248,14 @@ function sanitizeSettingStringArray(key: string, arr: string[]): string[] {
     return arr.map((row) => sanitizeLawLinkRow(row));
   }
   if (key === PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES) {
-    return arr.filter((s) => VALID_CSAM_HASH_SERVICES.has(s));
+    const normalized: string[] = [];
+    for (const s of arr) {
+      const v = String(s).trim().toLowerCase();
+      if (VALID_CSAM_HASH_SERVICES.has(v) && !normalized.includes(v)) {
+        normalized.push(v);
+      }
+    }
+    return normalized;
   }
   return arr.map((s) => sanitizeString(s, 'general').value);
 }

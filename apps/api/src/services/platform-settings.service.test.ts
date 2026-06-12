@@ -344,6 +344,28 @@ describe('CSAM hash services setting', () => {
     expect(out).toEqual(['ncmec', 'arachnid_shield']);
   });
 
+  test('sanitizes CSAM hash services: normalizes case and whitespace', () => {
+    const input = [' NCMEC ', 'Arachnid_Shield', 'ncmec'];
+    const coerced = coercePlatformSettingValue('stringArray', input);
+    const out = sanitizePlatformSettingValueAfterCoerce(
+      PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES,
+      'stringArray',
+      coerced,
+    ) as string[];
+    expect(out).toEqual(['ncmec', 'arachnid_shield']);
+  });
+
+  test('sanitizes CSAM hash services: strips invalid entries after normalization', () => {
+    const input = ['  invalid  ', 'NCMEC'];
+    const coerced = coercePlatformSettingValue('stringArray', input);
+    const out = sanitizePlatformSettingValueAfterCoerce(
+      PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES,
+      'stringArray',
+      coerced,
+    ) as string[];
+    expect(out).toEqual(['ncmec']);
+  });
+
   test('sanitizes CSAM hash services: returns empty for all invalid', () => {
     const input = ['not_a_service', 'also_invalid'];
     const coerced = coercePlatformSettingValue('stringArray', input);
