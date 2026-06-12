@@ -15,6 +15,7 @@ export type ReportType = (typeof REPORT_TYPES)[number];
 export const REPORT_SOURCES = [
   'automated_hash_check',
   'automated_csam_hash',
+  'automated_rekognition',
   'manual_user',
 ] as const;
 export type ReportSource = (typeof REPORT_SOURCES)[number];

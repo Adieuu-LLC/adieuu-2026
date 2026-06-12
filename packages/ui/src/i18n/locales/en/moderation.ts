@@ -33,6 +33,8 @@ export const moderation = {
       },
       sourceAutoHashCheck: 'Auto (hash check)',
       sourceAutoCsamHash: 'Auto (CSAM hash)',
+      sourceAutoRekognition: 'Auto (Rekognition)',
+      sourceUnknown: 'Unknown source',
       sourceManual: 'User Report',
       category: {
         csam: 'CSAM',

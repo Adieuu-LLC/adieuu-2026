@@ -1,23 +1,44 @@
 export type ReportType = 'content' | 'abuse';
+
+export const REPORT_SOURCE_VALUES = [
+  'automated_hash_check',
+  'automated_csam_hash',
+  'automated_rekognition',
+  'manual_user',
+] as const;
+
 export type ReportSource =
-  | 'automated_hash_check'
-  | 'automated_csam_hash'
-  | 'manual_user';
+  | (typeof REPORT_SOURCE_VALUES)[number]
+  | 'unknown';
+
+export type ReportSourceI18nKey =
+  | 'sourceManual'
+  | 'sourceAutoHashCheck'
+  | 'sourceAutoCsamHash'
+  | 'sourceAutoRekognition'
+  | 'sourceUnknown';
+
+/** Coerce API/DB source strings to a known ReportSource; unknown inputs become `unknown`. */
+export function normalizeReportSource(source: string): ReportSource {
+  if ((REPORT_SOURCE_VALUES as readonly string[]).includes(source)) {
+    return source as ReportSource;
+  }
+  return 'unknown';
+}
 
 /** i18n key under `moderation.reports` for a report source label. */
-export function getReportSourceI18nKey(
-  source: string
-): 'sourceManual' | 'sourceAutoHashCheck' | 'sourceAutoCsamHash' {
-  switch (source) {
+export function getReportSourceI18nKey(source: string): ReportSourceI18nKey {
+  switch (normalizeReportSource(source)) {
     case 'manual_user':
       return 'sourceManual';
     case 'automated_csam_hash':
       return 'sourceAutoCsamHash';
     case 'automated_hash_check':
+      return 'sourceAutoHashCheck';
     case 'automated_rekognition':
-      return 'sourceAutoHashCheck';
-    default:
-      return 'sourceAutoHashCheck';
+      return 'sourceAutoRekognition';
+    case 'unknown':
+      return 'sourceUnknown';
   }
 }
 export type ModerationReportStatus = 'open' | 'escalated' | 'resolved' | 'closed';

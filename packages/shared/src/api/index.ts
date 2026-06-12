@@ -156,8 +156,11 @@ export {
 
 export {
   getReportSourceI18nKey,
+  normalizeReportSource,
+  REPORT_SOURCE_VALUES,
   type ReportType,
   type ReportSource,
+  type ReportSourceI18nKey,
   type ModerationReportStatus,
   type ReportCategory,
   type ReportTargetRef,
