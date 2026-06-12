@@ -216,23 +216,33 @@ export function ReportDetail() {
   const handleFileLeReport = async (category: LeReportCategory, notes?: string) => {
     if (!id) return;
     setLeReportLoading(true);
-    const res = await api.moderation.fileLeReport(id, { category, notes });
-    setLeReportLoading(false);
-    if (!res.success) return;
+    try {
+      const res = await api.moderation.fileLeReport(id, { category, notes });
+      if (!res.success) {
+        toast.error(res.error?.message ?? t('moderation.detail.leReportSubmitFailed'));
+        return;
+      }
 
-    const filed = res.data;
-    if (filed?.ncmecStatus === 'submitted') {
-      toast.success(t('moderation.detail.leReportSuccess'));
-      setShowLeReport(false);
-    } else {
-      const detail = filed?.ncmecError?.trim();
+      const filed = res.data;
+      if (filed?.ncmecStatus === 'submitted') {
+        toast.success(t('moderation.detail.leReportSuccess'));
+        setShowLeReport(false);
+      } else {
+        const detail = filed?.ncmecError?.trim();
+        toast.error(
+          detail
+            ? `${t('moderation.detail.leReportSubmitFailed')} ${detail}`
+            : t('moderation.detail.leReportSubmitFailed'),
+        );
+      }
+    } catch (err) {
       toast.error(
-        detail
-          ? `${t('moderation.detail.leReportSubmitFailed')} ${detail}`
-          : t('moderation.detail.leReportSubmitFailed'),
+        err instanceof Error ? err.message : t('moderation.detail.leReportSubmitFailed'),
       );
+    } finally {
+      setLeReportLoading(false);
+      await load();
     }
-    await load();
   };
 
   const handleEscalate = async () => {

@@ -13,7 +13,7 @@ mock.module('@aws-sdk/client-dynamodb', () => ({
   },
 }));
 
-import { checkNcmecHashes, checkArachnidShield } from './csam-hash-check';
+import { checkNcmecHashes, checkArachnidShield, computePdqHash } from './csam-hash-check';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 
 afterAll(() => mock.restore());
@@ -351,5 +351,60 @@ describe('checkArachnidShield', () => {
 
     expect(hashes).toHaveLength(2);
     expect(hashes[0]).toBe(hashes[1]);
+  });
+
+  test('throws on fetch timeout', async () => {
+    const prevTimeout = process.env.ARACHNID_FETCH_TIMEOUT_MS;
+    process.env.ARACHNID_FETCH_TIMEOUT_MS = '50';
+
+    const mockFetch = mock((_url: string | URL | Request, init?: RequestInit) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
+        });
+      });
+    });
+    globalThis.fetch = mockFetch as typeof fetch;
+
+    try {
+      const img = await createTestImage();
+      await expect(checkArachnidShield(img, credentials)).rejects.toThrow(
+        'Arachnid Shield request timed out after 50ms'
+      );
+    } finally {
+      if (prevTimeout === undefined) {
+        delete process.env.ARACHNID_FETCH_TIMEOUT_MS;
+      } else {
+        process.env.ARACHNID_FETCH_TIMEOUT_MS = prevTimeout;
+      }
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+
+describe('computePdqHash', () => {
+  test('distinguishes uniform images by brightness (includes DC coefficient)', async () => {
+    const dark = new Uint8Array(
+      await sharp({
+        create: { width: 64, height: 64, channels: 3, background: { r: 20, g: 20, b: 20 } },
+      })
+        .png()
+        .toBuffer()
+    );
+    const light = new Uint8Array(
+      await sharp({
+        create: { width: 64, height: 64, channels: 3, background: { r: 220, g: 220, b: 220 } },
+      })
+        .png()
+        .toBuffer()
+    );
+
+    const darkHash = await computePdqHash(dark);
+    const lightHash = await computePdqHash(light);
+
+    expect(darkHash).not.toBeNull();
+    expect(lightHash).not.toBeNull();
+    expect(darkHash).not.toBe(lightHash);
+    expect(Buffer.from(darkHash!, 'base64').length).toBe(32);
   });
 });

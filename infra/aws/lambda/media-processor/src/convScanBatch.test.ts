@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { CsamMatch } from './csam-types';
 import type { ConvScanSealBatchDeps } from './convScanBatch';
+import { NO_CSAM_PROVIDERS_ERROR } from './run-csam-hash-checks';
 
 const mockS3Send = mock(() => Promise.resolve({}));
 
@@ -223,6 +224,29 @@ describe('processConvScanSealBatch', () => {
     );
   });
 
+  test('marks failed when no CSAM providers are configured', async () => {
+    const images = [
+      { key: TEST_IMAGE_KEY, contentType: 'image/jpeg' },
+    ];
+
+    const deps = createMockDeps({
+      runCsamHashChecks: mock(() => Promise.reject(new Error(NO_CSAM_PROVIDERS_ERROR))),
+    });
+    setupS3ListAndHead(images);
+    await processConvScanSealBatch(deps);
+
+    expect(deps.logProcessorEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'csam_hash_check_fatal',
+        error: NO_CSAM_PROVIDERS_ERROR,
+      })
+    );
+    expect(deps.invokeDbWriter).toHaveBeenCalledWith(
+      TEST_MEDIA_ID, 'failed', undefined, undefined,
+      { purpose: 'conv_scan', s3Key: TEST_SEAL_KEY }
+    );
+  });
+
   test('allows legacy video through when flag is default (true)', async () => {
     const videos = [
       { key: `uploads/conv_scan/${TEST_SCAN_HASH}/video.mp4`, contentType: 'video/mp4' },
@@ -260,7 +284,7 @@ describe('processConvScanSealBatch', () => {
     );
   });
 
-  test('marks ready when no moderable objects found', async () => {
+  test('marks failed when no moderable objects found', async () => {
     const nonMedia = [
       { key: `uploads/conv_scan/${TEST_SCAN_HASH}/data.json`, contentType: 'application/json' },
     ];

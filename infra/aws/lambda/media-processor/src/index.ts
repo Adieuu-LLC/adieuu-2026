@@ -40,7 +40,7 @@ import {
   parseNestedConvScanScanHashFromKey,
   processConvScanSealBatch,
 } from './convScanBatch';
-import { checkNcmecHashes, checkArachnidShield } from './csam-hash-check';
+import { runCsamHashChecks as runCsamHashChecksImpl } from './run-csam-hash-checks';
 import type { CsamMatch } from './csam-types';
 
 const s3 = new S3Client({});
@@ -193,32 +193,20 @@ async function runCsamHashChecks(
   mediaId: string,
   key: string,
 ): Promise<CsamMatch[]> {
-  const allMatches: CsamMatch[] = [];
-
-  if (NCMEC_HASH_TABLE) {
-    try {
-      const ncmecMatches = await checkNcmecHashes(imageBytes, NCMEC_HASH_TABLE, dynamodb);
-      allMatches.push(...ncmecMatches);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logProcessorEvent({ event: 'ncmec_hash_check_error', mediaId, s3Key: key, error: message });
-      console.error('NCMEC hash check error:', err);
-    }
-  }
-
   const arachnidCreds = await getArachnidCredentials();
-  if (arachnidCreds) {
-    try {
-      const arachnidMatches = await checkArachnidShield(imageBytes, arachnidCreds);
-      allMatches.push(...arachnidMatches);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+  return runCsamHashChecksImpl(imageBytes, {
+    ncmecHashTable: NCMEC_HASH_TABLE,
+    arachnidCreds,
+    dynamodb,
+    onNcmecError: (message) => {
+      logProcessorEvent({ event: 'ncmec_hash_check_error', mediaId, s3Key: key, error: message });
+      console.error('NCMEC hash check error:', message);
+    },
+    onArachnidError: (message) => {
       logProcessorEvent({ event: 'arachnid_hash_check_error', mediaId, s3Key: key, error: message });
-      console.error('Arachnid Shield hash check error:', err);
-    }
-  }
-
-  return allMatches;
+      console.error('Arachnid Shield hash check error:', message);
+    },
+  });
 }
 
 /**

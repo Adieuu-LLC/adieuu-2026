@@ -369,6 +369,15 @@ describe('CSAM hash services setting', () => {
     mockFindByKey.mockResolvedValue(null);
     await ensureCsamHashServicesPlatformSettingExists();
     expect(mockUpsertByKey).toHaveBeenCalledTimes(1);
+    expect(mockUpsertByKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: PLATFORM_SETTING_KEYS.CSAM_HASH_SERVICES,
+        description: 'Active CSAM hash-checking services (default: arachnid_shield)',
+        valueType: 'stringArray',
+        value: ['arachnid_shield'],
+        lastUpdatedBy: 'system',
+      }),
+    );
   });
 
   test('ensureCsamHashServicesPlatformSettingExists skips when setting exists', async () => {

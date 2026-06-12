@@ -23,6 +23,16 @@ interface ArachnidCredentials {
 }
 
 const ARACHNID_API_BASE = 'https://shield.projectarachnid.com/v1';
+const DEFAULT_ARACHNID_FETCH_TIMEOUT_MS = 10_000;
+
+function getArachnidFetchTimeoutMs(): number {
+  const configured = process.env.ARACHNID_FETCH_TIMEOUT_MS;
+  if (configured === undefined || configured.trim() === '') {
+    return DEFAULT_ARACHNID_FETCH_TIMEOUT_MS;
+  }
+  const parsed = Number(configured);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_ARACHNID_FETCH_TIMEOUT_MS;
+}
 
 /**
  * Tier 1: check MD5 and SHA1 against the local NCMEC hash table in DynamoDB.
@@ -110,14 +120,29 @@ export async function checkArachnidShield(
     `${credentials.username}:${credentials.password}`
   ).toString('base64');
 
-  const response = await fetch(`${ARACHNID_API_BASE}/pdq`, {
-    method: 'POST',
-    headers: {
-      'Authorization': authHeader,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify([pdqHash]),
-  });
+  const timeoutMs = getArachnidFetchTimeoutMs();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(`${ARACHNID_API_BASE}/pdq`, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([pdqHash]),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`Arachnid Shield request timed out after ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     throw new Error(
@@ -154,7 +179,7 @@ export async function checkArachnidShield(
  *
  * Returns base64-encoded 32-byte hash, or null if the image cannot be processed.
  */
-async function computePdqHash(imageBytes: Uint8Array): Promise<string | null> {
+export async function computePdqHash(imageBytes: Uint8Array): Promise<string | null> {
   try {
     const sharp = (await import('sharp')).default;
 
@@ -179,7 +204,6 @@ async function computePdqHash(imageBytes: Uint8Array): Promise<string | null> {
     let bitIndex = 0;
     for (let i = 0; i < 16; i++) {
       for (let j = 0; j < 16; j++) {
-        if (i === 0 && j === 0) continue;
         if (bitIndex >= 256) break;
         const val = dctMatrix[i * 64 + j]!;
         if (val > median) {
@@ -234,7 +258,6 @@ function computeMedian(dctMatrix: Float64Array, N: number): number {
   const values: number[] = [];
   for (let i = 0; i < 16; i++) {
     for (let j = 0; j < 16; j++) {
-      if (i === 0 && j === 0) continue;
       values.push(dctMatrix[i * N + j]!);
     }
   }

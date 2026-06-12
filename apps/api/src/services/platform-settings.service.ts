@@ -455,7 +455,7 @@ export async function ensureAgeVerificationPlatformSettingsExist(): Promise<void
 }
 
 /**
- * Ensures the CSAM hash services setting exists with a default of both sources enabled.
+ * Ensures the CSAM hash services setting exists with arachnid_shield as the default.
  * Idempotent -- safe to call on every startup.
  */
 export async function ensureCsamHashServicesPlatformSettingExists(): Promise<void> {
@@ -466,7 +466,7 @@ export async function ensureCsamHashServicesPlatformSettingExists(): Promise<voi
 
   await upsertPlatformSetting({
     key,
-    description: 'Active CSAM hash-checking services (ncmec, arachnid_shield)',
+    description: 'Active CSAM hash-checking services (default: arachnid_shield)',
     valueType: 'stringArray',
     value: ['arachnid_shield'],
     lastUpdatedBy: PLATFORM_SETTING_BOOTSTRAP_ACTOR,
