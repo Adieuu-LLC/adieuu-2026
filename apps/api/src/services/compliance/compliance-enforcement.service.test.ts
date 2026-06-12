@@ -85,6 +85,7 @@ beforeEach(() => {
   mockBanAccount.mockClear();
   mockRevokeAll.mockClear();
   mockUpdateAge.mockClear();
+  mockUpdateCompliance.mockClear();
   mockRefreshGeo.mockClear();
   mockSendNotification.mockClear();
 });

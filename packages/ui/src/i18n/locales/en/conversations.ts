@@ -37,7 +37,7 @@ export const conversations = {
     composerAttachmentUploading: 'Uploading',
     /** Composer attachment chip while moderation scan runs (after upload completes). */
     composerAttachmentModerating: 'Moderating',
-    mediaRejected: 'This content has been removed  (auto-moderation)',
+    mediaRejected: 'This content has been removed (auto-moderation)',
     mediaModerationError: 'This content could not be verified and has been hidden for safety',
     mediaError: 'Failed to load media',
     expandMedia: 'Click to expand',

@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(path.join(root, 'apps/desktop/package.json'));
@@ -55,8 +55,22 @@ function runInstallScript(electronDir) {
   return result.status === 0;
 }
 
+export function getElectronCacheRoot() {
+  if (process.env.XDG_CACHE_HOME) {
+    return path.join(process.env.XDG_CACHE_HOME, 'electron');
+  }
+  switch (process.platform) {
+    case 'darwin':
+      return path.join(os.homedir(), 'Library', 'Caches', 'electron');
+    case 'win32':
+      return path.join(process.env.LOCALAPPDATA || os.homedir(), 'electron', 'Cache');
+    default:
+      return path.join(os.homedir(), '.cache', 'electron');
+  }
+}
+
 function findCachedZip(version) {
-  const cacheRoot = path.join(os.homedir(), '.cache', 'electron');
+  const cacheRoot = getElectronCacheRoot();
   if (!fs.existsSync(cacheRoot)) {
     return null;
   }
@@ -72,16 +86,29 @@ function findCachedZip(version) {
   return null;
 }
 
-function extractWithUnzip(electronDir, zipPath) {
+function extractFromZip(electronDir, zipPath) {
   const distDir = path.join(electronDir, 'dist');
   fs.rmSync(distDir, { recursive: true, force: true });
   fs.mkdirSync(distDir, { recursive: true });
 
-  const result = spawnSync('unzip', ['-q', '-o', zipPath, '-d', distDir], {
-    stdio: 'inherit',
-  });
+  const result =
+    process.platform === 'win32'
+      ? spawnSync(
+          'powershell',
+          [
+            '-NoProfile',
+            '-Command',
+            `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${distDir.replace(/'/g, "''")}' -Force`,
+          ],
+          { stdio: 'inherit' },
+        )
+      : spawnSync('unzip', ['-q', '-o', zipPath, '-d', distDir], {
+          stdio: 'inherit',
+        });
+
   if (result.status !== 0) {
-    throw new Error(`unzip failed with exit code ${result.status ?? 'unknown'}`);
+    const tool = process.platform === 'win32' ? 'Expand-Archive' : 'unzip';
+    throw new Error(`${tool} failed with exit code ${result.status ?? 'unknown'}`);
   }
 
   fs.writeFileSync(path.join(electronDir, 'path.txt'), platformPath());
@@ -104,17 +131,23 @@ function main() {
   if (!zipPath) {
     throw new Error(
       'Electron binary is missing. Re-run pnpm install, then retry. ' +
-        'If the problem persists, clear ~/.cache/electron and install again.',
+        `If the problem persists, clear ${getElectronCacheRoot()} and install again.`,
     );
   }
 
-  extractWithUnzip(electronDir, zipPath);
+  extractFromZip(electronDir, zipPath);
 
   if (!isReady(electronDir)) {
-    throw new Error('Electron binary is still missing after unzip fallback.');
+    throw new Error('Electron binary is still missing after cache extract fallback.');
   }
 
   console.log(`[ensure-electron] Installed Electron ${version} from cache`);
 }
 
-main();
+const isDirectRun =
+  process.argv[1] &&
+  pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
+
+if (isDirectRun) {
+  main();
+}

@@ -26,6 +26,7 @@ const result = spawnSync(electronVite, ['dev'], {
   cwd: desktopDir,
   env,
   stdio: 'inherit',
+  shell: true,
 });
 
 process.exit(result.status ?? 1);

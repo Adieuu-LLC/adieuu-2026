@@ -113,8 +113,8 @@ export async function resolveJurisdiction(
     jurisdiction: result.jurisdiction,
     countryCode: result.countryCode,
     regionCode: result.regionCode,
-    isAnonymous: raw.privacy?.isAnonymous || undefined,
-    isAbuser: raw.privacy?.isAbuser || undefined,
+    isAnonymous: raw.privacy?.isAnonymous ?? undefined,
+    isAbuser: raw.privacy?.isAbuser ?? undefined,
   };
 
   if (isRedisConnected()) {

@@ -21,7 +21,6 @@ export async function sendAbusiveIpAccessNotification(user: UserDocument): Promi
         html: template.html,
       });
       elog.info('Abusive IP access notification email sent', { userId: user._id.toHexString() });
-      return;
     }
 
     if (user.phone && user.phoneVerified) {

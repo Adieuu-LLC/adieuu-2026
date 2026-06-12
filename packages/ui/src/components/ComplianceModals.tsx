@@ -35,11 +35,13 @@ export function ComplianceModals() {
           onComplete={handleVpnComplete}
         />
       )}
-      <AbusiveIpModal
-        open={!!abusiveIpNotice}
-        message={abusiveIpNotice ?? undefined}
-        onAcknowledge={clearAbusiveIpNotice}
-      />
+      {!vpnAttestation?.required && (
+        <AbusiveIpModal
+          open={!!abusiveIpNotice}
+          message={abusiveIpNotice ?? undefined}
+          onAcknowledge={clearAbusiveIpNotice}
+        />
+      )}
     </>
   );
 }
