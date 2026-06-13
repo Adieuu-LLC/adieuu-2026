@@ -234,13 +234,6 @@ export class SupportTicketRepository extends BaseRepository<SupportTicketDocumen
     const result = await this.collection.aggregate<{ count: number }>(pipeline).toArray();
     return result[0]?.count ?? 0;
   }
-
-  async ensureIndexes(): Promise<void> {
-    await this.collection.createIndex({ ticketId: 1 }, { unique: true });
-    await this.collection.createIndex({ status: 1, createdAt: -1 });
-    await this.collection.createIndex({ assignedTo: 1, status: 1 });
-    await this.collection.createIndex({ submitterType: 1, submitterId: 1, createdAt: -1 });
-  }
 }
 
 let supportTicketRepository: SupportTicketRepository | null = null;

@@ -263,19 +263,6 @@ export class ReportRepository extends BaseRepository<ReportDocument> {
     );
     return updateResult as ReportDocument | null;
   }
-
-  async ensureIndexes(): Promise<void> {
-    await this.collection.createIndex({ status: 1, createdAt: -1 });
-    await this.collection.createIndex({ assignedTo: 1, status: 1 });
-    await this.collection.createIndex({ idempotencyKey: 1 }, { unique: true, sparse: true });
-    await this.collection.createIndex({ scopeType: 1, scopeId: 1, status: 1 });
-    await this.collection.createIndex({ targetIdentityId: 1, createdAt: -1 });
-    await this.collection.createIndex({ reporterIdentityId: 1, createdAt: -1 });
-    await this.collection.createIndex(
-      { 'detectionMetadata.scanHash': 1, status: 1 },
-      { sparse: true }
-    );
-  }
 }
 
 let reportRepository: ReportRepository | null = null;

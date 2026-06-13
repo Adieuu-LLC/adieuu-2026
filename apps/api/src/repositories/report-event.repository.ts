@@ -43,10 +43,6 @@ export class ReportEventRepository extends BaseRepository<ReportEventDocument> {
       .sort({ createdAt: 1 })
       .toArray() as ReportEventDocument[];
   }
-
-  async ensureIndexes(): Promise<void> {
-    await this.collection.createIndex({ reportId: 1, createdAt: 1 });
-  }
 }
 
 let reportEventRepository: ReportEventRepository | null = null;

@@ -52,6 +52,7 @@ export {
   disconnectMongo,
   initializeCollections,
   ensureCriticalCollections,
+  createIndexes,
   Collections,
   type MongoHealthResult,
   type CollectionName,
@@ -70,7 +71,7 @@ export {
   type RedisKeyGenerators,
 } from './redis';
 
-import { connectMongo, disconnectMongo, initializeCollections, ensureCriticalCollections } from './mongo';
+import { connectMongo, disconnectMongo, initializeCollections, ensureCriticalCollections, createIndexes } from './mongo';
 import { connectRedis, disconnectRedis } from './redis';
 import { config } from '../config';
 import elog from '../utils/adieuuLogger';
@@ -116,6 +117,9 @@ export async function initializeDatabases(): Promise<void> {
 
     // Always ensure collections required for transactional writes exist.
     await ensureCriticalCollections();
+
+    // Indexes are idempotent — ensure they exist even when INITIALIZE_COLLECTIONS is false.
+    await createIndexes();
 
     // Initialize all remaining collections if configured
     if (config.features.initializeCollections) {
