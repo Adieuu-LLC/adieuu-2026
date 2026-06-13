@@ -439,6 +439,113 @@
   word-break: break-all;
 }
 
+.admin-av-jurisdictions-accordion {
+  border: 1px solid var(--color-border-subtle, var(--color-border));
+  border-radius: var(--radius-md);
+  overflow: hidden;
+
+  &__trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: var(--spacing-md);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text);
+    font-weight: var(--font-weight-medium);
+    font-size: var(--font-size-sm);
+    text-align: left;
+    gap: var(--spacing-md);
+
+    &:hover,
+    &:focus-visible {
+      color: var(--color-accent-primary);
+    }
+  }
+
+  &__indicator {
+    display: flex;
+    align-items: center;
+    transition: transform 0.2s ease;
+
+    [data-state='open'] & {
+      transform: rotate(180deg);
+    }
+  }
+
+  &__content {
+    padding: 0 var(--spacing-md) var(--spacing-md);
+  }
+
+  &__loading {
+    display: flex;
+    justify-content: center;
+    padding: var(--spacing-md) 0;
+  }
+
+  &__error {
+    margin: 0;
+    color: var(--color-danger, #c62828);
+  }
+}
+
+.admin-av-jurisdictions-list {
+  &__region {
+    margin-bottom: var(--spacing-md);
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  &__region-title {
+    margin: 0 0 var(--spacing-xs);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  &__items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  &__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) 0;
+    font-size: var(--font-size-sm);
+    border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  &__name {
+    font-weight: var(--font-weight-medium);
+  }
+
+  &__code {
+    color: var(--color-text-secondary);
+  }
+
+  &__badge {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border-subtle, var(--color-border));
+    border-radius: var(--radius-sm);
+    padding: 0 var(--spacing-xs);
+  }
+}
+
 .admin-stale {
   color: var(--color-text-secondary);
   font-style: italic;

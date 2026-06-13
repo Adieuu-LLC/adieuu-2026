@@ -324,6 +324,11 @@ export {
   type JurisdictionRequirementStatus,
 } from '../geo/jurisdiction-types';
 export { expandedJurisdictionCodesForRequirements, type GeoSessionSlice } from '../geo/jurisdiction-lookup';
+export {
+  mergeEffectiveAvJurisdictions,
+  type AvJurisdictionSource,
+  type EffectiveAvJurisdiction,
+} from '../geo/effective-age-verification-jurisdictions';
 
 export {
   ChatClient,
