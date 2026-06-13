@@ -329,22 +329,14 @@ resource "aws_iam_role_policy" "ecs_task_media" {
 }
 
 # ---------------------------------------------------------------------------
-# ECS task role: read CSAM evidence for CyberTipline uploads + secrets access
+# ECS task role: read CSAM evidence for CyberTipline uploads
+# CyberTipline API credentials live in adieuu/prod/api (api_container_secrets).
 # ---------------------------------------------------------------------------
 
-resource "aws_secretsmanager_secret" "cybertipline_credentials" {
+resource "aws_iam_role_policy" "ecs_task_csam_evidence" {
   count = local.media_enabled ? 1 : 0
 
-  name        = "${local.name_prefix}-cybertipline-credentials"
-  description = "NCMEC CyberTipline API credentials and ESP reporter info"
-
-  tags = local.common_tags
-}
-
-resource "aws_iam_role_policy" "ecs_task_cybertipline" {
-  count = local.media_enabled ? 1 : 0
-
-  name = "${local.name_prefix}-ecs-task-cybertipline"
+  name = "${local.name_prefix}-ecs-task-csam-evidence"
   role = aws_iam_role.ecs_task.id
 
   policy = jsonencode({
@@ -355,12 +347,6 @@ resource "aws_iam_role_policy" "ecs_task_cybertipline" {
         Effect   = "Allow"
         Action   = ["s3:GetObject"]
         Resource = "${aws_s3_bucket.csam_evidence[0].arn}/*"
-      },
-      {
-        Sid      = "CyberTiplineSecrets"
-        Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue"]
-        Resource = [aws_secretsmanager_secret.cybertipline_credentials[0].arn]
       },
     ]
   })
@@ -374,10 +360,10 @@ resource "aws_lambda_layer_version" "sharp" {
   count = local.media_enabled ? 1 : 0
 
   layer_name          = "${local.name_prefix}-sharp"
-  description         = "sharp image processing library for nodejs20.x linux-x64"
+  description         = "sharp image processing library for nodejs24.x linux-x64"
   filename            = "${path.module}/../lambda/layers/sharp/sharp-layer.zip"
   source_code_hash    = fileexists("${path.module}/../lambda/layers/sharp/sharp-layer.zip") ? filebase64sha256("${path.module}/../lambda/layers/sharp/sharp-layer.zip") : null
-  compatible_runtimes = ["nodejs20.x"]
+  compatible_runtimes = ["nodejs24.x"]
 
   lifecycle {
     ignore_changes = [filename, source_code_hash]
@@ -385,7 +371,7 @@ resource "aws_lambda_layer_version" "sharp" {
 }
 
 # ---------------------------------------------------------------------------
-# Lambda: image processor (EXIF strip, resize, content moderation)
+# Lambda: image processor (EXIF strip, resize, CSAM hash checks)
 # ---------------------------------------------------------------------------
 
 resource "aws_iam_role" "media_processor" {
@@ -494,17 +480,25 @@ resource "aws_iam_role_policy" "media_processor" {
             "logs:CreateLogStream",
             "logs:PutLogEvents",
           ]
-          Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
+          Resource = "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:*"
         },
-      ],
-      length(trimspace(var.arachnid_shield_secret_arn)) > 0 ? [
         {
-          Sid    = "SecretsManagerArachnidShield"
+          Sid    = "SecretsManagerMediaCredentials"
           Effect = "Allow"
           Action = [
             "secretsmanager:GetSecretValue",
           ]
-          Resource = var.arachnid_shield_secret_arn
+          Resource = var.media_db_mongodb_secret_arn
+        },
+      ],
+      length(trimspace(var.media_db_mongodb_secret_kms_key_arn)) > 0 ? [
+        {
+          Sid    = "KMSDecrypt"
+          Effect = "Allow"
+          Action = [
+            "kms:Decrypt",
+          ]
+          Resource = var.media_db_mongodb_secret_kms_key_arn
         },
       ] : [],
     )
@@ -517,7 +511,7 @@ resource "aws_lambda_function" "media_processor" {
   function_name = "${local.name_prefix}-media-processor"
   role          = aws_iam_role.media_processor[0].arn
   handler       = "index.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs24.x"
   timeout       = 120
   memory_size   = 1024
 
@@ -527,24 +521,22 @@ resource "aws_lambda_function" "media_processor" {
   layers = [aws_lambda_layer_version.sharp[0].arn]
 
   environment {
-    variables = merge(
-      {
-        MEDIA_BUCKET                 = aws_s3_bucket.media[0].id
-        DB_WRITER_FUNCTION_NAME      = aws_lambda_function.media_db_writer[0].function_name
-        NCMEC_HASH_TABLE             = aws_dynamodb_table.ncmec_hashes[0].name
-        EVIDENCE_BUCKET              = aws_s3_bucket.csam_evidence[0].id
-        ALLOW_LEGACY_CONV_SCAN_VIDEO = var.allow_legacy_conv_scan_video_moderation ? "true" : "false"
-      },
-      length(trimspace(var.arachnid_shield_secret_arn)) > 0 ? {
-        ARACHNID_SECRET_ARN = var.arachnid_shield_secret_arn
-      } : {},
-    )
+    variables = {
+      MEDIA_BUCKET                 = aws_s3_bucket.media[0].id
+      DB_WRITER_FUNCTION_NAME      = aws_lambda_function.media_db_writer[0].function_name
+      NCMEC_HASH_TABLE             = aws_dynamodb_table.ncmec_hashes[0].name
+      EVIDENCE_BUCKET              = aws_s3_bucket.csam_evidence[0].id
+      ALLOW_LEGACY_CONV_SCAN_VIDEO = var.allow_legacy_conv_scan_video_moderation ? "true" : "false"
+      MEDIA_CREDENTIALS_SECRET_ARN = var.media_db_mongodb_secret_arn
+      ARACHNID_USERNAME_KEY        = var.media_credentials_arachnid_username_key
+      ARACHNID_PASSWORD_KEY        = var.media_credentials_arachnid_password_key
+    }
   }
 
   tags = local.common_tags
 
   lifecycle {
-    ignore_changes = [filename, source_code_hash]
+    ignore_changes = [filename, source_code_hash, layers]
   }
 }
 
@@ -613,7 +605,7 @@ resource "aws_iam_role_policy" "media_db_writer" {
             "logs:CreateLogStream",
             "logs:PutLogEvents",
           ]
-          Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
+          Resource = "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:*"
         },
         {
           Sid      = "S3ListConvScanPrefixes"
@@ -653,7 +645,7 @@ resource "aws_lambda_function" "media_db_writer" {
   function_name = "${local.name_prefix}-media-db-writer"
   role          = aws_iam_role.media_db_writer[0].arn
   handler       = "index.handler"
-  runtime       = "nodejs20.x"
+  runtime       = "nodejs24.x"
   timeout       = 15
   memory_size   = 256
 
@@ -951,18 +943,6 @@ resource "aws_dynamodb_table" "ncmec_hashes" {
   }
 
   tags = merge(local.common_tags, { Name = "${local.name_prefix}-ncmec-hashes" })
-}
-
-# ---------------------------------------------------------------------------
-# Secrets Manager references for CSAM hash checking APIs
-# These secrets are created manually (or via CI) with the actual credentials.
-# Terraform only references the ARNs for IAM grants.
-# ---------------------------------------------------------------------------
-
-variable "arachnid_shield_secret_arn" {
-  type        = string
-  description = "ARN of the Secrets Manager secret containing Arachnid Shield API credentials (JSON: {username, password}). Leave empty to disable Arachnid tier."
-  default     = ""
 }
 
 # ---------------------------------------------------------------------------

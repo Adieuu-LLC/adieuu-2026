@@ -10,6 +10,7 @@ out/
 
 # Local Lambda repackage fingerprint cache (see package-lambdas.sh)
 .lambda-package-fingerprints
+.sharp-layer-package-fingerprint
 
 # Turborepo
 .turbo/

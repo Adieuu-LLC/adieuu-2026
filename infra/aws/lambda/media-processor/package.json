@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.mjs --format=esm --external:@aws-sdk/* --external:sharp",
-    "package": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.mjs --format=esm --external:@aws-sdk/* --external:sharp && cd dist && zip function.zip index.mjs",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node24 --outfile=dist/index.mjs --format=esm --external:@aws-sdk/* --external:sharp",
+    "package": "esbuild src/index.ts --bundle --platform=node --target=node24 --outfile=dist/index.mjs --format=esm --external:@aws-sdk/* --external:sharp && cd dist && zip function.zip index.mjs",
     "test": "bun test"
   },
   "dependencies": {

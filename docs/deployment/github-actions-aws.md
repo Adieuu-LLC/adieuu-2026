@@ -39,13 +39,17 @@ If `DEPLOY_WEB_S3_BUCKET_ADIEUU` or `DEPLOY_CLOUDFRONT_DISTRIBUTION_ID_ADIEUU` i
 
 ### Lambda deploy (optional; after Terraform with `enable_media_stack = true`)
 
-When the media stack is enabled, Lambda function code for `media-processor` and `media-db-writer` is deployed automatically on release when their source files change. After `terraform apply` (which grants `lambda:UpdateFunctionCode` to the deploy role), add:
+When the media stack is enabled, Lambda function code for `media-processor` and `media-db-writer` is deployed automatically on release when their source files change. The **sharp Lambda layer** is deployed automatically when files under `infra/aws/lambda/layers/sharp/` change. After `terraform apply` (which grants Lambda deploy permissions to the OIDC role, including `PublishLayerVersion` and `UpdateFunctionConfiguration`), add:
 
 | Variable | Terraform output |
 |----------|------------------|
 | `DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU` | `lambda_name_prefix` (e.g. `adieuu-production`) |
 
-If unset, the lambda deploy job is skipped. The sharp Lambda layer and Terraform infrastructure changes still require manual `terraform apply`.
+If unset, the lambda deploy job is skipped. Terraform infrastructure changes (VPC, IAM, new resources) still require manual `terraform apply`.
+
+**One-time after upgrading Lambda runtime to `nodejs24.x`:** run `terraform apply` so live function `runtime` values and the deploy role IAM policy update. CI handles ongoing function code and sharp layer publishes.
+
+**Node.js 26 follow-up (when AWS ships `nodejs26.x`, ~Nov 2026):** bump Terraform `runtime` and layer `compatible_runtimes`, esbuild `--target=node26`, `build.sh` / `package-sharp-layer.sh` runtime strings, re-publish the sharp layer, and `terraform apply`. Confirm sharp prebuilds support Node 26 on Amazon Linux 2023 before cutting over.
 
 ### Downloads stack (optional; after Terraform with `enable_downloads_stack = true`)
 

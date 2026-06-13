@@ -2,11 +2,11 @@ terraform {
   required_version = ">= 1.5.0"
 
   required_providers {
-    # Pin to 5.x until terraform-aws-modules/vpc (and our root config) are clean on
-    # provider 6.x (e.g. aws_region.name deprecation in module internals).
+    # nodejs24.x Lambda runtime requires AWS provider >= 6.21.0.
+    # VPC module 6.x requires AWS provider >= 6.0.
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.0.0, < 6.0.0"
+      version = ">= 6.21.0"
     }
     # 2.x is current; see https://registry.terraform.io/providers/mongodb/mongodbatlas/latest/docs/guides/2.0.0-upgrade-guide
     mongodbatlas = {

@@ -66,6 +66,7 @@ Replace `adieuu-staging-api` with the repository name shown in the AWS console o
 | `alarms.tf` | SNS + CloudWatch alarms (ALB/ECS/ElastiCache) |
 | `atlas_peering.tf` | Optional MongoDB Atlas network container + VPC peering, routes, DNS resolution on the peering |
 | `iam_github_actions_deploy.tf` | GitHub OIDC IAM role (S3/CloudFront + ECR + ECS + Lambda) for CI deploys; see [github-actions-aws.md](../../docs/deployment/github-actions-aws.md) |
+| `media.tf` | Media stack: S3 (media + E2E + CSAM evidence), CloudFront, CSAM hash Lambdas, DynamoDB NCMEC table |
 | `outputs.tf` | ALB DNS, ECR URLs, subnet IDs, optional Redis endpoint, SNS topic for alarms |
 | `terraform.tfvars.example` | **Committed** — placeholders; commented env/secrets templates (see [ecs-environment.md](../../docs/deployment/ecs-environment.md)) |
 | `terraform.tfvars` | **Local / private** — gitignored |
@@ -76,9 +77,15 @@ By default Terraform uses **local state** (`terraform.tfstate`) in this director
 
 ## Lambda code deploys
 
-Lambda function code (`media-processor`, `media-db-writer`) is deployed automatically via the release CI workflow when source files under `infra/aws/lambda/` change. The workflow runs `package-lambdas.sh --deploy` using the OIDC deploy role. Set `DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU` in GitHub repo variables after `terraform apply` (see [github-actions-aws.md](../../docs/deployment/github-actions-aws.md)).
+Lambda function code (`media-processor`, `media-db-writer`) is deployed automatically via the release CI workflow when their source trees or `pnpm-lock.yaml` change. The workflow runs `package-lambdas.sh --deploy` using the OIDC deploy role.
 
-The **sharp Lambda layer** (`layers/sharp/build.sh`) and **Terraform infrastructure** changes still require manual `terraform apply`.
+The **sharp Lambda layer** (`layers/sharp/build.sh`) is built and deployed automatically when files under `infra/aws/lambda/layers/sharp/` change. The workflow runs `package-sharp-layer.sh --deploy`, which publishes a new layer version and attaches it to `media-processor`.
+
+Set `DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU` in GitHub repo variables after `terraform apply` (see [github-actions-aws.md](../../docs/deployment/github-actions-aws.md)). Media Lambdas use the **`nodejs24.x`** runtime; CI builds the sharp layer under **Node 26**.
+
+**Terraform infrastructure** changes (VPC, IAM, new resources) still require manual `terraform apply`. After merging runtime or IAM changes, apply once so live functions and the deploy role policy match.
+
+**Node.js 26 follow-up:** when AWS releases the `nodejs26.x` managed runtime (~Nov 2026), bump Terraform `runtime` + layer `compatible_runtimes`, esbuild targets, `package-sharp-layer.sh`, re-publish the layer, and `terraform apply`.
 
 ## Related documentation
 

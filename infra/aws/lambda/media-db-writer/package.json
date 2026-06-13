@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js --format=cjs --external:@aws-sdk/*",
-    "package": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js --format=cjs --external:@aws-sdk/* && cd dist && zip function.zip index.js",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node24 --outfile=dist/index.js --format=cjs --external:@aws-sdk/*",
+    "package": "esbuild src/index.ts --bundle --platform=node --target=node24 --outfile=dist/index.js --format=cjs --external:@aws-sdk/* && cd dist && zip function.zip index.js",
     "test": "bun test"
   },
   "dependencies": {

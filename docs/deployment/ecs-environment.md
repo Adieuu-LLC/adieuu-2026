@@ -26,25 +26,13 @@ This document lists **environment variables** the **API** (`apps/api`) and **cha
 
 | Variable | Notes |
 |----------|--------|
-| `CYBERTIPLINE_SECRET_ARN` | Secrets Manager ARN for NCMEC API credentials (see below). Not in the JSON `api` secret by default — separate secret resource. |
 | `CYBERTIPLINE_BASE_URL` | From Terraform `cybertipline_base_url` (default **test**: `https://exttest.cybertip.org/ispws`). Set production URL only in prod tfvars. |
 
-**CyberTipline credentials secret** (`{prefix}-cybertipline-credentials`): JSON object matching `CyberTiplineCredentials` in `apps/api/src/services/cybertipline.service.ts`:
+**Media stack moderation:** When `enable_media_stack = true`, uploads are checked by the **CSAM hash pipeline** (NCMEC DynamoDB + optional Arachnid Shield). There is **no** separate Terraform toggle — hash checking is part of the media stack. Which tiers run is controlled by the Mongo platform setting `platform-csam-hash-services` (default `["arachnid_shield"]` on API boot).
 
-```json
-{
-  "username": "<NCMEC-issued>",
-  "password": "<NCMEC-issued>",
-  "reporterFirstName": "Jane",
-  "reporterLastName": "Doe",
-  "reporterEmail": "abuse@example.com",
-  "companyTemplate": "Optional company block text",
-  "termsOfServiceUrl": "https://example.com/terms",
-  "legalUrl": "https://example.com/legal"
-}
-```
+**CyberTipline credentials** — add keys to **`adieuu/<env>/api`** and map in `api_container_secrets` (see recommended keys below). **Arachnid Shield** credentials go in **`adieuu/<env>/media-processor`** (same ARN as `media_db_mongodb_secret_arn`).
 
-Use **test** credentials with `CYBERTIPLINE_BASE_URL=https://exttest.cybertip.org/ispws`. Use **production** credentials only with `https://report.cybertip.org/ispws`.
+Use **test** NCMEC credentials with `CYBERTIPLINE_BASE_URL=https://exttest.cybertip.org/ispws`. Use **production** credentials only with `https://report.cybertip.org/ispws`.
 
 Optional **`CYBERTIPLINE_ENV`** in `api_environment`: `test` or `production`. When set, the API rejects a mismatch between this value and the base URL host (safety check).
 
@@ -53,7 +41,7 @@ Optional **`CYBERTIPLINE_ENV`** in `api_environment`: `test` or `production`. Wh
 | Where | Base URL | Credentials | How to test LE filing |
 |-------|----------|-------------|------------------------|
 | **Local dev** | `CYBERTIPLINE_BASE_URL=https://exttest.cybertip.org/ispws` in `.env` (client default if unset) | NCMEC **test** creds via `CYBERTIPLINE_TEST_*` env vars for the integration test, or inject credentials in code/scripts | `CYBERTIPLINE_INTEGRATION_TEST=1` + `bun test …/cybertipline.integration.test.ts`; or run API locally and use the moderation UI against exttest |
-| **Production** | Terraform `cybertipline_base_url` (defaults to **exttest** until you deliberately switch) | `{prefix}-cybertipline-credentials` in Secrets Manager | Until NCMEC production onboarding is complete, keep **exttest** URL + **test** credentials in prod so moderator submissions do not hit production LE routing. When ready for real reports: set `cybertipline_base_url` to `https://report.cybertip.org/ispws`, store **production** credentials, and set `CYBERTIPLINE_ENV=production` in `api_environment`. |
+| **Production** | Terraform `cybertipline_base_url` (defaults to **exttest** until you deliberately switch) | `CYBERTIPLINE_*` keys in `adieuu/<env>/api` + `api_container_secrets` | Until NCMEC production onboarding is complete, keep **exttest** URL + **test** credentials in prod so moderator submissions do not hit production LE routing. When ready for real reports: set `cybertipline_base_url` to `https://report.cybertip.org/ispws`, store **production** credentials, and set `CYBERTIPLINE_ENV=production` in `api_environment`. |
 
 **Optional in `api_environment` (not Terraform-managed by default):**
 
@@ -96,8 +84,28 @@ Store strings the app must not log in git. Typical keys:
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`). Required when `STRIPE_ENABLED=true`. |
 | `VERIFYMY_API_KEY` | VerifyMy API key (server-side only). Sandbox and production use separate key pairs. |
 | `VERIFYMY_API_SECRET` | VerifyMy API secret (HMAC signing and PII encryption). Keep in Secrets Manager alongside the key. |
+| `CYBERTIPLINE_USERNAME` | NCMEC CyberTipline API username (when media stack / LE reporting enabled). |
+| `CYBERTIPLINE_PASSWORD` | NCMEC CyberTipline API password. |
+| `CYBERTIPLINE_REPORTER_FIRST_NAME` | ESP reporter first name for CyberTipline filings. |
+| `CYBERTIPLINE_REPORTER_LAST_NAME` | ESP reporter last name. |
+| `CYBERTIPLINE_REPORTER_EMAIL` | ESP reporter email (e.g. `abuse@yourdomain.com`). |
+| `CYBERTIPLINE_COMPANY_TEMPLATE` | Optional CyberTipline company block text. |
+| `CYBERTIPLINE_TERMS_OF_SERVICE_URL` | Optional terms URL for CyberTipline XML. |
+| `CYBERTIPLINE_LEGAL_URL` | Optional legal URL for CyberTipline XML. |
 
 Use **`REDIS_URL`** in Secrets Manager (or plain env) **only** when Redis is **not** the Terraform-managed ElastiCache cluster — e.g. you set **`create_elasticache_redis = false`** and point **`REDIS_URL`** at an external endpoint yourself.
+
+### Recommended JSON keys for **`media-processor`** secret (when `enable_media_stack = true`)
+
+Used by the media-db-writer and media-processor Lambdas (`media_db_mongodb_secret_arn` in tfvars). Typical keys:
+
+| Key | Notes |
+|-----|--------|
+| `MONGODB_URI` | MongoDB connection string for media upload / moderation writes. |
+| `ARACHNID_USERNAME` | Project Arachnid Shield API username (Tier-2 CSAM hash checks). |
+| `ARACHNID_PASSWORD` | Project Arachnid Shield API password. |
+
+Key names for Arachnid are overridable via `media_credentials_arachnid_username_key` / `media_credentials_arachnid_password_key` in tfvars (defaults `ARACHNID_USERNAME` / `ARACHNID_PASSWORD`).
 
 ### Recommended JSON keys for **`chat`** secret
 

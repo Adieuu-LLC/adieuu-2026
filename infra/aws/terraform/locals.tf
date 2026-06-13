@@ -112,8 +112,7 @@ locals {
       LIVEKIT_API_KEY = var.livekit_api_key
     } : {},
     local.media_enabled ? {
-      CYBERTIPLINE_SECRET_ARN = aws_secretsmanager_secret.cybertipline_credentials[0].arn
-      CYBERTIPLINE_BASE_URL   = var.cybertipline_base_url
+      CYBERTIPLINE_BASE_URL = var.cybertipline_base_url
     } : {},
   )
 

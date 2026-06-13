@@ -4,8 +4,9 @@ name: Deploy AWS (reusable)
 # Services (api, chat) always deploy. Web rebuilds when its source tree changed since
 # the previous release tag, when release passed force_all, or when there are no changes
 # (or only version-bump package.json edits) since that tag — for re-releases.
-# Lambdas (media-processor, media-db-writer) deploy when infra/aws/lambda/* or
-# pnpm-lock.yaml changed; skipped when DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU is unset.
+# Lambdas (media-processor, media-db-writer) deploy when their source trees or
+# pnpm-lock.yaml changed. The sharp layer deploys when infra/aws/lambda/layers/sharp/
+# changed. Skipped when DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU is unset.
 # Manual deploy-aws.yml dispatches always pass force_all.
 
 on:
@@ -33,7 +34,7 @@ permissions:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  NODE_VERSION: '25'
+  NODE_VERSION: '26'
   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
   AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
@@ -46,6 +47,7 @@ jobs:
       api: ${{ steps.set.outputs.api }}
       chat: ${{ steps.set.outputs.chat }}
       lambdas: ${{ steps.set.outputs.lambdas }}
+      sharp_layer: ${{ steps.set.outputs.sharp_layer }}
       deploy_sha: ${{ steps.meta.outputs.sha }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
@@ -67,6 +69,7 @@ jobs:
           if [ "${{ inputs.force_all }}" = "true" ]; then
             echo "web=true" >> "$GITHUB_OUTPUT"
             echo "lambdas=true" >> "$GITHUB_OUTPUT"
+            echo "sharp_layer=true" >> "$GITHUB_OUTPUT"
             echo "force_all requested — deploying all targets"
             exit 0
           fi
@@ -83,6 +86,7 @@ jobs:
             echo "No previous release tag — deploying all targets"
             echo "web=true" >> "$GITHUB_OUTPUT"
             echo "lambdas=true" >> "$GITHUB_OUTPUT"
+            echo "sharp_layer=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -119,8 +123,19 @@ jobs:
             echo "$LAMBDA_CHANGES"
           fi
 
-          # Re-release / no meaningful changes: deploy web + lambdas anyway.
-          if [ -z "$WEB_CHANGES" ] || [ -z "$LAMBDA_CHANGES" ]; then
+          # --- Sharp layer ---
+          SHARP_LAYER_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD -- \
+            infra/aws/lambda/layers/sharp/ \
+          || true)
+
+          if [ -n "$SHARP_LAYER_CHANGES" ]; then
+            echo "sharp_layer=true" >> "$GITHUB_OUTPUT"
+            echo "Sharp layer changes detected:"
+            echo "$SHARP_LAYER_CHANGES"
+          fi
+
+          # Re-release / no meaningful changes: deploy web + lambdas + sharp layer anyway.
+          if [ -z "$WEB_CHANGES" ] || [ -z "$LAMBDA_CHANGES" ] || [ -z "$SHARP_LAYER_CHANGES" ]; then
             ALL_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD || true)
             MEANINGFUL_CHANGES=$(git diff --name-only "$PREV_TAG"..HEAD -- \
               apps/desktop/ \
@@ -139,9 +154,11 @@ jobs:
               echo "No changes (or only release version bumps) since ${PREV_TAG} — deploying all"
               [ -z "$WEB_CHANGES" ] && echo "web=true" >> "$GITHUB_OUTPUT"
               [ -z "$LAMBDA_CHANGES" ] && echo "lambdas=true" >> "$GITHUB_OUTPUT"
+              [ -z "$SHARP_LAYER_CHANGES" ] && echo "sharp_layer=true" >> "$GITHUB_OUTPUT"
             else
               [ -z "$WEB_CHANGES" ] && echo "web=false" >> "$GITHUB_OUTPUT" && echo "No web-relevant changes — skipping web deploy"
               [ -z "$LAMBDA_CHANGES" ] && echo "lambdas=false" >> "$GITHUB_OUTPUT" && echo "No Lambda-relevant changes — skipping lambda deploy"
+              [ -z "$SHARP_LAYER_CHANGES" ] && echo "sharp_layer=false" >> "$GITHUB_OUTPUT" && echo "No sharp layer changes — skipping sharp layer deploy"
             fi
           fi
 
@@ -299,7 +316,7 @@ jobs:
   deploy-lambdas:
     needs: changes
     if: |
-      needs.changes.outputs.lambdas == 'true' &&
+      (needs.changes.outputs.lambdas == 'true' || needs.changes.outputs.sharp_layer == 'true') &&
       vars.DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU != ''
     runs-on: ubuntu-latest
     steps:
@@ -314,17 +331,34 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_ADIEUU }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build and deploy sharp layer
+        if: needs.changes.outputs.sharp_layer == 'true' || inputs.force_all == true
+        run: |
+          ARGS=(--deploy --prefix "${{ vars.DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU }}" --region "${{ env.AWS_REGION }}")
+          if [ "${{ inputs.force_all }}" = "true" ]; then
+            ARGS+=(--force)
+          fi
+          bash package-sharp-layer.sh "${ARGS[@]}"
+
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        if: needs.changes.outputs.lambdas == 'true' || inputs.force_all == true
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        if: needs.changes.outputs.lambdas == 'true' || inputs.force_all == true
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'pnpm'
 
       - name: Install dependencies
+        if: needs.changes.outputs.lambdas == 'true' || inputs.force_all == true
         run: pnpm install --frozen-lockfile
 
       - name: Package and deploy lambdas
+        if: needs.changes.outputs.lambdas == 'true' || inputs.force_all == true
         run: |
           ARGS=(--deploy --prefix "${{ vars.DEPLOY_LAMBDA_NAME_PREFIX_ADIEUU }}" --region "${{ env.AWS_REGION }}")
           if [ "${{ inputs.force_all }}" = "true" ]; then

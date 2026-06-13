@@ -51,22 +51,46 @@ const lambda = new LambdaClient({});
 const BUCKET = process.env.MEDIA_BUCKET!;
 const DB_WRITER_FUNCTION_NAME = process.env.DB_WRITER_FUNCTION_NAME!;
 const NCMEC_HASH_TABLE = process.env.NCMEC_HASH_TABLE ?? '';
-const ARACHNID_SECRET_ARN = process.env.ARACHNID_SECRET_ARN ?? '';
+const MEDIA_CREDENTIALS_SECRET_ARN = process.env.MEDIA_CREDENTIALS_SECRET_ARN ?? '';
+const ARACHNID_USERNAME_KEY = process.env.ARACHNID_USERNAME_KEY || 'ARACHNID_USERNAME';
+const ARACHNID_PASSWORD_KEY = process.env.ARACHNID_PASSWORD_KEY || 'ARACHNID_PASSWORD';
 const EVIDENCE_BUCKET = process.env.EVIDENCE_BUCKET ?? '';
 
-let cachedArachnidCredentials: { username: string; password: string } | null = null;
+let cachedArachnidCredentials: { username: string; password: string } | null | undefined;
 
 async function getArachnidCredentials(): Promise<{ username: string; password: string } | null> {
-  if (!ARACHNID_SECRET_ARN) return null;
-  if (cachedArachnidCredentials) return cachedArachnidCredentials;
+  if (!MEDIA_CREDENTIALS_SECRET_ARN) return null;
+  if (cachedArachnidCredentials !== undefined) return cachedArachnidCredentials;
 
   const result = await secretsManager.send(
-    new GetSecretValueCommand({ SecretId: ARACHNID_SECRET_ARN })
+    new GetSecretValueCommand({ SecretId: MEDIA_CREDENTIALS_SECRET_ARN })
   );
-  if (!result.SecretString) return null;
-  const parsed = JSON.parse(result.SecretString) as { username?: string; password?: string };
-  if (!parsed.username || !parsed.password) return null;
-  cachedArachnidCredentials = { username: parsed.username, password: parsed.password };
+  if (!result.SecretString) {
+    cachedArachnidCredentials = null;
+    return null;
+  }
+
+  let username: string | undefined;
+  let password: string | undefined;
+  try {
+    const parsed = JSON.parse(result.SecretString) as Record<string, unknown>;
+    username = typeof parsed[ARACHNID_USERNAME_KEY] === 'string'
+      ? parsed[ARACHNID_USERNAME_KEY]
+      : undefined;
+    password = typeof parsed[ARACHNID_PASSWORD_KEY] === 'string'
+      ? parsed[ARACHNID_PASSWORD_KEY]
+      : undefined;
+  } catch {
+    cachedArachnidCredentials = null;
+    return null;
+  }
+
+  if (!username || !password) {
+    cachedArachnidCredentials = null;
+    return null;
+  }
+
+  cachedArachnidCredentials = { username, password };
   return cachedArachnidCredentials;
 }
 
