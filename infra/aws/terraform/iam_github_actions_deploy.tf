@@ -143,10 +143,15 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       actions = [
         "lambda:UpdateFunctionCode",
         "lambda:GetFunction",
+        "lambda:PublishLayerVersion",
+        "lambda:GetLayerVersion",
+        "lambda:UpdateFunctionConfiguration",
       ]
       resources = [
         aws_lambda_function.media_processor[0].arn,
         aws_lambda_function.media_db_writer[0].arn,
+        "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:layer:${local.name_prefix}-sharp",
+        "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:layer:${local.name_prefix}-sharp:*",
       ]
     }
   }

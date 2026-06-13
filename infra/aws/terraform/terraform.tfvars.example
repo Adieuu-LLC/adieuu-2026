@@ -53,7 +53,7 @@ single_nat_gateway        = true
 # cybertipline_base_url = "https://exttest.cybertip.org/ispws"   # default; safe for pre-onboarding prod
 # cybertipline_base_url = "https://report.cybertip.org/ispws"   # after NCMEC production onboarding
 # api_environment = { CYBERTIPLINE_ENV = "production" }          # recommended when using the prod URL above
-# Populate the cybertipline-credentials secret (see docs/deployment/ecs-environment.md).
+# Populate CyberTipline keys in adieuu/prod/api (see docs/deployment/ecs-environment.md).
 
 # Optional — defaults are fine for a first apply:
 # log_retention_days        = 14
@@ -145,7 +145,9 @@ single_nat_gateway        = true
 # Typical API keys: MONGODB_URI, CSRF_SECRET, SESSION_SECRET, OTP_SECRET, ACCOUNT_HASH_SECRET,
 # TOKEN_SIGNING_KEY, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, TEXTMAGIC_USERNAME,
 # TEXTMAGIC_API_KEY, KLIPY_API_KEY, IPLOCATE_API_KEY, STRIPE_SECRET_KEY,
-# STRIPE_WEBHOOK_SECRET, VERIFYMY_API_KEY, VERIFYMY_API_SECRET, LIVEKIT_API_SECRET
+# STRIPE_WEBHOOK_SECRET, VERIFYMY_API_KEY, VERIFYMY_API_SECRET, LIVEKIT_API_SECRET,
+# CYBERTIPLINE_USERNAME, CYBERTIPLINE_PASSWORD, CYBERTIPLINE_REPORTER_FIRST_NAME,
+# CYBERTIPLINE_REPORTER_LAST_NAME, CYBERTIPLINE_REPORTER_EMAIL
 # (see ecs-environment.md).
 # Typical chat keys: MONGODB_URI (and optionally REDIS_URL if not from ElastiCache / plain env).
 #
@@ -167,6 +169,11 @@ single_nat_gateway        = true
 #   VERIFYMY_API_KEY      = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:VERIFYMY_API_KEY::"
 #   VERIFYMY_API_SECRET   = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:VERIFYMY_API_SECRET::"
 #   LIVEKIT_API_SECRET    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:LIVEKIT_API_SECRET::"
+#   CYBERTIPLINE_USERNAME              = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CYBERTIPLINE_USERNAME::"
+#   CYBERTIPLINE_PASSWORD              = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CYBERTIPLINE_PASSWORD::"
+#   CYBERTIPLINE_REPORTER_FIRST_NAME   = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CYBERTIPLINE_REPORTER_FIRST_NAME::"
+#   CYBERTIPLINE_REPORTER_LAST_NAME    = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CYBERTIPLINE_REPORTER_LAST_NAME::"
+#   CYBERTIPLINE_REPORTER_EMAIL        = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/api-AbCdEf:CYBERTIPLINE_REPORTER_EMAIL::"
 # }
 # chat_container_secrets = {
 #   MONGODB_URI = "arn:aws:secretsmanager:us-east-1:123456789012:secret:adieuu/staging/chat-AbCdEf:MONGODB_URI::"
@@ -184,12 +191,15 @@ single_nat_gateway        = true
 # If GitHub OIDC already exists in this account (e.g. marketing), set its ARN and Terraform will not create a second:
 # github_oidc_provider_arn = "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
 
-# Media uploads: S3 + CloudFront + Lambda image processor (avatars, banners, attachments).
+# Media uploads: S3 + CloudFront + Lambda processors (avatars, banners, attachments).
 # Requires route53_zone_name. Injects MEDIA_S3_BUCKET, MEDIA_S3_REGION, MEDIA_CDN_URL into API env.
+# CSAM hash moderation runs automatically when enable_media_stack = true (no separate moderation toggle).
 # enable_media_stack                    = true
 # media_domain_name                     = "media.adieuu.com"
 # allow_legacy_conv_scan_video_moderation = true     # false = JPEG frame scans only (sealed conv_scan batch)
-# arachnid_shield_secret_arn            = ""          # ARN of Secrets Manager secret with Arachnid Shield API credentials
+# Add ARACHNID_USERNAME / ARACHNID_PASSWORD to the media-processor secret (same ARN as media_db_mongodb_secret_arn).
+# media_credentials_arachnid_username_key = "ARACHNID_USERNAME"
+# media_credentials_arachnid_password_key = "ARACHNID_PASSWORD"
 # media_db_mongodb_secret_arn           = "arn:aws:secretsmanager:us-east-1:123456789012:secret:media-db-mongodb-AbCdEf"
 # media_db_mongodb_secret_key           = "MONGODB_URI" # JSON key in the secret containing the connection string
 # media_db_mongodb_db_name              = "adieuu"      # MongoDB database name for media uploads

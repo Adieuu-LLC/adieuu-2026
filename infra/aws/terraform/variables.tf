@@ -431,6 +431,18 @@ variable "media_db_mongodb_secret_kms_key_arn" {
   default     = ""
 }
 
+variable "media_credentials_arachnid_username_key" {
+  type        = string
+  description = "JSON key in media_db_mongodb_secret_arn for Arachnid Shield API username (e.g. adieuu/prod/media-processor secret)."
+  default     = "ARACHNID_USERNAME"
+}
+
+variable "media_credentials_arachnid_password_key" {
+  type        = string
+  description = "JSON key in media_db_mongodb_secret_arn for Arachnid Shield API password."
+  default     = "ARACHNID_PASSWORD"
+}
+
 # --- GitHub Actions deploy (OIDC) ---
 
 variable "enable_github_actions_deploy_role" {
