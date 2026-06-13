@@ -2,7 +2,7 @@
 # Builds a Lambda layer ZIP containing sharp for linux-x64 (nodejs24.x).
 # Uses npm deliberately: Lambda requires a flat node_modules layout
 # that pnpm's symlink structure cannot provide.
-# CI runs this under Node 26; when AWS ships nodejs26.x (~Nov 2026), bump
+# CI runs this under Node 26. When AWS ships nodejs26.x, bump
 # compatible_runtimes in Terraform and package-sharp-layer.sh as well.
 set -euo pipefail
 

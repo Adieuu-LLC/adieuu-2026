@@ -89,8 +89,8 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       "ecs:DescribeServices",
     ]
     resources = [
-      "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/${aws_ecs_cluster.main.name}/${aws_ecs_service.api.name}",
-      "arn:aws:ecs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:service/${aws_ecs_cluster.main.name}/${aws_ecs_service.chat.name}",
+      "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:service/${aws_ecs_cluster.main.name}/${aws_ecs_service.api.name}",
+      "arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:service/${aws_ecs_cluster.main.name}/${aws_ecs_service.chat.name}",
     ]
   }
 
@@ -150,8 +150,8 @@ data "aws_iam_policy_document" "github_actions_deploy" {
       resources = [
         aws_lambda_function.media_processor[0].arn,
         aws_lambda_function.media_db_writer[0].arn,
-        "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:layer:${local.name_prefix}-sharp",
-        "arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:layer:${local.name_prefix}-sharp:*",
+        "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:layer:${local.name_prefix}-sharp",
+        "arn:aws:lambda:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:layer:${local.name_prefix}-sharp:*",
       ]
     }
   }

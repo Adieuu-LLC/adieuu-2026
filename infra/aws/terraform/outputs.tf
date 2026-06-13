@@ -5,7 +5,7 @@ output "aws_account_id" {
 
 output "aws_region" {
   description = "Region used for this deployment."
-  value       = data.aws_region.current.id
+  value       = data.aws_region.current.region
 }
 
 output "availability_zones" {

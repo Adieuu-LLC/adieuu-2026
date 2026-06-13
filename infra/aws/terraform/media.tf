@@ -480,7 +480,7 @@ resource "aws_iam_role_policy" "media_processor" {
             "logs:CreateLogStream",
             "logs:PutLogEvents",
           ]
-          Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
+          Resource = "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:*"
         },
         {
           Sid    = "SecretsManagerMediaCredentials"
@@ -605,7 +605,7 @@ resource "aws_iam_role_policy" "media_db_writer" {
             "logs:CreateLogStream",
             "logs:PutLogEvents",
           ]
-          Resource = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
+          Resource = "arn:aws:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:*"
         },
         {
           Sid      = "S3ListConvScanPrefixes"
