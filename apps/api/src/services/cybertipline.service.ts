@@ -2,12 +2,10 @@
  * NCMEC CyberTipline Reporting API client.
  *
  * Implements the multi-step report flow: submit XML -> upload evidence -> file details -> finish.
- * Auth credentials are loaded from AWS Secrets Manager and cached in memory.
+ * Auth credentials are loaded from env vars (ECS api_container_secrets or local .env).
  *
  * API docs: https://report.cybertip.org/ispws/documentation
  */
-
-import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
 
 export const CYBERTIPLINE_TEST_BASE_URL = 'https://exttest.cybertip.org/ispws';
 export const CYBERTIPLINE_PROD_BASE_URL = 'https://report.cybertip.org/ispws';
@@ -350,19 +348,11 @@ export function loadCyberTiplineCredentialsFromEnv(): CyberTiplineCredentials | 
 export class CyberTiplineClient {
   private baseUrl: string;
   private credentials: CyberTiplineCredentials | null = null;
-  private secretsClient: SecretsManagerClient;
-  private secretArn: string;
 
-  constructor(opts?: { baseUrl?: string; secretArn?: string; credentials?: CyberTiplineCredentials }) {
+  constructor(opts?: { baseUrl?: string; credentials?: CyberTiplineCredentials }) {
     this.baseUrl = (opts?.baseUrl
       ?? process.env.CYBERTIPLINE_BASE_URL
       ?? TEST_BASE_URL).replace(/\/$/, '');
-    this.secretArn = opts?.secretArn
-      ?? process.env.CYBERTIPLINE_SECRET_ARN
-      ?? '';
-    this.secretsClient = new SecretsManagerClient({
-      region: process.env.AWS_REGION ?? 'us-east-1',
-    });
     if (opts?.credentials) {
       this.credentials = opts.credentials;
     }
@@ -377,21 +367,9 @@ export class CyberTiplineClient {
       return fromEnv;
     }
 
-    if (!this.secretArn) {
-      throw new Error(
-        'CyberTipline: set CYBERTIPLINE_SECRET_ARN or inline credentials (CYBERTIPLINE_USERNAME, CYBERTIPLINE_PASSWORD, reporter fields)',
-      );
-    }
-
-    const result = await this.secretsClient.send(
-      new GetSecretValueCommand({ SecretId: this.secretArn }),
+    throw new Error(
+      'CyberTipline: set CYBERTIPLINE_USERNAME, CYBERTIPLINE_PASSWORD, and reporter fields (via env or api_container_secrets)',
     );
-    if (!result.SecretString) {
-      throw new Error('CyberTipline: secret value is empty');
-    }
-
-    this.credentials = parseCyberTiplineCredentials(result.SecretString);
-    return this.credentials;
   }
 
   getBaseUrl(): string {

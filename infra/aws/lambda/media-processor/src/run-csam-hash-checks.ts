@@ -11,7 +11,7 @@ export interface RunCsamHashChecksDeps {
 }
 
 export const NO_CSAM_PROVIDERS_ERROR =
-  'CSAM hash checks required but no providers configured (NCMEC_HASH_TABLE / ARACHNID_SECRET_ARN)';
+  'CSAM hash checks required but no providers configured (NCMEC_HASH_TABLE / Arachnid credentials in media credentials secret)';
 
 /**
  * Run all available CSAM hash checks against the image bytes.

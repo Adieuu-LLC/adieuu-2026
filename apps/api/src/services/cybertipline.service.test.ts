@@ -356,7 +356,6 @@ describe('CyberTiplineClient', () => {
 
   test('getCredentials throws when no secret ARN and no injected creds', async () => {
     const keys = [
-      'CYBERTIPLINE_SECRET_ARN',
       'CYBERTIPLINE_USERNAME',
       'CYBERTIPLINE_PASSWORD',
       'CYBERTIPLINE_REPORTER_FIRST_NAME',
@@ -379,7 +378,7 @@ describe('CyberTiplineClient', () => {
       await (client as unknown as { getCredentials(): Promise<CyberTiplineCredentials> }).getCredentials();
       expect(true).toBe(false);
     } catch (err) {
-      expect((err as Error).message).toContain('CYBERTIPLINE_SECRET_ARN');
+      expect((err as Error).message).toContain('CYBERTIPLINE_USERNAME');
     } finally {
       for (const k of keys) {
         if (saved[k] === undefined) delete process.env[k];
