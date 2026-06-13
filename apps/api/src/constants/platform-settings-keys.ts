@@ -28,6 +28,8 @@ export const PLATFORM_SETTING_KEYS = {
   GEOFENCE_LAW_LINKS: 'platform-geofence-law-links',
   /** Active CSAM hash-checking services (stringArray: 'ncmec', 'arachnid_shield'). */
   CSAM_HASH_SERVICES: 'platform-csam-hash-services',
+  /** NCMEC CyberTipline environment override ('test' | 'production'). */
+  NCMEC_CYBERTIPLINE_ENV: 'platform-ncmec-cybertipline-env',
 } as const;
 
 export type PlatformSettingKey =

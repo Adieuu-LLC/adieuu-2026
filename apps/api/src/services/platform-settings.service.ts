@@ -229,6 +229,13 @@ function sanitizePlainSettingString(key: string, raw: string): string {
   ) {
     return sanitizeString(raw, 'alphanumdash').value;
   }
+  if (key === PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV) {
+    const v = sanitizeString(raw, 'alphanumdash').value;
+    if (v !== 'test' && v !== 'production') {
+      throw new Error('NCMEC CyberTipline environment must be test or production');
+    }
+    return v;
+  }
   return sanitizeString(raw, 'general').value;
 }
 
@@ -480,4 +487,25 @@ export async function ensureCsamHashServicesPlatformSettingExists(): Promise<voi
   });
 
   elog.info('Created default CSAM hash services setting', { key });
+}
+
+/**
+ * Ensures the NCMEC CyberTipline environment setting exists with test as the default.
+ * Idempotent -- safe to call on every startup.
+ */
+export async function ensureNcmecCyberTiplinePlatformSettingExists(): Promise<void> {
+  const repo = getPlatformSettingsRepository();
+  const key = PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV;
+  const existing = await repo.findByKey(key);
+  if (existing) return;
+
+  await upsertPlatformSetting({
+    key,
+    description: 'NCMEC CyberTipline environment (test or production)',
+    valueType: 'string',
+    value: 'test',
+    lastUpdatedBy: PLATFORM_SETTING_BOOTSTRAP_ACTOR,
+  });
+
+  elog.info('Created default NCMEC CyberTipline environment setting', { key });
 }

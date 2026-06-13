@@ -16,6 +16,7 @@ export const PLATFORM_SETTING_KEYS = {
   AGE_VERIFICATION_REQUIRED_JURISDICTIONS: 'platform-age-verification-required-jurisdictions',
   GEOFENCE_BLOCKED_JURISDICTIONS: 'platform-geofence-blocked-jurisdictions',
   GEOFENCE_LAW_LINKS: 'platform-geofence-law-links',
+  NCMEC_CYBERTIPLINE_ENV: 'platform-ncmec-cybertipline-env',
 } as const;
 
 export type PlatformSettingKey = (typeof PLATFORM_SETTING_KEYS)[keyof typeof PLATFORM_SETTING_KEYS];

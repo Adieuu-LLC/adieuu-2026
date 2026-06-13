@@ -44,6 +44,7 @@ import {
   coercePlatformSettingValue,
   ensureAuthAllowlistPlatformSettingsExist,
   ensureCsamHashServicesPlatformSettingExists,
+  ensureNcmecCyberTiplinePlatformSettingExists,
   isAuthIdentifierAllowed,
   mergeUpsertPlatformSettingDescription,
   sanitizePlatformSettingValueAfterCoerce,
@@ -385,6 +386,52 @@ describe('CSAM hash services setting', () => {
       coerced,
     ) as string[];
     expect(out).toEqual([]);
+  });
+
+  test('sanitizes NCMEC CyberTipline env to test or production only', () => {
+    expect(
+      sanitizePlatformSettingValueAfterCoerce(
+        PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV,
+        'string',
+        'production',
+      ),
+    ).toBe('production');
+    expect(() =>
+      sanitizePlatformSettingValueAfterCoerce(
+        PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV,
+        'string',
+        'staging',
+      ),
+    ).toThrow(/test or production/);
+  });
+
+  test('ensureNcmecCyberTiplinePlatformSettingExists creates setting when missing', async () => {
+    mockFindByKey.mockResolvedValue(null);
+    await ensureNcmecCyberTiplinePlatformSettingExists();
+    expect(mockUpsertByKey).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV,
+        valueType: 'string',
+        value: 'test',
+        lastUpdatedBy: 'system',
+      }),
+    );
+  });
+
+  test('ensureNcmecCyberTiplinePlatformSettingExists skips when setting exists', async () => {
+    mockFindByKey.mockResolvedValue({
+      _id: new ObjectId(),
+      key: PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV,
+      description: 'existing',
+      valueType: 'string',
+      value: 'production',
+      lastUpdatedBy: 'admin',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await ensureNcmecCyberTiplinePlatformSettingExists();
+    expect(mockUpsertByKey).not.toHaveBeenCalled();
   });
 
   test('ensureCsamHashServicesPlatformSettingExists creates setting when missing', async () => {

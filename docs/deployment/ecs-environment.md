@@ -22,26 +22,20 @@ This document lists **environment variables** the **API** (`apps/api`) and **cha
 |----------|--------|
 | `MAX_REQUEST_BODY_BYTES` | Set from Terraform `api_max_request_body_bytes` (default `256000`, 250 KiB; same as `DEFAULT_MAX_REQUEST_BODY_BYTES` in `@adieuu/shared`). Aligns the Bun router with the ALB WAF rule `block-request-body-over-max`. Change the limit via `api_max_request_body_bytes` in `terraform.tfvars`, not by setting this key in `api_environment`. |
 
-**Terraform-injected when media stack is enabled (`local.media_enabled`):**
+**NCMEC CyberTipline (moderator LE reports):** API hosts are **hardcoded** in the application (`exttest.cybertip.org` for test, `report.cybertip.org` for production). The active host is selected by Mongo platform setting **`platform-ncmec-cybertipline-env`** (`test` | `production`, default `test`), editable in the admin UI under Age Verification. Precedence: platform setting → optional `CYBERTIPLINE_ENV` env guard → default `test`. No Terraform URL variable is required.
 
-| Variable | Notes |
-|----------|--------|
-| `CYBERTIPLINE_BASE_URL` | From Terraform `cybertipline_base_url` (default **test**: `https://exttest.cybertip.org/ispws`). Set production URL only in prod tfvars. |
+**Media stack moderation:** When `enable_media_stack = true`, uploads are checked by the **CSAM hash pipeline** (NCMEC DynamoDB + optional Arachnid Shield). Which tiers run is controlled by the Mongo platform setting `platform-csam-hash-services` (default `["arachnid_shield"]` on API boot).
 
-**Media stack moderation:** When `enable_media_stack = true`, uploads are checked by the **CSAM hash pipeline** (NCMEC DynamoDB + optional Arachnid Shield). There is **no** separate Terraform toggle — hash checking is part of the media stack. Which tiers run is controlled by the Mongo platform setting `platform-csam-hash-services` (default `["arachnid_shield"]` on API boot).
+**CyberTipline credentials** — one ESP credential set in **`adieuu/<env>/api`**, mapped via `api_container_secrets` (see keys below). The same username/password/reporter fields are used for both test and production endpoints. **Arachnid Shield** credentials go in **`adieuu/<env>/media-processor`** (same ARN as `media_db_mongodb_secret_arn`).
 
-**CyberTipline credentials** — add keys to **`adieuu/<env>/api`** and map in `api_container_secrets` (see recommended keys below). **Arachnid Shield** credentials go in **`adieuu/<env>/media-processor`** (same ARN as `media_db_mongodb_secret_arn`).
-
-Use **test** NCMEC credentials with `CYBERTIPLINE_BASE_URL=https://exttest.cybertip.org/ispws`. Use **production** credentials only with `https://report.cybertip.org/ispws`.
-
-Optional **`CYBERTIPLINE_ENV`** in `api_environment`: `test` or `production`. When set, the API rejects a mismatch between this value and the base URL host (safety check).
+Optional **`CYBERTIPLINE_ENV`** in `api_environment`: `test` or `production`. When set, the API rejects a mismatch between this value and the resolved endpoint (safety check).
 
 **Local dev vs production (no separate staging stack):** Adieuu currently runs **local development** and **production ECS** only.
 
-| Where | Base URL | Credentials | How to test LE filing |
+| Where | Endpoint | Credentials | How to test LE filing |
 |-------|----------|-------------|------------------------|
-| **Local dev** | `CYBERTIPLINE_BASE_URL=https://exttest.cybertip.org/ispws` in `.env` (client default if unset) | NCMEC **test** creds via `CYBERTIPLINE_TEST_*` env vars for the integration test, or inject credentials in code/scripts | `CYBERTIPLINE_INTEGRATION_TEST=1` + `bun test …/cybertipline.integration.test.ts`; or run API locally and use the moderation UI against exttest |
-| **Production** | Terraform `cybertipline_base_url` (defaults to **exttest** until you deliberately switch) | `CYBERTIPLINE_*` keys in `adieuu/<env>/api` + `api_container_secrets` | Until NCMEC production onboarding is complete, keep **exttest** URL + **test** credentials in prod so moderator submissions do not hit production LE routing. When ready for real reports: set `cybertipline_base_url` to `https://report.cybertip.org/ispws`, store **production** credentials, and set `CYBERTIPLINE_ENV=production` in `api_environment`. |
+| **Local dev** | Platform setting or default **test** (hardcoded exttest URL) | `CYBERTIPLINE_*` in `.env`, or `CYBERTIPLINE_TEST_*` aliases for integration tests | `CYBERTIPLINE_INTEGRATION_TEST=1` + `bun test …/cybertipline.integration.test.ts`; or moderation UI with platform setting on **test** |
+| **Production** | Platform setting `platform-ncmec-cybertipline-env` (admin UI) | `CYBERTIPLINE_*` in `adieuu/<env>/api` | Keep setting on **test** until validated; switch to **production** when ready to file live reports (same credentials) |
 
 **Optional in `api_environment` (not Terraform-managed by default):**
 
@@ -181,7 +175,7 @@ Set these in **`terraform.tfvars`** as maps. Values are **plain text** in the ta
 | `VERIFYMY_PRODUCTION_BASE_URL` | Optional; default `https://oauth.verifymyage.com`. |
 | `VERIFYMY_TIMEOUT_MS` | Optional; default `10000`. |
 
-**Platform settings (MongoDB, not env):** The API stores typed configuration in the `platform_settings` collection (see `apps/api/src/constants/platform-settings-keys.ts`). Most knobs are Mongo-only; **geo** also reads **`platform-geo-lookup-enabled`** (boolean) and **age verification** reads **`AGE_VERIFICATION_ENABLED`** (boolean, default `false`) so operators can toggle these features without redeploying. The auth allowlist is edited via **`/api/admin/platform-settings`** (identity session with `manage-platform-settings`).
+**Platform settings (MongoDB, not env):** The API stores typed configuration in the `platform_settings` collection (see `apps/api/src/constants/platform-settings-keys.ts`). Most knobs are Mongo-only; **geo** also reads **`platform-geo-lookup-enabled`** (boolean) and **age verification** reads **`AGE_VERIFICATION_ENABLED`** (boolean, default `false`) so operators can toggle these features without redeploying. **NCMEC CyberTipline** reads **`platform-ncmec-cybertipline-env`** (`test` | `production`, default `test`) for moderator LE submissions. The auth allowlist is edited via **`/api/admin/platform-settings`** (identity session with `manage-platform-settings`).
 
 **Platform RBAC (identities, not platform_settings):** Staff roles (`admin`, `moderator`, `support_agent`) are stored on each identity document’s **`platformRoles`** array in the `identities` collection — not in platform settings. Before using admin routes, bootstrap at least one admin in MongoDB (see [Platform RBAC](../../apps/api/README.md#platform-rbac) in `apps/api/README.md`). Role assignment after bootstrap uses **`POST /api/admin/identities/:id/roles`** and related endpoints (requires identity session + `manage-roles`).
 

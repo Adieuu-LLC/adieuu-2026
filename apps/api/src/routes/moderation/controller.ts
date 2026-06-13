@@ -666,10 +666,10 @@ export async function fileLeReportResult(
 
   try {
     const { buildCyberTiplineReport } = await import('../../services/cybertipline-report-builder.service');
-    const { getCyberTiplineClient, assertCyberTiplineEnvironment } = await import('../../services/cybertipline.service');
+    const { createCyberTiplineClient, assertCyberTiplineEnvironment } = await import('../../services/cybertipline.service');
 
     const bundle = await buildCyberTiplineReport(claimed as ReportDocument, notes);
-    const client = getCyberTiplineClient();
+    const client = await createCyberTiplineClient();
     assertCyberTiplineEnvironment(client.getBaseUrl());
     const result = await client.submitFullReport(bundle.report, bundle.evidenceFile);
     ncmecReportId = result.ncmecReportId;

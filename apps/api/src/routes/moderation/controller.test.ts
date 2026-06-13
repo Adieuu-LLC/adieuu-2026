@@ -67,7 +67,7 @@ const mockBuildCyberTiplineReport = mock(async (_report: unknown, notes?: string
   report: { incidentType: 'test', _notes: notes },
 }));
 const mockSubmitFullReport = mock(async () => ({ ncmecReportId: 'ncmec-123' }));
-const mockGetCyberTiplineClient = mock(() => ({
+const mockCreateCyberTiplineClient = mock(async () => ({
   getBaseUrl: () => 'https://report.cybertip.org',
   submitFullReport: mockSubmitFullReport,
 }));
@@ -207,7 +207,7 @@ mock.module('../../services/cybertipline-report-builder.service', () => ({
 }));
 
 mock.module('../../services/cybertipline.service', () => ({
-  getCyberTiplineClient: mockGetCyberTiplineClient,
+  createCyberTiplineClient: mockCreateCyberTiplineClient,
   assertCyberTiplineEnvironment: mockAssertCyberTiplineEnvironment,
 }));
 
