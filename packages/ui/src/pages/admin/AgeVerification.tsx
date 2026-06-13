@@ -18,6 +18,7 @@ export function AdminAgeVerification() {
   const [autoEmailBackgroundCheck, setAutoEmailBackgroundCheck] = useState(false);
   const [provider, setProvider] = useState('verifymy');
   const [environment, setEnvironment] = useState('sandbox');
+  const [ncmecEnvironment, setNcmecEnvironment] = useState('test');
   const [requiredMode, setRequiredMode] = useState('jurisdictions');
   const [requiredJurisdictions, setRequiredJurisdictions] = useState('');
   const [blockedJurisdictions, setBlockedJurisdictions] = useState('');
@@ -53,6 +54,13 @@ export function AdminAgeVerification() {
 
     const env = map.get(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_VERIFYMY_ENV);
     setEnvironment(env?.valueType === 'string' ? String(env.value) : 'sandbox');
+
+    const ncmecEnv = map.get(PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV);
+    setNcmecEnvironment(
+      ncmecEnv?.valueType === 'string' && (ncmecEnv.value === 'test' || ncmecEnv.value === 'production')
+        ? String(ncmecEnv.value)
+        : 'test',
+    );
 
     const mode = map.get(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_REQUIRED_MODE);
     setRequiredMode(mode?.valueType === 'string' ? String(mode.value) : 'jurisdictions');
@@ -114,6 +122,11 @@ export function AdminAgeVerification() {
         valueType: 'string',
         value: environment,
         description: 'VerifyMy environment (sandbox or production)',
+      }),
+      api.admin.putPlatformSetting(PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV, {
+        valueType: 'string',
+        value: ncmecEnvironment,
+        description: 'NCMEC CyberTipline environment (test or production)',
       }),
       api.admin.putPlatformSetting(PLATFORM_SETTING_KEYS.AGE_VERIFICATION_REQUIRED_MODE, {
         valueType: 'string',
@@ -219,6 +232,22 @@ export function AdminAgeVerification() {
               <option value="sandbox">Sandbox</option>
               <option value="production">Production</option>
             </select>
+          </Card>
+
+          <Card className="admin-card">
+            <label className="admin-field-label" htmlFor="admin-ncmec-env">
+              {t('compliance.admin.ncmecEnvironmentLabel')}
+            </label>
+            <select
+              id="admin-ncmec-env"
+              className="admin-select"
+              value={ncmecEnvironment}
+              onChange={(e) => setNcmecEnvironment(e.target.value)}
+            >
+              <option value="test">{t('compliance.admin.ncmecEnvironmentTest')}</option>
+              <option value="production">{t('compliance.admin.ncmecEnvironmentProduction')}</option>
+            </select>
+            <p className="admin-hint">{t('compliance.admin.ncmecEnvironmentDescription')}</p>
           </Card>
 
           <Card className="admin-card">

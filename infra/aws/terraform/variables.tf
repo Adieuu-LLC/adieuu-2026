@@ -569,12 +569,6 @@ variable "livekit_instance_type" {
   default     = "c7g.large"
 }
 
-variable "cybertipline_base_url" {
-  type        = string
-  description = "NCMEC CyberTipline API base URL. Use https://exttest.cybertip.org/ispws for testing, https://report.cybertip.org/ispws for production."
-  default     = "https://exttest.cybertip.org/ispws"
-}
-
 variable "livekit_min_count" {
   type        = number
   description = "Minimum LiveKit instances in the Auto Scaling Group."

@@ -87,7 +87,7 @@ export const compliance = {
   },
   admin: {
     title: 'Age Verification',
-    subtitle: 'Configure age verification enforcement, geofencing, and provider settings.',
+    subtitle: 'Configure age verification enforcement, geofencing, provider settings, and NCMEC CyberTipline.',
     enabledLabel: 'Enforcement Enabled',
     enabledDescription: 'When enabled, users in configured jurisdictions must verify their age before accessing aliases.',
     autoEmailBgLabel: 'Automatic email background check',
@@ -95,6 +95,11 @@ export const compliance = {
       'After a subscribed user completes checkout, silently run a provider background check using their verified email.',
     providerLabel: 'Active Provider',
     environmentLabel: 'Provider Environment',
+    ncmecEnvironmentLabel: 'NCMEC CyberTipline Environment',
+    ncmecEnvironmentTest: 'Testing (exttest)',
+    ncmecEnvironmentProduction: 'Production',
+    ncmecEnvironmentDescription:
+      'Controls which NCMEC CyberTipline endpoint moderator LE reports use (exttest vs production). Uses the same CYBERTIPLINE_* credentials for both.',
     modeLabel: 'Required Mode',
     modeJurisdictions: 'Jurisdictions (seed-data-driven)',
     modeAll: 'All accounts',

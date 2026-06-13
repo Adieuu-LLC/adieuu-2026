@@ -48,12 +48,10 @@ availability_zone_count = 2
 enable_nat_gateway        = true
 single_nat_gateway        = true
 
-# NCMEC CyberTipline (moderator LE reports from API). There is no separate staging stack — only prod ECS + local dev.
-# Default cybertipline_base_url is exttest so prod can stay on NCMEC test until you intentionally cut over:
-# cybertipline_base_url = "https://exttest.cybertip.org/ispws"   # default; safe for pre-onboarding prod
-# cybertipline_base_url = "https://report.cybertip.org/ispws"   # after NCMEC production onboarding
-# api_environment = { CYBERTIPLINE_ENV = "production" }          # recommended when using the prod URL above
-# Populate CyberTipline keys in adieuu/prod/api (see docs/deployment/ecs-environment.md).
+# NCMEC CyberTipline (moderator LE reports). Endpoints are hardcoded in the API; use platform
+# setting platform-ncmec-cybertipline-env (admin UI) to switch test vs production.
+# api_environment = { CYBERTIPLINE_ENV = "production" }  # optional guard when on production
+# Populate CYBERTIPLINE_* keys in adieuu/prod/api (see docs/deployment/ecs-environment.md).
 
 # Optional — defaults are fine for a first apply:
 # log_retention_days        = 14

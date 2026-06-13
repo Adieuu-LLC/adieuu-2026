@@ -1,4 +1,12 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+
+const mockFindByKey = mock((_key: string) => Promise.resolve(null as unknown));
+
+mock.module('../repositories/platform-settings.repository', () => ({
+  getPlatformSettingsRepository: () => ({
+    findByKey: mockFindByKey,
+  }),
+}));
 
 import {
   escapeXml,
@@ -10,12 +18,18 @@ import {
   CyberTiplineClient,
   CyberTiplineError,
   assertCyberTiplineEnvironment,
+  resolveCyberTiplineDeployEnv,
+  cyberTiplineBaseUrlForEnv,
+  loadCyberTiplineCredentialsFromEnv,
+  createCyberTiplineClient,
   CYBERTIPLINE_TEST_BASE_URL,
   CYBERTIPLINE_PROD_BASE_URL,
   type CyberTiplineReportInput,
   type CyberTiplineCredentials,
   type CyberTiplineFileDetailsInput,
 } from './cybertipline.service';
+
+import { PLATFORM_SETTING_KEYS } from '../constants/platform-settings-keys';
 
 // ---------------------------------------------------------------------------
 // XML escaping
@@ -321,15 +335,8 @@ describe('parseCyberTiplineCredentials', () => {
 
 describe('CyberTiplineClient', () => {
   test('uses test URL by default', () => {
-    const savedBaseUrl = process.env.CYBERTIPLINE_BASE_URL;
-    delete process.env.CYBERTIPLINE_BASE_URL;
-    try {
-      const client = new CyberTiplineClient({ credentials: testCreds });
-      expect(client.getBaseUrl()).toBe(CYBERTIPLINE_TEST_BASE_URL);
-    } finally {
-      if (savedBaseUrl === undefined) delete process.env.CYBERTIPLINE_BASE_URL;
-      else process.env.CYBERTIPLINE_BASE_URL = savedBaseUrl;
-    }
+    const client = new CyberTiplineClient({ credentials: testCreds });
+    expect(client.getBaseUrl()).toBe(CYBERTIPLINE_TEST_BASE_URL);
   });
 
   test('accepts custom base URL', () => {
@@ -412,5 +419,115 @@ describe('CyberTiplineClient', () => {
       if (savedTimeout === undefined) delete process.env.CYBERTIPLINE_TIMEOUT_MS;
       else process.env.CYBERTIPLINE_TIMEOUT_MS = savedTimeout;
     }
+  });
+});
+
+describe('cyberTiplineBaseUrlForEnv', () => {
+  test('maps test and production to known base URLs', () => {
+    expect(cyberTiplineBaseUrlForEnv('test')).toBe(CYBERTIPLINE_TEST_BASE_URL);
+    expect(cyberTiplineBaseUrlForEnv('production')).toBe(CYBERTIPLINE_PROD_BASE_URL);
+  });
+});
+
+describe('loadCyberTiplineCredentialsFromEnv', () => {
+  const keys = [
+    'CYBERTIPLINE_USERNAME',
+    'CYBERTIPLINE_PASSWORD',
+    'CYBERTIPLINE_REPORTER_FIRST_NAME',
+    'CYBERTIPLINE_REPORTER_LAST_NAME',
+    'CYBERTIPLINE_REPORTER_EMAIL',
+    'CYBERTIPLINE_TEST_USERNAME',
+    'CYBERTIPLINE_TEST_PASSWORD',
+    'CYBERTIPLINE_TEST_REPORTER_FIRST_NAME',
+    'CYBERTIPLINE_TEST_REPORTER_LAST_NAME',
+    'CYBERTIPLINE_TEST_REPORTER_EMAIL',
+  ] as const;
+
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const k of keys) {
+      saved[k] = process.env[k];
+      delete process.env[k];
+    }
+  });
+
+  afterEach(() => {
+    for (const k of keys) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  test('loads CYBERTIPLINE_* credentials', () => {
+    process.env.CYBERTIPLINE_USERNAME = 'esp-user';
+    process.env.CYBERTIPLINE_PASSWORD = 'esp-pass';
+    process.env.CYBERTIPLINE_REPORTER_FIRST_NAME = 'Abuse';
+    process.env.CYBERTIPLINE_REPORTER_LAST_NAME = 'Desk';
+    process.env.CYBERTIPLINE_REPORTER_EMAIL = 'abuse@example.com';
+
+    const creds = loadCyberTiplineCredentialsFromEnv();
+    expect(creds?.username).toBe('esp-user');
+    expect(creds?.reporterEmail).toBe('abuse@example.com');
+  });
+
+  test('falls back to CYBERTIPLINE_TEST_* aliases for local dev', () => {
+    process.env.CYBERTIPLINE_TEST_USERNAME = 'test-user';
+    process.env.CYBERTIPLINE_TEST_PASSWORD = 'test-pass';
+    process.env.CYBERTIPLINE_TEST_REPORTER_FIRST_NAME = 'Test';
+    process.env.CYBERTIPLINE_TEST_REPORTER_LAST_NAME = 'User';
+    process.env.CYBERTIPLINE_TEST_REPORTER_EMAIL = 'test@example.com';
+
+    const creds = loadCyberTiplineCredentialsFromEnv();
+    expect(creds?.username).toBe('test-user');
+  });
+});
+
+describe('resolveCyberTiplineDeployEnv', () => {
+  const oldEnv = process.env.CYBERTIPLINE_ENV;
+
+  beforeEach(() => {
+    mockFindByKey.mockReset();
+    mockFindByKey.mockImplementation(() => Promise.resolve(null));
+    delete process.env.CYBERTIPLINE_ENV;
+  });
+
+  afterEach(() => {
+    if (oldEnv === undefined) delete process.env.CYBERTIPLINE_ENV;
+    else process.env.CYBERTIPLINE_ENV = oldEnv;
+  });
+
+  test('uses platform setting when present', async () => {
+    mockFindByKey.mockImplementation((key: string) =>
+      key === PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV
+        ? Promise.resolve({ valueType: 'string', value: 'production' })
+        : Promise.resolve(null),
+    );
+    expect(await resolveCyberTiplineDeployEnv()).toBe('production');
+  });
+
+  test('falls back to CYBERTIPLINE_ENV', async () => {
+    process.env.CYBERTIPLINE_ENV = 'production';
+    expect(await resolveCyberTiplineDeployEnv()).toBe('production');
+  });
+
+  test('defaults to test when unset', async () => {
+    expect(await resolveCyberTiplineDeployEnv()).toBe('test');
+  });
+});
+
+describe('createCyberTiplineClient', () => {
+  beforeEach(() => {
+    mockFindByKey.mockReset();
+    mockFindByKey.mockImplementation((key: string) =>
+      key === PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV
+        ? Promise.resolve({ valueType: 'string', value: 'production' })
+        : Promise.resolve(null),
+    );
+  });
+
+  test('uses resolved environment for base URL', async () => {
+    const client = await createCyberTiplineClient();
+    expect(client.getBaseUrl()).toBe(CYBERTIPLINE_PROD_BASE_URL);
   });
 });

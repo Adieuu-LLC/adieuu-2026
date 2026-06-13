@@ -111,9 +111,6 @@ locals {
       LIVEKIT_URL     = "wss://${var.livekit_domain}"
       LIVEKIT_API_KEY = var.livekit_api_key
     } : {},
-    local.media_enabled ? {
-      CYBERTIPLINE_BASE_URL = var.cybertipline_base_url
-    } : {},
   )
 
   chat_env_merged = merge(

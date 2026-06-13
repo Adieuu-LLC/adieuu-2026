@@ -31,7 +31,7 @@ describe.skipIf(!enabled)('CyberTipline integration (exttest)', () => {
       );
     }
 
-    const baseUrl = process.env.CYBERTIPLINE_BASE_URL ?? CYBERTIPLINE_TEST_BASE_URL;
+    const baseUrl = CYBERTIPLINE_TEST_BASE_URL;
     const client = new CyberTiplineClient({ baseUrl, credentials: creds });
     const resp = await client.checkStatus();
 

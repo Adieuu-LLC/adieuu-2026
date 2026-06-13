@@ -3,9 +3,13 @@
  *
  * Implements the multi-step report flow: submit XML -> upload evidence -> file details -> finish.
  * Auth credentials are loaded from env vars (ECS api_container_secrets or local .env).
+ * Active test vs production is resolved from platform settings; API hosts are hardcoded.
  *
  * API docs: https://report.cybertip.org/ispws/documentation
  */
+
+import { PLATFORM_SETTING_KEYS } from '../constants/platform-settings-keys';
+import { getPlatformSettingsRepository } from '../repositories/platform-settings.repository';
 
 export const CYBERTIPLINE_TEST_BASE_URL = 'https://exttest.cybertip.org/ispws';
 export const CYBERTIPLINE_PROD_BASE_URL = 'https://report.cybertip.org/ispws';
@@ -24,6 +28,34 @@ function getCyberTiplineTimeoutMs(): number {
 }
 
 export type CyberTiplineDeployEnv = 'test' | 'production';
+
+/**
+ * Resolves the active NCMEC CyberTipline environment ('test' | 'production').
+ * Platform setting overrides CYBERTIPLINE_ENV. API base URLs are hardcoded per env.
+ */
+export async function resolveCyberTiplineDeployEnv(): Promise<CyberTiplineDeployEnv> {
+  try {
+    const repo = getPlatformSettingsRepository();
+    const doc = await repo.findByKey(PLATFORM_SETTING_KEYS.NCMEC_CYBERTIPLINE_ENV);
+    if (doc?.valueType === 'string' && (doc.value === 'test' || doc.value === 'production')) {
+      return doc.value;
+    }
+  } catch {
+    // fall through
+  }
+
+  const fromEnv = process.env.CYBERTIPLINE_ENV?.trim();
+  if (fromEnv === 'test' || fromEnv === 'production') {
+    return fromEnv;
+  }
+
+  return 'test';
+}
+
+export function cyberTiplineBaseUrlForEnv(env: CyberTiplineDeployEnv): string {
+  const url = env === 'production' ? PROD_BASE_URL : TEST_BASE_URL;
+  return url.replace(/\/$/, '');
+}
 
 function baseUrlHost(baseUrl: string): string {
   try {
@@ -321,13 +353,22 @@ function envOrTest(key: string, testKey: string): string | undefined {
   return process.env[testKey]?.trim() || undefined;
 }
 
-/** Local dev / integration tests: credentials from env when Secrets Manager is not used. */
+/** Credentials from env / secrets. Same ESP account for test and production endpoints. */
 export function loadCyberTiplineCredentialsFromEnv(): CyberTiplineCredentials | null {
   const username = envOrTest('CYBERTIPLINE_USERNAME', 'CYBERTIPLINE_TEST_USERNAME');
   const password = envOrTest('CYBERTIPLINE_PASSWORD', 'CYBERTIPLINE_TEST_PASSWORD');
-  const reporterFirstName = envOrTest('CYBERTIPLINE_REPORTER_FIRST_NAME', 'CYBERTIPLINE_TEST_REPORTER_FIRST_NAME');
-  const reporterLastName = envOrTest('CYBERTIPLINE_REPORTER_LAST_NAME', 'CYBERTIPLINE_TEST_REPORTER_LAST_NAME');
-  const reporterEmail = envOrTest('CYBERTIPLINE_REPORTER_EMAIL', 'CYBERTIPLINE_TEST_REPORTER_EMAIL');
+  const reporterFirstName = envOrTest(
+    'CYBERTIPLINE_REPORTER_FIRST_NAME',
+    'CYBERTIPLINE_TEST_REPORTER_FIRST_NAME',
+  );
+  const reporterLastName = envOrTest(
+    'CYBERTIPLINE_REPORTER_LAST_NAME',
+    'CYBERTIPLINE_TEST_REPORTER_LAST_NAME',
+  );
+  const reporterEmail = envOrTest(
+    'CYBERTIPLINE_REPORTER_EMAIL',
+    'CYBERTIPLINE_TEST_REPORTER_EMAIL',
+  );
 
   if (!username || !password || !reporterFirstName || !reporterLastName || !reporterEmail) {
     return null;
@@ -350,9 +391,7 @@ export class CyberTiplineClient {
   private credentials: CyberTiplineCredentials | null = null;
 
   constructor(opts?: { baseUrl?: string; credentials?: CyberTiplineCredentials }) {
-    this.baseUrl = (opts?.baseUrl
-      ?? process.env.CYBERTIPLINE_BASE_URL
-      ?? TEST_BASE_URL).replace(/\/$/, '');
+    this.baseUrl = (opts?.baseUrl ?? TEST_BASE_URL).replace(/\/$/, '');
     if (opts?.credentials) {
       this.credentials = opts.credentials;
     }
@@ -613,11 +652,23 @@ export class CyberTiplineError extends Error {
 
 let clientInstance: CyberTiplineClient | null = null;
 
+/** @deprecated Prefer createCyberTiplineClient() so platform settings apply per submission. */
 export function getCyberTiplineClient(): CyberTiplineClient {
   if (!clientInstance) {
     clientInstance = new CyberTiplineClient();
   }
   return clientInstance;
+}
+
+/** Builds a client using the platform NCMEC environment (hardcoded base URL) and shared credentials. */
+export async function createCyberTiplineClient(): Promise<CyberTiplineClient> {
+  const env = await resolveCyberTiplineDeployEnv();
+  const baseUrl = cyberTiplineBaseUrlForEnv(env);
+  const credentials = loadCyberTiplineCredentialsFromEnv();
+  return new CyberTiplineClient({
+    baseUrl,
+    ...(credentials ? { credentials } : {}),
+  });
 }
 
 export { buildReportXml, buildFileDetailsXml, parseResponseXml, parseFinishResponseXml, escapeXml };
