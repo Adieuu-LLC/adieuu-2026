@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { ObjectId } from 'mongodb';
 import type { UserDocument } from '../../../models/user';
 import type { SubscriptionTierId } from '@adieuu/shared';
 
-const mockRedeemPromoCode = mock(() =>
+const mockRedeemPromoCode: any = mock(() =>
   Promise.resolve({
     ok: true as const,
     shortcode: 'welcome-access',
@@ -15,7 +16,7 @@ mock.module('../../../services/promo-code.service', () => ({
   redeemPromoCode: mockRedeemPromoCode,
 }));
 
-const mockGetSubscriptionSummary = mock(() =>
+const mockGetSubscriptionSummary: any = mock(() =>
   Promise.resolve({
     ok: true as const,
     data: {

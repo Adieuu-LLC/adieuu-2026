@@ -354,7 +354,7 @@ describe('stripe trial subscription (new users)', () => {
     expect(result.ok).toBe(true);
     expect(mockSubscriptionsCreate).toHaveBeenCalledTimes(1);
 
-    const createArgs = mockSubscriptionsCreate.mock.calls[0][0];
+    const createArgs = (mockSubscriptionsCreate.mock.calls as any[][])[0]![0];
     expect(createArgs.customer).toBe('cus_new_user');
     expect(createArgs.items[0].price).toBe('price_access_annual');
     expect(createArgs.trial_settings.end_behavior.missing_payment_method).toBe('cancel');
@@ -370,7 +370,7 @@ describe('stripe trial subscription (new users)', () => {
 
     await redeemPromoCode(USER_ID.toHexString(), 'welcome-access');
 
-    const redemptionArg = mockCreateRedemption.mock.calls[0][0];
+    const redemptionArg = (mockCreateRedemption.mock.calls as any[][])[0]![0];
     expect(redemptionArg.stripeAction).toBe('trial');
   });
 
@@ -397,7 +397,7 @@ describe('stripe trial subscription (new users)', () => {
     expect(result.ok).toBe(true);
     expect(mockAddSubscriptionOverride).toHaveBeenCalled();
 
-    const redemptionArg = mockCreateRedemption.mock.calls[0][0];
+    const redemptionArg = (mockCreateRedemption.mock.calls as any[][])[0]![0];
     expect(redemptionArg.stripeAction).toBe('override');
   });
 
@@ -413,7 +413,7 @@ describe('stripe trial subscription (new users)', () => {
     expect(mockSubscriptionsCreate).not.toHaveBeenCalled();
     expect(mockAddSubscriptionOverride).toHaveBeenCalled();
 
-    const redemptionArg = mockCreateRedemption.mock.calls[0][0];
+    const redemptionArg = (mockCreateRedemption.mock.calls as any[][])[0]![0];
     expect(redemptionArg.stripeAction).toBe('override');
   });
 });
@@ -459,7 +459,7 @@ describe('stripe balance credit (existing subscribers)', () => {
 
     await redeemPromoCode(USER_ID.toHexString(), 'welcome-access');
 
-    const txnArgs = mockCreateBalanceTransaction.mock.calls[0];
+    const txnArgs = (mockCreateBalanceTransaction.mock.calls as any[][])[0]!;
     expect(txnArgs[0]).toBe('cus_existing');
     // 9900 / 12 * 3 = 2475 cents, negative for credit
     expect(txnArgs[1].amount).toBe(-2475);
@@ -476,7 +476,7 @@ describe('stripe balance credit (existing subscribers)', () => {
 
     await redeemPromoCode(USER_ID.toHexString(), 'welcome-access');
 
-    const redemptionArg = mockCreateRedemption.mock.calls[0][0];
+    const redemptionArg = (mockCreateRedemption.mock.calls as any[][])[0]![0];
     expect(redemptionArg.stripeAction).toBe('credit');
   });
 
@@ -503,7 +503,7 @@ describe('stripe balance credit (existing subscribers)', () => {
     expect(result.ok).toBe(true);
     expect(mockAddSubscriptionOverride).toHaveBeenCalled();
 
-    const redemptionArg = mockCreateRedemption.mock.calls[0][0];
+    const redemptionArg = (mockCreateRedemption.mock.calls as any[][])[0]![0];
     expect(redemptionArg.stripeAction).toBe('override');
   });
 
@@ -552,7 +552,7 @@ describe('override path', () => {
 
     await redeemPromoCode(USER_ID.toHexString(), 'welcome-access');
 
-    const redemptionArg = mockCreateRedemption.mock.calls[0][0];
+    const redemptionArg = (mockCreateRedemption.mock.calls as any[][])[0]![0];
     expect(redemptionArg.stripeAction).toBe('override');
   });
 });
@@ -588,7 +588,7 @@ describe('entitlement-only codes', () => {
 
     await redeemPromoCode(USER_ID.toHexString(), 'welcome-access');
 
-    const redemptionArg = mockCreateRedemption.mock.calls[0][0];
+    const redemptionArg = (mockCreateRedemption.mock.calls as any[][])[0]![0];
     expect(redemptionArg.stripeAction).toBeUndefined();
   });
 });
@@ -605,7 +605,7 @@ describe('pre-existing validation paths still work', () => {
   });
 
   test('rate limited user is rejected', async () => {
-    mockCheckRateLimit.mockResolvedValue({ allowed: false, remaining: 0, retryAfter: 3600 });
+    mockCheckRateLimit.mockResolvedValue({ allowed: false, remaining: 0 } as any);
     const result = await redeemPromoCode(USER_ID.toHexString(), 'welcome-access');
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe('rate_limited');
