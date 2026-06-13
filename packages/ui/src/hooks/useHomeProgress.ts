@@ -76,14 +76,25 @@ export function useHomeProgress(): HomeProgress {
   const { hasIdentity } = useIdentity();
   const api = useMemo(() => createApiClient({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
 
+  const subjectId = session?.identifier;
+
   const [tourCompleted, setTourCompleted] = useState(readTourCompletedFromStorage);
   const [appearanceTourCompleted, setAppearanceTourCompleted] = useState(readAppearanceTourCompletedFromStorage);
-  const [firstMessageSent, setFirstMessageSent] = useState(readFirstMessageSentFromStorage);
+  const [firstMessageSent, setFirstMessageSent] = useState(() => readFirstMessageSentFromStorage(subjectId));
+
+  useEffect(() => {
+    setFirstMessageSent(readFirstMessageSentFromStorage(subjectId));
+  }, [subjectId]);
 
   useEffect(() => {
     const onTourDone = () => setTourCompleted(readTourCompletedFromStorage());
     const onAppearanceTourDone = () => setAppearanceTourCompleted(readAppearanceTourCompletedFromStorage());
-    const onFirstMessageSent = () => setFirstMessageSent(readFirstMessageSentFromStorage());
+    const onFirstMessageSent = (e: Event) => {
+      const detail = (e as CustomEvent<{ subjectId?: string }>).detail;
+      if (!subjectId || detail?.subjectId === subjectId) {
+        setFirstMessageSent(readFirstMessageSentFromStorage(subjectId));
+      }
+    };
     window.addEventListener(TOUR_COMPLETED_EVENT, onTourDone);
     window.addEventListener(APPEARANCE_TOUR_COMPLETED_EVENT, onAppearanceTourDone);
     window.addEventListener(FIRST_MESSAGE_SENT_EVENT, onFirstMessageSent);
@@ -92,7 +103,7 @@ export function useHomeProgress(): HomeProgress {
       window.removeEventListener(APPEARANCE_TOUR_COMPLETED_EVENT, onAppearanceTourDone);
       window.removeEventListener(FIRST_MESSAGE_SENT_EVENT, onFirstMessageSent);
     };
-  }, []);
+  }, [subjectId]);
 
   const isIdentityMode = authStatus === 'identity_mode';
 
@@ -185,19 +196,24 @@ function useAccountProgress(
     let cancelled = false;
     setJurisdictionReqsLoading(true);
     void (async () => {
-      const res = await api.geo.getJurisdictionRequirements(codes);
-      if (cancelled) return;
-      if (res.success && res.data) {
-        const sorted = [...res.data].sort((a, b) => {
-          const r = a.region.localeCompare(b.region);
-          if (r !== 0) return r;
-          return a.jurisdictionName.localeCompare(b.jurisdictionName);
-        });
-        setJurisdictionReqs(sorted);
-      } else {
-        setJurisdictionReqs([]);
+      try {
+        const res = await api.geo.getJurisdictionRequirements(codes);
+        if (cancelled) return;
+        if (res.success && res.data) {
+          const sorted = [...res.data].sort((a, b) => {
+            const r = a.region.localeCompare(b.region);
+            if (r !== 0) return r;
+            return a.jurisdictionName.localeCompare(b.jurisdictionName);
+          });
+          setJurisdictionReqs(sorted);
+        } else {
+          setJurisdictionReqs([]);
+        }
+      } catch {
+        if (!cancelled) setJurisdictionReqs([]);
+      } finally {
+        if (!cancelled) setJurisdictionReqsLoading(false);
       }
-      setJurisdictionReqsLoading(false);
     })();
     return () => {
       cancelled = true;

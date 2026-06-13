@@ -7,7 +7,12 @@
 import type { ClientSession, Filter, ObjectId, Sort } from 'mongodb';
 import { BaseRepository } from './base.repository';
 import { Collections } from '../db/mongo';
-import type { PromoCodeDocument, PromoRedemptionDocument } from '../models/promo-code';
+import type {
+  PromoCodeDocument,
+  PromoRedemptionDocument,
+  PromoRedemptionStripeAction,
+} from '../models/promo-code';
+import type { SubscriptionTierId } from '@adieuu/shared';
 
 // ---------------------------------------------------------------------------
 // Promo Code Repository
@@ -119,6 +124,26 @@ export class PromoRedemptionRepository extends BaseRepository<PromoRedemptionDoc
     options?: { session?: ClientSession },
   ): Promise<PromoRedemptionDocument> {
     return this.create(input, options);
+  }
+
+  async updateStripeAction(
+    userId: ObjectId,
+    shortcode: string,
+    stripeAction: PromoRedemptionStripeAction,
+    subscriptionOverrideApplied?: { tier: SubscriptionTierId; expiresAt: Date },
+  ): Promise<void> {
+    const update: Partial<PromoRedemptionDocument> = {
+      stripeAction,
+      updatedAt: new Date(),
+    };
+    if (subscriptionOverrideApplied) {
+      update.subscriptionOverrideApplied = subscriptionOverrideApplied;
+    }
+
+    await this.collection.updateOne(
+      { userId, shortcode } as Filter<PromoRedemptionDocument>,
+      { $set: update },
+    );
   }
 
   async listByShortcode(

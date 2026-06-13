@@ -441,24 +441,12 @@ export async function redeemPromoCode(
 
   let stripeAction: PromoRedemptionStripeAction = determineStripeAction(code, user);
 
-  if (code.subscription && stripeAction === 'credit') {
-    const credited = await applyPromoBalanceCredit(
-      user,
-      code.subscription.tier as SubscriptionTierId,
-      code.subscription.durationMonths,
-      shortcode,
-    );
-    if (!credited) stripeAction = 'override';
-  }
-
-  if (code.subscription && stripeAction === 'trial') {
-    const trial = await createPromoTrialSubscription(
-      user,
-      code.subscription.tier as SubscriptionTierId,
-      code.subscription.durationMonths,
-    );
-    if (!trial) stripeAction = 'override';
-  }
+  elog.info('Promo redemption: determined stripe action', {
+    userId,
+    shortcode,
+    intendedStripeAction: stripeAction,
+    hasSubscriptionGrant: !!code.subscription,
+  });
 
   const subscriptionOverrideApplied =
     code.subscription && stripeAction === 'override'
@@ -511,21 +499,100 @@ export async function redeemPromoCode(
     return { ok: false, reason: 'internal' };
   }
 
+  elog.info('Promo redemption: transaction committed', {
+    userId,
+    shortcode,
+    intendedStripeAction: stripeAction,
+    hasSubscriptionGrant: !!code.subscription,
+    subscriptionOverrideApplied: !!subscriptionOverrideApplied,
+  });
+
+  let finalStripeAction: PromoRedemptionStripeAction = stripeAction;
+  let finalSubscriptionOverrideApplied = subscriptionOverrideApplied;
+
+  if (code.subscription && stripeAction === 'credit') {
+    const tier = code.subscription.tier as SubscriptionTierId;
+    const months = code.subscription.durationMonths;
+    const credited = await applyPromoBalanceCredit(user, tier, months, shortcode);
+    if (credited) {
+      elog.info('Promo redemption: balance credit applied', { userId, shortcode, tier, months });
+    } else {
+      elog.warn('Promo redemption: balance credit failed, falling back to override', {
+        userId,
+        shortcode,
+        tier,
+        months,
+      });
+      finalStripeAction = 'override';
+      try {
+        const override = { tier, expiresAt: addMonths(now, months) };
+        await userRepo.addSubscriptionOverride(userId, override);
+        await redemptionRepo.updateStripeAction(userObjectId, shortcode, 'override', override);
+        finalSubscriptionOverrideApplied = override;
+        elog.info('Promo redemption: override compensation applied', { userId, shortcode, tier });
+      } catch (compErr) {
+        elog.error('Promo redemption: override compensation failed', {
+          userId,
+          shortcode,
+          tier,
+          error: compErr instanceof Error ? compErr.message : String(compErr),
+        });
+      }
+    }
+  } else if (code.subscription && stripeAction === 'trial') {
+    const tier = code.subscription.tier as SubscriptionTierId;
+    const months = code.subscription.durationMonths;
+    const trial = await createPromoTrialSubscription(user, tier, months);
+    if (trial) {
+      elog.info('Promo redemption: trial subscription created', {
+        userId,
+        shortcode,
+        tier,
+        months,
+        subscriptionId: trial.subscriptionId,
+      });
+    } else {
+      elog.warn('Promo redemption: trial creation failed, falling back to override', {
+        userId,
+        shortcode,
+        tier,
+        months,
+      });
+      finalStripeAction = 'override';
+      try {
+        const override = { tier, expiresAt: addMonths(now, months) };
+        await userRepo.addSubscriptionOverride(userId, override);
+        await redemptionRepo.updateStripeAction(userObjectId, shortcode, 'override', override);
+        finalSubscriptionOverrideApplied = override;
+        elog.info('Promo redemption: override compensation applied', { userId, shortcode, tier });
+      } catch (compErr) {
+        elog.error('Promo redemption: override compensation failed', {
+          userId,
+          shortcode,
+          tier,
+          error: compErr instanceof Error ? compErr.message : String(compErr),
+        });
+      }
+    }
+  }
+
   elog.info('Promo code redeemed', {
     userId,
     shortcode,
     tier: code.subscription?.tier,
-    stripeAction: code.subscription ? stripeAction : undefined,
+    intendedStripeAction: code.subscription ? stripeAction : undefined,
+    finalStripeAction: code.subscription ? finalStripeAction : undefined,
+    compensationApplied: stripeAction !== finalStripeAction,
     entitlements: entitlementsApplied,
   });
 
   return {
     ok: true,
     shortcode,
-    subscriptionApplied: subscriptionOverrideApplied
+    subscriptionApplied: finalSubscriptionOverrideApplied
       ? {
-          tier: subscriptionOverrideApplied.tier,
-          expiresAt: subscriptionOverrideApplied.expiresAt.toISOString(),
+          tier: finalSubscriptionOverrideApplied.tier,
+          expiresAt: finalSubscriptionOverrideApplied.expiresAt.toISOString(),
         }
       : code.subscription
         ? {

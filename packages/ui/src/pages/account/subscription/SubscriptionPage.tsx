@@ -306,7 +306,11 @@ export function AccountSubscription() {
       const res = await api.promoCode.redeem({ shortcode });
       if (res.success && res.data) {
         setStatus(res.data.subscriptionStatus);
-        await refreshSession();
+        try {
+          await refreshSession();
+        } catch (err) {
+          console.error('Failed to refresh session after promo redemption', err);
+        }
         return { ok: true };
       }
 

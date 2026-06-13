@@ -70,7 +70,7 @@
 }
 
 .support-ticket-list-id {
-  font-family: var(--font-family-mono, monospace);
+  font-family: var(--font-mono, monospace);
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   word-break: break-all;
@@ -380,7 +380,7 @@
   border: none;
   background: var(--color-surface);
   color: var(--color-text);
-  font-family: var(--font-family-mono, monospace);
+  font-family: var(--font-mono, monospace);
   font-size: var(--font-size-sm);
   resize: vertical;
   min-height: 60px;

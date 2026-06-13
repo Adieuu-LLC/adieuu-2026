@@ -345,6 +345,7 @@ export const conversations = {
 
     placeholderVerbs: {
       message: '💬 Message',
+      hi: '💬 Say Hi to',
       // ping: '🔔 Ping',
       // poke: '👉 Poke',
       // nudge: '👆 Nudge',

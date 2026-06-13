@@ -44,6 +44,7 @@ export function AdminPromoCodes() {
 
   const [codes, setCodes] = useState<PublicPromoCode[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -58,6 +59,8 @@ export function AdminPromoCodes() {
   const [redemptionsOpen, setRedemptionsOpen] = useState(false);
   const [redemptionsShortcode, setRedemptionsShortcode] = useState<string | null>(null);
   const [redemptions, setRedemptions] = useState<PublicPromoRedemption[]>([]);
+  const [redemptionsTotal, setRedemptionsTotal] = useState(0);
+  const [redemptionsPage, setRedemptionsPage] = useState(0);
   const [redemptionsLoading, setRedemptionsLoading] = useState(false);
   const [redemptionsError, setRedemptionsError] = useState<string | null>(null);
 
@@ -84,10 +87,13 @@ export function AdminPromoCodes() {
     [t],
   );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (pageToLoad = page) => {
     setLoading(true);
     setLoadError(null);
-    const res = await api.promoCode.listAdmin({ limit: LIST_LIMIT, offset: 0 });
+    const res = await api.promoCode.listAdmin({
+      limit: LIST_LIMIT,
+      offset: pageToLoad * LIST_LIMIT,
+    });
     if (res.success && res.data) {
       setCodes(res.data.codes);
       setTotal(res.data.total);
@@ -97,11 +103,51 @@ export function AdminPromoCodes() {
       setTotal(0);
     }
     setLoading(false);
-  }, [api, t]);
+  }, [api, page, t]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void load(page);
+  }, [load, page]);
+
+  const totalPages = Math.max(1, Math.ceil(total / LIST_LIMIT));
+  const pageStart = total === 0 ? 0 : page * LIST_LIMIT + 1;
+  const pageEnd = Math.min((page + 1) * LIST_LIMIT, total);
+  const isFirstPage = page === 0;
+  const isLastPage = total === 0 || page >= totalPages - 1;
+
+  const loadRedemptions = useCallback(
+    async (shortcode: string, pageToLoad: number) => {
+      setRedemptionsLoading(true);
+      setRedemptionsError(null);
+      const res = await api.promoCode.listRedemptionsAdmin(shortcode, {
+        limit: LIST_LIMIT,
+        offset: pageToLoad * LIST_LIMIT,
+      });
+      if (res.success && res.data) {
+        setRedemptions(res.data.redemptions);
+        setRedemptionsTotal(res.data.total);
+      } else {
+        setRedemptionsError(t('admin.promoCodes.redemptionsLoadError'));
+        setRedemptions([]);
+        setRedemptionsTotal(0);
+      }
+      setRedemptionsLoading(false);
+    },
+    [api, t],
+  );
+
+  useEffect(() => {
+    if (!redemptionsOpen || !redemptionsShortcode) return;
+    void loadRedemptions(redemptionsShortcode, redemptionsPage);
+  }, [redemptionsOpen, redemptionsShortcode, redemptionsPage, loadRedemptions]);
+
+  const redemptionsTotalPages = Math.max(1, Math.ceil(redemptionsTotal / LIST_LIMIT));
+  const redemptionsPageStart =
+    redemptionsTotal === 0 ? 0 : redemptionsPage * LIST_LIMIT + 1;
+  const redemptionsPageEnd = Math.min((redemptionsPage + 1) * LIST_LIMIT, redemptionsTotal);
+  const redemptionsIsFirstPage = redemptionsPage === 0;
+  const redemptionsIsLastPage =
+    redemptionsTotal === 0 || redemptionsPage >= redemptionsTotalPages - 1;
 
   const resetForm = () => {
     setForm(EMPTY_PROMO_FORM);
@@ -157,7 +203,8 @@ export function AdminPromoCodes() {
           : t('admin.promoCodes.createSuccess'),
       );
       resetForm();
-      await load();
+      setPage(0);
+      await load(0);
     } else {
       setSaveError(t('admin.promoCodes.saveError'));
     }
@@ -171,33 +218,29 @@ export function AdminPromoCodes() {
     setDeletingShortcode(shortcode);
     const res = await api.promoCode.deleteAdmin(shortcode);
     if (res.success) {
-      await load();
+      setPage(0);
+      await load(0);
     } else {
       window.alert(t('admin.promoCodes.deleteError'));
     }
     setDeletingShortcode(null);
   };
 
-  const openRedemptions = async (shortcode: string) => {
+  const openRedemptions = (shortcode: string) => {
     setRedemptionsShortcode(shortcode);
-    setRedemptionsOpen(true);
+    setRedemptionsPage(0);
     setRedemptions([]);
+    setRedemptionsTotal(0);
     setRedemptionsError(null);
-    setRedemptionsLoading(true);
-
-    const res = await api.promoCode.listRedemptionsAdmin(shortcode, { limit: 100, offset: 0 });
-    if (res.success && res.data) {
-      setRedemptions(res.data.redemptions);
-    } else {
-      setRedemptionsError(t('admin.promoCodes.redemptionsLoadError'));
-    }
-    setRedemptionsLoading(false);
+    setRedemptionsOpen(true);
   };
 
   const closeRedemptions = () => {
     setRedemptionsOpen(false);
     setRedemptionsShortcode(null);
     setRedemptions([]);
+    setRedemptionsTotal(0);
+    setRedemptionsPage(0);
     setRedemptionsError(null);
   };
 
@@ -236,7 +279,7 @@ export function AdminPromoCodes() {
       {loadError && (
         <div className="admin-promo-codes__message admin-promo-codes__message--error">
           <p>{loadError}</p>
-          <Button variant="secondary" size="sm" onClick={() => void load()}>
+          <Button variant="secondary" size="sm" onClick={() => void load(page)}>
             {t('common.retry')}
           </Button>
         </div>
@@ -248,9 +291,9 @@ export function AdminPromoCodes() {
         </div>
       ) : (
         <>
-          {total > codes.length && (
+          {total > 0 && (
             <p className="admin-hint admin-promo-codes__pagination-hint">
-              {t('admin.promoCodes.showingCount', { shown: codes.length, total })}
+              {t('admin.promoCodes.showingCount', { start: pageStart, end: pageEnd, total })}
             </p>
           )}
 
@@ -301,7 +344,7 @@ export function AdminPromoCodes() {
                           <Button
                             variant="secondary"
                             size="sm"
-                            onClick={() => void openRedemptions(code.shortcode)}
+                            onClick={() => openRedemptions(code.shortcode)}
                           >
                             {t('admin.promoCodes.viewRedemptions')}
                           </Button>
@@ -319,6 +362,43 @@ export function AdminPromoCodes() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {total > LIST_LIMIT && (
+            <div className="admin-promo-codes__pagination">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isFirstPage || loading}
+                onClick={() => setPage(0)}
+              >
+                {t('admin.promoCodes.firstPage')}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isFirstPage || loading}
+                onClick={() => setPage((current) => current - 1)}
+              >
+                {t('admin.promoCodes.prevPage')}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isLastPage || loading}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                {t('admin.promoCodes.nextPage')}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isLastPage || loading}
+                onClick={() => setPage(totalPages - 1)}
+              >
+                {t('admin.promoCodes.lastPage')}
+              </Button>
             </div>
           )}
 
@@ -640,49 +720,96 @@ export function AdminPromoCodes() {
                 ) : redemptions.length === 0 ? (
                   <p className="admin-hint">{t('admin.promoCodes.redemptionsEmpty')}</p>
                 ) : (
-                  <div className="admin-table-wrap">
-                    <table className="admin-table admin-promo-codes__redemptions-table">
-                      <thead>
-                        <tr>
-                          <th>{t('admin.promoCodes.redemptions.userId')}</th>
-                          <th>{t('admin.promoCodes.redemptions.redeemedAt')}</th>
-                          <th>{t('admin.promoCodes.redemptions.grantsApplied')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {redemptions.map((row) => (
-                          <tr key={row.id}>
-                            <td>
-                              <Link
-                                to={`/admin/users/${row.userId}`}
-                                className="admin-promo-codes__user-link"
-                              >
-                                {row.userId}
-                              </Link>
-                            </td>
-                            <td>{formatDateTime(row.redeemedAt)}</td>
-                            <td>
-                              {[
-                                row.subscriptionOverrideApplied
-                                  ? t('admin.promoCodes.redemptions.subscriptionGrant', {
-                                      tier: row.subscriptionOverrideApplied.tier,
-                                      date: formatDateTime(
-                                        row.subscriptionOverrideApplied.expiresAt,
-                                      ),
-                                    })
-                                  : null,
-                                row.entitlementsApplied.length
-                                  ? row.entitlementsApplied.join(', ')
-                                  : null,
-                              ]
-                                .filter(Boolean)
-                                .join(' · ') || '—'}
-                            </td>
+                  <>
+                    {redemptionsTotal > 0 && (
+                      <p className="admin-hint admin-promo-codes__pagination-hint">
+                        {t('admin.promoCodes.showingCount', {
+                          start: redemptionsPageStart,
+                          end: redemptionsPageEnd,
+                          total: redemptionsTotal,
+                        })}
+                      </p>
+                    )}
+                    <div className="admin-table-wrap">
+                      <table className="admin-table admin-promo-codes__redemptions-table">
+                        <thead>
+                          <tr>
+                            <th>{t('admin.promoCodes.redemptions.userId')}</th>
+                            <th>{t('admin.promoCodes.redemptions.redeemedAt')}</th>
+                            <th>{t('admin.promoCodes.redemptions.grantsApplied')}</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {redemptions.map((row) => (
+                            <tr key={row.id}>
+                              <td>
+                                <Link
+                                  to={`/admin/users/${row.userId}`}
+                                  className="admin-promo-codes__user-link"
+                                >
+                                  {row.userId}
+                                </Link>
+                              </td>
+                              <td>{formatDateTime(row.redeemedAt)}</td>
+                              <td>
+                                {[
+                                  row.subscriptionOverrideApplied
+                                    ? t('admin.promoCodes.redemptions.subscriptionGrant', {
+                                        tier: row.subscriptionOverrideApplied.tier,
+                                        date: formatDateTime(
+                                          row.subscriptionOverrideApplied.expiresAt,
+                                        ),
+                                      })
+                                    : null,
+                                  row.entitlementsApplied.length
+                                    ? row.entitlementsApplied.join(', ')
+                                    : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' · ') || '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {redemptionsTotal > LIST_LIMIT && (
+                      <div className="admin-promo-codes__pagination">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={redemptionsIsFirstPage || redemptionsLoading}
+                          onClick={() => setRedemptionsPage(0)}
+                        >
+                          {t('admin.promoCodes.firstPage')}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={redemptionsIsFirstPage || redemptionsLoading}
+                          onClick={() => setRedemptionsPage((current) => current - 1)}
+                        >
+                          {t('admin.promoCodes.prevPage')}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={redemptionsIsLastPage || redemptionsLoading}
+                          onClick={() => setRedemptionsPage((current) => current + 1)}
+                        >
+                          {t('admin.promoCodes.nextPage')}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={redemptionsIsLastPage || redemptionsLoading}
+                          onClick={() => setRedemptionsPage(redemptionsTotalPages - 1)}
+                        >
+                          {t('admin.promoCodes.lastPage')}
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 

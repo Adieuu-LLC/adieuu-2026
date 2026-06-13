@@ -29,6 +29,7 @@ export interface IUserRepository {
   recordLogin(id: string | ObjectId): Promise<void>;
   updateGeo(id: string | ObjectId, geo: UserGeo): Promise<void>;
   updateStripeCustomerId(id: string | ObjectId, stripeCustomerId: string): Promise<void>;
+  setStripeCustomerIdIfAbsent(id: string | ObjectId, stripeCustomerId: string): Promise<boolean>;
   findByStripeCustomerId(stripeCustomerId: string): Promise<UserDocument | null>;
   updateBilling(id: string | ObjectId, billing: UserBilling): Promise<void>;
   updateAgeVerification(id: string | ObjectId, ageVerification: UserAgeVerification): Promise<void>;
@@ -363,6 +364,27 @@ export class UserRepository extends BaseRepository<UserDocument> implements IUse
         },
       },
     );
+  }
+
+  /**
+   * Atomically sets the Stripe customer ID only if one is not already present.
+   * Returns true if the write applied, false if the field was already set.
+   */
+  async setStripeCustomerIdIfAbsent(
+    id: string | ObjectId,
+    stripeCustomerId: string,
+  ): Promise<boolean> {
+    const objectId = this.toObjectId(id);
+    const result = await this.collection.updateOne(
+      { _id: objectId, stripeCustomerId: { $exists: false } },
+      {
+        $set: {
+          stripeCustomerId,
+          updatedAt: new Date(),
+        },
+      },
+    );
+    return result.modifiedCount === 1;
   }
 
   /**

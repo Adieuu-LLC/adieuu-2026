@@ -132,7 +132,7 @@ export async function enforceOfacBan(
   category: 'ofac_sanctioned' | 'ofac_self_attestation',
   ipHash: string,
   countryCode?: string,
-): Promise<{ reason: string; countryCode?: string }> {
+): Promise<{ reason: string; countryCode?: string } | null> {
   let reason = ACCOUNT_MODERATION_PRESETS[category];
   let storedCountryCode: string | undefined;
 
@@ -140,8 +140,10 @@ export async function enforceOfacBan(
     const normalizedCode = countryCode.trim().toUpperCase();
     const repo = getSanctionedCountryRepository();
     const country = await repo.findActiveByCountryCode(normalizedCode);
-    const countryName = country?.countryName ?? normalizedCode;
-    reason = buildOfacSanctionedBanReason(countryName);
+    if (!country) {
+      return null;
+    }
+    reason = buildOfacSanctionedBanReason(country.countryName);
     storedCountryCode = normalizedCode;
   }
 
@@ -288,11 +290,13 @@ export async function evaluateComplianceOnAccess(
   if (countryCode && (await isSanctionedCountry(countryCode))) {
     const ipHash = hashIpForGeo(ip);
     const ban = await enforceOfacBan(currentUser, 'ofac_sanctioned', ipHash, countryCode);
-    return {
-      action: 'ofac_banned',
-      category: 'ofac_sanctioned',
-      reason: ban.reason,
-    };
+    if (ban) {
+      return {
+        action: 'ofac_banned',
+        category: 'ofac_sanctioned',
+        reason: ban.reason,
+      };
+    }
   }
 
   if (currentUser.geo?.isAbuser) {

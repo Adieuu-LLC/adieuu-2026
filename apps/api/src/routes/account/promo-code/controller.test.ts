@@ -188,19 +188,20 @@ describe('promo-code controller', () => {
     expect(mockFindById).not.toHaveBeenCalled();
   });
 
-  test('returns internal when subscription summary fails for a non-stripe reason', async () => {
+  test('returns success with fallback summary when subscription summary fails for a non-stripe reason', async () => {
     mockGetSubscriptionSummary.mockResolvedValueOnce({
       ok: false,
       reason: 'user_not_found',
     });
+    mockFindById.mockResolvedValueOnce(null);
 
     const result = await redeemPromoCodeForUser('user-1', 'welcome-access');
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe('internal');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.subscriptionStatus.activeSubscriptions).toEqual([]);
+      expect(result.data.subscriptionStatus.hasStripeCustomer).toBe(false);
     }
-    expect(mockFindById).not.toHaveBeenCalled();
   });
 
   test('builds subscription status from user when stripe is disabled', async () => {
@@ -224,7 +225,7 @@ describe('promo-code controller', () => {
     expect(mockResolveEffectiveAccess).toHaveBeenCalledWith(user);
   });
 
-  test('returns internal when stripe is disabled and user cannot be loaded', async () => {
+  test('returns success with empty fallback when stripe is disabled and user cannot be loaded', async () => {
     mockGetSubscriptionSummary.mockResolvedValueOnce({
       ok: false,
       reason: 'stripe_disabled',
@@ -233,9 +234,11 @@ describe('promo-code controller', () => {
 
     const result = await redeemPromoCodeForUser('missing-user', 'welcome-access');
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.reason).toBe('internal');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.subscriptionStatus.activeSubscriptions).toEqual([]);
+      expect(result.data.subscriptionStatus.entitlements).toEqual([]);
+      expect(result.data.subscriptionStatus.hasStripeCustomer).toBe(false);
     }
   });
 });

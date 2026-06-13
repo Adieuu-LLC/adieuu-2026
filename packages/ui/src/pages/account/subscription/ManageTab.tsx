@@ -95,7 +95,7 @@ export function ManageTab({
     const state = location.state as { scrollToPromo?: boolean } | null;
     if (!state?.scrollToPromo) return;
 
-    routerNavigate(location.pathname, { replace: true, state: {} });
+    routerNavigate(location.pathname + location.search + location.hash, { replace: true, state: {} });
 
     const raf = requestAnimationFrame(() => {
       document.getElementById(PROMO_CODE_CARD_ID)?.scrollIntoView({
@@ -104,7 +104,7 @@ export function ManageTab({
       });
     });
     return () => cancelAnimationFrame(raf);
-  }, [location.state, location.pathname, routerNavigate]);
+  }, [location.state, location.pathname, location.search, location.hash, routerNavigate]);
 
   const currentTierKey = hasFounder
     ? 'founder'

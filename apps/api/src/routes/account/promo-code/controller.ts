@@ -9,6 +9,7 @@ import {
   getSubscriptionSummary,
   type SubscriptionSummaryPayload,
 } from '../subscription/controller';
+import elog from '../../../utils/adieuuLogger';
 
 export type RedeemPromoCodeResponseResult =
   | {
@@ -24,19 +25,41 @@ export type RedeemPromoCodeResponseResult =
 
 async function buildSubscriptionSummaryPayload(
   userId: string,
-): Promise<SubscriptionSummaryPayload | null> {
-  const summary = await getSubscriptionSummary(userId);
-  if (summary.ok) {
-    return summary.data;
-  }
+): Promise<SubscriptionSummaryPayload> {
+  try {
+    const summary = await getSubscriptionSummary(userId);
+    if (summary.ok) {
+      return summary.data;
+    }
 
-  if (summary.reason !== 'stripe_disabled') {
-    return null;
+    if (summary.reason !== 'stripe_disabled') {
+      elog.warn('Subscription summary unavailable after promo redemption, building fallback', {
+        userId,
+        reason: summary.reason,
+      });
+    }
+  } catch (err) {
+    elog.error('Subscription summary threw after promo redemption, building fallback', {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   const userRepo = getUserRepository();
   const user = await userRepo.findById(userId);
-  if (!user) return null;
+  if (!user) {
+    return {
+      activeSubscriptions: [],
+      entitlements: [],
+      isLifetime: false,
+      status: null,
+      currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+      cancelAt: null,
+      hasStripeCustomer: false,
+      sponsoredExpiry: null,
+    };
+  }
 
   const resolved = resolveEffectiveAccess(user);
   const hasGifted = resolved.entitlements.includes('gifted');
@@ -74,9 +97,6 @@ export async function redeemPromoCodeForUser(
   }
 
   const subscriptionStatus = await buildSubscriptionSummaryPayload(userId);
-  if (!subscriptionStatus) {
-    return { ok: false, reason: 'internal' };
-  }
 
   return {
     ok: true,

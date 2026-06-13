@@ -15,6 +15,7 @@ import {
   deletePromoCodeAdmin,
   listPromoRedemptionsAdmin,
 } from '../../services/promo-code.service';
+import elog from '../../utils/adieuuLogger';
 
 const router = new Router();
 
@@ -47,15 +48,22 @@ router.post('/admin/promo-codes', async (ctx) => {
     return ctx.errors.internal();
   }
 
-  const auditRepo = getAuditLogRepository();
-  await auditRepo.create({
-    action: 'admin_create_promo_code',
-    ipHash: 'admin',
-    metadata: {
+  try {
+    const auditRepo = getAuditLogRepository();
+    await auditRepo.create({
+      action: 'admin_create_promo_code',
+      ipHash: 'admin',
+      metadata: {
+        shortcode: result.data.shortcode,
+        adminIdentityId: auth.session.identityId,
+      },
+    });
+  } catch (auditErr) {
+    elog.error('Audit log write failed for admin_create_promo_code', {
       shortcode: result.data.shortcode,
-      adminIdentityId: auth.session.identityId,
-    },
-  });
+      error: auditErr instanceof Error ? auditErr.message : String(auditErr),
+    });
+  }
 
   return success(result.data);
 });
@@ -74,15 +82,22 @@ router.put('/admin/promo-codes/:shortcode', async (ctx) => {
     return ctx.errors.internal();
   }
 
-  const auditRepo = getAuditLogRepository();
-  await auditRepo.create({
-    action: 'admin_update_promo_code',
-    ipHash: 'admin',
-    metadata: {
+  try {
+    const auditRepo = getAuditLogRepository();
+    await auditRepo.create({
+      action: 'admin_update_promo_code',
+      ipHash: 'admin',
+      metadata: {
+        shortcode: result.data.shortcode,
+        adminIdentityId: auth.session.identityId,
+      },
+    });
+  } catch (auditErr) {
+    elog.error('Audit log write failed for admin_update_promo_code', {
       shortcode: result.data.shortcode,
-      adminIdentityId: auth.session.identityId,
-    },
-  });
+      error: auditErr instanceof Error ? auditErr.message : String(auditErr),
+    });
+  }
 
   return success(result.data);
 });
@@ -101,15 +116,22 @@ router.delete('/admin/promo-codes/:shortcode', async (ctx) => {
     return ctx.errors.internal();
   }
 
-  const auditRepo = getAuditLogRepository();
-  await auditRepo.create({
-    action: 'admin_delete_promo_code',
-    ipHash: 'admin',
-    metadata: {
+  try {
+    const auditRepo = getAuditLogRepository();
+    await auditRepo.create({
+      action: 'admin_delete_promo_code',
+      ipHash: 'admin',
+      metadata: {
+        shortcode,
+        adminIdentityId: auth.session.identityId,
+      },
+    });
+  } catch (auditErr) {
+    elog.error('Audit log write failed for admin_delete_promo_code', {
       shortcode,
-      adminIdentityId: auth.session.identityId,
-    },
-  });
+      error: auditErr instanceof Error ? auditErr.message : String(auditErr),
+    });
+  }
 
   return success(result.data);
 });

@@ -60,6 +60,7 @@ const userDoc = {
 
 const mockUpdateBilling = mock(async () => {});
 const mockUpdateStripeCustomerId = mock(async () => {});
+const mockSetStripeCustomerIdIfAbsent = mock(async () => true);
 
 const mockFindById = mock(async (id: string | ObjectId) => {
   const hex = typeof id === 'string' ? id : id.toHexString();
@@ -72,6 +73,7 @@ mock.module('../../repositories/user.repository', () => ({
     findById: mockFindById,
     updateBilling: mockUpdateBilling,
     updateStripeCustomerId: mockUpdateStripeCustomerId,
+    setStripeCustomerIdIfAbsent: mockSetStripeCustomerIdIfAbsent,
   }),
 }));
 
@@ -117,6 +119,7 @@ describe('applySubscriptionChange → initiateBackgroundCheck', () => {
     mockInitiateBackgroundCheck.mockClear();
     mockUpdateBilling.mockClear();
     mockUpdateStripeCustomerId.mockClear();
+    mockSetStripeCustomerIdIfAbsent.mockClear();
     mockFindById.mockClear();
     colFindOne.mockClear();
     colInsertOne.mockClear();

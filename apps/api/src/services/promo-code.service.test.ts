@@ -42,12 +42,14 @@ mock.module('../repositories/promo-code.repository', () => ({
     findByUserAndShortcode: mockFindByUserAndShortcode,
     findShortcodesByUser: mockFindShortcodesByUser,
     createRedemption: mockCreateRedemption,
+    updateStripeAction: mockUpdateStripeAction,
   }),
 }));
 
 const mockFindByUserAndShortcode = mock((): any => Promise.resolve(null));
 const mockFindShortcodesByUser = mock((): any => Promise.resolve([]));
 const mockCreateRedemption = mock((): any => Promise.resolve());
+const mockUpdateStripeAction = mock((): any => Promise.resolve());
 
 const mockWithTransaction = mock(async (fn: any) => fn({}));
 mock.module('../db/mongo', () => ({
@@ -179,6 +181,7 @@ beforeEach(() => {
   mockFindByUserAndShortcode.mockReset();
   mockFindShortcodesByUser.mockReset();
   mockCreateRedemption.mockReset();
+  mockUpdateStripeAction.mockReset();
   mockWithTransaction.mockReset();
   mockResolveEffectiveAccess.mockReset();
   mockSubscriptionsCreate.mockReset();
@@ -398,7 +401,13 @@ describe('stripe trial subscription (new users)', () => {
     expect(mockAddSubscriptionOverride).toHaveBeenCalled();
 
     const redemptionArg = (mockCreateRedemption.mock.calls as any[][])[0]![0];
-    expect(redemptionArg.stripeAction).toBe('override');
+    expect(redemptionArg.stripeAction).toBe('trial');
+    expect(mockUpdateStripeAction).toHaveBeenCalledWith(
+      USER_ID,
+      'welcome-access',
+      'override',
+      expect.objectContaining({ tier: 'access' }),
+    );
   });
 
   test('falls back to override when user has no stripeCustomerId', async () => {
@@ -504,7 +513,13 @@ describe('stripe balance credit (existing subscribers)', () => {
     expect(mockAddSubscriptionOverride).toHaveBeenCalled();
 
     const redemptionArg = (mockCreateRedemption.mock.calls as any[][])[0]![0];
-    expect(redemptionArg.stripeAction).toBe('override');
+    expect(redemptionArg.stripeAction).toBe('credit');
+    expect(mockUpdateStripeAction).toHaveBeenCalledWith(
+      USER_ID,
+      'welcome-access',
+      'override',
+      expect.objectContaining({ tier: 'access' }),
+    );
   });
 
   test('falls back to override when price has no unit_amount', async () => {

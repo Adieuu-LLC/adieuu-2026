@@ -390,6 +390,8 @@ describe('auth controller', () => {
     mockRedisGet.mockClear();
     mockRedisSet.mockClear();
     mockRedisDel.mockClear();
+    mockEvaluateComplianceOnAccess.mockClear();
+    mockTryLiftOfacSanctionedBanIfExpired.mockClear();
 
     mockIsAuthIdentifierAllowed.mockImplementation(() => Promise.resolve(true));
     mockFindByIdentifier.mockImplementation(() => Promise.resolve(null));
@@ -406,6 +408,10 @@ describe('auth controller', () => {
     mockFindByUserId.mockImplementation(() => Promise.resolve([]));
     mockFindBySessionId.mockImplementation(() => Promise.resolve(null));
     mockDestroyAllSessions.mockImplementation(() => Promise.resolve(0));
+    mockEvaluateComplianceOnAccess.mockImplementation((user: typeof mockUser) =>
+      Promise.resolve({ action: 'none', user }),
+    );
+    mockTryLiftOfacSanctionedBanIfExpired.mockImplementation(() => Promise.resolve(null));
 
     // Reset to default successful behavior
     mockCreateOtp.mockImplementation(() => Promise.resolve('123456'));
