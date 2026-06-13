@@ -91,7 +91,7 @@ export const account = {
       },
       ageVerification: {
         title: 'Age Verification',
-        subtitle: 'Your age verification status for compliance with applicable regulations.',
+        subtitle: 'Where required, your age verification status for compliance with applicable regulations.',
         statusNotRequired: 'Not required',
         statusRequired: 'Required',
         statusPending: 'Pending',
@@ -118,7 +118,7 @@ export const account = {
         approvalMethod: 'Verified via {{method}}',
       },
       compliance: {
-        title: 'Age Verification & Regularly Info',
+        title: 'Age Verification & Regulatory Info',
         subtitle:
           "Below is a summary of public age-assurance and related rules that apply to your area (based on IP). We're the only chat platform today that fully separates your private account data (email, age verification, etc) from your Aliases and activity - this allows us to fully comply with your local law, without compromising on your privacy.",
         empty: "We currently have no age verification or other regulatory requirements recorded for your jurisdiction. You may use Adieuu where our terms and your local law allow.",

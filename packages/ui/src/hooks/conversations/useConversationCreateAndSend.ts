@@ -12,6 +12,7 @@ import {
   encryptGroupName,
   type RecipientKeys,
 } from '../../services/conversationCryptoService';
+import { markFirstMessageSent } from '../../constants/onboarding';
 import type {
   ConversationMessagesState,
   DecryptedConversation,
@@ -264,6 +265,8 @@ export function useConversationCreateAndSend(params: ConversationCreateAndSendPa
               return bTime - aTime;
             })
           );
+
+          markFirstMessageSent();
 
           return resp.data;
         }
