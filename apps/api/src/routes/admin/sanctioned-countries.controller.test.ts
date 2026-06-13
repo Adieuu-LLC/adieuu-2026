@@ -1,4 +1,13 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, mock, test } from 'bun:test';
+
+const mockUpsertSanctionedCountryForAdmin = mock(() => Promise.resolve(null));
+
+mock.module('../../services/compliance/sanctioned-countries-admin.service', () => ({
+  listSanctionedCountriesForAdmin: mock(() => Promise.resolve([])),
+  runSanctionedCountriesSeed: mock(() => Promise.resolve({ upserted: 0, deactivated: 0 })),
+  upsertSanctionedCountryForAdmin: mockUpsertSanctionedCountryForAdmin,
+}));
+
 import {
   upsertSanctionedCountryAdminResult,
   runSanctionedCountriesSeedAdminResult,
@@ -22,6 +31,20 @@ describe('upsertSanctionedCountryAdminResult', () => {
       active: true,
     });
     expect(result.ok).toBe(false);
+  });
+
+  test('returns upsert_failed when service upsert returns null', async () => {
+    mockUpsertSanctionedCountryForAdmin.mockResolvedValueOnce(null);
+
+    const result = await upsertSanctionedCountryAdminResult('CU', {
+      countryName: 'Cuba',
+      active: true,
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('upsert_failed');
+    }
   });
 });
 

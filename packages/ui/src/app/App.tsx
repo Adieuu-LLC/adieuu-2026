@@ -48,6 +48,7 @@ import { UpdateOverlay } from '../components/UpdateOverlay';
 import { AchievementListener } from '../components/AchievementListener';
 import { AppPlainTextContextMenu } from '../components/AppPlainTextContextMenu';
 import { UpdateProvider } from '../hooks/useUpdateContext';
+import { ToasterOutlet } from '../components/Toast';
 import { IdentityModalProvider } from '../hooks/useIdentityModal';
 import { CallSessionProvider } from '../hooks/useCallSession';
 import { GlobalCallEventsProvider } from '../hooks/useGlobalCallEvents';
@@ -249,6 +250,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
 export function App() {
   return (
     <UpdateProvider>
+    <ToasterOutlet />
     <Routes>
       {/* Auth Routes */}
       <Route

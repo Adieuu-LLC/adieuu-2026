@@ -55,7 +55,7 @@ export async function upsertSanctionedCountryAdminResult(
   });
 
   if (!country) {
-    return { ok: false as const, reason: 'validation_failed' as const };
+    return { ok: false as const, reason: 'upsert_failed' as const };
   }
 
   return { ok: true as const, country };

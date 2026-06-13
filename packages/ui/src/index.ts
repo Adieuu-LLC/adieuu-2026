@@ -146,7 +146,7 @@ export { TourRoot, useTour, createTourSteps } from './components/Tour';
 export { Avatar } from './components/Avatar';
 export { Tooltip } from './components/Tooltip';
 export { InfoTip, INFOTIP_CHAR_THRESHOLD } from './components/InfoTip';
-export { ToastProvider, useToast } from './components/Toast';
+export { ToastProvider, ToasterOutlet, useToast } from './components/Toast';
 export { SidebarSearch } from './components/SidebarSearch';
 export { NotificationSoundSelect } from './components/NotificationSoundSelect';
 export type { NotificationSoundSelectProps, NotificationSoundSelectLabels } from './components/NotificationSoundSelect';

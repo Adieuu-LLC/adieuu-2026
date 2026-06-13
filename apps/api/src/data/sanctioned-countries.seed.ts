@@ -28,14 +28,8 @@ export const SANCTIONED_COUNTRY_SEED: SeedRow[] = [
     active: true,
   },
   {
-    countryCode: 'BA',
-    countryName: 'Balkans',
-    program: 'OFAC',
-    active: true,
-  },
-  {
-    countryCode: 'BU',
-    countryName: 'Burma',
+    countryCode: 'MM',
+    countryName: 'Myanmar',
     program: 'OFAC',
     active: true,
   },
