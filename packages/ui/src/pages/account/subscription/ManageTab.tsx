@@ -260,10 +260,10 @@ export function ManageTab({
         </Card>
       </BorderGlow>
 
-      <div className="subscription-manage-plans subscription-plans">
-        {!hasPaidPlan && !identityMode && (
+      <div className="subscription-manage-plans subscription-plans" style={{ paddingTop: '20px' }}>
+        {/* {!hasPaidPlan && !identityMode && (
           <p className="subscription-read-only-plans-intro">{t('account.subscription.manage.readOnlyPlansIntro')}</p>
-        )}
+        )} */}
         <div className="subscription-manage-plans-toolbar">
           <h2 id={ANNUAL_PLANS_HEADING_ID} className="subscription-section-heading">
             {t('account.subscription.sections.annual')}

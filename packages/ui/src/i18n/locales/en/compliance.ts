@@ -78,7 +78,7 @@ export const compliance = {
     methods: 'Compatible verification methods (industry)',
     notes: 'Notes',
     regulatoryBody: 'Regulator',
-    empty: 'No matching regulatory rows are loaded for this jurisdiction. You can still use Adieuu where our terms and your local law allow.',
+    empty: 'No matching regulatory rows are loaded for this jurisdiction. You can use Adieuu where our terms and your local law allow.',
     catalogEmpty: 'No jurisdictions requiring verification are listed at this time.',
     loadError: 'Unable to load jurisdiction requirements. Please try again later.',
     filterPlaceholder: 'Filter by name or code',

@@ -118,10 +118,10 @@ export const account = {
         approvalMethod: 'Verified via {{method}}',
       },
       compliance: {
-        title: 'Regulatory context',
+        title: 'Age Verification & Regularly Info',
         subtitle:
-          'Summary of public age-assurance and related rules that apply to your area. Age checks are tied to your account, *not* your Aliases (which remain anonymous and separate from your account data)',
-        empty: 'No matching regulatory rows are loaded for this jurisdiction. You can still use Adieuu where our terms and your local law allow.',
+          "Below is a summary of public age-assurance and related rules that apply to your area (based on IP). We're the only chat platform today that fully separates your private account data (email, age verification, etc) from your Aliases and activity - this allows us to fully comply with your local law, without compromising on your privacy.",
+        empty: "We currently have no age verification or other regulatory requirements recorded for your jurisdiction. You may use Adieuu where our terms and your local law allow.",
       },
     },
 
@@ -395,11 +395,11 @@ export const account = {
         currentPlanLabel: 'Your current plan',
         billingPeriodAnnual: 'Annual',
         noPlan:
-          'You do not have a paid subscription. Your account is read-only until you subscribe — you can browse, but you cannot post or use paid features.',
+          'Without a paid plan, your account stays read-only. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bots. Subscribe below to unlock posting and full features.',
         sponsorshipCta:
-          'Cannot afford a plan? Visit the Sponsorships tab to request sponsorship from the community.',
+          "Can't afford a plan? All good! Visit the Sponsorships tab to request sponsorship from the community.",
         readOnlyPlansIntro:
-          'Without a paid plan, your account stays read-only. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bad bots. Win-Win! Subscribe below to unlock posting and full features.',
+          'Without a paid plan, your account stays read-only. Paying for a subscription helps us cover costs without having to rely on ads, data collection, etc. It also makes it more expensive for bots.Subscribe below to unlock posting and full features.',
         stripeBillingIntro:
           'Payments and invoices for your subscription are processed through Stripe.',
         giftedSubscription:
@@ -426,7 +426,7 @@ export const account = {
       // Tier names and descriptions
       tiers: {
         unpaid: {
-          name: 'No paid plan',
+          name: 'Public Read-Only',
           description: 'Read-only until you subscribe. You can browse public spaces, but posting and paid features stay locked.',
         },
         access: {
